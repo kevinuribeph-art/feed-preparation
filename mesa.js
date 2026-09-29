@@ -1,4 +1,4 @@
-// Mesa de feed — Uribe Visuals · v3.0
+// Mesa de feed — Uribe Visuals · v3.1
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -7,12 +7,12 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.0';
+  M.version = '3.1';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
   const MAX_UPLOAD = 20 * 1024 * 1024 - 256 * 1024;      // Notion single-part limit (20 MiB) with margin
-  const UPLOAD_TIMEOUT = 180000;                         // ms per photo
+  M.cfg = Object.assign({ uploadIdleMs: 120000, uploadConc: 1 }, M.cfg || {});   // idle = no bytes sent/received
   const UNDO_MS = 6000;
   const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
@@ -27,7 +27,7 @@
   M.pastErrors = {};
   M.uploads = M.uploads || {};         // fileId -> {state,...}
   M.out = M.out || {};                 // rendered preview Blobs
-  M._ctrl = M._ctrl || {};             // fileId -> AbortController of the running upload
+  M._ctrl = M._ctrl || {};             // fileId -> controller of the running upload
   M._gen = M._gen || {};               // fileId -> generation of the latest upload request
 
   let S = null;          // open board (month of one client), persisted
@@ -41,8 +41,23 @@
   let cur = { slot: null, idx: 0 };
   let importing = 0;     // photos being prepared
   let UP = { total: 0, done: 0 };
-  let busyText = { imp: null, up: null };
+  let busyText = { imp: null, up: null, sel: null };
   let downOnBackdrop = false;
+  const TAB = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  let locked = false;    // another tab/window took over: this one stops saving
+  let bc = null;
+  try { bc = new BroadcastChannel('mesa-feed'); } catch (e) { bc = null; }
+  if (bc) bc.onmessage = e => { if (e.data && e.data.t === 'claim' && e.data.id !== TAB) lockHere(); };
+  function claim() { locked = false; if (bc) { try { bc.postMessage({ t: 'claim', id: TAB }); } catch (e) { /* */ } } if (root) { const o = root.querySelector('.lock'); if (o) o.remove(); } }
+  async function lockHere() {
+    if (locked) return;
+    try { await flushNow(); } catch (e) { /* */ }
+    locked = true;
+    if (!shellReady()) return;
+    const o = document.createElement('div'); o.className = 'lock';
+    o.innerHTML = '<div class="card dlg"><h3>La mesa está abierta en otra pestaña</h3><p>Para no pisar cambios, esta se ha pausado. Lo último que hiciste aquí está guardado.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="takeover">Usar aquí</button></div></div></div>';
+    root.append(o);
+  }
 
   // ---------- IndexedDB ----------
   let dbp = null, dbConn = null;
@@ -52,7 +67,7 @@
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; }; res(d); };
       r.onerror = () => { dbp = null; rej(r.error); };
-      r.onblocked = () => toast('Cierra las otras pestañas de la mesa para terminar de actualizarla.');
+      r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady()) toast(m); else if (document.body) document.body.textContent = m; };
     });
     return dbp;
   }
@@ -201,7 +216,7 @@
   // ---------- persistence ----------
   let saveTimer = null;
   function save() {
-    if (!S) return;
+    if (!S || locked) return;
     clearTimeout(saveTimer);
     setSave('Guardando…');
     const B = S;
@@ -214,7 +229,7 @@
   async function flushNow() {
     clearTimeout(saveTimer); saveTimer = null;
     clearTimeout(noteTimer); noteTimer = null;
-    if (!S) return null;
+    if (!S || locked) return null;
     S.savedAt = new Date().toISOString();
     await idbPut('boards', S.key, JSON.parse(JSON.stringify(S)));
     setSave('Guardado');
@@ -225,6 +240,8 @@
   M._dispose = async () => {
     try { await flushNow(); } catch (e) { /* */ }
     S = null; PB = null;
+    if (bc) { try { bc.close(); } catch (e) { /* */ } bc = null; }
+    if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
     if (dbConn) { try { dbConn.close(); } catch (e) { /* */ } }
     dbp = null; dbConn = null;
   };
@@ -302,7 +319,7 @@
     if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
     const B = S;
     const files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
-    const got = [];
+    const got = [], fresh = [];
     importing += files.length;
     try {
       let i = 0;
@@ -327,12 +344,18 @@
           M.files[id] = { name: f.name, size: f.size, type, w, h, thumbUrl: URL.createObjectURL(thumb) };
           M.thumbBlobs[id] = thumb;
           delete M.blobs[id];
-          B.tray.push(id);
+          fresh.push(id);
           got.push(id);
-        } catch (e) { toast(`${f.name}: no se pudo leer.`); }
+        } catch (e) {
+          if (e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)))) { toast('El navegador no tiene espacio para más fotos. Quita fotos que ya no uses o termina y sube un mes.'); break; }
+          toast(`${f.name}: no se pudo leer.`);
+        }
       }
-    } finally { importing -= files.length; setBusy('imp', null); }
-    if (B !== S) return got;
+    } finally {
+      if (fresh.length) B.tray.unshift(...fresh);          // newest imports first, in name order
+      importing -= files.length; setBusy('imp', null);
+    }
+    if (B !== S) { if (fresh.length && !locked) { try { await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); } catch (e) { /* */ } } return got; }
     if (targetSlotId && got.length) {
       const s = slot(targetSlotId);
       if (s && isCarousel(s.type)) got.forEach(id => place(targetSlotId, id, true));
@@ -354,7 +377,11 @@
     if (other) other.photos = other.photos.filter(x => x !== fileId);
     takeFromTray(fileId);
     if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }
-    else if (s.type === 'Foto') { s.photos = [fileId, ...s.photos.filter(x => x !== fileId)]; }
+    else if (s.type === 'Foto') {
+      const prev = s.photos[0];
+      s.photos = [fileId, ...s.photos.filter(x => x !== fileId)];
+      if (!silent && prev && prev !== fileId) toast('Nueva portada. La anterior queda como opción.', { action: 'Devolverla a la bandeja', onAction: () => { const k = s.photos.indexOf(prev); if (S && slot(slotId) === s && k > 0) unassign(slotId, k); } });
+    }
     else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId)); s.photos = [fileId]; }
     if (!silent) changed();
   }
@@ -373,14 +400,23 @@
     fixSingle(A); fixSingle(B);
     changed();
   }
-  function unassign(slotId, k) {
+  function unassign(slotId, k, undoable) {
     const s = slot(slotId); if (!s) return;
     if (k != null && (k < 0 || k >= s.photos.length)) return;
     const back = k == null ? s.photos.slice() : [s.photos[k]];
+    if (!back.length) return;
+    const before = { photos: s.photos.slice(), fmt: s.fmt }, B = S;
     if (back.includes(sel)) sel = null;
     s.photos = s.photos.filter(x => !back.includes(x));
     S.tray.unshift(...back);
     changed();
+    if (undoable) toast(back.length > 1 ? `${back.length} fotos vuelven a la bandeja.` : 'La foto vuelve a la bandeja.', { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
+      if (S !== B || !slot(slotId) || !back.every(id => S.tray.includes(id))) return;
+      S.tray = S.tray.filter(id => !back.includes(id));
+      S.slots.forEach(o => { if (o !== s) o.photos = o.photos.filter(id => !before.photos.includes(id)); });
+      s.photos = before.photos.slice(); if (before.fmt) s.fmt = before.fmt;
+      changed();
+    } });
   }
   function setCover(slotId, k) {
     const s = slot(slotId); if (!s || k <= 0 || k >= s.photos.length) return;
@@ -411,6 +447,7 @@
     toast(`«${name}» quitada de la mesa.`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
       clearTimeout(t);
       if (S === B && !refsOf(S).has(fileId) && M.files[fileId]) { S.tray.unshift(fileId); changed(); }
+      else deleteIfUnused(fileId);
     } });
   }
   async function deleteIfUnused(fileId) {
@@ -428,8 +465,8 @@
   // From the mesa's own board of that month when it exists; otherwise the posts Claude loaded from Notion.
   function pastList() {
     if (!S) return [];
-    if (PB) return PB.slots.map(s => ({ id: 'pb:' + s.id, name: s.name, type: s.type, date: s.date, fid: publishList(s)[0] || null, slot: s })).sort((a, b) => ts(b.date) - ts(a.date));
-    return S.past.slice().sort((a, b) => ts(b.date) - ts(a.date));
+    if (PB && PB.slots.length) return PB.slots.map(s => ({ id: 'pb:' + s.id, nid: s.id, name: s.name, type: s.type, date: s.date, fid: publishList(s)[0] || null, slot: s })).sort((a, b) => ts(b.date) - ts(a.date));
+    return S.past.map(p => ({ ...p, nid: p.id })).sort((a, b) => ts(b.date) - ts(a.date));
   }
 
   // ---------- rendering ----------
@@ -438,7 +475,7 @@
 #mesa *{box-sizing:border-box}
 #mesa button{font:inherit;color:inherit;cursor:pointer}
 #mesa :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-#mesa .top{flex:none;display:flex;align-items:stretch;gap:6px;height:46px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+#mesa .appbar{flex:none;display:flex;align-items:stretch;gap:6px;height:46px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
 #mesa .brand{flex:none;display:flex;align-items:center;gap:7px;font-weight:700;font-size:13.5px;padding-right:12px;border-right:1px solid var(--line2);white-space:nowrap}
 #mesa .brand svg{width:18px;height:18px}
 #mesa .tabs{flex:1;min-width:0;display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none}
@@ -446,7 +483,7 @@
 #mesa .tab{flex:none;border:0;background:none;padding:0 13px;font-size:13.5px;color:var(--mute);white-space:nowrap;border-bottom:2px solid transparent}
 #mesa .tab:hover{color:var(--ink)}
 #mesa .tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
-#mesa .tab.add{color:var(--acc);font-weight:600}
+#mesa .tab.add{flex:none;color:var(--acc);font-weight:600;border:0;background:none;padding:0 12px;font-size:13.5px;white-space:nowrap}
 #mesa .save{flex:none;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap}#mesa .save.err{color:var(--red)}
 #mesa .bar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
 #mesa .bar:empty{display:none}
@@ -456,7 +493,7 @@
 #mesa .ibtn{flex:none;border:0;background:none;width:30px;height:30px;border-radius:50%;color:var(--mute);font-size:17px;line-height:30px;padding:0}
 #mesa .ibtn:hover{background:var(--line2);color:var(--ink)}
 #mesa .months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-#mesa .mchip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 11px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+#mesa .mchip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;min-height:32px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
 #mesa .mchip i{font-style:normal;color:var(--mute);font-size:11.5px}
 #mesa .mchip:hover{border-color:#bdbdbd}
 #mesa .mchip.on{background:var(--ink);border-color:var(--ink);color:#fff}#mesa .mchip.on i{color:#cfcfcf}
@@ -496,9 +533,10 @@
 #mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff}
 #mesa .st.ok{background:var(--ok)}#mesa .st.chg{background:var(--chg)}
 #mesa .cnt{position:absolute;top:30px;right:7px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px}
-#mesa .cnt.top{top:7px}
+#mesa .cnt.tr{top:7px}
 #mesa .cell.past{cursor:default}
 #mesa .bd{position:absolute;inset:0;pointer-events:none;z-index:2}
+#mesa .pmonth{position:absolute;top:8px;left:8px;z-index:3;font-size:10.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:2px 8px;pointer-events:none}
 #mesa .pdate{position:absolute;left:6px;bottom:5px;z-index:3;font-size:10px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7);pointer-events:none}
 #mesa .cell.past.nophoto .ph b{color:#8e8e8e}
 #mesa .cell.over{outline:3px solid var(--acc) !important;outline-offset:-3px !important}
@@ -521,7 +559,8 @@
 #mesa .titem{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#efefef;cursor:grab}
 #mesa .titem img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 #mesa .titem.sel{outline:3px solid var(--acc);outline-offset:-3px}
-#mesa .titem .x{position:absolute;top:4px;right:4px;width:22px;height:22px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:22px;padding:0;display:none}
+#mesa .titem .x{position:absolute;top:4px;right:4px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:28px;padding:0;display:none}
+#mesa .titem .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
 #mesa .titem:hover .x,#mesa .titem .x:focus-visible{display:block}
 #mesa .tname{position:absolute;left:0;right:0;bottom:0;padding:10px 5px 3px;font-size:9.5px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.6));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 #mesa .hint{color:var(--mute);font-size:12px;margin:12px 2px 0;line-height:1.5}
@@ -557,22 +596,25 @@
 #mesa .stage{position:relative;overflow:hidden;background:#111;touch-action:none;cursor:grab;user-select:none;width:300px;height:375px}
 #mesa .stage.panning{cursor:grabbing}
 #mesa .stage img.big{position:absolute;max-width:none;pointer-events:none;-webkit-user-drag:none}
-#mesa .nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);font-size:18px;line-height:28px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
+#mesa .stage.fixed{cursor:default}
+#mesa .gguide{position:absolute;z-index:1;pointer-events:none;outline:1.5px dashed rgba(255,255,255,.95);box-shadow:0 0 0 9999px rgba(0,0,0,.22)}
+#mesa .gguide span{position:absolute;left:6px;top:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.5);border-radius:4px;padding:1px 5px}
+#mesa .nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);font-size:20px;line-height:34px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
 #mesa .nav.prev{left:8px}#mesa .nav.next{right:8px}#mesa .nav[hidden]{display:none}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}#mesa .dots i.on{background:#fff}
 #mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
 #mesa .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
-#mesa .seg button{border:0;background:none;padding:5px 10px;font-size:12.5px}#mesa .seg button.on{background:var(--ink);color:#fff}
+#mesa .seg button{border:0;background:none;padding:5px 11px;min-height:32px;font-size:12.5px}#mesa .seg button.on{background:var(--ink);color:#fff}
 #mesa .zoom{display:flex;align-items:center;gap:6px;color:var(--mute)}#mesa .zoom input{width:100px}
-#mesa .lnk{border:0;background:none;color:var(--acc) !important;font-size:12.5px;padding:0}
+#mesa .lnk{border:0;background:none;color:var(--acc) !important;font-size:12.5px;padding:8px 4px}
 #mesa .strip{width:100%;display:flex;gap:6px;overflow-x:auto;padding:2px}
 #mesa .strip .th{position:relative;flex:0 0 58px;height:58px;border:0;padding:0;border-radius:6px;overflow:hidden;background:#efefef;outline:2px solid transparent;outline-offset:-2px}
 #mesa .strip .th.on{outline-color:var(--acc)}
 #mesa .strip .th img{width:100%;height:100%;object-fit:cover;display:block}
 #mesa .strip .th span{position:absolute;left:0;right:0;bottom:0;font-size:9px;color:#fff;background:rgba(0,0,0,.55);text-align:center;line-height:14px}
 #mesa .pacts{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-#mesa .pacts button{border:1px solid var(--line);background:var(--panel);border-radius:6px;font-size:12px;padding:4px 9px}
+#mesa .pacts button{border:1px solid var(--line);background:var(--panel);border-radius:6px;font-size:12px;padding:6px 10px;min-height:32px}
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{padding:12px 14px;display:flex;flex-direction:column;min-width:0}
@@ -580,8 +622,9 @@
 #mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
 #mesa .toasts{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
 #mesa .toast{pointer-events:auto;background:var(--ink);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:8px;max-width:90vw;display:flex;gap:12px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
-#mesa .toast button{border:0;background:none;color:#7cc4fa;font-weight:600;font-size:12.5px;padding:0}
-#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .ph>*,#mesa.client .legend,#mesa.client .tray{display:none}
+#mesa .toast button{border:0;background:none;color:#7cc4fa;font-weight:600;font-size:12.5px;padding:4px 2px;white-space:nowrap}
+#mesa .lock{position:absolute;inset:0;z-index:20;background:rgba(250,250,250,.94);display:flex;align-items:center;justify-content:center;padding:16px}
+#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ph>*,#mesa.client .legend,#mesa.client .tray{display:none}
 #mesa.client .cell.empty::before{display:none}
 #mesa.client .cell.empty{background:#efefef}
 #mesa.client .bd{display:none}
@@ -589,15 +632,21 @@
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}}
 @media (max-width:720px){
 #mesa .brand span{display:none}
+#mesa .bar{padding:8px 10px;gap:6px 10px}
+#mesa .av,#mesa .who span{display:none}
+#mesa .who b{font-size:14px}
+#mesa .stats{font-size:12px;gap:2px 10px}
+#mesa .legend{position:static;padding:6px 10px}
 #mesa .main{flex-direction:column}
 #mesa .feed{width:100%;flex:1;border-right:0;border-bottom:1px solid var(--line)}
 #mesa .grid{max-width:480px;margin:0 auto}
-#mesa .tray{flex:0 0 196px;overflow-y:hidden;overflow-x:auto}
-#mesa .trayhead{position:static;padding:8px 10px}
-#mesa .tbody{padding:0 10px 10px}
+#mesa .tray{flex:0 0 156px;overflow:hidden;display:flex;flex-direction:column}
+#mesa .trayhead{position:static;padding:6px 10px}
+#mesa .trayhead .btn{padding:6px 10px}
+#mesa .tbody{flex:1;min-height:0;padding:0 10px 8px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,#000 90%,transparent);mask-image:linear-gradient(to right,#000 90%,transparent)}
 #mesa .drop,#mesa .hint{display:none}
-#mesa .tray.isempty .drop{display:block;padding:30px 12px}
-#mesa .tgrid{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:96px}
+#mesa .tray.isempty .drop{display:block;padding:18px 12px;margin:0}
+#mesa .tgrid{height:100%;grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:78px}
 }`;
 
   function buildShell() {
@@ -607,7 +656,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="top"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -626,8 +675,9 @@
   function flushRender() { if (pendingRender) render(); }
 
   function renderTabs() {
-    root.querySelector('.tabs').innerHTML = CL.map(c => `<button class="tab${c.id === curClient ? ' on' : ''}" data-act="client" data-id="${esc(c.id)}"${c.id === curClient ? ' aria-current="page"' : ''}>${esc(c.name)}</button>`).join('')
-      + '<button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button>';
+    const nav = root.querySelector('.tabs');
+    nav.innerHTML = CL.map(c => `<button class="tab${c.id === curClient ? ' on' : ''}" data-act="client" data-id="${esc(c.id)}"${c.id === curClient ? ' aria-current="page"' : ''}>${esc(c.name)}</button>`).join('');
+    const on = nav.querySelector('.tab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function counts() {
@@ -639,6 +689,7 @@
     const bar = root.querySelector('.bar');
     const c = CL.find(x => x.id === curClient);
     root.classList.toggle('picking', !!sel);
+    setBusy('sel', sel && M.files[sel] ? `Pulsa una casilla para colocar «${M.files[sel].name}» · Esc cancela` : null);
     if (!c) { bar.innerHTML = ''; return; }
     const months = MB.map(b => {
       const live = S && b.key === S.key ? counts() : null;
@@ -648,7 +699,8 @@
     let stats = '';
     if (S) {
       const k = counts();
-      stats = `<div class="stats"><span><b>${k.filled}</b>/${k.n} con foto</span><span><b>${k.notes}</b> notas</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c"><b class="c">${k.chg}</b> cambiadas</span>` : ''}</div>`;
+      const pl = (n, a, b) => n === 1 ? a : b;
+      stats = `<div class="stats"><span><b>${k.filled}</b>/${k.n} con foto</span><span><b>${k.notes}</b> ${pl(k.notes, 'nota', 'notas')}</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre o nota): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}</div>`;
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
       + `<div class="months">${months}</div><div class="spacer"></div>${stats}`
@@ -658,7 +710,8 @@
   let mainMode = null;   // 'board:<key>' | 'empty-client' | 'no-clients'
   function renderMain() {
     const main = root.querySelector('.main');
-    const mode = S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient : 'no-clients';
+    const cn = (CL.find(x => x.id === curClient) || {}).name || '';
+    const mode = S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
       mainMode = mode;
       if (!S) root.classList.remove('client');
@@ -669,7 +722,7 @@
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>';
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
-        main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : '')}: aún no hay ningún mes en la mesa</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga noviembre de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
+        main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga ${esc(nextMonthName())} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
       } else {
         main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>Crea tu primer cliente</h3>Cada cliente tiene su pestaña, con sus meses.<br><br><button class="btn" data-act="newclient">+ Nuevo cliente</button></div></div>`;
       }
@@ -677,13 +730,14 @@
     if (S) { renderFeed(); renderTray(); }
   }
 
+  function nextMonthName() { const m = monthOf(new Date().toISOString()); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }
   function slotStatus(s) {
     const u = s.uploaded; if (!u) return null;
     return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || u.crop === cropSig(s)) ? 'ok' : 'chg';
   }
   function statusBadge(s) {
     const st = slotStatus(s);
-    return st === 'ok' ? '<span class="st ok">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg">cambiada</span>' : '';
+    return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre o nota): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
   function badgesHTML(s) {
     const n = noteOf(s) ? `<span class="nb" title="Tiene nota">${ICON.note}</span>` : '';
@@ -700,24 +754,25 @@
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
-    const cnt = isCarousel(s.type) ? `<span class="cnt">${n} foto${n === 1 ? '' : 's'}</span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt top">${n} opciones</span>` : '';
+    const cnt = isCarousel(s.type) ? `<span class="cnt">${n} foto${n === 1 ? '' : 's'}</span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr">${n} opciones</span>` : '';
     return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s)}${cnt}<div class="lab"><b>${esc(lab)}</b>${esc(when)}${collab ? '<br>' + collab : ''}</div></div>`;
   }
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];
-    if (i - 3 < N) bd.push('border-top:4px solid #262626');
-    if (i === N && col > 0) bd.push('border-left:4px solid #262626');
+    if (i - 3 < N) bd.push('border-top:4px solid #0095f6');
+    if (i === N && col > 0) bd.push('border-left:4px solid #0095f6');
     const line = bd.length ? `<span class="bd" style="${bd.join(';')}"></span>` : '';
     const icon = isReel(p.type) ? ICON.reel : isCarousel(p.type) ? ICON.carousel : '';
     const date = `<span class="pdate">${esc(fmtDate(p.date, true))}</span>`;
+    const pill = i === N ? `<span class="pmonth">${esc(cap(MONTHS[+prevMonth(S.month).slice(5) - 1]))} · publicado</span>` : '';
     if (p.fid && M.files[p.fid]) {
       const f = M.files[p.fid];
-      return `<div class="cell past" title="${esc(p.name)}"><img class="crop" src="${f.thumbUrl}" style="${rectStyle(f, gridRect(p.fid, p.slot, PB))}" alt="">${line}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
+      return `<div class="cell past" title="${esc(p.name)}"><img class="crop" src="${f.thumbUrl}" style="${rectStyle(f, gridRect(p.fid, p.slot, PB))}" alt="">${line}${pill}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
     }
-    const url = !p.slot && M.pastThumbs[p.id];
-    if (url) return `<div class="cell past" title="${esc(p.name)}"><img src="${url}" alt="">${line}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
-    const why = p.slot ? 'sin foto en la mesa' : M.pastPending[p.id] ? 'cargando…' : 'sin imagen en Notion';
-    return `<div class="cell past nophoto" title="${esc(p.name)}">${line}<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${why}</span></div></div>`;
+    const url = M.pastThumbs[p.nid];
+    if (url) return `<div class="cell past" title="${esc(p.name)}"><img src="${url}" alt="">${line}${pill}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
+    const why = M.pastPending[p.nid] ? 'cargando…' : p.slot ? 'sin foto' : 'sin imagen en Notion';
+    return `<div class="cell past nophoto" title="${esc(p.name)}">${line}${pill}<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${why}</span></div></div>`;
   }
   function renderFeed() {
     if (!S || !shellReady()) return;
@@ -731,11 +786,12 @@
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
-    tray.querySelector('.tcount').textContent = S.tray.length ? `${S.tray.length} foto${S.tray.length === 1 ? '' : 's'} sin usar` : 'vacía';
+    const opts = S.slots.filter(s => s.type === 'Foto').reduce((n, s) => n + Math.max(0, s.photos.length - 1), 0);
+    tray.querySelector('.tcount').textContent = (S.tray.length ? `${S.tray.length} sin usar` : 'vacía') + (opts ? ` · ${opts} como ${opts === 1 ? 'opción' : 'opciones'}` : '');
     tray.classList.toggle('isempty', !S.tray.length);
     tray.querySelector('.tgrid').innerHTML = S.tray.map(id => {
       const f = M.files[id]; if (!f) return '';
-      return `<div class="titem${sel === id ? ' sel' : ''}" draggable="true" data-file="${esc(id)}" title="${esc(f.name)}"><img src="${f.thumbUrl}" alt=""><span class="tname">${esc(f.name)}</span><button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button></div>`;
+      return `<div class="titem${sel === id ? ' sel' : ''}" draggable="true" data-file="${esc(id)}" title="${esc(f.name)} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}<span class="tname">${esc(f.name)}</span><button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button></div>`;
     }).join('');
   }
 
@@ -764,8 +820,8 @@
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
         + (car && n > 1 ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button></div>`;
-      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${nav}</div></div>
-        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted">Arrastra la foto para reencuadrar</span></div>
+      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${nav}</div></div>
+        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
         ${strip}${acts}`;
     }
     const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
@@ -785,7 +841,8 @@
     const s = slot(st.dataset.slot), fid = st.dataset.file; if (!s || !M.files[fid]) return;
     const R = slotRatio(s, fid);
     const W = Math.max(200, st.parentElement.clientWidth || 300);
-    const H = Math.max(220, Math.min(window.innerHeight * 0.6, 680));
+    const n = (slot(st.dataset.slot) || { photos: [] }).photos.length;
+    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - (n > 1 ? 330 : 260)));
     let w = W, h = W / R; if (h > H) { h = H; w = H * R; }
     st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
     placeBig();
@@ -793,7 +850,18 @@
   function placeBig() {
     const st = root && root.querySelector('.detail .stage'); if (!st) return;
     const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
-    st.querySelector('img.big').setAttribute('style', rectStyle(f, postRect(fid, s)));
+    const p = postRect(fid, s), g = gridRect(fid, s);
+    st.querySelector('img.big').setAttribute('style', rectStyle(f, p));
+    // dashed frame = the 3:4 the profile grid will show (hidden when it is the whole post)
+    const gg = st.querySelector('.gguide');
+    if (gg) {
+      const same3x4 = Math.abs(g.w - p.w) < 1 && Math.abs(g.h - p.h) < 1;
+      gg.hidden = same3x4;
+      if (!same3x4) gg.setAttribute('style', `left:${((g.x - p.x) / p.w * 100).toFixed(3)}%;top:${((g.y - p.y) / p.h * 100).toFixed(3)}%;width:${(g.w / p.w * 100).toFixed(3)}%;height:${(g.h / p.h * 100).toFixed(3)}%`);
+    }
+    const fixed = p.w >= f.w - 1 && p.h >= f.h - 1;
+    st.classList.toggle('fixed', fixed);
+    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = fixed ? 'Se ve entera: usa el zoom para reencuadrar' : 'Arrastra la foto para reencuadrar';
   }
   async function loadBig(fid) {
     try {
@@ -864,7 +932,7 @@
   }
   function setBusy(kind, msg) {
     busyText[kind] = msg || null;
-    const text = [busyText.imp, busyText.up].filter(Boolean).join(' · ');
+    const text = [busyText.imp, busyText.up, busyText.sel].filter(Boolean).join(' · ');
     M.busyText = text || null;
     if (!shellReady()) return;
     const b = root.querySelector('.busy'); b.textContent = text; b.hidden = !text;
@@ -917,10 +985,15 @@
       e.preventDefault();
       const d = drag; drag = null;
       if (cell) { if (d.from === 'tray') place(cell.dataset.slot, d.fileId); else swap(d.slotId, cell.dataset.slot); }
-      else if (tray && d.from === 'slot') unassign(d.slotId);
+      else if (tray && d.from === 'slot') unassign(d.slotId, null, true);
       flushRender();
     });
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
+    root.addEventListener('wheel', e => {
+      const tb = e.target.closest && e.target.closest('.tbody');
+      if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      tb.scrollLeft += e.deltaY; e.preventDefault();
+    }, { passive: false });
     root.addEventListener('click', e => {
       const a = e.target.closest('[data-act]');
       if (a) { onAct(a, e); return; }
@@ -974,6 +1047,9 @@
     if (M._onResize) window.removeEventListener('resize', M._onResize);
     M._onResize = () => layoutStage();
     window.addEventListener('resize', M._onResize);
+    if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
+    M._onHide = e => { if (e.type === 'pagehide' || document.visibilityState === 'hidden') { if (saveTimer || noteTimer) flushNow().catch(() => { /* */ }); } };
+    document.addEventListener('visibilitychange', M._onHide); window.addEventListener('pagehide', M._onHide);
   }
 
   async function onAct(a, e) {
@@ -995,6 +1071,7 @@
     else if (act === 'newclient') dlgNewClient();
     else if (act === 'editclient') dlgEditClient();
     else if (act === 'howmonth') dlgHowMonth();
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; claim(); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') { a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar'; return; }
       const c = CL.find(x => x.id === curClient);
@@ -1021,6 +1098,7 @@
     const c = { id: cid, name, handle: normHandle(handle), createdAt: new Date().toISOString() };
     await idbPut('clients', cid, c);
     await loadClients();
+    if (!curClient && !S) curClient = cid;
     if (shellReady()) render();
     return c;
   };
@@ -1048,6 +1126,8 @@
   };
   M.openClient = async id => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    claim();
+    await addQ;
     await loadClients();
     if (!CL.find(c => c.id === id)) return 'no existe';
     if (uploadsBusy() || importing) return 'ocupada: espera a que termine la subida o la importación';
@@ -1070,6 +1150,8 @@
   M.init = async (cfg) => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
     if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
+    claim();
+    await addQ;
     cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
     let client = cfg.client, month = cfg.month;
     const km = String(cfg.key || '').match(/^(.+)-(\d{4}-\d{2})$/);
@@ -1079,13 +1161,16 @@
       else { const cnt = {}; cfg.slots.forEach(s => { const m = monthOf(s.date); if (m) cnt[m] = (cnt[m] || 0) + 1; }); month = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || monthOf(new Date().toISOString()); }
     }
     if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
-    const key = cfg.key || `${client}-${month}`;
     await loadClients();
+    const askedClient = client;
     if (!CL.find(c => c.id === client)) {
       if (cfg.createClient === false) throw new Error(`no existe el cliente ${client}`);
-      const name = cfg.clientName || (String(cfg.title || '').split(' · ')[0].trim()) || client;
-      await M.addClient({ id: client, name, handle: cfg.handle || '' });
+      const t = String(cfg.title || '');
+      const name = cfg.clientName || (t.includes(' · ') ? t.split(' · ')[0].trim() : '') || client;
+      const c = await M.addClient({ id: client, name, handle: cfg.handle || '' });
+      client = c.id;                                      // an existing client with that name keeps its id
     }
+    const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
     if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 };
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
@@ -1101,7 +1186,7 @@
       key, client, month,
       slots: cfg.slots.map(s => { const o = oldById[s.id] || {}; const r = { id: s.id, name: s.name, type: s.type, date: s.date, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null }; if (o.fmt) r.fmt = o.fmt; return r; }),
       tray: [...(old.tray || []), ...orphans],
-      past: pastIn.filter(p => !p.date || monthOf(p.date) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
+      past: pastIn.filter(p => p.date && monthOf(p.date) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
       crops: old.crops || {},
       savedAt: old.savedAt || null
     };
@@ -1138,9 +1223,23 @@
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
     return M.init({ key, client, month, clientName: String(b.title || '').split(' · ')[0].trim() || null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date }) => ({ id, name, type, date })), past: b.past || [] });
   };
+  async function migrateLegacy() {
+    const all = (await idbAll('boards')) || [];
+    for (const b of all) {
+      if (b.client && b.month) continue;
+      const km = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); if (!km) continue;
+      await loadClients();
+      let c = CL.find(x => x.id === km[1]);
+      if (!c) { const t = String(b.title || ''); c = await M.addClient({ id: km[1], name: t.includes(' · ') ? t.split(' · ')[0].trim() : km[1], handle: b.handle || '' }); }
+      b.client = c.id; b.month = km[2];
+      await idbPut('boards', b.key, b);
+    }
+  }
   // Opens what was open last (or the first client) — used by the loader page.
   M.boot = async () => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    claim();
+    await migrateLegacy();
     await loadClients();
     const last = lsGet('mesa-last');
     if (last && (await idbGet('boards', last))) return M.open(last);
@@ -1194,7 +1293,7 @@
   // items: [{fileId, slotId, url, auth, crop?}] — starts in background, poll with waitUpload().
   // The crop is fixed at the moment of the call, so later edits or a board switch can't change what is sent.
   // A new request for a photo that is still uploading replaces (aborts) the previous one.
-  M.startUpload = (items, conc = 2) => {
+  M.startUpload = (items, conc = M.cfg.uploadConc) => {
     const B = S;
     const jobs = [];
     for (const it of items || []) {
@@ -1215,19 +1314,39 @@
       UP.total += jobs.length; busyUpload();
       const q = jobs.slice();
       const worker = async () => { while (q.length) await runJob(q.shift()); };
-      for (let i = 0; i < Math.min(conc, q.length); i++) worker();
+      const nw = Math.min(conc, q.length);
+      for (let i = 0; i < nw; i++) worker();
     }
     return M.uploadStatus((items || []).map(i => i.fileId));
   };
-  function busyUpload() {
+  function busyUpload(pct) {
     if (UP.done >= UP.total) { UP = { total: 0, done: 0 }; setBusy('up', null); }
-    else setBusy('up', `Subiendo fotos a Notion: ${UP.done}/${UP.total}`);
+    else setBusy('up', `Subiendo fotos a Notion: ${UP.done}/${UP.total}${pct != null ? ` · ${pct}%` : ''}`);
+  }
+  // XHR instead of fetch: upload progress lets a slow connection keep going; only a stall (no bytes for
+  // M.cfg.uploadIdleMs) or a newer request for the same photo stops it.
+  function postForm(url, auth, fd, ctrl, onProgress) {
+    return new Promise((res, rej) => {
+      const x = new XMLHttpRequest();
+      let last = Date.now(), done = false;
+      const end = () => { done = true; clearInterval(iv); };
+      const iv = setInterval(() => { if (!done && Date.now() - last > M.cfg.uploadIdleMs) { ctrl.reason = 'idle'; x.abort(); } }, 1000);
+      x.open('POST', url);
+      x.setRequestHeader('authorization', auth);
+      x.upload.onprogress = e => { last = Date.now(); if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total); };
+      x.onprogress = () => { last = Date.now(); };
+      x.onload = () => { end(); res({ status: x.status, ok: x.status >= 200 && x.status < 300, text: x.responseText || '' }); };
+      x.onerror = () => { end(); rej(new Error('sin conexión con Notion')); };
+      x.onabort = () => { end(); rej(new Error('aborted')); };
+      ctrl.abort = reason => { ctrl.reason = ctrl.reason || reason; if (!done) x.abort(); };
+      if (ctrl.reason) { end(); rej(new Error('aborted')); return; }
+      x.send(fd);
+    });
   }
   async function runJob(j) {
     const live = () => M._gen[j.fid] === j.gen;
     if (!live()) { UP.done++; busyUpload(); return; }
-    const ctrl = new AbortController(); M._ctrl[j.fid] = ctrl;
-    const timer = setTimeout(() => ctrl.abort('timeout'), UPLOAD_TIMEOUT);
+    const ctrl = { reason: null, abort(r) { this.reason = this.reason || r; } }; M._ctrl[j.fid] = ctrl;
     M.uploads[j.fid] = { ...M.uploads[j.fid], state: 'uploading' };
     let res;
     try {
@@ -1236,20 +1355,18 @@
       let reencoded = false, cropped = null;
       if (j.rect) { const cb = await cropBlob(blob, j.fid, j.rect); if (!cb.original) { blob = cb.blob; cropped = cb.w + 'x' + cb.h; name = name.replace(/\.[^.]+$/, '') + '.jpg'; } }
       else if (blob.size > MAX_UPLOAD) { blob = await reencode(blob); reencoded = true; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
-      if (ctrl.signal.aborted) throw new Error('aborted');
+      if (ctrl.reason) throw new Error('aborted');
       const fd = new FormData(); fd.append('file', blob, name);
-      const r = await fetch(j.url, { method: 'POST', headers: { authorization: j.auth }, body: fd, signal: ctrl.signal });
-      const txt = await r.text();
-      let js = {}; try { js = JSON.parse(txt); } catch (e) { /* not json */ }
+      const r = await postForm(j.url, j.auth, fd, ctrl, f => { if (live()) busyUpload(Math.round(f * 100)); });
+      let js = {}; try { js = JSON.parse(r.text); } catch (e) { /* not json */ }
       res = (r.ok && js.status === 'uploaded')
         ? { state: 'ok', fileUploadId: js.file_upload_id, name, mb: +(blob.size / 1048576).toFixed(1), reencoded, cropped }
-        : { state: 'error', http: r.status, err: txt.slice(0, 200) };
+        : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
     } catch (e) {
       delete M.blobs[j.fid];
-      const why = ctrl.signal.aborted ? (ctrl.signal.reason === 'timeout' ? 'tiempo agotado (3 min): vuelve a intentarlo' : 'sustituida por un nuevo intento') : String(e).slice(0, 200);
+      const why = ctrl.reason === 'idle' ? `sin progreso durante ${Math.round(M.cfg.uploadIdleMs / 1000)} s: vuelve a intentarlo` : ctrl.reason ? 'sustituida por un nuevo intento' : String(e.message || e).slice(0, 200);
       res = { state: 'error', err: why };
     }
-    clearTimeout(timer);
     if (M._ctrl[j.fid] === ctrl) delete M._ctrl[j.fid];
     if (live()) M.uploads[j.fid] = { ...res, slotId: j.slotId, sig: j.sig };
     UP.done++; busyUpload();

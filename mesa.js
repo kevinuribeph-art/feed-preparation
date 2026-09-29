@@ -1,0 +1,1408 @@
+// Mesa de feed — Uribe Visuals · v3.0
+// Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
+// the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
+// the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
+// Runs in the Claude desktop app's built-in browser on a host page without a restrictive CSP; designed to be
+// hosted as a static page later (GitHub Pages): it builds its own UI and keeps everything in IndexedDB.
+(function mesaBoot() {
+  const M = window.MESA = window.MESA || {};
+  let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
+  M.version = '3.0';
+
+  const TZ = 'Europe/Madrid';
+  const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
+  const MAX_UPLOAD = 20 * 1024 * 1024 - 256 * 1024;      // Notion single-part limit (20 MiB) with margin
+  const UPLOAD_TIMEOUT = 180000;                         // ms per photo
+  const UNDO_MS = 6000;
+  const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
+  const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+  M.files = M.files || {};             // fileId -> {name,size,type,w,h,thumbUrl}
+  M.thumbBlobs = M.thumbBlobs || {};   // fileId -> thumbnail Blob
+  M.blobs = M.blobs || {};             // fileId -> original Blob (lazy, small LRU)
+  M.pastThumbs = M.pastThumbs || {};   // Notion pageId -> object URL
+  M.pastBlobs = M.pastBlobs || {};     // Notion pageId -> thumbnail Blob
+  M.pastPending = {};
+  M.pastErrors = {};
+  M.uploads = M.uploads || {};         // fileId -> {state,...}
+  M.out = M.out || {};                 // rendered preview Blobs
+  M._ctrl = M._ctrl || {};             // fileId -> AbortController of the running upload
+  M._gen = M._gen || {};               // fileId -> generation of the latest upload request
+
+  let S = null;          // open board (month of one client), persisted
+  let PB = null;         // same client's previous-month board, read only (null if it doesn't exist)
+  let CL = [];           // clients
+  let MB = [];           // month boards of the open client: [{key, month, filled, n}]
+  let curClient = null;  // id of the open tab
+  let root = null;
+  let sel = null;        // fileId selected in the tray (click-to-place)
+  let drag = null;       // current internal drag
+  let cur = { slot: null, idx: 0 };
+  let importing = 0;     // photos being prepared
+  let UP = { total: 0, done: 0 };
+  let busyText = { imp: null, up: null };
+  let downOnBackdrop = false;
+
+  // ---------- IndexedDB ----------
+  let dbp = null, dbConn = null;
+  function db() {
+    if (!dbp) dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('mesa-feed', 2);
+      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; }; res(d); };
+      r.onerror = () => { dbp = null; rej(r.error); };
+      r.onblocked = () => toast('Cierra las otras pestañas de la mesa para terminar de actualizarla.');
+    });
+    return dbp;
+  }
+  async function tx(store, mode, fn) {
+    const d = await db();
+    return new Promise((res, rej) => {
+      const t = d.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      let out;
+      if (req) req.onsuccess = () => { out = req.result; };
+      t.oncomplete = () => res(out);
+      t.onerror = () => rej(t.error || (req && req.error) || new Error('IndexedDB error'));
+      t.onabort = () => rej(t.error || (req && req.error) || new Error('IndexedDB abort'));
+    });
+  }
+  const idbGet = (st, k) => tx(st, 'readonly', s => s.get(k));
+  const idbPut = (st, k, v) => tx(st, 'readwrite', s => s.put(v, k));
+  const idbDel = (st, k) => tx(st, 'readwrite', s => s.delete(k));
+  const idbAll = st => tx(st, 'readonly', s => s.getAll());
+
+  // ---------- helpers ----------
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
+  const isCarousel = t => t === 'Carrusel';
+  const isMulti = t => isCarousel(t) || t === 'Foto';                 // Foto: candidates (only the cover is published)
+  const publishList = s => isCarousel(s.type) ? s.photos : s.photos.slice(0, 1);
+  const noteOf = s => String(s.note || '').trim();
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const newId = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const slugify = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'cliente';
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
+  const refsOf = b => new Set([...(b.tray || []), ...(b.slots || []).flatMap(s => s.photos || [])]);
+  const slot = id => S && S.slots.find(s => s.id === id);
+  const uploadsBusy = () => Object.values(M.uploads).some(u => u.state === 'pending' || u.state === 'uploading');
+
+  function monthOf(iso) {
+    const d = new Date(String(iso || '').replace(' ', 'T'));
+    if (isNaN(d)) return null;
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' }).formatToParts(d).map(x => [x.type, x.value]));
+    return p.year + '-' + p.month;
+  }
+  function prevMonth(m) { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return y + '-' + String(mo).padStart(2, '0'); }
+  function monthLabel(m, short) {
+    if (!m) return '';
+    const [y, mo] = m.split('-').map(Number); const n = MONTHS[mo - 1] || '';
+    return short ? cap(n.slice(0, 3)) + ' ' + y : cap(n) + ' ' + y;
+  }
+  function shortLabel(name, type) {
+    const n = String(name || '').trim();
+    if (/collab/i.test(n)) { const m = n.match(/(\d+)\s*$/); return m ? 'Collab ' + m[1] : 'Collab'; }
+    const m = n.match(/(\d+\.\d+)\s*$/);
+    if (m) return (type === 'Reel' || type === 'Trial Reel' ? 'Reel ' : isCarousel(type) ? 'Carrusel ' : 'Foto ') + m[1];
+    return n;
+  }
+  function fmtDate(iso, short) {
+    if (!iso) return 'sin fecha';
+    const s = String(iso);
+    const d = new Date(s.replace(' ', 'T'));
+    if (isNaN(d)) return s;
+    if (short) return new Intl.DateTimeFormat('es-ES', { timeZone: TZ, day: 'numeric', month: 'short' }).format(d).replace('.', '');
+    const hasTime = /[T ]\d\d:\d\d/.test(s);
+    const day = new Intl.DateTimeFormat('es-ES', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+    if (!hasTime) return day;
+    return day + ' · ' + new Intl.DateTimeFormat('es-ES', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  }
+  const ts = iso => { const d = new Date(String(iso || '').replace(' ', 'T')); return isNaN(d) ? 0 : d.getTime(); };
+  const initials = name => String(name || '?').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+
+  // ---------- crop model (post format + reframe) ----------
+  // Instagram feed formats: 4:5, 3:4, landscape up to 1.91:1. The profile grid shows the centred 3:4 of the post.
+  // Per photo: {fmt, cx, cy, z}. A carousel's format lives on the slot (s.fmt); a reel cover is always 3:4.
+  const FMT_LABEL = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
+  const dims = fid => M.files[fid] || { w: 3, h: 4 };
+  function fmtRatio(fmt, w, h) {
+    if (fmt === 'v45') return 4 / 5;
+    if (fmt === 'v34') return 3 / 4;
+    const r = w / h; return r >= 1 ? Math.min(r, 1.91) : 16 / 9;
+  }
+  function baseCrop(fid, B) { const f = dims(fid); return (B && B.crops && B.crops[fid]) || { fmt: f.w > f.h ? 'h' : 'v45', cx: 0.5, cy: 0.5, z: 1 }; }
+  function slotFmt(s, B) { return s.fmt || (s.photos.length ? baseCrop(s.photos[0], B).fmt : 'v45'); }
+  function cropOf(fid, s, B = S) {
+    const c = { ...baseCrop(fid, B) };
+    if (s && isReel(s.type)) c.fmt = 'v34';
+    else if (s && isCarousel(s.type)) c.fmt = slotFmt(s, B);
+    return c;
+  }
+  function slotRatio(s, fid, B = S) {
+    if (s && isCarousel(s.type) && s.photos.length) { const f0 = dims(s.photos[0]); return fmtRatio(slotFmt(s, B), f0.w, f0.h); }
+    const f = dims(fid); return fmtRatio(cropOf(fid, s, B).fmt, f.w, f.h);
+  }
+  function rectFor(w, h, R, c) {
+    let cw, ch;
+    if (w / h > R) { ch = h; cw = h * R; } else { cw = w; ch = w / R; }
+    const z = Math.max(1, Math.min(3, c.z || 1)); cw /= z; ch /= z;
+    let x = (c.cx == null ? 0.5 : c.cx) * w - cw / 2, y = (c.cy == null ? 0.5 : c.cy) * h - ch / 2;
+    x = Math.max(0, Math.min(w - cw, x)); y = Math.max(0, Math.min(h - ch, y));
+    return { x, y, w: cw, h: ch };
+  }
+  function postRect(fid, s, B = S) { const f = dims(fid); return rectFor(f.w, f.h, slotRatio(s, fid, B), cropOf(fid, s, B)); }
+  function gridRect(fid, s, B = S) {
+    const p = postRect(fid, s, B), r = 3 / 4;
+    let gw, gh; if (p.w / p.h > r) { gh = p.h; gw = gh * r; } else { gw = p.w; gh = gw / r; }
+    return { x: p.x + (p.w - gw) / 2, y: p.y + (p.h - gh) / 2, w: gw, h: gh };
+  }
+  const rectStyle = (f, r) => `width:${(f.w / r.w * 100).toFixed(3)}%;height:${(f.h / r.h * 100).toFixed(3)}%;left:${(-r.x / r.w * 100).toFixed(3)}%;top:${(-r.y / r.h * 100).toFixed(3)}%`;
+  const num = (v, d, p) => +(v == null ? d : +v).toFixed(p);
+  const fileSig = (fid, s, B = S) => { const c = cropOf(fid, s, B); return [c.fmt, num(c.cx, 0.5, 3), num(c.cy, 0.5, 3), num(c.z, 1, 2), +slotRatio(s, fid, B).toFixed(3)]; };
+  const cropSig = (s, B = S) => JSON.stringify(publishList(s).map(fid => fileSig(fid, s, B)));
+  // Stores position/zoom; the format is written only where the photo owns it (never the forced reel/carousel one).
+  function setCrop(fid, s, patch) {
+    const f = M.files[fid]; if (!f || !S) return;
+    const stored = baseCrop(fid, S);
+    const ownsFmt = !s || !(isReel(s.type) || isCarousel(s.type));
+    const next = { fmt: ownsFmt && patch.fmt ? patch.fmt : stored.fmt, cx: patch.cx ?? stored.cx, cy: patch.cy ?? stored.cy, z: patch.z ?? stored.z ?? 1 };
+    S.crops[fid] = next;
+    const r = postRect(fid, s);                     // clamp with the effective ratio
+    next.cx = (r.x + r.w / 2) / f.w; next.cy = (r.y + r.h / 2) / f.h;
+  }
+  function setFmt(slotId, fmt) {
+    const s = slot(slotId); if (!s || isReel(s.type) || !s.photos.length) return;
+    if (isCarousel(s.type)) { s.fmt = fmt; s.photos.forEach(fid => { S.crops[fid] = { ...baseCrop(fid, S), cx: 0.5, cy: 0.5, z: 1 }; }); }
+    else setCrop(s.photos[cur.idx], s, { fmt, cx: 0.5, cy: 0.5, z: 1 });
+    save(); renderFeed(); openDetail(slotId, cur.idx);
+  }
+  // A carousel keeps the format it had when it got its first photo, so reordering never flips it silently.
+  function normalize() {
+    if (!S) return;
+    S.slots.forEach(s => {
+      if (!isCarousel(s.type)) { delete s.fmt; return; }
+      if (!s.photos.length) delete s.fmt;
+      else if (!s.fmt) s.fmt = baseCrop(s.photos[0], S).fmt;
+    });
+  }
+
+  const ICON = {
+    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>',
+    reel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M3 8.5h18M9 3l2.6 5.5M14.6 3l2.6 5.5"/><path d="M10 12v5.2l4.6-2.6z" fill="currentColor" stroke="none"/></svg>',
+    carousel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="7.5" y="3" width="13.5" height="13.5" rx="3"/><path d="M16.5 19.5a2 2 0 0 1-2 1.5H5a2 2 0 0 1-2-2V9.5a2 2 0 0 1 1.5-2"/></svg>',
+    photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
+    note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>'
+  };
+
+  // ---------- persistence ----------
+  let saveTimer = null;
+  function save() {
+    if (!S) return;
+    clearTimeout(saveTimer);
+    setSave('Guardando…');
+    const B = S;
+    saveTimer = setTimeout(async () => {
+      saveTimer = null;
+      try { B.savedAt = new Date().toISOString(); await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); if (B === S) setSave('Guardado'); }
+      catch (e) { setSave('No se pudo guardar', true); }
+    }, 250);
+  }
+  async function flushNow() {
+    clearTimeout(saveTimer); saveTimer = null;
+    clearTimeout(noteTimer); noteTimer = null;
+    if (!S) return null;
+    S.savedAt = new Date().toISOString();
+    await idbPut('boards', S.key, JSON.parse(JSON.stringify(S)));
+    setSave('Guardado');
+    return S.savedAt;
+  }
+  M.flush = flushNow;
+  // Lets a newer copy of the code take over this page without losing a pending save.
+  M._dispose = async () => {
+    try { await flushNow(); } catch (e) { /* */ }
+    S = null; PB = null;
+    if (dbConn) { try { dbConn.close(); } catch (e) { /* */ } }
+    dbp = null; dbConn = null;
+  };
+
+  async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
+  async function refreshMonths() {
+    const all = (await idbAll('boards')) || [];
+    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, filled: (b.slots || []).filter(s => (s.photos || []).length).length, n: (b.slots || []).length }))
+      .sort((a, b) => String(b.month).localeCompare(String(a.month)));
+  }
+
+  // ---------- images ----------
+  async function thumbFromBitmap(src, w, h) {
+    const k = Math.min(1, THUMB_LONG / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    const x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(src, 0, 0, c.width, c.height);
+    return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/jpeg', 0.86));
+  }
+  async function makeThumb(blob) {
+    const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    try { const w = bmp.width, h = bmp.height; return { w, h, thumb: await thumbFromBitmap(bmp, w, h) }; }
+    finally { bmp.close(); }
+  }
+  async function reencode(blob) {
+    const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+    cx.drawImage(bmp, 0, 0); bmp.close();
+    for (const q of [0.92, 0.88, 0.82, 0.75]) {
+      const b = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
+      if (b && b.size <= MAX_UPLOAD) return b;
+    }
+    throw new Error('supera 20 MB incluso recomprimida');
+  }
+  async function getBlob(id) {
+    if (M.blobs[id]) return M.blobs[id];
+    const rec = await idbGet('files', id);
+    if (!rec || !rec.blob) throw new Error('foto no encontrada en la mesa');
+    return (M.blobs[id] = rec.blob);
+  }
+  async function cropBlob(blob, fid, r) {
+    const f = M.files[fid];
+    if (r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && blob.type === 'image/jpeg' && blob.size <= MAX_UPLOAD) return { blob, w: f.w, h: f.h, original: true };
+    const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    const k = bmp.width / f.w;
+    const c = document.createElement('canvas'); c.width = Math.round(r.w * k); c.height = Math.round(r.h * k);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high';
+    x.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, 0, 0, c.width, c.height); bmp.close();
+    for (const q of [0.93, 0.9, 0.85, 0.8]) { const b = await new Promise(res => c.toBlob(res, 'image/jpeg', q)); if (b && b.size <= MAX_UPLOAD) return { blob: b, w: c.width, h: c.height }; }
+    throw new Error('supera 20 MB incluso recortada');
+  }
+  async function loadThumbs(ids) {
+    const missing = [];
+    for (const id of ids) {
+      if (M.files[id]) continue;
+      const rec = await idbGet('files', id);
+      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; M.thumbBlobs[id] = rec.thumb; }
+      else missing.push(id);
+    }
+    return missing;
+  }
+
+  // ---------- adding photos (serialised so two drops never race) ----------
+  let addQ = Promise.resolve();
+  M.addFiles = (list, targetSlotId) => {
+    const files = Array.from(list || []);
+    const p = addQ.then(() => addFilesNow(files, targetSlotId));
+    addQ = p.catch(() => { /* keep the queue alive */ });
+    return p;
+  };
+  async function addFilesNow(list, targetSlotId) {
+    if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
+    const B = S;
+    const files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+    const got = [];
+    importing += files.length;
+    try {
+      let i = 0;
+      for (const f of files) {
+        i++;
+        setBusy('imp', files.length > 1 ? `Preparando fotos ${i}/${files.length}…` : 'Preparando foto…');
+        const type = f.type || '';
+        if (!OK_TYPES.includes(type)) {
+          toast(/heic|heif/i.test(f.name + type) ? `${f.name}: HEIC no se puede leer aquí. Expórtala como JPG.` : `${f.name}: formato no compatible (usa JPG o PNG).`);
+          continue;
+        }
+        const dup = Object.keys(M.files).find(id => M.files[id].name === f.name && M.files[id].size === f.size);
+        if (dup && (B.tray.includes(dup) || B.slots.some(s => s.photos.includes(dup)))) {
+          if (!targetSlotId || !B.tray.includes(dup)) { toast(`${f.name} ya está en la mesa.`); continue; }
+          got.push(dup); continue;
+        }
+        try {
+          const { w, h, thumb } = await makeThumb(f);
+          const id = dup || newId();
+          await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb });
+          if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
+          M.files[id] = { name: f.name, size: f.size, type, w, h, thumbUrl: URL.createObjectURL(thumb) };
+          M.thumbBlobs[id] = thumb;
+          delete M.blobs[id];
+          B.tray.push(id);
+          got.push(id);
+        } catch (e) { toast(`${f.name}: no se pudo leer.`); }
+      }
+    } finally { importing -= files.length; setBusy('imp', null); }
+    if (B !== S) return got;
+    if (targetSlotId && got.length) {
+      const s = slot(targetSlotId);
+      if (s && isCarousel(s.type)) got.forEach(id => place(targetSlotId, id, true));
+      else if (s && s.type === 'Foto') got.slice().reverse().forEach(id => place(targetSlotId, id, true));
+      else if (s) place(targetSlotId, got[0], true);
+    }
+    changed();
+    const d = root && root.querySelector('.detail');
+    if (targetSlotId && d && !d.hidden && d.dataset.slot === targetSlotId) refreshDetail();
+    return got;
+  }
+
+  // ---------- board mutations ----------
+  function takeFromTray(fileId) { S.tray = S.tray.filter(x => x !== fileId); }
+  function place(slotId, fileId, silent) {
+    const s = slot(slotId); if (!s) return;
+    if (sel === fileId) sel = null;
+    const other = S.slots.find(x => x !== s && x.photos.includes(fileId));
+    if (other) other.photos = other.photos.filter(x => x !== fileId);
+    takeFromTray(fileId);
+    if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }
+    else if (s.type === 'Foto') { s.photos = [fileId, ...s.photos.filter(x => x !== fileId)]; }
+    else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId)); s.photos = [fileId]; }
+    if (!silent) changed();
+  }
+  function fixSingle(s) {
+    if (!isMulti(s.type) && s.photos.length > 1) {
+      S.tray.unshift(...s.photos.slice(1)); s.photos = s.photos.slice(0, 1);
+      toast('Los reels solo llevan una portada: las demás fotos vuelven a la bandeja.');
+    }
+  }
+  function swap(a, b) {
+    if (a === b) return;
+    const A = slot(a), B = slot(b); if (!A || !B) return;
+    [A.photos, B.photos] = [B.photos, A.photos];
+    if (isCarousel(A.type) && isCarousel(B.type)) [A.fmt, B.fmt] = [B.fmt, A.fmt];
+    else { delete A.fmt; delete B.fmt; }
+    fixSingle(A); fixSingle(B);
+    changed();
+  }
+  function unassign(slotId, k) {
+    const s = slot(slotId); if (!s) return;
+    if (k != null && (k < 0 || k >= s.photos.length)) return;
+    const back = k == null ? s.photos.slice() : [s.photos[k]];
+    if (back.includes(sel)) sel = null;
+    s.photos = s.photos.filter(x => !back.includes(x));
+    S.tray.unshift(...back);
+    changed();
+  }
+  function setCover(slotId, k) {
+    const s = slot(slotId); if (!s || k <= 0 || k >= s.photos.length) return;
+    const [f] = s.photos.splice(k, 1); s.photos.unshift(f);
+    changed();
+  }
+  let noteTimer = null;
+  function setNote(slotId, text) {
+    const s = slot(slotId); if (!s) return;
+    s.note = text;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
+  }
+  function move(slotId, k, dir) {
+    const s = slot(slotId), j = k + dir;
+    if (!s || j < 0 || j >= s.photos.length) return;
+    [s.photos[k], s.photos[j]] = [s.photos[j], s.photos[k]];
+    changed();
+  }
+  // Removing from the tray is undoable for a few seconds; only then is the photo deleted (if no board uses it).
+  function removeFile(fileId) {
+    if (!S || !S.tray.includes(fileId)) return;
+    const B = S, name = (M.files[fileId] || {}).name || 'La foto';
+    takeFromTray(fileId);
+    if (sel === fileId) sel = null;
+    changed();
+    const t = setTimeout(() => deleteIfUnused(fileId), UNDO_MS);
+    toast(`«${name}» quitada de la mesa.`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
+      clearTimeout(t);
+      if (S === B && !refsOf(S).has(fileId) && M.files[fileId]) { S.tray.unshift(fileId); changed(); }
+    } });
+  }
+  async function deleteIfUnused(fileId) {
+    if (S && refsOf(S).has(fileId)) return;
+    const boards = await idbAll('boards');
+    if (boards.some(b => (!S || b.key !== S.key) && refsOf(b).has(fileId))) return;
+    await idbDel('files', fileId);
+    if (M.files[fileId]) URL.revokeObjectURL(M.files[fileId].thumbUrl);
+    if (M.bigUrls && M.bigUrls[fileId]) { URL.revokeObjectURL(M.bigUrls[fileId]); delete M.bigUrls[fileId]; }
+    delete M.files[fileId]; delete M.blobs[fileId]; delete M.thumbBlobs[fileId];
+  }
+  function changed() { normalize(); save(); render(); }
+
+  // ---------- previous month (under the line) ----------
+  // From the mesa's own board of that month when it exists; otherwise the posts Claude loaded from Notion.
+  function pastList() {
+    if (!S) return [];
+    if (PB) return PB.slots.map(s => ({ id: 'pb:' + s.id, name: s.name, type: s.type, date: s.date, fid: publishList(s)[0] || null, slot: s })).sort((a, b) => ts(b.date) - ts(a.date));
+    return S.past.slice().sort((a, b) => ts(b.date) - ts(a.date));
+  }
+
+  // ---------- rendering ----------
+  const CSS = `
+#mesa{--bg:#fafafa;--panel:#fff;--line:#dbdbdb;--line2:#efefef;--ink:#262626;--mute:#737373;--faint:#a8a8a8;--acc:#0095f6;--acc2:#1877f2;--ok:#1a7f37;--chg:#c2410c;--red:#c0392b;position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:14px/1.4 ${FONT};-webkit-font-smoothing:antialiased}
+#mesa *{box-sizing:border-box}
+#mesa button{font:inherit;color:inherit;cursor:pointer}
+#mesa :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#mesa .top{flex:none;display:flex;align-items:stretch;gap:6px;height:46px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+#mesa .brand{flex:none;display:flex;align-items:center;gap:7px;font-weight:700;font-size:13.5px;padding-right:12px;border-right:1px solid var(--line2);white-space:nowrap}
+#mesa .brand svg{width:18px;height:18px}
+#mesa .tabs{flex:1;min-width:0;display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none}
+#mesa .tabs::-webkit-scrollbar{display:none}
+#mesa .tab{flex:none;border:0;background:none;padding:0 13px;font-size:13.5px;color:var(--mute);white-space:nowrap;border-bottom:2px solid transparent}
+#mesa .tab:hover{color:var(--ink)}
+#mesa .tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+#mesa .tab.add{color:var(--acc);font-weight:600}
+#mesa .save{flex:none;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap}#mesa .save.err{color:var(--red)}
+#mesa .bar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+#mesa .bar:empty{display:none}
+#mesa .ident{display:flex;align-items:center;gap:10px;min-width:0}
+#mesa .av{flex:none;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;background:var(--ink);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line)}
+#mesa .who{min-width:0}#mesa .who b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .who span{display:block;font-size:12.5px;color:var(--mute)}
+#mesa .ibtn{flex:none;border:0;background:none;width:30px;height:30px;border-radius:50%;color:var(--mute);font-size:17px;line-height:30px;padding:0}
+#mesa .ibtn:hover{background:var(--line2);color:var(--ink)}
+#mesa .months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#mesa .mchip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 11px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+#mesa .mchip i{font-style:normal;color:var(--mute);font-size:11.5px}
+#mesa .mchip:hover{border-color:#bdbdbd}
+#mesa .mchip.on{background:var(--ink);border-color:var(--ink);color:#fff}#mesa .mchip.on i{color:#cfcfcf}
+#mesa .mchip.ghost{border-style:dashed;color:var(--mute)}
+#mesa .spacer{flex:1}
+#mesa .stats{display:flex;gap:4px 12px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600}#mesa .stats .c{color:var(--chg)}
+#mesa .sw{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap}
+#mesa .sw input{appearance:none;-webkit-appearance:none;width:32px;height:18px;border-radius:999px;background:#c7c7c7;position:relative;cursor:pointer;margin:0;transition:background .15s}
+#mesa .sw input::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s}
+#mesa .sw input:checked{background:var(--ink)}#mesa .sw input:checked::after{transform:translateX(14px)}
+#mesa .busy{flex:none;background:var(--acc);color:#fff;font-size:12.5px;padding:5px 14px}
+#mesa .main{flex:1;min-height:0;display:flex}
+#mesa .feed{flex:0 0 auto;width:min(480px,58vw);overflow-y:auto;background:var(--panel);border-right:1px solid var(--line)}
+#mesa .legend{position:sticky;top:0;z-index:4;display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;padding:8px 12px;background:rgba(255,255,255,.95);border-bottom:1px solid var(--line2);font-size:12px;color:var(--mute)}
+#mesa .legend b{color:var(--ink);font-weight:600}
+#mesa .legend .ln{display:inline-block;width:14px;height:3px;background:var(--ink);vertical-align:middle;margin-right:6px;border-radius:2px}
+#mesa .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+#mesa .cell{position:relative;aspect-ratio:3/4;overflow:hidden;background:#efefef;user-select:none}
+#mesa .cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
+#mesa .cell img.crop{position:absolute;max-width:none;object-fit:fill}
+#mesa .cell.full{cursor:grab}
+#mesa .cell.empty{background:#f5f5f5;cursor:pointer}
+#mesa .cell.empty::before{content:'';position:absolute;inset:6px;border:1.5px dashed #c9c9c9;border-radius:6px;pointer-events:none}
+#mesa .cell.empty:hover{background:#eef6fe}#mesa .cell.empty:hover::before{border-color:#8cc8f5}
+#mesa .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;padding:12px;color:var(--mute)}
+#mesa .ph b{color:var(--ink);font-size:12.5px}#mesa .ph span{font-size:11px}
+#mesa .pico svg{width:20px;height:20px;color:#8e8e8e}
+#mesa .ico{position:absolute;top:7px;right:7px;width:19px;height:19px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
+#mesa .ico svg{width:100%;height:100%}
+#mesa .lab{position:absolute;left:0;right:0;bottom:0;padding:18px 7px 6px;background:linear-gradient(transparent,rgba(0,0,0,.66));color:#fff;font-size:10.5px;line-height:1.25;pointer-events:none}
+#mesa .lab b{display:block;font-size:11.5px}
+#mesa .tag{display:inline-block;margin-top:3px;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:1px 5px}
+#mesa .lab .tag{background:rgba(255,255,255,.22)}
+#mesa .badges{position:absolute;top:6px;left:6px;display:flex;gap:4px;align-items:center;z-index:3;pointer-events:none}
+#mesa .nb{width:21px;height:21px;border-radius:50%;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+#mesa .nb svg{width:13px;height:13px}
+#mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff}
+#mesa .st.ok{background:var(--ok)}#mesa .st.chg{background:var(--chg)}
+#mesa .cnt{position:absolute;top:30px;right:7px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px}
+#mesa .cnt.top{top:7px}
+#mesa .cell.past{cursor:default}
+#mesa .bd{position:absolute;inset:0;pointer-events:none;z-index:2}
+#mesa .pdate{position:absolute;left:6px;bottom:5px;z-index:3;font-size:10px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7);pointer-events:none}
+#mesa .cell.past.nophoto .ph b{color:#8e8e8e}
+#mesa .cell.over{outline:3px solid var(--acc) !important;outline-offset:-3px !important}
+#mesa .cell.dragging,#mesa .titem.dragging{opacity:.35}
+#mesa.picking .cell:not(.past){cursor:copy}
+#mesa .tray{flex:1;min-width:0;overflow-y:auto;background:var(--bg)}
+#mesa .tray.over{background:#e8f3fe}
+#mesa .trayhead{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:inherit}
+#mesa .trayhead b{font-size:14px}#mesa .trayhead span{color:var(--mute);font-size:12px}
+#mesa .btn{border:0;border-radius:8px;background:var(--acc);color:#fff !important;font-weight:600;font-size:13px;padding:7px 12px;display:inline-flex;gap:6px;align-items:center}
+#mesa .btn svg{width:15px;height:15px}
+#mesa .btn:hover{background:var(--acc2)}
+#mesa .trayhead .btn{margin-left:auto}
+#mesa .btn2{border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:13px;padding:6px 11px}
+#mesa .btn2:hover{border-color:#bdbdbd}
+#mesa .btn2.danger{color:var(--red);border-color:#efc2c2}
+#mesa .tbody{padding:0 12px 24px}
+#mesa .drop{border:1.5px dashed #c7c7c7;border-radius:10px;padding:14px;text-align:center;color:var(--mute);font-size:12.5px;margin-bottom:10px;background:var(--panel)}
+#mesa .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+#mesa .titem{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#efefef;cursor:grab}
+#mesa .titem img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
+#mesa .titem.sel{outline:3px solid var(--acc);outline-offset:-3px}
+#mesa .titem .x{position:absolute;top:4px;right:4px;width:22px;height:22px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:22px;padding:0;display:none}
+#mesa .titem:hover .x,#mesa .titem .x:focus-visible{display:block}
+#mesa .tname{position:absolute;left:0;right:0;bottom:0;padding:10px 5px 3px;font-size:9.5px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.6));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#mesa .hint{color:var(--mute);font-size:12px;margin:12px 2px 0;line-height:1.5}
+#mesa .empty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
+#mesa .ecard{max-width:430px;text-align:center;color:var(--mute);font-size:13.5px}
+#mesa .ecard svg{width:34px;height:34px;color:var(--faint)}
+#mesa .ecard h3{color:var(--ink);font-size:16px;margin:10px 0 6px}
+#mesa .ecard .say{display:inline-block;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--ink);margin:12px 0 4px}
+#mesa .detail{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+#mesa .detail[hidden]{display:none}
+#mesa .card{position:relative;background:var(--panel);border-radius:12px;max-width:640px;width:100%;max-height:100%;overflow:auto;padding:18px 18px 16px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+#mesa .card h3{margin:0 28px 4px 0;font-size:16px}#mesa .card>p{margin:0 0 10px;color:var(--mute);font-size:12.5px}
+#mesa .card .x{position:absolute;top:10px;right:10px;border:0;background:none;font-size:22px;line-height:1;color:var(--ink);width:30px;height:30px;border-radius:50%}
+#mesa .card .x:hover{background:var(--line2)}
+#mesa .card.dlg{max-width:420px}
+#mesa .form label{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .form label span{font-weight:400;color:var(--mute)}
+#mesa .form input[type=text]{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:14px ${FONT};color:var(--ink)}
+#mesa .form input[type=text]:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa .form .row{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px}
+#mesa .form .row .left{margin-right:auto}
+#mesa .ferr{color:var(--red);font-size:12px;margin:8px 0 0}
+#mesa .muted{color:var(--mute);font-size:12px}
+#mesa .nlab{display:block;font-size:13px;font-weight:600;margin:0 0 6px}#mesa .nlab span{font-weight:400;color:var(--mute);font-size:12px}
+#mesa textarea.note{width:100%;min-height:74px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:13px/1.45 ${FONT};color:var(--ink)}
+#mesa textarea.note:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa .card.post{max-width:1000px;padding:0;display:flex;flex-direction:column;overflow:hidden}
+#mesa .phead{padding:12px 50px 11px 16px;border-bottom:1px solid var(--line2);flex:none}
+#mesa .phead h3{margin:0;font-size:15px}#mesa .phead p{margin:2px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#mesa .phead .st{font-size:10.5px}
+#mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
+#mesa .pleft{padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg);border-right:1px solid var(--line2);min-width:0}
+#mesa .stagewrap{width:100%;display:flex;justify-content:center}
+#mesa .stage{position:relative;overflow:hidden;background:#111;touch-action:none;cursor:grab;user-select:none;width:300px;height:375px}
+#mesa .stage.panning{cursor:grabbing}
+#mesa .stage img.big{position:absolute;max-width:none;pointer-events:none;-webkit-user-drag:none}
+#mesa .nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);font-size:18px;line-height:28px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
+#mesa .nav.prev{left:8px}#mesa .nav.next{right:8px}#mesa .nav[hidden]{display:none}
+#mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
+#mesa .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}#mesa .dots i.on{background:#fff}
+#mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
+#mesa .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+#mesa .seg button{border:0;background:none;padding:5px 10px;font-size:12.5px}#mesa .seg button.on{background:var(--ink);color:#fff}
+#mesa .zoom{display:flex;align-items:center;gap:6px;color:var(--mute)}#mesa .zoom input{width:100px}
+#mesa .lnk{border:0;background:none;color:var(--acc) !important;font-size:12.5px;padding:0}
+#mesa .strip{width:100%;display:flex;gap:6px;overflow-x:auto;padding:2px}
+#mesa .strip .th{position:relative;flex:0 0 58px;height:58px;border:0;padding:0;border-radius:6px;overflow:hidden;background:#efefef;outline:2px solid transparent;outline-offset:-2px}
+#mesa .strip .th.on{outline-color:var(--acc)}
+#mesa .strip .th img{width:100%;height:100%;object-fit:cover;display:block}
+#mesa .strip .th span{position:absolute;left:0;right:0;bottom:0;font-size:9px;color:#fff;background:rgba(0,0,0,.55);text-align:center;line-height:14px}
+#mesa .pacts{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#mesa .pacts button{border:1px solid var(--line);background:var(--panel);border-radius:6px;font-size:12px;padding:4px 9px}
+#mesa .pacts button:disabled{opacity:.35;cursor:default}
+#mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
+#mesa .pright{padding:12px 14px;display:flex;flex-direction:column;min-width:0}
+#mesa .pright textarea.note{flex:1;min-height:180px}
+#mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
+#mesa .toasts{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
+#mesa .toast{pointer-events:auto;background:var(--ink);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:8px;max-width:90vw;display:flex;gap:12px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#mesa .toast button{border:0;background:none;color:#7cc4fa;font-weight:600;font-size:12.5px;padding:0}
+#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .ph>*,#mesa.client .legend,#mesa.client .tray{display:none}
+#mesa.client .cell.empty::before{display:none}
+#mesa.client .cell.empty{background:#efefef}
+#mesa.client .bd{display:none}
+#mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
+@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}}
+@media (max-width:720px){
+#mesa .brand span{display:none}
+#mesa .main{flex-direction:column}
+#mesa .feed{width:100%;flex:1;border-right:0;border-bottom:1px solid var(--line)}
+#mesa .grid{max-width:480px;margin:0 auto}
+#mesa .tray{flex:0 0 196px;overflow-y:hidden;overflow-x:auto}
+#mesa .trayhead{position:static;padding:8px 10px}
+#mesa .tbody{padding:0 10px 10px}
+#mesa .drop,#mesa .hint{display:none}
+#mesa .tray.isempty .drop{display:block;padding:30px 12px}
+#mesa .tgrid{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:96px}
+}`;
+
+  function buildShell() {
+    document.title = 'Mesa de feed';
+    document.body.innerHTML = '';
+    document.body.style.margin = '0';
+    const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
+    root = document.createElement('div');
+    root.id = 'mesa';
+    root.innerHTML = `<header class="top"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><span class="save" aria-live="polite"></span></header>`
+      + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
+      + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
+    document.body.append(root);
+    mainMode = null;
+    wire();
+  }
+  const shellReady = () => root && document.body.contains(root);
+
+  let pendingRender = false;
+  function render() {
+    if (!shellReady()) return;
+    if (drag) { pendingRender = true; return; }
+    pendingRender = false;
+    renderTabs(); renderBar(); renderMain();
+  }
+  function flushRender() { if (pendingRender) render(); }
+
+  function renderTabs() {
+    root.querySelector('.tabs').innerHTML = CL.map(c => `<button class="tab${c.id === curClient ? ' on' : ''}" data-act="client" data-id="${esc(c.id)}"${c.id === curClient ? ' aria-current="page"' : ''}>${esc(c.name)}</button>`).join('')
+      + '<button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button>';
+  }
+
+  function counts() {
+    const n = S.slots.length, filled = S.slots.filter(s => s.photos.length).length, notes = S.slots.filter(s => noteOf(s)).length;
+    const st = S.slots.map(slotStatus); return { n, filled, notes, ok: st.filter(x => x === 'ok').length, chg: st.filter(x => x === 'chg').length };
+  }
+  function renderBar() {
+    if (!shellReady()) return;
+    const bar = root.querySelector('.bar');
+    const c = CL.find(x => x.id === curClient);
+    root.classList.toggle('picking', !!sel);
+    if (!c) { bar.innerHTML = ''; return; }
+    const months = MB.map(b => {
+      const live = S && b.key === S.key ? counts() : null;
+      const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
+      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}">${esc(monthLabel(b.month, true))}<i>${f}/${n}</i></button>`;
+    }).join('') + '<button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>';
+    let stats = '';
+    if (S) {
+      const k = counts();
+      stats = `<div class="stats"><span><b>${k.filled}</b>/${k.n} con foto</span><span><b>${k.notes}</b> notas</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c"><b class="c">${k.chg}</b> cambiadas</span>` : ''}</div>`;
+    }
+    bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
+      + `<div class="months">${months}</div><div class="spacer"></div>${stats}`
+      + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
+  }
+
+  let mainMode = null;   // 'board:<key>' | 'empty-client' | 'no-clients'
+  function renderMain() {
+    const main = root.querySelector('.main');
+    const mode = S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient : 'no-clients';
+    if (mode !== mainMode) {
+      mainMode = mode;
+      if (!S) root.classList.remove('client');
+      if (S) {
+        main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section>'
+          + '<aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div>'
+          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
+          + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>';
+      } else if (CL.length) {
+        const c = CL.find(x => x.id === curClient);
+        main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : '')}: aún no hay ningún mes en la mesa</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga noviembre de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
+      } else {
+        main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>Crea tu primer cliente</h3>Cada cliente tiene su pestaña, con sus meses.<br><br><button class="btn" data-act="newclient">+ Nuevo cliente</button></div></div>`;
+      }
+    }
+    if (S) { renderFeed(); renderTray(); }
+  }
+
+  function slotStatus(s) {
+    const u = s.uploaded; if (!u) return null;
+    return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || u.crop === cropSig(s)) ? 'ok' : 'chg';
+  }
+  function statusBadge(s) {
+    const st = slotStatus(s);
+    return st === 'ok' ? '<span class="st ok">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg">cambiada</span>' : '';
+  }
+  function badgesHTML(s) {
+    const n = noteOf(s) ? `<span class="nb" title="Tiene nota">${ICON.note}</span>` : '';
+    const st = statusBadge(s);
+    return n || st ? `<div class="badges">${n}${st}</div>` : '';
+  }
+  function cellHTML(s) {
+    const lab = shortLabel(s.name, s.type), when = fmtDate(s.date);
+    const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '';
+    const collab = s.type === 'Collab Reel' ? '<span class="tag">Collab</span>' : '';
+    if (!s.photos.length) {
+      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${esc(when)}</span>${collab}</div></div>`;
+    }
+    const f = M.files[s.photos[0]] || {};
+    const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
+    const n = s.photos.length;
+    const cnt = isCarousel(s.type) ? `<span class="cnt">${n} foto${n === 1 ? '' : 's'}</span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt top">${n} opciones</span>` : '';
+    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s)}${cnt}<div class="lab"><b>${esc(lab)}</b>${esc(when)}${collab ? '<br>' + collab : ''}</div></div>`;
+  }
+  function pastHTML(p, i, N) {
+    const col = i % 3, bd = [];
+    if (i - 3 < N) bd.push('border-top:4px solid #262626');
+    if (i === N && col > 0) bd.push('border-left:4px solid #262626');
+    const line = bd.length ? `<span class="bd" style="${bd.join(';')}"></span>` : '';
+    const icon = isReel(p.type) ? ICON.reel : isCarousel(p.type) ? ICON.carousel : '';
+    const date = `<span class="pdate">${esc(fmtDate(p.date, true))}</span>`;
+    if (p.fid && M.files[p.fid]) {
+      const f = M.files[p.fid];
+      return `<div class="cell past" title="${esc(p.name)}"><img class="crop" src="${f.thumbUrl}" style="${rectStyle(f, gridRect(p.fid, p.slot, PB))}" alt="">${line}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
+    }
+    const url = !p.slot && M.pastThumbs[p.id];
+    if (url) return `<div class="cell past" title="${esc(p.name)}"><img src="${url}" alt="">${line}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
+    const why = p.slot ? 'sin foto en la mesa' : M.pastPending[p.id] ? 'cargando…' : 'sin imagen en Notion';
+    return `<div class="cell past nophoto" title="${esc(p.name)}">${line}<div class="ph"><b>${esc(shortLabel(p.name, p.type))}</b><span>${esc(fmtDate(p.date, true))} · ${why}</span></div></div>`;
+  }
+  function renderFeed() {
+    if (!S || !shellReady()) return;
+    const grid = root.querySelector('.feed .grid'); if (!grid) return;
+    const N = S.slots.length, past = pastList();
+    grid.innerHTML = S.slots.map(cellHTML).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
+    const pm = monthLabel(prevMonth(S.month));
+    root.querySelector('.feed .legend').innerHTML = `<span><b>${esc(monthLabel(S.month))}</b> · ${N} a preparar</span>`
+      + (past.length ? `<span><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${past.length} publicada${past.length === 1 ? '' : 's'}${PB ? ' (de tu mesa)' : ''}</span>` : `<span>Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`);
+  }
+  function renderTray() {
+    if (!S || !shellReady()) return;
+    const tray = root.querySelector('.tray'); if (!tray) return;
+    tray.querySelector('.tcount').textContent = S.tray.length ? `${S.tray.length} foto${S.tray.length === 1 ? '' : 's'} sin usar` : 'vacía';
+    tray.classList.toggle('isempty', !S.tray.length);
+    tray.querySelector('.tgrid').innerHTML = S.tray.map(id => {
+      const f = M.files[id]; if (!f) return '';
+      return `<div class="titem${sel === id ? ' sel' : ''}" draggable="true" data-file="${esc(id)}" title="${esc(f.name)}"><img src="${f.thumbUrl}" alt=""><span class="tname">${esc(f.name)}</span><button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button></div>`;
+    }).join('');
+  }
+
+  // ---------- post view (Instagram-desktop style) ----------
+  function openDetail(id, idx) {
+    const s = slot(id); if (!s || !shellReady()) return;
+    const d = root.querySelector('.detail');
+    if (idx == null) idx = cur.slot === id ? cur.idx : 0;
+    const n = s.photos.length;
+    idx = Math.max(0, Math.min(n - 1, idx || 0));
+    // keep the note's focus and caret if we're re-rendering the same post while typing
+    const ta = d.querySelector('textarea.note');
+    const keep = ta && document.activeElement === ta && ta.dataset.slot === id ? { a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
+    cur = { slot: id, idx };
+    const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
+    const fid = s.photos[idx];
+    let left;
+    if (!n) left = '<div class="pempty">Sin foto todavía.<br>Suelta una foto de la bandeja sobre la casilla.</div>';
+    else {
+      const c = cropOf(fid, s);
+      const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
+      const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
+      const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>›</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
+      const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
+      const acts = `<div class="pacts"><span class="fname">${esc((M.files[fid] || {}).name || '')}</span>`
+        + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
+        + (car && n > 1 ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
+        + `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button></div>`;
+      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${nav}</div></div>
+        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted">Arrastra la foto para reencuadrar</span></div>
+        ${strip}${acts}`;
+    }
+    const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
+    d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
+      <div class="phead"><h3>${esc(s.name)}</h3><p><span>${esc(fmtDate(s.date))} · ${esc(s.type || '')}</span>${statusBadge(s)}</p></div>
+      <div class="pbody"><div class="pleft">${left}</div>
+        <div class="pright"><label class="nlab" for="nota-${esc(id)}">Nota <span>· no la ve el cliente</span></label>
+          <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Contexto para el caption o anotación.">${esc(s.note || '')}</textarea>
+          ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    d.hidden = false;
+    d.dataset.slot = id; delete d.dataset.dlg;
+    if (keep) { const t2 = d.querySelector('textarea.note'); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
+    if (n) { layoutStage(); loadBig(fid); }
+  }
+  function layoutStage() {
+    const st = root && root.querySelector('.detail .stage'); if (!st) return;
+    const s = slot(st.dataset.slot), fid = st.dataset.file; if (!s || !M.files[fid]) return;
+    const R = slotRatio(s, fid);
+    const W = Math.max(200, st.parentElement.clientWidth || 300);
+    const H = Math.max(220, Math.min(window.innerHeight * 0.6, 680));
+    let w = W, h = W / R; if (h > H) { h = H; w = H * R; }
+    st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
+    placeBig();
+  }
+  function placeBig() {
+    const st = root && root.querySelector('.detail .stage'); if (!st) return;
+    const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
+    st.querySelector('img.big').setAttribute('style', rectStyle(f, postRect(fid, s)));
+  }
+  async function loadBig(fid) {
+    try {
+      M.bigUrls = M.bigUrls || {}; M.bigOrder = (M.bigOrder || []).filter(x => x !== fid); M.bigOrder.push(fid);
+      if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(await getBlob(fid));
+      while (M.bigOrder.length > 6) { const old = M.bigOrder.shift(); if (M.bigUrls[old]) URL.revokeObjectURL(M.bigUrls[old]); delete M.bigUrls[old]; if (!['pending', 'uploading'].includes((M.uploads[old] || {}).state)) delete M.blobs[old]; }
+      const st = root.querySelector('.detail .stage'); if (st && st.dataset.file === fid) st.querySelector('img.big').src = M.bigUrls[fid];
+    } catch (e) { /* keep the thumbnail */ }
+  }
+  function closeDetail() {
+    if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
+    const d = root && root.querySelector('.detail'); if (!d) return;
+    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg;
+  }
+  function refreshDetail() { const d = root && root.querySelector('.detail'); if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); } }
+
+  // ---------- dialogs (clients, how to add a month) ----------
+  function showDialog(kind, html) {
+    const d = root.querySelector('.detail');
+    d.innerHTML = `<div class="card dlg" role="dialog" aria-modal="true">${html}</div>`;
+    d.hidden = false; delete d.dataset.slot; d.dataset.dlg = kind;
+    const first = d.querySelector('input[type=text]'); if (first) first.focus();
+  }
+  function dlgNewClient() {
+    showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nuevo cliente</h3><p>Se crea su pestaña vacía. Después pídele a Claude que cargue el mes desde Notion.</p>
+      <form class="form" data-form="newclient" autocomplete="off"><label for="nc-name">Nombre</label><input id="nc-name" name="name" type="text" maxlength="60" placeholder="Ej.: daGiorgio" required>
+      <label for="nc-handle">Usuario de Instagram <span>(opcional)</span></label><input id="nc-handle" name="handle" type="text" maxlength="120" placeholder="@usuario">
+      <p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Crear cliente</button></div></form>`);
+  }
+  function dlgEditClient() {
+    const c = CL.find(x => x.id === curClient); if (!c) return;
+    const nm = MB.length;
+    showDialog('editclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Editar cliente</h3>
+      <form class="form" data-form="editclient" autocomplete="off"><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
+      <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
+      <p class="ferr" hidden></p>
+      <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Guardar</button></div></form>`);
+  }
+  function dlgHowMonth() {
+    const c = CL.find(x => x.id === curClient);
+    showDialog('howmonth', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Añadir otro mes</h3><p>Los meses se cargan desde Notion con las publicaciones del calendario (nombre, fecha, hora y tipo exactos), para que al subir las fotos cada una vaya a su página. Pídeselo a Claude en el chat:</p><p style="color:var(--ink);font-size:14px;margin:12px 0 4px">«Carga noviembre de ${esc(c ? c.name : 'este cliente')} en la mesa»</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
+  }
+  const normHandle = h => { h = String(h || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@+/, ''); return h ? '@' + h : ''; };
+  async function submitForm(form) {
+    const kind = form.dataset.form, err = form.querySelector('.ferr');
+    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle.value);
+    const fail = m => { err.textContent = m; err.hidden = false; };
+    if (!name) return fail('Escribe el nombre del cliente.');
+    if (CL.some(c => c.name.toLowerCase() === name.toLowerCase() && (kind === 'newclient' || c.id !== curClient))) return fail('Ya existe un cliente con ese nombre.');
+    if (kind === 'newclient') {
+      if (busyGuard()) return;
+      const c = await M.addClient({ name, handle }); closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
+    } else { await M.updateClient(curClient, { name, handle }); closeDetail(); }
+  }
+
+  // ---------- messages ----------
+  function toast(msg, opt) {
+    if (!shellReady()) return;
+    const t = document.createElement('div'); t.className = 'toast';
+    const span = document.createElement('span'); span.textContent = msg; t.append(span);
+    if (opt && opt.action) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = opt.action;
+      b.addEventListener('click', () => { t.remove(); opt.onAction(); });
+      t.append(b);
+    }
+    root.querySelector('.toasts').append(t);
+    setTimeout(() => t.remove(), (opt && opt.ms) || 4200);
+  }
+  function setBusy(kind, msg) {
+    busyText[kind] = msg || null;
+    const text = [busyText.imp, busyText.up].filter(Boolean).join(' · ');
+    M.busyText = text || null;
+    if (!shellReady()) return;
+    const b = root.querySelector('.busy'); b.textContent = text; b.hidden = !text;
+  }
+  function setSave(msg, err) { if (!shellReady()) return; const s = root.querySelector('.save'); s.textContent = msg; s.classList.toggle('err', !!err); }
+  function busyGuard() {
+    if (uploadsBusy()) { toast('Espera a que termine la subida a Notion.'); return true; }
+    if (importing) { toast('Espera a que terminen de prepararse las fotos.'); return true; }
+    return false;
+  }
+
+  // ---------- events ----------
+  const hasFiles = e => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  function clearOver() { root.querySelectorAll('.over').forEach(el => el.classList.remove('over')); }
+
+  function wire() {
+    if (!M._winWired) {
+      M._winWired = true;
+      window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+      window.addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); });
+    }
+    root.addEventListener('dragstart', e => {
+      const ti = e.target.closest && e.target.closest('.titem[data-file]');
+      const ce = e.target.closest && e.target.closest('.cell.full[data-slot]');
+      if (ti) drag = { from: 'tray', fileId: ti.dataset.file, el: ti };
+      else if (ce) drag = { from: 'slot', slotId: ce.dataset.slot, el: ce };
+      else return;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'mesa');
+      const img = drag.el.querySelector('img'); if (img) e.dataTransfer.setDragImage(img, img.clientWidth / 2, img.clientHeight / 2);
+      drag.el.classList.add('dragging');
+    });
+    root.addEventListener('dragend', () => { if (drag && drag.el) drag.el.classList.remove('dragging'); drag = null; clearOver(); flushRender(); });
+    root.addEventListener('dragover', e => {
+      if (!drag && !hasFiles(e)) return;
+      const cell = e.target.closest('.cell[data-slot]');
+      const tray = e.target.closest('.tray');
+      clearOver();
+      if (cell) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; cell.classList.add('over'); }
+      else if (tray) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; tray.classList.add('over'); }
+      else if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+    });
+    root.addEventListener('dragleave', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) clearOver(); });
+    root.addEventListener('drop', e => {
+      const cell = e.target.closest('.cell[data-slot]');
+      const tray = e.target.closest('.tray');
+      clearOver();
+      if (hasFiles(e)) { e.preventDefault(); drag = null; if (S) M.addFiles(e.dataTransfer.files, cell ? cell.dataset.slot : null); else toast('Abre un mes antes de añadir fotos.'); return; }
+      if (!drag || !S) return;
+      e.preventDefault();
+      const d = drag; drag = null;
+      if (cell) { if (d.from === 'tray') place(cell.dataset.slot, d.fileId); else swap(d.slotId, cell.dataset.slot); }
+      else if (tray && d.from === 'slot') unassign(d.slotId);
+      flushRender();
+    });
+    root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
+    root.addEventListener('click', e => {
+      const a = e.target.closest('[data-act]');
+      if (a) { onAct(a, e); return; }
+      if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
+      if (!S) return;
+      const ti = e.target.closest('.titem[data-file]');
+      if (ti) { sel = sel === ti.dataset.file ? null : ti.dataset.file; renderTray(); renderBar(); return; }
+      const cell = e.target.closest('.cell[data-slot]');
+      if (cell) {
+        const id = cell.dataset.slot;
+        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; place(id, f); return; }
+        sel = null;
+        openDetail(id, 0);
+      }
+    });
+    root.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-form]'); if (f) submitForm(f); });
+    root.addEventListener('input', e => {
+      if (!e.target.matches) return;
+      if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);
+      else if (e.target.matches('.zoomr')) { const s = slot(cur.slot), fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); } }
+    });
+    root.addEventListener('change', e => {
+      if (!e.target.matches) return;
+      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); }
+      else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
+      else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
+    });
+    root.addEventListener('pointerdown', e => {
+      const st = e.target.closest && e.target.closest('.detail .stage');
+      if (!st || e.target.closest('.nav') || e.button !== 0) return;
+      const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
+      e.preventDefault();
+      try { st.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      st.classList.add('panning');
+      const r0 = postRect(fid, s);
+      const sx = e.clientX, sy = e.clientY, cx0 = (r0.x + r0.w / 2) / f.w, cy0 = (r0.y + r0.h / 2) / f.h;
+      const sw = st.clientWidth, sh = st.clientHeight;
+      const mv = ev => { setCrop(fid, s, { cx: cx0 - (ev.clientX - sx) / sw * (r0.w / f.w), cy: cy0 - (ev.clientY - sy) / sh * (r0.h / f.h) }); placeBig(); };
+      const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); };
+      st.addEventListener('pointermove', mv); st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+    });
+    if (M._onKey) document.removeEventListener('keydown', M._onKey);
+    M._onKey = e => {
+      if (!shellReady()) return;
+      const open = !root.querySelector('.detail').hidden;
+      if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } return; }
+      const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
+      if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
+    };
+    document.addEventListener('keydown', M._onKey);
+    if (M._onResize) window.removeEventListener('resize', M._onResize);
+    M._onResize = () => layoutStage();
+    window.addEventListener('resize', M._onResize);
+  }
+
+  async function onAct(a, e) {
+    const act = a.dataset.act;
+    if (act === 'add') root.querySelector('.picker').click();
+    else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file); }
+    else if (act === 'close') closeDetail();
+    else if (act === 'unpick') { unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
+    else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
+    else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
+    else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
+    else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
+    else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
+    else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
+    else if (act === 'fmt') setFmt(cur.slot, a.dataset.fmt);
+    else if (act === 'center') { const s = slot(cur.slot); if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); } }
+    else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }
+    else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
+    else if (act === 'newclient') dlgNewClient();
+    else if (act === 'editclient') dlgEditClient();
+    else if (act === 'howmonth') dlgHowMonth();
+    else if (act === 'delclient') {
+      if (a.dataset.confirm !== '1') { a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar'; return; }
+      const c = CL.find(x => x.id === curClient);
+      const r = await M.removeClient(curClient);
+      closeDetail();
+      if (r === true) toast(`Cliente «${c ? c.name : ''}» eliminado.`); else toast(String(r));
+    }
+  }
+
+  // ---------- clients ----------
+  M.clients = async () => {
+    await loadClients();
+    const boards = (await idbAll('boards')) || [];
+    return CL.map(c => ({ ...c, months: boards.filter(b => b.client === c.id).map(b => b.month).sort() }));
+  };
+  M.addClient = async ({ id, name, handle } = {}) => {
+    await loadClients();
+    name = String(name || '').trim(); if (!name) throw new Error('falta el nombre');
+    const existing = CL.find(c => (id && c.id === id) || c.name.toLowerCase() === name.toLowerCase());
+    if (existing) return existing;
+    const base = id ? String(id) : slugify(name);
+    let cid = base, k = 2;
+    while (CL.some(c => c.id === cid)) cid = base + k++;
+    const c = { id: cid, name, handle: normHandle(handle), createdAt: new Date().toISOString() };
+    await idbPut('clients', cid, c);
+    await loadClients();
+    if (shellReady()) render();
+    return c;
+  };
+  M.updateClient = async (id, patch) => {
+    const c = await idbGet('clients', id); if (!c) return 'no existe';
+    if (patch.name != null) c.name = String(patch.name).trim() || c.name;
+    if (patch.handle != null) c.handle = normHandle(patch.handle);
+    await idbPut('clients', id, c);
+    await loadClients(); render();
+    return c;
+  };
+  M.removeClient = async id => {
+    const boards = (await idbAll('boards')) || [];
+    const n = boards.filter(b => b.client === id).length;
+    if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
+    await idbDel('clients', id);
+    await loadClients();
+    if (curClient === id) {
+      curClient = null;
+      if (CL[0]) { await M.openClient(CL[0].id); return true; }
+      mainMode = null;
+    }
+    render();
+    return true;
+  };
+  M.openClient = async id => {
+    if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    await loadClients();
+    if (!CL.find(c => c.id === id)) return 'no existe';
+    if (uploadsBusy() || importing) return 'ocupada: espera a que termine la subida o la importación';
+    const all = (await idbAll('boards')) || [];
+    const mine = all.filter(b => b.client === id).sort((a, b) => String(b.month).localeCompare(String(a.month)));
+    let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
+    const pick = mine.find(b => b.key === lastBy[id]) || mine[0];
+    if (pick) return M.open(pick.key);
+    if (S) { try { await flushNow(); } catch (e) { /* */ } }
+    if (shellReady()) closeDetail(); else buildShell();
+    S = null; PB = null; sel = null; curClient = id;
+    lsSet('mesa-lastClient', id); lsSet('mesa-last', '');
+    await refreshMonths(); render(); setSave('');
+    return M.status();
+  };
+
+  // ---------- init / open ----------
+  // cfg = { client, month:'YYYY-MM', slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
+  // Legacy cfg {key, handle, title, slots, past} still works: the client is derived from the key.
+  M.init = async (cfg) => {
+    if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
+    cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
+    let client = cfg.client, month = cfg.month;
+    const km = String(cfg.key || '').match(/^(.+)-(\d{4}-\d{2})$/);
+    if (!client) client = km ? km[1] : String(cfg.key || 'cliente');
+    if (!month) {
+      if (km) month = km[2];
+      else { const cnt = {}; cfg.slots.forEach(s => { const m = monthOf(s.date); if (m) cnt[m] = (cnt[m] || 0) + 1; }); month = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || monthOf(new Date().toISOString()); }
+    }
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
+    const key = cfg.key || `${client}-${month}`;
+    await loadClients();
+    if (!CL.find(c => c.id === client)) {
+      if (cfg.createClient === false) throw new Error(`no existe el cliente ${client}`);
+      const name = cfg.clientName || (String(cfg.title || '').split(' · ')[0].trim()) || client;
+      await M.addClient({ id: client, name, handle: cfg.handle || '' });
+    }
+    if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
+    sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 };
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
+    if (!shellReady()) buildShell(); else closeDetail();
+    setSave('Cargando…');
+    const old = (await idbGet('boards', key)) || { slots: [], tray: [] };
+    const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
+    const orphans = [];
+    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...(s.photos || []));
+    const pm = prevMonth(month);
+    const pastIn = cfg.past.length ? cfg.past : (old.past || []);
+    S = {
+      key, client, month,
+      slots: cfg.slots.map(s => { const o = oldById[s.id] || {}; const r = { id: s.id, name: s.name, type: s.type, date: s.date, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null }; if (o.fmt) r.fmt = o.fmt; return r; }),
+      tray: [...(old.tray || []), ...orphans],
+      past: pastIn.filter(p => !p.date || monthOf(p.date) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
+      crops: old.crops || {},
+      savedAt: old.savedAt || null
+    };
+    S.slots.sort((a, b) => ts(b.date) - ts(a.date));
+    const ids = [...new Set([...S.tray, ...S.slots.flatMap(s => s.photos)])];
+    const missing = await loadThumbs(ids);
+    if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
+    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1)); s.photos = s.photos.slice(0, 1); } });
+    S.tray = [...new Set(S.tray)].filter(id => !S.slots.some(s => s.photos.includes(id)));
+    normalize();
+    PB = (await idbGet('boards', `${client}-${pm}`)) || null;
+    if (PB && PB.key === key) PB = null;
+    if (PB) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
+    for (const p of S.past) {
+      if (M.pastThumbs[p.id]) continue;
+      const rec = await idbGet('files', 'past:' + p.id);
+      if (rec && rec.thumb) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }
+    }
+    curClient = client;
+    lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
+    let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
+    lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+    await flushNow();
+    await refreshMonths();
+    render();
+    if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
+    return M.status();
+  };
+
+  M.open = async key => {
+    const b = await idbGet('boards', key);
+    if (!b) return 'no existe';
+    const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
+    const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
+    return M.init({ key, client, month, clientName: String(b.title || '').split(' · ')[0].trim() || null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date }) => ({ id, name, type, date })), past: b.past || [] });
+  };
+  // Opens what was open last (or the first client) — used by the loader page.
+  M.boot = async () => {
+    if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    await loadClients();
+    const last = lsGet('mesa-last');
+    if (last && (await idbGet('boards', last))) return M.open(last);
+    const lc = lsGet('mesa-lastClient');
+    if (lc && CL.find(c => c.id === lc)) return M.openClient(lc);
+    if (CL.length) return M.openClient(CL[0].id);
+    const all = (await idbAll('boards')) || [];
+    if (all.length) return M.open(all.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0].key);
+    if (!shellReady()) buildShell();
+    curClient = null; S = null; render();
+    return M.status();
+  };
+
+  // ---------- past posts from Notion (only when the previous month isn't in the mesa) ----------
+  function loadPastOne(id, url) {
+    M.pastPending[id] = true; delete M.pastErrors[id];
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = async () => {
+      img.onload = img.onerror = null;
+      try {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        const b = await thumbFromBitmap(img, w, h);
+        if (M.pastThumbs[id]) URL.revokeObjectURL(M.pastThumbs[id]);
+        M.pastBlobs[id] = b; M.pastThumbs[id] = URL.createObjectURL(b);
+        await idbPut('files', 'past:' + id, { thumb: b, w, h });
+      } catch (e) { M.pastErrors[id] = 'draw: ' + String(e); }
+      finally { delete M.pastPending[id]; renderFeed(); }
+    };
+    img.onerror = () => { img.onload = img.onerror = null; M.pastErrors[id] = 'load failed'; delete M.pastPending[id]; renderFeed(); };
+    img.src = url;
+  }
+  M.startPast = items => { items.forEach(it => loadPastOne(it.id, it.url)); renderFeed(); return M.pastStatus(); };
+  M.pastStatus = () => ({ source: PB ? 'mesa:' + PB.key : 'notion', pending: Object.keys(M.pastPending).length, loaded: S ? S.past.filter(p => M.pastThumbs[p.id]).map(p => p.id) : [], errors: { ...M.pastErrors } });
+  M.waitPast = async (ms = 25000) => { const t0 = Date.now(); while (Object.keys(M.pastPending).length && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 250)); return M.pastStatus(); };
+
+  // ---------- upload to Notion ----------
+  M.plan = () => S ? S.slots.filter(s => s.photos.length || noteOf(s) || s.uploaded).map(s => {
+    const st = slotStatus(s), pub = publishList(s);
+    return {
+      slotId: s.id, name: s.name, type: s.type,
+      status: st === null ? 'nueva' : st === 'ok' ? 'ya subida' : 'cambiada',
+      emptied: !pub.length && !!s.uploaded,
+      files: pub.map(id => { const r = postRect(id, s); return { fileId: id, name: (M.files[id] || {}).name, mb: +(((M.files[id] || {}).size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 3:4' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h) }; }),
+      alternatives: s.photos.length - pub.length,
+      note: noteOf(s),
+      uploaded: s.uploaded || null
+    };
+  }) : [];
+
+  // items: [{fileId, slotId, url, auth, crop?}] — starts in background, poll with waitUpload().
+  // The crop is fixed at the moment of the call, so later edits or a board switch can't change what is sent.
+  // A new request for a photo that is still uploading replaces (aborts) the previous one.
+  M.startUpload = (items, conc = 2) => {
+    const B = S;
+    const jobs = [];
+    for (const it of items || []) {
+      const fid = it.fileId;
+      const s = B && (it.slotId ? B.slots.find(x => x.id === it.slotId) : B.slots.find(x => publishList(x).includes(fid)));
+      if (M._ctrl[fid]) { try { M._ctrl[fid].abort('replaced'); } catch (e) { /* */ } }
+      const gen = M._gen[fid] = (M._gen[fid] || 0) + 1;
+      if (it.crop !== false && (!s || !s.photos.includes(fid))) {
+        M.uploads[fid] = { state: 'error', err: 'la foto no está en ninguna casilla de la mesa abierta' };
+        continue;
+      }
+      const rect = it.crop !== false ? postRect(fid, s, B) : null;
+      const sig = s ? fileSig(fid, s, B) : null;
+      M.uploads[fid] = { state: 'pending', slotId: s ? s.id : null, sig };
+      jobs.push({ fid, url: it.url, auth: it.auth, rect, sig, gen, slotId: s ? s.id : null });
+    }
+    if (jobs.length) {
+      UP.total += jobs.length; busyUpload();
+      const q = jobs.slice();
+      const worker = async () => { while (q.length) await runJob(q.shift()); };
+      for (let i = 0; i < Math.min(conc, q.length); i++) worker();
+    }
+    return M.uploadStatus((items || []).map(i => i.fileId));
+  };
+  function busyUpload() {
+    if (UP.done >= UP.total) { UP = { total: 0, done: 0 }; setBusy('up', null); }
+    else setBusy('up', `Subiendo fotos a Notion: ${UP.done}/${UP.total}`);
+  }
+  async function runJob(j) {
+    const live = () => M._gen[j.fid] === j.gen;
+    if (!live()) { UP.done++; busyUpload(); return; }
+    const ctrl = new AbortController(); M._ctrl[j.fid] = ctrl;
+    const timer = setTimeout(() => ctrl.abort('timeout'), UPLOAD_TIMEOUT);
+    M.uploads[j.fid] = { ...M.uploads[j.fid], state: 'uploading' };
+    let res;
+    try {
+      let blob = await getBlob(j.fid);
+      let name = (M.files[j.fid] || {}).name || 'foto.jpg';
+      let reencoded = false, cropped = null;
+      if (j.rect) { const cb = await cropBlob(blob, j.fid, j.rect); if (!cb.original) { blob = cb.blob; cropped = cb.w + 'x' + cb.h; name = name.replace(/\.[^.]+$/, '') + '.jpg'; } }
+      else if (blob.size > MAX_UPLOAD) { blob = await reencode(blob); reencoded = true; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
+      if (ctrl.signal.aborted) throw new Error('aborted');
+      const fd = new FormData(); fd.append('file', blob, name);
+      const r = await fetch(j.url, { method: 'POST', headers: { authorization: j.auth }, body: fd, signal: ctrl.signal });
+      const txt = await r.text();
+      let js = {}; try { js = JSON.parse(txt); } catch (e) { /* not json */ }
+      res = (r.ok && js.status === 'uploaded')
+        ? { state: 'ok', fileUploadId: js.file_upload_id, name, mb: +(blob.size / 1048576).toFixed(1), reencoded, cropped }
+        : { state: 'error', http: r.status, err: txt.slice(0, 200) };
+    } catch (e) {
+      delete M.blobs[j.fid];
+      const why = ctrl.signal.aborted ? (ctrl.signal.reason === 'timeout' ? 'tiempo agotado (3 min): vuelve a intentarlo' : 'sustituida por un nuevo intento') : String(e).slice(0, 200);
+      res = { state: 'error', err: why };
+    }
+    clearTimeout(timer);
+    if (M._ctrl[j.fid] === ctrl) delete M._ctrl[j.fid];
+    if (live()) M.uploads[j.fid] = { ...res, slotId: j.slotId, sig: j.sig };
+    UP.done++; busyUpload();
+  }
+  M.uploadStatus = ids => Object.fromEntries((ids || Object.keys(M.uploads)).map(id => [id, M.uploads[id] || { state: 'none' }]));
+  M.waitUpload = async (ids, ms = 45000) => {
+    const t0 = Date.now();
+    const busy = () => ids.some(id => ['pending', 'uploading'].includes((M.uploads[id] || {}).state));
+    while (busy() && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 400));
+    return M.uploadStatus(ids);
+  };
+  // list: [{slotId, fileIds, note}] — records exactly the crop that was sent for each photo.
+  M.markUploaded = list => {
+    if (!S) return [];
+    list.forEach(({ slotId, fileIds, note }) => {
+      const s = slot(slotId); if (!s) return;
+      fileIds = fileIds || [];
+      const nt = note == null ? noteOf(s) : String(note).trim();
+      if (!fileIds.length && !nt) { s.uploaded = null; return; }
+      const sigs = fileIds.map(fid => { const u = M.uploads[fid]; return u && u.slotId === slotId && u.sig ? u.sig : fileSig(fid, s); });
+      s.uploaded = { fileIds, note: nt, crop: JSON.stringify(sigs), at: new Date().toISOString() };
+    });
+    changed();
+    return M.plan();
+  };
+
+  // ---------- preview image for the client (1080 px wide) ----------
+  M.render = async (mode = 'clean') => {
+    if (!S) return { error: 'no hay mesa abierta' };
+    const W = 1080, GAP = 3, COLS = 3, TW = 358, TH = 477, HEADER = 250, FOOT = 40;
+    const c0 = CL.find(c => c.id === S.client) || {};
+    const past = pastList();
+    const posts = [
+      ...S.slots.map(s => ({ name: s.name, type: s.type, date: s.date, isNew: true, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null })),
+      ...past.map(p => (p.slot
+        ? { name: p.name, type: p.type, date: p.date, isNew: false, blob: p.fid ? M.thumbBlobs[p.fid] : null, rect: p.fid && M.files[p.fid] ? { g: gridRect(p.fid, p.slot, PB), f: M.files[p.fid] } : null }
+        : { name: p.name, type: p.type, date: p.date, isNew: false, blob: M.pastBlobs[p.id] || null }))
+    ];
+    const rows = Math.ceil(posts.length / COLS);
+    const H = HEADER + rows * TH + (rows - 1) * GAP + FOOT;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+    x.textBaseline = 'alphabetic';
+    x.fillStyle = '#111'; x.font = `700 46px ${FONT}`; x.fillText(c0.handle || c0.name || '', 48, 92);
+    x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + monthLabel(S.month), 48, 140);
+    x.fillStyle = '#8a8a8a'; x.font = `400 24px ${FONT}`;
+    x.fillText(`${S.slots.length} publicaciones nuevas${past.length ? ` + ${past.length} de ${MONTHS[+prevMonth(S.month).slice(5) - 1]}` : ''} · vista del perfil (recorte 3:4)`, 48, 184);
+    if (past.length) {
+      x.fillStyle = '#111'; x.fillRect(48, 214, 44, 5);
+      x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText('Por encima de la línea: publicaciones nuevas · Debajo: ya publicado', 104, 222);
+    }
+    const drawIcon = (svg, cx, cy, color) => new Promise(res => {
+      const im = new Image();
+      im.onload = () => { x.save(); x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 6; x.drawImage(im, cx - 16, cy - 16, 32, 32); x.restore(); res(); };
+      im.onerror = () => res();
+      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" style="color:${color}" `).replace(/currentColor/g, color));
+    });
+    for (let i = 0; i < posts.length; i++) {
+      const p = posts[i];
+      const px = (i % COLS) * (TW + GAP), py = HEADER + Math.floor(i / COLS) * (TH + GAP);
+      if (p.blob) {
+        const bmp = await createImageBitmap(p.blob);
+        const r = TW / TH, sr = bmp.width / bmp.height;
+        let sw, sh, sx, sy;
+        if (p.rect) { const k = bmp.width / p.rect.f.w; sx = p.rect.g.x * k; sy = p.rect.g.y * k; sw = p.rect.g.w * k; sh = p.rect.g.h * k; }
+        else if (sr > r) { sh = bmp.height; sw = sh * r; sx = (bmp.width - sw) / 2; sy = 0; } else { sw = bmp.width; sh = sw / r; sx = 0; sy = (bmp.height - sh) / 2; }
+        x.imageSmoothingQuality = 'high';
+        x.drawImage(bmp, sx, sy, sw, sh, px, py, TW, TH);
+        bmp.close();
+      } else {
+        x.fillStyle = '#efefef'; x.fillRect(px, py, TW, TH);
+        if (mode === 'annotated' || p.isNew) {
+          x.fillStyle = '#9a9a9a'; x.font = `600 26px ${FONT}`; x.textAlign = 'center';
+          x.fillText(p.isNew ? 'Pendiente' : 'Publicada', px + TW / 2, py + TH / 2);
+          x.textAlign = 'left';
+        }
+      }
+      if (isReel(p.type)) await drawIcon(ICON.reel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
+      else if (isCarousel(p.type)) await drawIcon(ICON.carousel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
+      if (mode === 'annotated') {
+        const g = x.createLinearGradient(0, py + TH - 112, 0, py + TH);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.72)');
+        x.fillStyle = g; x.fillRect(px, py + TH - 112, TW, 112);
+        x.fillStyle = '#fff'; x.font = `600 22px ${FONT}`; x.fillText(p.name, px + 14, py + TH - 44, TW - 28);
+        x.font = `400 19px ${FONT}`; x.fillStyle = 'rgba(255,255,255,.9)'; x.fillText(fmtDate(p.date) + (p.isNew ? '' : '  ·  publicada'), px + 14, py + TH - 16, TW - 28);
+      }
+    }
+    const N = S.slots.length;
+    if (N > 0 && N < posts.length) {
+      const R = Math.floor(N / COLS), k = N % COLS;
+      const yRow = r => HEADER + r * (TH + GAP) - GAP / 2;
+      const xCol = cc => cc * (TW + GAP) - GAP / 2;
+      x.strokeStyle = '#111'; x.lineWidth = 8; x.lineCap = 'square';
+      x.beginPath();
+      if (k === 0) { x.moveTo(0, yRow(R)); x.lineTo(W, yRow(R)); }
+      else if ((R + 1) * COLS < posts.length) { x.moveTo(0, yRow(R + 1)); x.lineTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
+      else { x.moveTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
+      x.stroke();
+    }
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    M.out[mode] = blob;
+    return { mode, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.length, empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name) };
+  };
+  M.uploadOut = async (mode, url, auth, filename) => {
+    const fd = new FormData(); fd.append('file', M.out[mode], filename);
+    const r = await fetch(url, { method: 'POST', headers: { authorization: auth }, body: fd });
+    const t = await r.text(); let j = {}; try { j = JSON.parse(t); } catch (e) { /* */ }
+    return { http: r.status, state: j.status || 'error', fileUploadId: j.file_upload_id || null };
+  };
+  M.showOut = mode => { const u = URL.createObjectURL(M.out[mode]); const w = window.open(u); setTimeout(() => URL.revokeObjectURL(u), 60000); return !!w; };
+
+  // ---------- status / housekeeping ----------
+  M.status = () => S ? ({
+    version: M.version, key: S.key, client: S.client, month: S.month, slots: S.slots.length,
+    filled: S.slots.filter(s => s.photos.length).length,
+    tray: S.tray.length, files: Object.keys(M.files).length,
+    past: PB ? `mesa ${PB.month}: ${PB.slots.length}` : `${S.past.filter(p => M.pastThumbs[p.id]).length}/${S.past.length}`,
+    busy: M.busyText || null, savedAt: S.savedAt
+  }) : { version: M.version, client: curClient, board: null };
+  M.board = () => S && JSON.parse(JSON.stringify(S));
+  M.purge = async key => {
+    const boards = await idbAll('boards');
+    const b = boards.find(x => x.key === key); if (!b) return 'no existe';
+    const others = boards.filter(x => x.key !== key);
+    const otherRefs = new Set(others.flatMap(x => [...refsOf(x)]));
+    let n = 0;
+    for (const id of refsOf(b)) if (!otherRefs.has(id)) {
+      await idbDel('files', id);
+      if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
+      if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
+      delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id]; n++;
+    }
+    const otherPast = new Set(others.flatMap(x => (x.past || []).map(p => p.id)));
+    for (const p of b.past || []) if (!otherPast.has(p.id)) {
+      await idbDel('files', 'past:' + p.id);
+      if (M.pastThumbs[p.id]) URL.revokeObjectURL(M.pastThumbs[p.id]);
+      delete M.pastThumbs[p.id]; delete M.pastBlobs[p.id];
+    }
+    await idbDel('boards', key);
+    if (S && S.key === key) { clearTimeout(saveTimer); clearTimeout(noteTimer); S = null; PB = null; if (shellReady()) { closeDetail(); await refreshMonths(); render(); } }
+    else if (PB && PB.key === key) { PB = null; renderFeed(); }
+    return `borrada ${key}: ${n} fotos eliminadas`;
+  };
+  M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
+  M._test = {
+    place, swap, unassign, move, removeFile, setCover, setNote, pastList,
+    setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
+    setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
+    postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),
+    cropSig: slotId => cropSig(slot(slotId)), cur: () => ({ ...cur }), setSel: id => { sel = id; render(); }
+  };
+
+  try { localStorage.setItem('mesa-code', '(' + mesaBoot.toString() + ')()'); localStorage.setItem('mesa-version', M.version); } catch (e) { /* storage off */ }
+  return 'Mesa de feed ' + M.version + ' cargada';
+})();

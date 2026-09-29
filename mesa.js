@@ -1,4 +1,4 @@
-// Mesa de feed — Uribe Visuals · v3.2
+// Mesa de feed — Uribe Visuals · v3.3
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.2';
+  M.version = '3.3';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -541,7 +541,7 @@
 #mesa .cnt.tr{top:7px}
 #mesa .cell.past{cursor:default}
 #mesa .bd{position:absolute;inset:0;pointer-events:none;z-index:2}
-#mesa .pmonth{position:absolute;top:8px;left:8px;z-index:3;font-size:10.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:2px 8px;pointer-events:none}
+#mesa .pmonth{position:absolute;top:4px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:1px 7px;opacity:.95;pointer-events:none}
 #mesa .pdate{position:absolute;left:6px;bottom:5px;z-index:3;font-size:10px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7);pointer-events:none}
 #mesa .cell.past.nophoto .ph b{color:#8e8e8e}
 #mesa .cell.over{outline:3px solid var(--acc) !important;outline-offset:-3px !important}
@@ -626,8 +626,8 @@
 #mesa .pright textarea.note{flex:1;min-height:180px}
 #mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
 #mesa .toasts{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
-#mesa .toast{pointer-events:auto;background:var(--ink);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:8px;max-width:90vw;display:flex;gap:12px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
-#mesa .toast button{border:0;background:none;color:#7cc4fa;font-weight:600;font-size:12.5px;padding:4px 2px;white-space:nowrap}
+#mesa .toast{pointer-events:none;background:var(--ink);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:8px;max-width:90vw;display:flex;gap:12px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#mesa .toast button{pointer-events:auto;border:0;background:none;color:#7cc4fa;font-weight:600;font-size:12.5px;padding:4px 2px;white-space:nowrap}
 #mesa .lock{position:absolute;inset:0;z-index:20;background:rgba(250,250,250,.94);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ph>*,#mesa.client .legend,#mesa.client .tray{display:none}
 #mesa.client .cell.empty::before{display:none}
@@ -636,6 +636,7 @@
 #mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}}
 @media (max-width:720px){
+#mesa .toasts{top:52px;bottom:auto}
 #mesa .brand span{display:none}
 #mesa .bar{padding:8px 10px;gap:6px 10px}
 #mesa .av,#mesa .who span{display:none}
@@ -652,6 +653,11 @@
 #mesa .drop,#mesa .hint{display:none}
 #mesa .tray.isempty .drop{display:block;padding:18px 12px;margin:0}
 #mesa .tgrid{height:100%;grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:78px}
+}
+@media (max-width:720px) and (max-height:720px){
+#mesa .legend{display:none}
+#mesa .tray{flex-basis:132px}
+#mesa .tgrid{grid-auto-columns:64px}
 }`;
 
   function buildShell() {
@@ -836,6 +842,7 @@
         <div class="pright"><label class="nlab" for="nota-${esc(id)}">Nota <span>· no la ve el cliente</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Contexto para el caption o anotación.">${esc(s.note || '')}</textarea>
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg;
     if (keep) { const t2 = d.querySelector('textarea.note'); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
@@ -847,7 +854,7 @@
     const R = slotRatio(s, fid);
     const W = Math.max(200, st.parentElement.clientWidth || 300);
     const n = (slot(st.dataset.slot) || { photos: [] }).photos.length;
-    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - (n > 1 ? 330 : 260)));
+    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - (n > 1 ? 345 : 265)));
     let w = W, h = W / R; if (h > H) { h = H; w = H * R; }
     st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
     placeBig();
@@ -887,6 +894,7 @@
   function showDialog(kind, html) {
     const d = root.querySelector('.detail');
     d.innerHTML = `<div class="card dlg" role="dialog" aria-modal="true">${html}</div>`;
+    clearToasts();
     d.hidden = false; delete d.dataset.slot; d.dataset.dlg = kind;
     const first = d.querySelector('input[type=text]'); if (first) first.focus();
   }
@@ -923,9 +931,13 @@
   }
 
   // ---------- messages ----------
+  function clearToasts() { if (shellReady()) root.querySelector('.toasts').innerHTML = ''; }
   function toast(msg, opt) {
     if (!shellReady()) return;
-    const t = document.createElement('div'); t.className = 'toast';
+    const box = root.querySelector('.toasts');
+    [...box.children].forEach(el => { if (el.dataset.msg === msg) el.remove(); });
+    while (box.children.length >= 2) box.firstElementChild.remove();
+    const t = document.createElement('div'); t.className = 'toast'; t.dataset.msg = msg;
     const span = document.createElement('span'); span.textContent = msg; t.append(span);
     if (opt && opt.action) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = opt.action;

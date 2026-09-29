@@ -1,4 +1,4 @@
-// Mesa de feed — Uribe Visuals · v3.1
+// Mesa de feed — Uribe Visuals · v3.2
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.1';
+  M.version = '3.2';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -355,7 +355,11 @@
       if (fresh.length) B.tray.unshift(...fresh);          // newest imports first, in name order
       importing -= files.length; setBusy('imp', null);
     }
-    if (B !== S) { if (fresh.length && !locked) { try { await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); } catch (e) { /* */ } } return got; }
+    if (B !== S) {
+      if (fresh.length && S && S.key === B.key) { S.tray.unshift(...fresh.filter(id => !refsOf(S).has(id))); changed(); }
+      else if (fresh.length && !locked) { try { await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); } catch (e) { /* */ } }
+      return got;
+    }
     if (targetSlotId && got.length) {
       const s = slot(targetSlotId);
       if (s && isCarousel(s.type)) got.forEach(id => place(targetSlotId, id, true));
@@ -410,8 +414,9 @@
     s.photos = s.photos.filter(x => !back.includes(x));
     S.tray.unshift(...back);
     changed();
+    const after = s.photos.slice();
     if (undoable) toast(back.length > 1 ? `${back.length} fotos vuelven a la bandeja.` : 'La foto vuelve a la bandeja.', { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
-      if (S !== B || !slot(slotId) || !back.every(id => S.tray.includes(id))) return;
+      if (S !== B || !slot(slotId) || !same(s.photos, after) || !back.every(id => S.tray.includes(id))) { toast('No se puede deshacer: la casilla ya ha cambiado.'); return; }
       S.tray = S.tray.filter(id => !back.includes(id));
       S.slots.forEach(o => { if (o !== s) o.photos = o.photos.filter(id => !before.photos.includes(id)); });
       s.photos = before.photos.slice(); if (before.fmt) s.fmt = before.fmt;
@@ -933,7 +938,7 @@
   function setBusy(kind, msg) {
     busyText[kind] = msg || null;
     const text = [busyText.imp, busyText.up, busyText.sel].filter(Boolean).join(' · ');
-    M.busyText = text || null;
+    M.busyText = [busyText.imp, busyText.up].filter(Boolean).join(' · ') || null;
     if (!shellReady()) return;
     const b = root.querySelector('.busy'); b.textContent = text; b.hidden = !text;
   }
@@ -1048,7 +1053,12 @@
     M._onResize = () => layoutStage();
     window.addEventListener('resize', M._onResize);
     if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
-    M._onHide = e => { if (e.type === 'pagehide' || document.visibilityState === 'hidden') { if (saveTimer || noteTimer) flushNow().catch(() => { /* */ }); } };
+    M._onHide = e => {
+      if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer)) return;
+      S.savedAt = new Date().toISOString();
+      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S }));   // sync: survives a reload that kills the async write
+      flushNow().catch(() => { /* */ });
+    };
     document.addEventListener('visibilitychange', M._onHide); window.addEventListener('pagehide', M._onHide);
   }
 
@@ -1176,7 +1186,12 @@
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
     if (!shellReady()) buildShell(); else closeDetail();
     setSave('Cargando…');
-    const old = (await idbGet('boards', key)) || { slots: [], tray: [] };
+    let old = (await idbGet('boards', key)) || { slots: [], tray: [] };
+    try {
+      const pend = JSON.parse(lsGet('mesa-pending') || 'null');
+      if (pend && pend.key === key && pend.board && String(pend.board.savedAt || '') > String(old.savedAt || '')) old = pend.board;
+      if (pend && pend.key === key) localStorage.removeItem('mesa-pending');
+    } catch (e) { /* */ }
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
     const orphans = [];
     for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...(s.photos || []));
@@ -1217,11 +1232,13 @@
   };
 
   M.open = async key => {
+    await migrateLegacy();
     const b = await idbGet('boards', key);
     if (!b) return 'no existe';
     const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
-    return M.init({ key, client, month, clientName: String(b.title || '').split(' · ')[0].trim() || null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date }) => ({ id, name, type, date })), past: b.past || [] });
+    const t = String(b.title || '');
+    return M.init({ key, client, month, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date }) => ({ id, name, type, date })), past: b.past || [] });
   };
   async function migrateLegacy() {
     const all = (await idbAll('boards')) || [];
@@ -1294,6 +1311,7 @@
   // The crop is fixed at the moment of the call, so later edits or a board switch can't change what is sent.
   // A new request for a photo that is still uploading replaces (aborts) the previous one.
   M.startUpload = (items, conc = M.cfg.uploadConc) => {
+    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
     const B = S;
     const jobs = [];
     for (const it of items || []) {
@@ -1380,6 +1398,7 @@
   };
   // list: [{slotId, fileIds, note}] — records exactly the crop that was sent for each photo.
   M.markUploaded = list => {
+    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
     if (!S) return [];
     list.forEach(({ slotId, fileIds, note }) => {
       const s = slot(slotId); if (!s) return;
@@ -1485,8 +1504,8 @@
     filled: S.slots.filter(s => s.photos.length).length,
     tray: S.tray.length, files: Object.keys(M.files).length,
     past: PB ? `mesa ${PB.month}: ${PB.slots.length}` : `${S.past.filter(p => M.pastThumbs[p.id]).length}/${S.past.length}`,
-    busy: M.busyText || null, savedAt: S.savedAt
-  }) : { version: M.version, client: curClient, board: null };
+    busy: M.busyText || null, locked, savedAt: S.savedAt
+  }) : { version: M.version, client: curClient, board: null, locked };
   M.board = () => S && JSON.parse(JSON.stringify(S));
   M.purge = async key => {
     const boards = await idbAll('boards');

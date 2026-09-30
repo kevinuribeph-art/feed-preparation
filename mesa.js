@@ -224,7 +224,7 @@
     const B = S;
     saveTimer = setTimeout(async () => {
       saveTimer = null;
-      try { B.savedAt = new Date().toISOString(); await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); if (B === S) setSave('Guardado'); }
+      try { stamp(B); B.savedAt = new Date().toISOString(); await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); await pushShared(B); if (B === S) setSave('Guardado'); }
       catch (e) { setSave('No se pudo guardar', true); }
     }, 250);
   }
@@ -232,10 +232,12 @@
     clearTimeout(saveTimer); saveTimer = null;
     clearTimeout(noteTimer); noteTimer = null;
     if (!S || locked) return null;
-    S.savedAt = new Date().toISOString();
-    await idbPut('boards', S.key, JSON.parse(JSON.stringify(S)));
+    const B = S;
+    stamp(B); B.savedAt = new Date().toISOString();
+    await idbPut('boards', B.key, JSON.parse(JSON.stringify(B)));
+    await pushShared(B);
     setSave('Guardado');
-    return S.savedAt;
+    return B.savedAt;
   }
   M.flush = flushNow;
   // Lets a newer copy of the code take over this page without losing a pending save.
@@ -247,6 +249,82 @@
     if (dbConn) { try { dbConn.close(); } catch (e) { /* */ } }
     dbp = null; dbConn = null;
   };
+
+  // ---------- linked publications ----------
+  // One Notion page can be in several boards (a collab of two clients, overlapping months of one client): it is one
+  // publication, so its photos (with their crops), note, format, upload record, date and name are shared. Each slot
+  // keeps a revision (s.at, ms): a save writes the changed ones through to every other board that has them, and
+  // opening a board takes the newest copy of each of its slots.
+  const SYNC = ['photos', 'note', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName'];
+  let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
+  let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
+  const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
+  const slotSig = (s, B) => JSON.stringify([SYNC.map(k => s[k] ?? null), (s.photos || []).map(f => (B.crops || {})[f] || null)]);
+  function copyShared(to, toB, from, fromB) {
+    for (const k of SYNC) { if (from[k] === undefined) delete to[k]; else to[k] = JSON.parse(JSON.stringify(from[k])); }
+    if (from.at) to.at = from.at; else delete to.at;
+    toB.crops = toB.crops || {};
+    for (const f of to.photos || []) { const c = fromB.crops && fromB.crops[f]; if (c) toB.crops[f] = { ...c }; else delete toB.crops[f]; }
+  }
+  // init: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from
+  async function importShared(cfgSlots, old, key) {
+    let pend = null; try { pend = JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { /* */ }
+    const others = ((await idbAll('boards')) || []).filter(b => b.key !== key)
+      .map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
+    const refs = new Set(others.flatMap(b => [...refsOf(b)]));
+    old.slots = old.slots || []; old.tray = old.tray || []; old.crops = old.crops || {};
+    IDX = {};
+    for (const id of new Set(cfgSlots.map(s => s.id))) {
+      const own = old.slots.find(s => s.id === id);
+      let best = own, from = null;
+      for (const b of others) {
+        const s = (b.slots || []).find(x => x.id === id); if (!s) continue;
+        (IDX[id] = IDX[id] || []).push({ key: b.key, client: boardClient(b) });
+        if (!best || (s.at || 0) > (best.at || 0)) { best = s; from = b; }
+      }
+      if (!from) continue;
+      const o = { ...(own || {}), id };
+      copyShared(o, old, best, from);
+      for (const f of (own && own.photos) || []) if (!(o.photos || []).includes(f) && !refs.has(f)) old.tray.push(f);   // never lose a photo
+      if (own) old.slots[old.slots.indexOf(own)] = o; else old.slots.push(o);
+    }
+  }
+  function sharedInit(oldById) {   // once S is built: keep the revisions, remember what is saved
+    S.slots.forEach(s => { const o = oldById[s.id]; if (o && o.at) s.at = o.at; });
+    SIG = { b: S, m: Object.fromEntries(S.slots.map(s => [s.id, slotSig(s, S)])), dirty: new Set() };
+  }
+  function stamp(B) {              // before saving: new revision for the slots whose shared state changed
+    if (!B || SIG.b !== B) return;
+    const now = Date.now();
+    for (const s of B.slots) { const g = slotSig(s, B); if (SIG.m[s.id] !== g) { SIG.m[s.id] = g; s.at = now; if (IDX[s.id]) SIG.dirty.add(s.id); } }
+  }
+  // after saving: write those slots through to the other boards (one read/put per board; other slots untouched)
+  async function pushShared(B) {
+    if (SIG.b !== B || !SIG.dirty.size) return;
+    const ids = [...SIG.dirty]; SIG.dirty.clear();
+    const by = {}, gone = [];
+    ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); }));
+    try {
+      await tx('boards', 'readwrite', st => { for (const k of Object.keys(by)) { const g = st.get(k); g.onsuccess = () => {
+        const ob = g.result; if (!ob) { gone.push(k); return; }
+        let hit = false;
+        for (const id of by[k]) {
+          const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue;
+          copyShared(o, ob, s, B); ob.tray = (ob.tray || []).filter(f => !s.photos.includes(f)); hit = true;
+        }
+        if (hit) st.put(ob, k);
+      }; } });
+    } catch (e) { if (SIG.b === B) ids.forEach(id => SIG.dirty.add(id)); return; }
+    if (gone.length) { dropIdx(gone); renderFeed(); }
+    if (B === S && Object.keys(by).some(k => MB.some(m => m.key === k))) { await refreshMonths(); renderBar(); }
+  }
+  function dropIdx(keys) { for (const id of Object.keys(IDX)) { IDX[id] = IDX[id].filter(x => !keys.includes(x.key)); if (!IDX[id].length) delete IDX[id]; } }
+  function sharedWith(s) {         // the other clients whose boards have this publication (a collab)
+    if (!S || !s) return [];
+    return [...new Set((IDX[s.id] || []).map(x => x.client).filter(c => c && c !== S.client))].map(c => (CL.find(x => x.id === c) || {}).name || c);
+  }
+  const linkTag = s => { const w = sharedWith(s); return w.length ? `<span class="ltag" title="Collab enlazada: foto, fecha, hora y nota se cambian también en ${esc(w.join(' y '))}">↔ ${esc(w.join(' · '))}</span>` : ''; };
+  const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora y nota se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
 
   async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
   async function refreshMonths() {
@@ -603,6 +681,9 @@
 #mesa .lab b{display:block;font-size:11.5px}
 #mesa .tag{display:inline-block;margin-top:3px;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:1px 5px}
 #mesa .lab .tag{background:rgba(255,255,255,.22)}
+#mesa span.ltag{display:block;width:fit-content;max-width:100%;margin-top:3px;font-size:10px;font-weight:600;background:var(--acc);color:#fff;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa.client .ltag{display:none}
+#mesa .phead p.lk{margin-top:4px;color:var(--acc2);font-size:12px}
 #mesa .badges{position:absolute;top:6px;left:6px;display:flex;gap:4px;align-items:center;z-index:3;pointer-events:none}
 #mesa .nb{width:21px;height:21px;border-radius:50%;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 #mesa .nb svg{width:13px;height:13px}
@@ -841,13 +922,13 @@
     const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '';
     const collab = s.type === 'Collab Reel' ? '<span class="tag">Collab</span>' : '';
     if (!s.photos.length) {
-      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${esc(when)}</span>${collab}</div></div>`;
+      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${esc(when)}</span>${collab}${linkTag(s)}</div></div>`;
     }
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) ? `<span class="cnt">${n} foto${n === 1 ? '' : 's'}</span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr">${n} opciones</span>` : '';
-    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s)}${cnt}<div class="lab"><b>${esc(lab)}</b>${esc(when)}${collab ? '<br>' + collab : ''}</div></div>`;
+    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s)}${cnt}<div class="lab"><b>${esc(lab)}</b>${esc(when)}${collab ? '<br>' + collab : ''}${linkTag(s)}</div></div>`;
   }
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];
@@ -922,7 +1003,7 @@
     }
     const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(s.name)}</h3><p><span>${esc(fmtDate(s.date))} · ${esc(s.type || '')}</span>${statusBadge(s)}</p></div>
+      <div class="phead"><h3>${esc(s.name)}</h3><p><span>${esc(fmtDate(s.date))} · ${esc(s.type || '')}</span>${statusBadge(s)}</p>${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
         <div class="pright"><label class="nlab" for="nota-${esc(id)}">Nota <span>· no la ve el cliente</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Contexto para el caption o anotación.">${esc(s.note || '')}</textarea>
@@ -1212,6 +1293,7 @@
     if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
     M._onHide = e => {
       if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer)) return;
+      stamp(S);
       S.savedAt = new Date().toISOString();
       lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S }));   // sync: survives a reload that kills the async write
       flushNow().catch(() => { /* */ });
@@ -1359,6 +1441,7 @@
       if (pend && pend.key === key && pend.board && String(pend.board.savedAt || '') > String(old.savedAt || '')) old = pend.board;
       if (pend && pend.key === key) localStorage.removeItem('mesa-pending');
     } catch (e) { /* */ }
+    await importShared(cfg.slots, old, key);
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
     const orphans = [];
     for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...(s.photos || []));
@@ -1391,6 +1474,7 @@
     buildPrev(old.prev);
     S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
     { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
+    sharedInit(oldById);
     curClient = client;
     lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
@@ -1677,7 +1761,8 @@
     past: PB ? `mesa ${PB.month}: ${PB.slots.length}` : `${S.past.filter(p => M.pastThumbs[p.id]).length}/${S.past.length}`,
     busy: M.busyText || null, locked, savedAt: S.savedAt,
     prevLock: S.prevUnlocked ? 'desbloqueado' : prevOnce ? 'solo esta vez' : 'bloqueado',
-    prevHidden: (S.prev || []).filter(p => p.hidden).length, prevEdited: (S.prev || []).filter(p => p.own).length
+    prevHidden: (S.prev || []).filter(p => p.hidden).length, prevEdited: (S.prev || []).filter(p => p.own).length,
+    linked: S.slots.filter(s => sharedWith(s).length).length
   }) : { version: M.version, client: curClient, board: null, locked };
   M.board = () => S && JSON.parse(JSON.stringify(S));
   M.purge = async key => {
@@ -1699,6 +1784,7 @@
       delete M.pastThumbs[p.id]; delete M.pastBlobs[p.id];
     }
     await idbDel('boards', key);
+    dropIdx([key]); if (S && S.key !== key) renderFeed();
     if (S && S.key === key) { clearTimeout(saveTimer); clearTimeout(noteTimer); S = null; PB = null; if (shellReady()) { closeDetail(); await refreshMonths(); render(); } }
     else if (PB && PB.key === key) { PB = null; renderFeed(); }
     return `borrada ${key}: ${n} fotos eliminadas`;
@@ -1713,7 +1799,9 @@
     prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
     setHidden: (id, v) => { const it = prevItem(id); if (it) { it.hidden = !!v; changed(); } },
     prevLocked: () => prevLocked(),
-    unlock: mode => { if (mode === 'always') { S.prevUnlocked = true; save(); } else if (mode === 'once') prevOnce = true; else { S.prevUnlocked = false; prevOnce = false; save(); } renderFeed(); }
+    unlock: mode => { if (mode === 'always') { S.prevUnlocked = true; save(); } else if (mode === 'once') prevOnce = true; else { S.prevUnlocked = false; prevOnce = false; save(); } renderFeed(); },
+    shared: id => sharedWith(slot(id)), idx: () => JSON.parse(JSON.stringify(IDX)), deleteIfUnused,
+    setSlot: (id, patch) => { const s = slot(id); if (s) { Object.assign(s, patch); save(); render(); } }
   };
 
   try { localStorage.setItem('mesa-code', '(' + mesaBoot.toString() + ')()'); localStorage.setItem('mesa-version', M.version); } catch (e) { /* storage off */ }

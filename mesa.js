@@ -413,7 +413,7 @@
     if (!S || !s) return [];
     return [...new Set((IDX[s.id] || []).map(x => x.client).filter(c => c && c !== S.client))].map(c => (CL.find(x => x.id === c) || {}).name || c);
   }
-  const linkTag = s => { const w = sharedWith(s); return w.length ? `<span class="ltag" title="Collab enlazada: foto, fecha, hora y nota se cambian también en ${esc(w.join(' y '))}">↔ ${esc(w.join(' · '))}</span>` : ''; };
+  const linkTag = s => { const w = sharedWith(s); return w.length ? `<span class="ltag" title="Collab enlazada: foto, fecha, hora y nota se cambian también en ${esc(w.join(' y '))}">Collab ↔ ${esc(w.join(' · '))}</span>` : ''; };
   const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora y nota se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
 
   async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
@@ -745,7 +745,7 @@
 #mesa .mchip.ghost{border-style:dashed;color:var(--mute)}
 #mesa .spacer{flex:1}
 #mesa .stats{display:flex;gap:4px 12px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600}#mesa .stats .c{color:var(--chg)}
-#mesa .sw{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap}
+#mesa .sw{display:flex;align-items:center;gap:8px;min-height:28px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap}
 #mesa .sw input{appearance:none;-webkit-appearance:none;width:32px;height:18px;border-radius:999px;background:#c7c7c7;position:relative;cursor:pointer;margin:0;transition:background .15s}
 #mesa .sw input::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s}
 #mesa .sw input:checked{background:var(--ink)}#mesa .sw input:checked::after{transform:translateX(14px)}
@@ -772,27 +772,29 @@
 #mesa .lab b{display:block;font-size:11.5px}
 #mesa .tag{display:inline-block;margin-top:3px;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:1px 5px}
 #mesa .lab .tag{background:rgba(255,255,255,.22)}
-#mesa span.ltag{display:block;width:fit-content;max-width:100%;margin-top:3px;font-size:10px;font-weight:600;background:var(--acc);color:#fff;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa span.ltag{display:block;width:fit-content;max-width:100%;margin-top:3px;font-size:10px;font-weight:600;background:#0064d1;color:#fff;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa.client .ltag{display:none}
 #mesa .phead p.lk{margin-top:4px;color:var(--acc2);font-size:12px}
-#mesa .badges{position:absolute;top:6px;left:6px;display:flex;gap:4px;align-items:center;z-index:3;pointer-events:none}
+#mesa .badges{position:absolute;top:6px;left:6px;right:30px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;z-index:3;pointer-events:none}
 #mesa .nb{width:21px;height:21px;border-radius:50%;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 #mesa .nb svg{width:13px;height:13px}
-#mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff}
+#mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff;white-space:nowrap}
 #mesa .st.ok{background:var(--ok)}#mesa .st.chg{background:var(--chg)}
 #mesa .mpill{font-size:9.5px;font-weight:600;background:rgba(38,38,38,.88);color:#fff;border-radius:999px;padding:1px 7px;line-height:17px}
 #mesa .dchg{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--chg);box-shadow:0 0 0 1.5px #fff;margin:0 5px 1px 1px;vertical-align:middle}
+#mesa .dchg.nm{background:none;box-shadow:inset 0 0 0 1.5px var(--chg),0 0 0 1.5px #fff}
 #mesa .cnt{position:absolute;top:30px;right:7px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px}
 #mesa .cnt.tr{top:7px}
 #mesa .cell.past{cursor:default}
 #mesa .bd{position:absolute;inset:0;pointer-events:none;z-index:2}
 #mesa .pmonth{position:absolute;top:4px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:1px 7px;opacity:.95;cursor:pointer}
+#mesa .pmonth::after{content:'';position:absolute;inset:-7px -4px -9px}
 #mesa .ptag2{position:absolute;top:28px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:rgba(38,38,38,.85);color:#fff;border-radius:4px;padding:1px 6px;pointer-events:none}
 #mesa .ptag2.ed{background:rgba(0,149,246,.9)}
 #mesa .cell.past.phidden img,#mesa .cell.past.phidden .ph{opacity:.35}
 #mesa .cell.past:not(.locked){cursor:grab}
 #mesa .cell.past.locked{cursor:pointer}
-#mesa .lockbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;font-size:11.5px;padding:3px 9px;min-height:26px;color:var(--ink)}
+#mesa .lockbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;font-size:11.5px;padding:3px 9px;min-height:28px;color:var(--ink)}
 #mesa .lockbtn.on{border-color:var(--acc);color:var(--acc)}
 #mesa .pthumb{max-width:100%;max-height:60vh;display:block;margin:0 auto;border-radius:4px}
 #mesa .pvacts{display:flex;flex-direction:column;gap:8px;margin-top:4px}
@@ -853,7 +855,8 @@
 #mesa .phead p[hidden]{display:none}
 #mesa .pwhen{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}#mesa .pwhen .wd{min-width:2.2em}
 #mesa .pwhen input{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 6px;min-height:30px}
-#mesa .phead .pnot .lnk{padding:4px 2px}
+#mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
 #mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
 #mesa .pleft{padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg);border-right:1px solid var(--line2);min-width:0}
 #mesa .stagewrap{width:100%;display:flex;justify-content:center}
@@ -892,6 +895,7 @@
 #mesa.client .cell.empty::before{display:none}
 #mesa.client .cell.empty{background:#efefef}
 #mesa.client .bd{display:none}
+#mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}}
 @media (max-width:720px){
@@ -971,7 +975,7 @@
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
       stats = `<div class="stats"><span><b>${k.filled}</b>/${k.n} con foto</span><span><b>${k.notes}</b> ${pl(k.notes, 'nota', 'notas')}</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre o nota): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
-        + (k.dates ? `<span class="c dates" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}"><b class="c">${k.dates}</b> ${pl(k.dates, 'fecha cambiada', 'fechas cambiadas')}</span>` : '') + '</div>';
+        + (k.dates ? `<span class="c dates" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}"><i class="dchg" aria-hidden="true"></i><b class="c">${k.dates}</b> con fecha nueva</span>` : '') + '</div>';
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
       + `<div class="months">${months}</div><div class="spacer"></div>${stats}`
@@ -1017,10 +1021,11 @@
     return mp || n || st ? `<div class="badges">${mp}${n}${st}</div>` : '';
   }
   const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
+  const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
   function cellHTML(s, pill) {
-    const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : '') + esc(fmtDate(s.date));
+    const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) ? DNM : '') + esc(fmtDate(s.date));
     const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '';
-    const collab = s.type === 'Collab Reel' ? '<span class="tag">Collab</span>' : '';
+    const collab = s.type === 'Collab Reel' && !sharedWith(s).length ? '<span class="tag">Collab</span>' : '';
     if (!s.photos.length) {
       return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span>${collab}${linkTag(s)}</div></div>`;
     }
@@ -1054,7 +1059,7 @@
     const grid = root.querySelector('.feed .grid'); if (!grid) return;
     const N = S.slots.length, lk = prevLocked(), past = pastList(!lk), shown = past.filter(p => !p.hidden).length, nh = (S.prev || []).filter(p => p.hidden).length;
     const seen = new Set();   // range board: a month pill on the newest cell of each month
-    const pill = s => { const m = (localDay(s.date) || '').slice(0, 7); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return cap(MONTHS[+m.slice(5) - 1]); };
+    const pill = s => { const m = (localDay(s.date) || '').slice(0, 7); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return cap(MONTHS[+m.slice(5) - 1].slice(0, 3)); };
     grid.innerHTML = S.slots.map(s => cellHTML(s, pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
     const pm = monthLabel(prevMonth(S.month));
     const lockBtn = (S.prev || []).length ? (S.prevUnlocked ? '<button class="lockbtn on" data-act="prevlock" title="Volver a bloquear el mes anterior">🔓 Desbloqueado · Bloquear</button>' : lk ? '<button class="lockbtn" data-act="prevlock" title="Desbloquear el mes anterior">🔒 Bloqueado</button>' : '<button class="lockbtn on" data-act="prevlock">🔓 Solo esta vez</button>') : '';
@@ -1084,6 +1089,8 @@
     // keep the note's focus and caret if we're re-rendering the same post while typing
     const ta = d.querySelector('textarea.note');
     const keep = ta && document.activeElement === ta && ta.dataset.slot === id ? { a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
+    // focus: the close button when the post opens (or when it had it before this re-render, e.g. arrow keys)
+    const ae = document.activeElement, fresh = d.hidden || d.dataset.slot !== id || !!d.dataset.prev || !!(ae && d.contains(ae) && ae.matches('.card > .x'));
     cur = { slot: id, idx };
     const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
     const fid = s.photos[idx];
@@ -1114,6 +1121,7 @@
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;
     if (keep) { const t2 = d.querySelector('textarea.note'); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
+    else if (fresh) d.querySelector('.card > .x').focus({ preventScroll: true });
     if (n) { layoutStage(); loadBig(fid); }
   }
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
@@ -1125,8 +1133,10 @@
       + (dOnly(s.date) ? '' : `<input type="time" class="tmin" ${at} value="${esc(localTime(s.date))}" aria-label="Hora (Madrid)" title="Hora de Madrid">`) + '</span>';
   }
   function pnotHTML(s) {
-    const on = dateChg(s) || nameChg(s);
-    return `<p class="pnot"${on ? '' : ' hidden'}>${on ? `<span><i class="dchg"></i>En Notion: ${esc(s.notionName)} · ${esc(fmtDate(s.notionDate))}</span>${dateChg(s) ? `<button class="lnk" data-act="datereset" data-slot="${esc(s.id)}">Volver a la fecha de Notion</button>` : ''}` : ''}</p>`;
+    const dc = dateChg(s), nc = nameChg(s);
+    if (!dc && !nc) return '<p class="pnot" hidden></p>';
+    const txt = dc ? 'En Notion: ' + (nc ? s.notionName + ' · ' : '') + fmtDate(s.notionDate) : 'Se renombra al subir · en Notion: ' + s.notionName;
+    return `<p class="pnot"><span title="${esc(txt)}"><i class="dchg${dc ? '' : ' nm'}"></i>${esc(txt)}</span>${dc ? `<button class="lnk" data-act="datereset" data-slot="${esc(s.id)}">Volver a la fecha de Notion</button>` : ''}</p>`;
   }
   // after a date change typed in the post view: update its header without replacing the input being edited
   // (Chrome fires the date input's change while focus is briefly on <body>, so the source input is passed in)
@@ -1136,6 +1146,7 @@
     d.querySelector('.pwhen .wd').textContent = wday(s.date);
     d.querySelector('.phead .pnot').outerHTML = pnotHTML(s);
     d.querySelectorAll('.pwhen input').forEach(el => { if (el !== src) resetWhen(el, s); });
+    layoutStage();
   }
   function resetWhen(el, s) { const v = el.classList.contains('dtin') ? localDay(s.date) : localTime(s.date); if (el.value !== v) el.value = v; }
   function onWhen(el) {
@@ -1150,6 +1161,7 @@
   function openPast(id) {
     const it = prevItem(id); if (!it || !shellReady()) return;
     const d = root.querySelector('.detail');
+    const fresh = d.hidden || d.dataset.slot !== id || !d.dataset.prev;
     cur = { slot: id, idx: 0 };
     const im = prevImg(it), B = im && im.B;
     let left;
@@ -1173,6 +1185,7 @@
           <p class="muted" style="margin:12px 0 0">Para cambiar la foto, arrastra una de la bandeja sobre su casilla. Para intercambiar dos publicaciones, arrastra una sobre la otra.</p></div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false; d.dataset.slot = id; d.dataset.prev = '1'; delete d.dataset.dlg;
+    if (fresh) d.querySelector('.card > .x').focus({ preventScroll: true });
     if (im && im.f && M.files[im.f]) { layoutStage(); loadBig(im.f); }
   }
   function layoutStage() {
@@ -1181,7 +1194,8 @@
     const R = slotRatio(s, fid, bOf(s));
     const W = Math.max(200, st.parentElement.clientWidth || 300);
     const n = (slot(st.dataset.slot) || { photos: [] }).photos.length;
-    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - (n > 1 ? 345 : 265)));
+    const ph = root.querySelector('.detail .phead'), hh = ph ? ph.offsetHeight : 80;
+    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - hh - (n > 1 ? 285 : 205)));
     let w = W, h = W / R; if (h > H) { h = H; w = H * R; }
     st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
     placeBig();
@@ -1243,8 +1257,11 @@
       <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Guardar</button></div></form>`);
   }
   function dlgHowMonth() {
-    const c = CL.find(x => x.id === curClient);
-    showDialog('howmonth', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Añadir otro mes</h3><p>Los meses se cargan desde Notion con las publicaciones del calendario (nombre, fecha, hora y tipo exactos), para que al subir las fotos cada una vaya a su página. Pídeselo a Claude en el chat:</p><p style="color:var(--ink);font-size:14px;margin:12px 0 4px">«Carga noviembre de ${esc(c ? c.name : 'este cliente')} en la mesa»</p><p>Si ya tienes preparados dos meses, pídelos juntos y se preparan en la misma mesa, con el mes anterior debajo: «Carga noviembre y diciembre de ${esc(c ? c.name : 'este cliente')} en la mesa». Las fechas y horas se pueden cambiar aquí; al subir a Notion se cambian allí.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
+    const c = CL.find(x => x.id === curClient), cn = esc(c ? c.name : 'este cliente');
+    const last = MB.filter(b => /^\d{4}-\d{2}$/.test(b.month || '')).map(b => addMonths(b.month, (b.span || 1) - 1)).sort().pop();
+    const m1 = last ? addMonths(last, 1) : null, n1 = m1 ? MONTHS[+m1.slice(5) - 1] : nextMonthName();
+    const n2 = MONTHS[(MONTHS.indexOf(n1) + 1) % 12];
+    showDialog('howmonth', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Añadir otro mes</h3><p>Los meses se cargan desde Notion con las publicaciones del calendario (nombre, fecha, hora y tipo exactos), para que al subir las fotos cada una vaya a su página. Pídeselo a Claude en el chat:</p><p style="color:var(--ink);font-size:14px;margin:12px 0 4px">«Carga ${n1} de ${cn} en la mesa»</p><p>Si ya tienes preparados dos meses, pídelos juntos y se preparan en la misma mesa, con el mes anterior debajo: «Carga ${n1} y ${n2} de ${cn} en la mesa». Las fechas y horas se pueden cambiar aquí; al subir a Notion se cambian allí.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
   }
   const normHandle = h => { h = String(h || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@+/, ''); return h ? '@' + h : ''; };
   async function submitForm(form) {

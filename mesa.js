@@ -389,7 +389,7 @@
   async function pushShared(B) {
     if (SIG.b !== B || !SIG.dirty.size) return;
     const ids = [...SIG.dirty]; SIG.dirty.clear();
-    const by = {}, gone = [];
+    const by = {}, gone = [], srcRefs = refsOf(B);
     ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); }));
     try {
       await tx('boards', 'readwrite', st => { for (const k of Object.keys(by)) { const g = st.get(k); g.onsuccess = () => {
@@ -399,7 +399,7 @@
           const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue;
           const had = (o.photos || []).filter(f => !s.photos.includes(f));
           copyShared(o, ob, s, B); ob.tray = (ob.tray || []).filter(f => !s.photos.includes(f)); hit = true;
-          const refs = refsOf(ob), lost = had.filter(f => !refs.has(f));   // never orphan that board's photos
+          const refs = refsOf(ob), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));   // never orphan a photo (one this board still holds stays only here)
           if (lost.length) ob.tray.unshift(...lost);
         }
         if (hit) st.put(ob, k);

@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.5';
+  M.version = '3.6';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -751,7 +751,7 @@
 #mesa .sw input:checked{background:var(--ink)}#mesa .sw input:checked::after{transform:translateX(14px)}
 #mesa .busy{flex:none;background:var(--acc);color:#fff;font-size:12.5px;padding:5px 14px}
 #mesa .main{flex:1;min-height:0;display:flex}
-#mesa .feed{flex:0 0 auto;width:min(480px,58vw);overflow-y:auto;background:var(--panel);border-right:1px solid var(--line)}
+#mesa .feed{flex:0 0 auto;width:min(480px,58vw);overflow-y:auto;background:#000;border-right:1px solid var(--line)}
 #mesa .legend{position:sticky;top:0;z-index:4;display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;padding:8px 12px;background:rgba(255,255,255,.95);border-bottom:1px solid var(--line2);font-size:12px;color:var(--mute)}
 #mesa .legend b{color:var(--ink);font-weight:600}
 #mesa .legend .ln{display:inline-block;width:14px;height:3px;background:var(--ink);vertical-align:middle;margin-right:6px;border-radius:2px}

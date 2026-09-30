@@ -94,7 +94,8 @@
   const isCarousel = t => t === 'Carrusel';
   const isMulti = t => isCarousel(t) || t === 'Foto';                 // Foto: candidates (only the cover is published)
   const publishList = s => isCarousel(s.type) ? s.photos : s.photos.slice(0, 1);
-  const noteOf = s => String(s.note || '').trim();
+  const noteOf = s => String(s.note || '').trim();                   // «Contexto»: goes to Notion for the caption
+  const memoOf = s => String(s.memo || '').trim();                   // «Nota»: only for Kevin, never uploaded
   const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
   const newId = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const slugify = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'cliente';
@@ -337,10 +338,10 @@
 
   // ---------- linked publications ----------
   // One Notion page can be in several boards (a collab of two clients, overlapping months of one client): it is one
-  // publication, so its photos (with their crops), note, format, upload record, date and name are shared. Each slot
+  // publication, so its photos (with their crops), contexto (note), nota (memo), format, upload record, date and name are shared. Each slot
   // keeps a revision (s.at, ms): a save writes the changed ones through to every other board that has them, and
   // opening a board takes the newest copy of each of its slots.
-  const SYNC = ['photos', 'note', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName'];
+  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName'];
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
@@ -413,8 +414,8 @@
     if (!S || !s) return [];
     return [...new Set((IDX[s.id] || []).map(x => x.client).filter(c => c && c !== S.client))].map(c => (CL.find(x => x.id === c) || {}).name || c);
   }
-  const linkTag = s => { const w = sharedWith(s); return w.length ? `<span class="ltag" title="Collab enlazada: foto, fecha, hora y nota se cambian también en ${esc(w.join(' y '))}">Collab ↔ ${esc(w.join(' · '))}</span>` : ''; };
-  const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora y nota se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
+  const linkTag = s => { const w = sharedWith(s); return w.length ? `<span class="ltag" title="Collab enlazada: foto, fecha, hora, contexto y nota se cambian también en ${esc(w.join(' y '))}">Collab ↔ ${esc(w.join(' · '))}</span>` : ''; };
+  const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora, contexto y nota se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
 
   async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
   async function refreshMonths() {
@@ -605,6 +606,12 @@
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
   }
+  function setMemo(slotId, text) {           // «Nota»: saved and shared like the contexto, never uploaded (empty = no field)
+    const s = slot(slotId); if (!s) return;
+    if (text) s.memo = text; else delete s.memo;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
+  }
   function move(slotId, k, dir) {
     const s = slot(slotId), j = k + dir;
     if (!s || j < 0 || j >= s.photos.length) return;
@@ -729,6 +736,9 @@
 #mesa .tab:hover{color:var(--ink)}
 #mesa .tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
 #mesa .tab.add{flex:none;color:var(--acc);font-weight:600;border:0;background:none;padding:0 12px;font-size:13.5px;white-space:nowrap}
+#mesa .tabs .tedit{align-self:stretch;height:auto;width:28px;border-radius:0;border-bottom:2px solid var(--ink);font-size:15px;line-height:1}
+#mesa .tab.on.hasedit{padding-right:2px}
+#mesa .appbar .xfer{align-self:center}
 #mesa .save{flex:none;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap}#mesa .save.err{color:var(--red)}
 #mesa .bar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
 #mesa .bar:empty{display:none}
@@ -737,7 +747,7 @@
 #mesa .who{min-width:0}#mesa .who b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .who span{display:block;font-size:12.5px;color:var(--mute)}
 #mesa .ibtn{flex:none;border:0;background:none;width:30px;height:30px;border-radius:50%;color:var(--mute);font-size:17px;line-height:30px;padding:0}
 #mesa .ibtn:hover{background:var(--line2);color:var(--ink)}
-#mesa .months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#mesa .mgrp,#mesa .months{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #mesa .mchip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;min-height:32px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
 #mesa .mchip i{font-style:normal;color:var(--mute);font-size:11.5px}
 #mesa .mchip:hover{border-color:#bdbdbd}
@@ -755,7 +765,7 @@
 #mesa .legend{position:sticky;top:0;z-index:4;display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;padding:8px 12px;background:rgba(255,255,255,.95);border-bottom:1px solid var(--line2);font-size:12px;color:var(--mute)}
 #mesa .legend b{color:var(--ink);font-weight:600}
 #mesa .legend .ln{display:inline-block;width:14px;height:3px;background:var(--ink);vertical-align:middle;margin-right:6px;border-radius:2px}
-#mesa .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+#mesa .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin:0 auto}
 #mesa .cell{position:relative;aspect-ratio:3/4;overflow:hidden;background:#efefef;user-select:none}
 #mesa .cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 #mesa .cell img.crop{position:absolute;max-width:none;object-fit:fill}
@@ -784,7 +794,9 @@
 #mesa .dchg{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--chg);box-shadow:0 0 0 1.5px #fff;margin:0 5px 1px 1px;vertical-align:middle}
 #mesa .dchg.nm{background:none;box-shadow:inset 0 0 0 1.5px var(--chg),0 0 0 1.5px #fff}
 #mesa .cnt{position:absolute;top:30px;right:7px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px}
-#mesa .cnt.tr{top:7px}
+#mesa .cnt.tr{top:7px}#mesa .cnt .cs{display:none}
+#mesa .grid .cell{container-type:inline-size}
+@container (max-width:150px){#mesa .cnt .cw{display:none}#mesa .cnt .cs{display:inline}}
 #mesa .cell.past{cursor:default}
 #mesa .bd{position:absolute;inset:0;pointer-events:none;z-index:2}
 #mesa .pmonth{position:absolute;top:4px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:1px 7px;opacity:.95;cursor:pointer}
@@ -846,8 +858,10 @@
 #mesa .ferr{color:var(--red);font-size:12px;margin:8px 0 0}
 #mesa .muted{color:var(--mute);font-size:12px}
 #mesa .nlab{display:block;font-size:13px;font-weight:600;margin:0 0 6px}#mesa .nlab span{font-weight:400;color:var(--mute);font-size:12px}
-#mesa textarea.note{width:100%;min-height:74px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:13px/1.45 ${FONT};color:var(--ink)}
-#mesa textarea.note:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa textarea.note,#mesa textarea.memo{width:100%;min-height:74px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:13px/1.45 ${FONT};color:var(--ink)}
+#mesa textarea.note:focus,#mesa textarea.memo:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa textarea.memo{min-height:64px;font-size:12.5px;background:#fcfcfc}
+#mesa .nlab.mlab{margin-top:12px}
 #mesa .card.post{max-width:1000px;padding:0;display:flex;flex-direction:column;overflow:hidden}
 #mesa .phead{padding:12px 50px 11px 16px;border-bottom:1px solid var(--line2);flex:none}
 #mesa .phead h3{margin:0;font-size:15px}#mesa .phead p{margin:2px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -866,6 +880,11 @@
 #mesa .stage.fixed{cursor:default}
 #mesa .gguide{position:absolute;z-index:1;pointer-events:none;outline:1.5px dashed rgba(255,255,255,.95);box-shadow:0 0 0 9999px rgba(0,0,0,.22)}
 #mesa .gguide span{position:absolute;left:6px;top:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.5);border-radius:4px;padding:1px 5px}
+#mesa .thirds{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;transition:opacity .15s}
+#mesa .thirds i{position:absolute;background:rgba(255,255,255,.45);box-shadow:0 0 1.5px rgba(0,0,0,.35)}
+#mesa .thirds i:nth-child(-n+2){top:0;bottom:0;width:1px}#mesa .thirds i:nth-child(n+3){left:0;right:0;height:1px}
+#mesa .thirds i:nth-child(1){left:33.333%}#mesa .thirds i:nth-child(2){left:66.667%}#mesa .thirds i:nth-child(3){top:33.333%}#mesa .thirds i:nth-child(4){top:66.667%}
+#mesa .stage:hover .thirds,#mesa .stage.panning .thirds,#mesa .stage.reframe .thirds{opacity:1}
 #mesa .nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);font-size:20px;line-height:34px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
 #mesa .nav.prev{left:8px}#mesa .nav.next{right:8px}#mesa .nav[hidden]{display:none}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
@@ -897,30 +916,40 @@
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
-@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}}
+@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
 @media (max-width:720px){
-#mesa .toasts{top:52px;bottom:auto}
+#mesa .toasts{top:46px;bottom:auto}
+#mesa .appbar{height:40px;padding:0 8px;gap:4px}
+#mesa .brand{padding-right:8px}
 #mesa .brand span{display:none}
-#mesa .bar{padding:8px 10px;gap:6px 10px}
-#mesa .av,#mesa .who span{display:none}
-#mesa .who b{font-size:14px}
-#mesa .stats{font-size:12px;gap:2px 10px}
-#mesa .legend{position:static;padding:6px 10px}
+#mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.add{padding:0 8px;font-size:13px}
+#mesa .save{font-size:11.5px}
+#mesa .bar{flex-wrap:nowrap;padding:5px 10px;gap:8px}
+#mesa .ident{display:none}
+#mesa .mgrp{flex:1 1 0;min-width:190px;flex-wrap:nowrap}
+#mesa .months{flex:0 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+#mesa .months::-webkit-scrollbar{display:none}
+#mesa .mchip{flex:none;min-height:30px;padding:4px 10px;font-size:12px;white-space:nowrap}#mesa .mchip i{font-size:11px}
+#mesa .bar .spacer{display:none}
+#mesa .stats{flex:0 1 auto;min-width:0;font-size:11.5px;line-height:1.25;gap:0 8px}#mesa .stats>span{white-space:nowrap}#mesa .stats .lg{display:none}
+#mesa .sw{flex:none;gap:6px;font-size:12px}
+#mesa .legend{position:static;flex-wrap:nowrap;white-space:nowrap;gap:10px;min-height:30px;padding:1px 10px;font-size:11.5px}
+#mesa .legend>*{flex:none}#mesa .legend .lp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#mesa .legend .ln{width:12px;margin-right:5px}
+#mesa .lockbtn{margin-left:auto;padding:2px 8px;font-size:11px}
 #mesa .main{flex-direction:column}
 #mesa .feed{width:100%;flex:1;border-right:0;border-bottom:1px solid var(--line)}
-#mesa .grid{max-width:480px;margin:0 auto}
-#mesa .tray{flex:0 0 156px;overflow:hidden;display:flex;flex-direction:column}
-#mesa .trayhead{position:static;padding:6px 10px}
-#mesa .trayhead .btn{padding:6px 10px}
-#mesa .tbody{flex:1;min-height:0;padding:0 10px 8px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,#000 90%,transparent);mask-image:linear-gradient(to right,#000 90%,transparent)}
+#mesa .tray{flex:none;overflow:hidden;display:flex;flex-direction:column}
+#mesa .trayhead{position:static;min-height:32px;padding:2px 10px}
+#mesa .trayhead b{font-size:13px}#mesa .trayhead span{font-size:11.5px}
+#mesa .trayhead .btn{min-height:28px;padding:4px 10px;font-size:12px}#mesa .trayhead .btn svg{width:13px;height:13px}
+#mesa .tbody{flex:none;height:68px;padding:0 10px 4px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,#000 90%,transparent);mask-image:linear-gradient(to right,#000 90%,transparent)}
 #mesa .drop,#mesa .hint{display:none}
-#mesa .tray.isempty .drop{display:block;padding:18px 12px;margin:0}
-#mesa .tgrid{height:100%;grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:78px}
-}
-@media (max-width:720px) and (max-height:720px){
-#mesa .legend{display:none}
-#mesa .tray{flex-basis:132px}
-#mesa .tgrid{grid-auto-columns:64px}
+#mesa .tray.isempty .tbody{height:auto;-webkit-mask-image:none;mask-image:none}
+#mesa .tray.isempty .drop{display:block;height:34px;line-height:31px;padding:0 10px;margin:0;border-radius:8px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .tray.isempty .tgrid{display:none}
+#mesa .tgrid{height:64px;grid-auto-flow:column;grid-template-columns:none;grid-template-rows:64px;grid-auto-columns:48px;gap:5px}
+#mesa .titem{border-radius:5px}#mesa .titem .x{top:2px;right:2px}#mesa .tname{padding:8px 3px 2px;font-size:8.5px}
 }`;
 
   function buildShell() {
@@ -930,7 +959,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -948,9 +977,13 @@
   }
   function flushRender() { if (pendingRender) render(); }
 
+  // narrow pane: the bar hides the client's name (the active tab already shows it), so «⋯ Editar cliente» moves into that tab
+  const NARROW = window.matchMedia ? window.matchMedia('(max-width:720px)') : { matches: false };
   function renderTabs() {
-    const nav = root.querySelector('.tabs');
-    nav.innerHTML = CL.map(c => `<button class="tab${c.id === curClient ? ' on' : ''}" data-act="client" data-id="${esc(c.id)}"${c.id === curClient ? ' aria-current="page"' : ''}>${esc(c.name)}</button>`).join('');
+    const nav = root.querySelector('.tabs'), ed = NARROW.matches;
+    nav.innerHTML = CL.map(c => c.id === curClient
+      ? `<button class="tab on${ed ? ' hasedit' : ''}" data-act="client" data-id="${esc(c.id)}" aria-current="page">${esc(c.name)}</button>` + (ed ? '<button class="ibtn tedit" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button>' : '')
+      : `<button class="tab" data-act="client" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join('');
     const on = nav.querySelector('.tab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
@@ -969,17 +1002,19 @@
       const live = S && b.key === S.key ? counts() : null;
       const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
       return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}">${esc(rangeLabel(b.month, b.span, true))}<i>${f}/${n}</i></button>`;
-    }).join('') + '<button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>';
+    }).join('');
     let stats = '';
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
-      stats = `<div class="stats"><span><b>${k.filled}</b>/${k.n} con foto</span><span><b>${k.notes}</b> ${pl(k.notes, 'nota', 'notas')}</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre o nota): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
+      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre o contexto): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
         + (k.dates ? `<span class="c dates" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}"><i class="dchg" aria-hidden="true"></i><b class="c">${k.dates}</b> con fecha nueva</span>` : '') + '</div>';
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
-      + `<div class="months">${months}</div><div class="spacer"></div>${stats}`
+      + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button></div><div class="spacer"></div>${stats}`
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
+    const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
+    if (on && ms.scrollWidth > ms.clientWidth + 1) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   let mainMode = null;   // 'board:<key>' | 'empty-client' | 'no-clients'
@@ -989,12 +1024,14 @@
     const mode = S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
       mainMode = mode;
+      if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section>'
           + '<aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div>'
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>';
+        watchFeed();
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
         main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga ${esc(nextMonthName())} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
@@ -1012,11 +1049,12 @@
   }
   function statusBadge(s) {
     const st = slotStatus(s);
-    return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre o nota): pide a Claude que la vuelva a subir">cambiada</span>' : '';
+    return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre o contexto): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
   function badgesHTML(s, pill) {
     const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
-    const n = noteOf(s) ? `<span class="nb" title="Tiene nota">${ICON.note}</span>` : '';
+    const cx = !!noteOf(s), me = !!memoOf(s);
+    const n = cx || me ? `<span class="nb" title="${cx && me ? 'Tiene contexto y nota' : cx ? 'Tiene contexto' : 'Tiene nota'}">${ICON.note}</span>` : '';
     const st = statusBadge(s);
     return mp || n || st ? `<div class="badges">${mp}${n}${st}</div>` : '';
   }
@@ -1032,7 +1070,7 @@
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
-    const cnt = isCarousel(s.type) ? `<span class="cnt">${n} foto${n === 1 ? '' : 's'}</span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr">${n} opciones</span>` : '';
+    const cnt = isCarousel(s.type) ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr" title="${n} opciones">${n}<span class="cw"> opciones</span><span class="cs"> op.</span></span>` : '';
     return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab"><b>${esc(lab)}</b>${when}${collab ? '<br>' + collab : ''}${linkTag(s)}</div></div>`;
   }
   function pastHTML(p, i, N) {
@@ -1063,8 +1101,25 @@
     grid.innerHTML = S.slots.map(s => cellHTML(s, pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
     const pm = monthLabel(prevMonth(S.month));
     const lockBtn = (S.prev || []).length ? (S.prevUnlocked ? '<button class="lockbtn on" data-act="prevlock" title="Volver a bloquear el mes anterior">🔓 Desbloqueado · Bloquear</button>' : lk ? '<button class="lockbtn" data-act="prevlock" title="Desbloquear el mes anterior">🔒 Bloqueado</button>' : '<button class="lockbtn on" data-act="prevlock">🔓 Solo esta vez</button>') : '';
-    root.querySelector('.feed .legend').innerHTML = `<span><b>${esc(rangeLabel(S.month, S.span))}</b> · ${N} a preparar</span>`
-      + ((S.prev || []).length ? `<span><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span>Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`);
+    const below = `Debajo: ${pm} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}`;
+    root.querySelector('.feed .legend').innerHTML = `<span class="lr"><b>${esc(rangeLabel(S.month, S.span))}</b> · ${N} a preparar</span>`
+      + ((S.prev || []).length ? `<span class="lp" title="${esc(below)}"><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span class="lp">Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`);
+    fitGrid();
+  }
+  // the grid's width follows the feed's height so that ≈3.4 rows fit (cell = 3:4 of a third), between 300 px and the
+  // feed's own width (max 480 px); recomputed on every render and whenever the feed or its legend change size
+  const FIT_ROWS = 3.4;
+  function fitGrid() {
+    const feed = root && root.querySelector('.feed'), grid = feed && feed.querySelector('.grid'); if (!grid || !feed.clientHeight) return;
+    const lg = feed.querySelector('.legend'), lh = lg && lg.offsetParent ? lg.offsetHeight : 0;
+    const w = Math.round(Math.min(480, feed.clientWidth, Math.max(300, (feed.clientHeight - lh - 6) * 9 / (4 * FIT_ROWS) + 4)));
+    if (grid.style.maxWidth !== w + 'px') grid.style.maxWidth = w + 'px';
+  }
+  function watchFeed() {
+    if (M._ro) { M._ro.disconnect(); M._ro = null; }
+    const feed = root.querySelector('.feed'); if (!feed || typeof ResizeObserver !== 'function') return;
+    M._ro = new ResizeObserver(() => fitGrid());
+    M._ro.observe(feed); M._ro.observe(feed.querySelector('.legend'));
   }
   function renderTray() {
     if (!S || !shellReady()) return;
@@ -1086,9 +1141,9 @@
     if (idx == null) idx = cur.slot === id ? cur.idx : 0;
     const n = s.photos.length;
     idx = Math.max(0, Math.min(n - 1, idx || 0));
-    // keep the note's focus and caret if we're re-rendering the same post while typing
-    const ta = d.querySelector('textarea.note');
-    const keep = ta && document.activeElement === ta && ta.dataset.slot === id ? { a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
+    // keep the focus and caret of the field being typed in (contexto or nota) if we're re-rendering the same post
+    const ta = document.activeElement;
+    const keep = ta && d.contains(ta) && ta.matches('textarea.note, textarea.memo') && ta.dataset.slot === id ? { c: ta.className, a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
     // focus: the close button when the post opens (or when it had it before this re-render, e.g. arrow keys)
     const ae = document.activeElement, fresh = d.hidden || d.dataset.slot !== id || !!d.dataset.prev || !!(ae && d.contains(ae) && ae.matches('.card > .x'));
     cur = { slot: id, idx };
@@ -1106,7 +1161,7 @@
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
         + (car && n > 1 ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button></div>`;
-      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${nav}</div></div>
+      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
         ${strip}${acts}`;
     }
@@ -1114,15 +1169,18 @@
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
-        <div class="pright"><label class="nlab" for="nota-${esc(id)}">Nota <span>· no la ve el cliente</span></label>
-          <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Contexto para el caption o anotación.">${esc(s.note || '')}</textarea>
+        <div class="pright"><label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
+          <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
+          <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
+          <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;
-    if (keep) { const t2 = d.querySelector('textarea.note'); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
+    if (keep) { const t2 = d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
     else if (fresh) d.querySelector('.card > .x').focus({ preventScroll: true });
     if (n) { layoutStage(); loadBig(fid); }
+    markReframe();
   }
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
   const wday = iso => { const d = localDay(iso); return d ? new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC', weekday: 'short' }).format(new Date(d + 'T12:00:00Z')).replace('.', '') : ''; };
@@ -1168,7 +1226,7 @@
     if (im && im.f && M.files[im.f]) {
       const c = cropOf(im.f, it, B);
       const fmtCtl = isReel(it.type) ? '<span class="muted">Portada del perfil · 3:4</span>' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
-      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div></div></div>
+      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}</div></div>
         <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
         <div class="pacts"><span class="fname">${esc(M.files[im.f].name)}</span></div>`;
     } else if (im && im.t && M.pastThumbs[im.t]) left = `<img class="pthumb" src="${M.pastThumbs[im.t]}" alt=""><p class="muted" style="margin:0">Foto tal como está en Notion.</p>`;
@@ -1187,6 +1245,16 @@
     d.hidden = false; d.dataset.slot = id; d.dataset.prev = '1'; delete d.dataset.dlg;
     if (fresh) d.querySelector('.card > .x').focus({ preventScroll: true });
     if (im && im.f && M.files[im.f]) { layoutStage(); loadBig(im.f); }
+    markReframe();
+  }
+  // rule-of-thirds lines over the post frame: shown on hover, while panning and for a moment after a zoom, format or
+  // «Centrar» change (those re-render the stage, so the moment is kept in reframeUntil)
+  const THIRDS = '<div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div>';
+  let reframeUntil = 0, reframeTimer = null;
+  function markReframe() { const st = root && root.querySelector('.detail .stage'); if (st) st.classList.toggle('reframe', Date.now() < reframeUntil); }
+  function flashThirds() {
+    reframeUntil = Date.now() + 1000; markReframe();
+    clearTimeout(reframeTimer); reframeTimer = setTimeout(() => { reframeTimer = null; markReframe(); }, 1010);
   }
   function layoutStage() {
     const st = root && root.querySelector('.detail .stage'); if (!st) return;
@@ -1375,7 +1443,7 @@
     });
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
     root.addEventListener('wheel', e => {
-      const tb = e.target.closest && e.target.closest('.tbody');
+      const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
       if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       tb.scrollLeft += e.deltaY; e.preventDefault();
     }, { passive: false });
@@ -1404,7 +1472,8 @@
     root.addEventListener('input', e => {
       if (!e.target.matches) return;
       if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);
-      else if (e.target.matches('.zoomr')) { const s = slot(cur.slot); if (s) touchPrev(s); const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); } }
+      else if (e.target.matches('textarea.memo')) setMemo(e.target.dataset.slot, e.target.value);
+      else if (e.target.matches('.zoomr')) { flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s); const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); } }
     });
     root.addEventListener('change', e => {
       if (!e.target.matches) return;
@@ -1442,6 +1511,9 @@
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
     };
     document.addEventListener('keydown', M._onKey);
+    if (M._mq && M._onMq) { try { M._mq.removeEventListener('change', M._onMq); } catch (e) { /* */ } }
+    M._mq = NARROW; M._onMq = () => { if (shellReady()) renderTabs(); };
+    try { NARROW.addEventListener('change', M._onMq); } catch (e) { /* old engines */ }
     if (M._onResize) window.removeEventListener('resize', M._onResize);
     M._onResize = () => layoutStage();
     window.addEventListener('resize', M._onResize);
@@ -1468,8 +1540,8 @@
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
     else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
-    else if (act === 'fmt') { touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
-    else if (act === 'center') { const s = slot(cur.slot); touchPrev(s); if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); } }
+    else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
+    else if (act === 'center') { flashThirds(); const s = slot(cur.slot); touchPrev(s); if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); } }
     else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
@@ -1569,7 +1641,7 @@
   // shorter range whose dropped months have photos, notes or uploads -> error message (null = fine)
   function dropCheck(old, slots, month, span) {
     const os = old.slots || [], om = old.month || month, ospan = old.span || 1, range = monthsOf(month, span);
-    const mo = s => monthOf(s.notionDate ?? s.date), used = s => (s.photos || []).length || noteOf(s) || s.uploaded;
+    const mo = s => monthOf(s.notionDate ?? s.date), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded;
     const ml = ms => ms.map(m => MONTHS[+m.slice(5) - 1]).join(', ').replace(/, ([^,]*)$/, ' y $1');
     const miss = range.filter(m => os.some(s => mo(s) === m) && !slots.some(s => monthOf(s.date) === m));
     if (miss.length) return `Esta mesa cubre ${rangeLabel(month, span).toLowerCase()} y no vienen las publicaciones de ${ml(miss)}: carga ${span > 1 ? `los ${span} meses` : 'el mes entero'} (o pasa force:true).`;
@@ -1631,6 +1703,7 @@
       const o = oldById[n.id] || {};
       const r = { id: n.id, name: n.name, type: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
       if (o.fmt) r.fmt = o.fmt;
+      if (o.memo) r.memo = o.memo;
       if (!o.id) return r;
       const od = o.notionDate === undefined ? o.date : o.notionDate, on = o.notionName === undefined ? o.name : o.notionName;
       let w = false;
@@ -2006,7 +2079,7 @@
   };
   M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
   M._test = {
-    place, swap, unassign, move, removeFile, setCover, setNote, pastList,
+    place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),

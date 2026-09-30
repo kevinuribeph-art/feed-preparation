@@ -1141,6 +1141,10 @@
   }
 
   // ---------- post view (Instagram-desktop style) ----------
+  // a post opened with the keyboard gets focus on its close button; opened with the mouse, no focus ring appears
+  let kbd = false;
+  addEventListener('keydown', () => { kbd = true; }, true); addEventListener('pointerdown', () => { kbd = false; }, true);
+  const focusClose = d => { const x = d.querySelector('.card > .x'); if (!x) return; if (kbd) x.focus({ preventScroll: true }); else if (d.contains(document.activeElement)) document.activeElement.blur(); };
   function openDetail(id, idx) {
     const s = slot(id); if (!s || !shellReady()) return;
     if (isPrev(s)) return openPast(id);
@@ -1185,7 +1189,7 @@
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;
     if (keep) { const t2 = d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
-    else if (fresh) d.querySelector('.card > .x').focus({ preventScroll: true });
+    else if (fresh) focusClose(d);
     if (n) { layoutStage(); loadBig(fid); }
     markReframe();
   }
@@ -1250,7 +1254,7 @@
           <p class="muted" style="margin:12px 0 0">Para cambiar la foto, arrastra una de la bandeja sobre su casilla. Para intercambiar dos publicaciones, arrastra una sobre la otra.</p></div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false; d.dataset.slot = id; d.dataset.prev = '1'; delete d.dataset.dlg;
-    if (fresh) d.querySelector('.card > .x').focus({ preventScroll: true });
+    if (fresh) focusClose(d);
     if (im && im.f && M.files[im.f]) { layoutStage(); loadBig(im.f); }
     markReframe();
   }

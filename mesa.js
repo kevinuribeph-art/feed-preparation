@@ -471,7 +471,7 @@
     for (const id of ids) {
       if (M.files[id]) continue;
       const rec = await idbGet('files', id);
-      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; M.thumbBlobs[id] = rec.thumb; }
+      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; if (rec.reduced) M.files[id].reduced = true; M.thumbBlobs[id] = rec.thumb; }
       else missing.push(id);
     }
     return missing;
@@ -921,7 +921,11 @@
 #mesa .legend{display:none}
 #mesa .tray{flex-basis:132px}
 #mesa .tgrid{grid-auto-columns:64px}
-}`;
+}
+#mesa .appbar .xfer{align-self:center}
+#mesa .xsum{list-style:none;margin:0 0 10px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
+#mesa .xsum li{padding:6px 0;border-top:1px solid var(--line2);line-height:1.5}#mesa .xsum li span{color:var(--mute)}
+#mesa .card>p.xwhat{color:var(--ink);font-size:13px}`;
 
   function buildShell() {
     document.title = 'Mesa de feed';
@@ -930,7 +934,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -1102,7 +1106,7 @@
       const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>›</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
-      const acts = `<div class="pacts"><span class="fname">${esc((M.files[fid] || {}).name || '')}</span>`
+      const acts = `<div class="pacts"><span class="fname">${esc((M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
         + (car && n > 1 ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button></div>`;
@@ -1475,6 +1479,10 @@
     else if (act === 'newclient') dlgNewClient();
     else if (act === 'editclient') dlgEditClient();
     else if (act === 'howmonth') dlgHowMonth();
+    else if (act === 'xfer') dlgXfer();
+    else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
+    else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
+    else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
     else if (act === 'unlock-once' || act === 'unlock-always') {
       const pu = pendingUnlock; pendingUnlock = null;
@@ -1754,7 +1762,7 @@
       slotId: s.id, name: s.name, type: s.type, date: s.date, dateChanged: dateChg(s),
       status: st === null ? 'nueva' : st === 'ok' ? 'ya subida' : 'cambiada',
       emptied: !pub.length && !!s.uploaded,
-      files: pub.map(id => { const r = postRect(id, s); return { fileId: id, name: (M.files[id] || {}).name, mb: +(((M.files[id] || {}).size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 3:4' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h) }; }),
+      files: pub.map(id => { const r = postRect(id, s); return { fileId: id, name: (M.files[id] || {}).name, mb: +(((M.files[id] || {}).size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 3:4' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h), ...((M.files[id] || {}).reduced ? { reducida: true } : {}) }; }),
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
       uploaded: s.uploaded || null
@@ -1967,6 +1975,264 @@
   };
   M.showOut = mode => { const u = URL.createObjectURL(M.out[mode]); const w = window.open(u); setTimeout(() => URL.revokeObjectURL(u), 60000); return !!w; };
 
+  // ---------- pasar la mesa a otro Mac (exportar / importar a mano) ----------
+  // One JSON file with the whole mesa: clients, every board, the photos they use and the previous-month thumbnails.
+  // Kevin moves it by AirDrop or iCloud. Photos travel at 1080 px on the short side (JPEG, orientation baked in).
+  // Importing merges: a board is added if missing and replaced only by a newer copy (savedAt); clients and photos are
+  // only added (a full-resolution photo is never replaced by its 1080 copy). Format:
+  // {format:'mesa-feed', v:1, app, exportedAt, clients:[…], boards:[…], files:{id:{name,type,w,h,size,lastModified,
+  //  reduced,data:<base64>, thumb?:<base64>}}, past:{notionId:{w,h,thumb:<base64>}}} — no thumb: the photo (1080) is its own.
+  const XF_SHORT = 1080;
+  let xferRun = null, xferAsk = null;
+  const nOf = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+  const b64of = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); res(s.slice(s.indexOf(',') + 1)); }; r.onerror = () => rej(r.error || new Error('no se pudo leer')); r.readAsDataURL(blob); });
+  function blobOf(b64, type) { const s = atob(b64), n = s.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type }); }
+  const allKeys = async st => ((await tx(st, 'readonly', s => s.getAllKeys())) || []).map(String);
+  // only unsaved changes: a flush stamps savedAt, and savedAt decides which copy of a board wins
+  const flushPending = async () => { if (S && !locked && (saveTimer || noteTimer)) await flushNow(); };
+  // short side 1080, never upscaled; a landscape keeps w > h and w/h to 3 decimals, so crops and upload signatures don't move
+  function xferDims(w, h) {
+    const sh = Math.min(w, h); if (!(sh > XF_SHORT)) return null;
+    const L = Math.max(w, h), want = (L / sh).toFixed(3), n0 = Math.round(L * XF_SHORT / sh);
+    let n = n0;
+    for (const k of [0, -1, 1, -2, 2]) if (((n0 + k) / XF_SHORT).toFixed(3) === want) { n = n0 + k; break; }
+    if (w !== h) n = Math.max(n, XF_SHORT + 1);
+    return w > h ? { w: n, h: XF_SHORT } : { w: XF_SHORT, h: w === h ? XF_SHORT : n };
+  }
+  async function xferPhoto(rec) {        // the copy that travels: already reduced / small ones as they are
+    const same = { blob: rec.blob, type: rec.type, name: rec.name, w: rec.w, h: rec.h, reduced: !!rec.reduced };
+    if (rec.reduced || !xferDims(rec.w, rec.h)) return same;
+    const bmp = await createImageBitmap(rec.blob, { imageOrientation: 'from-image' });
+    try {
+      const t = xferDims(bmp.width, bmp.height); if (!t) return same;
+      const c = document.createElement('canvas'); c.width = t.w; c.height = t.h;
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, t.w, t.h); x.imageSmoothingQuality = 'high';
+      x.drawImage(bmp, 0, 0, t.w, t.h);
+      const blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/jpeg', 0.88));
+      c.width = c.height = 0;
+      return { blob, type: 'image/jpeg', name: String(rec.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', w: t.w, h: t.h, reduced: true };
+    } finally { bmp.close(); }
+  }
+  // opts.returnBlob: true -> the Blob, nothing saved (Claude / tests)
+  M.exportAll = async (opts = {}) => {
+    const fail = m => { toast(m, { ms: 7000 }); return { error: m }; };
+    if (locked) return fail('La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de exportar.');
+    if (xferRun) return fail('Espera: ya se está exportando o importando la mesa.');
+    xferRun = 'export';
+    try {
+      const now = new Date(), mp = madParts(now.getTime()), fname = `mesa-de-feed-${mp.day}-${mp.time.replace(':', '')}.json`;
+      let handle = null;
+      if (!opts.returnBlob && typeof window.showSaveFilePicker === 'function') {   // first thing: it needs the click
+        try { handle = await window.showSaveFilePicker({ suggestedName: fname, types: [{ description: 'Mesa de feed', accept: { 'application/json': ['.json'] } }] }); }
+        catch (e) { if (e && e.name === 'AbortError') return { cancelled: true }; handle = null; }
+      }
+      setBusy('imp', 'Exportando la mesa…');
+      await addQ; await flushPending();
+      const clients = (await idbAll('clients')) || [];
+      const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
+      const ids = [...new Set(boards.flatMap(b => [...refsOf(b)]))];
+      const parts = ['{"format":"mesa-feed","v":1,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
+        + ',"clients":' + JSON.stringify(clients) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
+      let sep = '', n = 0, photos = 0, skipped = 0;
+      for (const id of ids) {
+        setBusy('imp', `Exportando ${++n}/${ids.length} fotos…`);
+        const rec = await idbGet('files', id);
+        if (!rec || !rec.blob) { skipped++; continue; }
+        try {
+          const p = await xferPhoto(rec);
+          const meta = { name: p.name, type: p.type, w: p.w, h: p.h, size: p.blob.size, lastModified: rec.lastModified || 0, reduced: p.reduced };
+          const th = !p.reduced && rec.thumb ? ',"thumb":"' + await b64of(rec.thumb) + '"' : '';
+          parts.push(new Blob([sep + JSON.stringify(id) + ':' + JSON.stringify(meta).slice(0, -1) + ',"data":"', await b64of(p.blob), '"' + th + '}']));
+          sep = ','; photos++;
+        } catch (e) { skipped++; }
+      }
+      parts.push('},"past":{'); sep = '';
+      let past = 0;
+      for (const k of (await allKeys('files')).filter(k => k.startsWith('past:'))) {
+        const r = await idbGet('files', k); if (!r || !r.thumb) continue;
+        parts.push(new Blob([sep + JSON.stringify(k.slice(5)) + ':{"w":' + (+r.w || 0) + ',"h":' + (+r.h || 0) + ',"thumb":"', await b64of(r.thumb), '"}']));
+        sep = ','; past++;
+      }
+      parts.push('}}');
+      const blob = new Blob(parts, { type: 'application/json' });
+      if (opts.returnBlob) return blob;
+      setBusy('imp', 'Guardando el archivo…');
+      let via = 'archivo';
+      if (handle) { try { const w = await handle.createWritable(); await w.write(blob); await w.close(); } catch (e) { handle = null; } }
+      if (!handle) {                       // no picker (or it failed): a normal download
+        via = 'descarga';
+        const u = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = u; a.download = fname; a.hidden = true; document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(u), 120000);
+      }
+      const mb = +(blob.size / 1048576).toFixed(1);
+      toast(`Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : ''), { ms: 7000 });
+      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb };
+    } catch (e) { return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e)); }
+    finally { xferRun = null; setBusy('imp', null); }
+  };
+
+  function xferCheck(d) {
+    if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de feed.';
+    if (d.v !== 1) return +d.v > 1 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    const bad = 'El archivo está dañado o incompleto: no se puede importar.';
+    if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
+    if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
+    if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
+    if (Object.values(d.files).some(f => !f || typeof f.data !== 'string' || !f.data)) return bad;
+    return null;
+  }
+  // what the file changes here: boards added / replaced (newer) / kept (newer here) / same content; clients to add
+  const boardBody = b => JSON.stringify({ ...b, savedAt: null, slots: (b.slots || []).map(({ at, ...s }) => s) });
+  async function xferPlan(d) {
+    const local = ((await idbAll('boards')) || []).map(b => newest(b.key, b)), byKey = Object.fromEntries(local.map(b => [b.key, b]));
+    const clients = (await idbAll('clients')) || [], cids = new Set(clients.map(c => c.id)), keys = await allKeys('files');
+    const P = { clients, add: [], upd: [], newer: [], same: [], newClients: [], files: new Set(keys.filter(k => !k.startsWith('past:'))), past: new Set(keys.filter(k => k.startsWith('past:')).map(k => k.slice(5))) };
+    for (const b of d.boards) {
+      const o = byKey[b.key];
+      if (!o) P.add.push(b);
+      else if (boardBody(o) === boardBody(b)) P.same.push(b);
+      else if (String(b.savedAt || '') > String(o.savedAt || '')) P.upd.push(b);
+      else P.newer.push(b);
+    }
+    P.put = [...P.add, ...P.upd];
+    const pk = new Set(P.put.map(b => b.key));
+    P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
+    P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
+    P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
+    for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
+    for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length;
+    return P;
+  }
+  function xferWhat(P) {
+    const u = P.upd.length, k = P.newer.length, s = P.same.length;
+    return [P.add.length && nOf(P.add.length, 'mes nuevo', 'meses nuevos'), u && `${u} se actualiza${u === 1 ? '' : 'n'}`,
+      k && `${k} ya estaba${k === 1 ? '' : 'n'} más reciente${k === 1 ? '' : 's'} aquí`, s && `${s} igual${s === 1 ? '' : 'es'}`,
+      P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos')].filter(Boolean).join(', ')
+      || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
+  }
+  function xferSummaryHTML(d, P) {
+    const st = {}; P.add.forEach(b => { st[b.key] = 'nuevo'; }); P.upd.forEach(b => { st[b.key] = 'se actualiza'; }); P.newer.forEach(b => { st[b.key] = 'más reciente aquí'; }); P.same.forEach(b => { st[b.key] = 'igual'; });
+    const names = {}; [...d.clients, ...P.clients].forEach(c => { names[c.id] = c.name || c.id; });
+    const mOf = b => b.month || (String(b.key).match(/(\d{4}-\d{2})$/) || [])[1] || '';
+    const byC = {}; d.boards.slice().sort((a, b) => mOf(a).localeCompare(mOf(b))).forEach(b => { const c = boardClient(b) || '?'; (byC[c] = byC[c] || []).push(b); });
+    const rows = Object.entries(byC).map(([c, bs]) => `<li><b>${esc(names[c] || c)}</b>${P.newClients.some(x => x.id === c) ? ' <span>· cliente nuevo</span>' : ''}<br>`
+      + bs.map(b => `${esc(rangeLabel(mOf(b), b.span, true))} <span>· ${st[b.key]}</span>`).join(', ') + '</li>').join('');
+    const fl = Object.values(d.files), red = fl.filter(f => f.reduced).length;
+    const info = `Exportado el ${esc(fmtDate(d.exportedAt))} · ${nOf(fl.length, 'foto', 'fotos')}${red ? ` (${red === fl.length ? 'todas' : red} a 1080 px)` : ''}`;
+    const what = P.nothing ? 'Nada que importar: todo lo de este archivo ya está aquí, igual o más reciente.'
+      : `Al importar: ${xferWhat(P)}${P.newFiles.length ? ` · ${nOf(P.newFiles.length, 'foto nueva', 'fotos nuevas')}` : ''}. No se borra nada de este Mac.`;
+    return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Importar la mesa</h3><p>${info}</p><ul class="xsum">${rows || '<li>Sin meses</li>'}</ul><p class="xwhat">${esc(what)}</p>`
+      + `<div class="form"><div class="row">${P.nothing ? '<button type="button" class="btn" data-act="close">Cerrar</button>' : '<button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="xfer-go">Importar</button>'}</div></div>`;
+  }
+  // resolves true on «Importar», false when the dialog goes away any other way (×, Cancelar, Esc, backdrop)
+  function xferConfirm(html) {
+    return new Promise(res => {
+      showDialog('xfer-confirm', html);
+      const d = root.querySelector('.detail'); let over = false, mo = null;
+      const done = v => { if (over) return; over = true; if (mo) mo.disconnect(); if (xferAsk === done) xferAsk = null; res(v); };
+      mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'xfer-confirm') done(false); });
+      mo.observe(d, { attributes: true, attributeFilter: ['hidden', 'data-dlg'], childList: true });
+      xferAsk = done;
+      const b = d.querySelector('[data-act="xfer-go"]') || d.querySelector('.row [data-act="close"]'); if (b) b.focus();
+    });
+  }
+  function xferErr(m) {
+    const d = shellReady() && root.querySelector('.detail');
+    const e = d && !d.hidden && d.dataset.dlg === 'xfer' && d.querySelector('.ferr');
+    if (e) { e.textContent = m; e.hidden = false; return; }
+    if (d && !d.hidden && /^xfer/.test(d.dataset.dlg || '')) closeDetail();
+    toast(m, { ms: 8000 });
+  }
+  // src: File | Blob | JSON text | parsed object; opts.confirm: false skips the confirmation dialog
+  M.importData = async (src, opts = {}) => {
+    const fail = m => { xferErr(m); return { error: m }; };
+    if (locked) return fail('La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de importar.');
+    if (xferRun) return fail('Espera: ya se está exportando o importando la mesa.');
+    if (uploadsBusy()) return fail('Espera a que termine la subida a Notion.');
+    if (importing) return fail('Espera a que terminen de prepararse las fotos.');
+    xferRun = 'import';
+    let cleared = false, back = null;
+    const reopen = async () => {
+      if (!cleared) return; cleared = false;
+      if (shellReady()) closeDetail();
+      await loadClients();
+      if (back.key && (await idbGet('boards', back.key))) await M.open(back.key);
+      else if (back.client && CL.some(c => c.id === back.client)) await M.openClient(back.client);
+      else await M.boot();
+    };
+    try {
+      let d = src;
+      setBusy('imp', 'Leyendo el archivo…');
+      try { if (src instanceof Blob) d = await src.text(); if (typeof d === 'string') d = JSON.parse(d); }
+      catch (e) { return fail('No se puede leer el archivo: no es una exportación de la mesa o está incompleto (¿terminó de copiarse?).'); }
+      const why = xferCheck(d); if (why) return fail(why);
+      await addQ; await flushPending();
+      let P = await xferPlan(d);
+      // photos and thumbnails decoded before anything is written: a damaged file changes nothing
+      const got = {}, gotPast = {}, need = Object.keys(d.files).filter(id => !P.files.has(id));
+      let i = 0;
+      for (const id of need) {
+        setBusy('imp', `Preparando ${++i}/${need.length} fotos…`);
+        const f = d.files[id];
+        try {
+          const type = OK_TYPES.includes(f.type) ? f.type : 'image/jpeg', blob = blobOf(f.data, type);
+          const bm = await createImageBitmap(blob, { imageOrientation: 'from-image' }), bw = bm.width, bh = bm.height; bm.close();
+          const thumb = f.thumb ? blobOf(f.thumb, 'image/jpeg') : f.reduced ? blob : (await makeThumb(blob)).thumb;
+          got[id] = { name: String(f.name || 'foto.jpg'), size: blob.size, type, w: +f.w > 0 ? +f.w : bw, h: +f.h > 0 ? +f.h : bh, lastModified: +f.lastModified || 0, blob, thumb };
+          if (f.reduced) got[id].reduced = true;
+        } catch (e) { return fail(`El archivo está dañado: no se puede leer la foto «${String((f && f.name) || id)}». No se ha importado nada.`); }
+      }
+      for (const pid of P.newPast) { const p = d.past[pid]; try { gotPast[pid] = { thumb: blobOf(p.thumb, 'image/jpeg'), w: +p.w || 0, h: +p.h || 0 }; } catch (e) { /* only a preview */ } }
+      setBusy('imp', null);
+      if (opts.confirm !== false && shellReady() && !(await xferConfirm(xferSummaryHTML(d, P)))) return { cancelled: true };
+      if (locked) return fail('La mesa está abierta en otra pestaña: no se ha importado nada.');
+      await addQ; await flushPending();
+      if (uploadsBusy() || importing) return fail('Espera a que termine la subida a Notion: no se ha importado nada.');   // the board couldn't reopen
+      P = await xferPlan(d);                       // again, with what is saved now
+      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0 };
+      const newPast = P.newPast.filter(id => gotPast[id]);
+      if (P.nothing) {
+        if (shellReady() && /^xfer/.test(root.querySelector('.detail').dataset.dlg || '')) closeDetail();
+        toast('Nada que importar: ya tenías todo igual o más reciente.', { ms: 6000 });
+        return res;
+      }
+      if (shellReady()) showDialog('xfer-busy', '<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p>');
+      setBusy('imp', 'Guardando la mesa importada…');
+      back = { key: S && S.key, client: curClient };
+      clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
+      S = null; PB = null; cleared = true;         // nothing in memory may overwrite what is written now
+      for (const id of P.newFiles) if (got[id]) {  // photos first: a board never points at a photo that isn't here
+        await idbPut('files', id, got[id]); res.photos++;
+        if (M.files[id]) { URL.revokeObjectURL(M.files[id].thumbUrl); delete M.files[id]; } delete M.blobs[id]; delete M.thumbBlobs[id];
+      }
+      for (const id of newPast) { await idbPut('files', 'past:' + id, gotPast[id]); res.past++; }
+      for (const c of P.newClients) await idbPut('clients', c.id, c);
+      if (P.put.length) await tx('boards', 'readwrite', st => { for (const b of P.put) st.put(b, b.key); });
+      try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
+      setBusy('imp', null);
+      await reopen();
+      const k = P.newer.length;
+      toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
+      return res;
+    } catch (e) {
+      const q = e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)));
+      return fail(q ? 'El navegador no tiene espacio para importar las fotos. Libera espacio y vuelve a intentarlo.' : 'No se pudo importar: ' + String((e && e.message) || e));
+    } finally {
+      xferRun = null; setBusy('imp', null);
+      if (cleared) { try { await reopen(); } catch (e) { /* */ } }
+    }
+  };
+  function dlgXfer() {
+    showDialog('xfer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar la mesa a otro Mac</h3><p>Se exportan todos los clientes y meses, con las fotos a 1080 px. En el otro Mac pulsa Importar: se combina con lo que haya allí; de cada mes gana la versión más reciente y nunca se cambia una foto a resolución completa por una de 1080.</p>`
+      + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2 left" data-act="close">Cancelar</button><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'
+      + '<input type="file" class="xferin" accept=".json,application/json" hidden>');
+    const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
+    inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; inp.value = ''; if (f) M.importData(f); });
+    d.querySelector('[data-act="xfer-export"]').focus();
+  }
+
   // ---------- status / housekeeping ----------
   M.status = () => S ? ({
     version: M.version, key: S.key, client: S.client, month: S.month, months: boardMonths(), slots: S.slots.length,
@@ -2017,6 +2283,11 @@
     unlock: mode => { if (mode === 'always') { S.prevUnlocked = true; save(); } else if (mode === 'once') prevOnce = true; else { S.prevUnlocked = false; prevOnce = false; save(); } renderFeed(); },
     shared: id => sharedWith(slot(id)), idx: () => JSON.parse(JSON.stringify(IDX)), deleteIfUnused,
     setSlot: (id, patch) => { const s = slot(id); if (s) { Object.assign(s, patch); save(); render(); } }
+  };
+  M._test.fileRec = async id => {       // stored photo: record fields + the real size of its image and thumbnail
+    const r = await idbGet('files', id); if (!r) return null;
+    const px = async b => { if (!b) return null; const m = await createImageBitmap(b, { imageOrientation: 'from-image' }); const o = [m.width, m.height]; m.close(); return o; };
+    return { name: r.name, type: r.type, w: r.w, h: r.h, size: r.size, lastModified: r.lastModified, reduced: !!r.reduced, bytes: r.blob ? r.blob.size : null, blobType: r.blob ? r.blob.type : null, px: await px(r.blob), thumbPx: await px(r.thumb) };
   };
 
   try { localStorage.setItem('mesa-code', '(' + mesaBoot.toString() + ')()'); localStorage.setItem('mesa-version', M.version); } catch (e) { /* storage off */ }

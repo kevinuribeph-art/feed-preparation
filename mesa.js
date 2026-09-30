@@ -248,9 +248,11 @@
     if (s.type === 'Collab Reel' || /^collab\b/i.test(nm)) { const m = nm.match(RX_C); return m && MONTHS.includes(m[2].toLowerCase()) ? { c: true, p: m[1], sep: m[3], n: +m[4] } : null; }
     const m = nm.match(RX_N); return m ? { c: false, p: m[1], n: +m[3] } : null;
   }
-  const grpOf = (k, iso) => { const d = localDay(iso); return !d ? null : k.c ? 'C' + d.slice(0, 7) : weekOf(d); };
+  // group key 'YYYY-MM…': a week («YYYY-MM#W») or the collabs of one partner in a month («YYYY-MM@PREFIJO»)
+  const grpOf = (k, iso) => { const d = localDay(iso); return !d ? null : k.c ? d.slice(0, 7) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d); };
   // Names from dates: only groups touched by a pending date change (old or new date) — or holding a rename whose
-  // cause is already in Notion (s.hold) — get renumbered; every other post keeps its Notion name.
+  // cause is already in Notion (s.hold) — get renumbered; every other post keeps its Notion name. A group of a month
+  // outside the board is never renumbered (the board doesn't hold all its posts): its posts keep their current name.
   function kinds() { const K = {}; S.slots.forEach(s => { const k = nameKind(s); if (k) K[s.id] = k; }); return K; }
   function affected(K, holds) {
     const aff = new Set();
@@ -258,17 +260,22 @@
     return aff;
   }
   function computeNames() {
-    const out = {}, K = kinds(), aff = affected(K, true), G = {};
-    S.slots.forEach(s => { out[s.id] = s.notionName ?? s.name; const g = K[s.id] && grpOf(K[s.id], s.date); if (g && aff.has(g)) (G[g] = G[g] || []).push(s); });
+    const out = {}, K = kinds(), aff = affected(K, true), G = {}, bm = boardMonths();
+    S.slots.forEach(s => {
+      const g = K[s.id] && grpOf(K[s.id], s.date), inB = g && bm.includes(g.slice(0, 7));
+      out[s.id] = g && !inB ? s.name : s.notionName ?? s.name;
+      if (inB && aff.has(g)) (G[g] = G[g] || []).push(s);
+    });
     for (const g in G) G[g].sort((a, b) => ord(a.date) - ord(b.date) || K[a.id].n - K[b.id].n || (a.id < b.id ? -1 : 1)).forEach((s, i) => {
       const k = K[s.id];
-      out[s.id] = k.c ? `${k.p}${cap(MONTHS[+g.slice(6, 8) - 1])}${k.sep}${i + 1}` : `${k.p}${g.split('#')[1]}.${i + 1}`;
+      out[s.id] = k.c ? `${k.p}${cap(MONTHS[+g.slice(5, 7) - 1])}${k.sep}${i + 1}` : `${k.p}${g.split('#')[1]}.${i + 1}`;
     });
     return out;
   }
   function renumber() { const nm = computeNames(); S.slots.forEach(s => { s.name = nm[s.id]; if (s.hold && !nameChg(s)) delete s.hold; }); }
   // a pending rename that no pending date explains any more (its cause is already in Notion) must not get lost
-  function holdOrphans() { const K = kinds(), aff = affected(K, false); S.slots.forEach(s => { if (nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date))) s.hold = true; }); }
+  // (skip: ids of the posts whose change Notion overrode in init — their own renames go)
+  function holdOrphans(skip) { const K = kinds(), aff = affected(K, false); S.slots.forEach(s => { if (!(skip && skip.has(s.id)) && nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date))) s.hold = true; }); }
   const sortSlots = () => S.slots.sort((a, b) => ts(b.date) - ts(a.date));
   const boardMonths = () => S ? monthsOf(S.month, S.span) : [];
   const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span).toLowerCase()}).`);
@@ -367,9 +374,11 @@
       if (own) old.slots[old.slots.indexOf(own)] = o; else old.slots.push(o);
     }
   }
-  function sharedInit(oldById) {   // once S is built: keep the revisions, remember what is saved
+  // once S is built: keep the revisions; the baseline is each slot as it was before init (base: id -> signature of the
+  // pre-merge copy), so what init changed (Notion wins, synced, renames) gets a new revision and reaches the other boards
+  function sharedInit(oldById, base) {
     S.slots.forEach(s => { const o = oldById[s.id]; if (o && o.at) s.at = o.at; });
-    SIG = { b: S, m: Object.fromEntries(S.slots.map(s => [s.id, slotSig(s, S)])), dirty: new Set() };
+    SIG = { b: S, m: Object.fromEntries(S.slots.map(s => [s.id, base[s.id] ?? slotSig(s, S)])), dirty: new Set() };
   }
   function stamp(B) {              // before saving: new revision for the slots whose shared state changed
     if (!B || SIG.b !== B) return;
@@ -388,7 +397,10 @@
         let hit = false;
         for (const id of by[k]) {
           const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue;
+          const had = (o.photos || []).filter(f => !s.photos.includes(f));
           copyShared(o, ob, s, B); ob.tray = (ob.tray || []).filter(f => !s.photos.includes(f)); hit = true;
+          const refs = refsOf(ob), lost = had.filter(f => !refs.has(f));   // never orphan that board's photos
+          if (lost.length) ob.tray.unshift(...lost);
         }
         if (hit) st.put(ob, k);
       }; } });
@@ -628,11 +640,12 @@
   // From the mesa's own board of that month when it exists; otherwise the posts Claude loaded from Notion.
   // S.prev = the previous month as editable items: {id, name, type, date, src:'mesa'|'notion', base (photo of the
   // previous-month board), own (edited here), photos:[fileId] when own, alt (id whose Notion photo it shows), hidden}.
+  const pastPosts = () => S.past.filter(p => !S.slots.some(s => s.id === p.id));   // a post of this board shows once
   function buildPrev(oldPrev) {
     const oldBy = Object.fromEntries((oldPrev || []).map(p => [p.id, p]));
     const src = PB && PB.slots.length
       ? PB.slots.map(s => ({ id: s.id, name: s.name, type: s.type, date: s.date, src: 'mesa', base: publishList(s)[0] || null, fmt: s.fmt || null }))
-      : S.past.map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date, src: 'notion', base: null }));
+      : pastPosts().map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date, src: 'notion', base: null }));
     S.prev = src.map(p => {
       const o = oldBy[p.id] || {};
       const it = { ...p, own: !!o.own, photos: o.own ? (o.photos || []).filter(f => M.files[f]) : [], alt: o.own ? (o.alt || null) : null, hidden: !!o.hidden };
@@ -1530,7 +1543,25 @@
   };
 
   // ---------- init / open ----------
+  // the newest saved copy of a board: IndexedDB's or the synchronous one a reload left in localStorage (mesa-pending)
+  function newest(key, b) {
+    let p = null; try { p = JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { /* */ }
+    return p && p.key === key && p.board && String(p.board.savedAt || '') > String((b && b.savedAt) || '') ? p.board : b;
+  }
+  // a re-init must not drop a month the board holds: a month of the range with posts here but none in cfg, or a
+  // shorter range whose dropped months have photos, notes or uploads -> error message (null = fine)
+  function dropCheck(old, slots, month, span) {
+    const os = old.slots || [], om = old.month || month, ospan = old.span || 1, range = monthsOf(month, span);
+    const mo = s => monthOf(s.notionDate ?? s.date), used = s => (s.photos || []).length || noteOf(s) || s.uploaded;
+    const ml = ms => ms.map(m => MONTHS[+m.slice(5) - 1]).join(', ').replace(/, ([^,]*)$/, ' y $1');
+    const miss = range.filter(m => os.some(s => mo(s) === m) && !slots.some(s => monthOf(s.date) === m));
+    if (miss.length) return `Esta mesa cubre ${rangeLabel(month, span).toLowerCase()} y no vienen las publicaciones de ${ml(miss)}: carga ${span > 1 ? `los ${span} meses` : 'el mes entero'} (o pasa force:true).`;
+    const lost = span < ospan ? monthsOf(om, ospan).filter(m => !range.includes(m) && os.some(s => mo(s) === m && used(s))) : [];
+    if (lost.length) return `Esta mesa cubre ${rangeLabel(om, ospan).toLowerCase()} y ${ml(lost)} ${lost.length > 1 ? 'tienen' : 'tiene'} fotos, notas o subidas: carga los ${ospan} meses (o pasa force:true).`;
+    return null;
+  }
   // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
+  // force: true lets a re-init drop months of the saved board (their photos go to the tray, their notes are lost)
   // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
   // Legacy cfg {key, handle, title, slots, past} still works: the client is derived from the key.
   M.init = async (cfg) => {
@@ -1560,25 +1591,25 @@
     }
     const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
     if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
+    const old = newest(key, await idbGet('boards', key)) || { slots: [], tray: [] };
+    const span = cfg.months != null ? +cfg.months : (old.span || 1);
+    const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span);
+    if (why) throw new Error(why);
+    try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 };
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
     if (!shellReady()) buildShell(); else closeDetail();
     setSave('Cargando…');
-    let old = (await idbGet('boards', key)) || { slots: [], tray: [] };
-    try {
-      const pend = JSON.parse(lsGet('mesa-pending') || 'null');
-      if (pend && pend.key === key && pend.board && String(pend.board.savedAt || '') > String(old.savedAt || '')) old = pend.board;
-      if (pend && pend.key === key) localStorage.removeItem('mesa-pending');
-    } catch (e) { /* */ }
     await importShared(cfg.slots, old, key);
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
+    const base = Object.fromEntries((old.slots || []).map(s => [s.id, slotSig(s, old)]));   // shared state before init
     const orphans = [];
     for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...(s.photos || []));
-    const pm = prevMonth(month), span = cfg.months != null ? +cfg.months : (old.span || 1);
+    const pm = prevMonth(month);
     const pastIn = cfg.past.length ? cfg.past : (old.past || []);
     // Dates and names: cfg carries Notion's values (notionDate/notionName); a change made here stays pending until
     // Notion has it. If Notion changed the same post on its own, Notion wins.
-    const won = [];
+    const won = [], wonIds = new Set();
     const merge = n => {
       const o = oldById[n.id] || {};
       const r = { id: n.id, name: n.name, type: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
@@ -1588,7 +1619,7 @@
       let w = false;
       if (!sameDate(o.date, od)) { if (sameDate(n.date, od)) r.date = o.date; else if (!sameDate(n.date, o.date)) w = true; }
       if (o.name !== on) { if (n.name === on) r.name = o.name; else if (n.name !== o.name) w = true; }
-      if (w) won.push(n.name); else if (o.hold && r.name !== r.notionName) r.hold = true;
+      if (w) { won.push(n.name); wonIds.add(n.id); } else if (o.hold && r.name !== r.notionName) r.hold = true;
       return r;
     };
     S = {
@@ -1599,7 +1630,7 @@
       crops: old.crops || {},
       savedAt: old.savedAt || null
     };
-    if (!won.length) holdOrphans();   // a rename whose date change is already in Notion stays pending
+    holdOrphans(wonIds);   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
     renumber();
     sortSlots();
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
@@ -1613,7 +1644,7 @@
     const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
     PB = ((await idbAll('boards')) || []).filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm); })
       .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
-    if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => monthOf(s.date) === pm) };
+    if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => monthOf(s.date) === pm && !S.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
     if (PB) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
     for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
@@ -1623,7 +1654,7 @@
     buildPrev(old.prev);
     S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
     { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
-    sharedInit(oldById);
+    sharedInit(oldById, base);
     curClient = client;
     lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
@@ -1637,8 +1668,9 @@
   };
 
   M.open = async key => {
+    if (S) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
     await migrateLegacy();
-    const b = await idbGet('boards', key);
+    const b = newest(key, await idbGet('boards', key));        // cfg (Notion values included) from the copy init uses
     if (!b) return 'no existe';
     const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
@@ -1695,7 +1727,7 @@
     img.src = url;
   }
   M.startPast = items => { items.forEach(it => loadPastOne(it.id, it.url)); renderFeed(); return M.pastStatus(); };
-  M.pastStatus = () => ({ source: PB ? 'mesa:' + PB.key : 'notion', pending: Object.keys(M.pastPending).length, loaded: S ? S.past.filter(p => M.pastThumbs[p.id]).map(p => p.id) : [], errors: { ...M.pastErrors } });
+  M.pastStatus = () => ({ source: PB ? 'mesa:' + PB.key : 'notion', pending: Object.keys(M.pastPending).length, loaded: S ? pastPosts().filter(p => M.pastThumbs[p.id]).map(p => p.id) : [], errors: { ...M.pastErrors } });
   M.waitPast = async (ms = 25000) => { const t0 = Date.now(); while (Object.keys(M.pastPending).length && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 250)); return M.pastStatus(); };
 
   // ---------- upload to Notion ----------
@@ -1924,7 +1956,7 @@
     pendingDates: S.slots.filter(dateChg).length, pendingRenames: S.slots.filter(nameChg).length,
     filled: S.slots.filter(s => s.photos.length).length,
     tray: S.tray.length, files: Object.keys(M.files).length,
-    past: PB ? `mesa ${prevMonth(S.month)}: ${PB.slots.length}` : `${S.past.filter(p => M.pastThumbs[p.id]).length}/${S.past.length}`,
+    past: PB ? `mesa ${prevMonth(S.month)}: ${PB.slots.length}` : `${pastPosts().filter(p => M.pastThumbs[p.id]).length}/${pastPosts().length}`,
     busy: M.busyText || null, locked, savedAt: S.savedAt,
     prevLock: S.prevUnlocked ? 'desbloqueado' : prevOnce ? 'solo esta vez' : 'bloqueado',
     prevHidden: (S.prev || []).filter(p => p.hidden).length, prevEdited: (S.prev || []).filter(p => p.own).length,

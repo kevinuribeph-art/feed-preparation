@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.7';
+  M.version = '3.8';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -417,7 +417,6 @@
     if (!S || !s) return [];
     return [...new Set((IDX[s.id] || []).map(x => x.client).filter(c => c && c !== S.client))].map(c => (CL.find(x => x.id === c) || {}).name || c);
   }
-  const linkTag = s => { const w = sharedWith(s); return w.length ? `<span class="ltag" title="Collab enlazada: foto, fecha, hora, contexto y nota se cambian también en ${esc(w.join(' y '))}">Collab ↔ ${esc(w.join(' · '))}</span>` : ''; };
   const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora, contexto y nota se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
 
   async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
@@ -788,7 +787,16 @@
 #mesa span.ltag{display:block;width:fit-content;max-width:100%;margin-top:3px;font-size:10px;font-weight:600;background:#0064d1;color:#fff;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa.client .ltag{display:none}
 #mesa .phead p.lk{margin-top:4px;color:var(--acc2);font-size:12px}
-#mesa .badges{position:absolute;top:6px;left:6px;right:30px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;z-index:3;pointer-events:none}
+#mesa .badges{position:absolute;top:6px;left:6px;right:30px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:3;pointer-events:none}
+#mesa .badges .mk{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+#mesa .badges .dot{pointer-events:auto;display:block;box-sizing:border-box;width:auto;height:17px;min-width:17px;max-width:17px;padding:0;border-radius:9px;overflow:hidden;white-space:nowrap;margin:0;font-size:10px;font-weight:600;line-height:17px;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:max-width .18s ease}
+#mesa .badges .dot .dl{display:block;padding:0 7px;opacity:0;transition:opacity .1s ease}
+#mesa .badges .dot:hover{max-width:240px;transition-delay:.5s}
+#mesa .badges .dot:hover .dl{opacity:1;transition-delay:.55s}
+#mesa .badges .dot.nb{background:#fff;color:var(--ink)}
+#mesa .badges .dot.ok{background:var(--ok);color:#fff}
+#mesa .badges .dot.chg{background:var(--chg);color:#fff}
+#mesa .badges .dot.ltag,#mesa .badges .dot.cb{background:#0064d1;color:#fff}
 #mesa .nb{width:21px;height:21px;border-radius:50%;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 #mesa .nb svg{width:13px;height:13px}
 #mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff;white-space:nowrap}
@@ -1058,27 +1066,29 @@
     const st = slotStatus(s);
     return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre o contexto): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
+  // cell markers: month pill, then a column of dots (text, state, collab) that open into their label after 0.5 s of hover
+  const dot = (cls, label, aria) => `<span class="dot ${cls}" title="" aria-label="${esc(aria || label)}"><span class="dl">${esc(label)}</span></span>`;
   function badgesHTML(s, pill) {
     const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
-    const cx = !!noteOf(s), me = !!memoOf(s);
-    const n = cx || me ? `<span class="nb" title="${cx && me ? 'Tiene contexto y nota' : cx ? 'Tiene contexto' : 'Tiene nota'}">${ICON.note}</span>` : '';
-    const st = statusBadge(s);
-    return mp || n || st ? `<div class="badges">${mp}${n}${st}</div>` : '';
+    const cx = !!noteOf(s), me = !!memoOf(s), st = slotStatus(s), w = sharedWith(s);
+    const d = (cx || me ? dot('nb', cx && me ? 'Contexto y nota' : cx ? 'Contexto' : 'Nota', cx && me ? 'Tiene contexto y nota' : cx ? 'Tiene contexto' : 'Tiene nota') : '')
+      + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion: pide a Claude que la vuelva a subir') : '')
+      + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto y nota se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
+    return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
   }
   const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
   const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
   function cellHTML(s, pill) {
     const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) ? DNM : '') + esc(fmtDate(s.date));
     const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '';
-    const collab = s.type === 'Collab Reel' && !sharedWith(s).length ? '<span class="tag">Collab</span>' : '';
     if (!s.photos.length) {
-      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span>${collab}${linkTag(s)}</div></div>`;
+      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div></div>`;
     }
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr" title="${n} opciones">${n}<span class="cw"> opciones</span><span class="cs"> op.</span></span>` : '';
-    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab"><b>${esc(lab)}</b>${when}${collab ? '<br>' + collab : ''}${linkTag(s)}</div></div>`;
+    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab"><b>${esc(lab)}</b>${when}</div></div>`;
   }
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];

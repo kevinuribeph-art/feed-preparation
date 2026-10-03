@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.10';
+  M.version = '3.11';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -797,6 +797,14 @@
 #mesa .badges .dot.ok{background:var(--ok);color:#fff}
 #mesa .badges .dot.chg{background:var(--chg);color:#fff}
 #mesa .badges .dot.ltag,#mesa .badges .dot.cb{background:#0064d1;color:#fff}
+#mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:#f8df74;color:#3d3300;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45));transition:max-width .18s ease,max-height .18s ease}
+#mesa .pit svg{flex:none;display:block;width:17px;height:17px}
+#mesa .pit .pt{min-width:0;padding:2px 6px 3px 0;font-size:10.5px;font-weight:500;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;opacity:0;transition:opacity .1s ease}
+#mesa .pit:hover{max-width:100%;max-height:8.6em;transition-delay:.5s}
+#mesa .pit:hover .pt{opacity:1;transition-delay:.55s}
+#mesa .cell.empty>.pit{position:absolute;left:6px;bottom:6px;z-index:3;margin:0;max-width:17px}
+#mesa .cell.empty>.pit:hover{max-width:calc(100% - 12px)}
+#mesa.client .pit{display:none}
 #mesa .nb{width:21px;height:21px;border-radius:50%;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 #mesa .nb svg{width:13px;height:13px}
 #mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff;white-space:nowrap}
@@ -1070,25 +1078,27 @@
   const dot = (cls, label, aria) => `<span class="dot ${cls}" title="" aria-label="${esc(aria || label)}"><span class="dl">${esc(label)}</span></span>`;
   function badgesHTML(s, pill) {
     const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
-    const cx = !!noteOf(s), me = !!memoOf(s), st = slotStatus(s), w = sharedWith(s);
-    const d = (cx || me ? dot('nb', cx && me ? 'Contexto y nota' : cx ? 'Contexto' : 'Nota', cx && me ? 'Tiene contexto y nota' : cx ? 'Tiene contexto' : 'Tiene nota') : '')
+    const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s);
+    const d = (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
       + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion: pide a Claude que la vuelva a subir') : '')
       + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto y nota se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
   }
+  const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" fill="#f8df74"/><path d="M1.5 1.5h14v2.6h-14z" fill="#fcebaa"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" fill="#d9ad35"/></svg>';
+  const postit = s => { const m = memoOf(s); return m ? `<span class="pit" title="" aria-label="Nota: ${esc(m)}">${POSTIT}<span class="pt">${esc(m)}</span></span>` : ''; };
   const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
   const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
   function cellHTML(s, pill) {
     const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) ? DNM : '') + esc(fmtDate(s.date));
     const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '';
     if (!s.photos.length) {
-      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div></div>`;
+      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
     }
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr" title="${n} opciones">${n}<span class="cw"> opciones</span><span class="cs"> op.</span></span>` : '';
-    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab"><b>${esc(lab)}</b>${when}</div></div>`;
+    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];

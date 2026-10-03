@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.12';
+  M.version = '3.13';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -536,7 +536,7 @@
     if (targetSlotId && got.length) {
       const s = slot(targetSlotId);
       if (s && isCarousel(s.type)) got.forEach(id => place(targetSlotId, id, true));
-      else if (s && s.type === 'Foto') got.slice().reverse().forEach(id => place(targetSlotId, id, true));
+      else if (s && s.type === 'Foto') got.forEach(id => place(targetSlotId, id, true));
       else if (s) place(targetSlotId, got[0], true);
     }
     changed();
@@ -554,11 +554,7 @@
     if (other) other.photos = other.photos.filter(x => x !== fileId);
     takeFromTray(fileId);
     if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }
-    else if (s.type === 'Foto') {
-      const prev = s.photos[0];
-      s.photos = [fileId, ...s.photos.filter(x => x !== fileId)];
-      if (!silent && prev && prev !== fileId) toast('Nueva portada. La anterior queda como opción.', { action: 'Devolverla a la bandeja', onAction: () => { const k = s.photos.indexOf(prev); if (S && slot(slotId) === s && k > 0) unassign(slotId, k); } });
-    }
+    else if (s.type === 'Foto') { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // added after the others: the first stays the cover
     else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId)); s.photos = [fileId]; }
     if (!silent) changed();
   }
@@ -613,6 +609,11 @@
     if (text) s.memo = text; else delete s.memo;
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
+  }
+  // the open post view of a publication of this month (not a dialog, not a September post): photos dropped on it are added to it
+  function postDrop(e) {
+    const d = root && root.querySelector('.detail'); if (!d || d.hidden || d.dataset.dlg || d.dataset.prev || !d.dataset.slot) return null;
+    const card = e.target.closest && e.target.closest('.detail .card.post'); return card && S && S.slots.some(x => x.id === d.dataset.slot) ? card : null;
   }
   function moveMemo(fromId, toId) {
     const A = S && S.slots.find(x => x.id === fromId), B = S && S.slots.find(x => x.id === toId);
@@ -807,6 +808,7 @@
 #mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:#f8df74;color:#3d3300;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45));transition:max-width .18s ease,max-height .18s ease}
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
 #mesa .pit{cursor:grab}#mesa .pit.dragging{opacity:.35}
+#mesa .detail .card.post.over{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .pit .pt{min-width:0;padding:2px 6px 3px 0;font-size:10.5px;font-weight:500;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;opacity:0;transition:opacity .1s ease}
 #mesa .pit:hover{max-width:100%;max-height:8.6em;transition-delay:.5s}
 #mesa .pit:hover .pt{opacity:1;transition-delay:.55s}
@@ -1189,7 +1191,7 @@
     const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
     const fid = s.photos[idx];
     let left;
-    if (!n) left = '<div class="pempty">Sin foto todavía.<br>Suelta una foto de la bandeja sobre la casilla.</div>';
+    if (!n) left = '<div class="pempty">Sin foto todavía.<br>Arrastra aquí fotos desde tu ordenador o suelta una de la bandeja sobre la casilla.</div>';
     else {
       const c = cropOf(fid, s);
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
@@ -1451,6 +1453,7 @@
       const cell = e.target.closest('.cell[data-slot], .cell.past[data-prev]');
       const tray = e.target.closest('.tray');
       clearOver();
+      const pv = postDrop(e); if (pv && hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; pv.classList.add('over'); return; }
       if (drag && drag.from === 'memo') { if (cell && cell.dataset.slot && cell.dataset.slot !== drag.slotId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; cell.classList.add('over'); } return; }
       if (cell && cell.dataset.prev && drag && drag.from === 'slot') return;
       if (cell && cell.dataset.slot && drag && drag.from === 'prev') return;
@@ -1467,6 +1470,7 @@
       if (hasFiles(e)) {
         e.preventDefault(); drag = null;
         if (!S) { toast('Abre un mes antes de añadir fotos.'); return; }
+        const pv = postDrop(e); if (pv) { M.addFiles(e.dataTransfer.files, root.querySelector('.detail').dataset.slot); return; }
         if (pc) { const id = pc.dataset.prev; M.addFiles(e.dataTransfer.files, null).then(got => { if (got && got[0]) withPrev(() => prevSetFromTray(id, got[0]), 'edit'); }); return; }
         M.addFiles(e.dataTransfer.files, cell ? cell.dataset.slot : null); return;
       }

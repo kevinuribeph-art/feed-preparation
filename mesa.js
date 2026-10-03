@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.9';
+  M.version = '3.10';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1983,6 +1983,8 @@
   // ---------- preview image for the client (1080 px wide) ----------
   // opts.month ('YYYY-MM', one of the board's months): only that month above the line; the board's earlier
   // months (if any) and the previous month go below, so a client can approve one month of a 2-3 month board.
+  // The later months are not drawn, but their place is kept: blank cells at the start (their count mod 3) so every
+  // photo sits in the same row/column as in the mesa. `check` compares each drawn post with its mesa position.
   M.render = async (mode = 'clean', opts = {}) => {
     if (!S) return { error: 'no hay mesa abierta' };
     const only = opts && opts.month ? String(opts.month) : null;
@@ -1992,14 +1994,21 @@
     const past = pastList(false);
     const fresh = only ? S.slots.filter(s => monthOf(s.date) === only) : S.slots;
     const earlier = only ? S.slots.filter(s => { const m = monthOf(s.date); return m && m < only; }) : [];
-    const slotPost = (s, isNew) => ({ name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const later = only ? S.slots.filter(s => { const m = monthOf(s.date); return m && m > only; }).length : 0;
+    const lead = later % COLS;
+    const slotPost = (s, isNew) => ({ mesaIdx: S.slots.indexOf(s), name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const posts = [
+      ...Array.from({ length: lead }, () => ({ blank: true, mesaIdx: null })),
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
-      ...past.map(p => (p.fid
-        ? { name: p.name, type: p.type, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
-        : { name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
+      ...past.map((p, j) => (p.fid
+        ? { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
+        : { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
+    const N = lead + fresh.length;              // first cell below the line
+    const shift = posts.length > lead ? posts[lead].mesaIdx - lead : 0;
+    const mismatches = posts.map((p, i) => p.mesaIdx == null || p.mesaIdx - i === shift ? null : p.name).filter(Boolean);
+    const BLUE = '#0095f6';
     const rows = Math.ceil(posts.length / COLS);
     const H = HEADER + rows * TH + (rows - 1) * GAP + FOOT;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -2012,8 +2021,8 @@
     const below = [earlier.length ? `${earlier.length} ya planificadas` : '', past.length ? `${past.length} de ${MONTHS[+prevMonth(S.month).slice(5) - 1]}` : ''].filter(Boolean).join(' + ');
     x.fillText(`${fresh.length} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
     if (earlier.length || past.length) {
-      x.fillStyle = '#111'; x.fillRect(48, 214, 44, 5);
-      x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText(`Por encima de la línea: publicaciones nuevas · Debajo: ${earlier.length ? 'lo anterior' : 'ya publicado'}`, 104, 222);
+      x.fillStyle = BLUE; x.fillRect(48, 212, 44, 8);
+      x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText(`Por encima de la franja: publicaciones nuevas · Debajo: ${earlier.length ? 'lo anterior' : 'ya publicado'}`, 104, 222);
     }
     const drawIcon = (svg, cx, cy, color) => new Promise(res => {
       const im = new Image();
@@ -2024,6 +2033,7 @@
     for (let i = 0; i < posts.length; i++) {
       const p = posts[i];
       const px = (i % COLS) * (TW + GAP), py = HEADER + Math.floor(i / COLS) * (TH + GAP);
+      if (p.blank) { x.fillStyle = '#efefef'; x.fillRect(px, py, TW, TH); continue; }
       if (p.blob) {
         const bmp = await createImageBitmap(p.blob);
         const r = TW / TH, sr = bmp.width / bmp.height;
@@ -2051,21 +2061,30 @@
         x.font = `400 19px ${FONT}`; x.fillStyle = 'rgba(255,255,255,.9)'; x.fillText(fmtDate(p.date) + (p.isNew || p.planned ? '' : '  ·  publicada'), px + 14, py + TH - 16, TW - 28);
       }
     }
-    const N = fresh.length;
     if (N > 0 && N < posts.length) {
       const R = Math.floor(N / COLS), k = N % COLS;
       const yRow = r => HEADER + r * (TH + GAP) - GAP / 2;
       const xCol = cc => cc * (TW + GAP) - GAP / 2;
-      x.strokeStyle = '#111'; x.lineWidth = 8; x.lineCap = 'square';
+      x.strokeStyle = BLUE; x.lineWidth = 12; x.lineCap = 'square';
       x.beginPath();
       if (k === 0) { x.moveTo(0, yRow(R)); x.lineTo(W, yRow(R)); }
       else if ((R + 1) * COLS < posts.length) { x.moveTo(0, yRow(R + 1)); x.lineTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
       else { x.moveTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
       x.stroke();
+      // label on the first cell below the band, like the mesa's «Septiembre · publicado»
+      const lbl = earlier.length ? cap(MONTHS[+monthOf(earlier[0].date).slice(5) - 1]) + ' · planificado' : cap(MONTHS[+prevMonth(S.month).slice(5) - 1]) + ' · publicado';
+      const lx = k * (TW + GAP) + 16, ly = HEADER + R * (TH + GAP) + 18;
+      x.font = `600 24px ${FONT}`; const tw = x.measureText(lbl).width;
+      x.fillStyle = BLUE; x.beginPath();
+      if (x.roundRect) x.roundRect(lx, ly, tw + 32, 44, 22); else x.rect(lx, ly, tw + 32, 44);
+      x.fill();
+      x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.fillText(lbl, lx + 16, ly + 23); x.textBaseline = 'alphabetic';
     }
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
     M.out[mode] = blob;
-    return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.length, fresh: N, empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name) };
+    return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.length - lead, fresh: fresh.length, blankStart: lead,
+      empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name),
+      check: { ok: !mismatches.length, sameColumnsAsMesa: shift % COLS === 0, mismatches } };
   };
   M.uploadOut = async (mode, url, auth, filename) => {
     const fd = new FormData(); fd.append('file', M.out[mode], filename);

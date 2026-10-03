@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.14';
+  M.version = '3.15';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -308,12 +308,13 @@
   function edited(B) { const b = boardBody(B); if (BODY.get(B) !== b) { B.editedAt = new Date().toISOString(); BODY.set(B, b); } }
   function save() {
     if (!S || locked) return;
+    track(S);                          // ⌘Z history: each save point is a step (several quick actions stay separate)
     clearTimeout(saveTimer);
     setSave('Guardando…');
     const B = S;
     saveTimer = setTimeout(async () => {
       saveTimer = null;
-      try { stamp(B); edited(B); B.savedAt = new Date().toISOString(); await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); await pushShared(B); if (B === S) setSave('Guardado'); }
+      try { track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString(); await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); await pushShared(B); if (B === S) setSave('Guardado'); }
       catch (e) { setSave('No se pudo guardar', true); }
     }, 250);
   }
@@ -322,7 +323,7 @@
     clearTimeout(noteTimer); noteTimer = null;
     if (!S || locked) return null;
     const B = S;
-    stamp(B); edited(B); B.savedAt = new Date().toISOString();
+    track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString();
     await idbPut('boards', B.key, JSON.parse(JSON.stringify(B)));
     await pushShared(B);
     setSave('Guardado');
@@ -680,6 +681,7 @@
   }
   async function deleteIfUnused(fileId) {
     if (S && refsOf(S).has(fileId)) return;
+    if (histRefs().has(fileId)) { delList(l => l.includes(fileId) ? l : [...l, fileId]); return; }   // ⌘Z can still bring it back
     const boards = await idbAll('boards');
     if (boards.some(b => (!S || b.key !== S.key) && refsOf(b).has(fileId))) return;
     await idbDel('files', fileId);
@@ -688,6 +690,96 @@
     delete M.files[fileId]; delete M.blobs[fileId]; delete M.thumbBlobs[fileId];
   }
   function changed() { normalize(); save(); render(); }
+
+  // ---------- undo / redo (⌘Z / ⇧⌘Z) ----------
+  // History of the open board's editable state: photos (publications, tray, previous month), crops, formats, contexto,
+  // nota and dates. Every save compares it with the last state and a change becomes one step; typing in one field or
+  // reframing one photo in a burst (< 2 s between saves) is one step. New photos only added to the tray are not a step.
+  // Restoring never loses a photo: one that is in the board now and not in the restored state goes to the tray.
+  const HMAX = 60, HMERGE = 2000;
+  let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
+  function editState(B) {
+    return {
+      slots: B.slots.map(s => { const o = { id: s.id, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; return o; }),
+      tray: B.tray.slice(),
+      crops: JSON.parse(JSON.stringify(B.crops || {})),
+      prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null }))
+    };
+  }
+  const stRefs = st => new Set([...st.tray, ...st.slots.flatMap(s => s.photos), ...st.prev.filter(p => p.own).flatMap(p => p.photos)]);
+  function histRefs() { const r = new Set(); if (H.b && H.b === S) [...H.undo, ...H.redo].forEach(st => stRefs(st).forEach(f => r.add(f))); return r; }
+  function histReset() { H = { b: S, cur: S ? editState(S) : null, curJ: '', undo: [], redo: [], tag: null, t: 0 }; if (H.cur) H.curJ = JSON.stringify(H.cur); }
+  // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
+  function stepTag(a, b) {
+    const J = JSON.stringify;
+    if (J(a.tray) !== J(b.tray) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length) return null;
+    const ds = [];
+    for (let i = 0; i < a.slots.length; i++) { if (a.slots[i].id !== b.slots[i].id) return null; if (J(a.slots[i]) !== J(b.slots[i])) ds.push(i); }
+    const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
+    if (!ds.length && cs.length === 1) return 'crop:' + cs[0];
+    if (ds.length !== 1 || cs.length) return null;
+    const x = a.slots[ds[0]], y = b.slots[ds[0]], ks = ['photos', 'note', 'memo', 'date', 'fmt'].filter(k => J(x[k]) !== J(y[k]));
+    return ks.length === 1 && (ks[0] === 'note' || ks[0] === 'memo') ? ks[0] + ':' + x.id : null;
+  }
+  function track(B) {
+    if (!B || H.b !== B || !H.cur) return;
+    const st = editState(B), j = JSON.stringify(st);
+    if (j === H.curJ) return;
+    const was = stRefs(H.cur);
+    if (st.tray.some(f => !was.has(f)) && JSON.stringify({ ...st, tray: st.tray.filter(f => was.has(f)) }) === H.curJ) { H.cur = st; H.curJ = j; H.tag = null; return; }   // only new photos in the tray
+    const now = Date.now(), tag = stepTag(H.cur, st);
+    if (!(tag && tag === H.tag && now - H.t < HMERGE)) {
+      const dropped = H.redo.length || H.undo.length >= HMAX;
+      H.undo.push(H.cur); if (H.undo.length > HMAX) H.undo.shift(); H.redo = [];
+      if (dropped) delSweep();
+    }
+    H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
+  }
+  function applyState(st) {
+    const had = refsOf(S), has = f => !!M.files[f];
+    const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
+    S.slots.forEach(s => {
+      const o = by[s.id]; if (!o) return;
+      s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date;
+      if (o.memo) s.memo = o.memo; else delete s.memo;
+      if (o.fmt) s.fmt = o.fmt; else delete s.fmt;
+    });
+    (S.prev || []).forEach(p => {
+      const o = pby[p.id]; if (!o) return;
+      p.own = o.own; p.photos = o.photos.filter(has); p.alt = o.alt; p.hidden = o.hidden;
+      if (o.fmt) p.fmt = o.fmt; else delete p.fmt;
+    });
+    S.tray = st.tray.filter(has);
+    S.crops = JSON.parse(JSON.stringify(st.crops));
+    const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f));
+    if (lost.length) S.tray.unshift(...lost);
+    const ord = Object.fromEntries(st.slots.map((s, i) => [s.id, i]));
+    S.slots.sort((a, b) => (ord[a.id] ?? 1e9) - (ord[b.id] ?? 1e9));
+    renumber();                                    // names follow the restored dates
+    normalize();
+    if (sel && !S.tray.includes(sel)) sel = null;
+  }
+  function histStep(back) {
+    if (!S || locked || H.b !== S || !H.cur) return;
+    track(S);                                      // a change not saved yet is a step too
+    const from = back ? H.undo : H.redo, to = back ? H.redo : H.undo;
+    if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
+    to.push(H.cur);
+    applyState(from.pop());
+    H.cur = editState(S); H.curJ = JSON.stringify(H.cur); H.tag = null;
+    changed();
+    refreshDetail();
+  }
+  const undo = () => histStep(true), redo = () => histStep(false);
+  // a photo removed from the mesa is deleted only when no step of the history can bring it back (list kept across reloads)
+  function delList(fn) { let l = []; try { l = JSON.parse(lsGet('mesa-del') || '[]'); } catch (e) { /* */ } if (!fn) return l; l = fn(l); lsSet('mesa-del', JSON.stringify(l)); return l; }
+  async function delSweep() {
+    const l = delList(); if (!l.length) return;
+    const keep = histRefs(), go = l.filter(id => !keep.has(id));
+    if (!go.length) return;
+    delList(x => x.filter(id => !go.includes(id)));
+    for (const id of go) { try { await deleteIfUnused(id); } catch (e) { /* */ } }
+  }
 
   // ---------- previous month (under the line) ----------
   // From the mesa's own board of that month when it exists; otherwise the posts Claude loaded from Notion.
@@ -1609,6 +1701,13 @@
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2')) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
+      // ⌘Z / ⇧⌘Z (Ctrl on other systems): undo/redo in the mesa — not while writing in Contexto/Nota (the text field
+      // undoes its own typing) nor with a dialog open; the date/time fields and the zoom do use it
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
+        const writing = e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && /^(text|search|email|url|tel|password|)$/.test(e.target.type || '')));
+        if (writing || e.target.isContentEditable || (open && root.querySelector('.detail').dataset.dlg) || drag) return;
+        e.preventDefault(); if (e.shiftKey) redo(); else undo();
+      }
     };
     document.addEventListener('keydown', M._onKey);
     if (M._mq && M._onMq) { try { M._mq.removeEventListener('change', M._onMq); } catch (e) { /* */ } }
@@ -1857,7 +1956,9 @@
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
     lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
+    histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     await flushNow();
+    delSweep();
     await refreshMonths();
     render();
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
@@ -2480,6 +2581,7 @@
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),
     cropSig: slotId => cropSig(slot(slotId)), cur: () => ({ ...cur }), setSel: id => { sel = id; render(); },
+    undo, redo, hist: () => ({ undo: H.undo.length, redo: H.redo.length, own: H.b === S }), delList: () => delList(),
     moveMemo, prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
     setHidden: (id, v) => { const it = prevItem(id); if (it) { it.hidden = !!v; changed(); } },
     prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf, madridISO,

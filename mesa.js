@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.13';
+  M.version = '3.14';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -615,6 +615,42 @@
     const d = root && root.querySelector('.detail'); if (!d || d.hidden || d.dataset.dlg || d.dataset.prev || !d.dataset.slot) return null;
     const card = e.target.closest && e.target.closest('.detail .card.post'); return card && S && S.slots.some(x => x.id === d.dataset.slot) ? card : null;
   }
+  // tray photo viewer: a click on a tray thumbnail shows it big; ←/→ go through the tray
+  function openTrayView(fid) {
+    if (!S || !M.files[fid]) return;
+    const list = S.tray.filter(id => M.files[id]), k = list.indexOf(fid); if (k < 0) return;
+    const f = M.files[fid], n = list.length;
+    showDialog('trayview', `<button class="x" data-act="close" aria-label="Cerrar">×</button>
+      <div class="tvwrap"><img class="tvimg" src="${f.thumbUrl}" alt="${esc(f.name)}">${n > 1 ? `<button class="nav prev" data-act="tvnav" data-d="-1" aria-label="Foto anterior" ${k === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="tvnav" data-d="1" aria-label="Foto siguiente" ${k === n - 1 ? 'hidden' : ''}>›</button>` : ''}</div>
+      <div class="tvbar"><span class="tvname"><b>${esc(f.name)}</b> · ${f.w}×${f.h}${n > 1 ? ` · ${k + 1} de ${n}` : ''}</span><button type="button" class="btn2" data-act="tvsel">Colocar en una casilla</button></div>`);
+    root.querySelector('.detail').dataset.file = fid;
+  }
+  function trayNav(dir) {
+    const d = root.querySelector('.detail'), list = S ? S.tray.filter(id => M.files[id]) : [], k = list.indexOf(d.dataset.file);
+    if (k >= 0 && list[k + dir]) openTrayView(list[k + dir]);
+  }
+  let pendingAdd = null;
+  function askAddMode(slotId, ids) {
+    const s = S && S.slots.find(x => x.id === slotId); ids = (ids || []).filter(id => M.files[id]);
+    if (!s || !ids.length) return;
+    if (!s.photos.length || !isMulti(s.type)) { if (isMulti(s.type)) ids.forEach(id => place(slotId, id, true)); else place(slotId, ids[0], true); changed(); return; }
+    pendingAdd = { key: S.key, slotId, ids };
+    const n = ids.length;
+    showDialog('addmode', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(shortLabel(s.name, s.type))} ya tiene foto</h3><p>¿Qué hago con ${n > 1 ? `las ${n} nuevas` : 'la nueva'}?</p>
+      <div class="amode"><button type="button" class="btn2" data-act="addmode" data-m="replace"><kbd>1</kbd><b>Sustituir</b></button>
+      <button type="button" class="btn2" data-act="addmode" data-m="add"><kbd>2</kbd><b>Añadir</b></button></div>`);
+  }
+  function doAddMode(m) {
+    const P = pendingAdd; pendingAdd = null; closeDetail();
+    if (!P || !S || S.key !== P.key) return;
+    const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
+    if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
+    ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
+    const old = s.photos[0], rest = s.photos.slice(1).filter(x => !ids.includes(x));
+    s.photos = [ids[0], ...rest, ...ids.slice(1)];
+    if (old && !ids.includes(old)) S.tray.unshift(old);
+    changed();
+  }
   function moveMemo(fromId, toId) {
     const A = S && S.slots.find(x => x.id === fromId), B = S && S.slots.find(x => x.id === toId);
     if (!A || !B || A === B || !memoOf(A)) return;
@@ -809,6 +845,16 @@
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
 #mesa .pit{cursor:grab}#mesa .pit.dragging{opacity:.35}
 #mesa .detail .card.post.over{outline:3px solid var(--acc);outline-offset:-3px}
+#mesa .amode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+#mesa .amode button{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 12px;border-radius:10px}
+#mesa .amode kbd{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;font:600 14px/1 ${FONT};background:var(--bg)}
+#mesa .amode b{font-size:14px}
+#mesa .amode button:hover{border-color:var(--acc)}
+#mesa .detail[data-dlg="trayview"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
+#mesa .tvwrap{position:relative;display:flex;justify-content:center;background:#111;border-radius:8px;overflow:hidden;margin-top:30px}
+#mesa .tvimg{display:block;max-width:100%;max-height:calc(100vh - 190px);object-fit:contain}
+#mesa .tvbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--mute)}
+#mesa .tvbar .tvname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .tvbar b{color:var(--ink)}
 #mesa .pit .pt{min-width:0;padding:2px 6px 3px 0;font-size:10.5px;font-weight:500;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;opacity:0;transition:opacity .1s ease}
 #mesa .pit:hover{max-width:100%;max-height:8.6em;transition-delay:.5s}
 #mesa .pit:hover .pt{opacity:1;transition-delay:.55s}
@@ -1336,8 +1382,8 @@
   function closeDetail() {
     if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
     const d = root && root.querySelector('.detail'); if (!d) return;
-    const wasPrev = d.dataset.prev;
-    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev;
+    const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
+    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file;
     if (wasPrev && prevOnce) { prevOnce = false; renderFeed(); }
   }
   function refreshDetail() { const d = root && root.querySelector('.detail'); if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); } }
@@ -1347,7 +1393,7 @@
     const d = root.querySelector('.detail');
     d.innerHTML = `<div class="card dlg" role="dialog" aria-modal="true">${html}</div>`;
     clearToasts();
-    d.hidden = false; delete d.dataset.slot; delete d.dataset.prev; d.dataset.dlg = kind;
+    d.hidden = false; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file; d.dataset.dlg = kind;
     const first = d.querySelector('input[type=text]'); if (first) first.focus();
   }
   function dlgNewClient() {
@@ -1472,6 +1518,8 @@
         if (!S) { toast('Abre un mes antes de añadir fotos.'); return; }
         const pv = postDrop(e); if (pv) { M.addFiles(e.dataTransfer.files, root.querySelector('.detail').dataset.slot); return; }
         if (pc) { const id = pc.dataset.prev; M.addFiles(e.dataTransfer.files, null).then(got => { if (got && got[0]) withPrev(() => prevSetFromTray(id, got[0]), 'edit'); }); return; }
+        const tgt = cell && S.slots.find(x => x.id === cell.dataset.slot);
+        if (tgt && tgt.photos.length && isMulti(tgt.type)) { const sid = tgt.id; M.addFiles(e.dataTransfer.files, null).then(got => askAddMode(sid, got)); return; }
         M.addFiles(e.dataTransfer.files, cell ? cell.dataset.slot : null); return;
       }
       if (!drag || !S) return;
@@ -1483,7 +1531,7 @@
         else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
       }
       else if (cell) {
-        if (d.from === 'tray') place(cell.dataset.slot, d.fileId);
+        if (d.from === 'tray') askAddMode(cell.dataset.slot, [d.fileId]);
         else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
         else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
       }
@@ -1503,7 +1551,7 @@
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
       if (!S) return;
       const ti = e.target.closest('.titem[data-file]');
-      if (ti) { sel = sel === ti.dataset.file ? null : ti.dataset.file; renderTray(); renderBar(); return; }
+      if (ti) { openTrayView(ti.dataset.file); return; }
       const pc = e.target.closest('.cell.past[data-prev]');
       if (pc) {
         const id = pc.dataset.prev;
@@ -1513,7 +1561,7 @@
       const cell = e.target.closest('.cell[data-slot]');
       if (cell) {
         const id = cell.dataset.slot;
-        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; place(id, f); return; }
+        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; askAddMode(id, [f]); return; }
         sel = null;
         openDetail(id, 0);
       }
@@ -1558,6 +1606,8 @@
       const open = !root.querySelector('.detail').hidden;
       if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } return; }
       const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
+      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
+      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2')) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
     };
     document.addEventListener('keydown', M._onKey);
@@ -1602,6 +1652,9 @@
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
+    else if (act === 'addmode') doAddMode(a.dataset.m);
+    else if (act === 'tvnav') trayNav(+a.dataset.d);
+    else if (act === 'tvsel') { const f = root.querySelector('.detail').dataset.file; closeDetail(); if (f && S && S.tray.includes(f)) { sel = f; renderTray(); renderBar(); } }
     else if (act === 'unlock-once' || act === 'unlock-always') {
       const pu = pendingUnlock; pendingUnlock = null;
       if (act === 'unlock-always') { S.prevUnlocked = true; save(); } else prevOnce = true;

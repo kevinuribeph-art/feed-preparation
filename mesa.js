@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.8';
+  M.version = '3.9';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1981,13 +1981,21 @@
   };
 
   // ---------- preview image for the client (1080 px wide) ----------
-  M.render = async (mode = 'clean') => {
+  // opts.month ('YYYY-MM', one of the board's months): only that month above the line; the board's earlier
+  // months (if any) and the previous month go below, so a client can approve one month of a 2-3 month board.
+  M.render = async (mode = 'clean', opts = {}) => {
     if (!S) return { error: 'no hay mesa abierta' };
+    const only = opts && opts.month ? String(opts.month) : null;
+    if (only && !boardMonths().includes(only)) return { error: `${only} no está en esta mesa (${boardMonths().join(', ')})` };
     const W = 1080, GAP = 3, COLS = 3, TW = 358, TH = 477, HEADER = 250, FOOT = 40;
     const c0 = CL.find(c => c.id === S.client) || {};
     const past = pastList(false);
+    const fresh = only ? S.slots.filter(s => monthOf(s.date) === only) : S.slots;
+    const earlier = only ? S.slots.filter(s => { const m = monthOf(s.date); return m && m < only; }) : [];
+    const slotPost = (s, isNew) => ({ name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const posts = [
-      ...S.slots.map(s => ({ name: s.name, type: s.type, date: s.date, isNew: true, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null })),
+      ...fresh.map(s => slotPost(s, true)),
+      ...earlier.map(s => slotPost(s, false)),
       ...past.map(p => (p.fid
         ? { name: p.name, type: p.type, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
         : { name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
@@ -1999,12 +2007,13 @@
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.textBaseline = 'alphabetic';
     x.fillStyle = '#111'; x.font = `700 46px ${FONT}`; x.fillText(c0.handle || c0.name || '', 48, 92);
-    x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + rangeLabel(S.month, S.span), 48, 140);
+    x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + (only ? monthLabel(only) : rangeLabel(S.month, S.span)), 48, 140);
     x.fillStyle = '#8a8a8a'; x.font = `400 24px ${FONT}`;
-    x.fillText(`${S.slots.length} publicaciones nuevas${past.length ? ` + ${past.length} de ${MONTHS[+prevMonth(S.month).slice(5) - 1]}` : ''} · vista del perfil (recorte 3:4)`, 48, 184);
-    if (past.length) {
+    const below = [earlier.length ? `${earlier.length} ya planificadas` : '', past.length ? `${past.length} de ${MONTHS[+prevMonth(S.month).slice(5) - 1]}` : ''].filter(Boolean).join(' + ');
+    x.fillText(`${fresh.length} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
+    if (earlier.length || past.length) {
       x.fillStyle = '#111'; x.fillRect(48, 214, 44, 5);
-      x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText('Por encima de la línea: publicaciones nuevas · Debajo: ya publicado', 104, 222);
+      x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText(`Por encima de la línea: publicaciones nuevas · Debajo: ${earlier.length ? 'lo anterior' : 'ya publicado'}`, 104, 222);
     }
     const drawIcon = (svg, cx, cy, color) => new Promise(res => {
       const im = new Image();
@@ -2026,9 +2035,9 @@
         bmp.close();
       } else {
         x.fillStyle = '#efefef'; x.fillRect(px, py, TW, TH);
-        if (mode === 'annotated' || p.isNew) {
+        if (mode === 'annotated' || p.isNew || p.planned) {
           x.fillStyle = '#9a9a9a'; x.font = `600 26px ${FONT}`; x.textAlign = 'center';
-          x.fillText(p.isNew ? 'Pendiente' : 'Publicada', px + TW / 2, py + TH / 2);
+          x.fillText(p.isNew || p.planned ? 'Pendiente' : 'Publicada', px + TW / 2, py + TH / 2);
           x.textAlign = 'left';
         }
       }
@@ -2039,10 +2048,10 @@
         g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.72)');
         x.fillStyle = g; x.fillRect(px, py + TH - 112, TW, 112);
         x.fillStyle = '#fff'; x.font = `600 22px ${FONT}`; x.fillText(p.name, px + 14, py + TH - 44, TW - 28);
-        x.font = `400 19px ${FONT}`; x.fillStyle = 'rgba(255,255,255,.9)'; x.fillText(fmtDate(p.date) + (p.isNew ? '' : '  ·  publicada'), px + 14, py + TH - 16, TW - 28);
+        x.font = `400 19px ${FONT}`; x.fillStyle = 'rgba(255,255,255,.9)'; x.fillText(fmtDate(p.date) + (p.isNew || p.planned ? '' : '  ·  publicada'), px + 14, py + TH - 16, TW - 28);
       }
     }
-    const N = S.slots.length;
+    const N = fresh.length;
     if (N > 0 && N < posts.length) {
       const R = Math.floor(N / COLS), k = N % COLS;
       const yRow = r => HEADER + r * (TH + GAP) - GAP / 2;
@@ -2056,7 +2065,7 @@
     }
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
     M.out[mode] = blob;
-    return { mode, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.length, empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name) };
+    return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.length, fresh: N, empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name) };
   };
   M.uploadOut = async (mode, url, auth, filename) => {
     const fd = new FormData(); fd.append('file', M.out[mode], filename);

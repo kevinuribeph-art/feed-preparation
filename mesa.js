@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.11';
+  M.version = '3.12';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -614,6 +614,13 @@
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
   }
+  function moveMemo(fromId, toId) {
+    const A = S && S.slots.find(x => x.id === fromId), B = S && S.slots.find(x => x.id === toId);
+    if (!A || !B || A === B || !memoOf(A)) return;
+    const ma = A.memo, mb = memoOf(B) ? B.memo : '';
+    B.memo = ma; if (mb) A.memo = mb; else delete A.memo;
+    changed();
+  }
   function move(slotId, k, dir) {
     const s = slot(slotId), j = k + dir;
     if (!s || j < 0 || j >= s.photos.length) return;
@@ -799,6 +806,7 @@
 #mesa .badges .dot.ltag,#mesa .badges .dot.cb{background:#0064d1;color:#fff}
 #mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:#f8df74;color:#3d3300;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45));transition:max-width .18s ease,max-height .18s ease}
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
+#mesa .pit{cursor:grab}#mesa .pit.dragging{opacity:.35}
 #mesa .pit .pt{min-width:0;padding:2px 6px 3px 0;font-size:10.5px;font-weight:500;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;opacity:0;transition:opacity .1s ease}
 #mesa .pit:hover{max-width:100%;max-height:8.6em;transition-delay:.5s}
 #mesa .pit:hover .pt{opacity:1;transition-delay:.55s}
@@ -1085,7 +1093,7 @@
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
   }
   const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" fill="#f8df74"/><path d="M1.5 1.5h14v2.6h-14z" fill="#fcebaa"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" fill="#d9ad35"/></svg>';
-  const postit = s => { const m = memoOf(s); return m ? `<span class="pit" title="" aria-label="Nota: ${esc(m)}">${POSTIT}<span class="pt">${esc(m)}</span></span>` : ''; };
+  const postit = s => { const m = memoOf(s); return m ? `<span class="pit" draggable="true" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : ''; };
   const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
   const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
   function cellHTML(s, pill) {
@@ -1417,6 +1425,11 @@
       window.addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); });
     }
     root.addEventListener('dragstart', e => {
+      const pm = e.target.closest && e.target.closest('.pit[data-memo]');   // a Nota (post-it) moves on its own
+      if (pm) {
+        drag = { from: 'memo', slotId: pm.dataset.memo, el: pm };
+        e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'mesa'); pm.classList.add('dragging'); return;
+      }
       const ti = e.target.closest && e.target.closest('.titem[data-file]');
       const ce = e.target.closest && e.target.closest('.cell.full[data-slot]');
       const pc = e.target.closest && e.target.closest('.cell.past[data-prev]');
@@ -1438,6 +1451,7 @@
       const cell = e.target.closest('.cell[data-slot], .cell.past[data-prev]');
       const tray = e.target.closest('.tray');
       clearOver();
+      if (drag && drag.from === 'memo') { if (cell && cell.dataset.slot && cell.dataset.slot !== drag.slotId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; cell.classList.add('over'); } return; }
       if (cell && cell.dataset.prev && drag && drag.from === 'slot') return;
       if (cell && cell.dataset.slot && drag && drag.from === 'prev') return;
       if (cell) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; cell.classList.add('over'); }
@@ -1459,6 +1473,7 @@
       if (!drag || !S) return;
       e.preventDefault();
       const d = drag; drag = null;
+      if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); flushRender(); return; }
       if (pc) {
         if (d.from === 'tray') withPrev(() => prevSetFromTray(pc.dataset.prev, d.fileId), 'edit');
         else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
@@ -2408,7 +2423,7 @@
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),
     cropSig: slotId => cropSig(slot(slotId)), cur: () => ({ ...cur }), setSel: id => { sel = id; render(); },
-    prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
+    moveMemo, prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
     setHidden: (id, v) => { const it = prevItem(id); if (it) { it.hidden = !!v; changed(); } },
     prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf, madridISO,
     unlock: mode => { if (mode === 'always') { S.prevUnlocked = true; save(); } else if (mode === 'once') prevOnce = true; else { S.prevUnlocked = false; prevOnce = false; save(); } renderFeed(); },

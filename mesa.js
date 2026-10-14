@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.15';
+  M.version = '3.16';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -89,6 +89,7 @@
   const idbAll = st => tx(st, 'readonly', s => s.getAll());
 
   // ---------- helpers ----------
+  const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
   const isCarousel = t => t === 'Carrusel';
@@ -609,7 +610,7 @@
     const s = slot(slotId); if (!s) return;
     if (text) s.memo = text; else delete s.memo;
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
+    noteTimer = setTimeout(() => { noteTimer = null; save(); if (memoEdit !== slotId) renderFeed(); renderBar(); }, 400);   // the open in-cell editor already shows it
   }
   // the open post view of a publication of this month (not a dialog, not a September post): photos dropped on it are added to it
   function postDrop(e) {
@@ -907,8 +908,8 @@
 #mesa .cell{position:relative;aspect-ratio:3/4;overflow:hidden;background:#efefef;user-select:none}
 #mesa .cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 #mesa .cell img.crop{position:absolute;max-width:none;object-fit:fill}
-#mesa .cell.full{cursor:grab}
-#mesa .cell.empty{background:#f5f5f5;cursor:pointer}
+#mesa .cell.full{cursor:default}
+#mesa .cell.empty{background:#f5f5f5;cursor:default}
 #mesa .cell.empty::before{content:'';position:absolute;inset:6px;border:1.5px dashed #c9c9c9;border-radius:6px;pointer-events:none}
 #mesa .cell.empty:hover{background:#eef6fe}#mesa .cell.empty:hover::before{border-color:#8cc8f5}
 #mesa .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;padding:12px;color:var(--mute)}
@@ -935,7 +936,14 @@
 #mesa .badges .dot.ltag,#mesa .badges .dot.cb{background:#0064d1;color:#fff}
 #mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:#f8df74;color:#3d3300;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45));transition:max-width .18s ease,max-height .18s ease}
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
-#mesa .pit{cursor:grab}#mesa .pit.dragging{opacity:.35}
+#mesa .pit{cursor:default}#mesa .pit.dragging{opacity:.35}
+#mesa .pit.edit,#mesa .pit.edit:hover{width:100%;max-width:100%;max-height:none;transition:none;box-shadow:0 0 0 1.5px #fff}
+#mesa .cell.empty>.pit.edit,#mesa .cell.empty>.pit.edit:hover{width:calc(100% - 12px);max-width:calc(100% - 12px)}
+#mesa .pit .pitin{flex:1;min-width:0;display:block;box-sizing:border-box;margin:0;border:0;outline:0;resize:none;overflow-y:auto;background:transparent;color:inherit;font:500 10.5px/1.35 ${FONT};padding:2px 6px 3px 0;max-height:max(4.2em,calc(133cqw - 74px));cursor:text;user-select:text;-webkit-user-select:text}
+#mesa.grabbing,#mesa.grabbing *{cursor:grabbing !important}
+#mesa .pdghost{position:fixed;left:0;top:0;z-index:2147483000;pointer-events:none;opacity:.85;filter:drop-shadow(0 6px 14px rgba(0,0,0,.35));will-change:transform}
+#mesa .pdghost>*{width:100% !important;height:100% !important;margin:0 !important;max-width:none !important;max-height:none !important}
+#mesa .pdghost,#mesa .pdghost *{pointer-events:none !important}
 #mesa .detail .card.post.over{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .amode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
 #mesa .amode button{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 12px;border-radius:10px}
@@ -966,13 +974,11 @@
 @container (max-width:150px){#mesa .cnt .cw{display:none}#mesa .cnt .cs{display:inline}}
 #mesa .cell.past{cursor:default}
 #mesa .bd{position:absolute;inset:0;pointer-events:none;z-index:2}
-#mesa .pmonth{position:absolute;top:4px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:1px 7px;opacity:.95;cursor:pointer}
+#mesa .pmonth{position:absolute;top:4px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:var(--acc);color:#fff;border-radius:999px;padding:1px 7px;opacity:.95;cursor:default}
 #mesa .pmonth::after{content:'';position:absolute;inset:-7px -4px -9px}
 #mesa .ptag2{position:absolute;top:28px;left:4px;z-index:3;font-size:9.5px;font-weight:600;background:rgba(38,38,38,.85);color:#fff;border-radius:4px;padding:1px 6px;pointer-events:none}
 #mesa .ptag2.ed{background:rgba(0,149,246,.9)}
 #mesa .cell.past.phidden img,#mesa .cell.past.phidden .ph{opacity:.35}
-#mesa .cell.past:not(.locked){cursor:grab}
-#mesa .cell.past.locked{cursor:pointer}
 #mesa .lockbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;font-size:11.5px;padding:3px 9px;min-height:28px;color:var(--ink)}
 #mesa .lockbtn.on{border-color:var(--acc);color:var(--acc)}
 #mesa .pthumb{max-width:100%;max-height:60vh;display:block;margin:0 auto;border-radius:4px}
@@ -981,6 +987,7 @@
 #mesa .pdate{position:absolute;left:6px;bottom:5px;z-index:3;font-size:10px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7);pointer-events:none}
 #mesa .cell.past.nophoto .ph b{color:#8e8e8e}
 #mesa .cell.over{outline:3px solid var(--acc) !important;outline-offset:-3px !important}
+#mesa .cell.over::after{content:'';position:absolute;inset:0;z-index:6;border:3px solid var(--acc);pointer-events:none}
 #mesa .cell.dragging,#mesa .titem.dragging{opacity:.35}
 #mesa.picking .cell:not(.past){cursor:copy}
 #mesa .tray{flex:1;min-width:0;overflow-y:auto;background:var(--bg)}
@@ -997,7 +1004,7 @@
 #mesa .tbody{padding:0 12px 24px}
 #mesa .drop{border:1.5px dashed #c7c7c7;border-radius:10px;padding:14px;text-align:center;color:var(--mute);font-size:12.5px;margin-bottom:10px;background:var(--panel)}
 #mesa .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
-#mesa .titem{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#efefef;cursor:grab}
+#mesa .titem{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#efefef;cursor:default;user-select:none;-webkit-user-select:none}
 #mesa .titem img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 #mesa .titem.sel{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .titem .x{position:absolute;top:4px;right:4px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:28px;padding:0;display:none}
@@ -1041,7 +1048,7 @@
 #mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
 #mesa .pleft{padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg);border-right:1px solid var(--line2);min-width:0}
 #mesa .stagewrap{width:100%;display:flex;justify-content:center}
-#mesa .stage{position:relative;overflow:hidden;background:#111;touch-action:none;cursor:grab;user-select:none;width:300px;height:375px}
+#mesa .stage{position:relative;overflow:hidden;background:#111;touch-action:none;cursor:default;user-select:none;width:300px;height:375px}
 #mesa .stage.panning{cursor:grabbing}
 #mesa .stage img.big{position:absolute;max-width:none;pointer-events:none;-webkit-user-drag:none}
 #mesa .stage.fixed{cursor:default}
@@ -1233,7 +1240,12 @@
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
   }
   const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" fill="#f8df74"/><path d="M1.5 1.5h14v2.6h-14z" fill="#fcebaa"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" fill="#d9ad35"/></svg>';
-  const postit = s => { const m = memoOf(s); return m ? `<span class="pit" draggable="true" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : ''; };
+  // the Nota's post-it; while it is edited in its cell (double click once open), a text field in its place
+  let memoEdit = null;
+  const postit = s => {
+    if (memoEdit === s.id) return `<span class="pit edit" data-memo="${esc(s.id)}" title="">${POSTIT}<textarea class="pitin" data-slot="${esc(s.id)}" rows="1" aria-label="Nota (solo para ti, no se sube)">${esc(s.memo || '')}</textarea></span>`;
+    const m = memoOf(s); return m ? `<span class="pit" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (doble clic para editarla; arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : '';
+  };
   const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
   const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
   function cellHTML(s, pill) {
@@ -1246,7 +1258,7 @@
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr" title="${n} opciones">${n}<span class="cw"> opciones</span><span class="cs"> op.</span></span>` : '';
-    return `<div class="cell full" draggable="true" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
+    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];
@@ -1259,7 +1271,7 @@
     const pill = i === N ? `<span class="pmonth" data-act="prevlock" role="button" title="${lk ? 'Desbloquear' : 'Bloquear'} el mes anterior">${lk ? '🔒' : '🔓'} ${esc(cap(MONTHS[+prevMonth(S.month).slice(5) - 1]))} · publicado</span>` : '';
     const tags = (p.hidden ? '<span class="ptag2">Oculta</span>' : '') + (p.own && !p.hidden ? '<span class="ptag2 ed">Editada</span>' : '');
     const cls = `cell past${lk ? ' locked' : ''}${p.hidden ? ' phidden' : ''}`;
-    const attrs = `data-prev="${esc(p.id)}" draggable="true" title="${esc(p.name)}${lk ? ' · bloqueada' : ''}"`;
+    const attrs = `data-prev="${esc(p.id)}" title="${esc(p.name)}${lk ? ' · bloqueada' : ''}"`;
     const f = p.fid && M.files[p.fid];
     if (f) return `<div class="${cls}" ${attrs}><img class="crop" src="${f.thumbUrl}" style="${rectStyle(f, gridRect(p.fid, p.item, p.B))}" alt="">${line}${pill}${tags}${icon ? `<span class="ico">${icon}</span>` : ''}${date}</div>`;
     const url = p.thumb && M.pastThumbs[p.thumb];
@@ -1273,7 +1285,23 @@
     const N = S.slots.length, lk = prevLocked(), past = pastList(!lk), shown = past.filter(p => !p.hidden).length, nh = (S.prev || []).filter(p => p.hidden).length;
     const seen = new Set();   // range board: a month pill on the newest cell of each month
     const pill = s => { const m = (localDay(s.date) || '').slice(0, 7); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return cap(MONTHS[+m.slice(5) - 1].slice(0, 3)); };
-    grid.innerHTML = S.slots.map(s => cellHTML(s, pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
+    if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
+    const html = S.slots.map(s => cellHTML(s, pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
+    // a Nota being edited in its cell: that cell stays in the page untouched (a rebuilt field would lose an accent being
+    // typed and its own undo); the others are rebuilt around it, and it is redrawn once the editing ends
+    const live = memoEdit && grid.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
+    if (keep) {
+      const tpl = document.createElement('div'); tpl.innerHTML = html;
+      const nodes = [...tpl.children], k = nodes.findIndex(n => n.dataset.slot === memoEdit);
+      [...grid.children].forEach(n => { if (n !== keep) n.remove(); });
+      nodes.forEach((n, i) => { if (i < k) grid.insertBefore(n, keep); else if (i > k) grid.appendChild(n); });
+      memoStale = true;
+    } else {
+      grid.innerHTML = html;
+      const pin = memoEdit && grid.querySelector(`.pitin[data-slot="${cssq(memoEdit)}"]`); if (pin) fitPit(pin);
+    }
+    if (hov.id) hov.t = Date.now();          // a redrawn post-it opens again after its 0.5 s
+    pdRefresh();
     const pm = monthLabel(prevMonth(S.month));
     const lockBtn = (S.prev || []).length ? (S.prevUnlocked ? '<button class="lockbtn on" data-act="prevlock" title="Volver a bloquear el mes anterior">🔓 Desbloqueado · Bloquear</button>' : lk ? '<button class="lockbtn" data-act="prevlock" title="Desbloquear el mes anterior">🔒 Bloqueado</button>' : '<button class="lockbtn on" data-act="prevlock">🔓 Solo esta vez</button>') : '';
     const below = `Debajo: ${pm} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}`;
@@ -1304,8 +1332,9 @@
     tray.classList.toggle('isempty', !S.tray.length);
     tray.querySelector('.tgrid').innerHTML = S.tray.map(id => {
       const f = M.files[id]; if (!f) return '';
-      return `<div class="titem${sel === id ? ' sel' : ''}" draggable="true" data-file="${esc(id)}" title="${esc(f.name)} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}<span class="tname">${esc(f.name)}</span><button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button></div>`;
+      return `<div class="titem${sel === id ? ' sel' : ''}" data-file="${esc(id)}" title="${esc(f.name)} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}<span class="tname">${esc(f.name)}</span><button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button></div>`;
     }).join('');
+    pdRefresh();
   }
 
   // ---------- post view (Instagram-desktop style) ----------
@@ -1558,6 +1587,162 @@
   const hasFiles = e => !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
   function clearOver() { root.querySelectorAll('.over').forEach(el => el.classList.remove('over')); }
 
+  // ---------- Nota edited in its cell ----------
+  // Once the post-it has opened (0.5 s of hover, as the CSS does), a click on it does nothing and a double click turns it
+  // into a text field right there; it ends on leaving the field or with Esc. Without a Nota nothing changes (post view).
+  let hov = { id: null, t: 0 };
+  const pitOpen = id => !!id && hov.id === id && Date.now() - hov.t >= 500;
+  function fitPit(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  function editMemo(id) {
+    const s = S && S.slots.find(x => x.id === id);
+    if (!s || !memoOf(s) || locked || root.classList.contains('client')) return false;
+    memoEdit = id; renderFeed();
+    const ta = root.querySelector(`.feed .pitin[data-slot="${cssq(id)}"]`); if (!ta) { memoEdit = null; return false; }
+    ta.focus({ preventScroll: true }); const n = ta.value.length; ta.setSelectionRange(n, n);
+    return true;
+  }
+  let memoStale = false;                 // the feed was redrawn around the edited cell: redraw it all once editing ends
+  function endMemoEdit() {
+    if (!memoEdit) return;
+    const id = memoEdit, s = S && S.slots.find(x => x.id === id), p = root && root.querySelector(`.feed .pit.edit[data-memo="${cssq(id)}"]`);
+    memoEdit = null;
+    if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderBar(); }
+    if (p) { if (s && memoOf(s)) p.outerHTML = postit(s); else p.remove(); }
+    if (hov.id === id) hov.t = Date.now();
+    if (memoStale || !p) { memoStale = false; whenReleased(renderFeed); }
+  }
+  // runs fn now, or once the mouse button is up and its click has been delivered (a redraw would swallow that click)
+  let btnDown = false;
+  function whenReleased(fn) {
+    if (!btnDown) return fn();
+    const h = () => { document.removeEventListener('pointerup', h, true); document.removeEventListener('pointercancel', h, true); setTimeout(fn, 0); };
+    document.addEventListener('pointerup', h, true); document.addEventListener('pointercancel', h, true);
+  }
+
+  // ---------- moving photos and Notas with the mouse ----------
+  // The mesa's own drag (pointer events), not the browser's: the cursor stays the system arrow and turns into the closed
+  // hand only while a photo (or a Nota) is being carried, with a copy of it under the mouse. Files from the computer still
+  // come through the browser's drag and drop (the drag* handlers below, which also take synthetic drag events).
+  // where a carried item would land over element t: {el: what lights up, cell | pc | tray} — null = not there
+  function dragTarget(t, d) {
+    if (!t || !t.closest || !d) return null;
+    const cell = t.closest('.cell[data-slot], .cell.past[data-prev]'), tray = t.closest('.tray');
+    if (d.from === 'memo') return cell && cell.dataset.slot && cell.dataset.slot !== d.slotId ? { el: cell, cell } : null;
+    if (cell && cell.dataset.prev && d.from === 'slot') return null;
+    if (cell && cell.dataset.slot && d.from === 'prev') return null;
+    if (cell) return cell.dataset.slot ? { el: cell, cell } : { el: cell, pc: cell };
+    if (tray) return { el: tray, tray };
+    return null;
+  }
+  function dropOn(d, { cell, pc, tray }) {
+    if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); return; }
+    if (pc) {
+      if (d.from === 'tray') withPrev(() => prevSetFromTray(pc.dataset.prev, d.fileId), 'edit');
+      else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
+    }
+    else if (cell) {
+      if (d.from === 'tray') askAddMode(cell.dataset.slot, [d.fileId]);
+      else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
+      else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
+    }
+    else if (tray && d.from === 'slot') unassign(d.slotId, null, true);
+    else if (tray && d.from === 'prev') withPrev(() => prevToTray(d.prevId), 'edit');
+  }
+  function dragSource(t) {
+    if (!t || !t.closest || t.closest('.pit.edit, textarea, input, .detail')) return null;
+    const act = t.closest('[data-act]'); if (act && !act.matches('.titem .x, .cell.past .pmonth')) return null;
+    const pm = t.closest('.pit[data-memo]'); if (pm) return { from: 'memo', slotId: pm.dataset.memo, el: pm };
+    const ti = t.closest('.titem[data-file]'); if (ti) return { from: 'tray', fileId: ti.dataset.file, el: ti };
+    const ce = t.closest('.cell.full[data-slot]'); if (ce) return { from: 'slot', slotId: ce.dataset.slot, el: ce };
+    const pc = t.closest('.cell.past[data-prev]'); if (pc) return { from: 'prev', prevId: pc.dataset.prev, el: pc };
+    return null;
+  }
+  let pd = null, pdNoClick = false, pdHold = null;   // the mouse drag in progress (pd.on once it really moves); pdHold: a cancelled one still pressed
+  function pdDown(e) {
+    pdHold = null;
+    if (e.button !== 0 || e.ctrlKey || e.pointerType === 'touch' || pd || drag || !S || locked) return;
+    const d = dragSource(e.target); if (!d) return;
+    pd = { d, id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
+  }
+  function pdBegin() {
+    const d = pd.d;
+    if (!d.el.isConnected) {                                       // re-drawn while pressed (e.g. a Nota being edited ended)
+      const q = d.from === 'memo' ? `.feed .pit[data-memo="${cssq(d.slotId)}"]` : d.from === 'tray' ? `.titem[data-file="${cssq(d.fileId)}"]` : d.from === 'slot' ? `.cell.full[data-slot="${cssq(d.slotId)}"]` : `.cell.past[data-prev="${cssq(d.prevId)}"]`;
+      d.el = root.querySelector(q); if (!d.el) { pd = null; return false; }
+    }
+    if (d.from === 'prev' && prevLocked()) { pd = null; withPrev(() => {}, 'none'); return false; }
+    const r = d.el.getBoundingClientRect(), g = document.createElement('div');
+    g.className = 'pdghost';
+    if (d.from === 'memo') { g.innerHTML = `<span class="pit">${POSTIT}</span>`; g.style.width = g.style.height = '17px'; pd.dx = pd.dy = 8; }
+    else {
+      const c = d.el.cloneNode(true);
+      c.classList.remove('dragging', 'over', 'sel'); c.removeAttribute('title');
+      c.querySelectorAll('.bd, .pmonth, .x, .pit').forEach(x => x.remove());
+      g.appendChild(c); g.style.width = r.width + 'px'; g.style.height = r.height + 'px';
+      pd.dx = pd.x - r.left; pd.dy = pd.y - r.top;
+    }
+    root.appendChild(g); pd.ghost = g; pd.on = true;
+    drag = d; d.el.classList.add('dragging'); root.classList.add('grabbing');
+    try { const sl = window.getSelection(); if (sl) sl.removeAllRanges(); } catch (err) { /* */ }
+    return true;
+  }
+  function pdAt(x, y) {
+    pd.lx = x; pd.ly = y;
+    pd.ghost.style.transform = `translate(${Math.round(x - pd.dx)}px,${Math.round(y - pd.dy)}px)`;
+    const t = document.elementFromPoint(x, y), tg = dragTarget(t, pd.d), el = tg ? tg.el : null;
+    if (el !== pd.over || (el && !el.classList.contains('over'))) { clearOver(); if (el) el.classList.add('over'); pd.over = el; }
+    // held near the top or bottom edge of the feed or the tray (0.3 s, so starting a drag there doesn't scroll): it scrolls
+    const box = t && t.closest && t.closest('.feed, .tray'); let sv = 0;
+    if (box) { const b = box.getBoundingClientRect(), E = 36; if (y < b.top + E) sv = -Math.ceil((b.top + E - y) / 3); else if (y > b.bottom - E) sv = Math.ceil((y - b.bottom + E) / 3); }
+    if (!sv || box !== pd.sb) pd.zt = sv ? Date.now() : 0;
+    else if (!pd.zt) pd.zt = Date.now();
+    pd.sv = sv; pd.sb = box;
+    if (sv && !pd.raf) pd.raf = requestAnimationFrame(pdTick);
+  }
+  function pdTick() {
+    if (!pd || !pd.on) return;
+    pd.raf = 0;
+    if (!pd.sv || !pd.sb) return;
+    if (Date.now() - pd.zt < 300) { pd.raf = requestAnimationFrame(pdTick); return; }
+    const top = pd.sb.scrollTop; pd.sb.scrollTop = top + pd.sv;
+    if (pd.sb.scrollTop !== top) pdAt(pd.lx, pd.ly);
+  }
+  function pdMove(e) {
+    if (!pd || e.pointerId !== pd.id) return;
+    if (!(e.buttons & 1)) { pdCancel(); return; }      // its release never reached the page
+    if (!pd.on && (Math.hypot(e.clientX - pd.x, e.clientY - pd.y) < 5 || !pdBegin())) return;
+    e.preventDefault();
+    pdAt(e.clientX, e.clientY);
+  }
+  function pdEnd() {
+    const p = pd; pd = null; if (!p) return;
+    if (p.raf) cancelAnimationFrame(p.raf);
+    if (p.ghost) p.ghost.remove();
+    if (p.d.el) p.d.el.classList.remove('dragging');
+    root.classList.remove('grabbing'); clearOver();
+    if (drag === p.d) drag = null;
+    if (p.on) { pdNoClick = true; setTimeout(() => { pdNoClick = false; }, 0); }   // the click of that same release is not a click on a cell
+  }
+  function pdUp(e) {
+    if (pdHold === e.pointerId) { pdHold = null; pdNoClick = true; setTimeout(() => { pdNoClick = false; }, 0); return; }
+    if (!pd || e.pointerId !== pd.id) return;
+    const p = pd, tg = p.on ? dragTarget(document.elementFromPoint(e.clientX, e.clientY), p.d) : null;
+    pdEnd();
+    if (tg && S) dropOn(p.d, tg);
+    if (p.on) flushRender();
+  }
+  function pdCancel() { const on = pd && pd.on, id = pd && pd.id; pdEnd(); if (on) { pdHold = id; flushRender(); } }
+  // after a redraw during a drag: the item carried stays faded and the target lit
+  function pdRefresh() {
+    if (!pd || !pd.on) return;
+    const d = pd.d;
+    if (!d.el || !d.el.isConnected) {
+      const q = d.from === 'memo' ? `.feed .pit[data-memo="${cssq(d.slotId)}"]` : d.from === 'tray' ? `.titem[data-file="${cssq(d.fileId)}"]` : d.from === 'slot' ? `.cell.full[data-slot="${cssq(d.slotId)}"]` : `.cell.past[data-prev="${cssq(d.prevId)}"]`;
+      const el = root.querySelector(q); if (el) { d.el = el; el.classList.add('dragging'); }
+    }
+    pd.over = null; if (pd.lx != null) pdAt(pd.lx, pd.ly);
+  }
+
   function wire() {
     if (!M._winWired) {
       M._winWired = true;
@@ -1565,6 +1750,8 @@
       window.addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); });
     }
     root.addEventListener('dragstart', e => {
+      if (e.target.closest && e.target.closest('textarea, input, .pit.edit')) return;      // dragging selected text
+      if (e.isTrusted && dragSource(e.target)) { e.preventDefault(); return; }              // the mouse drag is the mesa's own (pd*)
       const pm = e.target.closest && e.target.closest('.pit[data-memo]');   // a Nota (post-it) moves on its own
       if (pm) {
         drag = { from: 'memo', slotId: pm.dataset.memo, el: pm };
@@ -1592,9 +1779,7 @@
       const tray = e.target.closest('.tray');
       clearOver();
       const pv = postDrop(e); if (pv && hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; pv.classList.add('over'); return; }
-      if (drag && drag.from === 'memo') { if (cell && cell.dataset.slot && cell.dataset.slot !== drag.slotId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; cell.classList.add('over'); } return; }
-      if (cell && cell.dataset.prev && drag && drag.from === 'slot') return;
-      if (cell && cell.dataset.slot && drag && drag.from === 'prev') return;
+      if (drag) { const tg = dragTarget(e.target, drag); if (tg) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; tg.el.classList.add('over'); } return; }
       if (cell) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; cell.classList.add('over'); }
       else if (tray) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; tray.classList.add('over'); }
       else if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
@@ -1617,19 +1802,24 @@
       if (!drag || !S) return;
       e.preventDefault();
       const d = drag; drag = null;
-      if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); flushRender(); return; }
-      if (pc) {
-        if (d.from === 'tray') withPrev(() => prevSetFromTray(pc.dataset.prev, d.fileId), 'edit');
-        else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
-      }
-      else if (cell) {
-        if (d.from === 'tray') askAddMode(cell.dataset.slot, [d.fileId]);
-        else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
-        else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
-      }
-      else if (tray && d.from === 'slot') unassign(d.slotId, null, true);
-      else if (tray && d.from === 'prev') withPrev(() => prevToTray(d.prevId), 'edit');
+      dropOn(d, { cell, pc, tray });
       flushRender();
+    });
+    // the mouse drag (see pdDown…): starts on the photo, follows the mouse anywhere on the page
+    root.addEventListener('pointerdown', pdDown);
+    if (M._pd) { document.removeEventListener('pointermove', M._pd.move, true); document.removeEventListener('pointerup', M._pd.up, true); document.removeEventListener('pointercancel', M._pd.cancel, true); window.removeEventListener('blur', M._pd.cancel); }
+    if (M._pd) { document.removeEventListener('pointerdown', M._pd.down, true); document.removeEventListener('contextmenu', M._pd.cancel, true); }
+    M._pd = { move: pdMove, up: e => { btnDown = false; pdUp(e); }, cancel: () => { btnDown = false; pdCancel(); }, down: e => { btnDown = e.button === 0; pdHold = null; } };
+    document.addEventListener('pointerdown', M._pd.down, true); document.addEventListener('contextmenu', M._pd.cancel, true);
+    document.addEventListener('pointermove', M._pd.move, true); document.addEventListener('pointerup', M._pd.up, true); document.addEventListener('pointercancel', M._pd.cancel, true); window.addEventListener('blur', M._pd.cancel);
+    root.addEventListener('click', e => { if (pdNoClick) { pdNoClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    // the post-it under the mouse and since when (it opens after 0.5 s)
+    root.addEventListener('pointerover', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'), id = p ? p.dataset.memo : null; if (id !== hov.id) hov = { id, t: Date.now() }; });
+    root.addEventListener('pointerout', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'); if (p && !(e.relatedTarget && p.contains(e.relatedTarget))) hov = { id: null, t: 0 }; });
+    root.addEventListener('dblclick', e => {
+      const p = e.target.closest && e.target.closest('.feed .pit[data-memo]');
+      if (!p || p.classList.contains('edit') || sel || !pitOpen(p.dataset.memo)) return;
+      e.preventDefault(); editMemo(p.dataset.memo);
     });
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
     root.addEventListener('wheel', e => {
@@ -1650,6 +1840,8 @@
         if (sel && S.tray.includes(sel)) { const f = sel; sel = null; renderTray(); renderBar(); withPrev(() => prevSetFromTray(id, f), 'edit'); return; }
         withPrev(() => openPast(id), 'open'); return;
       }
+      const pit = e.target.closest('.pit[data-memo]');     // an open Nota: a click reads, a double click edits
+      if (pit && (pit.classList.contains('edit') || (!sel && pitOpen(pit.dataset.memo)))) return;
       const cell = e.target.closest('.cell[data-slot]');
       if (cell) {
         const id = cell.dataset.slot;
@@ -1663,6 +1855,7 @@
       if (!e.target.matches) return;
       if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('textarea.memo')) setMemo(e.target.dataset.slot, e.target.value);
+      else if (e.target.matches('.pitin')) { setMemo(e.target.dataset.slot, e.target.value); fitPit(e.target); }
       else if (e.target.matches('.zoomr')) { flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s); const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); } }
     });
     root.addEventListener('change', e => {
@@ -1673,6 +1866,11 @@
       else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
     });
     root.addEventListener('focusout', e => {
+      if (e.target.matches && e.target.matches('.pitin')) {   // left the Nota being edited in its cell (a re-draw keeps the focus)
+        const id = e.target.dataset.slot;
+        setTimeout(() => { const a = document.activeElement; if (memoEdit === id && !(a && a.matches && a.matches('.pitin') && a.dataset.slot === id)) endMemoEdit(); }, 0);
+        return;
+      }
       const el = e.target, s = el.matches && el.matches('.pwhen input') && slot(el.dataset.slot); if (!s) return;
       if (el.classList.contains('dtin') && /^\d{4}-\d{2}/.test(el.value) && !boardMonths().includes(el.value.slice(0, 7))) outToast();
       resetWhen(el, s);
@@ -1696,6 +1894,8 @@
     M._onKey = e => {
       if (!shellReady()) return;
       const open = !root.querySelector('.detail').hidden;
+      if (e.key === 'Escape' && pd && pd.on) { e.preventDefault(); pdCancel(); return; }
+      if (e.key === 'Escape' && e.target.matches && e.target.matches('.pitin')) { e.preventDefault(); e.target.blur(); return; }
       if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } return; }
       const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
@@ -1891,7 +2091,8 @@
     const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span);
     if (why) throw new Error(why);
     try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
-    sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 };
+    if (pd) pdCancel();
+    sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
     if (!shellReady()) buildShell(); else closeDetail();
     setSave('Cargando…');

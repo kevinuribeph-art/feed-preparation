@@ -7,7 +7,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.16';
+  M.version = '3.17';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -143,12 +143,32 @@
   // ---------- months range + Madrid dates ----------
   function addMonths(m, k) { let [y, mo] = m.split('-').map(Number); mo += k; y += Math.floor((mo - 1) / 12); mo = ((mo - 1) % 12 + 12) % 12 + 1; return y + '-' + String(mo).padStart(2, '0'); }
   const monthsOf = (m, span) => Array.from({ length: Math.max(1, span || 1) }, (_, i) => addMonths(m, i));
-  function rangeLabel(m, span, short) {
+  // ---------- work cycles (the only definition, used everywhere) ----------
+  // A client's cycle starts on day CD (1-28) of a month and ends on day CD-1 of the next; it is named by the month it
+  // starts in ('YYYY-MM': kamaya-2026-10 = 22 oct-21 nov). CD 1 = the calendar month. Days are Madrid days ('YYYY-MM-DD').
+  const cdOf = v => { const n = +v; return Number.isInteger(n) && n >= 1 && n <= 28 ? n : 1; };
+  const okCd = v => v == null || v === '' || (Number.isInteger(+v) && +v >= 1 && +v <= 28);
+  const curCd = () => cdOf(S && S.cycleDay);
+  const cycleOfDay = (day, cd) => !day ? null : +day.slice(8, 10) >= cdOf(cd) ? day.slice(0, 7) : prevMonth(day.slice(0, 7));
+  const cycleOf = (iso, cd) => cycleOfDay(localDay(iso), cd);
+  const cycleStart = (m, cd) => `${m}-${String(cdOf(cd)).padStart(2, '0')}`;
+  function cycleEnd(m, cd) {
+    cd = cdOf(cd); const [y, mo] = m.split('-').map(Number);
+    return cd === 1 ? `${m}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0')}` : `${addMonths(m, 1)}-${String(cd - 1).padStart(2, '0')}`;
+  }
+  // label of 1-3 cycles from m: day 1 «Octubre 2026» / «Oct 2026» (as always); other days «22 oct–21 nov 2026» / «22 oct–21 nov»
+  function rangeLabel(m, span, short, cd) {
+    if (cdOf(cd) !== 1) {
+      const a = cycleStart(m, cd), b = cycleEnd(addMonths(m, Math.max(1, span || 1) - 1), cd);
+      const dm = x => `${+x.slice(8)} ${MONTHS[+x.slice(5, 7) - 1].slice(0, 3)}`;
+      return short ? `${dm(a)}–${dm(b)}` : a.slice(0, 4) === b.slice(0, 4) ? `${dm(a)}–${dm(b)} ${b.slice(0, 4)}` : `${dm(a)} ${a.slice(0, 4)}–${dm(b)} ${b.slice(0, 4)}`;
+    }
     const last = addMonths(m, Math.max(1, span || 1) - 1);
     if (last === m) return monthLabel(m, short);
     const nm = x => { const n = MONTHS[+x.slice(5) - 1]; return cap(short ? n.slice(0, 3) : n); };
     return m.slice(0, 4) === last.slice(0, 4) ? `${nm(m)}–${nm(last)} ${last.slice(0, 4)}` : `${nm(m)} ${m.slice(0, 4)}–${nm(last)} ${last.slice(0, 4)}`;
   }
+  const cycName = (m, cd) => cdOf(cd) === 1 ? cap(MONTHS[+m.slice(5, 7) - 1]) : rangeLabel(m, 1, true, cd);
   const MADF = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   function madParts(t) { const p = Object.fromEntries(MADF.formatToParts(new Date(t)).map(x => [x.type, x.value])); return { day: `${p.year}-${p.month}-${p.day}`, time: `${p.hour === '24' ? '00' : p.hour}:${p.minute}` }; }
   const dOnly = iso => !/[T ]\d\d:\d\d/.test(String(iso || ''));
@@ -234,15 +254,17 @@
   }
 
   // ---------- Notion nomenclature (renumbering after a date change) ----------
-  // Normal posts «<prefijo><W>.<N>» (prefix kept exactly, «Reel» included); collabs «COLLAB … <Mes> <K>».
-  // The week rule lives only here: Monday–Sunday weeks; a week belongs to the month that holds its Thursday.
-  // Week of the month (rule of the clients' «Skill» pages in Notion): Monday–Sunday weeks cut at the month edges, so the
-  // 1st always starts week 1 and a trailing Monday/Tuesday opens a new week (31 Aug 2026 = 6.1); a month that starts on
-  // a Sunday folds that day into week 1 (Nov 2026: 1–8 Nov = week 1). Returns 'YYYY-MM#W'.
-  function weekOf(day) {
-    const [y, m, d] = day.split('-').map(Number), dow1 = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;
-    const w = dow1 === 6 ? (d === 1 ? 1 : Math.floor((d - 2) / 7) + 1) : Math.floor((d - 1 + dow1) / 7) + 1;
-    return day.slice(0, 7) + '#' + w;
+  // Normal posts «<prefijo><W>.<N>» (prefix kept exactly, «Reel» included); collabs «COLLAB … <Mes> <K>» (Mes = the month
+  // the cycle starts in, K by date within the cycle).
+  // The week rule lives only here. Week of the cycle (rule of the clients' «Skill» pages in Notion): Monday–Sunday weeks
+  // cut at the cycle edges, so the start day always opens week 1 and a trailing Monday/Tuesday opens a new week (day 1:
+  // 31 Aug 2026 = 6.1); a cycle that starts on a Sunday folds that day into week 1 (day 1: 1–8 Nov 2026 = week 1;
+  // day 22: 22-25 oct = 1, 26 oct-1 nov = 2 … 16-21 nov = 5). Returns 'YYYY-MM#W' with the cycle's month.
+  function weekOf(day, cd) {
+    const c = cycleOfDay(day, cd), [y, m, d] = cycleStart(c, cd).split('-').map(Number), [y2, m2, d2] = day.split('-').map(Number);
+    const t0 = Date.UTC(y, m - 1, d), e = Math.round((Date.UTC(y2, m2 - 1, d2) - t0) / 864e5), dow1 = (new Date(t0).getUTCDay() + 6) % 7;
+    const w = dow1 === 6 ? (e === 0 ? 1 : Math.floor((e - 1) / 7) + 1) : Math.floor((e + dow1) / 7) + 1;
+    return c + '#' + w;
   }
   const RX_N = /^([\s\S]*?)(\d+)\.(\d+)$/, RX_C = /^(COLLAB\b[\s\S]*?\s)(\p{L}+)(\s+)(\d+)$/iu;
   function nameKind(s) {   // how a post is numbered, from its Notion name (null = never renamed)
@@ -250,8 +272,8 @@
     if (s.type === 'Collab Reel' || /^collab\b/i.test(nm)) { const m = nm.match(RX_C); return m && MONTHS.includes(m[2].toLowerCase()) ? { c: true, p: m[1], sep: m[3], n: +m[4] } : null; }
     const m = nm.match(RX_N); return m ? { c: false, p: m[1], n: +m[3] } : null;
   }
-  // group key 'YYYY-MM…': a week («YYYY-MM#W») or the collabs of one partner in a month («YYYY-MM@PREFIJO»)
-  const grpOf = (k, iso) => { const d = localDay(iso); return !d ? null : k.c ? d.slice(0, 7) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d); };
+  // group key 'YYYY-MM…' (the cycle's month): a week («YYYY-MM#W») or the collabs of one partner in a cycle («YYYY-MM@PREFIJO»)
+  const grpOf = (k, iso) => { const d = localDay(iso); return !d ? null : k.c ? cycleOfDay(d, curCd()) + '@' + k.p.replace(/\s+/g, ' ').trim().toUpperCase() : weekOf(d, curCd()); };
   // Names from dates: only groups touched by a pending date change (old or new date) — or holding a rename whose
   // cause is already in Notion (s.hold) — get renumbered; every other post keeps its Notion name. A group of a month
   // outside the board is never renumbered (the board doesn't hold all its posts): its posts keep their current name.
@@ -264,7 +286,7 @@
   function computeNames() {
     const out = {}, K = kinds(), aff = affected(K, true), G = {}, bm = boardMonths();
     S.slots.forEach(s => {
-      const g = K[s.id] && grpOf(K[s.id], s.date), inB = g && bm.includes(g.slice(0, 7));
+      const g = K[s.id] && grpOf(K[s.id], s.date), inB = g && bm.includes(g.slice(0, 7)) && !(IDX[s.id] || []).some(x => x.client !== S.client && x.cd !== curCd());   // a collab with a client of other cycles keeps its name
       out[s.id] = g && !inB ? s.name : s.notionName ?? s.name;
       if (inB && aff.has(g)) (G[g] = G[g] || []).push(s);
     });
@@ -279,13 +301,14 @@
   // (skip: ids of the posts whose change Notion overrode in init — their own renames go)
   function holdOrphans(skip) { const K = kinds(), aff = affected(K, false); S.slots.forEach(s => { if (!(skip && skip.has(s.id)) && nameChg(s) && K[s.id] && !aff.has(grpOf(K[s.id], s.date))) s.hold = true; }); }
   const sortSlots = () => S.slots.sort((a, b) => ts(b.date) - ts(a.date));
-  const boardMonths = () => S ? monthsOf(S.month, S.span) : [];
-  const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span).toLowerCase()}).`);
+  const boardMonths = () => S ? monthsOf(S.month, S.span) : [];                 // the board's cycles ('YYYY-MM' of their start)
+  const inBoard = day => boardMonths().includes(cycleOfDay(day, curCd()));
+  const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span, false, curCd()).toLowerCase()}).`);
   // back: return to the Notion date (allowed even outside the board's months); src: the post-view input being typed in
   function setDate(id, iso, back, src) {
     const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
     const day = localDay(iso); if (!day) return 'fecha no válida';
-    if (!back && !boardMonths().includes(day.slice(0, 7))) { outToast(); return 'fuera de la mesa'; }
+    if (!back && !inBoard(day)) { outToast(); return 'fuera de la mesa'; }
     s.date = sameDate(iso, s.notionDate) ? s.notionDate : iso;
     renumber(); sortSlots(); changed();
     const d = root && root.querySelector('.detail');
@@ -370,7 +393,7 @@
       let best = own, from = null;
       for (const b of others) {
         const s = (b.slots || []).find(x => x.id === id); if (!s) continue;
-        (IDX[id] = IDX[id] || []).push({ key: b.key, client: boardClient(b) });
+        (IDX[id] = IDX[id] || []).push({ key: b.key, client: boardClient(b), cd: cdOf(b.cycleDay) });
         if (!best || (s.at || 0) > (best.at || 0)) { best = s; from = b; }
       }
       if (!from) continue;
@@ -424,7 +447,7 @@
   async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
   async function refreshMonths() {
     const all = (await idbAll('boards')) || [];
-    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, filled: (b.slots || []).filter(s => (s.photos || []).length).length, n: (b.slots || []).length }))
+    MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, cycleDay: cdOf(b.cycleDay), filled: (b.slots || []).filter(s => (s.photos || []).length).length, n: (b.slots || []).length }))
       .sort((a, b) => String(b.month).localeCompare(String(a.month)));
   }
 
@@ -820,7 +843,7 @@
   function withPrev(fn, kind) {
     if (!prevLocked()) { fn(); if (kind === 'edit') endOnce(); return; }
     pendingUnlock = { fn, kind };
-    const pm = S ? monthLabel(prevMonth(S.month)).toLowerCase() : 'el mes anterior';
+    const pm = S ? rangeLabel(prevMonth(S.month), 1, false, curCd()).toLowerCase() : 'el mes anterior';
     showDialog('unlock', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(cap(pm))} está bloqueado</h3><p>Son publicaciones ya publicadas. Desbloquéalo para cambiar fotos, moverlas u ocultar las que se hayan borrado del perfil.</p><div class="form"><div class="row" style="flex-wrap:wrap"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn2" data-act="unlock-once">Solo esta vez</button><button type="button" class="btn" data-act="unlock-always">Hasta nuevo orden</button></div></div>`);
   }
   function endOnce() { if (prevOnce && !(root && root.querySelector('.detail').dataset.prev)) { prevOnce = false; renderFeed(); } }
@@ -1025,8 +1048,8 @@
 #mesa .card .x:hover{background:var(--line2)}
 #mesa .card.dlg{max-width:420px}
 #mesa .form label{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .form label span{font-weight:400;color:var(--mute)}
-#mesa .form input[type=text]{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:14px ${FONT};color:var(--ink)}
-#mesa .form input[type=text]:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa .form input[type=text],#mesa .form input[type=number]{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:14px ${FONT};color:var(--ink)}
+#mesa .form input[type=text]:focus,#mesa .form input[type=number]:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
 #mesa .form .row{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px}
 #mesa .form .row .left{margin-right:auto}
 #mesa .ferr{color:var(--red);font-size:12px;margin:8px 0 0}
@@ -1179,7 +1202,7 @@
     const months = MB.map(b => {
       const live = S && b.key === S.key ? counts() : null;
       const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
-      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}">${esc(rangeLabel(b.month, b.span, true))}<i>${f}/${n}</i></button>`;
+      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}">${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
     }).join('');
     let stats = '';
     if (S) {
@@ -1212,7 +1235,7 @@
         watchFeed();
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
-        main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga ${esc(nextMonthName())} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
+        main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
       } else {
         main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>Crea tu primer cliente</h3>Cada cliente tiene su pestaña, con sus meses.<br><br><button class="btn" data-act="newclient">+ Nuevo cliente</button></div></div>`;
       }
@@ -1220,7 +1243,7 @@
     if (S) { renderFeed(); renderTray(); }
   }
 
-  function nextMonthName() { const m = monthOf(new Date().toISOString()); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }
+  function nextMonthName(cd) { const m = cycleOf(new Date().toISOString(), cd); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }   // the next cycle to load
   function slotStatus(s) {
     const u = s.uploaded; if (!u) return null;
     return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || u.crop === cropSig(s)) ? 'ok' : 'chg';
@@ -1268,7 +1291,7 @@
     const icon = isReel(p.type) ? ICON.reel : isCarousel(p.type) ? ICON.carousel : '';
     const date = `<span class="pdate">${esc(fmtDate(p.date, true))}</span>`;
     const lk = prevLocked();
-    const pill = i === N ? `<span class="pmonth" data-act="prevlock" role="button" title="${lk ? 'Desbloquear' : 'Bloquear'} el mes anterior">${lk ? '🔒' : '🔓'} ${esc(cap(MONTHS[+prevMonth(S.month).slice(5) - 1]))} · publicado</span>` : '';
+    const pill = i === N ? `<span class="pmonth" data-act="prevlock" role="button" title="${lk ? 'Desbloquear' : 'Bloquear'} el mes anterior">${lk ? '🔒' : '🔓'} ${esc(cycName(prevMonth(S.month), curCd()))} · publicado</span>` : '';
     const tags = (p.hidden ? '<span class="ptag2">Oculta</span>' : '') + (p.own && !p.hidden ? '<span class="ptag2 ed">Editada</span>' : '');
     const cls = `cell past${lk ? ' locked' : ''}${p.hidden ? ' phidden' : ''}`;
     const attrs = `data-prev="${esc(p.id)}" title="${esc(p.name)}${lk ? ' · bloqueada' : ''}"`;
@@ -1284,7 +1307,7 @@
     const grid = root.querySelector('.feed .grid'); if (!grid) return;
     const N = S.slots.length, lk = prevLocked(), past = pastList(!lk), shown = past.filter(p => !p.hidden).length, nh = (S.prev || []).filter(p => p.hidden).length;
     const seen = new Set();   // range board: a month pill on the newest cell of each month
-    const pill = s => { const m = (localDay(s.date) || '').slice(0, 7); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return cap(MONTHS[+m.slice(5) - 1].slice(0, 3)); };
+    const pill = s => { const m = cycleOf(s.date, curCd()); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return curCd() === 1 ? cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) : cycName(m, curCd()); };
     if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
     const html = S.slots.map(s => cellHTML(s, pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
     // a Nota being edited in its cell: that cell stays in the page untouched (a rebuilt field would lose an accent being
@@ -1302,10 +1325,10 @@
     }
     if (hov.id) hov.t = Date.now();          // a redrawn post-it opens again after its 0.5 s
     pdRefresh();
-    const pm = monthLabel(prevMonth(S.month));
+    const pm = rangeLabel(prevMonth(S.month), 1, false, curCd());
     const lockBtn = (S.prev || []).length ? (S.prevUnlocked ? '<button class="lockbtn on" data-act="prevlock" title="Volver a bloquear el mes anterior">🔓 Desbloqueado · Bloquear</button>' : lk ? '<button class="lockbtn" data-act="prevlock" title="Desbloquear el mes anterior">🔒 Bloqueado</button>' : '<button class="lockbtn on" data-act="prevlock">🔓 Solo esta vez</button>') : '';
     const below = `Debajo: ${pm} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}`;
-    root.querySelector('.feed .legend').innerHTML = `<span class="lr"><b>${esc(rangeLabel(S.month, S.span))}</b> · ${N} a preparar</span>`
+    root.querySelector('.feed .legend').innerHTML = `<span class="lr"><b>${esc(rangeLabel(S.month, S.span, false, curCd()))}</b> · ${N} a preparar</span>`
       + ((S.prev || []).length ? `<span class="lp" title="${esc(below)}"><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span class="lp">Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`);
     fitGrid();
   }
@@ -1393,9 +1416,9 @@
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
   const wday = iso => { const d = localDay(iso); return d ? new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC', weekday: 'short' }).format(new Date(d + 'T12:00:00Z')).replace('.', '') : ''; };
   function whenHTML(s) {
-    const ms = boardMonths(), [y, m] = ms[ms.length - 1].split('-').map(Number), max = `${ms[ms.length - 1]}-${new Date(Date.UTC(y, m, 0)).getUTCDate()}`;
+    const ms = boardMonths(), max = cycleEnd(ms[ms.length - 1], curCd());
     const at = `data-slot="${esc(s.id)}" required`;
-    return `<span class="pwhen"><span class="wd">${esc(wday(s.date))}</span><input type="date" class="dtin" ${at} value="${esc(localDay(s.date) || '')}" min="${ms[0]}-01" max="${max}" aria-label="Fecha (hora de Madrid)" title="Cambiar la fecha: al subir a Notion se cambia allí">`
+    return `<span class="pwhen"><span class="wd">${esc(wday(s.date))}</span><input type="date" class="dtin" ${at} value="${esc(localDay(s.date) || '')}" min="${cycleStart(ms[0], curCd())}" max="${max}" aria-label="Fecha (hora de Madrid)" title="Cambiar la fecha: al subir a Notion se cambia allí">`
       + (dOnly(s.date) ? '' : `<input type="time" class="tmin" ${at} value="${esc(localTime(s.date))}" aria-label="Hora (Madrid)" title="Hora de Madrid">`) + '</span>';
   }
   function pnotHTML(s) {
@@ -1419,7 +1442,7 @@
     const s = S && S.slots.find(x => x.id === el.dataset.slot), d = root.querySelector('.detail'); if (!s) return;
     const day = d.querySelector('.dtin').value, ti = d.querySelector('.tmin');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || (ti && !ti.value)) return;   // half-typed: restored on blur
-    if (!boardMonths().includes(day.slice(0, 7))) return;                 // typing can pass through other months: told on blur
+    if (!inBoard(day)) return;                                             // typing can pass through other cycles: told on blur
     const iso = dOnly(s.date) ? day : madridISO(day, ti ? ti.value : '00:00');
     if (!sameDate(iso, s.date)) setDate(s.id, iso, false, el);
   }
@@ -1521,6 +1544,7 @@
     showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nuevo cliente</h3><p>Se crea su pestaña vacía. Después pídele a Claude que cargue el mes desde Notion.</p>
       <form class="form" data-form="newclient" autocomplete="off"><label for="nc-name">Nombre</label><input id="nc-name" name="name" type="text" maxlength="60" placeholder="Ej.: daGiorgio" required>
       <label for="nc-handle">Usuario de Instagram <span>(opcional)</span></label><input id="nc-handle" name="handle" type="text" maxlength="120" placeholder="@usuario">
+      <label for="nc-cycle">Inicio de ciclo <span>(día del mes, 1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required>
       <p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Crear cliente</button></div></form>`);
   }
   function dlgEditClient() {
@@ -1529,27 +1553,30 @@
     showDialog('editclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Editar cliente</h3>
       <form class="form" data-form="editclient" autocomplete="off"><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
       <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
+      <label for="ec-cycle">Inicio de ciclo <span>(día del mes, 1-28; los meses ya cargados conservan el suyo)</span></label><input id="ec-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="${cdOf(c.cycleDay)}" required>
       <p class="ferr" hidden></p>
       <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Guardar</button></div></form>`);
   }
   function dlgHowMonth() {
     const c = CL.find(x => x.id === curClient), cn = esc(c ? c.name : 'este cliente');
     const last = MB.filter(b => /^\d{4}-\d{2}$/.test(b.month || '')).map(b => addMonths(b.month, (b.span || 1) - 1)).sort().pop();
-    const m1 = last ? addMonths(last, 1) : null, n1 = m1 ? MONTHS[+m1.slice(5) - 1] : nextMonthName();
+    const m1 = last ? addMonths(last, 1) : null, n1 = m1 ? MONTHS[+m1.slice(5) - 1] : nextMonthName(c && c.cycleDay);
     const n2 = MONTHS[(MONTHS.indexOf(n1) + 1) % 12];
     showDialog('howmonth', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Añadir otro mes</h3><p>Los meses se cargan desde Notion con las publicaciones del calendario (nombre, fecha, hora y tipo exactos), para que al subir las fotos cada una vaya a su página. Pídeselo a Claude en el chat:</p><p style="color:var(--ink);font-size:14px;margin:12px 0 4px">«Carga ${n1} de ${cn} en la mesa»</p><p>Si ya tienes preparados dos meses, pídelos juntos y se preparan en la misma mesa, con el mes anterior debajo: «Carga ${n1} y ${n2} de ${cn} en la mesa». Las fechas y horas se pueden cambiar aquí; al subir a Notion se cambian allí.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
   }
   const normHandle = h => { h = String(h || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@+/, ''); return h ? '@' + h : ''; };
   async function submitForm(form) {
     const kind = form.dataset.form, err = form.querySelector('.ferr');
-    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle.value);
+    const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle.value), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : '1';
     const fail = m => { err.textContent = m; err.hidden = false; };
     if (!name) return fail('Escribe el nombre del cliente.');
+    if (!/^\d+$/.test(cyc) || !okCd(+cyc)) return fail('El inicio de ciclo es un día del 1 al 28.');
+    const cycleDay = +cyc;
     if (CL.some(c => c.name.toLowerCase() === name.toLowerCase() && (kind === 'newclient' || c.id !== curClient))) return fail('Ya existe un cliente con ese nombre.');
     if (kind === 'newclient') {
       if (busyGuard()) return;
-      const c = await M.addClient({ name, handle }); closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
-    } else { await M.updateClient(curClient, { name, handle }); closeDetail(); }
+      const c = await M.addClient({ name, handle, cycleDay }); closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
+    } else { await M.updateClient(curClient, { name, handle, cycleDay }); closeDetail(); }
   }
 
   // ---------- messages ----------
@@ -1872,7 +1899,7 @@
         return;
       }
       const el = e.target, s = el.matches && el.matches('.pwhen input') && slot(el.dataset.slot); if (!s) return;
-      if (el.classList.contains('dtin') && /^\d{4}-\d{2}/.test(el.value) && !boardMonths().includes(el.value.slice(0, 7))) outToast();
+      if (el.classList.contains('dtin') && /^\d{4}-\d{2}-\d{2}$/.test(el.value) && !inBoard(el.value)) outToast();
       resetWhen(el, s);
     });
     root.addEventListener('pointerdown', e => {
@@ -1980,15 +2007,20 @@
     const boards = (await idbAll('boards')) || [];
     return CL.map(c => ({ ...c, months: boards.filter(b => b.client === c.id).map(b => b.month).sort() }));
   };
-  M.addClient = async ({ id, name, handle } = {}) => {
+  // cycleDay: the day of the month its work cycle starts (1-28, default 1 = calendar month)
+  M.addClient = async ({ id, name, handle, cycleDay } = {}) => {
+    if (!okCd(cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
     await loadClients();
     name = String(name || '').trim(); if (!name) throw new Error('falta el nombre');
     const existing = CL.find(c => (id && c.id === id) || c.name.toLowerCase() === name.toLowerCase());
-    if (existing) return existing;
+    if (existing) {
+      if (cycleDay != null && cycleDay !== '' && existing.cycleDay !== cdOf(cycleDay)) return M.updateClient(existing.id, { cycleDay });
+      return existing;
+    }
     const base = id ? String(id) : slugify(name);
     let cid = base, k = 2;
     while (CL.some(c => c.id === cid)) cid = base + k++;
-    const c = { id: cid, name, handle: normHandle(handle), createdAt: new Date().toISOString() };
+    const c = { id: cid, name, handle: normHandle(handle), cycleDay: cdOf(cycleDay), createdAt: new Date().toISOString() };
     await idbPut('clients', cid, c);
     await loadClients();
     if (!curClient && !S) curClient = cid;
@@ -1996,9 +2028,11 @@
     return c;
   };
   M.updateClient = async (id, patch) => {
+    if (!okCd(patch.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
     const c = await idbGet('clients', id); if (!c) return 'no existe';
     if (patch.name != null) c.name = String(patch.name).trim() || c.name;
     if (patch.handle != null) c.handle = normHandle(patch.handle);
+    if (patch.cycleDay != null && patch.cycleDay !== '') c.cycleDay = cdOf(patch.cycleDay);   // the boards already made keep theirs
     await idbPut('clients', id, c);
     await loadClients(); render();
     return c;
@@ -2045,14 +2079,19 @@
   }
   // a re-init must not drop a month the board holds: a month of the range with posts here but none in cfg, or a
   // shorter range whose dropped months have photos, notes or uploads -> error message (null = fine)
-  function dropCheck(old, slots, month, span) {
+  function dropCheck(old, slots, month, span, cd) {      // cd: the cycle day being loaded (posts are grouped by it)
     const os = old.slots || [], om = old.month || month, ospan = old.span || 1, range = monthsOf(month, span);
-    const mo = s => monthOf(s.notionDate ?? s.date), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded;
-    const ml = ms => ms.map(m => MONTHS[+m.slice(5) - 1]).join(', ').replace(/, ([^,]*)$/, ' y $1');
-    const miss = range.filter(m => os.some(s => mo(s) === m) && !slots.some(s => monthOf(s.date) === m));
-    if (miss.length) return `Esta mesa cubre ${rangeLabel(month, span).toLowerCase()} y no vienen las publicaciones de ${ml(miss)}: carga ${span > 1 ? `los ${span} meses` : 'el mes entero'} (o pasa force:true).`;
+    const mo = s => cycleOf(s.notionDate ?? s.date, cd), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded;
+    const ml = ms => ms.map(m => cdOf(cd) === 1 ? MONTHS[+m.slice(5) - 1] : rangeLabel(m, 1, true, cd)).join(', ').replace(/, ([^,]*)$/, ' y $1');
+    const u = cdOf(cd) === 1 ? ['meses', 'el mes entero'] : ['ciclos', 'el ciclo entero'];
+    if (old.key && os.length && cdOf(old.cycleDay) !== cdOf(cd)) {      // re-cut with another cycle day
+      const gone = os.filter(s => used(s) && !slots.some(x => x.id === s.id));
+      if (gone.length) return `Esta mesa (${rangeLabel(om, ospan, false, old.cycleDay).toLowerCase()}) va por ciclos del día ${cdOf(old.cycleDay)} y la cargas con el día ${cdOf(cd)}: ${gone.length} publicacion${gone.length > 1 ? 'es' : ''} con fotos, notas o subidas no ${gone.length > 1 ? 'vienen' : 'viene'} en esta carga (${gone.slice(0, 4).map(x => x.name).join(', ')}${gone.length > 4 ? '…' : ''}). Cárgala${gone.length > 1 ? 's' : ''} también (o pasa force:true).`;
+    }
+    const miss = range.filter(m => os.some(s => mo(s) === m) && !slots.some(s => cycleOf(s.date, cd) === m));
+    if (miss.length) return `Esta mesa cubre ${rangeLabel(month, span, false, cd).toLowerCase()} y no vienen las publicaciones de ${ml(miss)}: carga ${span > 1 ? `los ${span} ${u[0]}` : u[1]} (o pasa force:true).`;
     const lost = span < ospan ? monthsOf(om, ospan).filter(m => !range.includes(m) && os.some(s => mo(s) === m && used(s))) : [];
-    if (lost.length) return `Esta mesa cubre ${rangeLabel(om, ospan).toLowerCase()} y ${ml(lost)} ${lost.length > 1 ? 'tienen' : 'tiene'} fotos, notas o subidas: carga los ${ospan} meses (o pasa force:true).`;
+    if (lost.length) return `Esta mesa cubre ${rangeLabel(om, ospan, false, old.cycleDay).toLowerCase()} y ${ml(lost)} ${lost.length > 1 ? 'tienen' : 'tiene'} fotos, notas o subidas: carga los ${ospan} ${u[0]} (o pasa force:true).`;
     return null;
   }
   // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
@@ -2066,30 +2105,37 @@
     await addQ;
     cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
     if (cfg.months != null && !(Number.isInteger(+cfg.months) && +cfg.months >= 1 && +cfg.months <= 3)) throw new Error('months debe ser 1, 2 o 3');
+    if (!okCd(cfg.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
     let client = cfg.client, month = cfg.month;
     const km = String(cfg.key || '').match(/^(.+)-(\d{4}-\d{2})$/);
     if (!client) client = km ? km[1] : String(cfg.key || 'cliente');
-    if (!month) {
-      if (km) month = km[2];
-      else if (+cfg.months > 1) month = cfg.slots.map(s => monthOf(s.date)).filter(Boolean).sort()[0] || monthOf(new Date().toISOString());
-      else { const cnt = {}; cfg.slots.forEach(s => { const m = monthOf(s.date); if (m) cnt[m] = (cnt[m] || 0) + 1; }); month = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || monthOf(new Date().toISOString()); }
-    }
-    if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
     await loadClients();
     const askedClient = client;
-    if (!CL.find(c => c.id === client)) {
+    let cl0 = CL.find(c => c.id === client);
+    if (!cl0) {
       if (cfg.createClient === false) throw new Error(`no existe el cliente ${client}`);
       const t = String(cfg.title || '');
       const name = cfg.clientName || (t.includes(' · ') ? t.split(' · ')[0].trim() : '') || client;
-      const c = await M.addClient({ id: client, name, handle: cfg.handle || '' });
-      client = c.id;                                      // an existing client with that name keeps its id
+      cl0 = await M.addClient({ id: client, name, handle: cfg.handle || '' });
+      client = cl0.id;                                    // an existing client with that name keeps its id
     }
+    // cycle day: cfg's; else the saved board's own (a board keeps its cycles); else the client's; else 1 (calendar month)
+    const hasCd = cfg.cycleDay != null && cfg.cycleDay !== '';
+    if (!month) {
+      const cyc = iso => cycleOf(iso, hasCd ? cfg.cycleDay : cl0.cycleDay);
+      if (km) month = km[2];
+      else if (+cfg.months > 1) month = cfg.slots.map(s => cyc(s.date)).filter(Boolean).sort()[0] || cyc(new Date().toISOString());
+      else { const cnt = {}; cfg.slots.forEach(s => { const m = cyc(s.date); if (m) cnt[m] = (cnt[m] || 0) + 1; }); month = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || cyc(new Date().toISOString()); }
+    }
+    if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
     const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
     if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
-    const old = newest(key, await idbGet('boards', key)) || { slots: [], tray: [] };
+    const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
+    const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
-    const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span);
+    const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
     if (why) throw new Error(why);
+    if (hasCd && !cfg.reopen && cl0.cycleDay !== cd) { await idbPut('clients', client, { ...cl0, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
     try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     if (pd) pdCancel();
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
@@ -2120,10 +2166,10 @@
       return r;
     };
     S = {
-      key, client, month, span,
+      key, client, month, span, cycleDay: cd,
       slots: cfg.slots.map(merge),
       tray: [...(old.tray || []), ...orphans],
-      past: pastIn.filter(p => p.date && monthOf(p.date) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
+      past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
       crops: old.crops || {},
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
     };
@@ -2139,9 +2185,9 @@
     normalize();
     // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
     const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
-    PB = ((await idbAll('boards')) || []).filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm); })
+    PB = ((await idbAll('boards')) || []).filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm) && cdOf(b.cycleDay) === cd; })
       .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
-    if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => monthOf(s.date) === pm && !S.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
+    if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => cycleOf(s.date, cd) === pm && !S.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
     if (PB) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
     for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
@@ -2151,6 +2197,7 @@
     buildPrev(old.prev);
     S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
     { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
+    { const kept = refsOf(S); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { S.tray.push(f); kept.add(f); } })); }
     sharedInit(oldById, base);
     curClient = client;
     lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
@@ -2175,7 +2222,7 @@
     const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
     const t = String(b.title || '');
-    return M.init({ key, client, month, months: b.span || 1, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate }) => ({ id, name: notionName ?? name, type, date: notionDate ?? date })), past: b.past || [] });
+    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate }) => ({ id, name: notionName ?? name, type, date: notionDate ?? date })), past: b.past || [] });
   };
   async function migrateLegacy() {
     const all = (await idbAll('boards')) || [];
@@ -2376,9 +2423,10 @@
     const W = 1080, GAP = 3, COLS = 3, TW = 358, TH = 477, HEADER = 250, FOOT = 40;
     const c0 = CL.find(c => c.id === S.client) || {};
     const past = pastList(false);
-    const fresh = only ? S.slots.filter(s => monthOf(s.date) === only) : S.slots;
-    const earlier = only ? S.slots.filter(s => { const m = monthOf(s.date); return m && m < only; }) : [];
-    const later = only ? S.slots.filter(s => { const m = monthOf(s.date); return m && m > only; }).length : 0;
+    const cd = curCd(), cyc = iso => cycleOf(iso, cd);     // opts.month = a cycle of the board ('YYYY-MM' of its start)
+    const fresh = only ? S.slots.filter(s => cyc(s.date) === only) : S.slots;
+    const earlier = only ? S.slots.filter(s => { const m = cyc(s.date); return m && m < only; }) : [];
+    const later = only ? S.slots.filter(s => { const m = cyc(s.date); return m && m > only; }).length : 0;
     const lead = later % COLS;
     const slotPost = (s, isNew) => ({ mesaIdx: S.slots.indexOf(s), name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const posts = [
@@ -2400,9 +2448,9 @@
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.textBaseline = 'alphabetic';
     x.fillStyle = '#111'; x.font = `700 46px ${FONT}`; x.fillText(c0.handle || c0.name || '', 48, 92);
-    x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + (only ? monthLabel(only) : rangeLabel(S.month, S.span)), 48, 140);
+    x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + (only ? rangeLabel(only, 1, false, cd) : rangeLabel(S.month, S.span, false, cd)), 48, 140);
     x.fillStyle = '#8a8a8a'; x.font = `400 24px ${FONT}`;
-    const below = [earlier.length ? `${earlier.length} ya planificadas` : '', past.length ? `${past.length} de ${MONTHS[+prevMonth(S.month).slice(5) - 1]}` : ''].filter(Boolean).join(' + ');
+    const below = [earlier.length ? `${earlier.length} ya planificadas` : '', past.length ? `${past.length} de ${cd === 1 ? MONTHS[+prevMonth(S.month).slice(5) - 1] : rangeLabel(prevMonth(S.month), 1, true, cd)}` : ''].filter(Boolean).join(' + ');
     x.fillText(`${fresh.length} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
     if (earlier.length || past.length) {
       x.fillStyle = BLUE; x.fillRect(48, 212, 44, 8);
@@ -2456,7 +2504,7 @@
       else { x.moveTo(xCol(k), yRow(R + 1)); x.lineTo(xCol(k), yRow(R)); x.lineTo(W, yRow(R)); }
       x.stroke();
       // label on the first cell below the band, like the mesa's «Septiembre · publicado»
-      const lbl = earlier.length ? cap(MONTHS[+monthOf(earlier[0].date).slice(5) - 1]) + ' · planificado' : cap(MONTHS[+prevMonth(S.month).slice(5) - 1]) + ' · publicado';
+      const lbl = earlier.length ? cycName(cyc(earlier[0].date), cd) + ' · planificado' : cycName(prevMonth(S.month), cd) + ' · publicado';
       const lx = k * (TW + GAP) + 16, ly = HEADER + R * (TH + GAP) + 18;
       x.font = `600 24px ${FONT}`; const tw = x.measureText(lbl).width;
       x.fillStyle = BLUE; x.beginPath();
@@ -2586,7 +2634,7 @@
     return null;
   }
   // what the file changes here: boards added / replaced (newer) / kept (newer here) / same content; clients to add
-  const boardBody = b => JSON.stringify({ ...b, savedAt: null, editedAt: null, slots: (b.slots || []).map(({ at, ...s }) => s) });
+  const boardBody = ({ cycleDay, ...b }) => JSON.stringify({ ...b, savedAt: null, editedAt: null, slots: (b.slots || []).map(({ at, ...s }) => s), cycleDay: cdOf(cycleDay) });   // no cycle day (older mesa) = day 1
   const eAt = b => String(b.editedAt || b.savedAt || '');
   const newerEdit = (b, o) => eAt(b) > eAt(o) || (eAt(b) === eAt(o) && String(b.savedAt || '') > String(o.savedAt || ''));
   async function xferPlan(d) {
@@ -2623,7 +2671,7 @@
     const mOf = b => b.month || (String(b.key).match(/(\d{4}-\d{2})$/) || [])[1] || '';
     const byC = {}; d.boards.slice().sort((a, b) => mOf(a).localeCompare(mOf(b))).forEach(b => { const c = boardClient(b) || '?'; (byC[c] = byC[c] || []).push(b); });
     const rows = Object.entries(byC).map(([c, bs]) => `<li><b>${esc(names[c] || c)}</b>${P.newClients.some(x => x.id === c) ? ' <span>· cliente nuevo</span>' : ''}<br>`
-      + bs.map(b => `${esc(rangeLabel(mOf(b), b.span, true))} <span>· ${st[b.key]}</span>`).join(', ') + '</li>').join('');
+      + bs.map(b => `${esc(rangeLabel(mOf(b), b.span, true, b.cycleDay))} <span>· ${st[b.key]}</span>`).join(', ') + '</li>').join('');
     const fl = Object.values(d.files), red = fl.filter(f => f.reduced).length;
     const info = `Exportado el ${esc(fmtDate(d.exportedAt))} · ${nOf(fl.length, 'foto', 'fotos')}${red ? ` (${red === fl.length ? 'todas' : red} a 1080 px)` : ''}`;
     const what = P.nothing ? 'Nada que importar: todo lo de este archivo ya está aquí, igual o más reciente.'
@@ -2740,7 +2788,7 @@
 
   // ---------- status / housekeeping ----------
   M.status = () => S ? ({
-    version: M.version, key: S.key, client: S.client, month: S.month, months: boardMonths(), slots: S.slots.length,
+    version: M.version, key: S.key, client: S.client, month: S.month, months: boardMonths(), cycleDay: curCd(), range: rangeLabel(S.month, S.span, false, curCd()), slots: S.slots.length,
     pendingDates: S.slots.filter(dateChg).length, pendingRenames: S.slots.filter(nameChg).length,
     filled: S.slots.filter(s => s.photos.length).length,
     tray: S.tray.length, files: Object.keys(M.files).length,
@@ -2775,7 +2823,7 @@
     else if (PB && PB.key === key) { PB = null; renderFeed(); }
     return `borrada ${key}: ${n} fotos eliminadas`;
   };
-  M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
+  M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], cycleDay: cdOf(b.cycleDay), slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
   M._test = {
     place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
@@ -2785,7 +2833,7 @@
     undo, redo, hist: () => ({ undo: H.undo.length, redo: H.redo.length, own: H.b === S }), delList: () => delList(),
     moveMemo, prev: () => JSON.parse(JSON.stringify((S && S.prev) || [])), prevSetFromTray, prevToTray, prevSwap, prevRestore,
     setHidden: (id, v) => { const it = prevItem(id); if (it) { it.hidden = !!v; changed(); } },
-    prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf, madridISO,
+    prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf: day => weekOf(day, 1), weekOfCycle: (day, cd) => weekOf(day, cd), madridISO, cycleOf: (day, cd) => cycleOfDay(day, cd), cycleEnd, rangeLabel,
     unlock: mode => { if (mode === 'always') { S.prevUnlocked = true; save(); } else if (mode === 'once') prevOnce = true; else { S.prevUnlocked = false; prevOnce = false; save(); } renderFeed(); },
     shared: id => sharedWith(slot(id)), idx: () => JSON.parse(JSON.stringify(IDX)), deleteIfUnused,
     setSlot: (id, patch) => { const s = slot(id); if (s) { Object.assign(s, patch); save(); render(); } }

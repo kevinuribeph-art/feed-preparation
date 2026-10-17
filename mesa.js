@@ -111,7 +111,9 @@
   const slotRefs = s => [...(s.photos || []), ...dSrc(s), ...dOut(s)];
   const refsOf = b => new Set([...(b.tray || []), ...(b.slots || []).flatMap(slotRefs), ...(b.prev || []).filter(p => p.own).flatMap(p => p.photos || [])]);
   const kitRef = c => { const f = c && c.kit && c.kit.final && c.kit.final.foto; return typeof f === 'string' && f.startsWith('kit-') ? f : null; };   // a client's fixed final photo (file id)
-  const dName = (s, fid) => isReel(s.type) ? `${s.name} portada.jpg` : `${s.name} ${String(s.photos.indexOf(fid) + 1).padStart(2, '0')}.jpg`;   // a design image goes up named after its post as it is now
+  // upload file names: no / \ : * ? " < > | nor control characters (a normal name stays exactly as it is)
+  const safeName = n => String(n).replace(/"/g, "'").replace(/[/\\:*?<>|]/g, '-').replace(/[\u0000-\u001f\u007f]/g, '');
+  const dName = (s, fid) => safeName(isReel(s.type) ? `${s.name} portada.jpg` : `${s.name} ${String(s.photos.indexOf(fid) + 1).padStart(2, '0')}.jpg`);   // a design image goes up named after its post as it is now
   const dState = s => s && s.design && M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) : null;   // 'ok' (applied, up to date) | 'chg' | null
   const slot = id => S && (S.slots.find(s => s.id === id) || (S.prev || []).find(p => p.id === id));
   const prevItem = id => S && (S.prev || []).find(p => p.id === id);
@@ -248,6 +250,7 @@
   }
   function setFmt(slotId, fmt) {
     const s = slot(slotId); if (!s || isReel(s.type) || !s.photos.length) return;
+    if (isCarousel(s.type) && s.design) { toast('El formato de un carrusel diseñado se cambia en «Diseñar».'); return; }   // one format: the design's
     if (isCarousel(s.type)) { s.fmt = fmt; s.photos.forEach(fid => { S.crops[fid] = { ...baseCrop(fid, S), cx: 0.5, cy: 0.5, z: 1 }; }); }
     else setCrop(s.photos[cur.idx], s, { fmt, cx: 0.5, cy: 0.5, z: 1 });
     save(); renderFeed(); openDetail(slotId, cur.idx);
@@ -525,6 +528,7 @@
   async function addFilesNow(list, targetSlotId) {
     if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
     const B = S;
+    list.filter(f => f && !f.size).forEach(f => toast(`${f.name} está vacío: no se puede añadir.`));
     const files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
     const got = [], fresh = [];
     importing += files.length;
@@ -684,6 +688,11 @@
     const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
     if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
     ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
+    if (isCarousel(s.type) && s.design && M.diseno && M.diseno._sustituir) {   // a designed carousel: the cover slide's photo, never a new slide
+      M.diseno._sustituir(s, ids[0]);
+      ids.slice(1).forEach(id => { if (!s.photos.includes(id)) s.photos.push(id); });
+      changed(); return;
+    }
     const old = s.photos[0], rest = s.photos.slice(1).filter(x => !ids.includes(x));
     s.photos = [ids[0], ...rest, ...ids.slice(1)];
     if (old && !ids.includes(old) && !dOut(s).includes(old)) S.tray.unshift(old);
@@ -738,13 +747,13 @@
   let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
   function editState(B) {
     return {
-      slots: B.slots.map(s => { const o = { id: s.id, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; return o; }),
+      slots: B.slots.map(s => { const o = { id: s.id, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); return o; }),
       tray: B.tray.slice(),
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null }))
     };
   }
-  const stRefs = st => new Set([...st.tray, ...st.slots.flatMap(s => s.photos), ...st.prev.filter(p => p.own).flatMap(p => p.photos)]);
+  const stRefs = st => new Set([...st.tray, ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos)]);
   function histRefs() { const r = new Set(); if (H.b && H.b === S) [...H.undo, ...H.redo].forEach(st => stRefs(st).forEach(f => r.add(f))); return r; }
   function histReset() { H = { b: S, cur: S ? editState(S) : null, curJ: '', undo: [], redo: [], tag: null, t: 0 }; if (H.cur) H.curJ = JSON.stringify(H.cur); }
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
@@ -756,8 +765,8 @@
     const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
     if (!ds.length && cs.length === 1) return 'crop:' + cs[0];
     if (ds.length !== 1 || cs.length) return null;
-    const x = a.slots[ds[0]], y = b.slots[ds[0]], ks = ['photos', 'note', 'memo', 'date', 'fmt'].filter(k => J(x[k]) !== J(y[k]));
-    return ks.length === 1 && (ks[0] === 'note' || ks[0] === 'memo') ? ks[0] + ':' + x.id : null;
+    const x = a.slots[ds[0]], y = b.slots[ds[0]], ks = ['photos', 'note', 'memo', 'date', 'fmt', 'design'].filter(k => J(x[k]) !== J(y[k]));
+    return ks.length === 1 && (ks[0] === 'note' || ks[0] === 'memo' || ks[0] === 'design') ? ks[0] + ':' + x.id : null;
   }
   function track(B) {
     if (!B || H.b !== B || !H.cur) return;
@@ -781,8 +790,8 @@
       s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date;
       if (o.memo) s.memo = o.memo; else delete s.memo;
       if (o.fmt) s.fmt = o.fmt; else delete s.fmt;
+      if (o.design) s.design = JSON.parse(JSON.stringify(o.design)); else delete s.design;
     });
-    pairDesigns();
     (S.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
       p.own = o.own; p.photos = o.photos.filter(has); p.alt = o.alt; p.hidden = o.hidden;
@@ -790,8 +799,9 @@
     });
     S.tray = st.tray.filter(has);
     S.crops = JSON.parse(JSON.stringify(st.crops));
-    const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f));
-    if (lost.length) S.tray.unshift(...lost);
+    const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
+    if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
+    if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
     const ord = Object.fromEntries(st.slots.map((s, i) => [s.id, i]));
     S.slots.sort((a, b) => (ord[a.id] ?? 1e9) - (ord[b.id] ?? 1e9));
     renumber();                                    // names follow the restored dates
@@ -810,15 +820,23 @@
     refreshDetail();
   }
   const undo = () => histStep(true), redo = () => histStep(false);
-  // designs aren't in the history: one whose photos (sources or rendered images) went back to another slot follows them
-  function pairDesigns() {
-    const own = (x, f) => !!(x && x.design && f) && (dOut(x).includes(f) || dSrc(x).includes(f));
-    const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
-    for (const a of S.slots) {
-      const f = a.photos[0]; if (!f || own(a, f)) continue;
-      const b = S.slots.find(x => x !== a && own(x, f) && !own(x, x.photos[0]) && kind(x) === kind(a));
-      if (b) { const t = a.design; if (b.design) a.design = b.design; else delete a.design; if (t) b.design = t; else delete b.design; }
+  // rendered images (design:true) nothing refers to any more — replaced on another Mac and imported back, or written by an
+  // «Aplicar» cut short by a reload — are deleted: once per session (or after an import), never while an «Aplicar» runs
+  let swept = false;
+  async function sweepDesigns(force) {
+    if ((swept && !force) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return 0;
+    swept = true;
+    const ids = [];
+    await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.value && c.value.design) ids.push(String(c.key)); c.continue(); }; });
+    if (!ids.length) return 0;
+    const refs = new Set([...((await idbAll('boards')) || []).map(b => newest(b.key, b)).flatMap(b => [...refsOf(b)]), ...(S ? refsOf(S) : []), ...histRefs()]);
+    let n = 0;
+    for (const id of ids) if (!refs.has(id) && !(M.diseno && M.diseno.aplicando && M.diseno.aplicando())) {
+      await idbDel('files', id); n++;
+      if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
+      delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
     }
+    return n;
   }
   // a photo removed from the mesa is deleted only when no step of the history can bring it back (list kept across reloads)
   function delList(fn) { let l = []; try { l = JSON.parse(lsGet('mesa-del') || '[]'); } catch (e) { /* */ } if (!fn) return l; l = fn(l); lsSet('mesa-del', JSON.stringify(l)); return l; }
@@ -1177,7 +1195,8 @@
 #mesa .xsum{list-style:none;margin:0 0 10px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
 #mesa .xsum li{padding:6px 0;border-top:1px solid var(--line2);line-height:1.5}#mesa .xsum li span{color:var(--mute)}
 #mesa .card>p.xwhat{color:var(--ink);font-size:13px}
-#mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px}`;
+#mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px}
+#mesa .pdzav{flex-basis:100%;margin:0;padding:0 0 0 16px;color:var(--chg);font-size:12px;max-height:7.5em;overflow:auto}`;
 
   function buildShell() {
     document.title = 'Mesa de feed';
@@ -1413,12 +1432,12 @@
     else {
       const c = cropOf(fid, s);
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
-      const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
+      const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car && s.design ? `<span class="muted">Carrusel ${FMT_LABEL[s.fmt] || ''} · el formato se cambia en «Diseñar»</span>` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
       const tools = fd ? `<span class="muted">${car || reel ? 'Reencuadra las fotos originales desde «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
         : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>›</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
-      const acts = `<div class="pacts"><span class="fname">${esc((M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
+      const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
         + (car && n > 1 && !fd ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + (fd && (car || reel) ? `<span class="muted">${car ? 'Para cambiar diapositivas, usa «Diseñar»' : 'Para cambiar la portada, usa «Diseñar»'}</span>` : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
@@ -1428,7 +1447,8 @@
     }
     const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
     const dst = car || reel ? dState(s) : null;
-    const dz = car || reel ? `<div class="pdz"><button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}</div>` : '';
+    const dav = dst === 'ok' && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
+    const dz = car || reel ? `<div class="pdz"><button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
@@ -1977,6 +1997,7 @@
     window.addEventListener('resize', M._onResize);
     if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
     M._onHide = e => {
+      if ((e.type === 'pagehide' || document.visibilityState === 'hidden') && M.diseno && M.diseno.volcar) M.diseno.volcar();   // the designer's edit in flight
       if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer)) return;
       stamp(S);
       S.savedAt = new Date().toISOString();
@@ -1991,7 +2012,7 @@
     if (act === 'add') root.querySelector('.picker').click();
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file); }
     else if (act === 'close') closeDetail();
-    else if (act === 'unpick') { unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
+    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast('Para cambiar diapositivas, usa «Diseñar».'); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
@@ -2178,8 +2199,8 @@
     await importShared(cfg.slots, old, key);
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
     const base = Object.fromEntries((old.slots || []).map(s => [s.id, slotSig(s, old)]));   // shared state before init
-    const orphans = [];
-    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...[...(s.photos || []), ...dSrc(s)].filter(f => !dOut(s).includes(f)));
+    const orphans = [], deadRenders = [], retyped = [];
+    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) { orphans.push(...[...(s.photos || []), ...dSrc(s)].filter(f => !dOut(s).includes(f))); deadRenders.push(...dOut(s)); }
     const pm = prevMonth(month);
     const pastIn = cfg.past.length ? cfg.past : (old.past || []);
     // Dates and names: cfg carries Notion's values (notionDate/notionName); a change made here stays pending until
@@ -2191,6 +2212,10 @@
       if (o.fmt) r.fmt = o.fmt;
       if (o.memo) r.memo = o.memo;
       if (o.design) r.design = o.design;
+      if (r.design && o.type && o.type !== n.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
+        const x = M.diseno._retipo(r, n.type);
+        if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
+      }
       if (!o.id) return r;
       const od = o.notionDate === undefined ? o.date : o.notionDate, on = o.notionName === undefined ? o.name : o.notionName;
       let w = false;
@@ -2214,7 +2239,7 @@
     const ids = [...new Set([...S.tray, ...S.slots.flatMap(s => s.photos), ...oldPrevOwn])];
     const missing = await loadThumbs(ids);
     if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
-    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1)); s.photos = s.photos.slice(0, 1); } });
+    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1).filter(f => !dOut(s).includes(f))); s.photos = s.photos.slice(0, 1); } });
     S.tray = [...new Set(S.tray)].filter(id => !S.slots.some(s => s.photos.includes(id)));
     normalize();
     // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
@@ -2239,11 +2264,13 @@
     lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
+    if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
     await flushNow();
-    delSweep();
+    delSweep(); sweepDesigns();
     await refreshMonths();
     render();
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
+    if (retyped.length) toast(`En Notion cambió el tipo de ${retyped.join(', ')}: su diseño se ha convertido y está pendiente de aplicar («Diseñar»).`, { ms: 9000 });
     if (won.length) toast(`En Notion cambió la fecha o el nombre de ${won.length > 4 ? won.slice(0, 4).join(', ') + ` y ${won.length - 4} más` : won.join(', ')}: se queda lo de Notion y se descarta el cambio hecho aquí.`, { ms: 9000 });
     return M.status();
   };
@@ -2326,7 +2353,7 @@
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
       uploaded: s.uploaded || null,
-      ...(s.design && dState(s) !== 'ok' ? { 'diseño': 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently
+      ...(s.design && (isCarousel(s.type) || isReel(s.type)) && dState(s) !== 'ok' ? { 'diseño': 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently (a post retyped to Foto just keeps it dormant)
     };
   }) : [];
 
@@ -2397,6 +2424,7 @@
       if (j.rect) { const cb = await cropBlob(blob, j.fid, j.rect); if (!cb.original) { blob = cb.blob; cropped = cb.w + 'x' + cb.h; name = name.replace(/\.[^.]+$/, '') + '.jpg'; } }
       else if (blob.size > MAX_UPLOAD) { blob = await reencode(blob); reencoded = true; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
       if (ctrl.reason) throw new Error('aborted');
+      name = safeName(name);
       const fd = new FormData(); fd.append('file', blob, name);
       const r = await postForm(j.url, j.auth, fd, ctrl, f => { if (live()) busyUpload(Math.round(f * 100)); });
       let js = {}; try { js = JSON.parse(r.text); } catch (e) { /* not json */ }
@@ -2558,7 +2586,7 @@
       check: { ok: !mismatches.length, sameColumnsAsMesa: shift % COLS === 0, mismatches } };
   };
   M.uploadOut = async (mode, url, auth, filename) => {
-    const fd = new FormData(); fd.append('file', M.out[mode], filename);
+    const fd = new FormData(); fd.append('file', M.out[mode], safeName(filename));
     const r = await fetch(url, { method: 'POST', headers: { authorization: auth }, body: fd });
     const t = await r.text(); let j = {}; try { j = JSON.parse(t); } catch (e) { /* */ }
     return { http: r.status, state: j.status || 'error', fileUploadId: j.file_upload_id || null };
@@ -2683,7 +2711,8 @@
     const clients = (await idbAll('clients')) || [], cids = new Set(clients.map(c => c.id)), keys = await allKeys('files');
     const P = { clients, add: [], upd: [], newer: [], same: [], newClients: [], files: new Set(keys.filter(k => !k.startsWith('past:'))), past: new Set(keys.filter(k => k.startsWith('past:')).map(k => k.slice(5))) };
     P.kitUpd = d.clients.filter(c => c.kit && cids.has(c.id) && String(c.kitAt || '') > String((clients.find(x => x.id === c.id) || {}).kitAt || ''));   // newer design-kit override of a client that is here
-    P.kitFiles = P.kitUpd.map(kitRef).filter(id => id && d.files[id]);   // its final photo replaces the one here (same id)
+    const fotoAt = c => (c && c.kit && c.kit.final && c.kit.final.fotoAt) || '';
+    P.kitFiles = P.kitUpd.filter(c => fotoAt(c) !== fotoAt(clients.find(x => x.id === c.id))).map(kitRef).filter(id => id && d.files[id]);   // only another final photo replaces the one here (same id): never the same photo by its 1080 copy
     for (const b of d.boards) {
       const o = byKey[b.key];
       if (!o) P.add.push(b);
@@ -2812,6 +2841,7 @@
       try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
+      try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
       const k = P.newer.length;
       toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
       return res;
@@ -2846,6 +2876,7 @@
   }) : { version: M.version, client: curClient, board: null, locked };
   M.board = () => S && JSON.parse(JSON.stringify(S));
   M.purge = async key => {
+    try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     const boards = await idbAll('boards');
     const b = boards.find(x => x.key === key); if (!b) return 'no existe';
     const others = boards.filter(x => x.key !== key);
@@ -2870,12 +2901,16 @@
     return `borrada ${key}: ${n} fotos eliminadas`;
   };
   M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], cycleDay: cdOf(b.cycleDay), slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
+  // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
+  let switching = 0;
+  for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => { switching++; try { return await f(...a); } finally { switching--; } }; }
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    dName, delList, sweepDesigns, switching: () => switching > 0
   };
   M._test = {
     place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,

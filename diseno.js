@@ -15,11 +15,13 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
   const ESC_MIN = 0.6, ESC_MAX = 1.6, ESC_STEP = 0.05;
+  const MAX_SLIDES = 20;                       // Instagram's limit for a carousel
+  const MAX_MSG = 'Un carrusel admite como máximo 20 diapositivas (límite de Instagram).';
   const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const str = v => v == null ? '' : String(v);
   const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
@@ -70,16 +72,68 @@
     if (gone.length) s.photos = s.photos.filter(f => !gone.includes(f));
     return { gone, back: rescue(ids) };
   }
+  // one format per carousel: the design's (rendered images keep the one they were made with until applied again)
+  const syncFmt = s => { if (s.design && I().isCarousel(s.type) && FMTS[s.design.fmt] && !s.photos.some(f => isOut(s, f))) s.fmt = s.design.fmt; };
+
+  // the post's type changed in Notion (called by the mesa while it loads the board, before it is open): a carousel design
+  // becomes a reel cover with the cover's title, a reel design a carousel cover with the reel's title; the post gets its
+  // source photos back (the others go to the tray) and the rendered images are left for deletion. Pending «Aplicar».
+  function retipo(s, to) {
+    const d = s.design; if (!d || !Array.isArray(d.slides) || !d.slides.length) return null;
+    const dk = d.slides[0].tipo === 'reel' ? 'r' : 'c', tk = I().isReel(to) ? 'r' : I().isCarousel(to) ? 'c' : 'f';
+    if (dk === tk) return null;
+    const outs = (d.out || []).filter(Boolean), srcs = d.slides.filter(x => x.tipo !== 'final').map(x => x.src).filter(Boolean);
+    const extra = (s.photos || []).filter(f => !outs.includes(f) && !srcs.includes(f) && !(M.files[f] && M.files[f].design));
+    const at = nowISO(), all = [...new Set([...srcs, ...extra])];
+    let photos, tray = [];
+    if (tk === 'f') { photos = all; s.design = { ...d, out: null, sig: null, at }; }
+    else if (tk === 'r') {
+      const cover = d.slides.find(x => x.tipo === 'portada') || d.slides.find(x => x.tipo !== 'final') || d.slides[0], src = cover.src || all[0] || null;
+      photos = src ? [src] : []; tray = all.filter(f => f !== src);
+      s.design = { v: 1, kit: d.kit, fmt: 'r916', serie: '', slides: [{ ...blankSlide('reel', src), titulo: str(cover.titulo) }], out: null, sig: null, at, known: photos.slice() };
+    } else {
+      const r0 = d.slides[0], src = r0.src || all[0] || null;
+      photos = [...new Set([src, ...all].filter(Boolean))];
+      s.design = { v: 1, kit: d.kit, fmt: 'v45', serie: '', slides: [{ ...blankSlide('portada', src), titulo: str(r0.titulo) }], out: null, sig: null, at, known: photos.slice() };
+      s.fmt = 'v45';
+    }
+    s.photos = photos;
+    return { tray, dead: outs };
+  }
+  // «Sustituir» on a designed carousel: the photo of the cover slide (the one the post shows) changes; never a new slide
+  function sustituir(s, fid) {
+    const d = s.design, first = s.photos[0];
+    const sl = d.slides.find(x => x.tipo !== 'final' && x.src === first) || d.slides.find(x => x.tipo !== 'final');
+    if (!sl) { if (!s.photos.includes(fid)) s.photos.push(fid); return; }
+    const prev = sl.src; sl.src = fid;
+    if (first && !isOut(s, first)) s.photos[0] = fid; else if (!first) s.photos.push(fid);   // not applied yet: the post shows the new photo
+    s.photos = [...new Set(s.photos)];
+    d.at = nowISO();
+    release(s, [prev]); remember(s);
+  }
 
   // ---------- kit: kits/<clientId>.json + the client's override (client record field `kit`) ----------
-  const BASE = {};                             // clientId -> Promise<base kit JSON | null>
+  const BASE = {};                             // clientId -> Promise<{kit} | {missing} | {bad: where}>
   const kitUrl = cid => new URL('kits/' + encodeURIComponent(cid) + '.json', location.href).href;
-  const BASEV = {};                            // clientId -> base kit once fetched (null = none), for the synchronous checks
-  async function baseKit(cid) {
-    if (!BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
-    const k = await BASE[cid]; if (!k) delete BASE[cid];
-    BASEV[cid] = k || null;
-    return k;
+  const BASEV = {};                            // clientId -> base kit once read (null = none or broken), for the synchronous checks
+  function jsonWhere(e, t) {                   // «línea 61, columna 5» from the parser's message
+    const m = String((e && e.message) || ''), lc = m.match(/line (\d+) column (\d+)/i), pos = m.match(/position (\d+)/i);
+    if (lc) return `línea ${lc[1]}, columna ${lc[2]}`;
+    if (pos) { const before = t.slice(0, +pos[1]).split('\n'); return `línea ${before.length}, columna ${before[before.length - 1].length + 1}`; }
+    return 'no es un JSON válido';
+  }
+  // fresh: read the file again (no-cache: a kit edited on disk counts without reloading the page)
+  async function baseKit(cid, fresh) {
+    if (fresh || !BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'no-cache' }).then(async r => {
+      if (!r.ok) return { missing: true };
+      const t = await r.text();
+      try { return { kit: JSON.parse(t) }; } catch (e) { return { bad: jsonWhere(e, t) }; }
+    }).catch(() => ({ missing: true }));
+    const k = await BASE[cid];
+    if (!k.kit) delete BASE[cid];
+    BASEV[cid] = k.kit || null;
+    need(!k.bad, `El kit kits/${cid}.json tiene un error de formato (${k.bad}).`);
+    return k.kit || null;
   }
   // objects merge key by key; arrays and values replace; null removes the key (back to the kit's value)
   function deepMerge(base, patch) {
@@ -91,17 +145,17 @@
     }
     return out;
   }
-  async function rawKit(cid) {
-    const base = await baseKit(cid);
+  async function rawKit(cid, fresh) {
+    const base = await baseKit(cid, fresh);
     need(base, `Este cliente aún no tiene kit de diseño (kits/${cid}.json).`);
     const c = await I().idbGet('clients', cid);
     const ov = (c && c.kit) || {};
     return { raw: deepMerge(base, ov), ov, base, c };
   }
   const ENGK = {};                             // clientId -> {key, kit: Promise} (fonts loaded once per kit)
-  async function engineKit(cid) {
+  async function engineKit(cid, fresh) {
     const E0 = ENG(); need(E0 && E0.usarKit && E0.dibujar, NO_ENGINE);
-    const r = await rawKit(cid), key = JSON.stringify(r.raw);
+    const r = await rawKit(cid, fresh), key = JSON.stringify(r.raw);
     if (!ENGK[cid] || ENGK[cid].key !== key) ENGK[cid] = { key, kit: E0.usarKit(clone(r.raw), new URL('kits/', location.href).href) };
     try { return { kit: await ENGK[cid].kit, raw: r.raw, ov: r.ov }; }
     catch (e) { delete ENGK[cid]; throw new DzError('No se pudo preparar el kit de diseño: ' + String((e && e.message) || e)); }
@@ -130,7 +184,7 @@
   // Until the client's kit file has been read once, only the post's own part is compared.
   function rawSync(cid) {
     const c = ((I() && I().CL) || []).find(x => x.id === cid), ov = (c && c.kit) || {};
-    if (BASEV[cid] === undefined && !BASE[cid]) baseKit(cid);
+    if (BASEV[cid] === undefined && !BASE[cid]) baseKit(cid).catch(() => {});
     return BASEV[cid] ? { raw: deepMerge(BASEV[cid], ov), partial: false } : { raw: deepMerge({}, ov), partial: true };
   }
   function estadoDe(s) {
@@ -148,10 +202,21 @@
   const rectOf = (src, W, H) => { const f = M.files[src]; return I().rectFor(f.w, f.h, W / H, I().baseCrop(src, I().S)); };   // the mesa's reframe of that photo
   const slideFor = sl => ({ tipo: sl.tipo, titulo: str(sl.titulo), texto: str(sl.texto), entradilla: str(sl.entradilla), contacto: sl.contacto == null ? null : String(sl.contacto), ov: clone(sl.ov || {}) });   // contacto null = the kit's
   const pageOf = (s, i) => isReelS(s) ? null : i + 1;
-  const AV = {};                               // 'slotId:i' -> {avisos, decision} of the latest render
+  const AV = {};                               // 'slotId:i' -> {key, avisos, decision}: valid only for the inputs it was drawn from
+  function avKey(s, i, rawHash, sz, fin) {
+    const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), crops = I().S.crops || {}, f = src && M.files[src];
+    return hash(JSON.stringify([d.fmt, str(d.serie), slideFor(sl), src || null, src ? crops[src] || null : null, f ? [f.w, f.h] : null, pageOf(s, i), rawHash, sz ? [sz.W, sz.H] : null]));
+  }
+  const avGet = (s, i, key) => { const c = AV[s.id + ':' + i]; return c && c.key === key ? c : null; };
+  const kitHash = raw => hash(JSON.stringify(raw || {}));
+  const EXT_H = { v45: 1350, v34: 1440, h: 608, r916: 1920 };   // to rescale a manual offset when the format changes
+  function scaleOffsets(d, from, to) {
+    const k = (EXT_H[to] || 1350) / (EXT_H[from] || 1350); if (k === 1) return;
+    d.slides.forEach(sl => { if (sl.ov && sl.ov.dy) sl.ov.dy = Math.round(sl.ov.dy * k); });
+  }
 
-  // full-size render of slide i (aplicar, ver)
-  async function renderFull(s, i, kit, fin, sz) {
+  // full-size render of slide i (aplicar, ver; noBlob: only its warnings, for estado)
+  async function renderFull(s, i, kit, fin, sz, rawHash, noBlob) {
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src];
     let blob0;
     try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: elige otra en «Diseñar».`); }
@@ -159,10 +224,10 @@
     try {
       const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w;
       const res = await ENG().render(kit, slideFor(sl), bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh });
-      const blob = await ENG().aBlob(res.canvas, 0.92);
+      const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
       const out = { blob, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
       res.canvas.width = res.canvas.height = 0;
-      AV[s.id + ':' + i] = { avisos: out.avisos, decision: out.decision };
+      if (rawHash != null) AV[s.id + ':' + i] = { key: avKey(s, i, rawHash, sz, fin), avisos: out.avisos, decision: out.decision };
       return out;
     } finally { bmp.close(); }
   }
@@ -183,6 +248,7 @@
     const reel = isReelS(s), list = Array.isArray(opts.slides) ? opts.slides : [];
     need(list.length, 'Faltan las diapositivas: slides:[{tipo?, titulo, texto?, entradilla?, contacto?}].');
     need(list.every(isObj), 'Cada diapositiva es un objeto {tipo?, titulo, texto?, entradilla?, contacto?}.');
+    need(reel || list.length <= MAX_SLIDES, MAX_MSG);
     const cid = (s.design && s.design.kit) || S.client;
     await rawKit(cid);
     let fmt = 'r916';
@@ -207,8 +273,9 @@
     const d0 = s.design;
     s.design = { v: 1, kit: cid, fmt, serie: opts.serie != null ? str(opts.serie) : d0 ? str(d0.serie) : '', slides, out: d0 ? d0.out || null : null, sig: d0 ? d0.sig || null : null, at: nowISO() };
     if (d0 && d0.outAt) s.design.outAt = d0.outAt;
+    if (d0 && d0.fmt !== fmt) scaleOffsets(s.design, d0.fmt, fmt);
     release(s, old.slice(slides.length).map(x => x.src));
-    remember(s);
+    remember(s); syncFmt(s);
     I().changed();
     if (E && E.slotId === slotId) edReload();
     const st = await estado(slotId);
@@ -222,37 +289,61 @@
     let raw = null; try { raw = (await rawKit(d.kit)).raw; } catch (e) { /* kit gone: still report */ }
     const fin = raw ? await finalReady(raw) : null;
     await I().loadThumbs(srcsOf(s));
-    const aplicado = isApplied(s), used = new Set(srcsOf(s));
+    const aplicado = isApplied(s), used = new Set(srcsOf(s)), cur = await avisosActuales(s, raw, fin);
     return {
       slot: s.id, nombre: s.name, tipo: s.type, kit: d.kit, fmt: d.fmt, serie: d.serie,
       aplicado, desactualizado: aplicado && !!raw && d.sig !== sigOf(s, raw),
       fotoFinal: fin ? nameOf(fin) : null,
       slides: d.slides.map((sl, i) => {
-        const src = effSrc(sl, fin), last = AV[s.id + ':' + i];
-        const av = [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente' : 'Falta la foto'] : []), ...(!str(sl.titulo).trim() ? ['Sin título'] : []), ...((last && last.avisos) || [])];
+        const src = effSrc(sl, fin);
+        const av = [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente' : 'Falta la foto'] : []), ...(!str(sl.titulo).trim() ? ['Sin título'] : []), ...(cur[i] || [])];
         return { n: i + 1, tipo: sl.tipo, titulo: sl.titulo, texto: sl.texto, entradilla: sl.entradilla, contacto: sl.contacto ?? null,
-          ...(sl.tipo === 'final' ? { contactoUsado: sl.contacto ?? (raw && raw.final ? raw.final.contacto ?? null : null) } : {}), src: src || null, foto: src ? nameOf(src) : null, ov: clone(sl.ov || {}), avisos: av };
+          ...(sl.tipo === 'final' ? { contactoUsado: sl.contacto ?? (raw && raw.final ? raw.final.contacto ?? null : null) } : {}), src: src || null, foto: src ? nameOf(src) : null, ov: clone(sl.ov || {}), avisos: av, ...(cur[i] ? {} : { avisosPendientes: true }) };
       }),
       fotosSinUsar: rawPhotos(s).filter(f => !used.has(f)).map(f => ({ fileId: f, name: nameOf(f) })),
-      archivos: outsOf(s).map(f => ({ fileId: f, name: nameOf(f), enCasilla: s.photos.includes(f) }))
+      archivos: outsOf(s).map(f => ({ fileId: f, name: s.photos.includes(f) ? I().dName(s, f) : nameOf(f), enCasilla: s.photos.includes(f) })),
+      ...(d.avisos && d.avisos.length && aplicado ? { avisosAplicados: d.avisos.slice() } : {})
     };
+  }
+  // the engine's warnings for each slide as it is now (from the latest drawing of exactly that, or drawn now); null = pending
+  async function avisosActuales(s, raw, fin) {
+    const d = s.design, rh = kitHash(raw);
+    let eng = null; if (raw) { try { eng = await engineKit(d.kit); } catch (e) { /* no engine or fonts: pending */ } }
+    const sz = eng ? sizeOf(eng.kit, d, fin) : null;
+    const out = [];
+    for (let i = 0; i < d.slides.length; i++) {
+      const c = sz && avGet(s, i, avKey(s, i, rh, sz, fin)), src = effSrc(d.slides[i], fin);
+      if (c) { out.push(c.avisos); continue; }
+      if (eng && src && M.files[src]) { try { out.push((await renderFull(s, i, eng.kit, fin, sz, rh, true)).avisos); continue; } catch (e) { /* pending */ } }
+      out.push(null);
+    }
+    return out;
   }
 
   // Renders every slide at full size into new design files and puts them in the slot (reel: the cover).
+  let APL = 0;                                 // «Aplicar» running (the mesa's sweep of unused rendered images waits)
   async function aplicar(slotId) {
+    APL++;
+    try { return await aplicarNow(slotId); } finally { APL--; }
+  }
+  async function aplicarNow(slotId) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
     need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
     need(s.design && s.design.slides.length, NO_DESIGN);
     const d = s.design, reel = isReelS(s);
-    const { kit, raw } = await engineKit(d.kit);
+    need(reel || d.slides.length <= MAX_SLIDES, MAX_MSG);
+    const { kit, raw } = await engineKit(d.kit, true);
     const fin = await finalReady(raw);
     await I().loadThumbs(srcsOf(s));
     checkPhotos(s, fin);
-    const sz = sizeOf(kit, d, fin), sig = sigOf(s, raw), done = [], avisos = [];   // sig first: an edit made while rendering stays «sin aplicar»
+    const sz = sizeOf(kit, d, fin), sig = sigOf(s, raw), rh = kitHash(raw), done = [], avisos = [], notas = [];   // sig first: an edit made while rendering stays «sin aplicar»
+    const pre = i => reel ? '' : `Diapositiva ${i + 1}: `;
     for (let i = 0; i < d.slides.length; i++) {
-      const r = await renderFull(s, i, kit, fin, sz);
-      done.push(r); r.avisos.forEach(a => avisos.push(`Diapositiva ${i + 1}: ${a}`));
+      const r = await renderFull(s, i, kit, fin, sz, rh);
+      done.push(r);
+      if (!str(d.slides[i].titulo).trim()) avisos.push(reel ? 'Sin título' : pre(i) + 'sin título');
+      r.avisos.forEach(a => avisos.push(pre(i) + a));
     }
     need(I().S === S && S.slots.includes(s) && s.design === d, 'La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.');
     const outs = [];
@@ -267,14 +358,14 @@
     }
     const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set(srcsOf(s));
     const unused = rawPhotos(s).filter(f => !used.has(f));
-    if (unused.length) { S.tray.unshift(...unused.filter(f => !S.tray.includes(f))); avisos.push(`${unused.length === 1 ? 'Una foto de la casilla no se usa en el diseño: vuelve' : `${unused.length} fotos de la casilla no se usan en el diseño: vuelven`} a la bandeja.`); }
+    if (unused.length) { S.tray.unshift(...unused.filter(f => !S.tray.includes(f))); notas.push(`${unused.length === 1 ? 'Una foto de la casilla no se usa en el diseño: vuelve' : `${unused.length} fotos de la casilla no se usan en el diseño: vuelven`} a la bandeja.`); }
     s.photos = outs.slice();
     if (!reel) s.fmt = d.fmt;
-    d.out = outs; d.sig = sig; d.outAt = nowISO(); remember(s);
-    I().changed();
+    d.out = outs; d.sig = sig; d.outAt = nowISO(); d.avisos = avisos.slice(); remember(s);
+    I().changed(); I().refreshDetail();
     for (const f of old) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
     if (E && E.slotId === slotId) edHead();
-    return { ok: true, archivos: outs.map(f => ({ fileId: f, name: M.files[f].name, w: M.files[f].w, h: M.files[f].h, kb: Math.round(M.files[f].size / 1024) })), avisos };
+    return { ok: true, archivos: outs.map(f => ({ fileId: f, name: I().dName(s, f), w: M.files[f].w, h: M.files[f].h, kb: Math.round(M.files[f].size / 1024) })), avisos, ...(notas.length ? { notas } : {}) };
   }
 
   // Renders slide n (1-based) into M.out.diseno (a JPEG Blob) so Claude can look at it.
@@ -287,12 +378,12 @@
     await I().loadThumbs(srcsOf(s));
     const sl = d.slides[i], src = effSrc(sl, fin);
     if (sl.tipo === 'final') need(fin, NO_FINAL); else need(src && M.files[src], `La diapositiva ${i + 1} no tiene foto: elígela en «Diseñar».`);
-    const r = await renderFull(s, i, kit, fin, sizeOf(kit, d, fin));
+    const r = await renderFull(s, i, kit, fin, sizeOf(kit, d, fin), kitHash(raw));
     M.out.diseno = r.blob;
     return { n: i + 1, w: r.w, h: r.h, kb: Math.round(r.blob.size / 1024), decision: r.decision, bloque: r.bloque, avisos: r.avisos };
   }
 
-  async function kit(clientId) { need(I(), 'La mesa no tiene el puente del diseñador: actualiza mesa.js (3.18 o posterior).'); const S = I().S; const cid = clientId || (S && S.client); need(cid, 'Indica el cliente.'); return clone((await rawKit(cid)).raw); }
+  async function kit(clientId) { need(I(), 'La mesa no tiene el puente del diseñador: actualiza mesa.js (3.18 o posterior).'); const S = I().S; const cid = clientId || (S && S.client); need(cid, 'Indica el cliente.'); return clone((await rawKit(cid, true)).raw); }
 
   // Per-client override of the kit (sizes, colours, rules…), stored on the client record: travels with export/import.
   // patch keys set to null go back to the kit's value; patch === null clears every override but the final photo.
@@ -400,21 +491,39 @@
 #mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0}
 #mesa .dz-velo output{min-width:2.6em;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--mute)}
 #mesa .dz-dec{font-weight:400;color:var(--mute);font-size:12px}
-@media (max-width:900px){#mesa .dz-body{grid-template-columns:96px minmax(0,1fr);grid-template-rows:minmax(220px,52%) minmax(0,1fr)}#mesa .dz-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line2)}#mesa .dz-mid{padding:10px}#mesa .dz-list{grid-row:1;padding:10px 8px}#mesa .dz-add{font-size:11.5px;padding:5px 2px;white-space:nowrap}#mesa .dz-serie .dz-in{width:140px}#mesa .dz-n{flex-wrap:wrap}#mesa .dz-mv{margin-left:-4px;width:100%}}`;
+#mesa .dz-max{margin:6px 2px 0;font-size:11px;line-height:1.35}
+@media (max-width:900px){#mesa .dz-body{grid-template-columns:112px minmax(0,1fr);grid-template-rows:minmax(220px,52%) minmax(0,1fr)}#mesa .dz-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line2)}#mesa .dz-mid{padding:10px}#mesa .dz-list{grid-row:1;padding:10px 8px}#mesa .dz-add{font-size:11.5px;padding:5px 2px;white-space:nowrap}#mesa .dz-serie .dz-in{width:140px}#mesa .dz-n{flex-wrap:wrap}#mesa .dz-mv{margin-left:-4px;width:100%}}`;
   function injectCSS() { if (document.getElementById('dz-css')) return; const st = document.createElement('style'); st.id = 'dz-css'; st.textContent = CSS; document.head.append(st); }
 
-  let E = null;     // the open editor: {slotId, board, cid, kit, raw, fin, sel, sz, el, cv, ctx, off, need, last, thumbs, bm, capas, raf, saveT, …}
+  let E = null;     // the open editor: {slotId, board, cid, kit, raw, rawHash, fin, sel, sz, el, cv, ctx, off, need, last, thumbs, bm, capas, raf, saveT, drag, …}
   const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? S.slots.find(x => x.id === E.slotId) : null; return s && s.design && (I().isCarousel(s.type) || I().isReel(s.type)) ? s : null; };
   const D = () => curSlot().design;
+  // at least 25 % of a moved text block (and 80 px each way) stays on the canvas: never out of reach
+  const lim = (v, pos, size, max) => { const keep = Math.min(size, Math.max(size * 0.25, 80)); return Math.max(keep - size - pos, Math.min(max - keep - pos, v)); };
+  // fit (after a format change): the whole block back inside the canvas, with the kit's margin when it fits
+  function keepInside(sl, res, fit) {
+    const ov = sl.ov || {}, b = res && res.bloque; if (!b || (!ov.dx && !ov.dy)) return false;
+    const m0 = Math.round(72 * (E.sz.factor || 1));
+    const box = (v, pos, size, max) => {
+      if (!fit || size > max) return lim(v, pos, size, max);
+      const m = size + 2 * m0 <= max ? m0 : (max - size) / 2;
+      return Math.max(m - pos, Math.min(max - m - size - pos, v));
+    };
+    const dx = ov.dx || 0, dy = ov.dy || 0, nx = Math.round(box(dx, b.x - dx, b.w, E.sz.W)), ny = Math.round(box(dy, b.y - dy, b.h, E.sz.H));
+    if (nx === dx && ny === dy) return false;
+    if (nx) ov.dx = nx; else delete ov.dx;
+    if (ny) ov.dy = ny; else delete ov.dy;
+    return true;
+  }
 
   // a new design from the slot's photos (first «Diseñar» without texts from Claude)
   function newDesign(s, cid) {
     const reel = isReelS(s), raw = rawPhotos(s);
-    const slides = reel ? [blankSlide('reel', raw[0])] : (raw.length ? raw : [null]).map((f, i) => blankSlide(i === 0 ? 'portada' : 'ficha', f));
+    const slides = reel ? [blankSlide('reel', raw[0])] : (raw.length ? raw.slice(0, MAX_SLIDES) : [null]).map((f, i) => blankSlide(i === 0 ? 'portada' : 'ficha', f));
     return { v: 1, kit: cid, fmt: reel ? 'r916' : FMTS[s.fmt] ? s.fmt : 'v45', serie: '', slides, out: null, sig: null, at: nowISO(), known: raw };
   }
   // photos put in the post since the design last saw it: they fill slides without a photo, then become new fichas
-  // (before a final); returns the message for Kevin (null = nothing new)
+  // (before a final, up to 20 slides); returns the message for Kevin (null = nothing new)
   function absorb(s) {
     const d = s.design, used = new Set(srcsOf(s)), known = new Set(d.known || []);
     const extra = rawPhotos(s).filter(f => !used.has(f) && !known.has(f));
@@ -422,11 +531,13 @@
     if (isReelS(s)) { const old = d.slides[0].src; d.slides[0].src = extra[0]; release(s, [old]); return 'La portada del reel usa la foto nueva de la casilla.'; }
     let filled = 0;
     for (const sl of d.slides) if (!sl.src && sl.tipo !== 'final' && extra.length) { sl.src = extra.shift(); filled++; }
+    const room = Math.max(0, MAX_SLIDES - d.slides.length), add = extra.slice(0, room), left = extra.length - add.length;
     const k = d.slides.length && d.slides[d.slides.length - 1].tipo === 'final' ? d.slides.length - 1 : d.slides.length;
-    d.slides.splice(k, 0, ...extra.map(f => blankSlide('ficha', f)));
-    const n = extra.length;
+    d.slides.splice(k, 0, ...add.map(f => blankSlide('ficha', f)));
+    const n = add.length;
     return [n && `Añadida${n === 1 ? '' : 's'} ${n} diapositiva${n === 1 ? '' : 's'} con fotos nuevas de la casilla.`,
-      filled && `${filled === 1 ? 'Una foto nueva de la casilla va en una diapositiva' : `${filled} fotos nuevas de la casilla van en diapositivas`} que no tenía${filled === 1 ? '' : 'n'} foto.`].filter(Boolean).join(' ');
+      filled && `${filled === 1 ? 'Una foto nueva de la casilla va en una diapositiva' : `${filled} fotos nuevas de la casilla van en diapositivas`} que no tenía${filled === 1 ? '' : 'n'} foto.`,
+      left && `${left === 1 ? 'Una foto nueva no cabe' : `${left} fotos nuevas no caben`}: un carrusel admite como máximo 20 diapositivas (Instagram).`].filter(Boolean).join(' ');
   }
 
   async function abrir(slotId) {
@@ -435,16 +546,17 @@
       need(!I().locked, LOCKED);
       if (E) cerrar();
       const cid = (s.design && s.design.kit) || S.client;
-      const { kit, raw } = await engineKit(cid);
-      need(I().S === S && S.slots.includes(s), 'La mesa cambió: vuelve a pulsar «Diseñar».');
+      const { kit, raw } = await engineKit(cid, true);   // the kit file is read again: edited on disk counts
+      const fin = await finalReady(raw);
+      await I().loadThumbs(srcsOf(s));
+      need(I().S === S && S.slots.includes(s) && (I().isCarousel(s.type) || I().isReel(s.type)) && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Diseñar».');
+      if (E) cerrar();
       let changedNow = false, msg = null;
       if (!s.design) { s.design = newDesign(s, cid); changedNow = true; }
       else if ((msg = absorb(s))) { remember(s); changedNow = true; }
-      const fin = await finalReady(raw);
-      await I().loadThumbs(srcsOf(s));
-      if (E) cerrar();
+      const f0 = s.fmt; syncFmt(s); if (s.fmt !== f0) changedNow = true;
       injectCSS();
-      E = { slotId, board: S, cid, kit, raw, fin, sel: 0, need: new Set(), last: [], thumbs: new WeakMap(), bm: new Map(), capas: new Map(), raf: 0, saveT: 0, pickFinal: false, busy: false };
+      E = { slotId, board: S, cid, kit, raw, rawHash: kitHash(raw), fin, sel: 0, need: new Set(), last: [], thumbs: new WeakMap(), bm: new Map(), capas: new Map(), raf: 0, saveT: 0, pickFinal: false, busy: false, drag: null };
       E.sz = sizeOf(kit, s.design, fin);
       build(s);
       if (changedNow) { s.design.at = nowISO(); I().save(); }
@@ -490,20 +602,20 @@
     const d = D(); E.sel = Math.max(0, Math.min(d.slides.length - 1, E.sel));
     E.cv.width = E.sz.W; E.cv.height = E.sz.H;
     E.capas.clear(); E.last = [];
-    edHead(); edList(); edPanel(); fitCanvas();
+    edHead(); edList(); edPanel(true); fitCanvas();
     dirty('all');
   }
   function edReload() {        // the design was replaced from outside (cargar)
     if (!E) return; const s = curSlot(); if (!s) { cerrar(); return; }
-    I().loadThumbs(srcsOf(s)).then(() => { if (!E) return; E.sz = sizeOf(E.kit, s.design, E.fin); edAll(); });
+    I().loadThumbs(srcsOf(s)).then(() => { if (!E || !curSlot()) return; E.sz = sizeOf(E.kit, s.design, E.fin); edAll(); });
   }
   async function edKitChanged(finalToo) {
     if (!E) return;
     const e0 = E;
     try {
       const { kit, raw } = await engineKit(E.cid);
-      if (E !== e0) return;
-      E.kit = kit; E.raw = raw;
+      if (E !== e0 || !curSlot()) return;
+      E.kit = kit; E.raw = raw; E.rawHash = kitHash(raw);
       if (finalToo) { const old = E.fin; E.fin = await finalReady(raw); if (E !== e0) return; dropBitmap(old); dropBitmap(E.fin); E.pickFinal = false; }
       E.sz = sizeOf(E.kit, D(), E.fin); edAll();
     } catch (e) { I().toast(e instanceof DzError ? e.message : String(e)); }
@@ -520,6 +632,21 @@
     st.textContent = !ap ? (d.out ? 'Sin aplicar en la casilla' : 'Sin aplicar') : chg ? 'Cambios sin aplicar' : 'Aplicado';
   }
 
+  // the element a rebuilt part of the editor should give the focus back to
+  const cssv = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  function focusKey(el) {
+    if (!el || !el.dataset) return null;
+    if (el.dataset.dz) return `[data-dz="${cssv(el.dataset.dz)}"]` + (el.dataset.v != null ? `[data-v="${cssv(el.dataset.v)}"]` : '') + (el.dataset.f != null ? `[data-f="${cssv(el.dataset.f)}"]` : '') + (el.dataset.i != null ? `[data-i="${cssv(el.dataset.i)}"]` : '');
+    if (el.id) return '#' + cssv(el.id);
+    return el.classList && el.classList.length ? '.' + [...el.classList].map(cssv).join('.') : null;
+  }
+  function refocus(box, key) {
+    if (!key) return;
+    const n = box.querySelector(key);
+    if (n && !n.disabled) n.focus({ preventScroll: true });
+    else if (n) { const alt = [...(n.parentElement || box).querySelectorAll('button:not([disabled])')][0]; if (alt) alt.focus({ preventScroll: true }); }
+  }
+
   // left: one live thumbnail per slide
   function thumbOf(sl) {
     let c = E.thumbs.get(sl);
@@ -527,15 +654,18 @@
     if (!c || c.width !== tw || c.height !== th) { c = document.createElement('canvas'); c.width = tw; c.height = th; E.thumbs.set(sl, c); }
     return c;
   }
-  function edList() {
+  function edList(focusSel) {
     const d = D(), reel = isReelS(curSlot()), n = d.slides.length, list = E.el.querySelector('.dz-list');
+    const ae = document.activeElement, key = focusSel || (ae && list.contains(ae) ? focusKey(ae) : null);
     list.innerHTML = d.slides.map((sl, i) => `<div class="dz-it${i === E.sel ? ' on' : ''}" data-dz="sel" data-i="${i}" role="button" tabindex="0" aria-label="Diapositiva ${i + 1}: ${TIPO_LABEL[sl.tipo] || sl.tipo}"><span class="dz-cvs"></span>`
       + `<div class="dz-n"><b>${pad2(i + 1)}</b>${esc(TIPO_LABEL[sl.tipo] || sl.tipo)}${reel ? '' : `<span class="dz-mv"><button type="button" data-dz="up" data-i="${i}" title="Subir" aria-label="Subir la diapositiva ${i + 1}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" data-dz="down" data-i="${i}" title="Bajar" aria-label="Bajar la diapositiva ${i + 1}" ${i === n - 1 ? 'disabled' : ''}>▼</button><button type="button" data-dz="del" data-i="${i}" title="Quitar" aria-label="Quitar la diapositiva ${i + 1}" ${n < 2 ? 'disabled' : ''}>×</button></span>`}</div></div>`).join('')
-      + (reel ? '' : '<button type="button" class="btn2 dz-add" data-dz="add">+ Diapositiva</button>');
+      + (reel ? '' : `<button type="button" class="btn2 dz-add" data-dz="add" ${n >= MAX_SLIDES ? `disabled title="${esc(MAX_MSG)}"` : ''}>+ Diapositiva</button>${n >= MAX_SLIDES ? '<p class="dz-hint dz-max">Máximo 20 diapositivas (límite de Instagram).</p>' : ''}`);
     list.querySelectorAll('.dz-cvs').forEach((sp, i) => sp.replaceWith(thumbOf(d.slides[i])));
+    refocus(list, key);
   }
 
-  // right: the selected slide's controls
+  // right: the selected slide's controls. The panel is updated section by section, and the text fields stay while the
+  // same slide (and type) is shown: the caret, the focus and the field's own ⌘Z survive every other adjustment
   function segHTML(act, opts, cur, label) {
     return `<div class="seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button type="button" data-dz="${act}" data-v="${v}" class="${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   }
@@ -565,25 +695,40 @@
     }
     return photosHTML(s, sl.src, 'src') + (sl.src && M.files[sl.src] ? zoomHTML(sl.src) : availPhotos(s).length ? '<p class="dz-hint" style="margin-top:8px">Elige la foto de esta diapositiva.</p>' : '');
   }
-  function edPanel() {
-    const s = curSlot(), d = s.design, i = E.sel, sl = d.slides[i], ov = sl.ov || {}, reel = isReelS(s);
-    const e = ov.escala || 1, va = ov.velo == null, last = E.last[i];
-    let h = `<div class="dz-sec"><h4>Diseño <span>· diapositiva ${pad2(i + 1)}</span></h4>`
-      + (reel ? '<p class="dz-p">Portada de reel <span class="muted">· 9:16; en el perfil se ve el centro 3:4</span></p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva')) + '</div>';
-    h += `<div class="dz-sec"><h4>Foto</h4>${fotoHTML(s, sl)}</div>`;
-    h += `<div class="dz-sec"><h4>Texto</h4><label class="dz-l" for="dz-f-titulo">Título <span>· Intro = salto de línea</span></label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2">${esc(sl.titulo)}</textarea>`
-      + (sl.tipo === 'ficha' ? `<label class="dz-l" for="dz-f-texto">Texto</label><textarea id="dz-f-texto" class="dz-in" data-f="texto" rows="3">${esc(sl.texto)}</textarea>` : '')
-      + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2">${esc(sl.entradilla)}</textarea><label class="dz-l" for="dz-f-cont">Contacto <span>· vacío = el del kit</span></label><input type="text" id="dz-f-cont" class="dz-in" data-f="contacto" value="${esc(sl.contacto ?? '')}" placeholder="${esc((E.raw.final || {}).contacto || '')}">` : '') + '</div>';
-    h += `<div class="dz-sec"><h4>Tamaño del texto</h4><div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output>${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div></div>`;
-    h += `<div class="dz-sec"><h4>Posición <span class="dz-dec" data-dec="lugar"></span></h4>${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
-      + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}</div>`;
-    h += `<div class="dz-sec"><h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
-      + Object.entries(E.raw.colores || {}).map(([k, c]) => `<button type="button" class="dz-sw${ov.color === k ? ' on' : ''}" data-dz="color" data-v="${esc(k)}" style="background:${esc(c)}" title="${esc(k.replace(/_/g, ' '))}" aria-label="${esc(k.replace(/_/g, ' '))}" aria-pressed="${ov.color === k}"></button>`).join('') + '</div></div>';
+  const hasCrop = src => !!(src && I().S.crops && I().S.crops[src]);
+  function panelSecs(s, sl) {
+    const d = s.design, i = E.sel, ov = sl.ov || {}, reel = isReelS(s), e = ov.escala || 1, va = ov.velo == null, last = E.last[i];
+    const sec = (k, h) => [k, `<div class="dz-sec" data-sec="${k}">${h}</div>`];
     const vv = va ? (last && last.decision ? +last.decision.velo || 0 : 0) : ov.velo;
-    h += `<div class="dz-sec"><h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="0.9" step="0.05" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div></div>`;
-    h += `<div class="dz-sec"><button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length ? '' : 'disabled'}>Restablecer ajustes</button></div>`;
-    const p = E.el.querySelector('.dz-panel'), top = p.scrollTop;
-    p.innerHTML = h; p.scrollTop = top;
+    return [
+      sec('diseno', `<h4>Diseño <span>· diapositiva ${pad2(i + 1)}</span></h4>` + (reel ? '<p class="dz-p">Portada de reel <span class="muted">· 9:16; en el perfil se ve el centro 3:4</span></p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva'))),
+      sec('foto', `<h4>Foto</h4>${fotoHTML(s, sl)}`),
+      sec('texto', `<h4>Texto</h4><label class="dz-l" for="dz-f-titulo">Título <span>· Intro = salto de línea</span></label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2"></textarea>`
+        + (sl.tipo === 'ficha' ? '<label class="dz-l" for="dz-f-texto">Texto</label><textarea id="dz-f-texto" class="dz-in" data-f="texto" rows="3"></textarea>' : '')
+        + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont">Contacto <span>· vacío = el del kit</span></label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" placeholder="${esc((E.raw.final || {}).contacto || '')}"></textarea>` : '')),
+      sec('tam', `<h4>Tamaño del texto</h4><div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output>${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
+      sec('pos', `<h4>Posición <span class="dz-dec" data-dec="lugar"></span></h4>${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
+        + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
+      sec('color', `<h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
+        + Object.entries(E.raw.colores || {}).map(([k, c]) => `<button type="button" class="dz-sw${ov.color === k ? ' on' : ''}" data-dz="color" data-v="${esc(k)}" style="background:${esc(c)}" title="${esc(k.replace(/_/g, ' '))}" aria-label="${esc(k.replace(/_/g, ' '))}" aria-pressed="${ov.color === k}"></button>`).join('') + '</div>'),
+      sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="0.9" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
+      sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`)
+    ];
+  }
+  function edPanel(force) {
+    const s = curSlot(), sl = s.design.slides[E.sel], p = E.el.querySelector('.dz-panel'), top = p.scrollTop;
+    const secs = panelSecs(s, sl), ae = document.activeElement, key = ae && p.contains(ae) ? focusKey(ae) : null;
+    const same = !force && E.pSlide === sl && E.pTipo === sl.tipo && E.pHtml && p.children.length === secs.length;
+    if (!same) {
+      p.innerHTML = secs.map(x => x[1]).join('');
+      p.querySelectorAll('[data-f]').forEach(t => { t.value = str(sl[t.dataset.f]); });   // by value: a leading line break survives
+    } else secs.forEach(([k, h], j) => {
+      if (k === 'texto' || E.pHtml[k] === h) return;
+      const tpl = document.createElement('div'); tpl.innerHTML = h; p.children[j].replaceWith(tpl.firstElementChild);
+    });
+    E.pSlide = sl; E.pTipo = sl.tipo; E.pHtml = Object.fromEntries(secs);
+    p.scrollTop = top;
+    if (key && !(ae && ae.isConnected)) refocus(p, key);
     edDecision();
   }
   // what «Auto» decided for the selected slide (after each render)
@@ -596,7 +741,7 @@
     set('velo', ov.velo == null && dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '');
     if (ov.velo == null && dec) { const rg = E.el.querySelector('.dz-velor'), o = E.el.querySelector('.dz-velov'); if (rg && document.activeElement !== rg) rg.value = +dec.velo || 0; if (o) o.textContent = Math.round((+dec.velo || 0) * 100) + ' %'; }
     const ul = E.el.querySelector('.dz-av'), src = effSrc(sl, E.fin);
-    const av = [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente.' : 'Falta la foto de esta diapositiva.'] : []), ...((r && r.avisos) || [])];
+    const av = [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente.' : 'Falta la foto de esta diapositiva.'] : []), ...(!str(sl.titulo).trim() ? ['Sin título.'] : []), ...((r && r.avisos) || [])];
     const html = av.map(a => `<li>${esc(a)}</li>`).join('');
     if (ul.innerHTML !== html) { ul.innerHTML = html; fitCanvas(); }
   }
@@ -607,7 +752,7 @@
     const n = D().slides.length;
     if (what === 'all') for (let i = 0; i < n; i++) E.need.add(i);
     else if (what === 'sel' || what == null) E.need.add(E.sel);
-    else [].concat(what).forEach(i => E.need.add(i));
+    else [].concat(what).forEach(i => { if (Number.isInteger(i) && i >= 0 && i < n) E.need.add(i); });
     if (!E.raf) E.raf = requestAnimationFrame(frame);
   }
   function dirtySrc(src) { const d = D(); d.slides.forEach((sl, i) => { if (effSrc(sl, E.fin) === src) E.need.add(i); }); if (!E.raf) E.raf = requestAnimationFrame(frame); }
@@ -617,8 +762,8 @@
     if (c) return c.bmp || (c.err ? false : null);
     const ent = {}, e0 = E; E.bm.set(src, ent);
     I().getBlob(src).then(b => createImageBitmap(b, { imageOrientation: 'from-image' }))
-      .then(b => { if (E !== e0 || E.bm.get(src) !== ent) { b.close(); return; } ent.bmp = b; dirtySrc(src); })
-      .catch(() => { ent.err = true; if (E === e0) dirtySrc(src); });
+      .then(b => { if (E !== e0 || E.bm.get(src) !== ent) { b.close(); return; } ent.bmp = b; if (curSlot()) dirtySrc(src); })
+      .catch(() => { ent.err = true; if (E === e0 && curSlot()) dirtySrc(src); });
     return null;
   }
   let PH = null;
@@ -638,9 +783,12 @@
     if (!capa) { capa = ENG().capaFoto(bmp, rect, W, H); E.capas.set(key, capa); while (E.capas.size > d.slides.length + 3) E.capas.delete(E.capas.keys().next().value); }
     else { E.capas.delete(key); E.capas.set(key, capa); }
     if (ctx.canvas.width !== W || ctx.canvas.height !== H) { ctx.canvas.width = W; ctx.canvas.height = H; }
-    const res = ENG().dibujar(ctx, E.kit, capa, slideFor(sl), { W, H, factor: E.sz.factor, pagina: pageOf(s, i), serie: str(d.serie) });
+    const opts = { W, H, factor: E.sz.factor, pagina: pageOf(s, i), serie: str(d.serie) };
+    let res = ENG().dibujar(ctx, E.kit, capa, slideFor(sl), opts);
+    const fit = !!(E.fit && E.fit.delete(sl));
+    if (keepInside(sl, res, fit)) { res = ENG().dibujar(ctx, E.kit, capa, slideFor(sl), opts); E.clamped = true; }   // e.g. after a format change
     E.last[i] = res;
-    AV[s.id + ':' + i] = { avisos: res.avisos || [], decision: res.decision };
+    AV[s.id + ':' + i] = { key: avKey(s, i, E.rawHash, E.sz, E.fin), avisos: res.avisos || [], decision: res.decision };
     return res;
   }
   function toThumb(i, from) { const sl = D().slides[i], c = thumbOf(sl), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(from, 0, 0, c.width, c.height); }
@@ -649,7 +797,7 @@
     E.raf = 0;
     if (!curSlot()) { cerrar(); return; }
     const n = D().slides.length;
-    for (const i of [...E.need]) if (i >= n) E.need.delete(i);
+    for (const i of [...E.need]) if (!(Number.isInteger(i) && i >= 0 && i < n)) E.need.delete(i);
     let more = false;
     try {
       if (E.need.has(E.sel) && drawSlide(E.sel, E.ctx)) { E.need.delete(E.sel); toThumb(E.sel, E.cv); edDecision(); }
@@ -658,6 +806,7 @@
         E.need.delete(j); toThumb(j, E.off); more = [...E.need].some(k => k !== E.sel); break;
       }
     } catch (e) { console.warn('diseño:', e); }
+    if (E.clamped) { E.clamped = false; touch(); }
     if (more && !E.raf) E.raf = requestAnimationFrame(frame);
   }
   function fitCanvas() {
@@ -676,7 +825,14 @@
     edHead();
     if (all) dirty('all');
   }
+  // a drag in progress ends where it is (Escape, ↑/↓, closing, leaving the page): what is seen is what is saved
+  function endDrag() {
+    if (!E || !E.drag) return;
+    E.drag = null; E.cv.style.cursor = '';
+    if (curSlot()) { touch(); edPanel(); }
+  }
   function select(i) {
+    if (E.drag) endDrag();
     const n = D().slides.length; i = Math.max(0, Math.min(n - 1, i));
     if (i === E.sel) return;
     E.sel = i; E.pickFinal = false;
@@ -702,9 +858,10 @@
     if (!back.length) return;
     const after = s.photos.slice();
     I().toast('La foto anterior vuelve a la bandeja.', { action: 'Deshacer', ms: 6000, onAction: () => {
-      if (curSlot() !== s || I().S !== S || sl.src !== f || !I().same(s.photos, after) || !back.every(x => S.tray.includes(x))) { I().toast('No se puede deshacer: el diseño ya ha cambiado.'); return; }
+      // only while nothing else changed: the slide is still there with that photo (an old «Deshacer» never loses a photo)
+      if (curSlot() !== s || I().S !== S || s.design !== d || !d.slides.includes(sl) || sl.src !== f || !I().same(s.photos, after) || !back.every(x => S.tray.includes(x))) { I().toast('No se puede deshacer: el diseño ha cambiado.'); return; }
       sl.src = old; S.tray = S.tray.filter(x => !back.includes(x)); if (fromTray && !S.tray.includes(f)) S.tray.unshift(f); s.photos = before;
-      I().renderTray(); touch();
+      rescue([f, old]); I().renderTray(); touch();
       if (!resizeIfNeeded()) { edPanel(); dirty([d.slides.indexOf(sl)]); }
     } });
   }
@@ -721,49 +878,59 @@
     const d = D(), j = i + dir; if (j < 0 || j >= d.slides.length) return;
     [d.slides[i], d.slides[j]] = [d.slides[j], d.slides[i]];
     if (E.sel === i) E.sel = j; else if (E.sel === j) E.sel = i;
-    touch(); if (!resizeIfNeeded()) { edList(); edPanel(); edHead(); dirty('all'); }
+    const btn = dir < 0 ? 'up' : 'down', canAgain = dir < 0 ? j > 0 : j < d.slides.length - 1;   // the focus follows the slide
+    touch(); if (!resizeIfNeeded()) { edList(`[data-dz="${canAgain ? btn : dir < 0 ? 'down' : 'up'}"][data-i="${j}"]`); edPanel(); edHead(); dirty('all'); }
   }
   function addSlide() {          // a new ficha after the selected slide (before it when it is the final)
-    const d = D(), k = d.slides[E.sel].tipo === 'final' ? E.sel : E.sel + 1;
+    const d = D(); if (d.slides.length >= MAX_SLIDES) { I().toast(MAX_MSG); return; }
+    const k = d.slides[E.sel].tipo === 'final' ? E.sel : E.sel + 1;
     d.slides.splice(k, 0, blankSlide('ficha', null));
     E.sel = k;
-    touch(); edList(); edPanel(); edHead(); dirty('all');
+    touch(); edList(d.slides.length >= MAX_SLIDES ? `.dz-it[data-i="${k}"]` : '[data-dz="add"]'); edPanel(); edHead(); dirty('all');
   }
   function delSlide(i) {
     const s = curSlot(), d = s.design; if (d.slides.length < 2) return;
-    const before = s.photos.slice(), [gone] = d.slides.splice(i, 1);
+    const prevSl = d.slides[i - 1] || null, nextSl = d.slides[i + 1] || null;
+    const before = s.photos.slice(), [gone] = d.slides.splice(i, 1), srcAt = gone.src;
     if (E.sel >= d.slides.length) E.sel = d.slides.length - 1; else if (E.sel > i) E.sel--;
-    const { back } = release(s, [gone.src]), after = s.photos.slice();
-    touch(); if (!resizeIfNeeded()) { edList(); edPanel(); edHead(); dirty('all'); }
+    const { back, gone: left } = release(s, [gone.src]), after = s.photos.slice(), m = d.slides.length;
+    touch(); if (!resizeIfNeeded()) { edList(m > 1 ? `[data-dz="del"][data-i="${Math.min(i, m - 1)}"]` : `.dz-it[data-i="0"]`); edPanel(); edHead(); dirty('all'); }
     const slotId = s.id, B = I().S;
     I().toast(`Diapositiva ${i + 1} quitada${back.length ? '; su foto vuelve a la bandeja' : ''}.`, { action: 'Deshacer', ms: 6000, onAction: () => {
-      const s2 = curSlot(); if (!s2 || s2.id !== slotId || I().S !== B || s2.design !== d) { I().toast('No se puede deshacer: el diseño ya ha cambiado.'); return; }
+      const s2 = curSlot();
+      if (!s2 || s2.id !== slotId || I().S !== B || s2.design !== d || d.slides.includes(gone) || gone.src !== srcAt || d.slides.length >= MAX_SLIDES) { I().toast('No se puede deshacer: el diseño ha cambiado.'); return; }
       if (back.length) { B.tray = B.tray.filter(x => !back.includes(x)); I().renderTray(); }
       if (I().same(s2.photos, after)) s2.photos = before;
-      d.slides.splice(Math.min(i, d.slides.length), 0, gone); E.sel = Math.min(i, d.slides.length - 1);
+      else left.forEach(f => { if (!s2.photos.includes(f)) s2.photos.splice(Math.min(Math.max(0, before.indexOf(f)), s2.photos.length), 0, f); });
+      const pi = prevSl ? d.slides.indexOf(prevSl) : -1, ni = nextSl ? d.slides.indexOf(nextSl) : -1;   // back between its neighbours
+      const k = pi >= 0 ? pi + 1 : ni >= 0 ? ni : Math.min(i, d.slides.length);
+      d.slides.splice(k, 0, gone); E.sel = k;
+      rescue([...back, srcAt]);
       touch(); if (!resizeIfNeeded()) { edList(); edPanel(); edHead(); dirty('all'); }
     } });
   }
 
+  function appliedMsg(r) {
+    const n = r.archivos.length, k = r.avisos.length;
+    return `Diseño aplicado: ${n === 1 ? 'la portada está' : `las ${n} imágenes están`} en la casilla.`
+      + (k ? ` ${k === 1 ? 'Un aviso' : `${k} avisos`}: «${r.avisos[0]}»${k > 1 ? ' (todos, en la publicación)' : ''}.` : '') + (r.notas ? ' ' + r.notas.join(' ') : '');
+  }
   async function edAplicar(btn) {
     if (!E || E.busy) return;
     const e0 = E;
+    if (E.drag) endDrag();
     E.busy = true; btn.disabled = true; btn.textContent = 'Aplicando…';
     if (E.saveT) { clearTimeout(E.saveT); E.saveT = 0; I().save(); }
     let r = null, err = null;
     try { r = await aplicar(E.slotId); } catch (e) { err = e; }
     btn.disabled = false; btn.textContent = 'Aplicar a la casilla';
-    if (E !== e0) return;
+    const msg = err ? (err instanceof DzError ? err.message : 'No se pudo aplicar el diseño: ' + String((err && err.message) || err)) : appliedMsg(r);
+    if (err && !(err instanceof DzError)) console.warn('diseño:', err);
+    if (E !== e0) { I().toast(msg, { ms: 9000 }); return; }   // closed meanwhile: aplicar() already refreshed the post view
     E.busy = false;
-    if (err) {
-      if (!(err instanceof DzError)) console.warn('diseño:', err);
-      I().toast(err instanceof DzError ? err.message : 'No se pudo aplicar el diseño: ' + String((err && err.message) || err));
-      if (err.slide != null && curSlot()) select(err.slide);
-      return;
-    }
-    const n = r.archivos.length, nc = r.avisos.filter(a => !/bandeja/.test(a)).length;
+    if (err) { I().toast(msg); if (err.slide != null && curSlot()) select(err.slide); return; }
     cerrar();
-    I().toast(`Diseño aplicado: ${n === 1 ? 'la portada está' : `las ${n} imágenes están`} en la casilla.` + (nc ? ' Revisa los avisos de contraste.' : ''));
+    I().toast(msg, { ms: r.avisos.length ? 9000 : 4200 });
   }
 
   function wireEditor(el) {
@@ -772,7 +939,8 @@
     el.addEventListener('click', e => {
       if (E && !curSlot()) { cerrar(); return; }
       const a = e.target.closest('[data-dz]'); if (!a || !E || a.disabled) return;
-      const act = a.dataset.dz, d = D(), i = E.sel, sl = d.slides[i];
+      if (E.drag) endDrag();
+      const act = a.dataset.dz, s = curSlot(), d = s.design, i = E.sel, sl = d.slides[i];
       sl.ov = sl.ov || {};
       if (act === 'cerrar') cerrar();
       else if (act === 'aplicar') edAplicar(a);
@@ -780,7 +948,9 @@
       else if (act === 'up' || act === 'down') moveSlide(+a.dataset.i, act === 'up' ? -1 : 1);
       else if (act === 'del') delSlide(+a.dataset.i);
       else if (act === 'add') addSlide();
-      else if (act === 'fmt') { if (d.fmt !== a.dataset.v && FMTS[a.dataset.v]) { d.fmt = a.dataset.v; touch(); E.sz = sizeOf(E.kit, d, E.fin); edAll(); } }
+      else if (act === 'fmt') {
+        if (d.fmt !== a.dataset.v && FMTS[a.dataset.v]) { scaleOffsets(d, d.fmt, a.dataset.v); E.fit = new Set(d.slides.filter(x => x.ov && (x.ov.dx || x.ov.dy))); d.fmt = a.dataset.v; syncFmt(s); touch(); E.sz = sizeOf(E.kit, d, E.fin); edAll(); }
+      }
       else if (act === 'tipo') {
         const v = a.dataset.v; if (v === sl.tipo) return;
         sl.tipo = v;
@@ -804,14 +974,18 @@
       }
       else if (act === 'color') { if (a.dataset.v) sl.ov.color = a.dataset.v; else delete sl.ov.color; touch(); edPanel(); dirty('sel'); }
       else if (act === 'veloauto') { if (sl.ov.velo != null) { delete sl.ov.velo; touch(); edPanel(); dirty('sel'); } }
-      else if (act === 'reset') { sl.ov = {}; touch(); edPanel(); dirty('sel'); }
+      else if (act === 'reset') {                            // everything back to automatic, the photo's reframe included
+        sl.ov = {};
+        const src = effSrc(sl, E.fin); if (hasCrop(src)) { delete I().S.crops[src]; dirtySrc(src); }
+        touch(); edPanel(); dirty('sel');
+      }
     });
     el.addEventListener('input', e => {
       if (!E || !curSlot()) return;
       const t = e.target, d = D(), sl = d.slides[E.sel];
       if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; touch(); dirty('sel'); }
       else if (t.matches('.dz-serin')) { d.serie = t.value; touch(true); }
-      else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { setCropFor(src, { z: +t.value }); touch(); } }
+      else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { setCropFor(src, { z: +t.value }); touch(); const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false; } }
       else if (t.matches('.dz-velor')) {
         sl.ov = sl.ov || {}; sl.ov.velo = Math.round(+t.value * 100) / 100;
         const o = el.querySelector('.dz-velov'); if (o) o.textContent = Math.round(sl.ov.velo * 100) + ' %';
@@ -855,8 +1029,8 @@
       if (!curSlot()) { cerrar(); return; }
       const p0 = at(e), sl = D().slides[E.sel], src = effSrc(sl, E.fin);
       let g;
-      if (inBlock(p0)) { sl.ov = sl.ov || {}; const b = E.last[E.sel].bloque, dx = sl.ov.dx || 0, dy = sl.ov.dy || 0; g = { mode: 'text', dx, dy, bx: b.x - dx, by: b.y - dy, bw: b.w, bh: b.h }; }
-      else if (src && M.files[src]) { const f = M.files[src], r0 = rectOf(src, E.sz.W, E.sz.H); g = { mode: 'pan', src, cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h }; }
+      if (inBlock(p0)) { sl.ov = sl.ov || {}; const b = E.last[E.sel].bloque, dx = sl.ov.dx || 0, dy = sl.ov.dy || 0; g = { mode: 'text', sl, dx, dy, bx: b.x - dx, by: b.y - dy, bw: b.w, bh: b.h }; }
+      else if (src && M.files[src]) { const f = M.files[src], r0 = rectOf(src, E.sz.W, E.sz.H); g = { mode: 'pan', sl, src, cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h }; }
       else return;
       e.preventDefault();
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* */ }
@@ -864,8 +1038,7 @@
       const mv = ev => {
         if (!E || E.drag !== g) return;
         const p = at(ev);
-        if (g.mode === 'text') {             // at least 25 % of the block (and 80 px each way) stays on the canvas
-          const lim = (v, pos, size, max) => { const keep = Math.min(size, Math.max(size * 0.25, 80)); return Math.max(keep - size - pos, Math.min(max - keep - pos, v)); };
+        if (g.mode === 'text') {
           const v = sl.ov; v.dx = Math.round(lim(g.dx + p.x - p0.x, g.bx, g.bw, E.sz.W)); v.dy = Math.round(lim(g.dy + p.y - p0.y, g.by, g.bh, E.sz.H));
           if (!v.dx) delete v.dx; if (!v.dy) delete v.dy; dirty('sel');
         }
@@ -873,9 +1046,7 @@
       };
       const up = () => {
         cv.removeEventListener('pointermove', mv); cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up);
-        if (!E || E.drag !== g) return;
-        E.drag = null; cv.style.cursor = '';
-        touch(); edPanel();
+        if (E && E.drag === g) endDrag();
       };
       cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     });
@@ -894,11 +1065,12 @@
     if (e.key === 'Escape') { e.preventDefault(); cerrar(); return; }
     const t = e.target, typing = t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button'));
     if (!typing && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !(t && t.closest && t.closest('.seg'))) { e.preventDefault(); select(E.sel + (e.key === 'ArrowUp' ? -1 : 1)); }
-    else if (!typing && t && t.closest && t.closest('.dz-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(+t.closest('.dz-it').dataset.i); }
+    else if (!typing && t && t.classList && t.classList.contains('dz-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(+t.dataset.i); }   // ▲ ▼ × inside work as buttons
   }
 
   function cerrar() {
     if (!E) return { ok: true };
+    if (E.drag && curSlot()) endDrag();
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true);
     if (e.raf) cancelAnimationFrame(e.raf);
@@ -910,8 +1082,17 @@
     e.off.width = e.off.height = 0;
     if (e.el) e.el.remove();
     (e.inert || []).forEach(c => c.removeAttribute('inert'));
-    if (I() && S === e.board) { I().refreshDetail(); I().renderFeed(); }
+    if (I() && S === e.board) {
+      I().refreshDetail(); I().renderFeed();
+      const b = I().root() && I().root().querySelector('.detail [data-act="disenar"]'); if (b) b.focus({ preventScroll: true });   // back where the editor was opened
+    }
     return { ok: true };
+  }
+  // the page is being hidden or left: the edit in flight is saved now (the mesa then writes it synchronously)
+  function volcar() {
+    if (!E) return;
+    if (E.drag && curSlot()) endDrag();
+    if (E.saveT) { clearTimeout(E.saveT); E.saveT = 0; if (I().S === E.board) I().save(); }
   }
 
   // called by the mesa on every render: an editor whose board or post is gone closes; the kits of the board's designs
@@ -921,7 +1102,7 @@
     const S = I() && I().S; if (!S) return;
     for (const s of S.slots) {
       const cid = s.design && s.design.kit;
-      if (cid && BASEV[cid] === undefined && !BASE[cid]) baseKit(cid).then(k => { if (k && I()) I().refreshDetail(); });
+      if (cid && BASEV[cid] === undefined && !BASE[cid]) baseKit(cid).then(k => { if (k && I()) I().refreshDetail(); }).catch(() => {});
     }
   }
 
@@ -929,7 +1110,7 @@
     version: VERSION,
     cargar: api(cargar), estado: api(estado), aplicar: api(aplicar), ver: api(ver),
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
-    abrir, cerrar, estadoDe, sync,
+    abrir, cerrar, estadoDe, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
 })();

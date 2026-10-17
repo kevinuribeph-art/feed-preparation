@@ -1,0 +1,78 @@
+{
+  "cliente": "Kamaya Travel",
+  "version": "1.1",
+  "marca": "Kamaya Travel",
+  "fuentes": {
+    "serif": { "familia": "Kamaya Serif", "archivo": "fonts/Newsreader-Display-Light.ttf", "peso": 300 },
+    "sans": { "familia": "Kamaya Sans", "archivo": "fonts/LibreFranklin-Light.ttf", "peso": 300 },
+    "etiqueta": { "familia": "Kamaya Sans Etiqueta", "archivo": "fonts/LibreFranklin-Regular.ttf", "peso": 400 }
+  },
+  "escala": {
+    "portada":    { "fuente": "serif",    "px": 120, "interlineado": 1.0,  "espaciado": -0.01 },
+    "titular":    { "fuente": "serif",    "px": 84,  "interlineado": 1.05, "espaciado": -0.01 },
+    "entradilla": { "fuente": "serif",    "px": 54,  "interlineado": 1.15, "espaciado": 0 },
+    "texto":      { "fuente": "sans",     "px": 38,  "interlineado": 1.2,  "espaciado": 0 },
+    "etiqueta":   { "fuente": "etiqueta", "px": 26,  "interlineado": 1.0,  "espaciado": 0.06, "mayusculas": true }
+  },
+  "colores": {
+    "crema": "#F9F8F3",
+    "carbon": "#393732",
+    "gris": "#736C5F",
+    "arena": "#C1AA7F",
+    "arena_clara": "#E0D4BF",
+    "turquesa": "#007E8C",
+    "verde": "#00804A",
+    "blanco": "#FFFFFF"
+  },
+  "lienzo": {
+    "ancho": 1080,
+    "margen": 72,
+    "barra_top": 64,
+    "bloque_inferior": 150,
+    "bloque_superior": 180,
+    "pie": 64,
+    "ancho_max_titulo": 860,
+    "ancho_max_texto": 800,
+    "separacion": 28,
+    "separacion_final": 36
+  },
+  "formatos": {
+    "v45": { "ancho": 1080, "alto": 1350 },
+    "v34": { "ancho": 1080, "alto": 1440 },
+    "h":   { "ancho": 1080, "ratio_max": 1.91, "ratio_vertical": 1.7778, "factor_tipografia": 0.72 },
+    "r916": { "ancho": 1080, "alto": 1920, "zona_segura": [240, 1680] }
+  },
+  "velo": { "color": "#393732", "minimo": 0.2, "maximo": 0.85, "contraste_objetivo": 4.5 },
+  "variacion": {
+    "alineacion_auto": true,
+    "lugar_auto": true,
+    "texto_oscuro_en_foto_clara": true,
+    "margen_lado_limpio": 0.15,
+    "lugar_preferido": "abajo",
+    "cambiar_lugar_si": { "ratio_bordes": 0.65, "dif_velo": 0.1 }
+  },
+  "piezas": {
+    "portada": {
+      "nota": "Primera diapositiva del carrusel: solo la marca arriba a la izquierda y el título abajo a la izquierda. Sin velo, sin página, sin pie.",
+      "lugar": "abajo", "alinear": "izquierda", "nivel": "portada", "velo": 0, "contraste_min": 3.0,
+      "marca": true, "pagina": false, "pie": false
+    },
+    "ficha": {
+      "nota": "Interiores: marca arriba a la izquierda, número de página arriba a la derecha (solo «03»), nombre del carrusel abajo al centro. Titular + texto colocados según la foto.",
+      "lugar": "auto", "alinear": "auto", "nivel": "titular",
+      "marca": true, "pagina": true, "pie": true
+    },
+    "final": {
+      "nota": "Última diapositiva: siempre la foto fija del cliente; titular + entradilla + contacto en etiqueta, arriba a la izquierda.",
+      "lugar": "arriba", "alinear": "izquierda", "nivel": "titular", "color": "crema",
+      "marca": true, "pagina": true, "pie": true
+    },
+    "reel": {
+      "nota": "Portada de reel 9:16: solo el título, centrado en la zona segura del grid, con capa carbón radial suave. Nada más.",
+      "lugar": "centro", "alinear": "centro", "nivel": "portada",
+      "capa": { "velo_min": 0.25, "velo_max": 0.6, "contraste": 4.5, "elipse": [90, 30], "alto_zona": 380 },
+      "marca": false, "pagina": false, "pie": false
+    }
+  },
+  "final": { "foto": null, "contacto": "Escríbenos por DM · kamayatravel.com" }
+}

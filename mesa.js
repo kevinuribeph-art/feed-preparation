@@ -1,13 +1,15 @@
-// Mesa de feed — Uribe Visuals · v3.4
+// Mesa de feed — Uribe Visuals · v3.18
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
 // Runs in the Claude desktop app's built-in browser on a host page without a restrictive CSP; designed to be
 // hosted as a static page later (GitHub Pages): it builds its own UI and keeps everything in IndexedDB.
+// v3.18: carousel / reel-cover designer (diseno.js + kits/motor.js) — a slot's design (s.design) keeps its source
+// photos and its rendered outputs (files flagged design:true, uploaded exactly as rendered); bridge for it in M._in.
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.17';
+  M.version = '3.18';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -103,7 +105,14 @@
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
-  const refsOf = b => new Set([...(b.tray || []), ...(b.slots || []).flatMap(s => s.photos || []), ...(b.prev || []).filter(p => p.own).flatMap(p => p.photos || [])]);
+  // a slot's design (diseno.js) holds its source photos (slides[].src) and its rendered outputs (out): both are in use
+  const dSrc = s => s && s.design ? (s.design.slides || []).map(x => x && x.src).filter(Boolean) : [];
+  const dOut = s => s && s.design ? (s.design.out || []).filter(Boolean) : [];
+  const slotRefs = s => [...(s.photos || []), ...dSrc(s), ...dOut(s)];
+  const refsOf = b => new Set([...(b.tray || []), ...(b.slots || []).flatMap(slotRefs), ...(b.prev || []).filter(p => p.own).flatMap(p => p.photos || [])]);
+  const kitRef = c => { const f = c && c.kit && c.kit.final && c.kit.final.foto; return typeof f === 'string' && f.startsWith('kit-') ? f : null; };   // a client's fixed final photo (file id)
+  const dName = (s, fid) => isReel(s.type) ? `${s.name} portada.jpg` : `${s.name} ${String(s.photos.indexOf(fid) + 1).padStart(2, '0')}.jpg`;   // a design image goes up named after its post as it is now
+  const dState = s => s && s.design && M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) : null;   // 'ok' (applied, up to date) | 'chg' | null
   const slot = id => S && (S.slots.find(s => s.id === id) || (S.prev || []).find(p => p.id === id));
   const prevItem = id => S && (S.prev || []).find(p => p.id === id);
   const isPrev = s => !!(s && S && S.prev && S.prev.includes(s));
@@ -369,16 +378,16 @@
   // publication, so its photos (with their crops), contexto (note), nota (memo), format, upload record, date and name are shared. Each slot
   // keeps a revision (s.at, ms): a save writes the changed ones through to every other board that has them, and
   // opening a board takes the newest copy of each of its slots.
-  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName'];
+  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'design'];
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
-  const slotSig = (s, B) => JSON.stringify([SYNC.map(k => s[k] ?? null), (s.photos || []).map(f => (B.crops || {})[f] || null)]);
+  const slotSig = (s, B) => JSON.stringify([SYNC.map(k => s[k] ?? null), [...(s.photos || []), ...dSrc(s)].map(f => (B.crops || {})[f] || null)]);
   function copyShared(to, toB, from, fromB) {
     for (const k of SYNC) { if (from[k] === undefined) delete to[k]; else to[k] = JSON.parse(JSON.stringify(from[k])); }
     if (from.at) to.at = from.at; else delete to.at;
     toB.crops = toB.crops || {};
-    for (const f of to.photos || []) { const c = fromB.crops && fromB.crops[f]; if (c) toB.crops[f] = { ...c }; else delete toB.crops[f]; }
+    for (const f of [...(to.photos || []), ...dSrc(to)]) { const c = fromB.crops && fromB.crops[f]; if (c) toB.crops[f] = { ...c }; else delete toB.crops[f]; }
   }
   // init: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from
   async function importShared(cfgSlots, old, key) {
@@ -399,7 +408,7 @@
       if (!from) continue;
       const o = { ...(own || {}), id };
       copyShared(o, old, best, from);
-      for (const f of (own && own.photos) || []) if (!(o.photos || []).includes(f) && !refs.has(f)) old.tray.push(f);   // never lose a photo
+      for (const f of own ? [...(own.photos || []), ...dSrc(own)] : []) if (!slotRefs(o).includes(f) && !dOut(own).includes(f) && !refs.has(f)) old.tray.push(f);   // never lose a photo (a design's outputs are not photos)
       if (own) old.slots[old.slots.indexOf(own)] = o; else old.slots.push(o);
     }
   }
@@ -426,7 +435,7 @@
         let hit = false;
         for (const id of by[k]) {
           const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue;
-          const had = (o.photos || []).filter(f => !s.photos.includes(f));
+          const had = [...(o.photos || []), ...dSrc(o)].filter(f => !slotRefs(s).includes(f) && !dOut(o).includes(f));
           copyShared(o, ob, s, B); ob.tray = (ob.tray || []).filter(f => !s.photos.includes(f)); hit = true;
           const refs = refsOf(ob), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));   // never orphan a photo (one this board still holds stays only here)
           if (lost.length) ob.tray.unshift(...lost);
@@ -499,7 +508,7 @@
     for (const id of ids) {
       if (M.files[id]) continue;
       const rec = await idbGet('files', id);
-      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; if (rec.reduced) M.files[id].reduced = true; M.thumbBlobs[id] = rec.thumb; }
+      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; if (rec.reduced) M.files[id].reduced = true; if (rec.design) M.files[id].design = true; M.thumbBlobs[id] = rec.thumb; }
       else missing.push(id);
     }
     return missing;
@@ -580,7 +589,7 @@
     takeFromTray(fileId);
     if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }
     else if (s.type === 'Foto') { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // added after the others: the first stays the cover
-    else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId)); s.photos = [fileId]; }
+    else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId && !dOut(s).includes(x))); s.photos = [fileId]; }
     if (!silent) changed();
   }
   function fixSingle(s) {
@@ -592,6 +601,9 @@
   function swap(a, b) {
     if (a === b) return;
     const A = slot(a), B = slot(b); if (!A || !B) return;
+    const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
+    if ((A.design || B.design) && kind(A) !== kind(B)) { toast('Una publicación diseñada solo se intercambia con otra del mismo tipo (carrusel con carrusel, reel con reel).'); return; }
+    if (A.design || B.design) { const t = A.design; if (B.design) A.design = B.design; else delete A.design; if (t) B.design = t; else delete B.design; }   // a design goes with its photos
     [A.photos, B.photos] = [B.photos, A.photos];
     if (isCarousel(A.type) && isCarousel(B.type)) [A.fmt, B.fmt] = [B.fmt, A.fmt];
     else { delete A.fmt; delete B.fmt; }
@@ -606,12 +618,13 @@
     const before = { photos: s.photos.slice(), fmt: s.fmt }, B = S;
     if (back.includes(sel)) sel = null;
     s.photos = s.photos.filter(x => !back.includes(x));
-    S.tray.unshift(...back);
+    const tb = back.filter(f => !dOut(s).includes(f));          // a design's rendered images stay with it, not in the tray
+    S.tray.unshift(...tb);
     changed();
     const after = s.photos.slice();
-    if (undoable) toast(back.length > 1 ? `${back.length} fotos vuelven a la bandeja.` : 'La foto vuelve a la bandeja.', { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
-      if (S !== B || !slot(slotId) || !same(s.photos, after) || !back.every(id => S.tray.includes(id))) { toast('No se puede deshacer: la casilla ya ha cambiado.'); return; }
-      S.tray = S.tray.filter(id => !back.includes(id));
+    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : 'Imágenes del diseño quitadas de la casilla: siguen en «Diseñar».', { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
+      if (S !== B || !slot(slotId) || !same(s.photos, after) || !tb.every(id => S.tray.includes(id))) { toast('No se puede deshacer: la casilla ya ha cambiado.'); return; }
+      S.tray = S.tray.filter(id => !tb.includes(id));
       S.slots.forEach(o => { if (o !== s) o.photos = o.photos.filter(id => !before.photos.includes(id)); });
       s.photos = before.photos.slice(); if (before.fmt) s.fmt = before.fmt;
       changed();
@@ -673,7 +686,7 @@
     ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
     const old = s.photos[0], rest = s.photos.slice(1).filter(x => !ids.includes(x));
     s.photos = [ids[0], ...rest, ...ids.slice(1)];
-    if (old && !ids.includes(old)) S.tray.unshift(old);
+    if (old && !ids.includes(old) && !dOut(s).includes(old)) S.tray.unshift(old);
     changed();
   }
   function moveMemo(fromId, toId) {
@@ -704,6 +717,7 @@
     } });
   }
   async function deleteIfUnused(fileId) {
+    if (String(fileId).startsWith('kit-')) return;                 // a client's fixed design photo (diseno.js) stays
     if (S && refsOf(S).has(fileId)) return;
     if (histRefs().has(fileId)) { delList(l => l.includes(fileId) ? l : [...l, fileId]); return; }   // ⌘Z can still bring it back
     const boards = await idbAll('boards');
@@ -768,6 +782,7 @@
       if (o.memo) s.memo = o.memo; else delete s.memo;
       if (o.fmt) s.fmt = o.fmt; else delete s.fmt;
     });
+    pairDesigns();
     (S.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
       p.own = o.own; p.photos = o.photos.filter(has); p.alt = o.alt; p.hidden = o.hidden;
@@ -795,6 +810,16 @@
     refreshDetail();
   }
   const undo = () => histStep(true), redo = () => histStep(false);
+  // designs aren't in the history: one whose photos (sources or rendered images) went back to another slot follows them
+  function pairDesigns() {
+    const own = (x, f) => !!(x && x.design && f) && (dOut(x).includes(f) || dSrc(x).includes(f));
+    const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
+    for (const a of S.slots) {
+      const f = a.photos[0]; if (!f || own(a, f)) continue;
+      const b = S.slots.find(x => x !== a && own(x, f) && !own(x, x.photos[0]) && kind(x) === kind(a));
+      if (b) { const t = a.design; if (b.design) a.design = b.design; else delete a.design; if (t) b.design = t; else delete b.design; }
+    }
+  }
   // a photo removed from the mesa is deleted only when no step of the history can bring it back (list kept across reloads)
   function delList(fn) { let l = []; try { l = JSON.parse(lsGet('mesa-del') || '[]'); } catch (e) { /* */ } if (!fn) return l; l = fn(l); lsSet('mesa-del', JSON.stringify(l)); return l; }
   async function delSweep() {
@@ -1151,7 +1176,8 @@
 #mesa .appbar .xfer{align-self:center}
 #mesa .xsum{list-style:none;margin:0 0 10px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
 #mesa .xsum li{padding:6px 0;border-top:1px solid var(--line2);line-height:1.5}#mesa .xsum li span{color:var(--mute)}
-#mesa .card>p.xwhat{color:var(--ink);font-size:13px}`;
+#mesa .card>p.xwhat{color:var(--ink);font-size:13px}
+#mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px}`;
 
   function buildShell() {
     document.title = 'Mesa de feed';
@@ -1172,6 +1198,7 @@
   let pendingRender = false;
   function render() {
     if (!shellReady()) return;
+    if (M.diseno && M.diseno.sync) M.diseno.sync();       // the designer closes itself when its board or post is gone
     if (drag) { pendingRender = true; return; }
     pendingRender = false;
     renderTabs(); renderBar(); renderMain();
@@ -1380,27 +1407,32 @@
     cur = { slot: id, idx };
     const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
     const fid = s.photos[idx];
+    const fd = !!(n && (M.files[fid] || {}).design);   // a designed image: uploaded as rendered, reframed only from «Diseñar»
     let left;
     if (!n) left = '<div class="pempty">Sin foto todavía.<br>Arrastra aquí fotos desde tu ordenador o suelta una de la bandeja sobre la casilla.</div>';
     else {
       const c = cropOf(fid, s);
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
+      const tools = fd ? `<span class="muted">${car || reel ? 'Reencuadra las fotos originales desde «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
+        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>›</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc((M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
-        + (car && n > 1 ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
-        + `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button></div>`;
+        + (car && n > 1 && !fd ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
+        + (fd && (car || reel) ? `<span class="muted">${car ? 'Para cambiar diapositivas, usa «Diseñar»' : 'Para cambiar la portada, usa «Diseñar»'}</span>` : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
-        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
+        <div class="ptools">${tools}</div>
         ${strip}${acts}`;
     }
     const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
+    const dst = car || reel ? dState(s) : null;
+    const dz = car || reel ? `<div class="pdz"><button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}</div>` : '';
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
-        <div class="pright"><label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
+        <div class="pright">${dz}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
           <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
@@ -1905,7 +1937,7 @@
     root.addEventListener('pointerdown', e => {
       const st = e.target.closest && e.target.closest('.detail .stage');
       if (!st || e.target.closest('.nav') || e.button !== 0) return;
-      const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
+      const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f || f.design) return;
       e.preventDefault();
       touchPrev(s);
       try { st.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
@@ -1977,6 +2009,7 @@
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
+    else if (act === 'disenar') { if (M.diseno && M.diseno.abrir) M.diseno.abrir(a.dataset.slot); else toast('El diseñador no está cargado: recarga la página.'); }
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
     else if (act === 'addmode') doAddMode(a.dataset.m);
     else if (act === 'tvnav') trayNav(+a.dataset.d);
@@ -2081,7 +2114,7 @@
   // shorter range whose dropped months have photos, notes or uploads -> error message (null = fine)
   function dropCheck(old, slots, month, span, cd) {      // cd: the cycle day being loaded (posts are grouped by it)
     const os = old.slots || [], om = old.month || month, ospan = old.span || 1, range = monthsOf(month, span);
-    const mo = s => cycleOf(s.notionDate ?? s.date, cd), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded;
+    const mo = s => cycleOf(s.notionDate ?? s.date, cd), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded || s.design;
     const ml = ms => ms.map(m => cdOf(cd) === 1 ? MONTHS[+m.slice(5) - 1] : rangeLabel(m, 1, true, cd)).join(', ').replace(/, ([^,]*)$/, ' y $1');
     const u = cdOf(cd) === 1 ? ['meses', 'el mes entero'] : ['ciclos', 'el ciclo entero'];
     if (old.key && os.length && cdOf(old.cycleDay) !== cdOf(cd)) {      // re-cut with another cycle day
@@ -2146,7 +2179,7 @@
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
     const base = Object.fromEntries((old.slots || []).map(s => [s.id, slotSig(s, old)]));   // shared state before init
     const orphans = [];
-    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...(s.photos || []));
+    for (const s of old.slots || []) if (!cfg.slots.some(x => x.id === s.id)) orphans.push(...[...(s.photos || []), ...dSrc(s)].filter(f => !dOut(s).includes(f)));
     const pm = prevMonth(month);
     const pastIn = cfg.past.length ? cfg.past : (old.past || []);
     // Dates and names: cfg carries Notion's values (notionDate/notionName); a change made here stays pending until
@@ -2157,6 +2190,7 @@
       const r = { id: n.id, name: n.name, type: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
       if (o.fmt) r.fmt = o.fmt;
       if (o.memo) r.memo = o.memo;
+      if (o.design) r.design = o.design;
       if (!o.id) return r;
       const od = o.notionDate === undefined ? o.date : o.notionDate, on = o.notionName === undefined ? o.name : o.notionName;
       let w = false;
@@ -2284,10 +2318,15 @@
       slotId: s.id, name: s.name, type: s.type, date: s.date, dateChanged: dateChg(s),
       status: st === null ? 'nueva' : st === 'ok' ? 'ya subida' : 'cambiada',
       emptied: !pub.length && !!s.uploaded,
-      files: pub.map(id => { const r = postRect(id, s); return { fileId: id, name: (M.files[id] || {}).name, mb: +(((M.files[id] || {}).size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 3:4' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h), ...((M.files[id] || {}).reduced ? { reducida: true } : {}) }; }),
+      files: pub.map(id => {
+        const f = M.files[id] || {};
+        if (f.design) return { fileId: id, name: dName(s, id), mb: +((f.size || 0) / 1048576).toFixed(1), formato: `diseño ${f.w}x${f.h}`, recorte: f.w + 'x' + f.h };   // uploaded as rendered
+        const r = postRect(id, s); return { fileId: id, name: f.name, mb: +((f.size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 3:4' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h), ...(f.reduced ? { reducida: true } : {}) };
+      }),
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
-      uploaded: s.uploaded || null
+      uploaded: s.uploaded || null,
+      ...(s.design && dState(s) !== 'ok' ? { 'diseño': 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently
     };
   }) : [];
 
@@ -2307,10 +2346,10 @@
         M.uploads[fid] = { state: 'error', err: 'la foto no está en ninguna casilla de la mesa abierta' };
         continue;
       }
-      const rect = it.crop !== false ? postRect(fid, s, B) : null;
+      const rect = it.crop !== false && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
       const sig = s ? fileSig(fid, s, B) : null;
       M.uploads[fid] = { state: 'pending', slotId: s ? s.id : null, sig };
-      jobs.push({ fid, url: it.url, auth: it.auth, rect, sig, gen, slotId: s ? s.id : null });
+      jobs.push({ fid, url: it.url, auth: it.auth, rect, sig, gen, slotId: s ? s.id : null, name: s && s.photos.includes(fid) && (M.files[fid] || {}).design ? dName(s, fid) : null });
     }
     if (jobs.length) {
       UP.total += jobs.length; busyUpload();
@@ -2353,7 +2392,7 @@
     let res;
     try {
       let blob = await getBlob(j.fid);
-      let name = (M.files[j.fid] || {}).name || 'foto.jpg';
+      let name = j.name || (M.files[j.fid] || {}).name || 'foto.jpg';
       let reencoded = false, cropped = null;
       if (j.rect) { const cb = await cropBlob(blob, j.fid, j.rect); if (!cb.original) { blob = cb.blob; cropped = cb.w + 'x' + cb.h; name = name.replace(/\.[^.]+$/, '') + '.jpg'; } }
       else if (blob.size > MAX_UPLOAD) { blob = await reencode(blob); reencoded = true; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
@@ -2532,7 +2571,8 @@
   // Importing merges: a board is added if missing and replaced only by a newer copy (savedAt); clients and photos are
   // only added (a full-resolution photo is never replaced by its 1080 copy). Format:
   // {format:'mesa-feed', v:1, app, exportedAt, clients:[…], boards:[…], files:{id:{name,type,w,h,size,lastModified,
-  //  reduced,data:<base64>, thumb?:<base64>}}, past:{notionId:{w,h,thumb:<base64>}}} — no thumb: the photo (1080) is its own.
+  //  reduced,design?,data:<base64>, thumb?:<base64>}}, past:{notionId:{w,h,thumb:<base64>}}} — no thumb: the photo (1080) is its own.
+  // A client's design-kit override (kit, kitAt) travels with it: the newer one wins, with its fixed final photo.
   const XF_SHORT = 1080;
   let xferRun = null, xferAsk = null;
   const nOf = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -2581,7 +2621,7 @@
       await addQ; await flushPending();
       const clients = (await idbAll('clients')) || [];
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
-      const ids = [...new Set(boards.flatMap(b => [...refsOf(b)]))];
+      const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...clients.map(kitRef).filter(Boolean)])];
       const parts = ['{"format":"mesa-feed","v":1,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
         + ',"clients":' + JSON.stringify(clients) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
@@ -2592,6 +2632,7 @@
         try {
           const p = await xferPhoto(rec);
           const meta = { name: p.name, type: p.type, w: p.w, h: p.h, size: p.blob.size, lastModified: rec.lastModified || 0, reduced: p.reduced };
+          if (rec.design) meta.design = true;
           const th = !p.reduced && rec.thumb ? ',"thumb":"' + await b64of(rec.thumb) + '"' : '';
           parts.push(new Blob([sep + JSON.stringify(id) + ':' + JSON.stringify(meta).slice(0, -1) + ',"data":"', await b64of(p.blob), '"' + th + '}']));
           sep = ','; photos++;
@@ -2641,6 +2682,8 @@
     const local = ((await idbAll('boards')) || []).map(b => newest(b.key, b)), byKey = Object.fromEntries(local.map(b => [b.key, b]));
     const clients = (await idbAll('clients')) || [], cids = new Set(clients.map(c => c.id)), keys = await allKeys('files');
     const P = { clients, add: [], upd: [], newer: [], same: [], newClients: [], files: new Set(keys.filter(k => !k.startsWith('past:'))), past: new Set(keys.filter(k => k.startsWith('past:')).map(k => k.slice(5))) };
+    P.kitUpd = d.clients.filter(c => c.kit && cids.has(c.id) && String(c.kitAt || '') > String((clients.find(x => x.id === c.id) || {}).kitAt || ''));   // newer design-kit override of a client that is here
+    P.kitFiles = P.kitUpd.map(kitRef).filter(id => id && d.files[id]);   // its final photo replaces the one here (same id)
     for (const b of d.boards) {
       const o = byKey[b.key];
       if (!o) P.add.push(b);
@@ -2651,18 +2694,19 @@
     P.put = [...P.add, ...P.upd];
     const pk = new Set(P.put.map(b => b.key));
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
+    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); });
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length;
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length;
     return P;
   }
   function xferWhat(P) {
     const u = P.upd.length, k = P.newer.length, s = P.same.length;
     return [P.add.length && nOf(P.add.length, 'mes nuevo', 'meses nuevos'), u && `${u} se actualiza${u === 1 ? '' : 'n'}`,
       k && `${k} ya estaba${k === 1 ? '' : 'n'} más reciente${k === 1 ? '' : 's'} aquí`, s && `${s} igual${s === 1 ? '' : 'es'}`,
-      P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos')].filter(Boolean).join(', ')
+      P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos'), P.kitUpd && P.kitUpd.length && nOf(P.kitUpd.length, 'kit de diseño actualizado', 'kits de diseño actualizados')].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
   function xferSummaryHTML(d, P) {
@@ -2724,7 +2768,7 @@
       await addQ; await flushPending();
       let P = await xferPlan(d);
       // photos and thumbnails decoded before anything is written: a damaged file changes nothing
-      const got = {}, gotPast = {}, need = Object.keys(d.files).filter(id => !P.files.has(id));
+      const got = {}, gotPast = {}, need = Object.keys(d.files).filter(id => !P.files.has(id) || P.kitFiles.includes(id));
       let i = 0;
       for (const id of need) {
         setBusy('imp', `Preparando ${++i}/${need.length} fotos…`);
@@ -2735,6 +2779,7 @@
           const thumb = f.thumb ? blobOf(f.thumb, 'image/jpeg') : f.reduced ? blob : (await makeThumb(blob)).thumb;
           got[id] = { name: String(f.name || 'foto.jpg'), size: blob.size, type, w: +f.w > 0 ? +f.w : bw, h: +f.h > 0 ? +f.h : bh, lastModified: +f.lastModified || 0, blob, thumb };
           if (f.reduced) got[id].reduced = true;
+          if (f.design) got[id].design = true;
         } catch (e) { return fail(`El archivo está dañado: no se puede leer la foto «${String((f && f.name) || id)}». No se ha importado nada.`); }
       }
       for (const pid of P.newPast) { const p = d.past[pid]; try { gotPast[pid] = { thumb: blobOf(p.thumb, 'image/jpeg'), w: +p.w || 0, h: +p.h || 0 }; } catch (e) { /* only a preview */ } }
@@ -2744,7 +2789,7 @@
       await addQ; await flushPending();
       if (uploadsBusy() || importing) return fail('Espera a que termine la subida a Notion: no se ha importado nada.');   // the board couldn't reopen
       P = await xferPlan(d);                       // again, with what is saved now
-      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0 };
+      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0, ...(P.kitUpd.length ? { kits: P.kitUpd.map(c => c.id) } : {}) };
       const newPast = P.newPast.filter(id => gotPast[id]);
       if (P.nothing) {
         if (shellReady() && /^xfer/.test(root.querySelector('.detail').dataset.dlg || '')) closeDetail();
@@ -2756,12 +2801,13 @@
       back = { key: S && S.key, client: curClient };
       clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
       S = null; PB = null; cleared = true;         // nothing in memory may overwrite what is written now
-      for (const id of P.newFiles) if (got[id]) {  // photos first: a board never points at a photo that isn't here
+      for (const id of [...new Set([...P.newFiles, ...P.kitFiles])]) if (got[id]) {  // photos first: a board never points at a photo that isn't here
         await idbPut('files', id, got[id]); res.photos++;
         if (M.files[id]) { URL.revokeObjectURL(M.files[id].thumbUrl); delete M.files[id]; } delete M.blobs[id]; delete M.thumbBlobs[id];
       }
       for (const id of newPast) { await idbPut('files', 'past:' + id, gotPast[id]); res.past++; }
       for (const c of P.newClients) await idbPut('clients', c.id, c);
+      for (const c of P.kitUpd) { const o = await idbGet('clients', c.id); if (o) await idbPut('clients', c.id, { ...o, kit: c.kit, kitAt: c.kitAt }); }
       if (P.put.length) await tx('boards', 'readwrite', st => { for (const b of P.put) st.put(b, b.key); });
       try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
@@ -2824,6 +2870,13 @@
     return `borrada ${key}: ${n} fotos eliminadas`;
   };
   M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], cycleDay: cdOf(b.cycleDay), slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
+  // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
+  M._in = {
+    get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
+    root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
+    toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL
+  };
   M._test = {
     place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },

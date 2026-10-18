@@ -38,6 +38,7 @@
   let MB = [];           // month boards of the open client: [{key, month, filled, n}]
   let curClient = null;  // id of the open tab
   let root = null;
+  let toastQ = [];       // toasts raised before the shell exists (e.g. while taking the lock at boot)
   let sel = null;        // fileId selected in the tray (click-to-place)
   let drag = null;       // current internal drag
   let cur = { slot: null, idx: 0 };
@@ -1245,6 +1246,8 @@
     document.body.append(root);
     mainMode = null;
     wire();
+    const q = toastQ.filter(t => Date.now() - t.at < 15000); toastQ = [];
+    if (q.length) setTimeout(() => q.forEach(t => toast(t.msg, t.opt)), 0);
   }
   const shellReady = () => root && document.body.contains(root);
 
@@ -1675,7 +1678,7 @@
   // ---------- messages ----------
   function clearToasts() { if (shellReady()) root.querySelector('.toasts').innerHTML = ''; }
   function toast(msg, opt) {
-    if (!shellReady()) return;
+    if (!shellReady()) { toastQ.push({ msg, opt, at: Date.now() }); toastQ = toastQ.slice(-3); return; }
     const box = root.querySelector('.toasts');
     const key = (opt && opt.key) || msg;   // the same message replaces the previous one, unless it has its own key
     [...box.children].forEach(el => { if (el.dataset.msg === key) el.remove(); });

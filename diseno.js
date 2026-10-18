@@ -134,9 +134,9 @@
     if (pos) { const before = t.slice(0, +pos[1]).split('\n'); return `línea ${before.length}, columna ${before[before.length - 1].length + 1}`; }
     return 'no es un JSON válido';
   }
-  // fresh: read the file again (no-cache: a kit edited on disk counts without reloading the page)
+  // fresh: read the file again (cache 'reload': a kit edited or restored on disk counts without reloading the page, whatever its date)
   async function baseKit(cid, fresh) {
-    if (fresh || !BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'no-cache' }).then(async r => {
+    if (fresh || !BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'reload' }).then(async r => {
       if (!r.ok) return { missing: true };
       const t = await r.text();
       try { return { kit: JSON.parse(t) }; } catch (e) { return { bad: jsonWhere(e, t) }; }
@@ -261,7 +261,7 @@
 
   // full-size render of slide i (aplicar, ver; noBlob: only its warnings, for estado)
   async function renderFull(s, i, kit, fin, sz, rawHash, noBlob) {
-    const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src];
+    const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src], k0 = rawHash != null ? avKey(s, i, rawHash, sz, fin) : null;
     let blob0;
     try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: elige otra en «Diseñar».`); }
     const bmp = await createImageBitmap(blob0, { imageOrientation: 'from-image' });
@@ -274,7 +274,7 @@
       const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
       const out = { blob, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
       res.canvas.width = res.canvas.height = 0;
-      if (rawHash != null) AV[s.id + ':' + i] = { key: avKey(s, i, rawHash, sz, fin), avisos: out.avisos, decision: out.decision };
+      if (k0) AV[s.id + ':' + i] = { key: k0, avisos: out.avisos, decision: out.decision };
       return out;
     } finally { bmp.close(); }
   }
@@ -344,7 +344,7 @@
       fotoFinal: fin ? nameOf(fin) : null,
       slides: d.slides.map((sl, i) => {
         const src = effSrc(sl, fin);
-        const av = [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente' : 'Falta la foto'] : []), ...(!str(sl.titulo).trim() ? ['Sin título'] : []), ...(cur[i] || [])];
+        const av = [...slideAvisos(sl, src), ...(cur[i] || [])];
         return { n: i + 1, tipo: sl.tipo, titulo: sl.titulo, texto: sl.texto, entradilla: sl.entradilla, contacto: sl.contacto ?? null,
           ...(sl.tipo === 'final' ? { contactoUsado: sl.contacto ?? (raw && raw.final ? raw.final.contacto ?? null : null) } : {}), src: src || null, foto: src ? nameOf(src) : null, ov: clone(sl.ov || {}), avisos: av, ...(cur[i] ? {} : { avisosPendientes: true }) };
       }),
@@ -353,6 +353,8 @@
       ...(d.avisos && d.avisos.length && aplicado ? { avisosAplicados: d.avisos.slice() } : {})
     };
   }
+  // what a slide lacks (the engine's warnings come after), the same words in estado() and in the editor
+  const slideAvisos = (sl, src) => [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente' : 'Falta la foto'] : []), ...(!str(sl.titulo).trim() ? ['Sin título'] : [])];
   // the engine's warnings for each slide as it is now (from the latest drawing of exactly that, or drawn now); null = pending
   async function avisosActuales(s, raw, fin) {
     const d = s.design, rh = kitHash(raw);
@@ -778,7 +780,8 @@
     set('velo', ov.velo == null && dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '');
     if (ov.velo == null && dec) { const rg = E.el.querySelector('.dz-velor'), o = E.el.querySelector('.dz-velov'); if (rg && document.activeElement !== rg) rg.value = +dec.velo || 0; if (o) o.textContent = Math.round((+dec.velo || 0) * 100) + ' %'; }
     const ul = E.el.querySelector('.dz-av'), src = effSrc(sl, E.fin);
-    const av = [...(!src || !M.files[src] ? [sl.tipo === 'final' ? 'Falta la foto final del cliente.' : 'Falta la foto de esta diapositiva.'] : []), ...(!str(sl.titulo).trim() ? ['Sin título.'] : []), ...((r && r.avisos) || [])];
+    const off = avGet(curSlot(), E.sel, avKey(curSlot(), E.sel, E.rawHash, E.sz, E.fin));   // the ones estado()/aplicar() give
+    const av = [...slideAvisos(sl, src), ...(src && M.files[src] ? (off ? off.avisos : r && r.avisos) || [] : [])];   // the same list as estado()
     const html = av.map(a => `<li>${esc(a)}</li>`).join('');
     if (ul.innerHTML !== html) { ul.innerHTML = html; fitCanvas(); }
   }
@@ -825,7 +828,7 @@
         .then(b => {
           if (E !== e0 || E.bm.get(src) !== ent) { b.close(); return; }
           if (ent.bmp) ent.bmp.close();
-          ent.bmp = b; ent.s = Math.min(1, b.width / f.w); ent.t = ++E.tick;
+          ent.bmp = b; ent.s = Math.min(1, s); ent.t = ++E.tick;   // the scale asked for (its pixel size is rounded: never compare that)
           trimBitmaps(); if (curSlot()) dirtySrc(src);
         })
         .catch(() => { if (E === e0 && E.bm.get(src) === ent && !ent.bmp) { ent.err = true; if (curSlot()) dirtySrc(src); } })
@@ -861,10 +864,10 @@
       capa = E.capas.get(key);
       const bmp = !capa || capa.s < sn - 1e-6 || i === E.sel ? bitmapNow(src, sn, i === E.sel) : null;   // the selected slide's photo stays at hand (pan, zoom)
       if (bmp === false) { capa = null; key = null; }
-      else if (bmp && (!capa || capa.s < Math.min(sn, bmp.width / f.w) - 1e-6)) {        // first layer, or a sharper one
+      else if (bmp && (!capa || capa.s < Math.min(sn, E.bm.get(src).s) - 1e-6)) {        // first layer, or a sharper one
         const k = bmp.width / f.w;
         capa = ENG().capaFoto(bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, W, H);
-        capa.s = Math.min(1, k); capa.origen = { w: r.w, h: r.h, bw: f.w, bh: f.h };   // the photo's own pixels, whatever the decoded size
+        capa.s = E.bm.get(src).s; capa.origen = { w: r.w, h: r.h, bw: f.w, bh: f.h };   // the photo's own pixels, whatever the decoded size
       }
       else if (!capa) return null;
     }
@@ -879,8 +882,16 @@
     if (adj) res = ENG().dibujar(ctx, E.kit, capa, { ...slide, ov: adj }, opts);
     res.ov = adj || slide.ov;          // where the block is drawn: a drag starts from there
     E.last[i] = res;
-    AV[s.id + ':' + i] = { key: avKey(s, i, E.rawHash, E.sz, E.fin), avisos: res.avisos || [], decision: res.decision };
     return res;
+  }
+  // the warnings listed are the ones «Aplicar» will give: once the edit settles, the selected slide is checked with its
+  // photo at full size (the preview draws a reduced copy, whose contrast can differ by hundredths)
+  async function checkAvisos() {
+    if (!E) return; const e0 = E, s = curSlot(); if (!s) return;
+    const i = E.sel, sl = s.design.slides[i], src = effSrc(sl, E.fin);
+    if (!src || !M.files[src] || avGet(s, i, avKey(s, i, E.rawHash, E.sz, E.fin))) return;
+    try { await renderFull(s, i, E.kit, E.fin, E.sz, E.rawHash, true); } catch (e) { return; }
+    if (E === e0 && curSlot() === s && E.sel === i) edDecision();
   }
   function toThumb(i, from) { const sl = D().slides[i], c = thumbOf(sl), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(from, 0, 0, c.width, c.height); }
   function frame() {
@@ -891,7 +902,7 @@
     for (const i of [...E.need]) if (!(Number.isInteger(i) && i >= 0 && i < n)) E.need.delete(i);
     let more = false;
     try {
-      if (E.need.has(E.sel) && drawSlide(E.sel, E.ctx)) { E.need.delete(E.sel); toThumb(E.sel, E.cv); edDecision(); }
+      if (E.need.has(E.sel) && drawSlide(E.sel, E.ctx)) { E.need.delete(E.sel); toThumb(E.sel, E.cv); edDecision(); clearTimeout(E.avT); E.avT = setTimeout(checkAvisos, 600); }
       for (const j of [...E.need]) {                    // one other thumbnail per frame (the first whose photo is ready)
         if (j === E.sel || !drawSlide(j, E.offCtx)) continue;
         E.need.delete(j); toThumb(j, E.off); more = [...E.need].some(k => k !== E.sel); break;
@@ -965,17 +976,22 @@
     S.crops = S.crops || {}; S.crops[src] = next;
     dirtySrc(src);
   }
+  // the order the slides had, removed ones included (in their places): «Deshacer» puts a slide back where it was even
+  // after other removals and their undos, in any order
+  function refOrder() { const d = D(); if (!E.ref || E.refD !== d) { E.ref = d.slides.slice(); E.refD = d; } return E.ref; }
   function moveSlide(i, dir) {
     const d = D(), j = i + dir; if (j < 0 || j >= d.slides.length) return;
     [d.slides[i], d.slides[j]] = [d.slides[j], d.slides[i]];
+    { const r = refOrder(), cur = d.slides.filter(x => r.includes(x)); let n = 0; E.ref = r.map(x => d.slides.includes(x) ? cur[n++] : x); }
     if (E.sel === i) E.sel = j; else if (E.sel === j) E.sel = i;
     const btn = dir < 0 ? 'up' : 'down', canAgain = dir < 0 ? j > 0 : j < d.slides.length - 1;   // the focus follows the slide
     touch(); if (!resizeIfNeeded()) { edList(`[data-dz="${canAgain ? btn : dir < 0 ? 'down' : 'up'}"][data-i="${j}"]`); edPanel(); edHead(); dirty('all'); }
   }
   function addSlide() {          // a new ficha after the selected slide (before it when it is the final)
     const d = D(); if (d.slides.length >= MAX_SLIDES) { I().toast(MAX_MSG); return; }
-    const k = d.slides[E.sel].tipo === 'final' ? E.sel : E.sel + 1;
-    d.slides.splice(k, 0, blankSlide('ficha', null));
+    const k = d.slides[E.sel].tipo === 'final' ? E.sel : E.sel + 1, r = refOrder(), nw = blankSlide('ficha', null), before = d.slides[k];
+    d.slides.splice(k, 0, nw);
+    r.splice(before ? r.indexOf(before) : r.length, 0, nw);
     E.sel = k;
     touch(); edList(d.slides.length >= MAX_SLIDES ? `.dz-it[data-i="${k}"]` : '[data-dz="add"]'); edPanel(); edHead(); dirty('all');
   }
@@ -983,6 +999,7 @@
   function delSlide(i) {
     const s = curSlot(), d = s.design; if (d.slides.length < 2) return;
     const prevSl = d.slides[i - 1] || null, nextSl = d.slides[i + 1] || null;
+    refOrder();
     const before = s.photos.slice(), [gone] = d.slides.splice(i, 1), srcAt = gone.src;
     if (E.sel >= d.slides.length) E.sel = d.slides.length - 1; else if (E.sel > i) E.sel--;
     const { back, gone: left } = release(s, [gone.src]), after = s.photos.slice(), m = d.slides.length;
@@ -995,8 +1012,10 @@
       if (back.length) { B.tray = B.tray.filter(x => !back.includes(x)); I().renderTray(); }
       if (I().same(s2.photos, after)) s2.photos = before;
       else left.forEach(f => { if (!s2.photos.includes(f)) s2.photos.splice(Math.min(Math.max(0, before.indexOf(f)), s2.photos.length), 0, f); });
-      const pi = prevSl ? d.slides.indexOf(prevSl) : -1, ni = nextSl ? d.slides.indexOf(nextSl) : -1;   // back between its neighbours
-      const k = pi >= 0 ? pi + 1 : ni >= 0 ? ni : Math.min(i, d.slides.length);
+      const r = E.refD === d ? E.ref : null, at = r ? r.indexOf(gone) : -1;   // before the first slide that followed it, else after the last that preceded it
+      let k = -1;
+      if (at >= 0) { for (const y of r.slice(at + 1)) { const q = d.slides.indexOf(y); if (q >= 0) { k = q; break; } } if (k < 0) for (const y of r.slice(0, at).reverse()) { const q = d.slides.indexOf(y); if (q >= 0) { k = q + 1; break; } } }
+      if (k < 0) { const pi = prevSl ? d.slides.indexOf(prevSl) : -1, ni = nextSl ? d.slides.indexOf(nextSl) : -1; k = pi >= 0 ? pi + 1 : ni >= 0 ? ni : Math.min(i, d.slides.length); }
       d.slides.splice(k, 0, gone); E.sel = k;
       rescue([...back, srcAt]);
       touch(); if (!resizeIfNeeded()) { edList(); edPanel(); edHead(); dirty('all'); }
@@ -1176,6 +1195,7 @@
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true);
     if (e.raf) cancelAnimationFrame(e.raf);
+    clearTimeout(e.avT);
     if (e.ro) e.ro.disconnect();
     const S = I() && I().S;
     if (e.saveT) { clearTimeout(e.saveT); if (S === e.board) I().save(); }
@@ -1185,7 +1205,11 @@
     e.off.width = e.off.height = 0;
     // every canvas freed and the editor's tree cut: whichever way it closed («Cerrar», Esc, Claude), nothing of it stays
     // reachable from a node the browser still holds (the pressed button, the last focus)
-    if (e.el) { e.el.querySelectorAll('canvas').forEach(c => { c.width = c.height = 0; }); e.el.remove(); e.el.replaceChildren(); }
+    if (e.el) {
+      const all = [...e.el.querySelectorAll('*')];
+      all.forEach(n => { if (n.tagName === 'CANVAS') n.width = n.height = 0; });
+      e.el.remove(); all.forEach(n => n.remove());               // each node on its own: one still held (a handle, DevTools) keeps nothing else
+    }
     (e.inert || []).forEach(c => c.removeAttribute('inert'));
     if (I() && S === e.board) {
       I().refreshDetail(); I().renderFeed();

@@ -1461,6 +1461,20 @@
     const et = { marca: null, pagina: null, pie: null };      // colores de las etiquetas
     const etq = {};                                         // etiquetas preparadas {est, ln, x, y, rect}
     const yBarra = zona[0] + G.barra;
+    // separación mínima entre la tinta del bloque y el nombre del carrusel (pie)
+    const sepPie = L.separacion * fe;
+    const tintaDe = (t) => {
+      let a = Infinity, b = -Infinity;
+      for (const it of lay.items) {
+        const bl = lineaBase(ctx, it.est);
+        it.lineas.forEach((ln, i) => {
+          if (!ln.t) return;
+          const lt = t + it.y + it.tops[i];
+          a = Math.min(a, lt + bl - ln.asc); b = Math.max(b, lt + bl + ln.desc);
+        });
+      }
+      return [a, b];
+    };
 
     // etiquetas (marca, página, pie): preparadas antes para conocer su rectángulo real
     if (P.pagina && esNum(opts.pagina)) {
@@ -1527,6 +1541,14 @@
       espaciarLineas(lay, xRel(alinear));
       if (lay.h !== h0) hz = Math.max(lay.h, altoMin);
       top = topDe(lugar, lay.h) + dy;
+      if (etq.pie && !dy && lugar !== 'abajo' && lay.h > 0) {
+        const [ti, tb] = tintaDe(top), limite = etq.pie.y - sepPie;
+        if (tb > limite) {
+          const techo = etq.marca || etq.pagina ? yBarra + estilo(C, 'etiqueta', fe).lh + sepPie : zona[0];
+          // solo se sube si así cabe entero; si no, se queda donde estaba y se avisa
+          if (tb - limite <= ti - techo) top -= tb - limite;
+        }
+      }
       const rects = rectsDe(alinear, top, lay.items);
       // zona real (con desplazamiento del usuario): de ella salen color y velo
       const z = (dx || dy || lay.h !== h0) ? candidato(lugar, dx, dy) : base;
@@ -1698,12 +1720,14 @@
     if (lay.h > 0 && tintaTop !== Infinity) {
       const arribaMin = etq.marca || etq.pagina ? yBarra + estilo(C, 'etiqueta', fe).lh : -Infinity;
       const abajoMax = etq.pie ? etq.pie.y : Infinity;
+      const pegadoMax = etq.pie ? etq.pie.y - sepPie : Infinity;
       const zonaSegura = zona[0] > 0 || zona[1] < H;
       let causa = null;
       if (minX < -0.5 || maxX > W + 0.5 || tintaTop < -0.5 || tintaBot > H + 0.5) causa = 'se sale del lienzo';
       else if (zonaSegura && (tintaTop < zona[0] - 0.5 || tintaBot > zona[1] + 0.5)) causa = `se sale de la zona visible del perfil (${zona[0]}–${zona[1]})`;
       else if (tintaTop < arribaMin - 0.5) causa = 'pisa la marca';
       else if (tintaBot > abajoMax + 0.5) causa = 'pisa el nombre del carrusel';
+      else if (tintaBot > pegadoMax + 0.5) causa = 'queda pegado al nombre del carrusel';
       if (causa) AV.add('no-cabe', 'el texto', `el texto no cabe: ${causa} (acórtalo, baja la escala o muévelo)`);
       else if (col && (minX < col.x0 + col.m - 0.5 || maxX > col.x0 + col.w - col.m + 0.5)) {
         AV.add('no-cabe', 'el título', 'el título no cabe en la parte visible del perfil (centro 3:4): acórtalo, baja la escala o muévelo');

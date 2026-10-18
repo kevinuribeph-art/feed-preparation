@@ -50,12 +50,41 @@
   let bc = null;
   try { bc = new BroadcastChannel('mesa-feed'); } catch (e) { bc = null; }
   if (bc) bc.onmessage = e => { if (e.data && e.data.t === 'claim' && e.data.id !== TAB) lockHere(); };
-  function claim() { locked = false; if (bc) { try { bc.postMessage({ t: 'claim', id: TAB }); } catch (e) { /* */ } } if (root) { const o = root.querySelector('.lock'); if (o) o.remove(); } }
+  // One tab works on the mesa at a time. The working tab holds a Web Lock; a tab that takes over announces it and waits
+  // until the previous one has saved everything (the designer's edit in flight too) and let go, so it never reads a
+  // stale board. A tab that doesn't answer in 4 s (frozen) loses the lock and the new one opens with what was saved.
+  const LOCK = 'mesa-feed-tab';
+  let held = null, claiming = null, locking = false;
+  function takeLock(ms) {
+    return new Promise(res => {
+      const ctl = ms ? new AbortController() : null, t = ctl ? setTimeout(() => ctl.abort(), ms) : 0;
+      let mine = null;
+      navigator.locks.request(LOCK, ctl ? { signal: ctl.signal } : { steal: true }, () => { clearTimeout(t); res(true); return new Promise(r => { held = mine = r; }); })
+        .catch(() => { clearTimeout(t); if (mine && held === mine) held = null; res(false); });   // timed out, or later taken by a tab that gave up waiting
+    });
+  }
+  function claim() {
+    locked = false;
+    if (bc) { try { bc.postMessage({ t: 'claim', id: TAB }); } catch (e) { /* */ } }
+    if (root) root.querySelectorAll('.lock').forEach(o => o.remove());
+    if (held || !(navigator.locks && navigator.locks.request)) return Promise.resolve();
+    if (!claiming) claiming = (async () => {
+      if (!(await takeLock(4000))) { await takeLock(0); toast('La otra pestaña de la mesa no respondió: se abre con lo último que guardó.'); }
+    })().finally(() => { claiming = null; });
+    return claiming;
+  }
   async function lockHere() {
-    if (locked) return;
-    try { await flushNow(); } catch (e) { /* */ }
-    locked = true;
+    if (locked || locking) return;
+    locking = true;
+    try {
+      if (M.diseno && M.diseno.volcar) { try { M.diseno.volcar(); } catch (e) { /* */ } }   // the designer's edit in flight
+      // a tab that took the lock after waiting for this one in vain may have saved since: never write over it
+      const B = S, fresh = B && await idbGet('boards', B.key).catch(() => null);
+      if (!(fresh && fresh.savedAt && B.savedAt && fresh.savedAt > B.savedAt)) { try { await flushNow(); } catch (e) { /* */ } }
+    } finally { locked = true; locking = false; }
+    if (held) { held(); held = null; }                             // the other tab may read the board now
     if (!shellReady()) return;
+    root.querySelectorAll('.lock').forEach(x => x.remove());
     const o = document.createElement('div'); o.className = 'lock';
     o.innerHTML = '<div class="card dlg"><h3>La mesa está abierta en otra pestaña</h3><p>Para no pisar cambios, esta se ha pausado. Lo último que hiciste aquí está guardado.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="takeover">Usar aquí</button></div></div></div>';
     root.append(o);
@@ -2058,7 +2087,7 @@
     else if (act === 'prevhide') { const it = prevItem(a.dataset.id); if (it) { it.hidden = !it.hidden; changed(); openPast(it.id); } }
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; claim(); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') { a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar'; return; }
       const c = CL.find(x => x.id === curClient);
@@ -2120,7 +2149,7 @@
   };
   M.openClient = async id => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
-    claim();
+    await claim();
     await addQ;
     await loadClients();
     if (!CL.find(c => c.id === id)) return 'no existe';
@@ -2168,7 +2197,7 @@
   M.init = async (cfg) => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
     if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
-    claim();
+    await claim();
     await addQ;
     cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
     if (cfg.months != null && !(Number.isInteger(+cfg.months) && +cfg.months >= 1 && +cfg.months <= 3)) throw new Error('months debe ser 1, 2 o 3');
@@ -2314,7 +2343,7 @@
   // Opens what was open last (or the first client) — used by the loader page.
   M.boot = async () => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
-    claim();
+    await claim();
     await migrateLegacy();
     await loadClients();
     const last = lsGet('mesa-last');

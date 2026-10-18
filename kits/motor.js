@@ -127,8 +127,9 @@
     return '#FFFFFF';
   }
   function esOscuro(C, key) { return lumRGB(hex2rgb(colorHex(C, key))) < 0.179; }
-  // Fondo del lienzo bajo la foto (PNG con transparencia, lienzo reutilizado): colores.fondo, o crema.
-  function colorFondo(C) { return C.colores.fondo || C.colores.crema || '#FFFFFF'; }
+  // Fondo del lienzo bajo la foto (PNG con transparencia, lienzo reutilizado): blanco, como al subir y al
+  // exportar en la mesa; solo si el kit define colores.fondo se usa ese.
+  function colorFondo(C) { return C.colores.fondo || '#FFFFFF'; }
 
   // ---------------------------------------------------------------- fuentes
   // Cada (familia, archivo) se registra con un nombre interno propio: dos kits con la misma familia y archivos
@@ -1414,7 +1415,27 @@
       const maxPal = Math.max(0, ...t0.split(/\s+/).filter(Boolean).flatMap((x) => segmentosSinEspacio(x) || [x]).map((x) => ancho(ctx, e0, x)));
       if (maxPal > dispCol + EPS) escB = esc * Math.max(0.75, (dispCol - 0.5) / maxPal);
     }
-    const lay = maquetar(ctx, C, itemsDe(C, tipo, slide), escB, factor, W, col, info);
+    let lay = maquetar(ctx, C, itemsDe(C, tipo, slide), escB, factor, W, col, info);
+    // portada horizontal (panorámicas): como mucho 3 líneas y el 60 % del alto; si no, el cuerpo baja (hasta
+    // 0,75 del cuerpo horizontal) y, si aun así no cabe, aviso
+    if (col && lay.items.length) {
+      const demasiado = (l) => l.items.reduce((n, it) => n + it.lineas.length, 0) > 3 || l.h > 0.6 * H + EPS;
+      if (demasiado(lay)) {
+        const minimo = esc * 0.75;
+        let elegido = null;
+        for (let k = escB - esc * 0.025; k >= minimo - 1e-9; k -= esc * 0.025) {
+          const inf2 = { palabras: new Set() }, l2 = maquetar(ctx, C, itemsDe(C, tipo, slide), Math.max(k, minimo), factor, W, col, inf2);
+          if (!demasiado(l2)) { elegido = { l2, inf2 }; break; }
+        }
+        if (!elegido) {
+          const inf2 = { palabras: new Set() };
+          elegido = { l2: maquetar(ctx, C, itemsDe(C, tipo, slide), minimo, factor, W, col, inf2), inf2 };
+          AV.add('no-cabe', 'el título', 'el título ocupa demasiado en este formato: acórtalo');
+        }
+        lay = elegido.l2;
+        info.palabras = elegido.inf2.palabras;
+      }
+    }
     for (const p of info.palabras) AV.add('palabra', 'el texto', `la palabra «${p}» no cabe en una línea: acórtala o baja el tamaño`);
     const anclas = { arriba: zona[0] + G.sup, abajo: zona[1] - G.inf, centro: (zona[0] + zona[1]) / 2 };
     const topDe = (lugar, h) => (lugar === 'arriba' ? anclas.arriba : lugar === 'abajo' ? anclas.abajo - h : anclas.centro - h / 2);
@@ -1692,8 +1713,12 @@
     const og = capa && capa.origen;
     if (og && og.w > 0 && og.h > 0 && Math.min(og.w, og.h) < 0.5 * Math.min(W, H)) {
       const s = Math.max(W / og.bw, H / og.bh);
-      if (Math.min(W, H) / s < 0.5 * Math.min(W, H)) AV.add('foto-pequena', 'la foto', `la foto es pequeña (${og.bw}×${og.bh} px): saldrá borrosa`);
-      else AV.add('foto-pequena', 'la foto', `el encuadre usa solo ${Math.round(og.w)}×${Math.round(og.h)} px de la foto: saldrá borrosa (quita zoom)`);
+      // la foto es pequeña solo si su lado corto ya lo es; si no, el problema es el encuadre (zoom o una
+      // proporción muy distinta, como una panorámica en 9:16)
+      const enc = `el encuadre usa solo ${Math.round(og.w)}×${Math.round(og.h)} px de la foto: saldrá borrosa`;
+      if (Math.min(og.bw, og.bh) < 0.5 * Math.min(W, H)) AV.add('foto-pequena', 'la foto', `la foto es pequeña (${og.bw}×${og.bh} px): saldrá borrosa`);
+      else if (Math.min(og.w, og.h) < 0.99 * Math.min(W, H) / s) AV.add('foto-pequena', 'la foto', enc + ' (quita zoom)');
+      else AV.add('foto-pequena', 'la foto', enc);
     }
 
     return {

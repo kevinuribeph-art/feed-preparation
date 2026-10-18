@@ -165,8 +165,14 @@
     return { raw: deepMerge(base, ov), ov, base, c };
   }
   const ENGK = {};                             // clientId -> {key, kit: Promise} (fonts loaded once per kit)
+  // the engine loads on its own (async script): wait for it a little before saying it isn't there
+  async function motor() {
+    if ((window.MESA_CARGA || {}).motor !== 'fallo' && I() && I().toast) I().toast('Cargando el motor de diseño…');
+    for (let i = 0; i < 150 && !(ENG() && ENG().usarKit) && (window.MESA_CARGA || {}).motor !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100));
+    return ENG();
+  }
   async function engineKit(cid, fresh) {
-    const E0 = ENG(); need(E0 && E0.usarKit && E0.dibujar, NO_ENGINE);
+    const E0 = ENG() && ENG().usarKit ? ENG() : await motor(); need(E0 && E0.usarKit && E0.dibujar, NO_ENGINE);
     const r = await rawKit(cid, fresh), key = JSON.stringify(r.raw);
     if (!ENGK[cid] || ENGK[cid].key !== key) ENGK[cid] = { key, kit: E0.usarKit(clone(r.raw), new URL('kits/', location.href).href) };
     try { return { kit: await ENGK[cid].kit, raw: r.raw, ov: r.ov }; }
@@ -350,7 +356,7 @@
   // the engine's warnings for each slide as it is now (from the latest drawing of exactly that, or drawn now); null = pending
   async function avisosActuales(s, raw, fin) {
     const d = s.design, rh = kitHash(raw);
-    let eng = null; if (raw) { try { eng = await engineKit(d.kit); } catch (e) { /* no engine or fonts: pending */ } }
+    let eng = null; if (raw && ENG() && ENG().usarKit) { try { eng = await engineKit(d.kit); } catch (e) { /* no engine or fonts: pending */ } }
     const sz = eng ? sizeOf(eng.kit, d, fin) : null;
     const out = [];
     for (let i = 0; i < d.slides.length; i++) {
@@ -404,7 +410,7 @@
     s.photos = outs.slice();
     if (!reel) s.fmt = d.fmt;
     d.out = outs; d.sig = sig; d.outAt = nowISO(); d.avisos = avisos.slice(); remember(s);
-    I().changed(); I().refreshDetail();
+    I().changed(); if (!(E && E.slotId === slotId)) I().refreshDetail();   // with the editor open, closing it refreshes the post (once: no image load cut short)
     for (const f of old) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
     if (E && E.slotId === slotId) edHead();
     return { ok: true, archivos: outs.map(f => ({ fileId: f, name: I().dName(s, f), w: M.files[f].w, h: M.files[f].h, kb: Math.round(M.files[f].size / 1024) })), avisos, ...(notas.length ? { notas } : {}) };
@@ -582,7 +588,7 @@
       else if ((msg = absorb(s))) { remember(s); changedNow = true; }
       const f0 = s.fmt; syncFmt(s); if (s.fmt !== f0) changedNow = true;
       injectCSS();
-      E = { slotId, board: S, cid, kit, raw, rawHash: kitHash(raw), fin, sel: 0, need: new Set(), last: [], thumbs: new WeakMap(), bm: new Map(), capas: new Map(), raf: 0, saveT: 0, pickFinal: false, busy: false, drag: null };
+      E = { slotId, board: S, cid, kit, raw, rawHash: kitHash(raw), fin, sel: 0, need: new Set(), last: [], thumbs: new WeakMap(), bm: new Map(), q: [], dec: 0, tick: 0, capas: new Map(), raf: 0, saveT: 0, pickFinal: false, busy: false, drag: null };
       E.sz = sizeOf(kit, s.design, fin);
       build(s);
       if (changedNow) { s.design.at = nowISO(); I().save(); }
@@ -628,7 +634,8 @@
     if (!E) return;
     const d = D(); E.sel = Math.max(0, Math.min(d.slides.length - 1, E.sel));
     E.cv.width = E.sz.W; E.cv.height = E.sz.H;
-    E.capas.clear(); E.last = [];
+    if (!keep) E.capas.clear();       // a kit change keeps the photo layers (they don't depend on it)
+    E.last = [];
     edHead(); edList(); edPanel(!keep); fitCanvas();
     dirty('all');
   }
@@ -786,32 +793,84 @@
     if (!E.raf) E.raf = requestAnimationFrame(frame);
   }
   function dirtySrc(src) { const d = D(); d.slides.forEach((sl, i) => { if (effSrc(sl, E.fin) === src) E.need.add(i); }); if (!E.raf) E.raf = requestAnimationFrame(frame); }
+  // Photos are decoded at the size the preview needs (the crop drawn at W×H, rounded up to a step of √2, never above the
+  // original), two at a time, and only a few are kept: the drawn photo layers (capas, W×H) are what the redraws use, so a
+  // carousel of 20 photos of 24–33 MP no longer holds gigabytes of bitmaps. «Aplicar» still decodes each photo whole.
+  const BM_KEEP = 4;              // decoded photos kept besides the selected slide's and the ones still to draw
+  const needScale = (r, W) => { const n = Math.min(1, W / Math.max(1, r.w)); return n >= 1 ? 1 : Math.min(1, Math.pow(Math.SQRT2, Math.ceil(Math.log(n) / Math.log(Math.SQRT2) - 1e-9))); };
   function dropBitmap(src) { if (!E || !src) return; const b = E.bm.get(src); if (b && b.bmp) b.bmp.close(); E.bm.delete(src); for (const k of [...E.capas.keys()]) if (k.startsWith(src + '|')) E.capas.delete(k); }
-  function bitmapNow(src) {
-    const c = E.bm.get(src);
-    if (c) return c.bmp || (c.err ? false : null);
-    const ent = {}, e0 = E; E.bm.set(src, ent);
-    I().getBlob(src).then(b => createImageBitmap(b, { imageOrientation: 'from-image' }))
-      .then(b => { if (E !== e0 || E.bm.get(src) !== ent) { b.close(); return; } ent.bmp = b; if (curSlot()) dirtySrc(src); })
-      .catch(() => { ent.err = true; if (E === e0 && curSlot()) dirtySrc(src); });
-    return null;
+  // the decoded photo for src at scale ≥ s if there is one; else a blurrier one meanwhile (or null), and it is asked for
+  function bitmapNow(src, s, urgent) {
+    let ent = E.bm.get(src);
+    if (!ent) { ent = { t: 0, s: 0, want: 0 }; E.bm.set(src, ent); }
+    ent.t = ++E.tick;
+    if (ent.err) return false;
+    if (ent.bmp && ent.s >= s - 1e-6) return ent.bmp;
+    if (ent.want < s - 1e-6 || urgent) {
+      ent.want = Math.max(ent.want, s);
+      E.q = E.q.filter(x => x !== src); if (urgent) E.q.unshift(src); else E.q.push(src);
+      pump();
+    }
+    return ent.bmp || null;
+  }
+  function pump() {
+    const e0 = E;
+    while (E && E.dec < 2 && E.q.length) {
+      const src = E.q.shift(), ent = E.bm.get(src), f = M.files[src];
+      if (!ent || ent.busy || !f || (ent.bmp && ent.s >= ent.want - 1e-6)) continue;
+      const s = ent.want, o = s >= 1 ? { imageOrientation: 'from-image' }
+        : { imageOrientation: 'from-image', resizeWidth: Math.max(1, Math.round(f.w * s)), resizeHeight: Math.max(1, Math.round(f.h * s)), resizeQuality: 'high' };
+      ent.busy = true; E.dec++;
+      I().getBlob(src).then(b => createImageBitmap(b, o))
+        .then(b => {
+          if (E !== e0 || E.bm.get(src) !== ent) { b.close(); return; }
+          if (ent.bmp) ent.bmp.close();
+          ent.bmp = b; ent.s = Math.min(1, b.width / f.w); ent.t = ++E.tick;
+          trimBitmaps(); if (curSlot()) dirtySrc(src);
+        })
+        .catch(() => { if (E === e0 && E.bm.get(src) === ent && !ent.bmp) { ent.err = true; if (curSlot()) dirtySrc(src); } })
+        .finally(() => {
+          ent.busy = false; if (E !== e0) return;
+          E.dec--;
+          if (E.bm.get(src) === ent && !ent.err && ent.want > ent.s + 1e-6 && !E.q.includes(src)) E.q.push(src);
+          pump();
+        });
+    }
+  }
+  // close the decoded photos nobody needs now (the selected slide's and the ones still to draw stay)
+  function trimBitmaps() {
+    if (!E || !curSlot()) return;
+    const d = D(), keep = new Set([effSrc(d.slides[E.sel] || {}, E.fin)]);
+    for (const i of E.need) if (d.slides[i]) keep.add(effSrc(d.slides[i], E.fin));
+    const live = [...E.bm.entries()].filter(([, v]) => v.bmp);
+    let n = live.length;
+    for (const [k, v] of live.filter(([k, v]) => !v.busy && !keep.has(k)).sort((a, b) => a[1].t - b[1].t)) {
+      if (n <= BM_KEEP) break;
+      v.bmp.close(); E.bm.delete(k); n--;
+    }
   }
   let PH = null;
   function placeholder() { if (!PH) { PH = document.createElement('canvas'); PH.width = 540; PH.height = 540; const x = PH.getContext('2d'); x.fillStyle = '#b9b4ab'; x.fillRect(0, 0, 540, 540); } return PH; }
   // draws slide i into ctx; null = its photo is still loading
   function drawSlide(i, ctx) {
     const s = curSlot(), d = s.design, sl = d.slides[i], src = effSrc(sl, E.fin), { W, H } = E.sz;
-    let bmp = null, rect, key;
-    if (src && M.files[src]) bmp = bitmapNow(src);
-    if (bmp === null && src && M.files[src]) return null;
-    if (bmp) {
-      const f = M.files[src], r = rectOf(src, W, H), k = bmp.width / f.w;
-      rect = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
-      key = [src, W, H, rect.x.toFixed(1), rect.y.toFixed(1), rect.w.toFixed(1), rect.h.toFixed(1)].join('|');
-    } else { bmp = placeholder(); rect = { x: 0, y: 0, w: bmp.width, h: bmp.height }; key = ['-', W, H].join('|'); }
-    let capa = E.capas.get(key);
-    if (!capa) { capa = ENG().capaFoto(bmp, rect, W, H); E.capas.set(key, capa); while (E.capas.size > d.slides.length + 3) E.capas.delete(E.capas.keys().next().value); }
-    else { E.capas.delete(key); E.capas.set(key, capa); }
+    let capa = null, key;
+    if (src && M.files[src]) {
+      const f = M.files[src], r = rectOf(src, W, H), sn = needScale(r, W);
+      key = [src, W, H, r.x.toFixed(1), r.y.toFixed(1), r.w.toFixed(1), r.h.toFixed(1)].join('|');
+      capa = E.capas.get(key);
+      const bmp = !capa || capa.s < sn - 1e-6 || i === E.sel ? bitmapNow(src, sn, i === E.sel) : null;   // the selected slide's photo stays at hand (pan, zoom)
+      if (bmp === false) { capa = null; key = null; }
+      else if (bmp && (!capa || capa.s < Math.min(sn, bmp.width / f.w) - 1e-6)) {        // first layer, or a sharper one
+        const k = bmp.width / f.w;
+        capa = ENG().capaFoto(bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, W, H);
+        capa.s = Math.min(1, k); capa.origen = { w: r.w, h: r.h, bw: f.w, bh: f.h };   // the photo's own pixels, whatever the decoded size
+      }
+      else if (!capa) return null;
+    }
+    if (!key) { key = ['-', W, H].join('|'); capa = E.capas.get(key); if (!capa) { const ph = placeholder(); capa = ENG().capaFoto(ph, { x: 0, y: 0, w: ph.width, h: ph.height }, W, H); capa.s = 1; } }
+    E.capas.delete(key); E.capas.set(key, capa);
+    while (E.capas.size > d.slides.length + 3) E.capas.delete(E.capas.keys().next().value);
     if (ctx.canvas.width !== W || ctx.canvas.height !== H) { ctx.canvas.width = W; ctx.canvas.height = H; }
     const opts = { W, H, factor: E.sz.factor, pagina: pageOf(s, i), serie: str(d.serie) };
     const slide = slideAt(sl, E.sz);
@@ -838,6 +897,7 @@
         E.need.delete(j); toThumb(j, E.off); more = [...E.need].some(k => k !== E.sel); break;
       }
     } catch (e) { console.warn('diseño:', e); }
+    trimBitmaps();
     if (more && !E.raf) E.raf = requestAnimationFrame(frame);
   }
   function fitCanvas() {
@@ -1120,9 +1180,12 @@
     const S = I() && I().S;
     if (e.saveT) { clearTimeout(e.saveT); if (S === e.board) I().save(); }
     for (const b of e.bm.values()) if (b.bmp) b.bmp.close();
-    e.bm.clear(); e.capas.clear();
+    for (const c of e.capas.values()) if (c && c.canvas) c.canvas.width = c.canvas.height = 0;
+    e.bm.clear(); e.capas.clear(); e.q = [];
     e.off.width = e.off.height = 0;
-    if (e.el) e.el.remove();
+    // every canvas freed and the editor's tree cut: whichever way it closed («Cerrar», Esc, Claude), nothing of it stays
+    // reachable from a node the browser still holds (the pressed button, the last focus)
+    if (e.el) { e.el.querySelectorAll('canvas').forEach(c => { c.width = c.height = 0; }); e.el.remove(); e.el.replaceChildren(); }
     (e.inert || []).forEach(c => c.removeAttribute('inert'));
     if (I() && S === e.board) {
       I().refreshDetail(); I().renderFeed();
@@ -1155,4 +1218,6 @@
     abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
+  // loaded after the mesa opened a board (async script): its designs are checked now and the views say so
+  { const S = I() && I().S; if (S && S.slots.some(s => s.design)) prepararKits(S).then(() => { if (I() && I().S === S) { I().render(); I().refreshDetail(); } }).catch(() => {}); }
 })();

@@ -10,11 +10,12 @@
 <p style="padding:20px">Abriendo la mesa…</p>
 <noscript><p style="padding:20px">La mesa necesita JavaScript.</p></noscript>
 <script src="mesa.js?v=3.18"></script>
-<script src="kits/motor.js?v=1.1"></script>
-<script src="diseno.js?v=1.1"></script>
 <script>
   window.MESA && MESA.boot ? MESA.boot().catch(function (e) { document.body.textContent = 'No se pudo abrir la mesa: ' + e; })
                            : (document.body.textContent = 'No se pudo cargar mesa.js. Recarga la página.');
 </script>
+<!-- the designer and its engine load on their own: the mesa never waits for them («Diseñar» does) -->
+<script async src="kits/motor.js?v=1.1" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).motor = 'fallo'"></script>
+<script async src="diseno.js?v=1.1" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).diseno = 'fallo'"></script>
 </body>
 </html>

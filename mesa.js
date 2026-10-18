@@ -114,7 +114,9 @@
   // upload file names: no / \ : * ? " < > | nor control characters (a normal name stays exactly as it is)
   const safeName = n => String(n).replace(/"/g, "'").replace(/[/\\:*?<>|]/g, '-').replace(/[\u0000-\u001f\u007f]/g, '');
   const dName = (s, fid) => safeName(isReel(s.type) ? `${s.name} portada.jpg` : `${s.name} ${String(s.photos.indexOf(fid) + 1).padStart(2, '0')}.jpg`);   // a design image goes up named after its post as it is now
-  const dState = s => s && s.design && M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) : null;   // 'ok' (applied, up to date) | 'chg' | null
+  // 'ok' (applied, up to date) | 'chg' | null; without the designer loaded it can't be checked: 'nc' when the post
+  // still holds its applied images (they go up as they are), 'chg' when it doesn't
+  const dState = s => !s || !s.design ? null : M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) : dOut(s).length && same(s.photos, dOut(s)) ? 'nc' : 'chg';
   const slot = id => S && (S.slots.find(s => s.id === id) || (S.prev || []).find(p => p.id === id));
   const prevItem = id => S && (S.prev || []).find(p => p.id === id);
   const isPrev = s => !!(s && S && S.prev && S.prev.includes(s));
@@ -469,6 +471,7 @@
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
     const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);   // transparent areas white, as in the upload (opaque photos: same pixels)
     x.imageSmoothingQuality = 'high';
     x.drawImage(src, 0, 0, c.width, c.height);
     return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/jpeg', 0.86));
@@ -547,8 +550,10 @@
           if (!targetSlotId || !B.tray.includes(dup)) { toast(`${f.name} ya está en la mesa.`); continue; }
           got.push(dup); continue;
         }
+        let decoded = false;
         try {
           const { w, h, thumb } = await makeThumb(f);
+          decoded = true;
           const id = dup || newId();
           await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb });
           if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
@@ -559,7 +564,7 @@
           got.push(id);
         } catch (e) {
           if (e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)))) { toast('El navegador no tiene espacio para más fotos. Quita fotos que ya no uses o termina y sube un mes.'); break; }
-          toast(`${f.name}: no se pudo leer.`);
+          toast(decoded ? `${f.name}: no se pudo leer.` : `${f.name} está dañada o incompleta: vuelve a exportarla.`);   // the image itself can't be decoded
         }
       }
     } finally {
@@ -1447,8 +1452,8 @@
     }
     const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
     const dst = car || reel ? dState(s) : null;
-    const dav = dst === 'ok' && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
-    const dz = car || reel ? `<div class="pdz"><button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
+    const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
+    const dz = car || reel ? `<div class="pdz"><button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
@@ -1581,6 +1586,13 @@
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
     d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file;
     if (wasPrev && prevOnce) { prevOnce = false; renderFeed(); }
+  }
+  // the designer loads on its own (async script): «Diseñar» waits for it a few seconds; a script that failed is said at once
+  async function waitDesigner(id) {
+    const failed = () => (window.MESA_CARGA || {}).diseno === 'fallo', B = S;
+    if (!failed()) { toast('Cargando el diseñador…'); for (let i = 0; i < 150 && !(M.diseno && M.diseno.abrir) && !failed(); i++) await new Promise(r => setTimeout(r, 100)); }
+    if (M.diseno && M.diseno.abrir) { if (S === B && slot(id)) M.diseno.abrir(id); }
+    else toast('El diseñador no está cargado: recarga la página.');
   }
   function refreshDetail() { const d = root && root.querySelector('.detail'); if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); } }
 
@@ -2031,7 +2043,7 @@
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
-    else if (act === 'disenar') { if (M.diseno && M.diseno.abrir) M.diseno.abrir(a.dataset.slot); else toast('El diseñador no está cargado: recarga la página.'); }
+    else if (act === 'disenar') { if (M.diseno && M.diseno.abrir) M.diseno.abrir(a.dataset.slot); else waitDesigner(a.dataset.slot); }
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
     else if (act === 'addmode') doAddMode(a.dataset.m);
     else if (act === 'tvnav') trayNav(+a.dataset.d);
@@ -2355,7 +2367,7 @@
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
       uploaded: s.uploaded || null,
-      ...(s.design && (isCarousel(s.type) || isReel(s.type)) && dState(s) !== 'ok' ? { 'diseño': 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently (a post retyped to Foto just keeps it dormant)
+      ...(s.design && (isCarousel(s.type) || isReel(s.type)) && dState(s) !== 'ok' ? { 'diseño': dState(s) === 'nc' ? 'sin comprobar' : 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently (a post retyped to Foto just keeps it dormant; designer not loaded: «sin comprobar»)
     };
   }) : [];
 

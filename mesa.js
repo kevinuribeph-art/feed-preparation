@@ -106,7 +106,7 @@
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
   // a slot's design (diseno.js) holds its source photos (slides[].src) and its rendered outputs (out): both are in use
-  const dSrc = s => s && s.design ? (s.design.slides || []).map(x => x && x.src).filter(Boolean) : [];
+  const dSrc = s => s && s.design ? [...(s.design.slides || []), ...((s.design.stash && s.design.stash.slides) || [])].map(x => x && x.src).filter(Boolean) : [];   // + the design kept while its type changed
   const dOut = s => s && s.design ? (s.design.out || []).filter(Boolean) : [];
   const slotRefs = s => [...(s.photos || []), ...dSrc(s), ...dOut(s)];
   const refsOf = b => new Set([...(b.tray || []), ...(b.slots || []).flatMap(slotRefs), ...(b.prev || []).filter(p => p.own).flatMap(p => p.photos || [])]);
@@ -1636,9 +1636,10 @@
   function toast(msg, opt) {
     if (!shellReady()) return;
     const box = root.querySelector('.toasts');
-    [...box.children].forEach(el => { if (el.dataset.msg === msg) el.remove(); });
+    const key = (opt && opt.key) || msg;   // the same message replaces the previous one, unless it has its own key
+    [...box.children].forEach(el => { if (el.dataset.msg === key) el.remove(); });
     while (box.children.length >= 2) box.firstElementChild.remove();
-    const t = document.createElement('div'); t.className = 'toast'; t.dataset.msg = msg;
+    const t = document.createElement('div'); t.className = 'toast'; t.dataset.msg = key;
     const span = document.createElement('span'); span.textContent = msg; t.append(span);
     if (opt && opt.action) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = opt.action;
@@ -2267,6 +2268,7 @@
     if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
     await flushNow();
     delSweep(); sweepDesigns();
+    if (M.diseno && M.diseno.prepararKits) await M.diseno.prepararKits(S);   // plan() right after init knows if a design is out of date
     await refreshMonths();
     render();
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);

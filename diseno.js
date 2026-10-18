@@ -77,28 +77,40 @@
 
   // the post's type changed in Notion (called by the mesa while it loads the board, before it is open): a carousel design
   // becomes a reel cover with the cover's title, a reel design a carousel cover with the reel's title; the post gets its
-  // source photos back (the others go to the tray) and the rendered images are left for deletion. Pending «Aplicar».
+  // source photos back and the rendered images are left for deletion. Pending «Aplicar». The design it had is kept
+  // whole in design.stash (its photos stay referenced, out of the tray) and comes back when the type does.
+  const kindOf = d => d && Array.isArray(d.slides) && d.slides.length ? (d.slides[0].tipo === 'reel' ? 'r' : 'c') : null;
   function retipo(s, to) {
-    const d = s.design; if (!d || !Array.isArray(d.slides) || !d.slides.length) return null;
-    const dk = d.slides[0].tipo === 'reel' ? 'r' : 'c', tk = I().isReel(to) ? 'r' : I().isCarousel(to) ? 'c' : 'f';
+    const d = s.design; if (!kindOf(d)) return null;
+    const dk = kindOf(d), tk = I().isReel(to) ? 'r' : I().isCarousel(to) ? 'c' : 'f';
     if (dk === tk) return null;
     const outs = (d.out || []).filter(Boolean), srcs = d.slides.filter(x => x.tipo !== 'final').map(x => x.src).filter(Boolean);
     const extra = (s.photos || []).filter(f => !outs.includes(f) && !srcs.includes(f) && !(M.files[f] && M.files[f].design));
     const at = nowISO(), all = [...new Set([...srcs, ...extra])];
-    let photos, tray = [];
-    if (tk === 'f') { photos = all; s.design = { ...d, out: null, sig: null, at }; }
-    else if (tk === 'r') {
+    if (tk === 'f') { s.photos = all; s.design = { ...d, out: null, sig: null, at }; return { tray: [], dead: outs }; }   // dormant, whole
+    const { stash, ...cur } = d, keep = JSON.parse(JSON.stringify({ ...cur, out: null, sig: null }));
+    const back = kindOf(stash) === tk ? JSON.parse(JSON.stringify(stash)) : null;
+    let nd, photos, tray = [];
+    if (tk === 'r') {
       const cover = d.slides.find(x => x.tipo === 'portada') || d.slides.find(x => x.tipo !== 'final') || d.slides[0], src = cover.src || all[0] || null;
-      photos = src ? [src] : []; tray = all.filter(f => f !== src);
-      s.design = { v: 1, kit: d.kit, fmt: 'r916', serie: '', slides: [{ ...blankSlide('reel', src), titulo: str(cover.titulo) }], out: null, sig: null, at, known: photos.slice() };
+      nd = back || { v: 1, kit: d.kit, fmt: 'r916', serie: '', slides: [blankSlide('reel', src)] };
+      const old = nd.slides[0].src; nd.slides[0].titulo = str(cover.titulo); if (src) nd.slides[0].src = src;
+      if (old && old !== nd.slides[0].src && !srcs.includes(old)) tray.push(old);
+      photos = nd.slides[0].src ? [nd.slides[0].src] : [];
+      tray.push(...extra.filter(f => f !== nd.slides[0].src));      // the carousel's own photos stay with the kept design
     } else {
       const r0 = d.slides[0], src = r0.src || all[0] || null;
-      photos = [...new Set([src, ...all].filter(Boolean))];
-      s.design = { v: 1, kit: d.kit, fmt: 'v45', serie: '', slides: [{ ...blankSlide('portada', src), titulo: str(r0.titulo) }], out: null, sig: null, at, known: photos.slice() };
-      s.fmt = 'v45';
+      nd = back || { v: 1, kit: d.kit, fmt: 'v45', serie: '', slides: [blankSlide('portada', src)] };
+      const cov = nd.slides.find(x => x.tipo === 'portada') || nd.slides.find(x => x.tipo !== 'final') || nd.slides[0], old = cov.src;
+      cov.titulo = str(r0.titulo); if (src) cov.src = src;
+      const used = nd.slides.filter(x => x.tipo !== 'final').map(x => x.src).filter(Boolean);
+      if (old && !used.includes(old)) tray.push(old);
+      photos = [...new Set([...used, ...all])];
+      s.fmt = FMTS[nd.fmt] ? nd.fmt : 'v45';
     }
+    s.design = { ...nd, kit: nd.kit || d.kit, out: null, sig: null, at, known: photos.slice(), stash: keep };
     s.photos = photos;
-    return { tray, dead: outs };
+    return { tray: [...new Set(tray)].filter(f => !photos.includes(f)), dead: outs };
   }
   // «Sustituir» on a designed carousel: the photo of the cover slide (the one the post shows) changes; never a new slide
   function sustituir(s, fid) {
@@ -187,6 +199,13 @@
     if (BASEV[cid] === undefined && !BASE[cid]) baseKit(cid).catch(() => {});
     return BASEV[cid] ? { raw: deepMerge(BASEV[cid], ov), partial: false } : { raw: deepMerge({}, ov), partial: true };
   }
+  // the base kits of the board's designs, read again before M.init resolves: plan() right after a load must already
+  // know whether a design is out of date (its kit changed since it was applied). Boards without designs: nothing.
+  async function prepararKits(S) {
+    const ids = [...new Set(((S && S.slots) || []).filter(s => s.design).map(s => s.design.kit || S.client))];
+    if (!ids.length) return;
+    await Promise.race([Promise.all(ids.map(cid => baseKit(cid, true).catch(() => {}))), new Promise(r => setTimeout(r, 5000))]);
+  }
   function estadoDe(s) {
     if (!s || !s.design || !I()) return null;
     if (!isApplied(s)) return 'chg';
@@ -209,10 +228,29 @@
   }
   const avGet = (s, i, key) => { const c = AV[s.id + ':' + i]; return c && c.key === key ? c : null; };
   const kitHash = raw => hash(JSON.stringify(raw || {}));
-  const EXT_H = { v45: 1350, v34: 1440, h: 608, r916: 1920 };   // to rescale a manual offset when the format changes
-  function scaleOffsets(d, from, to) {
-    const k = (EXT_H[to] || 1350) / (EXT_H[from] || 1350); if (k === 1) return;
-    d.slides.forEach(sl => { if (sl.ov && sl.ov.dy) sl.ov.dy = Math.round(sl.ov.dy * k); });
+  // A manual offset (ov.dx/dy) is stored in px of the canvas it was set on (ov.h = that canvas' height) and never
+  // rewritten by a format change: each drawing scales it to the current canvas and keeps the block on it (whole and
+  // within the kit's margin on another canvas; at least 25 % on its own). Back to the first format = exactly where it was.
+  const EXT_H = { v45: 1350, v34: 1440, h: 608, r916: 1920 };   // offsets saved before ov.h existed: the format's usual height
+  function stampOffsets(d, H) { d.slides.forEach(sl => { if (sl.ov && (sl.ov.dx || sl.ov.dy) && !sl.ov.h && H) sl.ov.h = H; }); }
+  function ovAt(ov0, sz) {
+    const ov = clone(ov0 || {}); delete ov.h;
+    if (ov0 && ov0.h && ov0.h !== sz.H && ov.dy) ov.dy = Math.round(ov.dy * sz.H / ov0.h);
+    return ov;
+  }
+  const slideAt = (sl, sz) => ({ ...slideFor(sl), ov: ovAt(sl.ov, sz) });
+  function clampOv(sl, ov, res, sz) {
+    const b = res && res.bloque; if (!b || (!ov.dx && !ov.dy)) return null;
+    const fit = !!(sl.ov && sl.ov.h && sl.ov.h !== sz.H), m0 = Math.round(72 * (sz.factor || 1));
+    const box = (v, pos, size, max) => {
+      if (!fit || size > max) return lim(v, pos, size, max);
+      const m = size + 2 * m0 <= max ? m0 : (max - size) / 2;
+      return Math.max(m - pos, Math.min(max - m - size - pos, v));
+    };
+    const dx = ov.dx || 0, dy = ov.dy || 0, nx = Math.round(box(dx, b.x - dx, b.w, sz.W)), ny = Math.round(box(dy, b.y - dy, b.h, sz.H));
+    if (nx === dx && ny === dy) return null;
+    const o = { ...ov }; if (nx) o.dx = nx; else delete o.dx; if (ny) o.dy = ny; else delete o.dy;
+    return o;
   }
 
   // full-size render of slide i (aplicar, ver; noBlob: only its warnings, for estado)
@@ -222,8 +260,11 @@
     try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: elige otra en «Diseñar».`); }
     const bmp = await createImageBitmap(blob0, { imageOrientation: 'from-image' });
     try {
-      const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w;
-      const res = await ENG().render(kit, slideFor(sl), bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh });
+      const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
+      const o = { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh }, slide = slideAt(sl, sz);
+      let res = await ENG().render(kit, slide, bmp, rc, o);
+      const adj = clampOv(sl, slide.ov, res, sz);
+      if (adj) { res.canvas.width = res.canvas.height = 0; res = await ENG().render(kit, { ...slide, ov: adj }, bmp, rc, o); }
       const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
       const out = { blob, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
       res.canvas.width = res.canvas.height = 0;
@@ -273,7 +314,8 @@
     const d0 = s.design;
     s.design = { v: 1, kit: cid, fmt, serie: opts.serie != null ? str(opts.serie) : d0 ? str(d0.serie) : '', slides, out: d0 ? d0.out || null : null, sig: d0 ? d0.sig || null : null, at: nowISO() };
     if (d0 && d0.outAt) s.design.outAt = d0.outAt;
-    if (d0 && d0.fmt !== fmt) scaleOffsets(s.design, d0.fmt, fmt);
+    if (d0 && d0.stash) s.design.stash = d0.stash;          // the design kept from its other type (Notion) stays
+    if (d0 && d0.fmt !== fmt) stampOffsets(s.design, EXT_H[d0.fmt]);
     release(s, old.slice(slides.length).map(x => x.src));
     remember(s); syncFmt(s);
     I().changed();
@@ -500,22 +542,6 @@
   const D = () => curSlot().design;
   // at least 25 % of a moved text block (and 80 px each way) stays on the canvas: never out of reach
   const lim = (v, pos, size, max) => { const keep = Math.min(size, Math.max(size * 0.25, 80)); return Math.max(keep - size - pos, Math.min(max - keep - pos, v)); };
-  // fit (after a format change): the whole block back inside the canvas, with the kit's margin when it fits
-  function keepInside(sl, res, fit) {
-    const ov = sl.ov || {}, b = res && res.bloque; if (!b || (!ov.dx && !ov.dy)) return false;
-    const m0 = Math.round(72 * (E.sz.factor || 1));
-    const box = (v, pos, size, max) => {
-      if (!fit || size > max) return lim(v, pos, size, max);
-      const m = size + 2 * m0 <= max ? m0 : (max - size) / 2;
-      return Math.max(m - pos, Math.min(max - m - size - pos, v));
-    };
-    const dx = ov.dx || 0, dy = ov.dy || 0, nx = Math.round(box(dx, b.x - dx, b.w, E.sz.W)), ny = Math.round(box(dy, b.y - dy, b.h, E.sz.H));
-    if (nx === dx && ny === dy) return false;
-    if (nx) ov.dx = nx; else delete ov.dx;
-    if (ny) ov.dy = ny; else delete ov.dy;
-    return true;
-  }
-
   // a new design from the slot's photos (first «Diseñar» without texts from Claude)
   function newDesign(s, cid) {
     const reel = isReelS(s), raw = rawPhotos(s);
@@ -577,7 +603,7 @@
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Diseñar ' + s.name);
     el.innerHTML = `<header class="dz-head"><div class="dz-ttl"><h3>${esc(s.name)}</h3><p class="dz-sub"></p></div>`
       + (reel ? '' : `<div class="seg dz-fmt" role="group" aria-label="Formato del carrusel">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-dz="fmt" data-v="${k}">${l}</button>`).join('')}</div>`
-        + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" maxlength="60" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(d.serie)}"></label>`)
+        + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(d.serie)}"></label>`)
       + '<span class="dz-state" aria-live="polite"></span><button type="button" class="btn2" data-dz="cerrar">Cerrar</button><button type="button" class="btn" data-dz="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="dz-body"><nav class="dz-list" aria-label="Diapositivas"></nav>'
       + '<section class="dz-mid"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="dz-foot"><ul class="dz-av"></ul><p class="dz-hint">Arrastra el texto para moverlo · arrastra la foto para reencuadrarla</p></div></section>'
@@ -597,12 +623,13 @@
     edAll();
   }
   // everything again (open, format change, reload from Claude)
-  function edAll() {
+  // keep: the panel is updated in place (a kit or final-photo change: the field being edited keeps its native undo)
+  function edAll(keep) {
     if (!E) return;
     const d = D(); E.sel = Math.max(0, Math.min(d.slides.length - 1, E.sel));
     E.cv.width = E.sz.W; E.cv.height = E.sz.H;
     E.capas.clear(); E.last = [];
-    edHead(); edList(); edPanel(true); fitCanvas();
+    edHead(); edList(); edPanel(!keep); fitCanvas();
     dirty('all');
   }
   function edReload() {        // the design was replaced from outside (cargar)
@@ -617,7 +644,7 @@
       if (E !== e0 || !curSlot()) return;
       E.kit = kit; E.raw = raw; E.rawHash = kitHash(raw);
       if (finalToo) { const old = E.fin; E.fin = await finalReady(raw); if (E !== e0) return; dropBitmap(old); dropBitmap(E.fin); E.pickFinal = false; }
-      E.sz = sizeOf(E.kit, D(), E.fin); edAll();
+      E.sz = sizeOf(E.kit, D(), E.fin); edAll(true);
     } catch (e) { I().toast(e instanceof DzError ? e.message : String(e)); }
   }
 
@@ -722,10 +749,13 @@
     if (!same) {
       p.innerHTML = secs.map(x => x[1]).join('');
       p.querySelectorAll('[data-f]').forEach(t => { t.value = str(sl[t.dataset.f]); });   // by value: a leading line break survives
-    } else secs.forEach(([k, h], j) => {
-      if (k === 'texto' || E.pHtml[k] === h) return;
-      const tpl = document.createElement('div'); tpl.innerHTML = h; p.children[j].replaceWith(tpl.firstElementChild);
-    });
+    } else {
+      secs.forEach(([k, h], j) => {
+        if (k === 'texto' || E.pHtml[k] === h) return;
+        const tpl = document.createElement('div'); tpl.innerHTML = h; p.children[j].replaceWith(tpl.firstElementChild);
+      });
+      const ct = p.querySelector('#dz-f-cont'); if (ct) ct.placeholder = str((E.raw.final || {}).contacto);   // the kit's contact, in place
+    }
     E.pSlide = sl; E.pTipo = sl.tipo; E.pHtml = Object.fromEntries(secs);
     p.scrollTop = top;
     if (key && !(ae && ae.isConnected)) refocus(p, key);
@@ -784,9 +814,11 @@
     else { E.capas.delete(key); E.capas.set(key, capa); }
     if (ctx.canvas.width !== W || ctx.canvas.height !== H) { ctx.canvas.width = W; ctx.canvas.height = H; }
     const opts = { W, H, factor: E.sz.factor, pagina: pageOf(s, i), serie: str(d.serie) };
-    let res = ENG().dibujar(ctx, E.kit, capa, slideFor(sl), opts);
-    const fit = !!(E.fit && E.fit.delete(sl));
-    if (keepInside(sl, res, fit)) { res = ENG().dibujar(ctx, E.kit, capa, slideFor(sl), opts); E.clamped = true; }   // e.g. after a format change
+    const slide = slideAt(sl, E.sz);
+    let res = ENG().dibujar(ctx, E.kit, capa, slide, opts);
+    const adj = clampOv(sl, slide.ov, res, E.sz);
+    if (adj) res = ENG().dibujar(ctx, E.kit, capa, { ...slide, ov: adj }, opts);
+    res.ov = adj || slide.ov;          // where the block is drawn: a drag starts from there
     E.last[i] = res;
     AV[s.id + ':' + i] = { key: avKey(s, i, E.rawHash, E.sz, E.fin), avisos: res.avisos || [], decision: res.decision };
     return res;
@@ -806,7 +838,6 @@
         E.need.delete(j); toThumb(j, E.off); more = [...E.need].some(k => k !== E.sel); break;
       }
     } catch (e) { console.warn('diseño:', e); }
-    if (E.clamped) { E.clamped = false; touch(); }
     if (more && !E.raf) E.raf = requestAnimationFrame(frame);
   }
   function fitCanvas() {
@@ -888,6 +919,7 @@
     E.sel = k;
     touch(); edList(d.slides.length >= MAX_SLIDES ? `.dz-it[data-i="${k}"]` : '[data-dz="add"]'); edPanel(); edHead(); dirty('all');
   }
+  let DELN = 0;                  // each removal its own toast (two alike never merge: each keeps its «Deshacer»)
   function delSlide(i) {
     const s = curSlot(), d = s.design; if (d.slides.length < 2) return;
     const prevSl = d.slides[i - 1] || null, nextSl = d.slides[i + 1] || null;
@@ -896,7 +928,8 @@
     const { back, gone: left } = release(s, [gone.src]), after = s.photos.slice(), m = d.slides.length;
     touch(); if (!resizeIfNeeded()) { edList(m > 1 ? `[data-dz="del"][data-i="${Math.min(i, m - 1)}"]` : `.dz-it[data-i="0"]`); edPanel(); edHead(); dirty('all'); }
     const slotId = s.id, B = I().S;
-    I().toast(`Diapositiva ${i + 1} quitada${back.length ? '; su foto vuelve a la bandeja' : ''}.`, { action: 'Deshacer', ms: 6000, onAction: () => {
+    const t0 = str(gone.titulo).trim().split('\n')[0], tt = t0 ? ` («${t0.length > 28 ? t0.slice(0, 27) + '…' : t0}»)` : '';
+    I().toast(`Diapositiva ${i + 1}${tt} quitada${back.length ? '; su foto vuelve a la bandeja' : ''}.`, { key: 'dz-del-' + (++DELN), action: 'Deshacer', ms: 6000, onAction: () => {
       const s2 = curSlot();
       if (!s2 || s2.id !== slotId || I().S !== B || s2.design !== d || d.slides.includes(gone) || gone.src !== srcAt || d.slides.length >= MAX_SLIDES) { I().toast('No se puede deshacer: el diseño ha cambiado.'); return; }
       if (back.length) { B.tray = B.tray.filter(x => !back.includes(x)); I().renderTray(); }
@@ -921,8 +954,17 @@
     if (E.drag) endDrag();
     E.busy = true; btn.disabled = true; btn.textContent = 'Aplicando…';
     if (E.saveT) { clearTimeout(E.saveT); E.saveT = 0; I().save(); }
+    let changedKit = false;
+    try { const { raw } = await rawKit(E.cid, true); changedKit = E === e0 && kitHash(raw) !== E.rawHash; } catch (e) { /* aplicar() reports it */ }
+    if (changedKit) {        // the kit file changed since the preview: show it first, never apply what Kevin has not seen
+      btn.disabled = false; btn.textContent = 'Aplicar a la casilla';
+      await edKitChanged(true);
+      if (E === e0) E.busy = false;
+      I().toast('El kit ha cambiado: revisa la vista previa y vuelve a aplicar.', { ms: 9000 });
+      return;
+    }
     let r = null, err = null;
-    try { r = await aplicar(E.slotId); } catch (e) { err = e; }
+    try { r = await aplicar(e0.slotId); } catch (e) { err = e; }
     btn.disabled = false; btn.textContent = 'Aplicar a la casilla';
     const msg = err ? (err instanceof DzError ? err.message : 'No se pudo aplicar el diseño: ' + String((err && err.message) || err)) : appliedMsg(r);
     if (err && !(err instanceof DzError)) console.warn('diseño:', err);
@@ -949,7 +991,7 @@
       else if (act === 'del') delSlide(+a.dataset.i);
       else if (act === 'add') addSlide();
       else if (act === 'fmt') {
-        if (d.fmt !== a.dataset.v && FMTS[a.dataset.v]) { scaleOffsets(d, d.fmt, a.dataset.v); E.fit = new Set(d.slides.filter(x => x.ov && (x.ov.dx || x.ov.dy))); d.fmt = a.dataset.v; syncFmt(s); touch(); E.sz = sizeOf(E.kit, d, E.fin); edAll(); }
+        if (d.fmt !== a.dataset.v && FMTS[a.dataset.v]) { stampOffsets(d, E.sz.H); d.fmt = a.dataset.v; syncFmt(s); touch(); E.sz = sizeOf(E.kit, d, E.fin); edAll(); }
       }
       else if (act === 'tipo') {
         const v = a.dataset.v; if (v === sl.tipo) return;
@@ -969,7 +1011,7 @@
       }
       else if (act === 'lugar' || act === 'alinear') {
         if (a.dataset.v) sl.ov[act] = a.dataset.v; else delete sl.ov[act];
-        delete sl.ov.dx; delete sl.ov.dy;                    // a new position starts from its own place
+        delete sl.ov.dx; delete sl.ov.dy; delete sl.ov.h;    // a new position starts from its own place
         touch(); edPanel(); dirty('sel');
       }
       else if (act === 'color') { if (a.dataset.v) sl.ov.color = a.dataset.v; else delete sl.ov.color; touch(); edPanel(); dirty('sel'); }
@@ -1029,7 +1071,7 @@
       if (!curSlot()) { cerrar(); return; }
       const p0 = at(e), sl = D().slides[E.sel], src = effSrc(sl, E.fin);
       let g;
-      if (inBlock(p0)) { sl.ov = sl.ov || {}; const b = E.last[E.sel].bloque, dx = sl.ov.dx || 0, dy = sl.ov.dy || 0; g = { mode: 'text', sl, dx, dy, bx: b.x - dx, by: b.y - dy, bw: b.w, bh: b.h }; }
+      if (inBlock(p0)) { sl.ov = sl.ov || {}; const L = E.last[E.sel], b = L.bloque, dx = (L.ov && L.ov.dx) || 0, dy = (L.ov && L.ov.dy) || 0; g = { mode: 'text', sl, dx, dy, bx: b.x - dx, by: b.y - dy, bw: b.w, bh: b.h }; }
       else if (src && M.files[src]) { const f = M.files[src], r0 = rectOf(src, E.sz.W, E.sz.H); g = { mode: 'pan', sl, src, cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h }; }
       else return;
       e.preventDefault();
@@ -1039,8 +1081,8 @@
         if (!E || E.drag !== g) return;
         const p = at(ev);
         if (g.mode === 'text') {
-          const v = sl.ov; v.dx = Math.round(lim(g.dx + p.x - p0.x, g.bx, g.bw, E.sz.W)); v.dy = Math.round(lim(g.dy + p.y - p0.y, g.by, g.bh, E.sz.H));
-          if (!v.dx) delete v.dx; if (!v.dy) delete v.dy; dirty('sel');
+          const v = sl.ov; v.dx = Math.round(lim(g.dx + p.x - p0.x, g.bx, g.bw, E.sz.W)); v.dy = Math.round(lim(g.dy + p.y - p0.y, g.by, g.bh, E.sz.H)); v.h = E.sz.H;
+          if (!v.dx) delete v.dx; if (!v.dy) delete v.dy; if (!v.dx && !v.dy) delete v.h; dirty('sel');
         }
         else setCropFor(g.src, { cx: g.cx - (p.x - p0.x) / E.sz.W * g.fw, cy: g.cy - (p.y - p0.y) / E.sz.H * g.fh });
       };
@@ -1110,7 +1152,7 @@
     version: VERSION,
     cargar: api(cargar), estado: api(estado), aplicar: api(aplicar), ver: api(ver),
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
-    abrir, cerrar, estadoDe, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
+    abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
 })();

@@ -7,7 +7,7 @@
  *   DisenoMotor.usarKit(kitObj, baseUrl)               -> Promise<kit>
  *   DisenoMotor.tamano(kit, fmt, srcW, srcH)           -> {W, H, factor}
  *   DisenoMotor.capaFoto(bitmap, rect, W, H)           -> {canvas, an, origen}
- *   DisenoMotor.dibujar(ctx, kit, capa, slide, opts)   -> {decision, bloque, avisos, avisosInfo}
+ *   DisenoMotor.dibujar(ctx, kit, capa, slide, opts)   -> {decision, bloque, avisos, avisosInfo, lineas}
  *   DisenoMotor.render(kit, slide, bitmap, rect, opts) -> Promise<{canvas, decision, bloque, avisos, avisosInfo}>
  *   DisenoMotor.aBlob(canvas, calidad = 0.92)          -> Promise<Blob>
  *
@@ -193,7 +193,7 @@
       reg = { nombre };
       reg.promesa = (async () => {
         let r;
-        try { r = await fetch(url, { cache: 'no-cache' }); } catch (e) { r = null; }
+        try { r = await fetch(url, { cache: 'reload' }); } catch (e) { r = null; }
         if (!r || !r.ok) throw new Error(`No se encuentra el archivo de fuente ${f.archivo} del kit`);
         const buf = await r.arrayBuffer();
         const info = infoFuente(buf);
@@ -840,8 +840,9 @@
   }
 
   // Párrafo preparado: anchos de palabra y de cada hueco (espacio + kerning del par), sumas acumuladas.
-  // rompible[i] = se puede cortar entre la palabra i y la i+1 (los pegados no se separan).
-  function prepararParrafo(ctx, est, palabras, rompible, base) {
+  // rompible[i] = se puede cortar entre la palabra i y la i+1 (los pegados no se separan);
+  // sinEsp[i] = entre ellas no hay espacio (chino, japonés, emojis seguidos).
+  function prepararParrafo(ctx, est, palabras, rompible, base, sinEsp) {
     const N = palabras.length;
     const ww = palabras.map((p) => ancho(ctx, est, p));
     const sp = ancho(ctx, est, ' ');
@@ -850,7 +851,7 @@
     for (let i = 0; i < N; i++) pw[i + 1] = pw[i] + ww[i];
     for (let i = 0; i < N - 1; i++) {
       const a = Array.from(palabras[i]), b = Array.from(palabras[i + 1]);
-      pg[i + 1] = pg[i] + sp + ajustePar(ctx, est, a[a.length - 1], b[0]);
+      pg[i + 1] = pg[i] + (sinEsp && sinEsp[i] ? 0 : sp + ajustePar(ctx, est, a[a.length - 1], b[0]));
     }
     const anchoR = (i, j) => (pw[j] - pw[i]) + (j - i > 1 ? pg[j - 1] - pg[i] : 0);
     const linea = (i, j) => {
@@ -862,11 +863,13 @@
         asc = Math.max(asc, m.asc); desc = Math.max(desc, m.desc);
       }
       const w = anchoR(i, j);
-      const ln = { t: pal.join(' '), palabras: pal, xs, w, asc, desc, vis: null };
+      let t = pal[0] || '';
+      for (let k = 1; k < pal.length; k++) t += (sinEsp && sinEsp[i + k - 1] ? '' : ' ') + pal[k];
+      const ln = { t, palabras: pal, xs, w, asc, desc, vis: null };
       const ov = ordenVisual(pal, dir);
       if (ov) {
         // posiciones de izquierda a derecha en orden visual, con los mismos huecos
-        const hueco = (a, b) => (Math.abs(a - b) === 1 ? xs[Math.max(a, b)] - xs[Math.min(a, b)] - ww[i + Math.min(a, b)] : sp);
+        const hueco = (a, b) => (Math.abs(a - b) === 1 ? xs[Math.max(a, b)] - xs[Math.min(a, b)] - ww[i + Math.min(a, b)] : (sinEsp && sinEsp[i + Math.min(a, b)] ? 0 : sp));
         const pos = new Array(pal.length);
         let x = 0;
         for (let v = 0; v < ov.orden.length; v++) {
@@ -878,7 +881,7 @@
       }
       return ln;
     };
-    return { N, palabras, anchoR, linea, rompible: rompible || null };
+    return { N, palabras, anchoR, linea, rompible: rompible || null, sinEsp: sinEsp || null };
   }
 
   // Corte voraz de CSS; solo en huecos rompibles: un tramo pegado se trata como una palabra (si no cabe en la
@@ -965,27 +968,102 @@
     return r;
   }
 
-  // ---- palabra que no cabe: se parte por grafemas con guion (tras «/», «.» o «-» sin guion), en trozos parejos
+  // ---- sílabas en español (para partir una palabra que no cabe): V-CV, VC-CV salvo grupos inseparables,
+  // VC-CCV / VCC-CV, sin separar diptongos ni triptongos; mínimo 2 letras a cada lado del corte.
+  const VOCALES = new Set([...'aeiouáéíóúü']);
+  const ABIERTAS = new Set([...'aeoáéó']), CERRADAS_TILDE = new Set([...'íú']);
+  const INSEP = new Set(['pl', 'pr', 'bl', 'br', 'cl', 'cr', 'dr', 'tr', 'fl', 'fr', 'gl', 'gr', 'kl', 'kr']);
+  const hiato = (a, b) => (ABIERTAS.has(a) && ABIERTAS.has(b)) || (CERRADAS_TILDE.has(a) && ABIERTAS.has(b)) || (ABIERTAS.has(a) && CERRADAS_TILDE.has(b));
+  // s: letras en minúscula; devuelve los índices k donde puede empezar una sílaba (corte antes de s[k])
+  function silabear(s) {
+    const u = [];
+    for (let i = 0; i < s.length;) {
+      const c = s[i], d = s[i + 1], e = s[i + 2];
+      if ((c === 'c' && d === 'h') || (c === 'l' && d === 'l') || (c === 'r' && d === 'r')) { u.push({ v: false, i, k: c + d }); i += 2; continue; }
+      if ((c === 'q' || c === 'g') && d === 'u' && (e === 'e' || e === 'i' || e === 'é' || e === 'í')) { u.push({ v: false, i, k: c + 'u' }); i += 2; continue; }
+      if (c === 'y') { u.push({ v: !(i + 1 < s.length && VOCALES.has(s[i + 1])) && i > 0, i, k: 'y' }); i++; continue; }
+      u.push({ v: VOCALES.has(c), i, k: c }); i++;
+    }
+    const nuc = [];
+    for (let j = 0; j < u.length; j++) {
+      if (!u[j].v) continue;
+      const n = nuc[nuc.length - 1];
+      if (n && n.fin === j - 1 && !hiato(u[j - 1].k === 'y' ? 'i' : u[j - 1].k, u[j].k === 'y' ? 'i' : u[j].k)) n.fin = j;
+      else nuc.push({ ini: j, fin: j });
+    }
+    const cortes = [];
+    for (let n = 1; n < nuc.length; n++) {
+      const a = nuc[n - 1].fin, b = nuc[n].ini, cs = u.slice(a + 1, b);
+      let c;
+      if (cs.length === 0) c = b;
+      else if (cs.length === 1) c = a + 1;
+      else if (cs.length === 2) c = INSEP.has(cs[0].k + cs[1].k) ? a + 1 : a + 2;
+      else if (cs.length === 3) c = INSEP.has(cs[1].k + cs[2].k) ? a + 2 : a + 3;
+      else c = a + 3;
+      cortes.push(u[c].i);
+    }
+    return cortes;
+  }
+  const ES_LETRA = /^\p{L}/u;
+  // Cortes silábicos permitidos en una lista de grafemas (en cada tramo de letras, con 2 letras a cada lado)
+  function cortesSilabicos(g) {
+    const out = new Set();
+    for (let a = 0; a < g.length;) {
+      if (!ES_LETRA.test(g[a])) { a++; continue; }
+      let b = a;
+      while (b < g.length && ES_LETRA.test(g[b])) b++;
+      const s = g.slice(a, b).map((x) => x.normalize('NFC').toLowerCase());
+      for (const k of silabear(s)) if (k >= 2 && s.length - k >= 2) out.add(a + k);
+      a = b;
+    }
+    return out;
+  }
+
+  // ---- chino, japonés y emojis: se puede cortar entre caracteres, sin guion (con kinsoku básico)
+  const CJK_RE = /[⺀-⿿　-〿぀-ヿㇰ-ㇿ㐀-䶿一-鿿豈-﫿＀-￯]/;
+  const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
+  const NO_INICIO_CJK = new Set([...'、。，．・：；？！ー〜～…‥」』）】〕〉》｝］〟’”ゝゞヽヾ々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ％‰°℃·»:;?!),.]}']);
+  const NO_FIN_CJK = new Set([...'「『（【〔〈《｛［〝‘“«(¿¡[{']);
+  const esIdeo = (c) => CJK_RE.test(c) || EMOJI_RE.test(c);
+  // Devuelve los trozos de un token entre los que se puede cortar sin espacio, o null si no hay ninguno.
+  function segmentosSinEspacio(tok) {
+    const g = grafemas(tok);
+    if (!g.some((c) => esIdeo(c) || c === '​')) return null;
+    const segs = [];
+    let cur = '';
+    for (let k = 0; k < g.length; k++) {
+      const c = g[k];
+      if (c === '​') { if (cur) { segs.push(cur); cur = ''; } continue; }
+      if (cur) {
+        const p = Array.from(cur).length ? grafemas(cur).pop() : '';
+        if ((esIdeo(p) || esIdeo(c)) && !NO_INICIO_CJK.has(c) && !NO_FIN_CJK.has(p)) { segs.push(cur); cur = ''; }
+      }
+      cur += c;
+    }
+    if (cur) segs.push(cur);
+    return segs.length > 1 ? segs : null;
+  }
+
+  // ---- palabra que no cabe en el ancho útil: se parte por sílabas con guion (por grafemas si no hay sílaba
+  // que quepa), en trozos parejos. Las URL se cortan primero tras / . - _ ? & = (sin guion).
   const SEP_URL = new Set(['/', '.', '-', '_', '?', '&', '=']);
-  function trocear(est, p, maxW) {
+  function trocearPalabra(est, p, maxW) {
     const g = grafemas(p), n = g.length;
+    const sil = [...cortesSilabicos(g)].sort((a, b) => a - b);
     const pieza = (i, j) => g.slice(i, j).join('');
+    const guion = (k) => (k < n && ES_LETRA.test(g[k - 1]) && ES_LETRA.test(g[k]) ? '-' : '');
+    const cabe = (i, k, lim) => ancho(null, est, pieza(i, k) + guion(k)) <= lim + EPS;
     const corta = (lim) => {
       const out = [];
       let i = 0;
       while (i < n) {
-        let mejor = -1, mejorSep = -1;
-        for (let j = i + 1; j <= n; j++) {
-          const sep = SEP_URL.has(g[j - 1]);
-          if (ancho(null, est, pieza(i, j) + (j < n && !sep ? '-' : '')) <= lim + EPS) {
-            mejor = j;
-            if (sep && j < n) mejorSep = j;
-          } else if (ancho(null, est, pieza(i, j)) > lim + EPS) break;
-        }
+        if (ancho(null, est, pieza(i, n)) <= lim + EPS) { out.push(pieza(i, n)); break; }
+        let mejor = -1;
+        for (const k of sil) { if (k <= i) continue; if (cabe(i, k, lim)) mejor = k; else break; }
+        if (mejor < 0) for (let k = i + 1; k < n; k++) { if (cabe(i, k, lim)) mejor = k; else break; }
         if (mejor < 0) mejor = i + 1;
-        const fin = (mejorSep > i && mejorSep - i >= (mejor - i) * 0.5) ? mejorSep : mejor;
-        out.push(pieza(i, fin) + (fin < n && !SEP_URL.has(g[fin - 1]) ? '-' : ''));
-        i = fin;
+        out.push(pieza(i, mejor) + guion(mejor));
+        i = mejor;
       }
       return out;
     };
@@ -995,12 +1073,67 @@
     for (let it = 0; it < 16; it++) { const mid = (lo + hi) / 2; if (corta(mid).length <= base.length) hi = mid; else lo = mid; }
     return corta(hi);
   }
+  // Tramos que terminan en uno de los separadores (los separadores seguidos van juntos: «https://»)
+  function tramosPor(p, seps) {
+    const g = grafemas(p), out = [];
+    let cur = '';
+    for (let k = 0; k < g.length; k++) {
+      cur += g[k];
+      if (seps.has(g[k]) && !(k + 1 < g.length && seps.has(g[k + 1])) && k < g.length - 1) { out.push(cur); cur = ''; }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  // Une piezas sin espacio en líneas de ancho ≤ lim, con las líneas lo más parejas posible
+  function empaquetar(est, piezas, lim) {
+    const pack = (w) => {
+      const out = [];
+      let cur = '';
+      for (const q of piezas) {
+        if (cur && ancho(null, est, cur + q) > w + EPS) { out.push(cur); cur = q; } else cur += q;
+      }
+      if (cur) out.push(cur);
+      return out;
+    };
+    const base = pack(lim);
+    if (base.length <= 1) return base;
+    let lo = 0, hi = lim;
+    for (let it = 0; it < 16; it++) { const mid = (lo + hi) / 2; if (pack(mid).length <= base.length) hi = mid; else lo = mid; }
+    return pack(hi);
+  }
+  const SEP1 = new Set(['/']), SEP2 = new Set(['.', '-', '_', '?', '&', '=']);
+  // URL o palabra compuesta: primero tras «/», luego tras . - _ ? & = y solo si un tramo no cabe, por sílabas
+  function trocear(est, p, lim) {
+    if (tramosPor(p, SEP_URL).length < 2) return trocearPalabra(est, p, lim);
+    const cabe = (t) => ancho(null, est, t) <= lim + EPS;
+    const out = [];
+    let tanda = [];
+    const vaciar = () => { if (tanda.length) out.push(...empaquetar(est, tanda, lim)); tanda = []; };
+    for (const t1 of tramosPor(p, SEP1)) {
+      if (cabe(t1)) { tanda.push(t1); continue; }
+      vaciar();
+      let t2s = [];
+      for (const t2 of tramosPor(t1, SEP2)) {
+        if (cabe(t2)) { t2s.push(t2); continue; }
+        if (t2s.length) out.push(...empaquetar(est, t2s, lim));
+        t2s = [];
+        const tr = trocearPalabra(est, t2, lim);
+        out.push(...tr.slice(0, -1));
+        t2s.push(tr[tr.length - 1]);
+      }
+      if (t2s.length) out.push(...empaquetar(est, t2s, lim));
+    }
+    vaciar();
+    return out;
+  }
 
   // Texto → líneas [{t, palabras, xs, w, asc, desc, vis}]. '\n' fuerza salto (los del principio y el final se
-  // ignoran); cada párrafo se equilibra dentro de maxW. info.palabras recoge las palabras que no caben.
-  function partir(ctx, est, texto, maxW, _limite, info) {
+  // ignoran); cada párrafo se equilibra dentro de maxW. Una palabra solo se parte si no cabe en «limite» (el
+  // ancho útil del bloque); info.palabras recoge las que se han partido.
+  function partir(ctx, est, texto, maxW, limite, info) {
     let t = String(texto).replace(/<br\s*\/?>/gi, '\n').replace(/\r\n?/g, '\n');
     if (est.mayus) t = t.toLocaleUpperCase('es-ES');
+    const lim = Math.max(maxW, esNum(limite) ? limite : maxW);
     const pars = t.split('\n');
     while (pars.length && !pars[0].trim()) pars.shift();
     while (pars.length && !pars[pars.length - 1].trim()) pars.pop();
@@ -1011,34 +1144,38 @@
       if (!limpio) { lineas.push(vacia); continue; }
       const toks = limpio.split(' ');
       const rompe = rompibles(toks);
-      // un tramo pegado más ancho que la línea se despega (se podrá cortar entre sus palabras)
+      // un tramo pegado más ancho que el ancho útil se despega (se podrá cortar entre sus palabras)
       for (let a = 0; a < toks.length;) {
         let b = a;
         while (b < toks.length - 1 && !rompe[b]) b++;
-        // (si el tramo lleva una palabra que se partirá con guion, el pegado se aplica a su último trozo)
         const tramo = toks.slice(a, b + 1);
-        if (b > a && !tramo.some((t) => ancho(ctx, est, t) > maxW + EPS) && ancho(ctx, est, tramo.join(' ')) > maxW + EPS) {
+        if (b > a && !tramo.some((x) => ancho(ctx, est, x) > lim + EPS) && ancho(ctx, est, tramo.join(' ')) > lim + EPS) {
           for (let k = a; k < b; k++) rompe[k] = true;
         }
         a = b + 1;
       }
       const base = dirParrafo(toks);
-      let grupo = [], gr = [];
+      let grupo = [], gr = [], ge = [];
       const vaciar = () => {
         if (!grupo.length) return;
-        const P = prepararParrafo(ctx, est, grupo, gr.slice(0, grupo.length - 1), base);
+        const P = prepararParrafo(ctx, est, grupo, gr.slice(0, grupo.length - 1), base, ge.slice(0, grupo.length - 1));
         for (const [i, j] of equilibrado(P, maxW)) lineas.push(P.linea(i, j));
-        grupo = []; gr = [];
+        grupo = []; gr = []; ge = [];
       };
+      const meter = (p, rompible, sinEsp) => { grupo.push(p); gr.push(rompible); ge.push(sinEsp); };
       for (let i = 0; i < toks.length; i++) {
-        const p = toks[i], sig = i < toks.length - 1 ? rompe[i] : true;
-        if (ancho(ctx, est, p) <= maxW + EPS) { grupo.push(p); gr.push(sig); continue; }
-        if (info) info.palabras.add(p);
-        const trozos = trocear(est, p, maxW);
-        grupo.push(trozos[0]); gr.push(true);
-        vaciar();
-        for (let k = 1; k < trozos.length - 1; k++) lineas.push(prepararParrafo(ctx, est, [trozos[k]], null, base).linea(0, 1));
-        if (trozos.length > 1) { grupo.push(trozos[trozos.length - 1]); gr.push(sig); }
+        const sig = i < toks.length - 1 ? rompe[i] : true;
+        const segs = segmentosSinEspacio(toks[i]) || [toks[i]];
+        for (let s = 0; s < segs.length; s++) {
+          const p = segs[s], ultimo = s === segs.length - 1;
+          if (ancho(ctx, est, p) <= lim + EPS) { meter(p, ultimo ? sig : true, !ultimo); continue; }
+          if (info) info.palabras.add(p);
+          const trozos = trocear(est, p, lim);   // los trozos pueden usar todo el ancho útil
+          meter(trozos[0], true, false);
+          vaciar();
+          for (let k = 1; k < trozos.length - 1; k++) lineas.push(prepararParrafo(ctx, est, [trozos[k]], null, base).linea(0, 1));
+          if (trozos.length > 1) meter(trozos[trozos.length - 1], ultimo ? sig : true, !ultimo);
+        }
       }
       vaciar();
     }
@@ -1267,7 +1404,17 @@
 
     // 2. bloque de texto
     const info = { palabras: new Set() };
-    const lay = maquetar(ctx, C, itemsDe(C, tipo, slide), esc, factor, W, col, info);
+    // portada horizontal: si la palabra más larga del título no cabe en la columna visible, se reduce el cuerpo
+    // lo justo (hasta 0,75 del cuerpo horizontal) antes de partir nada
+    let escB = esc;
+    if (col && lleno(slide.titulo)) {
+      const e0 = estilo(C, P.nivel || 'portada', esc);
+      const t0 = e0.mayus ? slide.titulo.toLocaleUpperCase('es-ES') : slide.titulo;
+      const dispCol = col.w - 2 * col.m;
+      const maxPal = Math.max(0, ...t0.split(/\s+/).filter(Boolean).flatMap((x) => segmentosSinEspacio(x) || [x]).map((x) => ancho(ctx, e0, x)));
+      if (maxPal > dispCol + EPS) escB = esc * Math.max(0.75, (dispCol - 0.5) / maxPal);
+    }
+    const lay = maquetar(ctx, C, itemsDe(C, tipo, slide), escB, factor, W, col, info);
     for (const p of info.palabras) AV.add('palabra', 'el texto', `la palabra «${p}» no cabe en una línea: acórtala o baja el tamaño`);
     const anclas = { arriba: zona[0] + G.sup, abajo: zona[1] - G.inf, centro: (zona[0] + zona[1]) / 2 };
     const topDe = (lugar, h) => (lugar === 'arriba' ? anclas.arriba : lugar === 'abajo' ? anclas.abajo - h : anclas.centro - h / 2);
@@ -1396,14 +1543,20 @@
       };
       let colLbl = vTop0 > 0 || !esOscuro(C, color) ? 'blanco' : 'carbon';
       vTop = colLbl === 'blanco' ? vTop0 : 0;
-      if (lbl.length && an && minC(colLbl, vTop) < AVISO_MIN) {
-        // blanco con el velo superior que haga falta (hasta velo.maximo) o carbón sin velo superior
-        let lo = vTop0, hi = C.velo.maximo;
-        if (minC('blanco', hi) >= AVISO_MIN) {
-          for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (minC('blanco', mid) >= AVISO_MIN) hi = mid; else lo = mid; }
+      if (lbl.length && an) {
+        const cC = minC('carbon', 0);
+        if (colLbl === 'blanco' && vTop0 > 0 && cC >= C.velo.contraste_objetivo && cC > minC('blanco', vTop0)) {
+          // carbón sin banda llega al objetivo y se lee mejor que blanco con banda (foto clara arriba)
+          colLbl = 'carbon'; vTop = 0;
+        } else if (minC(colLbl, vTop) < AVISO_MIN) {
+          // blanco con el velo superior que haga falta (hasta velo.maximo) o carbón sin velo superior
+          let lo = vTop0, hi = C.velo.maximo;
+          if (minC('blanco', hi) >= AVISO_MIN) {
+            for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (minC('blanco', mid) >= AVISO_MIN) hi = mid; else lo = mid; }
+          }
+          const vW = c2(hi), cW = minC('blanco', vW);
+          if (cC > cW) { colLbl = 'carbon'; vTop = 0; } else { colLbl = 'blanco'; vTop = vW; }
         }
-        const vW = c2(hi), cW = minC('blanco', vW), cC = minC('carbon', 0);
-        if (cC > cW) { colLbl = 'carbon'; vTop = 0; } else { colLbl = 'blanco'; vTop = vW; }
       }
       et.marca = etq.marca ? colLbl : null;
       et.pagina = etq.pagina ? colLbl : null;
@@ -1437,12 +1590,26 @@
       const cy = top + lay.h / 2, az = num(cp.alto_zona, 380);
       const st = zonaStats(an, m + dx, Math.round(cy) - (az >> 1), W - m + dx, Math.round(cy) + (az >> 1));
       // el velo respeta velo_max del kit; si aun así no llega, se avisa (abajo)
-      velo = veloOv !== null ? veloOv : c2(clamp(veloNecesario(st, rgbDe(color), num(cp.contraste, 4.5), veloRGB), num(cp.velo_min, 0.25), num(cp.velo_max, 0.6)));
-      velo = r2(velo);
-      if (velo > 0) {
-        const el = cp.elipse || [90, 30];
-        capaB = { tipo: 'rad', cx: W / 2 + dx, cy, rx: (el[0] / 100) * W, ry: (el[1] / 100) * H, stops: [[0, velo], [0.3, velo], [0.65, r2(velo * 0.45)], [1, 0]] };
+      const el = cp.elipse || [90, 30];
+      const radial = (a) => (a > 0 ? { tipo: 'rad', cx: W / 2 + dx, cy, rx: (el[0] / 100) * W, ry: (el[1] / 100) * H, stops: [[0, a], [0.3, a], [0.65, r2(a * 0.45)], [1, 0]] } : null);
+      const vmin = num(cp.velo_min, 0.25), vmax = num(cp.velo_max, 0.6);
+      if (veloOv !== null) velo = veloOv;
+      else {
+        velo = c2(clamp(veloNecesario(st, rgbDe(color), num(cp.contraste, 4.5), veloRGB), vmin, vmax));
+        // si la franja central deja líneas del título por debajo de 3, el velo sube (hasta velo_max) mirando
+        // el rectángulo real de las líneas
+        const rects = rectsDe(alinear, top, lay.items);
+        const cDe = (a) => contrasteSobre(rgbDe(color), fondoStats(an, rects, [radial(a)], veloRGB));
+        if (an && rects.length && velo < vmax && cDe(velo) < AVISO_MIN) {
+          let lo = velo, hi = vmax;
+          if (cDe(hi) >= AVISO_MIN) {
+            for (let i = 0; i < 10; i++) { const mid = (lo + hi) / 2; if (cDe(r2(mid)) >= AVISO_MIN) hi = mid; else lo = mid; }
+          }
+          velo = c2(hi);
+        }
       }
+      velo = r2(velo);
+      capaB = radial(velo);
     }
     const capas = [capaT, capaB];
 
@@ -1533,7 +1700,8 @@
       decision: { lugar, alinear, velo, color, velo_top: vTop, etiquetas: et },
       bloque: { x: minX, y: top, w: maxX - minX, h: lay.h },
       avisos: AV.lista.map((a) => a.mensaje),
-      avisosInfo: AV.lista
+      avisosInfo: AV.lista,
+      lineas: lay.items.map((it) => it.lineas.map((ln) => ln.t))
     };
   }
 
@@ -1549,7 +1717,7 @@
     const canvas = nuevoCanvas(t.W, t.H);
     const ctx = canvas.getContext('2d');
     const r = dibujar(ctx, kit, capa, slide, { W: t.W, H: t.H, factor: t.factor, pagina: opts.pagina, serie: opts.serie });
-    return { canvas, decision: r.decision, bloque: r.bloque, avisos: r.avisos, avisosInfo: r.avisosInfo };
+    return { canvas, decision: r.decision, bloque: r.bloque, avisos: r.avisos, avisosInfo: r.avisosInfo, lineas: r.lineas };
   }
 
   // JPEG siempre opaco: el lienzo se aplana sobre «fondo» (blanco por defecto) por si tuviera transparencias.
@@ -1570,7 +1738,8 @@
     // uso interno y pruebas
     _interno: {
       rectCover, zonaStats, bordesMedia, veloNecesario, contraste, partir, estilo, conf, analizarPixeles,
-      prepararParrafo, voraz, fondoStats, contrasteSobre, infoFuente, trocear, rompibles, ordenVisual, grafemas
+      prepararParrafo, voraz, fondoStats, contrasteSobre, infoFuente, trocear, rompibles, ordenVisual, grafemas,
+      cortesSilabicos, segmentosSinEspacio
     }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

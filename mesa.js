@@ -3320,6 +3320,17 @@
       if (lc.sent && (!s.caption.sent || String(lc.sent.at) > String(s.caption.sent.at))) s.caption.sent = { ...lc.sent };
     }
   }
+  // a collab's post is in several boards: after an import every copy holds all its caption batches, so a copy left
+  // without them can never write itself back over the others (returns the boards whose copies changed)
+  function spreadCaps(boards) {
+    const by = {}, changed = new Set();
+    boards.forEach(b => (b.slots || []).forEach(s => { (by[s.id] = by[s.id] || []).push({ b, s }); }));
+    for (const id in by) {
+      const L = by[id]; if (L.length < 2 || !L.some(x => x.s.caption)) continue;
+      for (const t of L) for (const o of L) if (t !== o) { const was = JSON.stringify(t.s.caption || null); keepCaps({ slots: [t.s] }, { slots: [o.s] }); if (JSON.stringify(t.s.caption || null) !== was) changed.add(t.b); }
+    }
+    return changed;
+  }
   function xferWhat(P) {
     const u = P.upd.length, k = P.newer.length, s = P.same.length;
     return [P.add.length && nOf(P.add.length, 'mes nuevo', 'meses nuevos'), u && `${u} se actualiza${u === 1 ? '' : 'n'}`,
@@ -3435,10 +3446,14 @@
         if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } }   // the one it replaces
       }
       P.upd.forEach(b => keepCaps(b, P.local[b.key]));
-      const capKept = P.capKeep.map(o => ({ ...o, editedAt: new Date().toISOString() }));
-      if (capKept.length) res.captionsKept = capKept.map(b => b.key);
-      if (P.put.length || capKept.length) await tx('boards', 'readwrite', st => { for (const b of [...P.put, ...capKept]) st.put(b, b.key); });
-      try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && [...P.put, ...capKept].some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
+      const now = new Date().toISOString(), capKept = P.capKeep.map(o => ({ ...o, editedAt: now }));
+      const fin = Object.fromEntries(Object.entries(P.local).map(([k, b]) => [k, JSON.parse(JSON.stringify(b))]));   // every board as it ends up
+      [...P.put, ...capKept].forEach(b => { fin[b.key] = b; });
+      const spread = [...spreadCaps(Object.values(fin))].filter(b => !P.put.includes(b) && !capKept.includes(b)).map(b => ({ ...b, editedAt: now }));
+      const writes = [...P.put, ...capKept, ...spread];
+      if (capKept.length || spread.length) res.captionsKept = [...capKept, ...spread].map(b => b.key);
+      if (writes.length) await tx('boards', 'readwrite', st => { for (const b of writes) st.put(b, b.key); });
+      try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced

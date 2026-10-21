@@ -2415,7 +2415,9 @@
     const boards = (await idbAll('boards')) || [];
     const n = boards.filter(b => b.client === id).length;
     if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
+    const c0 = await idbGet('clients', id);
     await idbDel('clients', id);
+    if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } }   // its profile photo
     await loadClients();
     if (curClient === id) {
       curClient = null;
@@ -3054,8 +3056,8 @@
     P.put = [...P.add, ...P.upd];
     const pk = new Set(P.put.map(b => b.key));
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
-    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto) P.refs.add(c.foto); });
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
+    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });   // a profile photo only when it is used
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
@@ -3067,7 +3069,8 @@
     const u = P.upd.length, k = P.newer.length, s = P.same.length;
     return [P.add.length && nOf(P.add.length, 'mes nuevo', 'meses nuevos'), u && `${u} se actualiza${u === 1 ? '' : 'n'}`,
       k && `${k} ya estaba${k === 1 ? '' : 'n'} más reciente${k === 1 ? '' : 's'} aquí`, s && `${s} igual${s === 1 ? '' : 'es'}`,
-      P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos'), P.kitUpd && P.kitUpd.length && nOf(P.kitUpd.length, 'kit de diseño actualizado', 'kits de diseño actualizados')].filter(Boolean).join(', ')
+      P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos'), P.kitUpd && P.kitUpd.length && nOf(P.kitUpd.length, 'kit de diseño actualizado', 'kits de diseño actualizados'),
+      P.fotoUpd && P.fotoUpd.length && nOf(P.fotoUpd.length, 'foto de perfil actualizada', 'fotos de perfil actualizadas')].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
   function xferSummaryHTML(d, P) {
@@ -3169,7 +3172,12 @@
       for (const id of newPast) { await idbPut('files', 'past:' + id, gotPast[id]); res.past++; }
       for (const c of P.newClients) await idbPut('clients', c.id, c);
       for (const c of P.kitUpd) { const o = await idbGet('clients', c.id); if (o) await idbPut('clients', c.id, { ...o, kit: c.kit, kitAt: c.kitAt }); }
-      for (const c of P.fotoUpd || []) { const o = await idbGet('clients', c.id); if (o) { const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto; await idbPut('clients', c.id, n); } }
+      for (const c of P.fotoUpd || []) {
+        const o = await idbGet('clients', c.id); if (!o) continue;
+        const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto;
+        await idbPut('clients', c.id, n);
+        if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } }   // the one it replaces
+      }
       if (P.put.length) await tx('boards', 'readwrite', st => { for (const b of P.put) st.put(b, b.key); });
       try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);

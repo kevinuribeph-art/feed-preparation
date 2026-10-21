@@ -1570,7 +1570,7 @@
     const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
     const fid = s.photos[idx];
     const fd = !!(n && (M.files[fid] || {}).design);   // a designed image: uploaded as rendered
-    const live = fd && designed(s);                     // a designed slide: reframed here on its photo, drawn live with its texts (B4)
+    const live = fd && designed(s) && dState(s) !== 'chg' && s.photos.length === s.design.slides.length;   // a designed slide: reframed here on its photo, drawn live with its texts (B4)
     let left;
     if (!n) left = '<div class="pempty">Sin foto todavía.<br>Arrastra aquí fotos desde tu ordenador o suelta una de la bandeja sobre la casilla.</div>';
     else {
@@ -1580,7 +1580,7 @@
       const segD = dfmt ? `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${dfmt === k ? 'on' : ''}" aria-pressed="${dfmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>` : '';
       const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : dfmt ? `<span class="muted">Carrusel</span>${segD}` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
       const dsrc = live && M.diseno && M.diseno._srcVista ? M.diseno._srcVista(s, idx) : null, zv = (dsrc ? baseCrop(dsrc, S) : c).z || 1;
-      const tools = fd && !live ? '<span class="muted">Imagen diseñada: se sube tal cual</span>'
+      const tools = fd && !live ? `<span class="muted">${designed(s) ? 'Diseño con cambios sin aplicar: reencuádralo en «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
         : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
@@ -2215,7 +2215,7 @@
     });
     root.addEventListener('change', e => {
       if (!e.target.matches) return;
-      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) rerender(slot(cur.slot)); }
+      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live && M.diseno && M.diseno.vistaCambiada && M.diseno.vistaCambiada()) rerender(slot(cur.slot)); }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
@@ -2243,7 +2243,12 @@
         st.classList.add('panning');
         const sx = e.clientX, sy = e.clientY, sw = st.clientWidth, sh = st.clientHeight;
         const mv = ev => M.diseno.vistaMover(g, (ev.clientX - sx) / sw, (ev.clientY - sy) / sh);
-        const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); rerender(s); if (refreshLater) { refreshLater = false; refreshDetail(); } };
+        const up = () => {
+          st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning');
+          if (M.diseno.vistaCambiada && M.diseno.vistaCambiada()) { save(); renderFeed(); renderBar(); rerender(s); }   // a click alone draws nothing again
+          else { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
+          if (refreshLater) { refreshLater = false; refreshDetail(); }
+        };
         st.addEventListener('pointermove', mv); st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
         return;
       }
@@ -2317,7 +2322,7 @@
     else if (act === 'center') {
       flashThirds(); const s = slot(cur.slot); touchPrev(s);
       const st = root.querySelector('.detail .stage');
-      if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar()) { const z = root.querySelector('.detail .zoomr'); if (z) z.value = 1; save(); renderFeed(); renderBar(); rerender(s); } return; }
+      if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar() && M.diseno.vistaCambiada()) { const z = root.querySelector('.detail .zoomr'); if (z) z.value = 1; save(); renderFeed(); renderBar(); rerender(s); } return; }
       if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); }
     }
     else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }

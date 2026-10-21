@@ -229,14 +229,26 @@
   // what the applied images depend on, in two parts: the post's own (texts, adjustments, photos and their reframe, format,
   // name) and the kit's (only what the engine reads for these slides). A change after applying = «cambios sin aplicar».
   function hash(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); }
+  // the kit's positions of marca, número and pie when they are not the usual ones (the canvas margins): a kit without
+  // «posiciones», or with the usual ones, keeps the signature its designs were applied with
+  function posKit(k) {
+    const L = Object.assign({ margen: 72, barra_top: 64, pie: 64 }, k.lienzo || {}), p = k.posiciones;
+    if (!isObj(p)) return null;
+    const def = { marca: ['izquierda', 'arriba', L.margen, L.barra_top], pagina: ['derecha', 'arriba', L.margen, L.barra_top], pie: ['centro', 'abajo', 0, L.pie] };
+    const n = Object.fromEntries(Object.entries(def).map(([e, x]) => { const v = isObj(p[e]) ? p[e] : {}; return [e, [v.ancla || x[0], v.desde || x[1], typeof v.x === 'number' ? v.x : x[2], typeof v.y === 'number' ? v.y : x[3]]]; }));
+    return JSON.stringify(n) === JSON.stringify(def) ? null : n;
+  }
+  const posOf = d => (d.pos && Object.keys(d.pos).length ? d.pos : null);   // this post's own positions (Diseñar)
   function sigOf(s, raw) {
     const d = s.design, crops = I().S.crops || {}, k = raw || {}, fin = finalIdOf(k), fz = k.final || {};
     const tipos = [...new Set(d.slides.map(x => x.tipo))];
     const own = [d.fmt, str(d.serie), d.slides.map(sl => { const src = effSrc(sl, fin); return [sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null]; })];
+    if (posOf(d)) own.push(posOf(d));
     const piezas = Object.fromEntries(tipos.map(t => [t, (k.piezas || {})[t] || null]));
     const cols = new Set(['blanco', 'carbon', ...tipos.map(t => piezas[t] && piezas[t].color), ...d.slides.map(x => x.ov && x.ov.color)].filter(Boolean));
     const kitPart = [k.fuentes, k.escala, k.lienzo, k.formatos, k.velo, k.variacion, piezas, k.marca, k.cliente, [...cols].sort().map(c => [c, (k.colores || {})[c] || null]),
       d.slides.some(x => x.tipo === 'final' && x.contacto == null) ? fz.contacto ?? null : null, tipos.includes('final') ? [fin, fz.fotoAt || null] : null];
+    if (posKit(k)) kitPart.push(posKit(k));
     return hash(JSON.stringify(own)) + '.' + hash(JSON.stringify(kitPart));
   }
   // synchronous state for the mesa (post view, upload plan): 'ok' = applied and up to date, 'chg' = not, null = no design.
@@ -271,7 +283,7 @@
   const AV = {};                               // 'slotId:i' -> {key, avisos, decision}: valid only for the inputs it was drawn from
   function avKey(s, i, rawHash, sz, fin) {
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), crops = I().S.crops || {}, f = src && M.files[src];
-    return hash(JSON.stringify([d.fmt, str(d.serie), slideFor(sl), src || null, src ? crops[src] || null : null, f ? [f.w, f.h] : null, pageOf(s, i), rawHash, sz ? [sz.W, sz.H] : null]));
+    return hash(JSON.stringify([d.fmt, str(d.serie), slideFor(sl), src || null, src ? crops[src] || null : null, f ? [f.w, f.h] : null, pageOf(s, i), rawHash, sz ? [sz.W, sz.H] : null, posOf(d)]));
   }
   const avGet = (s, i, key) => { const c = AV[s.id + ':' + i]; return c && c.key === key ? c : null; };
   const kitHash = raw => hash(JSON.stringify(raw || {}));
@@ -308,7 +320,7 @@
     const bmp = await createImageBitmap(blob0, { imageOrientation: 'from-image' });
     try {
       const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
-      const o = { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh }, slide = slideAt(sl, sz);
+      const o = { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh, pos: posOf(d) }, slide = slideAt(sl, sz);
       let res = await ENG().render(kit, slide, bmp, rc, o);
       const adj = clampOv(sl, slide.ov, res, sz);
       if (adj) { res.canvas.width = res.canvas.height = 0; res = await ENG().render(kit, { ...slide, ov: adj }, bmp, rc, o); }
@@ -362,6 +374,7 @@
     s.design = { v: 1, kit: cid, fmt, serie: opts.serie != null ? str(opts.serie) : d0 ? str(d0.serie) : '', slides, out: d0 ? d0.out || null : null, sig: d0 ? d0.sig || null : null, at: nowISO() };
     if (d0 && d0.outAt) s.design.outAt = d0.outAt;
     if (d0 && d0.stash) s.design.stash = d0.stash;          // the design kept from its other type (Notion) stays
+    if (d0 && d0.pos) s.design.pos = d0.pos;                // and the post's own positions of marca, número and pie
     if (d0 && d0.fmt !== fmt) stampOffsets(s.design, EXT_H[d0.fmt]);
     release(s, old.slice(slides.length).map(x => x.src));
     remember(s); syncFmt(s);
@@ -579,6 +592,8 @@
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 #mesa .dz-sw{width:26px;height:26px;border-radius:50%;border:1px solid rgba(0,0,0,.18);padding:0}
 #mesa .dz-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--acc)}
+#mesa .dz-posr{display:flex;align-items:center;gap:8px;margin:6px 0}#mesa .dz-posn{flex:1;min-width:0;font-size:12.5px;font-weight:600}#mesa .dz-posn i{display:block;font-style:normal;font-weight:400;font-size:11px;color:var(--mute)}
+#mesa .dz-posr label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mute)}#mesa .dz-posr .dz-pos{width:66px;padding:5px 6px;min-height:30px}
 #mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed #b5b5b5;background:var(--panel);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
 #mesa .dz-auto{border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;padding:4px 11px;min-height:28px}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:#fff}
@@ -805,8 +820,22 @@
       sec('color', `<h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
         + coloresHTML(ov.color) + '</div>'),
       sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="0.9" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
-      sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`)
+      sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`),
+      ...(etiquetasHTML(s) ? [sec('etiquetas', etiquetasHTML(s))] : [])
     ];
+  }
+  // marca, número and pie of this post (all its slides): exact positions in px, the kit's by default
+  function etiquetasHTML(s) {
+    const d = s.design; if (isReelS(s) || !ENG() || !ENG().posiciones) return null;
+    const P = ENG()._interno.conf(E.raw).piezas, tipos = [...new Set(d.slides.map(x => x.tipo))];
+    const ks = ['marca', 'pagina', 'pie'].filter(k => tipos.some(t => P[t] && P[t][k]) && (k !== 'pie' || str(d.serie).trim()));
+    if (!ks.length) return null;
+    const kit = ENG().posiciones(E.raw), cur = ENG().posiciones(E.raw, posOf(d));
+    const NOM = { marca: 'Marca', pagina: 'Número', pie: 'Pie' }, LADO = { izquierda: 'desde la izquierda', derecha: 'desde la derecha', centro: 'desde el centro' };
+    const inp = (k, c, t) => `<input type="number" id="dz-pos-${k}-${c}" class="dz-in dz-pos" data-e="${k}" data-c="${c}" step="1" value="${cur[k][c]}" title="${esc(t)} · kit: ${kit[k][c]} px" aria-label="${NOM[k]}: ${c.toUpperCase()} en px, ${esc(t)}">`;
+    return `<h4>Marca, número y pie <span>· px, en todo el carrusel</span></h4>`
+      + ks.map(k => `<div class="dz-posr"><span class="dz-posn">${NOM[k]}<i>${LADO[kit[k].ancla]} · desde ${kit[k].desde === 'abajo' ? 'abajo' : 'arriba'}</i></span><label>X ${inp(k, 'x', LADO[kit[k].ancla])}</label><label>Y ${inp(k, 'y', 'desde ' + (kit[k].desde === 'abajo' ? 'abajo' : 'arriba'))}</label></div>`).join('')
+      + `<div class="dz-row"><button type="button" class="btn2" data-dz="posreset" ${posOf(d) ? '' : 'disabled'}>Volver a las del kit</button></div>`;
   }
   function edPanel(force) {
     const s = curSlot(), sl = s.design.slides[E.sel], p = E.el.querySelector('.dz-panel'), top = p.scrollTop;
@@ -932,7 +961,7 @@
     E.capas.delete(key); E.capas.set(key, capa);
     while (E.capas.size > d.slides.length + 3) E.capas.delete(E.capas.keys().next().value);
     if (ctx.canvas.width !== W || ctx.canvas.height !== H) { ctx.canvas.width = W; ctx.canvas.height = H; }
-    const opts = { W, H, factor: E.sz.factor, pagina: pageOf(s, i), serie: str(d.serie) };
+    const opts = { W, H, factor: E.sz.factor, pagina: pageOf(s, i), serie: str(d.serie), pos: posOf(d) };
     const slide = slideAt(sl, E.sz);
     let res = ENG().dibujar(ctx, E.kit, capa, slide, opts);
     const adj = clampOv(sl, slide.ov, res, E.sz);
@@ -1160,6 +1189,7 @@
       }
       else if (act === 'color') { if (a.dataset.v) sl.ov.color = a.dataset.v; else delete sl.ov.color; touch(); edPanel(); dirty('sel'); }
       else if (act === 'mascolores') { E.masCol = !E.masCol; edPanel(); }
+      else if (act === 'posreset') { delete d.pos; touch(true); edPanel(); }
       else if (act === 'veloauto') { if (sl.ov.velo != null) { delete sl.ov.velo; touch(); edPanel(); dirty('sel'); } }
       else if (act === 'reset') {                            // everything back to automatic, the photo's reframe included
         sl.ov = {};
@@ -1172,6 +1202,15 @@
       const t = e.target, d = D(), sl = d.slides[E.sel];
       if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; touch(); dirty('sel'); }
       else if (t.matches('.dz-serin')) { d.serie = t.value; touch(true); }
+      else if (t.matches('.dz-pos')) {                      // exact position of marca / número / pie (empty = the kit's)
+        const k = t.dataset.e, c = t.dataset.c, kv = ENG().posiciones(E.raw)[k][c], v = t.value.trim() === '' ? null : Math.round(+t.value);
+        const o = { ...((d.pos || {})[k] || {}) };
+        if (v == null || !isFinite(v) || v === kv) delete o[c]; else o[c] = Math.max(-2000, Math.min(2000, v));
+        d.pos = { ...(d.pos || {}) }; if (Object.keys(o).length) d.pos[k] = o; else delete d.pos[k];
+        if (!Object.keys(d.pos).length) delete d.pos;
+        touch(true); const rs = el.querySelector('[data-dz="posreset"]'); if (rs) rs.disabled = !posOf(d);
+        if (E.pHtml) E.pHtml.etiquetas = `<div class="dz-sec" data-sec="etiquetas">${etiquetasHTML(curSlot())}</div>`;   // what the field shows now (a later redraw of the section compares with it)
+      }
       else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { flashTercios(); setCropFor(src, { z: +t.value }); touch(); const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false; } }
       else if (t.matches('.dz-velor')) {
         sl.ov = sl.ov || {}; sl.ov.velo = Math.round(+t.value * 100) / 100;

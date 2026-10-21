@@ -37,6 +37,11 @@
     "separacion": 28,
     "separacion_final": 36
   },
+  "posiciones": {
+    "marca":  { "ancla": "izquierda", "desde": "arriba", "x": 72, "y": 64 },
+    "pagina": { "ancla": "derecha",   "desde": "arriba", "x": 72, "y": 64 },
+    "pie":    { "ancla": "centro",    "desde": "abajo",  "x": 0,  "y": 64 }
+  },
   "formatos": {
     "v45": { "ancho": 1080, "alto": 1350 },
     "v34": { "ancho": 1080, "alto": 1440 },

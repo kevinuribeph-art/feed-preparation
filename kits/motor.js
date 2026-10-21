@@ -1336,6 +1336,28 @@
     return { est, ln, recortado };
   }
 
+  // ---------------------------------------------------------------- posiciones de marca, número y pie
+  // Del kit («posiciones»), con los valores de cada publicación encima (opts.pos = {marca|pagina|pie: {x, y}}).
+  // Sin «posiciones» en el kit: las de siempre, con los márgenes del lienzo.
+  //   ancla: izquierda | derecha | centro — x en px desde ese borde (en centro, desde el centro; + = a la derecha)
+  //   desde: arriba | abajo — y en px desde ese borde de la zona visible hasta la caja de la línea (en horizontal, × kv)
+  const ANCLAS = ['izquierda', 'derecha', 'centro'];
+  function posDefecto(L) {
+    return {
+      marca: { ancla: 'izquierda', desde: 'arriba', x: L.margen, y: L.barra_top },
+      pagina: { ancla: 'derecha', desde: 'arriba', x: L.margen, y: L.barra_top },
+      pie: { ancla: 'centro', desde: 'abajo', x: 0, y: L.pie }
+    };
+  }
+  function posiciones(C, pos) {
+    const def = posDefecto(C.L), k = C.kit.posiciones || {}, o = pos || {}, out = {};
+    for (const e of ['marca', 'pagina', 'pie']) {
+      const b = Object.assign({}, def[e], k[e] || {}), v = o[e] || {};
+      out[e] = { ancla: ANCLAS.includes(b.ancla) ? b.ancla : def[e].ancla, desde: b.desde === 'abajo' ? 'abajo' : b.desde === 'arriba' ? 'arriba' : def[e].desde, x: num(v.x, num(b.x, def[e].x)), y: num(v.y, num(b.y, def[e].y)) };
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------------- dibujo
   function zonaDe(C, W, H, tipo, opts) {
     if (opts && Array.isArray(opts.zona)) return opts.zona;
@@ -1376,7 +1398,7 @@
     const kv = horiz ? clamp(H / 1350, 0.45, 1) : 1;
     const fe = factor;
     const G = {
-      inf: L.bloque_inferior * kv, sup: L.bloque_superior * kv, barra: L.barra_top * kv, pie: L.pie * kv,
+      inf: L.bloque_inferior * kv, sup: L.bloque_superior * kv,
       f0: 40 * kv, f1: 120 * kv
     };
     // Portada horizontal: marca y título dentro de la columna 3:4 central que se ve en la cuadrícula del perfil.
@@ -1460,7 +1482,13 @@
     let capaB = null, capaT = null;
     const et = { marca: null, pagina: null, pie: null };      // colores de las etiquetas
     const etq = {};                                         // etiquetas preparadas {est, ln, x, y, rect}
-    const yBarra = zona[0] + G.barra;
+    // marca, número y pie: dónde van (kit + publicación); la columna 3:4 de la portada horizontal manda en x
+    const PS = posiciones(C, opts.pos);
+    const yEt = (p, lh) => (p.desde === 'abajo' ? zona[1] - p.y * kv - lh : zona[0] + p.y * kv);
+    const xEt = (p, w) => {
+      if (col) return p.ancla === 'derecha' ? col.x0 + col.w - p.x * kv - w : p.ancla === 'centro' ? col.x0 + col.w / 2 + p.x * kv - w / 2 : col.x0 + p.x * kv;
+      return p.ancla === 'derecha' ? W - p.x - w : p.ancla === 'centro' ? W / 2 + p.x - w / 2 : p.x;
+    };
     // separación mínima entre la tinta del bloque y el nombre del carrusel (pie)
     const sepPie = L.separacion * fe;
     const tintaDe = (t) => {
@@ -1479,20 +1507,24 @@
     // etiquetas (marca, página, pie): preparadas antes para conocer su rectángulo real
     if (P.pagina && esNum(opts.pagina)) {
       const e = prepEtiqueta(ctx, C, String(Math.round(opts.pagina)).padStart(2, '0'), fe, 0);
-      etq.pagina = Object.assign(e, { x: W - m - e.ln.w, y: yBarra });
+      etq.pagina = Object.assign(e, { x: xEt(PS.pagina, e.ln.w), y: yEt(PS.pagina, e.est.lh) });
     }
     if (P.marca && lleno(kit.marca || kit.cliente || '')) {
       const disp = col ? col.w - 2 * col.m : W - 2 * m - (etq.pagina ? etq.pagina.ln.w + 24 * fe : 0);
       const e = prepEtiqueta(ctx, C, kit.marca || kit.cliente, fe, disp);
-      etq.marca = Object.assign(e, { x: col ? col.x0 + col.m : m, y: yBarra });
+      etq.marca = Object.assign(e, { x: xEt(PS.marca, e.ln.w), y: yEt(PS.marca, e.est.lh) });
       if (e.recortado) AV.add('recorte', 'la marca', 'la marca no cabe en su línea: se ha recortado (acorta «marca» en el kit)');
     }
     if (P.pie && lleno(opts.serie)) {
       const e = prepEtiqueta(ctx, C, opts.serie, fe, W - 2 * m);
-      etq.pie = Object.assign(e, { x: W / 2 - e.ln.w / 2, y: zona[1] - G.pie - e.est.lh });
+      etq.pie = Object.assign(e, { x: xEt(PS.pie, e.ln.w), y: yEt(PS.pie, e.est.lh) });
       if (e.recortado) AV.add('recorte', 'el nombre del carrusel', 'el nombre del carrusel no cabe: se ha recortado con «…» (acórtalo)');
     }
     for (const k of Object.keys(etq)) { const e = etq[k]; e.rect = [e.x, e.y, e.x + e.ln.w, e.y + e.est.lh]; }
+    // límites para el bloque de texto: bajo las etiquetas de arriba y sobre el pie de abajo
+    const deArriba = ['marca', 'pagina', 'pie'].filter((k) => etq[k] && PS[k].desde === 'arriba' && k !== 'pie');
+    const techoEt = deArriba.length ? Math.max(...deArriba.map((k) => etq[k].y)) + estilo(C, 'etiqueta', fe).lh : null;
+    const pieAbajo = etq.pie && PS.pie.desde === 'abajo' ? etq.pie : null;
 
     // mejor de blanco/carbón sobre un fondo: blanco si llega al umbral, si no carbón, si no el que más
     const mejor = (fs, umbral) => {
@@ -1541,10 +1573,10 @@
       espaciarLineas(lay, xRel(alinear));
       if (lay.h !== h0) hz = Math.max(lay.h, altoMin);
       top = topDe(lugar, lay.h) + dy;
-      if (etq.pie && !dy && lugar !== 'abajo' && lay.h > 0) {
-        const [ti, tb] = tintaDe(top), limite = etq.pie.y - sepPie;
+      if (pieAbajo && !dy && lugar !== 'abajo' && lay.h > 0) {
+        const [ti, tb] = tintaDe(top), limite = pieAbajo.y - sepPie;
         if (tb > limite) {
-          const techo = etq.marca || etq.pagina ? yBarra + estilo(C, 'etiqueta', fe).lh + sepPie : zona[0];
+          const techo = techoEt != null ? techoEt + sepPie : zona[0];
           // solo se sube si así cabe entero; si no, se queda donde estaba y se avisa
           if (tb - limite <= ti - techo) top -= tb - limite;
         }
@@ -1718,9 +1750,9 @@
     }
     // el bloque no cabe (por la tinta real de las líneas)
     if (lay.h > 0 && tintaTop !== Infinity) {
-      const arribaMin = etq.marca || etq.pagina ? yBarra + estilo(C, 'etiqueta', fe).lh : -Infinity;
-      const abajoMax = etq.pie ? etq.pie.y : Infinity;
-      const pegadoMax = etq.pie ? etq.pie.y - sepPie : Infinity;
+      const arribaMin = techoEt != null ? techoEt : -Infinity;
+      const abajoMax = pieAbajo ? pieAbajo.y : Infinity;
+      const pegadoMax = pieAbajo ? pieAbajo.y - sepPie : Infinity;
       const zonaSegura = zona[0] > 0 || zona[1] < H;
       let causa = null;
       if (minX < -0.5 || maxX > W + 0.5 || tintaTop < -0.5 || tintaBot > H + 0.5) causa = 'se sale del lienzo';
@@ -1765,7 +1797,7 @@
     const capa = capaFoto(bitmap, rect || rectCover(bw, bh, t.W, t.H, 0.5, 0.5), t.W, t.H);
     const canvas = nuevoCanvas(t.W, t.H);
     const ctx = canvas.getContext('2d');
-    const r = dibujar(ctx, kit, capa, slide, { W: t.W, H: t.H, factor: t.factor, pagina: opts.pagina, serie: opts.serie });
+    const r = dibujar(ctx, kit, capa, slide, { W: t.W, H: t.H, factor: t.factor, pagina: opts.pagina, serie: opts.serie, pos: opts.pos });
     return { canvas, decision: r.decision, bloque: r.bloque, avisos: r.avisos, avisosInfo: r.avisosInfo, lineas: r.lineas };
   }
 
@@ -1784,6 +1816,7 @@
   global.DisenoMotor = {
     version: VERSION,
     cargarKit, usarKit, tamano, capaFoto, dibujar, render, aBlob,
+    posiciones: (kit, pos) => posiciones(conf(kit), pos),
     // uso interno y pruebas
     _interno: {
       rectCover, zonaStats, bordesMedia, veloNecesario, contraste, partir, estilo, conf, analizarPixeles,

@@ -575,6 +575,15 @@
     const s1 = clamp((Math.min(zTop + R2, bTop) - t) / (b - t), 0, 1), s2 = clamp((Math.max(zBot - R2, bBot) - t) / (b - t), s1, 1);
     return { tipo: 'lin', y0: t, y1: b, stops: [[0, 0], [s1, a], [s2, a], [1, 0]] };
   }
+  // Velo de la portada de reel: más oscuro en el centro (el del título) y más claro hacia los bordes, de forma muy suave
+  // y homogénea (elipse con la forma del lienzo; la curva llega plana al final, así que no se ve ningún círculo ni
+  // borde); al 100 % toda la foto queda del color del velo por igual.
+  function capaReel(a, cx, cy, W, H) {
+    if (!(a > 0)) return null;
+    const rx = Math.max(cx, W - cx) * Math.SQRT2, ry = Math.max(cy, H - cy) * Math.SQRT2, N = 24, stops = [];
+    for (let i = 0; i <= N; i++) { const t = i / N, sv = t * t * (3 - 2 * t); stops.push([t, a * (1 - (1 - a) * sv)]); }
+    return { tipo: 'rad', cx, cy, rx, ry, stops };
+  }
   function capaTop(a, y0, alto) {
     return a > 0 ? { tipo: 'lin', y0, y1: y0 + alto, stops: [[0, a], [1, 0]] } : null;
   }
@@ -1387,7 +1396,8 @@
     const dx = num(ov.dx, 0), dy = num(ov.dy, 0);
     const esc = factor * clamp(num(ov.escala, 1), 0.6, 1.6);
     const colorOv = ov.color && C.colores[ov.color] ? ov.color : null;
-    const veloOv = esNum(ov.velo) ? clamp(ov.velo, 0, 0.9) : null;
+    const VMAX = tipo === 'reel' ? 1 : 0.9;                  // tope del velo (el del control en Diseñar)
+    const veloOv = esNum(ov.velo) ? clamp(ov.velo, 0, VMAX) : null;
     const manual = !!colorOv || veloOv !== null;
     const veloRGB = hex2rgb(C.velo.color);
     const blancoRGB = hex2rgb(colorHex(C, 'blanco')), carbonRGB = hex2rgb(colorHex(C, 'carbon'));
@@ -1479,6 +1489,22 @@
     };
 
     let lugar, alinear, velo = 0, color, vTop = 0, top = 0;
+    // Velo «Auto»: el mínimo que deja cada texto del bloque justo por encima de 3:1 contra su fondo real (medido igual
+    // que el aviso), redondeado al 1 % hacia arriba, hasta el tope del control. Si ni al tope llega, se queda en el tope
+    // y se avisa. Solo para textos claros (a un texto oscuro el velo no le ayuda: sin velo).
+    const minTexto = (colRGB, capas, extra) => {          // el peor contraste de los textos del bloque (y de «extra»)
+      let mn = 21;
+      for (const it of lay.items) { const rs = rectsDe(alinear, top, [it]); if (rs.length) mn = Math.min(mn, contrasteSobre(colRGB, fondoStats(an, rs, capas, veloRGB))); }
+      for (const r of extra || []) mn = Math.min(mn, contrasteSobre(colRGB, fondoStats(an, [r], capas, veloRGB)));
+      return mn;
+    };
+    const veloMinimo = (cDe) => {
+      if (!an || cDe(0) >= AVISO_MIN) return 0;
+      if (cDe(VMAX) < AVISO_MIN) return VMAX;
+      let lo = 0, hi = VMAX;
+      for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (cDe(mid) >= AVISO_MIN) hi = mid; else lo = mid; }
+      return Math.min(VMAX, c2(hi));
+    };
     let capaB = null, capaT = null;
     const et = { marca: null, pagina: null, pie: null };      // colores de las etiquetas
     const etq = {};                                         // etiquetas preparadas {est, ln, x, y, rect}
@@ -1593,48 +1619,62 @@
         color = tranquila && contrasteSobre(carbonRGB, fsFoto) >= C.velo.contraste_objetivo ? 'carbon' : 'blanco';
       }
       const colRGB = rgbDe(color);
-      if (veloOv !== null) velo = veloOv;
-      else if (esOscuro(C, color)) velo = 0;
-      else {
-        // velo para el color real: el de la zona (4,5, como motor.py) y, como suelo, el que deja el p98 del
-        // fondo bajo cada línea en 3 (focos pequeños); redondeo hacia arriba
-        const aZona = veloNecesario(z.st, colRGB, C.velo.contraste_objetivo, veloRGB);
-        const aTexto = fsFoto ? alfaPara(fsFoto.c98, colRGB, AVISO_MIN, veloRGB) : 0;
-        velo = c2(clamp(Math.max(aZona, aTexto), C.velo.minimo, C.velo.maximo));
-      }
-      velo = r2(velo);
       const zTop = z.y0, zBot = z.y0 + hz;
-      capaB = capaBloque(lugar, velo, zTop, zBot, top, top + lay.h, H, kv);
+      const capaF = (a) => capaBloque(lugar, a, zTop, zBot, top, top + lay.h, H, kv);
+      // con el bloque abajo, el mismo velo cubre el nombre del carrusel (que va del color del bloque): también cuenta
+      const conPie = lugar === 'abajo' && pieAbajo ? [pieAbajo.rect] : [];
+      const minBloque = (fijas, a) => minTexto(colRGB, [...fijas, capaF(a)], conPie);
 
       // marca y página: velo superior de motor.py; blanco o carbón según su fondo local con todos los velos
       const franja = zonaStats(an, m, zona[0] + G.f0, W - m, zona[0] + G.f1);
       const vTop0 = r2(clamp(veloNecesario(franja, blancoRGB, C.velo.contraste_objetivo, veloRGB), 0, 0.6));
       const altoTop = 300 * kv;
       const lbl = ['marca', 'pagina'].filter((k) => etq[k]);
-      const minC = (key, v) => {
-        if (!an || !lbl.length) return 21;
-        const cs = [capaTop(v, zona[0], altoTop), capaB];
-        return Math.min(...lbl.map((k) => contrasteSobre(rgbDe(key), fondoStats(an, [etq[k].rect], cs, veloRGB))));
-      };
-      let colLbl = vTop0 > 0 || !esOscuro(C, color) ? 'blanco' : 'carbon';
-      vTop = colLbl === 'blanco' ? vTop0 : 0;
-      if (lbl.length && an) {
-        const cC = minC('carbon', 0);
-        if (colLbl === 'blanco' && vTop0 > 0 && cC >= C.velo.contraste_objetivo && cC > minC('blanco', vTop0)) {
-          // carbón sin banda llega al objetivo y se lee mejor que blanco con banda (foto clara arriba)
-          colLbl = 'carbon'; vTop = 0;
-        } else if (minC(colLbl, vTop) < AVISO_MIN) {
-          // blanco con el velo superior que haga falta (hasta velo.maximo) o carbón sin velo superior
-          let lo = vTop0, hi = C.velo.maximo;
-          if (minC('blanco', hi) >= AVISO_MIN) {
-            for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (minC('blanco', mid) >= AVISO_MIN) hi = mid; else lo = mid; }
+      const etiquetasArriba = (cB) => {
+        const minC = (key, v) => {
+          if (!an || !lbl.length) return 21;
+          const cs = [capaTop(v, zona[0], altoTop), cB];
+          return Math.min(...lbl.map((k) => contrasteSobre(rgbDe(key), fondoStats(an, [etq[k].rect], cs, veloRGB))));
+        };
+        let colLbl = vTop0 > 0 || !esOscuro(C, color) ? 'blanco' : 'carbon', vT = colLbl === 'blanco' ? vTop0 : 0;
+        if (lbl.length && an) {
+          const cC = minC('carbon', 0);
+          if (colLbl === 'blanco' && vTop0 > 0 && cC >= C.velo.contraste_objetivo && cC > minC('blanco', vTop0)) {
+            // carbón sin banda llega al objetivo y se lee mejor que blanco con banda (foto clara arriba)
+            colLbl = 'carbon'; vT = 0;
+          } else if (minC(colLbl, vT) < AVISO_MIN) {
+            // blanco con el velo superior que haga falta (hasta velo.maximo) o carbón sin velo superior
+            let lo = vTop0, hi = C.velo.maximo;
+            if (minC('blanco', hi) >= AVISO_MIN) {
+              for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (minC('blanco', mid) >= AVISO_MIN) hi = mid; else lo = mid; }
+            }
+            const vW = c2(hi), cW = minC('blanco', vW);
+            if (cC > cW) { colLbl = 'carbon'; vT = 0; } else { colLbl = 'blanco'; vT = vW; }
           }
-          const vW = c2(hi), cW = minC('blanco', vW);
-          if (cC > cW) { colLbl = 'carbon'; vTop = 0; } else { colLbl = 'blanco'; vTop = vW; }
+        }
+        return { colLbl, vT };
+      };
+
+      if (veloOv !== null) velo = veloOv;
+      else if (esOscuro(C, color)) velo = 0;
+      else velo = veloMinimo((a) => minBloque([], a));
+      velo = r2(velo);
+      capaB = capaF(velo);
+      let lb = etiquetasArriba(capaB);
+      // Auto: la banda de arriba (marca y número) también oscurece la foto; con ella puesta, el bloque puede necesitar
+      // menos velo para quedar justo por encima de 3:1 (la banda y el color de la marca no cambian; si con menos velo
+      // la marca o el número bajaran de 3, se queda el primero)
+      if (veloOv === null && velo > 0 && lb.vT > 0) {
+        const cT = capaTop(lb.vT, zona[0], altoTop), v2 = r2(veloMinimo((a) => minBloque([cT], a)));
+        if (v2 < velo) {
+          const cB2 = capaF(v2);
+          const ok = !an || !lbl.length || Math.min(...lbl.map((k) => contrasteSobre(rgbDe(lb.colLbl), fondoStats(an, [etq[k].rect], [cT, cB2], veloRGB)))) >= AVISO_MIN;
+          if (ok) { velo = v2; capaB = cB2; }
         }
       }
-      et.marca = etq.marca ? colLbl : null;
-      et.pagina = etq.pagina ? colLbl : null;
+      vTop = lb.vT;
+      et.marca = etq.marca ? lb.colLbl : null;
+      et.pagina = etq.pagina ? lb.colLbl : null;
       capaT = capaTop(vTop, zona[0], altoTop);
 
       // pie: su propio rectángulo; color del bloque si va abajo, si no blanco/carbón según su fondo
@@ -1649,42 +1689,31 @@
       alinear = alinearOv || (ALINEAR.includes(P.alinear) ? P.alinear : 'izquierda');
       espaciarLineas(lay, xRel(alinear));
       top = topDe(lugar, lay.h) + dy;
-      const rects = rectsDe(alinear, top, lay.items);
-      velo = veloOv !== null ? r2(veloOv) : 0;
-      capaB = capaBloque(lugar, velo, top, top + lay.h, top, top + lay.h, H, kv);
-      // color: el mejor sobre el fondo real (con el velo si se ha puesto a mano)
-      color = colorOv || mejor(fondoStats(an, rects, [capaB], veloRGB), num(P.contraste_min, 3)).color;
+      const rects = rectsDe(alinear, top, lay.items), cmin = num(P.contraste_min, 3);
+      const capaP = (a) => capaBloque(lugar, a, top, top + lay.h, top, top + lay.h, H, kv);
+      if (veloOv !== null) {
+        velo = r2(veloOv);
+        // color: el mejor sobre el fondo real con el velo puesto a mano
+        color = colorOv || mejor(fondoStats(an, rects, [capaP(velo)], veloRGB), cmin).color;
+      } else {
+        // Auto: sin velo si blanco o carbón ya se leen; si no, blanco con el velo mínimo que lo deja justo por encima de 3:1
+        const m0 = mejor(fondoStats(an, rects, [], veloRGB), cmin);
+        color = colorOv || (m0.c >= cmin ? m0.color : 'blanco');
+        velo = esOscuro(C, color) ? 0 : r2(veloMinimo((a) => minTexto(rgbDe(color), [capaP(a)])));
+      }
+      capaB = capaP(velo);
       if (etq.marca) et.marca = mejor(fondoStats(an, [etq.marca.rect], [capaB], veloRGB), AVISO_MIN).color;
     } else { // reel
-      const cp = P.capa;
       lugar = lugarOv || (LUGARES.includes(P.lugar) ? P.lugar : 'centro');
       alinear = alinearOv || (ALINEAR.includes(P.alinear) ? P.alinear : 'centro');
       espaciarLineas(lay, xRel(alinear));
       top = topDe(lugar, lay.h) + dy;
       color = colorOv || 'blanco';
-      const cy = top + lay.h / 2, az = num(cp.alto_zona, 380);
-      const st = zonaStats(an, m + dx, Math.round(cy) - (az >> 1), W - m + dx, Math.round(cy) + (az >> 1));
-      // el velo respeta velo_max del kit; si aun así no llega, se avisa (abajo)
-      const el = cp.elipse || [90, 30];
-      const radial = (a) => (a > 0 ? { tipo: 'rad', cx: W / 2 + dx, cy, rx: (el[0] / 100) * W, ry: (el[1] / 100) * H, stops: [[0, a], [0.3, a], [0.65, r2(a * 0.45)], [1, 0]] } : null);
-      const vmin = num(cp.velo_min, 0.25), vmax = num(cp.velo_max, 0.6);
+      const capaR = (a) => capaReel(a, W / 2 + dx, top + lay.h / 2, W, H);
       if (veloOv !== null) velo = veloOv;
-      else {
-        velo = c2(clamp(veloNecesario(st, rgbDe(color), num(cp.contraste, 4.5), veloRGB), vmin, vmax));
-        // si la franja central deja líneas del título por debajo de 3, el velo sube (hasta velo_max) mirando
-        // el rectángulo real de las líneas
-        const rects = rectsDe(alinear, top, lay.items);
-        const cDe = (a) => contrasteSobre(rgbDe(color), fondoStats(an, rects, [radial(a)], veloRGB));
-        if (an && rects.length && velo < vmax && cDe(velo) < AVISO_MIN) {
-          let lo = velo, hi = vmax;
-          if (cDe(hi) >= AVISO_MIN) {
-            for (let i = 0; i < 10; i++) { const mid = (lo + hi) / 2; if (cDe(r2(mid)) >= AVISO_MIN) hi = mid; else lo = mid; }
-          }
-          velo = c2(hi);
-        }
-      }
+      else velo = esOscuro(C, color) ? 0 : veloMinimo((a) => minTexto(rgbDe(color), [capaR(a)]));
       velo = r2(velo);
-      capaB = radial(velo);
+      capaB = capaR(velo);
     }
     const capas = [capaT, capaB];
 
@@ -1719,6 +1748,7 @@
 
     // 4. avisos
     // contraste de cada texto contra su fondo real
+    let contrasteMin = null;
     if (an) {
       const consejo = manual ? 'prueba otro color o ajusta el velo' : (tipo === 'ficha' || tipo === 'final') ? 'mueve el texto o cambia el encuadre o la foto' : 'cambia el encuadre o la foto';
       const colRGB = rgbDe(color);
@@ -1726,6 +1756,7 @@
         const rs = rectsDe(alinear, top, [it]);
         if (!rs.length) continue;
         const c = contrasteSobre(colRGB, fondoStats(an, rs, capas, veloRGB));
+        contrasteMin = Math.min(contrasteMin == null ? 21 : contrasteMin, c);
         const nombre = it.nivel === 'portada' ? (tipo === 'reel' ? 'el título del reel' : 'el título') : NOMBRE_NIVEL[it.nivel] || 'el texto';
         if (c < AVISO_MIN) AV.add('contraste', nombre, `contraste ${c.toFixed(2)} < 3 en ${nombre}: ${consejo}`, r2(c));
       }
@@ -1734,6 +1765,7 @@
         const e = etq[k];
         if (!e || !et[k]) continue;
         const c = contrasteSobre(rgbDe(et[k]), fondoStats(an, [e.rect], capas, veloRGB));
+        if (k === 'pie' && lugar === 'abajo' && (tipo === 'ficha' || tipo === 'final')) contrasteMin = Math.min(contrasteMin == null ? 21 : contrasteMin, c);   // el velo del bloque también lo cubre
         if (c < AVISO_MIN) AV.add('contraste', nombresEt[k], `contraste ${c.toFixed(2)} < 3 en ${nombresEt[k]}: cambia el encuadre o la foto`, r2(c));
       }
     }
@@ -1778,7 +1810,7 @@
     }
 
     return {
-      decision: { lugar, alinear, velo, color, velo_top: vTop, etiquetas: et },
+      decision: { lugar, alinear, velo, color, velo_top: vTop, etiquetas: et, contraste: contrasteMin == null ? null : r2(contrasteMin) },
       bloque: { x: minX, y: top, w: maxX - minX, h: lay.h },
       avisos: AV.lista.map((a) => a.mensaje),
       avisosInfo: AV.lista,

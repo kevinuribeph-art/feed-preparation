@@ -819,7 +819,7 @@
         + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
       sec('color', `<h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
         + coloresHTML(ov.color) + '</div>'),
-      sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="0.9" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
+      sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
       sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`),
       ...(etiquetasHTML(s) ? [sec('etiquetas', etiquetasHTML(s))] : [])
     ];

@@ -1367,7 +1367,7 @@
 #mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);min-height:min(540px,calc(100vh - 150px))}
 #mesa .pright.hascap{contain:size;min-height:0}
 #mesa .pright.hascap textarea.note{flex:none;min-height:64px;height:68px}
-#mesa .caps{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:14px}
+#mesa .caps{flex:1;min-height:170px;display:flex;flex-direction:column;margin-top:14px}
 #mesa .caphead{flex:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:0 0 6px}#mesa .caphead .nlab{margin:0}
 #mesa .capbody{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);padding:10px}
 #mesa .capempty{margin:auto;padding:12px;color:var(--mute);font-size:12.5px;text-align:center}
@@ -1394,7 +1394,7 @@
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
-@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;min-height:0}#mesa .pright.hascap{contain:none}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}#mesa .capbody{flex:none;max-height:60vh}}
+@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;min-height:0}#mesa .pright.hascap{contain:none;min-height:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}#mesa .capbody{flex:none;max-height:60vh}}
 @media (max-width:720px){
 #mesa .toasts{top:46px;bottom:auto}
 #mesa .appbar{height:40px;padding:0 8px;gap:4px}

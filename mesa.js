@@ -289,7 +289,10 @@
   }
   function setFmt(slotId, fmt) {
     const s = slot(slotId); if (!s || isReel(s.type) || !s.photos.length) return;
-    if (isCarousel(s.type) && s.design) { toast('El formato de un carrusel diseñado se cambia en «Diseñar».'); return; }   // one format: the design's
+    if (isCarousel(s.type) && s.design) {                // one format: the design's, drawn again in the new one
+      if (M.diseno && M.diseno.formato && M.diseno.formato(slotId, fmt)) { changed(); rerender(s); openDetail(slotId, cur.idx); }
+      return;
+    }
     if (isCarousel(s.type)) { s.fmt = fmt; s.photos.forEach(fid => { S.crops[fid] = { ...baseCrop(fid, S), cx: 0.5, cy: 0.5, z: 1 }; }); }
     else setCrop(s.photos[cur.idx], s, { fmt, cx: 0.5, cy: 0.5, z: 1 });
     save(); renderFeed(); openDetail(slotId, cur.idx);
@@ -866,6 +869,8 @@
     if (!S || H.b !== S || !H.cur) return;
     const s = S.slots.find(x => x.id === slotId), o = H.cur.slots.find(x => x.id === slotId); if (!s || !o) return;
     o.photos = s.photos.slice(); if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); else delete o.design;
+    if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: photos, note, date, memo, fmt, design)
+    const { id, photos, note, date, memo, fmt, design } = o; H.cur.slots[H.cur.slots.indexOf(o)] = { id, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}) };
     H.curJ = JSON.stringify(H.cur);
   }
   function applyState(st) {
@@ -1205,6 +1210,7 @@
 #mesa .stage{position:relative;overflow:hidden;background:#111;touch-action:none;cursor:default;user-select:none;width:300px;height:375px}
 #mesa .stage.panning{cursor:grabbing}
 #mesa .stage img.big{position:absolute;max-width:none;pointer-events:none;-webkit-user-drag:none}
+#mesa .stage canvas.dzv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}#mesa .stage canvas.dzv[hidden]{display:none}
 #mesa .stage.fixed{cursor:default}
 #mesa .gguide{position:absolute;z-index:1;pointer-events:none;outline:1.5px dashed rgba(255,255,255,.95);box-shadow:0 0 0 9999px rgba(0,0,0,.22)}
 #mesa .gguide span{position:absolute;left:6px;top:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.5);border-radius:4px;padding:1px 5px}
@@ -1524,15 +1530,19 @@
     cur = { slot: id, idx };
     const car = isCarousel(s.type), foto = s.type === 'Foto', reel = isReel(s.type);
     const fid = s.photos[idx];
-    const fd = !!(n && (M.files[fid] || {}).design);   // a designed image: uploaded as rendered, reframed only from «Diseñar»
+    const fd = !!(n && (M.files[fid] || {}).design);   // a designed image: uploaded as rendered
+    const live = fd && designed(s);                     // a designed slide: reframed here on its photo, drawn live with its texts (B4)
     let left;
     if (!n) left = '<div class="pempty">Sin foto todavía.<br>Arrastra aquí fotos desde tu ordenador o suelta una de la bandeja sobre la casilla.</div>';
     else {
       const c = cropOf(fid, s);
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
-      const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : car && s.design ? `<span class="muted">Carrusel ${FMT_LABEL[s.fmt] || ''} · el formato se cambia en «Diseñar»</span>` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
-      const tools = fd ? `<span class="muted">${car || reel ? 'Reencuadra las fotos originales desde «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
-        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
+      const dfmt = car && s.design ? s.design.fmt : null;   // a designed carousel: the design's format
+      const segD = dfmt ? `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${dfmt === k ? 'on' : ''}" aria-pressed="${dfmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>` : '';
+      const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : dfmt ? `<span class="muted">Carrusel</span>${segD}` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
+      const dsrc = live && M.diseno && M.diseno._srcVista ? M.diseno._srcVista(s, idx) : null, zv = (dsrc ? baseCrop(dsrc, S) : c).z || 1;
+      const tools = fd && !live ? '<span class="muted">Imagen diseñada: se sube tal cual</span>'
+        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
@@ -1543,7 +1553,7 @@
       const tr = S.tray.filter(f => M.files[f]);
       const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
         + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img src="${M.files[f].thumbUrl}" alt=""></button>`).join('')}</div>` : '') + '</div>' : '';
-      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
+      left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"${live ? ' data-live="1"' : ''}><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${live ? '<canvas class="dzv" hidden></canvas>' : ''}<div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
     }
@@ -1565,6 +1575,7 @@
     if (keep) { const t2 = d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
     else if (fresh) focusClose(d);
     if (n) { layoutStage(); loadBig(fid); }
+    if (live && M.diseno && M.diseno.vista) M.diseno.vista(d.querySelector('.stage canvas.dzv'), id, idx);   // ready for a reframe
     markReframe();
   }
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
@@ -1667,9 +1678,9 @@
       gg.hidden = same3x4;
       if (!same3x4) gg.setAttribute('style', `left:${((g.x - p.x) / p.w * 100).toFixed(3)}%;top:${((g.y - p.y) / p.h * 100).toFixed(3)}%;width:${(g.w / p.w * 100).toFixed(3)}%;height:${(g.h / p.h * 100).toFixed(3)}%`);
     }
-    const fixed = p.w >= f.w - 1 && p.h >= f.h - 1;
+    const fixed = !st.dataset.live && p.w >= f.w - 1 && p.h >= f.h - 1;
     st.classList.toggle('fixed', fixed);
-    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = fixed ? 'Se ve entera: usa el zoom para reencuadrar' : 'Arrastra la foto para reencuadrar';
+    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : 'Arrastra la foto para reencuadrar';
   }
   async function loadBig(fid) {
     try {
@@ -1693,7 +1704,12 @@
     if (M.diseno && M.diseno.abrir) { if (S === B && slot(id)) M.diseno.abrir(id); }
     else toast('El diseñador no está cargado: recarga la página.');
   }
-  function refreshDetail() { const d = root && root.querySelector('.detail'); if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); } }
+  let refreshLater = false;   // a refresh asked for while a photo is being dragged in the post view: done when it is let go
+  function refreshDetail() {
+    const d = root && root.querySelector('.detail');
+    if (d && d.querySelector('.stage.panning')) { refreshLater = true; return; }
+    if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); }
+  }
 
   // ---------- dialogs (clients, how to add a month) ----------
   function showDialog(kind, html) {
@@ -2060,11 +2076,15 @@
       if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('textarea.memo')) setMemo(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.pitin')) { setMemo(e.target.dataset.slot, e.target.value); fitPit(e.target); }
-      else if (e.target.matches('.zoomr')) { flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s); const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); } }
+      else if (e.target.matches('.zoomr')) {
+        flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
+        const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaZoom) M.diseno.vistaZoom(+e.target.value); return; }
+        const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); }
+      }
     });
     root.addEventListener('change', e => {
       if (!e.target.matches) return;
-      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); }
+      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) rerender(slot(cur.slot)); }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
@@ -2082,7 +2102,18 @@
     root.addEventListener('pointerdown', e => {
       const st = e.target.closest && e.target.closest('.detail .stage');
       if (!st || e.target.closest('.nav') || e.button !== 0) return;
-      const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f || f.design) return;
+      const s = slot(st.dataset.slot), fid = st.dataset.file, f = M.files[fid]; if (!s || !f) return;
+      if (f.design) {                                      // a designed slide: its photo is reframed, drawn live with the texts
+        const g = st.dataset.live && M.diseno && M.diseno.vistaEmpezar ? M.diseno.vistaEmpezar() : null; if (!g) return;
+        e.preventDefault();
+        try { st.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        st.classList.add('panning');
+        const sx = e.clientX, sy = e.clientY, sw = st.clientWidth, sh = st.clientHeight;
+        const mv = ev => M.diseno.vistaMover(g, (ev.clientX - sx) / sw, (ev.clientY - sy) / sh);
+        const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); rerender(s); if (refreshLater) { refreshLater = false; refreshDetail(); } };
+        st.addEventListener('pointermove', mv); st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+        return;
+      }
       e.preventDefault();
       touchPrev(s);
       try { st.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
@@ -2091,7 +2122,7 @@
       const sx = e.clientX, sy = e.clientY, cx0 = (r0.x + r0.w / 2) / f.w, cy0 = (r0.y + r0.h / 2) / f.h;
       const sw = st.clientWidth, sh = st.clientHeight;
       const mv = ev => { setCrop(fid, s, { cx: cx0 - (ev.clientX - sx) / sw * (r0.w / f.w), cy: cy0 - (ev.clientY - sy) / sh * (r0.h / f.h) }); placeBig(); };
-      const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); };
+      const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); if (refreshLater) { refreshLater = false; refreshDetail(); } };
       st.addEventListener('pointermove', mv); st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
     });
     if (M._onKey) document.removeEventListener('keydown', M._onKey);
@@ -2147,7 +2178,12 @@
     else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
     else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
-    else if (act === 'center') { flashThirds(); const s = slot(cur.slot); touchPrev(s); if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); } }
+    else if (act === 'center') {
+      flashThirds(); const s = slot(cur.slot); touchPrev(s);
+      const st = root.querySelector('.detail .stage');
+      if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar()) { const z = root.querySelector('.detail .zoomr'); if (z) z.value = 1; save(); renderFeed(); renderBar(); rerender(s); } return; }
+      if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); }
+    }
     else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();

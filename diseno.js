@@ -165,6 +165,67 @@
     return job.p;
   }
 
+  // ---------- the post view: a designed slide reframed without opening the editor (B4) ----------
+  // The post view shows the applied image; once the photo is dragged, zoomed or centred there, the slide is drawn live
+  // (photo and texts, as «Aplicar» will draw it) on a canvas over it, and on letting go the mesa applies it again.
+  const VI = { n: 0, cv: null, slotId: null, i: -1, src: null, sz: null, kit: null, fin: null, bmp: null, ready: false, raf: 0 };
+  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0 }); }
+  // the photo slide i draws (synchronous: the client's final photo from the kit as known)
+  function srcVista(s, i) {
+    const sl = s && s.design && s.design.slides[i]; if (!sl) return null;
+    return sl.tipo === 'final' ? finalIdOf(rawSync(s.design.kit).raw) : sl.src || null;
+  }
+  // prepares the live view of slide i of a post on canvas cv (kit, fonts and the photo decoded once); true when ready
+  async function vista(cv, slotId, i) {
+    if (VI.cv === cv && VI.slotId === slotId && VI.i === i && VI.ready) return true;
+    const n = ++VI.n; vistaLibre(); VI.n = n; Object.assign(VI, { cv, slotId, i });
+    try {
+      const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || !s.design.slides[i]) return false;
+      const { kit, raw } = await engineKit(s.design.kit || S.client);
+      const fin = await finalReady(raw), src = effSrc(s.design.slides[i], fin);
+      if (n !== VI.n || !src || !M.files[src]) return false;
+      const f = M.files[src], sc = Math.min(1, 2400 / Math.max(f.w, f.h)), blob = await I().getBlob(src);
+      const bmp = await createImageBitmap(blob, sc < 1 ? { imageOrientation: 'from-image', resizeWidth: Math.max(1, Math.round(f.w * sc)), resizeHeight: Math.max(1, Math.round(f.h * sc)), resizeQuality: 'high' } : { imageOrientation: 'from-image' });
+      if (n !== VI.n) { bmp.close(); return false; }
+      Object.assign(VI, { kit, fin, src, bmp, sz: sizeOf(kit, s.design, fin), ready: true });
+      return true;
+    } catch (e) { return false; }
+  }
+  const pedirVista = () => { if (!VI.raf) VI.raf = requestAnimationFrame(pintarVista); };
+  function pintarVista() {
+    VI.raf = 0;
+    const S = I() && I().S, s = S && S.slots.find(x => x.id === VI.slotId);
+    if (!VI.ready || !s || !s.design || !VI.cv || !VI.cv.isConnected) return;
+    const d = s.design, sl = d.slides[VI.i], f = M.files[VI.src]; if (!sl || !f) return;
+    try {
+      const { W, H } = VI.sz, r = rectOf(VI.src, W, H), k = VI.bmp.width / f.w;
+      const capa = ENG().capaFoto(VI.bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, W, H);
+      if (VI.cv.width !== W || VI.cv.height !== H) { VI.cv.width = W; VI.cv.height = H; }
+      const ctx = VI.cv.getContext('2d'), opts = { W, H, factor: VI.sz.factor, pagina: pageOf(s, VI.i), serie: str(d.serie), pos: posOf(d) }, slide = slideAt(sl, VI.sz);
+      const res = ENG().dibujar(ctx, VI.kit, capa, slide, opts), adj = clampOv(sl, slide.ov, res, VI.sz);
+      if (adj) ENG().dibujar(ctx, VI.kit, capa, { ...slide, ov: adj }, opts);
+      capa.canvas.width = capa.canvas.height = 0;
+      VI.cv.hidden = false;
+    } catch (e) { console.warn('diseño:', e); }
+  }
+  // drag: g = vistaEmpezar() when it starts, then vistaMover(g, fx, fy) with the move as a fraction of the view's size
+  function vistaEmpezar() {
+    if (!VI.ready || !M.files[VI.src]) return null;
+    const f = M.files[VI.src], r0 = rectOf(VI.src, VI.sz.W, VI.sz.H);
+    return { cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h };
+  }
+  function vistaMover(g, fx, fy) { if (!VI.ready) return; recorte(VI.src, { cx: g.cx - fx * g.fw, cy: g.cy - fy * g.fh }, VI.sz); pedirVista(); }
+  function vistaZoom(z) { if (!VI.ready) return false; recorte(VI.src, { z }, VI.sz); pedirVista(); return true; }
+  function vistaCentrar() { if (!VI.ready) return false; recorte(VI.src, { cx: 0.5, cy: 0.5, z: 1 }, VI.sz); pedirVista(); return true; }
+  // a designed carousel's format changed from the post view (its text offsets keep their place, as in the editor)
+  function formato(slotId, fmt) {
+    const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || isReelS(s) || !FMTS[fmt] || s.design.fmt === fmt) return false;
+    const d = s.design, H = VI.slotId === slotId && VI.sz ? VI.sz.H : EXT_H[d.fmt];
+    stampOffsets(d, H); d.fmt = fmt; d.at = nowISO(); syncFmt(s); remember(s);
+    if (VI.slotId === slotId) vistaLibre();
+    return true;
+  }
+
   // ---------- kit: kits/<clientId>.json + the client's override (client record field `kit`) ----------
   const BASE = {};                             // clientId -> Promise<{kit} | {missing} | {bad: where}>
   const kitUrl = cid => new URL('kits/' + encodeURIComponent(cid) + '.json', location.href).href;
@@ -1061,15 +1122,15 @@
       if (!resizeIfNeeded()) { edPanel(); dirty([d.slides.indexOf(sl)]); }
     } });
   }
-  function setCropFor(src, patch) {   // the mesa's reframe of that photo (S.crops), clamped for this design's ratio
+  function recorte(src, patch, sz) {   // the mesa's reframe of that photo (S.crops), clamped for a design's canvas sz
     const S = I().S, f = M.files[src]; if (!f) return;
     const st = I().baseCrop(src, S);
     const next = { fmt: st.fmt, cx: patch.cx ?? st.cx, cy: patch.cy ?? st.cy, z: Math.max(1, Math.min(3, patch.z ?? st.z ?? 1)) };
-    const r = I().rectFor(f.w, f.h, E.sz.W / E.sz.H, next);
+    const r = I().rectFor(f.w, f.h, sz.W / sz.H, next);
     next.cx = +((r.x + r.w / 2) / f.w).toFixed(4); next.cy = +((r.y + r.h / 2) / f.h).toFixed(4);
     S.crops = S.crops || {}; S.crops[src] = next;
-    dirtySrc(src);
   }
+  function setCropFor(src, patch) { recorte(src, patch, E.sz); dirtySrc(src); }
   // the order the slides had, removed ones included (in their places): «Deshacer» puts a slide back where it was even
   // after other removals and their undos, in any order
   function refOrder() { const d = D(); if (!E.ref || E.refD !== d) { E.ref = d.slides.slice(); E.refD = d; } return E.ref; }
@@ -1347,6 +1408,7 @@
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
     abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
+    vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaLibre, formato, _srcVista: srcVista,
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so

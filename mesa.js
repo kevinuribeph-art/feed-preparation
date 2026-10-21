@@ -2992,13 +2992,13 @@
     for (const it of [].concat(items || [])) {
       const s = it && S.slots.find(x => x.id === it.slotId), o = it && Array.isArray(it.options) ? it.options : [], r = { slotId: it && it.slotId, name: s ? s.name : null };
       if (!s) { out.push({ ...r, result: 'error', error: 'no está en la mesa abierta' }); continue; }
-      if (o.length !== 3 || o.some(x => !x || !String(x.tone || '').trim() || !String(x.text || '').trim())) { out.push({ ...r, result: 'error', error: 'hacen falta 3 opciones, cada una con tone y text' }); continue; }
+      if (o.length !== 3 || o.some(x => !x || typeof x.tone !== 'string' || typeof x.text !== 'string' || !x.tone.trim() || !x.text.trim())) { out.push({ ...r, result: 'error', error: 'hacen falta 3 opciones, cada una con tone y text (texto)' }); continue; }
       const c = capOf(s);
       if (c && c.pick != null && !(opts.force || it.force)) { out.push({ ...r, result: 'omitido', why: `ya tiene elegido el Caption ${c.pick + 1} (force:true para sustituirlo)` }); continue; }
       capLoad(s, o, { f: it.photos ? [].concat(it.photos) : capPhotos(s), n: it.note != null ? String(it.note).trim() : noteOf(s) });
       out.push({ ...r, result: c ? 'sustituido' : 'cargado' });
     }
-    if (out.some(x => x.result === 'cargado' || x.result === 'sustituido')) { changed(); refreshDetail(); }
+    if (out.some(x => x.result === 'cargado' || x.result === 'sustituido')) { changed(); refreshDetail(); if (ig) openIG(ig.id, ig.idx); }
     return out;
   };
   // ids: a slotId or a list (default: every post of the open board). pick / n are 1-3, as the mesa shows them
@@ -3036,7 +3036,7 @@
       s.caption.sent = { text: t, pick: c.pick, tone: c.tones[c.pick], at: now };
       out.push({ ...r, result: 'subido', state: capState(s) });
     }
-    if (out.some(x => x.result === 'subido')) { changed(); refreshDetail(); }
+    if (out.some(x => x.result === 'subido')) { changed(); refreshDetail(); if (ig) openIG(ig.id, ig.idx); }   // an open vista cliente shows it at once
     return out;
   };
 

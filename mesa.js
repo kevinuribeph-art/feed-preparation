@@ -376,7 +376,8 @@
     carousel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="7.5" y="3" width="13.5" height="13.5" rx="3"/><path d="M16.5 19.5a2 2 0 0 1-2 1.5H5a2 2 0 0 1-2-2V9.5a2 2 0 0 1 1.5-2"/></svg>',
     photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>',
-    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>'
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>',
+    pin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.9 2.3a1 1 0 0 1 1.4 0l5.4 5.4a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.1.2l-.6-.3-3.8 3.8.4 3.2a1 1 0 0 1-.3.8l-1.3 1.3a1 1 0 0 1-1.4 0l-3.3-3.3-4.6 4.6a1 1 0 1 1-1.4-1.4l4.6-4.6-3.3-3.3a1 1 0 0 1 0-1.4l1.3-1.3a1 1 0 0 1 .8-.3l3.2.4 3.8-3.8-.3-.6a1 1 0 0 1 .2-1.1z"/></svg>'
   };
 
   // ---------- persistence ----------
@@ -682,6 +683,21 @@
     return old;
   }
   const rerender = s => { if (designed(s) && s.design.out && M.diseno && M.diseno.reaplicar) { const id = s.id; setTimeout(() => M.diseno.reaplicar(id), 0); } };
+  // ---------- pinned posts (B8) ----------
+  // Up to 3 of the board's posts pinned at the top of the profile, as in Instagram: the last one pinned goes first, and
+  // unpinned it goes back to its place by date. Only how the feed looks (mesa, vista cliente, the feed image): dates,
+  // names and what goes to Notion don't change. Kept per board (S.pins: slot ids, newest first).
+  const MAX_PINS = 3;
+  const pinsOf = () => (S && S.pins ? S.pins.filter(id => S.slots.some(x => x.id === id)) : []);
+  const isPinned = s => !!(s && S && S.pins && S.pins.includes(s.id));
+  function feedOrder() { const p = pinsOf(); return [...p.map(id => S.slots.find(x => x.id === id)), ...S.slots.filter(x => !p.includes(x.id))]; }
+  function setPin(slotId, on) {
+    const s = S && S.slots.find(x => x.id === slotId); if (!s) return false;
+    const p = pinsOf().filter(id => id !== slotId);
+    if (on) { if (p.length >= MAX_PINS) { toast('Como en Instagram, se pueden fijar como mucho 3 publicaciones: quita la fijación de otra antes.', { ms: 6000 }); return false; } p.unshift(slotId); }
+    if (p.length) S.pins = p; else delete S.pins;
+    save(); renderFeed(); return true;
+  }
   // «Cambiar portada» (post view) and a new photo on a designed reel: a tray photo becomes the cover; the old one goes back
   // to the tray unless something else uses it; the texts stay
   function changeCover(slotId, fid) {
@@ -1073,7 +1089,7 @@
 #mesa .ph b{color:var(--ink);font-size:12.5px}#mesa .ph span{font-size:11px}
 #mesa .pico svg{width:20px;height:20px;color:#8e8e8e}
 #mesa .ico{position:absolute;top:7px;right:7px;width:19px;height:19px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
-#mesa .ico svg{width:100%;height:100%}
+#mesa .ico svg{width:100%;height:100%}#mesa .cell.empty .ico.pinned{color:#8e8e8e;filter:none;z-index:3}
 #mesa .lab{position:absolute;left:0;right:0;bottom:0;padding:18px 7px 6px;background:linear-gradient(transparent,rgba(0,0,0,.66));color:#fff;font-size:10.5px;line-height:1.25;pointer-events:none}
 #mesa .lab b{display:block;font-size:11.5px}
 #mesa .tag{display:inline-block;margin-top:3px;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:1px 5px}
@@ -1260,6 +1276,7 @@
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{padding:12px 14px;display:flex;flex-direction:column;min-width:0}
+#mesa .pinsw{margin:0 0 12px;align-self:flex-start}
 #mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:#fff;font-weight:700;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
@@ -1441,15 +1458,15 @@
   const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
   function cellHTML(s, pill) {
     const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) ? DNM : '') + esc(fmtDate(s.date));
-    const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '';
+    const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '', pin = isPinned(s);
     if (!s.photos.length) {
-      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
+      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${ICON.pin}</span>` : ''}${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
     }
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr" title="${n} opciones">${n}<span class="cw"> opciones</span><span class="cs"> op.</span></span>` : '';
-    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
+    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${ICON.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];
@@ -1477,7 +1494,8 @@
     const seen = new Set();   // range board: a month pill on the newest cell of each month
     const pill = s => { const m = cycleOf(s.date, curCd()); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return curCd() === 1 ? cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) : cycName(m, curCd()); };
     if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
-    const html = S.slots.map(s => cellHTML(s, pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
+    const pinned = new Set(pinsOf());               // pinned first (no month pill: they are out of the date order)
+    const html = feedOrder().map(s => cellHTML(s, pinned.has(s.id) ? '' : pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
     // a Nota being edited in its cell: that cell stays in the page untouched (a rebuilt field would lose an accent being
     // typed and its own undo); the others are rebuilt around it, and it is redrawn once the editing ends
     const live = memoEdit && grid.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
@@ -1585,7 +1603,7 @@
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
-        <div class="pright">${dz}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
+        <div class="pright"><label class="sw pinsw" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}> Fijar en el perfil</label>${dz}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
           <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
@@ -2200,6 +2218,7 @@
       if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) rerender(slot(cur.slot)); }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
+      else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
       else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
       else if (e.target.matches('.avin')) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) avPick(f); }
     });
@@ -2516,6 +2535,7 @@
       tray: [...(old.tray || []), ...orphans],
       past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
       crops: old.crops || {},
+      ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
     };
     holdOrphans(wonIds);   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
@@ -2779,12 +2799,18 @@
     const c0 = CL.find(c => c.id === S.client) || {};
     const past = pastList(false);
     const cd = curCd(), cyc = iso => cycleOf(iso, cd);     // opts.month = a cycle of the board ('YYYY-MM' of its start)
-    const fresh = only ? S.slots.filter(s => cyc(s.date) === only) : S.slots;
-    const earlier = only ? S.slots.filter(s => { const m = cyc(s.date); return m && m < only; }) : [];
-    const later = only ? S.slots.filter(s => { const m = cyc(s.date); return m && m > only; }).length : 0;
+    // pinned posts (B8) first, as in the mesa; a pinned one of a later month keeps its place as a blank cell
+    const order = feedOrder(), pinned = new Set(pinsOf()), un = order.filter(s => !pinned.has(s.id));
+    const mOf = s => cyc(s.date), inM = s => !only || mOf(s) === only, isLater = s => !!only && !!mOf(s) && mOf(s) > only;
+    const fresh = un.filter(inM);
+    const earlier = only ? un.filter(s => { const m = mOf(s); return m && m < only; }) : [];
+    const later = only ? un.filter(isLater).length : 0;
     const lead = later % COLS;
-    const slotPost = (s, isNew) => ({ mesaIdx: S.slots.indexOf(s), name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s), name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const pinPosts = order.filter(s => pinned.has(s.id)).map(s => isLater(s) ? { blank: true, mesaIdx: null } : slotPost(s, inM(s)));
+    const nuevas = fresh.length + order.filter(s => pinned.has(s.id) && !isLater(s) && inM(s)).length;
     const posts = [
+      ...pinPosts,
       ...Array.from({ length: lead }, () => ({ blank: true, mesaIdx: null })),
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
@@ -2792,9 +2818,10 @@
         ? { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
         : { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
-    const N = lead + fresh.length;              // first cell below the line
-    const shift = posts.length > lead ? posts[lead].mesaIdx - lead : 0;
-    const mismatches = posts.map((p, i) => p.mesaIdx == null || p.mesaIdx - i === shift ? null : p.name).filter(Boolean);
+    const N = pinPosts.length + lead + fresh.length;   // first cell below the line
+    // each drawn post in the same column as in the mesa, and in the mesa's order
+    const mismatches = []; let lastIdx = -1;
+    posts.forEach((p, i) => { if (p.mesaIdx == null) return; if ((p.mesaIdx - i) % COLS !== 0 || p.mesaIdx < lastIdx) mismatches.push(p.name); lastIdx = p.mesaIdx; });
     const BLUE = '#0095f6';
     const rows = Math.ceil(posts.length / COLS);
     const H = HEADER + rows * TH + (rows - 1) * GAP + FOOT;
@@ -2806,7 +2833,7 @@
     x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + (only ? rangeLabel(only, 1, false, cd) : rangeLabel(S.month, S.span, false, cd)), 48, 140);
     x.fillStyle = '#8a8a8a'; x.font = `400 24px ${FONT}`;
     const below = [earlier.length ? `${earlier.length} ya planificadas` : '', past.length ? `${past.length} de ${cd === 1 ? MONTHS[+prevMonth(S.month).slice(5) - 1] : rangeLabel(prevMonth(S.month), 1, true, cd)}` : ''].filter(Boolean).join(' + ');
-    x.fillText(`${fresh.length} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
+    x.fillText(`${nuevas} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
     if (earlier.length || past.length) {
       x.fillStyle = BLUE; x.fillRect(48, 212, 44, 8);
       x.fillStyle = '#8a8a8a'; x.font = `400 22px ${FONT}`; x.fillText(`Por encima de la franja: publicaciones nuevas · Debajo: ${earlier.length ? 'lo anterior' : 'ya publicado'}`, 104, 222);
@@ -2838,7 +2865,8 @@
           x.textAlign = 'left';
         }
       }
-      if (isReel(p.type)) await drawIcon(ICON.reel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
+      if (p.pin) await drawIcon(ICON.pin, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
+      else if (isReel(p.type)) await drawIcon(ICON.reel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
       else if (isCarousel(p.type)) await drawIcon(ICON.carousel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
       if (mode === 'annotated') {
         const g = x.createLinearGradient(0, py + TH - 112, 0, py + TH);
@@ -2869,9 +2897,9 @@
     }
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
     M.out[mode] = blob;
-    return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.length - lead, fresh: fresh.length, blankStart: lead,
+    return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.filter(p => !p.blank).length, fresh: nuevas, blankStart: lead, pinned: pinPosts.filter(p => !p.blank).length,
       empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name),
-      check: { ok: !mismatches.length, sameColumnsAsMesa: shift % COLS === 0, mismatches } };
+      check: { ok: !mismatches.length, sameColumnsAsMesa: !mismatches.length, mismatches } };
   };
   M.uploadOut = async (mode, url, auth, filename) => {
     const fd = new FormData(); fd.append('file', M.out[mode], safeName(filename));

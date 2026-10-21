@@ -656,6 +656,7 @@
 #mesa .dz-posr{display:flex;align-items:center;gap:8px;margin:6px 0}#mesa .dz-posn{flex:1;min-width:0;font-size:12.5px;font-weight:600}#mesa .dz-posn i{display:block;font-style:normal;font-weight:400;font-size:11px;color:var(--mute)}
 #mesa .dz-posr label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mute)}#mesa .dz-posr .dz-pos{width:66px;padding:5px 6px;min-height:30px}
 #mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:#e8f3fe}
+#mesa .dz-ask{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed #b5b5b5;background:var(--panel);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
 #mesa .dz-auto{border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;padding:4px 11px;min-height:28px}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:#fff}
@@ -706,6 +707,7 @@
       await I().loadThumbs(srcsOf(s));
       need(I().S === S && S.slots.includes(s) && (I().isCarousel(s.type) || I().isReel(s.type)) && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Diseñar».');
       if (E) cerrar();
+      const entrada = instantanea(s, fin);                 // «No guardar» goes back to this (before the editor touched anything)
       let changedNow = false, msg = null;
       if (!s.design) { s.design = newDesign(s, cid); changedNow = true; }
       else if ((msg = absorb(s))) { remember(s); changedNow = true; }
@@ -715,6 +717,8 @@
       E.sz = sizeOf(kit, s.design, fin);
       build(s);
       if (changedNow) { s.design.at = nowISO(); I().save(); }
+      E.entrada = entrada;
+      const st0 = instantanea(s, fin); E.hist = { undo: [], redo: [], cur: st0, curJ: firma(st0), tag: null, t: 0 }; E.abiertoJ = E.hist.curJ;
       if (msg) I().toast(msg);
       return { ok: true, slot: s.id, diapositivas: s.design.slides.length, ...(msg ? { aviso: msg } : {}) };
     } catch (e) {
@@ -1069,13 +1073,93 @@
   }
 
   // ---------- editing ----------
-  function touch(all) {         // the design changed: saved (debounced) through the mesa, header updated
+  function touch(all) {         // the design changed: saved (debounced) through the mesa, header updated, a step of ⌘Z
     const s = curSlot(); if (!s) return;
     s.design.at = nowISO(); remember(s);
     clearTimeout(E.saveT); E.saveT = setTimeout(() => { if (E) E.saveT = 0; I().save(); }, 300);
     edHead();
+    registrar();
     if (all) dirty('all');
   }
+
+  // ---------- history of the editor and leaving it (B6) ----------
+  // ⌘Z / ⇧⌘Z undo and redo the editor's actions (inside a text field they undo its text, as always). A state is the
+  // post's design, photos and format, the tray and the reframes of the photos in play; bursts on one thing (typing in
+  // one field, one slider, one photo's zoom) within 2 s are one step. Undoing never loses a photo: one in play that the
+  // restored state doesn't hold goes back to the tray.
+  const enJuego = (s, fin) => [...new Set([...srcsOf(s), ...rawPhotos(s), ...(fin ? [fin] : [])])];
+  function instantanea(s, fin) {
+    const S = I().S, keys = enJuego(s, fin), crops = {};
+    for (const f of keys) if (S.crops && S.crops[f]) crops[f] = { ...S.crops[f] };
+    return { design: s.design ? clone(s.design) : null, photos: s.photos.slice(), fmt: s.fmt || null, tray: S.tray.slice(), keys, crops };
+  }
+  const firma = st => JSON.stringify(st, (k, v) => (k === 'at' || k === 'outAt' || k === 'known' || k === 'keys') ? undefined : v);
+  function etiqueta(a, b) {     // what changed a → b when it is one thing (to merge a burst): null otherwise
+    const J = x => JSON.stringify(x, (k, v) => (k === 'at' || k === 'known') ? undefined : v);
+    if (J(a.photos) !== J(b.photos) || J(a.tray) !== J(b.tray) || a.fmt !== b.fmt || !a.design || !b.design) return null;
+    const da = a.design, db = b.design; if (da.slides.length !== db.slides.length || da.fmt !== db.fmt) return null;
+    const ck = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
+    const ds = da.slides.map((x, i) => (J(x) !== J(db.slides[i]) ? i : -1)).filter(i => i >= 0);
+    const resto = d => J({ ...d, slides: null, serie: null, pos: null });
+    if (resto(da) !== resto(db)) return null;
+    const top = [da.serie !== db.serie ? 'serie' : null, J(da.pos) !== J(db.pos) ? 'pos' : null].filter(Boolean);
+    if (ck.length) return !ds.length && !top.length && ck.length === 1 ? 'crop:' + ck[0] : null;
+    if (top.length) return !ds.length && top.length === 1 ? top[0] : null;
+    if (ds.length !== 1) return null;
+    const x = da.slides[ds[0]], y = db.slides[ds[0]], ks = [...new Set([...Object.keys(x), ...Object.keys(y)])].filter(k => J(x[k]) !== J(y[k]));
+    if (ks.length !== 1) return null;
+    if (ks[0] !== 'ov') return 'f:' + ds[0] + ':' + ks[0];
+    const ok = [...new Set([...Object.keys(x.ov || {}), ...Object.keys(y.ov || {})])].filter(k => J((x.ov || {})[k]) !== J((y.ov || {})[k]));
+    return ok.length === 1 ? 'ov:' + ds[0] + ':' + ok[0] : null;
+  }
+  function registrar() {
+    if (!E || !E.hist) return; const s = curSlot(); if (!s) return;
+    const st = instantanea(s, E.fin), j = firma(st), H = E.hist;
+    if (j === H.curJ) return;
+    const now = Date.now(), tag = etiqueta(H.cur, st);
+    if (!(tag && tag === H.tag && now - H.t < 2000)) { H.undo.push(H.cur); if (H.undo.length > 100) H.undo.shift(); H.redo = []; }
+    H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
+  }
+  function restaurar(st) {
+    const S = I().S, s = S.slots.find(x => x.id === E.slotId); if (!s) return;
+    const had = new Set([...enJuego(s, E.fin), ...S.tray]);
+    if (st.design) s.design = clone(st.design); else delete s.design;
+    s.photos = st.photos.filter(f => M.files[f]);
+    if (st.fmt) s.fmt = st.fmt; else delete s.fmt;
+    S.tray = st.tray.filter(f => M.files[f]);
+    S.crops = S.crops || {};
+    for (const f of new Set([...st.keys, ...had])) { if (st.crops[f]) S.crops[f] = { ...st.crops[f] }; else if (st.keys.includes(f)) delete S.crops[f]; }
+    const refs = I().refsOf(S), lost = [...had].filter(f => M.files[f] && !M.files[f].design && !String(f).startsWith('kit-') && !refs.has(f));
+    if (lost.length) S.tray.unshift(...lost);
+    if (E.saveT) { clearTimeout(E.saveT); E.saveT = 0; }
+    I().save(); I().renderTray();
+  }
+  function deshacer(back) {
+    if (!E || !E.hist || E.busy) return;
+    if (E.drag) endDrag();
+    registrar();
+    const H = E.hist, from = back ? H.undo : H.redo, to = back ? H.redo : H.undo;
+    if (!from.length) { I().toast(back ? 'Nada que deshacer en el diseño.' : 'Nada que rehacer en el diseño.', { ms: 1800 }); return; }
+    to.push(H.cur);
+    restaurar(from.pop());
+    const s = curSlot(); if (!s) { cerrar(); return; }
+    H.cur = instantanea(s, E.fin); H.curJ = firma(H.cur); H.tag = null;
+    E.sz = sizeOf(E.kit, s.design, E.fin); edAll();
+  }
+  // leaving with changes not applied to the post: Guardar (= «Aplicar a la casilla») / No guardar (all as it was before
+  // opening); without changes since it opened, or with the post up to date, it just closes
+  function hayCambios() { const s = curSlot(); return !!(E && E.hist && s && firma(instantanea(s, E.fin)) !== E.abiertoJ && estadoDe(s) !== 'ok'); }
+  function pedirCerrar() {
+    if (!E) return;
+    if (E.drag) endDrag();
+    if (!hayCambios()) { cerrar(); return; }
+    if (E.el.querySelector('.dz-ask')) return;
+    const o = document.createElement('div'); o.className = 'dz-ask';
+    o.innerHTML = '<div class="card dlg" role="alertdialog" aria-modal="true" aria-labelledby="dz-ask-t"><h3 id="dz-ask-t">Hay cambios sin aplicar</h3><p>¿Los guardas en la casilla antes de salir?</p><div class="form"><div class="row"><button type="button" class="btn2" data-dz="noguardar">No guardar</button><button type="button" class="btn" data-dz="guardar">Guardar</button></div></div></div>';
+    E.el.append(o); E.ask = o;
+    o.querySelector('[data-dz="guardar"]').focus({ preventScroll: true });
+  }
+  function cerrarPregunta() { if (E && E.ask) { E.ask.remove(); E.ask = null; } }
   // a drag in progress ends where it is (Escape, ↑/↓, closing, leaving the page): what is seen is what is saved
   // rule-of-thirds lines over the preview: only while the photo is being reframed (panning, and a moment after zoom or «Centrar»)
   function tercios(on) { const w = E && E.el.querySelector('.dz-cvw'); if (w) w.classList.toggle('reframe', !!on); }
@@ -1216,11 +1300,14 @@
     ['click', 'input', 'change', 'pointerdown', 'dblclick', 'dragstart', 'wheel'].forEach(t => el.addEventListener(t, e => e.stopPropagation()));
     el.addEventListener('click', e => {
       if (E && !curSlot()) { cerrar(); return; }
+      if (e.target.classList && e.target.classList.contains('dz-ask')) { cerrarPregunta(); return; }   // outside the question: keep editing
       const a = e.target.closest('[data-dz]'); if (!a || !E || a.disabled) return;
       if (E.drag) endDrag();
       const act = a.dataset.dz, s = curSlot(), d = s.design, i = E.sel, sl = d.slides[i];
       sl.ov = sl.ov || {};
-      if (act === 'cerrar') cerrar();
+      if (act === 'cerrar') pedirCerrar();
+      else if (act === 'guardar') { cerrarPregunta(); const b = el.querySelector('[data-dz="aplicar"]'); if (b) edAplicar(b); }
+      else if (act === 'noguardar') { cerrarPregunta(); restaurar(E.entrada); cerrar(); }
       else if (act === 'aplicar') edAplicar(a);
       else if (act === 'sel') { if (!e.target.closest('.dz-mv')) select(+a.dataset.i); }
       else if (act === 'up' || act === 'down') moveSlide(+a.dataset.i, act === 'up' ? -1 : 1);
@@ -1378,8 +1465,14 @@
     if (!E) { window.removeEventListener('keydown', onKey, true); return; }
     if (!E.el.isConnected || !curSlot()) { cerrar(); return; }
     e.stopImmediatePropagation();
-    if (e.key === 'Escape') { e.preventDefault(); cerrar(); return; }
+    if (E.ask) { if (e.key === 'Escape') { e.preventDefault(); cerrarPregunta(); } return; }   // the question: Esc keeps editing
+    if (e.key === 'Escape') { e.preventDefault(); pedirCerrar(); return; }
     const t = e.target, typing = t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'button'));
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
+      const writing = t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio'].includes(t.type)));
+      if (!writing) { e.preventDefault(); deshacer(!e.shiftKey); }   // in a text field its own undo works, as always
+      return;
+    }
     if (!typing && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !(t && t.closest && t.closest('.seg'))) { e.preventDefault(); select(E.sel + (e.key === 'ArrowUp' ? -1 : 1)); }
     else if (!typing && t && t.classList && t.classList.contains('dz-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(+t.dataset.i); }   // ▲ ▼ × inside work as buttons
   }

@@ -3000,8 +3000,10 @@
     return out;
   };
   // ids: a slotId or a list (default: every post of the open board). pick / n are 1-3, as the mesa shows them
-  // («Caption 2 · tono»); each option keeps its original exactly as Claude wrote it; history = earlier batches, oldest first.
+  // («Caption 2 · tono»); each option keeps its original exactly as Claude wrote it; history = earlier batches, oldest first;
+  // writtenFrom = the contexto and photos a batch was written from (a redo after a change vs. the 3 rejected)
   const capView = (b, n) => ({ n, tone: b.tones[n - 1], original: b.orig[n - 1], text: b.text[n - 1], edited: b.text[n - 1] !== b.orig[n - 1] });
+  const capFrom = b => ({ note: b.basis ? b.basis.n || '' : null, photos: b.basis ? (b.basis.f || []).slice() : null });
   M.captions = ids => {
     if (!S) return [];
     const only = ids == null ? null : new Set([].concat(ids));
@@ -3011,9 +3013,9 @@
         slotId: s.id, name: s.name, type: s.type, date: s.date, note: noteOf(s), photo: capPhotos(s).length > 0,
         state: capState(s), outdated: od.length > 0, outdatedBy: od, changed: capStatus(s) === 'chg',
         pick: p != null ? p + 1 : null, tone: p != null ? c.tones[p] : null, text: capFinal(s),
-        options: c ? [1, 2, 3].map(n => capView(c, n)) : [], loadedAt: c ? c.at : null,
+        options: c ? [1, 2, 3].map(n => capView(c, n)) : [], loadedAt: c ? c.at : null, writtenFrom: c ? capFrom(c) : null,
         sent: x ? { text: x.text, pick: x.pick + 1, tone: x.tone, at: x.at } : null,
-        history: ((s.caption && s.caption.old) || []).map(b => ({ loadedAt: b.at, replacedAt: b.until || null, pick: b.pick != null ? b.pick + 1 : null, options: [1, 2, 3].map(n => capView(b, n)) }))
+        history: ((s.caption && s.caption.old) || []).map(b => ({ loadedAt: b.at, replacedAt: b.until || null, pick: b.pick != null ? b.pick + 1 : null, options: [1, 2, 3].map(n => capView(b, n)), writtenFrom: capFrom(b) }))
       };
     });
   };

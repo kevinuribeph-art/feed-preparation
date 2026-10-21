@@ -3017,7 +3017,7 @@
     if (xferRun) return fail('Espera: ya se está exportando o importando la mesa.');
     xferRun = 'export';
     try {
-      const now = new Date(), mp = madParts(now.getTime()), fname = `mesa-de-feed-${mp.day}-${mp.time.replace(':', '')}.json`;
+      const now = new Date(), mp = madParts(now.getTime()), fname = `mesa-de-trabajo-${mp.day}-${mp.time.replace(':', '')}.json`;
       let handle = null;
       if (!opts.returnBlob && typeof window.showSaveFilePicker === 'function') {   // first thing: it needs the click
         try { handle = await window.showSaveFilePicker({ suggestedName: fname, types: [{ description: 'Mesa de trabajo', accept: { 'application/json': ['.json'] } }] }); }

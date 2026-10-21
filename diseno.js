@@ -734,6 +734,7 @@
       need(I().S === S && S.slots.includes(s) && (I().isCarousel(s.type) || I().isReel(s.type)) && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Diseñar».');
       if (E) cerrar();
       const entrada = instantanea(s, fin);                 // «No guardar» goes back to this (before the editor touched anything)
+      const marca = I().histMarca ? I().histMarca() : null;   // the whole session will be one step of the mesa's ⌘Z
       let changedNow = false, msg = null;
       if (!s.design) { s.design = newDesign(s, cid); changedNow = true; }
       else if ((msg = absorb(s))) { remember(s); changedNow = true; }
@@ -743,7 +744,7 @@
       E.sz = sizeOf(kit, s.design, fin);
       build(s);
       if (changedNow) { s.design.at = nowISO(); I().save(); }
-      E.entrada = entrada;
+      E.entrada = entrada; E.marca = marca;
       const st0 = instantanea(s, fin); E.hist = { undo: [], redo: [], cur: st0, curJ: firma(st0), tag: null, t: 0 }; E.abiertoJ = E.hist.curJ;
       if (msg) I().toast(msg);
       return { ok: true, slot: s.id, diapositivas: s.design.slides.length, ...(msg ? { aviso: msg } : {}) };
@@ -1142,6 +1143,7 @@
     if (!E || !E.hist) return; const s = curSlot(); if (!s) return;
     const st = instantanea(s, E.fin), j = firma(st), H = E.hist;
     if (j === H.curJ) return;
+    if (st.tray.some(f => !H.cur.tray.includes(f)) && firma({ ...st, tray: st.tray.filter(f => H.cur.tray.includes(f)) }) === H.curJ) { H.cur = st; H.curJ = j; H.tag = null; return; }   // photos only added to the tray: nothing to undo
     const now = Date.now(), tag = etiqueta(H.cur, st);
     if (!(tag && tag === H.tag && now - H.t < 2000)) { H.undo.push(H.cur); if (H.undo.length > 100) H.undo.shift(); H.redo = []; }
     H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
@@ -1513,6 +1515,7 @@
     if (e.ro) e.ro.disconnect();
     const S = I() && I().S;
     if (e.saveT) { clearTimeout(e.saveT); if (S === e.board) I().save(); }
+    if (I() && S === e.board && I().histJuntar) I().histJuntar(e.marca);   // the session: one step of the mesa's ⌘Z
     for (const b of e.bm.values()) if (b.bmp) b.bmp.close();
     for (const c of e.capas.values()) if (c && c.canvas) c.canvas.width = c.canvas.height = 0;
     e.bm.clear(); e.capas.clear(); e.q = [];

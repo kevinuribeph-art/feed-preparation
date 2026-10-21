@@ -887,10 +887,23 @@
     const now = Date.now(), tag = stepTag(H.cur, st);
     if (!(tag && tag === H.tag && now - H.t < HMERGE)) {
       const dropped = H.redo.length || H.undo.length >= HMAX;
-      H.undo.push(H.cur); if (H.undo.length > HMAX) H.undo.shift(); H.redo = [];
+      H.undo.push(H.cur); if (H.undo.length > HMAX) { H.undo.shift(); H.drop = (H.drop || 0) + 1; } H.redo = [];
       if (dropped) delSweep();
     }
     H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
+  }
+  // the designer (B6): an editing session becomes one step of the mesa's ⌘Z — from the state before it opened to the one
+  // it leaves (none if it leaves everything as it was)
+  function histMarca() { if (!S || H.b !== S || !H.cur) return null; track(S); return { b: S, n: H.undo.length, drop: H.drop || 0, st: H.cur, j: H.curJ }; }
+  function histJuntar(m) {
+    if (!m || !S || H.b !== m.b || m.b !== S) return;
+    track(S);
+    const k = m.n - ((H.drop || 0) - m.drop);            // steps dropped from the front meanwhile (more than HMAX)
+    if (H.undo.length < k) return;                        // the history started again meanwhile
+    H.undo.splice(Math.max(0, k));
+    if (H.curJ !== m.j) H.undo.push(m.st);
+    H.redo = []; H.tag = null;
+    delSweep();
   }
   // an automatic re-render (diseno.js) joins the step of the change that caused it: that post's photos and design are
   // brought up to date in the current state, so ⌘Z undoes the change and its re-render together
@@ -3254,7 +3267,7 @@
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
-    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend
+    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar
   };
   M._test = {
     place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,

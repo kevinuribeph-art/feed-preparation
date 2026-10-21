@@ -234,19 +234,21 @@
 
   // ---------- crop model (post format + reframe) ----------
   // Instagram feed formats: 4:5, 3:4, landscape up to 1.91:1. The profile grid shows the centred 3:4 of the post.
-  // Per photo: {fmt, cx, cy, z}. A carousel's format lives on the slot (s.fmt); a reel cover is always 3:4.
-  const FMT_LABEL = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
+  // Per photo: {fmt, cx, cy, z}. A carousel's format lives on the slot (s.fmt); a reel cover is always 9:16 (as the
+  // reel plays) and the grid shows its centred 3:4.
+  const FMT_LABEL = { v45: '4:5', v34: '3:4', h: 'Horizontal', r916: '9:16' };
   const dims = fid => M.files[fid] || { w: 3, h: 4 };
   function fmtRatio(fmt, w, h) {
     if (fmt === 'v45') return 4 / 5;
     if (fmt === 'v34') return 3 / 4;
+    if (fmt === 'r916') return 9 / 16;
     const r = w / h; return r >= 1 ? Math.min(r, 1.91) : 16 / 9;
   }
   function baseCrop(fid, B) { const f = dims(fid); return (B && B.crops && B.crops[fid]) || { fmt: f.w > f.h ? 'h' : 'v45', cx: 0.5, cy: 0.5, z: 1 }; }
   function slotFmt(s, B) { return s.fmt || (s.photos.length ? baseCrop(s.photos[0], B).fmt : 'v45'); }
   function cropOf(fid, s, B = S) {
     const c = { ...baseCrop(fid, B) };
-    if (s && isReel(s.type)) c.fmt = 'v34';
+    if (s && isReel(s.type)) c.fmt = 'r916';
     else if (s && isCarousel(s.type)) c.fmt = slotFmt(s, B);
     return c;
   }
@@ -272,6 +274,9 @@
   const num = (v, d, p) => +(v == null ? d : +v).toFixed(p);
   const fileSig = (fid, s, B = S) => { const c = cropOf(fid, s, B); return [c.fmt, num(c.cx, 0.5, 3), num(c.cy, 0.5, 3), num(c.z, 1, 2), +slotRatio(s, fid, B).toFixed(3)]; };
   const cropSig = (s, B = S) => JSON.stringify(publishList(s).map(fid => fileSig(fid, s, B)));
+  // a reel cover uploaded while reels were 3:4 (≤ v3.19): the same reframe, signed as it was then — it stays «en Notion»
+  // until it is reframed or changed
+  const cropSig34 = (s, B = S) => JSON.stringify(publishList(s).map(fid => { const c = cropOf(fid, s, B); return ['v34', num(c.cx, 0.5, 3), num(c.cy, 0.5, 3), num(c.z, 1, 2), 0.75]; }));
   // Stores position/zoom; the format is written only where the photo owns it (never the forced reel/carousel one).
   function setCrop(fid, s, patch) {
     const f = M.files[fid]; if (!f || !S) return;
@@ -1381,7 +1386,8 @@
   function nextMonthName(cd) { const m = cycleOf(new Date().toISOString(), cd); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }   // the next cycle to load
   function slotStatus(s) {
     const u = s.uploaded; if (!u) return null;
-    return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || u.crop === cropSig(s)) ? 'ok' : 'chg';
+    const asRendered = publishList(s).length && publishList(s).every(f => (M.files[f] || {}).design);   // a design's images go up as rendered: a new render is new files
+    return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s))) ? 'ok' : 'chg';
   }
   function statusBadge(s) {
     const st = slotStatus(s);
@@ -1524,7 +1530,7 @@
     else {
       const c = cropOf(fid, s);
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
-      const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car && s.design ? `<span class="muted">Carrusel ${FMT_LABEL[s.fmt] || ''} · el formato se cambia en «Diseñar»</span>` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
+      const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : car && s.design ? `<span class="muted">Carrusel ${FMT_LABEL[s.fmt] || ''} · el formato se cambia en «Diseñar»</span>` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
       const tools = fd ? `<span class="muted">${car || reel ? 'Reencuadra las fotos originales desde «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
         : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
@@ -1604,7 +1610,7 @@
     let left;
     if (im && im.f && M.files[im.f]) {
       const c = cropOf(im.f, it, B);
-      const fmtCtl = isReel(it.type) ? '<span class="muted">Portada del perfil · 3:4</span>' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
+      const fmtCtl = isReel(it.type) ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}</div></div>
         <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
         <div class="pacts"><span class="fname">${esc(M.files[im.f].name)}</span></div>`;
@@ -2472,7 +2478,7 @@
       files: pub.map(id => {
         const f = M.files[id] || {};
         if (f.design) return { fileId: id, name: dName(s, id), mb: +((f.size || 0) / 1048576).toFixed(1), formato: `diseño ${f.w}x${f.h}`, recorte: f.w + 'x' + f.h };   // uploaded as rendered
-        const r = postRect(id, s); return { fileId: id, name: f.name, mb: +((f.size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 3:4' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h), ...(f.reduced ? { reducida: true } : {}) };
+        const r = postRect(id, s); return { fileId: id, name: f.name, mb: +((f.size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 9:16' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h), ...(f.reduced ? { reducida: true } : {}) };
       }),
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),

@@ -1770,6 +1770,13 @@
     if (M.diseno && M.diseno.abrir) { if (S === B && slot(id)) M.diseno.abrir(id); }
     else toast('El diseñador no está cargado: recarga la página.');
   }
+  // the post view's «✓ en Notion» / «cambiada» after a reframe made in it (the rest of the view stays as it is)
+  function syncEstado(id) {
+    const d = root && root.querySelector('.detail'), s = slot(id); if (!d || d.hidden || d.dataset.slot !== id || !s || isPrev(s)) return;
+    const p = d.querySelector('.phead p'); if (!p) return;
+    const old = p.querySelector(':scope > .st'), html = statusBadge(s);
+    if (old) old.outerHTML = html; else if (html) p.insertAdjacentHTML('beforeend', html);
+  }
   let refreshLater = false;   // a refresh asked for while a photo is being dragged in the post view: done when it is let go
   function refreshDetail() {
     const d = root && root.querySelector('.detail');
@@ -2241,7 +2248,7 @@
     });
     root.addEventListener('change', e => {
       if (!e.target.matches) return;
-      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live && M.diseno && M.diseno.vistaCambiada && M.diseno.vistaCambiada()) rerender(slot(cur.slot)); }
+      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live && M.diseno && M.diseno.vistaCambiada && M.diseno.vistaCambiada()) rerender(slot(cur.slot)); }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
@@ -2286,7 +2293,7 @@
       const sx = e.clientX, sy = e.clientY, cx0 = (r0.x + r0.w / 2) / f.w, cy0 = (r0.y + r0.h / 2) / f.h;
       const sw = st.clientWidth, sh = st.clientHeight;
       const mv = ev => { setCrop(fid, s, { cx: cx0 - (ev.clientX - sx) / sw * (r0.w / f.w), cy: cy0 - (ev.clientY - sy) / sh * (r0.h / f.h) }); placeBig(); };
-      const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); if (refreshLater) { refreshLater = false; refreshDetail(); } };
+      const up = () => { st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning'); save(); renderFeed(); renderBar(); syncEstado(s.id); if (refreshLater) { refreshLater = false; refreshDetail(); } };
       st.addEventListener('pointermove', mv); st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
     });
     if (M._onKey) document.removeEventListener('keydown', M._onKey);

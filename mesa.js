@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.21
+// Mesa de trabajo — Uribe Visuals · v3.22
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -11,10 +11,12 @@
 // v3.20: designs belong to their post (swaps, «Cambiar portada», reframe in the post view, automatic re-render); reels
 // 9:16 with the profile lines; vista cliente as in Instagram; pinned posts; client profile photo (diseño 1.3, motor 1.2).
 // v3.21: the export file is mesa-de-trabajo-….json.
+// v3.22: captions in the mesa — 3 options per post (one per tone) to choose and edit in the post view, originals kept;
+// uploaded ones shown as in Instagram in the vista cliente; API loadCaptions / captions / markCaptionsUploaded; export v2.
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.21';
+  M.version = '3.22';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

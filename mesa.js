@@ -3294,6 +3294,8 @@
       else P.newer.push(b);
     }
     P.put = [...P.add, ...P.upd];
+    // boards kept here (newer) that still take caption batches only the file has
+    P.capKeep = P.newer.map(b => { const o = JSON.parse(JSON.stringify(byKey[b.key])), was = JSON.stringify(o.slots); keepCaps(o, b); return JSON.stringify(o.slots) === was ? null : o; }).filter(Boolean);
     const pk = new Set(P.put.map(b => b.key));
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
@@ -3302,17 +3304,18 @@
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.fotoUpd.length;
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.fotoUpd.length && !P.capKeep.length;
     return P;
   }
-  // a newer copy of a board never takes away the captions this Mac has: a batch (known by its `at`) that only exists here
-  // goes to the incoming post's earlier batches (all of them, if it has none); the latest upload record wins
+  // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
+  // other copy (o) has goes to b's earlier batches (all of o's, if b's post has none); the latest upload record wins
   function keepCaps(b, o) {
+    const now = new Date().toISOString();
     for (const s of (o && b.slots) || []) {
       const l = (o.slots || []).find(x => x.id === s.id), lc = l && l.caption; if (!lc) continue;
       if (!s.caption) { s.caption = JSON.parse(JSON.stringify(lc)); continue; }
       const all = c => [...(Array.isArray(c.orig) ? [c] : []), ...(c.old || [])], have = new Set(all(s.caption).map(x => x.at));
-      const miss = all(lc).filter(x => !have.has(x.at)).map(x => ({ ...capBatch(x), until: x.until || s.caption.at || null }));
+      const miss = all(lc).filter(x => !have.has(x.at)).map(x => ({ ...capBatch(x), until: x.until || now }));
       if (miss.length) s.caption.old = [...(s.caption.old || []), ...JSON.parse(JSON.stringify(miss))].sort((x, y) => String(x.at).localeCompare(String(y.at)));
       if (lc.sent && (!s.caption.sent || String(lc.sent.at) > String(s.caption.sent.at))) s.caption.sent = { ...lc.sent };
     }
@@ -3322,7 +3325,8 @@
     return [P.add.length && nOf(P.add.length, 'mes nuevo', 'meses nuevos'), u && `${u} se actualiza${u === 1 ? '' : 'n'}`,
       k && `${k} ya estaba${k === 1 ? '' : 'n'} más reciente${k === 1 ? '' : 's'} aquí`, s && `${s} igual${s === 1 ? '' : 'es'}`,
       P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos'), P.kitUpd && P.kitUpd.length && nOf(P.kitUpd.length, 'kit de diseño actualizado', 'kits de diseño actualizados'),
-      P.fotoUpd && P.fotoUpd.length && nOf(P.fotoUpd.length, 'foto de perfil actualizada', 'fotos de perfil actualizadas')].filter(Boolean).join(', ')
+      P.fotoUpd && P.fotoUpd.length && nOf(P.fotoUpd.length, 'foto de perfil actualizada', 'fotos de perfil actualizadas'),
+      P.capKeep && P.capKeep.length && `${nOf(P.capKeep.length, 'mes recibe', 'meses reciben')} captions que solo estaban en el archivo`].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
   function xferSummaryHTML(d, P) {
@@ -3431,8 +3435,10 @@
         if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } }   // the one it replaces
       }
       P.upd.forEach(b => keepCaps(b, P.local[b.key]));
-      if (P.put.length) await tx('boards', 'readwrite', st => { for (const b of P.put) st.put(b, b.key); });
-      try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
+      const capKept = P.capKeep.map(o => ({ ...o, editedAt: new Date().toISOString() }));
+      if (capKept.length) res.captionsKept = capKept.map(b => b.key);
+      if (P.put.length || capKept.length) await tx('boards', 'readwrite', st => { for (const b of [...P.put, ...capKept]) st.put(b, b.key); });
+      try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && [...P.put, ...capKept].some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced

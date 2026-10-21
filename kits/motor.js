@@ -1764,6 +1764,7 @@
       for (const k of ['marca', 'pagina', 'pie']) {
         const e = etq[k];
         if (!e || !et[k]) continue;
+        if (e.rect[0] < -0.5 || e.rect[1] < -0.5 || e.rect[2] > W + 0.5 || e.rect[3] > H + 0.5) AV.add('fuera', nombresEt[k], `${nombresEt[k]} se sale de la imagen: revisa su posición (X/Y)`);
         const c = contrasteSobre(rgbDe(et[k]), fondoStats(an, [e.rect], capas, veloRGB));
         if (k === 'pie' && lugar === 'abajo' && (tipo === 'ficha' || tipo === 'final')) contrasteMin = Math.min(contrasteMin == null ? 21 : contrasteMin, c);   // el velo del bloque también lo cubre
         if (c < AVISO_MIN) AV.add('contraste', nombresEt[k], `contraste ${c.toFixed(2)} < 3 en ${nombresEt[k]}: cambia el encuadre o la foto`, r2(c));

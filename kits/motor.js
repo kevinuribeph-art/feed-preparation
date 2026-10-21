@@ -2,7 +2,7 @@
  * Motor de diseño de la Mesa de trabajo: carruseles (portada, fichas, final) y portadas de reel.
  * Script plano para navegador (ES2020, sin módulos ni dependencias). Define window.DisenoMotor.
  *
- *   DisenoMotor.version                                   '1.1'
+ *   DisenoMotor.version                                   '1.2'
  *   DisenoMotor.cargarKit(url)                         -> Promise<kit>
  *   DisenoMotor.usarKit(kitObj, baseUrl)               -> Promise<kit>
  *   DisenoMotor.tamano(kit, fmt, srcW, srcH)           -> {W, H, factor}
@@ -27,7 +27,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '1.1';
+  const VERSION = '1.2';
   const TIPOS = ['portada', 'ficha', 'final', 'reel'];
   // Alto mínimo de la zona analizada (y anclaje del velo) en px a factor 1: el de motor.py.
   const ALTO_ANALISIS = { ficha: 400, final: 480 };

@@ -1,4 +1,4 @@
-// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.0
+// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.3
 // Turns a carousel's (or a reel's) photos and the texts approved in the chat into the finished images, with the
 // client's design kit (kits/<cliente>.json, drawn by kits/motor.js → window.DisenoMotor).
 // The design lives on the slot and is saved with the board (and shared with linked copies of the publication):
@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };

@@ -1082,6 +1082,8 @@
 #mesa .cell.past.phidden img,#mesa .cell.past.phidden .ph{opacity:.35}
 #mesa .lockbtn{border:1px solid var(--line);background:var(--panel);border-radius:999px;font-size:11.5px;padding:3px 9px;min-height:28px;color:var(--ink)}
 #mesa .lockbtn.on{border-color:var(--acc);color:var(--acc)}
+#mesa .memobtn{display:inline-flex;align-items:center;gap:5px}#mesa .memobtn svg{flex:none;width:13px;height:13px}
+#mesa.memos .pit:not(.edit){max-width:100%;max-height:8.6em;transition-delay:0s}#mesa.memos .pit .pt{opacity:1;transition-delay:0s}#mesa.memos .cell.empty>.pit:not(.edit){max-width:calc(100% - 12px)}
 #mesa .pthumb{max-width:100%;max-height:60vh;display:block;margin:0 auto;border-radius:4px}
 #mesa .pvacts{display:flex;flex-direction:column;gap:8px;margin-top:4px}
 #mesa .pvacts button{text-align:left}
@@ -1212,6 +1214,7 @@
 #mesa .legend>*{flex:none}#mesa .legend .lp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #mesa .legend .ln{width:12px;margin-right:5px}
 #mesa .lockbtn{margin-left:auto;padding:2px 8px;font-size:11px}
+#mesa .lockbtn+.memobtn{margin-left:0}
 #mesa .main{flex-direction:column}
 #mesa .feed{width:100%;flex:1;border-right:0;border-bottom:1px solid var(--line)}
 #mesa .tray{flex:none;overflow:hidden;display:flex;flex-direction:column}
@@ -1411,8 +1414,9 @@
     const pm = rangeLabel(prevMonth(S.month), 1, false, curCd());
     const lockBtn = (S.prev || []).length ? (S.prevUnlocked ? '<button class="lockbtn on" data-act="prevlock" title="Volver a bloquear el mes anterior">🔓 Desbloqueado · Bloquear</button>' : lk ? '<button class="lockbtn" data-act="prevlock" title="Desbloquear el mes anterior">🔒 Bloqueado</button>' : '<button class="lockbtn on" data-act="prevlock">🔓 Solo esta vez</button>') : '';
     const below = `Debajo: ${pm} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}`;
+    const memoBtn = S.slots.some(s => memoOf(s)) ? `<button class="lockbtn memobtn${memosOpen ? ' on' : ''}" data-act="memos" aria-pressed="${memosOpen}" title="${memosOpen ? 'Cerrar todas las notas' : 'Abrir todas las notas a la vez'}">${POSTIT}${memosOpen ? 'Cerrar notas' : 'Abrir notas'}</button>` : '';
     root.querySelector('.feed .legend').innerHTML = `<span class="lr"><b>${esc(rangeLabel(S.month, S.span, false, curCd()))}</b> · ${N} a preparar</span>`
-      + ((S.prev || []).length ? `<span class="lp" title="${esc(below)}"><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span class="lp">Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`);
+      + ((S.prev || []).length ? `<span class="lp" title="${esc(below)}"><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span class="lp">Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`) + memoBtn;
     fitGrid();
   }
   // the grid's width follows the feed's height so that ≈3.4 rows fit (cell = 3:4 of a third), between 300 px and the
@@ -1715,7 +1719,8 @@
   // Once the post-it has opened (0.5 s of hover, as the CSS does), a click on it does nothing and a double click turns it
   // into a text field right there; it ends on leaving the field or with Esc. Without a Nota nothing changes (post view).
   let hov = { id: null, t: 0 };
-  const pitOpen = id => !!id && hov.id === id && Date.now() - hov.t >= 500;
+  let memosOpen = false;                 // «Abrir notas»: every Nota open at once until «Cerrar notas»
+  const pitOpen = id => !!id && (memosOpen || (hov.id === id && Date.now() - hov.t >= 500));
   function fitPit(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
   function editMemo(id) {
     const s = S && S.slots.find(x => x.id === id);
@@ -2086,6 +2091,7 @@
       closeDetail(); renderFeed();
       if (pu) { pu.fn(); if (pu.kind === 'edit') endOnce(); }
     }
+    else if (act === 'memos') { memosOpen = !memosOpen; root.classList.toggle('memos', memosOpen); renderFeed(); }
     else if (act === 'prevlock') { if (S.prevUnlocked || prevOnce) { S.prevUnlocked = false; prevOnce = false; save(); renderFeed(); toast('Mes anterior bloqueado.'); } else withPrev(() => {}, 'none'); }
     else if (act === 'prevhide') { const it = prevItem(a.dataset.id); if (it) { it.hidden = !it.hidden; changed(); openPast(it.id); } }
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }

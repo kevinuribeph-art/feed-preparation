@@ -2893,7 +2893,8 @@
     x.fillStyle = '#111'; x.font = `700 46px ${FONT}`; x.fillText(c0.handle || c0.name || '', 48, 92);
     x.fillStyle = '#555'; x.font = `400 30px ${FONT}`; x.fillText('Propuesta de feed · ' + (only ? rangeLabel(only, 1, false, cd) : rangeLabel(S.month, S.span, false, cd)), 48, 140);
     x.fillStyle = '#8a8a8a'; x.font = `400 24px ${FONT}`;
-    const below = [earlier.length ? `${earlier.length} ya planificadas` : '', past.length ? `${past.length} de ${cd === 1 ? MONTHS[+prevMonth(S.month).slice(5) - 1] : rangeLabel(prevMonth(S.month), 1, true, cd)}` : ''].filter(Boolean).join(' + ');
+    const planificadas = earlier.length + (only ? order.filter(s => pinned.has(s.id) && !isLater(s) && !inM(s)).length : 0);
+    const below = [planificadas ? `${planificadas} ya planificadas` : '', past.length ? `${past.length} de ${cd === 1 ? MONTHS[+prevMonth(S.month).slice(5) - 1] : rangeLabel(prevMonth(S.month), 1, true, cd)}` : ''].filter(Boolean).join(' + ');
     x.fillText(`${nuevas} publicaciones nuevas${below ? ' + ' + below : ''} · vista del perfil (recorte 3:4)`, 48, 184);
     if (earlier.length || past.length) {
       x.fillStyle = BLUE; x.fillRect(48, 212, 44, 8);

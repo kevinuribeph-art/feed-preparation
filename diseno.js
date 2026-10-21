@@ -155,9 +155,15 @@
           job.again = false;
           const S = I() && I().S, s = S && S.slots.find(x => x.id === slotId);
           if (!s || !s.design || !s.design.out || !(I().isCarousel(s.type) || I().isReel(s.type)) || !completo(s)) return { ok: false };
+          if (estadoDe(s) === 'ok') return { ok: true };         // already up to date (an undo brought it back, say)
           if (I().setBusy) I().setBusy('dz', `Actualizando el diseño de ${s.name}…`);
-          try { await aplicar(slotId, { silencioso: true }); }
-          catch (e) { I().toast(e instanceof DzError ? e.message : 'No se pudo actualizar el diseño: ' + String((e && e.message) || e)); return { error: true }; }
+          try {
+            const r = await aplicar(slotId, { silencioso: true });
+            if (r && r.notas && r.notas.length) I().toast(r.notas.join(' '), { ms: 7000 });   // e.g. photos of the post the design doesn't use, back in the tray
+          } catch (e) {
+            if (e && e.cambio) { job.again = true; continue; }     // superseded while saving: look again
+            I().toast(e instanceof DzError ? e.message : 'No se pudo actualizar el diseño: ' + String((e && e.message) || e)); return { error: true };
+          }
         }
         return { ok: true };
       } finally { delete REAP[slotId]; if (I() && I().setBusy) I().setBusy('dz', null); }
@@ -522,6 +528,10 @@
       M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: URL.createObjectURL(thumb), design: true };
       M.thumbBlobs[id] = thumb;
       outs.push(id);
+    }
+    if (!(I().S === S && S.slots.includes(s) && s.design === d && sigOf(s, raw) === sig)) {   // changed while the images were saved (⌘Z, another change): not used
+      for (const f of outs) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
+      const err = new DzError('La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.'); err.cambio = true; throw err;
     }
     const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set(srcsOf(s));
     const unused = rawPhotos(s).filter(f => !used.has(f));
@@ -1531,7 +1541,7 @@
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
     abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
-    vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaCambiada, vistaLibre, formato, _srcVista: srcVista,
+    vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaCambiada, vistaLibre, formato, _srcVista: srcVista, _tienePortada: s => !!portadaDe(s),
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so

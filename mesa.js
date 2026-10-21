@@ -633,6 +633,7 @@
   function takeFromTray(fileId) { S.tray = S.tray.filter(x => x !== fileId); }
   function place(slotId, fileId, silent) {
     const s = slot(slotId); if (!s) return;
+    if (designed(s) && !isMulti(s.type) && sinPortada(s)) return;
     if (sel === fileId) sel = null;
     const other = S.slots.find(x => x !== s && x.photos.includes(fileId));
     if (other) other.photos = other.photos.filter(x => x !== fileId);
@@ -663,6 +664,7 @@
       fixSingle(A); fixSingle(B);
       changed(); return;
     }
+    if (sinPortada(A, B)) return;
     const fa = coverOf(A), fb = coverOf(B); if (!fa && !fb) return;
     const ka = postFmt(A), kb = postFmt(B);
     setCoverPhoto(A, fb); setCoverPhoto(B, fa);
@@ -681,6 +683,13 @@
     if (fid) { if (s.photos.length) s.photos[0] = fid; else s.photos = [fid]; s.photos = [...new Set(s.photos)]; }
     else s.photos = s.photos.slice(1);
     return old;
+  }
+  // a designed post's cover is the designer's: without it loaded, or with no cover slide, the post is left as it is
+  function sinPortada(...ps) {
+    const bad = ps.find(x => designed(x) && !(M.diseno && M.diseno._tienePortada && M.diseno._tienePortada(x)));
+    if (!bad) return false;
+    toast(M.diseno && M.diseno._tienePortada ? `${bad.name}: su diseño no tiene diapositiva de portada; cámbiala en «Diseñar».` : 'El diseñador no está cargado: recarga la página para cambiar la portada de una publicación diseñada.', { ms: 6000 });
+    return true;
   }
   const rerender = s => { if (designed(s) && s.design.out && M.diseno && M.diseno.reaplicar) { const id = s.id; setTimeout(() => M.diseno.reaplicar(id), 0); } };
   // ---------- pinned posts (B8) ----------
@@ -701,7 +710,7 @@
   // «Cambiar portada» (post view) and a new photo on a designed reel: a tray photo becomes the cover; the old one goes back
   // to the tray unless something else uses it; the texts stay
   function changeCover(slotId, fid) {
-    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid]) return;
+    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid] || sinPortada(s)) return;
     const k = postFmt(s);
     const other = S.slots.find(x => x !== s && x.photos.includes(fid)); if (other) other.photos = other.photos.filter(x => x !== fid);
     takeFromTray(fid); if (sel === fid) sel = null;
@@ -782,6 +791,7 @@
     const P = pendingAdd; pendingAdd = null; closeDetail();
     if (!P || !S || S.key !== P.key) return;
     const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
+    if (m !== 'add' && designed(s) && sinPortada(s)) return;
     if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
     ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
     if (designed(s) && isCarousel(s.type)) {   // a designed carousel: the cover slide's photo (texts stay), never a new slide

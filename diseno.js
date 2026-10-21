@@ -193,7 +193,8 @@
       const f = M.files[src], sc = Math.min(1, 2400 / Math.max(f.w, f.h)), blob = await I().getBlob(src);
       const bmp = await createImageBitmap(blob, sc < 1 ? { imageOrientation: 'from-image', resizeWidth: Math.max(1, Math.round(f.w * sc)), resizeHeight: Math.max(1, Math.round(f.h * sc)), resizeQuality: 'high' } : { imageOrientation: 'from-image' });
       if (n !== VI.n) { bmp.close(); return false; }
-      Object.assign(VI, { kit, fin, src, bmp, sz: sizeOf(kit, s.design, fin), ready: true, base: JSON.stringify((I().S.crops || {})[src] || null) });
+      Object.assign(VI, { kit, fin, src, bmp, sz: sizeOf(kit, s.design, fin), ready: true });
+      const c0 = (I().S.crops || {})[src]; VI.base = marcoVista(); VI.crop0 = c0 ? { ...c0 } : null;
       return true;
     } catch (e) { return false; }
   }
@@ -223,8 +224,16 @@
   function vistaMover(g, fx, fy) { if (!VI.ready) return; recorte(VI.src, { cx: g.cx - fx * g.fw, cy: g.cy - fy * g.fh }, VI.sz); pedirVista(); }
   function vistaZoom(z) { if (!VI.ready) return false; recorte(VI.src, { z }, VI.sz); pedirVista(); return true; }
   function vistaCentrar() { if (!VI.ready) return false; recorte(VI.src, { cx: 0.5, cy: 0.5, z: 1 }, VI.sz); pedirVista(); return true; }
-  // whether the photo's reframe differs from the one the applied image was drawn with (a click alone changes nothing)
-  const vistaCambiada = () => !!VI.ready && JSON.stringify((I().S.crops || {})[VI.src] || null) !== VI.base;
+  // on letting go: true when the photo's frame really changed (then the mesa applies it again); otherwise its stored reframe
+  // goes back exactly as it was, so a click, a drag with no room to move or «Centrar» on a centred photo leave the post as is
+  function marcoVista() { const r = rectOf(VI.src, VI.sz.W, VI.sz.H); return [r.x, r.y, r.w, r.h].map(v => Math.round(v * 10) / 10).join(','); }
+  function vistaSoltar() {
+    if (!VI.ready) return false;
+    if (marcoVista() !== VI.base) return true;
+    const S = I().S; S.crops = S.crops || {};
+    if (VI.crop0) S.crops[VI.src] = { ...VI.crop0 }; else delete S.crops[VI.src];
+    return false;
+  }
   // a designed carousel's format changed from the post view (its text offsets keep their place, as in the editor)
   function formato(slotId, fmt) {
     const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || isReelS(s) || !FMTS[fmt] || s.design.fmt === fmt) return false;
@@ -1558,7 +1567,7 @@
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
     abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
-    vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaCambiada, vistaLibre, formato, _srcVista: srcVista, _tienePortada: s => !!portadaDe(s),
+    vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaSoltar, vistaLibre, formato, _srcVista: srcVista, _tienePortada: s => !!portadaDe(s),
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so

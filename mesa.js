@@ -2248,7 +2248,14 @@
     });
     root.addEventListener('change', e => {
       if (!e.target.matches) return;
-      if (e.target.matches('.zoomr')) { save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot); const st = root.querySelector('.detail .stage'); if (st && st.dataset.live && M.diseno && M.diseno.vistaCambiada && M.diseno.vistaCambiada()) rerender(slot(cur.slot)); }
+      if (e.target.matches('.zoomr')) {
+        const st = root.querySelector('.detail .stage');
+        if (st && st.dataset.live && M.diseno && M.diseno.vistaSoltar) {   // a designed slide: applied again only if its frame changed
+          if (M.diseno.vistaSoltar()) { save(); renderFeed(); renderBar(); rerender(slot(cur.slot)); } else { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
+          return;
+        }
+        save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot);
+      }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
@@ -2278,7 +2285,7 @@
         const mv = ev => M.diseno.vistaMover(g, (ev.clientX - sx) / sw, (ev.clientY - sy) / sh);
         const up = () => {
           st.removeEventListener('pointermove', mv); st.removeEventListener('pointerup', up); st.removeEventListener('pointercancel', up); st.classList.remove('panning');
-          if (M.diseno.vistaCambiada && M.diseno.vistaCambiada()) { save(); renderFeed(); renderBar(); rerender(s); }   // a click alone draws nothing again
+          if (M.diseno.vistaSoltar && M.diseno.vistaSoltar()) { save(); renderFeed(); renderBar(); rerender(s); }   // a click alone draws nothing again
           else { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
           if (refreshLater) { refreshLater = false; refreshDetail(); }
         };
@@ -2355,7 +2362,11 @@
     else if (act === 'center') {
       flashThirds(); const s = slot(cur.slot); touchPrev(s);
       const st = root.querySelector('.detail .stage');
-      if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar() && M.diseno.vistaCambiada()) { const z = root.querySelector('.detail .zoomr'); if (z) z.value = 1; save(); renderFeed(); renderBar(); rerender(s); } return; }
+      if (st && st.dataset.live) {
+        if (M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar() && M.diseno.vistaSoltar()) { const z = root.querySelector('.detail .zoomr'); if (z) z.value = 1; save(); renderFeed(); renderBar(); rerender(s); }
+        else { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
+        return;
+      }
       if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); }
     }
     else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }

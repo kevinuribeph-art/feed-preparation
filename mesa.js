@@ -787,6 +787,17 @@
     if (old.length) s.caption.old = old;
     if (was.sent) s.caption.sent = was.sent;
   }
+  function setCapText(slotId, k, text) {     // Kevin's edit of one option (its original is never touched)
+    const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || !(k >= 0 && k < 3)) return;
+    c.text[k] = text;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); capSync(slotId); }, 400);
+  }
+  function setCapPick(slotId, k) {           // the chosen option: one at a time
+    const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || !(k >= 0 && k < 3) || c.pick === k) return;
+    c.pick = k;
+    save(); renderFeed(); renderBar(); capSync(slotId);
+  }
   // the open post view of a publication of this month (not a dialog, not a September post): photos dropped on it are added to it
   function postDrop(e) {
     const d = root && root.querySelector('.detail'); if (!d || d.hidden || d.dataset.dlg || d.dataset.prev || !d.dataset.slot) return null;
@@ -1342,6 +1353,14 @@
 #mesa .caphead{flex:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:0 0 6px}#mesa .caphead .nlab{margin:0}
 #mesa .capbody{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);padding:10px}
 #mesa .capempty{margin:auto;padding:12px;color:var(--mute);font-size:12.5px;text-align:center}
+#mesa .capbox{display:flex;flex-direction:column;gap:5px}
+#mesa .caplab{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:24px}
+#mesa .caplab input{margin:0;width:15px;height:15px;accent-color:var(--acc);flex:none;cursor:pointer}
+#mesa .caplab em{display:none;margin-left:auto;font-style:normal;font-weight:600;font-size:10.5px;color:#fff;background:var(--acc);border-radius:999px;padding:1px 7px}
+#mesa .capbox.on .caplab em{display:inline}
+#mesa textarea.capt{width:100%;min-height:58px;resize:none;overflow:hidden;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.45 ${FONT};color:var(--ink);background:var(--panel)}
+#mesa .capbox.on textarea.capt{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+#mesa textarea.capt:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
 #mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
 #mesa .toasts{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
 #mesa .toast{pointer-events:none;background:var(--ink);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:8px;max-width:90vw;display:flex;gap:12px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
@@ -1624,9 +1643,10 @@
     if (idx == null) idx = cur.slot === id ? cur.idx : 0;
     const n = s.photos.length;
     idx = Math.max(0, Math.min(n - 1, idx || 0));
-    // keep the focus and caret of the field being typed in (contexto or nota) if we're re-rendering the same post
+    // keep the focus and caret of the field being typed in (contexto, nota or a caption) if we're re-rendering the same post
     const ta = document.activeElement;
-    const keep = ta && d.contains(ta) && ta.matches('textarea.note, textarea.memo') && ta.dataset.slot === id ? { c: ta.className, a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
+    const keep = ta && d.contains(ta) && ta.matches('textarea.note, textarea.memo, textarea.capt') && ta.dataset.slot === id ? { c: ta.className, k: ta.dataset.k, a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
+    const cb = !d.hidden && d.dataset.slot === id && !d.dataset.prev && d.querySelector('.capbody'), capTop = cb ? cb.scrollTop : 0;   // where the captions were scrolled to
     // focus: the close button when the post opens (or when it had it before this re-render, e.g. arrow keys)
     const ae = document.activeElement, fresh = d.hidden || d.dataset.slot !== id || !!d.dataset.prev || !!(ae && d.contains(ae) && ae.matches('.card > .x'));
     cur = { slot: id, idx };
@@ -1675,18 +1695,32 @@
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;
-    if (keep) { const t2 = d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); t2.focus(); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; }
+    fitCaps(d); if (capTop) d.querySelector('.capbody').scrollTop = capTop;
+    if (keep) { const t2 = keep.c === 'capt' ? d.querySelector(`textarea.capt[data-k="${cssq(keep.k)}"]`) : d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); if (t2) { t2.focus({ preventScroll: keep.c === 'capt' }); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; } }
     else if (fresh) focusClose(d);
     if (n) { layoutStage(); loadBig(fid); }
     if (live && M.diseno && M.diseno.vista) M.diseno.vista(d.querySelector('.stage canvas.dzv'), id, idx);   // ready for a reframe
     markReframe();
   }
-  // the post view's «Captions» block: under the Contexto and the Nota, as tall as the column allows, scrolling inside
+  // the post view's «Captions» block: under the Contexto and the Nota, as tall as the column allows, scrolling inside.
+  // The 3 options in the client's tone order, each one editable (its original stays as Claude wrote it); the radio
+  // marks the chosen one — one at a time, changeable at any moment.
   function capsHTML(s) {
-    const cn = (CL.find(c => c.id === S.client) || {}).name || 'este cliente';
-    return `<section class="caps" aria-label="Captions"><div class="caphead"><span class="nlab">Captions</span></div>`
-      + `<div class="capbody"><p class="capempty">Sin captions todavía. Pídeselos a Claude: «genera los captions de ${esc(cn)}».</p></div></section>`;
+    const c = capOf(s), id = esc(s.id), cn = (CL.find(x => x.id === S.client) || {}).name || 'este cliente';
+    const body = !c ? `<p class="capempty">Sin captions todavía. Pídeselos a Claude: «genera los captions de ${esc(cn)}».</p>`
+      : c.orig.map((_, k) => {
+        const lab = `Caption ${k + 1} · ${c.tones[k] || ''}`, on = c.pick === k;
+        return `<div class="capbox${on ? ' on' : ''}" data-k="${k}"><label class="caplab"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span><em>Elegida</em></label>`
+          + `<textarea class="capt" data-slot="${id}" data-k="${k}" aria-label="${esc(lab)}">${esc(c.text[k])}</textarea></div>`;
+      }).join('');
+    return `<section class="caps" aria-label="Captions"><div class="caphead"><span class="nlab">Captions</span></div><div class="capbody">${body}</div></section>`;
   }
+  // after an edit or a new choice in the open post view: the boxes stay (no re-render), only what they show changes
+  function capSync(id) {
+    const d = root && root.querySelector('.detail'), s = slot(id), c = capOf(s); if (!d || d.hidden || d.dataset.slot !== id || !c) return;
+    d.querySelectorAll('.capbox').forEach(b => { const on = +b.dataset.k === c.pick; b.classList.toggle('on', on); const r = b.querySelector('.cappick'); if (r && r.checked !== on) r.checked = on; });
+  }
+  const fitCaps = d => d && d.querySelectorAll('textarea.capt').forEach(fitPit);
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
   const wday = iso => { const d = localDay(iso); return d ? new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC', weekday: 'short' }).format(new Date(d + 'T12:00:00Z')).replace('.', '') : ''; };
   function whenHTML(s) {
@@ -2283,6 +2317,7 @@
       if (!e.target.matches) return;
       if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('textarea.memo')) setMemo(e.target.dataset.slot, e.target.value);
+      else if (e.target.matches('textarea.capt')) { setCapText(e.target.dataset.slot, +e.target.dataset.k, e.target.value); fitPit(e.target); }
       else if (e.target.matches('.pitin')) { setMemo(e.target.dataset.slot, e.target.value); fitPit(e.target); }
       else if (e.target.matches('.zoomr')) {
         flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
@@ -2303,6 +2338,7 @@
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
+      else if (e.target.matches('.cappick')) setCapPick(e.target.dataset.slot, +e.target.dataset.k);
       else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
       else if (e.target.matches('.avin')) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) avPick(f); }
     });
@@ -2372,7 +2408,7 @@
     M._mq = NARROW; M._onMq = () => { if (shellReady()) renderTabs(); };
     try { NARROW.addEventListener('change', M._onMq); } catch (e) { /* old engines */ }
     if (M._onResize) window.removeEventListener('resize', M._onResize);
-    M._onResize = () => { layoutStage(); if (ig) openIG(ig.id, ig.idx); };
+    M._onResize = () => { layoutStage(); fitCaps(root.querySelector('.detail')); if (ig) openIG(ig.id, ig.idx); };
     window.addEventListener('resize', M._onResize);
     if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
     M._onHide = e => {

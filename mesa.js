@@ -424,10 +424,10 @@
 
   // ---------- linked publications ----------
   // One Notion page can be in several boards (a collab of two clients, overlapping months of one client): it is one
-  // publication, so its photos (with their crops), contexto (note), nota (memo), format, upload record, date and name are shared. Each slot
+  // publication, so its photos (with their crops), contexto (note), nota (memo), format, upload record, date, name and captions are shared. Each slot
   // keeps a revision (s.at, ms): a save writes the changed ones through to every other board that has them, and
   // opening a board takes the newest copy of each of its slots.
-  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'design'];
+  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'design', 'caption'];
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
@@ -500,7 +500,7 @@
     if (!S || !s) return [];
     return [...new Set((IDX[s.id] || []).map(x => x.client).filter(c => c && c !== S.client))].map(c => (CL.find(x => x.id === c) || {}).name || c);
   }
-  const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora, contexto y nota se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
+  const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora, contexto, nota y captions se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
 
   async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
   async function refreshMonths() {
@@ -769,6 +769,23 @@
     if (text) s.memo = text; else delete s.memo;
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => { noteTimer = null; save(); if (memoEdit !== slotId) renderFeed(); renderBar(); }, 400);   // the open in-cell editor already shows it
+  }
+  // ---------- captions (M3) ----------
+  // s.caption = {tones, orig, text, pick, at, basis, old, sent}: orig = the 3 options as Claude wrote them, in the client's
+  // tone order (never changed); text = Kevin's edit of each (starts as orig); pick = the chosen one (0-2, null = none yet);
+  // at = when they were loaded; basis = {f: photos, n: contexto} they were written from; old = earlier batches a new one
+  // replaced (each with `until`), kept for «analiza»; sent = the caption uploaded to Notion {text, pick, tone, at}.
+  // Shared by a collab's boards like its photos; outside the ⌘Z history (like the upload record): undoing a photo leaves them.
+  const capOf = s => s && s.caption && Array.isArray(s.caption.orig) && s.caption.orig.length === 3 ? s.caption : null;
+  const capPhotos = s => designed(s) ? s.design.slides.filter(x => x.tipo !== 'final').map(x => x.src).filter(Boolean) : publishList(s);   // a design's photos, not its renders
+  const capBatch = c => ({ tones: c.tones, orig: c.orig, text: c.text, pick: c.pick, at: c.at, basis: c.basis });
+  function capLoad(s, options, basis) {     // a new batch is shown; the one it replaces (if any) goes to old
+    const now = new Date().toISOString(), c = capOf(s), was = s.caption || {}, old = (was.old || []).slice();
+    if (c) old.push({ ...capBatch(c), until: now });
+    const t = options.map(o => String(o.text).replace(/\r\n?/g, '\n').trim());
+    s.caption = { tones: options.map(o => String(o.tone).trim()), orig: t, text: t.slice(), pick: null, at: now, basis: basis || { f: capPhotos(s), n: noteOf(s) } };
+    if (old.length) s.caption.old = old;
+    if (was.sent) s.caption.sent = was.sent;
   }
   // the open post view of a publication of this month (not a dialog, not a September post): photos dropped on it are added to it
   function postDrop(e) {
@@ -1490,7 +1507,7 @@
     const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s);
     const d = (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
       + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion: pide a Claude que la vuelva a subir') : '')
-      + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto y nota se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
+      + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto, nota y captions se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
   }
   const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" fill="#f8df74"/><path d="M1.5 1.5h14v2.6h-14z" fill="#fcebaa"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" fill="#d9ad35"/></svg>';
@@ -2518,7 +2535,7 @@
   // shorter range whose dropped months have photos, notes or uploads -> error message (null = fine)
   function dropCheck(old, slots, month, span, cd) {      // cd: the cycle day being loaded (posts are grouped by it)
     const os = old.slots || [], om = old.month || month, ospan = old.span || 1, range = monthsOf(month, span);
-    const mo = s => cycleOf(s.notionDate ?? s.date, cd), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded || s.design;
+    const mo = s => cycleOf(s.notionDate ?? s.date, cd), used = s => (s.photos || []).length || noteOf(s) || memoOf(s) || s.uploaded || s.design || s.caption;
     const ml = ms => ms.map(m => cdOf(cd) === 1 ? MONTHS[+m.slice(5) - 1] : rangeLabel(m, 1, true, cd)).join(', ').replace(/, ([^,]*)$/, ' y $1');
     const u = cdOf(cd) === 1 ? ['meses', 'el mes entero'] : ['ciclos', 'el ciclo entero'];
     if (old.key && os.length && cdOf(old.cycleDay) !== cdOf(cd)) {      // re-cut with another cycle day
@@ -2595,6 +2612,7 @@
       if (o.fmt) r.fmt = o.fmt;
       if (o.memo) r.memo = o.memo;
       if (o.design) r.design = o.design;
+      if (o.caption) r.caption = o.caption;
       if (r.design && o.type && o.type !== n.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
         const x = M.diseno._retipo(r, n.type);
         if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
@@ -2993,9 +3011,11 @@
   // Kevin moves it by AirDrop or iCloud. Photos travel at 1080 px on the short side (JPEG, orientation baked in).
   // Importing merges: a board is added if missing and replaced only by a newer copy (savedAt); clients and photos are
   // only added (a full-resolution photo is never replaced by its 1080 copy). Format:
-  // {format:'mesa-feed', v:1, app, exportedAt, clients:[…], boards:[…], files:{id:{name,type,w,h,size,lastModified,
+  // {format:'mesa-feed', v:2, app, exportedAt, clients:[…], boards:[…], files:{id:{name,type,w,h,size,lastModified,
   //  reduced,design?,data:<base64>, thumb?:<base64>}}, past:{notionId:{w,h,thumb:<base64>}}} — no thumb: the photo (1080) is its own.
   // A client's design-kit override (kit, kitAt) travels with it: the newer one wins, with its fixed final photo.
+  // v:2 = boards may carry captions (s.caption): a mesa older than that refuses the file instead of dropping them; v:1 files
+  // (no captions) import as always.
   const XF_SHORT = 1080;
   let xferRun = null, xferAsk = null;
   const nOf = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -3045,7 +3065,7 @@
       const clients = (await idbAll('clients')) || [];
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean)])];
-      const parts = ['{"format":"mesa-feed","v":1,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
+      const parts = ['{"format":"mesa-feed","v":2,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
         + ',"clients":' + JSON.stringify(clients) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -3089,7 +3109,7 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (d.v !== 1) return +d.v > 1 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (d.v !== 1 && d.v !== 2) return +d.v > 2 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -3104,7 +3124,7 @@
   async function xferPlan(d) {
     const local = ((await idbAll('boards')) || []).map(b => newest(b.key, b)), byKey = Object.fromEntries(local.map(b => [b.key, b]));
     const clients = (await idbAll('clients')) || [], cids = new Set(clients.map(c => c.id)), keys = await allKeys('files');
-    const P = { clients, add: [], upd: [], newer: [], same: [], newClients: [], files: new Set(keys.filter(k => !k.startsWith('past:'))), past: new Set(keys.filter(k => k.startsWith('past:')).map(k => k.slice(5))) };
+    const P = { clients, local: byKey, add: [], upd: [], newer: [], same: [], newClients: [], files: new Set(keys.filter(k => !k.startsWith('past:'))), past: new Set(keys.filter(k => k.startsWith('past:')).map(k => k.slice(5))) };
     P.kitUpd = d.clients.filter(c => c.kit && cids.has(c.id) && String(c.kitAt || '') > String((clients.find(x => x.id === c.id) || {}).kitAt || ''));   // newer design-kit override of a client that is here
     const fotoAt = c => (c && c.kit && c.kit.final && c.kit.final.fotoAt) || '';
     P.kitFiles = P.kitUpd.filter(c => fotoAt(c) !== fotoAt(clients.find(x => x.id === c.id))).map(kitRef).filter(id => id && d.files[id]);   // only another final photo replaces the one here (same id): never the same photo by its 1080 copy
@@ -3126,6 +3146,18 @@
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
     P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.fotoUpd.length;
     return P;
+  }
+  // a newer copy of a board never takes away the captions this Mac has: a batch (known by its `at`) that only exists here
+  // goes to the incoming post's earlier batches (all of them, if it has none); the latest upload record wins
+  function keepCaps(b, o) {
+    for (const s of (o && b.slots) || []) {
+      const l = (o.slots || []).find(x => x.id === s.id), lc = l && l.caption; if (!lc) continue;
+      if (!s.caption) { s.caption = JSON.parse(JSON.stringify(lc)); continue; }
+      const all = c => [...(Array.isArray(c.orig) ? [c] : []), ...(c.old || [])], have = new Set(all(s.caption).map(x => x.at));
+      const miss = all(lc).filter(x => !have.has(x.at)).map(x => ({ ...capBatch(x), until: x.until || s.caption.at || null }));
+      if (miss.length) s.caption.old = [...(s.caption.old || []), ...JSON.parse(JSON.stringify(miss))].sort((x, y) => String(x.at).localeCompare(String(y.at)));
+      if (lc.sent && (!s.caption.sent || String(lc.sent.at) > String(s.caption.sent.at))) s.caption.sent = { ...lc.sent };
+    }
   }
   function xferWhat(P) {
     const u = P.upd.length, k = P.newer.length, s = P.same.length;
@@ -3240,6 +3272,7 @@
         await idbPut('clients', c.id, n);
         if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } }   // the one it replaces
       }
+      P.upd.forEach(b => keepCaps(b, P.local[b.key]));
       if (P.put.length) await tx('boards', 'readwrite', st => { for (const b of P.put) st.put(b, b.key); });
       try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
@@ -3327,7 +3360,8 @@
     prevLocked: () => prevLocked(), setDate: (slotId, iso) => setDate(slotId, iso), weekOf: day => weekOf(day, 1), weekOfCycle: (day, cd) => weekOf(day, cd), madridISO, cycleOf: (day, cd) => cycleOfDay(day, cd), cycleEnd, rangeLabel,
     unlock: mode => { if (mode === 'always') { S.prevUnlocked = true; save(); } else if (mode === 'once') prevOnce = true; else { S.prevUnlocked = false; prevOnce = false; save(); } renderFeed(); },
     shared: id => sharedWith(slot(id)), idx: () => JSON.parse(JSON.stringify(IDX)), deleteIfUnused,
-    setSlot: (id, patch) => { const s = slot(id); if (s) { Object.assign(s, patch); save(); render(); } }
+    setSlot: (id, patch) => { const s = slot(id); if (s) { Object.assign(s, patch); save(); render(); } },
+    capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
   };
   M._test.fileRec = async id => {       // stored photo: record fields + the real size of its image and thumbnail
     const r = await idbGet('files', id); if (!r) return null;

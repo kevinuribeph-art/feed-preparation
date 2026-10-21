@@ -903,15 +903,16 @@
   }
   // the designer (B6): an editing session becomes one step of the mesa's ⌘Z — from the state before it opened to the one
   // it leaves (none if it leaves everything as it was)
-  function histMarca() { if (!S || H.b !== S || !H.cur) return null; track(S); return { b: S, n: H.undo.length, drop: H.drop || 0, st: H.cur, j: H.curJ }; }
+  function histMarca() { if (!S || H.b !== S || !H.cur) return null; track(S); return { b: S, n: H.undo.length, drop: H.drop || 0, st: H.cur, j: H.curJ, redo: H.redo.slice() }; }
   function histJuntar(m) {
     if (!m || !S || H.b !== m.b || m.b !== S) return;
     track(S);
     const k = m.n - ((H.drop || 0) - m.drop);            // steps dropped from the front meanwhile (more than HMAX)
     if (H.undo.length < k) return;                        // the history started again meanwhile
+    const was = stRefs(m.st), igual = JSON.stringify({ ...H.cur, tray: H.cur.tray.filter(f => was.has(f)) }) === m.j;   // nothing, or only photos added to the tray
     H.undo.splice(Math.max(0, k));
-    if (H.curJ !== m.j) H.undo.push(m.st);
-    H.redo = []; H.tag = null;
+    if (igual) H.redo = m.redo; else { H.undo.push(m.st); H.redo = []; }
+    H.tag = null;
     delSweep();
   }
   // an automatic re-render (diseno.js) joins the step of the change that caused it: that post's photos and design are

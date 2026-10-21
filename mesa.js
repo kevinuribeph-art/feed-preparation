@@ -1164,6 +1164,8 @@
 #mesa .stage.panning .thirds,#mesa .stage.reframe .thirds{opacity:1}
 #mesa .nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);font-size:20px;line-height:34px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
 #mesa .nav.prev{left:8px}#mesa .nav.next{right:8px}#mesa .nav[hidden]{display:none}
+#mesa .stage .nav{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.78);color:#262626;line-height:0;display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(0,0,0,.18);transition:background .12s}
+#mesa .stage .nav:hover{background:rgba(255,255,255,.96)}#mesa .stage .nav svg{width:16px;height:16px}#mesa .stage .nav.prev{left:10px}#mesa .stage .nav.next{right:10px}#mesa .stage .nav[hidden]{display:none}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}#mesa .dots i.on{background:#fff}
 #mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
@@ -1476,7 +1478,7 @@
       const fmtCtl = reel ? '<span class="muted">Portada del perfil · 3:4</span>' : car && s.design ? `<span class="muted">Carrusel ${FMT_LABEL[s.fmt] || ''} · el formato se cambia en «Diseñar»</span>` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
       const tools = fd ? `<span class="muted">${car || reel ? 'Reencuadra las fotos originales desde «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
         : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
-      const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>›</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
+      const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
@@ -1574,6 +1576,8 @@
   // rule-of-thirds lines over the post frame: shown only while reframing — panning, and for a moment after a zoom, format or
   // «Centrar» change (those re-render the stage, so the moment is kept in reframeUntil)
   const THIRDS = '<div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div>';
+  // carousel arrows as in Instagram: a small translucent white circle with a chevron
+  const CHEV = { l: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5.5 8.5 12l6.5 6.5"/></svg>', r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"/></svg>' };
   let reframeUntil = 0, reframeTimer = null;
   function markReframe() { const st = root && root.querySelector('.detail .stage'); if (st) st.classList.toggle('reframe', Date.now() < reframeUntil); }
   function flashThirds() {

@@ -668,6 +668,7 @@
     }
     if (sinPortada(A, B)) return;
     const fa = coverOf(A), fb = coverOf(B); if (!fa && !fb) return;
+    if ((!fb && designed(A)) || (!fa && designed(B))) { toast('Una publicación diseñada no se queda sin portada: para cambiársela, arrastra otra foto sobre su casilla o usa «Cambiar portada».', { ms: 6000 }); return; }
     const ka = postFmt(A), kb = postFmt(B);
     setCoverPhoto(A, fb); setCoverPhoto(B, fa);
     if (fb) centerCrop(fb, ka); if (fa) centerCrop(fa, kb);

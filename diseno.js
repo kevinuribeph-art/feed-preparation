@@ -320,6 +320,12 @@
     if (posKit(k)) kitPart.push(posKit(k));
     return hash(JSON.stringify(own)) + '.' + hash(JSON.stringify(kitPart));
   }
+  // what one slide's applied image depends on: the design's common part (kit, format, size, name, positions) and its own
+  function firmaSlide(s, raw, fin, sz, i) {
+    const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), crops = I().S.crops || {};
+    const comun = sigOf(s, raw).split('.')[1] + '|' + hash(JSON.stringify([d.fmt, str(d.serie), posOf(d), sz.W, sz.H]));
+    return comun + '|' + hash(JSON.stringify([sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null, pageOf(s, i)]));
+  }
   // synchronous state for the mesa (post view, upload plan): 'ok' = applied and up to date, 'chg' = not, null = no design.
   // Until the client's kit file has been read once, only the post's own part is compared.
   function rawSync(cid) {
@@ -510,17 +516,25 @@
     const fin = await finalReady(raw);
     await I().loadThumbs(srcsOf(s));
     checkPhotos(s, fin);
-    const sz = sizeOf(kit, d, fin), sig = sigOf(s, raw), rh = kitHash(raw), done = [], avisos = [], notas = [];   // sig first: an edit made while rendering stays «sin aplicar»
+    const sz = sizeOf(kit, d, fin), sig = sigOf(s, raw), rh = kitHash(raw), done = [], notas = [];   // sig first: an edit made while rendering stays «sin aplicar»
     const pre = i => reel ? '' : `Diapositiva ${i + 1}: `;
+    // an automatic re-render (after a swap, a new cover or a reframe) draws only the slides whose inputs changed since
+    // the last «Aplicar»; the others keep their image (firmas: one per slide, kept with the design)
+    const per = d.slides.map((sl, i) => firmaSlide(s, raw, fin, sz, i)), prevOut = d.out || [];
+    const parcial = !!opts.silencioso && isApplied(s) && Array.isArray(d.sigs) && d.sigs.length === per.length && prevOut.length === per.length
+      && Array.isArray(d.avisosPor) && d.avisosPor.length === per.length && prevOut.every(f => M.files[f]);
+    const avPor = parcial ? d.avisosPor.map(a => a.slice()) : per.map(() => []);
     for (let i = 0; i < d.slides.length; i++) {
+      if (parcial && per[i] === d.sigs[i]) continue;
       const r = await renderFull(s, i, kit, fin, sz, rh);
-      done.push(r);
-      if (!str(d.slides[i].titulo).trim()) avisos.push(reel ? 'Sin título' : pre(i) + 'sin título');
-      r.avisos.forEach(a => avisos.push(pre(i) + a));
+      done[i] = r;
+      avPor[i] = [...(!str(d.slides[i].titulo).trim() ? [reel ? 'Sin título' : pre(i) + 'sin título'] : []), ...r.avisos.map(a => pre(i) + a)];
     }
+    const avisos = avPor.flat();
     need(I().S === S && S.slots.includes(s) && s.design === d, 'La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.');
     const outs = [];
-    for (let i = 0; i < done.length; i++) {
+    for (let i = 0; i < d.slides.length; i++) {
+      if (!done[i]) { outs.push(prevOut[i]); continue; }   // not drawn again: its image stays
       const r = done[i], name = reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(i + 1)}.jpg`;
       const { w, h, thumb } = await I().makeThumb(r.blob);
       const id = I().newId();
@@ -530,7 +544,7 @@
       outs.push(id);
     }
     if (!(I().S === S && S.slots.includes(s) && s.design === d && sigOf(s, raw) === sig)) {   // changed while the images were saved (⌘Z, another change): not used
-      for (const f of outs) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
+      for (const f of outs) if (!prevOut.includes(f)) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
       const err = new DzError('La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.'); err.cambio = true; throw err;
     }
     const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set(srcsOf(s));
@@ -538,7 +552,7 @@
     if (unused.length) { S.tray.unshift(...unused.filter(f => !S.tray.includes(f))); notas.push(`${unused.length === 1 ? 'Una foto de la casilla no se usa en el diseño: vuelve' : `${unused.length} fotos de la casilla no se usan en el diseño: vuelven`} a la bandeja.`); }
     s.photos = outs.slice();
     if (!reel) s.fmt = d.fmt;
-    d.out = outs; d.sig = sig; d.outAt = nowISO(); d.avisos = avisos.slice(); remember(s);
+    d.out = outs; d.sig = sig; d.outAt = nowISO(); d.avisos = avisos.slice(); d.sigs = per; d.avisosPor = avPor; remember(s);
     if (opts.silencioso && I().histAmend) I().histAmend(s.id);   // an automatic re-render is part of the change that caused it (⌘Z undoes both)
     I().changed(); if (!(E && E.slotId === slotId)) I().refreshDetail();   // with the editor open, closing it refreshes the post (once: no image load cut short)
     for (const f of old) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }

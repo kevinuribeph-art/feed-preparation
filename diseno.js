@@ -510,6 +510,7 @@
 #mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px}
 #mesa .dz-mid{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;overflow:hidden}
 #mesa .dz-cv{display:block;flex:none;background:#e6e6e6;box-shadow:0 4px 22px rgba(0,0,0,.16);touch-action:none}
+#mesa .dz-cvw{position:relative;flex:none;line-height:0}#mesa .dz-cvw.reframe .thirds{opacity:1}
 #mesa .dz-foot{flex:none;max-width:100%;text-align:center}
 #mesa .dz-av{list-style:none;margin:0 0 4px;padding:0;font-size:12.5px;color:var(--chg)}
 #mesa .dz-av li{margin:2px 0}
@@ -614,7 +615,7 @@
         + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(d.serie)}"></label>`)
       + '<span class="dz-state" aria-live="polite"></span><button type="button" class="btn2" data-dz="cerrar">Cerrar</button><button type="button" class="btn" data-dz="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="dz-body"><nav class="dz-list" aria-label="Diapositivas"></nav>'
-      + '<section class="dz-mid"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="dz-foot"><ul class="dz-av"></ul><p class="dz-hint">Arrastra el texto para moverlo · arrastra la foto para reencuadrarla</p></div></section>'
+      + '<section class="dz-mid"><div class="dz-cvw"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div><div class="dz-foot"><ul class="dz-av"></ul><p class="dz-hint">Arrastra el texto para moverlo · arrastra la foto para reencuadrarla</p></div></section>'
       + '<aside class="dz-panel"></aside></div><input type="file" class="dz-file" accept="image/jpeg,image/png,image/webp" hidden>';
     root.append(el);
     // the mesa behind can't be reached with Tab while the editor is open (toasts stay usable: «Deshacer»)
@@ -928,8 +929,16 @@
     if (all) dirty('all');
   }
   // a drag in progress ends where it is (Escape, ↑/↓, closing, leaving the page): what is seen is what is saved
+  // rule-of-thirds lines over the preview: only while the photo is being reframed (panning, and a moment after zoom or «Centrar»)
+  function tercios(on) { const w = E && E.el.querySelector('.dz-cvw'); if (w) w.classList.toggle('reframe', !!on); }
+  function flashTercios() {
+    if (!E) return;
+    tercios(true); clearTimeout(E.tercT);
+    E.tercT = setTimeout(() => { if (E && !(E.drag && E.drag.mode === 'pan')) tercios(false); }, 1000);
+  }
   function endDrag() {
     if (!E || !E.drag) return;
+    if (E.drag.mode === 'pan') tercios(false);
     E.drag = null; E.cv.style.cursor = '';
     if (curSlot()) { touch(); edPanel(); }
   }
@@ -1079,7 +1088,7 @@
         if (!resizeIfNeeded()) { edList(); edPanel(); dirty('sel'); }
       }
       else if (act === 'src') setSrc(i, a.dataset.f);
-      else if (act === 'centrar') { const src = effSrc(sl, E.fin); if (src) { setCropFor(src, { cx: 0.5, cy: 0.5, z: 1 }); touch(); edPanel(); } }
+      else if (act === 'centrar') { const src = effSrc(sl, E.fin); if (src) { flashTercios(); setCropFor(src, { cx: 0.5, cy: 0.5, z: 1 }); touch(); edPanel(); } }
       else if (act === 'otrafinal') { E.pickFinal = !E.pickFinal; edPanel(); }
       else if (act === 'setfinal') { const f = a.dataset.f; M.diseno.fijarFinal(E.cid, f).then(r => { if (r && r.error) I().toast(r.error); else I().toast('Foto final del cliente cambiada: se usa en todos sus carruseles.'); }); }
       else if (act === 'pickfile') { const inp = el.querySelector('.dz-file'); if (inp) inp.click(); }
@@ -1106,7 +1115,7 @@
       const t = e.target, d = D(), sl = d.slides[E.sel];
       if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; touch(); dirty('sel'); }
       else if (t.matches('.dz-serin')) { d.serie = t.value; touch(true); }
-      else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { setCropFor(src, { z: +t.value }); touch(); const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false; } }
+      else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { flashTercios(); setCropFor(src, { z: +t.value }); touch(); const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false; } }
       else if (t.matches('.dz-velor')) {
         sl.ov = sl.ov || {}; sl.ov.velo = Math.round(+t.value * 100) / 100;
         const o = el.querySelector('.dz-velov'); if (o) o.textContent = Math.round(sl.ov.velo * 100) + ' %';
@@ -1156,6 +1165,7 @@
       e.preventDefault();
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* */ }
       E.drag = g; cv.style.cursor = g.mode === 'text' ? 'move' : 'grabbing';
+      if (g.mode === 'pan') { clearTimeout(E.tercT); tercios(true); }
       const mv = ev => {
         if (!E || E.drag !== g) return;
         const p = at(ev);
@@ -1195,7 +1205,7 @@
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true);
     if (e.raf) cancelAnimationFrame(e.raf);
-    clearTimeout(e.avT);
+    clearTimeout(e.avT); clearTimeout(e.tercT);
     if (e.ro) e.ro.disconnect();
     const S = I() && I().S;
     if (e.saveT) { clearTimeout(e.saveT); if (S === e.board) I().save(); }

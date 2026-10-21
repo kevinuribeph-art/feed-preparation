@@ -1161,7 +1161,7 @@
 #mesa .thirds i{position:absolute;background:rgba(255,255,255,.45);box-shadow:0 0 1.5px rgba(0,0,0,.35)}
 #mesa .thirds i:nth-child(-n+2){top:0;bottom:0;width:1px}#mesa .thirds i:nth-child(n+3){left:0;right:0;height:1px}
 #mesa .thirds i:nth-child(1){left:33.333%}#mesa .thirds i:nth-child(2){left:66.667%}#mesa .thirds i:nth-child(3){top:33.333%}#mesa .thirds i:nth-child(4){top:66.667%}
-#mesa .stage:hover .thirds,#mesa .stage.panning .thirds,#mesa .stage.reframe .thirds{opacity:1}
+#mesa .stage.panning .thirds,#mesa .stage.reframe .thirds{opacity:1}
 #mesa .nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);font-size:20px;line-height:34px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.35);z-index:2}
 #mesa .nav.prev{left:8px}#mesa .nav.next{right:8px}#mesa .nav[hidden]{display:none}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
@@ -1571,7 +1571,7 @@
     if (im && im.f && M.files[im.f]) { layoutStage(); loadBig(im.f); }
     markReframe();
   }
-  // rule-of-thirds lines over the post frame: shown on hover, while panning and for a moment after a zoom, format or
+  // rule-of-thirds lines over the post frame: shown only while reframing — panning, and for a moment after a zoom, format or
   // «Centrar» change (those re-render the stage, so the moment is kept in reframeUntil)
   const THIRDS = '<div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div>';
   let reframeUntil = 0, reframeTimer = null;

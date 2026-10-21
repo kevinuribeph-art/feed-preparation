@@ -46,7 +46,7 @@
   let cur = { slot: null, idx: 0 };
   let importing = 0;     // photos being prepared
   let UP = { total: 0, done: 0 };
-  let busyText = { imp: null, up: null, sel: null };
+  let busyText = { imp: null, up: null, sel: null, dz: null };
   let downOnBackdrop = false;
   const TAB = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   let locked = false;    // another tab/window took over: this one stops saving
@@ -630,6 +630,7 @@
     takeFromTray(fileId);
     if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }
     else if (s.type === 'Foto') { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // added after the others: the first stays the cover
+    else if (designed(s)) { const old = setCoverPhoto(s, fileId); centerCrop(fileId, null); if (old && old !== fileId && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old); rerender(s); }   // the texts stay
     else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId && !dOut(s).includes(x))); s.photos = [fileId]; }
     if (!silent) changed();
   }
@@ -639,17 +640,51 @@
       toast('Los reels solo llevan una portada: las demás fotos vuelven a la bandeja.');
     }
   }
+  // Two posts of the same type without design swap all their photos, as always. Otherwise (other types, or a designed
+  // post) only their covers — the photo the grid shows — change places: each one takes its new post's format with a
+  // centred crop, and texts, designs and the other photos stay with their posts (an applied design is drawn again).
   function swap(a, b) {
     if (a === b) return;
     const A = slot(a), B = slot(b); if (!A || !B) return;
     const kind = x => isCarousel(x.type) ? 'c' : isReel(x.type) ? 'r' : 'f';
-    if ((A.design || B.design) && kind(A) !== kind(B)) { toast('Una publicación diseñada solo se intercambia con otra del mismo tipo (carrusel con carrusel, reel con reel).'); return; }
-    if (A.design || B.design) { const t = A.design; if (B.design) A.design = B.design; else delete A.design; if (t) B.design = t; else delete B.design; }   // a design goes with its photos
-    [A.photos, B.photos] = [B.photos, A.photos];
-    if (isCarousel(A.type) && isCarousel(B.type)) [A.fmt, B.fmt] = [B.fmt, A.fmt];
-    else { delete A.fmt; delete B.fmt; }
-    fixSingle(A); fixSingle(B);
-    changed();
+    if (kind(A) === kind(B) && !designed(A) && !designed(B)) {
+      [A.photos, B.photos] = [B.photos, A.photos];
+      if (isCarousel(A.type) && isCarousel(B.type)) [A.fmt, B.fmt] = [B.fmt, A.fmt];
+      else { delete A.fmt; delete B.fmt; }
+      fixSingle(A); fixSingle(B);
+      changed(); return;
+    }
+    const fa = coverOf(A), fb = coverOf(B); if (!fa && !fb) return;
+    const ka = postFmt(A), kb = postFmt(B);
+    setCoverPhoto(A, fb); setCoverPhoto(B, fa);
+    if (fb) centerCrop(fb, ka); if (fa) centerCrop(fa, kb);
+    changed(); rerender(A); rerender(B);
+  }
+  // ---------- a post's cover (B1): the photo its grid cell shows ----------
+  const designed = s => !!(s && s.design && (isCarousel(s.type) || isReel(s.type)));
+  const coverOf = s => designed(s) && M.diseno && M.diseno._portada ? M.diseno._portada(s) : (s.photos[0] || null);
+  const postFmt = s => s.type === 'Foto' && s.photos.length ? baseCrop(s.photos[0], S).fmt : null;   // a Foto's format is its cover's
+  function centerCrop(fid, fmt) { if (M.files[fid]) S.crops[fid] = { fmt: fmt || baseCrop(fid, S).fmt, cx: 0.5, cy: 0.5, z: 1 }; }
+  // the cover becomes fid (null: the post loses it); returns the photo it had — the caller decides where that one goes
+  function setCoverPhoto(s, fid) {
+    if (designed(s) && M.diseno && M.diseno._ponerPortada) return M.diseno._ponerPortada(s, fid);
+    const old = s.photos[0] || null;
+    if (fid) { if (s.photos.length) s.photos[0] = fid; else s.photos = [fid]; s.photos = [...new Set(s.photos)]; }
+    else s.photos = s.photos.slice(1);
+    return old;
+  }
+  const rerender = s => { if (designed(s) && s.design.out && M.diseno && M.diseno.reaplicar) { const id = s.id; setTimeout(() => M.diseno.reaplicar(id), 0); } };
+  // «Cambiar portada» (post view) and a new photo on a designed reel: a tray photo becomes the cover; the old one goes back
+  // to the tray unless something else uses it; the texts stay
+  function changeCover(slotId, fid) {
+    const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid]) return;
+    const k = postFmt(s);
+    const other = S.slots.find(x => x !== s && x.photos.includes(fid)); if (other) other.photos = other.photos.filter(x => x !== fid);
+    takeFromTray(fid); if (sel === fid) sel = null;
+    const old = setCoverPhoto(s, fid);
+    centerCrop(fid, k);
+    if (old && old !== fid && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old);
+    changed(); rerender(s);
   }
   function unassign(slotId, k, undoable) {
     const s = slot(slotId); if (!s) return;
@@ -725,10 +760,11 @@
     const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
     if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
     ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
-    if (isCarousel(s.type) && s.design && M.diseno && M.diseno._sustituir) {   // a designed carousel: the cover slide's photo, never a new slide
-      M.diseno._sustituir(s, ids[0]);
+    if (designed(s) && isCarousel(s.type)) {   // a designed carousel: the cover slide's photo (texts stay), never a new slide
+      const k = postFmt(s), old = setCoverPhoto(s, ids[0]); centerCrop(ids[0], k);
+      if (old && old !== ids[0] && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old);
       ids.slice(1).forEach(id => { if (!s.photos.includes(id)) s.photos.push(id); });
-      changed(); return;
+      changed(); rerender(s); return;
     }
     const old = s.photos[0], rest = s.photos.slice(1).filter(x => !ids.includes(x));
     s.photos = [ids[0], ...rest, ...ids.slice(1)];
@@ -818,6 +854,14 @@
       if (dropped) delSweep();
     }
     H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
+  }
+  // an automatic re-render (diseno.js) joins the step of the change that caused it: that post's photos and design are
+  // brought up to date in the current state, so ⌘Z undoes the change and its re-render together
+  function histAmend(slotId) {
+    if (!S || H.b !== S || !H.cur) return;
+    const s = S.slots.find(x => x.id === slotId), o = H.cur.slots.find(x => x.id === slotId); if (!s || !o) return;
+    o.photos = s.photos.slice(); if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); else delete o.design;
+    H.curJ = JSON.stringify(H.cur);
   }
   function applyState(st) {
     const had = refsOf(S), has = f => !!M.files[f];
@@ -1185,6 +1229,7 @@
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{padding:12px 14px;display:flex;flex-direction:column;min-width:0}
+#mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
 #mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
 #mesa .toasts{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
@@ -1456,8 +1501,10 @@
   let kbd = false;
   addEventListener('keydown', () => { kbd = true; }, true); addEventListener('pointerdown', () => { kbd = false; }, true);
   const focusClose = d => { const x = d.querySelector('.card > .x'); if (!x) return; if (kbd) x.focus({ preventScroll: true }); else if (d.contains(document.activeElement)) document.activeElement.blur(); };
+  let pickOpen = null;   // the post whose «Cambiar portada» picker is open
   function openDetail(id, idx) {
     const s = slot(id); if (!s || !shellReady()) return;
+    if (pickOpen && pickOpen !== id) pickOpen = null;
     if (isPrev(s)) return openPast(id);
     const d = root.querySelector('.detail');
     if (idx == null) idx = cur.slot === id ? cur.idx : 0;
@@ -1485,10 +1532,14 @@
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
         + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
         + (car && n > 1 && !fd ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
-        + (fd && (car || reel) ? `<span class="muted">${car ? 'Para cambiar diapositivas, usa «Diseñar»' : 'Para cambiar la portada, usa «Diseñar»'}</span>` : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
+        + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
+        + (fd && (car || reel) ? (car ? '<span class="muted">Las demás diapositivas se cambian en «Diseñar»</span>' : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
+      const tr = S.tray.filter(f => M.files[f]);
+      const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
+        + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img src="${M.files[f].thumbUrl}" alt=""></button>`).join('')}</div>` : '') + '</div>' : '';
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${tools}</div>
-        ${strip}${acts}`;
+        ${strip}${acts}${pick}`;
     }
     const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
     const dst = car || reel ? dState(s) : null;
@@ -1626,7 +1677,7 @@
     if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
     const d = root && root.querySelector('.detail'); if (!d) return;
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
-    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file;
+    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file; pickOpen = null;
     if (wasPrev && prevOnce) { prevOnce = false; renderFeed(); }
   }
   // the designer loads on its own (async script): «Diseñar» waits for it a few seconds; a script that failed is said at once
@@ -1705,8 +1756,8 @@
   }
   function setBusy(kind, msg) {
     busyText[kind] = msg || null;
-    const text = [busyText.imp, busyText.up, busyText.sel].filter(Boolean).join(' · ');
-    M.busyText = [busyText.imp, busyText.up].filter(Boolean).join(' · ') || null;
+    const text = [busyText.imp, busyText.up, busyText.dz, busyText.sel].filter(Boolean).join(' · ');
+    M.busyText = [busyText.imp, busyText.up, busyText.dz].filter(Boolean).join(' · ') || null;
     if (!shellReady()) return;
     const b = root.querySelector('.busy'); b.textContent = text; b.hidden = !text;
   }
@@ -2084,6 +2135,8 @@
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
+    else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
+    else if (act === 'setcover') { pickOpen = null; changeCover(a.dataset.slot, a.dataset.f); openDetail(a.dataset.slot, 0); }
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
     else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
@@ -2307,6 +2360,7 @@
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
     const ids = [...new Set([...S.tray, ...S.slots.flatMap(s => s.photos), ...oldPrevOwn])];
     const missing = await loadThumbs(ids);
+    await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
     if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
     S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1).filter(f => !dOut(s).includes(f))); s.photos = s.photos.slice(0, 1); } });
     S.tray = [...new Set(S.tray)].filter(id => !S.slots.some(s => s.photos.includes(id)));
@@ -2980,7 +3034,7 @@
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
-    dName, delList, sweepDesigns, switching: () => switching > 0
+    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend
   };
   M._test = {
     place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,

@@ -124,6 +124,47 @@
     release(s, [prev]); remember(s);
   }
 
+  // ---------- the post's cover outside the editor (mesa: swaps, «Cambiar portada», a new photo on a designed reel) ----------
+  // The texts and the design belong to the post: only the cover slide's photo changes. A design that was applied is drawn
+  // again on its own (reaplicar); while a slide lacks its photo the post shows its photos, not the applied images.
+  const portadaDe = s => (s.design && s.design.slides.find(x => x.tipo !== 'final')) || null;
+  function completo(s) { return s.design.slides.every(x => x.tipo === 'final' || (x.src && M.files[x.src])); }
+  function ponerPortada(s, fid) {             // returns the photo the cover had (the caller decides where it goes)
+    const d = s.design, sl = portadaDe(s); if (!sl) return null;
+    const old = sl.src || null;
+    if (old === (fid || null)) return old;
+    sl.src = fid || null; d.at = nowISO();
+    const raw = s.photos.filter(f => !isOut(s, f));
+    if (raw.length || !d.out || !completo(s)) {      // the post shows its own photos: the new cover first, the old one out
+      const rest = raw.filter(f => f !== old && f !== fid);
+      s.photos = [...(fid ? [fid] : []), ...rest];
+      if (!s.photos.length && !fid) s.photos = srcsOf(s).filter(f => f !== old);
+      s.photos = [...new Set(s.photos)];
+    }
+    remember(s);
+    return old;
+  }
+  // an applied design drawn again after its photos changed outside the editor; repeated requests are coalesced
+  const REAP = {};
+  function reaplicar(slotId) {
+    if (REAP[slotId]) { REAP[slotId].again = true; return REAP[slotId].p; }
+    const job = REAP[slotId] = { again: true };
+    job.p = (async () => {
+      try {
+        for (let k = 0; k < 4 && job.again; k++) {
+          job.again = false;
+          const S = I() && I().S, s = S && S.slots.find(x => x.id === slotId);
+          if (!s || !s.design || !s.design.out || !(I().isCarousel(s.type) || I().isReel(s.type)) || !completo(s)) return { ok: false };
+          if (I().setBusy) I().setBusy('dz', `Actualizando el diseño de ${s.name}…`);
+          try { await aplicar(slotId, { silencioso: true }); }
+          catch (e) { I().toast(e instanceof DzError ? e.message : 'No se pudo actualizar el diseño: ' + String((e && e.message) || e)); return { error: true }; }
+        }
+        return { ok: true };
+      } finally { delete REAP[slotId]; if (I() && I().setBusy) I().setBusy('dz', null); }
+    })();
+    return job.p;
+  }
+
   // ---------- kit: kits/<clientId>.json + the client's override (client record field `kit`) ----------
   const BASE = {};                             // clientId -> Promise<{kit} | {missing} | {bad: where}>
   const kitUrl = cid => new URL('kits/' + encodeURIComponent(cid) + '.json', location.href).href;
@@ -372,11 +413,11 @@
 
   // Renders every slide at full size into new design files and puts them in the slot (reel: the cover).
   let APL = 0;                                 // «Aplicar» running (the mesa's sweep of unused rendered images waits)
-  async function aplicar(slotId) {
+  async function aplicar(slotId, opts) {
     APL++;
-    try { return await aplicarNow(slotId); } finally { APL--; }
+    try { return await aplicarNow(slotId, opts || {}); } finally { APL--; }
   }
-  async function aplicarNow(slotId) {
+  async function aplicarNow(slotId, opts) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
     need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
@@ -412,6 +453,7 @@
     s.photos = outs.slice();
     if (!reel) s.fmt = d.fmt;
     d.out = outs; d.sig = sig; d.outAt = nowISO(); d.avisos = avisos.slice(); remember(s);
+    if (opts.silencioso && I().histAmend) I().histAmend(s.id);   // an automatic re-render is part of the change that caused it (⌘Z undoes both)
     I().changed(); if (!(E && E.slotId === slotId)) I().refreshDetail();   // with the editor open, closing it refreshes the post (once: no image load cut short)
     for (const f of old) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
     if (E && E.slotId === slotId) edHead();
@@ -1265,6 +1307,7 @@
     cargar: api(cargar), estado: api(estado), aplicar: api(aplicar), ver: api(ver),
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
     abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
+    _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so

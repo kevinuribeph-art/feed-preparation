@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.18
+// Mesa de trabajo — Uribe Visuals · v3.19
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -6,10 +6,12 @@
 // hosted as a static page later (GitHub Pages): it builds its own UI and keeps everything in IndexedDB.
 // v3.18: carousel / reel-cover designer (diseno.js + kits/motor.js) — a slot's design (s.design) keeps its source
 // photos and its rendered outputs (files flagged design:true, uploaded exactly as rendered); bridge for it in M._in.
+// v3.19: «Mesa de trabajo»; «Abrir notas»; scroll while carrying a photo past the edges; thirds only while reframing;
+// Instagram-style carousel arrows; 4 kit text colours + «+» in the designer (diseño 1.2).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.18';
+  M.version = '3.19';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

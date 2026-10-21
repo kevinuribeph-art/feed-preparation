@@ -1335,7 +1335,12 @@
 #mesa .igacts{display:flex;align-items:center;gap:16px;padding:10px 16px 6px;border-top:1px solid #efefef}#mesa .igacts svg{display:block;width:24px;height:24px}#mesa .igacts .igsave{margin-left:auto}
 #mesa .iglikes{padding:2px 16px 0}#mesa .iglikes b{font-weight:600}
 #mesa .igdate{padding:4px 16px 14px;font-size:12px;color:#737373}
-@media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igbody{display:none}#mesa .igacts{border-top:0}}
+#mesa .igcard.hascap .igside{contain:size}#mesa .igcard.hascap .igbody{min-height:0}
+#mesa .igcap{flex:0 1 auto;min-height:0;overflow:auto;padding:6px 16px 0}
+#mesa .igct{white-space:pre-wrap;overflow-wrap:anywhere}#mesa .igct b{font-weight:600}
+#mesa .igtag{color:#00376b}
+#mesa .igmas,#mesa .igmas button{color:#737373 !important}#mesa .igmas button{border:0;background:none;padding:0;font:inherit}
+@media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igbody{display:none}#mesa .igacts{border-top:0}#mesa .igcap{max-height:32vh}}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}#mesa .dots i.on{background:#fff}
 #mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
@@ -1917,10 +1922,35 @@
     let w = maxW, h = w / R; if (h > maxH) { h = maxH; w = h * R; }
     return { w: Math.max(160, Math.round(w)), h: Math.max(160, Math.round(h)) };
   }
+  // its caption as it went up to Notion (M6): only an uploaded one, and the text uploaded even if edited here since
+  function igCaption(id) {
+    const s = S && S.slots.find(x => x.id === id), it = !s && prevItem(id);
+    const src = s || (it && it.src === 'mesa' && PB ? PB.slots.find(x => x.id === id) : null), x = src && src.caption && src.caption.sent;
+    return x && x.text ? x.text : null;
+  }
+  // as in Instagram: line breaks kept, #hashtags and @mentions in its link colour
+  const IG_TAG = /(^|[^\p{L}\p{N}_])(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+(?:\.[\p{L}\p{N}_]+)*)/gu;
+  function igCapHTML(text) {
+    let out = '', i = 0;
+    for (const m of text.matchAll(IG_TAG)) { const at = m.index + m[1].length; out += esc(text.slice(i, at)) + `<span class="igtag">${esc(m[2])}</span>`; i = at + m[2].length; }
+    return out + esc(text.slice(i));
+  }
+  // the user name in bold, then the text cut after its first 2 lines with «… más» (a click shows it whole)
+  function igCapFit() {
+    const el = root && root.querySelector('.detail .igct'); if (!el || !ig || !ig.cap) return;
+    const { text, user } = ig.cap, head = `<b>${esc(user)}</b> `;
+    el.innerHTML = head + igCapHTML(text);
+    const max = (parseFloat(getComputedStyle(el).lineHeight) || 18) * 2 + 2;
+    if (ig.more || el.getBoundingClientRect().height <= max) return;
+    const cs = Array.from(text), fits = k => { el.innerHTML = head + igCapHTML(cs.slice(0, k).join('').trimEnd()) + '<span class="igmas">… <button type="button" data-act="igmas">más</button></span>'; return el.getBoundingClientRect().height <= max; };
+    let lo = 0, hi = cs.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (fits(m)) lo = m; else hi = m - 1; }
+    fits(lo);
+  }
   async function openIG(id, idx) {
     const P = igFotos(id); if (!P || !shellReady()) return;
     const n = P.list.length; idx = Math.max(0, Math.min(n - 1, idx || 0));
-    ig = { id, idx, prev: P.prev };
+    ig = { id, idx, prev: P.prev, more: !!(ig && ig.id === id && ig.more) };   // «más» stays open while going through a carousel
     await loadClientPhotos();
     const it = P.list[idx];
     let R = 4 / 5, media = `<div class="igph">Sin foto todavía</div>`;
@@ -1934,15 +1964,17 @@
     }
     if (!ig || ig.id !== id) return;
     const { w, h } = igTam(R), c0 = CL.find(c => c.id === S.client) || {}, handle = String(c0.handle || '').replace(/^@/, '') || c0.name || '';
+    const capText = igCaption(id); ig.cap = capText ? { text: capText, user: handle } : null;
     const nav = n > 1 ? `<button class="nav prev" data-act="ignav" data-d="-1" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="ignav" data-d="1" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${P.list.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
     const d = root.querySelector('.detail');
     d.innerHTML = `<div class="igwrap"><div class="igtop"><button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button><button type="button" class="igx" data-act="close" aria-label="Cerrar">×</button></div>`
-      + `<div class="igcard" role="dialog" aria-label="${esc(P.name)}"><div class="igmedia" style="width:${w}px;height:${h}px">${media}${nav}</div>`
+      + `<div class="igcard${capText ? ' hascap' : ''}" role="dialog" aria-label="${esc(P.name)}"><div class="igmedia" style="width:${w}px;height:${h}px">${media}${nav}</div>`
       + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><span class="igmore" aria-hidden="true">${IGI.more}</span></header><div class="igbody"></div>`
       + `<div class="igacts" aria-hidden="true">${IGI.heart}${IGI.comment}${IGI.repost}${IGI.share}<span class="igsave">${IGI.save}</span></div>`
-      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div><div class="igdate">${esc(igFecha(P.date))}</div></div></div></div>`;
+      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div>${capText ? '<div class="igcap"><div class="igct"></div></div>' : ''}<div class="igdate">${esc(igFecha(P.date))}</div></div></div></div>`;
     if (d.hidden || d.dataset.dlg !== 'ig') clearToasts();
     d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
+    igCapFit();
   }
   const igNav = dir => { if (ig) openIG(ig.id, ig.idx + dir); };
   function igEditar() {
@@ -2460,6 +2492,7 @@
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
     else if (act === 'ignav') igNav(+a.dataset.d);
     else if (act === 'igedit') igEditar();
+    else if (act === 'igmas') { if (ig) { ig.more = true; igCapFit(); } }
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
     else if (act === 'setcover') { pickOpen = null; changeCover(a.dataset.slot, a.dataset.f); openDetail(a.dataset.slot, 0); }
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);

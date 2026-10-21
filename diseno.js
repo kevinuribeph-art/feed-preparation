@@ -540,7 +540,7 @@
       avPor[i] = [...(!str(d.slides[i].titulo).trim() ? [reel ? 'Sin título' : pre(i) + 'sin título'] : []), ...r.avisos.map(a => pre(i) + a)];
     }
     const avisos = avPor.flat();
-    need(I().S === S && S.slots.includes(s) && s.design === d, 'La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.');
+    if (!(I().S === S && S.slots.includes(s) && s.design === d)) { const err = new DzError('La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.'); err.cambio = true; throw err; }   // an automatic re-render looks again in silence
     const outs = [];
     for (let i = 0; i < d.slides.length; i++) {
       if (!done[i]) { outs.push(prevOut[i]); continue; }   // not drawn again: its image stays

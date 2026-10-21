@@ -668,6 +668,8 @@
     }
     if (sinPortada(A, B)) return;
     const fa = coverOf(A), fb = coverOf(B); if (!fa && !fb) return;
+    const comp = [[A, fa], [B, fb]].find(([x, f]) => portadaCompartida(x, f));
+    if (comp) { toast(`La portada de ${comp[0].name} también se usa en otra diapositiva: cámbiala con «Cambiar portada» o en «Diseñar».`, { ms: 7000 }); return; }
     if ((!fb && designed(A)) || (!fa && designed(B))) { toast('Una publicación diseñada no se queda sin portada: para cambiársela, arrastra otra foto sobre su casilla o usa «Cambiar portada».', { ms: 6000 }); return; }
     const ka = postFmt(A), kb = postFmt(B);
     setCoverPhoto(A, fb); setCoverPhoto(B, fa);
@@ -686,6 +688,13 @@
     if (fid) { if (s.photos.length) s.photos[0] = fid; else s.photos = [fid]; s.photos = [...new Set(s.photos)]; }
     else s.photos = s.photos.slice(1);
     return old;
+  }
+  // a cover also used elsewhere (another slide of its design, another post) can't change places: it would end up in two
+  // posts sharing one reframe
+  function portadaCompartida(s, fid) {
+    if (!fid) return false;
+    if (S.slots.some(x => x !== s && slotRefs(x).includes(fid))) return true;
+    return designed(s) && s.design.slides.filter(x => x.src === fid).length > 1;
   }
   // a designed post's cover is the designer's: without it loaded, or with no cover slide, the post is left as it is
   function sinPortada(...ps) {

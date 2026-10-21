@@ -24,6 +24,7 @@
     "verde": "#00804A",
     "blanco": "#FFFFFF"
   },
+  "colores_texto": { "principales": ["crema", "gris"], "acentos": ["verde", "turquesa"] },
   "lienzo": {
     "ancho": 1080,
     "margen": 72,

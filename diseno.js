@@ -537,6 +537,7 @@
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 #mesa .dz-sw{width:26px;height:26px;border-radius:50%;border:1px solid rgba(0,0,0,.18);padding:0}
 #mesa .dz-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--acc)}
+#mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed #b5b5b5;background:var(--panel);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
 #mesa .dz-auto{border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;padding:4px 11px;min-height:28px}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:#fff}
 #mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0}
@@ -733,6 +734,19 @@
     return photosHTML(s, sl.src, 'src') + (sl.src && M.files[sl.src] ? zoomHTML(sl.src) : availPhotos(s).length ? '<p class="dz-hint" style="margin-top:8px">Elige la foto de esta diapositiva.</p>' : '');
   }
   const hasCrop = src => !!(src && I().S.crops && I().S.crops[src]);
+  // text colours: the kit's 2 main and 2 accent colours (colores_texto) and «+» for the rest of the palette (a kit without
+  // colores_texto shows the whole palette, as before); a colour chosen from the rest stays in view
+  function coloresTexto(raw) {
+    const pal = Object.keys(raw.colores || {}), ct = raw.colores_texto || {};
+    const pri = [...(ct.principales || []), ...(ct.acentos || [])].filter((k, i, a) => pal.includes(k) && a.indexOf(k) === i);
+    return pri.length ? { pri, mas: pal.filter(k => !pri.includes(k)) } : { pri: pal, mas: [] };
+  }
+  function coloresHTML(cur) {
+    const { pri, mas } = coloresTexto(E.raw), cols = E.raw.colores || {}, nom = k => esc(k.replace(/_/g, ' '));
+    const sw = k => `<button type="button" class="dz-sw${cur === k ? ' on' : ''}" data-dz="color" data-v="${esc(k)}" style="background:${esc(cols[k])}" title="${nom(k)}" aria-label="${nom(k)}" aria-pressed="${cur === k}"></button>`;
+    const extra = E.masCol ? mas : mas.filter(k => k === cur);
+    return [...pri, ...extra].map(sw).join('') + (mas.length ? `<button type="button" class="dz-more" data-dz="mascolores" aria-expanded="${!!E.masCol}" title="${E.masCol ? 'Ver solo los colores principales' : 'Elegir otro color de la paleta'}" aria-label="${E.masCol ? 'Menos colores' : 'Más colores de la paleta'}">${E.masCol ? '−' : '+'}</button>` : '');
+  }
   function panelSecs(s, sl) {
     const d = s.design, i = E.sel, ov = sl.ov || {}, reel = isReelS(s), e = ov.escala || 1, va = ov.velo == null, last = E.last[i];
     const sec = (k, h) => [k, `<div class="dz-sec" data-sec="${k}">${h}</div>`];
@@ -747,7 +761,7 @@
       sec('pos', `<h4>Posición <span class="dz-dec" data-dec="lugar"></span></h4>${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
         + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
       sec('color', `<h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
-        + Object.entries(E.raw.colores || {}).map(([k, c]) => `<button type="button" class="dz-sw${ov.color === k ? ' on' : ''}" data-dz="color" data-v="${esc(k)}" style="background:${esc(c)}" title="${esc(k.replace(/_/g, ' '))}" aria-label="${esc(k.replace(/_/g, ' '))}" aria-pressed="${ov.color === k}"></button>`).join('') + '</div>'),
+        + coloresHTML(ov.color) + '</div>'),
       sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="0.9" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
       sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`)
     ];
@@ -1103,6 +1117,7 @@
         touch(); edPanel(); dirty('sel');
       }
       else if (act === 'color') { if (a.dataset.v) sl.ov.color = a.dataset.v; else delete sl.ov.color; touch(); edPanel(); dirty('sel'); }
+      else if (act === 'mascolores') { E.masCol = !E.masCol; edPanel(); }
       else if (act === 'veloauto') { if (sl.ov.velo != null) { delete sl.ov.velo; touch(); edPanel(); dirty('sel'); } }
       else if (act === 'reset') {                            // everything back to automatic, the photo's reframe included
         sl.ov = {};

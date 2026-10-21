@@ -1,5 +1,5 @@
 /*
- * Motor de diseño de la Mesa de feed: carruseles (portada, fichas, final) y portadas de reel.
+ * Motor de diseño de la Mesa de trabajo: carruseles (portada, fichas, final) y portadas de reel.
  * Script plano para navegador (ES2020, sin módulos ni dependencias). Define window.DisenoMotor.
  *
  *   DisenoMotor.version                                   '1.1'

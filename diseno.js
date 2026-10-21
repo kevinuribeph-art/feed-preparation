@@ -1,4 +1,4 @@
-// Diseñador de carruseles y portadas de reel — Mesa de feed · v1.0
+// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.0
 // Turns a carousel's (or a reel's) photos and the texts approved in the chat into the finished images, with the
 // client's design kit (kits/<cliente>.json, drawn by kits/motor.js → window.DisenoMotor).
 // The design lives on the slot and is saved with the board (and shared with linked copies of the publication):

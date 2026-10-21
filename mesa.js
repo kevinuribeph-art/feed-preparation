@@ -1,4 +1,4 @@
-// Mesa de feed — Uribe Visuals · v3.18
+// Mesa de trabajo — Uribe Visuals · v3.18
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -1234,13 +1234,13 @@
 #mesa .pdzav{flex-basis:100%;margin:0;padding:0 0 0 16px;color:var(--chg);font-size:12px;max-height:7.5em;overflow:auto}`;
 
   function buildShell() {
-    document.title = 'Mesa de feed';
+    document.title = 'Mesa de trabajo';
     document.body.innerHTML = '';
     document.body.style.margin = '0';
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de feed</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${ICON.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -2688,7 +2688,7 @@
       const now = new Date(), mp = madParts(now.getTime()), fname = `mesa-de-feed-${mp.day}-${mp.time.replace(':', '')}.json`;
       let handle = null;
       if (!opts.returnBlob && typeof window.showSaveFilePicker === 'function') {   // first thing: it needs the click
-        try { handle = await window.showSaveFilePicker({ suggestedName: fname, types: [{ description: 'Mesa de feed', accept: { 'application/json': ['.json'] } }] }); }
+        try { handle = await window.showSaveFilePicker({ suggestedName: fname, types: [{ description: 'Mesa de trabajo', accept: { 'application/json': ['.json'] } }] }); }
         catch (e) { if (e && e.name === 'AbortError') return { cancelled: true }; handle = null; }
       }
       setBusy('imp', 'Exportando la mesa…');
@@ -2739,7 +2739,7 @@
   };
 
   function xferCheck(d) {
-    if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de feed.';
+    if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
     if (d.v !== 1) return +d.v > 1 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
@@ -2979,5 +2979,5 @@
   };
 
   try { localStorage.setItem('mesa-code', '(' + mesaBoot.toString() + ')()'); localStorage.setItem('mesa-version', M.version); } catch (e) { /* storage off */ }
-  return 'Mesa de feed ' + M.version + ' cargada';
+  return 'Mesa de trabajo ' + M.version + ' cargada';
 })();

@@ -655,6 +655,7 @@
 #mesa .dz-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--acc)}
 #mesa .dz-posr{display:flex;align-items:center;gap:8px;margin:6px 0}#mesa .dz-posn{flex:1;min-width:0;font-size:12.5px;font-weight:600}#mesa .dz-posn i{display:block;font-style:normal;font-weight:400;font-size:11px;color:var(--mute)}
 #mesa .dz-posr label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mute)}#mesa .dz-posr .dz-pos{width:66px;padding:5px 6px;min-height:30px}
+#mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:#e8f3fe}
 #mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed #b5b5b5;background:var(--panel);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
 #mesa .dz-auto{border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;padding:4px 11px;min-height:28px}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:#fff}
@@ -735,7 +736,7 @@
       + '<span class="dz-state" aria-live="polite"></span><button type="button" class="btn2" data-dz="cerrar">Cerrar</button><button type="button" class="btn" data-dz="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="dz-body"><nav class="dz-list" aria-label="Diapositivas"></nav>'
       + '<section class="dz-mid"><div class="dz-cvw"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div><div class="dz-foot"><ul class="dz-av"></ul><p class="dz-hint">Arrastra el texto para moverlo · arrastra la foto para reencuadrarla</p></div></section>'
-      + '<aside class="dz-panel"></aside></div><input type="file" class="dz-file" accept="image/jpeg,image/png,image/webp" hidden>';
+      + '<aside class="dz-panel"></aside></div><input type="file" class="dz-file" accept="image/jpeg,image/png,image/webp" hidden><input type="file" class="dz-addin" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     root.append(el);
     // the mesa behind can't be reached with Tab while the editor is open (toasts stay usable: «Deshacer»)
     E.inert = [...root.children].filter(c => c !== el && !c.matches('.toasts, .lock, style') && !c.hasAttribute('inert'));
@@ -849,7 +850,8 @@
       if (!f || E.pickFinal) h += `<div style="margin-top:8px">${photosHTML(s, null, 'setfinal')}</div><div class="dz-drop" data-dz="pickfile">Suelta aquí la foto final (JPG o PNG) o pulsa para elegirla</div>`;
       return h;
     }
-    return photosHTML(s, sl.src, 'src') + (sl.src && M.files[sl.src] ? zoomHTML(sl.src) : availPhotos(s).length ? '<p class="dz-hint" style="margin-top:8px">Elige la foto de esta diapositiva.</p>' : '');
+    return photosHTML(s, sl.src, 'src') + (sl.src && M.files[sl.src] ? zoomHTML(sl.src) : availPhotos(s).length ? '<p class="dz-hint" style="margin-top:8px">Elige la foto de esta diapositiva.</p>' : '')
+      + '<div class="dz-row"><button type="button" class="btn2" data-dz="addfotos">Añadir fotos…</button><span class="dz-hint">o suéltalas aquí (van a la bandeja) o sobre una diapositiva</span></div>';
   }
   const hasCrop = src => !!(src && I().S.crops && I().S.crops[src]);
   // text colours: the kit's 2 main and 2 accent colours (colores_texto) and «+» for the rest of the palette (a kit without
@@ -1238,6 +1240,7 @@
       else if (act === 'otrafinal') { E.pickFinal = !E.pickFinal; edPanel(); }
       else if (act === 'setfinal') { const f = a.dataset.f; M.diseno.fijarFinal(E.cid, f).then(r => { if (r && r.error) I().toast(r.error); else I().toast('Foto final del cliente cambiada: se usa en todos sus carruseles.'); }); }
       else if (act === 'pickfile') { const inp = el.querySelector('.dz-file'); if (inp) inp.click(); }
+      else if (act === 'addfotos') { const inp = el.querySelector('.dz-addin'); if (inp) inp.click(); }
       else if (act === 'esc') {
         const v = Math.round(Math.max(ESC_MIN, Math.min(ESC_MAX, (sl.ov.escala || 1) + (+a.dataset.v) * ESC_STEP)) * 100) / 100;
         if (v === 1) delete sl.ov.escala; else sl.ov.escala = v;
@@ -1284,22 +1287,34 @@
     el.addEventListener('change', e => {
       const t = e.target;
       if (t.matches('.dz-file')) { const f = t.files && t.files[0]; t.value = ''; if (f && E) setFinalFile(f); }
+      else if (t.matches('.dz-addin')) { const fl = [...(t.files || [])]; t.value = ''; if (fl.length && E) addFotos(fl, null); }
     });
-    // a photo file dropped on the final photo's box: becomes the client's final photo
+    // photos from the computer (B5): on the final photo's box, the client's final photo; on a slide or the preview, that
+    // slide's photo (the others go to the tray); on «Foto», to the tray
+    const dropZona = t => {
+      if (!t || !t.closest || !E) return null;
+      const z = t.closest('.dz-drop'); if (z) return { el: z, final: true };
+      const it = t.closest('.dz-it[data-i]'); if (it) return { el: it, i: +it.dataset.i };
+      if (t.closest('.dz-mid')) return { el: el.querySelector('.dz-cvw'), i: E.sel };
+      const fo = t.closest('.dz-sec[data-sec="foto"]'); if (fo) return { el: fo, tray: true };
+      return null;
+    };
+    const quitarOver = keep => el.querySelectorAll('.over').forEach(x => { if (x !== keep) x.classList.remove('over'); });
     el.addEventListener('dragover', e => {
       if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
       e.preventDefault(); e.stopPropagation();
-      const z = e.target.closest && e.target.closest('.dz-drop');
-      el.querySelectorAll('.dz-drop.over').forEach(x => { if (x !== z) x.classList.remove('over'); });
-      if (z) { z.classList.add('over'); e.dataTransfer.dropEffect = 'copy'; } else e.dataTransfer.dropEffect = 'none';
+      const z = dropZona(e.target); quitarOver(z && z.el);
+      if (z && z.el) { z.el.classList.add('over'); e.dataTransfer.dropEffect = 'copy'; } else e.dataTransfer.dropEffect = 'none';
     });
-    el.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('.dz-drop'); if (z && !(e.relatedTarget && z.contains(e.relatedTarget))) z.classList.remove('over'); });
+    el.addEventListener('dragleave', e => { if (!e.relatedTarget || !el.contains(e.relatedTarget)) quitarOver(null); });
     el.addEventListener('drop', e => {
       if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
-      e.preventDefault(); e.stopPropagation();
-      el.querySelectorAll('.dz-drop.over').forEach(x => x.classList.remove('over'));
-      const z = e.target.closest && e.target.closest('.dz-drop'), f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (z && f) setFinalFile(f); else I().toast('Para añadir fotos a la mesa, cierra el diseñador y suéltalas en la bandeja.');
+      e.preventDefault(); e.stopPropagation(); quitarOver(null);
+      const z = dropZona(e.target), files = [...(e.dataTransfer.files || [])];
+      if (!files.length) return;
+      if (!z) { I().toast('Suelta las fotos sobre una diapositiva, la vista previa o «Foto».'); return; }
+      if (z.final) { setFinalFile(files[0]); return; }
+      addFotos(files, z.tray ? null : z.i);
     });
     // preview: drag the text block to move it, the photo to reframe it
     const cv = el.querySelector('.dz-cv');
@@ -1338,6 +1353,19 @@
       };
       cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     });
+  }
+  // B5: photos added from the computer without leaving the editor: into the tray (new ones first) and, when dropped on a
+  // slide, the first one becomes its photo (its old one goes back to the tray if nothing else uses it)
+  async function addFotos(files, i) {
+    if (!E) return;
+    const e0 = E, s0 = curSlot();
+    const got = (await M.addFiles(files, null)) || [];
+    if (E !== e0 || curSlot() !== s0 || !got.length) return;
+    const sl = i != null ? s0.design.slides[i] : null, toSlide = !!(sl && sl.tipo !== 'final');
+    if (toSlide && got[0] !== sl.src) { E.sel = i; setSrc(i, got[0]); edList(); }
+    const rest = got.length - (toSlide ? 1 : 0);
+    if (!toSlide || rest) I().toast(toSlide ? `La foto va en la diapositiva ${i + 1}; ${rest === 1 ? 'la otra está' : `las otras ${rest} están`} en la bandeja.` : sl && sl.tipo === 'final' ? 'La diapositiva final usa la foto final del cliente: las fotos están en la bandeja.' : `${got.length === 1 ? 'Foto añadida' : `${got.length} fotos añadidas`} a la bandeja: elígela${got.length === 1 ? '' : 's'} en «Foto».`);
+    edPanel(); dirty('sel');
   }
   async function setFinalFile(f) {
     if (!E) return;

@@ -1317,6 +1317,14 @@
 #mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:#fff;font-weight:700;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
+#mesa .card.post.hascap{max-width:1080px}
+#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);min-height:min(540px,calc(100vh - 150px))}
+#mesa .pright.hascap{contain:size;min-height:0}
+#mesa .pright.hascap textarea.note{flex:none;min-height:64px;height:68px}
+#mesa .caps{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:14px}
+#mesa .caphead{flex:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:0 0 6px}#mesa .caphead .nlab{margin:0}
+#mesa .capbody{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);padding:10px}
+#mesa .capempty{margin:auto;padding:12px;color:var(--mute);font-size:12.5px;text-align:center}
 #mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
 #mesa .toasts{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:9;pointer-events:none}
 #mesa .toast{pointer-events:none;background:var(--ink);color:#fff;font-size:12.5px;padding:8px 12px;border-radius:8px;max-width:90vw;display:flex;gap:12px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
@@ -1329,6 +1337,7 @@
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
+@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;min-height:0}#mesa .pright.hascap{contain:none}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}#mesa .capbody{flex:none;max-height:60vh}}
 @media (max-width:720px){
 #mesa .toasts{top:46px;bottom:auto}
 #mesa .appbar{height:40px;padding:0 8px;gap:4px}
@@ -1637,13 +1646,14 @@
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const dz = car || reel ? `<div class="pdz"><button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
-    d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
+    d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
-        <div class="pright"><label class="sw pinsw" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}> Fijar en el perfil</label>${dz}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
+        <div class="pright hascap"><label class="sw pinsw" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}> Fijar en el perfil</label>${dz}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
           <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
+          ${capsHTML(s)}
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
@@ -1653,6 +1663,12 @@
     if (n) { layoutStage(); loadBig(fid); }
     if (live && M.diseno && M.diseno.vista) M.diseno.vista(d.querySelector('.stage canvas.dzv'), id, idx);   // ready for a reframe
     markReframe();
+  }
+  // the post view's «Captions» block: under the Contexto and the Nota, as tall as the column allows, scrolling inside
+  function capsHTML(s) {
+    const cn = (CL.find(c => c.id === S.client) || {}).name || 'este cliente';
+    return `<section class="caps" aria-label="Captions"><div class="caphead"><span class="nlab">Captions</span></div>`
+      + `<div class="capbody"><p class="capempty">Sin captions todavía. Pídeselos a Claude: «genera los captions de ${esc(cn)}».</p></div></section>`;
   }
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
   const wday = iso => { const d = localDay(iso); return d ? new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC', weekday: 'short' }).format(new Date(d + 'T12:00:00Z')).replace('.', '') : ''; };

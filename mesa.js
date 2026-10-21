@@ -2945,6 +2945,64 @@
     return M.notionChanges();
   };
 
+  // ---------- captions for Claude (M5) ----------
+  // items: [{slotId, options:[{tone, text} ×3, in the client's tone order], note?, photos?}] — note / photos: the contexto
+  // and photo ids they were written from (default: the post's now, so later changes show them as outdated). A post with
+  // one already chosen is left as it is ('omitido') unless force:true (for the call or the item); a new batch replaces the
+  // one shown, which is kept for the analysis.
+  M.loadCaptions = (items, opts = {}) => {
+    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
+    if (!S) return { error: 'no hay mesa abierta' };
+    const out = [];
+    for (const it of [].concat(items || [])) {
+      const s = it && S.slots.find(x => x.id === it.slotId), o = it && Array.isArray(it.options) ? it.options : [], r = { slotId: it && it.slotId, name: s ? s.name : null };
+      if (!s) { out.push({ ...r, result: 'error', error: 'no está en la mesa abierta' }); continue; }
+      if (o.length !== 3 || o.some(x => !x || !String(x.tone || '').trim() || !String(x.text || '').trim())) { out.push({ ...r, result: 'error', error: 'hacen falta 3 opciones, cada una con tone y text' }); continue; }
+      const c = capOf(s);
+      if (c && c.pick != null && !(opts.force || it.force)) { out.push({ ...r, result: 'omitido', why: `ya tiene elegido el Caption ${c.pick + 1} (force:true para sustituirlo)` }); continue; }
+      capLoad(s, o, { f: it.photos ? [].concat(it.photos) : capPhotos(s), n: it.note != null ? String(it.note).trim() : noteOf(s) });
+      out.push({ ...r, result: c ? 'sustituido' : 'cargado' });
+    }
+    if (out.some(x => x.result === 'cargado' || x.result === 'sustituido')) { changed(); refreshDetail(); }
+    return out;
+  };
+  // ids: a slotId or a list (default: every post of the open board). pick / n are 1-3, as the mesa shows them
+  // («Caption 2 · tono»); each option keeps its original exactly as Claude wrote it; history = earlier batches, oldest first.
+  const capView = (b, n) => ({ n, tone: b.tones[n - 1], original: b.orig[n - 1], text: b.text[n - 1], edited: b.text[n - 1] !== b.orig[n - 1] });
+  M.captions = ids => {
+    if (!S) return [];
+    const only = ids == null ? null : new Set([].concat(ids));
+    return S.slots.filter(s => !only || only.has(s.id)).map(s => {
+      const c = capOf(s), x = s.caption && s.caption.sent, od = capOutdated(s), p = c && c.pick != null ? c.pick : null;
+      return {
+        slotId: s.id, name: s.name, type: s.type, date: s.date, note: noteOf(s), photo: capPhotos(s).length > 0,
+        state: capState(s), outdated: od.length > 0, outdatedBy: od, changed: capStatus(s) === 'chg',
+        pick: p != null ? p + 1 : null, tone: p != null ? c.tones[p] : null, text: capFinal(s),
+        options: c ? [1, 2, 3].map(n => capView(c, n)) : [], loadedAt: c ? c.at : null,
+        sent: x ? { text: x.text, pick: x.pick + 1, tone: x.tone, at: x.at } : null,
+        history: ((s.caption && s.caption.old) || []).map(b => ({ loadedAt: b.at, replacedAt: b.until || null, pick: b.pick != null ? b.pick + 1 : null, options: [1, 2, 3].map(n => capView(b, n)) }))
+      };
+    });
+  };
+  // list: [{slotId, text?}] (or slotIds) — after Claude has written the chosen caption in its Notion page; text = what went
+  // up (default: the chosen one as it is now). The vista cliente shows it from then on; editing it or choosing another one
+  // makes the post «cambiada».
+  M.markCaptionsUploaded = list => {
+    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
+    if (!S) return { error: 'no hay mesa abierta' };
+    const out = [], now = new Date().toISOString();
+    for (const it of [].concat(list || [])) {
+      const id = typeof it === 'string' ? it : it && it.slotId, s = S.slots.find(x => x.id === id), c = capOf(s), r = { slotId: id, name: s ? s.name : null };
+      if (!s) { out.push({ ...r, result: 'error', error: 'no está en la mesa abierta' }); continue; }
+      if (!c || c.pick == null) { out.push({ ...r, result: 'error', error: 'no tiene caption elegido' }); continue; }
+      const t = it && it.text != null ? String(it.text).replace(/\r\n?/g, '\n').trim() : capFinal(s);
+      s.caption.sent = { text: t, pick: c.pick, tone: c.tones[c.pick], at: now };
+      out.push({ ...r, result: 'subido', state: capState(s) });
+    }
+    if (out.some(x => x.result === 'subido')) { changed(); refreshDetail(); }
+    return out;
+  };
+
   // ---------- preview image for the client (1080 px wide) ----------
   // opts.month ('YYYY-MM', one of the board's months): only that month above the line; the board's earlier
   // months (if any) and the previous month go below, so a client can approve one month of a 2-3 month board.

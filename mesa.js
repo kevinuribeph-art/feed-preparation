@@ -797,7 +797,8 @@
   const capState = s => { const c = capOf(s); return !c ? 'sin captions' : c.pick == null ? 'por elegir' : capStatus(s) === 'ok' ? 'subido' : 'elegido'; };
   function capOutdated(s) {                  // what changed since they were written: [] | ['foto'] | ['contexto'] | both
     const c = capOf(s), b = c && c.basis; if (!b) return [];
-    return [!same(b.f || [], capPhotos(s)) && 'foto', (b.n || '') !== noteOf(s) && 'contexto'].filter(Boolean);
+    const set = a => [...a].sort();          // which photos, not their order: reordering a carousel doesn't outdate them
+    return [!same(set(b.f || []), set(capPhotos(s))) && 'foto', (b.n || '') !== noteOf(s) && 'contexto'].filter(Boolean);
   }
   function setCapText(slotId, k, text) {     // Kevin's edit of one option (its original is never touched)
     const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || !(k >= 0 && k < 3)) return;
@@ -1535,8 +1536,9 @@
     const asRendered = publishList(s).length && publishList(s).every(f => (M.files[f] || {}).design);   // a design's images go up as rendered: a new render is new files
     return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s))) ? 'ok' : 'chg';
   }
-  // the post as a whole: «cambiada» when its photo, crop or contexto — or its uploaded caption — changed after the upload
-  function slotStatus(s) { const a = photoStatus(s), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a || b; }
+  // the post as a whole: «cambiada» when its photo, crop or contexto — or its uploaded caption — changed after the upload;
+  // «en Notion» only when its photos and contexto are (an uploaded caption alone never makes it so)
+  function slotStatus(s) { const a = photoStatus(s), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a; }
   function statusBadge(s) {
     const st = slotStatus(s);
     return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir">cambiada</span>' : '';

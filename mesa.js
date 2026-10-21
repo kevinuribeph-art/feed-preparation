@@ -762,7 +762,7 @@
     const s = slot(slotId); if (!s) return;
     s.note = text;
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); }, 400);
+    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); if (capOf(s)) capSync(slotId); }, 400);   // its captions may be outdated now
   }
   function setMemo(slotId, text) {           // «Nota»: saved and shared like the contexto, never uploaded (empty = no field)
     const s = slot(slotId); if (!s) return;
@@ -786,6 +786,18 @@
     s.caption = { tones: options.map(o => String(o.tone).trim()), orig: t, text: t.slice(), pick: null, at: now, basis: basis || { f: capPhotos(s), n: noteOf(s) } };
     if (old.length) s.caption.old = old;
     if (was.sent) s.caption.sent = was.sent;
+  }
+  // states (M4): 'sin captions' | 'por elegir' | 'elegido' | 'subido' (Notion has the chosen one exactly as it is now).
+  // Outdated: the photo or the contexto changed after they were written (they are never deleted nor redone on their own).
+  const capFinal = s => { const c = capOf(s); return c && c.pick != null ? String(c.text[c.pick] ?? '').trim() : null; };
+  function capStatus(s) {                    // its upload record: null (never uploaded) | 'ok' | 'chg' (edited or another one chosen since)
+    const x = s && s.caption && s.caption.sent; if (!x) return null;
+    const c = capOf(s); return c && c.pick === x.pick && capFinal(s) === x.text ? 'ok' : 'chg';
+  }
+  const capState = s => { const c = capOf(s); return !c ? 'sin captions' : c.pick == null ? 'por elegir' : capStatus(s) === 'ok' ? 'subido' : 'elegido'; };
+  function capOutdated(s) {                  // what changed since they were written: [] | ['foto'] | ['contexto'] | both
+    const c = capOf(s), b = c && c.basis; if (!b) return [];
+    return [!same(b.f || [], capPhotos(s)) && 'foto', (b.n || '') !== noteOf(s) && 'contexto'].filter(Boolean);
   }
   function setCapText(slotId, k, text) {     // Kevin's edit of one option (its original is never touched)
     const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || !(k >= 0 && k < 3)) return;
@@ -1353,6 +1365,9 @@
 #mesa .caphead{flex:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:0 0 6px}#mesa .caphead .nlab{margin:0}
 #mesa .capbody{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);padding:10px}
 #mesa .capempty{margin:auto;padding:12px;color:var(--mute);font-size:12.5px;text-align:center}
+#mesa .capst{font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap;color:var(--mute);border:1px solid var(--line)}
+#mesa .capst.on{color:#fff;background:var(--acc);border-color:var(--acc)}#mesa .capst.ok{color:#fff;background:var(--ok);border-color:var(--ok)}#mesa .capst.chg{background:var(--chg);border-color:var(--chg)}
+#mesa .capold{flex-basis:100%;color:var(--chg);font-size:12px}
 #mesa .capbox{display:flex;flex-direction:column;gap:5px}
 #mesa .caplab{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:24px}
 #mesa .caplab input{margin:0;width:15px;height:15px;accent-color:var(--acc);flex:none;cursor:pointer}
@@ -1474,7 +1489,7 @@
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
-      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre o contexto): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
+      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto o caption): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
         + (k.dates ? `<span class="c dates" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}"><i class="dchg" aria-hidden="true"></i><b class="c">${k.dates}</b> con fecha nueva</span>` : '') + '</div>';
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
@@ -1510,14 +1525,16 @@
   }
 
   function nextMonthName(cd) { const m = cycleOf(new Date().toISOString(), cd); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }   // the next cycle to load
-  function slotStatus(s) {
+  function photoStatus(s) {                   // its photos and contexto as uploaded (what plan() reports)
     const u = s.uploaded; if (!u) return null;
     const asRendered = publishList(s).length && publishList(s).every(f => (M.files[f] || {}).design);   // a design's images go up as rendered: a new render is new files
     return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s))) ? 'ok' : 'chg';
   }
+  // the post as a whole: «cambiada» when its photo, crop or contexto — or its uploaded caption — changed after the upload
+  function slotStatus(s) { const a = photoStatus(s), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a || b; }
   function statusBadge(s) {
     const st = slotStatus(s);
-    return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre o contexto): pide a Claude que la vuelva a subir">cambiada</span>' : '';
+    return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
   // cell markers: month pill, then a column of dots (text, state, collab) that open into their label after 0.5 s of hover
   const dot = (cls, label, aria) => `<span class="dot ${cls}" title="" aria-label="${esc(aria || label)}"><span class="dl">${esc(label)}</span></span>`;
@@ -1525,7 +1542,7 @@
     const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
     const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s);
     const d = (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
-      + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion: pide a Claude que la vuelva a subir') : '')
+      + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir') : '')
       + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto, nota y captions se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
   }
@@ -1713,12 +1730,22 @@
         return `<div class="capbox${on ? ' on' : ''}" data-k="${k}"><label class="caplab"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span><em>Elegida</em></label>`
           + `<textarea class="capt" data-slot="${id}" data-k="${k}" aria-label="${esc(lab)}">${esc(c.text[k])}</textarea></div>`;
       }).join('');
-    return `<section class="caps" aria-label="Captions"><div class="caphead"><span class="nlab">Captions</span></div><div class="capbody">${body}</div></section>`;
+    return `<section class="caps" aria-label="Captions"><div class="caphead"><span class="nlab">Captions</span>${capStateHTML(s)}</div><div class="capbody">${body}</div></section>`;
   }
-  // after an edit or a new choice in the open post view: the boxes stay (no re-render), only what they show changes
+  function capStateHTML(s) {                 // M4: the state, and whether they are outdated
+    const c = capOf(s), st = capState(s), od = capOutdated(s), chg = capStatus(s) === 'chg';
+    const txt = st === 'sin captions' ? 'Sin captions' : st === 'por elegir' ? 'Por elegir' : st === 'subido' ? '✓ Subido a Notion' : `Elegido: Caption ${c.pick + 1}` + (chg ? ' · cambiado después de subirlo' : '');
+    const why = od.length === 2 ? 'cambiaron la foto y el contexto' : od[0] === 'foto' ? 'cambió la foto' : 'cambió el contexto';
+    return `<span class="capst ${st === 'subido' ? 'ok' : st === 'elegido' ? 'on' : ''}${chg && st !== 'por elegir' ? ' chg' : ''}">${esc(txt)}</span>`
+      + (od.length ? `<span class="capold" title="No se borran ni se rehacen solos: si quieres otros, pídeselo a Claude">Desactualizados: ${why} después de generarlos</span>` : '');
+  }
+  // after an edit, a new choice or a contexto change in the open post view: the boxes stay (no re-render), only what they show changes
   function capSync(id) {
-    const d = root && root.querySelector('.detail'), s = slot(id), c = capOf(s); if (!d || d.hidden || d.dataset.slot !== id || !c) return;
-    d.querySelectorAll('.capbox').forEach(b => { const on = +b.dataset.k === c.pick; b.classList.toggle('on', on); const r = b.querySelector('.cappick'); if (r && r.checked !== on) r.checked = on; });
+    const d = root && root.querySelector('.detail'), s = slot(id); if (!d || d.hidden || d.dataset.slot !== id || !s || isPrev(s)) return;
+    const c = capOf(s), h = d.querySelector('.caphead');
+    if (h) { h.querySelectorAll('.capst, .capold').forEach(x => x.remove()); h.insertAdjacentHTML('beforeend', capStateHTML(s)); }
+    if (c) d.querySelectorAll('.capbox').forEach(b => { const on = +b.dataset.k === c.pick; b.classList.toggle('on', on); const r = b.querySelector('.cappick'); if (r && r.checked !== on) r.checked = on; });
+    syncEstado(id);
   }
   const fitCaps = d => d && d.querySelectorAll('textarea.capt').forEach(fitPit);
   // date + time of the post (Madrid), editable within the board's months; date-only posts stay date-only
@@ -2780,7 +2807,7 @@
 
   // ---------- upload to Notion ----------
   M.plan = () => S ? S.slots.filter(s => s.photos.length || noteOf(s) || s.uploaded).map(s => {
-    const st = slotStatus(s), pub = publishList(s);
+    const st = photoStatus(s), pub = publishList(s);   // photos and contexto only: the caption has its own record (M.captions)
     return {
       slotId: s.id, name: s.name, type: s.type, date: s.date, dateChanged: dateChg(s),
       status: st === null ? 'nueva' : st === 'ok' ? 'ya subida' : 'cambiada',

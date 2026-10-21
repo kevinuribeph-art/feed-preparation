@@ -807,7 +807,7 @@
     } });
   }
   async function deleteIfUnused(fileId) {
-    if (String(fileId).startsWith('kit-')) return;                 // a client's fixed design photo (diseno.js) stays
+    if (String(fileId).startsWith('kit-') || String(fileId).startsWith('perfil-')) return;   // a client's fixed design photo (diseno.js) and profile photo stay
     if (S && refsOf(S).has(fileId)) return;
     if (histRefs().has(fileId)) { delList(l => l.includes(fileId) ? l : [...l, fileId]); return; }   // ⌘Z can still bring it back
     const boards = await idbAll('boards');
@@ -1223,6 +1223,26 @@
 #mesa .nav.prev{left:8px}#mesa .nav.next{right:8px}#mesa .nav[hidden]{display:none}
 #mesa .stage .nav{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.78);color:#262626;line-height:0;display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(0,0,0,.18);transition:background .12s}
 #mesa .stage .nav:hover{background:rgba(255,255,255,.96)}#mesa .stage .nav svg{width:16px;height:16px}#mesa .stage .nav.prev{left:10px}#mesa .stage .nav.next{right:10px}#mesa .stage .nav[hidden]{display:none}
+#mesa .igmedia .nav{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.78);color:#262626;line-height:0;display:flex;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(0,0,0,.18)}#mesa .igmedia .nav:hover{background:rgba(255,255,255,.96)}#mesa .igmedia .nav svg{width:16px;height:16px}#mesa .igmedia .nav.prev{left:10px}#mesa .igmedia .nav.next{right:10px}#mesa .igmedia .nav[hidden]{display:none}
+#mesa .detail[data-dlg="ig"]{background:rgba(0,0,0,.65)}
+#mesa .igwrap{position:relative;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:100%;max-height:100%}
+#mesa .igtop{display:flex;align-items:center;gap:6px}
+#mesa .igedit{border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff !important;border-radius:8px;font-size:12.5px;padding:4px 10px}#mesa .igedit:hover{background:rgba(255,255,255,.14)}
+#mesa .igx{border:0;background:none;color:#fff !important;font-size:26px;line-height:1;width:32px;height:32px;padding:0}
+#mesa .igcard{display:flex;background:#fff;color:#000;border-radius:4px;overflow:hidden;max-width:96vw;font:14px/18px ${FONT}}
+#mesa .igmedia{position:relative;flex:none;background:#000;overflow:hidden}
+#mesa .igmedia img.igimg{position:absolute;max-width:none;pointer-events:none}
+#mesa .igmedia img.igfit{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#mesa .igph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8e8e8e;background:#efefef;font-size:13px}
+#mesa .igside{width:340px;display:flex;flex-direction:column;border-left:1px solid #efefef;min-height:0}
+#mesa .ighead{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #efefef}#mesa .ighead b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mesa .igav{width:32px;height:32px;border-radius:50%;overflow:hidden;flex:none;background:#262626;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 0 0 1px rgba(0,0,0,.08)}#mesa .igav img{width:100%;height:100%;object-fit:cover}
+#mesa .igmore svg{display:block;width:24px;height:24px}
+#mesa .igbody{flex:1;min-height:40px}
+#mesa .igacts{display:flex;align-items:center;gap:16px;padding:10px 16px 6px;border-top:1px solid #efefef}#mesa .igacts svg{display:block;width:24px;height:24px}#mesa .igacts .igsave{margin-left:auto}
+#mesa .iglikes{padding:2px 16px 0}#mesa .iglikes b{font-weight:600}
+#mesa .igdate{padding:4px 16px 14px;font-size:12px;color:#737373}
+@media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igbody{display:none}#mesa .igacts{border-top:0}}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}#mesa .dots i.on{background:#fff}
 #mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
@@ -1240,6 +1260,7 @@
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{padding:12px 14px;display:flex;flex-direction:column;min-width:0}
+#mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:#fff;font-weight:700;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
 #mesa .pempty{color:#9a9a9a;font-size:13px;text-align:center;padding:60px 12px}
@@ -1694,7 +1715,8 @@
     if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
     const d = root && root.querySelector('.detail'); if (!d) return;
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
-    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file; pickOpen = null;
+    if (d.dataset.dlg === 'editclient' && avStage) { if (avStage.id) avDiscard(); else avStage = null; }
+    d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file; pickOpen = null; ig = null;
     if (wasPrev && prevOnce) { prevOnce = false; renderFeed(); }
   }
   // the designer loads on its own (async script): «Diseñar» waits for it a few seconds; a script that failed is said at once
@@ -1709,6 +1731,67 @@
     const d = root && root.querySelector('.detail');
     if (d && d.querySelector('.stage.panning')) { refreshLater = true; return; }
     if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); }
+  }
+
+  // ---------- vista cliente: a post opens as in Instagram (B7) ----------
+  // Its real proportion (a carousel with the arrows of T6, a reel in 9:16), the client's name and photo and a likes line;
+  // comment, share and save are only drawn (they do nothing) and there are no comments. «Editar», outside the post's
+  // card, opens the post view to edit it or leave a note.
+  const IGI = {
+    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M16.8 3.6c-1.9 0-3.6 1-4.8 2.6-1.2-1.6-2.9-2.6-4.8-2.6C4.3 3.6 2 6 2 9.1c0 5.9 8.2 10.9 10 11.9 1.8-1 10-6 10-11.9 0-3.1-2.3-5.5-5.2-5.5z"/></svg>',
+    comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.7 16.9A9.9 9.9 0 1 0 17 20.6L22 22z"/></svg>',
+    repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V9a4 4 0 0 1 4-4h11M15.5 1.5 19 5l-3.5 3.5M20 12v3a4 4 0 0 1-4 4H5M8.5 22.5 5 19l3.5-3.5"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M22 3 9.2 10.1M22 3l-7 18-5.8-10.9L2 6z"/></svg>',
+    save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 21 12 13.4 4 21V3h16z"/></svg>'
+  };
+  let ig = null;                                      // {id, idx, prev}: the post open as in Instagram
+  // what a post shows in the feed, as it goes up: [{f, B, s} | {t} | null]
+  function igFotos(id) {
+    const s = S && S.slots.find(x => x.id === id);
+    if (s) return { name: s.name, type: s.type, date: s.date, prev: false, list: publishList(s).filter(f => M.files[f]).map(f => ({ f, B: S, s })) };
+    const it = prevItem(id); if (!it) return null;
+    const im = prevImg(it);
+    return { name: it.name, type: it.type, date: it.date, prev: true, list: im && im.f && M.files[im.f] ? [{ f: im.f, B: im.B, s: it }] : im && im.t && M.pastThumbs[im.t] ? [{ t: im.t }] : [] };
+  }
+  const igFecha = iso => { const d = new Date(String(iso || '').replace(' ', 'T')); if (isNaN(d)) return ''; const y = new Intl.DateTimeFormat('es-ES', { timeZone: TZ, year: 'numeric' }).format(d); return new Intl.DateTimeFormat('es-ES', { timeZone: TZ, day: 'numeric', month: 'long' }).format(d) + (y !== String(new Date().getFullYear()) ? ' de ' + y : ''); };
+  function igTam(R) {                                 // the media box: as big as fits, keeping the post's proportion
+    const narrow = window.innerWidth < 720;
+    const maxW = narrow ? window.innerWidth * 0.94 : Math.min(window.innerWidth * 0.96, 1180) - 340, maxH = narrow ? window.innerHeight * 0.6 : window.innerHeight * 0.9;
+    let w = maxW, h = w / R; if (h > maxH) { h = maxH; w = h * R; }
+    return { w: Math.max(160, Math.round(w)), h: Math.max(160, Math.round(h)) };
+  }
+  async function openIG(id, idx) {
+    const P = igFotos(id); if (!P || !shellReady()) return;
+    const n = P.list.length; idx = Math.max(0, Math.min(n - 1, idx || 0));
+    ig = { id, idx, prev: P.prev };
+    await loadClientPhotos();
+    const it = P.list[idx];
+    let R = 4 / 5, media = `<div class="igph">Sin foto todavía</div>`;
+    if (it && it.f) {
+      const f = M.files[it.f], r = postRect(it.f, it.s, it.B); R = r.w / r.h;
+      media = `<img class="igimg" alt="" src="${f.thumbUrl}" style="${rectStyle(f, r)}">`;
+    } else if (it && it.t) {
+      const url = M.pastThumbs[it.t], im = new Image(); im.src = url;
+      try { await im.decode(); R = im.naturalWidth / im.naturalHeight || R; } catch (e) { /* default */ }
+      media = `<img class="igfit" alt="" src="${url}">`;
+    }
+    if (!ig || ig.id !== id) return;
+    const { w, h } = igTam(R), c0 = CL.find(c => c.id === S.client) || {}, handle = String(c0.handle || '').replace(/^@/, '') || c0.name || '';
+    const nav = n > 1 ? `<button class="nav prev" data-act="ignav" data-d="-1" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="ignav" data-d="1" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${P.list.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
+    const d = root.querySelector('.detail');
+    d.innerHTML = `<div class="igwrap"><div class="igtop"><button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button><button type="button" class="igx" data-act="close" aria-label="Cerrar">×</button></div>`
+      + `<div class="igcard" role="dialog" aria-label="${esc(P.name)}"><div class="igmedia" style="width:${w}px;height:${h}px">${media}${nav}</div>`
+      + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><span class="igmore" aria-hidden="true">${IGI.more}</span></header><div class="igbody"></div>`
+      + `<div class="igacts" aria-hidden="true">${IGI.heart}${IGI.comment}${IGI.repost}${IGI.share}<span class="igsave">${IGI.save}</span></div>`
+      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div><div class="igdate">${esc(igFecha(P.date))}</div></div></div></div>`;
+    if (d.hidden || d.dataset.dlg !== 'ig') clearToasts();
+    d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
+  }
+  const igNav = dir => { if (ig) openIG(ig.id, ig.idx + dir); };
+  function igEditar() {
+    const x = ig; closeDetail(); if (!x) return;
+    if (x.prev) withPrev(() => openPast(x.id), 'open'); else openDetail(x.id, x.idx);
   }
 
   // ---------- dialogs (clients, how to add a month) ----------
@@ -1733,6 +1816,7 @@
       <form class="form" data-form="editclient" autocomplete="off"><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
       <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
       <label for="ec-cycle">Inicio de ciclo <span>(día del mes, 1-28; los meses ya cargados conservan el suyo)</span></label><input id="ec-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="${cdOf(c.cycleDay)}" required>
+      <label>Foto de perfil <span>(la de su Instagram, para la vista cliente)</span></label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
       <p class="ferr" hidden></p>
       <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Guardar</button></div></form>`);
   }
@@ -1755,8 +1839,35 @@
     if (kind === 'newclient') {
       if (busyGuard()) return;
       const c = await M.addClient({ name, handle, cycleDay }); closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
-    } else { await M.updateClient(curClient, { name, handle, cycleDay }); closeDetail(); }
+    } else {
+      const av = avStage && avStage.cid === curClient ? avStage : null;
+      await M.updateClient(curClient, { name, handle, cycleDay, ...(av ? { foto: av.id } : {}) });
+      if (av) avStage = null;                       // kept: the dialog no longer owns it
+      closeDetail();
+    }
   }
+  // ---------- the client's profile photo (vista cliente) ----------
+  // A protected file «perfil-<cliente>-<n>» (never in the tray, kept while the client points at it); chosen in «Editar
+  // cliente» and saved with «Guardar» (Cancelar discards it); it travels with the export.
+  let avStage = null;                                // {cid, id}: chosen in the open dialog, not saved yet ('' = remove)
+  function avatarHTML(c, cls) {
+    const f = c && c.foto && M.files[c.foto];
+    return `<span class="${cls || 'igav'}">${f ? `<img src="${f.thumbUrl}" alt="">` : esc(initials(c ? c.name : '?'))}</span>`;
+  }
+  async function avPick(file) {
+    const c = CL.find(x => x.id === curClient); if (!c || !file) return;
+    if (!OK_TYPES.includes(file.type)) { toast('La foto de perfil tiene que ser JPG o PNG.'); return; }
+    try {
+      const { w, h, thumb } = await makeThumb(file), id = `perfil-${c.id}-${Date.now().toString(36)}`;
+      await idbPut('files', id, { name: 'Perfil · ' + file.name, size: file.size, type: file.type, w, h, lastModified: file.lastModified || 0, blob: file, thumb });
+      await avDiscard();
+      avStage = { cid: c.id, id }; await loadThumbs([id]);
+      const d = root.querySelector('.detail'); if (d.dataset.dlg !== 'editclient') { await avDiscard(); return; }
+      d.querySelector('.avprev').outerHTML = avatarHTML({ ...c, foto: id }, 'avprev'); d.querySelector('[data-act="avdel"]').hidden = false;
+    } catch (e) { toast('No se pudo leer esa foto.'); }
+  }
+  const loadClientPhotos = () => loadThumbs(CL.map(c => c.foto).filter(f => f && !M.files[f]));
+  async function avDiscard() { const a = avStage; avStage = null; if (a && a.id) { try { await idbDel('files', a.id); } catch (e) { /* */ } delete M.files[a.id]; delete M.thumbBlobs[a.id]; } }
 
   // ---------- messages ----------
   function clearToasts() { if (shellReady()) root.querySelector('.toasts').innerHTML = ''; }
@@ -2057,6 +2168,7 @@
       const pc = e.target.closest('.cell.past[data-prev]');
       if (pc) {
         const id = pc.dataset.prev;
+        if (root.classList.contains('client')) { openIG(id, 0); return; }   // vista cliente: as in Instagram
         if (sel && S.tray.includes(sel)) { const f = sel; sel = null; renderTray(); renderBar(); withPrev(() => prevSetFromTray(id, f), 'edit'); return; }
         withPrev(() => openPast(id), 'open'); return;
       }
@@ -2065,6 +2177,7 @@
       const cell = e.target.closest('.cell[data-slot]');
       if (cell) {
         const id = cell.dataset.slot;
+        if (root.classList.contains('client')) { sel = null; openIG(id, 0); return; }   // vista cliente: as in Instagram
         if (sel && S.tray.includes(sel)) { const f = sel; sel = null; askAddMode(id, [f]); return; }
         sel = null;
         openDetail(id, 0);
@@ -2088,6 +2201,7 @@
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
+      else if (e.target.matches('.avin')) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) avPick(f); }
     });
     root.addEventListener('focusout', e => {
       if (e.target.matches && e.target.matches('.pitin')) {   // left the Nota being edited in its cell (a re-draw keeps the focus)
@@ -2134,6 +2248,7 @@
       if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } return; }
       const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
+      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'ig' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); igNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2')) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
       // ⌘Z / ⇧⌘Z (Ctrl on other systems): undo/redo in the mesa — not while writing in Contexto/Nota (the text field
@@ -2149,7 +2264,7 @@
     M._mq = NARROW; M._onMq = () => { if (shellReady()) renderTabs(); };
     try { NARROW.addEventListener('change', M._onMq); } catch (e) { /* old engines */ }
     if (M._onResize) window.removeEventListener('resize', M._onResize);
-    M._onResize = () => layoutStage();
+    M._onResize = () => { layoutStage(); if (ig) openIG(ig.id, ig.idx); };
     window.addEventListener('resize', M._onResize);
     if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
     M._onHide = e => {
@@ -2172,6 +2287,8 @@
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
+    else if (act === 'ignav') igNav(+a.dataset.d);
+    else if (act === 'igedit') igEditar();
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
     else if (act === 'setcover') { pickOpen = null; changeCover(a.dataset.slot, a.dataset.f); openDetail(a.dataset.slot, 0); }
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
@@ -2187,7 +2304,9 @@
     else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
-    else if (act === 'editclient') dlgEditClient();
+    else if (act === 'editclient') { await loadClientPhotos(); dlgEditClient(); }
+    else if (act === 'avpick') { const i = root.querySelector('.detail .avin'); if (i) i.click(); }
+    else if (act === 'avdel') { await avDiscard(); avStage = { cid: curClient, id: '' }; const c = CL.find(x => x.id === curClient); const pv = root.querySelector('.detail .avprev'); if (pv) pv.outerHTML = avatarHTML({ ...c, foto: null }, 'avprev'); a.hidden = true; }
     else if (act === 'howmonth') dlgHowMonth();
     else if (act === 'xfer') dlgXfer();
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
@@ -2251,7 +2370,10 @@
     if (patch.name != null) c.name = String(patch.name).trim() || c.name;
     if (patch.handle != null) c.handle = normHandle(patch.handle);
     if (patch.cycleDay != null && patch.cycleDay !== '') c.cycleDay = cdOf(patch.cycleDay);   // the boards already made keep theirs
+    let gone = null;
+    if (patch.foto !== undefined && (patch.foto || null) !== (c.foto || null)) { gone = c.foto || null; if (patch.foto) c.foto = patch.foto; else delete c.foto; c.fotoAt = new Date().toISOString(); }   // profile photo (vista cliente)
     await idbPut('clients', id, c);
+    if (gone && String(gone).startsWith('perfil-')) { try { await idbDel('files', gone); } catch (e) { /* */ } delete M.files[gone]; delete M.thumbBlobs[gone]; }
     await loadClients(); render();
     return c;
   };
@@ -2815,7 +2937,7 @@
       await addQ; await flushPending();
       const clients = (await idbAll('clients')) || [];
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
-      const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...clients.map(kitRef).filter(Boolean)])];
+      const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean)])];
       const parts = ['{"format":"mesa-feed","v":1,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
         + ',"clients":' + JSON.stringify(clients) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
@@ -2889,12 +3011,13 @@
     P.put = [...P.add, ...P.upd];
     const pk = new Set(P.put.map(b => b.key));
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
-    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); });
+    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto) P.refs.add(c.foto); });
+    P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length;
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.fotoUpd.length;
     return P;
   }
   function xferWhat(P) {
@@ -3003,6 +3126,7 @@
       for (const id of newPast) { await idbPut('files', 'past:' + id, gotPast[id]); res.past++; }
       for (const c of P.newClients) await idbPut('clients', c.id, c);
       for (const c of P.kitUpd) { const o = await idbGet('clients', c.id); if (o) await idbPut('clients', c.id, { ...o, kit: c.kit, kitAt: c.kitAt }); }
+      for (const c of P.fotoUpd || []) { const o = await idbGet('clients', c.id); if (o) { const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto; await idbPut('clients', c.id, n); } }
       if (P.put.length) await tx('boards', 'readwrite', st => { for (const b of P.put) st.put(b, b.key); });
       try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && P.put.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);

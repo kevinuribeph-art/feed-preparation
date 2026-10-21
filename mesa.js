@@ -1820,13 +1820,25 @@
     pd.ghost.style.transform = `translate(${Math.round(x - pd.dx)}px,${Math.round(y - pd.dy)}px)`;
     const t = document.elementFromPoint(x, y), tg = dragTarget(t, pd.d), el = tg ? tg.el : null;
     if (el !== pd.over || (el && !el.classList.contains('over'))) { clearOver(); if (el) el.classList.add('over'); pd.over = el; }
-    // held near the top or bottom edge of the feed or the tray (0.3 s, so starting a drag there doesn't scroll): it scrolls
-    const box = t && t.closest && t.closest('.feed, .tray'); let sv = 0;
-    if (box) { const b = box.getBoundingClientRect(), E = 36; if (y < b.top + E) sv = -Math.ceil((b.top + E - y) / 3); else if (y > b.bottom - E) sv = Math.ceil((y - b.bottom + E) / 3); }
+    // held near the top or bottom edge of the feed or the tray — or past it, over the bars or out of the window — (0.3 s, so
+    // starting a drag there doesn't scroll): it scrolls little by little, faster the closer to the edge or the further past it
+    const { box, sv } = edgeScroll(t, x, y);
     if (!sv || box !== pd.sb) pd.zt = sv ? Date.now() : 0;
     else if (!pd.zt) pd.zt = Date.now();
     pd.sv = sv; pd.sb = box;
     if (sv && !pd.raf) pd.raf = requestAnimationFrame(pdTick);
+  }
+  // the scroll a carried item makes at x, y: the feed or tray under it (or, past their edge, the one whose column it is in);
+  // the edge zone starts under its sticky header; 2–10 px per frame
+  function edgeScroll(t, x, y) {
+    const E = 40, speed = d => Math.round(2 + Math.min(1, d / 60) * 8);
+    let box = t && t.closest ? t.closest('.feed, .tray') : null;
+    if (!box) box = [...root.querySelectorAll('.feed, .tray')].find(b => { const r = b.getBoundingClientRect(); return x >= r.left && x < r.right && (y < r.top || y >= r.bottom); }) || null;
+    if (!box) return { box: null, sv: 0 };
+    const b = box.getBoundingClientRect(), hd = box.querySelector('.legend, .trayhead'), top = hd && hd.offsetParent ? Math.max(b.top, hd.getBoundingClientRect().bottom) : b.top;
+    if (y < top + E) return { box, sv: -speed(top + E - y) };
+    if (y > b.bottom - E) return { box, sv: speed(y - b.bottom + E) };
+    return { box, sv: 0 };
   }
   function pdTick() {
     if (!pd || !pd.on) return;

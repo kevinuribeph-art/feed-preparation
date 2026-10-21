@@ -3448,10 +3448,12 @@
         if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } }   // the one it replaces
       }
       P.upd.forEach(b => keepCaps(b, P.local[b.key]));
-      const now = new Date().toISOString(), capKept = P.capKeep.map(o => ({ ...o, editedAt: now }));
+      // a board that only takes caption batches keeps its own editedAt: the batches came from the other Mac, which has them,
+      // and a newer date would make its older photos and notes win over that Mac's later edits on the next import
+      const capKept = P.capKeep;
       const fin = Object.fromEntries(Object.entries(P.local).map(([k, b]) => [k, JSON.parse(JSON.stringify(b))]));   // every board as it ends up
       [...P.put, ...capKept].forEach(b => { fin[b.key] = b; });
-      const spread = [...spreadCaps(Object.values(fin))].filter(b => !P.put.includes(b) && !capKept.includes(b)).map(b => ({ ...b, editedAt: now }));
+      const spread = [...spreadCaps(Object.values(fin))].filter(b => !P.put.includes(b) && !capKept.includes(b));
       const writes = [...P.put, ...capKept, ...spread];
       if (capKept.length || spread.length) res.captionsKept = [...capKept, ...spread].map(b => b.key);
       if (writes.length) await tx('boards', 'readwrite', st => { for (const b of writes) st.put(b, b.key); });

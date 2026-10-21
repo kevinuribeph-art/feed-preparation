@@ -1218,7 +1218,7 @@
 #mesa .legend>*{flex:none}#mesa .legend .lp{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #mesa .legend .ln{width:12px;margin-right:5px}
 #mesa .lockbtn{margin-left:auto;padding:2px 8px;font-size:11px}
-#mesa .lockbtn+.memobtn{margin-left:0}
+#mesa .lockbtn+.memobtn{margin-left:0}#mesa .memobtn span{display:none}#mesa .memobtn{padding:2px 7px}
 #mesa .main{flex-direction:column}
 #mesa .feed{width:100%;flex:1;border-right:0;border-bottom:1px solid var(--line)}
 #mesa .tray{flex:none;overflow:hidden;display:flex;flex-direction:column}
@@ -1418,7 +1418,7 @@
     const pm = rangeLabel(prevMonth(S.month), 1, false, curCd());
     const lockBtn = (S.prev || []).length ? (S.prevUnlocked ? '<button class="lockbtn on" data-act="prevlock" title="Volver a bloquear el mes anterior">🔓 Desbloqueado · Bloquear</button>' : lk ? '<button class="lockbtn" data-act="prevlock" title="Desbloquear el mes anterior">🔒 Bloqueado</button>' : '<button class="lockbtn on" data-act="prevlock">🔓 Solo esta vez</button>') : '';
     const below = `Debajo: ${pm} · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}`;
-    const memoBtn = S.slots.some(s => memoOf(s)) ? `<button class="lockbtn memobtn${memosOpen ? ' on' : ''}" data-act="memos" aria-pressed="${memosOpen}" title="${memosOpen ? 'Cerrar todas las notas' : 'Abrir todas las notas a la vez'}">${POSTIT}${memosOpen ? 'Cerrar notas' : 'Abrir notas'}</button>` : '';
+    const memoBtn = S.slots.some(s => memoOf(s)) ? `<button class="lockbtn memobtn${memosOpen ? ' on' : ''}" data-act="memos" aria-pressed="${memosOpen}" title="${memosOpen ? 'Cerrar todas las notas' : 'Abrir todas las notas a la vez'}">${POSTIT}<span>${memosOpen ? 'Cerrar notas' : 'Abrir notas'}</span></button>` : '';
     root.querySelector('.feed .legend').innerHTML = `<span class="lr"><b>${esc(rangeLabel(S.month, S.span, false, curCd()))}</b> · ${N} a preparar</span>`
       + ((S.prev || []).length ? `<span class="lp" title="${esc(below)}"><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span class="lp">Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`) + memoBtn;
     fitGrid();

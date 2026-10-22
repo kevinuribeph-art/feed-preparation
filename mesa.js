@@ -435,7 +435,10 @@
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
   const slotSig = (s, B) => JSON.stringify([SYNC.map(k => s[k] ?? null), [...(s.photos || []), ...dSrc(s)].map(f => (B.crops || {})[f] || null)]);
   function copyShared(to, toB, from, fromB) {
-    for (const k of SYNC) { if (from[k] === undefined) delete to[k]; else to[k] = JSON.parse(JSON.stringify(from[k])); }
+    for (const k of SYNC) {
+      if (k === 'caption') { const m = capMerge(to.caption, from.caption); if (m) to.caption = m; else delete to.caption; continue; }   // merged, never replaced: no batch is lost
+      if (from[k] === undefined) delete to[k]; else to[k] = JSON.parse(JSON.stringify(from[k]));
+    }
     if (from.at) to.at = from.at; else delete to.at;
     toB.crops = toB.crops || {};
     for (const f of [...(to.photos || []), ...dSrc(to)]) { const c = fromB.crops && fromB.crops[f]; if (c) toB.crops[f] = { ...c }; else delete toB.crops[f]; }
@@ -449,18 +452,23 @@
     old.slots = old.slots || []; old.tray = old.tray || []; old.crops = old.crops || {};
     IDX = {};
     for (const id of new Set(cfgSlots.map(s => s.id))) {
-      const own = old.slots.find(s => s.id === id);
+      const own = old.slots.find(s => s.id === id), capd = [];
       let best = own, from = null;
       for (const b of others) {
         const s = (b.slots || []).find(x => x.id === id); if (!s) continue;
         (IDX[id] = IDX[id] || []).push({ key: b.key, client: boardClient(b), cd: cdOf(b.cycleDay) });
+        if (s.caption) capd.push(s);
         if (!best || (s.at || 0) > (best.at || 0)) { best = s; from = b; }
       }
-      if (!from) continue;
-      const o = { ...(own || {}), id };
-      copyShared(o, old, best, from);
-      for (const f of own ? [...(own.photos || []), ...dSrc(own)] : []) if (!slotRefs(o).includes(f) && !dOut(own).includes(f) && !refs.has(f)) old.tray.push(f);   // never lose a photo (a design's outputs are not photos)
-      if (own) old.slots[old.slots.indexOf(own)] = o; else old.slots.push(o);
+      if (from) {
+        const o = { ...(own || {}), id };
+        copyShared(o, old, best, from);
+        for (const f of own ? [...(own.photos || []), ...dSrc(own)] : []) if (!slotRefs(o).includes(f) && !dOut(own).includes(f) && !refs.has(f)) old.tray.push(f);   // never lose a photo (a design's outputs are not photos)
+        if (own) old.slots[old.slots.indexOf(own)] = o; else old.slots.push(o);
+      }
+      // the caption batches of every other copy too (the newest copy, already merged in, wins where they disagree)
+      const t = old.slots.find(s => s.id === id);
+      if (t) for (const s of capd) if (s !== best) { const m = capMerge(s.caption, t.caption); if (m) t.caption = m; }
     }
   }
   // once S is built: keep the revisions; the baseline is each slot as it was before init (base: id -> signature of the
@@ -801,6 +809,22 @@
     const c = capOf(s), b = c && c.basis; if (!b) return [];
     const set = a => [...a].sort();          // which photos, not their order: reordering a carousel doesn't outdate them
     return [!same(set(b.f || []), set(capPhotos(s))) && 'foto', (b.n || '') !== noteOf(s) && 'contexto'].filter(Boolean);
+  }
+  // two copies of a post's captions (a collab's boards) as one, never losing a batch: a batch (known by its `at`) that both
+  // have is taken from b (the newest copy of the post); the newest batch loaded is the one shown and every other one goes
+  // to old (a current one replaced this way, with `until` = when the newer one was loaded); the latest upload record wins
+  function capMerge(a, b) {
+    if (!a || !b) return a || b ? JSON.parse(JSON.stringify(a || b)) : undefined;
+    const all = c => [...(Array.isArray(c.orig) ? [{ ...capBatch(c), cur: true }] : []), ...(c.old || []).map(x => ({ ...x }))];
+    const by = new Map(); [...all(a), ...all(b)].forEach(x => by.set(x.at, x));
+    const cur = [...by.values()].filter(x => x.cur).sort((x, y) => String(y.at).localeCompare(String(x.at)))[0] || null;
+    const out = cur ? capBatch(cur) : {};
+    const old = [...by.values()].filter(x => x !== cur).map(({ cur: was, ...x }) => (was && !x.until ? { ...x, until: cur ? cur.at : null } : x))
+      .sort((x, y) => String(x.at).localeCompare(String(y.at)));
+    if (old.length) out.old = old;
+    const sent = a.sent && b.sent ? (String(a.sent.at) > String(b.sent.at) ? a.sent : b.sent) : a.sent || b.sent;
+    if (sent) out.sent = sent;
+    return JSON.parse(JSON.stringify(out));
   }
   function setCapText(slotId, k, text) {     // Kevin's edit of one option (its original is never touched)
     const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || !(k >= 0 && k < 3)) return;

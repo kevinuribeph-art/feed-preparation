@@ -764,7 +764,7 @@
     const s = slot(slotId); if (!s) return;
     s.note = text;
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); if (capOf(s)) capSync(slotId); }, 400);   // its captions may be outdated now
+    noteTimer = setTimeout(() => { noteTimer = null; save(); renderFeed(); renderBar(); capSync(slotId); }, 400);   // the header («cambiada») and the captions' state follow the contexto
   }
   function setMemo(slotId, text) {           // «Nota»: saved and shared like the contexto, never uploaded (empty = no field)
     const s = slot(slotId); if (!s) return;

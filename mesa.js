@@ -840,12 +840,17 @@
     const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || !(k >= 0 && k < 3) || c.text[k] === c.orig[k]) return;
     const was = c.text[k], B = S, at = c.at;
     clearTimeout(noteTimer); noteTimer = null;
-    c.text[k] = c.orig[k];
+    const put = text => {                     // the open box shows it at once (even if it has the focus) and keeps the focus
+      const d = root && root.querySelector('.detail'), t = d && !d.hidden && d.dataset.slot === slotId && d.querySelector(`textarea.capt[data-k="${k}"]`);
+      if (t) { t.value = text; fitPit(t); t.focus({ preventScroll: true }); }
+    };
+    c.text[k] = c.orig[k]; put(c.orig[k]);
     save(); renderFeed(); renderBar(); capSync(slotId);
     toast(`Caption ${k + 1} vuelve al original.`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
-      const c2 = S === B && capOf(S.slots.find(x => x.id === slotId));
+      if (S !== B) { toast('No se puede deshacer: has cambiado de cliente o de mes.'); return; }
+      const c2 = capOf(S.slots.find(x => x.id === slotId));
       if (!c2 || c2.at !== at || c2.text[k] !== c2.orig[k]) { toast('No se puede deshacer: el caption ya ha cambiado.'); return; }
-      c2.text[k] = was; save(); renderFeed(); renderBar(); capSync(slotId);
+      c2.text[k] = was; put(was); save(); renderFeed(); renderBar(); capSync(slotId);
     } });
   }
   function setCapPick(slotId, k) {           // the chosen option: one at a time
@@ -1419,9 +1424,10 @@
 #mesa .capbox{display:flex;flex-direction:column;gap:5px}
 #mesa .caplab{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:24px}
 #mesa .caplab input{margin:0;width:15px;height:15px;accent-color:var(--acc);flex:none;cursor:pointer}
-#mesa .caplab .ctags{margin-left:auto;display:flex;align-items:center;gap:5px}
-#mesa .caplab em{display:none;font-style:normal;font-weight:600;font-size:10.5px;color:#fff;background:var(--acc);border-radius:999px;padding:1px 7px}
-#mesa .capbox.on .caplab em{display:inline}
+#mesa .caprow{display:flex;align-items:center;gap:7px}
+#mesa .ctags{margin-left:auto;display:flex;align-items:center;gap:5px}
+#mesa .ctags em{display:none;font-style:normal;font-weight:600;font-size:10.5px;color:#fff;background:var(--acc);border-radius:999px;padding:1px 7px}
+#mesa .capbox.on .ctags em{display:inline}
 #mesa .capedit{display:none;font-style:normal;font-weight:600;font-size:10.5px;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:0 7px}
 #mesa .capbox.edited .capedit{display:inline}
 #mesa .caprev{display:none;align-self:flex-end;padding:0 2px;font-size:12px}
@@ -1781,7 +1787,7 @@
     const body = !c ? `<p class="capempty">Sin captions todavía. Pídeselos a Claude: «genera los captions de ${esc(cn)}».</p>`
       : c.orig.map((_, k) => {
         const lab = `Caption ${k + 1} · ${c.tones[k] || ''}`, on = c.pick === k, ed = c.text[k] !== c.orig[k];
-        return `<div class="capbox${on ? ' on' : ''}${ed ? ' edited' : ''}" data-k="${k}"><label class="caplab"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span><span class="ctags"><i class="capedit">Editado</i><em>Elegida</em></span></label>`
+        return `<div class="capbox${on ? ' on' : ''}${ed ? ' edited' : ''}" data-k="${k}"><div class="caprow"><label class="caplab"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span></label><span class="ctags"><i class="capedit">Editado</i><em>Elegida</em></span></div>`
           + `<textarea class="capt" data-slot="${id}" data-k="${k}" aria-label="${esc(lab)}">${esc(c.text[k])}</textarea>`
           + `<button type="button" class="lnk caprev" data-act="caporig" data-slot="${id}" data-k="${k}" title="Deja este caption tal como lo escribió Claude">Volver al original</button></div>`;
       }).join('');

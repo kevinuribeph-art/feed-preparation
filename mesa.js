@@ -1372,16 +1372,16 @@
 #mesa .ighead{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #efefef}#mesa .ighead b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .igav{width:32px;height:32px;border-radius:50%;overflow:hidden;flex:none;background:#262626;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 0 0 1px rgba(0,0,0,.08)}#mesa .igav img{width:100%;height:100%;object-fit:cover}
 #mesa .igmore svg{display:block;width:24px;height:24px}
-#mesa .igbody{flex:1;min-height:40px}
+#mesa .igbody{flex:1;min-height:40px;overflow:auto}
 #mesa .igacts{display:flex;align-items:center;gap:16px;padding:10px 16px 6px;border-top:1px solid #efefef}#mesa .igacts svg{display:block;width:24px;height:24px}#mesa .igacts .igsave{margin-left:auto}
 #mesa .iglikes{padding:2px 16px 0}#mesa .iglikes b{font-weight:600}
-#mesa .igdate{padding:4px 16px 14px;font-size:12px;color:#737373}
+#mesa .igdate{padding:4px 16px 12px;font-size:12px;color:#737373}
+#mesa .igadd{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid #efefef;color:#737373}#mesa .igadd svg{display:block;width:24px;height:24px;flex:none;color:#262626}#mesa .igadd span{flex:1}#mesa .igadd b{font-weight:600;color:#262626;opacity:.4}
 #mesa .igcard.hascap .igside{contain:size}#mesa .igcard.hascap .igbody{min-height:0}
-#mesa .igcap{flex:0 1 auto;min-height:0;overflow:auto;padding:6px 16px 0}
-#mesa .igct{white-space:pre-wrap;overflow-wrap:anywhere}#mesa .igct b{font-weight:600}
+#mesa .igcap{display:flex;align-items:flex-start;gap:14px;padding:14px 16px}
+#mesa .igct{flex:1;min-width:0;padding-top:7px;white-space:pre-wrap;overflow-wrap:anywhere}#mesa .igct b{font-weight:600}
 #mesa .igtag{color:#00376b}
-#mesa .igmas,#mesa .igmas button{color:#737373 !important}#mesa .igmas button{border:0;background:none;padding:0;font:inherit}
-@media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igbody{display:none}#mesa .igacts{border-top:0}#mesa .igcap{max-height:32vh}}
+@media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igacts{border-top:0}#mesa .igbody{order:1;flex:0 1 auto;min-height:0;max-height:32vh}#mesa .igdate{order:2}#mesa .igadd{display:none}#mesa .igcap{padding:6px 16px 0}#mesa .igcap .igav{display:none}#mesa .igct{padding-top:0}}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}#mesa .dots i.on{background:#fff}
 #mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
@@ -1948,16 +1948,18 @@
   }
 
   // ---------- vista cliente: a post opens as in Instagram (B7) ----------
-  // Its real proportion (a carousel with the arrows of T6, a reel in 9:16), the client's name and photo and a likes line;
-  // comment, share and save are only drawn (they do nothing) and there are no comments. «Editar», outside the post's
-  // card, opens the post view to edit it or leave a note.
+  // Its real proportion (a carousel with the arrows of T6, a reel in 9:16), the client's name and photo, its caption whole
+  // at the top of the side (scrolls if long) and a likes line; comment, share, save and «Añade un comentario…» are only
+  // drawn (they do nothing) and there are no comments. «Editar», outside the post's card, opens the post view to edit it
+  // or leave a note.
   const IGI = {
     more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M16.8 3.6c-1.9 0-3.6 1-4.8 2.6-1.2-1.6-2.9-2.6-4.8-2.6C4.3 3.6 2 6 2 9.1c0 5.9 8.2 10.9 10 11.9 1.8-1 10-6 10-11.9 0-3.1-2.3-5.5-5.2-5.5z"/></svg>',
     comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.7 16.9A9.9 9.9 0 1 0 17 20.6L22 22z"/></svg>',
     repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V9a4 4 0 0 1 4-4h11M15.5 1.5 19 5l-3.5 3.5M20 12v3a4 4 0 0 1-4 4H5M8.5 22.5 5 19l3.5-3.5"/></svg>',
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M22 3 9.2 10.1M22 3l-7 18-5.8-10.9L2 6z"/></svg>',
-    save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 21 12 13.4 4 21V3h16z"/></svg>'
+    save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 21 12 13.4 4 21V3h16z"/></svg>',
+    emoji: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14.5c1 1.3 2.3 2 4 2s3-.7 4-2"/><circle cx="9" cy="9.5" r=".5" fill="currentColor"/><circle cx="15" cy="9.5" r=".5" fill="currentColor"/></svg>'
   };
   let ig = null;                                      // {id, idx, prev}: the post open as in Instagram
   // what a post shows in the feed, as it goes up: [{f, B, s} | {t} | null]
@@ -1988,22 +1990,10 @@
     for (const m of text.matchAll(IG_TAG)) { const at = m.index + m[1].length; out += esc(text.slice(i, at)) + `<span class="igtag">${esc(m[2])}</span>`; i = at + m[2].length; }
     return out + esc(text.slice(i));
   }
-  // the user name in bold, then the text cut after its first 2 lines with «… más» (a click shows it whole)
-  function igCapFit() {
-    const el = root && root.querySelector('.detail .igct'); if (!el || !ig || !ig.cap) return;
-    const { text, user } = ig.cap, head = `<b>${esc(user)}</b> `;
-    el.innerHTML = head + igCapHTML(text);
-    const max = (parseFloat(getComputedStyle(el).lineHeight) || 18) * 2 + 2;
-    if (ig.more || el.getBoundingClientRect().height <= max) return;
-    const cs = Array.from(text), fits = k => { el.innerHTML = head + igCapHTML(cs.slice(0, k).join('').trimEnd()) + '<span class="igmas">… <button type="button" data-act="igmas">más</button></span>'; return el.getBoundingClientRect().height <= max; };
-    let lo = 0, hi = cs.length - 1;
-    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (fits(m)) lo = m; else hi = m - 1; }
-    fits(lo);
-  }
   async function openIG(id, idx) {
     const P = igFotos(id); if (!P || !shellReady()) return;
     const n = P.list.length; idx = Math.max(0, Math.min(n - 1, idx || 0));
-    ig = { id, idx, prev: P.prev, more: !!(ig && ig.id === id && ig.more) };   // «más» stays open while going through a carousel
+    ig = { id, idx, prev: P.prev };
     await loadClientPhotos();
     const it = P.list[idx];
     let R = 4 / 5, media = `<div class="igph">Sin foto todavía</div>`;
@@ -2017,17 +2007,18 @@
     }
     if (!ig || ig.id !== id) return;
     const { w, h } = igTam(R), c0 = CL.find(c => c.id === S.client) || {}, handle = String(c0.handle || '').replace(/^@/, '') || c0.name || '';
-    const capText = igCaption(id); ig.cap = capText ? { text: capText, user: handle } : null;
+    // as the first thing under the header: the photo, the user name in bold and the whole text (no «… más»)
+    const capText = igCaption(id), cap = capText ? `<div class="igcap">${avatarHTML(c0)}<div class="igct"><b>${esc(handle)}</b> ${igCapHTML(capText)}</div></div>` : '';
     const nav = n > 1 ? `<button class="nav prev" data-act="ignav" data-d="-1" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="ignav" data-d="1" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${P.list.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
     const d = root.querySelector('.detail');
     d.innerHTML = `<div class="igwrap"><div class="igtop"><button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button><button type="button" class="igx" data-act="close" aria-label="Cerrar">×</button></div>`
       + `<div class="igcard${capText ? ' hascap' : ''}" role="dialog" aria-label="${esc(P.name)}"><div class="igmedia" style="width:${w}px;height:${h}px">${media}${nav}</div>`
-      + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><span class="igmore" aria-hidden="true">${IGI.more}</span></header><div class="igbody"></div>`
+      + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><span class="igmore" aria-hidden="true">${IGI.more}</span></header><div class="igbody">${cap}</div>`
       + `<div class="igacts" aria-hidden="true">${IGI.heart}${IGI.comment}${IGI.repost}${IGI.share}<span class="igsave">${IGI.save}</span></div>`
-      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div>${capText ? '<div class="igcap"><div class="igct"></div></div>' : ''}<div class="igdate">${esc(igFecha(P.date))}</div></div></div></div>`;
+      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div><div class="igdate">${esc(igFecha(P.date))}</div>`
+      + `<div class="igadd" aria-hidden="true">${IGI.emoji}<span>Añade un comentario…</span><b>Publicar</b></div></div></div></div>`;
     if (d.hidden || d.dataset.dlg !== 'ig') clearToasts();
     d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
-    igCapFit();
   }
   const igNav = dir => { if (ig) openIG(ig.id, ig.idx + dir); };
   function igEditar() {
@@ -2549,7 +2540,6 @@
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
     else if (act === 'ignav') igNav(+a.dataset.d);
     else if (act === 'igedit') igEditar();
-    else if (act === 'igmas') { if (ig) { ig.more = true; igCapFit(); } }
     else if (act === 'caporig') capRevert(a.dataset.slot, +a.dataset.k);
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
     else if (act === 'setcover') { pickOpen = null; changeCover(a.dataset.slot, a.dataset.f); openDetail(a.dataset.slot, 0); }

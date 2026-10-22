@@ -817,7 +817,9 @@
     if (!a || !b) return a || b ? JSON.parse(JSON.stringify(a || b)) : undefined;
     const all = c => [...(Array.isArray(c.orig) ? [{ ...capBatch(c), cur: true }] : []), ...(c.old || []).map(x => ({ ...x }))];
     const by = new Map(); [...all(a), ...all(b)].forEach(x => by.set(x.at, x));
-    const cur = [...by.values()].filter(x => x.cur).sort((x, y) => String(y.at).localeCompare(String(x.at)))[0] || null;
+    // shown: the newest of the two current batches, even if the other copy already has it among the earlier ones
+    const curAt = [a, b].filter(c => Array.isArray(c.orig)).map(c => String(c.at)).sort().pop();
+    const cur = curAt != null ? by.get(curAt) || null : null;
     const out = cur ? capBatch(cur) : {};
     const old = [...by.values()].filter(x => x !== cur).map(({ cur: was, ...x }) => (was && !x.until ? { ...x, until: cur ? cur.at : null } : x))
       .sort((x, y) => String(x.at).localeCompare(String(y.at)));
@@ -3356,14 +3358,9 @@
   // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
   // other copy (o) has goes to b's earlier batches (all of o's, if b's post has none); the latest upload record wins
   function keepCaps(b, o) {
-    const now = new Date().toISOString();
     for (const s of (o && b.slots) || []) {
-      const l = (o.slots || []).find(x => x.id === s.id), lc = l && l.caption; if (!lc) continue;
-      if (!s.caption) { s.caption = JSON.parse(JSON.stringify(lc)); continue; }
-      const all = c => [...(Array.isArray(c.orig) ? [c] : []), ...(c.old || [])], have = new Set(all(s.caption).map(x => x.at));
-      const miss = all(lc).filter(x => !have.has(x.at)).map(x => ({ ...capBatch(x), until: x.until || now }));
-      if (miss.length) s.caption.old = [...(s.caption.old || []), ...JSON.parse(JSON.stringify(miss))].sort((x, y) => String(x.at).localeCompare(String(y.at)));
-      if (lc.sent && (!s.caption.sent || String(lc.sent.at) > String(s.caption.sent.at))) s.caption.sent = { ...lc.sent };
+      const l = (o.slots || []).find(x => x.id === s.id); if (!l || !l.caption) continue;
+      s.caption = capMerge(l.caption, s.caption);   // b's copy wins where both have the same batch; the newest batch is the one shown
     }
   }
   // a collab's post is in several boards: after an import every copy holds all its caption batches, so a copy left

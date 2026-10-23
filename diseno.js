@@ -1,4 +1,4 @@
-// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.3
+// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.4
 // Turns a carousel's (or a reel's) photos and the texts approved in the chat into the finished images, with the
 // client's design kit (kits/<cliente>.json, drawn by kits/motor.js → window.DisenoMotor).
 // The design lives on the slot and is saved with the board (and shared with linked copies of the publication):
@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -34,6 +34,9 @@
   class DzError extends Error { constructor(m, slide) { super(m); if (slide != null) this.slide = slide; } }   // slide: index of the slide at fault
   const need = (ok, msg, slide) => { if (!ok) throw new DzError(msg, slide); };
   const LOCKED = 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de diseñar.';
+  // a post with images drawn by the free editor (libre.js) is designed there, not here (v1.4)
+  const LIBRE = 'Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» para usar «Diseñar».';
+  const libreEn = s => !s.design && (s.photos || []).some(f => (M.files[f] || {}).design && I().S.slots.some(x => x.libre && x.libre.slides && x.libre.slides[f]));
   const NO_ENGINE = 'El motor de diseño no está cargado (kits/motor.js): recarga la página.';
   const NO_DESIGN = 'Esta publicación aún no tiene diseño: carga los textos con cargar() o ábrela con «Diseñar».';
   const NO_FINAL = 'Falta la foto final del cliente: elígela en «Diseñar» («Usar otra foto como final del cliente»).';
@@ -428,6 +431,7 @@
   async function cargar(slotId, opts = {}) {
     const s = slotOf(slotId), S = I().S;
     need(!I().locked, LOCKED);
+    need(!libreEn(s), LIBRE);
     opts = opts || {};
     const reel = isReelS(s), list = Array.isArray(opts.slides) ? opts.slides : [];
     need(list.length, 'Faltan las diapositivas: slides:[{tipo?, titulo, texto?, entradilla?, contacto?}].');
@@ -735,6 +739,7 @@
     try {
       const s = slotOf(slotId), S = I().S;
       need(!I().locked, LOCKED);
+      need(!libreEn(s), LIBRE);
       if (E) cerrar();
       const cid = (s.design && s.design.kit) || S.client;
       const { kit, raw } = await engineKit(cid, true);   // the kit file is read again: edited on disk counts

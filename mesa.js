@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.27
+// Mesa de trabajo — Uribe Visuals · v3.28
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -22,10 +22,11 @@
 // post view's photos are dragged into order; bridge for the editor's «Preview» (libre 1.3).
 // v3.27: a Foto is named «Foto» in the grid again (the carousel icon only with several pages, as Instagram); a designed
 // carousel also opens in the free editor; M.addFiles(…, {tray}) gives back photos already in the tray (libre 1.4).
+// v3.28: «+ Hueco»: up to 2 black cells at the top of the grid (after the pinned posts) to square the feed into rows of 3.
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.27';
+  M.version = '3.28';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -773,6 +774,18 @@
     if (p.length) S.pins = p; else delete S.pins;
     save(); renderFeed(); return true;
   }
+  // ---------- fillers («+ Hueco») ----------
+  // Up to 2 plain black cells at the top of the grid, after the pinned posts, to square the feed into rows of 3. Only how
+  // the feed looks (mesa, vista cliente, the feed image): not posts, no photo, never in Notion or the counters. Kept per
+  // board as a count (S.fillers); old boards have none.
+  const MAX_FILLERS = 2;
+  const fillersOf = () => (S && S.fillers > 0 ? Math.min(MAX_FILLERS, Math.floor(S.fillers)) : 0);
+  function setFillers(n) {
+    if (!S) return false;
+    if (n > MAX_FILLERS) { toast(`Como mucho ${MAX_FILLERS} huecos: con ellos ya cuadran las filas de 3.`, { ms: 6000 }); return false; }
+    if (n > 0) S.fillers = n; else delete S.fillers;
+    save(); renderFeed(); return true;
+  }
   // «Cambiar portada» (post view) and a new photo on a designed reel: a tray photo becomes the cover; the old one goes back
   // to the tray unless something else uses it; the texts stay
   function changeCover(slotId, fid) {
@@ -1266,6 +1279,9 @@
 #mesa .cell.empty{background:#f5f5f5;cursor:default}
 #mesa .cell.empty::before{content:'';position:absolute;inset:6px;border:1.5px dashed #c9c9c9;border-radius:6px;pointer-events:none}
 #mesa .cell.empty:hover{background:#eef6fe}#mesa .cell.empty:hover::before{border-color:#8cc8f5}
+#mesa .cell.filler{background:#000}
+#mesa .cell.filler .hx{position:absolute;top:6px;right:6px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:16px;line-height:28px;padding:0;cursor:pointer}
+#mesa .cell.filler .hx:hover{background:rgba(255,255,255,.3)}
 #mesa .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;padding:12px;color:var(--mute)}
 #mesa .ph b{color:var(--ink);font-size:12.5px}#mesa .ph span{font-size:11px}
 #mesa .pico svg{width:20px;height:20px;color:#8e8e8e}
@@ -1500,6 +1516,7 @@
 #mesa .lock{position:absolute;inset:0;z-index:20;background:rgba(250,250,250,.94);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .legend,#mesa.client .tray{display:none}
 #mesa.client .cell.empty::before{display:none}
+#mesa.client .cell.filler .hx{display:none}
 #mesa.client .cell.empty{background:#efefef}
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
@@ -1611,7 +1628,7 @@
         + (k.dates ? `<span class="c dates" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}"><i class="dchg" aria-hidden="true"></i><b class="c">${k.dates}</b> con fecha nueva</span>` : '') + '</div>';
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
-      + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button></div><div class="spacer"></div>${stats}`
+      + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)">+ Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
     const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
     if (on && ms.scrollWidth > ms.clientWidth + 1) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -1686,6 +1703,7 @@
     const cnt = isCarousel(s.type) && (n > 1 || s.type === 'Carrusel') ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : '';
     return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${ICON.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
+  const FILLER = '<div class="cell filler" title="Hueco: solo para cuadrar el feed (no es una publicación)"><button class="hx" data-act="delfiller" title="Quitar el hueco" aria-label="Quitar el hueco">×</button></div>';
   function pastHTML(p, i, N) {
     const col = i % 3, bd = [];
     if (i - 3 < N) bd.push('border-top:4px solid #0095f6');
@@ -1713,7 +1731,9 @@
     const pill = s => { const m = cycleOf(s.date, curCd()); if (S.span < 2 || !m || seen.has(m)) return ''; seen.add(m); return curCd() === 1 ? cap(MONTHS[+m.slice(5) - 1].slice(0, 3)) : cycName(m, curCd()); };
     if (memoEdit && !S.slots.some(s => s.id === memoEdit)) memoEdit = null;
     const pinned = new Set(pinsOf());               // pinned first (no month pill: they are out of the date order)
-    const html = feedOrder().map(s => cellHTML(s, pinned.has(s.id) ? '' : pill(s))).join('') + past.map((p, j) => pastHTML(p, N + j, N)).join('');
+    const F = fillersOf(), cells = feedOrder().map(s => cellHTML(s, pinned.has(s.id) ? '' : pill(s)));
+    cells.splice(pinned.size, 0, ...Array(F).fill(FILLER));   // the fillers right after the pinned posts; the rest moves down
+    const html = cells.join('') + past.map((p, j) => pastHTML(p, N + F + j, N + F)).join('');
     // a Nota being edited in its cell: that cell stays in the page untouched (a rebuilt field would lose an accent being
     // typed and its own undo); the others are rebuilt around it, and it is redrawn once the editing ends
     const live = memoEdit && grid.querySelector(`.pit.edit[data-memo="${cssq(memoEdit)}"]`), keep = live && live.closest('.cell');
@@ -2707,6 +2727,8 @@
     else if (act === 'avpick') { const i = root.querySelector('.detail .avin'); if (i) i.click(); }
     else if (act === 'avdel') { await avDiscard(); avStage = { cid: curClient, id: '' }; const c = CL.find(x => x.id === curClient); const pv = root.querySelector('.detail .avprev'); if (pv) pv.outerHTML = avatarHTML({ ...c, foto: null }, 'avprev'); a.hidden = true; }
     else if (act === 'howmonth') dlgHowMonth();
+    else if (act === 'addfiller') setFillers(fillersOf() + 1);
+    else if (act === 'delfiller') setFillers(fillersOf() - 1);
     else if (act === 'xfer') dlgXfer();
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
@@ -2924,6 +2946,7 @@
       past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
       crops: old.crops || {},
       ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
+      ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
     };
     holdOrphans(wonIds);   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
@@ -3240,7 +3263,8 @@
   // opts.month ('YYYY-MM', one of the board's months): only that month above the line; the board's earlier
   // months (if any) and the previous month go below, so a client can approve one month of a 2-3 month board.
   // The later months are not drawn, but their place is kept: blank cells at the start (their count mod 3) so every
-  // photo sits in the same row/column as in the mesa. `check` compares each drawn post with its mesa position.
+  // photo sits in the same row/column as in the mesa. Fillers («+ Hueco») drawn black after the pinned posts, as in the
+  // mesa. `check` compares each drawn post with its mesa position.
   M.render = async (mode = 'clean', opts = {}) => {
     if (!S) return { error: 'no hay mesa abierta' };
     const only = opts && opts.month ? String(opts.month) : null;
@@ -3255,20 +3279,21 @@
     const fresh = un.filter(inM);
     const earlier = only ? un.filter(s => { const m = mOf(s); return m && m < only; }) : [];
     const later = only ? un.filter(isLater).length : 0;
-    const lead = later % COLS;
-    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const lead = later % COLS, F = fillersOf();
+    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s) + (pinned.has(s.id) ? 0 : F), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const pinPosts = order.filter(s => pinned.has(s.id)).map(s => isLater(s) ? { blank: true, mesaIdx: null } : slotPost(s, inM(s)));
     const nuevas = fresh.length + order.filter(s => pinned.has(s.id) && !isLater(s) && inM(s)).length;
     const posts = [
       ...pinPosts,
+      ...Array.from({ length: F }, () => ({ blank: true, filler: true, mesaIdx: null })),
       ...Array.from({ length: lead }, () => ({ blank: true, mesaIdx: null })),
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
       ...past.map((p, j) => (p.fid
-        ? { mesaIdx: S.slots.length + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
-        : { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
+        ? { mesaIdx: S.slots.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
+        : { mesaIdx: S.slots.length + F + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
-    const N = pinPosts.length + lead + fresh.length;   // first cell below the line
+    const N = pinPosts.length + F + lead + fresh.length;   // first cell below the line
     // each drawn post in the same column as in the mesa, and in the mesa's order
     const mismatches = []; let lastIdx = -1;
     posts.forEach((p, i) => { if (p.mesaIdx == null) return; if ((p.mesaIdx - i) % COLS !== 0 || p.mesaIdx < lastIdx) mismatches.push(p.name); lastIdx = p.mesaIdx; });
@@ -3298,7 +3323,7 @@
     for (let i = 0; i < posts.length; i++) {
       const p = posts[i];
       const px = (i % COLS) * (TW + GAP), py = HEADER + Math.floor(i / COLS) * (TH + GAP);
-      if (p.blank) { x.fillStyle = '#efefef'; x.fillRect(px, py, TW, TH); continue; }
+      if (p.blank) { x.fillStyle = p.filler ? '#000' : '#efefef'; x.fillRect(px, py, TW, TH); continue; }
       if (p.blob) {
         const bmp = await createImageBitmap(p.blob);
         const r = TW / TH, sr = bmp.width / bmp.height;
@@ -3678,7 +3703,7 @@
   M.status = () => S ? ({
     version: M.version, key: S.key, client: S.client, month: S.month, months: boardMonths(), cycleDay: curCd(), range: rangeLabel(S.month, S.span, false, curCd()), slots: S.slots.length,
     pendingDates: S.slots.filter(dateChg).length, pendingRenames: S.slots.filter(nameChg).length,
-    filled: S.slots.filter(s => s.photos.length).length,
+    filled: S.slots.filter(s => s.photos.length).length, fillers: fillersOf(),
     tray: S.tray.length, files: Object.keys(M.files).length,
     past: PB ? `mesa ${prevMonth(S.month)}: ${PB.slots.length}` : `${pastPosts().filter(p => M.pastThumbs[p.id]).length}/${pastPosts().length}`,
     busy: M.busyText || null, locked, savedAt: S.savedAt,

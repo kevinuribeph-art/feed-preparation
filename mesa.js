@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.26
+// Mesa de trabajo — Uribe Visuals · v3.27
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -20,10 +20,12 @@
 // v3.26: a Foto is a carousel with its own label (one photo or several pages, all published; no more candidates); the type
 // of a post changes in the post view (pending for Notion, with its «Reel» name); a second click unchooses a caption; the
 // post view's photos are dragged into order; bridge for the editor's «Preview» (libre 1.3).
+// v3.27: a Foto is named «Foto» in the grid again (the carousel icon only with several pages, as Instagram); a designed
+// carousel also opens in the free editor; M.addFiles(…, {tray}) gives back photos already in the tray (libre 1.4).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.26';
+  M.version = '3.27';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -139,6 +141,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
   const isCarousel = t => t === 'Carrusel' || t === 'Foto';         // a Foto works as a carousel (3.26): one photo or several pages, all published
+  const typeIcon = (t, n) => isReel(t) ? ICON.reel : t === 'Carrusel' || (t === 'Foto' && n > 1) ? ICON.carousel : '';   // as Instagram's grid: a Foto of one page has none
   const isMulti = isCarousel;
   const edLabel = s => s.type === 'Foto' ? 'Editar foto' : 'Editar diapositivas';   // the free editor's button: the label follows the post's
   const publishList = s => isCarousel(s.type) ? s.photos : s.photos.slice(0, 1);
@@ -188,7 +191,7 @@
     const n = String(name || '').trim();
     if (/collab/i.test(n)) { const m = n.match(/(\d+)\s*$/); return m ? 'Collab ' + m[1] : 'Collab'; }
     const m = n.match(/(\d+\.\d+)\s*$/);
-    if (m) return (type === 'Reel' || type === 'Trial Reel' ? 'Reel ' : isCarousel(type) ? 'Carrusel ' : 'Foto ') + m[1];
+    if (m) return (type === 'Reel' || type === 'Trial Reel' ? 'Reel ' : type === 'Carrusel' ? 'Carrusel ' : 'Foto ') + m[1];   // a Foto keeps its name, one page or several
     return n;
   }
   function fmtDate(iso, short) {
@@ -620,13 +623,13 @@
 
   // ---------- adding photos (serialised so two drops never race) ----------
   let addQ = Promise.resolve();
-  M.addFiles = (list, targetSlotId) => {
+  M.addFiles = (list, targetSlotId, opts) => {   // opts.tray: a photo already in the tray comes back (the free editor puts it on a slide)
     const files = Array.from(list || []);
-    const p = addQ.then(() => addFilesNow(files, targetSlotId));
+    const p = addQ.then(() => addFilesNow(files, targetSlotId, opts));
     addQ = p.catch(() => { /* keep the queue alive */ });
     return p;
   };
-  async function addFilesNow(list, targetSlotId) {
+  async function addFilesNow(list, targetSlotId, opts) {
     if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
     const B = S;
     list.filter(f => f && !f.size).forEach(f => toast(`${f.name} está vacío: no se puede añadir.`));
@@ -645,7 +648,7 @@
         }
         const dup = Object.keys(M.files).find(id => M.files[id].name === f.name && M.files[id].size === f.size);
         if (dup && (B.tray.includes(dup) || B.slots.some(s => s.photos.includes(dup)))) {
-          if (!targetSlotId || !B.tray.includes(dup)) { toast(`${f.name} ya está en la mesa.`); continue; }
+          if (!(targetSlotId || (opts && opts.tray)) || !B.tray.includes(dup)) { toast(`${f.name} ya está en la mesa.`); continue; }
           got.push(dup); continue;
         }
         let decoded = false;
@@ -1673,7 +1676,7 @@
   const DNM = '<i class="dchg nm" title="Cambia en Notion al subir (nombre o tipo)"></i>';
   function cellHTML(s, pill) {
     const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) || typeChg(s) ? DNM : '') + esc(fmtDate(s.date));
-    const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '', pin = isPinned(s);
+    const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s);
     if (!s.photos.length) {
       return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${ICON.pin}</span>` : ''}${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
     }
@@ -1688,7 +1691,7 @@
     if (i - 3 < N) bd.push('border-top:4px solid #0095f6');
     if (i === N && col > 0) bd.push('border-left:4px solid #0095f6');
     const line = bd.length ? `<span class="bd" style="${bd.join(';')}"></span>` : '';
-    const icon = isReel(p.type) ? ICON.reel : isCarousel(p.type) ? ICON.carousel : '';
+    const icon = typeIcon(p.type, (p.photos || []).length);
     const date = `<span class="pdate">${esc(fmtDate(p.date, true))}</span>`;
     const lk = prevLocked();
     const pill = i === N ? `<span class="pmonth" data-act="prevlock" role="button" title="${lk ? 'Desbloquear' : 'Bloquear'} el mes anterior">${lk ? '🔒' : '🔓'} ${esc(cycName(prevMonth(S.month), curCd()))} · publicado</span>` : '';
@@ -1816,8 +1819,8 @@
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);
-    const dzB = (car || reel) && !nl ? `<button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>` : '';   // one or the other: «Diseñar» or the free editor
-    const edB = car && !s.design ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
+    const dzB = (car || reel) && !nl ? `<button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>` : '';   // «Diseñar» while no slide comes from the free editor; the editor also opens a designed carousel (3.27)
+    const edB = car ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
     const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
     const dz = dzB || edB ? `<div class="pdz">${dzB}${edB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
@@ -3253,7 +3256,7 @@
     const earlier = only ? un.filter(s => { const m = mOf(s); return m && m < only; }) : [];
     const later = only ? un.filter(isLater).length : 0;
     const lead = later % COLS;
-    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s), name: s.name, type: s.type, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
+    const slotPost = (s, isNew) => ({ mesaIdx: order.indexOf(s), name: s.name, type: s.type, n: s.photos.length, date: s.date, isNew, planned: !isNew, pin: pinned.has(s.id), blob: s.photos.length ? M.thumbBlobs[s.photos[0]] : null, rect: s.photos.length && M.files[s.photos[0]] ? { g: gridRect(s.photos[0], s), f: M.files[s.photos[0]] } : null });
     const pinPosts = order.filter(s => pinned.has(s.id)).map(s => isLater(s) ? { blank: true, mesaIdx: null } : slotPost(s, inM(s)));
     const nuevas = fresh.length + order.filter(s => pinned.has(s.id) && !isLater(s) && inM(s)).length;
     const posts = [
@@ -3262,7 +3265,7 @@
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
       ...past.map((p, j) => (p.fid
-        ? { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
+        ? { mesaIdx: S.slots.length + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
         : { mesaIdx: S.slots.length + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
     const N = pinPosts.length + lead + fresh.length;   // first cell below the line
@@ -3315,7 +3318,7 @@
       }
       if (p.pin) await drawIcon(ICON.pin, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
       else if (isReel(p.type)) await drawIcon(ICON.reel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
-      else if (isCarousel(p.type)) await drawIcon(ICON.carousel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
+      else if (typeIcon(p.type, p.n)) await drawIcon(ICON.carousel, px + TW - 30, py + 30, p.blob ? '#fff' : '#9a9a9a');
       if (mode === 'annotated') {
         const g = x.createLinearGradient(0, py + TH - 112, 0, py + TH);
         g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.72)');

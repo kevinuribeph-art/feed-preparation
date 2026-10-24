@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.4
+// Editor libre de diapositivas — Mesa de trabajo · v1.5
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) in the post view: each slide becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
 // shapes and lines, over a colour background with an optional veil and texture — and «Aplicar a la casilla» draws it as a JPEG
@@ -9,7 +9,8 @@
 //           els:[el] (back to front), rej?:{n, g}}
 //   every el: {id, t, x, y, w, h (frame, fractions of the slide), rot (°), op (opacity), lock, oculto, g (group id), sh (shadow 0–1)}
 //   'foto':  src, cx, cy, z (the photo inside the frame, as the mesa's reframe), fx, fy, b (border, fraction of the width), bc,
-//            r (corners, 0–1 of half the short side), marco (null|'polaroid'|'pelicula'|'cinta'), fit (margin while «Encajar» holds)
+//            r (corners, 0–1 of half the short side), marco (null|'polaroid'|'pelicula'|'cinta'), fit (margin while «Encajar» holds),
+//            pan ({id, n, k}: one of the n linked copies of a photo that crosses slides, on the k-th of them)
 //   'texto': txt, font {n, file (kits/…)|css}, peso, size (fraction of the width), color, al ('izq'|'cen'|'der'), lh, ls (em),
 //            may (capitals); h follows the text
 //   'logo':  src (a client's logo or sticker: protected file 'kit-<cliente>-logo-…'), fx, fy
@@ -23,11 +24,14 @@
 // into order in the strip and in «Ver todas» (also ⌥ + arrows); «Preview» shows the post as the vista cliente will.
 // v1.4 (mesa 3.27): «Llenar» keeps the reframe; designed carousels open here; the brand's text styles (kit «escala»);
 // the tray in a drawer under the slide (click or drag a photo onto it); photos dropped from the computer go to the slide.
+// v1.5: «Cruzar diapositivas» (a photo across slides in a row, el.pan, its copies linked); «Ver todas» shows them «Seguidas»;
+// the photo's panel shows its main actions and folds the rest; a bar over the selection (Duplicar, Bloquear, Delante /
+// detrás, Borrar); «Vista previa», «Ver todas» and «Imán» in «⋯»; the shortcuts behind «?»; the tray open and named.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.4';
+  const VERSION = '1.5';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -48,6 +52,11 @@
   const pct = v => Math.round(v * 100) + ' %';
   const r4 = v => Math.round(v * 1e4) / 1e4;
   const isKit = f => String(f || '').startsWith('kit-');   // a client's protected file (logo): never a tray photo
+  // this viewer's choices, kept in the browser: the tray open or closed, «Seguidas» in «Ver todas», the panel's open sections
+  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones';
+  const lsLeer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsPoner = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* a private window: not kept */ } };
+  const ABIERTAS = new Set((lsLeer(LS_PL) || '').split(',').filter(Boolean));
 
   class LbError extends Error {}
   const need = (ok, msg) => { if (!ok) throw new LbError(msg); };
@@ -363,7 +372,7 @@
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
-        bm: new Map(), marca, photos0: s.photos.slice(), kit: [], mios: [], plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: false, trKey: '', fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 } };
+        bm: new Map(), marca, photos0: s.photos.slice(), kit: [], mios: [], plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 } };
       E.sl = s.photos.map(key => {
         const f = compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;
         if (f) { const comp = clone(f.comp); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: firma(comp), fmt, fmt0: fmt }; }
@@ -371,6 +380,8 @@
         return { key, out: false, from: null, comp: null, raw, base: firma(raw), fmt, fmt0: fmt };
       });
       E.i = clamp(idx || 0, 0, E.sl.length - 1);
+      const b0 = E.sl.map(x => x.comp && firma(x.comp));   // a crossing photo whose slides were reordered in the mesa comes apart: not a change made here
+      repararPan(); E.sl.forEach((x, i) => { if (x.comp && x.base === b0[i]) x.base = firma(x.comp); });
       if (opts.fmt && FMTS[opts.fmt]) formatoEd(opts.fmt, true);
       injectCSS();
       build(s);
@@ -514,8 +525,87 @@
     todo();
   }
   function mut(tag, fn, quiet) { paso(tag); fn(); despues(quiet); }
-  function despues(quiet) { E.reMini = true; pedir(); head(); if (!quiet) { panel(); lista(); bandeja(); } }
+  function despues(quiet) {
+    if (repararPan()) I().toast('La foto que cruzaba diapositivas se ha separado: cada diapositiva conserva su parte.', { ms: 6000 });
+    enlazar();
+    E.reMini = true; pedir(); head(); if (!quiet) { panel(); lista(); bandeja(); }
+  }
   function todo() { lista(); panel(); head(); pedir(); bandeja(); }
+  function bandejaAbierta() { const v = lsLeer(LS_TR); return v ? v === '1' : !(window.matchMedia && matchMedia('(max-width:900px)').matches); }
+
+  // ---------- «Cruzar diapositivas»: one photo across n slides in a row (carousels) ----------
+  // Each slide holds a copy of the same frame, el.pan = {id, n, k}: k is the slide's place in the run (0 = first) and the
+  // copy sits k slide widths to the left of the first one (x = x0 − k), so every slide draws its own window of one frame
+  // and the seams meet to the pixel. The copy on the open slide is the one edited; the others follow it (enlazar).
+  const PAN_PROPIO = ['id', 'g', 'pan'];
+  function enlazar() {
+    if (!E || !E.car || !E.sl.length) return;
+    for (const m of compAt(E.i).els) {
+      if (!m.pan) continue;
+      E.sl.forEach((x, j) => {
+        if (j === E.i || !x.comp) return;
+        const e = x.comp.els.find(q => q.pan && q.pan.id === m.pan.id); if (!e) return;
+        for (const k of Object.keys(e)) if (!PAN_PROPIO.includes(k) && !(k in m)) delete e[k];
+        for (const [k, v] of Object.entries(m)) if (!PAN_PROPIO.includes(k)) e[k] = clone(v);
+        e.x = m.x + m.pan.k - e.pan.k;
+      });
+    }
+  }
+  // a run stays linked while its copies are on slides in a row, in order; otherwise (a slide moved, taken out or added in
+  // the middle) the copies come apart and each slide keeps its piece. Returns true when a run came apart that way.
+  function repararPan() {
+    if (!E) return false;
+    const runs = new Map();
+    E.sl.forEach((x, j) => {
+      if (!x.comp) return;
+      const vistos = new Set();
+      for (const e of x.comp.els) {
+        if (!e.pan) continue;
+        if (!E.car || e.t !== 'foto' || vistos.has(e.pan.id)) { delete e.pan; continue; }
+        vistos.add(e.pan.id);
+        if (!runs.has(e.pan.id)) runs.set(e.pan.id, []);
+        runs.get(e.pan.id).push({ j, e });
+      }
+    });
+    let roto = false;
+    for (const r of runs.values()) {
+      const seguidos = r.length > 1 && r.every((q, t) => !t || (q.j === r[t - 1].j + 1 && q.e.pan.k === r[t - 1].e.pan.k + 1));
+      if (!seguidos) { if (r.length > 1) roto = true; r.forEach(q => delete q.e.pan); continue; }
+      const k0 = r[0].e.pan.k; r.forEach(q => { q.e.pan.k -= k0; q.e.pan.n = r.length; });   // the same pieces, counted from the first
+    }
+    return roto;
+  }
+  // the selected photo crosses into the next slides (n = 1: it stays on this one alone); missing slides are added at the end.
+  // A photo still inside its slide, or one filling its run, fills the n slides; one already crossing keeps its place.
+  function cruzar(n) {
+    const el = selEl(); if (!E.car || !el || el.t !== 'foto' || !el.src || el.lock) return;
+    const k0 = el.pan ? el.pan.k : 0, b = E.i - k0, falta = Math.max(0, b + n - E.sl.length);
+    if (n > 1 && n <= k0) return;
+    if (E.sl.length + falta > MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
+    mut(null, () => {
+      const c = ensure(), m = c.els.find(q => q.id === el.id), id = m.pan ? m.pan.id : 'p' + uid(), n0 = m.pan ? m.pan.n : 1;
+      const llena = m.pan ? Math.abs(m.x + k0) < 1e-3 && Math.abs(m.w - n0) < 1e-3 && Math.abs(m.y) < 1e-3 && Math.abs(m.h - 1) < 1e-3 : m.x >= -1e-3 && m.x + m.w <= 1 + 1e-3;
+      E.sl.forEach((x, j) => { if (j !== E.i && x.comp) x.comp.els = x.comp.els.filter(e => !(e.pan && e.pan.id === id && (n === 1 || e.pan.k >= n))); });
+      if (n === 1) { delete m.pan; return; }
+      for (let t = 0; t < falta; t++) E.sl.push(blankSlide(c.bg || '#ffffff'));
+      m.pan = { id, n, k: k0 };
+      for (let k = 0; k < n; k++) {
+        const x = E.sl[b + k]; if (b + k === E.i) continue;
+        const cc = x.comp || (x.comp = clone(x.raw)); if (cc.els.some(e => e.pan && e.pan.id === id)) continue;
+        const e = { ...clone(m), id: uid(), pan: { id, n, k } }; delete e.g;
+        const top = cc.els.reduce((a, q, t) => q.t === 'foto' ? t + 1 : a, 0); cc.els.splice(top, 0, e);   // above the slide's photos, under its texts and logos
+      }
+      if (llena) llenar(m);
+    });
+    I().toast(n === 1 ? 'La foto ya no cruza: se queda solo en esta diapositiva.' : `La foto cruza las diapositivas ${b + 1} a ${b + n}${falta ? ` (${falta === 1 ? '1 nueva' : falta + ' nuevas'})` : ''}.`);
+  }
+  function cruzarHTML(el) {
+    if (!E.car || el.t !== 'foto' || !el.src) return '';
+    const n = el.pan ? el.pan.n : 1, k = el.pan ? el.pan.k : 0, b = E.i - k;
+    const op = [1, 2, 3, 4, 5].map(v => { const off = el.lock || (v > 1 && v <= k) || E.sl.length + Math.max(0, b + v - E.sl.length) > MAX_SLIDES; return `<button type="button" data-lb="cruzar" data-v="${v}" class="${v === n ? 'on' : ''}" aria-pressed="${v === n}"${off ? ' disabled' : ''}>${v === 1 ? 'Solo esta' : v}</button>`; }).join('');
+    const txt = n > 1 ? `Va de la diapositiva ${b + 1} a la ${b + n}. Muévela, amplíala o reencuádrala en cualquiera: las otras la siguen. «Llenar» la reparte entre las ${n}.` : 'Elige en cuántas diapositivas sigue, contando esta. Si faltan, se añaden al final.';
+    return `<div class="lb-sec"><h4>Cruzar diapositivas <span>· la foto sigue en las de al lado</span></h4><div class="seg" role="group" aria-label="Diapositivas que cruza la foto">${op}</div><p class="lb-p">${txt}</p></div>`;
+  }
 
   // ---------- the editor's window ----------
   const CSS = `
@@ -539,25 +629,29 @@
 #mesa .lb-n{display:flex;align-items:center;gap:4px;margin-top:5px;font-size:11.5px;color:var(--mute);white-space:nowrap}
 #mesa .lb-n b{color:var(--ink);font-weight:600}#mesa .lb-n em{font-style:normal;color:var(--chg);font-weight:700}
 #mesa .lb-mv{margin-left:auto;display:flex}
-#mesa .lb-mv button{border:0;background:none;width:19px;height:22px;border-radius:5px;font-size:10.5px;line-height:22px;padding:0;color:var(--mute)}
-#mesa .lb-mv button:hover:not(:disabled){background:var(--line2);color:var(--ink)}#mesa .lb-mv button:disabled{opacity:.25;cursor:default}
+#mesa .lb-mv button,#mesa .lb-ord button{border:0;background:none;width:24px;height:24px;border-radius:6px;font-size:11.5px;line-height:24px;padding:0;color:var(--mute)}
+#mesa .lb-mv button:hover:not(:disabled){background:var(--line2);color:var(--ink)}#mesa .lb-mv button:disabled,#mesa .lb-ord button:disabled{opacity:.3;cursor:default}
+#mesa .lb-ord{position:absolute;top:4px;right:4px;display:flex;flex-direction:column;background:rgba(255,255,255,.92);border-radius:7px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+#mesa .lb-ord button{color:var(--ink)}#mesa .lb-ord button:hover:not(:disabled){background:var(--line2)}
+@media (hover:hover) and (min-width:901px){#mesa .lb-it:not(:hover):not(:focus-within) .lb-ord{display:none}}
 #mesa .lb-add{width:100%;font-size:12.5px;padding:6px 4px}
 #mesa .lb-mid{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #mesa .lb-scroll{flex:1;min-height:0;overflow:auto;display:flex;padding:18px}
 #mesa .lb-cvw{margin:auto;flex:none;line-height:0}
 #mesa .lb-cv{display:block;background:#e6e6e6;box-shadow:0 4px 22px rgba(0,0,0,.16);touch-action:none}
-#mesa .lb-hint{flex:none;margin:0;padding:4px 12px 2px;text-align:center;color:var(--mute);font-size:12px}
-#mesa .lb-trb{flex:none;align-self:center;display:flex;align-items:center;justify-content:center;width:44px;height:24px;margin:0 0 4px;padding:0;border:0;border-radius:6px;background:none;color:var(--mute)}
+#mesa .lb-hint{flex:none;margin:0;padding:4px 12px 2px;text-align:center;color:var(--mute);font-size:12.5px}
+#mesa .lb-foot{flex:none;position:relative;display:flex;justify-content:center;align-items:center;min-height:32px;margin:2px 0 4px}
+#mesa .lb-trb{display:flex;align-items:center;gap:4px;height:28px;padding:0 6px 0 10px;border:0;border-radius:6px;background:none;color:var(--mute);font-size:12.5px}
 #mesa .lb-trb:hover{background:var(--line2);color:var(--ink)}#mesa .lb-trb svg{transition:transform .18s}#mesa .lb-trb[aria-expanded="true"] svg{transform:rotate(180deg)}
 #mesa .lb-tray{flex:none;margin:6px 14px 2px;padding:8px 10px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
-#mesa .lb-trh{margin-bottom:6px;font-size:12px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}
+#mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
-#mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:10px;line-height:16px;text-align:center}
+#mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
 #mesa .lb-ghost{position:fixed;z-index:30;width:64px;height:64px;object-fit:cover;border-radius:6px;transform:translate(-50%,-50%);pointer-events:none;opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #mesa .lb-panel{overflow-y:auto;padding:0 16px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .lb-sec{padding:12px 0 14px;border-bottom:1px solid var(--line2)}#mesa .lb-sec:last-child{border-bottom:0}
-#mesa .lb-sec h4{margin:0 0 8px;font-size:13px;font-weight:600}#mesa .lb-sec h4 span{font-weight:400;color:var(--mute);font-size:12px}
+#mesa .lb-sec h4{margin:0 0 8px;font-size:13px;font-weight:600}#mesa .lb-sec h4 span{font-weight:400;color:var(--mute);font-size:12.5px}
 #mesa .lb-p{margin:6px 0 0;font-size:12.5px;color:var(--mute)}
 #mesa .lb-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 6px}
 #mesa .lb-sws{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
@@ -579,26 +673,26 @@
 #mesa .lb-ph{position:relative;aspect-ratio:1;border:0;padding:0;border-radius:5px;overflow:hidden;background:#efefef}#mesa .lb-ph:hover{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .lb-ph img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 #mesa .lb-ph.logo{background:repeating-conic-gradient(#d9d9d9 0 25%,#f4f4f4 0 50%) 0 0/12px 12px}#mesa .lb-ph.logo img{object-fit:contain;padding:6px;box-sizing:border-box}
-#mesa .lb-ph .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11px;line-height:18px;text-align:center}
+#mesa .lb-ph .x{position:absolute;top:2px;right:2px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;line-height:24px;text-align:center}
 #mesa .lb-grids{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 #mesa .lb-g{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:6px;height:56px}#mesa .lb-g:hover{border-color:var(--ink)}
 #mesa .lb-g svg{width:100%;height:100%;display:block}
 #mesa .lb-tpls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
 #mesa .lb-tp{position:relative;min-width:0}#mesa .lb-tp canvas{width:100%;height:auto;display:block;border-radius:4px;cursor:pointer;outline:1px solid var(--line2)}
 #mesa .lb-tp canvas:hover{outline:2px solid var(--acc)}
-#mesa .lb-tp span{display:block;font-size:11px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
-#mesa .lb-tp button{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:12px;line-height:20px;padding:0}
+#mesa .lb-tp span{display:block;font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+#mesa .lb-tp button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:12.5px;line-height:24px;padding:0}
 #mesa .lb-caps{border:1px solid var(--line2);border-radius:8px;overflow:hidden}
 #mesa .lb-cap{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 9px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:#e8f3fe}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
-#mesa .lb-cap button{border:0;background:none;width:22px;height:22px;border-radius:5px;padding:0;font-size:11px;color:var(--mute)}
+#mesa .lb-cap button{border:0;background:none;width:24px;height:24px;border-radius:5px;padding:0;font-size:11.5px;color:var(--mute)}
 #mesa .lb-cap button:hover:not(:disabled){background:var(--line2);color:var(--ink)}#mesa .lb-cap button:disabled{opacity:.25}
 #mesa .lb-cap.off .lb-capn{opacity:.45}
 #mesa .lb-all{position:absolute;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:16px 20px}
 #mesa .lb-allh{display:flex;align-items:center;gap:12px;margin-bottom:14px}#mesa .lb-allh h4{margin:0;font-size:15px;flex:1}
 #mesa .lb-allg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:18px}
-#mesa .lb-allit{border:0;background:none;padding:0;text-align:left;font-size:12px;color:var(--mute)}
+#mesa .lb-allit{border:0;background:none;padding:0;text-align:left;font-size:12.5px;color:var(--mute)}
 #mesa .lb-allit canvas{display:block;width:100%;height:auto;border-radius:4px;box-shadow:0 2px 10px rgba(0,0,0,.12);outline:2px solid transparent;outline-offset:3px;margin-bottom:6px}
 #mesa .lb-allit.on canvas,#mesa .lb-allit:hover canvas{outline-color:var(--acc)}
 #mesa .lb-ask{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -610,6 +704,39 @@
 #mesa .lb-allit.lb-dl::before,#mesa .lb-allit.lb-dr::after{content:'';position:absolute;top:0;bottom:0;width:3px;border-radius:2px;background:var(--acc)}#mesa .lb-allit.lb-dl::before{left:-10px}#mesa .lb-allit.lb-dr::after{right:-10px}
 #mesa .lb-pv{position:absolute;inset:0;z-index:25;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 #mesa .lb-pv .igtop{align-self:stretch}#mesa .lb-pvt{flex:1;min-width:0;color:rgba(255,255,255,.85);font-size:12.5px}#mesa .lb-pvc{position:absolute;inset:0;width:100%;height:100%;display:block}
+#mesa .lb-fmtw{display:inline-flex;align-items:center;gap:6px}#mesa .lb-fmtl{font-size:12.5px;color:var(--mute)}
+#mesa .lb-mas{position:relative;display:inline-flex}
+#mesa .lb-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:12;display:flex;flex-direction:column;min-width:220px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+#mesa .lb-menu[hidden],#mesa .lb-fl[hidden],#mesa .lb-atajos[hidden],#mesa .lb-flm[hidden]{display:none}
+#mesa .lb-menu button,#mesa .lb-flm button{border:0;background:none;border-radius:7px;padding:8px 10px;text-align:left;font-size:13px;color:var(--ink)}
+#mesa .lb-menu button:hover,#mesa .lb-flm button:hover:not(:disabled){background:var(--line2)}
+#mesa .lb-menu [aria-checked]::before{content:'';display:inline-block;width:18px}#mesa .lb-menu [aria-checked="true"]::before{content:'✓'}
+#mesa .lb-help{position:absolute;right:12px;top:2px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--mute);font-size:13px;font-weight:600;padding:0}
+#mesa .lb-help:hover,#mesa .lb-help[aria-expanded="true"]{color:var(--ink);border-color:var(--ink)}
+#mesa .lb-atajos{position:absolute;right:12px;bottom:calc(100% + 6px);z-index:12;width:min(400px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);font-size:12.5px}
+#mesa .lb-atajos h4{margin:0 0 8px;font-size:13px}#mesa .lb-atajos dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0}
+#mesa .lb-atajos dt{font-weight:600;white-space:nowrap}#mesa .lb-atajos dd{margin:0;color:var(--mute)}#mesa .lb-atajos p{margin:10px 0 0;color:var(--mute)}
+#mesa .lb-cvw{position:relative}
+#mesa .lb-fl{position:absolute;z-index:4;display:flex;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.14);line-height:1.4;white-space:nowrap}
+#mesa .lb-fl>button{border:0;background:none;border-radius:7px;padding:6px 10px;font-size:12.5px;color:var(--ink)}
+#mesa .lb-fl>button:hover:not(:disabled),#mesa .lb-fl>button[aria-expanded="true"]{background:var(--line2)}#mesa .lb-fl>button:disabled{opacity:.35;cursor:default}
+#mesa .lb-fl>button.del{color:var(--chg)}
+#mesa .lb-flm{position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;min-width:140px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+#mesa .lb-flm button:disabled{opacity:.35;cursor:default}
+#mesa details.lb-pl{padding:0}#mesa details.lb-pl>summary{display:flex;align-items:center;gap:8px;padding:12px 0;cursor:pointer;list-style:none;font-size:13px;font-weight:600}
+#mesa details.lb-pl>summary::-webkit-details-marker{display:none}
+#mesa details.lb-pl>summary span{margin-left:auto;font-weight:400;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa details.lb-pl>summary::after{content:'›';color:var(--mute);font-size:15px;line-height:1;transition:transform .15s}#mesa details.lb-pl[open]>summary::after{transform:rotate(90deg)}
+#mesa details.lb-pl>.lb-plc{padding:0 0 14px}#mesa details.lb-pl .lb-plc>.lb-sub{margin:0 0 12px}#mesa details.lb-pl .lb-plc>.lb-sub:last-child{margin-bottom:0}
+#mesa .lb-sub h5{margin:0 0 6px;font-size:12.5px;font-weight:600}
+#mesa .lb-allh .seg{margin-right:auto}
+#mesa .lb-allg.seguidas{display:flex;gap:0;overflow-x:auto;padding:4px 0 10px}#mesa .lb-allg.seguidas::before,#mesa .lb-allg.seguidas::after{content:'';margin:auto}
+#mesa .lb-allg.seguidas .lb-allit{flex:none;width:var(--lbw,240px)}
+#mesa .lb-allg.seguidas .lb-allit canvas{border-radius:0;box-shadow:none;outline:0;margin:0}#mesa .lb-allg.seguidas .lb-allit.on canvas{outline:0}
+#mesa .lb-allg.seguidas .lb-allt{display:none}
+#mesa .lb-seam{position:absolute;top:0;bottom:0;left:0;width:0;border-left:1.5px dashed rgba(255,255,255,.95);box-shadow:-1px 0 0 rgba(0,0,0,.18);pointer-events:none}
+#mesa .lb-allg:not(.seguidas) .lb-seam{display:none}
+#mesa .lb-allnota{margin:12px 0 0;text-align:center;color:var(--mute);font-size:12.5px}
 @media (max-width:900px){#mesa .lb-body{grid-template-columns:104px minmax(0,1fr);grid-template-rows:minmax(240px,55%) minmax(0,1fr)}#mesa .lb-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line2)}#mesa .lb-list{grid-row:1;padding:10px 8px}#mesa .lb-scroll{padding:10px}#mesa .lb-add{font-size:11.5px;padding:5px 2px}}`;
   function injectCSS() { let st = document.getElementById('lb-css'); if (!st) { st = document.createElement('style'); st.id = 'lb-css'; document.head.append(st); } if (st.textContent !== CSS) st.textContent = CSS; }
 
@@ -618,17 +745,19 @@
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
     el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3><p>${E.tipo === 'Foto' ? 'Editar foto' : 'Editar diapositivas'} · ${E.dz ? 'diseño de «Diseñar»: si aplicas cambios, queda fijado como imagen' : 'lo que no toques se queda como está'}</p></div>`
-      + `<div class="seg lb-fmt" role="group" aria-label="Formato">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div>`
+      + `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'
-      + '<button type="button" class="lb-ib" data-lb="iman" title="Imán: alinea con los bordes, el centro y los otros elementos al arrastrar (con ⌘ pulsado no actúa)">Imán</button>'
-      + '<button type="button" class="lb-ib" data-lb="todas" title="Todas las diapositivas en grande (arrástralas para cambiar el orden)">Ver todas</button>'
-      + '<button type="button" class="lb-ib" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Preview</button>'
+      + '<button type="button" class="lb-ib" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Vista previa</button>'
+      + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
+      + '<span class="lb-menu" role="menu" hidden><button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>'
+      + '<button type="button" role="menuitemcheckbox" data-lb="iman" aria-checked="true" title="Alinea con los bordes, el centro y los otros elementos al arrastrar (con ⌘ pulsado no actúa)">Imán al arrastrar</button></span></span>'
       + '<span class="lb-state" aria-live="polite"></span><button type="button" class="btn2" data-lb="cerrar">Cerrar</button><button type="button" class="btn" data-lb="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="lb-body"><nav class="lb-list" aria-label="Diapositivas"></nav>'
-      + '<section class="lb-mid"><div class="lb-scroll"><div class="lb-cvw"><canvas class="lb-cv" aria-label="Diapositiva"></canvas></div></div>'
-      + '<p class="lb-hint">Clic: elegir (⇧ para varios) · arrastra para mover · esquinas: tamaño · lados: recortar o ancho del texto · círculo: girar · doble clic: encuadrar la foto o escribir · ⌘C ⌘V · ⌘G agrupar · ⌘Z · suelta aquí fotos del ordenador</p>'
-      + `<div class="lb-tray" id="lb-tray" hidden></div><button type="button" class="lb-trb" data-lb="bandeja" aria-expanded="false" aria-controls="lb-tray" aria-label="Bandeja" title="Bandeja: sus fotos, para ponerlas en la diapositiva">${FLECHA}</button></section>`
+      + '<section class="lb-mid"><div class="lb-scroll"><div class="lb-cvw"><canvas class="lb-cv" aria-label="Diapositiva"></canvas><div class="lb-fl" role="toolbar" aria-label="Elemento elegido" hidden></div></div></div>'
+      + '<p class="lb-hint" aria-live="polite" hidden></p>'
+      + `<div class="lb-tray" id="lb-tray" hidden></div><div class="lb-foot"><button type="button" class="lb-trb" data-lb="bandeja" aria-expanded="false" aria-controls="lb-tray" title="Bandeja: sus fotos, para ponerlas en la diapositiva"><span class="lb-trn">Bandeja</span>${FLECHA}</button>`
+      + `<button type="button" class="lb-help" data-lb="atajos" aria-label="Atajos de teclado" aria-expanded="false" title="Atajos de teclado">?</button><div class="lb-atajos" role="dialog" aria-label="Atajos de teclado" hidden>${ATAJOS}</div></div></section>`
       + '<aside class="lb-panel"></aside></div><div class="lb-all" hidden></div><input type="file" class="lb-logoin" accept="image/png,image/webp,image/jpeg" multiple hidden>';
     root.append(el);
     // the mesa behind can't be reached with Tab while the editor is open (toasts stay usable)
@@ -650,7 +779,7 @@
     q('[data-lb="undo"]').disabled = !E.hist.undo.length || E.busy; q('[data-lb="redo"]').disabled = !E.hist.redo.length || E.busy;
     q('[data-lb="aplicar"]').disabled = E.busy; q('[data-lb="cerrar"]').disabled = E.busy;
     q('.lb-zv').textContent = Math.round(E.zoom * 100) + ' %';
-    q('[data-lb="iman"]').classList.toggle('on', E.iman);
+    q('[data-lb="iman"]').setAttribute('aria-checked', String(E.iman));
     const f = fmtAt(E.i);
     E.el.querySelectorAll('.lb-fmt button').forEach(b => { const on = b.dataset.v === f; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   }
@@ -659,9 +788,9 @@
     nav.innerHTML = E.sl.map((x, i) => {
       const tag = !x.key ? 'nueva' : x.out || changedSl(x) ? 'editada' : 'foto';
       return `<div class="lb-it${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}" tabindex="0" role="button" aria-label="Diapositiva ${i + 1}" title="Arrástrala para cambiar el orden (o ⌥ + flechas)"><canvas></canvas>`
+        + (n > 1 ? `<span class="lb-ord"><button type="button" data-lb="sl-up" data-i="${i}" title="Mover antes" aria-label="Mover antes"${i === 0 ? ' disabled' : ''}>▲</button>`
+        + `<button type="button" data-lb="sl-dn" data-i="${i}" title="Mover después" aria-label="Mover después"${i === n - 1 ? ' disabled' : ''}>▼</button></span>` : '')
         + `<div class="lb-n"><b>${i + 1}</b> ${tag}${changedSl(x) || (!E.car && x.fmt !== x.fmt0) ? ' <em title="Cambios sin aplicar">•</em>' : ''}<span class="lb-mv">`
-        + `<button type="button" data-lb="sl-up" data-i="${i}" title="Mover antes" aria-label="Mover antes"${i === 0 ? ' disabled' : ''}>▲</button>`
-        + `<button type="button" data-lb="sl-dn" data-i="${i}" title="Mover después" aria-label="Mover después"${i === n - 1 ? ' disabled' : ''}>▼</button>`
         + `<button type="button" data-lb="sl-del" data-i="${i}" title="Quitar la diapositiva (su foto vuelve a la bandeja al aplicar)" aria-label="Quitar la diapositiva">×</button></span></div></div>`;
     }).join('') + `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida">+ Diapositiva sin foto</button>`;
     nav.scrollTop = top;
@@ -682,9 +811,13 @@
   function verTodas(on) {
     const a = E.allEl;
     if (!on) { a.hidden = true; a.innerHTML = ''; return; }
-    a.innerHTML = `<div class="lb-allh"><h4>Todas las diapositivas</h4><button type="button" class="btn2" data-lb="todas">Volver</button></div><div class="lb-allg">`
-      + E.sl.map((x, i) => `<button type="button" class="lb-allit${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}"><canvas></canvas>Diapositiva ${i + 1}${!x.key ? ' · nueva' : x.out || changedSl(x) ? ' · editada' : ''}</button>`).join('') + '</div>';
-    a.hidden = false; minis();
+    const sg = lsLeer(LS_SEG) === '1';
+    a.innerHTML = `<div class="lb-allh"><h4>Todas las diapositivas</h4>${seg('seguidas', [['0', 'Separadas'], ['1', 'Seguidas']], sg ? '1' : '0')}<button type="button" class="btn2" data-lb="todas">Volver</button></div><div class="lb-allg${sg ? ' seguidas' : ''}">`
+      + E.sl.map((x, i) => `<button type="button" class="lb-allit${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}" aria-label="Diapositiva ${i + 1}">${i ? '<span class="lb-seam"></span>' : ''}<canvas></canvas><span class="lb-allt">Diapositiva ${i + 1}${!x.key ? ' · nueva' : x.out || changedSl(x) ? ' · editada' : ''}</span></button>`).join('') + '</div>'
+      + (sg ? '<p class="lb-allnota">Así se unen al deslizar. Que el corte (la línea discontinua) no caiga sobre caras ni textos.</p>' : '');
+    a.hidden = false;
+    if (sg) a.querySelector('.lb-allg').style.setProperty('--lbw', clamp(Math.floor((a.clientWidth - 48) / Math.max(1, E.sl.length)), 140, 360) + 'px');
+    minis();
   }
   function elegir(i) {
     if (!E || !E.sl.length) return;
@@ -715,6 +848,7 @@
     const el = selEl();
     if (el && E.crop === el.id) cropView(x, el, W, H, k);
     const ss = selEls(); ss.forEach(e => marco(x, e, W, H, ss.length === 1));
+    posBarra();
     for (const g of E.guides) { x.save(); x.strokeStyle = '#ff2d95'; x.lineWidth = 1 / E.k; x.beginPath(); if (g.x != null) { x.moveTo(g.x, 0); x.lineTo(g.x, H); } else { x.moveTo(0, g.y); x.lineTo(W, g.y); } x.stroke(); x.restore(); }
     if (E.reMini) { clearTimeout(E.miniT); E.miniT = setTimeout(() => { if (!E) return; if (E.drag) { pedir(); return; } E.reMini = false; minis(); }, 80); }   // thumbnails once a drag stops
   }
@@ -780,19 +914,21 @@
     const { W, H } = sizeAt(i), ib = hueco(el, el.w * W, el.h * H), r = srcRect(el, f.w, f.h, ib.w, ib.h);
     el.cx = r4((r.x + r.w / 2) / f.w); el.cy = r4((r.y + r.h / 2) / f.h);
   }
-  function encajar(el, m, i = E.i) {  // the whole photo, centred, inside the slide less a margin (fraction of the width)
+  function encajar(el, m, i = E.i) {  // the whole photo, centred, inside the slide less a margin (fraction of the width); a crossing photo: inside its slides
     const f = el.src && M.files[el.src]; if (!f) return;
-    const { W, H } = sizeAt(i), aw = W - 2 * m * W, ah = H - 2 * m * W, ar = f.w / f.h;
+    const n = el.pan ? el.pan.n : 1, k = el.pan ? el.pan.k : 0;
+    const { W, H } = sizeAt(i), aw = n * W - 2 * m * W, ah = H - 2 * m * W, ar = f.w / f.h;
     let w = aw, h = aw / ar; if (h > ah) { h = ah; w = ah * ar; }
-    Object.assign(el, { w: r4(w / W), h: r4(h / H), x: r4((W - w) / 2 / W), y: r4((H - h) / 2 / H), cx: 0.5, cy: 0.5, z: 1, rot: 0, fit: m, marco: null }); delete el.rat;
+    Object.assign(el, { w: r4(w / W), h: r4(h / H), x: r4((n * W - w) / 2 / W) - k, y: r4((H - h) / 2 / H), cx: 0.5, cy: 0.5, z: 1, rot: 0, fit: m, marco: null }); delete el.rat;
   }
-  // the frame takes the whole slide and keeps the reframe: the same part of the photo (same centre and area), only bigger
+  // the frame takes the whole slide (a crossing photo: its n slides) and keeps the reframe: the same part of the photo
+  // (same centre and area), only bigger
   function llenar(el, i = E.i) {
-    const f = el.src && M.files[el.src], { W, H } = sizeAt(i);
+    const f = el.src && M.files[el.src], { W, H } = sizeAt(i), n = el.pan ? el.pan.n : 1;
     const old = f ? (() => { const ib = hueco(el, el.w * W, el.h * H); return srcRect(el, f.w, f.h, ib.w, ib.h); })() : null;
-    Object.assign(el, { x: 0, y: 0, w: 1, h: 1, rot: 0 }); delete el.fit; delete el.rat;
+    Object.assign(el, { x: el.pan ? -el.pan.k : 0, y: 0, w: n, h: 1, rot: 0 }); delete el.fit; delete el.rat;
     if (!old) { Object.assign(el, { cx: 0.5, cy: 0.5, z: 1 }); return; }
-    const ib = hueco(el, W, H), R = ib.w / ib.h, cw = f.w / f.h > R ? f.h * R : f.w;   // the cover crop's width at the new ratio
+    const ib = hueco(el, n * W, H), R = ib.w / ib.h, cw = f.w / f.h > R ? f.h * R : f.w;   // the cover crop's width at the new ratio
     setPhoto(el, { cx: (old.x + old.w / 2) / f.w, cy: (old.y + old.h / 2) / f.h, z: r4(cw / Math.sqrt(old.w * old.h * R)) }, i);
   }
   // ---------- «Transformar»: the selected photos' frames take a format ----------
@@ -822,9 +958,9 @@
     const e0 = fotos.find(e => e.id === E.sel) || fotos[0], { W, H } = sizeAt(E.i);
     const ori = E.tOri || (e0.rat ? (RATIOS.h.some(([n]) => n === e0.rat) && e0.rat !== '1:1' ? 'h' : 'v') : e0.w * W > e0.h * H * 1.01 ? 'h' : 'v');
     const rat = fotos.every(e => e.rat === e0.rat) ? e0.rat : null, off = fotos.every(e => e.lock);
-    return `<div class="lb-sec"><h4>Transformar <span>· formato del marco${fotos.length > 1 ? ` de las ${fotos.length} fotos` : ''}</span></h4>${seg('t-ori', [['v', 'Vertical'], ['h', 'Horizontal']], ori)}`
+    return `<div class="lb-sec"><h4>Proporción del marco${fotos.length > 1 ? ` <span>· de las ${fotos.length} fotos</span>` : ''}</h4>${seg('t-ori', [['v', 'Vertical'], ['h', 'Horizontal']], ori)}`
       + `<div class="lb-btns">${RATIOS[ori].map(([n, r]) => `<button type="button" class="btn2${rat === n ? ' on' : ''}" data-lb="t-rat" data-v="${n}" data-r="${r}"${off ? ' disabled' : ''}>${n}</button>`).join('')}</div>`
-      + `<p class="lb-p">${fotos.length > 1 ? 'Todas quedan con el mismo formato y tamaño.' : 'La foto queda lista para encuadrar: arrástrala dentro del marco (rueda o Zoom para acercar).'} Reencuadra cuando quieras con «Encuadrar» o doble clic.</p></div>`;
+      + (fotos.length > 1 ? '<p class="lb-p">Todas quedan con la misma proporción y tamaño.</p>' : '') + '</div>';
   }
   // a grid of n cells (px) with gap g between them and around them
   function cells(name, W, H, g) {
@@ -997,31 +1133,27 @@
     if (e.t === 'logo') return `Logo <i>${esc((M.files[e.src] || {}).name || '')}</i>`;
     return `Foto <i>${esc(e.src ? (M.files[e.src] || {}).name || '' : 'hueco vacío')}</i>`;
   }
+  // a section folded under its title: open or closed as this viewer left it, for every element and every post
+  const plegable = (k, titulo, resumen, html) => `<details class="lb-sec lb-pl" data-pl="${k}"${ABIERTAS.has(k) ? ' open' : ''}><summary>${titulo}<span>${resumen}</span></summary><div class="lb-plc">${html}</div></details>`;
   function capasHTML(c) {
     if (!c.els.length) return '';
     const ids = selIds(), n = c.els.length;
-    return `<div class="lb-sec"><h4>Capas <span>· arriba, lo que está delante · ⇧ + clic para elegir varias</span></h4><div class="lb-caps">${c.els.map((e, k) => ({ e, k })).reverse().map(({ e, k }) => `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" data-id="${esc(e.id)}"><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>`
+    return plegable('capas', 'Capas', String(n), `<p class="lb-p" style="margin:0 0 8px">Arriba, lo que está delante. ⇧ + clic para elegir varias.</p><div class="lb-caps">${c.els.map((e, k) => ({ e, k })).reverse().map(({ e, k }) => `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" data-id="${esc(e.id)}"><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>`
       + `<button type="button" data-lb="cap-ver" data-id="${esc(e.id)}" title="${e.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${e.oculto ? 'Mostrar' : 'Ocultar'}">${e.oculto ? '◌' : '◉'}</button>`
       + `<button type="button" data-lb="cap-lock" data-id="${esc(e.id)}" title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>`
-      + `<button type="button" data-lb="cap-up" data-id="${esc(e.id)}" title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" data-id="${esc(e.id)}" title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button></div>`).join('')}</div></div>`;
+      + `<button type="button" data-lb="cap-up" data-id="${esc(e.id)}" title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" data-id="${esc(e.id)}" title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button></div>`).join('')}</div>`);
   }
   function medidasHTML(el) {
     const { H } = sizeAt(E.i), v = (a, val, dis) => `<label>${a}<input type="number" class="lb-num" data-lb="m${a.toLowerCase()}" step="1" value="${Math.round(val)}"${dis ? ' disabled' : ''}></label>`;
-    return `<div class="lb-sec"><h4>Medidas <span>· en píxeles de una diapositiva de 1080 de ancho</span></h4><div class="lb-nums">${v('X', el.x * 1080)}${v('Y', el.y * H * PX)}${v('An', el.w * 1080)}${v('Al', el.h * H * PX, el.t === 'texto')}</div>`
+    return plegable('medidas', 'Medidas exactas', 'en píxeles', `<div class="lb-nums">${v('X', el.x * 1080)}${v('Y', el.y * H * PX)}${v('An', el.w * 1080)}${v('Al', el.h * H * PX, el.t === 'texto')}</div>`
       + rng('op', 'Opacidad', el.op ?? 1, 0, 1, 0.01)
-      + `<div class="lb-btns"><button type="button" class="btn2" data-lb="al1" data-v="h" title="Centrar a lo ancho de la diapositiva">Centrar ↔</button><button type="button" class="btn2" data-lb="al1" data-v="v" title="Centrar a lo alto de la diapositiva">Centrar ↕</button></div></div>`;
-  }
-  function organizarHTML(el, c) {
-    const k = c.els.indexOf(el), n = c.els.length;
-    return `<div class="lb-sec"><h4>Organizar</h4><div class="lb-btns"><button type="button" class="btn2" data-lb="front"${k === n - 1 ? ' disabled' : ''} title="⇧⌘]">Al frente</button><button type="button" class="btn2" data-lb="fwd"${k === n - 1 ? ' disabled' : ''} title="⌘]">Adelante</button><button type="button" class="btn2" data-lb="bwd"${k === 0 ? ' disabled' : ''} title="⌘[">Atrás</button><button type="button" class="btn2" data-lb="back"${k === 0 ? ' disabled' : ''} title="⇧⌘[">Al fondo</button></div>`
-      + `<div class="lb-btns"><button type="button" class="btn2" data-lb="dup" title="⌘D">Duplicar</button><button type="button" class="btn2" data-lb="copy" title="⌘C">Copiar</button>${clip() ? '<button type="button" class="btn2" data-lb="paste" title="⌘V">Pegar</button>' : ''}<button type="button" class="btn2${el.lock ? ' on' : ''}" data-lb="lock">${el.lock ? 'Desbloquear' : 'Bloquear'}</button><button type="button" class="btn2" data-lb="del" title="⌫"${el.lock ? ' disabled' : ''}>Borrar</button></div>`
-      + (el.g ? '<div class="lb-btns"><button type="button" class="btn2" data-lb="ungroup" title="⇧⌘G">Desagrupar</button></div>' : '')
-      + '<p class="lb-p">Flechas: mover poco a poco (con ⇧, más). Esc: soltar la selección.</p></div>';
+      + `<div class="lb-btns"><button type="button" class="btn2" data-lb="al1" data-v="h" title="Centrar a lo ancho de la diapositiva">Centrar ↔</button><button type="button" class="btn2" data-lb="al1" data-v="v" title="Centrar a lo alto de la diapositiva">Centrar ↕</button></div>`
+      + '<p class="lb-p">En píxeles de una diapositiva de 1080 de ancho.</p>');
   }
   function girarHTML(el, voltear) {
-    return `<div class="lb-sec"><h4>Girar${voltear ? ' y voltear' : ''}</h4><div class="lb-btns" style="align-items:center"><label style="font-size:12.5px;display:flex;align-items:center;gap:6px">Ángulo <input type="number" class="lb-num" data-lb="rot" step="1" min="-180" max="180" value="${Math.round((el.rot || 0) * 10) / 10}">°</label>`
+    return plegable('girar', `Girar${voltear ? ' y voltear' : ''}`, `${Math.round((el.rot || 0) * 10) / 10}°${el.fx || el.fy ? ' · volteada' : ''}`, `<div class="lb-btns" style="align-items:center;margin-top:0"><label style="font-size:12.5px;display:flex;align-items:center;gap:6px">Ángulo <input type="number" class="lb-num" data-lb="rot" step="1" min="-180" max="180" value="${Math.round((el.rot || 0) * 10) / 10}">°</label>`
       + `<button type="button" class="btn2" data-lb="rotl" title="Girar 90° a la izquierda">⟲ 90°</button><button type="button" class="btn2" data-lb="rotr" title="Girar 90° a la derecha">⟳ 90°</button></div>`
-      + (voltear ? `<div class="lb-btns"><button type="button" class="btn2${el.fx ? ' on' : ''}" data-lb="flipx">Voltear ↔</button><button type="button" class="btn2${el.fy ? ' on' : ''}" data-lb="flipy">Voltear ↕</button></div>` : '') + '</div>';
+      + (voltear ? `<div class="lb-btns"><button type="button" class="btn2${el.fx ? ' on' : ''}" data-lb="flipx">Voltear ↔</button><button type="button" class="btn2${el.fy ? ' on' : ''}" data-lb="flipy">Voltear ↕</button></div>` : ''));
   }
   function fuenteSel(el) {
     const ls = E.fuentes, i = ls.findIndex(f => el.font && (f.file ? f.file === el.font.file : f.css === el.font.css)), opt = (f, k) => `<option value="${k}"${k === i ? ' selected' : ''}>${esc(f.n)}</option>`;
@@ -1043,7 +1175,7 @@
     let h = '';
     if (multi()) {
       const ss = selEls(), grp = ss[0] && ss[0].g && ss.every(e => e.g === ss[0].g);
-      h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌘G">Agrupar</button>'}<button type="button" class="btn2" data-lb="dup" title="⌘D">Duplicar</button><button type="button" class="btn2" data-lb="copy" title="⌘C">Copiar</button><button type="button" class="btn2" data-lb="lock">Bloquear o desbloquear</button><button type="button" class="btn2" data-lb="del" title="⌫">Borrar</button></div>`
+      h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌘G">Agrupar</button>'}</div>`
         + `<span class="lb-l">Alinear entre ellos</span><div class="lb-btns">${[['izq', '⇤ Izquierda'], ['cen', '↔ Centro'], ['der', '⇥ Derecha'], ['arr', '⤒ Arriba'], ['med', '↕ Medio'], ['aba', '⤓ Abajo']].map(([v, l]) => `<button type="button" class="btn2" data-lb="al" data-v="${v}">${l}</button>`).join('')}</div>`
         + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p></div>';
       h += transformarHTML(ss) + capasHTML(c);
@@ -1053,11 +1185,11 @@
         h += `<div class="lb-sec"><h4>Foto <span>· ${el.lock ? 'bloqueada' : crop ? 'encuadrando: arrastra la foto dentro del marco' : 'elegida'}</span></h4>`;
         if (crop) h += rng('z', 'Zoom', el.z || 1, 1, 3, 0.01) + '<div class="lb-btns"><button type="button" class="btn2" data-lb="crop-c">Centrar</button><button type="button" class="btn" data-lb="crop">Listo</button></div>';
         else h += `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${!el.src || el.lock ? ' disabled' : ''} title="Mover y ampliar la foto dentro de su marco (o doble clic)">Encuadrar</button><button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`
-          + `<button type="button" class="btn2${el.fit != null ? ' on' : ''}" data-lb="encajar"${!el.src || el.lock ? ' disabled' : ''} title="La foto entera, centrada, con el fondo alrededor">Encajar</button><button type="button" class="btn2" data-lb="llenar"${el.lock ? ' disabled' : ''} title="La foto ocupa toda la diapositiva">Llenar</button></div>`
+          + `<button type="button" class="btn2${el.fit != null ? ' on' : ''}" data-lb="encajar"${!el.src || el.lock ? ' disabled' : ''} title="La foto entera, centrada, con el fondo alrededor">Encajar</button><button type="button" class="btn2" data-lb="llenar"${el.lock ? ' disabled' : ''} title="${el.pan ? `La foto ocupa las ${el.pan.n} diapositivas` : 'La foto ocupa toda la diapositiva'}">Llenar</button></div>`
           + (el.fit != null ? rng('fit', 'Margen', el.fit, 0, 0.2, 0.005) : '');
-        h += '</div>' + transformarHTML([el]);
-        h += `<div class="lb-sec"><h4>Marco</h4>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`;
-        h += `<div class="lb-sec"><h4>Estilo</h4>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
+        h += '</div>' + cruzarHTML(el) + transformarHTML([el]);
+        h += plegable('estilo', 'Marco y estilo', 'borde, esquinas, sombra', `<div class="lb-sub"><h5>Marco</h5>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`
+          + `<div class="lb-sub"><h5>Estilo</h5>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`);
         h += girarHTML(el, true);
       } else if (el.t === 'texto') {
         const css = !(el.font && el.font.file);
@@ -1079,7 +1211,7 @@
           + (el.forma === 'rect' ? rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01) : '') + `${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
         h += girarHTML(el, false);
       }
-      h += medidasHTML(el) + organizarHTML(el, c) + capasHTML(c);
+      h += medidasHTML(el) + capasHTML(c);
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
@@ -1101,6 +1233,37 @@
     }
     p.innerHTML = h; p.scrollTop = top;
     p.querySelectorAll('canvas[data-lb="tpl"]').forEach(cv => { const t = E.plant.find(q => q.id === cv.dataset.id); if (t) dibujarPlantilla(cv, t); });
+    const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing (the rest: «?»)
+    pista.hidden = !enc; pista.textContent = enc ? 'Encuadrando: arrastra la foto dentro del marco · rueda o «Zoom» para acercar · Esc o «Listo» para terminar' : '';
+    barra();
+  }
+  // ---------- the bar over the selection: Duplicar · Bloquear · Delante / detrás · Borrar ----------
+  function barra() {
+    const fl = E && E.el && E.el.querySelector('.lb-fl'); if (!fl) return;
+    const ss = E.sl.length && !E.crop && !E.pick ? selEls() : [];
+    if (!ss.length) { fl.hidden = true; fl.innerHTML = ''; E.flm = false; return; }
+    const c = compAt(E.i), n = c.els.length, idx = ss.map(e => c.els.indexOf(e)), el = selEl();
+    const lock = ss.every(e => e.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
+    const it = (v, l, t, off) => `<button type="button" role="menuitem" data-lb="${v}" title="${t}"${off ? ' disabled' : ''}>${l}</button>`;
+    fl.innerHTML = '<button type="button" data-lb="dup" title="Duplicar (⌘D)">Duplicar</button>'
+      + `<button type="button" data-lb="lock" aria-pressed="${lock}">${lock ? 'Desbloquear' : 'Bloquear'}</button>`
+      + `<button type="button" data-lb="flm" aria-haspopup="menu" aria-expanded="${E.flm}"${arriba && abajo ? ' disabled' : ''}>Delante / detrás</button>`
+      + (!multi() && el && el.g ? '<button type="button" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '')
+      + `<button type="button" class="del" data-lb="del" title="Borrar (⌫)"${lock ? ' disabled' : ''}>Borrar</button>`
+      + `<span class="lb-flm" role="menu"${E.flm ? '' : ' hidden'}>${it('front', 'Al frente', '⇧⌘]', arriba)}${it('fwd', 'Adelante', '⌘]', arriba)}${it('bwd', 'Atrás', '⌘[', abajo)}${it('back', 'Al fondo', '⇧⌘[', abajo)}</span>`;
+    fl.hidden = false; posBarra();
+  }
+  function posBarra() {            // over the selection and its rotation handle; else under it; else inside, at its top
+    const fl = E.el.querySelector('.lb-fl'); if (!fl || fl.hidden) return;
+    const ss = selEls(); if (!ss.length) return;
+    fl.style.visibility = E.drag && E.drag.step ? 'hidden' : '';
+    const { W, H } = E.sz, b = union(ss, W, H), k = E.k, cw = W * k, ch = H * k, bw = fl.offsetWidth, bh = fl.offsetHeight, m = 8;
+    const rot = ss.length === 1 && !ss[0].lock ? ROT_D + 8 : 0;
+    let y = b.t * k - rot - m - bh;
+    if (y < m) y = b.b * k + m;
+    if (y + bh > ch - m) y = clamp(b.t * k, 0, ch) + m;
+    y = clamp(y, m, Math.max(m, ch - bh - m));
+    fl.style.left = Math.round(clamp((b.l + b.r) / 2 * k - bw / 2, m, Math.max(m, cw - bw - m))) + 'px'; fl.style.top = Math.round(y) + 'px';
   }
   function dibujarPlantilla(cv, t) {
     const { W, H } = sizeAt(E.i), w = 150, h = Math.round(w * H / W); cv.width = w; cv.height = h;
@@ -1126,7 +1289,7 @@
   }
   function arrastrar(e) {          // pointerdown on a slide of the strip or of «Ver todas»: a click chooses it, a drag moves it
     const it = e.button === 0 && E && !E.busy && e.target.closest && e.target.closest('.lb-it, .lb-allit');
-    if (!it || e.target.closest('.lb-mv')) return;
+    if (!it || e.target.closest('.lb-mv, .lb-ord')) return;
     const i = +it.dataset.i, grid = it.classList.contains('lb-allit'), box = it.parentElement, sc = grid ? E.allEl : box, x0 = e.clientX, y0 = e.clientY;
     const items = () => [...box.querySelectorAll(grid ? '.lb-allit' : '.lb-it')];
     let on = false, to = null;
@@ -1157,12 +1320,12 @@
     window.addEventListener('pointermove', mv, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', cancel, true);
   }
 
-  // ---------- «Preview»: the post as the vista cliente will show it once uploaded (the slides as they are here) ----------
+  // ---------- «Vista previa»: the post as the vista cliente will show it once uploaded (the slides as they are here) ----------
   function preview(on) {
     if (!on) { if (E.pv) { E.pv.remove(); E.pv = null; } E.el.focus({ preventScroll: true }); return; }
     if (!E.sl.length) { I().toast('No hay diapositivas que ver.'); return; }
-    if (!I().igPieces) { I().toast('Actualiza la mesa (3.26 o posterior) para ver el Preview.'); return; }
-    if (!E.pv) { E.pv = document.createElement('div'); E.pv.className = 'lb-pv'; E.pv.setAttribute('role', 'dialog'); E.pv.setAttribute('aria-label', 'Preview'); E.el.append(E.pv); }
+    if (!I().igPieces) { I().toast('Actualiza la mesa (3.26 o posterior) para ver la vista previa.'); return; }
+    if (!E.pv) { E.pv = document.createElement('div'); E.pv.className = 'lb-pv'; E.pv.setAttribute('role', 'dialog'); E.pv.setAttribute('aria-label', 'Vista previa'); E.el.append(E.pv); }
     E.pvI = E.i; pintarPv();
   }
   async function pintarPv() {
@@ -1171,7 +1334,7 @@
     const P = await I().igPieces(s, W / H); if (E !== owner || !E.pv) return;
     const nav = n > 1 ? `<button type="button" class="nav prev" data-lb="pv-nav" data-d="-1" aria-label="Anterior"${i === 0 ? ' hidden' : ''}>${P.CHEV.l}</button><button type="button" class="nav next" data-lb="pv-nav" data-d="1" aria-label="Siguiente"${i === n - 1 ? ' hidden' : ''}>${P.CHEV.r}</button><div class="dots">${E.sl.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>` : '';
     const cap = P.cap ? `<div class="igcap">${P.av}<div class="igct"><b>${P.handle}</b> ${P.cap}</div></div>` : '';
-    E.pv.innerHTML = `<div class="igwrap"><div class="igtop"><span class="lb-pvt">Preview · así se verá en Instagram${P.cap ? '' : ' · sin caption elegido todavía'}</span><button type="button" class="igx" data-lb="preview" aria-label="Cerrar el preview">×</button></div>`
+    E.pv.innerHTML = `<div class="igwrap"><div class="igtop"><span class="lb-pvt">Vista previa · así se verá en Instagram${P.cap ? '' : ' · sin caption elegido todavía'}</span><button type="button" class="igx" data-lb="preview" aria-label="Cerrar la vista previa">×</button></div>`
       + `<div class="igcard${P.cap ? ' hascap' : ''}"><div class="igmedia" style="width:${P.tam.w}px;height:${P.tam.h}px"><canvas class="lb-pvc"></canvas>${nav}</div>`
       + `<div class="igside"><header class="ighead">${P.av}<b>${P.handle}</b><span class="igmore" aria-hidden="true">${P.IGI.more}</span></header><div class="igbody">${cap}</div>`
       + `<div class="igacts" aria-hidden="true">${P.IGI.heart}${P.IGI.comment}${P.IGI.repost}${P.IGI.share}<span class="igsave">${P.IGI.save}</span></div>`
@@ -1218,7 +1381,7 @@
       const c = ensure(), g = {}, ids = [];
       const dup = clip().every(e => c.els.some(o => Math.abs(o.x - e.x) < 1e-3 && Math.abs(o.y - e.y) < 1e-3 && Math.abs(o.w - e.w) < 1e-3));
       for (const e0 of clip()) {
-        const e = clone(e0); e.id = uid(); e.lock = false; if (e.g) e.g = g[e.g] || (g[e.g] = uid());
+        const e = clone(e0); e.id = uid(); e.lock = false; delete e.pan; if (e.g) e.g = g[e.g] || (g[e.g] = uid());
         if (e.src && !M.files[e.src]) e.src = null;
         if (dup) { e.x = r4(e.x + 0.03); e.y = r4(e.y + 0.03); }
         c.els.push(e); ids.push(e.id);
@@ -1259,8 +1422,13 @@
       case 'zin': zoom(E.zoom * 1.25); return;
       case 'zout': zoom(E.zoom / 1.25); return;
       case 'zfit': zoom(1); return;
-      case 'iman': E.iman = !E.iman; head(); return;
-      case 'todas': verTodas(E.allEl.hidden); return;
+      case 'mas': menu(!E.menuOn); return;
+      case 'atajos': atajos(E.el.querySelector('.lb-atajos').hidden); return;
+      case 'iman': E.iman = !E.iman; menu(false); head(); return;
+      case 'todas': menu(false); verTodas(E.allEl.hidden); return;
+      case 'seguidas': lsPoner(LS_SEG, b.dataset.v === '1' ? '1' : '0'); verTodas(true); return;
+      case 'flm': E.flm = !E.flm; barra(); return;
+      case 'cruzar': cruzar(+b.dataset.v); return;
       case 'preview': preview(!E.pv); return;
       case 'pv-nav': { const j = E.pvI + +b.dataset.d; if (j >= 0 && j < E.sl.length) { E.pvI = j; pintarPv(); } return; }
       case 't-ori': E.tOri = b.dataset.v; panel(); return;
@@ -1281,7 +1449,7 @@
         return;
       }
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
-      case 'bandeja': E.trOpen = !E.trOpen; bandeja(); return;
+      case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
       case 'tr-add': ponerFotos([b.dataset.f], null, null); return;
       case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#262626')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
@@ -1327,10 +1495,10 @@
       case 'al': if (b.dataset.v && !multi()) return; alinear(b.dataset.v); return;
       case 'al1': alinear(b.dataset.v); return;
       case 'may': onEl(el => { if (el.t === 'texto') el.may = !el.may; }); return;
-      case 'front': case 'fwd': case 'bwd': case 'back': orden(a); return;
+      case 'front': case 'fwd': case 'bwd': case 'back': E.flm = false; orden(a); return;
       case 'dup': {
         const ids = selIds(); if (!ids.length) return;
-        mut(null, () => { const c = ensure(), g = {}, nw = []; for (const el of c.els.filter(q => ids.includes(q.id))) { const e = clone(el); e.id = uid(); e.lock = false; if (e.g) e.g = g[e.g] || (g[e.g] = uid()); e.x = r4(e.x + 0.03); e.y = r4(e.y + 0.03); delete e.fit; nw.push(e); } c.els.push(...nw); E.sel = nw[0].id; E.mas = nw.slice(1).map(e => e.id); });
+        mut(null, () => { const c = ensure(), g = {}, nw = []; for (const el of c.els.filter(q => ids.includes(q.id))) { const e = clone(el); e.id = uid(); e.lock = false; if (e.g) e.g = g[e.g] || (g[e.g] = uid()); e.x = r4(e.x + 0.03); e.y = r4(e.y + 0.03); delete e.fit; delete e.pan; nw.push(e); } c.els.push(...nw); E.sel = nw[0].id; E.mas = nw.slice(1).map(e => e.id); });
         return;
       }
       case 'copy': copiar(); return;
@@ -1339,7 +1507,11 @@
       case 'del': {
         const ss = selEls(); if (!ss.length) return;
         if (ss.every(e => e.lock)) { I().toast(ss.length > 1 ? 'Están bloqueados: desbloquéalos para borrarlos.' : 'Está bloqueado: desbloquéalo para borrarlo.'); return; }
-        mut(null, () => { const c = ensure(), ids = ss.filter(e => !e.lock).map(e => e.id); c.els = c.els.filter(e => !ids.includes(e.id)); soltar(); E.crop = null; });
+        mut(null, () => {
+          const c = ensure(), ids = ss.filter(e => !e.lock).map(e => e.id), pans = ss.filter(e => !e.lock && e.pan).map(e => e.pan.id);
+          c.els = c.els.filter(e => !ids.includes(e.id)); soltar(); E.crop = null;
+          if (pans.length) E.sl.forEach((x, j) => { if (j !== E.i && x.comp) x.comp.els = x.comp.els.filter(e => !(e.pan && pans.includes(e.pan.id))); });   // a crossing photo goes from all its slides
+        });
         return;
       }
       case 'group': { const ids = selIds(); if (ids.length < 2) return; const g = uid(); onEl(el => { el.g = g; }); return; }
@@ -1348,6 +1520,16 @@
       case 'cap-ver': case 'cap-lock': { const id = b.dataset.id; mut(null, () => { const e = ensure().els.find(q => q.id === id); if (!e) return; if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
       case 'cap-up': case 'cap-dn': { const id = b.dataset.id; mut(null, () => { const c = ensure(), k = c.els.findIndex(q => q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= c.els.length) return; [c.els[k], c.els[j]] = [c.els[j], c.els[k]]; }); return; }
     }
+  }
+  function menu(on) { E.menuOn = on; E.el.querySelector('.lb-menu').hidden = !on; E.el.querySelector('[data-lb="mas"]').setAttribute('aria-expanded', String(on)); }
+  function atajos(on) { E.el.querySelector('.lb-atajos').hidden = !on; E.el.querySelector('[data-lb="atajos"]').setAttribute('aria-expanded', String(on)); }
+  function cerrarMenus(t) {        // the «⋯» menu, the shortcuts and the bar's «Delante / detrás» close with Esc or a click elsewhere
+    const fuera = q => !(t && t.closest && t.closest(q));
+    let n = false;
+    if (E.menuOn && fuera('.lb-mas')) { menu(false); n = true; }
+    if (!E.el.querySelector('.lb-atajos').hidden && fuera('.lb-atajos, [data-lb="atajos"]')) { atajos(false); n = true; }
+    if (E.flm && fuera('.lb-fl')) { E.flm = false; barra(); n = true; }
+    return n;
   }
   function panelSw(act, v) {      // a colour picked with the native picker: the swatch ring follows without rebuilding the panel
     E.el.querySelectorAll(`.lb-panel .lb-sw[data-lb="${act}"]`).forEach(s => s.classList.toggle('on', s.dataset.c === String(v).toLowerCase()));
@@ -1396,7 +1578,7 @@
   }
   function guardarPlantillaYa(nombre, n) {
     if (!E || !E.sl.length) return;
-    const c = compAt(E.i), comp = clone(c); comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; });
+    const c = compAt(E.i), comp = clone(c); comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
     const t = { id: 't' + Date.now().toString(36), nombre: String(nombre || '').trim().slice(0, 40) || `Plantilla ${n}`, comp, at: new Date().toISOString() };
     guardarCliente(l => ({ ...l, plantillas: [...(l.plantillas || []), t].slice(-24) })).then(ok => ok && I().toast(`Plantilla «${t.nombre}» guardada para este cliente.`));
   }
@@ -1420,7 +1602,9 @@
 
   function wire(el) {
     el.addEventListener('click', e => {
+      if (!E) return;                // the click that closed the editor («Salir sin aplicar») still bubbles here
       if (E.noClick) { E.noClick = false; return; }
+      cerrarMenus(e.target);
       if (E.pv && e.target === E.pv) { preview(false); return; }   // a click outside the post closes the preview
       const b = e.target.closest('[data-lb]'); if (!b || !el.contains(b) || E.busy) return;
       if ((b.tagName === 'INPUT' && b.type !== 'button') || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
@@ -1431,6 +1615,7 @@
     });
     el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); });
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
+    el.querySelector('.lb-panel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.pl; if (!k) return; if (e.target.open) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(',')); }, true);
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
     el.addEventListener('dragover', e => { if (!hayArchivos(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; resaltar(e); });   // not the mesa's: a photo dropped here is for this editor
     el.addEventListener('dragleave', e => { if (!e.relatedTarget || !el.contains(e.relatedTarget)) resaltar(null); });
@@ -1459,6 +1644,7 @@
     const mod = (e.metaKey || e.ctrlKey) && !e.altKey, k = String(e.key).toLowerCase();
     if (e.key === 'Escape') {
       e.preventDefault();
+      if (cerrarMenus(null)) return;
       if (typing && t.blur) { t.blur(); E.el.focus({ preventScroll: true }); return; }
       if (E.pick) { E.pick = null; panel(); } else if (E.crop) { E.crop = null; panel(); pedir(); } else if (!E.allEl.hidden) verTodas(false); else if (E.sel) { soltar(); panel(); pedir(); } else pedirCerrar();
       return;
@@ -1486,6 +1672,21 @@
   }
 
   // ---------- the tray in a drawer under the slide, and photos dropped from the computer ----------
+  // «?»: the shortcuts, once a line under the slide
+  const ATAJOS = '<h4>Atajos de teclado</h4><dl>' + [
+    ['Clic', 'elegir · con ⇧, varios'],
+    ['Arrastrar', 'mover · esquinas: tamaño · lados: recortar (o el ancho de un texto) · círculo: girar'],
+    ['Doble clic', 'encuadrar la foto o escribir el texto'],
+    ['Flechas', 'mover poco a poco (con ⇧, más) · ⌥ + flechas: mover la diapositiva'],
+    ['⌘C · ⌘V', 'copiar y pegar, también en otra diapositiva o publicación'],
+    ['⌘D · ⌫', 'duplicar · borrar'],
+    ['⌘G', 'agrupar (⇧⌘G: desagrupar) · ⌘A: elegir todo'],
+    ['⌘] · ⌘[', 'adelante · atrás (con ⇧: al frente · al fondo)'],
+    ['⌘Z', 'deshacer (⇧⌘Z: rehacer)'],
+    ['⌘+ · ⌘−', 'acercar · alejar (también pellizcando o con ⌘ + rueda) · ⌘0: entera'],
+    ['⌘ al arrastrar', 'sin imán · ⇧ al girar: de 15° en 15°'],
+    ['Esc', 'soltar la selección o terminar de encuadrar'],
+  ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl><p>Suelta fotos del ordenador en la diapositiva o en la bandeja.</p>';
   const FLECHA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const hayArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
   const trayFotos = () => E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f));
@@ -1493,6 +1694,7 @@
   function bandeja() {               // drawn again only when it shows something else
     if (!E || !E.el) return;
     const box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(), uso = enUso();
+    b.querySelector('.lb-trn').textContent = fs.length ? `Bandeja · ${fs.length}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${fs.length === 1 ? '1 foto' : `${fs.length} fotos`}, para ponerlas en la diapositiva`;
     const key = E.trOpen ? fs.map(f => f + (uso.has(f) ? '+' : '') + (M.files[f].thumbUrl || '')).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;

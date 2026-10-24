@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.25
+// Mesa de trabajo — Uribe Visuals · v3.26
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -17,10 +17,13 @@
 // uploaded ones shown as in Instagram in the vista cliente; API loadCaptions / captions / markCaptionsUploaded; export v2.
 // v3.23: «Editado» / «Volver al original» on an edited caption; the post view's header follows the contexto as it is typed;
 // a collab's captions are merged (never replaced) when its boards sync; vista cliente: the caption whole at the top.
+// v3.26: a Foto is a carousel with its own label (one photo or several pages, all published; no more candidates); the type
+// of a post changes in the post view (pending for Notion, with its «Reel» name); a second click unchooses a caption; the
+// post view's photos are dragged into order; bridge for the editor's «Preview» (libre 1.3).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.25';
+  M.version = '3.26';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -135,8 +138,9 @@
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
-  const isCarousel = t => t === 'Carrusel';
-  const isMulti = t => isCarousel(t) || t === 'Foto';                 // Foto: candidates (only the cover is published)
+  const isCarousel = t => t === 'Carrusel' || t === 'Foto';         // a Foto works as a carousel (3.26): one photo or several pages, all published
+  const isMulti = isCarousel;
+  const edLabel = s => s.type === 'Foto' ? 'Editar foto' : 'Editar diapositivas';   // the free editor's button: the label follows the post's
   const publishList = s => isCarousel(s.type) ? s.photos : s.photos.slice(0, 1);
   const noteOf = s => String(s.note || '').trim();                   // «Contexto»: goes to Notion for the caption
   const memoOf = s => String(s.memo || '').trim();                   // «Nota»: only for Kevin, never uploaded
@@ -243,6 +247,7 @@
   const sameDate = (a, b) => a === b || (!!a && !!b && dOnly(a) === dOnly(b) && (dOnly(a) ? localDay(a) === localDay(b) : ts(a) === ts(b) && !!ts(a)));
   const dateChg = s => !sameDate(s.date, s.notionDate);
   const nameChg = s => s.notionName != null && s.name !== s.notionName;
+  const typeChg = s => s.notionType != null && s.type !== s.notionType;   // the type was changed here (3.26): pending for Notion
   const ord = iso => dOnly(iso) ? ts(madridISO(localDay(iso), '00:00')) : ts(iso);
   const initials = name => String(name || '?').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
@@ -384,7 +389,15 @@
       const k = K[s.id];
       out[s.id] = k.c ? `${k.p}${cap(MONTHS[+g.slice(5, 7) - 1])}${k.sep}${i + 1}` : `${k.p}${g.split('#')[1]}.${i + 1}`;
     });
+    S.slots.forEach(s => { if (typeChg(s)) out[s.id] = reelName(out[s.id], isReel(s.type)); });
     return out;
+  }
+  // a type changed here: «X Reel 2.3» ↔ «X 2.3» (the Notion rule «CLIENTE [Reel] Semana.Nº»; a collab keeps its name)
+  function reelName(nm, reel) {
+    const m = String(nm).match(RX_N); if (!m || /^collab\b/i.test(nm)) return nm;
+    const has = /(^|\s)reel\s*$/i.test(m[1]); if (reel === has) return nm;
+    const p = reel ? (m[1].trim() ? m[1].replace(/\s*$/, ' ') : '') + 'Reel ' : m[1].replace(/\s*reel\s*$/i, ' ').replace(/^\s+$/, '');
+    return `${p}${m[2]}.${m[3]}`;
   }
   function renumber() { const nm = computeNames(); S.slots.forEach(s => { s.name = nm[s.id]; if (s.hold && !nameChg(s)) delete s.hold; }); }
   // a pending rename that no pending date explains any more (its cause is already in Notion) must not get lost
@@ -460,7 +473,7 @@
   // publication, so its photos (with their crops), contexto (note), nota (memo), format, upload record, date, name and captions are shared. Each slot
   // keeps a revision (s.at, ms): a save writes the changed ones through to every other board that has them, and
   // opening a board takes the newest copy of each of its slots.
-  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'design', 'libre', 'caption'];
+  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'type', 'notionType', 'design', 'libre', 'caption'];
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
@@ -664,7 +677,6 @@
     if (targetSlotId && got.length) {
       const s = slot(targetSlotId);
       if (s && isCarousel(s.type)) got.forEach(id => place(targetSlotId, id, true));
-      else if (s && s.type === 'Foto') got.forEach(id => place(targetSlotId, id, true));
       else if (s) place(targetSlotId, got[0], true);
     }
     changed();
@@ -682,8 +694,7 @@
     const other = S.slots.find(x => x !== s && x.photos.includes(fileId));
     if (other) other.photos = other.photos.filter(x => x !== fileId);
     takeFromTray(fileId);
-    if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }
-    else if (s.type === 'Foto') { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // added after the others: the first stays the cover
+    if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // one more page, after the others
     else if (designed(s)) { const old = setCoverPhoto(s, fileId); centerCrop(fileId, null); if (old && old !== fileId && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old); rerender(s); }   // the texts stay
     else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId && !dOut(s).includes(x))); s.photos = [fileId]; }
     if (!silent) changed();
@@ -713,15 +724,13 @@
     const comp = [[A, fa], [B, fb]].find(([x, f]) => portadaCompartida(x, f));
     if (comp) { toast(`La portada de ${comp[0].name} también se usa en otra diapositiva: cámbiala con «Cambiar portada» o en «Diseñar».`, { ms: 7000 }); return; }
     if ((!fb && designed(A)) || (!fa && designed(B))) { toast('Una publicación diseñada no se queda sin portada: para cambiársela, arrastra otra foto sobre su casilla o usa «Cambiar portada».', { ms: 6000 }); return; }
-    const ka = postFmt(A), kb = postFmt(B);
     setCoverPhoto(A, fb); setCoverPhoto(B, fa);
-    if (fb) centerCrop(fb, ka); if (fa) centerCrop(fa, kb);
+    if (fb) centerCrop(fb, null); if (fa) centerCrop(fa, null);
     changed(); rerender(A); rerender(B);
   }
   // ---------- a post's cover (B1): the photo its grid cell shows ----------
   const designed = s => !!(s && s.design && (isCarousel(s.type) || isReel(s.type)));
   const coverOf = s => designed(s) && M.diseno && M.diseno._portada ? M.diseno._portada(s) : (s.photos[0] || null);
-  const postFmt = s => s.type === 'Foto' && s.photos.length ? baseCrop(s.photos[0], S).fmt : null;   // a Foto's format is its cover's
   function centerCrop(fid, fmt) { if (M.files[fid]) S.crops[fid] = { fmt: fmt || baseCrop(fid, S).fmt, cx: 0.5, cy: 0.5, z: 1 }; }
   // the cover becomes fid (null: the post loses it); returns the photo it had — the caller decides where that one goes
   function setCoverPhoto(s, fid) {
@@ -765,11 +774,10 @@
   // to the tray unless something else uses it; the texts stay
   function changeCover(slotId, fid) {
     const s = S && S.slots.find(x => x.id === slotId); if (!s || !M.files[fid] || sinPortada(s)) return;
-    const k = postFmt(s);
     const other = S.slots.find(x => x !== s && x.photos.includes(fid)); if (other) other.photos = other.photos.filter(x => x !== fid);
     takeFromTray(fid); if (sel === fid) sel = null;
     const old = setCoverPhoto(s, fid);
-    centerCrop(fid, k);
+    centerCrop(fid, null);
     if (old && old !== fid && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old);
     changed(); rerender(s);
   }
@@ -889,6 +897,12 @@
     c.pick = k;
     save(); renderFeed(); renderBar(); capSync(slotId);
   }
+  // a click on the option already chosen unchooses it (back to «por elegir»; an uploaded one stays in Notion as it is)
+  function unsetCapPick(slotId, k) {
+    const s = S && S.slots.find(x => x.id === slotId), c = capOf(s); if (!c || c.pick == null || c.pick !== k) return;
+    c.pick = null;
+    save(); renderFeed(); renderBar(); capSync(slotId);
+  }
   // the open post view of a publication of this month (not a dialog, not a September post): photos dropped on it are added to it
   function postDrop(e) {
     const d = root && root.querySelector('.detail'); if (!d || d.hidden || d.dataset.dlg || d.dataset.prev || !d.dataset.slot) return null;
@@ -927,7 +941,7 @@
     if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
     ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
     if (designed(s) && isCarousel(s.type)) {   // a designed carousel: the cover slide's photo (texts stay), never a new slide
-      const k = postFmt(s), old = setCoverPhoto(s, ids[0]); centerCrop(ids[0], k);
+      const old = setCoverPhoto(s, ids[0]); centerCrop(ids[0], null);
       if (old && old !== ids[0] && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old);
       ids.slice(1).forEach(id => { if (!s.photos.includes(id)) s.photos.push(id); });
       changed(); rerender(s); return;
@@ -949,6 +963,11 @@
     if (!s || j < 0 || j >= s.photos.length) return;
     [s.photos[k], s.photos[j]] = [s.photos[j], s.photos[k]];
     changed();
+  }
+  function movePhoto(slotId, k, j) {         // a photo dragged in the post view's strip: from place k to place j
+    const s = slot(slotId); if (!s || k === j || !(k >= 0 && j >= 0 && k < s.photos.length && j < s.photos.length)) return;
+    const [f] = s.photos.splice(k, 1); s.photos.splice(j, 0, f);
+    changed(); openDetail(slotId, j);
   }
   // Removing from the tray is undoable for a few seconds; only then is the photo deleted (if no board uses it).
   function removeFile(fileId) {
@@ -986,7 +1005,7 @@
   let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
   function editState(B) {
     return {
-      slots: B.slots.map(s => { const o = { id: s.id, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); return o; }),
+      slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); return o; }),
       tray: B.tray.slice(),
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null }))
@@ -1051,7 +1070,7 @@
     const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
     S.slots.forEach(s => {
       const o = by[s.id]; if (!o) return;
-      s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date;
+      s.photos = o.photos.filter(has); s.note = o.note; s.date = o.date; if (o.type) s.type = o.type;
       if (o.memo) s.memo = o.memo; else delete s.memo;
       if (o.fmt) s.fmt = o.fmt; else delete s.fmt;
       if (o.design) s.design = JSON.parse(JSON.stringify(o.design)); else delete s.design;
@@ -1377,6 +1396,7 @@
 #mesa .phead p[hidden]{display:none}
 #mesa .pwhen{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}#mesa .pwhen .wd{min-width:2.2em}
 #mesa .pwhen input{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 6px;min-height:30px}
+#mesa .tysel{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 4px;min-height:30px;cursor:pointer}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
 #mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
@@ -1433,7 +1453,8 @@
 #mesa .strip{width:100%;display:flex;gap:6px;overflow-x:auto;padding:2px}
 #mesa .strip .th{position:relative;flex:0 0 58px;height:58px;border:0;padding:0;border-radius:6px;overflow:hidden;background:#efefef;outline:2px solid transparent;outline-offset:-2px}
 #mesa .strip .th.on{outline-color:var(--acc)}
-#mesa .strip .th img{width:100%;height:100%;object-fit:cover;display:block}
+#mesa .strip .th.drg{opacity:.4}#mesa .strip .th.dl::after,#mesa .strip .th.dr::after{content:'';position:absolute;top:0;bottom:0;width:3px;background:var(--acc)}#mesa .strip .th.dl::after{left:0}#mesa .strip .th.dr::after{right:0}
+#mesa .strip .th img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 #mesa .strip .th span{position:absolute;left:0;right:0;bottom:0;font-size:9px;color:#fff;background:rgba(0,0,0,.55);text-align:center;line-height:14px}
 #mesa .pacts{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #mesa .pacts button{border:1px solid var(--line);background:var(--panel);border-radius:6px;font-size:12px;padding:6px 10px;min-height:32px}
@@ -1649,9 +1670,9 @@
     const m = memoOf(s); return m ? `<span class="pit" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (doble clic para editarla; arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : '';
   };
   const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
-  const DNM = '<i class="dchg nm" title="Se renombra al subir"></i>';
+  const DNM = '<i class="dchg nm" title="Cambia en Notion al subir (nombre o tipo)"></i>';
   function cellHTML(s, pill) {
-    const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) ? DNM : '') + esc(fmtDate(s.date));
+    const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) || typeChg(s) ? DNM : '') + esc(fmtDate(s.date));
     const icon = isReel(s.type) ? ICON.reel : isCarousel(s.type) ? ICON.carousel : '', pin = isPinned(s);
     if (!s.photos.length) {
       return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${ICON.pin}</span>` : ''}${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
@@ -1659,7 +1680,7 @@
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
-    const cnt = isCarousel(s.type) ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : (s.type === 'Foto' && n > 1) ? `<span class="cnt tr" title="${n} opciones">${n}<span class="cw"> opciones</span><span class="cs"> op.</span></span>` : '';
+    const cnt = isCarousel(s.type) && (n > 1 || s.type === 'Carrusel') ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : '';
     return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${ICON.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
   function pastHTML(p, i, N) {
@@ -1731,8 +1752,7 @@
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
-    const opts = S.slots.filter(s => s.type === 'Foto').reduce((n, s) => n + Math.max(0, s.photos.length - 1), 0);
-    tray.querySelector('.tcount').textContent = (S.tray.length ? `${S.tray.length} sin usar` : 'vacía') + (opts ? ` · ${opts} como ${opts === 1 ? 'opción' : 'opciones'}` : '');
+    tray.querySelector('.tcount').textContent = S.tray.length ? `${S.tray.length} sin usar` : 'vacía';
     tray.classList.toggle('isempty', !S.tray.length);
     tray.querySelector('.tgrid').innerHTML = S.tray.map(id => {
       const f = M.files[id]; if (!f) return '';
@@ -1773,16 +1793,15 @@
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       const dfmt = car && s.design ? s.design.fmt : null;   // a designed carousel: the design's format
       const segD = dfmt ? `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${dfmt === k ? 'on' : ''}" aria-pressed="${dfmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>` : '';
-      const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : dfmt ? `<span class="muted">Carrusel</span>${segD}` : car ? `<span class="muted">Carrusel</span>${seg}` : seg;
+      const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : dfmt ? `<span class="muted">${esc(s.type)}</span>${segD}` : car ? `<span class="muted">${esc(s.type)}</span>${seg}` : seg;
       const dsrc = live && M.diseno && M.diseno._srcVista ? M.diseno._srcVista(s, idx) : null, zv = (dsrc ? baseCrop(dsrc, S) : c).z || 1;
       const lo = fd && !s.design && isLib(fid);   // an image drawn by the free editor: its format is changed here (drawn again there)
-      const tools = lo ? `${fmtCtl}<span class="muted">Editada: se sube tal cual · cámbiala en «${car ? 'Editar diapositivas' : 'Editar foto'}»</span>`
+      const tools = lo ? `${fmtCtl}<span class="muted">Editada: se sube tal cual · cámbiala en «${edLabel(s)}»</span>`
         : fd && !live ? `<span class="muted">${designed(s) ? 'Diseño con cambios sin aplicar: reencuádralo en «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
         : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
-        + (foto && idx > 0 ? `<button data-act="cover" data-slot="${esc(id)}" data-k="${idx}">Hacer portada</button>` : '')
         + (car && n > 1 && !(fd && s.design) ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
         + (fd && s.design && (car || reel) ? (car ? '<span class="muted">Las demás diapositivas se cambian en «Diseñar»</span>' : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
@@ -1793,16 +1812,16 @@
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
     }
-    const hint = car ? 'Carrusel: se suben todas en este orden, con el formato del carrusel.' : foto ? 'Candidatas: solo se sube la portada.' : '';
+    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato. Arrastra las miniaturas para cambiar el orden.` : '';
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);
     const dzB = (car || reel) && !nl ? `<button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>` : '';   // one or the other: «Diseñar» or the free editor
-    const edB = (car || foto) && !s.design ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${car ? 'Editar diapositivas' : 'Editar foto'}</button>` : '';
-    const lbT = nl ? `<span class="muted">${car ? (nl === 1 ? '1 diapositiva editada · se sube tal cual' : `${nl} diapositivas editadas · se suben tal cual`) : 'Foto editada · se sube tal cual'}</span>` : '';
+    const edB = car && !s.design ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
+    const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
     const dz = dzB || edB ? `<div class="pdz">${dzB}${edB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>· ${esc(s.type || '')}</span>${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
+      <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>·</span>${typeHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
         <div class="pright hascap"><label class="sw pinsw" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}> Fijar en el perfil</label>${dz}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
@@ -1828,7 +1847,7 @@
     const body = !c ? `<p class="capempty">Sin captions todavía. Pídeselos a Claude: «genera los captions de ${esc(cn)}».</p>`
       : c.orig.map((_, k) => {
         const lab = `Caption ${k + 1} · ${c.tones[k] || ''}`, on = c.pick === k, ed = c.text[k] !== c.orig[k];
-        return `<div class="capbox${on ? ' on' : ''}${ed ? ' edited' : ''}" data-k="${k}"><div class="caprow"><label class="caplab"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span></label><span class="ctags"><i class="capedit">Editado</i><em>Elegida</em></span></div>`
+        return `<div class="capbox${on ? ' on' : ''}${ed ? ' edited' : ''}" data-k="${k}"><div class="caprow"><label class="caplab" title="${on ? 'Elegido: otro clic lo desmarca' : 'Elegir este caption'}"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span></label><span class="ctags"><i class="capedit">Editado</i><em>Elegida</em></span></div>`
           + `<textarea class="capt" data-slot="${id}" data-k="${k}" aria-label="${esc(lab)}">${esc(c.text[k])}</textarea>`
           + `<button type="button" class="lnk caprev" data-act="caporig" data-slot="${id}" data-k="${k}" title="Deja este caption tal como lo escribió Claude">Volver al original</button></div>`;
       }).join('');
@@ -1836,7 +1855,7 @@
   }
   function capStateHTML(s) {                 // M4: the state, and whether they are outdated
     const c = capOf(s), st = capState(s), od = capOutdated(s), chg = capStatus(s) === 'chg';
-    const txt = st === 'sin captions' ? 'Sin captions' : st === 'por elegir' ? 'Por elegir' : st === 'subido' ? '✓ Subido a Notion' : `Elegido: Caption ${c.pick + 1}` + (chg ? ' · cambiado después de subirlo' : '');
+    const txt = st === 'sin captions' ? 'Sin captions' : st === 'por elegir' ? (s.caption && s.caption.sent ? 'Por elegir · Notion sigue con el que subiste' : 'Por elegir') : st === 'subido' ? '✓ Subido a Notion' : `Elegido: Caption ${c.pick + 1}` + (chg ? ' · cambiado después de subirlo' : '');
     const why = od.length === 2 ? 'cambiaron la foto y el contexto' : od[0] === 'foto' ? 'cambió la foto' : 'cambió el contexto';
     return `<span class="capst ${st === 'subido' ? 'ok' : st === 'elegido' ? 'on' : ''}${chg && st !== 'por elegir' ? ' chg' : ''}">${esc(txt)}</span>`
       + (od.length ? `<span class="capold" title="No se borran ni se rehacen solos: si quieres otros, pídeselo a Claude">Desactualizados: ${why} después de generarlos</span>` : '');
@@ -1849,6 +1868,7 @@
     if (c) d.querySelectorAll('.capbox').forEach(b => {
       const k = +b.dataset.k, on = k === c.pick, r = b.querySelector('.cappick'), t = b.querySelector('textarea.capt');
       b.classList.toggle('on', on); if (r && r.checked !== on) r.checked = on;
+      const l = b.querySelector('.caplab'); if (l) l.title = on ? 'Elegido: otro clic lo desmarca' : 'Elegir este caption';
       if (t && t !== document.activeElement && t.value !== c.text[k]) { t.value = c.text[k]; fitPit(t); }   // a revert, never the field being typed in
       b.classList.toggle('edited', c.text[k] !== c.orig[k]);
     });
@@ -1864,10 +1884,35 @@
       + (dOnly(s.date) ? '' : `<input type="time" class="tmin" ${at} value="${esc(localTime(s.date))}" aria-label="Hora (Madrid)" title="Hora de Madrid">`) + '</span>';
   }
   function pnotHTML(s) {
-    const dc = dateChg(s), nc = nameChg(s);
-    if (!dc && !nc) return '<p class="pnot" hidden></p>';
-    const txt = dc ? 'En Notion: ' + (nc ? s.notionName + ' · ' : '') + fmtDate(s.notionDate) : 'Se renombra al subir · en Notion: ' + s.notionName;
-    return `<p class="pnot"><span title="${esc(txt)}"><i class="dchg${dc ? '' : ' nm'}"></i>${esc(txt)}</span>${dc ? `<button class="lnk" data-act="datereset" data-slot="${esc(s.id)}">Volver a la fecha de Notion</button>` : ''}</p>`;
+    const dc = dateChg(s), nc = nameChg(s), tc = typeChg(s);
+    if (!dc && !nc && !tc) return '<p class="pnot" hidden></p>';
+    const txt = dc || tc ? 'En Notion: ' + [tc ? s.notionType : '', nc ? s.notionName : '', dc ? fmtDate(s.notionDate) : ''].filter(Boolean).join(' · ') : 'Se renombra al subir · en Notion: ' + s.notionName;
+    return `<p class="pnot"><span title="${esc(txt)}"><i class="dchg${dc ? '' : ' nm'}"></i>${esc(txt)}</span>${dc ? `<button class="lnk" data-act="datereset" data-slot="${esc(s.id)}">Volver a la fecha de Notion</button>` : ''}${tc ? `<button class="lnk" data-act="typereset" data-slot="${esc(s.id)}">Volver a ${esc(s.notionType)}</button>` : ''}</p>`;
+  }
+  // the post's type (3.26): Foto, Carrusel or its kind of reel (a collab's: Collab Reel); the change waits for «sube»
+  function typeOpts(s) {
+    const nt = s.notionType ?? s.type, reel = isReel(s.type) ? s.type : isReel(nt) ? nt : /^collab\b/i.test(String(s.notionName ?? s.name)) ? 'Collab Reel' : 'Reel';
+    const o = ['Foto', 'Carrusel', reel]; if (s.type && !o.includes(s.type)) o.unshift(s.type);
+    return o;
+  }
+  const typeHTML = s => `<select class="tysel" data-slot="${esc(s.id)}" aria-label="Tipo de publicación" title="Cambiar el tipo (al subir a Notion se cambia allí)">${typeOpts(s).map(t => `<option value="${esc(t)}"${t === s.type ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  // A reel keeps only its cover: the other photos (and edited pages) go back to the tray; a designed post's design converts
+  // as when Notion retypes it (diseno.js); the name gets or loses «Reel». Foto ↔ Carrusel only changes the label.
+  function setType(id, to) {
+    const s = S && S.slots.find(x => x.id === id);
+    if (!s || !to || s.type === to || locked || !typeOpts(s).includes(to)) { refreshDetail(); return; }
+    if (s.design && !(M.diseno && M.diseno._retipo)) { toast('El diseñador no está cargado: recarga la página para cambiar el tipo de una publicación diseñada.', { ms: 6000 }); refreshDetail(); return; }
+    const from = s.type, name0 = s.name;
+    if (s.notionType == null) s.notionType = from;
+    if (s.design) { const x = M.diseno._retipo(s, to); if (x) { S.tray.unshift(...x.tray.filter(f => M.files[f])); if (x.dead.length) delList(l => [...new Set([...l, ...x.dead])]); } }
+    s.type = to;
+    let back = 0;
+    if (!isMulti(to) && s.photos.length > 1) { const ex = s.photos.slice(1).filter(f => !dOut(s).includes(f)); s.photos = s.photos.slice(0, 1); S.tray.unshift(...ex); back = ex.length; }
+    S.tray = [...new Set(S.tray)].filter(f => !S.slots.some(x => x.photos.includes(f)));
+    renumber(); changed();
+    if (cur.slot === id) openDetail(id, 0);
+    const pend = typeChg(s) ? (s.name !== name0 ? ` · se llamará ${s.name}` : '') + ' · al subir a Notion se cambia allí' : ' · como en Notion';
+    toast(`Ahora es ${to}${pend}.` + (back ? ` Un reel solo lleva portada: ${back === 1 ? 'la otra foto ha vuelto' : `las otras ${back} fotos han vuelto`} a la bandeja.` : ''), { ms: back ? 8000 : 5000 });
   }
   // after a date change typed in the post view: update its header without replacing the input being edited
   // (Chrome fires the date input's change while focus is briefly on <body>, so the source input is passed in)
@@ -2076,6 +2121,13 @@
     d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
   }
   const igNav = dir => { if (ig) openIG(ig.id, ig.idx + dir); };
+  // the editor's «Preview» (libre.js): the pieces of the vista cliente for post s with media of proportion R (w/h); the
+  // caption as it will go up — the chosen one, else the one already in Notion
+  async function igPieces(s, R) {
+    await loadClientPhotos();
+    const c0 = CL.find(c => c.id === S.client) || {}, handle = String(c0.handle || '').replace(/^@/, '') || c0.name || '', t = capFinal(s) || igCaption(s.id);
+    return { av: avatarHTML(c0), handle: esc(handle), cap: t ? igCapHTML(t) : '', fecha: esc(igFecha(s.date)), IGI, CHEV, tam: igTam(R) };
+  }
   function igEditar() {
     const x = ig; closeDetail(); if (!x) return;
     if (x.prev) withPrev(() => openPast(x.id), 'open'); else openDetail(x.id, x.idx);
@@ -2263,7 +2315,7 @@
     const pc = t.closest('.cell.past[data-prev]'); if (pc) return { from: 'prev', prevId: pc.dataset.prev, el: pc };
     return null;
   }
-  let pd = null, pdNoClick = false, pdHold = null;   // the mouse drag in progress (pd.on once it really moves); pdHold: a cancelled one still pressed
+  let pd = null, pdNoClick = false, pdHold = null, stripNoClick = false;   // stripNoClick: a thumbnail of the post view was just dragged   // the mouse drag in progress (pd.on once it really moves); pdHold: a cancelled one still pressed
   function pdDown(e) {
     pdHold = null;
     if (e.button !== 0 || e.ctrlKey || e.pointerType === 'touch' || pd || drag || !S || locked) return;
@@ -2430,7 +2482,38 @@
     M._pd = { move: pdMove, up: e => { btnDown = false; pdUp(e); }, cancel: () => { btnDown = false; pdCancel(); }, down: e => { btnDown = e.button === 0; pdHold = null; } };
     document.addEventListener('pointerdown', M._pd.down, true); document.addEventListener('contextmenu', M._pd.cancel, true);
     document.addEventListener('pointermove', M._pd.move, true); document.addEventListener('pointerup', M._pd.up, true); document.addEventListener('pointercancel', M._pd.cancel, true); window.addEventListener('blur', M._pd.cancel);
-    root.addEventListener('click', e => { if (pdNoClick) { pdNoClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    root.addEventListener('click', e => { if (pdNoClick || stripNoClick) { pdNoClick = false; stripNoClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    // the post view's thumbnails (a carousel's or a Foto's pages, not a designed post's) are dragged into another place
+    root.addEventListener('pointerdown', e => {
+      const th = e.button === 0 && e.target.closest && e.target.closest('.detail .card.post .strip .th[data-act="pick"]'); if (!th) return;
+      const s = slot(root.querySelector('.detail').dataset.slot);
+      if (!s || isPrev(s) || !isCarousel(s.type) || designed(s) || s.photos.length < 2 || locked) return;
+      const strip = th.parentElement, k = +th.dataset.k, x0 = e.clientX, y0 = e.clientY, ths = () => [...strip.querySelectorAll('.th[data-act="pick"]')];
+      let on = false, to = null;
+      const aim = ev => {                  // the place it would drop at: before or after the nearest thumbnail
+        let best = null;
+        ths().forEach((t, i) => { const r = t.getBoundingClientRect(), cx = r.left + r.width / 2, d = Math.abs(ev.clientX - cx); t.classList.remove('dl', 'dr'); if (!best || d < best.d) best = { d, i, t, after: ev.clientX > cx }; });
+        if (!best) return;
+        best.t.classList.add(best.after ? 'dr' : 'dl');
+        to = best.i + (best.after ? 1 : 0); if (to > k) to--;
+      };
+      const mv = ev => {
+        if (!on) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; on = true; th.classList.add('drg'); }
+        aim(ev);
+        const r = strip.getBoundingClientRect(); if (ev.clientX < r.left + 24) strip.scrollLeft -= 12; else if (ev.clientX > r.right - 24) strip.scrollLeft += 12;
+      };
+      const end = drop => ev => {
+        document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true);
+        if (drop && !on && Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6) on = true;   // released far away before any move was seen
+        if (drop && on) aim(ev);
+        ths().forEach(t => t.classList.remove('drg', 'dl', 'dr'));
+        if (!on) return;
+        stripNoClick = true; setTimeout(() => { stripNoClick = false; }, 0);
+        if (drop && to != null && to !== k) movePhoto(s.id, k, to);
+      };
+      const up = end(true), cancel = end(false);
+      document.addEventListener('pointermove', mv, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);
+    });
     // the post-it under the mouse and since when (it opens after 0.5 s)
     root.addEventListener('pointerover', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'), id = p ? p.dataset.memo : null; if (id !== hov.id) hov = { id, t: Date.now() }; });
     root.addEventListener('pointerout', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'); if (p && !(e.relatedTarget && p.contains(e.relatedTarget))) hov = { id: null, t: 0 }; });
@@ -2446,6 +2529,7 @@
       tb.scrollLeft += e.deltaY; e.preventDefault();
     }, { passive: false });
     root.addEventListener('click', e => {
+      if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
       const a = e.target.closest('[data-act]');
       if (a) { onAct(a, e); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
@@ -2498,6 +2582,7 @@
         save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot);
       }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
+      else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
       else if (e.target.matches('.cappick')) setCapPick(e.target.dataset.slot, +e.target.dataset.k);
@@ -2626,6 +2711,7 @@
     else if (act === 'disenar') { if (libN(slot(a.dataset.slot))) { toast('Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» para usar «Diseñar».', { ms: 7000 }); return; } if (M.diseno && M.diseno.abrir) M.diseno.abrir(a.dataset.slot); else waitDesigner(a.dataset.slot); }
     else if (act === 'editar') { if (M.libre && M.libre.abrir) M.libre.abrir(a.dataset.slot, +a.dataset.k || 0); else waitLibre(a.dataset.slot, +a.dataset.k || 0); }
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
+    else if (act === 'typereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s) && s.notionType) setType(s.id, s.notionType); }
     else if (act === 'addmode') doAddMode(a.dataset.m);
     else if (act === 'tvnav') trayNav(+a.dataset.d);
     else if (act === 'tvsel') { const f = root.querySelector('.detail').dataset.file; closeDetail(); if (f && S && S.tray.includes(f)) { sel = f; renderTray(); renderBar(); } }
@@ -2808,19 +2894,21 @@
     const won = [], wonIds = new Set();
     const merge = n => {
       const o = oldById[n.id] || {};
-      const r = { id: n.id, name: n.name, type: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
+      const r = { id: n.id, name: n.name, type: n.type, notionType: n.type, date: n.date, notionDate: n.date, notionName: n.name, photos: o.photos || [], note: o.note || '', uploaded: o.uploaded || null };
+      const ont = o.notionType ?? o.type, tw = !!o.type && o.type !== ont && n.type !== ont && n.type !== o.type;   // Notion changed a type changed here too: Notion wins
+      if (o.type && o.type !== ont && n.type === ont) r.type = o.type;   // a type changed here stays pending until Notion has it
       if (o.fmt) r.fmt = o.fmt;
       if (o.memo) r.memo = o.memo;
       if (o.design) r.design = o.design;
       if (o.libre) r.libre = o.libre;
       if (o.caption) r.caption = o.caption;
-      if (r.design && o.type && o.type !== n.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
-        const x = M.diseno._retipo(r, n.type);
+      if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
+        const x = M.diseno._retipo(r, r.type);
         if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
       }
       if (!o.id) return r;
       const od = o.notionDate === undefined ? o.date : o.notionDate, on = o.notionName === undefined ? o.name : o.notionName;
-      let w = false;
+      let w = tw;
       if (!sameDate(o.date, od)) { if (sameDate(n.date, od)) r.date = o.date; else if (!sameDate(n.date, o.date)) w = true; }
       if (o.name !== on) { if (n.name === on) r.name = o.name; else if (n.name !== o.name) w = true; }
       if (w) { won.push(n.name); wonIds.add(n.id); } else if (o.hold && r.name !== r.notionName) r.hold = true;
@@ -2876,7 +2964,7 @@
     render();
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
     if (retyped.length) toast(`En Notion cambió el tipo de ${retyped.join(', ')}: su diseño se ha convertido y está pendiente de aplicar («Diseñar»).`, { ms: 9000 });
-    if (won.length) toast(`En Notion cambió la fecha o el nombre de ${won.length > 4 ? won.slice(0, 4).join(', ') + ` y ${won.length - 4} más` : won.join(', ')}: se queda lo de Notion y se descarta el cambio hecho aquí.`, { ms: 9000 });
+    if (won.length) toast(`En Notion cambió la fecha, el nombre o el tipo de ${won.length > 4 ? won.slice(0, 4).join(', ') + ` y ${won.length - 4} más` : won.join(', ')}: se queda lo de Notion y se descarta el cambio hecho aquí.`, { ms: 9000 });
     return M.status();
   };
 
@@ -2888,7 +2976,7 @@
     const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
     const t = String(b.title || '');
-    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate }) => ({ id, name: notionName ?? name, type, date: notionDate ?? date })), past: b.past || [] });
+    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [] });
   };
   async function migrateLegacy() {
     const all = (await idbAll('boards')) || [];
@@ -3069,16 +3157,18 @@
   };
   // Dates/times changed here and the renames they cause (numbering «W.N» / collab «Mes K»), to write to Notion.
   // dateMadrid = the new date as Madrid wall clock ('YYYY-MM-DDTHH:MM', or 'YYYY-MM-DD' when date-only).
-  M.notionChanges = () => S ? S.slots.filter(s => dateChg(s) || nameChg(s)).map(s => ({
+  // type / notionType / typeChanged (3.26): a type changed in the post view goes to «Tipo de Contenido».
+  M.notionChanges = () => S ? S.slots.filter(s => dateChg(s) || nameChg(s) || typeChg(s)).map(s => ({
     slotId: s.id, notionName: s.notionName, name: s.name, notionDate: s.notionDate, date: s.date, dateOnly: dOnly(s.date),
-    dateMadrid: dOnly(s.date) ? localDay(s.date) : localDay(s.date) + 'T' + localTime(s.date)
+    dateMadrid: dOnly(s.date) ? localDay(s.date) : localDay(s.date) + 'T' + localTime(s.date),
+    notionType: s.notionType ?? s.type, type: s.type, typeChanged: typeChg(s)
   })) : [];
   // After Claude has written them to Notion: those posts (all if no ids) take their current date and name as Notion's.
   M.markSynced = ids => {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
     if (!S) return [];
     const only = ids == null ? null : new Set([].concat(ids));
-    S.slots.forEach(s => { if (!only || only.has(s.id)) { s.notionDate = s.date; s.notionName = s.name; delete s.hold; } });
+    S.slots.forEach(s => { if (!only || only.has(s.id)) { s.notionDate = s.date; s.notionName = s.name; s.notionType = s.type; delete s.hold; } });
     holdOrphans(); renumber(); changed(); refreshDetail();
     return M.notionChanges();
   };
@@ -3629,10 +3719,10 @@
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
-    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts
+    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces
   };
   M._test = {
-    place, swap, unassign, move, removeFile, setCover, setNote, setMemo, pastList,
+    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList,
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),

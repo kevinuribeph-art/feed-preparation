@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.2
+// Editor libre de diapositivas — Mesa de trabajo · v1.3
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) in the post view: each slide becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
 // shapes and lines, over a colour background with an optional veil and texture — and «Aplicar a la casilla» draws it as a JPEG
@@ -16,15 +16,20 @@
 //   'forma': forma ('rect'|'elipse'|'linea'), color, r, b, bc
 // The client's colours, templates and logos live on the client record: c.libre = {colores, plantillas:[{id, nombre, comp}], logos}.
 // A post designed with «Diseñar» (s.design) is not edited here, and the other way round. Uses the mesa's bridge M._in (mesa.js ≥ 3.25).
+// v1.3 (mesa 3.26): a Foto has pages like a carousel; «Transformar» gives a photo's frame a format (vertical or horizontal)
+// and leaves it ready to reframe (el.rat = the format chosen, kept while the frame keeps its proportion); slides are dragged
+// into order in the strip and in «Ver todas» (also ⌥ + arrows); «Preview» shows the post as the vista cliente will.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
   const MAX_SLIDES = 20;                       // Instagram's limit for a carousel
+  // «Transformar»: the frame formats (w/h); 1:1 is in both
+  const RATIOS = { v: [['3:4', 3 / 4], ['4:5', 4 / 5], ['9:16', 9 / 16], ['2:3', 2 / 3], ['1:1', 1]], h: [['4:3', 4 / 3], ['5:4', 5 / 4], ['16:9', 16 / 9], ['3:2', 3 / 2], ['1:1', 1]] };
   const FMTS = { v45: '4:5', v34: '3:4', q11: '1:1', h: 'Horizontal' };
   const BASICOS = ['#ffffff', '#000000', '#f3f1ec', '#262626'];
   const ROT_D = 26;                            // screen px from a frame's top edge to its rotation handle
@@ -262,11 +267,11 @@
   const selIds = () => E.sel ? [E.sel, ...E.mas.filter(id => id !== E.sel)] : [];
   const selEls = () => { const ids = selIds(); return compAt(E.i).els.filter(e => ids.includes(e.id)); };
   const multi = () => selIds().length > 1;
-  function soltar() { E.sel = null; E.mas = []; }
+  function soltar() { E.sel = null; E.mas = []; E.tOri = null; }
   function seleccionar(el, add) {              // a click selects the element, or its whole group; with ⇧ it adds or takes away
     if (!el) { soltar(); return; }
     const grupo = el.g ? compAt(E.i).els.filter(e => e.g === el.g).map(e => e.id) : [el.id];
-    if (!add) { E.sel = el.id; E.mas = grupo.filter(id => id !== el.id); return; }
+    if (!add) { if (E.sel !== el.id) E.tOri = null; E.sel = el.id; E.mas = grupo.filter(id => id !== el.id); return; }
     const ids = selIds();
     if (ids.includes(el.id)) { const rest = ids.filter(id => !grupo.includes(id)); E.sel = rest[0] || null; E.mas = rest.slice(1); }
     else if (!E.sel) { E.sel = el.id; E.mas = grupo.filter(id => id !== el.id); }
@@ -351,7 +356,7 @@
       const marca = I().histMarca ? I().histMarca() : null;   // the whole session is one step of the mesa's ⌘Z
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
-      E = { slotId, board: S, car, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
+      E = { slotId, board: S, car, tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
         bm: new Map(), marca, photos0: s.photos.slice(), kit: [], mios: [], plant: [], logos: [], fkit: [], fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 } };
       E.sl = s.photos.map(key => {
         const f = compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;
@@ -561,6 +566,11 @@
 #mesa .lb-askc{background:var(--panel);border-radius:12px;padding:18px 18px 16px;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 #mesa .lb-askc h4{margin:0 0 6px;font-size:15px}#mesa .lb-askc p{margin:0 0 6px;color:var(--mute);font-size:13px}
 #mesa .lb-askin{display:block;width:100%;box-sizing:border-box;margin:8px 0 4px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px}#mesa .lb-askin:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa .lb-it,#mesa .lb-allit{position:relative}#mesa .lb-it.lb-drg,#mesa .lb-allit.lb-drg{opacity:.4}
+#mesa .lb-it.lb-dl::before,#mesa .lb-it.lb-dr::after{content:'';position:absolute;left:0;right:0;height:3px;border-radius:2px;background:var(--acc)}#mesa .lb-it.lb-dl::before{top:-8px}#mesa .lb-it.lb-dr::after{bottom:-8px}
+#mesa .lb-allit.lb-dl::before,#mesa .lb-allit.lb-dr::after{content:'';position:absolute;top:0;bottom:0;width:3px;border-radius:2px;background:var(--acc)}#mesa .lb-allit.lb-dl::before{left:-10px}#mesa .lb-allit.lb-dr::after{right:-10px}
+#mesa .lb-pv{position:absolute;inset:0;z-index:25;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+#mesa .lb-pv .igtop{align-self:stretch}#mesa .lb-pvt{flex:1;min-width:0;color:rgba(255,255,255,.85);font-size:12.5px}#mesa .lb-pvc{position:absolute;inset:0;width:100%;height:100%;display:block}
 @media (max-width:900px){#mesa .lb-body{grid-template-columns:104px minmax(0,1fr);grid-template-rows:minmax(240px,55%) minmax(0,1fr)}#mesa .lb-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line2)}#mesa .lb-list{grid-row:1;padding:10px 8px}#mesa .lb-scroll{padding:10px}#mesa .lb-add{font-size:11.5px;padding:5px 2px}}`;
   function injectCSS() { let st = document.getElementById('lb-css'); if (!st) { st = document.createElement('style'); st.id = 'lb-css'; document.head.append(st); } if (st.textContent !== CSS) st.textContent = CSS; }
 
@@ -568,12 +578,13 @@
     const root = I().root(), el = document.createElement('div');
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
-    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3><p>${E.car ? 'Editar diapositivas' : 'Editar foto'} · lo que no toques se queda como está</p></div>`
+    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3><p>${E.tipo === 'Foto' ? 'Editar foto' : 'Editar diapositivas'} · lo que no toques se queda como está</p></div>`
       + `<div class="seg lb-fmt" role="group" aria-label="Formato">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div>`
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'
       + '<button type="button" class="lb-ib" data-lb="iman" title="Imán: alinea con los bordes, el centro y los otros elementos al arrastrar (con ⌘ pulsado no actúa)">Imán</button>'
-      + '<button type="button" class="lb-ib" data-lb="todas" title="Todas las diapositivas en grande">Ver todas</button>'
+      + '<button type="button" class="lb-ib" data-lb="todas" title="Todas las diapositivas en grande (arrástralas para cambiar el orden)">Ver todas</button>'
+      + '<button type="button" class="lb-ib" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Preview</button>'
       + '<span class="lb-state" aria-live="polite"></span><button type="button" class="btn2" data-lb="cerrar">Cerrar</button><button type="button" class="btn" data-lb="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="lb-body"><nav class="lb-list" aria-label="Diapositivas"></nav>'
       + '<section class="lb-mid"><div class="lb-scroll"><div class="lb-cvw"><canvas class="lb-cv" aria-label="Diapositiva"></canvas></div></div>'
@@ -607,7 +618,7 @@
     const nav = E.el.querySelector('.lb-list'), top = nav.scrollTop, n = E.sl.length;
     nav.innerHTML = E.sl.map((x, i) => {
       const tag = !x.key ? 'nueva' : x.out || changedSl(x) ? 'editada' : 'foto';
-      return `<div class="lb-it${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}" tabindex="0" role="button" aria-label="Diapositiva ${i + 1}"><canvas></canvas>`
+      return `<div class="lb-it${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}" tabindex="0" role="button" aria-label="Diapositiva ${i + 1}" title="Arrástrala para cambiar el orden (o ⌥ + flechas)"><canvas></canvas>`
         + `<div class="lb-n"><b>${i + 1}</b> ${tag}${changedSl(x) || (!E.car && x.fmt !== x.fmt0) ? ' <em title="Cambios sin aplicar">•</em>' : ''}<span class="lb-mv">`
         + `<button type="button" data-lb="sl-up" data-i="${i}" title="Mover antes" aria-label="Mover antes"${i === 0 ? ' disabled' : ''}>▲</button>`
         + `<button type="button" data-lb="sl-dn" data-i="${i}" title="Mover después" aria-label="Mover después"${i === n - 1 ? ' disabled' : ''}>▼</button>`
@@ -626,6 +637,7 @@
     if (!E) return;
     E.el.querySelectorAll('.lb-list .lb-it canvas').forEach((cv, i) => { if (E.sl[i]) mini(cv, i, 216); });
     if (!E.allEl.hidden) E.allEl.querySelectorAll('canvas').forEach((cv, i) => { if (E.sl[i]) mini(cv, i, 360); });
+    if (E.pv) pvDibujar();
   }
   function verTodas(on) {
     const a = E.allEl;
@@ -722,19 +734,50 @@
     for (const v of vals) for (const c of cands) { const d = c - v; if (Math.abs(d) * E.k <= SNAP && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, at: c }; }
     return best;
   }
-  function setPhoto(el, patch) {      // the photo inside its frame, clamped like the mesa's reframe
+  function setPhoto(el, patch, i = E.i) {   // the photo inside its frame, clamped like the mesa's reframe
     Object.assign(el, patch); el.z = clamp(el.z || 1, 1, 3);
     const f = el.src && M.files[el.src]; if (!f || el.t !== 'foto') return;
-    const { W, H } = sizeAt(E.i), ib = hueco(el, el.w * W, el.h * H), r = srcRect(el, f.w, f.h, ib.w, ib.h);
+    const { W, H } = sizeAt(i), ib = hueco(el, el.w * W, el.h * H), r = srcRect(el, f.w, f.h, ib.w, ib.h);
     el.cx = r4((r.x + r.w / 2) / f.w); el.cy = r4((r.y + r.h / 2) / f.h);
   }
   function encajar(el, m, i = E.i) {  // the whole photo, centred, inside the slide less a margin (fraction of the width)
     const f = el.src && M.files[el.src]; if (!f) return;
     const { W, H } = sizeAt(i), aw = W - 2 * m * W, ah = H - 2 * m * W, ar = f.w / f.h;
     let w = aw, h = aw / ar; if (h > ah) { h = ah; w = ah * ar; }
-    Object.assign(el, { w: r4(w / W), h: r4(h / H), x: r4((W - w) / 2 / W), y: r4((H - h) / 2 / H), cx: 0.5, cy: 0.5, z: 1, rot: 0, fit: m, marco: null });
+    Object.assign(el, { w: r4(w / W), h: r4(h / H), x: r4((W - w) / 2 / W), y: r4((H - h) / 2 / H), cx: 0.5, cy: 0.5, z: 1, rot: 0, fit: m, marco: null }); delete el.rat;
   }
-  function llenar(el) { Object.assign(el, { x: 0, y: 0, w: 1, h: 1, cx: 0.5, cy: 0.5, z: 1, rot: 0 }); delete el.fit; }
+  function llenar(el) { Object.assign(el, { x: 0, y: 0, w: 1, h: 1, cx: 0.5, cy: 0.5, z: 1, rot: 0 }); delete el.fit; delete el.rat; }
+  // ---------- «Transformar»: the selected photos' frames take a format ----------
+  // Same area as the frame chosen first (several photos end up identical), centred where each was and inside the slide;
+  // the photo fills it again (zoom 1) and, one photo alone, the reframe opens at once
+  const RVAL = Object.fromEntries([...RATIOS.v, ...RATIOS.h]);
+  function marcoRat(e, R, A, W, H) {
+    let w = Math.sqrt(A * R), h = Math.sqrt(A / R); const k = Math.min(1, W / w, H / h); w *= k; h *= k;
+    const cx = (e.x + e.w / 2) * W, cy = (e.y + e.h / 2) * H;
+    Object.assign(e, { x: r4(clamp(cx - w / 2, 0, W - w) / W), y: r4(clamp(cy - h / 2, 0, H - h) / H), w: r4(w / W), h: r4(h / H) }); delete e.fit;
+  }
+  function transformar(nombre, R) {
+    const fotos = selEls().filter(e => e.t === 'foto' && !e.lock); if (!fotos.length || !(R > 0)) return;
+    const { W, H } = sizeAt(E.i), p = fotos.find(e => e.id === E.sel) || fotos[0], A = p.w * W * p.h * H, ids = fotos.map(e => e.id);
+    mut(null, () => {
+      for (const e of ensure().els.filter(q => ids.includes(q.id))) { marcoRat(e, R, A, W, H); e.rat = nombre; e.z = 1; if (e.src) setPhoto(e, {}); }
+      E.crop = ids.length === 1 && fotos[0].src ? ids[0] : null;
+    });
+  }
+  // a new slide format changes the frames' proportion on screen: a transformed one keeps its own (same area)
+  function mantenerRat(x, i) {
+    const { W, H } = sizeAt(i);
+    fotosDe(x.comp).forEach(e => { if (e.rat && RVAL[e.rat]) { marcoRat(e, RVAL[e.rat], e.w * W * e.h * H, W, H); if (e.src) setPhoto(e, {}, i); } });
+  }
+  function transformarHTML(els) {
+    const fotos = els.filter(e => e.t === 'foto'); if (!fotos.length) return '';
+    const e0 = fotos.find(e => e.id === E.sel) || fotos[0], { W, H } = sizeAt(E.i);
+    const ori = E.tOri || (e0.rat ? (RATIOS.h.some(([n]) => n === e0.rat) && e0.rat !== '1:1' ? 'h' : 'v') : e0.w * W > e0.h * H * 1.01 ? 'h' : 'v');
+    const rat = fotos.every(e => e.rat === e0.rat) ? e0.rat : null, off = fotos.every(e => e.lock);
+    return `<div class="lb-sec"><h4>Transformar <span>· formato del marco${fotos.length > 1 ? ` de las ${fotos.length} fotos` : ''}</span></h4>${seg('t-ori', [['v', 'Vertical'], ['h', 'Horizontal']], ori)}`
+      + `<div class="lb-btns">${RATIOS[ori].map(([n, r]) => `<button type="button" class="btn2${rat === n ? ' on' : ''}" data-lb="t-rat" data-v="${n}" data-r="${r}"${off ? ' disabled' : ''}>${n}</button>`).join('')}</div>`
+      + `<p class="lb-p">${fotos.length > 1 ? 'Todas quedan con el mismo formato y tamaño.' : 'La foto queda lista para encuadrar: arrástrala dentro del marco (rueda o Zoom para acercar).'} Reencuadra cuando quieras con «Encuadrar» o doble clic.</p></div>`;
+  }
   // a grid of n cells (px) with gap g between them and around them
   function cells(name, W, H, g) {
     const split = (x, y, w, h, n, vert) => Array.from({ length: n }, (_, k) => vert ? { x, y: y + k * ((h - (n - 1) * g) / n + g), w, h: (h - (n - 1) * g) / n } : { x: x + k * ((w - (n - 1) * g) / n + g), y, w: (w - (n - 1) * g) / n, h });
@@ -754,7 +797,7 @@
   }
   function separar(c, g) {             // the gap of the grid in place: same photos, same cells
     const { W, H } = sizeAt(E.i), cs = cells(c.rej.n, W, H, g * W);
-    fotosDe(c).forEach((e, k) => { const q = cs[k]; if (!q) return; Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H), rot: 0 }); delete e.fit; if (e.src) setPhoto(e, {}); });
+    fotosDe(c).forEach((e, k) => { const q = cs[k]; if (!q) return; Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H), rot: 0 }); delete e.fit; delete e.rat; if (e.src) setPhoto(e, {}); });
     c.rej.g = g;
   }
 
@@ -805,7 +848,7 @@
       let w = g0.w, h = g0.h;
       const prop = el.t === 'logo' || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
       if (prop) { const s = (l.x * d.hx * g0.w + l.y * d.hy * g0.h) / (g0.w * g0.w + g0.h * g0.h); w = g0.w * s; h = g0.h * s; if (w < MIN || h < MIN) { const k = MIN / Math.min(g0.w, g0.h); w = g0.w * k; h = g0.h * k; } }
-      else { if (d.hx) w = Math.max(MIN, l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, l.y * d.hy); }
+      else { if (d.hx) w = Math.max(MIN, l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, l.y * d.hy); delete el.rat; }   // a side: the frame is cropped, its format is no longer the one chosen
       if (mag && !el.rot) {           // the edge being dragged sticks to the slide's and the other elements' lines
         const t = targets([el.id]);
         if (d.hx) { const edge = A.x + d.hx * w, s = nearest([edge], t.xs); if (s) { const nw = Math.abs(s.at - A.x); if (nw >= MIN) { if (prop) h = h * nw / w; w = nw; E.guides.push({ x: s.at }); } } }
@@ -955,7 +998,7 @@
       h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌘G">Agrupar</button>'}<button type="button" class="btn2" data-lb="dup" title="⌘D">Duplicar</button><button type="button" class="btn2" data-lb="copy" title="⌘C">Copiar</button><button type="button" class="btn2" data-lb="lock">Bloquear o desbloquear</button><button type="button" class="btn2" data-lb="del" title="⌫">Borrar</button></div>`
         + `<span class="lb-l">Alinear entre ellos</span><div class="lb-btns">${[['izq', '⇤ Izquierda'], ['cen', '↔ Centro'], ['der', '⇥ Derecha'], ['arr', '⤒ Arriba'], ['med', '↕ Medio'], ['aba', '⤓ Abajo']].map(([v, l]) => `<button type="button" class="btn2" data-lb="al" data-v="${v}">${l}</button>`).join('')}</div>`
         + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p></div>';
-      h += capasHTML(c);
+      h += transformarHTML(ss) + capasHTML(c);
     } else if (el) {
       if (el.t === 'foto') {
         const crop = E.crop === el.id;
@@ -964,7 +1007,7 @@
         else h += `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${!el.src || el.lock ? ' disabled' : ''} title="Mover y ampliar la foto dentro de su marco (o doble clic)">Encuadrar</button><button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`
           + `<button type="button" class="btn2${el.fit != null ? ' on' : ''}" data-lb="encajar"${!el.src || el.lock ? ' disabled' : ''} title="La foto entera, centrada, con el fondo alrededor">Encajar</button><button type="button" class="btn2" data-lb="llenar"${el.lock ? ' disabled' : ''} title="La foto ocupa toda la diapositiva">Llenar</button></div>`
           + (el.fit != null ? rng('fit', 'Margen', el.fit, 0, 0.2, 0.005) : '');
-        h += '</div>';
+        h += '</div>' + transformarHTML([el]);
         h += `<div class="lb-sec"><h4>Marco</h4>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`;
         h += `<div class="lb-sec"><h4>Estilo</h4>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
         h += girarHTML(el, true);
@@ -1022,6 +1065,78 @@
     const s = p.querySelector('input[data-lb="size"]'); if (s && el.t === 'texto') { s.value = el.size; s.nextElementSibling.textContent = OUTF.size(el.size); }
   }
 
+  // ---------- slides into another place: the strip's ▲▼, a drag (strip or «Ver todas») and ⌥ + arrows ----------
+  function moverSl(i, j) {
+    if (!E || E.busy || !E.sl[i]) return;
+    j = clamp(j, 0, E.sl.length - 1); if (i === j) return;
+    mut(null, () => { const x0 = E.sl[E.i], [x] = E.sl.splice(i, 1); E.sl.splice(j, 0, x); E.i = Math.max(0, E.sl.indexOf(x0)); });
+    if (!E.allEl.hidden) verTodas(true);
+    const it = E.el.querySelectorAll('.lb-list .lb-it')[E.i]; if (it) it.scrollIntoView({ block: 'nearest' });
+  }
+  function arrastrar(e) {          // pointerdown on a slide of the strip or of «Ver todas»: a click chooses it, a drag moves it
+    const it = e.button === 0 && E && !E.busy && e.target.closest && e.target.closest('.lb-it, .lb-allit');
+    if (!it || e.target.closest('.lb-mv')) return;
+    const i = +it.dataset.i, grid = it.classList.contains('lb-allit'), box = it.parentElement, sc = grid ? E.allEl : box, x0 = e.clientX, y0 = e.clientY;
+    const items = () => [...box.querySelectorAll(grid ? '.lb-allit' : '.lb-it')];
+    let on = false, to = null;
+    const aim = ev => {             // the place it would drop at: before or after the nearest slide
+      let best = null;
+      items().forEach((t, k) => { const r = t.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, d = Math.hypot(ev.clientX - cx, ev.clientY - cy); t.classList.remove('lb-dl', 'lb-dr'); if (!best || d < best.d) best = { d, k, t, after: grid ? ev.clientX > cx : ev.clientY > cy }; });
+      if (!best) return;
+      best.t.classList.add(best.after ? 'lb-dr' : 'lb-dl');
+      to = best.k + (best.after ? 1 : 0); if (to > i) to--;
+    };
+    const mv = ev => {
+      if (!E) return;
+      if (!on) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; on = true; it.classList.add('lb-drg'); }
+      aim(ev);
+      const r = sc.getBoundingClientRect(); if (ev.clientY < r.top + 30) sc.scrollTop -= 14; else if (ev.clientY > r.bottom - 30) sc.scrollTop += 14;
+    };
+    const end = drop => ev => {
+      window.removeEventListener('pointermove', mv, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', cancel, true);
+      if (!E) return;
+      if (drop && !on && Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6) on = true;   // released far away before any move was seen
+      if (drop && on) aim(ev);
+      items().forEach(t => t.classList.remove('lb-drg', 'lb-dl', 'lb-dr'));
+      if (!on) return;
+      E.noClick = true; setTimeout(() => { if (E) E.noClick = false; }, 0);   // the click that ends a drag chooses nothing
+      if (drop && to != null && to !== i) moverSl(i, to);
+    };
+    const up = end(true), cancel = end(false);
+    window.addEventListener('pointermove', mv, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', cancel, true);
+  }
+
+  // ---------- «Preview»: the post as the vista cliente will show it once uploaded (the slides as they are here) ----------
+  function preview(on) {
+    if (!on) { if (E.pv) { E.pv.remove(); E.pv = null; } E.el.focus({ preventScroll: true }); return; }
+    if (!E.sl.length) { I().toast('No hay diapositivas que ver.'); return; }
+    if (!I().igPieces) { I().toast('Actualiza la mesa (3.26 o posterior) para ver el Preview.'); return; }
+    if (!E.pv) { E.pv = document.createElement('div'); E.pv.className = 'lb-pv'; E.pv.setAttribute('role', 'dialog'); E.pv.setAttribute('aria-label', 'Preview'); E.el.append(E.pv); }
+    E.pvI = E.i; pintarPv();
+  }
+  async function pintarPv() {
+    const owner = E, s = curSlot(); if (!E || !E.pv || !s) return;
+    const i = clamp(E.pvI, 0, E.sl.length - 1), n = E.sl.length, { W, H } = sizeAt(i);
+    const P = await I().igPieces(s, W / H); if (E !== owner || !E.pv) return;
+    const nav = n > 1 ? `<button type="button" class="nav prev" data-lb="pv-nav" data-d="-1" aria-label="Anterior"${i === 0 ? ' hidden' : ''}>${P.CHEV.l}</button><button type="button" class="nav next" data-lb="pv-nav" data-d="1" aria-label="Siguiente"${i === n - 1 ? ' hidden' : ''}>${P.CHEV.r}</button><div class="dots">${E.sl.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>` : '';
+    const cap = P.cap ? `<div class="igcap">${P.av}<div class="igct"><b>${P.handle}</b> ${P.cap}</div></div>` : '';
+    E.pv.innerHTML = `<div class="igwrap"><div class="igtop"><span class="lb-pvt">Preview · así se verá en Instagram${P.cap ? '' : ' · sin caption elegido todavía'}</span><button type="button" class="igx" data-lb="preview" aria-label="Cerrar el preview">×</button></div>`
+      + `<div class="igcard${P.cap ? ' hascap' : ''}"><div class="igmedia" style="width:${P.tam.w}px;height:${P.tam.h}px"><canvas class="lb-pvc"></canvas>${nav}</div>`
+      + `<div class="igside"><header class="ighead">${P.av}<b>${P.handle}</b><span class="igmore" aria-hidden="true">${P.IGI.more}</span></header><div class="igbody">${cap}</div>`
+      + `<div class="igacts" aria-hidden="true">${P.IGI.heart}${P.IGI.comment}${P.IGI.repost}${P.IGI.share}<span class="igsave">${P.IGI.save}</span></div>`
+      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div><div class="igdate">${P.fecha}</div>`
+      + `<div class="igadd" aria-hidden="true">${P.IGI.emoji}<span>Añade un comentario…</span><b>Publicar</b></div></div></div></div>`;
+    E.pvI = i;
+    pvDibujar();
+  }
+  function pvDibujar() {           // the slide in the preview (again when its photos have loaded)
+    const cv = E && E.pv && E.pv.querySelector('.lb-pvc'); if (!cv || !E.sl[E.pvI]) return;
+    const { W, H } = sizeAt(E.pvI), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+    const x = cv.getContext('2d'), k = cv.width / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
+    drawComp(x, compAt(E.pvI), W, H, viewImg, k, false);
+  }
+
   // ---------- actions ----------
   function onEl(fn, tag, quiet) {  // a change to the selected element (to every selected one when several)
     const ids = selIds(); if (!ids.length) return;
@@ -1077,6 +1192,7 @@
       const upd = x => { if (x.key && !x.out) { const fresh = E.car ? f !== E.fmt0 || x.fmt !== x.fmt0 : f !== x.fmt0; x.raw = rawComp(x.key, fresh); if (!x.comp) x.base = firma(x.raw); } };
       if (E.car) { E.fmt = f; E.sl.forEach(upd); } else { const x = cur(); x.fmt = f; upd(x); }
       E.sl.forEach((x, i) => fotosDe(x.comp).forEach(e => { if (e.fit != null && e.src) encajar(e, e.fit, i); }));   // «Encajar» holds in the new format
+      E.sl.forEach((x, i) => { if (x.comp) mantenerRat(x, i); });                                                    // and so does «Transformar»
     };
     if (quiet) { apply(); return; }
     mut(null, apply);
@@ -1094,9 +1210,13 @@
       case 'zfit': zoom(1); return;
       case 'iman': E.iman = !E.iman; head(); return;
       case 'todas': verTodas(E.allEl.hidden); return;
+      case 'preview': preview(!E.pv); return;
+      case 'pv-nav': { const j = E.pvI + +b.dataset.d; if (j >= 0 && j < E.sl.length) { E.pvI = j; pintarPv(); } return; }
+      case 't-ori': E.tOri = b.dataset.v; panel(); return;
+      case 't-rat': transformar(b.dataset.v, +b.dataset.r); return;
       case 'fmt': if (E.sl.length) formatoEd(b.dataset.v); return;
       case 'sl': if (!E.allEl.hidden) verTodas(false); elegir(+b.dataset.i); return;
-      case 'sl-up': case 'sl-dn': { const i = +b.dataset.i, j = i + (a === 'sl-up' ? -1 : 1); if (j < 0 || j >= E.sl.length) return; mut(null, () => { [E.sl[i], E.sl[j]] = [E.sl[j], E.sl[i]]; if (E.i === i) E.i = j; else if (E.i === j) E.i = i; }); return; }
+      case 'sl-up': case 'sl-dn': { const i = +b.dataset.i; moverSl(i, i + (a === 'sl-up' ? -1 : 1)); return; }
       case 'sl-del': { const i = +b.dataset.i; mut(null, () => { E.sl.splice(i, 1); E.i = clamp(E.i > i ? E.i - 1 : E.i, 0, Math.max(0, E.sl.length - 1)); soltar(); E.crop = null; }); return; }
       case 'sl-add': {
         if (E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
@@ -1207,8 +1327,9 @@
           else if (a === 'my') el.y = r4(v / (H * PX));
           else if (a === 'man') { const w = Math.max(4, v) / 1080; if (el.t === 'logo') el.h = r4(el.h * w / el.w); el.w = r4(w); if (el.t === 'texto') ajustarTexto(el, W, H); }
           else if (el.t !== 'texto') { const h = Math.max(2, v) / (H * PX); if (el.t === 'logo') el.w = r4(el.w * h / el.h); el.h = r4(h); }
-          delete el.fit; if (el.t === 'foto' && el.src) setPhoto(el, {});
+          delete el.fit; if (a === 'man' || a === 'mal') delete el.rat; if (el.t === 'foto' && el.src) setPhoto(el, {});
         }, a, true);
+        if (a === 'man' || a === 'mal') E.el.querySelectorAll('.lb-panel [data-lb="t-rat"].on').forEach(b => b.classList.remove('on'));   // the panel is not rebuilt while typing
         return;
       }
     }
@@ -1236,12 +1357,15 @@
         return n;
       });
       if (t.comp.rej) c.rej = clone(t.comp.rej); else delete c.rej;
+      mantenerRat(cur(), E.i);   // a frame given a format keeps it on a slide of another format
       soltar(); E.crop = null;
     });
   }
 
   function wire(el) {
     el.addEventListener('click', e => {
+      if (E.noClick) { E.noClick = false; return; }
+      if (E.pv && e.target === E.pv) { preview(false); return; }   // a click outside the post closes the preview
       const b = e.target.closest('[data-lb]'); if (!b || !el.contains(b) || E.busy) return;
       if ((b.tagName === 'INPUT' && b.type !== 'button') || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
       if (b.dataset.mio && e.altKey) { const c = b.dataset.c; guardarCliente(l => ({ ...l, colores: (l.colores || []).filter(q => q !== c) })); return; }
@@ -1250,6 +1374,8 @@
       act(b.dataset.lb, b);
     });
     el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); });
+    el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
+    E.allEl.addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-logoin').addEventListener('change', e => { const fs = [...(e.target.files || [])]; e.target.value = ''; if (fs.length) subirLogos(fs); });
     const cv = E.cv;
     cv.addEventListener('pointerdown', onDown);
@@ -1264,6 +1390,11 @@
     if (E.busy) { if (!e.metaKey) e.preventDefault(); return; }
     if (!E.el.isConnected || !curSlot()) { cerrar(true); return; }
     if (E.ask) { if (e.key === 'Escape') { e.preventDefault(); cerrarPregunta(); } else if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('lb-askin')) { e.preventDefault(); E.askOk(); } return; }
+    if (E.pv) {                     // the preview: Esc closes it, ← → go through the slides
+      if (e.key === 'Escape') { e.preventDefault(); preview(false); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const j = E.pvI + (e.key === 'ArrowLeft' ? -1 : 1); if (j >= 0 && j < E.sl.length) { E.pvI = j; pintarPv(); } }
+      return;
+    }
     const t = e.target, typing = t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(t.type)));
     const mod = (e.metaKey || e.ctrlKey) && !e.altKey, k = String(e.key).toLowerCase();
     if (e.key === 'Escape') {
@@ -1288,6 +1419,7 @@
     if (e.key.startsWith('Arrow')) {
       if (t && t.closest && t.closest('.seg, .lb-rng')) return;
       e.preventDefault();
+      if (e.altKey && !mod) { moverSl(E.i, E.i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1)); return; }   // ⌥ + arrows: the slide moves
       if (E.sel) { const s = (e.shiftKey ? 10 : 1) * OUT_W / 540; nudge(e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0, e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0); }
       else elegir(E.i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1));
     }

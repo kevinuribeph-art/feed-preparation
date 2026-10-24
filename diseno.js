@@ -1,4 +1,4 @@
-// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.4
+// Diseñador de carruseles y portadas de reel — Mesa de trabajo · v1.5 (a Foto of several pages is designed as a carousel, with its own label)
 // Turns a carousel's (or a reel's) photos and the texts approved in the chat into the finished images, with the
 // client's design kit (kits/<cliente>.json, drawn by kits/motor.js → window.DisenoMotor).
 // The design lives on the slot and is saved with the board (and shared with linked copies of the publication):
@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.4';
+  const VERSION = '1.5';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -826,7 +826,7 @@
   function edHead() {
     if (!E) return; const s = curSlot(); if (!s) return;
     const d = s.design, reel = isReelS(s), n = d.slides.length;
-    E.el.querySelector('.dz-sub').textContent = reel ? `${s.type} · portada 9:16 · ${E.sz.W}×${E.sz.H}` : `Carrusel · ${n} diapositiva${n === 1 ? '' : 's'} · ${E.sz.W}×${E.sz.H}`;
+    E.el.querySelector('.dz-sub').textContent = reel ? `${s.type} · portada 9:16 · ${E.sz.W}×${E.sz.H}` : `${s.type === 'Foto' ? 'Foto' : 'Carrusel'} · ${n} diapositiva${n === 1 ? '' : 's'} · ${E.sz.W}×${E.sz.H}`;
     E.el.querySelectorAll('.dz-fmt button').forEach(b => { const on = b.dataset.v === d.fmt; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
     const st = E.el.querySelector('.dz-state'), ap = isApplied(s);
     const chg = ap && d.sig !== sigOf(s, E.raw);

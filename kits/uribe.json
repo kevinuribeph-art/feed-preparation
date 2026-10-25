@@ -1,0 +1,93 @@
+{
+  "cliente": "Uribe Visuals",
+  "version": "1.0",
+  "marca": "Uribe Visuals",
+  "fuentes": {
+    "regular":   { "familia": "Schibsted 400 · Regular",                  "archivo": "fonts/SchibstedGrotesk-Regular.woff2",   "peso": 400 },
+    "extrabold": { "familia": "Schibsted 800 · ExtraBold",                "archivo": "fonts/SchibstedGrotesk-ExtraBold.woff2", "peso": 800 },
+    "bold":      { "familia": "Schibsted 700 · Bold (solo etiquetas)",    "archivo": "fonts/SchibstedGrotesk-Bold.woff2",      "peso": 700 },
+    "medium":    { "familia": "Schibsted 500 · Medium (fuera del manual)",   "archivo": "fonts/SchibstedGrotesk-Medium.woff2",   "peso": 500 },
+    "semibold":  { "familia": "Schibsted 600 · SemiBold (fuera del manual)", "archivo": "fonts/SchibstedGrotesk-SemiBold.woff2", "peso": 600 },
+    "black":     { "familia": "Schibsted 900 · Black (fuera del manual)",    "archivo": "fonts/SchibstedGrotesk-Black.woff2",    "peso": 900 }
+  },
+  "escala": {
+    "portada":    { "fuente": "extrabold", "px": 128, "interlineado": 0.98, "espaciado": -0.035 },
+    "titular":    { "fuente": "extrabold", "px": 76,  "interlineado": 1.02, "espaciado": -0.03 },
+    "entradilla": { "fuente": "extrabold", "px": 48,  "interlineado": 1.08, "espaciado": -0.02 },
+    "texto":      { "fuente": "regular",   "px": 36,  "interlineado": 1.35, "espaciado": 0 },
+    "etiqueta":   { "fuente": "bold",      "px": 26,  "interlineado": 1.2,  "espaciado": 0.22, "mayusculas": true },
+    "dato":       { "fuente": "extrabold", "px": 180, "interlineado": 0.9,  "espaciado": -0.04 }
+  },
+  "colores": {
+    "ink": "#16110E",
+    "paper": "#F4EFE8",
+    "terracotta": "#B2503A",
+    "terracotta_light": "#D07152",
+    "terracotta_dark": "#A0472F",
+    "brass": "#B8813F",
+    "neutral_text_on_paper": "#4A4038",
+    "neutral_label_on_paper": "#6E635A",
+    "neutral_label_on_ink": "#9A8F84",
+    "neutral_text_on_ink": "#C4B8AC",
+    "rule_on_paper": "#DDD4C8",
+    "blanco": "#F4EFE8",
+    "carbon": "#16110E"
+  },
+  "colores_texto": { "principales": ["paper", "ink"], "acentos": ["terracotta_light", "terracotta_dark"] },
+  "lienzo": {
+    "ancho": 1080,
+    "margen": 80,
+    "barra_top": 96,
+    "bloque_inferior": 150,
+    "bloque_superior": 180,
+    "pie": 96,
+    "ancho_max_titulo": 920,
+    "ancho_max_texto": 860,
+    "separacion": 28,
+    "separacion_final": 36
+  },
+  "posiciones": {
+    "marca":  { "ancla": "izquierda", "desde": "arriba", "x": 80, "y": 96 },
+    "pagina": { "ancla": "derecha",   "desde": "arriba", "x": 80, "y": 96 },
+    "pie":    { "ancla": "centro",    "desde": "abajo",  "x": 0,  "y": 96 }
+  },
+  "formatos": {
+    "v45": { "ancho": 1080, "alto": 1350 },
+    "v34": { "ancho": 1080, "alto": 1440 },
+    "h":   { "ancho": 1080, "ratio_max": 1.91, "ratio_vertical": 1.7778, "factor_tipografia": 0.72 },
+    "r916": { "ancho": 1080, "alto": 1920, "zona_segura": [240, 1680] }
+  },
+  "velo": { "color": "#16110E", "minimo": 0.2, "maximo": 0.85, "contraste_objetivo": 4.5 },
+  "variacion": {
+    "alineacion_auto": true,
+    "lugar_auto": true,
+    "texto_oscuro_en_foto_clara": true,
+    "margen_lado_limpio": 0.15,
+    "lugar_preferido": "abajo",
+    "cambiar_lugar_si": { "ratio_bordes": 0.65, "dif_velo": 0.1 }
+  },
+  "piezas": {
+    "portada": {
+      "nota": "Primera diapositiva: la marca arriba a la izquierda y el título abajo a la izquierda. Sin velo, sin página, sin pie.",
+      "lugar": "abajo", "alinear": "izquierda", "nivel": "portada", "velo": 0, "contraste_min": 3.0,
+      "marca": true, "pagina": false, "pie": false
+    },
+    "ficha": {
+      "nota": "Interiores: marca arriba a la izquierda, número de página arriba a la derecha, nombre del carrusel abajo al centro. Titular + texto colocados según la foto.",
+      "lugar": "auto", "alinear": "auto", "nivel": "titular",
+      "marca": true, "pagina": true, "pie": true
+    },
+    "final": {
+      "nota": "Última diapositiva: titular + entradilla + contacto en etiqueta, arriba a la izquierda, en Paper.",
+      "lugar": "arriba", "alinear": "izquierda", "nivel": "titular", "color": "paper",
+      "marca": true, "pagina": true, "pie": true
+    },
+    "reel": {
+      "nota": "Portada de reel 9:16: solo el título, centrado en la zona segura del grid, con capa Ink radial suave.",
+      "lugar": "centro", "alinear": "centro", "nivel": "portada",
+      "capa": { "velo_min": 0.25, "velo_max": 0.6, "contraste": 4.5, "elipse": [90, 30], "alto_zona": 380 },
+      "marca": false, "pagina": false, "pie": false
+    }
+  },
+  "final": { "foto": null, "contacto": "Send us a DM" }
+}

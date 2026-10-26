@@ -32,10 +32,12 @@
 // v3.32: monthly calendar under the tray (calendario.js, its own file: the mesa never waits for it) linked both ways with
 // the grid; one state per post (estadoDe), the same in the grid, the calendar and the post view: three follow from its data,
 // four are chosen in the post view or with M.setEstado; a cancelled post leaves the feed, the counts and what is uploaded.
+// v3.33: the grid's cells no longer show the state dot (the calendar and the post view do); a board opened has its old drawn
+// photo holes turned into the free editor's hole element (libre 1.9: M.libre.migrar).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.32';
+  M.version = '3.33';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1319,8 +1321,6 @@
 #mesa .edot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%}
 #mesa .e-empezar{background:#f3f1ef;box-shadow:inset 0 0 0 1.5px #a8a29e}#mesa .e-captions{background:#e3b341}#mesa .e-aprobar{background:#74b3e8}
 #mesa .e-aprobado{background:#2f6fd0}#mesa .e-programado{background:#c9649f}#mesa .e-publicado{background:#3d3d3d}#mesa .e-cancelado{background:#fff;box-shadow:inset 0 0 0 1.5px #c4c4c4}
-#mesa .badges .dot.es{color:var(--ink)}#mesa .badges .dot.e-aprobado,#mesa .badges .dot.e-programado,#mesa .badges .dot.e-publicado{color:#fff}
-#mesa .badges .dot.e-empezar{box-shadow:inset 0 0 0 2px #a8a29e,0 1px 3px rgba(0,0,0,.35)}
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
 #mesa .badges .dot.ok{background:var(--ok);color:#fff}
 #mesa .badges .dot.chg{background:var(--chg);color:#fff}
@@ -1743,12 +1743,13 @@
     const st = slotStatus(s);
     return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
-  // cell markers: month pill, then a column of dots (text, state, collab) that open into their label after 0.5 s of hover
+  // cell markers: month pill, then a column of dots (text, Notion, collab) that open into their label after 0.5 s of hover;
+  // the post's state is not one of them (the calendar and the post view show it)
   const dot = (cls, label, aria) => `<span class="dot ${cls}" title="" aria-label="${esc(aria || label)}"><span class="dl">${esc(label)}</span></span>`;
   function badgesHTML(s, pill) {
     const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
-    const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s), es = estadoDe(s), el = (ESTADOS.find(x => x[0] === es) || [])[1] || es;
-    const d = dot('es e-' + es, el, 'Estado: ' + el) + (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
+    const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s);
+    const d = (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
       + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir') : '')
       + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto, nota, captions y estado se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
@@ -3065,6 +3066,7 @@
     lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
     lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+    if (M.libre && M.libre.migrar) M.libre.migrar(S);   // old drawn photo holes become the editor's hole element (libre ≥ 1.9)
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);

@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.9
+// Editor libre de diapositivas — Mesa de trabajo · v1.10
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -46,11 +46,16 @@
 // layer, and its marks go; it is then a normal photo that keeps the hole and gives it back, as it was, when deleted.
 // «Sustituir» on a hole already filled changes the photo and fits it to the hole again. The drawn holes of before (a group
 // with a «HUECO DE FOTO…» text) become one when a board opens (migrar).
+// v1.10 (mesa 3.34): the photo in a hole keeps its proportion. A hole a sangre (the whole slide: a cover) is filled, as
+// before; one inside the margin (an inner slide) takes the photo whole, the biggest that fits, centred, with the slide's
+// background in the strips. Double click on that photo switches it (filling ⇄ whole); «Encuadrar» stays on its button.
+// A slide whose background is the templates' provisional #2B231F gets Ink #16110E when a photo goes into its hole.
+// Photos already in holes are not moved.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.9';
+  const VERSION = '1.10';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -95,9 +100,10 @@
 
   // ---------- photo holes ----------
   // A hole is a 'hueco' element, or a photo frame with no photo. A photo dropped on a 'hueco' takes its place among the
-  // layers and fills its area exactly — scaled to cover it, centred, what is left over cropped — whatever its orientation,
-  // and the hole's fill, border and texts go; the photo carries the hole (el.hueco) and gives it back, as it was, when it is
-  // deleted (sacar), even moved or scaled. An empty frame keeps its own rules (colocar). Any hole counts, locked or not.
+  // layers, never stretched: a hole a sangre is filled (scaled to cover it, centred, what is left over cropped), one inside
+  // the margin takes it whole (the biggest that fits, centred, the background in the strips); the hole's fill, border and
+  // texts go; the photo carries the hole (el.hueco) and gives it back, as it was, when it is deleted (sacar), even moved or
+  // scaled. An empty frame keeps its own rules (colocar). Any hole counts, locked or not.
   const huecosDe = comp => ((comp && comp.els) || []).filter(e => !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && !e.src && !e.lock)));   // the free ones, in drawing order
   const enHueco = (h, t) => ({ ...t, x: h.x + t.x * h.w, y: h.y + t.y * h.h, w: t.w * h.w, h: (t.h || 0) * h.h });   // a hole's text, on the slide
   const textosDe = comp => comp.els.flatMap(e => e.t === 'texto' ? [e] : e.t === 'hueco' ? e.textos || [] : []);
@@ -112,21 +118,38 @@
     else dentro(el, W, H);
   }
   const alHueco = (el, h) => Object.assign(el, { x: h.x, y: h.y, w: h.w, h: h.h, rot: h.rot || 0, cx: 0.5, cy: 0.5, z: 1 });   // the frame is the hole's area, the photo covers it, centred
+  const aSangre = h => h.x <= 0.001 && h.y <= 0.001 && h.x + h.w >= 0.999 && h.y + h.h >= 0.999;   // a hole that is the whole slide (a cover's)
+  function ajustarHueco(el, h, W, H) {   // the whole photo, the biggest that fits in the hole's area, centred: the frame shrinks to it
+    alHueco(el, h);
+    const f = el.src && M.files[el.src]; if (!f) return el;
+    const bw = h.w * W, bh = h.h * H, ar = f.w / f.h;
+    let w = bw, hh = bw / ar; if (hh > bh) { hh = bh; w = bh * ar; }
+    return Object.assign(el, { x: r4(h.x + (bw - w) / 2 / W), y: r4(h.y + (bh - hh) / 2 / H), w: r4(w / W), h: r4(hh / H) });
+  }
+  // a hole's photo fitted to it again: filling it (llena) or whole inside it; by default as its hole asks
+  function encajeHueco(el, W, H, llena = aSangre(el.hueco)) {
+    delete el.fit; delete el.rat; delete el.mano;
+    return llena ? alHueco(el, el.hueco) : ajustarHueco(el, el.hueco, W, H);
+  }
+  // the photo covers its hole's whole area (to a pixel): no strips
+  const cubreHueco = (el, W, H) => { const h = el.hueco, ex = 1 / W, ey = 1 / H; return el.x <= h.x + ex && el.y <= h.y + ey && el.x + el.w >= h.x + h.w - ex && el.y + el.h >= h.y + h.h - ey; };
+  const PROVISIONAL = '#2b231f', INK = '#16110E';   // the templates' provisional hole colour (in no kit) and the brand's Ink
+  const sinProvisional = comp => { if (String(comp.bg || '').toLowerCase() === PROVISIONAL) comp.bg = INK; };
   // photo f into free hole h (slide W×H): a 'hueco' gives way to the photo, in its layer; an empty frame keeps its frame.
   // Returns the photo's element.
   function rellenar(comp, h, f, W, H) {
     if (h.t === 'hueco') {
-      const el = alHueco({ ...fotoEl(f), op: h.op ?? 1, hueco: clone(h) }, h);
+      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, hueco: clone(h) }, W, H);
       comp.els.splice(comp.els.indexOf(h), 1, el);
+      sinProvisional(comp);
       return el;
     }
     Object.assign(h, { src: f, cx: 0.5, cy: 0.5, z: 1 });
     colocar(h, W, H);
     return h;
   }
-  function reajustar(el, f) {        // a hole already filled takes photo f: fitted to the hole again
-    alHueco(Object.assign(el, { src: f }), el.hueco);
-    delete el.fit; delete el.rat; delete el.mano;
+  function reajustar(comp, el, f, W, H) {   // a hole already filled takes photo f: fitted to the hole again, by the same rule
+    el.src = f; encajeHueco(el, W, H); sinProvisional(comp);
     return el;
   }
   function sacar(comp, quita) {      // the elements quita(e) leave the slide; a photo that filled a hole gives it back, in its layer
@@ -1302,6 +1325,11 @@
     const el = hitEl(toSlide(e)); if (!el || el.lock) return;
     if (el.t === 'texto') { seleccionar(el); E.pick = null; panel(); const ta = E.el.querySelector('.lb-panel textarea[data-lb="txt"]'); if (ta) { ta.focus(); ta.select(); } pedir(); return; }
     if (el.t !== 'foto' || !el.src) return;
+    if (el.hueco && !el.pan) {   // a photo in a hole: covering it → whole inside it; with strips → covering it
+      const { W, H } = sizeAt(E.i); E.crop = null; E.pick = null;
+      mut(null, () => { const c = ensure(), x = c.els.find(q => q.id === el.id); if (!x) return; encajeHueco(x, W, H, !cubreHueco(x, W, H)); sinProvisional(c); seleccionar(x); });
+      return;
+    }
     seleccionar(el); E.crop = el.id; E.pick = null; panel(); pedir();
   }
   function onWheel(e) {
@@ -1401,10 +1429,10 @@
         const crop = E.crop === el.id;
         h += `<div class="lb-sec"><h4>Foto <span>· ${el.lock ? 'bloqueada' : crop ? 'encuadrando: arrastra la foto dentro del marco' : 'elegida'}</span></h4>`;
         if (crop) h += rng('z', 'Zoom', el.z || 1, 1, 3, 0.01) + '<div class="lb-btns"><button type="button" class="btn2" data-lb="crop-c">Centrar</button><button type="button" class="btn" data-lb="crop">Listo</button></div>';
-        else h += `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${!el.src || el.lock ? ' disabled' : ''} title="Mover y ampliar la foto dentro de su marco (o doble clic)">Encuadrar</button><button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`
+        else h += `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${!el.src || el.lock ? ' disabled' : ''} title="Mover y ampliar la foto dentro de su marco${el.hueco && !el.pan ? '' : ' (o doble clic)'}">Encuadrar</button><button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`
           + `<button type="button" class="btn2${el.fit != null ? ' on' : ''}" data-lb="encajar"${!el.src || el.lock ? ' disabled' : ''} title="La foto entera, centrada, con el fondo alrededor">Encajar</button><button type="button" class="btn2" data-lb="llenar"${el.lock ? ' disabled' : ''} title="${el.pan ? `La foto ocupa las ${el.pan.n} diapositivas` : 'La foto ocupa toda la diapositiva'}">Llenar</button></div>`
           + (el.fit != null ? rng('fit', 'Margen', el.fit, 0, 0.2, 0.005) : '');
-        if (el.hueco) h += '<p class="lb-p">Llena un hueco de la plantilla: si la borras, el hueco vuelve como era.</p>';
+        if (el.hueco) h += '<p class="lb-p">Llena un hueco de la plantilla: doble clic para verla entera o llenando el hueco. Si la borras, el hueco vuelve como era.</p>';
         h += '</div>' + cruzarHTML(el) + transformarHTML([el]);
         h += plegable('estilo', 'Marco y estilo', 'borde, esquinas, sombra', `<div class="lb-sub"><h5>Marco</h5>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`
           + `<div class="lb-sub"><h5>Estilo</h5>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`);
@@ -1425,7 +1453,7 @@
         h += girarHTML(el, true);
       } else if (el.t === 'hueco') {
         h += `<div class="lb-sec"><h4>Hueco de foto <span>· libre</span></h4><div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>`
-          + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: llena el hueco entero, en su capa. Si luego la borras, el hueco vuelve.</p></div>';
+          + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa, a sangre llenando el hueco y dentro del margen entera. Si luego la borras, el hueco vuelve.</p></div>';
       } else {
         h += `<div class="lb-sec"><h4>${FORMAS[el.forma] || 'Forma'}</h4><span class="lb-l" style="margin-top:0">Relleno</span>${sws('fc', el.color || '#ffffff')}`
           + (el.forma !== 'linea' ? `${rng('b', 'Borde', el.b || 0, 0, 0.03, 0.0005)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#000000')}` : '')
@@ -1734,7 +1762,7 @@
           const c = ensure();
           if (pk.modo === 'add') { const e = fotoEl(f); const top = c.els.reduce((a, q, i) => q.t === 'foto' ? i + 1 : a, 0); c.els.splice(top, 0, e); E.sel = e.id; E.mas = []; encajar(e, 0.08); delete e.fit; }   // a new photo goes above the photos, under texts and logos
           else if ((c.els.find(q => q.id === pk.id) || {}).t === 'hueco') { const { W, H } = sizeAt(E.i); E.sel = rellenar(c, c.els.find(q => q.id === pk.id), f, W, H).id; E.mas = []; }
-          else { const e = c.els.find(q => q.id === pk.id); if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
+          else { const e = c.els.find(q => q.id === pk.id); if (e && e.hueco && !e.pan) { const { W, H } = sizeAt(E.i); E.sel = reajustar(c, e, f, W, H).id; E.mas = []; } else if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
         });
         return;
       }
@@ -1942,7 +1970,7 @@
   const ATAJOS = '<h4>Atajos de teclado</h4><dl>' + [
     ['Clic', 'elegir · con ⇧, varios'],
     ['Arrastrar', 'mover · esquinas: tamaño · lados: recortar (o el ancho de un texto) · círculo: girar'],
-    ['Doble clic', 'encuadrar la foto o escribir el texto'],
+    ['Doble clic', 'encuadrar la foto (la de un hueco: entera o llenándolo) o escribir el texto'],
     ['Flechas', 'mover poco a poco (con ⇧, más) · ⌥ + flechas: mover la diapositiva'],
     ['⌘C · ⌘V', 'copiar y pegar en el mismo sitio, también en otra diapositiva o publicación · sin nada elegido: la diapositiva entera'],
     ['⌘D · ⌫', 'duplicar · borrar'],
@@ -2150,7 +2178,7 @@
         else if (!x.comp) { outs[0] = f; portada = true; }      // slide 1 is a photo, not drawn here: the photo changes, as always
         else if ((hp = x.comp.els.find(e => !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && e.hueco))) || false)) {   // its first hole, free or filled
           need(!hp.pan, 'La foto de la portada cruza diapositivas: cámbiala en «Editar».');
-          if (hp.t === 'hueco') rellenar(x.comp, hp, f, W, H); else reajustar(hp, f);
+          if (hp.t === 'hueco') rellenar(x.comp, hp, f, W, H); else reajustar(x.comp, hp, f, W, H);
           x.mod = portada = true;
         } else {
           const el = fotosDe(x.comp).filter(e => e.src && !e.oculto).reduce((a, e) => !a || e.w * e.h > a.w * a.h ? e : a, null);

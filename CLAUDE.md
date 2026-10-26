@@ -7,6 +7,12 @@ Publicada con GitHub Pages: https://kevinuribeph-art.github.io/feed-preparation/
 **Este repo es público.** Nada de datos de clientes, credenciales ni flujos internos en archivos
 rastreados. Las notas privadas van en `CLAUDE.local.md` (ignorado por git).
 
+## Decisiones
+Antes de cambiar cualquier cosa de la Mesa, lee DECISIONES.md. Si la petición contradice una decisión vigente, para antes
+de tocar código: cita la decisión vigente y la nueva, y pregunta cuál gana. Cuando Kevin conteste, registra la ganadora
+como decisión nueva y marca la otra como sustituida. Toda petición que cambie el comportamiento de la Mesa se registra en
+DECISIONES.md en el mismo PR, choque o no con algo.
+
 ## Stack
 - HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual.
 - `index.html` carga `mesa.js` (núcleo, expone `window.MESA`) y, en async, `kits/motor.js` (motor de

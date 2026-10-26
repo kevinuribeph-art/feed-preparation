@@ -34,10 +34,12 @@
 // four are chosen in the post view or with M.setEstado; a cancelled post leaves the feed, the counts and what is uploaded.
 // v3.33: the grid's cells no longer show the state dot (the calendar and the post view do); a board opened has its old drawn
 // photo holes turned into the free editor's hole element (libre 1.9: M.libre.migrar).
+// v3.34: the free editor fits a photo in a hole without cropping it inside the margin, fills it a sangre, and double click
+// switches it (libre 1.10).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.33';
+  M.version = '3.34';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

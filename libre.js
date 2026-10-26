@@ -39,7 +39,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.6';
+  const VERSION = '1.7';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -47,7 +47,7 @@
   // «Transformar»: the frame formats (w/h); 1:1 is in both
   const RATIOS = { v: [['3:4', 3 / 4], ['4:5', 4 / 5], ['9:16', 9 / 16], ['2:3', 2 / 3], ['1:1', 1]], h: [['4:3', 4 / 3], ['5:4', 5 / 4], ['16:9', 16 / 9], ['3:2', 3 / 2], ['1:1', 1]] };
   const FMTS = { v45: '4:5', v34: '3:4', q11: '1:1', h: 'Horizontal' };
-  const BASICOS = ['#ffffff', '#000000', '#f3f1ec', '#262626'];
+  const BASICOS = [['#000000', 'Negro'], ['#ffffff', 'Blanco']];   // in every colour picker, after the kit
   const ROT_D = 26;                            // screen px from a frame's top edge to its rotation handle
   const SNAP = 7;                              // screen px within which the magnet aligns
   const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
@@ -315,7 +315,7 @@
   }
 
   // ---------- the open editor ----------
-  let E = null;      // {slotId, board, car, fmt, fmt0, sl:[slide], i, sel, mas, crop, pick, zoom, iman, hist, bm, marca, photos0, kit, mios, plant, logos, fkit, …}
+  let E = null;      // {slotId, board, car, fmt, fmt0, sl:[slide], i, sel, mas, crop, pick, zoom, iman, hist, bm, marca, photos0, kit, plant, logos, fkit, …}
   // slide: {key: the file in the post (photo or rendered image) | null (new), out: key is a rendered image with its composition,
   //         from: id of the post that composition was on (moved here), comp: null (untouched photo) | comp, raw: the photo as
   //         the mesa shows it (comp of an untouched photo), base: signature of the slide as opened, fmt, fmt0 (photo posts)}
@@ -423,7 +423,7 @@
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
-        bm: new Map(), marca, photos0: s.photos.slice(), kit: [], mios: [], plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 } };
+        bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 } };
       E.sl = s.photos.map(key => {
         const f = compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;
         if (f) { const comp = clone(f.comp); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: firma(comp), fmt, fmt0: fmt }; }
@@ -490,12 +490,12 @@
   // ---------- the client's colours, fonts, templates and logos (kit JSON + client record c.libre) ----------
   async function cargarCliente() {
     const owner = E, cid = E.board.client; if (!cid) return;
-    const kit = [], fk = [];
-    let est = [], tcol = [];
+    const fk = [];
+    let kit = null, est = [], tcol = [];
     if (M.diseno && M.diseno.kit) {
       try {
         const raw = await M.diseno.kit(cid);
-        if (raw && raw.colores) for (const [n, c] of Object.entries(raw.colores)) if (hexOk(c)) kit.push({ n: n.replace(/_/g, ' '), c: c.toLowerCase() });
+        kit = paletaKit(raw);
         if (raw && raw.fuentes) for (const f of Object.values(raw.fuentes)) if (f && f.archivo && !fk.some(q => q.file === f.archivo)) fk.push({ n: f.familia || f.archivo, file: f.archivo, w: f.peso || 400, kit: true });
         est = estilosKit(raw); tcol = ((raw && raw.colores_texto && raw.colores_texto.principales) || []).map(k => raw.colores && raw.colores[k]).filter(hexOk).map(c => c.toLowerCase());
       } catch (e) { /* this client has no design kit */ }
@@ -503,10 +503,22 @@
     const c = await I().idbGet('clients', cid), lib = (c && c.libre) || {};
     if (E !== owner) return;
     E.kit = kit; E.fkit = fk; E.estilos = est; E.tcol = tcol; E.fuentes = [...fk, ...FUENTES_MESA.filter(f => !fk.some(q => q.file === f.file)), ...FUENTES_MAC];
-    E.mios = (lib.colores || []).filter(hexOk); E.plant = Array.isArray(lib.plantillas) ? lib.plantillas : [];
+    E.plant = Array.isArray(lib.plantillas) ? lib.plantillas : [];
     E.logos = (lib.logos || []).filter(Boolean); await I().loadThumbs(E.logos); E.logos = E.logos.filter(f => M.files[f]);
     if (E !== owner) return;
     panel();
+  }
+  // the kit's colours for the pickers: its «grupos» in order, each one only in the pickers of its «usos» (all without them);
+  // a kit without «grupos» is one group with every colour. Keys of «colores» left out of every group are not offered.
+  const USOS = ['fondo', 'texto', 'relleno', 'borde', 'velo'];
+  function paletaKit(raw) {
+    const C = (raw && raw.colores) || {}, col = k => hexOk(C[k]) ? { n: String(k).replace(/_/g, ' '), c: C[k].toLowerCase() } : null;
+    let gs = (Array.isArray(raw && raw.grupos) ? raw.grupos : []).filter(g => g && Array.isArray(g.colores)).map(g => {
+      const usos = Array.isArray(g.usos) ? g.usos.filter(u => USOS.includes(u)) : [];
+      return { n: String(g.nombre || '').trim(), cols: g.colores.map(col).filter(Boolean), usos: usos.length ? usos : null };
+    }).filter(g => g.cols.length);
+    if (!gs.length) gs = [{ n: 'Colores', cols: Object.keys(C).map(col).filter(Boolean), usos: null }].filter(g => g.cols.length);
+    return gs.length ? { n: String(raw.marca || raw.cliente || '').trim(), grupos: gs } : null;
   }
   // the brand's text styles (kit «escala», px of a 1080-wide slide): the designer's fonts, weights, spacing and capitals
   const ESTILO_N = { portada: 'Portada', titular: 'Titular', entradilla: 'Entradilla', texto: 'Texto', etiqueta: 'Etiqueta' };
@@ -524,7 +536,7 @@
   const lum = hex => { const n = parseInt(hex.slice(1), 16), f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); };
   function textoMarca(k) {           // a text in a brand style: on a photo, the kit's lightest text colour; on a plain background, the one that reads best
     const st = E.estilos.find(q => q.k === k); if (!st) return null;
-    const c = compAt(E.i), bg = hexOk(c.bg) ? c.bg : '#ffffff', hay = fotosDe(c).length > 0, cs = E.tcol.length ? E.tcol : ['#ffffff', '#262626'];
+    const c = compAt(E.i), bg = hexOk(c.bg) ? c.bg : '#ffffff', hay = fotosDe(c).length > 0, cs = E.tcol.length ? E.tcol : ['#ffffff', '#000000'];
     const color = hay ? cs.reduce((a, q) => lum(q) > lum(a) ? q : a) : cs.reduce((a, q) => Math.abs(lum(q) - lum(bg)) > Math.abs(lum(a) - lum(bg)) ? q : a);
     const el = textoEl(color); Object.assign(el, { x: st.m, w: st.w, al: 'izq' }); conEstilo(el, st);
     return el;
@@ -535,7 +547,7 @@
     const c = await I().idbGet('clients', cid); if (!c) { I().toast('No encuentro el cliente de esta mesa.'); return false; }
     c.libre = fn(clone(c.libre || {})); c.libreAt = new Date().toISOString();
     await I().idbPut('clients', cid, c); await I().loadClients();
-    if (E === owner) { E.mios = (c.libre.colores || []).filter(hexOk); E.plant = c.libre.plantillas || []; E.logos = (c.libre.logos || []).filter(f => M.files[f]); panel(); }
+    if (E === owner) { E.plant = c.libre.plantillas || []; E.logos = (c.libre.logos || []).filter(f => M.files[f]); panel(); }
     return true;
   }
   // a logo or sticker of the client: kept as PNG (its transparency), at most 1600 px, in a protected file of the client
@@ -712,9 +724,9 @@
 #mesa .lb-sws{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
 #mesa .lb-sw{width:24px;height:24px;border-radius:50%;border:1px solid rgba(0,0,0,.18);padding:0}
 #mesa .lb-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--acc)}
-#mesa .lb-pick{width:26px;height:26px;padding:0;border:1px dashed #b5b5b5;border-radius:50%;background:none;cursor:pointer;overflow:hidden}
-#mesa .lb-pick::-webkit-color-swatch-wrapper{padding:3px}#mesa .lb-pick::-webkit-color-swatch{border:0;border-radius:50%}
-#mesa .lb-more{width:26px;height:26px;border-radius:50%;border:1px dashed #b5b5b5;background:var(--panel);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .lb-more:hover{border-color:var(--ink);color:var(--ink)}
+#mesa .lb-swk{margin:10px 0 6px;font-size:12px;font-weight:600}#mesa .lb-cols>.lb-swk:first-child{margin-top:0}
+#mesa .lb-swgs{display:flex;flex-wrap:wrap;gap:8px 18px}#mesa .lb-swg>span{display:block;margin-bottom:5px;font-size:11.5px;color:var(--mute)}
+#mesa .lb-swf{display:flex;align-items:center;gap:9px;margin-bottom:10px;font-size:12px;color:var(--mute)}#mesa .lb-swf .lb-sw{flex:none;box-sizing:border-box}
 #mesa .lb-rng{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12.5px}#mesa .lb-rng span{flex:none;width:72px}
 #mesa .lb-rng input{flex:1;min-width:0}#mesa .lb-rng output{min-width:3em;text-align:right;color:var(--mute);font-variant-numeric:tabular-nums}
 #mesa .lb-num{width:64px;border:1px solid var(--line);border-radius:8px;padding:5px 7px;font:inherit;font-size:12.5px}
@@ -1238,14 +1250,17 @@
   const pxf = v => Math.round(v) + ' px';
   const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2) };
   const rng = (act, label, v, min, max, step) => `<label class="lb-rng"><span>${label}</span><input type="range" data-lb="${act}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${OUTF[act](v)}</output></label>`;
-  function sws(act, curC, extra) {
-    const seen = new Set(), all = [];
-    const add = (c, t, mio) => { c = String(c).toLowerCase(); if (!hexOk(c) || seen.has(c)) return; seen.add(c); all.push({ c, t, mio }); };
-    E.kit.forEach(k => add(k.c, 'Kit: ' + k.n)); E.mios.forEach(c => add(c, 'Color guardado (Alt + clic para quitarlo)', true)); BASICOS.forEach(c => add(c, c));
-    const cc = hexOk(curC) ? curC.toLowerCase() : '#ffffff';
-    return `<div class="lb-sws">${extra || ''}${all.map(o => `<button type="button" class="lb-sw${o.c === cc ? ' on' : ''}" style="background:${o.c}" data-lb="${act}" data-c="${o.c}" title="${esc(o.t)}" aria-label="${esc(o.t)}"${o.mio ? ' data-mio="1"' : ''}></button>`).join('')}`
-      + `<input type="color" class="lb-pick" data-lb="${act}" value="${cc}" title="Otro color" aria-label="Otro color">`
-      + `<button type="button" class="lb-more" data-lb="color-save" data-c="${cc}" title="Guardar ${cc} en los colores del cliente" aria-label="Guardar este color">+</button></div>`;
+  const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', bc: 'borde', 'velo-c': 'velo' };
+  function sws(act, curC) {        // «Kit <marca>» (its groups for this picker) and «Básicos»; a colour shows once, where it first appears
+    const seen = new Set(), uso = USO[act], cc = hexOk(curC) ? curC.toLowerCase() : '#ffffff';
+    const nuevos = os => os.filter(o => !seen.has(o.c) && seen.add(o.c));
+    const gs = (E.kit ? E.kit.grupos : []).filter(g => !g.usos || g.usos.includes(uso)).map(g => ({ n: g.n, os: nuevos(g.cols.map(k => ({ c: k.c, t: k.n + ' · ' + k.c }))) })).filter(g => g.os.length);
+    const bas = nuevos(BASICOS.map(([c, n]) => ({ c, t: n + ' · ' + c })));
+    const sw = o => `<button type="button" class="lb-sw${o.c === cc ? ' on' : ''}" style="background:${o.c}" data-lb="${act}" data-c="${o.c}" title="${esc(o.t)}" aria-label="${esc(o.t)}"></button>`;
+    const fuera = 'Color actual · fuera de esta lista';   // an element's colour that this picker does not offer: kept, and shown so it can be replaced
+    return '<div class="lb-cols">' + (seen.has(cc) ? '' : `<div class="lb-swf"><span class="lb-sw on" style="background:${cc}" role="img" title="${fuera} (${cc})" aria-label="${fuera} (${cc})"></span>${fuera}</div>`)
+      + (gs.length ? `<div class="lb-swk">Kit ${esc(E.kit.n)}</div><div class="lb-swgs">${gs.map(g => `<div class="lb-swg">${g.n ? `<span>${esc(g.n)}</span>` : ''}<div class="lb-sws">${g.os.map(sw).join('')}</div></div>`).join('')}</div>` : '')
+      + `<div class="lb-swk">Básicos</div><div class="lb-sws">${bas.map(sw).join('')}</div></div>`;
   }
   const seg = (act, opts, v) => `<div class="seg" role="group">${opts.map(([k, l]) => `<button type="button" data-lb="${act}" data-v="${k}" class="${k === v ? 'on' : ''}" aria-pressed="${k === v}">${l}</button>`).join('')}</div>`;
   function gridSvg(name) { const cs = cells(name, 40, 50, 3); return `<svg viewBox="0 0 40 50" aria-hidden="true"><rect x="0" y="0" width="40" height="50" rx="2" fill="#efefef"/>${cs.map(q => `<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="1" fill="#b9b4ab"/>`).join('')}</svg>`; }
@@ -1353,7 +1368,7 @@
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
       h += `<div class="lb-sec"><h4>Logos y pegatinas <span>· del cliente</span></h4>${E.logos.length ? `<div class="lb-photos">${E.logos.map(f => `<button type="button" class="lb-ph logo" data-lb="logo" data-f="${esc(f)}" title="Añadir ${esc(M.files[f].name || '')} (Alt + clic: quitarlo del kit)"><img src="${M.files[f].thumbUrl || ''}" alt=""></button>`).join('')}</div>` : '<p class="lb-p" style="margin:0">Sube el logo del cliente (mejor PNG con transparencia) y queda guardado para todos sus meses.</p>'}`
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="logo-up">Subir logo o pegatina</button></div></div>';
-      h += `<div class="lb-sec"><h4>Fondo <span>· kit de marca y tus colores</span></h4>${sws('bg', c.bg)}</div>`;
+      h += `<div class="lb-sec"><h4>Fondo</h4>${sws('bg', c.bg)}</div>`;
       h += `<div class="lb-sec"><h4>Velo <span>· encima de las fotos, debajo del texto</span></h4>${seg('velo', [['', 'Ninguno'], ['plano', 'Plano'], ['grad', 'Degradado']], v ? v.tipo : '')}`
         + (v ? `<span class="lb-l">Color</span>${sws('velo-c', v.color)}${rng('velo-op', 'Intensidad', v.op, 0.05, 0.9, 0.01)}` + (v.tipo === 'grad' ? `<span class="lb-l">Desde</span>${seg('velo-dir', [['abajo', 'Abajo'], ['arriba', 'Arriba'], ['izq', 'Izquierda'], ['der', 'Derecha']], v.dir || 'abajo')}${rng('velo-alc', 'Alcance', v.alc ?? 0.6, 0.2, 1, 0.01)}` : '') : '') + '</div>';
       h += `<div class="lb-sec"><h4>Textura <span>· encima de todo</span></h4>${seg('tex', [['', 'Ninguna'], ...Object.entries(TEXS)], c.tex ? c.tex.tipo : '')}${c.tex ? rng('tex-op', 'Intensidad', c.tex.op, 0.05, 1, 0.01) : ''}</div>`;
@@ -1546,7 +1561,7 @@
   }
   function nuevo(el) { mut(null, () => { const c = ensure(); c.els.push(el); E.sel = el.id; E.mas = []; E.crop = null; E.pick = null; }); }
   function act(a, b) {
-    const x = E.sl.length ? cur() : null, col = () => (b.value || b.dataset.c).toLowerCase(), picked = !!(b && b.value && b.type === 'color');
+    const x = E.sl.length ? cur() : null, col = () => String(b.dataset.c).toLowerCase();
     switch (a) {
       case 'cerrar': pedirCerrar(); return;
       case 'aplicar': aplicar(); return;
@@ -1585,7 +1600,7 @@
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
       case 'tr-add': ponerFotos([b.dataset.f], null, null); return;
-      case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#262626')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
+      case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#000000')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
       case 'add-est': { const el = textoMarca(b.dataset.v); if (el) nuevo(el); return; }
       case 'est': { const st = E.estilos.find(q => q.k === b.dataset.v); if (st) onEl(el => { if (el.t === 'texto') conEstilo(el, st); }); return; }
@@ -1603,19 +1618,18 @@
         });
         return;
       }
-      case 'bc': onEl(el => { el.bc = col(); }, 'bc', picked); if (picked) panelSw('bc', b.value); return;
-      case 'tc': onEl(el => { if (el.t === 'texto') el.color = col(); }, 'tc', picked); if (picked) panelSw('tc', b.value); return;
-      case 'fc': onEl(el => { if (el.t === 'forma') el.color = col(); }, 'fc', picked); if (picked) panelSw('fc', b.value); return;
-      case 'bg': mut('bg', () => { ensure().bg = col(); }, picked); if (picked) panelSw('bg', b.value); return;
+      case 'bc': onEl(el => { el.bc = col(); }, 'bc'); return;
+      case 'tc': onEl(el => { if (el.t === 'texto') el.color = col(); }, 'tc'); return;
+      case 'fc': onEl(el => { if (el.t === 'forma') el.color = col(); }, 'fc'); return;
+      case 'bg': mut('bg', () => { ensure().bg = col(); }); return;
       case 'velo': mut(null, () => { const c = ensure(); c.velo = b.dataset.v ? { tipo: b.dataset.v, color: (c.velo && c.velo.color) || '#000000', op: (c.velo && c.velo.op) || 0.35, dir: (c.velo && c.velo.dir) || 'abajo', alc: (c.velo && c.velo.alc) || 0.6 } : null; }); return;
-      case 'velo-c': mut('velo-c', () => { const c = ensure(); if (c.velo) c.velo.color = col(); }, picked); if (picked) panelSw('velo-c', b.value); return;
+      case 'velo-c': mut('velo-c', () => { const c = ensure(); if (c.velo) c.velo.color = col(); }); return;
       case 'velo-dir': mut(null, () => { const c = ensure(); if (c.velo) c.velo.dir = b.dataset.v; }); return;
       case 'tex': mut(null, () => { const c = ensure(); if (b.dataset.v) c.tex = { tipo: b.dataset.v, op: (c.tex && c.tex.op) || 0.35 }; else delete c.tex; }); return;
       case 'grid': mut(null, () => { const c = ensure(); rejilla(c, b.dataset.v, c.rej ? c.rej.g : E.gap ?? 0.02); soltar(); E.crop = null; }); return;
       case 'tpl': aplicarPlantilla(b.dataset.id); return;
       case 'tpl-save': guardarPlantilla(); return;
       case 'tpl-del': { const t = E.plant.find(q => q.id === b.dataset.id); if (t) preguntar(`¿Borrar la plantilla «${t.nombre}»?`, 'Se borra para este cliente; las diapositivas ya hechas con ella no cambian.', [['seguir', 'Cancelar', 'btn2'], ['borrar', 'Borrar', 'btn']], v => { if (v === 'borrar') guardarCliente(l => ({ ...l, plantillas: (l.plantillas || []).filter(q => q.id !== t.id) })); }); return; }
-      case 'color-save': { const c = String(b.dataset.c || '').toLowerCase(); if (!hexOk(c)) return; if (E.mios.includes(c) || E.kit.some(k => k.c === c)) { I().toast('Ese color ya está en los colores del cliente.'); return; } guardarCliente(l => ({ ...l, colores: [...(l.colores || []), c].slice(-16) })).then(ok => ok && I().toast('Color guardado para este cliente.')); return; }
       case 'crop': { const el = selEl(); if (!el || el.t !== 'foto') return; E.crop = E.crop === el.id ? null : el.src && !el.lock ? el.id : null; panel(); pedir(); return; }
       case 'crop-c': onEl(el => setPhoto(el, { cx: 0.5, cy: 0.5, z: 1 })); return;
       case 'encajar': onEl(el => { if (el.t === 'foto') encajar(el, el.fit != null ? el.fit : 0); }); return;
@@ -1665,13 +1679,8 @@
     if (E.flm && fuera('.lb-fl')) { E.flm = false; barra(); n = true; }
     return n;
   }
-  function panelSw(act, v) {      // a colour picked with the native picker: the swatch ring follows without rebuilding the panel
-    E.el.querySelectorAll(`.lb-panel .lb-sw[data-lb="${act}"]`).forEach(s => s.classList.toggle('on', s.dataset.c === String(v).toLowerCase()));
-    const sv = E.el.querySelector(`.lb-panel input.lb-pick[data-lb="${act}"]`); if (sv) { const more = sv.nextElementSibling; if (more) more.dataset.c = String(v).toLowerCase(); }
-  }
   function onInput(t) {           // sliders and fields of the panel
     const a = t.dataset.lb;
-    if (t.type === 'color') { act(a, t); return; }
     if (a === 'txt') { const v = t.value; onEl(el => { if (el.t === 'texto') { el.txt = v; ajustarTexto(el, E.sz.W, E.sz.H); } }, 'txt', true); return; }
     if (a === 'font') { const f = E.fuentes[+t.value]; if (!f) return; onEl(el => { if (el.t !== 'texto') return; el.font = { n: f.n, ...(f.file ? { file: f.file, w: f.w } : { css: f.css }) }; ajustarTexto(el, E.sz.W, E.sz.H); }); return; }
     const v = +t.value;
@@ -1743,7 +1752,6 @@
       if (E.pv && e.target === E.pv) { preview(false); return; }   // a click outside the post closes the preview
       const b = e.target.closest('[data-lb]'); if (!b || !el.contains(b) || E.busy) return;
       if ((b.tagName === 'INPUT' && b.type !== 'button') || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
-      if (b.dataset.mio && e.altKey) { const c = b.dataset.c; guardarCliente(l => ({ ...l, colores: (l.colores || []).filter(q => q !== c) })); return; }
       if (b.dataset.lb === 'logo' && e.altKey) { const f = b.dataset.f; preguntar('¿Quitar este logo del kit?', 'Las diapositivas ya hechas con él no cambian.', [['seguir', 'Cancelar', 'btn2'], ['q', 'Quitar', 'btn']], v => { if (v === 'q') guardarCliente(l => ({ ...l, logos: (l.logos || []).filter(q => q !== f) })); }); return; }
       b._shift = e.shiftKey;
       act(b.dataset.lb, b);

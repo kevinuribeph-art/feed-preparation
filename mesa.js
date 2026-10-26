@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.29
+// Mesa de trabajo — Uribe Visuals · v3.30
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -27,10 +27,11 @@
 // «Editar portada» on a reel opens its cover in the free editor; a post that changes type has its edited images drawn again.
 // Export: in the Claude app's browser (its save dialog can't write) a normal download; a write that fails says why and
 // leaves no empty file nor a second dialog.
+// v3.30: the free editor's colour pickers show only the kit's colours, in the groups of its «grupos», and two basics (libre 1.7).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.29';
+  M.version = '3.30';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

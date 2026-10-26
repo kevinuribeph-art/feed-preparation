@@ -33,6 +33,12 @@
     "blanco": "#F4EFE8",
     "carbon": "#16110E"
   },
+  "grupos": [
+    { "nombre": "Base", "colores": ["ink", "paper"] },
+    { "nombre": "Acentos", "colores": ["terracotta", "brass"] },
+    { "nombre": "Textos pequeños", "colores": ["terracotta_light", "terracotta_dark"], "usos": ["texto"] },
+    { "nombre": "Neutros", "colores": ["neutral_text_on_paper", "neutral_label_on_paper", "neutral_label_on_ink", "neutral_text_on_ink", "rule_on_paper"], "usos": ["texto", "relleno", "borde"] }
+  ],
   "colores_texto": { "principales": ["paper", "ink"], "acentos": ["terracotta_light", "terracotta_dark"] },
   "lienzo": {
     "ancho": 1080,

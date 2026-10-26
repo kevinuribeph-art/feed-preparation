@@ -24,6 +24,11 @@
     "verde": "#00804A",
     "blanco": "#FFFFFF"
   },
+  "grupos": [
+    { "nombre": "Base", "colores": ["crema", "carbon", "blanco"] },
+    { "nombre": "Acentos", "colores": ["turquesa", "verde"] },
+    { "nombre": "Neutros", "colores": ["gris", "arena", "arena_clara"] }
+  ],
   "colores_texto": { "principales": ["crema", "gris"], "acentos": ["verde", "turquesa"] },
   "lienzo": {
     "ancho": 1080,

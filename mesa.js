@@ -28,10 +28,11 @@
 // Export: in the Claude app's browser (its save dialog can't write) a normal download; a write that fails says why and
 // leaves no empty file nor a second dialog.
 // v3.30: the free editor's colour pickers show only the kit's colours, in the groups of its «grupos», and two basics (libre 1.7).
+// v3.31: the free editor copies whole slides and pastes what was copied in the same place, also in another post (libre 1.8).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.30';
+  M.version = '3.31';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

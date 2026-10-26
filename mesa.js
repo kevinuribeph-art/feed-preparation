@@ -1,4 +1,4 @@
-// Mesa de trabajo — Uribe Visuals · v3.28
+// Mesa de trabajo — Uribe Visuals · v3.29
 // Planning board for each client's Instagram grid. Kevin drops photos, arranges them on the empty grid of
 // the month being prepared (one cell per publication loaded from Notion), sees the whole previous month under
 // the line, and Claude later uploads the chosen (cropped) photos to each publication's Notion page.
@@ -23,10 +23,14 @@
 // v3.27: a Foto is named «Foto» in the grid again (the carousel icon only with several pages, as Instagram); a designed
 // carousel also opens in the free editor; M.addFiles(…, {tray}) gives back photos already in the tray (libre 1.4).
 // v3.28: «+ Hueco»: up to 2 black cells at the top of the grid (after the pinned posts) to square the feed into rows of 3.
+// v3.29: «Sustituir» / «Añadir» on a carousel drawn in the free editor keep its texts and fill its photo holes (libre 1.6);
+// «Editar portada» on a reel opens its cover in the free editor; a post that changes type has its edited images drawn again.
+// Export: in the Claude app's browser (its save dialog can't write) a normal download; a write that fails says why and
+// leaves no empty file nor a second dialog.
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.28';
+  M.version = '3.29';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -144,7 +148,7 @@
   const isCarousel = t => t === 'Carrusel' || t === 'Foto';         // a Foto works as a carousel (3.26): one photo or several pages, all published
   const typeIcon = (t, n) => isReel(t) ? ICON.reel : t === 'Carrusel' || (t === 'Foto' && n > 1) ? ICON.carousel : '';   // as Instagram's grid: a Foto of one page has none
   const isMulti = isCarousel;
-  const edLabel = s => s.type === 'Foto' ? 'Editar foto' : 'Editar diapositivas';   // the free editor's button: the label follows the post's
+  const edLabel = s => s.type === 'Foto' ? 'Editar foto' : isReel(s.type) ? 'Editar portada' : 'Editar diapositivas';   // the free editor's button: the label follows the post's
   const publishList = s => isCarousel(s.type) ? s.photos : s.photos.slice(0, 1);
   const noteOf = s => String(s.note || '').trim();                   // «Contexto»: goes to Notion for the caption
   const memoOf = s => String(s.memo || '').trim();                   // «Nota»: only for Kevin, never uploaded
@@ -954,6 +958,11 @@
     if (!P || !S || S.key !== P.key) return;
     const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
     if (m !== 'add' && designed(s) && sinPortada(s)) return;
+    if (isCarousel(s.type) && s.libre && !s.design) {   // drawn in the free editor: its texts stay and the photos go to its holes (libre.js)
+      if (M.libre && M.libre.casilla) M.libre.casilla(s.id, ids, m);
+      else toast('El editor no está cargado: recarga la página para poner fotos en este carrusel.', { ms: 6000 });
+      return;
+    }
     if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
     ids.forEach(id => { const o = S.slots.find(x => x !== s && x.photos.includes(id)); if (o) o.photos = o.photos.filter(x => x !== id); takeFromTray(id); if (sel === id) sel = null; });
     if (designed(s) && isCarousel(s.type)) {   // a designed carousel: the cover slide's photo (texts stay), never a new slide
@@ -1077,8 +1086,8 @@
     const s = S.slots.find(x => x.id === slotId), o = H.cur.slots.find(x => x.id === slotId); if (!s || !o) return;
     o.photos = s.photos.slice(); if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); else delete o.design;
     if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); else delete o.libre;
-    if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: photos, note, date, memo, fmt, design, libre)
-    const { id, photos, note, date, memo, fmt, design, libre } = o; H.cur.slots[H.cur.slots.indexOf(o)] = { id, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}) };
+    if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: type, photos, note, date, memo, fmt, design, libre)
+    const { id, type, photos, note, date, memo, fmt, design, libre } = o; H.cur.slots[H.cur.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}) };
     H.curJ = JSON.stringify(H.cur);
   }
   function applyState(st) {
@@ -1840,8 +1849,8 @@
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);
     const dzB = (car || reel) && !nl ? `<button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>` : '';   // «Diseñar» while no slide comes from the free editor; the editor also opens a designed carousel (3.27)
-    const edB = car ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
-    const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
+    const edB = car || (reel && n) ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
+    const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${reel ? 'Portada editada · se sube tal cual' : nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
     const dz = dzB || edB ? `<div class="pdz">${dzB}${edB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>·</span>${typeHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
@@ -1933,6 +1942,10 @@
     if (!isMulti(to) && s.photos.length > 1) { const ex = s.photos.slice(1).filter(f => !dOut(s).includes(f)); s.photos = s.photos.slice(0, 1); S.tray.unshift(...ex); back = ex.length; }
     S.tray = [...new Set(S.tray)].filter(f => !S.slots.some(x => x.photos.includes(f)));
     renumber(); changed();
+    if (s.libre && !s.design) {                          // images drawn in the free editor: drawn again in the new type's format (libre.js)
+      if (M.libre && M.libre.redibujar) M.libre.redibujar(s.id);
+      else toast('El editor no está cargado: abre «Editar» y aplica para pasar la imagen editada al formato nuevo.', { ms: 7000 });
+    }
     if (cur.slot === id) openDetail(id, 0);
     const pend = typeChg(s) ? (s.name !== name0 ? ` · se llamará ${s.name}` : '') + ' · al subir a Notion se cambia allí' : ' · como en Notion';
     toast(`Ahora es ${to}${pend}.` + (back ? ` Un reel solo lleva portada: ${back === 1 ? 'la otra foto ha vuelto' : `las otras ${back} fotos han vuelto`} a la bandeja.` : ''), { ms: back ? 8000 : 5000 });
@@ -3426,6 +3439,11 @@
       return { blob, type: 'image/jpeg', name: String(rec.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', w: t.w, h: t.h, reduced: true };
     } finally { bmp.close(); }
   }
+  // The save dialog (File System Access) writes the file where Kevin chooses. The Claude app's browser opens it but never
+  // lets it write (permission «denied», NotAllowedError: an empty file was left behind and a second dialog came up), so
+  // there the export is a normal download, with the browser's own dialog; a browser where writing once failed, the same.
+  const LS_NOFSA = 'mesa-export-descarga';
+  const fsaOk = () => typeof window.showSaveFilePicker === 'function' && !/\bClaude\//.test(navigator.userAgent) && lsGet(LS_NOFSA) !== '1';
   // opts.returnBlob: true -> the Blob, nothing saved (Claude / tests)
   M.exportAll = async (opts = {}) => {
     const fail = m => { toast(m, { ms: 7000 }); return { error: m }; };
@@ -3435,9 +3453,13 @@
     try {
       const now = new Date(), mp = madParts(now.getTime()), fname = `mesa-de-trabajo-${mp.day}-${mp.time.replace(':', '')}.json`;
       let handle = null;
-      if (!opts.returnBlob && typeof window.showSaveFilePicker === 'function') {   // first thing: it needs the click
+      if (!opts.returnBlob && fsaOk()) {   // first thing: it needs the click
         try { handle = await window.showSaveFilePicker({ suggestedName: fname, types: [{ description: 'Mesa de trabajo', accept: { 'application/json': ['.json'] } }] }); }
         catch (e) { if (e && e.name === 'AbortError') return { cancelled: true }; handle = null; }
+        if (handle) {
+          xferH = handle; try { xferSz = (await handle.getFile()).size; } catch (e) { xferSz = null; }   // an existing file chosen to be replaced is never deleted
+          try { xferW = await handle.createWritable(); } catch (e) { return await xferNoWrite(handle, e); }   // can it write there? known now, not after the photos
+        }
       }
       setBusy('imp', 'Exportando la mesa…');
       await addQ; await flushPending();
@@ -3473,8 +3495,8 @@
       if (opts.returnBlob) return blob;
       setBusy('imp', 'Guardando el archivo…');
       let via = 'archivo';
-      if (handle) { try { const w = await handle.createWritable(); await w.write(blob); await w.close(); } catch (e) { handle = null; } }
-      if (!handle) {                       // no picker (or it failed): a normal download
+      if (handle) { try { await xferW.write(blob); await xferW.close(); xferW = null; } catch (e) { return await xferNoWrite(handle, e); } }
+      else {                               // no save dialog here: a normal download (the browser's own dialog)
         via = 'descarga';
         const u = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = u; a.download = fname; a.hidden = true; document.body.append(a); a.click(); a.remove();
@@ -3483,9 +3505,30 @@
       const mb = +(blob.size / 1048576).toFixed(1);
       toast(`Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : ''), { ms: 7000 });
       return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb };
-    } catch (e) { return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e)); }
-    finally { xferRun = null; setBusy('imp', null); }
+    } catch (e) { const q = xferW ? await xferDrop() : 'borrado'; return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e) + (q === 'vacio' ? ' Puede haber quedado un archivo vacío con el nombre elegido: bórralo.' : '')); }
+    finally { xferRun = null; xferW = null; xferH = null; xferSz = null; setBusy('imp', null); }
   };
+  // the file chosen in the save dialog could not be written: what was written is dropped and so is the empty file the
+  // dialog made (never a second dialog); without permission, the next exports from this browser are a normal download
+  // what is left where it was chosen: 'borrado' (the empty file is gone) | 'intacto' (a file that was there stays as it
+  // was: the browser only replaces it on close) | 'vacio' (an empty file may be left)
+  let xferW = null, xferH = null, xferSz = null;
+  async function xferDrop() {
+    const w = xferW, h = xferH; xferW = null;
+    if (w) { try { await w.abort(); } catch (e) { /* already closed */ } }
+    if (!h) return 'borrado';
+    if (xferSz > 0) return 'intacto';
+    if (xferSz !== 0) return 'vacio';
+    try { await h.remove(); return 'borrado'; } catch (e) { return 'vacio'; }
+  }
+  async function xferNoWrite(h, e) {
+    const gone = await xferDrop(), perm = !!e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');   // no permission: the dialog is no use in this browser
+    if (perm) lsSet(LS_NOFSA, '1');
+    const why = perm ? 'este navegador no deja escribir en el archivo elegido' : e && e.name === 'QuotaExceededError' ? 'no queda espacio en el disco' : 'el navegador no pudo escribir el archivo';
+    const m = `No se pudo guardar «${h.name}»: ${why} (${(e && e.name) || 'Error'}: ${(e && e.message) || e}).` + (gone === 'vacio' ? ' Puede haber quedado un archivo vacío con ese nombre: bórralo.' : gone === 'intacto' ? ' El archivo que había sigue como estaba.' : '') + (perm ? ' Vuelve a pulsar Exportar: esta vez se guarda con una descarga normal.' : ' Vuelve a intentarlo o elige otra carpeta.');
+    toast(m, { ms: 12000 });
+    return { error: m, name: (e && e.name) || null, left: gone };
+  }
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';

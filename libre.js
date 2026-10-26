@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.6
+// Editor libre de diapositivas — Mesa de trabajo · v1.8
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -35,11 +35,14 @@
 // texts, shapes and logos back in their zone (not the ones moved by hand); a carousel drawn in Horizontal keeps its ratio.
 // «Editar portada» on a reel: its cover is one 9:16 page (a designed reel opens with its applied cover, as a carousel).
 // A post that changes type: its images drawn here are drawn again in the new format (redibujar).
+// v1.8 (mesa 3.31): «Copiar» on the selection bar and «Copiar diapositiva» (⌘C with nothing chosen): a whole slide pastes in
+// after the chosen one (or into a new empty slide, or a reel's cover), in this post or another of the client; what is pasted
+// keeps its place, and on a slide of another proportion each block keeps its corner or edge (enSuSitio).
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.7';
+  const VERSION = '1.8';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -319,7 +322,7 @@
   // slide: {key: the file in the post (photo or rendered image) | null (new), out: key is a rendered image with its composition,
   //         from: id of the post that composition was on (moved here), comp: null (untouched photo) | comp, raw: the photo as
   //         the mesa shows it (comp of an untouched photo), base: signature of the slide as opened, fmt, fmt0 (photo posts)}
-  let APL = 0, CLIP = null;   // «Aplicar» running; what was copied {els, client} (kept between posts of the same client)
+  let APL = 0, CLIP = null;   // «Aplicar» running; what was copied {els | slide (a whole comp), rat (W/H of its slide), client} (kept between posts of the same client)
   const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? S.slots.find(x => x.id === E.slotId) : null; return s && (s.design || null) === E.dz && isLibSlot(s) ? s : null; };   // a designed post: the very design it opened with
   const cur = () => E.sl[E.i];
   const EMPTY = { bg: '#ffffff', velo: null, els: [] };
@@ -1310,7 +1313,7 @@
   function panel() {
     if (!E || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), top = p.scrollTop, x = cur();
-    if (!x) { p.innerHTML = '<div class="lb-sec"><h4>Sin diapositivas</h4><p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2" data-lb="sl-add">+ Diapositiva sin foto</button></div></div>'; return; }
+    if (!x) { p.innerHTML = `<div class="lb-sec"><h4>Sin diapositivas</h4><p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2" data-lb="sl-add">+ Diapositiva sin foto</button>${clip() && clip().slide ? pegarHTML() : ''}</div></div>`; return; }
     if (E.pick) {
       const ls = fotosDisponibles(), t = E.pick.modo === 'add' ? 'Añadir una foto' : E.pick.modo === 'rep' ? 'Reemplazar la foto' : 'Foto para el hueco';
       p.innerHTML = `<div class="lb-sec"><h4>${t} <span>· de esta publicación y de la bandeja</span></h4>`
@@ -1362,7 +1365,7 @@
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
-      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add">+ Foto</button><button type="button" class="btn2" data-lb="add-txt">+ Texto</button><button type="button" class="btn2" data-lb="add-forma" data-v="rect">+ Rectángulo</button><button type="button" class="btn2" data-lb="add-forma" data-v="elipse">+ Círculo</button><button type="button" class="btn2" data-lb="add-forma" data-v="linea">+ Línea</button>${clip() ? '<button type="button" class="btn2" data-lb="paste" title="⌘V">Pegar</button>' : ''}`
+      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add">+ Foto</button><button type="button" class="btn2" data-lb="add-txt">+ Texto</button><button type="button" class="btn2" data-lb="add-forma" data-v="rect">+ Rectángulo</button><button type="button" class="btn2" data-lb="add-forma" data-v="elipse">+ Círculo</button><button type="button" class="btn2" data-lb="add-forma" data-v="linea">+ Línea</button>${pegarHTML()}<button type="button" class="btn2" data-lb="sl-copy" title="⌘C sin nada elegido: con su fondo, velo y textura, para pegarla en esta u otra publicación">Copiar diapositiva</button>`
         + (!isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
         + (c.els.length ? '<p class="lb-p">Clic en un elemento para moverlo, girarlo o darle estilo.</p>' : '') + '</div>';
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
@@ -1392,7 +1395,8 @@
     const c = compAt(E.i), n = c.els.length, idx = ss.map(e => c.els.indexOf(e)), el = selEl();
     const lock = ss.every(e => e.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
     const it = (v, l, t, off) => `<button type="button" role="menuitem" data-lb="${v}" title="${t}"${off ? ' disabled' : ''}>${l}</button>`;
-    fl.innerHTML = '<button type="button" data-lb="dup" title="Duplicar (⌘D)">Duplicar</button>'
+    fl.innerHTML = '<button type="button" data-lb="copy" title="Copiar (⌘C): ⌘V lo pega en el mismo sitio, en esta u otra diapositiva o publicación">Copiar</button>'
+      + '<button type="button" data-lb="dup" title="Duplicar (⌘D)">Duplicar</button>'
       + `<button type="button" data-lb="lock" aria-pressed="${lock}">${lock ? 'Desbloquear' : 'Bloquear'}</button>`
       + `<button type="button" data-lb="flm" aria-haspopup="menu" aria-expanded="${E.flm}"${arriba && abajo ? ' disabled' : ''}>Delante / detrás</button>`
       + (!multi() && el && el.g ? '<button type="button" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '')
@@ -1520,21 +1524,64 @@
     onEl(e => { if (e.lock) return; e.x = r4(e.x + dx / W); e.y = r4(e.y + dy / H); delete e.fit; if (e.t !== 'foto') e.mano = true; }, 'nudge', true);
     syncNums(selEl());
   }
-  function copiar() { const ss = selEls(); if (!ss.length) return; CLIP = { els: clone(ss), client: E.board.client }; I().toast(ss.length === 1 ? 'Copiado: pégalo en esta u otra diapositiva con ⌘V.' : `${ss.length} elementos copiados: pégalos con ⌘V.`); panel(); }
-  const clip = () => CLIP && E && CLIP.client === E.board.client ? CLIP.els : null;   // another client's photos and logos never go into this one's posts
+  function copiar(todo) {          // the selected elements; nothing selected (or «Copiar diapositiva»): the whole slide, its background, veil and texture too
+    if (!E.sl.length) return;
+    const ss = todo ? [] : selEls(), { W, H } = sizeAt(E.i), de = { client: E.board.client, rat: W / H };
+    if (ss.length) { CLIP = { ...de, els: clone(ss) }; I().toast(ss.length === 1 ? 'Copiado: pégalo con ⌘V en esta u otra diapositiva, en el mismo sitio.' : `${ss.length} elementos copiados: pégalos con ⌘V, en el mismo sitio.`); }
+    else { CLIP = { ...de, slide: clone(compAt(E.i)) }; I().toast('Diapositiva copiada: pégala con ⌘V en esta u otra publicación del cliente.'); }
+    panel();
+  }
+  const clip = () => CLIP && E && CLIP.client === E.board.client ? CLIP : null;   // another client's photos and logos never go into this one's posts
+  const pegarHTML = () => { const cb = clip(); return !cb ? '' : cb.slide ? `<button type="button" class="btn2" data-lb="paste" title="⌘V: ${E.reel ? 'en lugar de la portada' : 'detrás de la elegida (o en ella, si es nueva y está vacía)'}">${E.reel ? 'Pegar como portada' : 'Pegar diapositiva'}</button>` : '<button type="button" class="btn2" data-lb="paste" title="⌘V: en el mismo sitio">Pegar</button>'; };
+  function copias(els, suelta) {   // new ids and groups; a photo that crossed slides stands alone; a file no longer here leaves a hole
+    const g = {};
+    return els.map(e0 => { const e = clone(e0); e.id = uid(); if (suelta) e.lock = false; delete e.pan; if (e.g) e.g = g[e.g] || (g[e.g] = uid()); if (e.src && !M.files[e.src]) e.src = null; return e; });
+  }
   function pegar() {
-    if (!clip() || !E.sl.length) return;
+    const cb = clip(); if (!cb) return;
+    if (cb.slide) { pegarSl(cb); return; }
+    if (!E.sl.length) return;
     mut(null, () => {
-      const c = ensure(), g = {}, ids = [];
-      const dup = clip().every(e => c.els.some(o => Math.abs(o.x - e.x) < 1e-3 && Math.abs(o.y - e.y) < 1e-3 && Math.abs(o.w - e.w) < 1e-3));
-      for (const e0 of clip()) {
-        const e = clone(e0); e.id = uid(); e.lock = false; delete e.pan; if (e.g) e.g = g[e.g] || (g[e.g] = uid());
-        if (e.src && !M.files[e.src]) e.src = null;
-        if (dup) { e.x = r4(e.x + 0.03); e.y = r4(e.y + 0.03); }
-        c.els.push(e); ids.push(e.id);
-      }
-      E.sel = ids[0]; E.mas = ids.slice(1); E.crop = null;
+      const c = ensure(), nw = copias(cb.els, true);
+      enSuSitio(nw, cb.rat, E.i);
+      const dup = nw.every(e => c.els.some(o => Math.abs(o.x - e.x) < 1e-3 && Math.abs(o.y - e.y) < 1e-3 && Math.abs(o.w - e.w) < 1e-3));   // on itself: a little aside
+      if (dup) nw.forEach(e => { e.x = r4(e.x + 0.03); e.y = r4(e.y + 0.03); });
+      c.els.push(...nw); E.sel = nw[0].id; E.mas = nw.slice(1).map(e => e.id); E.crop = null;
     });
+  }
+  function pegarSl(cb) {           // a new slide still empty, or a reel's cover, takes it; else it goes in after the chosen one
+    const x0 = cur(); if (E.reel && !x0) return;
+    const llena = E.reel || (x0 && !x0.key && !compAt(E.i).els.length);
+    if (!llena && E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
+    mut(null, () => {
+      const comp = { ...clone(cb.slide), els: copias(cb.slide.els, false) };
+      let x = x0;
+      if (!llena) { x = blankSlide(comp.bg || '#ffffff'); if (x0 && !E.car) x.fmt = fmtAt(E.i); E.i = x0 ? E.i + 1 : 0; E.sl.splice(E.i, 0, x); }
+      enSuSitio(comp.els, cb.rat, E.i);
+      const { W, H } = sizeAt(E.i);
+      x.comp = comp; x.rat = W / H; soltar(); E.crop = null;
+    });
+  }
+  // What is pasted stays where it was: in pixels on a slide of the same proportion. On another, each block (an element, or a
+  // group) keeps the corner or edge of the slide it is nearest to (top, middle or bottom; left, centre or right), its distance
+  // to it and its size, scaled by k (the ratio of the short sides, as a new format). A background — half the slide or more —
+  // stretches with the slide; a photo that «Encaja» fits again, and every photo is clamped in its new frame.
+  function enSuSitio(els, rat, i) {
+    const { W, H: H1 } = sizeAt(i), H0 = W / rat;
+    if (!(rat > 0) || Math.abs(rat - W / H1) <= 0.005) return;   // as «Aplicar»'s check: the same proportion
+    const k = Math.min(W, H1) / Math.min(W, H0), grupos = new Map();
+    for (const e of els) { const g = e.g || e.id; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push(e); }
+    for (const blq of grupos.values()) {
+      const b = union(blq, W, H0); if ((b.r - b.l) * (b.b - b.t) >= 0.5 * W * H0) continue;
+      const cx = (b.l + b.r) / 2 / W, cy = (b.t + b.b) / 2 / H0, zy = cy < 0.4 ? 0 : cy > 0.6 ? 1 : 0.5;
+      const ax = cx < 0.4 ? 0 : cx > 0.6 ? W : W / 2, ay0 = zy * H0, ay1 = zy * H1;
+      for (const e of blq) {
+        Object.assign(e, { x: r4((ax + (e.x * W - ax) * k) / W), w: r4(e.w * k), y: r4((ay1 + (e.y * H0 - ay0) * k) / H1), h: r4(e.h * H0 * k / H1) });
+        if (e.t === 'texto') e.size = r4((e.size || 0.06) * k);
+        if (e.b) e.b = r4(e.b * k);
+      }
+    }
+    for (const e of els) if (e.t === 'foto' && e.src) { if (e.fit != null) encajar(e, e.fit, i); else setPhoto(e, {}, i); }
   }
   function alinear(v) {            // the selected elements along the edge or centre of the selection (one alone: of the slide)
     const ss = selEls(); if (!ss.length) return;
@@ -1650,6 +1697,7 @@
         return;
       }
       case 'copy': copiar(); return;
+      case 'sl-copy': copiar(true); return;
       case 'paste': pegar(); return;
       case 'lock': { const all = selEls().every(e => e.lock); onEl(el => { el.lock = !all; if (el.lock && E.crop === el.id) E.crop = null; }); return; }
       case 'del': {
@@ -1796,7 +1844,7 @@
     if (t && t.classList && t.classList.contains('lb-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!E.allEl.hidden) verTodas(false); elegir(+t.dataset.i); return; }
     if (mod && k === 'z') { e.preventDefault(); deshacer(!e.shiftKey); return; }
     if (mod && k === 'y') { e.preventDefault(); deshacer(false); return; }
-    if (mod && k === 'c') { if (E.sel) { e.preventDefault(); copiar(); } return; }
+    if (mod && k === 'c') { if (E.sl.length && !E.crop) { e.preventDefault(); copiar(); } return; }   // nothing chosen: the whole slide
     if (mod && k === 'v') { if (clip()) { e.preventDefault(); pegar(); } return; }
     if (mod && k === 'd') { if (E.sel) { e.preventDefault(); act('dup'); } return; }
     if (mod && k === 'g') { if (E.sel) { e.preventDefault(); act(e.shiftKey ? 'ungroup' : 'group'); } return; }
@@ -1821,7 +1869,7 @@
     ['Arrastrar', 'mover · esquinas: tamaño · lados: recortar (o el ancho de un texto) · círculo: girar'],
     ['Doble clic', 'encuadrar la foto o escribir el texto'],
     ['Flechas', 'mover poco a poco (con ⇧, más) · ⌥ + flechas: mover la diapositiva'],
-    ['⌘C · ⌘V', 'copiar y pegar, también en otra diapositiva o publicación'],
+    ['⌘C · ⌘V', 'copiar y pegar en el mismo sitio, también en otra diapositiva o publicación · sin nada elegido: la diapositiva entera'],
     ['⌘D · ⌫', 'duplicar · borrar'],
     ['⌘G', 'agrupar (⇧⌘G: desagrupar) · ⌘A: elegir todo'],
     ['⌘] · ⌘[', 'adelante · atrás (con ⇧: al frente · al fondo)'],

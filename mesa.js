@@ -42,10 +42,12 @@
 // v3.36: a photo already used goes in again (D-022): before it goes into a post the mesa says its nearest use (this post, this
 // month, the previous month or another month of the client's boards; the free editor adds this slide) and asks «Usar
 // igualmente» / «Cancelar» (several: «Usar todas» / «Saltar repetidas»); into the tray it just goes in, never twice (libre 1.12).
+// v3.37: the free editor's guides belong to the post (s.guias, px of a 1080-wide slide): kept, undone and merged with it.
+// Its magnet measures, marks equal gaps and sizes and works on the eight handles; new shortcuts (libre 1.13).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.36';
+  M.version = '3.37';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1119,7 +1121,7 @@
   let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
   function editState(B) {
     return {
-      slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; return o; }),
+      slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); return o; }),
       tray: B.tray.slice(),
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null }))
@@ -1175,8 +1177,9 @@
     const s = S.slots.find(x => x.id === slotId), o = H.cur.slots.find(x => x.id === slotId); if (!s || !o) return;
     o.photos = s.photos.slice(); if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); else delete o.design;
     if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); else delete o.libre;
-    if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: type, photos, note, date, memo, fmt, design, libre, estado)
-    const { id, type, photos, note, date, memo, fmt, design, libre, estado } = o; H.cur.slots[H.cur.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(estado ? { estado } : {}) };
+    if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); else delete o.guias;
+    if (s.fmt) o.fmt = s.fmt; else delete o.fmt;          // (key order as editState writes it: type, photos, note, date, memo, fmt, design, libre, estado, guias)
+    const { id, type, photos, note, date, memo, fmt, design, libre, estado, guias } = o; H.cur.slots[H.cur.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(estado ? { estado } : {}), ...(guias ? { guias } : {}) };
     H.curJ = JSON.stringify(H.cur);
   }
   function applyState(st) {
@@ -1190,6 +1193,7 @@
       if (o.design) s.design = JSON.parse(JSON.stringify(o.design)); else delete s.design;
       if (o.libre) s.libre = JSON.parse(JSON.stringify(o.libre)); else delete s.libre;
       if (o.estado) s.estado = { ...o.estado }; else delete s.estado;
+      if (o.guias) s.guias = JSON.parse(JSON.stringify(o.guias)); else delete s.guias;
     });
     (S.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
@@ -3098,6 +3102,7 @@
       if (o.libre) r.libre = o.libre;
       if (o.caption) r.caption = o.caption;
       if (o.estado) r.estado = o.estado;
+      if (o.guias) r.guias = o.guias;
       if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
         const x = M.diseno._retipo(r, r.type);
         if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }

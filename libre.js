@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.11
+// Editor libre de diapositivas — Mesa de trabajo · v1.13
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -55,11 +55,16 @@
 // from the last: going back to that format, or through any other and back, leaves what was not moved by hand as it was.
 // v1.12 (mesa 3.36): a photo already used asks before it goes onto a slide (D-022): its nearest use — this slide, this post
 // or the mesa's — and «Usar igualmente» / «Cancelar»; several at once, one list with «Usar todas» / «Saltar repetidas».
+// v1.13 (mesa 3.37): the magnet on the eight handles (a corner: the nearer edge, the other side keeps the proportion), ⌥
+// resizes from the centre; while dragging or resizing it measures in px (to the nearest element or the slide's edge), marks
+// equal gaps and sizes and sticks to them, and to the kit's margin. «Guías» (⌘G): rulers and the post's guides,
+// s.guias = {x:[px], y:[px]} (px of a 1080-wide slide), never drawn in a slide. ⌥⌘G / ⇧⌥⌘G group and ungroup; ⌥⌘C / ⌥⌘V
+// copy a text's style onto other texts; the arrows move 1 px (⇧: 10 px).
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.12';
+  const VERSION = '1.13';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -70,6 +75,8 @@
   const BASICOS = [['#000000', 'Negro'], ['#ffffff', 'Blanco']];   // in every colour picker, after the kit
   const ROT_D = 26;                            // screen px from a frame's top edge to its rotation handle
   const SNAP = 7;                              // screen px within which the magnet aligns
+  const ROSA = '#ff2d95', IGUAL = '#8a3ffc', GUIA = '#00a2c7';   // the magnet's lines and measures · equal gaps and sizes · the post's guides
+  const RG = 18;                               // the rulers' thickness (screen px)
   const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -80,8 +87,8 @@
   const pct = v => Math.round(v * 100) + ' %';
   const r4 = v => Math.round(v * 1e4) / 1e4;
   const isKit = f => String(f || '').startsWith('kit-');   // a client's protected file (logo): never a tray photo
-  // this viewer's choices, kept in the browser: the tray open or closed, «Seguidas» in «Ver todas», the panel's open sections
-  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones';
+  // this viewer's choices, kept in the browser: the tray open or closed, «Seguidas» in «Ver todas», the panel's open sections, «Guías» open
+  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones', LS_RG = 'mesa-lb-guias';
   const lsLeer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsPoner = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* a private window: not kept */ } };
   const ABIERTAS = new Set((lsLeer(LS_PL) || '').split(',').filter(Boolean));
@@ -414,7 +421,7 @@
   // slide: {key: the file in the post (photo or rendered image) | null (new), out: key is a rendered image with its composition,
   //         from: id of the post that composition was on (moved here), comp: null (untouched photo) | comp, raw: the photo as
   //         the mesa shows it (comp of an untouched photo), base: signature of the slide as opened, fmt, fmt0 (photo posts)}
-  let APL = 0, CLIP = null;   // «Aplicar» running; what was copied {els | slide (a whole comp), rat (W/H of its slide), client} (kept between posts of the same client)
+  let APL = 0, CLIP = null, ESTILO = null;   // «Aplicar» running; what was copied {els | slide (a whole comp), rat (W/H of its slide), client} (kept between posts of the same client); a text's style {st, client} (⌥⌘C)
   const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? S.slots.find(x => x.id === E.slotId) : null; return s && (s.design || null) === E.dz && isLibSlot(s) ? s : null; };   // a designed post: the very design it opened with
   const cur = () => E.sl[E.i];
   const EMPTY = { bg: '#ffffff', velo: null, els: [] };
@@ -455,9 +462,11 @@
     return I().fmtRatio(fmtAt(i), d.w, d.h);
   }
   const sizeAt = i => ({ W: OUT_W, H: Math.round(OUT_W / ratioAt(i)) });
+  const firmaG = () => JSON.stringify(['x', 'y'].map(k => [...E.guias[k]].sort((a, b) => a - b)));   // the post's guides, in any order
   function pendiente() {
     if (!E) return false;
     if (E.car && E.fmt !== E.fmt0) return true;
+    if (firmaG() !== E.guias0) return true;
     if (!I().same(E.sl.map(x => x.key), E.photos0)) return true;
     return E.sl.some(x => changedSl(x) || (!E.car && x.fmt !== x.fmt0));
   }
@@ -518,7 +527,9 @@
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
-        bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 } };
+        bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
+        guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', margen: 0 };
+      E.guias0 = firmaG();
       E.sl = s.photos.map(key => {
         const f = compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;
         if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: firma(comp), fmt, fmt0: fmt }; }
@@ -586,18 +597,19 @@
   async function cargarCliente() {
     const owner = E, cid = E.board.client; if (!cid) return;
     const fk = [];
-    let kit = null, est = [], tcol = [];
+    let kit = null, est = [], tcol = [], mg = 0;
     if (M.diseno && M.diseno.kit) {
       try {
         const raw = await M.diseno.kit(cid);
         kit = paletaKit(raw);
         if (raw && raw.fuentes) for (const f of Object.values(raw.fuentes)) if (f && f.archivo && !fk.some(q => q.file === f.archivo)) fk.push({ n: f.familia || f.archivo, file: f.archivo, w: f.peso || 400, kit: true });
-        est = estilosKit(raw); tcol = ((raw && raw.colores_texto && raw.colores_texto.principales) || []).map(k => raw.colores && raw.colores[k]).filter(hexOk).map(c => c.toLowerCase());
+        est = estilosKit(raw); mg = raw && raw.lienzo && +raw.lienzo.margen > 0 ? +raw.lienzo.margen / (+raw.lienzo.ancho || 1080) : 0;   // the margin (D-014), a fraction of the width
+        tcol = ((raw && raw.colores_texto && raw.colores_texto.principales) || []).map(k => raw.colores && raw.colores[k]).filter(hexOk).map(c => c.toLowerCase());
       } catch (e) { /* this client has no design kit */ }
     }
     const c = await I().idbGet('clients', cid), lib = (c && c.libre) || {};
     if (E !== owner) return;
-    E.kit = kit; E.fkit = fk; E.estilos = est; E.tcol = tcol; E.fuentes = [...fk, ...FUENTES_MESA.filter(f => !fk.some(q => q.file === f.file)), ...FUENTES_MAC];
+    E.kit = kit; E.fkit = fk; E.estilos = est; E.tcol = tcol; E.margen = mg; E.fuentes = [...fk, ...FUENTES_MESA.filter(f => !fk.some(q => q.file === f.file)), ...FUENTES_MAC];
     E.plant = Array.isArray(lib.plantillas) ? lib.plantillas : [];
     E.logos = (lib.logos || []).filter(Boolean); await I().loadThumbs(E.logos); E.logos = E.logos.filter(f => M.files[f]);
     if (E !== owner) return;
@@ -880,6 +892,9 @@
 #mesa .lb-atajos h4{margin:0 0 8px;font-size:13px}#mesa .lb-atajos dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0}
 #mesa .lb-atajos dt{font-weight:600;white-space:nowrap}#mesa .lb-atajos dd{margin:0;color:var(--mute)}#mesa .lb-atajos p{margin:10px 0 0;color:var(--mute)}
 #mesa .lb-cvw{position:relative}
+#mesa .lb-scroll.reglas{padding-top:44px;padding-left:44px}
+#mesa .lb-rx,#mesa .lb-ry{position:absolute;background:var(--panel);color:var(--mute);touch-action:none}#mesa .lb-rx[hidden],#mesa .lb-ry[hidden]{display:none}
+#mesa .lb-rx{left:0;top:-22px;cursor:row-resize;border-bottom:1px solid var(--line)}#mesa .lb-ry{top:0;left:-22px;cursor:col-resize;border-right:1px solid var(--line)}
 #mesa .lb-fl{position:absolute;z-index:4;display:flex;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.14);line-height:1.4;white-space:nowrap}
 #mesa .lb-fl>button{border:0;background:none;border-radius:7px;padding:6px 10px;font-size:12.5px;color:var(--ink)}
 #mesa .lb-fl>button:hover:not(:disabled),#mesa .lb-fl>button[aria-expanded="true"]{background:var(--line2)}#mesa .lb-fl>button:disabled{opacity:.35;cursor:default}
@@ -911,13 +926,16 @@
       + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">Portada del reel · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'
+      + `<button type="button" class="lb-ib${E.reglas ? ' on' : ''}" data-lb="guias" aria-pressed="${E.reglas}" title="Reglas y guías (⌘G): arrastra desde una regla para crear una guía y fuera de la diapositiva para borrarla. No salen al exportar">Guías</button>`
       + '<button type="button" class="lb-ib" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Vista previa</button>'
       + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
       + '<span class="lb-menu" role="menu" hidden><button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>'
-      + '<button type="button" role="menuitemcheckbox" data-lb="iman" aria-checked="true" title="Alinea con los bordes, el centro y los otros elementos al arrastrar (con ⌘ pulsado no actúa)">Imán al arrastrar</button></span></span>'
+      + '<button type="button" role="menuitemcheckbox" data-lb="iman" aria-checked="true" title="Al arrastrar o ampliar: alinea con los bordes, el centro, el margen del kit, las guías y los otros elementos; mide las distancias y marca los espacios y tamaños iguales (con ⌘ pulsado no actúa)">Imán al arrastrar</button></span></span>'
       + '<span class="lb-state" aria-live="polite"></span><button type="button" class="btn2" data-lb="cerrar">Cerrar</button><button type="button" class="btn" data-lb="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="lb-body"><nav class="lb-list" aria-label="Diapositivas"></nav>'
-      + '<section class="lb-mid"><div class="lb-scroll"><div class="lb-cvw"><canvas class="lb-cv" aria-label="Diapositiva"></canvas><div class="lb-fl" role="toolbar" aria-label="Elemento elegido" hidden></div></div></div>'
+      + `<section class="lb-mid"><div class="lb-scroll${E.reglas ? ' reglas' : ''}"><div class="lb-cvw"><canvas class="lb-cv" aria-label="Diapositiva"></canvas>`
+      + `<canvas class="lb-rx" aria-hidden="true"${E.reglas ? '' : ' hidden'}></canvas><canvas class="lb-ry" aria-hidden="true"${E.reglas ? '' : ' hidden'}></canvas>`
+      + '<div class="lb-fl" role="toolbar" aria-label="Elemento elegido" hidden></div></div></div>'
       + '<p class="lb-hint" aria-live="polite" hidden></p>'
       + `<div class="lb-tray" id="lb-tray" hidden></div><div class="lb-foot"><button type="button" class="lb-trb" data-lb="bandeja" aria-expanded="false" aria-controls="lb-tray" title="Bandeja: sus fotos, para ponerlas en la diapositiva"><span class="lb-trn">Bandeja</span>${FLECHA}</button>`
       + `<button type="button" class="lb-help" data-lb="atajos" aria-label="Atajos de teclado" aria-expanded="false" title="Atajos de teclado">?</button><div class="lb-atajos" role="dialog" aria-label="Atajos de teclado" hidden>${ATAJOS}</div></div></section>`
@@ -943,6 +961,7 @@
     q('[data-lb="aplicar"]').disabled = E.busy; q('[data-lb="cerrar"]').disabled = E.busy;
     q('.lb-zv').textContent = Math.round(E.zoom * 100) + ' %';
     q('[data-lb="iman"]').setAttribute('aria-checked', String(E.iman));
+    const gb = q('[data-lb="guias"]'); gb.classList.toggle('on', E.reglas); gb.setAttribute('aria-pressed', String(E.reglas));
     const f = fmtAt(E.i);
     E.el.querySelectorAll('.lb-fmt button').forEach(b => { const on = b.dataset.v === f; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   }
@@ -1010,9 +1029,12 @@
     drawComp(x, comp, W, H, viewImg, k, true);
     const el = selEl();
     if (el && E.crop === el.id) cropView(x, el, W, H, k);
+    if (E.reglas) verGuias(x, W, H);
     const ss = selEls(); ss.forEach(e => marco(x, e, W, H, ss.length === 1));
     posBarra();
-    for (const g of E.guides) { x.save(); x.strokeStyle = '#ff2d95'; x.lineWidth = 1 / E.k; x.beginPath(); if (g.x != null) { x.moveTo(g.x, 0); x.lineTo(g.x, H); } else { x.moveTo(0, g.y); x.lineTo(W, g.y); } x.stroke(); x.restore(); }
+    for (const g of E.guides) { x.save(); x.strokeStyle = ROSA; x.lineWidth = 1 / E.k; x.beginPath(); if (g.x != null) { x.moveTo(g.x, 0); x.lineTo(g.x, H); } else { x.moveTo(0, g.y); x.lineTo(W, g.y); } x.stroke(); x.restore(); }
+    if (E.cotas.length) dibujarCotas(x);
+    if (E.reglas) reglas();
     if (E.reMini) { clearTimeout(E.miniT); E.miniT = setTimeout(() => { if (!E) return; if (E.drag) { pedir(); return; } E.reMini = false; minis(); }, 80); }   // thumbnails once a drag stops
   }
   // the frame being reframed: the whole photo shows faintly around it
@@ -1060,9 +1082,12 @@
     for (const [hx, hy] of asas(el, g)) if (Math.abs(l.x - hx * g.w / 2) <= r && Math.abs(l.y - hy * g.h / 2) <= r) return { hx, hy };
     return null;
   }
-  // the magnet: slide edges and centre, and the other elements' edges and centres
-  function targets(skip) {
+  // the magnet: slide edges and centre, the kit's margin, the post's guides (while shown; not the one being dragged, sin)
+  // and the other elements' edges and centres
+  function targets(skip, sin) {
     const { W, H } = E.sz, xs = [0, W / 2, W], ys = [0, H / 2, H];
+    if (E.margen) { const m = E.margen * W; xs.push(m, W - m); ys.push(m, H - m); }
+    if (E.reglas) for (const k of ['x', 'y']) E.guias[k].forEach((v, i) => { if (!(sin && sin.eje === k && sin.i === i)) (k === 'x' ? xs : ys).push(v / PX); });
     for (const o of compAt(E.i).els) if (!skip.includes(o.id) && !o.oculto) { const b = aabb(o, W, H); xs.push(b.l, (b.l + b.r) / 2, b.r); ys.push(b.t, (b.t + b.b) / 2, b.b); }
     return { xs, ys };
   }
@@ -1070,6 +1095,154 @@
     let best = null;
     for (const v of vals) for (const c of cands) { const d = c - v; if (Math.abs(d) * E.k <= SNAP && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, at: c }; }
     return best;
+  }
+  const mejor = (a, b) => !a ? b : !b ? a : Math.abs(b.d) < Math.abs(a.d) ? b : a;   // the nearer of two snaps (a on a tie)
+  // ---------- the magnet's measures (px of a 1080-wide slide), only while dragging or resizing ----------
+  const casi = (a, b) => Math.abs(a - b) * PX < 0.5;   // the same measure, to the pixel
+  function cajas(skip) { const { W, H } = E.sz; return compAt(E.i).els.filter(o => !skip.includes(o.id) && !o.oculto).map(o => aabb(o, W, H)); }
+  const cruzaY = (a, o) => o.t < a.b - 0.5 && o.b > a.t + 0.5, cruzaX = (a, o) => o.l < a.r - 0.5 && o.r > a.l + 0.5;
+  function vecinos(b, bs) {          // the nearest box on each side of b, among those facing it
+    let L = null, R = null, T = null, B = null;
+    for (const o of bs) {
+      if (cruzaY(b, o)) { if (o.r <= b.l + 0.5 && (!L || o.r > L.r)) L = o; if (o.l >= b.r - 0.5 && (!R || o.l < R.l)) R = o; }
+      if (cruzaX(b, o)) { if (o.b <= b.t + 0.5 && (!T || o.b > T.b)) T = o; if (o.t >= b.b - 0.5 && (!B || o.t < B.t)) B = o; }
+    }
+    return { L, R, T, B };
+  }
+  function huecos(bs) {              // the gaps between neighbouring boxes: across (x) and down (y)
+    const x = [], y = [];
+    for (const a of bs) {
+      let r = null, d = null;
+      for (const o of bs) {
+        if (o === a) continue;
+        if (cruzaY(a, o) && o.l >= a.r + 0.5 && (!r || o.l < r.l)) r = o;
+        if (cruzaX(a, o) && o.t >= a.b + 0.5 && (!d || o.t < d.t)) d = o;
+      }
+      if (r) x.push({ g: r.l - a.r, a, b: r });
+      if (d) y.push({ g: d.t - a.b, a, b: d });
+    }
+    return { x, y };
+  }
+  function iguales(b, bs, hs) {      // where b's first edge (xa, ya) or last (xz, yz) leaves a gap the same as one between two other boxes, or the same on both sides
+    const v = vecinos(b, bs), o = { xa: [], xz: [], ya: [], yz: [] };
+    for (const q of hs.x) { if (v.L) o.xa.push(v.L.r + q.g); if (v.R) o.xz.push(v.R.l - q.g); }
+    for (const q of hs.y) { if (v.T) o.ya.push(v.T.b + q.g); if (v.B) o.yz.push(v.B.t - q.g); }
+    if (v.L && v.R) o.xa.push((v.L.r + v.R.l - (b.r - b.l)) / 2);
+    if (v.T && v.B) o.ya.push((v.T.b + v.B.t - (b.b - b.t)) / 2);
+    return o;
+  }
+  // what the magnet shows around b: on each side the distance to the nearest box (or to the slide's edge), in violet when it
+  // equals another gap (that one too) or the other side; resizing (tam), the elements of the same width or height
+  function medidas(b, skip, tam) {
+    const { W, H } = E.sz, bs = cajas(skip), hs = huecos(bs), v = vecinos(b, bs), out = [], refs = new Set();
+    const mid = (a1, a2, c1, c2) => (Math.max(a1, c1) + Math.min(a2, c2)) / 2;
+    const pon = (x1, y1, x2, y2, g, igual) => { if (g * PX >= 0.5) out.push({ x1, y1, x2, y2, v: g, igual }); };
+    const lado = (o, g, otro, lista) => { if (!o) return false; const eq = lista.filter(q => casi(q.g, g)); eq.forEach(q => refs.add(q)); return eq.length > 0 || (otro != null && casi(g, otro)); };
+    const gL = v.L ? b.l - v.L.r : b.l, gR = v.R ? v.R.l - b.r : W - b.r, gT = v.T ? b.t - v.T.b : b.t, gB = v.B ? v.B.t - b.b : H - b.b;
+    const yL = v.L ? mid(b.t, b.b, v.L.t, v.L.b) : (b.t + b.b) / 2, yR = v.R ? mid(b.t, b.b, v.R.t, v.R.b) : (b.t + b.b) / 2;
+    const xT = v.T ? mid(b.l, b.r, v.T.l, v.T.r) : (b.l + b.r) / 2, xB = v.B ? mid(b.l, b.r, v.B.l, v.B.r) : (b.l + b.r) / 2;
+    pon(b.l - gL, yL, b.l, yL, gL, lado(v.L, gL, v.R ? gR : null, hs.x));
+    pon(b.r, yR, b.r + gR, yR, gR, lado(v.R, gR, v.L ? gL : null, hs.x));
+    pon(xT, b.t - gT, xT, b.t, gT, lado(v.T, gT, v.B ? gB : null, hs.y));
+    pon(xB, b.b, xB, b.b + gB, gB, lado(v.B, gB, v.T ? gT : null, hs.y));
+    for (const q of refs) {
+      if (hs.x.includes(q)) { const y = mid(q.a.t, q.a.b, q.b.t, q.b.b); pon(q.a.r, y, q.b.l, y, q.g, true); }
+      else { const x = mid(q.a.l, q.a.r, q.b.l, q.b.r); pon(x, q.a.b, x, q.b.t, q.g, true); }
+    }
+    if (tam) for (const [k, n, lim] of [['ancho', o => o.r - o.l, W], ['alto', o => o.b - o.t, H]]) {
+      if (!tam[k]) continue;
+      const igual = bs.filter(o => n(o) < lim - 0.5 && casi(n(o), n(b)));   // not a box as wide as the slide: its edges say it already
+      if (igual.length) [b, ...igual].forEach(o => out.push({ [k]: o, v: n(o), igual: true }));
+    }
+    return out;
+  }
+  function dibujarCotas(x) {         // a measure: a line with ends and its value in a label that reads on light and dark photos
+    const u = 1 / E.k, { W, H } = E.sz;
+    x.save(); x.lineWidth = u; x.font = `600 ${11 * u}px -apple-system, "Helvetica Neue", sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    for (const c of E.cotas) {
+      let { x1, y1, x2, y2 } = c;
+      if (c.ancho) { const o = c.ancho, y = o.b + 18 * u <= H ? o.b + 9 * u : o.b - 9 * u; x1 = o.l; x2 = o.r; y1 = y2 = y; }
+      if (c.alto) { const o = c.alto, xx = o.r + 18 * u <= W ? o.r + 9 * u : o.r - 9 * u; y1 = o.t; y2 = o.b; x1 = x2 = xx; }
+      const col = c.igual ? IGUAL : ROSA, hz = y1 === y2, t = 4 * u;
+      x.strokeStyle = col; x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2);
+      if (hz) { x.moveTo(x1, y1 - t); x.lineTo(x1, y1 + t); x.moveTo(x2, y2 - t); x.lineTo(x2, y2 + t); }
+      else { x.moveTo(x1 - t, y1); x.lineTo(x1 + t, y1); x.moveTo(x2 - t, y2); x.lineTo(x2 + t, y2); }
+      x.stroke();
+      etiqueta(x, String(Math.round(c.v * PX)), (x1 + x2) / 2, (y1 + y2) / 2, col);
+    }
+    x.restore();
+  }
+  function etiqueta(x, s, cx, cy, col) {   // white on colour, with a soft shadow: legible on any photo (the font is set by the caller)
+    const u = 1 / E.k, w = x.measureText(s).width + 10 * u, h = 16 * u, { W, H } = E.sz;
+    cx = clamp(cx, w / 2 + 2 * u, W - w / 2 - 2 * u); cy = clamp(cy, h / 2 + 2 * u, H - h / 2 - 2 * u);   // whole inside the slide
+    x.save(); x.shadowColor = 'rgba(0,0,0,.3)'; x.shadowBlur = 3; x.fillStyle = col; x.beginPath();
+    if (x.roundRect) x.roundRect(cx - w / 2, cy - h / 2, w, h, 4 * u); else x.rect(cx - w / 2, cy - h / 2, w, h);
+    x.fill(); x.restore(); x.fillStyle = '#fff'; x.fillText(s, cx, cy + 0.5 * u);
+  }
+  // ---------- «Guías»: rulers in px of a 1080-wide slide and the post's guides (the same on all its slides) ----------
+  // Never in a rendered slide: only the editor's canvas draws them. Closed, they neither show nor attract.
+  function guias(on) {
+    E.reglas = on; lsPoner(LS_RG, on ? '1' : '0');
+    E.scroll.classList.toggle('reglas', on); E.el.querySelectorAll('.lb-rx, .lb-ry').forEach(r => { r.hidden = !on; });
+    head(); pedir();
+  }
+  function hitGuia(p) {
+    const { W, H } = E.sz, r = 4 / E.k;
+    for (const k of ['x', 'y']) for (let i = E.guias[k].length - 1; i >= 0; i--) { const v = E.guias[k][i] / PX; if (k === 'x' ? v <= W && Math.abs(p.x - v) <= r : v <= H && Math.abs(p.y - v) <= r) return { eje: k, i }; }
+    return null;
+  }
+  function guiaDown(e) {             // from a ruler, a new guide: the top one across, the left one down
+    if (e.button !== 0 || E.busy || !E.sl.length || !E.reglas) return;
+    E.drag = { t: 'guia', eje: e.currentTarget.classList.contains('lb-rx') ? 'y' : 'x', i: null, v: null, fuera: true };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* */ }
+    e.preventDefault();
+  }
+  function moverGuia(d, p, e) {      // a guide follows the pointer (and the magnet); out of the slide it goes
+    const { W, H } = E.sz, x = d.eje === 'x', lim = x ? W : H;
+    let v = x ? p.x : p.y;
+    d.fuera = v < 0 || v > lim;
+    if (!d.fuera && E.iman && !(e.metaKey || e.ctrlKey)) { const t = targets([], d), s = nearest([v], x ? t.xs : t.ys); if (s) v = s.at; }
+    d.v = clamp(v, 0, lim); pedir();
+  }
+  function soltarGuia(d) {
+    if (d.v == null) return;         // a click: nothing changes
+    const a = E.guias[d.eje];
+    if (d.i != null) a.splice(d.i, 1);
+    if (!d.fuera) a.push(Math.round(d.v * PX * 10) / 10);
+    head();
+  }
+  function verGuias(x, W, H) {
+    const u = 1 / E.k, d = E.drag && E.drag.t === 'guia' ? E.drag : null, linea = (k, v) => { x.beginPath(); if (k === 'x') { x.moveTo(v, 0); x.lineTo(v, H); } else { x.moveTo(0, v); x.lineTo(W, v); } x.stroke(); };
+    x.save(); x.strokeStyle = GUIA; x.lineWidth = u;
+    for (const k of ['x', 'y']) E.guias[k].forEach((v, i) => { if (!(d && d.eje === k && d.i === i && d.v != null)) linea(k, v / PX); });
+    if (d && d.v != null && !d.fuera) {
+      linea(d.eje, d.v);
+      x.font = `600 ${11 * u}px -apple-system, "Helvetica Neue", sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+      etiqueta(x, String(Math.round(d.v * PX)), d.eje === 'x' ? d.v : 22 * u, d.eje === 'x' ? 14 * u : d.v, GUIA);
+    }
+    x.restore();
+  }
+  function reglas() {                // the rulers along the slide's top and left edges, with the guides marked on them
+    const cw = E.cv.clientWidth, ch = E.cv.clientHeight, s = E.k / PX, { H } = E.sz, d = E.drag && E.drag.t === 'guia' ? E.drag : null;
+    const paso = [50, 100, 200, 500, 1000].find(q => q * s >= 44) || 1000, sub = paso / (paso * s / 5 >= 6 ? 5 : 2);
+    for (const [cv, horiz] of [[E.el.querySelector('.lb-rx'), true], [E.el.querySelector('.lb-ry'), false]]) {
+      const dpr = window.devicePixelRatio || 1, w = horiz ? cw : RG, h = horiz ? RG : ch, max = horiz ? 1080 : H * PX;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
+      const x = cv.getContext('2d'), col = getComputedStyle(cv).color;
+      x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+      x.strokeStyle = col; x.fillStyle = col; x.lineWidth = 1; x.font = '9px -apple-system, "Helvetica Neue", sans-serif'; x.textBaseline = 'top';
+      x.beginPath();
+      for (let v = 0; v <= max + 0.01; v += sub) {
+        const at = Math.round(v * s) + 0.5, big = Math.abs(v / paso - Math.round(v / paso)) < 1e-6, l = big ? 8 : 4;
+        if (horiz) { x.moveTo(at, RG); x.lineTo(at, RG - l); } else { x.moveTo(RG, at); x.lineTo(RG - l, at); }
+        if (big) { if (horiz) x.fillText(String(Math.round(v)), at + 2, 1); else { x.save(); x.translate(1, at + 2); x.rotate(Math.PI / 2); x.fillText(String(Math.round(v)), 0, -10); x.restore(); } }
+      }
+      x.stroke();
+      const k = horiz ? 'x' : 'y', marcas = E.guias[k].map((v, i) => (d && d.eje === k && d.i === i && d.v != null ? null : v)).filter(v => v != null);
+      if (d && d.eje === k && d.v != null && !d.fuera) marcas.push(d.v * PX);
+      x.fillStyle = GUIA;
+      for (const v of marcas) { const at = v * s; x.beginPath(); if (horiz) { x.moveTo(at - 5, 0); x.lineTo(at + 5, 0); x.lineTo(at, 7); } else { x.moveTo(0, at - 5); x.lineTo(0, at + 5); x.lineTo(7, at); } x.fill(); }
+    }
   }
   function setPhoto(el, patch, i = E.i) {   // the photo inside its frame, clamped like the mesa's reframe
     Object.assign(el, patch); el.z = clamp(el.z || 1, 1, 3);
@@ -1260,6 +1433,7 @@
     let d = null;
     if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) d = { t: 'pan', id: el.id, p0: p, el0: clone(el) }; else { E.crop = null; panel(); } }
     if (!d && sel && !sel.lock && !multi() && !e.shiftKey) { const h = hitHandle(sel, p); if (h) d = h.rot ? { t: 'rot', id: sel.id, el0: clone(sel) } : { t: 'size', id: sel.id, el0: clone(sel), hx: h.hx, hy: h.hy }; }
+    if (!d && E.reglas && !e.shiftKey) { const g = hitGuia(p); if (g) d = { t: 'guia', eje: g.eje, i: g.i, v: null }; }   // a guide over an element: the guide
     if (!d) {
       const el = hitEl(p);
       if (el) {
@@ -1280,35 +1454,58 @@
     if (!E) return;
     if (!E.drag) { cursor(e); return; }
     const d = E.drag, p = toSlide(e), { W, H } = E.sz;
+    if (d.t === 'guia') { moverGuia(d, p, e); return; }
     if (!d.step) { if (d.lock || (d.t === 'move' && Math.hypot(p.x - d.p0.x, p.y - d.p0.y) * E.k < 3)) return; paso(); ensure(); d.step = true; if (d.t !== 'pan') aMano(d.t === 'move' ? d.el0s.map(o => o.id) : [d.id]); }
     const els = compAt(E.i).els, el = els.find(x => x.id === d.id); if (!el) return;
     const mag = E.iman && !(e.metaKey || e.ctrlKey);
-    E.guides = [];
+    E.guides = []; E.cotas = [];
     if (d.t === 'move') {
       let dx = p.x - d.p0.x, dy = p.y - d.p0.y;
+      const ids = d.el0s.map(o => o.id), girado = d.el0s.some(o => o.rot);   // a turned element: lines as before, no measures
       if (mag && d.el0s.length) {
-        const b = union(d.el0s, W, H), t = targets(d.el0s.map(o => o.id));
-        const sx = nearest([b.l + dx, (b.l + b.r) / 2 + dx, b.r + dx], t.xs), sy = nearest([b.t + dy, (b.t + b.b) / 2 + dy, b.b + dy], t.ys);
-        if (sx) { dx += sx.d; E.guides.push({ x: sx.at }); }
-        if (sy) { dy += sy.d; E.guides.push({ y: sy.at }); }
+        const b = union(d.el0s, W, H), t = targets(ids);
+        const lx = nearest([b.l + dx, (b.l + b.r) / 2 + dx, b.r + dx], t.xs), ly = nearest([b.t + dy, (b.t + b.b) / 2 + dy, b.b + dy], t.ys);
+        let sx = lx, sy = ly;
+        if (!girado) {                // or the same gap as between two other elements, or the same on both sides
+          const bs = cajas(ids), ig = iguales({ l: b.l + dx, r: b.r + dx, t: b.t + dy, b: b.b + dy }, bs, huecos(bs));
+          sx = mejor(lx, mejor(nearest([b.l + dx], ig.xa), nearest([b.r + dx], ig.xz)));
+          sy = mejor(ly, mejor(nearest([b.t + dy], ig.ya), nearest([b.b + dy], ig.yz)));
+        }
+        if (sx) { dx += sx.d; if (sx === lx) E.guides.push({ x: sx.at }); }
+        if (sy) { dy += sy.d; if (sy === ly) E.guides.push({ y: sy.at }); }
       }
       for (const o of d.el0s) { const q = els.find(x => x.id === o.id); if (q) { q.x = r4(o.x + dx / W); q.y = r4(o.y + dy / H); delete q.fit; } }
+      if (mag && !girado && d.el0s.length) E.cotas = medidas(union(els.filter(q => ids.includes(q.id)), W, H), ids);
     } else if (d.t === 'size') {
-      const g0 = geo(d.el0, W, H), A = world(g0, { x: -d.hx * g0.w / 2, y: -d.hy * g0.h / 2 }), ga = { ...g0, cx: A.x, cy: A.y }, l = local(ga, p), MIN = 0.03 * W;
+      const g0 = geo(d.el0, W, H), cen = e.altKey, f = cen ? 2 : 1;   // ⌥: from the centre, the opposite side (or the four) moving too
+      const A = cen ? { x: g0.cx, y: g0.cy } : world(g0, { x: -d.hx * g0.w / 2, y: -d.hy * g0.h / 2 }), ga = { ...g0, cx: A.x, cy: A.y }, l = local(ga, p), MIN = 0.03 * W;
       let w = g0.w, h = g0.h;
       const prop = el.t === 'logo' || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
-      if (prop) { const s = (l.x * d.hx * g0.w + l.y * d.hy * g0.h) / (g0.w * g0.w + g0.h * g0.h); w = g0.w * s; h = g0.h * s; if (w < MIN || h < MIN) { const k = MIN / Math.min(g0.w, g0.h); w = g0.w * k; h = g0.h * k; } }
-      else { if (d.hx) w = Math.max(MIN, l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, l.y * d.hy); delete el.rat; }   // a side: the frame is cropped, its format is no longer the one chosen
-      if (mag && !el.rot) {           // the edge being dragged sticks to the slide's and the other elements' lines
-        const t = targets([el.id]);
-        if (d.hx) { const edge = A.x + d.hx * w, s = nearest([edge], t.xs); if (s) { const nw = Math.abs(s.at - A.x); if (nw >= MIN) { if (prop) h = h * nw / w; w = nw; E.guides.push({ x: s.at }); } } }
-        if (d.hy && !prop) { const edge = A.y + d.hy * h, s = nearest([edge], t.ys); if (s) { const nh = Math.abs(s.at - A.y); if (nh >= MIN) { h = nh; E.guides.push({ y: s.at }); } } }
+      if (prop) { const s = f * (l.x * d.hx * g0.w + l.y * d.hy * g0.h) / (g0.w * g0.w + g0.h * g0.h); w = g0.w * s; h = g0.h * s; if (w < MIN || h < MIN) { const k = MIN / Math.min(g0.w, g0.h); w = g0.w * k; h = g0.h * k; } }
+      else { if (d.hx) w = Math.max(MIN, f * l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, f * l.y * d.hy); delete el.rat; }   // a side: the frame is cropped, its format is no longer the one chosen
+      if (mag && !el.rot) {           // the edges being dragged stick to the lines (slide, margin, guides, elements) or take another element's width or height
+        const t = targets([el.id]), bs = cajas([el.id]);
+        const tira = (dir, a0, n, cands, tams) => {   // the new size along one axis, and how far its edge moves for it
+          const s = nearest(cen ? [a0 - n / 2, a0 + n / 2] : [a0 + dir * n], cands), q = nearest([n], tams);
+          let r = s ? { n: (cen ? 2 : 1) * Math.abs(s.at - a0), d: Math.abs(s.d), at: s.at } : null;
+          if (q && (!r || Math.abs(q.d) / f < r.d)) r = { n: q.at, d: Math.abs(q.d) / f, at: null };
+          return r;
+        };
+        const sx = d.hx ? tira(d.hx, A.x, w, t.xs, bs.map(b => b.r - b.l)) : null, sy = d.hy ? tira(d.hy, A.y, h, t.ys, bs.map(b => b.b - b.t)) : null;
+        if (prop) {                   // a corner: the axis whose edge is nearer; the other follows the proportion
+          const s = sx && (!sy || sx.d <= sy.d) ? sx : sy, k = s ? s.n / (s === sx ? w : h) : 1;
+          if (s && w * k >= MIN && h * k >= MIN) { w *= k; h *= k; if (s.at != null) E.guides.push(s === sx ? { x: s.at } : { y: s.at }); }
+        } else {
+          if (sx && sx.n >= MIN) { w = sx.n; if (sx.at != null) E.guides.push({ x: sx.at }); }
+          if (sy && sy.n >= (el.t === 'forma' ? 2 : MIN)) { h = sy.n; if (sy.at != null) E.guides.push({ y: sy.at }); }
+        }
       }
       if (el.t === 'texto') { if (prop) el.size = r4((d.el0.size || 0.06) * w / g0.w); el.w = r4(w / W); ajustarTexto(el, W, H); h = el.h * H; }
-      const C = world(ga, { x: d.hx * w / 2, y: d.hy * h / 2 });
+      const C = cen ? A : world(ga, { x: d.hx * w / 2, y: d.hy * h / 2 });
       el.w = r4(w / W); el.h = r4(h / H); el.x = r4((C.x - w / 2) / W); el.y = r4((C.y - h / 2) / H); delete el.fit;
       if (el.t === 'texto' && !d.hy) el.y = d.el0.y;   // a text keeps its top when only its width changes
       if (el.src) setPhoto(el, {});
+      if (mag && !el.rot) E.cotas = medidas(aabb(el, W, H), [el.id], { ancho: !!d.hx, alto: !!d.hy });
     } else if (d.t === 'rot') {
       const g0 = geo(d.el0, W, H);
       let a = Math.atan2(p.y - g0.cy, p.x - g0.cx) * 180 / Math.PI + 90;
@@ -1329,7 +1526,8 @@
   }
   function onUp() {
     if (!E || !E.drag) return;
-    const d = E.drag; E.drag = null; E.guides = [];
+    const d = E.drag; E.drag = null; E.guides = []; E.cotas = [];
+    if (d.t === 'guia') { soltarGuia(d); pedir(); return; }
     if (d.step) { despues(true); lista(); }
     else if (d.t === 'move') {
       const el = compAt(E.i).els.find(x => x.id === d.id);
@@ -1346,7 +1544,9 @@
     if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) c = 'grab'; }
     else {
       const h = sel && !sel.lock && !multi() ? hitHandle(sel, p) : null;
+      const g = !h && E.reglas ? hitGuia(p) : null;
       if (h) c = h.rot ? 'grab' : !h.hx ? 'ns-resize' : !h.hy ? 'ew-resize' : h.hx === h.hy ? 'nwse-resize' : 'nesw-resize';
+      else if (g) c = g.eje === 'x' ? 'col-resize' : 'row-resize';
       else { const el = hitEl(p); if (el) c = el.lock ? 'pointer' : 'move'; }
     }
     if (E.cv.style.cursor !== c) E.cv.style.cursor = c;
@@ -1451,7 +1651,7 @@
     let h = '';
     if (multi()) {
       const ss = selEls(), grp = ss[0] && ss[0].g && ss.every(e => e.g === ss[0].g);
-      h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌘G">Agrupar</button>'}</div>`
+      h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌥⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌥⌘G">Agrupar</button>'}</div>`
         + `<span class="lb-l">Alinear entre ellos</span><div class="lb-btns">${[['izq', '⇤ Izquierda'], ['cen', '↔ Centro'], ['der', '⇥ Derecha'], ['arr', '⤒ Arriba'], ['med', '↕ Medio'], ['aba', '⤓ Abajo']].map(([v, l]) => `<button type="button" class="btn2" data-lb="al" data-v="${v}">${l}</button>`).join('')}</div>`
         + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p></div>';
       h += transformarHTML(ss) + capasHTML(c);
@@ -1529,7 +1729,7 @@
       + '<button type="button" data-lb="dup" title="Duplicar (⌘D)">Duplicar</button>'
       + `<button type="button" data-lb="lock" aria-pressed="${lock}">${lock ? 'Desbloquear' : 'Bloquear'}</button>`
       + `<button type="button" data-lb="flm" aria-haspopup="menu" aria-expanded="${E.flm}"${arriba && abajo ? ' disabled' : ''}>Delante / detrás</button>`
-      + (!multi() && el && el.g ? '<button type="button" data-lb="ungroup" title="⇧⌘G">Desagrupar</button>' : '')
+      + (!multi() && el && el.g ? '<button type="button" data-lb="ungroup" title="⇧⌥⌘G">Desagrupar</button>' : '')
       + `<button type="button" class="del" data-lb="del" title="Borrar (⌫)"${lock ? ' disabled' : ''}>Borrar</button>`
       + `<span class="lb-flm" role="menu"${E.flm ? '' : ' hidden'}>${it('front', 'Al frente', '⇧⌘]', arriba)}${it('fwd', 'Adelante', '⌘]', arriba)}${it('bwd', 'Atrás', '⌘[', abajo)}${it('back', 'Al fondo', '⇧⌘[', abajo)}</span>`;
     fl.hidden = false; posBarra();
@@ -1648,11 +1848,32 @@
       const at = rest.indexOf(other); rest.splice(dir === 'fwd' ? at + 1 : at, 0, ...mov); c.els = rest;
     });
   }
-  function nudge(dx, dy) {
-    if (!selEls().some(e => !e.lock)) return;
-    const { W, H } = E.sz;
-    onEl(e => { if (e.lock) return; e.x = r4(e.x + dx / W); e.y = r4(e.y + dy / H); delete e.fit; if (e.t !== 'foto') e.mano = true; }, 'nudge', true);
+  function nudge(dx, dy) {          // px of a 1080-wide slide: the chosen element lands on a whole pixel, the rest move with it
+    const ss = selEls().filter(e => !e.lock); if (!ss.length) return;
+    const H1 = E.sz.H * PX, p = ss.find(e => e.id === E.sel) || ss[0];
+    const ddx = dx ? (Math.round(p.x * 1080) + dx) / 1080 - p.x : 0, ddy = dy ? (Math.round(p.y * H1) + dy) / H1 - p.y : 0;
+    onEl(e => { if (e.lock) return; e.x = r4(e.x + ddx); e.y = r4(e.y + ddy); delete e.fit; if (e.t !== 'foto') e.mano = true; }, 'nudge', true);
     syncNums(selEl());
+  }
+  // ⌥⌘C · ⌥⌘V: a text's look onto other texts, in this or another slide or post of the client (its fonts and colours are
+  // the kit's); never the words, the place or the box's width
+  const ESTILO_K = ['font', 'peso', 'size', 'color', 'lh', 'ls', 'al', 'may'];
+  function copiarEstilo() {
+    const t = selEls().find(e => e.t === 'texto');
+    if (!t) { I().toast('Elige un texto para copiar su estilo.'); return; }
+    ESTILO = { client: E.board.client, st: Object.fromEntries(ESTILO_K.filter(k => t[k] !== undefined).map(k => [k, clone(t[k])])) };
+    I().toast('Estilo copiado: pégalo con ⌥⌘V en otros textos, en esta u otra diapositiva o publicación.');
+  }
+  function pegarEstilo() {
+    if (!ESTILO || ESTILO.client !== E.board.client) { I().toast('Copia antes el estilo de un texto con ⌥⌘C.'); return; }
+    const ids = selEls().filter(e => e.t === 'texto' && !e.lock).map(e => e.id);
+    if (!ids.length) { I().toast('Elige uno o varios textos para pegarles el estilo.'); return; }
+    const { W, H } = sizeAt(E.i);
+    mut(null, () => ensure().els.forEach(e => {
+      if (!ids.includes(e.id)) return;
+      for (const k of ESTILO_K) { if (k in ESTILO.st) e[k] = clone(ESTILO.st[k]); else delete e[k]; }
+      ajustarTexto(e, W, H);
+    }));
   }
   function copiar(todo) {          // the selected elements; nothing selected (or «Copiar diapositiva»): the whole slide, its background, veil and texture too
     if (!E.sl.length) return;
@@ -1751,6 +1972,7 @@
       case 'mas': menu(!E.menuOn); return;
       case 'atajos': atajos(E.el.querySelector('.lb-atajos').hidden); return;
       case 'iman': E.iman = !E.iman; menu(false); head(); return;
+      case 'guias': guias(!E.reglas); return;
       case 'todas': menu(false); verTodas(E.allEl.hidden); return;
       case 'seguidas': lsPoner(LS_SEG, b.dataset.v === '1' ? '1' : '0'); verTodas(true); return;
       case 'flm': E.flm = !E.flm; barra(); return;
@@ -1956,6 +2178,7 @@
     cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp);
     cv.addEventListener('dblclick', onDbl);
     cv.addEventListener('wheel', onWheel, { passive: false });
+    el.querySelectorAll('.lb-rx, .lb-ry').forEach(r => { r.addEventListener('pointerdown', guiaDown); r.addEventListener('pointermove', onMove); r.addEventListener('pointerup', onUp); r.addEventListener('pointercancel', onUp); });
   }
   function onKey(e) {
     if (!E) { window.removeEventListener('keydown', onKey, true); return; }
@@ -1984,7 +2207,12 @@
     if (mod && k === 'c') { if (E.sl.length && !E.crop) { e.preventDefault(); copiar(); } return; }   // nothing chosen: the whole slide
     if (mod && k === 'v') { if (clip()) { e.preventDefault(); pegar(); } return; }
     if (mod && k === 'd') { if (E.sel) { e.preventDefault(); act('dup'); } return; }
-    if (mod && k === 'g') { if (E.sel) { e.preventDefault(); act(e.shiftKey ? 'ungroup' : 'group'); } return; }
+    if (mod && k === 'g') { if (!e.shiftKey) { e.preventDefault(); guias(!E.reglas); } return; }
+    // ⌥ changes the letter a key types on a Mac (⌥G: ©): these go by the key itself (by the letter when no key is given)
+    const alt = (e.metaKey || e.ctrlKey) && e.altKey, tecla = l => e.code ? e.code === 'Key' + l.toUpperCase() : k === l;
+    if (alt && tecla('g')) { e.preventDefault(); if (E.sel) act(e.shiftKey ? 'ungroup' : 'group'); return; }
+    if (alt && !e.shiftKey && tecla('c')) { e.preventDefault(); copiarEstilo(); return; }
+    if (alt && !e.shiftKey && tecla('v')) { e.preventDefault(); pegarEstilo(); return; }
     if (mod && k === 'a') { if (E.sl.length) { e.preventDefault(); const ids = compAt(E.i).els.filter(q => !q.oculto).map(q => q.id); E.sel = ids[0] || null; E.mas = ids.slice(1); E.crop = null; panel(); pedir(); } return; }
     if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft')) { if (E.sel) { e.preventDefault(); orden(e.code === 'BracketRight' ? (e.shiftKey ? 'front' : 'fwd') : (e.shiftKey ? 'back' : 'bwd')); } return; }
     if (mod && (k === '+' || k === '=' || k === '-')) { e.preventDefault(); zoom(E.zoom * (k === '-' ? 1 / 1.25 : 1.25)); return; }
@@ -1994,7 +2222,7 @@
       if (t && t.closest && t.closest('.seg, .lb-rng')) return;
       e.preventDefault();
       if (e.altKey && !mod) { moverSl(E.i, E.i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1)); return; }   // ⌥ + arrows: the slide moves
-      if (E.sel) { const s = (e.shiftKey ? 10 : 1) * OUT_W / 540; nudge(e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0, e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0); }
+      if (E.sel) { const s = e.shiftKey ? 10 : 1; nudge(e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0, e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0); }
       else elegir(E.i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1));
     }
   }
@@ -2004,15 +2232,18 @@
   const ATAJOS = '<h4>Atajos de teclado</h4><dl>' + [
     ['Clic', 'elegir · con ⇧, varios'],
     ['Arrastrar', 'mover · esquinas: tamaño · lados: recortar (o el ancho de un texto) · círculo: girar'],
+    ['⌥ al ampliar', 'desde el centro: una esquina, los cuatro lados con la proporción (con ⇧, sin ella); un lado, también el opuesto'],
     ['Doble clic', 'encuadrar la foto (la de un hueco: entera o llenándolo) o escribir el texto'],
-    ['Flechas', 'mover poco a poco (con ⇧, más) · ⌥ + flechas: mover la diapositiva'],
+    ['Flechas', 'mover 1 px (con ⇧, 10 px) · ⌥ + flechas: mover la diapositiva'],
     ['⌘C · ⌘V', 'copiar y pegar en el mismo sitio, también en otra diapositiva o publicación · sin nada elegido: la diapositiva entera'],
     ['⌘D · ⌫', 'duplicar · borrar'],
-    ['⌘G', 'agrupar (⇧⌘G: desagrupar) · ⌘A: elegir todo'],
+    ['⌥⌘C · ⌥⌘V', 'copiar el estilo de un texto (fuente, peso, tamaño, color, interlineado, espaciado, alineación y mayúsculas) y pegarlo en uno o varios textos, también de otra diapositiva o publicación'],
+    ['⌥⌘G', 'agrupar (⇧⌥⌘G: desagrupar) · ⌘A: elegir todo'],
+    ['⌘G', 'guías: reglas arriba y a la izquierda; arrastra desde una para crear una guía y fuera de la diapositiva para borrarla'],
     ['⌘] · ⌘[', 'adelante · atrás (con ⇧: al frente · al fondo)'],
     ['⌘Z', 'deshacer (⇧⌘Z: rehacer)'],
     ['⌘+ · ⌘−', 'acercar · alejar (también pellizcando o con ⌘ + rueda) · ⌘0: entera'],
-    ['⌘ al arrastrar', 'sin imán · ⇧ al girar: de 15° en 15°'],
+    ['⌘ al arrastrar', 'sin imán (con él, distancias en px, espacios y tamaños iguales en violeta) · ⇧ al girar: de 15° en 15°'],
     ['Esc', 'soltar la selección o terminar de encuadrar'],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl><p>Suelta fotos del ordenador en la diapositiva o en la bandeja.</p>';
   const FLECHA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -2172,6 +2403,7 @@
       });
       if (E.dz) delete s.design;      // the design is fixed as these images: its source photos go back to the tray (below)
       s.photos = outs.slice();
+      if (E.guias.x.length || E.guias.y.length) s.guias = { x: E.guias.x.slice(), y: E.guias.y.slice() }; else delete s.guias;   // px of a 1080-wide slide; only the editor draws them
       if (Object.keys(lib).length) s.libre = { v: 1, slides: lib }; else delete s.libre;
       if (E.car) {
         s.fmt = E.fmt;

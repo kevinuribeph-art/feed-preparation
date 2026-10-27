@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.10
+// Editor libre de diapositivas — Mesa de trabajo · v1.11
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -7,7 +7,7 @@
 // not touched stays the photo it was, with the mesa's own reframe.
 //   s.libre = {v:1, slides:{<renderedFileId>: comp}}    the composition behind each rendered image of the post
 //   comp = {bg:'#rrggbb', velo:null|{tipo:'plano'|'grad', color, op, dir:'abajo'|'arriba'|'izq'|'der', alc}, tex:null|{tipo, op},
-//           els:[el] (back to front), rej?:{n, g}}
+//           els:[el] (back to front), rej?:{n, g}, origen?: where its blocks were before a change of proportion (aProporcion)}
 //   every el: {id, t, x, y, w, h (frame, fractions of the slide), rot (°), op (opacity), lock, oculto, g (group id), sh (shadow 0–1),
 //            mano (moved by hand: a new proportion leaves it where it is)}
 //   'foto':  src, cx, cy, z (the photo inside the frame, as the mesa's reframe), fx, fy, b (border, fraction of the width), bc,
@@ -51,11 +51,13 @@
 // background in the strips. Double click on that photo switches it (filling ⇄ whole); «Encuadrar» stays on its button.
 // A slide whose background is the templates' provisional #2B231F gets Ink #16110E when a photo goes into its hole.
 // Photos already in holes are not moved.
+// v1.11 (mesa 3.35): a change of proportion starts from where each block was before the first one (comp.origen), never
+// from the last: going back to that format, or through any other and back, leaves what was not moved by hand as it was.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.10';
+  const VERSION = '1.11';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -95,8 +97,9 @@
     for (const s of S.slots) { const c = entries(s)[fid]; if (c) return { s, comp: c }; }
     return null;
   }
-  // a composition's signature for «changed?»: a text's height follows its font, which may load after opening
-  const firma = c => JSON.stringify(c, function (k, v) { return k === 'h' && this && this.t === 'texto' ? undefined : v; });
+  // a composition's signature for «changed?»: a text's height follows its font, which may load after opening, and its origin
+  // (aProporcion) is not what it shows
+  const firma = c => JSON.stringify(c, function (k, v) { return (k === 'h' && this && this.t === 'texto') || k === 'origen' ? undefined : v; });
 
   // ---------- photo holes ----------
   // A hole is a 'hueco' element, or a photo frame with no photo. A photo dropped on a 'hueco' takes its place among the
@@ -1123,33 +1126,56 @@
   function recolocar() {             // a slide whose proportion changed (its format, or its first photo in Horizontal)
     E.sl.forEach((x, i) => {
       const { W, H } = sizeAt(i), r = W / H;
-      if (x.comp && x.rat && Math.abs(x.rat - r) > 0.005) {   // as «Aplicar»'s check: a 1080 copy is the same proportion
-        reubicar(x.comp, W, Math.round(W / x.rat), H, x.zonas || (x.zonas = {}));
-        if (x.base) igualar(x.comp, JSON.parse(x.base));
-      }
+      if (x.comp && x.rat && Math.abs(x.rat - r) > 0.005) aProporcion(x.comp, W, Math.round(W / x.rat), H);   // as «Aplicar»'s check: a 1080 copy is the same proportion
       x.rat = r;
     });
   }
-  function igualar(c, b) {           // back in the proportion it opened with: what only differs by rounding is as it was
-    for (const e of c.els) {
-      const o = b.els && b.els.find(q => q.id === e.id), ks = e.t === 'texto' ? ['x', 'y', 'w', 'size'] : ['x', 'y', 'w', 'h', 'b'];
-      if (o && ks.every(k => Math.abs((e[k] || 0) - (o[k] || 0)) < 3e-4)) ks.forEach(k => { if (o[k] != null) e[k] = o[k]; });
-    }
+  // A composition keeps its origin, comp.origen = {rat, els: {id: {g, p, m}}}: where each text, shape and logo was (g) in the
+  // proportion it was laid out in (rat), the place the last change of proportion gave it (p) and what that change did to it
+  // (m, reubicar). Every change starts from the origin, never from the last one (k shrinks when zones would overlap, so one
+  // change does not undo another): back in that proportion each one is exactly as it was, and a round trip through any
+  // other changes nothing. One resized or restyled since (p no longer matches) gets its origin from where it is now, that
+  // change undone (alOrigen); one added since takes its place now as its origin. The others are not touched.
+  const SITIO = ['x', 'y', 'w', 'h', 'size', 'b'];
+  function sitio(e) { const o = {}; SITIO.forEach(k => { if (e[k] != null) o[k] = e[k]; }); if (e.t === 'hueco') o.ts = (e.textos || []).map(t => t.size); return o; }
+  function ponerSitio(e, o) { SITIO.forEach(k => { if (o[k] != null) e[k] = o[k]; }); if (o.ts) (e.textos || []).forEach((t, n) => { if (o.ts[n] != null) t.size = o.ts[n]; }); return e; }
+  const puesto = e => { const o = sitio(e); if (e.t === 'texto') delete o.h; return JSON.stringify(o); };   // a text's height follows its font
+  function aProporcion(comp, W, H0, H1) {
+    const mano = new Set(comp.els.filter(e => e.mano).map(e => e.g || e.id));   // a block moved by hand stays where it is
+    const mov = comp.els.filter(e => e.t !== 'foto' && !mano.has(e.g || e.id));
+    if (!mov.length) { delete comp.origen; return; }
+    const o = comp.origen && comp.origen.rat > 0 && comp.origen.els ? comp.origen : (comp.origen = { rat: W / H0, els: {} }), Ho = Math.round(W / o.rat);
+    for (const id of Object.keys(o.els)) if (!comp.els.some(e => e.id === id)) delete o.els[id];
+    for (const e of mov) { const q = o.els[e.id]; if (!q) o.els[e.id] = { g: sitio(e) }; else if (q.p !== puesto(e)) q.g = alOrigen(e, q.m, W, H0, Ho); }
+    const c = { els: comp.els.map(e => mov.includes(e) ? ponerSitio(clone(e), o.els[e.id].g) : e) };   // the slide as it was in its origin
+    const hecho = Math.abs(o.rat - W / H1) > 0.005 ? reubicar(c, W, Ho, H1) : new Map();
+    mov.forEach(e => {
+      const q = c.els[comp.els.indexOf(e)], s = o.els[e.id], m = hecho.get(q);
+      ponerSitio(e, sitio(q)); s.p = puesto(e); if (m) s.m = m.map(r4); else delete s.m;
+    });
+  }
+  function alOrigen(e, m, W, H, Ho) {   // where e is now on W×H, the last change (m) undone: its place on the origin's W×Ho
+    const g = sitio(e); if (!m) return g;   // that change kept its fractions (a background, or no change)
+    const [ax, bx, k, cy] = m;
+    Object.assign(g, { x: r4((e.x * W - bx) / ax / W), w: r4(e.w / ax), y: r4((e.y * H - cy) / k / Ho), h: r4(e.h * H / k / Ho) });
+    if (g.size != null) g.size = r4(g.size / k);
+    if (g.b) g.b = r4(g.b / k);
+    if (g.ts) g.ts = g.ts.map(v => r4((v || 0.06) / k));
+    return g;
   }
   // From W×H0 to W×H1. Each block — an element, or a group — that is not a photo, not a background (half the slide or more)
   // and not moved by hand keeps its zone (top, middle or bottom of the slide) and scales by k: k is the ratio of the short
   // sides, less when the zones would overlap or go past a margin of 4 % of the short side. Across, a text keeps its
   // alignment edge and its line breaks (box and letters scale alike), a small shape or logo keeps the side of the slide it
   // is on (a text inside it goes with it) and a line or a bar keeps its length. Photos keep their own frame rules.
-  function reubicar(comp, W, H0, H1, zonas = {}) {   // zonas: the zone each block took the first time (a round trip comes back)
+  function reubicar(comp, W, H0, H1) {   // always from a composition's origin (aProporcion)
     const grupos = new Map(), B = [], ancla = new Map();
     for (const e of comp.els) { if (e.t === 'foto') continue; const g = e.g || e.id; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push(e); }
-    for (const [g, els] of grupos) {
+    for (const els of grupos.values()) {
       if (els.some(e => e.mano)) continue;
       const b = union(els, W, H0); if ((b.r - b.l) * (b.b - b.t) >= 0.5 * W * H0) continue;
       const cy = (b.t + b.b) / 2 / H0;
-      if (zonas[g] == null) zonas[g] = cy < 0.4 ? 0 : cy > 0.6 ? 2 : 1;
-      B.push({ els, b, zy: zonas[g] });
+      B.push({ els, b, zy: cy < 0.4 ? 0 : cy > 0.6 ? 2 : 1 });
       for (const e of els) {         // a small shape or logo (not a line nor a bar): the side it is on
         const l = e.x * W, w = e.w * W, h = e.h * H0, c = l + w / 2;
         if (e.t !== 'texto' && w < 3 * h && h < 3 * w) ancla.set(e, c < 0.4 * W ? l : c > 0.6 * W ? l + w : c);
@@ -1161,7 +1187,7 @@
         ancla.set(e, caja ? ancla.get(caja) : e.al === 'der' ? l + w : e.al === 'cen' ? cx : l);
       }
     }
-    if (!B.length) return;
+    if (!B.length) return new Map();
     const m = 0.04 * Math.min(W, H1), gap = 0.02 * H1, z = [0, 1, 2].map(n => B.filter(q => q.zy === n));
     const plan = k => {              // where the zones go with k: the top one from the top, the bottom one from the bottom (both kept off the margin), the middle one around the centre
       const st = z[0].length ? Math.max(0, m - Math.min(...z[0].map(q => q.b.t)) * k) : 0, sb = z[2].length ? Math.max(0, m - (H0 - Math.max(...z[2].map(q => q.b.b))) * k) : 0;
@@ -1178,15 +1204,17 @@
       if (r > A + 0.5) k = Math.min(k, Math.max(1, (W - m - A) / (r - A)));
     }
     if (!plan(k).ok) { let lo = 0.25, hi = k; for (let t = 0; t < 24; t++) { const md = (lo + hi) / 2; if (plan(md).ok) lo = md; else hi = md; } k = lo; }
-    const { Y } = plan(k);
+    const { Y } = plan(k), hecho = new Map();
     for (const q of B) for (const e of q.els) {
       const A = ancla.get(e), x0 = e.x * W, w0 = e.w * W;
+      hecho.set(e, [A != null ? k : 1, A != null ? A * (1 - k) : 0, k, Y[q.zy](0)]);   // in px: x·ax + bx (w·ax), y·k + cy (h, size, borders ·k)
       if (A != null) Object.assign(e, { x: r4((A + (x0 - A) * k) / W), w: r4(w0 * k / W) });
       Object.assign(e, { y: r4(Y[q.zy](e.y * H0) / H1), h: r4(e.h * H0 * k / H1) });
       if (e.t === 'texto') e.size = r4((e.size || 0.06) * k);
       if ((e.t === 'forma' || e.t === 'hueco') && e.b) e.b = r4(e.b * k);
       if (e.t === 'hueco') (e.textos || []).forEach(t => { t.size = r4((t.size || 0.06) * k); });
     }
+    return hecho;
   }
   function transformarHTML(els) {
     const fotos = els.filter(e => e.t === 'foto'); if (!fotos.length) return '';
@@ -1653,7 +1681,7 @@
     const llena = E.reel || (x0 && !x0.key && !compAt(E.i).els.length);
     if (!llena && E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
     mut(null, () => {
-      const comp = { ...clone(cb.slide), els: copias(cb.slide.els, false) };
+      const comp = { ...clone(cb.slide), els: copias(cb.slide.els, false) }; delete comp.origen;   // new ids: its origin is where it lands
       let x = x0;
       if (!llena) { x = blankSlide(comp.bg || '#ffffff'); if (x0 && !E.car) x.fmt = fmtAt(E.i); E.i = x0 ? E.i + 1 : 0; E.sl.splice(E.i, 0, x); }
       enSuSitio(comp.els, cb.rat, E.i);
@@ -1871,7 +1899,7 @@
   }
   function guardarPlantillaYa(nombre, n) {
     if (!E || !E.sl.length) return;
-    const c = compAt(E.i), comp = clone(c); comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
+    const c = compAt(E.i), comp = clone(c); delete comp.origen; comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
     const t = { id: 't' + Date.now().toString(36), nombre: String(nombre || '').trim().slice(0, 40) || `Plantilla ${n}`, comp, at: new Date().toISOString() };
     guardarCliente(l => ({ ...l, plantillas: [...(l.plantillas || []), t].slice(-24) })).then(ok => ok && I().toast(`Plantilla «${t.nombre}» guardada para este cliente.`));
   }
@@ -2254,7 +2282,7 @@
       const outs = photos0.slice(), tipo0 = s.type, reel = I().isReel(tipo0);
       for (let j = 0; j < sl.length; j++) {
         const x = sl[j]; if (!x) continue;
-        reubicar(x.comp, W, x.H0, H);
+        aProporcion(x.comp, W, x.H0, H);
         fotosDe(x.comp).forEach(e => { if (!e.src) return; if (e.fit != null) encajarWH(e, e.fit, W, H); else if (e.rat && RVAL[e.rat]) marcoRat(e, RVAL[e.rat], e.w * W * e.h * H, W, H); });
         outs[j] = await guardarImagen(await dibujar(x.comp, W, H), reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(j + 1)}.jpg`); made.push(outs[j]);
       }

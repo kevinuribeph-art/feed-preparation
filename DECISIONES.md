@@ -45,6 +45,14 @@ Reglas vigentes de la Mesa de trabajo, decididas en chats distintos. Antes de ca
 | D-015 | 26/10/2026 | La foto soltada rellena el área del hueco. | Sustituida por D-018 (26/10/2026) |
 | D-016 | 26/10/2026 | Los selectores de color muestran solo el kit de marca del cliente, en las subsecciones que define cada kit, más #000000 y #FFFFFF. Ningún color fuera del kit; cada grupo del kit indica en qué selectores sale (fondo, texto, relleno, borde, velo). | Vigente |
 | D-018 | 26/10/2026 | Encaje de fotos en los huecos (sustituye a D-015). La foto conserva siempre su proporción: en un hueco a sangre (portada) rellena, cubre la diapositiva centrada y recorta lo que sobra; en un hueco dentro del margen (interiores) se ajusta, entera, lo más grande que quepa en la caja y centrada, y las franjas muestran el fondo. Doble clic sobre la foto alterna: si cubre la caja pasa a ajustar y si deja franjas pasa a rellenar. La ampliación manual sigue con la proporción bloqueada y lo que sale de la diapositiva se recorta en su borde. Si el fondo es el provisional #2B231F, pasa a Ink #16110E al soltar la foto. Sustituir una foto aplica la misma regla y las fotos ya colocadas no se recolocan. | Vigente |
+| D-019 | 27/10/2026 | Al cambiar el formato de las diapositivas (4:5, 3:4, 1:1, Horizontal), textos, formas y logos se recolocan siempre desde su sitio en el formato de partida, nunca desde el último. Al volver a ese formato, pasen por los que pasen, o con ⌘Z, lo que no se ha movido a mano queda exactamente como estaba. Lo movido a mano se queda donde se dejó. | Vigente |
+
+## Marca
+
+| ID | Fecha | Regla | Estado |
+|---|---|---|---|
+| D-020 | 27/10/2026 | Nunca antetítulos (eyebrows): la línea corta en mayúsculas espaciadas encima del titular («CASE STUDY», «03 · …»). No aportan nada y delatan un diseño hecho con IA. Vale para todo lo de Uribe Visuals: carruseles, PDF, presentaciones y web. No son antetítulos las etiquetas del motor (marca, página, pie) ni la línea de datos bajo el titular, que se quedan. El color de acento va a uno de los datos de abajo. | Vigente |
+| D-021 | 27/10/2026 | En el motor de «Diseñar», el pie de los interiores y el contacto del final llevan el color de acento del kit (de sus acentos de texto, el que más contraste da sobre su fondo), solo si llega a 3:1; si no, se quedan con el color de antes. La portada, la marca, el número y el pie del final no cambian. | Vigente |
 
 ## Mesa
 

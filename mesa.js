@@ -39,10 +39,13 @@
 // v3.35: in the free editor a change of format and back leaves every text, shape and logo not moved by hand exactly as it
 // was (libre 1.11). Designs never get an eyebrow; the kit's accent goes to the footer of inner slides and to the final's
 // contact line when it reads (motor 1.3).
+// v3.36: a photo already used goes in again (D-022): before it goes into a post the mesa says its nearest use (this post, this
+// month, the previous month or another month of the client's boards; the free editor adds this slide) and asks «Usar
+// igualmente» / «Cancelar» (several: «Usar todas» / «Saltar repetidas»); into the tray it just goes in, never twice (libre 1.12).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.35';
+  M.version = '3.36';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -455,6 +458,7 @@
   const BODY = new WeakMap();
   function edited(B) { const b = boardBody(B); if (BODY.get(B) !== b) { B.editedAt = new Date().toISOString(); BODY.set(B, b); } }
   function save() {
+    usoS = null;                       // the open board's photos in use: looked at again on the next warning (D-022)
     if (!S || locked) return;
     track(S);                          // ⌘Z history: each save point is a step (several quick actions stay separate)
     clearTimeout(saveTimer);
@@ -638,6 +642,70 @@
     return missing;
   }
 
+  // ---------- a photo used again (D-022) ----------
+  // A photo may go in again: before it goes into a post the mesa says its nearest use and asks, never blocks. Same photo =
+  // same name and size; used = in a live post of the same client's boards (its photos, its design or the editor's
+  // compositions) or in a previous-month cell set here, never in a tray. Index name|size -> uses: the open board's is
+  // rebuilt on the first look after a save; the other boards' is read once when a board opens (in the background).
+  const AVISOS = [null, 'Ya usada en esta diapositiva', 'Ya usada en este post', 'Ya usada este mes', 'Ya usada el mes anterior'];
+  const fkey = (n, z) => n + '|' + z;
+  const metaKey = new Map();           // fileId -> name|size (null: nothing to compare) of photos not loaded
+  let usoS = null, usoO = new Map(), usoP = Promise.resolve(), usoTok = 0;
+  const fileKey = f => { if (!trayable(f)) return null; const x = M.files[f]; return x ? (x.design ? null : fkey(x.name, x.size)) : metaKey.get(f) || null; };
+  function usosDe(b, put) {            // each photo used in board b: put(fileId, {slot | prev, m: its month})
+    const cd = cdOf(b.cycleDay);
+    for (const s of b.slots || []) {
+      if (!vivo(s)) continue;
+      const out = new Set([...dOut(s), ...lOut(s)]), m = cycleOf(s.date, cd) || b.month;
+      new Set([...(s.photos || []).filter(f => !out.has(f)), ...dSrc(s)]).forEach(f => put(f, { slot: s.id, m }));
+    }
+    for (const p of b.prev || []) if (p.own) (p.photos || []).forEach(f => put(f, { prev: true, m: cycleOf(p.date, cd) }));
+  }
+  function usoMap(b, map = new Map()) { usosDe(b, (f, u) => { const k = fileKey(f); if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(u); }); return map; }
+  function usosOtros() {               // the same client's other boards
+    const B = S, tok = ++usoTok; usoO = new Map();
+    usoP = (async () => {
+      const clientOf = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1];
+      const all = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).filter(b => b && b.key !== B.key && clientOf(b) === B.client);
+      const need = new Set(); all.forEach(b => usosDe(b, f => { if (trayable(f) && !M.files[f] && !metaKey.has(f)) need.add(f); }));
+      for (const f of need) { const r = await idbGet('files', f).catch(() => null); metaKey.set(f, r && !r.design ? fkey(r.name, r.size) : null); }
+      if (tok !== usoTok) return;
+      const map = new Map(); all.forEach(b => usoMap(b, map)); usoO = map;
+    })().catch(() => { /* without it the photo just goes in */ });
+  }
+  // the nearest use of a photo going into post sid: {n: 2 this post · 3 this month · 4 the previous month · 5 another
+  // month, m, txt} or null. skip: a post whose uses don't count (the free editor counts its own, open: a = 1 or 2 found there)
+  async function usoFoto(name, size, { slot: sid, skip, a } = {}) {
+    await usoP;
+    if (!S) return null;
+    if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    const k = fkey(name, size), pm = prevMonth(S.month), mine = monthsOf(S.month, S.span), mi = m => { const [y, mo] = String(m).split('-').map(Number); return y * 12 + mo; };
+    let best = a ? { n: a } : null;
+    const cand = (n, m) => { if (!best || n < best.n || (n === 5 && best.n === 5 && Math.abs(mi(m) - mi(S.month)) < Math.abs(mi(best.m) - mi(S.month)))) best = { n, m }; };
+    for (const u of usoS.map.get(k) || []) if (!u.slot || u.slot !== skip) cand(u.prev ? 4 : u.slot === sid ? 2 : 3, u.m);
+    for (const u of usoO.get(k) || []) cand(u.m === pm ? 4 : mine.includes(u.m) ? 3 : 5, u.m);
+    return best && { ...best, txt: best.n < 5 ? AVISOS[best.n] : /^\d{4}-\d{2}$/.test(best.m || '') ? `Ya usada en la mesa en ${rangeLabel(best.m, 1, false, curCd()).toLowerCase()}` : 'Ya usada en otro mes de la mesa' };
+  }
+  // one dialog per action: the photos [{name, size, …}] that would go in again, each with its nearest use. Resolves with the
+  // ones that go in (all, or without the repeated ones) or null (Cancelar: nothing changes)
+  let repeAsk = null;
+  const repeCancel = () => { const f = repeAsk; repeAsk = null; if (f) f(null); };
+  async function repetidas(items, ctx) {
+    const rep = [];
+    for (const it of items) { const u = await usoFoto(it.name, it.size, ctx); if (u) rep.push({ it, u }); }
+    if (!rep.length || !S || !shellReady()) return items;
+    const x = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
+    showDialog('repe', items.length === 1
+      ? `${x}<h3>${esc(rep[0].u.txt)}</h3><p>${esc(rep[0].it.name)}</p><div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="repe" data-m="usar">Usar igualmente</button></div></div>`
+      : `${x}<h3>${rep.length === 1 ? '1 foto ya usada' : `${rep.length} fotos ya usadas`} de ${items.length}</h3><ul class="repl">${rep.map(r => `<li><b>${esc(r.it.name)}</b><span>${esc(r.u.txt)}</span></li>`).join('')}</ul><div class="form"><div class="row"><button type="button" class="btn2" data-act="repe" data-m="saltar">Saltar repetidas</button><button type="button" class="btn" data-act="repe" data-m="usar">Usar todas</button></div></div>`);
+    return new Promise(res => { repeAsk = v => res(v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null); });
+  }
+  // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
+  function addToSlot(slotId, ids) {
+    ids = (ids || []).filter(id => M.files[id]);
+    repetidas(ids.map(f => ({ f, name: M.files[f].name, size: M.files[f].size })), { slot: slotId }).then(r => { if (r && r.length) askAddMode(slotId, r.map(x => x.f)); });
+  }
+
   // ---------- adding photos (serialised so two drops never race) ----------
   let addQ = Promise.resolve();
   M.addFiles = (list, targetSlotId, opts) => {   // opts.tray: a photo already in the tray comes back (the free editor puts it on a slide)
@@ -650,8 +718,16 @@
     if (!S) { toast('Abre un mes antes de añadir fotos.'); return []; }
     const B = S;
     list.filter(f => f && !f.size).forEach(f => toast(`${f.name} está vacío: no se puede añadir.`));
-    const files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
-    const got = [], fresh = [];
+    let files = list.filter(f => f && f.size).sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+    const into = targetSlotId || (opts && opts.aviso);   // photos going into a post warn if used before (D-022); into the tray they just go in
+    if (into) {
+      const d = root && root.querySelector('.detail'), back = d && !d.hidden && !d.dataset.dlg && d.dataset.slot ? { id: d.dataset.slot, idx: cur.idx } : null;
+      const ok = await repetidas(files.filter(f => OK_TYPES.includes(f.type || '')).map(f => ({ f, name: f.name, size: f.size })), { slot: into });
+      if (back && S === B && d.hidden) openDetail(back.id, back.idx);   // the post view the photos were dropped on comes back
+      if (!ok) return [];
+      const go = new Set(ok.map(x => x.f)); files = files.filter(f => go.has(f) || !OK_TYPES.includes(f.type || ''));
+    }
+    const got = [], fresh = [], refs = refsOf(B);
     importing += files.length;
     try {
       let i = 0;
@@ -663,11 +739,12 @@
           toast(/heic|heif/i.test(f.name + type) ? `${f.name}: HEIC no se puede leer aquí. Expórtala como JPG.` : `${f.name}: formato no compatible (usa JPG o PNG).`);
           continue;
         }
-        const dup = Object.keys(M.files).find(id => M.files[id].name === f.name && M.files[id].size === f.size);
-        if (dup && (B.tray.includes(dup) || B.slots.some(s => s.photos.includes(dup)))) {
-          if (!(targetSlotId || (opts && opts.tray)) || !B.tray.includes(dup)) { toast(`${f.name} ya está en la mesa.`); continue; }
-          got.push(dup); continue;
-        }
+        // the same photo already here: unused in the tray it is taken from there (never twice in it); used in this board,
+        // a copy goes in (each post keeps its own crop); only in other boards, its record is the same
+        const same = Object.keys(M.files).filter(id => M.files[id].name === f.name && M.files[id].size === f.size && !M.files[id].design);
+        const inTray = same.find(id => B.tray.includes(id) || fresh.includes(id));
+        if (inTray) { if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
+        const dup = same.find(id => !refs.has(id));
         let decoded = false;
         try {
           const { w, h, thumb } = await makeThumb(f);
@@ -1424,6 +1501,7 @@
 #mesa .card .x{position:absolute;top:10px;right:10px;border:0;background:none;font-size:22px;line-height:1;color:var(--ink);width:30px;height:30px;border-radius:50%}
 #mesa .card .x:hover{background:var(--line2)}
 #mesa .card.dlg{max-width:420px}
+#mesa .repl{list-style:none;margin:6px 0 0;padding:0;max-height:min(50vh,320px);overflow:auto;font-size:13px}#mesa .repl li{display:flex;flex-direction:column;gap:1px;padding:6px 0;border-top:1px solid var(--line2)}#mesa .repl li span{color:var(--mute);font-size:12.5px}
 #mesa .form label{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .form label span{font-weight:400;color:var(--mute)}
 #mesa .form input[type=text],#mesa .form input[type=number]{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:14px ${FONT};color:var(--ink)}
 #mesa .form input[type=text]:focus,#mesa .form input[type=number]:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
@@ -1872,6 +1950,7 @@
   let pickOpen = null;   // the post whose «Cambiar portada» picker is open
   function openDetail(id, idx) {
     const s = slot(id); if (!s || !shellReady()) return;
+    repeCancel();
     if (pickOpen && pickOpen !== id) pickOpen = null;
     if (isPrev(s)) return openPast(id);
     const d = root.querySelector('.detail');
@@ -2067,7 +2146,7 @@
         <div class="pright"><span class="nlab">Mes anterior <span>· solo cambia la vista del feed, no Notion</span></span>${acts}
           <p class="muted" style="margin:12px 0 0">Para cambiar la foto, arrastra una de la bandeja sobre su casilla. Para intercambiar dos publicaciones, arrastra una sobre la otra.</p></div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
-    d.hidden = false; d.dataset.slot = id; d.dataset.prev = '1'; delete d.dataset.dlg;
+    repeCancel(); d.hidden = false; d.dataset.slot = id; d.dataset.prev = '1'; delete d.dataset.dlg;
     if (fresh) focusClose(d);
     if (im && im.f && M.files[im.f]) { layoutStage(); loadBig(im.f); }
     markReframe();
@@ -2120,6 +2199,7 @@
     } catch (e) { /* keep the thumbnail */ }
   }
   function closeDetail() {
+    repeCancel();
     if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
     const d = root && root.querySelector('.detail'); if (!d) return;
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
@@ -2226,7 +2306,7 @@
       + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div><div class="igdate">${esc(igFecha(P.date))}</div>`
       + `<div class="igadd" aria-hidden="true">${IGI.emoji}<span>Añade un comentario…</span><b>Publicar</b></div></div></div></div>`;
     if (d.hidden || d.dataset.dlg !== 'ig') clearToasts();
-    d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
+    repeCancel(); d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
   }
   const igNav = dir => { if (ig) openIG(ig.id, ig.idx + dir); };
   // the editor's «Preview» (libre.js): the pieces of the vista cliente for post s with media of proportion R (w/h); the
@@ -2243,6 +2323,7 @@
 
   // ---------- dialogs (clients, how to add a month) ----------
   function showDialog(kind, html) {
+    repeCancel();
     const d = root.querySelector('.detail');
     d.innerHTML = `<div class="card dlg" role="dialog" aria-modal="true">${html}</div>`;
     clearToasts();
@@ -2407,7 +2488,7 @@
       else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
     }
     else if (cell) {
-      if (d.from === 'tray') askAddMode(cell.dataset.slot, [d.fileId]);
+      if (d.from === 'tray') addToSlot(cell.dataset.slot, [d.fileId]);
       else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
       else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
     }
@@ -2574,7 +2655,7 @@
         const pv = postDrop(e); if (pv) { M.addFiles(e.dataTransfer.files, root.querySelector('.detail').dataset.slot); return; }
         if (pc) { const id = pc.dataset.prev; M.addFiles(e.dataTransfer.files, null).then(got => { if (got && got[0]) withPrev(() => prevSetFromTray(id, got[0]), 'edit'); }); return; }
         const tgt = cell && S.slots.find(x => x.id === cell.dataset.slot);
-        if (tgt && tgt.photos.length && isMulti(tgt.type)) { const sid = tgt.id; M.addFiles(e.dataTransfer.files, null).then(got => askAddMode(sid, got)); return; }
+        if (tgt && tgt.photos.length && isMulti(tgt.type)) { const sid = tgt.id; M.addFiles(e.dataTransfer.files, null, { aviso: sid }).then(got => askAddMode(sid, got)); return; }
         M.addFiles(e.dataTransfer.files, cell ? cell.dataset.slot : null); return;
       }
       if (!drag || !S) return;
@@ -2657,7 +2738,7 @@
       if (cell) {
         const id = cell.dataset.slot;
         if (root.classList.contains('client')) { sel = null; openIG(id, 0); return; }   // vista cliente: as in Instagram
-        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; askAddMode(id, [f]); return; }
+        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; addToSlot(id, [f]); return; }
         sel = null;
         openDetail(id, 0);
       }
@@ -2783,6 +2864,7 @@
     if (act === 'add') root.querySelector('.picker').click();
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file); }
     else if (act === 'close') closeDetail();
+    else if (act === 'repe') { const f = repeAsk; repeAsk = null; closeDetail(); if (f) f(a.dataset.m); }
     else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast('Para cambiar diapositivas, usa «Diseñar».'); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
@@ -2791,7 +2873,7 @@
     else if (act === 'igedit') igEditar();
     else if (act === 'caporig') capRevert(a.dataset.slot, +a.dataset.k);
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
-    else if (act === 'setcover') { pickOpen = null; changeCover(a.dataset.slot, a.dataset.f); openDetail(a.dataset.slot, 0); }
+    else if (act === 'setcover') { const id = a.dataset.slot, f = a.dataset.f; pickOpen = null; if (!M.files[f]) return; repetidas([{ name: M.files[f].name, size: M.files[f].size }], { slot: id }).then(r => { if (r) changeCover(id, f); openDetail(id, 0); }); }
     else if (act === 'prev') openDetail(cur.slot, cur.idx - 1);
     else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
@@ -3080,6 +3162,7 @@
     if (M.diseno && M.diseno.prepararKits) await M.diseno.prepararKits(S);   // plan() right after init knows if a design is out of date
     await refreshMonths();
     render();
+    usoS = null; usosOtros();         // the photos in use (D-022): this board on the first warning, the client's other boards now
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
     if (retyped.length) toast(`En Notion cambió el tipo de ${retyped.join(', ')}: su diseño se ha convertido y está pendiente de aplicar («Diseñar»).`, { ms: 9000 });
     if (won.length) toast(`En Notion cambió la fecha, el nombre o el tipo de ${won.length > 4 ? won.slice(0, 4).join(', ') + ` y ${won.length - 4} más` : won.join(', ')}: se queda lo de Notion y se descarta el cambio hecho aquí.`, { ms: 9000 });
@@ -3886,7 +3969,8 @@
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
-    dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM
+    dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
+    usoFoto, AVISOS   // a photo used again (D-022, libre ≥ 1.12)
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList,

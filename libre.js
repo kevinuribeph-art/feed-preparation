@@ -53,11 +53,13 @@
 // Photos already in holes are not moved.
 // v1.11 (mesa 3.35): a change of proportion starts from where each block was before the first one (comp.origen), never
 // from the last: going back to that format, or through any other and back, leaves what was not moved by hand as it was.
+// v1.12 (mesa 3.36): a photo already used asks before it goes onto a slide (D-022): its nearest use — this slide, this post
+// or the mesa's — and «Usar igualmente» / «Cancelar»; several at once, one list with «Usar todas» / «Saltar repetidas».
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.11';
+  const VERSION = '1.12';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -567,13 +569,13 @@
   function preguntar(t, p, btns, on, campo) {
     cerrarPregunta();
     const d = document.createElement('div'); d.className = 'lb-ask';
-    d.innerHTML = `<div class="lb-askc" role="alertdialog" aria-label="${esc(t)}"><h4>${esc(t)}</h4>${p ? `<p>${esc(p)}</p>` : ''}${campo != null ? `<input type="text" class="lb-askin" maxlength="40" value="${esc(campo)}">` : ''}<div class="lb-btns">${btns.map(([v, l, c]) => `<button type="button" class="${c}" data-ask="${v}">${esc(l)}</button>`).join('')}</div></div>`;
-    const done = v => { const inp = d.querySelector('.lb-askin'), txt = inp ? inp.value : null; cerrarPregunta(); (on || (x => { if (x === 'salir') cerrar(); else if (x === 'aplicar') aplicar(); }))(v, txt); };
+    d.innerHTML = `<div class="lb-askc" role="alertdialog" aria-label="${esc(t)}"><h4>${esc(t)}</h4>${Array.isArray(p) ? `<ul class="lb-askl">${p.map(([a, b]) => `<li><b>${esc(a)}</b><span>${esc(b)}</span></li>`).join('')}</ul>` : p ? `<p>${esc(p)}</p>` : ''}${campo != null ? `<input type="text" class="lb-askin" maxlength="40" value="${esc(campo)}">` : ''}<div class="lb-btns">${btns.map(([v, l, c]) => `<button type="button" class="${c}" data-ask="${v}">${esc(l)}</button>`).join('')}</div></div>`;
+    const done = v => { const inp = d.querySelector('.lb-askin'), txt = inp ? inp.value : null; E.askNo = null; cerrarPregunta(); (on || (x => { if (x === 'salir') cerrar(); else if (x === 'aplicar') aplicar(); }))(v, txt); };
     d.addEventListener('click', ev => { const b = ev.target.closest('[data-ask]'); if (!b && ev.target !== d) return; done(b ? b.dataset.ask : 'seguir'); });
     E.el.append(d); E.ask = d; E.askOk = () => done(btns[btns.length - 1][0]);   // Enter in the field (onKey)
     const f = d.querySelector('.lb-askin') || d.querySelector('[data-ask="seguir"]'); if (f) { f.focus(); if (f.select) f.select(); }
   }
-  function cerrarPregunta() { if (E && E.ask) { E.ask.remove(); E.ask = null; } }
+  function cerrarPregunta() { if (E && E.ask) { const no = E.askNo; E.askNo = null; E.ask.remove(); E.ask = null; if (no) no(); } }   // askNo: a warning closed without an answer (Esc) is Cancelar
   function sync() {     // called on every mesa render: the editor closes when its board or post is gone
     if (!E || E.busy) return;
     if (!curSlot()) { cerrar(true); if (I() && I().toast) I().toast('El editor se ha cerrado: la publicación cambió o ya no está en la mesa.'); }
@@ -857,6 +859,7 @@
 #mesa .lb-allit.on canvas,#mesa .lb-allit:hover canvas{outline-color:var(--acc)}
 #mesa .lb-ask{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .lb-askc{background:var(--panel);border-radius:12px;padding:18px 18px 16px;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+#mesa .lb-askl{list-style:none;margin:0 0 8px;padding:0;max-height:min(50vh,300px);overflow:auto;font-size:13px}#mesa .lb-askl li{padding:5px 0;border-top:1px solid var(--line2)}#mesa .lb-askl li span{display:block;color:var(--mute);font-size:12.5px}
 #mesa .lb-askc h4{margin:0 0 6px;font-size:15px}#mesa .lb-askc p{margin:0 0 6px;color:var(--mute);font-size:13px}
 #mesa .lb-askin{display:block;width:100%;box-sizing:border-box;margin:8px 0 4px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px}#mesa .lb-askin:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
 #mesa .lb-it,#mesa .lb-allit{position:relative}#mesa .lb-it.lb-drg,#mesa .lb-allit.lb-drg{opacity:.4}
@@ -1774,7 +1777,7 @@
       }
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
-      case 'tr-add': ponerFotos([b.dataset.f], null, null); return;
+      case 'tr-add': { const owner = E; avisar(fotoIt([b.dataset.f]), E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), null, null); }); return; }
       case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#000000')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
       case 'add-est': { const el = textoMarca(b.dataset.v); if (el) nuevo(el); return; }
@@ -1784,13 +1787,16 @@
       case 'rep': { const el = selEl(); if (el) { E.pick = { modo: 'rep', id: el.id }; panel(); } return; }
       case 'pick-x': E.pick = null; panel(); return;
       case 'pickf': {
-        const f = b.dataset.f, pk = E.pick; if (!pk || !M.files[f] || !E.sl.length) return;
-        E.pick = null;
-        mut(null, () => {
-          const c = ensure();
-          if (pk.modo === 'add') { const e = fotoEl(f); const top = c.els.reduce((a, q, i) => q.t === 'foto' ? i + 1 : a, 0); c.els.splice(top, 0, e); E.sel = e.id; E.mas = []; encajar(e, 0.08); delete e.fit; }   // a new photo goes above the photos, under texts and logos
-          else if ((c.els.find(q => q.id === pk.id) || {}).t === 'hueco') { const { W, H } = sizeAt(E.i); E.sel = rellenar(c, c.els.find(q => q.id === pk.id), f, W, H).id; E.mas = []; }
-          else { const e = c.els.find(q => q.id === pk.id); if (e && e.hueco && !e.pan) { const { W, H } = sizeAt(E.i); E.sel = reajustar(c, e, f, W, H).id; E.mas = []; } else if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
+        const f = b.dataset.f, pk = E.pick, owner = E; if (!pk || !M.files[f] || !E.sl.length) return;
+        avisar(fotoIt([f]), E.i, pk.id).then(r => {
+          if (!r || !r.length || E !== owner || E.pick !== pk) return;
+          E.pick = null;
+          mut(null, () => {
+            const c = ensure();
+            if (pk.modo === 'add') { const e = fotoEl(f); const top = c.els.reduce((a, q, i) => q.t === 'foto' ? i + 1 : a, 0); c.els.splice(top, 0, e); E.sel = e.id; E.mas = []; encajar(e, 0.08); delete e.fit; }   // a new photo goes above the photos, under texts and logos
+            else if ((c.els.find(q => q.id === pk.id) || {}).t === 'hueco') { const { W, H } = sizeAt(E.i); E.sel = rellenar(c, c.els.find(q => q.id === pk.id), f, W, H).id; E.mas = []; }
+            else { const e = c.els.find(q => q.id === pk.id); if (e && e.hueco && !e.pan) { const { W, H } = sizeAt(E.i); E.sel = reajustar(c, e, f, W, H).id; E.mas = []; } else if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
+          });
         });
         return;
       }
@@ -2026,6 +2032,26 @@
       + (fs.length ? `<div class="lb-trs">${fs.map(f => `<button type="button" class="lb-ph lb-tph${uso.has(f) ? ' uso' : ''}" data-lb="tr-add" data-f="${esc(f)}" title="${esc(M.files[f].name || '')}${uso.has(f) ? ' · ya está en una diapositiva' : ''}"><img src="${M.files[f].thumbUrl || ''}" alt="" draggable="false"></button>`).join('')}</div>` : '<p class="lb-p" style="margin:0 0 4px">La bandeja está vacía.</p>');
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
   }
+  // a photo used before (D-022): before it goes onto slide i, its nearest use — this slide (without the element excl it
+  // replaces), another slide of this post, or what the mesa finds — and «Usar igualmente» / «Cancelar» (several: a list,
+  // «Usar todas» / «Saltar repetidas»). items [{f?, name, size}] -> the ones that go in, or null (nothing changes)
+  const fotoIt = fs => fs.filter(f => M.files[f]).map(f => ({ f, name: M.files[f].name, size: M.files[f].size }));
+  async function avisar(items, i, excl) {
+    const owner = E, s = curSlot(); if (!owner || !s || !items.length || !I().usoFoto) return items;
+    const kOf = f => { const x = M.files[f]; return x ? x.name + '|' + x.size : null; }, aqui = new Set(), post = new Set();
+    E.sl.forEach((x, j) => fotosDe(compAt(j)).forEach(e => { const k = e.src && e.id !== excl && kOf(e.src); if (k) (j === i ? aqui : post).add(k); }));
+    const rep = [];
+    for (const it of items) { const k = it.name + '|' + it.size, u = await I().usoFoto(it.name, it.size, { slot: s.id, skip: s.id, a: aqui.has(k) ? 1 : post.has(k) ? 2 : null }); if (u) rep.push({ it, u }); }
+    if (E !== owner) return null;
+    if (!rep.length) return items;
+    const one = items.length === 1;
+    return new Promise(res => {
+      preguntar(one ? rep[0].u.txt : `${rep.length === 1 ? '1 foto ya usada' : `${rep.length} fotos ya usadas`} de ${items.length}`, one ? rep[0].it.name : rep.map(r => [r.it.name, r.u.txt]),
+        one ? [['seguir', 'Cancelar', 'btn2'], ['usar', 'Usar igualmente', 'btn']] : [['saltar', 'Saltar repetidas', 'btn2'], ['usar', 'Usar todas', 'btn']],
+        v => res(E !== owner ? null : v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null));
+      E.askNo = () => res(null);
+    });
+  }
   // photos onto slide i (null: the one open): the first into the empty frame under the pointer (or the one selected),
   // the rest as new photos above the others, at the pointer when there is one; a post with no slide gets one
   function ponerFotos(fs, p, i) {
@@ -2071,7 +2097,13 @@
     if (I().locked) { I().toast(LOCKED); return; }
     const owner = E, files = [...(e.dataTransfer.files || [])], guardar = !!e.target.closest('.lb-tray'), t = guardar ? null : destino(e) || { i: null, p: null };
     if (!files.length) return;
-    const got = await M.addFiles(files, null, { tray: true });
+    let go = files;
+    if (!guardar) {       // onto a slide: the warning first (into the tray they just go in)
+      const r = await avisar(files.filter(f => f && f.size).map(f => ({ f, name: f.name, size: f.size })), t.i != null ? t.i : E.i);
+      if (!r || E !== owner) return;
+      go = r.map(x => x.f); if (!go.length) return;
+    }
+    const got = await M.addFiles(go, null, { tray: true });
     if (E !== owner) return;
     bandeja();
     if (!got || !got.length) return;
@@ -2095,7 +2127,7 @@
       const lejos = Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6;   // released far away before any move was seen: a drag too
       if (!drop || !(g || lejos)) return;
       E.noClick = true; setTimeout(() => { if (E === owner) E.noClick = false; }, 0);
-      const t = destino(ev); if (t) ponerFotos([f], t.p, t.i);
+      const t = destino(ev); if (t) avisar(fotoIt([f]), t.i != null ? t.i : E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), t.p, t.i); });
     };
     const up = end(true), cancel = end(false);
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);

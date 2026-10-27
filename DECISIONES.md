@@ -59,6 +59,7 @@ Reglas vigentes de la Mesa de trabajo, decididas en chats distintos. Antes de ca
 | ID | Fecha | Regla | Estado |
 |---|---|---|---|
 | D-017 | 26/10/2026 | La mesa completa se exporta e importa en un archivo para pasarla entre dos Macs, con fotos a 1080 px. | Vigente |
+| D-022 | 27/10/2026 | Una foto ya usada se puede volver a usar: la mesa avisa y pregunta, nunca bloquea (antes se descartaba con «ya está en la mesa»). «Misma foto» = mismo nombre y tamaño, solo entre tableros del mismo cliente; está usada si va en una publicación (la bandeja y las canceladas no cuentan). Al ponerla en una casilla, un post, una diapositiva o un hueco, o al sustituir, sale solo su uso más cercano: esta diapositiva, este post, este mes (el tablero abierto), el mes anterior o «en la mesa en [mes]», con «Usar igualmente» / «Cancelar»; en un lote, una lista con «Usar todas» / «Saltar repetidas». No avisan importar a la bandeja (una foto que ya está en ella sin usar no se duplica), las casillas del mes anterior, «Diseñar», mover, pegar ni plantillas. El mes anterior cuenta solo si tiene tablero guardado: lo que viene de Notion no se compara. | Vigente |
 
 ## Discrepancias
 

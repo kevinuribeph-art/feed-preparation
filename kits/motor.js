@@ -2,7 +2,7 @@
  * Motor de diseño de la Mesa de trabajo: carruseles (portada, fichas, final) y portadas de reel.
  * Script plano para navegador (ES2020, sin módulos ni dependencias). Define window.DisenoMotor.
  *
- *   DisenoMotor.version                                   '1.2'
+ *   DisenoMotor.version                                   '1.3'
  *   DisenoMotor.cargarKit(url)                         -> Promise<kit>
  *   DisenoMotor.usarKit(kitObj, baseUrl)               -> Promise<kit>
  *   DisenoMotor.tamano(kit, fmt, srcW, srcH)           -> {W, H, factor}
@@ -23,11 +23,12 @@
  *  - Palabras: nunca se parte una palabra que cabe; si una sola no cabe en el ancho máximo, se parte por
  *    grafemas con guion (en URLs, tras «/», «.» o «-») y se avisa. No se separan «2,80 €», «10 %», «« x»»…
  *  - Líneas: si la tinta de dos líneas seguidas queda a menos de 1 px, la de abajo baja lo justo.
+ * v1.3: nunca antetítulo; el acento del kit va al pie de los interiores y al contacto del final (si llega a 3:1).
  */
 (function (global) {
   'use strict';
 
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   const TIPOS = ['portada', 'ficha', 'final', 'reel'];
   // Alto mínimo de la zona analizada (y anclaje del velo) en px a factor 1: el de motor.py.
   const ALTO_ANALISIS = { ficha: 400, final: 480 };
@@ -1507,6 +1508,7 @@
     };
     let capaB = null, capaT = null;
     const et = { marca: null, pagina: null, pie: null };      // colores de las etiquetas
+    const colIt = new Map();                                // textos del bloque con color propio (el contacto del final)
     const etq = {};                                         // etiquetas preparadas {est, ln, x, y, rect}
     // marca, número y pie: dónde van (kit + publicación); la columna 3:4 de la portada horizontal manda en x
     const PS = posiciones(C, opts.pos);
@@ -1684,6 +1686,19 @@
         else et.pie = mejor(fsPie, AVISO_MIN).color;
         if (lugar === 'abajo' && !an) et.pie = color;
       }
+      // acento (sin antetítulo, el color de acento va a un dato de abajo): el pie de los interiores y el contacto del final
+      // toman el acento del kit (colores_texto.acentos) que más contraste da sobre su fondo real, si llega a 3:1; si
+      // ninguno llega, se quedan con el color de antes. Sin análisis de la foto, el acento que se parece al color del bloque.
+      const acentoSobre = (rs) => {
+        const ks = ((C.kit.colores_texto || {}).acentos || []).filter((k) => C.colores[k]);
+        if (!ks.length) return null;
+        if (!an) return ks.reduce((a, b) => (lumRGB(rgbDe(b)) > lumRGB(rgbDe(a))) === !esOscuro(C, color) ? b : a);
+        const fs = fondoStats(an, rs, [capaT, capaB], veloRGB);
+        const [k, c] = ks.map((q) => [q, contrasteSobre(rgbDe(q), fs)]).sort((x, y) => y[1] - x[1])[0];
+        return c >= AVISO_MIN ? k : null;
+      };
+      if (tipo === 'ficha' && etq.pie && et.pie) et.pie = acentoSobre([etq.pie.rect]) || et.pie;
+      if (tipo === 'final') for (const it of lay.items) if (it.nivel === 'etiqueta') { const a = acentoSobre(rectsDe(alinear, top, [it])); if (a) colIt.set(it, a); }
     } else if (tipo === 'portada') {
       lugar = lugarOv || (LUGARES.includes(P.lugar) ? P.lugar : 'abajo');
       alinear = alinearOv || (ALINEAR.includes(P.alinear) ? P.alinear : 'izquierda');
@@ -1726,10 +1741,10 @@
       ctx.fillStyle = colorHex(C, et[k]);
       pintarLinea(ctx, e.est, e.ln, e.x, e.y);
     }
-    ctx.fillStyle = colorHex(C, color);
     let minX = Infinity, maxX = -Infinity, tintaTop = Infinity, tintaBot = -Infinity;
     for (const it of lay.items) {
       const bl = lineaBase(ctx, it.est);
+      ctx.fillStyle = colorHex(C, colIt.get(it) || color);
       for (let i = 0; i < it.lineas.length; i++) {
         const ln = it.lineas[i], w = ln.w;
         const x = xLinea(alinear, w), lt = top + it.y + it.tops[i];
@@ -1755,7 +1770,7 @@
       for (const it of lay.items) {
         const rs = rectsDe(alinear, top, [it]);
         if (!rs.length) continue;
-        const c = contrasteSobre(colRGB, fondoStats(an, rs, capas, veloRGB));
+        const c = contrasteSobre(colIt.has(it) ? rgbDe(colIt.get(it)) : colRGB, fondoStats(an, rs, capas, veloRGB));
         contrasteMin = Math.min(contrasteMin == null ? 21 : contrasteMin, c);
         const nombre = it.nivel === 'portada' ? (tipo === 'reel' ? 'el título del reel' : 'el título') : NOMBRE_NIVEL[it.nivel] || 'el texto';
         if (c < AVISO_MIN) AV.add('contraste', nombre, `contraste ${c.toFixed(2)} < 3 en ${nombre}: ${consejo}`, r2(c));

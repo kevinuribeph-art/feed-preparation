@@ -36,10 +36,13 @@
 // photo holes turned into the free editor's hole element (libre 1.9: M.libre.migrar).
 // v3.34: the free editor fits a photo in a hole without cropping it inside the margin, fills it a sangre, and double click
 // switches it (libre 1.10).
+// v3.35: in the free editor a change of format and back leaves every text, shape and logo not moved by hand exactly as it
+// was (libre 1.11). Designs never get an eyebrow; the kit's accent goes to the footer of inner slides and to the final's
+// contact line when it reads (motor 1.3).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.34';
+  M.version = '3.35';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

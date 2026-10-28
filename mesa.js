@@ -55,10 +55,13 @@
 // D-038, D-039); a post's numbered images are drawn again when its slides change in the mesa.
 // v3.43: «Revisar» in the board's bar (revisar.js): what to look at before uploading or scheduling, by post and slide; it
 // also runs by itself on «sube», «programa» and «⇅ Exportar» (D-040).
+// v3.44: one tray per client, shared by all its months and the free editor (store 'bandejas', IndexedDB 3), with «Sin
+// usar / Todas» and ✓ on photos used in any month (D-041); the months' old trays are joined into it, a photo once; a photo
+// leaving a collab goes back to the tray of the client that brought it; «⇅ Exportar» carries the trays (file v3).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.43';
+  M.version = '3.44';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -145,19 +148,19 @@
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
-      const r = indexedDB.open('mesa-feed', 2);
-      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+      const r = indexedDB.open('mesa-feed', 3);   // 3 (mesa 3.44): + 'bandejas', the client's tray (D-041)
+      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; }; res(d); };
       r.onerror = () => { dbp = null; rej(r.error); };
       r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady()) toast(m); else if (document.body) document.body.textContent = m; };
     });
     return dbp;
   }
-  async function tx(store, mode, fn) {
+  async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
     const d = await db();
     return new Promise((res, rej) => {
       const t = d.transaction(store, mode);
-      const req = fn(t.objectStore(store));
+      const req = fn(Array.isArray(store) ? Object.fromEntries(store.map(n => [n, t.objectStore(n)])) : t.objectStore(store));
       let out;
       if (req) req.onsuccess = () => { out = req.result; };
       t.oncomplete = () => res(out);
@@ -366,12 +369,20 @@
   // A carousel keeps the format it had when it got its first photo, so reordering never flips it silently.
   function normalize() {
     if (!S) return;
+    trayUnica(S);
     S.slots.forEach(s => {
       if (!isCarousel(s.type)) { delete s.fmt; return; }
       if (!s.photos.length) delete s.fmt;
       else if (!s.fmt) s.fmt = baseCrop(s.photos[0], S).fmt;
     });
     podarLibre(S);
+  }
+  // a photo once in the tray (D-041): the same id or the same name and size (D-022) twice, the first stays and the other
+  // goes (deleted only if nothing uses it, nor a step of ⌘Z)
+  function trayUnica(B) {
+    const ya = new Set(), fuera = [];
+    B.tray = (B.tray || []).filter(f => { if (ya.has(f)) return false; ya.add(f); const k = fileKey(f); if (!k || ajena(f, B.client)) return true; if (ya.has(k)) { fuera.push(f); return false; } ya.add(k); return true; });   // another client's: on its way to its own tray (guardar)
+    fuera.forEach(f => { deleteIfUnused(f).catch(() => null); });
   }
   // the free editor's compositions whose image is gone from the board (cover changed, deleted from the tray, replaced):
   // dropped, and the photos behind them go back to the tray (one they were the only use of)
@@ -476,6 +487,75 @@
   // editedAt = last real change of a board's content (opening or re-saving it doesn't count): decides import merges
   const BODY = new WeakMap();
   function edited(B) { const b = boardBody(B); if (BODY.get(B) !== b) { B.editedAt = new Date().toISOString(); BODY.set(B, b); } }
+  // ---------- the client's tray (D-041) ----------
+  // One tray per client, shared by all its months and by the free editor: store 'bandejas', key = client id,
+  // {client, tray: [fileId…] newest first, at}. The open board's S.tray is its client's tray: saved with the board, in the
+  // same transaction, and never inside it. A photo brought by another client (a collab's, file record `de`) never stays in
+  // this one's: saving moves it to its own. Boards saved before 3.44 kept a tray each (b.tray): juntarBandeja moves them
+  // into their client's, a photo once (same id, or same name and size as in D-022), and takes them off the boards.
+  const deDe = f => (M.files[f] && M.files[f].de) || metaDe.get(f) || null;   // the client that brought the photo (3.44 on)
+  const ajena = (f, c) => { const d = deDe(f); return !!d && d !== c && CL.some(x => x.id === d); };
+  function guardar(B) {
+    const b = JSON.parse(JSON.stringify(B)), c = B.client || boardClient(B), fuera = {};
+    delete b.tray;
+    if (!c) return idbPut('boards', B.key, b);
+    const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
+    return tx(['boards', 'bandejas'], 'readwrite', st => {
+      st.boards.put(b, B.key);
+      st.bandejas.put({ client: c, tray, at: B.savedAt }, c);
+      for (const o of Object.keys(fuera)) { const g = st.bandejas.get(o); g.onsuccess = () => { const r = g.result || { client: o, tray: [] }; r.tray = [...fuera[o].filter(f => !r.tray.includes(f)), ...r.tray]; r.at = B.savedAt; st.bandejas.put(r, o); }; }
+    }).then(() => {
+      const n = Object.values(fuera).flat();
+      if (!n.length) return;
+      B.tray = B.tray.filter(f => !n.includes(f));
+      if (B === S) { renderTray(); toast(Object.keys(fuera).map(o => `${n.length === 1 ? 'La foto vuelve' : `${fuera[o].length} fotos vuelven`} a la bandeja de ${(CL.find(x => x.id === o) || {}).name || o}.`).join(' ')); }
+    });
+  }
+  // a photo once: the same id, or the same name and size (D-022); the first one stays. gone: the ones left out
+  async function sinRepetir(ids, gone = []) {
+    const out = [], ya = new Set(), yaK = new Set();
+    for (const f of ids) {
+      if (!f || ya.has(f) || !trayable(f)) continue;
+      ya.add(f);
+      let k = fileKey(f);
+      if (!k && !M.files[f]) {
+        let r; try { r = await idbGet('files', f); } catch (e) { out.push(f); continue; }   // not readable now: it stays
+        if (!r) continue;                                                                     // no such photo any more
+        k = r.design ? null : fkey(r.name, r.size); metaKey.set(f, k); if (r.de) metaDe.set(f, r.de);
+      }
+      if (k && yaK.has(k)) { gone.push(f); continue; }
+      if (k) yaK.add(k);
+      out.push(f);
+    }
+    return out;
+  }
+  // the tray of client c as saved, with the ones its boards still keep (before 3.44, or brought by an import) moved into it
+  async function juntarBandeja(c) {
+    if (!c) return [];
+    const rec = await idbGet('bandejas', c);
+    const viejas = ((await idbAll('boards')) || []).filter(b => boardClient(b) === c && Array.isArray(b.tray))
+      .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')));   // the newest month's first
+    if (!viejas.length) return rec ? rec.tray.slice() : [];
+    const todas = [...(rec ? rec.tray : []), ...viejas.flatMap(b => b.tray)], vistos = new Set(todas), gone = [], tray = await sinRepetir(todas, gone);
+    await tx(['boards', 'bandejas'], 'readwrite', st => {
+      let n = viejas.length;
+      for (const v of viejas) {
+        const g = st.boards.get(v.key);
+        g.onsuccess = () => {
+          const b = g.result;
+          if (b && Array.isArray(b.tray)) { b.tray.forEach(f => { if (!vistos.has(f) && !tray.includes(f)) tray.push(f); }); delete b.tray; st.boards.put(b, v.key); }   // as it is now: only what came in meanwhile
+          if (--n === 0) st.bandejas.put({ client: c, tray, at: new Date().toISOString() }, c);
+        };
+      }
+    });
+    if (gone.length) delList(l => [...new Set([...l, ...gone])]);   // the same photo twice: the copy left out goes (deleteIfUnused: only if nothing uses it)
+    return tray;
+  }
+  // every photo in a tray (the open one's as it is now)
+  async function trayRefs() {
+    const all = (await idbAll('bandejas')) || [];
+    return new Set([...all.filter(r => !S || r.client !== S.client).flatMap(r => r.tray || []), ...(S ? S.tray : [])]);
+  }
   function save() {
     usoS = null;                       // the open board's photos in use: looked at again on the next warning (D-022)
     if (!S || locked) return;
@@ -485,7 +565,7 @@
     const B = S;
     saveTimer = setTimeout(async () => {
       saveTimer = null;
-      try { track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString(); await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); await pushShared(B); if (B === S) setSave('Guardado'); }
+      try { track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString(); await guardar(B); await pushShared(B); if (B === S) setSave('Guardado'); }
       catch (e) { setSave('No se pudo guardar', true); }
     }, 250);
   }
@@ -495,7 +575,7 @@
     if (!S || locked) return null;
     const B = S;
     track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString();
-    await idbPut('boards', B.key, JSON.parse(JSON.stringify(B)));
+    await guardar(B);
     await pushShared(B);
     setSave('Guardado');
     return B.savedAt;
@@ -535,7 +615,7 @@
     let pend = null; try { pend = JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { /* */ }
     const others = ((await idbAll('boards')) || []).filter(b => b.key !== key)
       .map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
-    const refs = new Set(others.flatMap(b => [...refsOf(b)]));
+    const refs = new Set([...others.flatMap(b => [...refsOf(b)]), ...(await trayRefs())]);   // + the clients' trays (D-041)
     old.slots = old.slots || []; old.tray = old.tray || []; old.crops = old.crops || {};
     IDX = {};
     for (const id of new Set(cfgSlots.map(s => s.id))) {
@@ -573,22 +653,39 @@
   async function pushShared(B) {
     if (SIG.b !== B || !SIG.dirty.size) return;
     const ids = [...SIG.dirty]; SIG.dirty.clear();
-    const by = {}, gone = [], srcRefs = refsOf(B);
-    ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); }));
+    const by = {}, cOf = {}, gone = [], srcRefs = refsOf(B), myC = B.client || boardClient(B);
+    ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
+    const keys = Object.keys(by), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
+    let mia = false;
     try {
-      await tx('boards', 'readwrite', st => { for (const k of Object.keys(by)) { const g = st.get(k); g.onsuccess = () => {
-        const ob = g.result; if (!ob) { gone.push(k); return; }
-        let hit = false;
-        for (const id of by[k]) {
-          const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue;
-          const had = [...(o.photos || []), ...dSrc(o)].filter(f => trayable(f) && !slotRefs(s).includes(f) && !dOut(o).includes(f) && !lOut(o).includes(f));   // an image the editor drew again is not a photo for its tray
-          copyShared(o, ob, s, B); ob.tray = (ob.tray || []).filter(f => !s.photos.includes(f)); hit = true;
-          const refs = refsOf(ob), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));   // never orphan a photo (one this board still holds stays only here)
-          if (lost.length) ob.tray.unshift(...lost);
-        }
-        if (hit) { ob.editedAt = new Date().toISOString(); st.put(ob, k); }
-      }; } });
+      // the other board's tray is its client's (D-041): this one's, in memory; another client's, its record (in the same
+      // transaction); a board from before 3.44 still keeps its own
+      await tx(['boards', 'bandejas'], 'readwrite', st => {
+        const trays = {}, dirty = new Set();
+        const go = () => { let n = keys.length; for (const k of keys) { const g = st.boards.get(k); g.onsuccess = () => {
+          const ob = g.result;
+          if (!ob) gone.push(k);
+          else {
+            const oc = boardClient(ob) || cOf[k], suya = Array.isArray(ob.tray), vivo = oc === myC && S && (S.client || boardClient(S)) === myC ? S : null;   // this client open now: its tray in memory
+            const T = suya ? ob.tray : vivo ? vivo.tray : (trays[oc] = trays[oc] || { client: oc, tray: [] }).tray;
+            let hit = false;
+            for (const id of by[k]) {
+              const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue;
+              const had = [...(o.photos || []), ...dSrc(o)].filter(f => trayable(f) && !slotRefs(s).includes(f) && !dOut(o).includes(f) && !lOut(o).includes(f));   // an image the editor drew again is not a photo for its tray
+              copyShared(o, ob, s, B); hit = true;
+              for (let i = T.length - 1; i >= 0; i--) if (s.photos.includes(T[i])) { T.splice(i, 1); if (!suya) (vivo ? mia = true : dirty.add(oc)); }
+              const refs = refsOf({ ...ob, tray: T }), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));   // never orphan a photo (one this board still holds stays only here)
+              if (lost.length) { T.unshift(...lost); if (!suya) (vivo ? mia = true : dirty.add(oc)); }
+            }
+            if (hit) { ob.editedAt = new Date().toISOString(); st.boards.put(ob, k); }
+          }
+          if (--n === 0) dirty.forEach(c => st.bandejas.put({ ...trays[c], at: new Date().toISOString() }, c));
+        }; } };
+        let n = otros.length;
+        if (!n) go(); else otros.forEach(c => { const g = st.bandejas.get(c); g.onsuccess = () => { if (g.result) trays[c] = g.result; if (--n === 0) go(); }; });
+      });
     } catch (e) { if (SIG.b === B) ids.forEach(id => SIG.dirty.add(id)); return; }
+    if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); save(); }   // this client's tray changed through another of its boards
     if (gone.length) { dropIdx(gone); renderFeed(); }
     if (B === S && Object.keys(by).some(k => MB.some(m => m.key === k))) { await refreshMonths(); renderBar(); }
   }
@@ -655,7 +752,7 @@
     for (const id of ids) {
       if (M.files[id]) continue;
       const rec = await idbGet('files', id);
-      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; if (rec.reduced) M.files[id].reduced = true; if (rec.design) M.files[id].design = true; M.thumbBlobs[id] = rec.thumb; }
+      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; if (rec.reduced) M.files[id].reduced = true; if (rec.design) M.files[id].design = true; if (rec.de) M.files[id].de = rec.de; M.thumbBlobs[id] = rec.thumb; }
       else missing.push(id);
     }
     return missing;
@@ -669,7 +766,8 @@
   const AVISOS = [null, 'Ya usada en esta diapositiva', 'Ya usada en este post', 'Ya usada este mes', 'Ya usada el mes anterior'];
   const fkey = (n, z) => n + '|' + z;
   const metaKey = new Map();           // fileId -> name|size (null: nothing to compare) of photos not loaded
-  let usoS = null, usoO = new Map(), usoP = Promise.resolve(), usoTok = 0;
+  const metaDe = new Map();            // fileId -> the client that brought it (file record `de`), of photos not loaded
+  let usoS = null, usoO = new Map(), usoP = Promise.resolve(), usoTok = 0, usoIdsO = new Map();   // usoIdsO: name|size -> a fileId used in the other boards
   const fileKey = f => { if (!trayable(f)) return null; const x = M.files[f]; return x ? (x.design ? null : fkey(x.name, x.size)) : metaKey.get(f) || null; };
   function usosDe(b, put) {            // each photo used in board b: put(fileId, {slot | prev, m: its month})
     const cd = cdOf(b.cycleDay);
@@ -682,14 +780,17 @@
   }
   function usoMap(b, map = new Map()) { usosDe(b, (f, u) => { const k = fileKey(f); if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(u); }); return map; }
   function usosOtros() {               // the same client's other boards
-    const B = S, tok = ++usoTok; usoO = new Map();
+    const B = S, tok = ++usoTok; usoO = new Map(); usoIdsO = new Map();
     usoP = (async () => {
       const clientOf = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1];
       const all = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).filter(b => b && b.key !== B.key && clientOf(b) === B.client);
       const need = new Set(); all.forEach(b => usosDe(b, f => { if (trayable(f) && !M.files[f] && !metaKey.has(f)) need.add(f); }));
-      for (const f of need) { const r = await idbGet('files', f).catch(() => null); metaKey.set(f, r && !r.design ? fkey(r.name, r.size) : null); }
+      for (const f of need) { const r = await idbGet('files', f).catch(() => null); metaKey.set(f, r && !r.design ? fkey(r.name, r.size) : null); if (r && r.de) metaDe.set(f, r.de); }
       if (tok !== usoTok) return;
-      const map = new Map(); all.forEach(b => usoMap(b, map)); usoO = map;
+      const map = new Map(), ids = new Map(); all.forEach(b => usoMap(b, map)); usoO = map;
+      all.sort((a, b) => String(b.month || '').localeCompare(String(a.month || ''))).forEach(b => usosDe(b, f => { const k = fileKey(f); if (k && !ids.has(k) && !ajena(f, B.client)) ids.set(k, f); }));
+      usoIdsO = ids;                   // «Todas» in the tray (D-041): a photo of each one used in the other months, the newest month's
+      if (B === S) { renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }   // their ✓ are known now
     })().catch(() => { /* without it the photo just goes in */ });
   }
   // the nearest use of a photo going into post sid: {n: 2 this post · 3 this month · 4 the previous month · 5 another
@@ -722,8 +823,26 @@
   // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
   function addToSlot(slotId, ids) {
     ids = (ids || []).filter(id => M.files[id]);
-    repetidas(ids.map(f => ({ f, name: M.files[f].name, size: M.files[f].size })), { slot: slotId }).then(r => { if (r && r.length) askAddMode(slotId, r.map(x => x.f)); });
+    const B = S;
+    repetidas(ids.map(f => ({ f, name: M.files[f].name, size: M.files[f].size })), { slot: slotId }).then(async r => { if (!r || !r.length) return; const go = await paraPoner(r.map(x => x.f)); if (S === B && go.length) askAddMode(slotId, go); });
   }
+  // a photo shown with ✓ (D-041) that is in a publication of this board goes into another as a copy, the same photo under
+  // a new id: a photo is in one post only, each with its own crop (as importing it again, D-022)
+  async function copiaFoto(f) {
+    const r = await idbGet('files', f).catch(() => null); if (!r || !r.thumb || !S || !M.files[f]) return null;
+    const id = newId(), c = S.client;
+    await idbPut('files', id, { ...r, de: c });
+    M.files[id] = { ...M.files[f], de: c, thumbUrl: URL.createObjectURL(r.thumb) };
+    M.thumbBlobs[id] = r.thumb;
+    delList(l => [...l, id]);          // a dialog closed without placing it: deleted on the next open, only if nothing uses it
+    return id;
+  }
+  async function paraPoner(ids, sin) {   // sin: a post whose photos don't count (the one open in the editor)
+    const en = refsOf({ slots: S.slots.filter(x => x.id !== sin), prev: S.prev, tray: [] }), out = [];
+    for (const f of ids) out.push(en.has(f) ? await copiaFoto(f) : f);
+    return out.filter(Boolean);
+  }
+  function prevDesdeBandeja(id, f) { const B = S; paraPoner([f]).then(g => { if (S === B && g[0]) withPrev(() => prevSetFromTray(id, g[0]), 'edit'); }); }
 
   // ---------- adding photos (serialised so two drops never race) ----------
   let addQ = Promise.resolve();
@@ -758,20 +877,20 @@
           toast(/heic|heif/i.test(f.name + type) ? `${f.name}: HEIC no se puede leer aquí. Expórtala como JPG.` : `${f.name}: formato no compatible (usa JPG o PNG).`);
           continue;
         }
-        // the same photo already here: unused in the tray it is taken from there (never twice in it); used in this board,
-        // a copy goes in (each post keeps its own crop); only in other boards, its record is the same
+        // the same photo already here: in the tray (the client's, D-041) it is taken from there (never twice in it); used in
+        // this board, a copy goes in (each post keeps its own crop); only in other boards of this client, its record is the same
         const same = Object.keys(M.files).filter(id => M.files[id].name === f.name && M.files[id].size === f.size && !M.files[id].design);
         const inTray = same.find(id => B.tray.includes(id) || fresh.includes(id));
         if (inTray) { if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
-        const dup = same.find(id => !refs.has(id));
+        const dup = same.find(id => !refs.has(id) && M.files[id].de === B.client);   // another client's photo keeps its own
         let decoded = false;
         try {
           const { w, h, thumb } = await makeThumb(f);
           decoded = true;
           const id = dup || newId();
-          await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb });
+          await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb, de: B.client });   // de: the client it came in for (D-041)
           if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
-          M.files[id] = { name: f.name, size: f.size, type, w, h, thumbUrl: URL.createObjectURL(thumb) };
+          M.files[id] = { name: f.name, size: f.size, type, w, h, de: B.client, thumbUrl: URL.createObjectURL(thumb) };
           M.thumbBlobs[id] = thumb;
           delete M.blobs[id];
           fresh.push(id);
@@ -785,10 +904,14 @@
       if (fresh.length) B.tray.unshift(...fresh);          // newest imports first, in name order
       importing -= files.length; setBusy('imp', null);
     }
-    if (B !== S) {
-      if (fresh.length && S && S.key === B.key) { S.tray.unshift(...fresh.filter(id => !refsOf(S).has(id))); changed(); }
-      else if (fresh.length && !locked) { try { await idbPut('boards', B.key, JSON.parse(JSON.stringify(B))); } catch (e) { /* */ } }
+    if (B !== S) {                     // another board opened meanwhile: the photos go to their client's tray (D-041)
+      if (fresh.length && S && S.client === B.client) { S.tray.unshift(...fresh.filter(id => !refsOf(S).has(id))); changed(); }
+      else if (fresh.length && !locked) { try { await tx('bandejas', 'readwrite', st => { const g = st.get(B.client); g.onsuccess = () => { const r = g.result || { client: B.client, tray: [] }; r.tray = [...fresh.filter(f => !r.tray.includes(f)), ...r.tray]; st.put(r, B.client); }; }); } catch (e) { /* */ } }
       return got;
+    }
+    if (!into && !(opts && opts.tray) && got.length) {   // into the tray, a photo already used: it is in «Todas», with ✓ (D-041)
+      const ya = bandejaVista({ todas: true }).filter(x => x.u && got.includes(x.f)).length;
+      if (ya && !trayTodas()) toast(ya === 1 ? 'Esa foto ya está usada en una publicación: la ves en «Todas», con ✓.' : `${ya} de esas fotos ya están usadas en publicaciones: las ves en «Todas», con ✓.`, { ms: 6000 });
     }
     if (targetSlotId && got.length) {
       const s = slot(targetSlotId);
@@ -1039,7 +1162,7 @@
   // tray photo viewer: a click on a tray thumbnail shows it big; ←/→ go through the tray
   function openTrayView(fid) {
     if (!S || !M.files[fid]) return;
-    const list = S.tray.filter(id => M.files[id]), k = list.indexOf(fid); if (k < 0) return;
+    const list = bandejaVista().map(x => x.f), k = list.indexOf(fid); if (k < 0) return;
     const f = M.files[fid], n = list.length;
     showDialog('trayview', `<button class="x" data-act="close" aria-label="Cerrar">×</button>
       <div class="tvwrap"><img class="tvimg" src="${f.thumbUrl}" alt="${esc(f.name)}">${n > 1 ? `<button class="nav prev" data-act="tvnav" data-d="-1" aria-label="Foto anterior" ${k === 0 ? 'hidden' : ''}>‹</button><button class="nav next" data-act="tvnav" data-d="1" aria-label="Foto siguiente" ${k === n - 1 ? 'hidden' : ''}>›</button>` : ''}</div>
@@ -1047,7 +1170,7 @@
     root.querySelector('.detail').dataset.file = fid;
   }
   function trayNav(dir) {
-    const d = root.querySelector('.detail'), list = S ? S.tray.filter(id => M.files[id]) : [], k = list.indexOf(d.dataset.file);
+    const d = root.querySelector('.detail'), list = S ? bandejaVista().map(x => x.f) : [], k = list.indexOf(d.dataset.file);
     if (k >= 0 && list[k + dir]) openTrayView(list[k + dir]);
   }
   let pendingAdd = null;
@@ -1122,6 +1245,7 @@
     if (histRefs().has(fileId)) { delList(l => l.includes(fileId) ? l : [...l, fileId]); return; }   // ⌘Z can still bring it back
     const boards = await idbAll('boards');
     if (boards.some(b => (!S || b.key !== S.key) && refsOf(b).has(fileId))) return;
+    if ((await trayRefs()).has(fileId)) return;   // in a client's tray (D-041)
     await idbDel('files', fileId);
     if (M.files[fileId]) URL.revokeObjectURL(M.files[fileId].thumbUrl);
     if (M.bigUrls && M.bigUrls[fileId]) { URL.revokeObjectURL(M.bigUrls[fileId]); delete M.bigUrls[fileId]; }
@@ -1497,6 +1621,10 @@
 #mesa .btn svg{width:15px;height:15px}
 #mesa .btn:hover{background:var(--acc2)}
 #mesa .trayhead .btn{margin-left:auto}
+#mesa .trayhead .tcount{min-width:0}#mesa .trayhead .btn{white-space:nowrap}
+#mesa .tfil{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
+#mesa .tfil button{border:0;background:none;padding:2px 9px;font:inherit;font-size:12px;color:var(--mute);cursor:pointer}#mesa .tfil button.on{background:var(--ink);color:#fff}
+#mesa .titem.uso::after{content:'✓';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px;line-height:18px;text-align:center;pointer-events:none}
 #mesa .btn2{border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:13px;padding:6px 11px}
 #mesa .btn2:hover{border-color:#bdbdbd}
 #mesa .btn2.danger{color:var(--red);border-color:#efc2c2}
@@ -1775,7 +1903,7 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section>'
-          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div>'
+          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div>'
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
@@ -1955,14 +2083,46 @@
     M._ro = new ResizeObserver(() => fitGrid());
     M._ro.observe(feed); M._ro.observe(feed.querySelector('.legend'));
   }
+  // What a tray shows (D-041), the mesa's and the free editor's alike: the client's tray, a photo once, each with u = used
+  // in a publication of any of the client's months (the rule of D-022); with «Todas», also the client's photos used in its
+  // publications that are not in the tray. o.todas: instead of the filter; o.sin: a post whose uses don't count (the one
+  // open in the editor), o.mas: photos in use there (on its slides). Never another client's photo (a collab's, `de`).
+  const LS_TF = 'mesa-bandeja-filtro';
+  const trayTodas = () => lsGet(LS_TF) === 'todas';
+  function trayFiltro(v) { lsSet(LS_TF, v === 'todas' ? 'todas' : 'sin'); renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }
+  let todasCarga = null; const sinMini = new Set();   // photos of «Todas» whose thumbnail can't load: not asked again
+  function bandejaVista(o = {}) {
+    if (!S) return [];
+    if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    const todas = o.todas ?? trayTodas(), mas = o.mas || new Set(), c = S.client, out = [], ya = new Set();
+    const cuenta = u => !o.sin || u.slot !== o.sin;
+    const usada = (f, k) => mas.has(f) || (!!k && ((usoS.map.get(k) || []).some(cuenta) || (usoO.get(k) || []).some(cuenta)));
+    const add = f => {
+      if (!f || ya.has(f) || !M.files[f] || M.files[f].design || !trayable(f) || ajena(f, c)) return;
+      const k = fileKey(f); if (k && ya.has(k)) return;
+      ya.add(f); if (k) ya.add(k);
+      out.push({ f, u: usada(f, k) });
+    };
+    S.tray.forEach(add);
+    if (!todas) return out.filter(x => !x.u);
+    mas.forEach(add);
+    usosDe(S, (f, u) => { if (cuenta(u)) add(f); });
+    usoIdsO.forEach(add);
+    const need = [...usoIdsO.values()].filter(f => !M.files[f] && !sinMini.has(f));
+    if (need.length && !todasCarga) { const B = S; todasCarga = loadThumbs(need).catch(() => need).then(m => { (m || []).forEach(f => sinMini.add(f)); todasCarga = null; if (B === S) { renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); } }); }
+    return out;
+  }
+  const enVista = f => bandejaVista({ todas: true }).some(x => x.f === f);   // a photo the tray can show (click to place)
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
-    tray.querySelector('.tcount').textContent = S.tray.length ? `${S.tray.length} sin usar` : 'vacía';
-    tray.classList.toggle('isempty', !S.tray.length);
-    tray.querySelector('.tgrid').innerHTML = S.tray.map(id => {
-      const f = M.files[id]; if (!f) return '';
-      return `<div class="titem${sel === id ? ' sel' : ''}" data-file="${esc(id)}" title="${esc(f.name)} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}<span class="tname">${esc(f.name)}</span><button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button></div>`;
+    const todas = trayTodas(), vis = bandejaVista({ todas }), n = vis.filter(x => !x.u).length;
+    tray.querySelector('.tcount').textContent = todas ? `${n} sin usar · ${vis.length - n} ✓` : n ? `${n} sin usar` : 'vacía';
+    tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    tray.classList.toggle('isempty', !vis.length);
+    tray.querySelector('.tgrid').innerHTML = vis.map(({ f: id, u }) => {
+      const f = M.files[id];
+      return `<div class="titem${sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? ' · ya usada en una publicación' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}<span class="tname">${esc(f.name)}</span>${u ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
     }).join('');
     pdRefresh();
   }
@@ -2509,7 +2669,7 @@
   function dropOn(d, { cell, pc, tray }) {
     if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); return; }
     if (pc) {
-      if (d.from === 'tray') withPrev(() => prevSetFromTray(pc.dataset.prev, d.fileId), 'edit');
+      if (d.from === 'tray') prevDesdeBandeja(pc.dataset.prev, d.fileId);
       else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
     }
     else if (cell) {
@@ -2754,7 +2914,7 @@
       if (pc) {
         const id = pc.dataset.prev;
         if (root.classList.contains('client')) { openIG(id, 0); return; }   // vista cliente: as in Instagram
-        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; renderTray(); renderBar(); withPrev(() => prevSetFromTray(id, f), 'edit'); return; }
+        if (sel && enVista(sel)) { const f = sel; sel = null; renderTray(); renderBar(); prevDesdeBandeja(id, f); return; }
         withPrev(() => openPast(id), 'open'); return;
       }
       const pit = e.target.closest('.pit[data-memo]');     // an open Nota: a click reads, a double click edits
@@ -2763,7 +2923,7 @@
       if (cell) {
         const id = cell.dataset.slot;
         if (root.classList.contains('client')) { sel = null; openIG(id, 0); return; }   // vista cliente: as in Instagram
-        if (sel && S.tray.includes(sel)) { const f = sel; sel = null; addToSlot(id, [f]); return; }
+        if (sel && enVista(sel)) { const f = sel; sel = null; addToSlot(id, [f]); return; }
         sel = null;
         openDetail(id, 0);
       }
@@ -2888,6 +3048,7 @@
     const act = a.dataset.act;
     if (act === 'add') root.querySelector('.picker').click();
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file); }
+    else if (act === 'tfil') trayFiltro(a.dataset.v);
     else if (act === 'close') closeDetail();
     else if (act === 'repe') { const f = repeAsk; repeAsk = null; closeDetail(); if (f) f(a.dataset.m); }
     else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast('Para cambiar diapositivas, usa «Diseñar».'); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
@@ -2941,7 +3102,7 @@
     else if (act === 'typereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s) && s.notionType) setType(s.id, s.notionType); }
     else if (act === 'addmode') doAddMode(a.dataset.m);
     else if (act === 'tvnav') trayNav(+a.dataset.d);
-    else if (act === 'tvsel') { const f = root.querySelector('.detail').dataset.file; closeDetail(); if (f && S && S.tray.includes(f)) { sel = f; renderTray(); renderBar(); } }
+    else if (act === 'tvsel') { const f = root.querySelector('.detail').dataset.file; closeDetail(); if (f && S && enVista(f)) { sel = f; renderTray(); renderBar(); } }
     else if (act === 'unlock-once' || act === 'unlock-always') {
       const pu = pendingUnlock; pendingUnlock = null;
       if (act === 'unlock-always') { S.prevUnlocked = true; save(); } else prevOnce = true;
@@ -3006,8 +3167,9 @@
     const boards = (await idbAll('boards')) || [];
     const n = boards.filter(b => b.client === id).length;
     if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
-    const c0 = await idbGet('clients', id);
+    const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
     await idbDel('clients', id);
+    if (tr) { await idbDel('bandejas', id); for (const f of tr.tray || []) { try { await deleteIfUnused(f); } catch (e) { /* */ } } }   // its tray, with no month left (D-041)
     if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } }   // its profile photo
     await loadClients();
     if (curClient === id) {
@@ -3097,6 +3259,7 @@
     if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
     const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
     if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
+    const bandeja = await juntarBandeja(client);   // the client's tray, shared by all its months (D-041)
     const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
     const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
@@ -3146,7 +3309,7 @@
     S = {
       key, client, month, span, cycleDay: cd,
       slots: cfg.slots.map(merge),
-      tray: [...(old.tray || []), ...orphans],
+      tray: [...bandeja, ...(old.tray || []), ...orphans],   // old.tray: the copy a reload left in localStorage, or a board from before 3.44
       past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
       crops: old.crops || {},
       ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
@@ -3684,11 +3847,13 @@
       setBusy('imp', 'Exportando la mesa…');
       await addQ; await flushPending();
       const clients = (await idbAll('clients')) || [];
+      for (const c of new Set([...clients.map(x => x.id), ...((await idbAll('boards')) || []).map(boardClient)])) await juntarBandeja(c);   // the months' old trays, into their client's (D-041)
+      const bandejas = ((await idbAll('bandejas')) || []).filter(r => r && r.client && (r.tray || []).length);
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
-      const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
-      const parts = ['{"format":"mesa-feed","v":2,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
-        + ',"clients":' + JSON.stringify(clients) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
+      const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
+      const parts = ['{"format":"mesa-feed","v":3,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041)
+        + ',"clients":' + JSON.stringify(clients) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
         setBusy('imp', `Exportando ${++n}/${ids.length} fotos…`);
@@ -3699,6 +3864,7 @@
           const meta = { name: p.name, type: p.type, w: p.w, h: p.h, size: p.blob.size, lastModified: rec.lastModified || 0, reduced: p.reduced };
           if (rec.design) meta.design = true;
           if (rec.logo) meta.logo = true;
+          if (rec.de) meta.de = rec.de;
           const th = !p.reduced && rec.thumb ? ',"thumb":"' + await b64of(rec.thumb) + '"' : '';
           parts.push(new Blob([sep + JSON.stringify(id) + ':' + JSON.stringify(meta).slice(0, -1) + ',"data":"', await b64of(p.blob), '"' + th + '}']));
           sep = ','; photos++;
@@ -3756,10 +3922,11 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (d.v !== 1 && d.v !== 2) return +d.v > 2 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (d.v !== 1 && d.v !== 2 && d.v !== 3) return +d.v > 3 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
+    if (d.bandejas != null && (!Array.isArray(d.bandejas) || d.bandejas.some(r => !r || typeof r.client !== 'string' || !r.client || !Array.isArray(r.tray)))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
     if (Object.values(d.files).some(f => !f || typeof f.data !== 'string' || !f.data)) return bad;
     return null;
@@ -3790,11 +3957,19 @@
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
     d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });   // a profile photo only when it is used
+    // the clients' trays (D-041): what the file's adds to each one here (never takes anything out of it)
+    const locTr = {}; ((await idbAll('bandejas')) || []).forEach(r => { locTr[r.client] = new Set(r.tray || []); });
+    local.forEach(b => { if (Array.isArray(b.tray)) { const c = boardClient(b); (locTr[c] = locTr[c] || new Set()); b.tray.forEach(f => locTr[c].add(f)); } });   // boards from before 3.44
+    if (S) locTr[S.client] = new Set([...(locTr[S.client] || []), ...S.tray]);
+    P.trays = (d.bandejas || []).map(r => ({ client: r.client, at: r.at || '', add: r.tray.filter(f => typeof f === 'string' && (d.files[f] || P.files.has(f)) && !(locTr[r.client] || new Set()).has(f)) })).filter(r => r.add.length);
+    P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);
+    P.trays.forEach(r => r.add.forEach(f => P.refs.add(f)));
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length;
+    P.trays = P.trays.filter(r => cids.has(r.client)); P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);   // a tray only with its client
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd;
     return P;
   }
   // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
@@ -3823,7 +3998,8 @@
       P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos'), P.kitUpd && P.kitUpd.length && nOf(P.kitUpd.length, 'kit de diseño actualizado', 'kits de diseño actualizados'),
       P.libUpd && P.libUpd.length && nOf(P.libUpd.length, 'cliente con colores y plantillas actualizados', 'clientes con colores y plantillas actualizados'),
       P.fotoUpd && P.fotoUpd.length && nOf(P.fotoUpd.length, 'foto de perfil actualizada', 'fotos de perfil actualizadas'),
-      P.capKeep && P.capKeep.length && `${nOf(P.capKeep.length, 'mes recibe', 'meses reciben')} captions que solo estaban en el archivo`].filter(Boolean).join(', ')
+      P.capKeep && P.capKeep.length && `${nOf(P.capKeep.length, 'mes recibe', 'meses reciben')} captions que solo estaban en el archivo`,
+      P.trayAdd && `${nOf(P.trayAdd, 'foto entra', 'fotos entran')} en la bandeja`].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
   function xferSummaryHTML(d, P) {
@@ -3896,7 +4072,7 @@
           const thumb = f.thumb ? blobOf(f.thumb, 'image/jpeg') : f.reduced ? blob : (await makeThumb(blob)).thumb;
           got[id] = { name: String(f.name || 'foto.jpg'), size: blob.size, type, w: +f.w > 0 ? +f.w : bw, h: +f.h > 0 ? +f.h : bh, lastModified: +f.lastModified || 0, blob, thumb };
           if (f.reduced) got[id].reduced = true;
-          if (f.design) got[id].design = true; if (f.logo) got[id].logo = true;
+          if (f.design) got[id].design = true; if (f.logo) got[id].logo = true; if (typeof f.de === 'string' && f.de) got[id].de = f.de;
         } catch (e) { return fail(`El archivo está dañado: no se puede leer la foto «${String((f && f.name) || id)}». No se ha importado nada.`); }
       }
       for (const pid of P.newPast) { const p = d.past[pid]; try { gotPast[pid] = { thumb: blobOf(p.thumb, 'image/jpeg'), w: +p.w || 0, h: +p.h || 0 }; } catch (e) { /* only a preview */ } }
@@ -3942,6 +4118,13 @@
       const writes = [...P.put, ...capKept, ...spread];
       if (capKept.length || spread.length) res.captionsKept = [...capKept, ...spread].map(b => b.key);
       if (writes.length) await tx('boards', 'readwrite', st => { for (const b of writes) st.put(b, b.key); });
+      for (const r of P.trays) {           // each client's tray takes the file's photos it lacks: newer tray, in front (D-041)
+        await tx('bandejas', 'readwrite', st => { const g = st.get(r.client); g.onsuccess = () => {
+          const o = g.result || { client: r.client, tray: [], at: '' }, add = r.add.filter(f => !o.tray.includes(f) && (got[f] || P.files.has(f)));
+          o.tray = String(r.at) > String(o.at || '') ? [...add, ...o.tray] : [...o.tray, ...add]; st.put(o, r.client);
+        }; });
+      }
+      for (const c of new Set([...P.put.map(boardClient), ...P.trays.map(r => r.client)])) if (c) await juntarBandeja(c);   // a file from before 3.44: its months' trays
       try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
@@ -3992,10 +4175,15 @@
     try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     const boards = await idbAll('boards');
     const b = boards.find(x => x.key === key); if (!b) return 'no existe';
+    if (S && S.key === key) { clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; }   // no save of it while it goes
     const others = boards.filter(x => x.key !== key);
-    const otherRefs = new Set(others.flatMap(x => [...refsOf(x)]));
+    // the client's tray (D-041) stays with its other months; with its last month it goes too, as a month's tray did
+    const c = boardClient(b), last = !others.some(x => boardClient(x) === c), trays = (await idbAll('bandejas')) || [];
+    const own = S && S.client === c ? S.tray.slice() : ((trays.find(r => r.client === c) || {}).tray || []);
+    if (!last && S && S.key === key) await idbPut('bandejas', c, { client: c, tray: own, at: new Date().toISOString() });   // what the open board had
+    const otherRefs = new Set([...others.flatMap(x => [...refsOf(x)]), ...trays.filter(r => r.client !== c).flatMap(r => r.tray || []), ...(last ? [] : own), ...(S && S.key !== key ? refsOf(S) : [])]);
     let n = 0;
-    for (const id of refsOf(b)) if (!otherRefs.has(id)) {
+    for (const id of new Set([...refsOf(b), ...(last ? own : [])])) if (!otherRefs.has(id)) {
       await idbDel('files', id);
       if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
       if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
@@ -4008,12 +4196,16 @@
       delete M.pastThumbs[p.id]; delete M.pastBlobs[p.id];
     }
     await idbDel('boards', key);
+    if (last) { await idbDel('bandejas', c); if (S && S.client === c && S.key !== key) S.tray = []; }
     dropIdx([key]); if (S && S.key !== key) renderFeed();
     if (S && S.key === key) { clearTimeout(saveTimer); clearTimeout(noteTimer); S = null; PB = null; if (shellReady()) { closeDetail(); await refreshMonths(); render(); } }
     else if (PB && PB.key === key) { PB = null; renderFeed(); }
     return `borrada ${key}: ${n} fotos eliminadas`;
   };
-  M.boards = async () => (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], cycleDay: cdOf(b.cycleDay), slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: (b.tray || []).length, savedAt: b.savedAt }));
+  M.boards = async () => {           // tray: its client's (D-041), the same in all its months
+    const tr = Object.fromEntries(((await idbAll('bandejas')) || []).map(r => [r.client, (r.tray || []).length]));
+    return (await idbAll('boards')).map(b => ({ key: b.key, client: b.client || null, month: b.month || null, months: b.month ? monthsOf(b.month, b.span) : [], cycleDay: cdOf(b.cycleDay), slots: (b.slots || []).length, filled: (b.slots || []).filter(s => (s.photos || []).length).length, tray: Array.isArray(b.tray) ? b.tray.length : S && S.client === boardClient(b) ? S.tray.length : tr[boardClient(b)] || 0, savedAt: b.savedAt }));
+  };
   // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
   let switching = 0;
   for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => { switching++; try { return await f(...a); } finally { switching--; } }; }
@@ -4021,8 +4213,9 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
+    bandejaVista, trayFiltro, trayTodas, paraPoner,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

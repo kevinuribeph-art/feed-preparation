@@ -82,11 +82,13 @@
 // are drawn again, sync); a post with texts like «02 / 11» offers to turn them into it. Arrows (one head or two), lines
 // with a stroke in px of 1080 (continuous, dashed, dotted) and pills (a text with a pill behind it).
 // v1.18 (mesa 3.43): M.libre.rev, for «Revisar» (revisar.js): a text's ink and a photo's px as drawn, and the numbering.
+// v1.19 (mesa 3.44): the tray is the client's, the mesa's (D-041): «Sin usar / Todas» as there, ✓ on a photo used in a
+// publication of any month or on a slide of this post; M.libre.bandeja() draws it again.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.18';
+  const VERSION = '1.19';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -918,7 +920,7 @@
 #mesa .lb-trb{display:flex;align-items:center;gap:4px;height:28px;padding:0 6px 0 10px;border:0;border-radius:6px;background:none;color:var(--mute);font-size:12.5px}
 #mesa .lb-trb:hover{background:var(--line2);color:var(--ink)}#mesa .lb-trb svg{transition:transform .18s}#mesa .lb-trb[aria-expanded="true"] svg{transform:rotate(180deg)}
 #mesa .lb-tray{flex:none;margin:6px 14px 2px;padding:8px 10px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
-#mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}
+#mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:2px 8px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
 #mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
@@ -1850,7 +1852,7 @@
     const add = f => { if (f && !isKit(f) && M.files[f] && !M.files[f].design && !seen.has(f)) { seen.add(f); out.push(f); } };
     E.sl.forEach(x => { if (x.key && !x.out) add(x.key); if (x.comp) fotosDe(x.comp).forEach(e => add(e.src)); });
     E.photos0.forEach(f => { const c = compOf(S, f); if (c) fotosDe(c.comp).forEach(e => add(e.src)); });
-    S.tray.forEach(add);
+    (I().bandejaVista ? I().bandejaVista({ todas: false, sin: E.slotId }).map(x => x.f) : S.tray).forEach(add);   // the tray's, as «Sin usar» shows them (D-041)
     return out;
   }
   const NOMBRE = { foto: 'Foto', texto: 'Texto', logo: 'Logo', forma: 'Forma' };
@@ -2308,7 +2310,8 @@
       }
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
-      case 'tr-add': { const owner = E; avisar(fotoIt([b.dataset.f]), E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), null, null); }); return; }
+      case 'tr-fil': if (I().trayFiltro) I().trayFiltro(b.dataset.v); bandeja(); return;   // the same filter as the mesa's tray
+      case 'tr-add': { const owner = E; avisar(fotoIt([b.dataset.f]), E.i).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(fs => { if (fs && fs.length && E === owner) ponerFotos(fs, null, null); }); return; }
       case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#000000')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
       case 'add-pil': nuevo(pildoraEl()); return;
@@ -2680,19 +2683,28 @@
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl><p>Suelta fotos del ordenador en la diapositiva o en la bandeja.</p>';
   const FLECHA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const hayArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
-  const trayFotos = () => E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f));
   function enUso() { const u = new Set(); E.sl.forEach((x, i) => fotosDe(compAt(i)).forEach(e => { if (e.src) u.add(e.src); })); return u; }
+  // a tray photo with ✓ that is in another post of this month goes in as a copy, as in the mesa (D-041)
+  const conCopias = fs => I().paraPoner ? I().paraPoner(fs, E.slotId) : Promise.resolve(fs);
+  // the client's tray as the mesa shows it (D-041): [{f, u}], u = used in a publication of any month (this post: as it is
+  // here, its slides) — with «Sin usar», only the ones without ✓
+  function trayFotos(todas) {
+    const uso = enUso();
+    if (I().bandejaVista) return I().bandejaVista({ todas, sin: E.slotId, mas: uso }).filter(x => !isKit(x.f));
+    return E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f)).map(f => ({ f, u: uso.has(f) }));
+  }
   function bandeja() {               // drawn again only when it shows something else
     if (!E || !E.el) return;
-    const box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(), uso = enUso();
-    b.querySelector('.lb-trn').textContent = fs.length ? `Bandeja · ${fs.length}` : 'Bandeja';
-    b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${fs.length === 1 ? '1 foto' : `${fs.length} fotos`}, para ponerlas en la diapositiva`;
-    const key = E.trOpen ? fs.map(f => f + (uso.has(f) ? '+' : '') + (M.files[f].thumbUrl || '')).join(',') : '';
+    const todas = !!(I().trayTodas && I().trayTodas()), box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(todas), n = fs.filter(x => !x.u).length, uso = enUso();
+    b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
+    b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
+    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (M.files[x.f].thumbUrl || '')).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh"><b>Bandeja</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
-      + (fs.length ? `<div class="lb-trs">${fs.map(f => `<button type="button" class="lb-ph lb-tph${uso.has(f) ? ' uso' : ''}" data-lb="tr-add" data-f="${esc(f)}" title="${esc(M.files[f].name || '')}${uso.has(f) ? ' · ya está en una diapositiva' : ''}"><img src="${M.files[f].thumbUrl || ''}" alt="" draggable="false">${M.files[f].w > M.files[f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}</button>`).join('')}</div>` : '<p class="lb-p" style="margin:0 0 4px">La bandeja está vacía.</p>');
+    const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '');
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}<b>Bandeja</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
+      + (fs.length ? `<div class="lb-trs">${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img src="${M.files[x.f].thumbUrl || ''}" alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
   }
   // a photo used before (D-022): before it goes onto slide i, its nearest use — this slide (without the element excl it
@@ -2792,7 +2804,7 @@
       if (!drop || !(g || lejos)) return;
       E.noClick = true; setTimeout(() => { if (E === owner) E.noClick = false; }, 0);
       const t = destino(ev); if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }
-      if (t) avisar(fotoIt([f]), t.i != null ? t.i : E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), t.p, t.i); });
+      if (t) avisar(fotoIt([f]), t.i != null ? t.i : E.i).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(fs => { if (fs && fs.length && E === owner) ponerFotos(fs, t.p, t.i); });
     };
     const up = end(true), cancel = end(false);
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);
@@ -3058,7 +3070,7 @@
     return { x0: Math.min(...p.map(q => q[0])), x1: Math.max(...p.map(q => q[0])), y0: Math.min(...p.map(q => q[1])), y1: Math.max(...p.map(q => q[1])) };
   }
 
-  M.libre = { version: VERSION, abrir, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E,
+  M.libre = { version: VERSION, abrir, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)
   // a board the mesa opened before this file loaded: its drawn holes become the element too (not a step of ⌘Z)

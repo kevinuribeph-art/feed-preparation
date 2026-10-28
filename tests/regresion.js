@@ -13,6 +13,8 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
+  const CLIENTE2 = 'prueba-regresion-b', NOMBRE2 = 'Otro cliente de prueba';   // el segundo cliente (bandeja por cliente, D-041)
+  const DE_PRUEBA = c => c === CLIENTE || c === CLIENTE2;
   const $ = id => document.getElementById(id);
   const T = [];                                    // {id, titulo, fn}
   const prueba = (id, titulo, fn) => T.push({ id, titulo, fn });
@@ -64,7 +66,7 @@
     if (M.libre && M.libre.abierto()) M.libre.cerrar();
     if (M.revisar && M.revisar._reset) M.revisar._reset();   // una revisión de «sube» pendiente no llega a la prueba siguiente
     await M.flush();                               // el guardado va con retraso: purge borra las fotos que nombra el tablero guardado
-    for (const b of await M.boards()) if (b.client === CLIENTE) await M.purge(b.key);
+    for (const b of await M.boards()) if (DE_PRUEBA(b.client)) await M.purge(b.key);   // con su último mes se va la bandeja del cliente (D-041)
   }
   // un tablero nuevo del cliente de prueba (borra antes los suyos)
   async function tablero(slots, { mes = MES } = {}) {
@@ -451,6 +453,144 @@
       await M.waitUpload([f2], 15000);
       ok(M.uploads[f2] && !/hueco/.test(M.uploads[f2].err || ''), 'la foto pequeña no se intentó subir: ' + json(M.uploads[f2]));
     } finally { W.fetch = f0; }
+  });
+
+  // ---------- la bandeja del cliente (D-041) ----------
+  const vista = todas => M._in.bandejaVista({ todas }).map(x => M.files[x.f].name + (x.u ? ' ✓' : ''));
+  const enBandejaUI = () => qa('.tray .titem').map(t => M.files[t.dataset.file].name + (t.classList.contains('uso') ? ' ✓' : ''));
+  const abrirMes = (slots, mes, cliente = CLIENTE, nombre = NOMBRE) => M.init({ client: cliente, clientName: nombre, month: mes, slots, past: [], force: true });
+  const filtro = async v => { await pulsar(`.tray [data-act="tfil"][data-v="${v}"]`); };
+
+  prueba('M18', 'Bandeja por cliente: la misma en todos sus meses; una foto usada en cualquier mes lleva ✓ y solo sale en «Todas»; la de un cliente nunca sale en otro (D-041)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const [a] = await poner('r1', [await foto('m18-a.jpg')]);
+    await M.addFiles([await foto('m18-b.jpg'), await foto('m18-c.jpg')]);
+    await filtro('sin');
+    igual(vista(false), ['m18-b.jpg', 'm18-c.jpg'], '«Sin usar» en noviembre');
+    igual(enBandejaUI(), ['m18-b.jpg', 'm18-c.jpg'], 'la bandeja de la mesa con «Sin usar»');
+    await filtro('todas');
+    igual(enBandejaUI(), ['m18-b.jpg', 'm18-c.jpg', 'm18-a.jpg ✓'], 'la bandeja de la mesa con «Todas»');
+    ok(!q(`.tray .titem[data-file="${a}"] [data-act="del"]`), 'una foto usada se puede quitar de la mesa desde la bandeja');
+    await M.flush();
+    // diciembre, el mismo cliente: la misma bandeja, y la usada en noviembre con ✓
+    await abrirMes([pub(5, 'Foto', 3, '2026-12')], '2026-12');
+    await hasta(() => vista(true).includes('m18-a.jpg ✓'), 6000, 'la foto usada en noviembre, con ✓, en diciembre');
+    igual(vista(false), ['m18-b.jpg', 'm18-c.jpg'], '«Sin usar» en diciembre');
+    const b = M.board().tray.find(f => M.files[f].name === 'm18-b.jpg');
+    M._test.place('r5-2026-12', b);
+    igual(vista(false), ['m18-c.jpg'], 'tras usarla en diciembre sigue en «Sin usar»');
+    ok(q('.tray .tcount').textContent.includes('1 sin usar'), 'la cuenta de la bandeja: ' + q('.tray .tcount').textContent);
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    await hasta(() => vista(true).includes('m18-b.jpg ✓'), 6000, 'en noviembre, la usada en diciembre con ✓');
+    igual(vista(false), ['m18-c.jpg'], '«Sin usar» en noviembre tras usar otra en diciembre');
+    // otro cliente: su bandeja, sin nada del primero
+    await abrirMes([pub(9)], MES, CLIENTE2, NOMBRE2);
+    await espera(300);
+    igual([M.board().tray.length, vista(true)], [0, []], 'la bandeja del otro cliente');
+    await M.addFiles([await foto('m18-otra.jpg')]);
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    ok(!vista(true).includes('m18-otra.jpg'), 'la foto del otro cliente salió en este');
+    await filtro('sin');
+  });
+
+  prueba('M19', 'Colab: una foto que sale de una publicación compartida vuelve a la bandeja del cliente que la trajo, nunca a la del otro; una suya con el mismo nombre se queda (D-041, D-008)', async () => {
+    const col = { id: 'c19', name: 'COLLAB Noviembre 1', type: 'Foto', date: `${MES}-20T12:00:00.000+01:00` };
+    await tablero([pub(1), col]);
+    const [a] = await poner('c19', [await foto('m19.jpg')]);
+    await M.flush();
+    await abrirMes([pub(2), col], MES, CLIENTE2, NOMBRE2);
+    igual(slot('c19').photos, [a], 'la colab no tiene la foto en el otro cliente');
+    igual(vista(true), [], 'la foto de la colab salió en la bandeja del otro cliente');
+    const [mia] = await M.addFiles([await foto('m19.jpg')]);              // la misma foto (nombre y tamaño), del otro cliente
+    ok(mia && mia !== a, 'el otro cliente reutilizó la foto del primero');
+    M._test.unassign('c19');
+    await M.flush();
+    await hasta(() => qa('.toast').some(t => t.textContent.includes(`vuelve a la bandeja de ${NOMBRE}`)), 4000, 'el aviso de que vuelve a su cliente');
+    igual(M.board().tray, [mia], 'la bandeja del otro cliente tras quitar la foto de la colab');
+    await M.open(`${CLIENTE}-${MES}`);
+    ok(M.board().tray.includes(a), 'la foto no volvió a la bandeja de su cliente');
+    ok(await M._test.fileRec(mia), 'la foto del otro cliente se borró');
+  });
+
+  prueba('M20', 'Migración: las bandejas de cada mes de antes de la 3.44 se juntan en la del cliente sin repetir fotos (mismo id o mismo nombre y tamaño) y salen de los tableros (D-041)', async () => {
+    await tablero([pub(1)]);
+    const [x, y] = await M.addFiles([await foto('m20-x.jpg'), await foto('m20-y.jpg')]);
+    await abrirMes([pub(5, 'Foto', 3, '2026-12')], '2026-12');
+    const [z] = await M.addFiles([await foto('m20-z.jpg')]);
+    await abrirMes([pub(9)], MES, CLIENTE2, NOMBRE2);                     // con otro cliente abierto: nada en memoria pisa lo de abajo
+    // como lo dejaba la 3.43: cada mes con su bandeja y ninguna del cliente; diciembre, el más reciente, tiene otra copia de x
+    const x2 = M._in.newId(); await M._in.idbPut('files', x2, await M._in.idbGet('files', x));
+    const nov = await M._in.idbGet('boards', `${CLIENTE}-${MES}`), dic = await M._in.idbGet('boards', `${CLIENTE}-2026-12`);
+    nov.tray = [x, y]; nov.savedAt = '2026-10-01T10:00:00.000Z'; dic.tray = [z, x2, y]; dic.savedAt = '2026-10-02T10:00:00.000Z';
+    await M._in.idbPut('boards', nov.key, nov); await M._in.idbPut('boards', dic.key, dic); await M._in.idbDel('bandejas', CLIENTE);
+    await M.open(`${CLIENTE}-${MES}`);
+    const t = M.board().tray;
+    igual(t, [z, x2, y], 'la bandeja juntada (la del mes más reciente primero, una vez cada foto)');
+    for (const k of [nov.key, dic.key]) ok(!('tray' in (await M._in.idbGet('boards', k))), `el tablero ${k} sigue con su bandeja`);
+    igual(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray, t, 'la bandeja guardada del cliente');
+    await M.open(`${CLIENTE}-2026-12`);
+    igual(M.board().tray, t, 'diciembre no tiene la misma bandeja');
+    await hasta(async () => !(await M._test.fileRec(x)), 6000, 'que se borre la copia repetida');
+  });
+
+  prueba('M21', '«⇅ Exportar» lleva la bandeja de cada cliente (archivo v3) e «Importar» la devuelve; un archivo de antes (v2, la bandeja en el tablero) se junta al importar (D-041, D-017)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('m21-a.jpg')]);
+    await M.addFiles([await foto('m21-b.jpg'), await foto('m21-c.jpg')]);
+    await M.flush();
+    const antes = M.board().tray.slice(), key = `${CLIENTE}-${MES}`;
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    ok(d.v === 3, 'versión del archivo: ' + d.v);
+    igual((d.bandejas.find(r => r.client === CLIENTE) || {}).tray, antes, 'la bandeja en el archivo');
+    ok(d.boards.every(b => !('tray' in b)), 'un tablero del archivo lleva bandeja');
+    ok(antes.every(f => d.files[f]), 'faltan fotos de la bandeja en el archivo');
+    await M.purge(key);
+    ok(!(await M._in.idbGet('bandejas', CLIENTE)), 'la bandeja no se fue con el último mes');
+    let r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(key);
+    igual(M.board().tray, antes, 'la bandeja importada');
+    // un archivo de antes de la 3.44: v2, sin bandejas, con la bandeja en el tablero
+    const v2 = JSON.parse(JSON.stringify(d)); v2.v = 2; delete v2.bandejas; v2.boards.find(b => b.key === key).tray = antes.slice();
+    await M.purge(key);
+    r = await M.importData(v2, { confirm: false });
+    ok(r && !r.error, 'importar el archivo v2 falló: ' + json(r));
+    await M.open(key);
+    igual(M.board().tray, antes, 'la bandeja del archivo v2');
+    ok(!('tray' in (await M._in.idbGet('boards', key))), 'el tablero importado del archivo v2 sigue con su bandeja');
+  });
+
+  prueba('M22', 'Una foto con ✓ puesta en otra casilla del mismo mes avisa y entra como copia: las dos casillas la tienen y la bandeja la enseña una vez; si se cancela, la copia no se queda (D-041, D-022)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    const [a] = await poner('r1', [await foto('m22.jpg')]);
+    await poner('r2', [await foto('m22-b.jpg')]);
+    await poner('r3', [await foto('m22-c.jpg')]);
+    await filtro('todas');
+    const aCasilla = async (nombre, id) => {                             // pulsar la foto (una vez en la bandeja, sea cual sea su copia), «Colocar en una casilla» y la casilla
+      const ti = await hasta(() => qa('.tray .titem').find(t => M.files[t.dataset.file].name === nombre), 4000, 'la foto en la bandeja');
+      ti.click(); await pulsar('[data-act="tvsel"]'); celda(id).click();
+      return hasta(() => { const d = dialogo(); return d && d.querySelector('[data-act="repe"][data-m="usar"]') && d; }, 4000, 'el aviso de foto ya usada');
+    };
+    (await aCasilla('m22.jpg', 'r2')).querySelector('[data-act="repe"][data-m="usar"]').click();
+    await pulsar('[data-act="addmode"][data-m="replace"]');
+    await hasta(() => M.files[slot('r2').photos[0]] && M.files[slot('r2').photos[0]].name === 'm22.jpg', 4000, 'la foto en la segunda casilla');
+    const copia = slot('r2').photos[0];
+    ok(copia !== a && slot('r1').photos[0] === a, 'no entró como copia: ' + json([slot('r1').photos, slot('r2').photos]));
+    igual(vista(true).filter(x => x.startsWith('m22.jpg')), ['m22.jpg ✓'], 'la bandeja enseña la foto más de una vez');
+    // cancelar en «Sustituir / Añadir»: la copia hecha no se queda
+    const antes = new Set(M._in.delList());
+    (await aCasilla('m22.jpg', 'r3')).querySelector('[data-act="repe"][data-m="usar"]').click();
+    await hasta(() => q('.detail:not([hidden])[data-dlg="addmode"]'), 4000, 'el diálogo Sustituir / Añadir');
+    await pulsar('.detail:not([hidden]) .x[data-act="close"]');
+    const nueva = M._in.delList().find(f => !antes.has(f));
+    ok(nueva && nueva !== copia && M.files[slot('r3').photos[0]].name === 'm22-c.jpg', 'tras cancelar cambió la casilla o no hay copia que borrar');
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    await hasta(async () => !(await M._test.fileRec(nueva)), 6000, 'que se borre la copia sin usar');
+    ok(await M._test.fileRec(copia), 'se borró la copia que sí se usa');
+    await filtro('sin');
   });
 
   // =====================================================================================================
@@ -1578,6 +1718,54 @@
     claro(img, cx, top - 4, 'fuera de la píldora'); claro(img, p.x * 1440 + 3, (top + bot) / 2, 'la píldora no se ciñe al texto');
   });
 
+  prueba('E38', 'La bandeja del editor es la de la mesa: las mismas fotos, ✓ y el mismo filtro «Sin usar / Todas»; lo que entra en una sale en la otra (D-041)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2)]);
+    await poner('r1', [await foto('e38-p.jpg')]);
+    await poner('r2', [await foto('e38-u.jpg')]);
+    const [t1, t2] = await M.addFiles([await foto('e38-t1.jpg'), await foto('e38-t2.jpg')]);
+    M._in.trayFiltro('sin');
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    const enEd = () => qa('.lb-tray .lb-tph').map(b => M.files[b.dataset.f].name + (b.classList.contains('uso') ? ' ✓' : ''));
+    igual(enEd(), ['e38-t1.jpg', 'e38-t2.jpg'], 'la bandeja del editor con «Sin usar»');
+    accion('tr-fil', { v: 'todas' });
+    ok(M._in.trayTodas(), 'el filtro del editor no es el de la mesa');
+    igual(enEd(), ['e38-t1.jpg', 'e38-t2.jpg', 'e38-p.jpg ✓', 'e38-u.jpg ✓'], 'la bandeja del editor con «Todas»');
+    accion('tr-add', { f: t1 });                                          // a la diapositiva: en uso aquí
+    await hasta(() => enEd().includes('e38-t1.jpg ✓'), 4000, 'la foto puesta en la diapositiva, con ✓');
+    accion('tr-fil', { v: 'sin' });
+    igual(enEd(), ['e38-t2.jpg'], '«Sin usar» con una foto puesta en la diapositiva');
+    await M.addFiles([await foto('e38-n.jpg')], null, { tray: true });   // suelta en la bandeja del editor
+    accion('bandeja'); accion('bandeja');
+    igual(enEd(), ['e38-n.jpg', 'e38-t2.jpg'], 'la foto soltada en la bandeja del editor');
+    ok(M.board().tray.includes(t2) && M.board().tray.some(f => M.files[f].name === 'e38-n.jpg'), 'la foto del editor no está en la bandeja de la mesa');
+    M.libre.cerrar();
+    await espera(100);
+    igual(vista(false), ['e38-n.jpg', 'e38-t1.jpg', 'e38-t2.jpg'], 'la bandeja de la mesa al cerrar sin aplicar');
+    igual(enBandejaUI(), ['e38-n.jpg', 'e38-t1.jpg', 'e38-t2.jpg'], 'la bandeja de la mesa en pantalla');
+  });
+
+  prueba('E39', 'Desde la bandeja del editor, una foto con ✓ de otra publicación del mes entra como copia; las de este post, no; el panel de fotos solo da las sin usar de la bandeja (D-041)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2)]);
+    const [p] = await poner('r1', [await foto('e39-p.jpg')]);
+    const [u] = await poner('r2', [await foto('e39-u.jpg')]);
+    const [t] = await M.addFiles([await foto('e39-t.jpg')]);
+    M._in.trayFiltro('todas');
+    await abrirEditor('r1');
+    const usar = () => { const b = ed().el.querySelector('.lb-ask [data-ask="usar"]'); if (b) b.click(); return b; };   // el aviso del editor (D-022)
+    accion('tr-add', { f: u });
+    await hasta(usar, 4000, 'el aviso de foto ya usada');
+    const e = await hasta(() => compDe(0).els.find(x => x.t === 'foto' && x.src !== p), 4000, 'la foto de la otra publicación en la diapositiva');
+    ok(e.src !== u && M.files[e.src].name === 'e39-u.jpg', 'no entró como copia: ' + e.src);
+    accion('sl-add'); accion('tr-add', { f: p });                         // una de este post: la misma, sin copia
+    const e2 = await hasta(() => { usar(); return compDe(1).els.find(x => x.t === 'foto'); }, 4000, 'la foto de este post en la diapositiva 2');
+    ok(e2.src === p, 'una foto de este post entró como copia');
+    const D0 = M._in.bandejaVista({ todas: false, sin: 'r1' }).map(x => x.f);
+    ok(D0.includes(t) && !D0.includes(u), 'las sin usar de la bandeja: ' + json(D0));
+    M.libre.cerrar();
+    M._in.trayFiltro('sin');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================
@@ -1597,7 +1785,7 @@
     // index.html lanza MESA.boot() sin esperarlo: termina cuando la mesa tiene su armazón y no está cambiando de tablero
     await hasta(() => M._in.shellReady() && !M._in.switching(), 15000, 'que la mesa termine de arrancar');
     ok(!M._in.locked, 'la mesa está abierta en otra pestaña de este puerto: ciérrala');
-    const ajenos = [...(await M.boards()).filter(b => b.client !== CLIENTE).map(b => b.key), ...(await M.clients()).filter(c => c.id !== CLIENTE).map(c => c.id)];
+    const ajenos = [...(await M.boards()).filter(b => !DE_PRUEBA(b.client)).map(b => b.key), ...(await M.clients()).filter(c => !DE_PRUEBA(c.id)).map(c => c.id)];
     ok(!ajenos.length, `este puerto tiene datos que no son de prueba (${ajenos.slice(0, 4).join(', ')}${ajenos.length > 4 ? '…' : ''}): pasa la batería en una copia con un puerto nuevo`);
   }
   // lo que la mesa deja en localStorage (último tablero, guías…) vuelve a como estaba antes de la batería
@@ -1644,6 +1832,8 @@
         await limpiar();
         const r = await M.removeClient(CLIENTE);
         ok(r === true && !(await M.boards()).some(b => b.client === CLIENTE), 'no se pudo borrar el cliente de prueba: ' + r);
+        if ((await M.clients()).some(c => c.id === CLIENTE2)) { const r2 = await M.removeClient(CLIENTE2); ok(r2 === true, 'no se pudo borrar el segundo cliente de prueba: ' + r2); }
+        ok(!(await M._in.idbAll('bandejas')).some(x => DE_PRUEBA(x.client)), 'quedó la bandeja de un cliente de prueba');
       } catch (e) { res.limpieza = String((e && e.message) || e); }
     }
     if (listo && !res.fallan && !res.limpieza) {     // sin fallos, la mesa de prueba se cierra (suelta el bloqueo de otras pestañas)

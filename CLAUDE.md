@@ -16,7 +16,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 ## Stack
 - HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual.
 - `index.html` carga `mesa.js` (núcleo, expone `window.MESA`) y, en async, `kits/motor.js` (motor de
-  diseño), `diseno.js` (diseñador), `libre.js` (editor de diapositivas) y `calendario.js` (calendario). La mesa nunca espera a los async.
+  diseño), `diseno.js` (diseñador), `libre.js` (editor de diapositivas), `calendario.js` (calendario) y `revisar.js` (revisión antes de subir o programar). La mesa nunca espera a los async.
 - `kits/<marca>.json` + `kits/fonts/`: kits de marca para el diseñador y el editor.
 - Sin backend: los datos viven en IndexedDB del navegador donde se abre la mesa (aislados por origen).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
@@ -26,7 +26,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 ## Publicar
 - Pages publica desde `main`. Cada cambio va en una rama y entra por PR.
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
-  `index.html`, los dos iguales. Si cambias `diseno.js`, `libre.js`, `calendario.js` o `kits/motor.js`, sube también
+  `index.html`, los dos iguales. Si cambias `diseno.js`, `libre.js`, `calendario.js`, `revisar.js` o `kits/motor.js`, sube también
   su `?v=` en `index.html`. Sin esto el navegador sigue sirviendo la versión en caché.
 - Tras publicar, comprueba con `curl` que Pages sirve los archivos nuevos.
 
@@ -34,7 +34,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Nunca abras la URL publicada en el navegador integrado de Claude: es otro origen y está vacía.
   En el navegador del usuario correría sobre sus datos reales.
 - Prueba siempre en localhost sobre una copia: copia `index.html`, `mesa.js`, `diseno.js`,
-  `libre.js`, `calendario.js`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
+  `libre.js`, `calendario.js`, `revisar.js`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
 - Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
   («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.

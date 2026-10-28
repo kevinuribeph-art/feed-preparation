@@ -62,6 +62,7 @@
 
   async function limpiar() {
     if (M.libre && M.libre.abierto()) M.libre.cerrar();
+    if (M.revisar && M.revisar._reset) M.revisar._reset();   // una revisión de «sube» pendiente no llega a la prueba siguiente
     await M.flush();                               // el guardado va con retraso: purge borra las fotos que nombra el tablero guardado
     for (const b of await M.boards()) if (b.client === CLIENTE) await M.purge(b.key);
   }
@@ -321,6 +322,135 @@
     await M.addFiles([await foto('m11b.jpg')]);
     ok(!dialogo() || !dialogo().querySelector('[data-act="repe"]'), 'importar a la bandeja avisó');
     ok(M.status().tray === n0 + 1, `la bandeja tiene ${M.status().tray - n0} copias de la foto`);
+  });
+
+  // ---------- «Revisar» (revisar.js, D-040) ----------
+  const revisarUI = async () => { await pulsar('.bar [data-act="revisar"]'); return hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 8000, 'el diálogo de la revisión'); };
+  const puntos = r => r.puntos.map(x => [x.slotId, x.diapositiva, x.tipo, x.bloquea, x.donde]);
+
+  prueba('M12', '«Revisar»: lista por publicación y diapositiva; un hueco vacío bloquea y un clic abre esa diapositiva en el editor (D-040, D-035)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('rv-a.jpg'), await foto('rv-b.jpg')]);
+    await poner('r2', [await foto('rv-c.jpg'), await foto('rv-d.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add'); const p = ed().i;
+    compDe(p).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8));
+    await aplicarEditor();
+    const r = await M.revisar();
+    igual(puntos(r), [['r1', p + 1, 'hueco', true, 'editor']], 'la revisión por la API');
+    ok(!r.ok && r.bloquean === 1 && r.avisos === 0, 'el resumen: ' + json(r));
+    const d = await revisarUI(), txt = d.textContent;
+    ok(txt.includes('Carrusel 1.1') && txt.includes(`Diapositiva ${p + 1}: hueco de foto vacío`) && /\(bloquea\)/.test(txt) && !txt.includes('Carrusel 1.2'), 'la lista: ' + txt);
+    ok(txt.includes(NOMBRE) && /noviembre 2026/i.test(txt), 'no dice de qué cliente y mes es: ' + txt);
+    d.querySelector('[data-act="rv-ir"]').click();
+    await hasta(() => M.libre.abierto() && ed() && ed().i === p, 6000, 'el editor abierto en esa diapositiva');
+    ok(!q('.detail:not([hidden])[data-dlg="revisar"]'), 'el diálogo sigue abierto');
+  });
+
+  prueba('M13', '«Revisar»: la numeración que no cuadra con su sitio o con el total, a mano («02 / 11») o automática y desfasada; la que cuadra no sale y nada de eso bloquea (D-040, D-038)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('rn-a.jpg'), await foto('rn-b.jpg'), await foto('rn-c.jpg')]);
+    await abrirEditor('r1', 1);
+    accion('add-txt'); compDe(1).els.find(e => e.t === 'texto').txt = '02 / 11';
+    accion('sl', { i: 2 }); accion('add-txt'); compDe(2).els.find(e => e.t === 'texto').txt = '03 / 3';   // a mano y bien
+    accion('add-txt'); const t = compDe(2).els.filter(e => e.t === 'texto')[1]; elegir(t); accion('num', { v: 'a' });
+    await aplicarEditor();
+    let r = await M.revisar();
+    igual(r.puntos.map(x => [x.diapositiva, x.tipo, x.texto]), [[2, 'numeración', '«02 / 11» no cuadra: es la 2 de 3']], 'la numeración a mano');
+    const s1 = M._in.S.slots.find(x => x.id === 'r1'), n = s1.libre.slides[s1.photos[2]].els.find(e => e.num);   // el tablero de verdad (M.board() es una copia)
+    igual(n && n.txt, '03 / 3', 'la numeración automática');
+    n.txt = '04 / 4';                              // una automática que se quedó atrás
+    try {
+      r = await M.revisar();
+      ok(r.puntos.some(x => x.diapositiva === 3 && x.tipo === 'numeración' && x.texto === 'la numeración dice «04 / 4» y le toca «03 / 3»'), 'la automática desfasada: ' + json(r.puntos));
+      ok(r.ok && !r.bloquean && r.avisos === 2, 'la numeración bloquea o falta un aviso: ' + json(r));
+    } finally { n.txt = '03 / 3'; }
+  });
+
+  prueba('M14', '«Revisar»: fotos de menos de 1080 px, encuadradas en la mesa o dibujadas en una diapositiva; un clic abre la publicación (D-040)', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel'), pub(4)]);
+    await poner('r1', [await foto('rr-a.jpg', 800, 1000)]);             // pequeña
+    await poner('r4', [await foto('rr-e.jpg', 700, 900)]); M.setEstado(['r4'], 'cancelado');   // cancelada: no se mira
+    const [f2] = await poner('r2', [await foto('rr-b.jpg')]);            // 1200 de ancho: bien…
+    await poner('r3', [await foto('rr-c.jpg'), await foto('rr-d.jpg')]);
+    let r = await M.revisar();
+    igual(puntos(r), [['r1', 1, 'resolución', false, 'post']], 'solo la pequeña');
+    ok(/800 px/.test(r.puntos[0].texto), r.puntos[0].texto);
+    M._test.setCrop(f2, 'r2', { z: 2 });                                  // …hasta que se amplía al doble: 600 px
+    await abrirEditor('r3', 1); accion('add-txt');                         // la 2.ª diapositiva, dibujada, con su foto al doble en el marco
+    compDe(1).els.find(e => e.t === 'foto').z = 2;
+    await aplicarEditor();
+    r = await M.revisar();
+    igual(puntos(r), [['r1', 1, 'resolución', false, 'post'], ['r2', 1, 'resolución', false, 'post'], ['r3', 2, 'resolución', false, 'editor']], 'las tres');
+    ok(/600 px/.test(r.puntos[1].texto) && /equivale a \d+ px/.test(r.puntos[2].texto) && r.ok, json(r.puntos.map(x => x.texto)));
+    const d = await revisarUI();
+    d.querySelector('[data-act="rv-ir"][data-slot="r1"]').click();
+    await hasta(() => q('.detail:not([hidden])') && q('.detail').dataset.slot === 'r1' && !q('.detail').dataset.dlg, 4000, 'la ventana de la publicación');
+  });
+
+  prueba('M15', '«Revisar»: textos fuera del margen del kit, por su tinta y no por su caja, también girados; sin kit no se mira (D-040)', async () => {
+    const kit0 = M.diseno.kit;
+    const conKit = async k => { M.diseno.kit = async () => k; try { return await M.revisar(); } finally { M.diseno.kit = kit0; } };   // solo durante la revisión
+    const KIT = { lienzo: { ancho: 1080, margen: 80 } };                   // margen de 80 (de 1080)
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('rm-a.jpg'), await foto('rm-b.jpg')]);
+    let r = await conKit(KIT);
+    ok(!r.puntos.length, 'sin textos ya hay avisos: ' + json(r.puntos));
+    await abrirEditor('r1', 1);
+    const texto = (txt, o) => { accion('add-txt'); const t = compDe(1).els.filter(e => e.t === 'texto').pop(); Object.assign(t, { txt, al: 'izq', rot: 0 }, o); };
+    texto('Fuera', { x: 0.02, y: 0.3, w: 0.5 });                         // empieza antes del margen (80 / 1080 = 0,074)
+    texto('Dentro', { x: 0.1, y: 0.45, w: 0.8 });
+    texto('Corta', { x: 0.1, y: 0.6, w: 0.89 });                         // su caja pasa el margen derecho; su tinta, no
+    texto('Una línea bastante larga que gira con la diapositiva', { x: 0.08, y: 0.1, w: 0.84, al: 'cen', rot: 30 });   // girada, se sale por arriba
+    texto('Aire', { x: 0.5, y: (80 / 1080 * 1440 - 20) / 1800, w: 0.3, size: 0.06, lh: 2 });   // su caja pasa el margen de arriba; sus letras, no
+    await aplicarEditor();
+    r = await conKit(KIT);
+    igual(puntos(r), [['r1', 2, 'margen', false, 'editor']], 'un aviso de margen, en la 2.ª diapositiva');
+    const x = r.puntos[0].texto;
+    ok(/^2 textos fuera del margen del kit/.test(x) && x.includes('«Fuera»') && x.includes('«Una línea bastante larga') && !x.includes('Dentro') && !x.includes('Corta') && !x.includes('Aire'), x);
+    r = await conKit({ error: 'Este cliente aún no tiene kit de diseño.' });
+    ok(!r.puntos.length, 'sin kit avisa del margen: ' + json(r.puntos));
+  });
+
+  prueba('M16', '«Revisar»: un carrusel en 3:4 se avisa (Instagram por API admite de 4:5 a 1,91:1); 4:5, Horizontal y la portada 9:16 de un reel, no (D-040)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel'), pub(3, 'Reel'), pub(4)]);
+    await poner('r1', [await foto('rf-a.jpg'), await foto('rf-b.jpg')]);
+    await poner('r2', [await foto('rf-c.jpg'), await foto('rf-d.jpg')]);
+    await poner('r3', [await foto('rf-e.jpg', 1080, 1920)]);
+    await poner('r4', [await foto('rf-f.jpg', 2000, 1200)]);              // horizontal
+    M._test.setFmt('r1', 'v34');
+    const r = await M.revisar();
+    igual(puntos(r), [['r1', null, 'formato', false, 'post']], 'solo el 3:4');
+    ok(/formato 3:4/.test(r.puntos[0].texto) && /4:5 a 1,91:1/.test(r.puntos[0].texto) && r.ok, r.puntos[0].texto);
+  });
+
+  prueba('M17', '«sube» pasa la revisión sola sobre lo enviado (dos llamadas seguidas, una revisión): el hueco vacío no se sube y el resto sí (D-040, D-035)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2), pub(3)]);
+    await poner('r1', [await foto('ra-a.jpg'), await foto('ra-b.jpg')]);
+    const [f2] = await poner('r2', [await foto('ra-c.jpg', 800, 1000)]);
+    await poner('r3', [await foto('ra-d.jpg', 700, 900)]);               // no se sube ahora: no sale
+    await abrirEditor('r1'); accion('sl-add'); compDe(ed().i).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
+    const f0 = W.fetch; W.fetch = async () => { throw new TypeError('sin red (prueba)'); };   // ninguna subida sale de aquí
+    try {
+      const it = (fileId, slotId) => ({ fileId, slotId, url: 'http://127.0.0.1:9/subir', auth: 'prueba' });
+      const r1 = slot('r1').photos;
+      ok(q('.detail:not([hidden])[data-slot="r1"]'), 'tras «Aplicar» no quedó abierta la publicación');   // con algo abierto, no se lo cierra: una nota
+      M.startUpload(r1.map(f => it(f, 'r1')));
+      await hasta(() => qa('.toast').some(t => /antes de subir a Notion: 1 punto bloquea\. Pulsa «Revisar»/.test(t.textContent)), 8000, 'la nota de la revisión');
+      ok(q('.detail:not([hidden])[data-slot="r1"]') && !q('.detail[data-dlg="revisar"]'), 'la revisión cerró la publicación abierta');
+      M._in.closeDetail();
+      const raiz = q('#mesa'); raiz.classList.add('client');   // «Vista cliente»: ni diálogo ni nota
+      try {
+        M.startUpload([it(f2, 'r2')]); await espera(1700); await M.revisar.ultima;
+        ok(!dialogo() && !qa('.toast').some(t => /Revisión antes/.test(t.textContent) && /1 aviso\./.test(t.textContent)), 'la revisión salió en la vista cliente');
+      } finally { raiz.classList.remove('client'); }
+      M.startUpload(r1.map(f => it(f, 'r1'))); M.startUpload([it(f2, 'r2')]);
+      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 8000, 'la revisión al subir'), txt = d.textContent;
+      ok(/antes de subir a Notion/.test(txt) && txt.includes('Carrusel 1.1') && /hueco de foto vacío/.test(txt) && txt.includes('Foto 1.2') && /800 px/.test(txt) && !txt.includes('Foto 1.3'), 'el diálogo: ' + txt);
+      ok(r1.every(f => M.uploads[f] && M.uploads[f].state === 'error' && /hueco/.test(M.uploads[f].err)), 'la publicación con hueco no se rechazó: ' + json(r1.map(f => M.uploads[f])));
+      await M.waitUpload([f2], 15000);
+      ok(M.uploads[f2] && !/hueco/.test(M.uploads[f2].err || ''), 'la foto pequeña no se intentó subir: ' + json(M.uploads[f2]));
+    } finally { W.fetch = f0; }
   });
 
   // =====================================================================================================
@@ -1232,7 +1362,7 @@
 
   // ---------- mesa 3.41: exportar con huecos vacíos ----------
 
-  prueba('E31', '«⇅ Exportar» con un hueco de foto vacío no se para: exporta todo y luego dice dónde está (cliente, mes, publicación y diapositiva) (D-037)', async () => {
+  prueba('E31', '«⇅ Exportar» con un hueco de foto vacío no se para: exporta todo y luego la revisión dice dónde está (cliente, mes, publicación y diapositiva) (D-037, D-040)', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
     await poner('r1', [await foto('ex-a.jpg'), await foto('ex-b.jpg')]);
     await poner('r2', [await foto('ex-c.jpg'), await foto('ex-d.jpg')]);
@@ -1248,25 +1378,26 @@
     try {
       W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
       await pulsar('[data-act="xfer"]'); await pulsar('[data-act="xfer-export"]');
-      const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="huecos"]'), 15000, 'el aviso de huecos vacíos tras exportar');
+      const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
       const d = JSON.parse(await (await (await W.fetch(cap.href)).blob()).text());
       const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`), s1 = b && b.slots.find(x => x.id === 'r1');
       ok(s1 && s1.photos.length === 3 && Object.values(s1.libre.slides).some(c => c.els.some(e => e.t === 'hueco')), 'el archivo no lleva la publicación con su hueco tal cual');
       const txt = dl.textContent;
-      ok(txt.includes('Carrusel 1.1') && txt.includes(`diapositiva ${p + 1}`) && txt.includes(NOMBRE) && /noviembre 2026/i.test(txt), 'el aviso no dice dónde está el hueco: ' + txt);
+      ok(txt.includes('Carrusel 1.1') && new RegExp(`diapositiva ${p + 1}: hueco de foto vacío`, 'i').test(txt) && txt.includes(NOMBRE) && /noviembre 2026/i.test(txt), 'el aviso no dice dónde está el hueco: ' + txt);
       ok(!txt.includes('Carrusel 1.2'), 'el aviso nombra una publicación sin hueco vacío');
       ok(/Exportada: 1 mes/.test(txt), 'el aviso no dice que se exportó: ' + txt);
-      await pulsar('.detail[data-dlg="huecos"] .btn[data-act="close"]');
+      await pulsar('.detail[data-dlg="revisar"] .btn[data-act="close"]');
       ok(!dialogo(), '«Entendido» no cerró el aviso');
       const r = await M.exportAll();               // también por la API: dónde está, y sin huecos no hay aviso
       igual(json(r.huecos), json([{ client: CLIENTE, month: MES, slotId: 'r1', post: 'Carrusel 1.1', diapositivas: [p + 1] }]), 'exportAll() no dice dónde está el hueco');
-      await pulsar('.detail[data-dlg="huecos"] .btn[data-act="close"]');
+      await pulsar('.detail[data-dlg="revisar"] .btn[data-act="close"]');
       await abrirEditor('r1'); accion('sl-del', { i: p });          // quitar la diapositiva del hueco: sin huecos, sin aviso
       if (ed().ask) ed().ask.querySelector('[data-ask="borrar"]').click();
       await aplicarEditor();
       const r2 = await M.exportAll();
-      ok(r2 && r2.ok && r2.huecos.length === 0 && !q('.detail:not([hidden])[data-dlg="huecos"]'), 'sin huecos vacíos salió el aviso: ' + json(r2 && r2.huecos));
+      await M.revisar.ultima;                       // la revisión de esa exportación, ya terminada
+      ok(r2 && r2.ok && r2.huecos.length === 0 && !q('.detail:not([hidden])[data-dlg="revisar"]'), 'sin huecos vacíos ni otros avisos salió la revisión: ' + json(r2 && r2.huecos));
     } finally {
       A.click = click;
       if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes);
@@ -1336,7 +1467,7 @@
     const s = slot('r1'), antes = s.photos.slice();
     igual(numerosDe(s), [null, '02 / 4', '03 / 4', null], 'lo aplicado');
     M._test.movePhoto('r1', 1, 3);                 // la 2.ª al final
-    await hasta(() => M.libre.aplicando(), 3000, 'que la mesa empiece a redibujar');
+    await hasta(() => M.libre.aplicando(), 8000, 'que la mesa empiece a redibujar');   // 8 s: con el panel oculto los temporizadores van más lentos (falló con 3 s en la 3.43)
     const r0 = await M.libre.abrir('r1');          // mientras redibuja, el editor no abre (sus imágenes cambiarían debajo)
     ok(r0 && r0.error && /redibujando/.test(r0.error) && !M.libre.abierto(), 'el editor abrió mientras se redibujaba: ' + json(r0));
     await hasta(() => json(numerosDe(slot('r1'))) === json([null, '02 / 4', null, '04 / 4']), 8000, 'los números redibujados tras mover en la mesa');
@@ -1461,7 +1592,7 @@
     const fr = $('mesa');
     await new Promise(r => { fr.onload = r; fr.src = '../index.html?regresion=' + Date.now(); });
     W = fr.contentWindow; D = W.document;
-    await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in, 15000, 'que carguen mesa.js y libre.js');
+    await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in && W.MESA.revisar && W.MESA.diseno, 15000, 'que carguen mesa.js, libre.js, revisar.js y diseno.js');
     M = W.MESA;
     // index.html lanza MESA.boot() sin esperarlo: termina cuando la mesa tiene su armazón y no está cambiando de tablero
     await hasta(() => M._in.shellReady() && !M._in.switching(), 15000, 'que la mesa termine de arrancar');

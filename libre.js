@@ -64,11 +64,15 @@
 // slide with something on it asks before it goes, then «Deshacer»; a chip with the chosen photo's or hole's proportion
 // (also in «Proporción del marco» when no button is on); ⌘D with nothing chosen duplicates the slide; «Zona del grid» (⌘P,
 // also in «⋯»): on the cover, what the profile crops in 3:4, darkened, only in the editor. ⌘P never prints here.
+// v1.15 (mesa 3.39): the grey area around the slide is the editor's: a click deselects, a drag chooses what ends up inside
+// its rectangle (⇧ adds), a double click is «Ajustar», a right click opens Pegar / Pegar estilo / Añadir texto / Añadir
+// forma, space + drag moves the view; a pinch or ⌘ + wheel zooms on the pointer and never the page. T and R add a text
+// and a rectangle. None of it while writing in a text.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.14';
+  const VERSION = '1.15';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -101,6 +105,7 @@
   class LbError extends Error {}
   const need = (ok, msg) => { if (!ok) throw new LbError(msg); };
   const LOCKED = 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de editar.';
+  const ESCRIBIENDO = 'Estás escribiendo en un texto: termina (Esc o un clic fuera) y vuelve a soltar la foto.';
 
   // ---------- slot helpers ----------
   const isLibSlot = s => !!s && (I().isCarousel(s.type) || s.type === 'Foto' || I().isReel(s.type));   // a reel: its cover, one 9:16 page
@@ -531,7 +536,7 @@
       const marca = I().histMarca ? I().histMarca() : null;   // the whole session is one step of the mesa's ⌘Z
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
-      E = { slotId, board: S, dz, car, reel: I().isReel(s.type), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
+      E = { slotId, board: S, dz, car, reel: I().isReel(s.type), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
         bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: lsLeer(LS_ZG) === '1', margen: 0 };
       E.guias0 = firmaG();
@@ -566,7 +571,7 @@
   function cerrar(silent) {
     if (!E) return { ok: true };
     const e = E; E = null;
-    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', sinEspacio, true); window.removeEventListener('blur', sinEspacio);
     if (e.raf) cancelAnimationFrame(e.raf);
     if (e.ro) e.ro.disconnect();
     for (const b of e.bm.values()) if (b.im && b.im.close) b.im.close();
@@ -828,6 +833,8 @@
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
 #mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
+#mesa .lb-marq{position:fixed;z-index:6;border:1px solid #0095f6;background:rgba(0,149,246,.08);pointer-events:none}
+#mesa .lb-menu.lb-cm{position:fixed;top:0;right:auto;z-index:20}#mesa .lb-menu.lb-cm button{display:flex;justify-content:space-between;align-items:center}#mesa .lb-menu.lb-cm button:disabled{color:var(--faint);background:none;cursor:default}
 #mesa .lb-ghost{position:fixed;z-index:30;width:64px;height:64px;object-fit:cover;border-radius:6px;transform:translate(-50%,-50%);pointer-events:none;opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #mesa .lb-panel{overflow-y:auto;padding:0 16px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .lb-sec{padding:12px 0 14px;border-bottom:1px solid var(--line2)}#mesa .lb-sec:last-child{border-bottom:0}
@@ -947,7 +954,7 @@
       + '<p class="lb-hint" aria-live="polite" hidden></p>'
       + `<div class="lb-tray" id="lb-tray" hidden></div><div class="lb-foot"><button type="button" class="lb-trb" data-lb="bandeja" aria-expanded="false" aria-controls="lb-tray" title="Bandeja: sus fotos, para ponerlas en la diapositiva"><span class="lb-trn">Bandeja</span>${FLECHA}</button>`
       + `<button type="button" class="lb-help" data-lb="atajos" aria-label="Atajos de teclado" aria-expanded="false" title="Atajos de teclado">?</button><div class="lb-atajos" role="dialog" aria-label="Atajos de teclado" hidden>${ATAJOS}</div></div></section>`
-      + '<aside class="lb-panel"></aside></div><div class="lb-all" hidden></div><input type="file" class="lb-logoin" accept="image/png,image/webp,image/jpeg" multiple hidden>';
+      + '<aside class="lb-panel"></aside></div><div class="lb-all" hidden></div><div class="lb-menu lb-cm" role="menu" aria-label="Fuera de la diapositiva" hidden></div><input type="file" class="lb-logoin" accept="image/png,image/webp,image/jpeg" multiple hidden>';
     root.append(el);
     // the mesa behind can't be reached with Tab while the editor is open (toasts stay usable)
     E.inert = [...root.children].filter(c => c !== el && !c.matches('.toasts, .lock, style') && !c.hasAttribute('inert'));
@@ -956,7 +963,7 @@
     const ae = document.activeElement; if (ae && ae.blur && root.contains(ae)) ae.blur();
     el.focus({ preventScroll: true });
     wire(el);
-    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', sinEspacio, true); window.addEventListener('blur', sinEspacio);
     E.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => pedir()) : null;
     if (E.ro) E.ro.observe(E.scroll);
     todo();
@@ -1030,6 +1037,7 @@
     E.k = Math.min(aw / W, ah / H) * E.zoom;
     const dpr = window.devicePixelRatio || 1, cw = Math.round(W * E.k), ch = Math.round(H * E.k);
     if (E.cv.width !== Math.round(cw * dpr) || E.cv.height !== Math.round(ch * dpr)) { E.cv.width = Math.round(cw * dpr); E.cv.height = Math.round(ch * dpr); E.cv.style.width = cw + 'px'; E.cv.style.height = ch + 'px'; }
+    if (E.zAncla) { const a = E.zAncla, r = E.cv.getBoundingClientRect(); E.zAncla = null; E.scroll.scrollLeft += r.left + a.x * E.k - a.cx; E.scroll.scrollTop += r.top + a.y * E.k - a.cy; }   // zoomed on the pointer: it stays on the same point
     const x = E.ctx, k = E.k * dpr;
     x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
     const comp = compAt(E.i);
@@ -1568,6 +1576,7 @@
   }
   function cursor(e) {
     if (E.busy || !E.sl.length) return;
+    if (E.esp && hayZoom()) { mano(); return; }
     const p = toSlide(e), sel = selEl();
     let c = 'default';
     if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) c = 'grab'; }
@@ -1593,15 +1602,140 @@
     seleccionar(el); E.crop = el.id; E.pick = null; panel(); pedir();
   }
   function onWheel(e) {
-    if (!E.sl.length) return;
-    if (E.crop) {
+    if (!E) return;
+    menuCtx(false);
+    if (E.crop && e.target === E.cv && E.sl.length) {   // framing a photo: the wheel or a pinch on the slide zooms the photo
       const el = compAt(E.i).els.find(x => x.id === E.crop); if (!el) return;
       e.preventDefault(); mut('zoomfoto', () => { const c = ensure(), x = c.els.find(q => q.id === el.id); setPhoto(x, { z: (x.z || 1) * Math.exp(-e.deltaY * 0.0025) }); }, true); syncNums(selEl());
       return;
     }
-    if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoom(E.zoom * Math.exp(-e.deltaY * 0.01)); }
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();             // a pinch (ctrl + wheel) or ⌘ + wheel: never the page's zoom, anywhere in the editor
+    if (E.sl.length && !E.busy && !escribiendo() && E.scroll.contains(e.target)) zoomEn(E.zoom * Math.exp(-e.deltaY * 0.01), e);
+  }
+  function onGesto(e) {             // Safari: the pinch comes as gestures, not as ctrl + wheel
+    if (!E) return;
+    e.preventDefault();
+    if (e.type === 'gesturestart') { E.g0 = E.zoom; return; }
+    if (E.sl.length && !E.busy && !escribiendo() && !(E.crop && e.target === E.cv) && E.scroll.contains(e.target)) zoomEn((E.g0 || E.zoom) * e.scale, e);
   }
   function zoom(z) { E.zoom = clamp(z, 0.4, 4); head(); pedir(); }
+  function zoomEn(z, e) {           // zoom keeping the point under the pointer where it is (frame() moves the view once the size is new)
+    const r = E.cv.getBoundingClientRect();
+    E.zAncla = { cx: e.clientX, cy: e.clientY, x: (e.clientX - r.left) / E.k, y: (e.clientY - r.top) / E.k };
+    zoom(z);
+  }
+
+  // ---------- the grey area around the slide: part of the editor ----------
+  // a click deselects, a drag chooses what ends up inside its rectangle (⇧ adds), a double click is «Ajustar», a right
+  // click opens a menu, space + drag moves the view. Nothing of it while writing in a text: a click there only ends it.
+  const esTexto = t => !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable || (t.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(t.type)));
+  const escribiendo = () => { const t = document.activeElement; return esTexto(t) && t.tagName !== 'SELECT'; };   // a font list left focused is not writing
+  function gris(e) {                // on the grey itself, not on the slide, the rulers, the bar or a scrollbar
+    const sc = E.scroll, cvw = sc.firstElementChild;
+    if (e.target !== sc && e.target !== cvw) return false;
+    const r = sc.getBoundingClientRect();
+    return e.clientX - r.left - sc.clientLeft < sc.clientWidth && e.clientY - r.top - sc.clientTop < sc.clientHeight;
+  }
+  const hayZoom = () => E.scroll.scrollWidth > E.scroll.clientWidth + 1 || E.scroll.scrollHeight > E.scroll.clientHeight + 1;
+  function sobreGris() {            // the pointer is over the slide or the grey around it
+    const p = E.ptr; if (!p || !E.allEl.hidden) return false;
+    const r = E.scroll.getBoundingClientRect();
+    return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
+  }
+  function mano() {                 // the cursor while space is held: a hand, if there is a view to move
+    const c = E.esp && hayZoom() ? (E.vista ? 'grabbing' : 'grab') : '';
+    E.scroll.style.cursor = c;
+    if (c || /grab/.test(E.cv.style.cursor)) E.cv.style.cursor = c;   // let go: the slide's own cursor on the next move
+  }
+  function terminarEscritura() {    // the first click outside a text being written only ends the writing
+    const t = document.activeElement; if (t && t.blur) t.blur();
+    E.el.focus({ preventScroll: true }); E.finEscr = performance.now();
+  }
+  function grisDown(e) {
+    if (!E || E.busy) return;
+    if (e.button === 2 || (e.button === 0 && e.ctrlKey)) {   // a right click (on a Mac also ctrl + click): the menu's, never a click
+      if (gris(e) && escribiendo()) { e.preventDefault(); terminarEscritura(); E.sinMenu = performance.now(); }   // writing: it only ends it, no menu
+      return;
+    }
+    if (E.esp && e.button === 0) {  // space + drag: the view moves
+      e.preventDefault(); e.stopPropagation();
+      if (hayZoom()) { E.vista = { x: e.clientX, y: e.clientY, l: E.scroll.scrollLeft, t: E.scroll.scrollTop }; try { E.scroll.setPointerCapture(e.pointerId); } catch (er) { /* */ } mano(); }
+      return;
+    }
+    if (e.button !== 0 || !gris(e)) return;
+    e.preventDefault();
+    if (E.cmOn) { menuCtx(false); E.finEscr = performance.now(); return; }   // a click with the menu open only closes it
+    if (escribiendo()) { terminarEscritura(); return; }
+    if (performance.now() - E.finEscr < 600) return;     // the second click of a double click that ended the writing (or closed the menu)
+    E.el.focus({ preventScroll: true });
+    if (!E.sl.length) return;
+    E.marq = { p0: toSlide(e), x0: e.clientX, y0: e.clientY, add: e.shiftKey, ids0: e.shiftKey ? selIds() : [], on: false };
+    try { E.scroll.setPointerCapture(e.pointerId); } catch (er) { /* */ }
+  }
+  function grisMove(e) {
+    if (!E) return;
+    if ((E.vista || E.marq) && e.type === 'pointermove' && !(e.buttons & 1)) { grisUp(null); return; }   // its pointerup was lost
+    if (E.vista) { E.scroll.scrollLeft = E.vista.l - (e.clientX - E.vista.x); E.scroll.scrollTop = E.vista.t - (e.clientY - E.vista.y); return; }
+    const m = E.marq; if (!m) return;
+    if (!m.on && Math.hypot(e.clientX - m.x0, e.clientY - m.y0) < 3) return;
+    m.on = true; m.p1 = toSlide(e);
+    marcarRect(m);
+  }
+  function grisUp(e) {
+    if (!E) return;
+    const fin = !!e && e.type === 'pointerup';   // where it was let go counts too (a drag can end with no move seen)
+    if (E.vista) { if (fin) grisMove(e); E.vista = null; mano(); return; }
+    const m = E.marq; if (!m) return;
+    if (fin) grisMove(e);
+    E.marq = null;
+    const d = E.el.querySelector('.lb-marq'); if (d) d.remove();
+    if (fin && !m.on && !m.add) { soltar(); E.pick = null; E.crop = null; }   // a click on the grey (not a cancelled one): nothing chosen
+    panel(); pedir();
+  }
+  function marcarRect(m) {          // the rectangle on screen (only over the grey and the slide) and what is inside it, chosen
+    const a = { l: Math.min(m.p0.x, m.p1.x), r: Math.max(m.p0.x, m.p1.x), t: Math.min(m.p0.y, m.p1.y), b: Math.max(m.p0.y, m.p1.y) };
+    const rc = E.cv.getBoundingClientRect(), rs = E.scroll.getBoundingClientRect(), k = E.k;
+    const L = Math.max(rs.left, rc.left + a.l * k), R = Math.min(rs.right, rc.left + a.r * k), T = Math.max(rs.top, rc.top + a.t * k), B = Math.min(rs.bottom, rc.top + a.b * k);
+    let d = E.el.querySelector('.lb-marq');
+    if (!d) { d = document.createElement('div'); d.className = 'lb-marq'; E.el.append(d); }
+    Object.assign(d.style, { left: L + 'px', top: T + 'px', width: Math.max(0, R - L) + 'px', height: Math.max(0, B - T) + 'px' });
+    const c = compAt(E.i), { W, H } = E.sz;
+    const dentro = el => { const b = aabb(el, W, H); return b.l >= a.l && b.r <= a.r && b.t >= a.t && b.b <= a.b; };
+    const ids = new Set();           // hidden or locked ones on their own, never; a group whole, as a click, when all its visible ones are inside
+    for (const el of c.els) {
+      if (!el.g) { if (!el.oculto && !el.lock && dentro(el)) ids.add(el.id); continue; }
+      const gr = c.els.filter(q => q.g === el.g), vis = gr.filter(q => !q.oculto);
+      if (vis.length && vis.every(dentro)) gr.forEach(q => ids.add(q.id));
+    }
+    const all = [...m.ids0, ...[...ids].filter(id => !m.ids0.includes(id))];
+    E.sel = all[0] || null; E.mas = all.slice(1); E.crop = null; E.pick = null;
+    pedir();
+  }
+  function onCtx(e) {               // a right click on the grey: «Pegar», «Pegar estilo», «Añadir texto», «Añadir forma»
+    if (!E) return;
+    menuCtx(false);
+    if (!gris(e)) return;           // on the slide or the panel: the browser's menu, as before
+    e.preventDefault();
+    if (E.marq) { E.marq = null; const d = E.el.querySelector('.lb-marq'); if (d) d.remove(); }
+    if (E.busy || performance.now() - (E.sinMenu || -1e4) < 1000) return;
+    if (escribiendo()) { terminarEscritura(); return; }
+    const cb = clip(), hay = E.sl.length > 0;
+    const est = !!(ESTILO && ESTILO.client === E.board.client && selEls().some(q => q.t === 'texto' && !q.lock));
+    const it = (lb, txt, kb, on, v) => `<button type="button" role="menuitem" data-lb="${lb}"${v ? ` data-v="${v}"` : ''}${on ? '' : ' disabled'}>${txt}<span class="lb-kb">${kb}</span></button>`;
+    const m = E.el.querySelector('.lb-cm');
+    m.innerHTML = it('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + it('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
+      + it('add-txt', 'Añadir texto', 'T', hay) + it('add-forma', 'Añadir forma', 'R', hay, 'rect');
+    m.hidden = false; E.cmOn = true;
+    const w = m.offsetWidth, h = m.offsetHeight, vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    m.style.left = Math.max(4, Math.min(e.clientX, vw - w - 4)) + 'px'; m.style.top = Math.max(4, Math.min(e.clientY, vh - h - 4)) + 'px';
+    const b = m.querySelector('button:not(:disabled)'); if (b) b.focus({ preventScroll: true });
+  }
+  function menuCtx(on) {
+    if (!E || (!on && !E.cmOn)) return;
+    E.cmOn = on; const m = E.el.querySelector('.lb-cm'); m.hidden = !on;
+    if (!on && m.contains(document.activeElement)) E.el.focus({ preventScroll: true });
+  }
 
   // ---------- the panel ----------
   const pxf = v => Math.round(v) + ' px';
@@ -2035,6 +2169,7 @@
   function nuevo(el) { mut(null, () => { const c = ensure(); c.els.push(el); E.sel = el.id; E.mas = []; E.crop = null; E.pick = null; }); }
   function act(a, b) {
     const x = E.sl.length ? cur() : null, col = () => String(b.dataset.c).toLowerCase();
+    if (E.cmOn) menuCtx(false);
     switch (a) {
       case 'cerrar': pedirCerrar(); return;
       case 'aplicar': aplicar(); return;
@@ -2131,6 +2266,7 @@
       case 'copy': copiar(); return;
       case 'sl-copy': copiar(true); return;
       case 'paste': pegar(); return;
+      case 'paste-est': pegarEstilo(); return;
       case 'lock': { const all = selEls().every(e => e.lock); onEl(el => { el.lock = !all; if (el.lock && E.crop === el.id) E.crop = null; }); return; }
       case 'del': {
         const ss = selEls(); if (!ss.length) return;
@@ -2157,6 +2293,7 @@
     if (E.menuOn && fuera('.lb-mas')) { menu(false); n = true; }
     if (!E.el.querySelector('.lb-atajos').hidden && fuera('.lb-atajos, [data-lb="atajos"]')) { atajos(false); n = true; }
     if (E.flm && fuera('.lb-fl')) { E.flm = false; barra(); n = true; }
+    if (E.cmOn && fuera('.lb-cm')) { menuCtx(false); n = true; }
     return n;
   }
   function onInput(t) {           // sliders and fields of the panel
@@ -2256,8 +2393,22 @@
     cv.addEventListener('pointermove', onMove);
     cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp);
     cv.addEventListener('dblclick', onDbl);
-    cv.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('wheel', onWheel, { passive: false });   // on the whole editor: a pinch never zooms the page
+    el.addEventListener('gesturestart', onGesto, { passive: false }); el.addEventListener('gesturechange', onGesto, { passive: false });   // Safari's pinch
     el.querySelectorAll('.lb-rx, .lb-ry').forEach(r => { r.addEventListener('pointerdown', guiaDown); r.addEventListener('pointermove', onMove); r.addEventListener('pointerup', onUp); r.addEventListener('pointercancel', onUp); });
+    const sc = E.scroll;           // the grey area around the slide
+    sc.addEventListener('pointerdown', grisDown, true);   // first: with space held, the slide doesn't take the click
+    sc.addEventListener('pointermove', grisMove); sc.addEventListener('pointerup', grisUp); sc.addEventListener('pointercancel', grisUp);
+    sc.addEventListener('dblclick', e => { if (!E || !gris(e) || E.busy || E.esp || !E.sl.length || escribiendo() || performance.now() - E.finEscr < 600) return; zoom(1); });
+    sc.addEventListener('scroll', () => menuCtx(false));
+    el.addEventListener('contextmenu', onCtx);
+    el.addEventListener('pointermove', e => { E && (E.ptr = { x: e.clientX, y: e.clientY }); }, true);
+    el.addEventListener('pointerleave', () => { if (E) E.ptr = null; });
+  }
+  function sinEspacio(e) {         // space let go (or ⌘, as a Mac sends no keyup for a key let go with ⌘ held; or the window left): no more hand
+    if (!E || !E.esp || (e.type === 'keyup' && e.key !== ' ' && e.key !== 'Meta')) return;
+    if (e.key === ' ') e.preventDefault();   // a focused button doesn't take it as a press
+    E.esp = false; mano();
   }
   function onKey(e) {
     if (!E) { window.removeEventListener('keydown', onKey, true); return; }
@@ -2271,7 +2422,7 @@
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const j = E.pvI + (e.key === 'ArrowLeft' ? -1 : 1); if (j >= 0 && j < E.sl.length) { E.pvI = j; pintarPv(); } }
       return;
     }
-    const t = e.target, typing = t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(t.type)));
+    const t = e.target, typing = esTexto(t);
     const mod = (e.metaKey || e.ctrlKey) && !e.altKey, k = String(e.key).toLowerCase();
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -2281,6 +2432,16 @@
       return;
     }
     if (typing) return;
+    if (E.cmOn && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {   // the right-click menu: the arrows go through its items
+      e.preventDefault();
+      const bs = [...E.el.querySelectorAll('.lb-cm button:not(:disabled)')], n = bs.length, j = bs.indexOf(document.activeElement), ab = e.key === 'ArrowDown';
+      if (n) bs[j < 0 ? (ab ? 0 : n - 1) : (j + (ab ? 1 : -1) + n) % n].focus();
+      return;
+    }
+    if (E.cmOn && !['Enter', 'Tab', ' ', 'Shift'].includes(e.key)) menuCtx(false);   // another key: the menu goes
+    const sola = !e.metaKey && !e.ctrlKey && !e.altKey, teclado = t && t !== E.el && t !== document.body && t.matches && t.matches(':focus-visible');
+    if (e.key === ' ' && sola && !E.cmOn && !teclado && sobreGris()) { e.preventDefault(); if (!E.esp) { E.esp = true; mano(); } return; }   // space over the slide or the grey: the hand
+    if (sola && !e.shiftKey && (k === 't' || k === 'r')) { if (E.sl.length && !e.repeat) { e.preventDefault(); if (k === 't') act('add-txt'); else act('add-forma', { dataset: { v: 'rect' } }); } return; }
     if (t && t.classList && t.classList.contains('lb-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!E.allEl.hidden) verTodas(false); elegir(+t.dataset.i); return; }
     if (mod && k === 'z') { e.preventDefault(); deshacer(!e.shiftKey); return; }
     if (mod && k === 'y') { e.preventDefault(); deshacer(false); return; }
@@ -2324,7 +2485,10 @@
     ['⌘P', 'zona del grid: en la portada, oscurece lo que el perfil de Instagram recorta al mostrarla en 3:4 (no sale al exportar)'],
     ['⌘] · ⌘[', 'adelante · atrás (con ⇧: al frente · al fondo)'],
     ['⌘Z', 'deshacer (⇧⌘Z: rehacer)'],
-    ['⌘+ · ⌘−', 'acercar · alejar (también pellizcando o con ⌘ + rueda) · ⌘0: entera'],
+    ['⌘+ · ⌘−', 'acercar · alejar (también pellizcando o con ⌘ + rueda, hacia el puntero) · ⌘0: entera'],
+    ['Espacio + arrastrar', 'mover la vista cuando hay zoom'],
+    ['Fuera de la diapositiva', 'clic: soltar la selección · arrastrar: elegir lo que quede dentro (con ⇧, sumarlo) · doble clic: ajustar · clic derecho: pegar y añadir'],
+    ['T · R', 'añadir un texto · un rectángulo'],
     ['⌘ al arrastrar', 'sin imán (con él, distancias en px, espacios y tamaños iguales en violeta, el centro de la diapositiva en verde discontinuo) · ⇧ al girar: de 15° en 15°'],
     ['Esc', 'soltar la selección o terminar de encuadrar'],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl><p>Suelta fotos del ordenador en la diapositiva o en la bandeja.</p>';
@@ -2410,6 +2574,7 @@
     if (I().locked) { I().toast(LOCKED); return; }
     const owner = E, files = [...(e.dataTransfer.files || [])], guardar = !!e.target.closest('.lb-tray'), t = guardar ? null : destino(e) || { i: null, p: null };
     if (!files.length) return;
+    if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }   // onto the grey while writing: nothing
     let go = files;
     if (!guardar) {       // onto a slide: the warning first (into the tray they just go in)
       const r = await avisar(files.filter(f => f && f.size).map(f => ({ f, name: f.name, size: f.size })), t.i != null ? t.i : E.i);
@@ -2440,7 +2605,8 @@
       const lejos = Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6;   // released far away before any move was seen: a drag too
       if (!drop || !(g || lejos)) return;
       E.noClick = true; setTimeout(() => { if (E === owner) E.noClick = false; }, 0);
-      const t = destino(ev); if (t) avisar(fotoIt([f]), t.i != null ? t.i : E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), t.p, t.i); });
+      const t = destino(ev); if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }
+      if (t) avisar(fotoIt([f]), t.i != null ? t.i : E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), t.p, t.i); });
     };
     const up = end(true), cancel = end(false);
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);

@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.16
+// Editor libre de diapositivas — Mesa de trabajo · v1.17
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -14,9 +14,11 @@
 //            r (corners, 0–1 of half the short side), marco (null|'polaroid'|'pelicula'|'cinta'), fit (margin while «Encajar» holds),
 //            pan ({id, n, k}: one of the n linked copies of a photo that crosses slides, on the k-th of them)
 //   'texto': txt, font {n, file (kits/…)|css}, peso, size (fraction of the width), color, al ('izq'|'cen'|'der'), lh, ls (em),
-//            may (capitals); h follows the text
+//            may (capitals); h follows the text; num ({f: 'a'|'b'|'c'}: automatic numbering, txt is its number for the slide's
+//            place, NUMF; never on the cover), pil ({c}: a pill behind the text, padded, its box's height)
 //   'logo':  src (a client's logo or sticker: protected file 'kit-<cliente>-logo-…'), fx, fy
-//   'forma': forma ('rect'|'elipse'|'linea'), color, r, b, bc
+//   'forma': forma ('rect'|'elipse'|'linea'|'flecha'), color, r, b, bc; a line or an arrow: trazo (null: continuous|'disc'|
+//            'punt'), puntas (an arrow: 'der'|'izq'|'dos'), its stroke h·H / TRAZO[forma] (an arrow's box is its heads' width)
 //   'hueco': a free photo hole (v1.9): color (its fill, null: none, the background shows), b, bc, r (as 'forma'), textos
 //            ([texto el]: its label and guide text, x, y, w, h fractions of the hole's area, size of the slide's width)
 //   a 'foto' that filled a hole carries it: hueco (the 'hueco' element as it was; deleting the photo gives it back)
@@ -75,11 +77,15 @@
 // Solo fotos (its holes, the slide's photos into them in order) / Todo; the slide keeps what it had (comp.previa) and
 // «Quitar plantilla» gives it back. An empty hole no longer stops «Aplicar» (the post can't go up), and a hole's label and
 // guide text never go into the drawn image.
+// v1.17 (mesa 3.42): «Numeración» on a text (02 / 7 · 2/7 · 02): its number is its slide's place among all of them, the
+// cover counts and never shows it; it follows every change of the slides, in the editor and in the mesa (the drawn images
+// are drawn again, sync); a post with texts like «02 / 11» offers to turn them into it. Arrows (one head or two), lines
+// with a stroke in px of 1080 (continuous, dashed, dotted) and pills (a text with a pill behind it).
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.16';
+  const VERSION = '1.17';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -126,6 +132,19 @@
   // a composition's signature for «changed?»: a text's height follows its font, which may load after opening, and its origin
   // (aProporcion) is not what it shows
   const firma = c => JSON.stringify(c, function (k, v) { return (k === 'h' && this && this.t === 'texto') || k === 'origen' ? undefined : v; });
+
+  // ---------- automatic numbering (v1.17) ----------
+  // a numbered text is its slide's place among all the post's slides, the cover counted; on the cover it shows nothing
+  const NUMF = { a: (n, t) => `${pad2(n)} / ${t}`, b: (n, t) => `${n}/${t}`, c: n => pad2(n) };
+  const numTxt = (e, i, n) => i ? (NUMF[e.num.f] || NUMF.a)(i + 1, n) : '';
+  const NUM_RE = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;   // a text written by hand like «02 / 11»: offered to become one (not a date like «28/10»)
+  const numAMano = t => { const m = NUM_RE.exec(String(t || '')); return !!m && +m[1] >= 1 && +m[1] <= +m[2] && +m[2] >= 2 && +m[2] <= 20; };
+  const numViejo = (comp, i, n) => !!comp && comp.els.some(e => e.t === 'texto' && e.num && e.txt !== numTxt(e, i, n));
+  function numerar(comp, i, n, W, H) {   // slide i of n: its numbered texts to its place; true if one changed
+    let c = false;
+    for (const e of comp.els) if (e.t === 'texto' && e.num) { const t = numTxt(e, i, n); if (e.txt !== t) { e.txt = t; ajustarTexto(e, W, H); c = true; } }
+    return c;
+  }
 
   // ---------- photo holes ----------
   // A hole is a 'hueco' element, or a photo frame with no photo. A photo dropped on a 'hueco' takes its place among the
@@ -257,7 +276,7 @@
   const MC = document.createElement('canvas').getContext('2d');   // measures texts outside any drawing
   const medir = (ctx, s, ls) => ctx.measureText(s).width + (HAS_LS || !ls ? 0 : ls * Math.max(0, [...s].length - 1));
   function lineas(ctx, el, W) {                // the text in lines that fit its box: by words, a word too long by letters
-    const px = (el.size || 0.06) * W, maxW = Math.max(1, el.w * W), ls = (el.ls || 0) * px;
+    const px = (el.size || 0.06) * W, pil = el.pil ? { x: PIL_X * px, y: PIL_Y * px } : null, maxW = Math.max(1, el.w * W - (pil ? 2 * pil.x : 0)), ls = (el.ls || 0) * px;
     ctx.font = fontCss(el, px); if (HAS_LS) ctx.letterSpacing = ls + 'px';
     const txt = String(el.txt ?? ''), out = [];
     for (const par of (el.may ? txt.toLocaleUpperCase('es') : txt).split('\n')) {
@@ -271,9 +290,11 @@
       }
       out.push(line);
     }
-    return { out, px, lh: px * (el.lh || 1.2), ls };
+    return { out, px, lh: px * (el.lh || 1.2), ls, pil };
   }
-  function ajustarTexto(el, W, H) { MC.save(); const L = lineas(MC, el, W); MC.restore(); el.h = r4(Math.max(L.lh, L.out.length * L.lh) / H); }   // its height follows its lines
+  const PIL_X = 0.6, PIL_Y = 0.3;              // a pill's padding around its text, in em
+  const altoTexto = L => Math.max(L.lh, L.out.length * L.lh) + (L.pil ? 2 * L.pil.y : 0);
+  function ajustarTexto(el, W, H) { MC.save(); const L = lineas(MC, el, W); MC.restore(); el.h = r4(altoTexto(L) / H); }   // its height follows its lines
 
   // ---------- textures (the same tiles in the editor and in «Aplicar») ----------
   const TEXS = { grano: 'Grano', papel: 'Papel', polvo: 'Polvo' };
@@ -355,16 +376,19 @@
   }
   function drawTexto(ctx, el, W, H, k, ph) {
     ctx.save();
-    const L = lineas(ctx, el, W), fw = el.w * W, fh = Math.max(L.lh, L.out.length * L.lh);
+    const L = lineas(ctx, el, W), fw = el.w * W, fh = altoTexto(L), px = L.pil ? L.pil.x : 0, py = L.pil ? L.pil.y : 0;
     ctx.translate(el.x * W + fw / 2, el.y * H + fh / 2);
     if (el.rot) ctx.rotate(el.rot * Math.PI / 180);
     ctx.globalAlpha *= el.op ?? 1;
-    if (el.sh > 0) sombra(ctx, el, W, k);
-    ctx.fillStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     const vacio = !L.out.some(s => s.trim());
-    if (vacio && ph) { ctx.fillStyle = 'rgba(128,128,128,.6)'; ctx.fillText('Texto', -fw / 2, -fh / 2 + (L.lh - L.px) / 2 + L.px * 0.8); }
+    if (L.pil && (!vacio || (ph && !el.num))) {   // the pill, as wide as the longest line (and its padding), takes the shadow; empty, only in the editor
+      const lw = Math.min(fw, Math.max(0, ...L.out.map(s => medir(ctx, s, L.ls))) + 2 * px), x0 = el.al === 'der' ? fw / 2 - lw : el.al === 'cen' ? -lw / 2 : -fw / 2;
+      ctx.save(); if (el.sh > 0) sombra(ctx, el, W, k); pathRR(ctx, x0, -fh / 2, lw, fh, Math.min(fh, L.lh + 2 * py) / 2); ctx.fillStyle = hexOk(el.pil.c) ? el.pil.c : '#ffffff'; ctx.fill(); ctx.restore();
+    } else if (el.sh > 0) sombra(ctx, el, W, k);
+    ctx.fillStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    if (vacio && ph) { ctx.fillStyle = 'rgba(128,128,128,.6)'; ctx.fillText(el.num ? 'Nº' : 'Texto', -fw / 2 + px, -fh / 2 + py + (L.lh - L.px) / 2 + L.px * 0.8); }   // a number on the cover: only its place, in the editor
     L.out.forEach((s, i) => {
-      const lw = medir(ctx, s, L.ls), x = el.al === 'der' ? fw / 2 - lw : el.al === 'cen' ? -lw / 2 : -fw / 2, y = -fh / 2 + i * L.lh + (L.lh - L.px) / 2 + L.px * 0.8;
+      const lw = medir(ctx, s, L.ls), x = el.al === 'der' ? fw / 2 - px - lw : el.al === 'cen' ? -lw / 2 : -fw / 2 + px, y = -fh / 2 + py + i * L.lh + (L.lh - L.px) / 2 + L.px * 0.8;
       if (HAS_LS || !L.ls) ctx.fillText(s, x, y);
       else { let cx = x; for (const ch of s) { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + L.ls; } }
     });
@@ -382,11 +406,25 @@
     else if (ph) { ctx.strokeStyle = 'rgba(128,128,128,.7)'; ctx.setLineDash([6, 5]); ctx.strokeRect(-fw / 2, -fh / 2, fw, fh); }
     ctx.restore();
   }
+  const TRAZO = { linea: 1, flecha: 4 };      // a line's or an arrow's box height, in strokes (an arrow's: its heads' width)
+  // a line or an arrow as one path (one fill, one shadow): its stroke t, continuous, dashed (3t, gaps of 2t) or dotted (dots
+  // of t, 2t apart), stretched so both ends are on a dash or a dot; an arrow's heads are as wide as its box
+  function trazo(ctx, el, fw, fh) {
+    const t = fh / TRAZO[el.forma], p = el.forma === 'flecha' ? el.puntas || 'der' : '', iz = p === 'izq' || p === 'dos', de = p === 'der' || p === 'dos';
+    const hl = p ? Math.min(fh * 0.9, fw / (iz && de ? 2.5 : 1.5)) : 0, a = -fw / 2 + (iz ? hl : 0), L = Math.max(0, fw - (iz ? hl : 0) - (de ? hl : 0));
+    ctx.beginPath();
+    if (el.trazo === 'disc') { const n = Math.max(1, Math.round((L + 2 * t) / (5 * t))), s = L / (5 * n * t - 2 * t); for (let i = 0; i < n; i++) ctx.rect(a + i * 5 * t * s, -t / 2, 3 * t * s, t); }
+    else if (el.trazo === 'punt') { const r = t / 2, n = L > t ? Math.max(2, Math.round((L - t) / (2 * t)) + 1) : 1, sp = n > 1 ? (L - t) / (n - 1) : 0; for (let i = 0; i < n; i++) { const cx = n > 1 ? a + r + i * sp : a + L / 2; ctx.moveTo(cx + r, 0); ctx.arc(cx, 0, r, 0, Math.PI * 2); } }
+    else ctx.rect(a - (iz ? 1 : 0), -t / 2, L + (iz ? 1 : 0) + (de ? 1 : 0), t);   // into the heads: no seam
+    if (de) { ctx.moveTo(fw / 2, 0); ctx.lineTo(fw / 2 - hl, fh / 2); ctx.lineTo(fw / 2 - hl, -fh / 2); ctx.closePath(); }   // all wound alike: the overlaps fill
+    if (iz) { ctx.moveTo(-fw / 2, 0); ctx.lineTo(-fw / 2 + hl, -fh / 2); ctx.lineTo(-fw / 2 + hl, fh / 2); ctx.closePath(); }
+  }
   function drawForma(ctx, el, W, H, k) {
     const fw = el.w * W, fh = el.h * H; if (fw < 0.5 || fh < 0.5) return;
     ctx.save(); ctx.translate(el.x * W + fw / 2, el.y * H + fh / 2);
     if (el.rot) ctx.rotate(el.rot * Math.PI / 180);
     ctx.globalAlpha *= el.op ?? 1;
+    if (TRAZO[el.forma]) { if (el.sh > 0) sombra(ctx, el, W, k); trazo(ctx, el, fw, fh); ctx.fillStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.fill(); ctx.restore(); return; }
     const path = () => { if (el.forma === 'elipse') { ctx.beginPath(); ctx.ellipse(0, 0, fw / 2, fh / 2, 0, 0, Math.PI * 2); } else pathRR(ctx, -fw / 2, -fh / 2, fw, fh, el.forma === 'linea' ? 0 : (el.r || 0) * Math.min(fw, fh) / 2); };
     ctx.save(); if (el.sh > 0) sombra(ctx, el, W, k); path(); ctx.fillStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.fill(); ctx.restore();
     if (el.b > 0 && el.forma !== 'linea') { path(); ctx.save(); ctx.clip(); ctx.lineWidth = el.b * W * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#000000'; ctx.stroke(); ctx.restore(); }
@@ -466,8 +504,13 @@
   function textoEl(color) { const f = (E.fuentes && E.fuentes[0]) || FUENTES_MAC[0]; return { id: uid(), t: 'texto', txt: 'Escribe aquí', x: 0.1, y: 0.42, w: 0.8, h: 0.1, ...base, font: { n: f.n, ...(f.file ? { file: f.file, w: f.w } : { css: f.css }) }, peso: 400, size: 0.075, color, al: 'cen', lh: 1.15, ls: 0, may: false }; }
   function formaEl(forma, W, H) {
     const s = 0.4 * W;
-    if (forma === 'linea') return { id: uid(), t: 'forma', forma, x: 0.15, y: r4(0.5 - 3 / H), w: 0.7, h: r4(6 / H), ...base, color: '#ffffff', r: 0, b: 0, bc: '#000000' };
+    if (TRAZO[forma]) { const h = 6 * TRAZO[forma] / H; return { id: uid(), t: 'forma', forma, x: 0.15, y: r4(0.5 - h / 2), w: 0.7, h: r4(h), ...base, color: '#ffffff', r: 0, b: 0, bc: '#000000', ...(forma === 'flecha' ? { puntas: 'der' } : {}) }; }   // a stroke of 6 px (of 1440)
     return { id: uid(), t: 'forma', forma, x: r4((W - s) / 2 / W), y: r4((H - s * (forma === 'rect' ? 0.6 : 1)) / 2 / H), w: 0.4, h: r4(s * (forma === 'rect' ? 0.6 : 1) / H), ...base, color: '#ffffff', r: 0, b: 0, bc: '#000000' };
+  }
+  function pildoraEl() {              // a short text with a pill behind it, centred: white on a photo or a dark background, else black
+    const c = compAt(E.i), { W, H } = sizeAt(E.i), claro = fotosDe(c).length > 0 || lum(hexOk(c.bg) ? c.bg : '#ffffff') < 0.4;
+    const el = Object.assign(textoEl(claro ? '#000000' : '#ffffff'), { txt: 'Etiqueta', size: 0.035, x: 0.3, w: 0.4, pil: { c: claro ? '#ffffff' : '#000000' } });
+    ajustarTexto(el, W, H); el.y = r4(0.5 - el.h / 2); return el;
   }
   function logoEl(src, W, H) { const f = M.files[src] || { w: 1, h: 1 }, w = 0.25 * W, h = w * f.h / f.w; return { id: uid(), t: 'logo', src, x: r4((W - w) / 2 / W), y: r4((H - h) / 2 / H), w: 0.25, h: r4(h / H), ...base, fx: false, fy: false }; }
   // the photo as the mesa shows it now (a new format centres it, as the mesa does)
@@ -536,10 +579,12 @@
       need(!dz || ((I().isCarousel(s.type) || I().isReel(s.type)) && s.photos.length && I().same(s.photos, (dz.out || []).filter(Boolean))), 'Aplica antes el diseño en «Diseñar»: el editor trabaja sobre sus imágenes.');
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
+      need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
       await I().loadThumbs([...s.photos, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray]);
       need(I().S === S && S.slots.includes(s) && (s.design || null) === dz && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Editar».');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
+      need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
       const marca = I().histMarca ? I().histMarca() : null;   // the whole session is one step of the mesa's ⌘Z
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
@@ -561,10 +606,12 @@
       repararPan(); E.sl.forEach((x, i) => { if (x.comp && x.base === b0[i]) x.base = firma(x.comp); });
       E.sl.forEach((x, i) => { if (x.comp) { const d = x.out && M.files[x.key], { W, H } = sizeAt(i); x.rat = d ? d.w / d.h : W / H; } });   // the proportion its texts are placed for: the one it was drawn in
       recolocar();                                         // a slide drawn in another proportion (its post changed type or format): its texts to their place now
+      renumerar();                                         // its numbers, if its slides moved in the mesa (sync draws them again; if not, «Aplicar»)
       if (opts.fmt && FMTS[opts.fmt]) formatoEd(opts.fmt, true);
       injectCSS();
       build(s);
       cargarCliente();
+      ofrecerNumeros();
       if (opts.fmt) I().toast('Formato cambiado en el editor: pulsa «Aplicar a la casilla» para redibujar las diapositivas editadas.', { ms: 7000 });
       else if (dz) I().toast(E.reel ? 'Reel diseñado: su portada entra como imagen. Si aplicas cambios, el diseño queda fijado así y su foto vuelve a la bandeja (⌘Z en la mesa lo deshace).' : 'Carrusel diseñado: sus diapositivas entran como imagen. Si aplicas cambios, el diseño queda fijado así y sus fotos vuelven a la bandeja (⌘Z en la mesa lo deshace).', { ms: 9000 });
       return { ok: true, slot: s.id, diapositivas: E.sl.length };
@@ -574,6 +621,21 @@
       if (I() && I().toast) I().toast(m);
       return { error: m };
     }
+  }
+  // texts written by hand like «02 / 11»: one question to make them all automatic («Ahora no»: not again for this post here)
+  const SIN_NUM = new Set();
+  function ofrecerNumeros() {
+    const key = E.board.key + ':' + E.slotId; if (SIN_NUM.has(key) || E.sl.length < 2) return;
+    const ts = []; E.sl.forEach((x, i) => { if (x.comp) x.comp.els.forEach(e => { if (e.t === 'texto' && !e.num && !e.oculto && numAMano(e.txt)) ts.push([i, e.id, e.txt.trim()]); }); });
+    if (!ts.length) return;
+    const portada = ts.some(([i]) => !i);
+    preguntar(ts.length === 1 ? `¿Numerar «${ts[0][2]}» automáticamente?` : `¿Numerar automáticamente los ${ts.length} textos como «${ts[0][2]}»?`,
+      `El número pasa a ser la posición de su diapositiva y el total, portada incluida, y se pone al día solo al añadir, borrar, mover o duplicar diapositivas.${portada ? ' En la portada no se ve: la portada nunca lleva número.' : ''}`,
+      [['seguir', 'Ahora no', 'btn2'], ['num', 'Convertir', 'btn']], v => {
+        if (v !== 'num') { SIN_NUM.add(key); return; }
+        mut(null, () => ts.forEach(([i, id, t]) => { const e = E.sl[i] && E.sl[i].comp && E.sl[i].comp.els.find(q => q.id === id); if (e) e.num = { f: /\s\/|\/\s|^0/.test(t) ? 'a' : 'b' }; }));   // spaced or with its zero: «02 / 7»
+      });
+    E.askNo = () => SIN_NUM.add(key);
   }
   function blankSlide(bg) { const comp = { bg, velo: null, els: [] }; return { key: null, out: false, from: null, comp, raw: null, base: null, fmt: E && !E.car ? (E.reel ? 'r916' : 'v45') : null, fmt0: null }; }
   function cerrar(silent) {
@@ -606,9 +668,26 @@
   }
   function cerrarPregunta() { if (E && E.ask) { const no = E.askNo; E.askNo = null; E.ask.remove(); E.ask = null; if (no) no(); } }   // askNo: a warning closed without an answer (Esc) is Cancelar
   function sync() {     // called on every mesa render: the editor closes when its board or post is gone
+    numerosMesa();
     if (!E || E.busy) return;
     if (!curSlot()) { cerrar(true); if (I() && I().toast) I().toast('El editor se ha cerrado: la publicación cambió o ya no está en la mesa.'); }
     else bandeja();
+  }
+
+  // a post whose slides changed in the mesa (moved, added, taken out, a new cover) with numbered texts no longer at their place:
+  // its drawn images are drawn again (redibujar), once for each order of its photos
+  const NUM_VISTO = new Map();
+  function numerosMesa() {
+    const S = I() && I().S;
+    if (!S || APL || (E && E.busy) || I().locked || (I().uploadsBusy && I().uploadsBusy()) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return;
+    let n = 0;
+    for (const s of S.slots) {
+      if (s.design || !s.photos.length || (E && E.board === S && E.slotId === s.id)) continue;   // the open post: the editor numbers it
+      const k = S.key + ':' + s.id, sig = s.photos.join('|'); if (NUM_VISTO.get(k) === sig) continue;
+      NUM_VISTO.set(k, sig);
+      if (s.photos.some((key, j) => { const f = compOf(S, key); return f && numViejo(f.comp, j, s.photos.length); })) { NUMQ.add(s.id); n++; }
+    }
+    if (n) drenar();
   }
 
   // ---------- the client's colours, fonts, templates and logos (kit JSON + client record c.libre) ----------
@@ -717,7 +796,9 @@
     todo();
   }
   function mut(tag, fn, quiet) { paso(tag); fn(); despues(quiet); }
+  function renumerar() { const n = E.sl.length; E.sl.forEach((x, i) => { if (x.comp) { const { W, H } = sizeAt(i); numerar(x.comp, i, n, W, H); } }); }   // after every change: slides added, deleted, moved, duplicated or pasted
   function despues(quiet) {
+    renumerar();
     if (repararPan()) I().toast('La foto que cruzaba diapositivas se ha separado: cada diapositiva conserva su parte.', { ms: 6000 });
     enlazar(); recolocar();
     E.reMini = true; pedir(); head(); if (!quiet) { panel(); lista(); bandeja(); }
@@ -1092,7 +1173,7 @@
   // ---------- geometry (slide units: OUT_W wide) ----------
   const HANDLES = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
   function asas(el, g) {           // a logo only scales; a text scales from the corners and changes its width from the sides; a line only stretches
-    if (el.t === 'forma' && el.forma === 'linea') return HANDLES.filter(([a, b]) => a && !b);
+    if (el.t === 'forma' && TRAZO[el.forma]) return HANDLES.filter(([a, b]) => a && !b);
     const big = Math.min(g.w, g.h) * E.k >= 46;
     return HANDLES.filter(([a, b]) => el.t === 'logo' ? a && b : el.t === 'texto' ? a && (b || g.w * E.k >= 46) : (a && b) || big);
   }
@@ -1747,9 +1828,9 @@
 
   // ---------- the panel ----------
   const pxf = v => Math.round(v) + ' px';
-  const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2) };
+  const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2), gr: v => String(Math.round(v * 2) / 2).replace('.', ',') + ' px' };
   const rng = (act, label, v, min, max, step) => `<label class="lb-rng"><span>${label}</span><input type="range" data-lb="${act}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${OUTF[act](v)}</output></label>`;
-  const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', bc: 'borde', 'velo-c': 'velo' };
+  const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', pc: 'relleno', bc: 'borde', 'velo-c': 'velo' };
   function sws(act, curC) {        // «Kit <marca>» (its groups for this picker) and «Básicos»; a colour shows once, where it first appears
     const seen = new Set(), uso = USO[act], cc = hexOk(curC) ? curC.toLowerCase() : '#ffffff';
     const nuevos = os => os.filter(o => !seen.has(o.c) && seen.add(o.c));
@@ -1772,9 +1853,9 @@
     return out;
   }
   const NOMBRE = { foto: 'Foto', texto: 'Texto', logo: 'Logo', forma: 'Forma' };
-  const FORMAS = { rect: 'Rectángulo', elipse: 'Círculo', linea: 'Línea' };
+  const FORMAS = { rect: 'Rectángulo', elipse: 'Círculo', linea: 'Línea', flecha: 'Flecha' };
   function nombreEl(e) {
-    if (e.t === 'texto') { const t = String(e.txt || '').replace(/\s+/g, ' ').trim(); return `Texto <i>«${esc(t.length > 24 ? t.slice(0, 23) + '…' : t || 'vacío')}»</i>`; }
+    if (e.t === 'texto') { const t = String(e.txt || '').replace(/\s+/g, ' ').trim(); return `${e.num ? 'Numeración' : e.pil ? 'Píldora' : 'Texto'} <i>${e.num && !t ? 'oculta en la portada' : `«${esc(t.length > 24 ? t.slice(0, 23) + '…' : t || 'vacío')}»`}</i>`; }
     if (e.t === 'forma') return FORMAS[e.forma] || 'Forma';
     if (e.t === 'hueco') return 'Hueco de foto';
     if (e.t === 'logo') return `Logo <i>${esc((M.files[e.src] || {}).name || '')}</i>`;
@@ -1790,6 +1871,7 @@
       + `<button type="button" data-lb="cap-lock" data-id="${esc(e.id)}" title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>`
       + `<button type="button" data-lb="cap-up" data-id="${esc(e.id)}" title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" data-id="${esc(e.id)}" title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button></div>`).join('')}</div>`);
   }
+  const grosor = el => Math.round(el.h * sizeAt(E.i).H * PX / TRAZO[el.forma] * 2) / 2;   // a line's or an arrow's stroke, in px of 1080
   function medidasHTML(el) {
     const { H } = sizeAt(E.i), v = (a, val, dis) => `<label>${a}<input type="number" class="lb-num" data-lb="m${a.toLowerCase()}" step="1" value="${Math.round(val)}"${dis ? ' disabled' : ''}></label>`;
     return plegable('medidas', 'Medidas exactas', 'en píxeles', `<div class="lb-nums">${v('X', el.x * 1080)}${v('Y', el.y * H * PX)}${v('An', el.w * 1080)}${v('Al', el.h * H * PX, el.t === 'texto')}</div>`
@@ -1842,13 +1924,16 @@
       } else if (el.t === 'texto') {
         const css = !(el.font && el.font.file);
         const est = E.estilos.length ? estiloDe(el) : null;
-        h += `<div class="lb-sec"><h4>Texto <span>· doble clic en el texto para escribir</span></h4><textarea class="lb-ta" data-lb="txt" rows="3" aria-label="Texto">${esc(el.txt || '')}</textarea>`
+        const n = E.sl.length, k = Math.max(2, E.i + 1);   // the formats, with this slide's number (on the cover, the 2nd's)
+        h += `<div class="lb-sec"><h4>${el.num ? 'Numeración' : el.pil ? 'Píldora' : 'Texto'} <span>· ${el.num ? (E.i ? 'automática' : 'oculta en la portada') : 'doble clic en el texto para escribir'}</span></h4>`
+          + (el.num ? `${seg('num-f', Object.entries(NUMF).map(([f, fn]) => [f, fn(k, n)]), el.num.f)}<p class="lb-p">${E.i ? 'Es la posición de esta diapositiva y el total, portada incluida; se pone al día sola al añadir, borrar, mover o duplicar diapositivas.' : 'La portada nunca lleva número: aquí no se ve, y vuelve a verse si la diapositiva deja de ser la primera.'}</p><div class="lb-btns"><button type="button" class="btn2" data-lb="num" data-v="" title="Queda como un texto normal, con el número de ahora">Quitar numeración</button></div>`
+            : `<textarea class="lb-ta" data-lb="txt" rows="3" aria-label="Texto">${esc(el.txt || '')}</textarea>` + (E.i ? '<div class="lb-btns"><button type="button" class="btn2" data-lb="num" data-v="a" title="El texto pasa a ser el número de la diapositiva y el total (02 / 7) y se pone al día solo">Numeración</button></div>' : ''))
           + (E.estilos.length ? `<span class="lb-l">Estilo de la marca</span><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2${est && est.k === st.k ? ' on' : ''}" data-lb="est" data-v="${esc(st.k)}" title="Fuente, tamaño, interlineado y espaciado de «${esc(st.n)}» del kit">${esc(st.n)}</button>`).join('')}</div>` : '')
           + `<span class="lb-l">Fuente</span>${fuenteSel(el)}${rng('size', 'Tamaño', el.size || 0.06, 0.015, 0.25, 0.001)}`
           + (css ? `<span class="lb-l">Grosor</span>${seg('peso', [['300', 'Fina'], ['400', 'Normal'], ['600', 'Semi'], ['700', 'Negrita']], String(el.peso || 400))}` : '')
           + `<span class="lb-l">Alineación</span><div class="lb-btns" style="margin-top:0">${seg('al', [['izq', 'Izquierda'], ['cen', 'Centro'], ['der', 'Derecha']], el.al || 'izq')}<button type="button" class="btn2${el.may ? ' on' : ''}" data-lb="may" title="Todo en mayúsculas">MAYÚS</button></div>`
           + `${rng('lh', 'Interlineado', el.lh || 1.2, 0.7, 2.2, 0.01)}${rng('ls', 'Espaciado', el.ls || 0, -0.1, 0.6, 0.005)}`
-          + `<span class="lb-l">Color</span>${sws('tc', el.color || '#ffffff')}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
+          + `<span class="lb-l">Color</span>${sws('tc', el.color || '#ffffff')}<span class="lb-l">Píldora</span>${seg('pil', [['', 'Sin píldora'], ['1', 'Con píldora']], el.pil ? '1' : '')}${el.pil ? sws('pc', el.pil.c) : ''}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
         h += girarHTML(el, false);
       } else if (el.t === 'logo') {
         h += `<div class="lb-sec"><h4>Logo <span>· ${esc((M.files[el.src] || {}).name || '')}</span></h4>${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}<p class="lb-p">Las esquinas lo escalan sin deformarlo.</p></div>`;
@@ -1857,8 +1942,11 @@
         h += `<div class="lb-sec"><h4>Hueco de foto <span>· libre</span></h4><div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>`
           + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa, a sangre llenando el hueco y dentro del margen entera. Si luego la borras, el hueco vuelve.</p></div>';
       } else {
-        h += `<div class="lb-sec"><h4>${FORMAS[el.forma] || 'Forma'}</h4><span class="lb-l" style="margin-top:0">Relleno</span>${sws('fc', el.color || '#ffffff')}`
-          + (el.forma !== 'linea' ? `${rng('b', 'Borde', el.b || 0, 0, 0.03, 0.0005)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#000000')}` : '')
+        const tr = TRAZO[el.forma];
+        h += `<div class="lb-sec"><h4>${FORMAS[el.forma] || 'Forma'}</h4><span class="lb-l" style="margin-top:0">${tr ? 'Color' : 'Relleno'}</span>${sws('fc', el.color || '#ffffff')}`
+          + (tr ? rng('gr', 'Grosor', grosor(el), 1, 60, 0.5) + `<span class="lb-l">Trazo</span>${seg('trazo', [['', 'Continuo'], ['disc', 'Discontinuo'], ['punt', 'Punteado']], el.trazo || '')}`
+              + (el.forma === 'flecha' ? `<span class="lb-l">Puntas</span>${seg('puntas', [['der', 'Una →'], ['izq', 'Una ←'], ['dos', 'Las dos ↔']], el.puntas || 'der')}` : '')
+            : `${rng('b', 'Borde', el.b || 0, 0, 0.03, 0.0005)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#000000')}`)
           + (el.forma === 'rect' ? rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01) : '') + `${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
         h += girarHTML(el, false);
       }
@@ -1866,7 +1954,7 @@
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
-      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add">+ Foto</button><button type="button" class="btn2" data-lb="add-txt">+ Texto</button><button type="button" class="btn2" data-lb="add-forma" data-v="rect">+ Rectángulo</button><button type="button" class="btn2" data-lb="add-forma" data-v="elipse">+ Círculo</button><button type="button" class="btn2" data-lb="add-forma" data-v="linea">+ Línea</button>${pegarHTML()}<button type="button" class="btn2" data-lb="sl-copy" title="⌘C sin nada elegido: con su fondo, velo y textura, para pegarla en esta u otra publicación">Copiar diapositiva</button>`
+      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add">+ Foto</button><button type="button" class="btn2" data-lb="add-txt">+ Texto</button><button type="button" class="btn2" data-lb="add-forma" data-v="rect">+ Rectángulo</button><button type="button" class="btn2" data-lb="add-forma" data-v="elipse">+ Círculo</button><button type="button" class="btn2" data-lb="add-forma" data-v="linea">+ Línea</button><button type="button" class="btn2" data-lb="add-forma" data-v="flecha">+ Flecha</button><button type="button" class="btn2" data-lb="add-pil">+ Píldora</button>${pegarHTML()}<button type="button" class="btn2" data-lb="sl-copy" title="⌘C sin nada elegido: con su fondo, velo y textura, para pegarla en esta u otra publicación">Copiar diapositiva</button>`
         + (!isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
         + (c.els.length ? '<p class="lb-p">Clic en un elemento para moverlo, girarlo o darle estilo.</p>' : '') + '</div>';
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
@@ -2222,6 +2310,13 @@
       case 'tr-add': { const owner = E; avisar(fotoIt([b.dataset.f]), E.i).then(r => { if (r && r.length && E === owner) ponerFotos(r.map(x => x.f), null, null); }); return; }
       case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#000000')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
+      case 'add-pil': nuevo(pildoraEl()); return;
+      case 'num': { const f = b.dataset.v; if (f && !E.i) return; onEl(el => { if (el.t !== 'texto') return; if (f) el.num = { f }; else delete el.num; }); return; }   // never on the cover; taken off, the text keeps its number as it is
+      case 'num-f': onEl(el => { if (el.t === 'texto' && el.num && NUMF[b.dataset.v]) el.num.f = b.dataset.v; }); return;
+      case 'pil': { const { W, H } = sizeAt(E.i); onEl(el => { if (el.t !== 'texto') return; if (b.dataset.v) el.pil = { c: (el.pil && el.pil.c) || (lum(hexOk(el.color) ? el.color : '#ffffff') > 0.4 ? '#000000' : '#ffffff') }; else delete el.pil; ajustarTexto(el, W, H); }); return; }
+      case 'pc': onEl(el => { if (el.t === 'texto' && el.pil) el.pil.c = col(); }, 'pc'); return;
+      case 'trazo': onEl(el => { if (el.t !== 'forma' || !TRAZO[el.forma]) return; if (b.dataset.v) el.trazo = b.dataset.v; else delete el.trazo; }); return;
+      case 'puntas': onEl(el => { if (el.t === 'forma' && el.forma === 'flecha') el.puntas = b.dataset.v; }); return;
       case 'add-est': { const el = textoMarca(b.dataset.v); if (el) nuevo(el); return; }
       case 'est': { const st = E.estilos.find(q => q.k === b.dataset.v); if (st) onEl(el => { if (el.t === 'texto') conEstilo(el, st); }); return; }
       case 'logo': if (M.files[b.dataset.f]) nuevo(logoEl(b.dataset.f, E.sz.W, E.sz.H)); return;
@@ -2309,7 +2404,7 @@
   }
   function onInput(t) {           // sliders and fields of the panel
     const a = t.dataset.lb;
-    if (a === 'txt') { const v = t.value; onEl(el => { if (el.t === 'texto') { el.txt = v; ajustarTexto(el, E.sz.W, E.sz.H); } }, 'txt', true); return; }
+    if (a === 'txt') { const v = t.value; onEl(el => { if (el.t === 'texto' && !el.num) { el.txt = v; ajustarTexto(el, E.sz.W, E.sz.H); } }, 'txt', true); return; }
     if (a === 'font') { const f = E.fuentes[+t.value]; if (!f) return; onEl(el => { if (el.t !== 'texto') return; el.font = { n: f.n, ...(f.file ? { file: f.file, w: f.w } : { css: f.css }) }; ajustarTexto(el, E.sz.W, E.sz.H); }); return; }
     const v = +t.value;
     if (OUTF[a] && t.nextElementSibling) t.nextElementSibling.textContent = OUTF[a](v);
@@ -2326,6 +2421,7 @@
       case 'z': onEl(el => setPhoto(el, { z: v }), 'z', true); return;
       case 'fit': onEl(el => { if (el.t === 'foto') encajar(el, v); }, 'fit', true); return;
       case 'size': onEl(el => { if (el.t === 'texto') { el.size = v; ajustarTexto(el, W, H); } }, 'size', true); syncNums(selEl()); return;
+      case 'gr': { const Hs = sizeAt(E.i).H; onEl(el => { const f = el.t === 'forma' && TRAZO[el.forma]; if (!f) return; const h0 = el.h; el.h = r4(v * f / (Hs * PX)); el.y = r4(el.y + (h0 - el.h) / 2); }, 'gr', true); syncNums(selEl()); return; }   // around its centre
       case 'lh': onEl(el => { if (el.t === 'texto') { el.lh = v; ajustarTexto(el, W, H); } }, 'lh', true); return;
       case 'ls': onEl(el => { if (el.t === 'texto') { el.ls = v; ajustarTexto(el, W, H); } }, 'ls', true); return;
       case 'rot': if (Number.isFinite(v)) onEl(el => { el.rot = clamp(Math.round(v * 10) / 10, -180, 180); delete el.fit; if (el.t !== 'foto') el.mano = true; }, 'rot', true); return;
@@ -2412,7 +2508,7 @@
         tt.forEach((e, k) => {
           const d = st[k];
           if (d) { ESTILO_T.forEach(p => { if (e[p] !== undefined) d[p] = clone(e[p]); else delete d[p]; }); delete d.mano; return; }
-          const n = { ...clone(e), id: uid(), txt: e === mayor ? 'Titular' : 'Texto' }; delete n.g; delete n.mano; delete n.lock;
+          const n = { ...clone(e), id: uid(), txt: e === mayor ? 'Titular' : 'Texto' }; delete n.g; delete n.mano; delete n.lock; delete n.num; delete n.pil;
           c.els.push(n);
         });
       } else if (modo === 'fotos') {
@@ -2430,6 +2526,7 @@
       delete c.origen;             // where the template put things is where a change of proportion starts from
       c.previa = antes;
       mantenerRat(cur(), E.i);     // a frame given a format keeps it on a slide of another format
+      renumerar();                 // its numbered texts to this slide's place before its signature
       antes.tras = firmaSin(c);    // the slide as the template left it: changed since, «Quitar plantilla» asks
       soltar(); E.crop = null;
     });
@@ -2791,7 +2888,7 @@
       const S = I().S; need(S, 'No hay ninguna mesa abierta.');
       need(!I().locked, LOCKED);
       const s = S.slots.find(x => x.id === slotId); need(s && I().isCarousel(s.type) && !s.design, 'Esa publicación ya no está en la mesa.');
-      need(!(E && E.busy) && !APL, 'Espera: el editor está aplicando una publicación.');
+      need(!(E && E.busy) && !APL, 'Espera: el editor está dibujando una publicación.');
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
       need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
       ids = [...new Set(ids || [])].filter(f => M.files[f] && !M.files[f].design && !isKit(f) && !s.photos.includes(f));
@@ -2864,31 +2961,48 @@
   // proportion is drawn again from its composition (texts to their place, as a format change in the editor; «Encajar»
   // and «Transformar» hold). Part of the type change in the mesa's ⌘Z. Asked while something is being drawn, or when the
   // type changes again meanwhile, it runs again once that is over.
-  const REDO = new Set();
-  function drenar() { if (!APL && !(E && E.busy) && REDO.size) { const ids = [...REDO]; REDO.clear(); setTimeout(() => ids.forEach(id => redibujar(id)), 0); } }   // what waited, once nothing is being drawn
-  async function redibujar(slotId) {
+  const REDO = new Set(), NUMQ = new Set();   // posts waiting to be drawn again: in their new format · with their numbers
+  function drenar() {   // what waited, once nothing is being drawn (a new format also brings its numbers up to date)
+    if (APL || (E && E.busy) || !(REDO.size || NUMQ.size)) return;
+    const ids = [...REDO], ns = [...NUMQ].filter(id => !REDO.has(id)); REDO.clear(); NUMQ.clear();
+    setTimeout(() => { ids.forEach(id => redibujar(id)); ns.forEach(id => redibujar(id, true)); }, 0);
+  }
+  async function redibujar(slotId, soloNum) {   // soloNum: only its numbers (numerosMesa), every slide keeps its own format
     let counted = false;
-    const made = [];
+    const made = [], cola = soloNum ? NUMQ : REDO;
     try {
       const S = I() && I().S, s = S && S.slots.find(x => x.id === slotId);
-      if (!s || s.design || !s.libre || !s.photos.length || I().locked) return { ok: true, cambios: 0 };
-      if ((E && E.busy) || APL) { REDO.add(slotId); return { ok: true, pendiente: true }; }
+      if (!s || s.design || !s.photos.length || I().locked || !(s.libre || (soloNum && s.photos.some(k => compOf(S, k))))) return { ok: true, cambios: 0 };   // its numbered images may be another post's compositions
+      if ((E && E.busy) || APL) { cola.add(slotId); return { ok: true, pendiente: true }; }
+      if (soloNum && ((E && E.board === S && E.slotId === slotId) || I().uploadsBusy() || (M.diseno && M.diseno.aplicando && M.diseno.aplicando()))) { NUM_VISTO.delete(S.key + ':' + slotId); return { ok: true, pendiente: true }; }   // the open editor numbers it; busy: looked at again on the next render
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
       need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
       const photos0 = s.photos.slice(), d0 = M.files[photos0[0]] || { w: 4, h: 5 };
       const W = OUT_W, H = Math.round(OUT_W / I().fmtRatio(I().cropOf(photos0[0], s).fmt, d0.w, d0.h)), R = W / H;   // the format the mesa shows the post in
-      const sl = photos0.map(key => { const f = compOf(S, key), d = M.files[key]; return f && d && Math.abs(d.w / d.h - R) > 0.005 ? { key, from: f.s !== s ? f.s : null, comp: migrado(clone(f.comp)), H0: Math.round(W * d.h / d.w) } : null; });
+      const n = photos0.length, sl = photos0.map((key, j) => {
+        const f = compOf(S, key), d = M.files[key]; if (!f || !d) return null;
+        const prop = !soloNum && Math.abs(d.w / d.h - R) > 0.005;   // drawn in another format; or its numbers are not its place now
+        return prop || numViejo(f.comp, j, n) ? { key, from: f.s !== s ? f.s : null, comp: migrado(clone(f.comp)), H0: Math.round(W * d.h / d.w), prop } : null;
+      });
       if (!sl.some(Boolean)) return { ok: true, cambios: 0 };
-      APL++; counted = true; I().setBusy('dz', 'Dibujando en el formato nuevo…');
+      const solo = !sl.some(x => x && x.prop);             // only its numbering
+      APL++; counted = true; I().setBusy('dz', solo ? 'Poniendo al día la numeración…' : 'Dibujando en el formato nuevo…');
       const outs = photos0.slice(), tipo0 = s.type, reel = I().isReel(tipo0);
       for (let j = 0; j < sl.length; j++) {
         const x = sl[j]; if (!x) continue;
-        aProporcion(x.comp, W, x.H0, H);
-        fotosDe(x.comp).forEach(e => { if (!e.src) return; if (e.fit != null) encajarWH(e, e.fit, W, H); else if (e.rat && RVAL[e.rat]) marcoRat(e, RVAL[e.rat], e.w * W * e.h * H, W, H); });
-        outs[j] = await guardarImagen(await dibujar(x.comp, W, H), reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(j + 1)}.jpg`); made.push(outs[j]);
+        const Hj = x.prop ? H : x.H0;
+        if (x.prop) {
+          aProporcion(x.comp, W, x.H0, H);
+          fotosDe(x.comp).forEach(e => { if (!e.src) return; if (e.fit != null) encajarWH(e, e.fit, W, H); else if (e.rat && RVAL[e.rat]) marcoRat(e, RVAL[e.rat], e.w * W * e.h * H, W, H); });
+        }
+        numerar(x.comp, j, n, W, Hj);
+        outs[j] = await guardarImagen(await dibujar(x.comp, W, Hj), reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(j + 1)}.jpg`); made.push(outs[j]);
       }
       if (I().S === S && S.slots.includes(s) && s.type !== tipo0) { for (const f of made.splice(0)) { try { await I().deleteIfUnused(f); } catch (e) { /* */ } } REDO.add(slotId); return { ok: true, pendiente: true }; }   // its type changed again: drawn for the type it has now
-      if (!(I().S === S && S.slots.includes(s) && I().same(s.photos, photos0) && !s.design && !I().locked)) throw new LbError(`${s.name} cambió mientras se dibujaba: ábrela en «Editar» y aplica para pasarla al formato nuevo.`);
+      if (!(I().S === S && S.slots.includes(s) && I().same(s.photos, photos0) && !s.design && !I().locked)) {
+        if (solo) { for (const f of made.splice(0)) { try { await I().deleteIfUnused(f); } catch (e) { /* */ } } if (I().S === S && S.slots.includes(s)) cola.add(slotId); return { ok: true, pendiente: true }; }   // its numbers: again, for what it has now
+        throw new LbError(`${s.name} cambió mientras se dibujaba: ábrela en «Editar» y aplica para pasarla al formato nuevo.`);
+      }
       const lib = { ...entries(s) };
       sl.forEach((x, j) => {
         if (!x) return;
@@ -2899,7 +3013,7 @@
       APL--; counted = false; I().setBusy('dz', null);
       if (I().histAmend) { I().histAmend(s.id); sl.forEach(x => { if (x && x.from) I().histAmend(x.from.id); }); }   // with the type change: ⌘Z undoes both
       I().changed(); I().refreshDetail();
-      I().toast(`${s.name}: ${made.length === 1 ? 'la imagen editada se ha redibujado' : `${made.length} imágenes editadas se han redibujado`} en su formato nuevo.`, { ms: 5000 });
+      I().toast(solo ? `${s.name}: numeración al día (${made.length === 1 ? 'una diapositiva redibujada' : `${made.length} diapositivas redibujadas`}).` : `${s.name}: ${made.length === 1 ? 'la imagen editada se ha redibujado' : `${made.length} imágenes editadas se han redibujado`} en su formato nuevo.`, { ms: 5000 });
       for (const x of sl) if (x) { try { await I().deleteIfUnused(x.key); } catch (e) { /* kept */ } }
       return { ok: true, cambios: made.length };
     } catch (e) {

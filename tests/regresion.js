@@ -1057,6 +1057,179 @@
     await hasta(() => fotosEn(1) === 2, 6000, 'la foto de la bandeja en la diapositiva abierta');
   });
 
+  // ---------- lote 3 (mesa 3.40, libre 1.16): plantillas ----------
+  async function guardarPlant() {   // «Guardar como plantilla» en la diapositiva abierta, sin nada elegido: no pregunta; la plantilla nueva
+    ed().sel = null; ed().mas = [];
+    const ids0 = new Set(ed().plant.map(t => t.id));   // las de pruebas anteriores pueden seguir en la ficha del cliente
+    accion('tpl-save');
+    ok(!q('.lb-ask'), '«Guardar como plantilla» preguntó algo');
+    return hasta(() => { const t = ed().plant[ed().plant.length - 1]; return t && !ids0.has(t.id) && t; }, 4000, 'la plantilla guardada');
+  }
+  function aplicarPlant(t, modo) {  // pulsar la plantilla y elegir en su diálogo
+    accion('tpl', { id: t.id });
+    const b = ed().el.querySelector(`.lb-ask [data-ask="${modo}"]`); ok(b, `el diálogo de la plantilla no tiene «${modo}»`);
+    b.click();
+  }
+  const fotoDe = (c, f) => c.els.find(e => e.t === 'foto' && e.src === f);
+  const rotulo = (n, de) => ({ t: 'texto', txt: `HUECO DE FOTO · ${n} / ${de}`, x: 0.1, y: 0.45, w: 0.8, h: 0.1, size: 0.04, color: '#ff0000', al: 'cen' });
+
+  prueba('E26', '«Guardar como plantilla»: sin preguntar, la diapositiva entera con su formato (un hueco donde había cada foto); la lista va por formato (D-033)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('pl-a.jpg'), await foto('pl-b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt'); accion('add-forma', { v: 'rect' });
+    compDe(0).els.find(e => e.t === 'texto').txt = 'Mi titular';
+    const t = await guardarPlant();
+    ok(/^Plantilla \d+$/.test(t.nombre), 'el nombre de la plantilla: ' + t.nombre);
+    igual(t.fmt, '4:5', 'el formato de la plantilla'); cerca(t.rat, 0.8, 0.001, 'la proporción de la plantilla');
+    igual(t.comp.els.map(e => e.t), ['foto', 'texto', 'forma'], 'los elementos de la plantilla');
+    ok(t.comp.els[0].src === null, 'la foto se guardó dentro de la plantilla');
+    igual(t.comp.els[1].txt, 'Mi titular', 'el texto de la plantilla');
+    // una foto que llenaba un hueco se guarda con ese hueco
+    const [fc] = await M.addFiles([await foto('pl-c.jpg')], null, { tray: true });
+    accion('sl-add'); const i = ed().i; compDe(i).els.push(huecoEl('h1', 0.1, 0.1, 0.8, 0.5));
+    await enHueco(i, 'h1', fc);
+    const t2 = await guardarPlant(), e2 = t2.comp.els[0];
+    ok(e2.t === 'foto' && !e2.src && e2.hueco && e2.hueco.x === 0.1 && e2.hueco.w === 0.8, 'la foto en su hueco no se guardó como hueco: ' + json(e2));
+    // la lista: bajo «4:5», con las dos
+    const l = await hasta(() => qa('.lb-panel .lb-l').find(e => e.textContent === '4:5'), 4000, 'el grupo «4:5» de la lista');
+    ok(l.nextElementSibling.querySelector(`canvas[data-id="${t.id}"]`) && l.nextElementSibling.querySelector(`canvas[data-id="${t2.id}"]`), 'las plantillas no están bajo «4:5»');
+  });
+
+  prueba('E27', 'Plantilla «Solo textos»: los textos toman por orden el formato de los de la plantilla y conservan su texto; los que faltan entran como «Titular» / «Texto» (D-034)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('tx-a.jpg'), await foto('tx-b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt'); accion('add-txt'); accion('add-txt');
+    const [a, b, c] = compDe(0).els.filter(e => e.t === 'texto');
+    Object.assign(a, { txt: 'Uno', x: 0.05, y: 0.1, w: 0.9, size: 0.1, color: '#ff0000', al: 'izq', lh: 1, peso: 700, may: true });
+    Object.assign(b, { txt: 'Dos', x: 0.2, y: 0.8, w: 0.6, size: 0.04, color: '#00ff00', al: 'der', lh: 1.5 });
+    Object.assign(c, { txt: 'Tres', x: 0.3, y: 0.6, w: 0.4, size: 0.03, color: '#0000ff', al: 'cen' });
+    const t = await guardarPlant();
+    // diapositiva 2: la foto y un texto propio
+    accion('sl', { i: 1 }); accion('add-txt');
+    const mio = compDe(1).els.find(e => e.t === 'texto'); mio.txt = 'Mi texto';
+    const foto1 = json(compDe(1).els.find(e => e.t === 'foto'));
+    aplicarPlant(t, 'textos');
+    const ts = compDe(1).els.filter(e => e.t === 'texto');
+    igual(ts.map(e => e.txt), ['Mi texto', 'Texto', 'Texto'], 'los textos tras «Solo textos»');
+    igual([ts[0].x, ts[0].y, ts[0].w, ts[0].size, ts[0].color, ts[0].al, ts[0].lh, ts[0].peso, ts[0].may], [0.05, 0.1, 0.9, 0.1, '#ff0000', 'izq', 1, 700, true], 'el formato del 1.er texto');
+    igual([ts[1].x, ts[1].y, ts[1].color, ts[1].al], [0.2, 0.8, '#00ff00', 'der'], 'el formato del 2.º texto');
+    igual(json(compDe(1).els.find(e => e.t === 'foto')), foto1, 'la foto cambió con «Solo textos»');
+    // sin textos: el más grande es «Titular»
+    accion('sl', { i: 0 }); accion('sl-add'); const j = ed().i;
+    aplicarPlant(t, 'textos');
+    igual(compDe(j).els.filter(e => e.t === 'texto').map(e => e.txt), ['Titular', 'Texto', 'Texto'], 'los textos de muestra');
+    accion('undo'); igual(compDe(j).els.length, 0, '⌘Z no quitó los textos de la plantilla');
+  });
+
+  prueba('E28', 'Plantilla «Solo fotos» y «Todo»: las fotos de la diapositiva pasan por orden a los huecos de la plantilla, que sustituyen a los suyos (D-034, D-036)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const [fa, fb] = await poner('r1', [await foto('fo-a.jpg'), await foto('fo-b.jpg')]);
+    await abrirEditor('r1');
+    // la plantilla: tres huecos, un texto y su fondo
+    accion('sl-add'); const p = ed().i, cp = compDe(p);
+    cp.bg = '#123456';
+    cp.els.push(huecoEl('t1', 0, 0, 0.5, 0.5), huecoEl('t2', 0.5, 0, 0.5, 0.5), huecoEl('t3', 0, 0.5, 1, 0.5));
+    accion('add-txt'); compDe(p).els.find(e => e.t === 'texto').txt = 'De la plantilla';
+    const t = await guardarPlant();
+    // la diapositiva 1: dos fotos, un hueco libre y una forma encima
+    accion('sl', { i: 0 }); accion('add-forma', { v: 'rect' });
+    const c = compDe(0), f1 = c.els.find(e => e.t === 'foto');
+    c.els.splice(1, 0, { ...JSON.parse(json(f1)), id: 'f2', src: fb, x: 0.5, w: 0.5 }, huecoEl('hv', 0.2, 0.2, 0.3, 0.3));
+    const antes = json(compDe(0));
+    aplicarPlant(t, 'fotos');
+    let d = compDe(0);
+    ok(!d.els.some(e => e.id === 'hv'), 'el hueco de la diapositiva sigue ahí: la plantilla se puso encima');
+    const a = fotoDe(d, fa), b = fotoDe(d, fb), h3 = d.els.filter(e => e.t === 'hueco');
+    ok(a && a.hueco && a.hueco.x === 0 && a.hueco.y === 0, 'la 1.ª foto no está en el 1.er hueco: ' + json(a));
+    ok(b && b.hueco && b.hueco.x === 0.5 && b.hueco.y === 0, 'la 2.ª foto no está en el 2.º hueco: ' + json(b));
+    ok(h3.length === 1 && h3[0].y === 0.5 && h3[0].w === 1, 'el 3.er hueco no quedó libre: ' + json(h3));
+    ok(d.els.findIndex(e => e.t === 'forma') > d.els.indexOf(a), 'la forma ya no está encima de las fotos');
+    ok(!d.els.some(e => e.t === 'texto') && d.bg !== '#123456', '«Solo fotos» trajo el texto o el fondo de la plantilla');
+    ok(d.previa && json({ ...d.previa, rat: undefined, tras: undefined }) === antes, 'la diapositiva no guardó lo que tenía');
+    accion('undo'); igual(json(compDe(0)), antes, '⌘Z no devolvió la diapositiva');
+    aplicarPlant(t, 'todo');
+    d = compDe(0);
+    ok(d.bg === '#123456' && d.els.some(e => e.t === 'texto' && e.txt === 'De la plantilla'), '«Todo» no trajo el fondo y el texto');
+    ok(!d.els.some(e => e.t === 'forma' || e.id === 'hv'), '«Todo» dejó la forma o el hueco de antes');
+    ok(fotoDe(d, fa).hueco.x === 0 && fotoDe(d, fb).hueco.x === 0.5, '«Todo» no puso las fotos en los huecos por orden');
+  });
+
+  prueba('E29', 'Hueco vacío: «Aplicar» guarda y sale; la casilla lo marca; plan(), subir y la imagen del feed lo paran; su rótulo nunca sale en la imagen (D-035)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel'), pub(3, 'Carrusel'), pub(4, 'Carrusel')]);
+    await poner('r1', [await foto('hv-a.jpg'), await foto('hv-b.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add'); const p = ed().i;
+    compDe(p).els.push({ ...huecoEl('t1', 0.1, 0.1, 0.8, 0.35), textos: [rotulo(1, 2)] }, { ...huecoEl('t2', 0.1, 0.55, 0.8, 0.35), textos: [rotulo(2, 2)] });
+    accion('add-txt');
+    const t = await guardarPlant();
+    accion('sl-add'); const j = ed().i;
+    aplicarPlant(t, 'todo');
+    igual(compDe(j).els.filter(e => e.t === 'hueco').length, 2, 'los huecos vacíos de la plantilla');
+    await aplicarEditor();                         // antes: «Diapositiva 4: tiene un hueco sin foto…» y no salía
+    const s = slot('r1');
+    igual(s.photos.length, 4, 'las diapositivas aplicadas');
+    ok(Object.values(s.libre.slides).filter(c => c.els.some(e => e.t === 'hueco')).length === 2, 'los huecos vacíos no se guardaron');
+    await hasta(() => celda('r1') && celda('r1').querySelector('.dot.hv'), 4000, 'la marca «Hueco vacío» en la casilla');
+    igual(M.plan().find(x => x.slotId === 'r1')['hueco vacío'], [p + 1, j + 1].sort((a, b) => a - b), 'plan() no marca las diapositivas con hueco vacío');
+    ok(!celda('r2').querySelector('.dot.hv') && !('hueco vacío' in (M.plan().find(x => x.slotId === 'r2') || {})), 'un post sin hueco vacío salió marcado');
+    const fid = s.photos[j];
+    M.startUpload([{ fileId: fid, slotId: 'r1', url: 'http://127.0.0.1:9/no', auth: 'x' }]);
+    ok(M.uploads[fid] && M.uploads[fid].state === 'error' && /hueco/.test(M.uploads[fid].err), 'la subida no se paró: ' + json(M.uploads[fid]));
+    // intercambiar casillas mueve las fotos, no su composición: la marca y el bloqueo van con las fotos
+    M._test.swap('r1', 'r4');
+    igual((M.plan().find(x => x.slotId === 'r4') || {})['hueco vacío'], [p + 1, j + 1].sort((a, b) => a - b), 'tras intercambiar, plan() no marca el post que tiene las fotos');
+    await hasta(() => celda('r4') && celda('r4').querySelector('.dot.hv') && !celda('r1').querySelector('.dot.hv'), 4000, 'la marca tras intercambiar las casillas');
+    M.startUpload([{ fileId: fid, slotId: 'r4', url: 'http://127.0.0.1:9/no', auth: 'x' }]);
+    ok(M.uploads[fid].state === 'error' && /hueco/.test(M.uploads[fid].err), 'tras intercambiar, la subida no se paró: ' + json(M.uploads[fid]));
+    M._test.swap('r1', 'r4');
+    // el rótulo no sale en la imagen: un hueco con rótulo y otro igual sin él dan la misma imagen
+    const hacer = async (id, conRotulo) => {
+      await abrirEditor(id); accion('sl-add');
+      compDe(0).els.push({ ...huecoEl('r', 0.1, 0.1, 0.8, 0.8), textos: conRotulo ? [rotulo(1, 1)] : [] });
+      await aplicarEditor();
+      return slot(id);
+    };
+    const [x2, x3] = [await hacer('r2', true), await hacer('r3', false)];
+    const [b2, b3] = await Promise.all([x2, x3].map(async x => new Uint8Array(await (await M._in.getBlob(x.photos[0])).arrayBuffer())));
+    ok(b2.length > 1000 && b2.length === b3.length && b2.every((v, i) => v === b3[i]), 'el rótulo del hueco salió en la imagen aplicada');
+    // la imagen del feed: con una portada con hueco vacío, no se sube
+    const r = await M.uploadOut('clean', 'http://127.0.0.1:9/no', 'x', 'feed.jpg');
+    ok(r.state === 'error' && /hueco/.test(r.err), 'la imagen del feed no se paró: ' + json(r));
+  });
+
+  prueba('E30', 'Plantilla sobre una diapositiva con hueco: lo sustituye; «Quitar plantilla» (también tras aplicar y volver) o ⌘Z lo devuelven tal cual (D-036, D-014)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('qp-a.jpg'), await foto('qp-b.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add'); const p = ed().i;
+    compDe(p).els.push(huecoEl('t1', 0.5, 0.5, 0.4, 0.4)); accion('add-txt');
+    const t = await guardarPlant();
+    accion('sl-add'); const j = ed().i;
+    compDe(j).els.push({ ...huecoEl('hx', 0, 0, 1, 1), color: '#2b231f', textos: [rotulo(1, 1)] });
+    const antes = json(compDe(j));
+    aplicarPlant(t, 'todo');
+    ok(!compDe(j).els.some(e => e.id === 'hx' || (e.t === 'hueco' && e.w === 1)), 'el hueco de la diapositiva sigue debajo de la plantilla');
+    accion('tpl-quitar'); igual(json(compDe(j)), antes, '«Quitar plantilla» no devolvió la diapositiva');
+    // cambiada después de la plantilla: pregunta antes de quitarla
+    aplicarPlant(t, 'todo'); compDe(j).els.find(e => e.t === 'texto').x = 0.3;
+    accion('tpl-quitar');
+    const b = ed().el.querySelector('.lb-ask [data-ask="quitar"]'); ok(b, '«Quitar plantilla» no preguntó con la diapositiva cambiada');
+    ok(!compDe(j).els.some(e => e.id === 'hx'), 'quitó la plantilla antes de contestar'); b.click();
+    igual(json(compDe(j)), antes, '«Quitar plantilla», tras preguntar, no devolvió la diapositiva');
+    aplicarPlant(t, 'todo'); accion('undo'); igual(json(compDe(j)), antes, '⌘Z no devolvió la diapositiva');
+    aplicarPlant(t, 'textos');
+    ok(compDe(j).els.some(e => e.id === 'hx'), '«Solo textos» quitó el hueco');
+    accion('undo'); aplicarPlant(t, 'todo');
+    await aplicarEditor();
+    await abrirEditor('r1', j); ed().sel = null; ed().mas = [];
+    ok(compDe(j).previa, 'lo que había no se guardó con la diapositiva');
+    accion('tpl-quitar'); ok(!q('.lb-ask'), 'sin cambios desde la plantilla, «Quitar plantilla» preguntó');
+    igual(json(compDe(j)), antes, '«Quitar plantilla» tras volver a abrir no devolvió el hueco');
+    await aplicarEditor();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

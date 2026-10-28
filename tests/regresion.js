@@ -782,6 +782,281 @@
     ok(xa.length > 1000 && xa.length === xb.length && xa.every((v, i) => v === xb[i]), 'la imagen aplicada con la zona no es igual a la de sin zona');
   });
 
+  // ---------- lote 2 (mesa 3.39, libre 1.15): el área gris alrededor de la diapositiva ----------
+  // eventos de puntero, ratón y rueda en (x, y) de la ventana de la mesa, sobre el elemento dado
+  function puntero(tipo, en, x, y, o = {}) {
+    const e = new W.PointerEvent(tipo, { clientX: x, clientY: y, button: o.button ?? 0, buttons: tipo === 'pointerup' || tipo === 'pointercancel' ? 0 : (o.button === 2 ? 2 : 1), pointerId: 1, pointerType: 'mouse', isPrimary: true, shiftKey: !!o.shift, ctrlKey: !!o.ctrl, bubbles: true, cancelable: true });
+    en.dispatchEvent(e); return e;
+  }
+  function raton(tipo, en, x, y, o = {}) {
+    const e = new W.MouseEvent(tipo, { clientX: x, clientY: y, button: o.button ?? 0, shiftKey: !!o.shift, bubbles: true, cancelable: true });
+    en.dispatchEvent(e); return e;
+  }
+  function rueda(en, x, y, dy, o = {}) {
+    const e = new W.WheelEvent('wheel', { clientX: x, clientY: y, deltaY: dy, ctrlKey: !!o.ctrl, metaKey: !!o.meta, bubbles: true, cancelable: true });
+    en.dispatchEvent(e); return e;
+  }
+  const gris = () => ed().scroll;
+  // un punto del área gris, en la esquina de arriba a la izquierda (el relleno: nunca es la diapositiva)
+  const enGris = () => { const r = gris().getBoundingClientRect(); return [r.left + 5, r.top + 5]; };
+  // un punto de la diapositiva (px de salida) en la ventana, y al revés
+  const aVentana = (x, y) => { const E = ed(), r = E.cv.getBoundingClientRect(); return [r.left + x * E.k, r.top + y * E.k]; };
+  const aDiapo = (x, y) => { const E = ed(), r = E.cv.getBoundingClientRect(); return [(x - r.left) / E.k, (y - r.top) / E.k]; };
+  const elegidos = () => [ed().sel, ...ed().mas].filter(Boolean).sort();
+  function clicGris(o) { const [x, y] = enGris(), s = gris(); puntero('pointerdown', s, x, y, o); puntero('pointerup', s, x, y, o); raton('click', s, x, y, o); }
+  function arrastrarGris(x0, y0, x1, y1, o = {}) {
+    const s = gris();
+    puntero('pointerdown', s, x0, y0, o); puntero('pointermove', s, (x0 + x1) / 2, (y0 + y1) / 2, o); puntero('pointermove', s, x1, y1, o);
+    const marco = q('.lb-marq'); puntero('pointerup', s, x1, y1, o);
+    return marco;
+  }
+  function escribir() {             // un texto con el foco, como el campo del texto en el panel
+    const ta = D.createElement('textarea'); ed().el.append(ta); ta.focus();
+    ok(D.activeElement === ta, 'no se pudo poner el foco en el texto de prueba');
+    return ta;
+  }
+
+  prueba('E19', 'Área gris: un clic fuera de la diapositiva suelta la selección y el encuadre; con ⇧ no; escribiendo, solo termina de escribir (D-030)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt'); await dibujado();
+    const t = compDe(0).els[0];
+    elegir(t); clicGris({ shift: true });
+    igual(ed().sel, t.id, '⇧ + clic en el área gris soltó la selección');
+    const ta = escribir();
+    clicGris();
+    igual(ed().sel, t.id, 'el clic en el área gris soltó la selección mientras se escribía');
+    ok(D.activeElement !== ta, 'el clic en el área gris no terminó de escribir');
+    ta.remove();
+    clicGris();                                                  // justo después: el segundo clic de un doble clic, no cuenta
+    igual(ed().sel, t.id, 'el segundo clic, justo después de terminar de escribir, soltó la selección');
+    await espera(650);
+    const [cx, cy] = enGris(); puntero('pointerdown', gris(), cx, cy); puntero('pointercancel', gris(), cx, cy);
+    igual(ed().sel, t.id, 'un toque cancelado en el área gris soltó la selección');
+    clicGris();
+    igual(elegidos(), [], 'el clic en el área gris no soltó la selección');
+    elegir(t); ed().crop = t.id; ed().pick = { modo: 'add' };
+    clicGris();
+    ok(!ed().sel && !ed().crop && !ed().pick, 'el clic en el área gris no soltó el encuadre o la elección de foto');
+    // en la diapositiva, un clic sobre un elemento sigue eligiéndolo
+    await dibujado();
+    const { W: w, H: h } = tam(), [x, y] = aVentana(w / 2, (t.y + t.h / 2) * h);
+    puntero('pointerdown', ed().cv, x, y); puntero('pointerup', ed().cv, x, y);
+    igual(ed().sel, t.id, 'un clic sobre un texto de la diapositiva ya no lo elige');
+  });
+
+  prueba('E20', 'Área gris: arrastrar elige lo que queda dentro del rectángulo (⇧ suma); ni ocultos, ni bloqueados, ni medio grupo; escribiendo, nada (D-030)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); for (let n = 0; n < 5; n++) accion('add-forma', { v: 'rect' });
+    const [a, b, c, d, g] = compDe(0).els;
+    Object.assign(a, { x: 0.05, y: 0.05, w: 0.1, h: 0.1 }); Object.assign(b, { x: 0.2, y: 0.05, w: 0.1, h: 0.1 });
+    Object.assign(c, { x: 0.7, y: 0.7, w: 0.1, h: 0.1 });
+    Object.assign(d, { x: 0.35, y: 0.05, w: 0.05, h: 0.05, oculto: true }); Object.assign(g, { x: 0.1, y: 0.2, w: 0.05, h: 0.05, lock: true });
+    ed().sel = null; ed().mas = []; await dibujado();
+    const { W: w, H: h } = tam(), [x0, y0] = enGris(), r = gris().getBoundingClientRect(), [xm, ym] = aVentana(w * 0.5, h * 0.5);
+    const marco = arrastrarGris(x0, y0, xm, ym);
+    ok(marco && marco.style.width && parseFloat(marco.style.width) > 0, 'no se dibujó el rectángulo');
+    ok(!q('.lb-marq'), 'el rectángulo se quedó en pantalla al soltar');
+    igual(elegidos(), [a.id, b.id].sort(), 'el rectángulo no eligió justo lo que quedaba dentro (sin el oculto ni el bloqueado)');
+    const [xc, yc] = aVentana(w * 0.65, h * 0.65), [xz, yz] = [r.right - 6, r.bottom - 6];
+    arrastrarGris(xz, yz, xc, yc, { shift: true });
+    igual(elegidos(), [a.id, b.id, c.id].sort(), 'con ⇧ el rectángulo no sumó a la selección');
+    arrastrarGris(xz, yz, xc, yc);
+    igual(elegidos(), [c.id], 'sin ⇧ el rectángulo no empezó una selección nueva');
+    a.g = c.g = d.g = 'grupo-prueba';                           // d, oculto, va en el grupo
+    arrastrarGris(x0, y0, xm, ym);
+    igual(elegidos(), [b.id], 'entró medio grupo');
+    arrastrarGris(x0, y0, xz, yz);
+    igual(elegidos(), [a.id, b.id, c.id, d.id].sort(), 'todo: el grupo entero, como con un clic (su oculto también), y nada bloqueado suelto');
+    const ta = escribir();
+    arrastrarGris(xz, yz, xc, yc);
+    ta.remove();
+    igual(elegidos(), [a.id, b.id, c.id, d.id].sort(), 'el rectángulo actuó mientras se escribía');
+    // empezar sobre un elemento de la diapositiva lo mueve, como antes: no es un rectángulo
+    await espera(650); ed().sel = null; ed().mas = [];
+    const [xb, yb] = aVentana((b.x + b.w / 2) * w, (b.y + b.h / 2) * h), bx = b.x;
+    puntero('pointerdown', ed().cv, xb, yb); puntero('pointermove', ed().cv, xb + 30, yb); puntero('pointerup', ed().cv, xb + 30, yb);
+    ok(compDe(0).els.find(e => e.id === b.id).x > bx, 'arrastrar un elemento de la diapositiva ya no lo mueve');
+    ok(!q('.lb-marq'), 'arrastrar un elemento dibujó un rectángulo');
+  });
+
+  prueba('E21', 'Pellizco y ⌘ + rueda: zoom del editor hacia el puntero, también en el área gris; nunca zoom de la página; escribiendo, nada (D-031)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('zfit'); await dibujado();
+    const E = ed(), { W: w, H: h } = tam(), [x, y] = aVentana(w * 0.75, h * 0.7);
+    let e = rueda(E.cv, x, y, -200, { ctrl: true }); await dibujado();
+    ok(e.defaultPrevented, 'el pellizco sobre la diapositiva no se paró: haría zoom de la página');
+    cerca(E.zoom, 4, 0.01, 'el pellizco no acercó');
+    const [px, py] = aDiapo(x, y);
+    cerca(px, w * 0.75, w * 0.01, 'el punto bajo el puntero se movió en horizontal'); cerca(py, h * 0.7, h * 0.01, 'el punto bajo el puntero se movió en vertical');
+    const [gx, gy] = enGris(), z0 = E.zoom;
+    e = rueda(gris(), gx, gy, 30, { ctrl: true }); await dibujado();
+    ok(e.defaultPrevented && E.zoom < z0, 'el pellizco en el área gris no alejó o dejó hacer zoom de la página');
+    const z1 = E.zoom; e = rueda(gris(), gx, gy, -30, { meta: true }); await dibujado();
+    ok(e.defaultPrevented && E.zoom > z1, '⌘ + rueda en el área gris no acercó');
+    const z2 = E.zoom, pnl = q('.lb-panel'), pr = pnl.getBoundingClientRect();
+    e = rueda(pnl, pr.left + 20, pr.top + 20, -30, { ctrl: true });
+    ok(e.defaultPrevented && E.zoom === z2, 'el pellizco sobre el panel hizo zoom del editor o de la página');
+    e = rueda(gris(), gx, gy, 40);
+    ok(!e.defaultPrevented && E.zoom === z2, 'la rueda sola en el área gris no desplaza o hace zoom');
+    const ta = escribir();
+    e = rueda(gris(), gx, gy, -30, { ctrl: true });
+    ta.remove();
+    ok(e.defaultPrevented && E.zoom === z2, 'el pellizco hizo zoom mientras se escribía (o dejó el de la página)');
+  });
+
+  prueba('E22', 'Espacio + arrastrar mueve la vista con zoom y no elige ni mueve nada; fuera de la diapositiva o escribiendo, el espacio es el de siempre (D-031)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt');
+    const t = compDe(0).els[0], E = ed(), sc = gris(); ed().sel = null; ed().mas = [];
+    for (let n = 0; n < 5; n++) accion('zin');
+    await dibujado();
+    ok(sc.scrollWidth > sc.clientWidth && sc.scrollHeight > sc.clientHeight, 'sin zoom para mover la vista');
+    const { W: w, H: h } = tam(), cx = w / 2, cy = (t.y + t.h / 2) * h;
+    const rs = sc.getBoundingClientRect(); let [x, y] = aVentana(cx, cy);   // el texto en el centro de la vista
+    sc.scrollLeft += x - (rs.left + rs.right) / 2; sc.scrollTop += y - (rs.top + rs.bottom) / 2;
+    [x, y] = aVentana(cx, cy);
+    puntero('pointermove', E.cv, x, y);
+    const e = teclaEv(' ', { code: 'Space' });
+    ok(e.defaultPrevented, 'el espacio sobre la diapositiva no se paró');
+    igual(E.cv.style.cursor, 'grab', 'con el espacio pulsado no sale la mano');
+    const l0 = sc.scrollLeft, t0 = sc.scrollTop, x0 = t.x;
+    puntero('pointerdown', E.cv, x, y); puntero('pointermove', sc, x - 40, y - 30); puntero('pointerup', sc, x - 40, y - 30);
+    cerca(sc.scrollLeft, l0 + 40, 1, 'espacio + arrastrar no movió la vista en horizontal'); cerca(sc.scrollTop, t0 + 30, 1, 'espacio + arrastrar no movió la vista en vertical');
+    ok(!ed().sel && compDe(0).els[0].x === x0, 'espacio + arrastrar eligió o movió el texto');
+    const ku = new W.KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true, cancelable: true }); D.body.dispatchEvent(ku);
+    ok(E.cv.style.cursor !== 'grab', 'al soltar el espacio sigue la mano');
+    teclaEv(' ', { code: 'Space' });                             // en un Mac, el espacio soltado con ⌘ pulsado no manda keyup: vale el de ⌘
+    D.body.dispatchEvent(new W.KeyboardEvent('keyup', { key: 'Meta', code: 'MetaLeft', bubbles: true, cancelable: true }));
+    ok(E.cv.style.cursor !== 'grab', 'soltado ⌘, la mano se quedó pegada');
+    [x, y] = aVentana(cx, cy);
+    puntero('pointerdown', E.cv, x, y); puntero('pointerup', E.cv, x, y);
+    igual(ed().sel, t.id, 'soltado el espacio, un clic no elige el texto');
+    ed().sel = null;
+    const pr = q('.lb-panel').getBoundingClientRect();
+    puntero('pointermove', q('.lb-panel'), pr.left + 10, pr.top + 10);
+    ok(!teclaEv(' ', { code: 'Space' }).defaultPrevented, 'el espacio fuera de la diapositiva se paró');
+    puntero('pointermove', E.cv, x, y);
+    const ta = escribir();
+    ok(!teclaEv(' ', { code: 'Space', en: ta }).defaultPrevented, 'el espacio no escribe mientras se escribe en un texto');
+    ta.remove();
+  });
+
+  prueba('E23', 'Doble clic en el área gris: «Ajustar»; en la diapositiva vacía o escribiendo, no (D-030)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('zin'); accion('zin'); await dibujado();
+    const [gx, gy] = enGris();
+    raton('dblclick', gris(), gx, gy);
+    igual(ed().zoom, 1, 'el doble clic en el área gris no ajustó');
+    accion('zin'); await dibujado();
+    const ta = escribir(); raton('dblclick', gris(), gx, gy); ta.remove();
+    ok(ed().zoom > 1, 'el doble clic ajustó mientras se escribía');
+    const tb = escribir();                                       // como de verdad: el primer clic termina de escribir, luego llega el doble clic
+    puntero('pointerdown', gris(), gx, gy); puntero('pointerup', gris(), gx, gy); raton('click', gris(), gx, gy);
+    ok(D.activeElement !== tb, 'el clic no terminó de escribir'); tb.remove();
+    puntero('pointerdown', gris(), gx, gy); puntero('pointerup', gris(), gx, gy); raton('dblclick', gris(), gx, gy);
+    ok(ed().zoom > 1, 'el doble clic que terminó de escribir ajustó');
+    await espera(650);
+    puntero('pointermove', gris(), gx, gy); teclaEv(' ', { code: 'Space' });
+    raton('dblclick', gris(), gx, gy);
+    D.body.dispatchEvent(new W.KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
+    ok(ed().zoom > 1, 'el doble clic con el espacio pulsado ajustó');
+    const { W: w, H: h } = tam(), [x, y] = aVentana(w / 2, h / 2);
+    raton('dblclick', ed().cv, x, y);
+    ok(ed().zoom > 1, 'el doble clic en la diapositiva ajustó');
+  });
+
+  prueba('E24', 'Clic derecho en el área gris: Pegar, Pegar estilo, Añadir texto y Añadir forma con su atajo; T y R añaden; nada escribiendo (D-032)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); await dibujado();
+    const [gx, gy] = enGris(), m = q('.lb-cm');
+    const menu = () => raton('contextmenu', gris(), gx, gy, { button: 2 });
+    const item = n => qa('.lb-cm button')[n];
+    let e = menu();
+    ok(e.defaultPrevented && !m.hidden, 'el clic derecho en el área gris no abrió el menú');
+    igual(qa('.lb-cm button').map(b => [b.firstChild.textContent, b.querySelector('.lb-kb').textContent]),
+      [['Pegar', '⌘V'], ['Pegar estilo', '⌥⌘V'], ['Añadir texto', 'T'], ['Añadir forma', 'R']], 'las opciones del menú');
+    igual(qa('.lb-cm button').slice(1).map(b => b.disabled), [true, false, false], 'sin texto elegido, «Pegar estilo» encendido o añadir apagado');   // «Pegar» depende de lo copiado en otras pruebas
+    item(2).click();
+    ok(m.hidden, 'el menú no se cerró al elegir');
+    const els = () => compDe(0).els, ia = els()[0] && els()[0].id, A = () => els().find(x => x.id === ia);
+    ok(els().length === 1 && A().t === 'texto', '«Añadir texto» no añadió un texto');
+    elegir(A()); tecla('c', { meta: true });
+    menu(); ok(!item(0).disabled, '«Pegar» sigue apagado con algo copiado');
+    item(0).click();
+    igual(els().length, 2, '«Pegar» no pegó');
+    const ib = els()[1].id, B = () => els().find(x => x.id === ib);
+    Object.assign(A(), { color: '#ff0000', size: 0.09 }); Object.assign(B(), { color: '#000000', size: 0.03 });
+    elegir(A()); tecla('c', { meta: true, alt: true }); elegir(B());
+    menu(); ok(!item(1).disabled, '«Pegar estilo» sigue apagado con un estilo copiado y un texto elegido');
+    item(1).click();
+    igual([B().color, B().size], ['#ff0000', 0.09], '«Pegar estilo» no pegó el estilo');
+    elegir(B()); puntero('pointerdown', gris(), gx, gy, { ctrl: true }); menu(); puntero('pointerup', gris(), gx, gy);
+    ok(!m.hidden && ed().sel === ib && !item(1).disabled, 'ctrl + clic (el clic derecho del Mac) soltó la selección o no abrió el menú');
+    rueda(gris(), gx, gy, 20); ok(m.hidden, 'la rueda no cerró el menú');
+    menu(); gris().dispatchEvent(new W.Event('scroll')); ok(m.hidden, 'desplazar la vista no cerró el menú');
+    menu(); item(3).click();
+    ok(els().some(x => x.t === 'forma' && x.forma === 'rect'), '«Añadir forma» no añadió un rectángulo');
+    menu(); tecla('Escape');
+    ok(m.hidden, 'Esc no cerró el menú');
+    menu(); clicGris();
+    ok(m.hidden, 'un clic fuera no cerró el menú');
+    e = raton('contextmenu', ed().cv, ...aVentana(10, 10), { button: 2 });
+    ok(!e.defaultPrevented && m.hidden, 'el clic derecho en la diapositiva abrió el menú del área gris');
+    const n0 = els().length;
+    tecla('t'); igual(els().length, n0 + 1, 'T no añadió un texto'); ok(els()[n0].t === 'texto', 'T no añadió un texto');
+    tecla('r'); ok(els().length === n0 + 2 && els()[n0 + 1].forma === 'rect', 'R no añadió un rectángulo');
+    tecla('t', { meta: true }); igual(els().length, n0 + 2, '⌘T añadió un texto');
+    const ta = escribir();
+    tecla('t', { en: ta }); tecla('r', { en: ta });
+    e = menu();
+    ok(e.defaultPrevented && m.hidden, 'el clic derecho abrió el menú mientras se escribía');
+    ta.remove();
+    const tb = escribir();                                       // como de verdad: pointerdown con el botón derecho y luego contextmenu
+    puntero('pointerdown', gris(), gx, gy, { button: 2 }); e = menu(); puntero('pointerup', gris(), gx, gy, { button: 2 });
+    ok(e.defaultPrevented && m.hidden && D.activeElement !== tb, 'el clic derecho mientras se escribía abrió el menú o no terminó de escribir');
+    tb.remove();
+    igual(els().length, n0 + 2, 'T o R añadieron algo mientras se escribía');
+  });
+
+  prueba('E25', 'Fotos soltadas en el área gris, del ordenador o de la bandeja, van a la diapositiva abierta; escribiendo, no (D-030)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('sl-add'); await dibujado();
+    igual(ed().i, 1, 'la diapositiva abierta no es la 2');
+    const [gx, gy] = enGris();
+    const soltarArchivo = async n => { const dt = new W.DataTransfer(); dt.items.add(await foto(n)); const e = new W.DragEvent('drop', { clientX: gx, clientY: gy, dataTransfer: dt, bubbles: true, cancelable: true }); gris().dispatchEvent(e); return e; };
+    const fotosEn = i => compDe(i).els.filter(e => e.t === 'foto' && e.src).length;
+    const ta = escribir();
+    const e0 = await soltarArchivo('gris-0.jpg'); await espera(300);
+    ta.remove();
+    ok(e0.defaultPrevented, 'la foto soltada mientras se escribía la abrió el navegador');
+    ok(qa('.toast').some(t => /Estás escribiendo/.test(t.textContent)), 'no avisó de que se estaba escribiendo');
+    igual(fotosEn(0) + fotosEn(1), 0, 'la foto entró mientras se escribía');
+    const tc = escribir(), pr = q('.lb-panel').getBoundingClientRect(), dt = new W.DataTransfer(); dt.items.add(await foto('gris-p.jpg'));
+    q('.lb-panel').dispatchEvent(new W.DragEvent('drop', { clientX: pr.left + 20, clientY: pr.top + 20, dataTransfer: dt, bubbles: true, cancelable: true }));
+    await hasta(() => fotosEn(1) === 1, 6000, 'la foto soltada en el panel mientras se escribía (no es el área gris)');
+    tc.remove();
+    accion('undo'); igual(fotosEn(1), 0, '⌘Z no quitó la foto soltada en el panel');
+    await soltarArchivo('gris-1.jpg');
+    await hasta(() => fotosEn(1) === 1, 6000, 'la foto del ordenador en la diapositiva abierta');
+    igual(fotosEn(0), 0, 'la foto fue a otra diapositiva');
+    // de la bandeja: una foto que aún no se ha usado
+    await M.addFiles([await foto('gris-2.jpg')], null, { tray: true });
+    accion('bandeja'); if (!ed().trOpen) accion('bandeja');
+    const th = await hasta(() => q('.lb-tph:not(.uso)'), 4000, 'la foto sin usar en la bandeja del editor');
+    const r = th.getBoundingClientRect(), [hx, hy] = enGris();
+    ok(D.elementFromPoint(hx, hy) === gris(), 'el punto del área gris no es el área gris');
+    puntero('pointerdown', th, r.left + 10, r.top + 10);
+    puntero('pointermove', D, hx + 20, hy + 20); puntero('pointerup', D, hx, hy);
+    await hasta(() => fotosEn(1) === 2, 6000, 'la foto de la bandeja en la diapositiva abierta');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

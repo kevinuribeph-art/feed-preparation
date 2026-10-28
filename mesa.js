@@ -46,10 +46,12 @@
 // Its magnet measures, marks equal gaps and sizes and works on the eight handles; new shortcuts (libre 1.13).
 // v3.38: quick fixes in the free editor: «H» in its tray, the centre lines, deleting a slide, the proportion chip, ⌘D on a
 // slide and «Zona del grid» (⌘P) (libre 1.14).
+// v3.39: the grey area around the slide is part of the free editor: deselect, rectangle selection, zoom on the pointer,
+// space + drag, «Ajustar» on a double click and a right-click menu (libre 1.15).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.38';
+  M.version = '3.39';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

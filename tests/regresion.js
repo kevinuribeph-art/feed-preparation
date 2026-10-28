@@ -1,0 +1,666 @@
+// Batería de regresión de la Mesa: una prueba por fallo ya corregido (ver CLAUDE.md, «Probar»).
+// Abre ../index.html en un iframe del mismo origen y lo maneja con window.MESA (MESA._test, MESA._in) y el estado del
+// editor (MESA.libre._ed()). Tablero sintético de un cliente de prueba, fotos hechas con canvas; al final lo borra todo.
+// Solo corre en 127.0.0.1 / localhost: en otro sitio (la web publicada) iría sobre los datos reales de ese navegador.
+// ?solo=M3,E2 pasa solo esas pruebas; ?auto la lanza al cargar. window.RESULTADO guarda el último resultado.
+(() => {
+  'use strict';
+  const LOCAL = ['127.0.0.1', 'localhost', '[::1]', '::1'];
+  if (!LOCAL.includes(location.hostname)) {
+    document.querySelector('main').innerHTML = '<p class="no"><b>Esta batería solo corre en 127.0.0.1 o localhost</b>, sobre una copia de la mesa. '
+      + 'Aquí trabajaría con los datos reales de este navegador. Ver CLAUDE.md, «Probar».</p>';
+    return;
+  }
+
+  const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
+  const $ = id => document.getElementById(id);
+  const T = [];                                    // {id, titulo, fn}
+  const prueba = (id, titulo, fn) => T.push({ id, titulo, fn });
+  let W, D, M;                                     // la ventana del iframe, su documento y su MESA
+
+  // ---------- utilidades ----------
+  const espera = ms => new Promise(r => setTimeout(r, ms));
+  async function hasta(fn, ms = 6000, que = 'la condición') {
+    const t0 = Date.now();
+    for (;;) {
+      let v; try { v = await fn(); } catch (e) { v = null; }
+      if (v) return v;
+      if (Date.now() - t0 > ms) throw new Error(`no se cumplió ${que} en ${ms} ms`);
+      await espera(50);
+    }
+  }
+  function ok(c, msg) { if (!c) throw new Error(msg); }
+  const json = v => JSON.stringify(v);
+  function igual(a, b, msg) { if (json(a) !== json(b)) throw new Error(`${msg}\n  esperado: ${json(b)}\n  obtenido: ${json(a)}`); }
+  function cerca(a, b, tol, msg) { if (!(Math.abs(a - b) <= tol)) throw new Error(`${msg}: ${a} frente a ${b} (tolerancia ${tol})`); }
+  const q = s => D.querySelector(s), qa = s => [...D.querySelectorAll(s)];
+  const slot = id => M.board().slots.find(s => s.id === id);
+  const celda = id => q(`.cell[data-slot="${id}"]`);
+
+  // fotos sintéticas: un color, una cuadrícula y su nombre; la misma foto (nombre) siempre da los mismos bytes
+  const FOTOS = {};
+  async function foto(nombre, w = 1200, h = 1500, color = '#4a7a9c') {
+    if (!FOTOS[nombre]) {
+      const c = D.createElement('canvas'); c.width = w; c.height = h;
+      const x = c.getContext('2d');
+      x.fillStyle = color; x.fillRect(0, 0, w, h);
+      x.fillStyle = '#ffffff'; x.fillRect(0, 0, w / 4, h / 4);                 // una esquina marcada: se ve si se voltea o recorta
+      x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = Math.max(2, w / 300);
+      for (let i = 1; i < 10; i++) { x.beginPath(); x.moveTo(w * i / 10, 0); x.lineTo(w * i / 10, h); x.moveTo(0, h * i / 10); x.lineTo(w, h * i / 10); x.stroke(); }
+      x.fillStyle = '#ffffff'; x.font = `bold ${Math.round(w / 12)}px sans-serif`; x.textAlign = 'center'; x.fillText(nombre, w / 2, h / 2);
+      FOTOS[nombre] = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    }
+    return new W.File([FOTOS[nombre]], nombre, { type: 'image/jpeg', lastModified: 1767225600000 });
+  }
+
+  // publicaciones de prueba: {id:'r1', name:'Foto 1.1', type, date} en noviembre de 2026
+  const TIPO_NOMBRE = { Foto: 'Foto', Carrusel: 'Carrusel', Reel: 'Reel' };
+  function pub(n, tipo = 'Foto', dia = n + 2, mes = MES) {
+    const d = String(dia).padStart(2, '0');
+    return { id: `r${n}${mes === MES ? '' : '-' + mes}`, name: `${TIPO_NOMBRE[tipo]} 1.${n}`, type: tipo, date: `${mes}-${d}T12:00:00.000+01:00` };
+  }
+
+  async function limpiar() {
+    if (M.libre && M.libre.abierto()) M.libre.cerrar();
+    await M.flush();                               // el guardado va con retraso: purge borra las fotos que nombra el tablero guardado
+    for (const b of await M.boards()) if (b.client === CLIENTE) await M.purge(b.key);
+  }
+  // un tablero nuevo del cliente de prueba (borra antes los suyos)
+  async function tablero(slots, { mes = MES } = {}) {
+    await limpiar();
+    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: mes, slots, past: [], force: true });
+    ok(r && r.key === `${CLIENTE}-${mes}`, 'no se abrió el tablero de prueba: ' + json(r));
+    return r;
+  }
+  // fotos a la bandeja y de ahí a una publicación (sin avisos: es la primera vez que se usan)
+  async function poner(slotId, files) {
+    const ids = await M.addFiles(files);
+    ok(ids.length === files.length, `no entraron las fotos: ${json(ids)}`);
+    for (const id of ids) M._test.place(slotId, id);
+    return ids;
+  }
+  const dialogo = () => q('.detail:not([hidden])');
+  async function pulsar(sel, ms = 4000) { const b = await hasta(() => q(sel), ms, `el botón ${sel}`); b.click(); await espera(30); return b; }
+
+  // ---------- editor ----------
+  const ed = () => M.libre._ed();
+  async function abrirEditor(slotId, i = 0) {
+    const r = await M.libre.abrir(slotId, i);
+    ok(r && r.ok, 'no se abrió el editor: ' + json(r));
+    await hasta(() => ed() && ed().el && ed().el.isConnected, 4000, 'el editor abierto');
+    return ed();
+  }
+  // pulsa una acción del editor como sus botones (data-lb), aunque ese botón no esté a la vista ahora
+  function accion(lb, data = {}) {
+    const E = ed(); ok(E, 'el editor no está abierto');
+    const b = D.createElement('button'); b.type = 'button'; b.hidden = true; b.dataset.lb = lb;
+    Object.entries(data).forEach(([k, v]) => { b.dataset[k] = v; });
+    E.el.append(b); b.click(); b.remove();
+  }
+  function tecla(key, o = {}) {
+    const e = new W.KeyboardEvent('keydown', { key, code: o.code ?? '', metaKey: !!o.meta, altKey: !!o.alt, shiftKey: !!o.shift, ctrlKey: !!o.ctrl, bubbles: true, cancelable: true });
+    (o.en || D.body).dispatchEvent(e);
+  }
+  const compDe = i => { const x = ed().sl[i]; return x.comp || x.raw; };
+  const elegir = el => { ed().sel = el.id; ed().mas = []; };
+  // tamaño de la diapositiva abierta en px de salida (1440 de ancho), por su formato; no se usa E.sz, que es el del último
+  // dibujo y no cambia con la pestaña en segundo plano
+  const tam = () => { const E = ed(), x = compDe(E.i), p = x.els.find(e => e.t === 'foto' && M.files[e.src]), d = p ? M.files[p.src] : { w: 4, h: 5 }; return { W: 1440, H: Math.round(1440 / M._in.fmtRatio(E.fmt || 'v45', d.w, d.h)) }; };
+  // un hueco de foto (elemento 'hueco', libre ≥ 1.9) en x, y, w, h (fracciones de la diapositiva)
+  const huecoEl = (id, x, y, w, h) => ({ id, t: 'hueco', x, y, w, h, rot: 0, op: 1, lock: false, sh: 0, color: '#d9d5cd', b: 0, bc: null, r: 0, textos: [] });
+  // una foto puesta en un hueco como desde la bandeja del editor (pickf), en la diapositiva abierta
+  async function enHueco(i, huecoId, f) {
+    ok(ed().i === i, `la diapositiva abierta es la ${ed().i + 1}, no la ${i + 1}`);
+    ed().pick = { modo: 'rep', id: huecoId };
+    accion('pickf', { f });
+    return hasta(() => compDe(i).els.find(e => e.t === 'foto' && e.src === f), 4000, 'la foto en el hueco');
+  }
+  async function aplicarEditor() {
+    accion('aplicar');
+    await hasta(() => !M.libre.abierto() && !M.libre.aplicando(), 15000, 'que el editor aplique y se cierre');
+    await espera(100);
+  }
+
+  // =====================================================================================================
+  // Mesa
+  // =====================================================================================================
+
+  prueba('M1', 'Exportar: en la app Claude, descarga normal con contenido y nombre mesa-de-trabajo-AAAA-MM-DD-HHMM.json; si el diálogo no deja escribir, aviso sin archivo vacío ni segundo diálogo (3.29, T1)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('m1.jpg')]);
+    // el navegador simulado: su user-agent, un diálogo de guardar espía y las descargas interceptadas; todo se restaura
+    const LS = 'mesa-export-descarga', antes = W.localStorage.getItem(LS), nav = W.navigator;
+    const tenia = Object.prototype.hasOwnProperty.call(W, 'showSaveFilePicker'), picker0 = W.showSaveFilePicker;
+    const A = W.HTMLAnchorElement.prototype, click = A.click;
+    let ua = '', dialogos = 0, borrado = 0, cap = null;
+    Object.defineProperty(nav, 'userAgent', { get: () => ua, configurable: true });
+    W.showSaveFilePicker = async () => {           // otro navegador: el diálogo crea el archivo vacío y luego no deja escribir
+      dialogos++;
+      return { name: 'mesa.json', getFile: async () => ({ size: 0 }), remove: async () => { borrado++; },
+        createWritable: async () => { throw new W.DOMException('sin permiso', 'NotAllowedError'); } };
+    };
+    A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
+    try {
+      W.localStorage.removeItem(LS);
+      ua = 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/152.0 Safari/537.36 Claude/1.0';
+      const r = await M.exportAll();
+      ok(dialogos === 0, 'en la app Claude se abrió el diálogo de guardar');
+      ok(r && r.ok && r.via === 'descarga' && cap, 'en la app Claude no hizo una descarga normal: ' + json(r));
+      ok(/^mesa-de-trabajo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/.test(cap.name), 'nombre de archivo: ' + cap.name);
+      const blob = await (await W.fetch(cap.href)).blob();
+      ok(blob.size > 1000, `archivo vacío o casi (${blob.size} bytes)`);
+      const d = JSON.parse(await blob.text());
+      ok(d.format === 'mesa-feed' && d.boards.some(b => b.key === `${CLIENTE}-${MES}`), 'el archivo no trae el tablero de prueba');
+      ok(Object.keys(d.files).length >= 1, 'el archivo no trae la foto');
+      ua = 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/152.0 Safari/537.36'; cap = null;
+      const r2 = await M.exportAll();
+      ok(r2 && r2.error && r2.name === 'NotAllowedError', 'sin permiso para escribir no avisó con el motivo: ' + json(r2));
+      ok(dialogos === 1 && !cap, `diálogos: ${dialogos}, descarga: ${!!cap} (tenía que ser un diálogo y ninguna descarga)`);
+      ok(borrado === 1, 'no borró el archivo vacío que creó el diálogo');
+      ok(W.localStorage.getItem(LS) === '1', 'no recordó que en este navegador hay que descargar');
+      const r3 = await M.exportAll();
+      ok(r3 && r3.via === 'descarga' && dialogos === 1, 'la exportación siguiente volvió a abrir el diálogo: ' + json(r3));
+    } finally {
+      delete nav.userAgent; A.click = click;
+      if (tenia) W.showSaveFilePicker = picker0; else delete W.showSaveFilePicker;
+      if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes);
+    }
+  });
+
+  prueba('M2', 'Exportar, borrar e importar devuelve el tablero igual: fotos, Contexto, Nota, captions y huecos (D-017)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('m2a.jpg')]);
+    await poner('r2', [await foto('m2b.jpg'), await foto('m2c.jpg', 1600, 1000)]);
+    M._test.setNote('r1', 'Contexto de prueba');
+    M._test.setMemo('r1', 'Nota privada');
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'Cercano', text: 'Uno' }, { tone: 'Directo', text: 'Dos' }, { tone: 'Poético', text: 'Tres' }] }]);
+    await pulsar('[data-act="addfiller"]');
+    await M.flush();
+    const corte = b => ({ fillers: b.fillers, tray: b.tray, slots: b.slots.map(s => ({ id: s.id, name: s.name, type: s.type, photos: s.photos, note: s.note, memo: s.memo, caption: s.caption && { orig: s.caption.orig, tones: s.caption.tones } })) });
+    const antes = corte(M.board());
+    const blob = await M.exportAll({ returnBlob: true });
+    ok(blob && blob.size > 1000, 'la exportación salió vacía');
+    await M.purge(`${CLIENTE}-${MES}`);
+    ok(!(await M.boards()).some(b => b.key === `${CLIENTE}-${MES}`), 'el tablero no se borró');
+    const r = await M.importData(blob, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(corte(M.board()), antes, 'el tablero importado no es igual al exportado');
+    for (const id of antes.slots.flatMap(s => s.photos)) ok(await M._test.fileRec(id), 'falta la foto ' + id);
+  });
+
+  prueba('M3', 'Reordenar las fotos de un carrusel no deja los captions desactualizados (M4)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('m3a.jpg'), await foto('m3b.jpg'), await foto('m3c.jpg')]);
+    M._test.setNote('r1', 'Contexto');
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);               // como en el uso real: en la misma sesión la base de los captions es la misma lista que las fotos
+    const fotos = slot('r1').photos;
+    M._test.movePhoto('r1', 0, 2);
+    igual([...slot('r1').photos].sort(), [...fotos].sort(), 'mover cambió qué fotos lleva');
+    ok(json(slot('r1').photos) !== json(fotos), 'el orden no cambió');
+    const c = M.captions('r1')[0];
+    ok(!c.outdated, 'los captions salen desactualizados tras reordenar: ' + json(c.outdatedBy));
+    M._test.unassign('r1', 2);                     // control: quitar una foto sí los desactualiza
+    ok(M.captions('r1')[0].outdated, 'quitar una foto no los marca desactualizados (la prueba no distingue)');
+  });
+
+  prueba('M4', 'Un caption subido sin fotos ni Contexto subidos no pone «✓ en Notion» (M4)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m4a.jpg')]);      // foto y Contexto puestos, pero sin subir
+    M._test.setNote('r1', 'Contexto');
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    const r = M.markCaptionsUploaded(['r1']);
+    ok(r[0].result === 'subido', 'no se marcó subido: ' + json(r));
+    await espera(50);
+    ok(!celda('r1').querySelector('.st.ok'), 'la casilla dice «✓ en Notion» solo con el caption');
+    const p = M.plan().find(x => x.slotId === 'r1');
+    ok(p && p.status === 'nueva', 'plan() no la da como nueva: ' + json(p));
+    // control: con su foto y su Contexto subidos sí sale
+    const [f] = await poner('r2', [await foto('m4.jpg')]);
+    M._test.setNote('r2', 'Contexto');
+    M.markUploaded([{ slotId: 'r2', fileIds: [f] }]);
+    await espera(50);
+    ok(celda('r2').querySelector('.st.ok'), 'una publicación subida de verdad no dice «✓ en Notion» (la prueba no distingue)');
+  });
+
+  prueba('M5', 'loadCaptions rechaza un tono o un texto que no sean texto (M5)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    const r = M.loadCaptions([
+      { slotId: 'r1', options: [{ tone: 5, text: 'a' }, { tone: 'b', text: 'b' }, { tone: 'c', text: 'c' }] },
+      { slotId: 'r2', options: [{ tone: 'a', text: { t: 1 } }, { tone: 'b', text: 'b' }, { tone: 'c', text: 'c' }] },
+      { slotId: 'r3', options: [{ tone: 'a', text: 'a' }, { tone: 'b', text: 'b' }, { tone: 'c', text: 'c' }] }
+    ]);
+    igual(r.map(x => x.result), ['error', 'error', 'cargado'], 'resultado de loadCaptions');
+    ok(!slot('r1').caption && !slot('r2').caption, 'se guardó un caption no válido');
+  });
+
+  prueba('M6', 'Reabrir el tablero conserva un tipo cambiado en la mesa y pendiente para Notion (3.26)', async () => {
+    await tablero([pub(1)]);
+    M._test.setType('r1', 'Carrusel');
+    ok(slot('r1').type === 'Carrusel', 'setType no cambió el tipo');
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    const s = slot('r1');
+    ok(s.type === 'Carrusel', 'al reabrir el tipo vuelve a ' + s.type);
+    const n = M.notionChanges().find(x => x.slotId === 'r1');
+    ok(n && n.typeChanged && n.notionType === 'Foto' && n.type === 'Carrusel', 'notionChanges no lo da como cambio de tipo: ' + json(n));
+  });
+
+  // la copia salía de un arrastre nativo de la imagen de la miniatura: el arreglo es que la imagen no recibe el puntero
+  // (el arrastre real, en la comprobación manual)
+  prueba('M7', 'Las miniaturas de la tira de la publicación no se arrastran como imagen, que añadía una copia de la foto (3.26)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('m7a.jpg'), await foto('m7b.jpg'), await foto('m7c.jpg')]);
+    M._in.openDetail('r1', 0);
+    const imgs = await hasta(() => { const l = qa('.detail .strip img, .detail .thumbs img, .detail .th img'); return l.length === 3 && l; }, 3000, 'las 3 miniaturas de la tira');
+    ok(imgs.every(i => W.getComputedStyle(i).pointerEvents === 'none'), 'una miniatura de la tira se puede arrastrar como imagen (pointer-events)');
+    M._in.closeDetail();
+  });
+
+  prueba('M8', 'En la cuadrícula una Foto con varias páginas se llama «Foto», no «Carrusel» (3.27)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('m8a.jpg'), await foto('m8b.jpg')]);
+    await poner('r2', [await foto('m8c.jpg'), await foto('m8d.jpg')]);
+    ok(slot('r1').photos.length === 2, 'la Foto no se quedó con sus 2 páginas');
+    const t1 = celda('r1').textContent, t2 = celda('r2').textContent;
+    ok(/Foto 1\.1/.test(t1) && !/Carrusel/.test(t1), 'la Foto de 2 páginas dice: ' + t1);
+    ok(/Carrusel 1\.2/.test(t2), 'el carrusel no dice «Carrusel» (la prueba no distingue): ' + t2);
+  });
+
+  prueba('M9', '«+ Hueco»: como mucho 2, detrás de las fijadas, y siguen al reabrir (D-002)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    for (let i = 0; i < 3; i++) await pulsar('[data-act="addfiller"]');
+    ok(M.status().fillers === 2, 'huecos: ' + M.status().fillers);
+    const S = M._in.S; S.pins = ['r1']; M._in.save(); M._in.renderFeed();
+    const orden = () => qa('.feed .cell, .grid .cell').filter(c => !c.closest('.past, .prevm')).slice(0, 4).map(c => c.classList.contains('filler') ? 'hueco' : c.dataset.slot);
+    igual(orden().slice(0, 3), ['r1', 'hueco', 'hueco'], 'orden de arriba del grid');
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    ok(M.status().fillers === 2, 'al reabrir quedan ' + M.status().fillers + ' huecos');
+    igual(orden().slice(0, 3), ['r1', 'hueco', 'hueco'], 'orden de arriba del grid al reabrir');
+    q('.cell.filler .hx').click(); await espera(30);
+    ok(M.status().fillers === 1, 'quitar un hueco no lo quitó');
+  });
+
+  prueba('M10', 'La cuadrícula no muestra puntos de estado (D-004)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await poner('r1', [await foto('m10.jpg')]);
+    M._test.setNote('r1', 'Contexto');
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    M.setEstado('r2', 'cancelado'); M.setEstado('r3', 'programado');
+    await espera(50);
+    const conEstado = qa('.cell [class]').filter(e => [...e.classList].some(c => /^e-/.test(c)));
+    ok(!conEstado.length, 'hay puntos de estado en la cuadrícula: ' + conEstado.map(e => e.className).join(', '));
+    M._in.openDetail('r1', 0);                     // control: la ventana de la publicación sí lo muestra
+    await hasta(() => qa('.detail [class]').some(e => [...e.classList].some(c => /^e-/.test(c))), 3000, 'el estado en la ventana de la publicación');
+    M._in.closeDetail();
+  });
+
+  prueba('M11', 'Una foto ya usada avisa y pregunta en vez de bloquearse; la bandeja no la duplica (D-022)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await poner('r1', [await foto('m11.jpg')]);
+    // «Usar igualmente»: entra
+    const p = M.addFiles([await foto('m11.jpg')], 'r2');
+    const h = await hasta(() => { const d = dialogo(); return d && d.querySelector('[data-act="repe"][data-m="usar"]') && d; }, 4000, 'el aviso de foto ya usada');
+    ok(/este mes/i.test(h.textContent), 'el aviso no dice su uso más cercano: ' + h.querySelector('h3').textContent);
+    h.querySelector('[data-act="repe"][data-m="usar"]').click();
+    await p;
+    ok(slot('r2').photos.length === 1 && M.files[slot('r2').photos[0]].name === 'm11.jpg', 'con «Usar igualmente» la foto no entró');
+    // «Cancelar»: no entra
+    const p2 = M.addFiles([await foto('m11.jpg')], 'r3');
+    const h2 = await hasta(() => { const d = dialogo(); return d && d.querySelector('[data-act="repe"]') && d; }, 4000, 'el segundo aviso');
+    h2.querySelector('.btn2[data-act="close"], [data-act="close"]').click();
+    await p2;
+    ok(!slot('r3').photos.length, 'con «Cancelar» la foto entró igual');
+    // bandeja: una foto que ya está en ella sin usar no se duplica ni avisa
+    const n0 = M.status().tray;
+    await M.addFiles([await foto('m11b.jpg')]);
+    await M.addFiles([await foto('m11b.jpg')]);
+    ok(!dialogo() || !dialogo().querySelector('[data-act="repe"]'), 'importar a la bandeja avisó');
+    ok(M.status().tray === n0 + 1, `la bandeja tiene ${M.status().tray - n0} copias de la foto`);
+  });
+
+  // =====================================================================================================
+  // Editor de diapositivas (libre.js)
+  // =====================================================================================================
+
+  prueba('E1', 'Editor: un carrusel vacío abre sin diapositivas, y abrir y salir sin cambios no deja paso en el ⌘Z de la mesa (libre 1.1)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r2', [await foto('e1a.jpg'), await foto('e1b.jpg')]);
+    const h0 = M._test.hist(), f0 = slot('r2').photos;
+    const E = await abrirEditor('r1');
+    ok(E.sl.length === 0, `el carrusel vacío abre con ${E.sl.length} diapositivas`);
+    M.libre.cerrar();
+    await abrirEditor('r2');
+    M.libre.cerrar();
+    await espera(50);
+    igual(M._test.hist(), h0, 'historial de la mesa');
+    igual(slot('r2').photos, f0, 'fotos del carrusel');
+    ok(!slot('r2').libre, 'abrir y salir dejó una composición');
+  });
+
+  prueba('E2', 'Editor: aplicar es un solo paso del ⌘Z de la mesa, que lo deshace entero, y sus imágenes no van a la bandeja', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const ids = await poner('r1', [await foto('e2a.jpg'), await foto('e2b.jpg')]);
+    const u0 = M._test.hist().undo;
+    await abrirEditor('r1');
+    accion('add-txt');
+    accion('sl', { i: '1' }); accion('add-forma', { v: 'rect' });
+    await aplicarEditor();
+    const s = slot('r1'), hecha = f => !!(M.files[f] && M.files[f].design);
+    ok(M._test.hist().undo === u0 + 1, `aplicar dejó ${M._test.hist().undo - u0} pasos en el ⌘Z de la mesa`);
+    ok(s.photos.length === 2 && s.photos.every(hecha), 'las diapositivas no son las imágenes del editor');
+    ok(s.libre && Object.keys(s.libre.slides).length === 2, 'faltan composiciones');
+    ok(!M.board().tray.some(hecha), 'una imagen del editor está en la bandeja');
+    M._test.undo();
+    await espera(50);
+    igual(slot('r1').photos, ids, '⌘Z no devolvió las fotos de antes');
+    ok(!slot('r1').libre || !Object.keys(slot('r1').libre.slides || {}).length, '⌘Z dejó composiciones');
+    ok(!M.board().tray.some(hecha), 'tras ⌘Z hay una imagen del editor en la bandeja');
+  });
+
+  prueba('E3', '«Llenar» lleva el marco a toda la diapositiva sin perder el encuadre: mismo centro y misma zona (3.27)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const [f] = await poner('r1', [await foto('e3.jpg', 1600, 1000)]);
+    M._test.setSlot('r1', { fmt: 'v45' });           // con su primera foto apaisada el carrusel sería Horizontal
+    await abrirEditor('r1');
+    elegir(compDe(0).els[0]);
+    accion('encajar');                               // el marco se ajusta a la foto entera: ya no llena la diapositiva
+    const el = () => compDe(0).els.find(e => e.src === f);
+    const a = el();
+    ok(a.w * a.h < 0.99, 'Encajar no achicó el marco');
+    Object.assign(a, { cx: 0.42, cy: 0.55, z: 1.6 }); // un encuadre propio dentro del marco
+    const { W: SW, H: SH } = tam(), d = M.files[f];
+    const zona = e => M._in.rectFor(d.w, d.h, (e.w * SW) / (e.h * SH), { cx: e.cx, cy: e.cy, z: e.z });
+    const z0 = zona(a);
+    accion('llenar');
+    const b = el(), z1 = zona(b);
+    igual([b.x, b.y, b.w, b.h], [0, 0, 1, 1], 'Llenar no llevó el marco a toda la diapositiva');
+    cerca(z1.x + z1.w / 2, z0.x + z0.w / 2, d.w * 0.005, 'el centro (x) del encuadre se movió');
+    cerca(z1.y + z1.h / 2, z0.y + z0.h / 2, d.h * 0.005, 'el centro (y) del encuadre se movió');
+    cerca(z1.w * z1.h, z0.w * z0.h, z0.w * z0.h * 0.02, 'la zona de la foto cambió de tamaño');
+  });
+
+  prueba('E4', '«Sustituir» en la portada de un carrusel del editor cambia solo la foto y conserva textos, capas y velo (3.29)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e4a.jpg'), await foto('e4b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt'); accion('add-forma', { v: 'elipse' }); accion('velo', { v: 'plano' });
+    await aplicarEditor();
+    const s0 = slot('r1'), c0 = s0.libre.slides[s0.photos[0]];
+    ok(c0 && c0.velo && c0.els.length === 3, 'la portada no quedó compuesta: ' + json(c0 && c0.els.map(e => e.t)));
+    const [nueva] = await M.addFiles([await foto('e4c.jpg')]);
+    M._test.setSel(nueva);
+    celda('r1').click();
+    await pulsar('[data-act="addmode"][data-m="replace"]');
+    const c1 = await hasta(() => { const s = slot('r1'), c = s.libre && s.libre.slides[s.photos[0]]; return c && c.els.some(e => e.src === nueva) && c; }, 15000, 'la portada con la foto nueva');
+    igual(c1.els.filter(e => e.t !== 'foto'), c0.els.filter(e => e.t !== 'foto'), 'textos y formas de la portada');
+    igual(c1.els.map(e => e.t), c0.els.map(e => e.t), 'orden de las capas');
+    igual([c1.velo, c1.bg], [c0.velo, c0.bg], 'velo y fondo');
+    ok(slot('r1').photos.length === 2, 'Sustituir cambió el número de diapositivas');
+  });
+
+  prueba('E5', '«Añadir» en un carrusel del editor rellena sus huecos en orden y solo crea diapositiva si no queda ninguno (3.29)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e5a.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add'); compDe(1).els.push(huecoEl('h2', 0.1, 0.1, 0.8, 0.6));
+    accion('sl-add'); compDe(2).els.push(huecoEl('h3', 0.1, 0.1, 0.8, 0.6));
+    await aplicarEditor();
+    const libres = () => { const s = slot('r1'); return s.photos.map(k => !!(s.libre.slides[k] && s.libre.slides[k].els.some(e => e.t === 'hueco'))); };
+    igual(libres(), [false, true, true], 'huecos libres por diapositiva');
+    for (const [n, quedan] of [['e5b.jpg', [false, false, true]], ['e5c.jpg', [false, false, false]]]) {
+      const [f] = await M.addFiles([await foto(n)]);
+      M._test.setSel(f); celda('r1').click();
+      await pulsar('[data-act="addmode"][data-m="add"]');
+      await hasta(() => json(libres()) === json(quedan), 15000, `${n} en el siguiente hueco libre (${json(quedan)})`);
+      ok(slot('r1').photos.length === 3, '«Añadir» creó una diapositiva habiendo un hueco libre');
+    }
+    const [f] = await M.addFiles([await foto('e5d.jpg')]);
+    M._test.setSel(f); celda('r1').click();
+    await pulsar('[data-act="addmode"][data-m="add"]');
+    await hasta(() => slot('r1').photos.length === 4, 15000, 'una diapositiva nueva al final cuando ya no quedan huecos');
+  });
+
+  prueba('E6', 'Borrar la foto de un hueco devuelve el hueco tal como era (3.33)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e6a.jpg')]);
+    const [f] = await M.addFiles([await foto('e6b.jpg', 1600, 1000)]);
+    await abrirEditor('r1');
+    accion('sl-add');
+    const h = { ...huecoEl('h1', 0.1, 0.15, 0.8, 0.5), textos: [{ t: 'texto', txt: 'Suelta aquí la foto', x: 0.1, y: 0.45, w: 0.8, h: 0.1, size: 0.03, color: '#8e8e8e', al: 'cen' }] };
+    compDe(1).els.push(JSON.parse(json(h)));
+    const p = await enHueco(1, 'h1', f);
+    ok(!compDe(1).els.some(e => e.t === 'hueco'), 'el hueco sigue ahí con la foto puesta');
+    elegir(p); accion('del');
+    igual(compDe(1).els, [h], 'el hueco que vuelve al borrar la foto');
+  });
+
+  prueba('E7', 'Encaje en huecos: a sangre rellena, dentro del margen entra entera y centrada, doble clic alterna, #2B231F → #16110E (D-018)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e7a.jpg')]);
+    const [ancha, alta] = await M.addFiles([await foto('e7b.jpg', 1600, 1000), await foto('e7c.jpg', 1200, 1500)]);
+    await abrirEditor('r1');
+    const { W: SW, H: SH } = tam();
+    // a sangre, sobre el fondo provisional
+    accion('sl-add'); compDe(1).bg = '#2b231f'; compDe(1).els.push(huecoEl('hs', 0, 0, 1, 1));
+    const a = await enHueco(1, 'hs', ancha);
+    ok(a.x <= 0.001 && a.y <= 0.001 && a.x + a.w >= 0.999 && a.y + a.h >= 0.999, 'a sangre no cubre la diapositiva: ' + json([a.x, a.y, a.w, a.h]));
+    igual(String(compDe(1).bg).toLowerCase(), '#16110e', 'el fondo provisional no pasó a Ink');
+    // dentro del margen: una foto vertical en un hueco apaisado entra entera, lo más alta posible y centrada
+    accion('sl-add'); compDe(2).els.push(huecoEl('hm', 0.1, 0.1, 0.8, 0.5));
+    const b = await enHueco(2, 'hm', alta), d = M.files[alta];
+    cerca((b.w * SW) / (b.h * SH), d.w / d.h, 0.01, 'la foto no conserva su proporción');
+    cerca(b.h, 0.5, 0.002, 'no es lo más grande que cabe');
+    ok(b.w < 0.8 - 0.01, 'no deja franjas a los lados');
+    cerca(b.x + b.w / 2, 0.5, 0.002, 'no está centrada en horizontal');
+    cerca(b.y + b.h / 2, 0.35, 0.002, 'no está centrada en vertical');
+    // doble clic sobre la foto: pasa a llenar el hueco; otro, vuelve a entera (en las coordenadas del lienzo: E.k y E.sz).
+    // El doble clic cambia el elemento en su sitio: se comparan copias de sus medidas
+    const entera = [b.x, b.y, b.w, b.h];
+    const dbl = el => {
+      const E = ed(), r = E.cv.getBoundingClientRect();
+      const x = r.left + (el.x + el.w / 2) * E.sz.W * E.k, y = r.top + (el.y + el.h / 2) * E.sz.H * E.k;
+      E.cv.dispatchEvent(new W.MouseEvent('dblclick', { clientX: x, clientY: y, bubbles: true, cancelable: true }));
+    };
+    dbl(b);
+    const c = compDe(2).els.find(e => e.src === alta);
+    ok(c.x <= 0.101 && c.y <= 0.101 && c.x + c.w >= 0.899 && c.y + c.h >= 0.599, 'el doble clic no la pasó a llenar el hueco: ' + json([c.x, c.y, c.w, c.h]));
+    const llena = [c.x, c.y, c.w, c.h];
+    ok(json(llena) !== json(entera), 'el doble clic no cambió la foto');
+    dbl(c);
+    const e = compDe(2).els.find(x => x.src === alta);
+    igual([e.x, e.y, e.w, e.h], entera, 'el segundo doble clic no la devolvió a entera');
+  });
+
+  prueba('E8', 'Cambiar de formato y volver deja textos y formas exactamente igual, también con ⌘Z (D-019)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e8a.jpg'), await foto('e8b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt'); accion('add-txt'); accion('add-forma', { v: 'rect' });
+    const [t1, t2, fo] = compDe(0).els.filter(e => e.t !== 'foto');
+    Object.assign(t1, { txt: 'Titular de prueba', x: 0.08, y: 0.08, w: 0.84 });
+    Object.assign(t2, { txt: 'Línea de datos', x: 0.08, y: 0.86, w: 0.5, size: 0.03 });
+    Object.assign(fo, { x: 0.7, y: 0.62, w: 0.2, h: 0.1 });
+    [t1, t2, fo].forEach(e => delete e.mano);        // como los de una plantilla: no movidos a mano
+    const sitios = () => compDe(0).els.filter(e => e.t !== 'foto').map(e => ({ id: e.id, x: e.x, y: e.y, w: e.w, h: e.h, size: e.size }));
+    const antes = sitios();
+    accion('fmt', { v: 'h' });
+    ok(json(sitios()) !== json(antes), 'en Horizontal nada se recolocó (la prueba no distingue)');
+    for (const f of ['v34', 'q11', 'v45']) accion('fmt', { v: f });
+    ok(ed().fmt === 'v45', 'el formato no volvió a 4:5');
+    igual(sitios(), antes, 'tras 4:5 → Horizontal → 3:4 → 1:1 → 4:5');
+    for (let i = 0; i < 4; i++) accion('undo');
+    ok(ed().fmt === 'v45', 'tras ⌘Z el formato no es 4:5');
+    igual(sitios(), antes, 'tras deshacer los cuatro cambios con ⌘Z');
+  });
+
+  prueba('E9', 'Pegar en otra proporción conserva el tamaño en px y la distancia a su esquina, sin deformar (3.31)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('e9a.jpg')]);
+    await poner('r2', [await foto('e9b.jpg')]);
+    M._test.setSlot('r2', { fmt: 'q11' });
+    await abrirEditor('r1');
+    accion('add-forma', { v: 'rect' });
+    const a = compDe(0).els.find(e => e.t === 'forma');
+    Object.assign(a, { x: 0.05, y: 0.04, w: 0.3, h: 0.1, color: '#000000' });
+    const S1 = tam();
+    elegir(a); accion('copy');
+    M.libre.cerrar();
+    await abrirEditor('r2');
+    const S2 = tam();
+    ok(ed().fmt === 'q11' && S2.W === S2.H, 'el segundo carrusel no está en 1:1');
+    accion('paste');
+    const b = await hasta(() => compDe(0).els.find(e => e.t === 'forma'), 3000, 'la forma pegada');
+    cerca(b.w * S2.W, a.w * S1.W, 1, 'ancho en px');
+    cerca(b.h * S2.H, a.h * S1.H, 1, 'alto en px');
+    cerca(b.x * S2.W, a.x * S1.W, 1, 'distancia al borde izquierdo');
+    cerca(b.y * S2.H, a.y * S1.H, 1, 'distancia al borde de arriba');
+  });
+
+  prueba('E10', 'Sin kit, los selectores de color solo dan #000000 y #FFFFFF, y un texto nuevo sin foto sale en #000000 (3.30)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt');
+    const t = compDe(0).els.find(e => e.t === 'texto');
+    igual(String(t.color).toLowerCase(), '#000000', 'color de un texto nuevo sin foto');
+    const muestras = lb => [...new Set([...ed().el.querySelectorAll(`[data-lb="${lb}"][data-c]`)].map(b => b.dataset.c.toLowerCase()))];
+    const tc = await hasta(() => muestras('tc').length && muestras('tc'), 3000, 'las muestras de color del texto');
+    ok(tc.every(c => ['#000000', '#ffffff'].includes(c)), 'colores de texto fuera de los básicos: ' + tc);
+    tecla('Escape');                                 // sin nada elegido, el panel de la diapositiva: su fondo
+    const bg = await hasta(() => muestras('bg').length && muestras('bg'), 3000, 'las muestras del fondo');
+    ok(bg.every(c => ['#000000', '#ffffff'].includes(c)), 'colores de fondo fuera de los básicos: ' + bg);
+  });
+
+  prueba('E11', '⌥⌘C / ⌥⌘V copian y pegan el estilo de un texto (también sin e.code), no actúan mientras se escribe y ⌘Z lo deshace (D-023)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt'); accion('add-txt'); accion('add-txt');
+    const [a, b, c] = compDe(0).els.filter(e => e.t === 'texto');
+    Object.assign(a, { txt: 'A', peso: 700, size: 0.09, color: '#ffffff', ls: 0.05, may: true, al: 'izq', lh: 1 });
+    Object.assign(c, { txt: 'C', peso: 300, size: 0.03, color: '#000000', ls: 0, may: false, al: 'der', lh: 1.4 });
+    Object.assign(b, { txt: 'B', x: 0.2, y: 0.3, w: 0.6 });
+    const estilo = e => ({ font: e.font, peso: e.peso, size: e.size, color: e.color, lh: e.lh, ls: e.ls, al: e.al, may: e.may });
+    const sitio = e => ({ txt: e.txt, x: e.x, y: e.y, w: e.w });
+    const B = () => compDe(0).els.find(e => e.id === b.id), b0 = sitio(b);
+    elegir(a); tecla('c', { meta: true, alt: true });            // sin e.code, como manda las teclas el navegador integrado
+    elegir(b); tecla('v', { meta: true, alt: true });
+    igual(estilo(B()), estilo(a), 'estilo pegado (tecla sin e.code)');
+    igual(sitio(B()), b0, 'pegar el estilo tocó el texto, la posición o el ancho');
+    elegir(c); tecla('ç', { meta: true, alt: true, code: 'KeyC' }); // un Mac de verdad: ⌥C escribe «ç»
+    elegir(B()); tecla('◊', { meta: true, alt: true, code: 'KeyV' });
+    igual(estilo(B()), estilo(c), 'estilo pegado (tecla con e.code)');
+    elegir(a); tecla('c', { meta: true, alt: true });
+    const ta = D.createElement('textarea'); ed().el.append(ta);
+    elegir(B()); tecla('v', { meta: true, alt: true, en: ta });   // escribiendo en un texto: nada
+    ta.remove();
+    igual(estilo(B()), estilo(c), 'el atajo actuó mientras se escribía');
+    accion('undo');
+    igual(estilo(B()), estilo(a), '⌘Z no deshizo el último pegado de estilo');
+  });
+
+  prueba('E12', 'Las guías se guardan con el post y no salen en la imagen aplicada (D-023)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    const hacer = async (id, conGuias) => {
+      await abrirEditor(id);
+      accion('sl-add'); accion('add-forma', { v: 'rect' });
+      Object.assign(compDe(0).els[0], { color: '#000000', x: 0.3, y: 0.3, w: 0.4, h: 0.2 });
+      if (conGuias) { accion('guias'); ed().guias.x.push(540); ed().guias.y.push(675); }
+      await aplicarEditor();
+      return slot(id);
+    };
+    const a = await hacer('r1', true), b = await hacer('r2', false);
+    igual(a.guias, { x: [540], y: [675] }, 'las guías del post');
+    ok(!b.guias || !(b.guias.x.length + b.guias.y.length), 'el post sin guías tiene guías');
+    const [xa, xb] = await Promise.all([a, b].map(async s => new Uint8Array(await (await M._in.getBlob(s.photos[0])).arrayBuffer())));
+    ok(xa.length > 1000 && xa.length === xb.length && xa.every((v, i) => v === xb[i]), 'la imagen aplicada con guías no es igual a la de sin guías');
+  });
+
+  // =====================================================================================================
+  // ejecución
+  // =====================================================================================================
+  const filas = $('filas');
+  function fila(t) {
+    const tr = document.createElement('tr'); tr.id = 'p-' + t.id;
+    tr.innerHTML = `<td class="r">·</td><td><b>${t.id}</b> ${t.titulo.replace(/</g, '&lt;')}<div class="err"></div></td><td class="d"></td>`;
+    filas.append(tr); return tr;
+  }
+  const MAX_MS = 120000;                           // una prueba colgada (un aviso que nunca se contesta) falla en vez de parar la batería
+  async function preparar() {
+    const fr = $('mesa');
+    await new Promise(r => { fr.onload = r; fr.src = '../index.html?regresion=' + Date.now(); });
+    W = fr.contentWindow; D = W.document;
+    await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in, 15000, 'que carguen mesa.js y libre.js');
+    M = W.MESA;
+    // index.html lanza MESA.boot() sin esperarlo: termina cuando la mesa tiene su armazón y no está cambiando de tablero
+    await hasta(() => M._in.shellReady() && !M._in.switching(), 15000, 'que la mesa termine de arrancar');
+    ok(!M._in.locked, 'la mesa está abierta en otra pestaña de este puerto: ciérrala');
+    const ajenos = [...(await M.boards()).filter(b => b.client !== CLIENTE).map(b => b.key), ...(await M.clients()).filter(c => c.id !== CLIENTE).map(c => c.id)];
+    ok(!ajenos.length, `este puerto tiene datos que no son de prueba (${ajenos.slice(0, 4).join(', ')}${ajenos.length > 4 ? '…' : ''}): pasa la batería en una copia con un puerto nuevo`);
+  }
+  // lo que la mesa deja en localStorage (último tablero, guías…) vuelve a como estaba antes de la batería
+  const lsFoto = () => Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)]));
+  function lsVolver(f) {
+    Object.keys(localStorage).forEach(k => { if (!(k in f)) localStorage.removeItem(k); });
+    Object.entries(f).forEach(([k, v]) => { if (localStorage.getItem(k) !== v) localStorage.setItem(k, v); });
+  }
+  async function pasar() {
+    const go = $('go'); go.disabled = true;
+    const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);
+    const lista = solo.length ? T.filter(t => solo.includes(t.id)) : T;
+    filas.innerHTML = '';
+    const res = { ok: false, version: null, pasan: 0, fallan: 0, pruebas: [] };
+    const ls0 = lsFoto();
+    let listo = false;
+    try {
+      const raras = solo.filter(id => !T.some(t => t.id === id));
+      ok(!raras.length, 'no existen las pruebas ' + raras.join(', '));
+      await preparar();
+      listo = true;
+      res.version = M.version + ' · libre ' + M.libre.version;
+      for (const t of lista) {
+        const tr = fila(t), t0 = performance.now();
+        tr.className = 'corre'; tr.querySelector('.r').textContent = 'corre';
+        $('resumen').textContent = `Pasando ${t.id}…`;
+        let err = null, reloj;
+        try { await Promise.race([t.fn(), new Promise((_, no) => { reloj = setTimeout(() => no(new Error(`sin terminar en ${MAX_MS / 1000} s`)), MAX_MS); })]); }
+        catch (e) { err = e; }
+        finally { clearTimeout(reloj); }
+        try { if (M.libre.abierto()) M.libre.cerrar(); M._in.closeDetail(); } catch (e) { /* */ }
+        const ms = Math.round(performance.now() - t0);
+        tr.className = err ? 'mal' : 'ok'; tr.querySelector('.r').textContent = err ? 'falla' : 'pasa';
+        tr.querySelector('.d').textContent = ms + ' ms';
+        if (err) { tr.querySelector('.err').textContent = String((err && err.message) || err); console.error(t.id, err); }
+        res.pruebas.push({ id: t.id, ok: !err, ms, error: err ? String(err.message || err) : null });
+        res[err ? 'fallan' : 'pasan']++;
+      }
+    } catch (e) {
+      res.error = String((e && e.message) || e);
+    }
+    if (listo) {                                     // la limpieza, aparte: un fallo suyo no tapa el resultado de las pruebas
+      try {
+        await limpiar();
+        const r = await M.removeClient(CLIENTE);
+        ok(r === true && !(await M.boards()).some(b => b.client === CLIENTE), 'no se pudo borrar el cliente de prueba: ' + r);
+      } catch (e) { res.limpieza = String((e && e.message) || e); }
+    }
+    if (listo && !res.fallan && !res.limpieza) {     // sin fallos, la mesa de prueba se cierra (suelta el bloqueo de otras pestañas)
+      await new Promise(r => { $('mesa').onload = r; $('mesa').src = 'about:blank'; });
+    }
+    lsVolver(ls0);
+    res.ok = !res.error && !res.limpieza && lista.length > 0 && res.fallan === 0;
+    window.RESULTADO = res;
+    $('resumen').textContent = (res.error ? 'No se pudo pasar la batería: ' + res.error
+      : `Mesa ${res.version}: ${res.pasan} pasan, ${res.fallan} fallan, de ${lista.length}.`)
+      + (res.limpieza ? ' Limpieza: ' + res.limpieza : '');
+    go.disabled = false;
+    return res;
+  }
+  window.pasarBateria = pasar;
+  $('go').disabled = false; $('go').onclick = pasar;
+  $('resumen').textContent = `${T.length} pruebas listas.`;
+  if (new URLSearchParams(location.search).has('auto')) pasar();
+})();

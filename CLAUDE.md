@@ -34,8 +34,11 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Nunca abras la URL publicada en el navegador integrado de Claude: es otro origen y está vacía.
   En el navegador del usuario correría sobre sus datos reales.
 - Prueba siempre en localhost sobre una copia: copia `index.html`, `mesa.js`, `diseno.js`,
-  `libre.js`, `calendario.js` y `kits/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
+  `libre.js`, `calendario.js`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
+- Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
+  («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.
+- Cada fallo corregido suma su prueba en `tests/regresion.js`.
 - No sirvas la carpeta del repo: expondría `.env`, y el servidor de preview no puede leer carpetas
   protegidas de macOS (Escritorio, Documentos).
 - Datos de prueba: una exportación de la mesa (⇅ → Exportar) o un tablero de prueba nuevo.

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Batería de regresión · Mesa</title>
+<style>
+  body { margin: 0; font: 14px -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; background: #fafafa; color: #262626; }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  p { margin: 6px 0; line-height: 1.45; }
+  button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid #262626; background: #262626; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #resumen { font-weight: 600; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  td, th { border-bottom: 1px solid #e6e6e6; padding: 6px 8px; text-align: left; vertical-align: top; }
+  td.r { white-space: nowrap; font-weight: 600; }
+  tr.ok td.r { color: #1a7f37; } tr.mal td.r { color: #c62828; } tr.corre td.r { color: #8a6d00; }
+  td.d { color: #8e8e8e; white-space: nowrap; }
+  .err { color: #c62828; font-size: 12.5px; margin-top: 3px; white-space: pre-wrap; }
+  ol li { margin: 6px 0; line-height: 1.45; }
+  .marco { margin-top: 24px; overflow-x: auto; }
+  #mesa { display: block; border: 1px solid #dbdbdb; width: 1280px; height: 860px; background: #fff; }   /* ancho fijo: la mesa no pasa a su vista estrecha */
+  .no { padding: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Batería de regresión de la Mesa</h1>
+  <p>Una prueba por fallo ya corregido. Corre sobre una copia servida en 127.0.0.1 (ver CLAUDE.md, «Probar»), con un tablero sintético
+    de un cliente de prueba y fotos generadas con canvas; al terminar borra lo que ha creado. No la abras con la mesa de ese puerto abierta en otra pestaña.</p>
+  <p><button id="go" disabled>Pasar la batería</button></p>
+  <p id="resumen">Cargando la mesa…</p>
+  <table><thead><tr><th>Resultado</th><th>Prueba</th><th>Tiempo</th></tr></thead><tbody id="filas"></tbody></table>
+
+  <h2>Comprobación manual</h2>
+  <p>Lo que no se puede automatizar bien (arrastres finos y gestos). Se hace a mano en la mesa de la misma copia, con el tablero de prueba.</p>
+  <ol>
+    <li><b>Tira de la publicación (3.26).</b> En un carrusel de 3 fotos, arrastra la 1.ª miniatura de la tira al final: el orden cambia y siguen siendo 3 fotos (ninguna copia nueva).</li>
+    <li><b>Bandeja → casilla (3.29).</b> Arrastra con el ratón una foto de la bandeja a una casilla vacía: la casilla la recibe y la bandeja la pierde.</li>
+    <li><b>Imán y cotas (D-023).</b> En el editor, amplía una foto por un tirador lateral y por una esquina hasta el borde de otra: se imanta, salen las cotas en px y, con ⌥, amplía desde el centro.</li>
+    <li><b>Reencuadre sin cambio (B4).</b> En la ventana de una publicación subida («✓ en Notion»), un clic, un arrastre sin margen o «Centrar» con la foto ya centrada dejan el recorte igual y no aparece «cambiada».</li>
+    <li><b>Pellizco o rueda en el reencuadre.</b> En el editor, con «Encuadrar» activo, el pellizco del trackpad (o la rueda) amplía o reduce la foto dentro del marco, sin pasar de 1× a 3×.</li>
+  </ol>
+
+  <div class="marco"><iframe id="mesa" title="Mesa de prueba"></iframe></div>
+</main>
+<script src="regresion.js"></script>
+</body>
+</html>

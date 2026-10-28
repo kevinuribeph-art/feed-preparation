@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.17
+// Editor libre de diapositivas — Mesa de trabajo · v1.18
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -81,11 +81,12 @@
 // cover counts and never shows it; it follows every change of the slides, in the editor and in the mesa (the drawn images
 // are drawn again, sync); a post with texts like «02 / 11» offers to turn them into it. Arrows (one head or two), lines
 // with a stroke in px of 1080 (continuous, dashed, dotted) and pills (a text with a pill behind it).
+// v1.18 (mesa 3.43): M.libre.rev, for «Revisar» (revisar.js): a text's ink and a photo's px as drawn, and the numbering.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.17';
+  const VERSION = '1.18';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -3028,7 +3029,37 @@
     }
   }
 
+  // «Revisar» (revisar.js, mesa ≥ 3.43), as «Aplicar» draws it on a W×H slide: a text, the box of its ink (its lines, or
+  // its pill) turned with it, in px; a photo, how many of its px go across the whole slide's width
+  async function medida(el, W, H) {
+    if (el.t === 'foto') {
+      const f = el.src && M.files[el.src]; if (!f || !f.w) return null;
+      const ib = hueco(el, el.w * W, el.h * H), sr = srcRect(el, f.w, f.h, ib.w, ib.h);
+      return ib.w > 0 && sr.w > 0 ? { px: sr.w * W / ib.w } : null;
+    }
+    if (el.t !== 'texto') return null;
+    if (el.font && el.font.file) await fuente(el.font).p.catch(() => {});   // its own font, or what «Aplicar» falls back to
+    MC.save();
+    const L = lineas(MC, el, W), fw = el.w * W, fh = altoTexto(L), px = L.pil ? L.pil.x : 0, py = L.pil ? L.pil.y : 0;
+    let a = Infinity, b = -Infinity, t = Infinity, u = -Infinity;
+    if (L.pil && L.out.some(s => s.trim())) {
+      const lw = Math.min(fw, Math.max(0, ...L.out.map(s => medir(MC, s, L.ls))) + 2 * px);
+      a = el.al === 'der' ? fw / 2 - lw : el.al === 'cen' ? -lw / 2 : -fw / 2; b = a + lw; t = -fh / 2; u = fh / 2;
+    } else L.out.forEach((s, i) => {                // across, its advance; up and down, its glyphs from the baseline, as drawTexto
+      if (!s.trim()) return;
+      const lw = medir(MC, s, L.ls), x = el.al === 'der' ? fw / 2 - px - lw : el.al === 'cen' ? -lw / 2 : -fw / 2 + px, y = -fh / 2 + py + i * L.lh + (L.lh - L.px) / 2 + L.px * 0.8;
+      const k = MC.measureText(s), up = k.actualBoundingBoxAscent ?? L.px * 0.8, dn = k.actualBoundingBoxDescent ?? L.px * 0.2;
+      a = Math.min(a, x); b = Math.max(b, x + lw); t = Math.min(t, y - up); u = Math.max(u, y + dn);
+    });
+    MC.restore();
+    if (!(a <= b)) return null;
+    const r = (el.rot || 0) * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r), cx = el.x * W + fw / 2, cy = el.y * H + fh / 2;
+    const p = [[a, t], [b, t], [a, u], [b, u]].map(([x, y]) => [cx + x * c - y * sn, cy + x * sn + y * c]);
+    return { x0: Math.min(...p.map(q => q[0])), x1: Math.max(...p.map(q => q[0])), y0: Math.min(...p.map(q => q[1])), y1: Math.max(...p.map(q => q[1])) };
+  }
+
   M.libre = { version: VERSION, abrir, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E,
+    rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)
   // a board the mesa opened before this file loaded: its drawn holes become the element too (not a step of ⌘Z)
   { const S = I() && I().S, ids = S && !I().locked ? migrar(S) : []; if (ids.length) { ids.forEach(id => I().histAmend(id)); I().save(); } }

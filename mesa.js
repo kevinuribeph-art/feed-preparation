@@ -53,10 +53,12 @@
 // v3.41: «⇅ Exportar» exports empty photo holes as they are and then says where each one is (D-037).
 // v3.42: automatic numbering of a carousel's texts, arrows, lines with a stroke and pills in the free editor (libre 1.17,
 // D-038, D-039); a post's numbered images are drawn again when its slides change in the mesa.
+// v3.43: «Revisar» in the board's bar (revisar.js): what to look at before uploading or scheduling, by post and slide; it
+// also runs by itself on «sube», «programa» and «⇅ Exportar» (D-040).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.42';
+  M.version = '3.43';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1641,7 +1643,7 @@
 #mesa .toast button{pointer-events:auto;border:0;background:none;color:#7cc4fa;font-weight:600;font-size:12.5px;padding:4px 2px;white-space:nowrap}
 #mesa .lock{position:absolute;inset:0;z-index:20;background:rgba(250,250,250,.94);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .legend,#mesa.client .tray{display:none}
-#mesa.client .cell.empty::before{display:none}
+#mesa.client .cell.empty::before{display:none}#mesa.client .rvbtn{display:none}
 #mesa.client .cell.filler .hx{display:none}
 #mesa.client .cell.empty{background:#efefef}
 #mesa.client .bd{display:none}
@@ -1756,6 +1758,7 @@
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
       + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)">+ Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
+      + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
     const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
     if (on && ms.scrollWidth > ms.clientWidth + 1) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -2920,6 +2923,13 @@
     else if (act === 'addfiller') setFillers(fillersOf() + 1);
     else if (act === 'delfiller') setFillers(fillersOf() - 1);
     else if (act === 'xfer') dlgXfer();
+    else if (act === 'revisar') { if (M.revisar && M.revisar.ver) M.revisar.ver(); else toast((window.MESA_CARGA || {}).revisar === 'fallo' ? 'No se pudo cargar la revisión (revisar.js): recarga la página.' : 'Cargando la revisión… Vuelve a pulsar «Revisar» en un momento.'); }
+    else if (act === 'rv-ir') {          // a point of the review: its slide in the editor, or the post's view
+      const id = a.dataset.slot, k = +a.dataset.k || 0; closeDetail();
+      if (!slot(id)) toast('Esa publicación ya no está en el mes abierto.');
+      else if (!a.dataset.ed) openDetail(id, k);
+      else if (M.libre && M.libre.abrir) M.libre.abrir(id, k); else waitLibre(id, k);
+    }
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
@@ -3256,6 +3266,12 @@
   M.waitPast = async (ms = 25000) => { const t0 = Date.now(); while (Object.keys(M.pastPending).length && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 250)); return M.pastStatus(); };
 
   // ---------- upload to Notion ----------
+  // «sube» / «programa»: the review (revisar.js) runs by itself on the posts sent and shows what it finds; it never stops
+  // anything (only an empty photo hole does, below: D-035, D-040)
+  function revAuto(motivo, items) {
+    if (!(M.revisar && M.revisar.auto) || !S) return;
+    try { M.revisar.auto(motivo, (items || []).map(it => it && (it.slotId || (S.slots.find(x => publishList(x).includes(it.fileId)) || {}).id)).filter(Boolean)); } catch (e) { /* never in the upload's way */ }
+  }
   M.plan = () => S ? S.slots.filter(s => vivo(s) && (s.photos.length || noteOf(s) || s.uploaded)).map(s => {   // a cancelled post is never uploaded
     const st = photoStatus(s), pub = publishList(s);   // photos and contexto only: the caption has its own record (M.captions)
     return {
@@ -3280,6 +3296,7 @@
   // A new request for a photo that is still uploading replaces (aborts) the previous one.
   M.startUpload = (items, conc = M.cfg.uploadConc) => {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+    revAuto('sube', items);
     const B = S;
     const jobs = [];
     for (const it of items || []) {
@@ -3708,7 +3725,9 @@
       }
       const mb = +(blob.size / 1048576).toFixed(1);
       const msg = `Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : '');
-      if (huecos.length) dlgHuecos(msg, huecos, clients); else toast(msg, { ms: 7000 });
+      const aviso = () => { if (huecos.length) dlgHuecos(msg, huecos, clients); else toast(msg, { ms: 7000 }); };
+      if (M.revisar && M.revisar.auto) M.revisar.auto('exportar', null, { msg, fallo: aviso, huecos: huecos.map(h => ({ ...h, cliente: (clients.find(c => c.id === h.client) || {}).name || h.client, mes: monthLabel(h.month) })) });   // the review, with the holes of the other months (D-037, D-040)
+      else aviso();
       return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb, huecos };
     } catch (e) { const q = xferW ? await xferDrop() : 'borrado'; return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e) + (q === 'vacio' ? ' Puede haber quedado un archivo vacío con el nombre elegido: bórralo.' : '')); }
     finally { xferRun = null; xferW = null; xferH = null; xferSz = null; setBusy('imp', null); }
@@ -4008,7 +4027,8 @@
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
-    usoFoto, AVISOS   // a photo used again (D-022, libre ≥ 1.12)
+    usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
+    huecosVacios, lComp, vivo, showDialog, monthLabel   // for the review (revisar.js, mesa ≥ 3.43)
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList,

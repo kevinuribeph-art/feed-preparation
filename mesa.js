@@ -51,10 +51,12 @@
 // v3.40: templates of the free editor (libre 1.16). A post with an empty photo hole is marked in its cell, flagged in
 // plan() ('hueco vacío') and never uploaded, nor the feed image while a cover has one (D-035).
 // v3.41: «⇅ Exportar» exports empty photo holes as they are and then says where each one is (D-037).
+// v3.42: automatic numbering of a carousel's texts, arrows, lines with a stroke and pills in the free editor (libre 1.17,
+// D-038, D-039); a post's numbered images are drawn again when its slides change in the mesa.
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.41';
+  M.version = '3.42';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

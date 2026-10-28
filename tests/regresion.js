@@ -1273,6 +1273,180 @@
     }
   });
 
+  // ---------- numeración automática y formas nuevas (lote 4) ----------
+  const numeros = () => ed().sl.map((x, i) => { const e = compDe(i).els.find(q => q.num); return e ? e.txt : null; });   // el texto numerado de cada diapositiva
+  const numerosDe = s => s.photos.map(f => { const c = s.libre && s.libre.slides[f], e = c && c.els.find(q => q.num); return e ? e.txt : null; });
+  async function pixeles(fid) {                    // la imagen aplicada, para leer sus píxeles: px(x, y) = gris medio 0–255
+    const bm = await W.createImageBitmap(await M._in.getBlob(fid)), c = D.createElement('canvas'); c.width = bm.width; c.height = bm.height;
+    const x = c.getContext('2d'); x.drawImage(bm, 0, 0); const d = x.getImageData(0, 0, c.width, c.height).data;
+    return { w: c.width, h: c.height, px: (a, b) => { const k = (Math.round(b) * c.width + Math.round(a)) * 4; return (d[k] + d[k + 1] + d[k + 2]) / 3; } };
+  }
+  const oscuro = (img, x, y, que) => ok(img.px(x, y) < 90, `${que}: en (${Math.round(x)}, ${Math.round(y)}) no hay trazo (${Math.round(img.px(x, y))})`);
+  const claro = (img, x, y, que) => ok(img.px(x, y) > 180, `${que}: en (${Math.round(x)}, ${Math.round(y)}) hay trazo (${Math.round(img.px(x, y))})`);
+  function deslizar(lb, v) { const i = q(`.lb-panel input[data-lb="${lb}"]`); ok(i, `no está el control ${lb}`); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); }
+
+  prueba('E32', 'Numeración: posición real y total, portada incluida; la portada nunca la lleva; se pone al día al añadir, borrar, mover o duplicar (D-038)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const fs = []; for (let k = 0; k < 7; k++) fs.push(await foto(`nu-${k}.jpg`));
+    await poner('r1', fs);
+    await abrirEditor('r1');
+    accion('add-txt');                             // en la portada la opción no existe
+    ok(!q('.lb-panel [data-lb="num"]'), 'en la portada sale «Numeración»');
+    accion('num', { v: 'a' }); ok(!compDe(0).els.some(e => e.num), 'la portada se numeró');
+    accion('sl', { i: 1 }); accion('add-txt');
+    await pulsar('.lb-panel [data-lb="num"][data-v="a"]');
+    igual(numeros(), [null, '02 / 7', null, null, null, null, null], 'la 2.ª de 7');
+    ok(!q('.lb-panel textarea[data-lb="txt"]'), 'un texto numerado se puede escribir');
+    igual(qa('.lb-panel [data-lb="num-f"]').map(b => b.textContent), ['02 / 7', '2/7', '02'], 'los formatos que ofrece');
+    accion('num-f', { v: 'b' }); igual(numeros()[1], '2/7', 'formato 2/7');
+    accion('num-f', { v: 'c' }); igual(numeros()[1], '02', 'formato 02');
+    accion('num-f', { v: 'a' });
+    ed().sel = null; ed().mas = []; tecla('d', { meta: true });          // ⌘D: duplica la diapositiva, numerada
+    igual(numeros(), [null, '02 / 8', '03 / 8', null, null, null, null, null], 'tras duplicar');
+    accion('sl', { i: 7 }); accion('sl-add');      // una nueva no la lleva y cambia el total
+    igual(numeros(), [null, '02 / 9', '03 / 9', null, null, null, null, null, null], 'tras añadir una diapositiva');
+    accion('sl', { i: 2 }); tecla('d', { meta: true }); accion('sl-dn', { i: 3 }); accion('sl-dn', { i: 4 }); accion('sl-dn', { i: 5 }); accion('sl-dn', { i: 6 }); accion('sl-dn', { i: 7 }); accion('sl-dn', { i: 8 });
+    igual(numeros(), [null, '02 / 10', '03 / 10', null, null, null, null, null, null, '10 / 10'], 'la última, tras moverla al final');
+    accion('sl-up', { i: 1 });                     // pasa a ser la portada: su número se oculta
+    igual(numeros(), ['', null, '03 / 10', null, null, null, null, null, null, '10 / 10'], 'la numerada que pasa a ser la primera');
+    ok(compDe(0).els.find(e => e.num).num.f === 'a', 'en la portada perdió su numeración');
+    accion('sl-up', { i: 1 });                     // y vuelve a verse si deja de serlo
+    igual(numeros()[1], '02 / 10', 'al dejar de ser la portada');
+    accion('sl-del', { i: 8 });                    // vacía: se borra sin preguntar
+    igual(numeros(), [null, '02 / 9', '03 / 9', null, null, null, null, null, '09 / 9'], 'tras borrar una diapositiva');
+    accion('undo'); igual(numeros().length, 10, '⌘Z no devolvió la diapositiva'); igual(numeros()[9], '10 / 10', '⌘Z no devolvió los números');
+    // quitar la numeración: queda el número de ahora como texto normal
+    accion('sl', { i: 9 }); elegir(compDe(9).els.find(e => e.num)); accion('num', { v: '' });
+    const t9 = compDe(9).els.find(e => e.t === 'texto'); ok(!t9.num && t9.txt === '10 / 10', 'al quitar la numeración: ' + json(t9.txt));
+    accion('undo');
+    await aplicarEditor();
+    const s = slot('r1'); igual(s.photos.length, 10, 'las diapositivas aplicadas');
+    igual(numerosDe(s), [null, '02 / 10', '03 / 10', null, null, null, null, null, null, '10 / 10'], 'los números de lo aplicado');
+  });
+
+  prueba('E33', 'Numeración desde la mesa: mover, quitar o poner de portada una diapositiva redibuja sus números; ⌘Z lo deshace todo junto (D-038)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const fs = []; for (let k = 0; k < 4; k++) fs.push(await foto(`nm-${k}.jpg`));
+    await poner('r1', fs);
+    await abrirEditor('r1', 1);
+    accion('add-txt'); elegir(compDe(1).els.find(e => e.t === 'texto')); accion('num', { v: 'a' });
+    accion('copy'); accion('sl', { i: 2 }); accion('paste');                 // pegar un texto numerado: numerado en su diapositiva
+    igual(numeros(), [null, '02 / 4', '03 / 4', null], 'el texto numerado pegado');
+    await aplicarEditor();
+    const s = slot('r1'), antes = s.photos.slice();
+    igual(numerosDe(s), [null, '02 / 4', '03 / 4', null], 'lo aplicado');
+    M._test.movePhoto('r1', 1, 3);                 // la 2.ª al final
+    await hasta(() => M.libre.aplicando(), 3000, 'que la mesa empiece a redibujar');
+    const r0 = await M.libre.abrir('r1');          // mientras redibuja, el editor no abre (sus imágenes cambiarían debajo)
+    ok(r0 && r0.error && /redibujando/.test(r0.error) && !M.libre.abierto(), 'el editor abrió mientras se redibujaba: ' + json(r0));
+    await hasta(() => json(numerosDe(slot('r1'))) === json([null, '02 / 4', null, '04 / 4']), 8000, 'los números redibujados tras mover en la mesa');
+    const tras = slot('r1').photos.slice(); await espera(400);
+    igual(slot('r1').photos, tras, 'se sigue redibujando sin cambios');
+    M._test.undo();                                 // ⌘Z: el orden y las imágenes de antes, a la vez
+    await espera(300);
+    igual(slot('r1').photos, antes, '⌘Z no devolvió las imágenes de antes'); igual(numerosDe(slot('r1')), [null, '02 / 4', '03 / 4', null], '⌘Z: los números');
+    M._test.setCover('r1', 2);                      // la 3.ª de portada: su número se oculta
+    await hasta(() => json(numerosDe(slot('r1'))) === json(['', null, '03 / 4', null]), 8000, 'los números tras cambiar la portada');
+    M._test.unassign('r1', 3);                      // una menos: cambia el total
+    await hasta(() => json(numerosDe(slot('r1'))) === json(['', null, '03 / 3']), 8000, 'los números tras quitar una diapositiva');
+  });
+
+  prueba('E34', 'Al abrir un post con textos como «02 / 11», ofrece convertirlos todos; «Ahora no» no vuelve a preguntar (D-038)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('nc-a.jpg'), await foto('nc-b.jpg'), await foto('nc-c.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt'); compDe(0).els.find(e => e.t === 'texto').txt = '01 / 11';
+    accion('sl', { i: 1 }); accion('add-txt'); compDe(1).els.find(e => e.t === 'texto').txt = '02 / 11';
+    accion('sl', { i: 2 }); accion('add-txt'); compDe(2).els.find(e => e.t === 'texto').txt = '3/11';
+    accion('sl-add'); accion('add-txt'); compDe(3).els.find(e => e.t === 'texto').txt = '28/10';   // una fecha: no se ofrece
+    await aplicarEditor();
+    await abrirEditor('r1');
+    const a = await hasta(() => q('.lb-ask'), 4000, 'la pregunta de numerar');
+    ok(/3 textos/.test(a.textContent) && /portada/.test(a.textContent), 'la pregunta: ' + a.textContent);
+    a.querySelector('[data-ask="num"]').click();
+    igual(numeros(), ['', '02 / 4', '3/4', null], 'convertidos, con su formato');
+    M.libre.cerrar();
+    await abrirEditor('r1');                       // sin aplicar: sigue preguntando; «Ahora no» ya no
+    (await hasta(() => q('.lb-ask [data-ask="seguir"]'), 4000, 'la pregunta otra vez')).click();
+    igual(numeros(), [null, null, null, null], '«Ahora no» convirtió algo');
+    M.libre.cerrar(); await abrirEditor('r1'); await espera(150);
+    ok(!q('.lb-ask'), 'tras «Ahora no» volvió a preguntar');
+  });
+
+  prueba('E35', 'Numeración: una diapositiva nueva no la lleva; copiar o pegar una numerada, sí; una plantilla «Solo textos» no la pasa (D-038)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('np-a.jpg'), await foto('np-b.jpg')]);
+    await poner('r2', [await foto('np-c.jpg'), await foto('np-d.jpg'), await foto('np-e.jpg')]);
+    await abrirEditor('r1', 1);
+    accion('add-txt'); elegir(compDe(1).els.find(e => e.t === 'texto')); accion('num', { v: 'b' }); accion('pil', { v: '1' });
+    accion('sl-add'); ok(!compDe(2).els.length, 'la diapositiva nueva lleva algo');
+    igual(numeros(), [null, '2/3', null], 'con una nueva');
+    accion('sl', { i: 1 }); const t = await guardarPlant();
+    accion('sl', { i: 2 }); aplicarPlant(t, 'textos');
+    ok(compDe(2).els.some(e => e.t === 'texto') && !compDe(2).els.some(e => e.num || e.pil), '«Solo textos» pasó la numeración o la píldora');
+    accion('undo'); aplicarPlant(t, 'todo');
+    igual(numeros(), [null, '2/3', '3/3'], '«Todo» con la plantilla numerada');
+    accion('tpl-quitar'); ok(!q('.lb-ask'), '«Quitar plantilla» preguntó sin cambios (su número se puso al día)');
+    igual(numeros(), [null, '2/3', null], '«Quitar plantilla»'); accion('undo');
+    accion('sl', { i: 1 }); ed().sel = null; ed().mas = []; accion('sl-copy');
+    await aplicarEditor();
+    await abrirEditor('r2', 1); accion('paste');   // en otro post: detrás de la 2.ª
+    igual(numeros(), [null, null, '3/4', null], 'la diapositiva numerada pegada en otro post');
+  });
+
+  prueba('E36', 'Flecha (una punta o dos) y línea con grosor en px de 1080 y trazo continuo, discontinuo o punteado; colores solo del kit (D-039, D-016)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('fl-a.jpg')]);
+    await abrirEditor('r1');
+    const { H } = tam(), PXK = 1080 / 1440;
+    const nueva = (forma) => { accion('sl-add'); accion('add-forma', { v: forma }); const e = compDe(ed().i).els.find(x => x.t === 'forma'); elegir(e); accion('fc', { c: '#000000' }); return ed().i; };
+    const f1 = nueva('flecha'), a = compDe(f1).els[0];
+    ok(a.forma === 'flecha' && a.puntas === 'der', 'la flecha nueva: ' + json(a));
+    cerca(a.h * H * PXK / 4, 4.5, 0.06, 'el grosor de la flecha nueva (px de 1080)');
+    deslizar('gr', 10);
+    cerca(compDe(f1).els[0].h * H * PXK / 4, 10, 0.06, 'el grosor de 10 px'); deslizar('gr', 4.5);
+    ok(q('.lb-panel [data-lb="puntas"][data-v="dos"]') && q('.lb-panel [data-lb="trazo"][data-v="punt"]'), 'faltan «Puntas» o «Trazo» en el panel');
+    const kit = new Set([...(ed().kit ? ed().kit.grupos.flatMap(g => g.cols.map(k => k.c.toLowerCase())) : []), '#000000', '#ffffff']);
+    ok(qa('.lb-panel .lb-sw[data-lb="fc"]').every(b => kit.has(b.dataset.c.toLowerCase())), 'un color fuera del kit en la flecha');
+    const f2 = nueva('flecha'); accion('puntas', { v: 'dos' });
+    const l1 = nueva('linea'); cerca(compDe(l1).els[0].h * H * PXK, 4.5, 0.06, 'el grosor de la línea nueva');
+    const l2 = nueva('linea'); accion('trazo', { v: 'disc' });
+    const l3 = nueva('linea'); accion('trazo', { v: 'punt' });
+    accion('sl', { i: l1 }); accion('cap', { id: compDe(l1).els[0].id }); deslizar('gr', 12);
+    cerca(compDe(l1).els[0].h * H * PXK, 12, 0.06, 'el grosor de 12 px de la línea'); cerca(compDe(l1).els[0].y + compDe(l1).els[0].h / 2, 0.5, 0.001, 'la línea no siguió centrada');
+    await aplicarEditor();
+    const s = slot('r1'), [A1, A2, L1, L2, L3] = await Promise.all([f1, f2, l1, l2, l3].map(i => pixeles(s.photos[i])));
+    const x0 = 0.15 * 1440, x1 = 0.85 * 1440, y = A1.h / 2;   // 1440 × 1800: la flecha de 216 a 1224, 24 px de alto (puntas), 6 de trazo
+    oscuro(A1, x1 - 5, y, 'la punta de la flecha'); oscuro(A1, x1 - 19, y - 9, 'la base de la punta'); claro(A1, x1 - 5, y - 9, 'fuera de la punta');
+    oscuro(A1, x0 + 4, y, 'el arranque de la flecha'); claro(A1, x0 + 16, y - 7, 'una punta en el arranque de la flecha de una punta');
+    oscuro(A2, x0 + 16, y - 7, 'la punta del arranque, con dos'); oscuro(A2, x1 - 19, y - 9, 'la punta del final, con dos');
+    oscuro(L1, 700, y + 5, 'la línea de 12 px'); claro(L1, 700, y + 9, 'fuera de la línea de 12 px');
+    oscuro(L2, x0 + 9, y, 'el 1.er trazo del discontinuo'); claro(L2, x0 + 24, y, 'el 1.er hueco del discontinuo'); oscuro(L2, x0 + 39, y, 'el 2.º trazo del discontinuo'); oscuro(L2, x1 - 3, y, 'el final del discontinuo');
+    oscuro(L3, x0 + 3, y, 'el 1.er punto'); claro(L3, x0 + 9, y, 'entre puntos'); oscuro(L3, x1 - 3, y, 'el último punto');
+  });
+
+  prueba('E37', 'Píldora: un texto con una píldora detrás, del ancho del texto, con su color del kit; «Sin píldora» la quita (D-039, D-016)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('pi-a.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-pil');
+    const e = compDe(1).els.find(x => x.t === 'texto');
+    ok(e && e.pil && e.pil.c === '#000000' && e.color === '#ffffff' && e.txt === 'Etiqueta', 'la píldora nueva (fondo claro: negra, texto blanco): ' + json(e));
+    ok(q('.lb-panel [data-lb="pil"][data-v="1"].on'), '«Con píldora» no sale marcado');
+    const kit = new Set([...(ed().kit ? ed().kit.grupos.flatMap(g => g.cols.map(k => k.c.toLowerCase())) : []), '#000000', '#ffffff']);
+    ok(qa('.lb-panel .lb-sw[data-lb="pc"]').length && qa('.lb-panel .lb-sw[data-lb="pc"]').every(b => kit.has(b.dataset.c.toLowerCase())), 'los colores de la píldora no son los del kit');
+    const h1 = e.h; accion('pil', { v: '' });
+    const e2 = compDe(1).els.find(x => x.t === 'texto'); ok(!e2.pil && e2.h < h1, '«Sin píldora» no la quitó o no ajustó el alto');
+    accion('pil', { v: '1' }); ok(compDe(1).els.find(x => x.t === 'texto').pil, '«Con píldora» no la puso');
+    const p = compDe(1).els.find(x => x.t === 'texto'), { H } = tam(), cx = (p.x + p.w / 2) * 1440, top = p.y * H, bot = (p.y + p.h) * H;
+    accion('add-pil'); const v = compDe(1).els[compDe(1).els.length - 1]; v.txt = ''; v.y = 0.15;   // una píldora vacía: no sale en la imagen
+    await aplicarEditor();
+    const img = await pixeles(slot('r1').photos[1]);
+    claro(img, cx, (0.15 + v.h / 2) * H, 'una píldora vacía salió en la imagen');
+    oscuro(img, cx, top + 4, 'la píldora encima del texto'); oscuro(img, cx, bot - 4, 'la píldora debajo del texto');
+    claro(img, cx, top - 4, 'fuera de la píldora'); claro(img, p.x * 1440 + 3, (top + bot) / 2, 'la píldora no se ciñe al texto');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

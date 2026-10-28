@@ -50,10 +50,11 @@
 // space + drag, «Ajustar» on a double click and a right-click menu (libre 1.15).
 // v3.40: templates of the free editor (libre 1.16). A post with an empty photo hole is marked in its cell, flagged in
 // plan() ('hueco vacío') and never uploaded, nor the feed image while a cover has one (D-035).
+// v3.41: «⇅ Exportar» exports empty photo holes as they are and then says where each one is (D-037).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.40';
+  M.version = '3.41';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -188,8 +189,8 @@
   // an empty photo hole (libre.js: a 'hueco' element, or a frame with no photo) in a slide drawn by the free editor: the post
   // never leaves the mesa with it (no upload of any kind) and its cell says so (D-035); the slides, 1 = the first
   const vacia = c => ((c && c.els) || []).some(e => e && !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && !e.src)));
-  const lComp = (s, f) => (s.libre && s.libre.slides && s.libre.slides[f]) || (S && S.slots.map(x => x.libre && x.libre.slides && x.libre.slides[f]).find(Boolean)) || null;   // a swap moves photos, not s.libre
-  const huecosVacios = s => s ? publishList(s).flatMap((f, i) => vacia(lComp(s, f)) ? [i + 1] : []) : [];
+  const lComp = (s, f, sl = S && S.slots) => (s.libre && s.libre.slides && s.libre.slides[f]) || ((sl || []).map(x => x.libre && x.libre.slides && x.libre.slides[f]).find(Boolean)) || null;   // a swap moves photos, not s.libre
+  const huecosVacios = (s, sl) => s ? publishList(s).flatMap((f, i) => vacia(lComp(s, f, sl)) ? [i + 1] : []) : [];   // sl: the slots of its board (the open one if not given)
   const isLib = f => !!S && S.slots.some(x => lOut(x).includes(f));
   const trayable = f => !String(f).startsWith('kit-');   // a client's protected file (a logo in an editor composition) never goes to a tray   // an image drawn by the free editor, whichever post holds its composition (a swap moves photos, not s.libre)
   const libN = s => !s || s.design ? 0 : (s.photos || []).filter(isLib).length;   // images of the post drawn by the free editor
@@ -3665,6 +3666,7 @@
       await addQ; await flushPending();
       const clients = (await idbAll('clients')) || [];
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
+      const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
       const parts = ['{"format":"mesa-feed","v":2,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())
         + ',"clients":' + JSON.stringify(clients) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
@@ -3703,8 +3705,9 @@
         setTimeout(() => URL.revokeObjectURL(u), 120000);
       }
       const mb = +(blob.size / 1048576).toFixed(1);
-      toast(`Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : ''), { ms: 7000 });
-      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb };
+      const msg = `Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : '');
+      if (huecos.length) dlgHuecos(msg, huecos, clients); else toast(msg, { ms: 7000 });
+      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb, huecos };
     } catch (e) { const q = xferW ? await xferDrop() : 'borrado'; return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e) + (q === 'vacio' ? ' Puede haber quedado un archivo vacío con el nombre elegido: bórralo.' : '')); }
     finally { xferRun = null; xferW = null; xferH = null; xferSz = null; setBusy('imp', null); }
   };
@@ -3933,6 +3936,15 @@
       if (cleared) { try { await reopen(); } catch (e) { /* */ } }
     }
   };
+  // the export went out with empty photo holes: where each one is (client, month, post and slide), never a block (D-037)
+  function dlgHuecos(msg, hs, clients) {
+    const cn = id => (clients.find(c => c.id === id) || {}).name || id;
+    showDialog('huecos', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${hs.length === 1 ? 'Hay un hueco de foto vacío' : `Hay huecos de foto vacíos en ${hs.length} publicaciones`}</h3>`
+      + `<p>${esc(msg)}. La copia ${hs.length === 1 ? 'lo lleva tal cual: llénalo en el editor antes de subir o programar esa publicación' : 'los lleva tal cual: llénalos en el editor antes de subir o programar esas publicaciones'}.</p>`
+      + `<ul class="xsum">${hs.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(cn(h.client))}, ${esc(monthLabel(h.month))}</span></li>`).join('')}</ul>`
+      + '<div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>');
+    root.querySelector('.detail [data-act="close"].btn').focus();
+  }
   function dlgXfer() {
     showDialog('xfer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar la mesa a otro Mac</h3><p>Se exportan todos los clientes y meses, con las fotos a 1080 px. En el otro Mac pulsa Importar: se combina con lo que haya allí; de cada mes gana la versión más reciente y nunca se cambia una foto a resolución completa por una de 1080.</p>`
       + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2 left" data-act="close">Cancelar</button><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'

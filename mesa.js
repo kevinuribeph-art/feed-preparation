@@ -44,10 +44,12 @@
 // igualmente» / «Cancelar» (several: «Usar todas» / «Saltar repetidas»); into the tray it just goes in, never twice (libre 1.12).
 // v3.37: the free editor's guides belong to the post (s.guias, px of a 1080-wide slide): kept, undone and merged with it.
 // Its magnet measures, marks equal gaps and sizes and works on the eight handles; new shortcuts (libre 1.13).
+// v3.38: quick fixes in the free editor: «H» in its tray, the centre lines, deleting a slide, the proportion chip, ⌘D on a
+// slide and «Zona del grid» (⌘P) (libre 1.14).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.37';
+  M.version = '3.38';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

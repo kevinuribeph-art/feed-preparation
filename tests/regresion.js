@@ -579,6 +579,209 @@
     ok(xa.length > 1000 && xa.length === xb.length && xa.every((v, i) => v === xb[i]), 'la imagen aplicada con guías no es igual a la de sin guías');
   });
 
+  // ---------- lote 1 (mesa 3.38, libre 1.14) ----------
+  // el editor dibuja ya lo pendiente (con la pestaña en segundo plano no hay fotogramas que esperar)
+  const dibujado = async () => { M.libre._dibujar(); await espera(0); };
+  // el píxel del lienzo del editor en (x, y), en px de salida de la diapositiva (1440 de ancho)
+  function pixel(x, y) {
+    const E = ed(), k = E.k * (W.devicePixelRatio || 1), c = E.cv;
+    const px = Math.min(c.width - 1, Math.max(0, Math.round(x * k))), py = Math.min(c.height - 1, Math.max(0, Math.round(y * k)));
+    return [...E.ctx.getImageData(px, py, 1, 1).data];
+  }
+  function teclaEv(key, o = {}) {   // como tecla(), pero devuelve el evento (¿lo paró el editor?)
+    const e = new W.KeyboardEvent('keydown', { key, code: o.code ?? '', metaKey: !!o.meta, altKey: !!o.alt, shiftKey: !!o.shift, ctrlKey: !!o.ctrl, repeat: !!o.repeat, bubbles: true, cancelable: true });
+    (o.en || D.body).dispatchEvent(e); return e;
+  }
+  const toastDe = key => qa('.toast').find(t => t.dataset.msg === key);
+
+  prueba('E13', 'Bandeja del editor: «H» en las fotos horizontales, misma regla y estilo que la bandeja de la mesa (D-024)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const [h, v] = await M.addFiles([await foto('horizontal.jpg', 1500, 1000), await foto('vertical.jpg', 1200, 1500)]);
+    ok(h && v, 'no entraron las fotos en la bandeja');
+    const hbMesa = await hasta(() => q(`.titem[data-file="${h}"] .hb`), 4000, 'la «H» de la bandeja de la mesa');
+    ok(!q(`.titem[data-file="${v}"] .hb`), 'la mesa marca con «H» una foto vertical');
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    const it = f => hasta(() => ed().el.querySelector(`.lb-tph[data-f="${f}"]`), 4000, 'la foto en la bandeja del editor');
+    const hb = (await it(h)).querySelector('.hb');
+    ok(hb && hb.textContent === 'H', 'la foto horizontal no lleva «H» en la bandeja del editor');
+    ok(!(await it(v)).querySelector('.hb'), 'la foto vertical lleva «H» en la bandeja del editor');
+    const css = e => { const c = W.getComputedStyle(e); return ['position', 'top', 'left', 'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'color', 'backgroundColor', 'borderRadius', 'paddingLeft', 'paddingRight'].map(k => c[k]); };
+    igual(css(hb), css(hbMesa), 'el estilo de la «H» no es el de la mesa');
+  });
+
+  prueba('E14', 'Imán: las líneas de centro de la diapositiva salen en verde y discontinuas; las demás, en rosa y continuas (D-025)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add');
+    const { W: w, H: h } = tam();
+    ed().guides = [{ x: w / 2 }, { y: h / 2 }, { x: w * 0.25 }];
+    accion('zfit'); await dibujado();
+    const verde = p => p[1] > 110 && p[1] - p[0] > 60 && p[1] - p[2] > 30, rosa = p => p[0] > 180 && p[0] - p[1] > 80;
+    // en cada fila (o columna) el píxel más verde o más rosa de una franja de ±2 px alrededor de la línea
+    const k = 1 / (ed().k * (W.devicePixelRatio || 1));
+    const tira = (eje, at, largo) => Array.from({ length: 160 }, (_, n) => { const t = largo * (n + 0.5) / 160; return [-2, -1, 0, 1, 2].map(d => eje === 'x' ? pixel(at + d * k, t) : pixel(t, at + d * k)); });
+    const parte = (filas, f) => filas.filter(ps => ps.some(f)).length / filas.length;
+    const cx = tira('x', w / 2, h), cy = tira('y', h / 2, w), lx = tira('x', w * 0.25, h);
+    for (const [n, t] of [['vertical', cx], ['horizontal', cy]]) {
+      const pv = parte(t, verde);
+      ok(pv > 0.3 && pv < 0.9, `la línea de centro ${n} no es verde y discontinua (verde en el ${Math.round(pv * 100)} % de su largo)`);
+      ok(parte(t, rosa) < 0.05, `la línea de centro ${n} sale en rosa`);
+    }
+    ok(parte(lx, rosa) > 0.95, `la línea que no es de centro no es rosa y continua (${Math.round(parte(lx, rosa) * 100)} %)`);
+    ok(parte(lx, verde) < 0.05, 'la línea que no es de centro sale en verde');
+    // una cota que va por la línea de centro (del elemento al borde de arriba) no la tapa de rosa
+    ed().cotas = [{ x1: w / 2, y1: 0, x2: w / 2, y2: h * 0.4, v: h * 0.4 / 1440 }];
+    accion('zfit'); await dibujado();
+    const tramo = Array.from({ length: 60 }, (_, n) => { const t = h * (0.03 + 0.1 * n / 60); return [-2, -1, 0, 1, 2].map(d => pixel(w / 2 + d * k, t)); });
+    const pc = parte(tramo, verde);
+    ok(pc > 0.3 && pc < 0.9 && parte(tramo, rosa) < 0.05, `una cota tapa de rosa la línea de centro (verde en el ${Math.round(pc * 100)} %)`);
+  });
+
+  prueba('E15', 'Borrar una diapositiva: con contenido pregunta; vacía se borra directa; después «Deshacer» (D-026)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('borrar.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add');                                              // diapositiva 2, vacía
+    igual(ed().sl.length, 2, 'diapositivas al empezar');
+    accion('sl-del', { i: 1 });
+    ok(!ed().ask, 'una diapositiva vacía pregunta antes de borrarse');
+    igual(ed().sl.length, 1, 'la diapositiva vacía no se borró');
+    let t = await hasta(() => toastDe('lb-sl-del'), 2000, 'el aviso de diapositiva borrada');
+    ok(/Diapositiva 2 borrada/.test(t.textContent), 'el aviso no dice qué diapositiva se borró: ' + t.textContent);
+    t.querySelector('button').click();
+    igual(ed().sl.length, 2, '«Deshacer» no devolvió la diapositiva');
+    accion('sl-del', { i: 0 });                                    // la de la foto: pregunta
+    ok(ed().ask && /¿Borrar la diapositiva 1\?/.test(ed().ask.textContent), 'una diapositiva con foto no pregunta');
+    igual(ed().sl.length, 2, 'se borró antes de contestar');
+    ed().ask.querySelector('[data-ask="seguir"]').click();
+    igual(ed().sl.length, 2, '«Cancelar» borró la diapositiva');
+    accion('sl', { i: 1 }); accion('add-txt');                    // diapositiva 2 con un texto: también pregunta
+    accion('sl-del', { i: 1 });
+    ok(ed().ask && /¿Borrar la diapositiva 2\?/.test(ed().ask.textContent), 'una diapositiva con un texto no pregunta');
+    ed().ask.querySelector('[data-ask="borrar"]').click();
+    igual(ed().sl.length, 1, '«Borrar» no borró la diapositiva');
+    t = await hasta(() => toastDe('lb-sl-del'), 2000, 'el aviso de diapositiva borrada');
+    accion('add-txt');                                             // otro cambio después: «Deshacer» ya no deshace ese otro
+    const n = compDe(0).els.length;
+    t.querySelector('button').click();
+    igual([ed().sl.length, compDe(0).els.length], [1, n], '«Deshacer» deshizo otro cambio que no era el borrado');
+    accion('sl-add');                                              // la diapositiva de la foto, sin nada: vacía, aunque fue de una foto
+    const ids = compDe(0).els.map(e => e.id); ed().i = 0; ed().sel = ids[0]; ed().mas = ids.slice(1); accion('del');
+    igual(compDe(0).els.length, 0, 'no se vació la diapositiva');
+    accion('sl-del', { i: 0 });
+    ok(!ed().ask, 'una diapositiva que se ha quedado vacía pregunta antes de borrarse');
+    igual(ed().sl.length, 1, 'la diapositiva vacía no se borró');
+  });
+
+  prueba('E16', 'Proporción de la foto o el hueco elegido: chip junto a la selección y en «Proporción del marco» (D-027)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('prop.jpg', 1200, 1500)]);       // 4:5
+    await abrirEditor('r1');
+    const { W: w, H: h } = tam(), chip = () => ed().el.querySelector('.lb-rat'), rp = () => ed().el.querySelector('.lb-ratp');
+    const ver = async (que, txt, enPanel) => {
+      tecla('a', { meta: true }); await dibujado();
+      ok(chip() && !chip().hidden, `${que}: no sale el chip`);
+      igual(chip().textContent, txt, `${que}: el chip`);
+      igual(rp() ? rp().textContent : null, enPanel, `${que}: «Proporción del marco»`);
+    };
+    const el = compDe(0).els[0];
+    Object.assign(el, { x: 0, y: 0, w: 1, h: 1 }); delete el.rat;
+    await ver('foto a toda la diapositiva', '4:5', '4:5');
+    Object.assign(el, { h: (w / (16 / 9)) / h, rat: '16:9' }); ed().tOri = 'h';
+    await ver('marco 16:9 con su botón', 'Foto 4:5 · marco 16:9', null);
+    Object.assign(el, { h: (w / 1.37) / h }); delete el.rat;
+    await ver('marco libre', 'Foto 4:5 · marco 1,37:1', 'Foto 4:5 · marco 1,37:1');
+    delete ed().tOri;
+    const [g] = await M.addFiles([await foto('libre.jpg', 1370, 1000)]);
+    Object.assign(el, { src: g, h: (w / 1.37) / h });
+    await ver('foto libre sin recortar', 'Libre · 1,37:1', 'Libre · 1,37:1');
+    Object.assign(el, { h: (w / (16 / 9)) / h, rat: '16:9' }); ed().tOri = 'h';
+    await ver('otra vez 16:9 con su botón', 'Foto 1,37:1 · marco 16:9', null);
+    const an = ed().el.querySelector('.lb-panel input[data-lb="man"]');   // el ancho escrito a mano: sin botón, y el dato al día
+    ok(an, 'no está el campo del ancho');
+    an.value = '540'; an.dispatchEvent(new W.Event('input', { bubbles: true })); await dibujado();
+    ok(!ed().el.querySelector('.lb-panel [data-lb="t-rat"].on'), 'con el ancho escrito sigue marcado un botón');
+    igual([rp() && rp().textContent, chip().textContent], ['Foto 1,37:1 · marco 0,89:1', 'Foto 1,37:1 · marco 0,89:1'], 'el dato tras escribir el ancho (540 de 1080 × 810)');
+    delete ed().tOri;
+    accion('sl-add');
+    compDe(1).els.push(huecoEl('h1', 0.1, 0.1, 0.5, 0.5));       // 720 × 900: 4:5
+    await ver('hueco', '4:5', null);
+    tecla('Escape'); await dibujado();
+    ok(chip().hidden, 'el chip sigue sin nada elegido');
+  });
+
+  prueba('E17', '⌘D: con un elemento lo duplica; sin selección duplica la diapositiva y la pone detrás; no mientras se escribe (D-028)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt');
+    const t0 = compDe(0).els[0]; Object.assign(t0, { txt: 'Original', x: 0.2, y: 0.3 });
+    elegir(t0); tecla('d', { meta: true });
+    igual([ed().sl.length, compDe(0).els.length], [1, 2], '⌘D con un texto elegido');
+    compDe(0).els.pop(); tecla('Escape');
+    ok(!ed().sel, 'quedó algo elegido');
+    const e = teclaEv('d', { meta: true });
+    ok(e.defaultPrevented, '⌘D sin selección no se paró (el navegador lo usaría)');
+    igual([ed().sl.length, ed().i], [2, 1], 'la copia no es la diapositiva 2 ni queda abierta');
+    const c0 = compDe(0), c1 = compDe(1), sin = c => c.els.map(e => ({ t: e.t, txt: e.txt, x: e.x, y: e.y, w: e.w, size: e.size, color: e.color }));
+    igual(sin(c1), sin(c0), 'la copia no es igual a la original');
+    igual(c1.bg, c0.bg, 'el fondo de la copia');
+    ok(c1.els.every(x => !c0.els.some(y => y.id === x.id)), 'la copia comparte ids con la original');
+    accion('undo');
+    igual(ed().sl.length, 1, '⌘Z no deshizo la diapositiva duplicada');
+    const ta = D.createElement('textarea'); ed().el.append(ta);
+    tecla('d', { meta: true, en: ta }); ta.remove();
+    igual(ed().sl.length, 1, '⌘D actuó mientras se escribía');
+    teclaEv('d', { meta: true, repeat: true });
+    igual(ed().sl.length, 1, 'mantener ⌘D duplicó la diapositiva');
+    while (ed().sl.length < 19) accion('sl-add');
+    ed().sel = null; ed().mas = [];
+    tecla('d', { meta: true });
+    igual(ed().sl.length, 20, '⌘D en la diapositiva 19');
+    tecla('d', { meta: true });
+    ok(!ed().ask, 'quedó abierta una pregunta');
+    igual(ed().sl.length, 20, 'un carrusel pasó de 20 diapositivas');
+  });
+
+  prueba('E18', 'Zona del grid (⌘P): en la portada oscurece lo que el perfil recorta en 3:4, se recuerda, no imprime y no sale en la imagen aplicada (D-029)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    W.localStorage.removeItem('mesa-lb-zona');
+    const hacer = async (id, conZona) => {
+      await abrirEditor(id);
+      accion('sl-add'); accion('add-forma', { v: 'rect' });
+      Object.assign(compDe(0).els[0], { color: '#000000', x: 0.3, y: 0.3, w: 0.4, h: 0.2 });
+      if (conZona !== ed().zona) tecla('p', { meta: true });
+      igual(ed().zona, conZona, 'la zona del grid');
+      await aplicarEditor();
+      return slot(id);
+    };
+    await abrirEditor('r1');
+    accion('sl-add'); accion('sl-add'); ed().i = 0; accion('zfit');
+    const e = teclaEv('p', { meta: true });
+    ok(e.defaultPrevented, '⌘P no se paró: el navegador imprimiría');
+    ok(ed().zona && W.localStorage.getItem('mesa-lb-zona') === '1', '⌘P no enseñó la zona o no se recuerda');
+    igual(ed().el.querySelector('[data-lb="zona"]').getAttribute('aria-checked'), 'true', '«Zona del grid» en «⋯»');
+    await dibujado();
+    const oscuro = p => p[0] < 160, { W: w, H: h } = tam(), lado = (w - h * 0.75) / 2;   // 4:5: 45 px de 1440 a cada lado
+    ok(oscuro(pixel(lado - 6, h / 2)) && oscuro(pixel(w - lado + 6, h / 2)), '4:5: no oscurece los lados que recorta el perfil');
+    ok(!oscuro(pixel(lado + 6, h / 2)) && !oscuro(pixel(w / 2, 10)), '4:5: oscurece lo que el perfil sí enseña');
+    accion('fmt', { v: 'q11' }); await dibujado();
+    ok(oscuro(pixel(170, 720)) && !oscuro(pixel(190, 720)), '1:1: la zona no son 180 px de 1440 a cada lado');
+    accion('fmt', { v: 'v34' }); await dibujado();
+    ok(!oscuro(pixel(4, 960)) && !oscuro(pixel(1436, 960)), '3:4: oscurece algo, y el perfil no recorta nada');
+    accion('fmt', { v: 'v45' }); ed().i = 1; accion('zfit'); await dibujado();
+    ok(!oscuro(pixel(4, h / 2)), 'la zona sale en una diapositiva que no es la portada');
+    const ta = D.createElement('textarea'); ed().el.append(ta);
+    const e2 = teclaEv('p', { meta: true, en: ta }); ta.remove();
+    ok(e2.defaultPrevented && ed().zona, 'mientras se escribe, ⌘P imprimió o cambió la zona');
+    tecla('p', { meta: true });
+    ok(!ed().zona && W.localStorage.getItem('mesa-lb-zona') === '0', '⌘P otra vez no ocultó la zona');
+    M.libre.cerrar();
+    const a = await hacer('r1', true), b = await hacer('r2', false);
+    const [xa, xb] = await Promise.all([a, b].map(async s => new Uint8Array(await (await M._in.getBlob(s.photos[0])).arrayBuffer())));
+    ok(xa.length > 1000 && xa.length === xb.length && xa.every((v, i) => v === xb[i]), 'la imagen aplicada con la zona no es igual a la de sin zona');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

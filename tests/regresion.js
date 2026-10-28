@@ -1230,6 +1230,49 @@
     await aplicarEditor();
   });
 
+  // ---------- mesa 3.41: exportar con huecos vacíos ----------
+
+  prueba('E31', '«⇅ Exportar» con un hueco de foto vacío no se para: exporta todo y luego dice dónde está (cliente, mes, publicación y diapositiva) (D-037)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('ex-a.jpg'), await foto('ex-b.jpg')]);
+    await poner('r2', [await foto('ex-c.jpg'), await foto('ex-d.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add'); const p = ed().i;
+    compDe(p).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8));
+    await aplicarEditor();
+    await hasta(() => celda('r1') && celda('r1').querySelector('.dot.hv'), 4000, 'la marca «Hueco vacío» en la casilla');
+    // la descarga, interceptada; todo se restaura
+    const LS = 'mesa-export-descarga', antes = W.localStorage.getItem(LS), A = W.HTMLAnchorElement.prototype, click = A.click;
+    let cap = null;
+    A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
+    try {
+      W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
+      await pulsar('[data-act="xfer"]'); await pulsar('[data-act="xfer-export"]');
+      const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="huecos"]'), 15000, 'el aviso de huecos vacíos tras exportar');
+      ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
+      const d = JSON.parse(await (await (await W.fetch(cap.href)).blob()).text());
+      const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`), s1 = b && b.slots.find(x => x.id === 'r1');
+      ok(s1 && s1.photos.length === 3 && Object.values(s1.libre.slides).some(c => c.els.some(e => e.t === 'hueco')), 'el archivo no lleva la publicación con su hueco tal cual');
+      const txt = dl.textContent;
+      ok(txt.includes('Carrusel 1.1') && txt.includes(`diapositiva ${p + 1}`) && txt.includes(NOMBRE) && /noviembre 2026/i.test(txt), 'el aviso no dice dónde está el hueco: ' + txt);
+      ok(!txt.includes('Carrusel 1.2'), 'el aviso nombra una publicación sin hueco vacío');
+      ok(/Exportada: 1 mes/.test(txt), 'el aviso no dice que se exportó: ' + txt);
+      await pulsar('.detail[data-dlg="huecos"] .btn[data-act="close"]');
+      ok(!dialogo(), '«Entendido» no cerró el aviso');
+      const r = await M.exportAll();               // también por la API: dónde está, y sin huecos no hay aviso
+      igual(json(r.huecos), json([{ client: CLIENTE, month: MES, slotId: 'r1', post: 'Carrusel 1.1', diapositivas: [p + 1] }]), 'exportAll() no dice dónde está el hueco');
+      await pulsar('.detail[data-dlg="huecos"] .btn[data-act="close"]');
+      await abrirEditor('r1'); accion('sl-del', { i: p });          // quitar la diapositiva del hueco: sin huecos, sin aviso
+      if (ed().ask) ed().ask.querySelector('[data-ask="borrar"]').click();
+      await aplicarEditor();
+      const r2 = await M.exportAll();
+      ok(r2 && r2.ok && r2.huecos.length === 0 && !q('.detail:not([hidden])[data-dlg="huecos"]'), 'sin huecos vacíos salió el aviso: ' + json(r2 && r2.huecos));
+    } finally {
+      A.click = click;
+      if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes);
+    }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

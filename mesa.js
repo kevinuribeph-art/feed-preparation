@@ -48,10 +48,12 @@
 // slide and «Zona del grid» (⌘P) (libre 1.14).
 // v3.39: the grey area around the slide is part of the free editor: deselect, rectangle selection, zoom on the pointer,
 // space + drag, «Ajustar» on a double click and a right-click menu (libre 1.15).
+// v3.40: templates of the free editor (libre 1.16). A post with an empty photo hole is marked in its cell, flagged in
+// plan() ('hueco vacío') and never uploaded, nor the feed image while a cover has one (D-035).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.39';
+  M.version = '3.40';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -71,6 +73,7 @@
   M.pastErrors = {};
   M.uploads = M.uploads || {};         // fileId -> {state,...}
   M.out = M.out || {};                 // rendered preview Blobs
+  const OUT_SLOTS = {};                // mode -> ids of the posts drawn in M.out[mode] (the later months are blank cells)
   M._ctrl = M._ctrl || {};             // fileId -> controller of the running upload
   M._gen = M._gen || {};               // fileId -> generation of the latest upload request
 
@@ -182,6 +185,11 @@
   // a slot's design (diseno.js) holds its source photos (slides[].src) and its rendered outputs (out): both are in use
   const lSrc = s => s && s.libre && s.libre.slides ? Object.values(s.libre.slides).flatMap(c => ((c && c.els) || []).map(e => e && e.src)).filter(Boolean) : [];   // the free editor's compositions (libre.js): the photos behind its images
   const lOut = s => s && s.libre && s.libre.slides ? Object.keys(s.libre.slides) : [];
+  // an empty photo hole (libre.js: a 'hueco' element, or a frame with no photo) in a slide drawn by the free editor: the post
+  // never leaves the mesa with it (no upload of any kind) and its cell says so (D-035); the slides, 1 = the first
+  const vacia = c => ((c && c.els) || []).some(e => e && !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && !e.src)));
+  const lComp = (s, f) => (s.libre && s.libre.slides && s.libre.slides[f]) || (S && S.slots.map(x => x.libre && x.libre.slides && x.libre.slides[f]).find(Boolean)) || null;   // a swap moves photos, not s.libre
+  const huecosVacios = s => s ? publishList(s).flatMap((f, i) => vacia(lComp(s, f)) ? [i + 1] : []) : [];
   const isLib = f => !!S && S.slots.some(x => lOut(x).includes(f));
   const trayable = f => !String(f).startsWith('kit-');   // a client's protected file (a logo in an editor composition) never goes to a tray   // an image drawn by the free editor, whichever post holds its composition (a swap moves photos, not s.libre)
   const libN = s => !s || s.design ? 0 : (s.photos || []).filter(isLib).length;   // images of the post drawn by the free editor
@@ -1414,6 +1422,7 @@
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
 #mesa .badges .dot.ok{background:var(--ok);color:#fff}
 #mesa .badges .dot.chg{background:var(--chg);color:#fff}
+#mesa .badges .dot.hv{background:var(--red);color:#fff}
 #mesa .badges .dot.ltag,#mesa .badges .dot.cb{background:#0064d1;color:#fff}
 #mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:#f8df74;color:#3d3300;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45));transition:max-width .18s ease,max-height .18s ease}
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
@@ -1840,7 +1849,9 @@
   function badgesHTML(s, pill) {
     const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
     const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s);
-    const d = (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
+    const hv = huecosVacios(s);
+    const d = (hv.length ? dot('hv', 'Hueco vacío', `Hueco de foto vacío (${hv.length === 1 ? 'diapositiva' : 'diapositivas'} ${hv.join(', ')}): no se sube ni se programa hasta llenarlo`) : '')
+      + (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
       + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir') : '')
       + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto, nota, captions y estado se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
     return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
@@ -3256,6 +3267,7 @@
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
       uploaded: s.uploaded || null,
+      ...(huecosVacios(s).length ? { 'hueco vacío': huecosVacios(s) } : {}),   // its slides with an empty photo hole: not uploaded (D-035)
       ...(s.design && (isCarousel(s.type) || isReel(s.type)) && dState(s) !== 'ok' ? { 'diseño': dState(s) === 'nc' ? 'sin comprobar' : 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently (a post retyped to Foto just keeps it dormant; designer not loaded: «sin comprobar»)
     };
   }) : [];
@@ -3276,6 +3288,7 @@
         M.uploads[fid] = { state: 'error', err: 'la foto no está en ninguna casilla de la mesa abierta' };
         continue;
       }
+      if (s && huecosVacios(s).length) { M.uploads[fid] = { state: 'error', err: 'la publicación tiene un hueco de foto vacío: llénalo en el editor antes de subirla' }; continue; }   // D-035
       const rect = it.crop !== false && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
       const sig = s ? fileSig(fid, s, B) : null;
       M.uploads[fid] = { state: 'pending', slotId: s ? s.id : null, sig };
@@ -3570,12 +3583,14 @@
       x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.fillText(lbl, lx + 16, ly + 23); x.textBaseline = 'alphabetic';
     }
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
-    M.out[mode] = blob;
+    M.out[mode] = blob; OUT_SLOTS[mode] = order.filter(s => !isLater(s)).map(s => s.id);
     return { mode, month: only || null, width: W, height: H, kb: Math.round(blob.size / 1024), posts: posts.filter(p => !p.blank).length, fresh: nuevas, blankStart: lead, pinned: pinPosts.filter(p => !p.blank).length,
       empty: posts.filter(p => p.isNew && !p.blob).map(p => p.name),
       check: { ok: !mismatches.length, sameColumnsAsMesa: !mismatches.length, mismatches } };
   };
   M.uploadOut = async (mode, url, auth, filename) => {
+    const hv = S ? S.slots.filter(s => vivo(s) && (!OUT_SLOTS[mode] || OUT_SLOTS[mode].includes(s.id)) && huecosVacios(s)[0] === 1) : [];   // a cover in the image with an empty photo hole (D-035)
+    if (hv.length) return { http: 0, state: 'error', fileUploadId: null, err: `hueco de foto vacío en la portada de ${hv.map(s => s.name).join(', ')}: llénalo antes de subir la imagen` };
     const fd = new FormData(); fd.append('file', M.out[mode], safeName(filename));
     const r = await fetch(url, { method: 'POST', headers: { authorization: auth }, body: fd });
     const t = await r.text(); let j = {}; try { j = JSON.parse(t); } catch (e) { /* */ }

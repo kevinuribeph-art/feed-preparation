@@ -1,4 +1,4 @@
-// Editor libre de diapositivas — Mesa de trabajo · v1.14
+// Editor libre de diapositivas — Mesa de trabajo · v1.16
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -20,7 +20,9 @@
 //   'hueco': a free photo hole (v1.9): color (its fill, null: none, the background shows), b, bc, r (as 'forma'), textos
 //            ([texto el]: its label and guide text, x, y, w, h fractions of the hole's area, size of the slide's width)
 //   a 'foto' that filled a hole carries it: hueco (the 'hueco' element as it was; deleting the photo gives it back)
-// The client's colours, templates and logos live on the client record: c.libre = {colores, plantillas:[{id, nombre, comp}], logos}.
+//   comp.previa: the slide as it was before its last template (with its own previa, up to PREVIAS deep; rat: its W/H)
+// The client's colours, templates and logos live on the client record: c.libre = {colores, plantillas:[{id, nombre, comp, fmt
+// (its format's name, from 1.16), rat (W/H)}], logos}.
 // A post designed with «Diseñar» (s.design) opens here with its applied images as the slides (v1.4); applying a change fixes
 // the design as images (s.design goes, its photos go back to the tray). The other way round, an edited post is not designed.
 // Uses the mesa's bridge M._in (mesa.js ≥ 3.25).
@@ -68,11 +70,16 @@
 // its rectangle (⇧ adds), a double click is «Ajustar», a right click opens Pegar / Pegar estilo / Añadir texto / Añadir
 // forma, space + drag moves the view; a pinch or ⌘ + wheel zooms on the pointer and never the page. T and R add a text
 // and a rectangle. None of it while writing in a text.
+// v1.16 (mesa 3.40): «Guardar como plantilla» keeps the whole slide without asking (a hole where each photo was), with its
+// format: the list goes by format. Applying one asks Solo textos (the format of its texts on the slide's own, in order) /
+// Solo fotos (its holes, the slide's photos into them in order) / Todo; the slide keeps what it had (comp.previa) and
+// «Quitar plantilla» gives it back. An empty hole no longer stops «Aplicar» (the post can't go up), and a hole's label and
+// guide text never go into the drawn image.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.15';
+  const VERSION = '1.16';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -395,9 +402,10 @@
     if (el.b > 0) { pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.save(); ctx.clip(); ctx.lineWidth = el.b * W * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#000000'; ctx.stroke(); ctx.restore(); }
     else if (ph && !hexOk(el.color) && !ts.length) { ctx.strokeStyle = 'rgba(128,128,128,.7)'; ctx.lineWidth = 2 / k; ctx.setLineDash([6 / k, 5 / k]); ctx.strokeRect(-fw / 2, -fh / 2, fw, fh); ctx.setLineDash([]); }
     ctx.translate(-cx, -cy);
-    for (const t of ts) drawTexto(ctx, enHueco(el, t), W, H, k, false);
+    if (!FUERA) for (const t of ts) drawTexto(ctx, enHueco(el, t), W, H, k, false);   // its label and guide text: never in the image (D-035)
     ctx.restore();
   }
+  let FUERA = false;               // drawing the image that leaves the editor (or its preview), not the editor's
   function drawEl(ctx, el, W, H, img, k, ph) {
     if (el.oculto) return;
     if (el.t === 'texto') drawTexto(ctx, el, W, H, k, ph);
@@ -508,7 +516,7 @@
       for (const f of srcsOf(comp)) if (!cache.has(f)) { const bmp = await createImageBitmap(await I().getBlob(f), { imageOrientation: 'from-image' }); cache.set(f, { im: bmp }); }
       const c = document.createElement('canvas'); c.width = W; c.height = H;
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
-      drawComp(x, comp, W, H, f => cache.get(f) || null, 1, false);
+      FUERA = true; try { drawComp(x, comp, W, H, f => cache.get(f) || null, 1, false); } finally { FUERA = false; }
       const blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('No se pudo exportar la imagen')), 'image/jpeg', 0.92));
       c.width = c.height = 0;
       return blob;
@@ -1870,8 +1878,10 @@
       h += `<div class="lb-sec"><h4>Textura <span>· encima de todo</span></h4>${seg('tex', [['', 'Ninguna'], ...Object.entries(TEXS)], c.tex ? c.tex.tipo : '')}${c.tex ? rng('tex-op', 'Intensidad', c.tex.op, 0.05, 1, 0.01) : ''}</div>`;
       h += `<div class="lb-sec"><h4>Rejilla <span>· de 2 a 4 fotos</span></h4><div class="lb-grids">${GRIDS.map(([k, l]) => `<button type="button" class="lb-g" data-lb="grid" data-v="${k}" title="${l}" aria-label="Rejilla: ${l}">${gridSvg(k)}</button>`).join('')}</div>`
         + rng('gap', 'Separación', c.rej ? c.rej.g : E.gap ?? 0.02, 0, 0.08, 0.001) + '<p class="lb-p">Las fotos de la diapositiva van a los huecos por orden; un hueco vacío se rellena con un clic.</p></div>';
-      h += `<div class="lb-sec"><h4>Plantillas <span>· del cliente, para cualquier mes</span></h4>${E.plant.length ? `<div class="lb-tpls">${E.plant.map(t => `<div class="lb-tp"><canvas data-lb="tpl" data-id="${esc(t.id)}" title="Aplicar «${esc(t.nombre)}» a esta diapositiva"></canvas><span>${esc(t.nombre)}</span><button type="button" data-lb="tpl-del" data-id="${esc(t.id)}" title="Borrar la plantilla" aria-label="Borrar la plantilla">×</button></div>`).join('')}</div>` : '<p class="lb-p" style="margin:0 0 8px">Guarda una diapositiva y reutiliza su composición: las fotos de cada diapositiva entran en sus huecos; textos y logos se quedan.</p>'}`
-        + `<div class="lb-btns"><button type="button" class="btn2" data-lb="tpl-save"${c.els.length || c.velo || c.tex || c.bg !== '#ffffff' ? '' : ' disabled'}>Guardar como plantilla</button></div></div>`;
+      const tpl = t => `<div class="lb-tp"><canvas data-lb="tpl" data-id="${esc(t.id)}" title="Aplicar «${esc(t.nombre)}» a esta diapositiva"></canvas><span>${esc(t.nombre)}</span><button type="button" data-lb="tpl-del" data-id="${esc(t.id)}" title="Borrar la plantilla" aria-label="Borrar la plantilla">×</button></div>`;
+      const grupos = [...PLANT_FMT, ''].map(f => [f, E.plant.filter(t => (PLANT_FMT.includes(t.fmt) ? t.fmt : '') === f)]).filter(([, ts]) => ts.length);   // by format; those saved before 1.16 have none
+      h += `<div class="lb-sec"><h4>Plantillas <span>· del cliente, para cualquier mes</span></h4>${E.plant.length ? grupos.map(([f, ts]) => `<span class="lb-l">${f || 'Sin formato'}</span><div class="lb-tpls">${ts.map(tpl).join('')}</div>`).join('') : '<p class="lb-p" style="margin:0 0 8px">Guarda una diapositiva entera y reutilízala: al aplicarla eliges solo sus textos, solo sus huecos de foto o todo.</p>'}`
+        + `<div class="lb-btns"><button type="button" class="btn2" data-lb="tpl-save"${c.els.length || c.velo || c.tex || c.bg !== '#ffffff' ? '' : ' disabled'}>Guardar como plantilla</button>${c.previa ? '<button type="button" class="btn2" data-lb="tpl-quitar" title="La diapositiva vuelve a como estaba antes de su última plantilla">Quitar plantilla</button>' : ''}</div></div>`;
       h += capasHTML(c);
     }
     p.innerHTML = h; p.scrollTop = top;
@@ -1929,7 +1939,7 @@
     c.style.left = Math.round(clamp((b.l + b.r) / 2 * k - w / 2, m, Math.max(m, cw - w - m))) + 'px'; c.style.top = Math.round(clamp(y, m, Math.max(m, ch - h - m))) + 'px';
   }
   function dibujarPlantilla(cv, t) {
-    const { W, H } = sizeAt(E.i), w = 150, h = Math.round(w * H / W); cv.width = w; cv.height = h;
+    const { W } = sizeAt(E.i), H = t.rat > 0 ? Math.round(W / t.rat) : sizeAt(E.i).H, w = 150, h = Math.round(w * H / W); cv.width = w; cv.height = h;   // in its own format
     const x = cv.getContext('2d'), k = w / W; x.setTransform(k, 0, 0, k, 0, 0);
     drawComp(x, t.comp, W, H, viewImg, k, false);
   }
@@ -2011,7 +2021,7 @@
     const { W, H } = sizeAt(E.pvI), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
     cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
     const x = cv.getContext('2d'), k = cv.width / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
-    drawComp(x, compAt(E.pvI), W, H, viewImg, k, false);
+    FUERA = true; try { drawComp(x, compAt(E.pvI), W, H, viewImg, k, false); } finally { FUERA = false; }
   }
 
   // ---------- actions ----------
@@ -2062,7 +2072,7 @@
     if (E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
     mut(null, () => {
       const c0 = compAt(E.i), comp = { ...clone(c0), els: copias(c0.els, false) }, { W, H } = sizeAt(E.i), x = blankSlide(comp.bg || '#ffffff');
-      delete comp.origen;
+      delete comp.origen; delete comp.previa;   // a new slide: «Quitar plantilla» is the original's
       if (!E.car) x.fmt = fmtAt(E.i);
       x.comp = comp; x.rat = W / H; E.sl.splice(E.i + 1, 0, x); E.i += 1; soltar(); E.crop = null;
     });
@@ -2113,7 +2123,7 @@
     const llena = E.reel || (x0 && !x0.key && !compAt(E.i).els.length);
     if (!llena && E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
     mut(null, () => {
-      const comp = { ...clone(cb.slide), els: copias(cb.slide.els, false) }; delete comp.origen;   // new ids: its origin is where it lands
+      const comp = { ...clone(cb.slide), els: copias(cb.slide.els, false) }; delete comp.origen; delete comp.previa;   // new ids: its origin is where it lands; what it was before a template stays with the original
       let x = x0;
       if (!llena) { x = blankSlide(comp.bg || '#ffffff'); if (x0 && !E.car) x.fmt = fmtAt(E.i); E.i = x0 ? E.i + 1 : 0; E.sl.splice(E.i, 0, x); }
       enSuSitio(comp.els, cb.rat, E.i);
@@ -2241,8 +2251,9 @@
       case 'velo-dir': mut(null, () => { const c = ensure(); if (c.velo) c.velo.dir = b.dataset.v; }); return;
       case 'tex': mut(null, () => { const c = ensure(); if (b.dataset.v) c.tex = { tipo: b.dataset.v, op: (c.tex && c.tex.op) || 0.35 }; else delete c.tex; }); return;
       case 'grid': mut(null, () => { const c = ensure(); rejilla(c, b.dataset.v, c.rej ? c.rej.g : E.gap ?? 0.02); soltar(); E.crop = null; }); return;
-      case 'tpl': aplicarPlantilla(b.dataset.id); return;
+      case 'tpl': elegirPlantilla(b.dataset.id); return;
       case 'tpl-save': guardarPlantilla(); return;
+      case 'tpl-quitar': quitarPlantilla(); return;
       case 'tpl-del': { const t = E.plant.find(q => q.id === b.dataset.id); if (t) preguntar(`¿Borrar la plantilla «${t.nombre}»?`, 'Se borra para este cliente; las diapositivas ya hechas con ella no cambian.', [['seguir', 'Cancelar', 'btn2'], ['borrar', 'Borrar', 'btn']], v => { if (v === 'borrar') guardarCliente(l => ({ ...l, plantillas: (l.plantillas || []).filter(q => q.id !== t.id) })); }); return; }
       case 'crop': { const el = selEl(); if (!el || el.t !== 'foto') return; E.crop = E.crop === el.id ? null : el.src && !el.lock ? el.id : null; panel(); pedir(); return; }
       case 'crop-c': onEl(el => setPhoto(el, { cx: 0.5, cy: 0.5, z: 1 })); return;
@@ -2337,34 +2348,111 @@
       }
     }
   }
+  // ---------- templates (D-033 to D-036) ----------
+  // «Guardar como plantilla»: the whole slide, without asking — texts, logos, shapes, background, veil and texture as they
+  // are, and a hole where each photo was (a frame with no photo, or the hole a photo filled) —, named «Plantilla N», with its
+  // format: the list goes by format.
+  const PLANT_FMT = ['4:5', '3:4', '1:1', 'Horizontal', '9:16'];
+  const fmtNombre = i => E.reel ? '9:16' : FMTS[fmtAt(i)] || '4:5';
   function guardarPlantilla() {
-    const n = E.plant.length + 1;
-    preguntar('Guardar como plantilla', 'La composición de esta diapositiva —textos y logos incluidos, sin sus fotos— para cualquier mes de este cliente.', [['seguir', 'Cancelar', 'btn2'], ['ok', 'Guardar', 'btn']], (v, nombre) => { if (v === 'ok') guardarPlantillaYa(nombre, n); }, `Plantilla ${n}`);
-  }
-  function guardarPlantillaYa(nombre, n) {
     if (!E || !E.sl.length) return;
-    const c = compAt(E.i), comp = clone(c); delete comp.origen; comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
-    const t = { id: 't' + Date.now().toString(36), nombre: String(nombre || '').trim().slice(0, 40) || `Plantilla ${n}`, comp, at: new Date().toISOString() };
-    guardarCliente(l => ({ ...l, plantillas: [...(l.plantillas || []), t].slice(-24) })).then(ok => ok && I().toast(`Plantilla «${t.nombre}» guardada para este cliente.`));
+    const c = compAt(E.i), comp = clone(c), { W, H } = sizeAt(E.i);
+    delete comp.origen; delete comp.previa;
+    comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
+    const n = E.plant.reduce((a, q) => { const m = /^Plantilla (\d+)$/.exec(q.nombre || ''); return m ? Math.max(a, +m[1]) : a; }, E.plant.length) + 1;
+    const t = { id: 't' + Date.now().toString(36), nombre: `Plantilla ${n}`, comp, fmt: fmtNombre(E.i), rat: r4(W / H), at: new Date().toISOString() };
+    guardarCliente(l => ({ ...l, plantillas: [...(l.plantillas || []), t].slice(-24) })).then(ok => ok && I().toast(`«${t.nombre}» guardada para este cliente (${t.fmt}).`));
   }
-  function aplicarPlantilla(id) {
+  // the template's photo holes: a frame of the template (its photo was taken out when it was saved) or a hole a photo filled
+  const esHuecoT = e => e.t === 'hueco' || e.t === 'foto';
+  function elegirPlantilla(id) {   // what of it goes on this slide
     const t = E.plant.find(q => q.id === id); if (!t) return;
+    preguntar(`Aplicar «${t.nombre}»`, [['Solo textos', 'su formato en los textos de esta diapositiva, por orden; el texto no cambia'], ['Solo fotos', 'sus huecos; las fotos de esta diapositiva entran en ellos por orden'], ['Todo', 'la diapositiva entera, con las fotos en sus huecos']],
+      [['seguir', 'Cancelar', 'btn2'], ['textos', 'Solo textos', 'btn2'], ['fotos', 'Solo fotos', 'btn2'], ['todo', 'Todo', 'btn']], v => { if (v === 'textos' || v === 'fotos' || v === 'todo') aplicarPlantilla(id, v); });
+  }
+  // A template on the open slide (one step of ⌘Z). The slide keeps what it had (comp.previa) for «Quitar plantilla».
+  // Solo textos: each text of the slide, in drawing order, takes the place and style of the template's text in that order
+  // (never its words); the template's texts left over come in with «Titular» (the biggest) or «Texto». Solo fotos: the
+  // slide's photos and holes give way to the template's holes, in the layer of the first of them, and its photos go into
+  // them in order, as one dropped on each (D-018); texts, logos, shapes and background stay. Todo: the whole template, the
+  // photos into its holes in the same way. Photos with no hole left go back to the tray when it is applied.
+  const ESTILO_T = ['x', 'y', 'w', 'rot', 'size', 'font', 'peso', 'color', 'al', 'lh', 'ls', 'may'];
+  const PREVIAS = 5;
+  const firmaSin = c => firma({ ...c, previa: undefined });   // the slide itself, not what it was
+  function aplicarPlantilla(id, modo) {
+    const t = E.plant.find(q => q.id === id); if (!t) return;
+    const { W, H } = sizeAt(E.i), tc = migrado(clone(t.comp));   // a template saved with a drawn hole of before
+    if (t.rat > 0 && Math.abs(t.rat - W / H) > 0.005) aProporcion(tc, W, Math.round(W / t.rat), H);   // of another format: its blocks to their zones, as a change of format (D-019)
+    const tt = tc.els.filter(e => e.t === 'texto' && !e.oculto);
+    if (modo === 'textos' && !tt.length) { I().toast('Esta plantilla no tiene textos.'); return; }
+    if (modo === 'fotos' && !tc.els.some(esHuecoT)) { I().toast('Esta plantilla no tiene huecos de foto.'); return; }
     mut(null, () => {
-      const c = ensure(), fotos = fotosDe(c).map(e => e.src).filter(Boolean), g = {};
-      let k = 0;
-      c.bg = t.comp.bg; c.velo = clone(t.comp.velo); if (t.comp.tex) c.tex = clone(t.comp.tex); else delete c.tex;
-      c.els = t.comp.els.map(e => {
-        const n = { ...clone(e), id: uid() }; if (n.g) n.g = g[n.g] || (g[n.g] = uid());
-        if (n.t === 'foto' && n.hueco && k >= fotos.length) { const h = { ...clone(n.hueco), id: uid() }; if (h.g) h.g = g[h.g] || (g[h.g] = uid()); return h; }   // a hole filled in the template, with no photo for it here: the hole
-        if (n.t === 'foto') { n.src = fotos[k++] || null; n.cx = 0.5; n.cy = 0.5; n.z = 1; if (n.fit != null && n.src) { encajar(n, n.fit); n.rot = e.rot || 0; } }
-        else if (n.src && !M.files[n.src]) n.src = null;
+      const c = ensure(), fotos = fotosDe(c).filter(e => !e.oculto).map(e => e.src).filter(Boolean), g = {};   // a hidden photo takes no hole
+      const antes = clone(c); antes.rat = r4(W / H);
+      for (let p = antes, d = 1; p.previa; p = p.previa, d++) if (d >= PREVIAS) { delete p.previa; break; }
+      const nuevo = e => {             // an element of the template, for this slide: new ids, its groups too; a filled hole is the hole
+        const n = e.t === 'foto' && e.hueco ? clone(e.hueco) : clone(e);
+        n.id = uid(); if (n.g) n.g = g[n.g] || (g[n.g] = uid());
+        if (n.t === 'foto') Object.assign(n, { src: null, cx: 0.5, cy: 0.5, z: 1 });
+        else if (n.t === 'logo' && n.src && !M.files[n.src]) n.src = null;
         return n;
-      });
-      migrarComp(c);             // a template saved with a drawn hole of before
-      if (t.comp.rej) c.rej = clone(t.comp.rej); else delete c.rej;
-      mantenerRat(cur(), E.i);   // a frame given a format keeps it on a slide of another format
+      };
+      const llenar = hs => {           // a hole as a photo dropped on it (D-018); a frame of the template keeps its place, as before 1.16
+        let k = 0;
+        for (const h of hs) {
+          if (h.oculto) continue;
+          const f = fotos[k++]; if (!f) break;
+          if (h.t === 'hueco') { rellenar(c, h, f, W, H); continue; }
+          Object.assign(h, { src: f, cx: 0.5, cy: 0.5, z: 1 });
+          if (h.fit != null) { const r = h.rot || 0; encajar(h, h.fit); h.rot = r; }
+        }
+      };
+      if (modo === 'textos') {
+        const st = c.els.filter(e => e.t === 'texto' && !e.oculto), mayor = tt.reduce((a, e) => (e.size || 0) > (a.size || 0) ? e : a, tt[0]);
+        tt.forEach((e, k) => {
+          const d = st[k];
+          if (d) { ESTILO_T.forEach(p => { if (e[p] !== undefined) d[p] = clone(e[p]); else delete d[p]; }); delete d.mano; return; }
+          const n = { ...clone(e), id: uid(), txt: e === mayor ? 'Titular' : 'Texto' }; delete n.g; delete n.mano; delete n.lock;
+          c.els.push(n);
+        });
+      } else if (modo === 'fotos') {
+        const sale = e => e.t === 'foto' || e.t === 'hueco', at = c.els.findIndex(sale), resto = c.els.filter(e => !sale(e));
+        const pos = at < 0 ? 0 : c.els.slice(0, at).filter(e => !sale(e)).length, hs = tc.els.filter(esHuecoT).map(nuevo);
+        c.els = [...resto.slice(0, pos), ...hs, ...resto.slice(pos)];
+        if (tc.rej) c.rej = clone(tc.rej); else delete c.rej;
+        llenar(hs);
+      } else {
+        c.bg = tc.bg; c.velo = clone(tc.velo); if (tc.tex) c.tex = clone(tc.tex); else delete c.tex;
+        c.els = tc.els.map(nuevo);
+        if (tc.rej) c.rej = clone(tc.rej); else delete c.rej;
+        llenar(c.els.filter(esHuecoT));
+      }
+      delete c.origen;             // where the template put things is where a change of proportion starts from
+      c.previa = antes;
+      mantenerRat(cur(), E.i);     // a frame given a format keeps it on a slide of another format
+      antes.tras = firmaSin(c);    // the slide as the template left it: changed since, «Quitar plantilla» asks
       soltar(); E.crop = null;
     });
+  }
+  // the slide as it was before its last template (one step of ⌘Z); changed since the template, it asks first. A photo no
+  // longer in the mesa leaves its hole; laid out in another format, it goes to this one as a change of format does.
+  function quitarPlantilla() {
+    const x = cur(), p = x && x.comp && x.comp.previa; if (!p) return;
+    const ya = () => {
+      if (!E || cur() !== x || !x.comp || x.comp.previa !== p) return;
+      mut(null, () => {
+        const c = clone(p), { W, H } = sizeAt(E.i);
+        if (c.rat > 0 && Math.abs(c.rat - W / H) > 0.005) aProporcion(c, W, Math.round(W / c.rat), H);
+        delete c.rat; delete c.tras;
+        sacar(c, e => e.t === 'foto' && e.src && !M.files[e.src]);
+        fotosDe(c).forEach(e => { if (e.fit != null && e.src) encajar(e, e.fit); });   // «Encajar» holds in this format
+        x.comp = c;
+        mantenerRat(x, E.i);
+        soltar(); E.crop = null;
+      });
+    };
+    if (p.tras && firmaSin(x.comp) === p.tras) { ya(); return; }
+    preguntar('¿Quitar la plantilla?', 'La diapositiva vuelve a como estaba antes de la plantilla y se pierden los cambios hechos después en ella.', [['seguir', 'Cancelar', 'btn2'], ['quitar', 'Quitar plantilla', 'btn']], v => { if (v === 'quitar') ya(); });
   }
 
   function wire(el) {
@@ -2623,7 +2711,8 @@
       need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
       need(I().same(s.photos, E.photos0), 'La publicación cambió mientras editabas: cierra el editor y vuelve a abrirlo.');
       need(!E.car || E.sl.length <= MAX_SLIDES, 'Un carrusel admite como máximo 20 diapositivas (límite de Instagram).');
-      E.sl.forEach((x, i) => { if (x.comp) need(!x.comp.els.some(e => !e.oculto && (e.t === 'foto' || e.t === 'logo') && (!e.src || !M.files[e.src])), `Diapositiva ${i + 1}: tiene un hueco sin foto o un logo que ya no está. Elígelo o bórralo.`); });
+      // an empty hole goes in as it is (the post is marked and never goes up, D-035); a photo or logo whose file is gone can't be drawn
+      E.sl.forEach((x, i) => { if (x.comp) need(!x.comp.els.some(e => !e.oculto && (e.t === 'logo' ? !(e.src && M.files[e.src]) : e.t === 'foto' && e.src && !M.files[e.src])), `Diapositiva ${i + 1}: tiene una foto o un logo que ya no está. Elígelo o bórralo.`); });
       if (!pendiente()) { cerrar(); return; }
       E.busy = true; APL++; counted = true; head();
       const fmtCh = E.car && E.fmt !== E.fmt0, outs = [], made = [];

@@ -61,7 +61,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.44';
+  M.version = '3.45';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -3964,6 +3964,7 @@
     P.trays = (d.bandejas || []).map(r => ({ client: r.client, at: r.at || '', add: r.tray.filter(f => typeof f === 'string' && (d.files[f] || P.files.has(f)) && !(locTr[r.client] || new Set()).has(f)) })).filter(r => r.add.length);
     P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);
     P.trays.forEach(r => r.add.forEach(f => P.refs.add(f)));
+    d.clients.forEach(c => { const o = clients.find(x => x.id === c.id), l = !o || P.libUpd.includes(c) ? c.libre : o.libre; ((l && l.logos) || []).forEach(f => P.refs.add(f)); });   // the editor's logos the client keeps, used or not (also one an import before 3.45 left without its file)
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }

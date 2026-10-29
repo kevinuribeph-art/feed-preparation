@@ -593,6 +593,29 @@
     await filtro('sin');
   });
 
+  prueba('M23', '«Importar» trae los logos del editor que ningún post usa: los de un cliente nuevo y el que una importación de antes de la 3.45 dejó sin su archivo (D-042, D-017)', async () => {
+    await tablero([pub(1)]);
+    const c = D.createElement('canvas'); c.width = 80; c.height = 40; c.getContext('2d').fillRect(0, 0, 80, 40);
+    const png = await new Promise(r => c.toBlob(r, 'image/png')), id = `kit-${CLIENTE}-logo-m23`;
+    await M._in.idbPut('files', id, { name: 'm23-logo.png', size: png.size, type: 'image/png', w: 80, h: 40, lastModified: Date.now(), blob: png, thumb: png, logo: true });   // como lo guarda el editor, sin ponerlo en ninguna diapositiva
+    const c0 = await M._in.idbGet('clients', CLIENTE); ok(c0, 'no está el cliente de prueba');
+    await M._in.idbPut('clients', CLIENTE, { ...c0, libre: { ...(c0.libre || {}), logos: [id] }, libreAt: new Date().toISOString() });
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    ok(d.files[id], 'el logo sin usar no va en el archivo');
+    // el cliente ya está, sin el archivo de su logo (lo que dejaba importar hasta la 3.44)
+    await M._in.idbDel('files', id); delete M.files[id];
+    let r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    ok(await M._test.fileRec(id), 'importar no devolvió el logo que le faltaba al cliente');
+    // un cliente nuevo: su logo sin usar llega con él
+    const id2 = `kit-${CLIENTE2}-logo-m23`, c1 = d.clients.find(x => x.id === CLIENTE);
+    if ((await M.clients()).some(x => x.id === CLIENTE2)) { const r2 = await M.removeClient(CLIENTE2); ok(r2 === true, 'no se pudo borrar el segundo cliente de prueba: ' + r2); }   // lo dejan las pruebas de la bandeja (sin meses)
+    r = await M.importData({ ...d, clients: [{ ...c1, id: CLIENTE2, name: NOMBRE2, libre: { ...c1.libre, logos: [id2] } }], boards: [], bandejas: [], past: {}, files: { [id2]: d.files[id] } }, { confirm: false });
+    ok(r && !r.error, 'importar el cliente nuevo falló: ' + json(r));
+    ok(await M._test.fileRec(id2), 'el logo sin usar del cliente nuevo no llegó');
+    for (const f of [id, id2]) await M._in.idbDel('files', f);
+  });
+
   // =====================================================================================================
   // Editor de diapositivas (libre.js)
   // =====================================================================================================

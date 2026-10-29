@@ -31,8 +31,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Tras publicar, comprueba con `curl` que Pages sirve los archivos nuevos.
 
 ## Probar
-- Nunca abras la URL publicada en el navegador integrado de Claude: es otro origen y está vacía.
-  En el navegador del usuario correría sobre sus datos reales.
+- Nunca abras la URL publicada en el navegador integrado de Claude para probar: ahí están los datos reales de Kevin.
+  Ábrela solo para lo que Kevin pida hacer en su mesa.
 - Prueba siempre en localhost sobre una copia: copia `index.html`, `mesa.js`, `diseno.js`,
   `libre.js`, `calendario.js`, `revisar.js`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.

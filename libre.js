@@ -84,11 +84,14 @@
 // v1.18 (mesa 3.43): M.libre.rev, for «Revisar» (revisar.js): a text's ink and a photo's px as drawn, and the numbering.
 // v1.19 (mesa 3.44): the tray is the client's, the mesa's (D-041): «Sin usar / Todas» as there, ✓ on a photo used in a
 // publication of any month or on a slide of this post; M.libre.bandeja() draws it again.
+// v1.20 (mesa 3.46): a text's frame, handles and click are its lines', not its box (D-043): as wide as its longest line,
+// where its alignment draws it; the box's width still says where they break. A frame of the list's proportion, the photo
+// not cropped by it, has its button on in «Proporción del marco» instead of the proportion written under it (D-044).
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.19';
+  const VERSION = '1.20';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -1180,11 +1183,31 @@
     const big = Math.min(g.w, g.h) * E.k >= 46;
     return HANDLES.filter(([a, b]) => el.t === 'logo' ? a && b : el.t === 'texto' ? a && (b || g.w * E.k >= 46) : (a && b) || big);
   }
-  function geo(el, W, H) { const w = el.w * W, h = el.h * H; return { cx: el.x * W + w / 2, cy: el.y * H + h / 2, w, h, a: (el.rot || 0) * Math.PI / 180 }; }
+  function geoCaja(el, W, H) { const w = el.w * W, h = el.h * H; return { cx: el.x * W + w / 2, cy: el.y * H + h / 2, w, h, a: (el.rot || 0) * Math.PI / 180 }; }
+  // what the editor draws around an element and takes its clicks on (and the magnet's edges): a text's lines, not its box (D-043)
+  function geo(el, W, H) {
+    const g = geoCaja(el, W, H), c = el.t === 'texto' ? cenido(el, W) : null;
+    return c ? { ...g, cx: g.cx + c.o * Math.cos(g.a), cy: g.cy + c.o * Math.sin(g.a), w: c.w } : g;
+  }
+  // a text's lines across: as wide as the longest one (a pill's, with its padding), where its alignment draws them; o, their
+  // centre from the box's. The box's width (el.w) is still where its lines break. Empty, null: the whole box
+  const CENIDO = new Map();
+  function cenido(el, W) {
+    const f = el.font || {}, key = [el.txt, el.size, el.w, el.ls, el.lh, el.may ? 1 : 0, el.pil ? 1 : 0, el.al, f.file || f.css || '', f.w, el.peso, f.file ? (fuente(f).ok ? 1 : 0) : 1, W].join('|');
+    if (CENIDO.has(key)) return CENIDO.get(key);
+    MC.save();
+    const L = lineas(MC, el, W), fw = el.w * W, px = L.pil ? L.pil.x : 0, lw = L.out.some(s => s.trim()) ? Math.max(0, ...L.out.map(s => medir(MC, s, L.ls))) + 2 * px : 0;
+    MC.restore();
+    const w = L.pil ? Math.min(fw, lw) : lw, c = w > 0 ? { w, o: el.al === 'der' ? (fw - w) / 2 : el.al === 'cen' ? 0 : -(fw - w) / 2 } : null;
+    if (CENIDO.size > 500) CENIDO.clear();
+    CENIDO.set(key, c);
+    return c;
+  }
   function local(g, p) { const dx = p.x - g.cx, dy = p.y - g.cy, c = Math.cos(-g.a), s = Math.sin(-g.a); return { x: dx * c - dy * s, y: dx * s + dy * c }; }
   function world(g, l) { const c = Math.cos(g.a), s = Math.sin(g.a); return { x: g.cx + l.x * c - l.y * s, y: g.cy + l.x * s + l.y * c }; }
-  function aabb(el, W, H) { const g = geo(el, W, H), ps = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => world(g, { x: a * g.w / 2, y: b * g.h / 2 })); const xs = ps.map(p => p.x), ys = ps.map(p => p.y); return { l: Math.min(...xs), r: Math.max(...xs), t: Math.min(...ys), b: Math.max(...ys) }; }
-  function union(els, W, H) { const bs = els.map(e => aabb(e, W, H)); return { l: Math.min(...bs.map(b => b.l)), r: Math.max(...bs.map(b => b.r)), t: Math.min(...bs.map(b => b.t)), b: Math.max(...bs.map(b => b.b)) }; }
+  function aabb(el, W, H, caja) { const g = (caja ? geoCaja : geo)(el, W, H), ps = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => world(g, { x: a * g.w / 2, y: b * g.h / 2 })); const xs = ps.map(p => p.x), ys = ps.map(p => p.y); return { l: Math.min(...xs), r: Math.max(...xs), t: Math.min(...ys), b: Math.max(...ys) }; }
+  // caja: the elements' boxes (a format's change places them as before D-043), not what the editor shows of them
+  function union(els, W, H, caja) { const bs = els.map(e => aabb(e, W, H, caja)); return { l: Math.min(...bs.map(b => b.l)), r: Math.max(...bs.map(b => b.r)), t: Math.min(...bs.map(b => b.t)), b: Math.max(...bs.map(b => b.b)) }; }
   // a thin line still takes a click a few screen pixels around it
   const inside = (el, p) => { const { W, H } = E.sz, g = geo(el, W, H), l = local(g, p), m = 6 / E.k; return Math.abs(l.x) <= Math.max(g.w / 2, m) && Math.abs(l.y) <= Math.max(g.h / 2, m); };
   function hitEl(p) { const c = compAt(E.i); for (let k = c.els.length - 1; k >= 0; k--) if (!c.els[k].oculto && inside(c.els[k], p)) return c.els[k]; return null; }
@@ -1477,7 +1500,7 @@
     for (const e of comp.els) { if (e.t === 'foto') continue; const g = e.g || e.id; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push(e); }
     for (const els of grupos.values()) {
       if (els.some(e => e.mano)) continue;
-      const b = union(els, W, H0); if ((b.r - b.l) * (b.b - b.t) >= 0.5 * W * H0) continue;
+      const b = union(els, W, H0, true); if ((b.r - b.l) * (b.b - b.t) >= 0.5 * W * H0) continue;
       const cy = (b.t + b.b) / 2 / H0;
       B.push({ els, b, zy: cy < 0.4 ? 0 : cy > 0.6 ? 2 : 1 });
       for (const e of els) {         // a small shape or logo (not a line nor a bar): the side it is on
@@ -1522,9 +1545,9 @@
   }
   function transformarHTML(els) {
     const fotos = els.filter(e => e.t === 'foto'); if (!fotos.length) return '';
-    const e0 = fotos.find(e => e.id === E.sel) || fotos[0], { W, H } = sizeAt(E.i);
-    const ori = E.tOri || (e0.rat ? (RATIOS.h.some(([n]) => n === e0.rat) && e0.rat !== '1:1' ? 'h' : 'v') : e0.w * W > e0.h * H * 1.01 ? 'h' : 'v');
-    const rat = fotos.every(e => e.rat === e0.rat) ? e0.rat : null, off = fotos.every(e => e.lock);
+    const e0 = fotos.find(e => e.id === E.sel) || fotos[0], { W, H } = sizeAt(E.i), nom = e => e.rat || ratLista(e, W, H), r0 = nom(e0);
+    const ori = E.tOri || (r0 ? (RATIOS.h.some(([n]) => n === r0) && r0 !== '1:1' ? 'h' : 'v') : e0.w * W > e0.h * H * 1.01 ? 'h' : 'v');
+    const rat = fotos.every(e => nom(e) === r0) ? r0 : null, off = fotos.every(e => e.lock);
     return `<div class="lb-sec"><h4>Proporción del marco${fotos.length > 1 ? ` <span>· de las ${fotos.length} fotos</span>` : ''}</h4>${seg('t-ori', [['v', 'Vertical'], ['h', 'Horizontal']], ori)}`
       + `<div class="lb-btns">${RATIOS[ori].map(([n, r]) => `<button type="button" class="btn2${rat === n ? ' on' : ''}" data-lb="t-rat" data-v="${n}" data-r="${r}"${off ? ' disabled' : ''}>${n}</button>`).join('')}</div>`
       + (fotos.length === 1 && !RATIOS[ori].some(([n]) => n === rat) ? `<p class="lb-p lb-ratp">${esc(ratTxt(e0, W, H))}</p>` : '')
@@ -1629,10 +1652,16 @@
           if (sy && sy.n >= (el.t === 'forma' ? 2 : MIN)) { h = sy.n; if (sy.at != null) E.guides.push({ y: sy.at }); }
         }
       }
-      if (el.t === 'texto') { if (prop) el.size = r4((d.el0.size || 0.06) * w / g0.w); el.w = r4(w / W); ajustarTexto(el, W, H); h = el.h * H; }
-      const C = cen ? A : world(ga, { x: d.hx * w / 2, y: d.hy * h / 2 });
-      el.w = r4(w / W); el.h = r4(h / H); el.x = r4((C.x - w / 2) / W); el.y = r4((C.y - h / 2) / H); delete el.fit;
-      if (el.t === 'texto' && !d.hy) el.y = d.el0.y;   // a text keeps its top when only its width changes
+      if (el.t === 'texto') {         // its lines were resized (D-043): a corner scales the text and the width they break at, a side sets that width (½ px over, so the longest line still fits)
+        const s0 = d.el0.size || 0.06;
+        if (prop) { el.size = r4(s0 * w / g0.w); el.w = r4(d.el0.w * el.size / s0 + 0.0005); } else el.w = r4(w / W + 0.0005);
+        ajustarTexto(el, W, H);
+        const c = cenido(el, W), cw = c ? c.w : el.w * W, o = c ? c.o : 0, hh = el.h * H, C = cen ? A : world(ga, { x: d.hx * cw / 2, y: d.hy * hh / 2 });
+        el.x = r4((C.x - o * Math.cos(g0.a) - el.w * W / 2) / W); el.y = d.hy ? r4((C.y - o * Math.sin(g0.a) - hh / 2) / H) : d.el0.y; delete el.fit;   // a text keeps its top when only its width changes
+      } else {
+        const C = cen ? A : world(ga, { x: d.hx * w / 2, y: d.hy * h / 2 });
+        el.w = r4(w / W); el.h = r4(h / H); el.x = r4((C.x - w / 2) / W); el.y = r4((C.y - h / 2) / H); delete el.fit;
+      }
       if (el.src) setPhoto(el, {});
       if (mag && !el.rot) E.cotas = medidas(aabb(el, W, H), [el.id], { ancho: !!d.hx, alto: !!d.hy });
     } else if (d.t === 'rot') {
@@ -1642,6 +1671,8 @@
       if (e.shiftKey) a = Math.round(a / 15) * 15;
       else if (mag) for (const q of [-180, -90, 0, 90, 180]) if (Math.abs(a - q) < 4) a = q;
       el.rot = Math.round(a * 10) / 10; if (el.rot === -180) el.rot = 180;
+      const c = el.t === 'texto' && cenido(el, W);   // a text turns around its lines' centre, where its frame is (D-043)
+      if (c && c.o) { const r = el.rot * Math.PI / 180; el.x = r4((g0.cx - c.o * Math.cos(r)) / W - el.w / 2); el.y = r4((g0.cy - c.o * Math.sin(r)) / H - el.h / 2); }
       delete el.fit;
     } else if (d.t === 'pan') {
       const f = el.src && M.files[el.src]; if (!f) return;
@@ -2017,6 +2048,8 @@
     const fw = el.w * W, fh = el.h * H, f = el.t === 'foto' && el.src && M.files[el.src], ib = hueco(el, fw, fh);
     return f && f.w > 0 && f.h > 0 && Math.abs((f.w / f.h) / (ib.w / ib.h) - 1) > 0.01 ? `Foto ${ratNombre(f.w / f.h)} · marco ${ratNombre(fw / fh)}` : ratNombre(fw / fh, true);
   }
+  // the frame in a proportion of the list, the photo not cropped by it: its button is on in «Proporción del marco» (D-044)
+  const ratLista = (el, W, H) => { const t = ratTxt(el, W, H); return [...RATIOS.v, ...RATIOS.h].some(([n]) => n === t) ? t : null; };
   function posRat() {              // the chip under the one photo or hole chosen (under the bar if the bar went under it)
     const c = E.el.querySelector('.lb-rat'); if (!c) return;
     const fl = E.el.querySelector('.lb-fl'), ss = E.sl.length && !E.crop && !E.pick ? selEls() : [], { W, H } = E.sz, t = ss.length === 1 ? ratTxt(ss[0], W, H) : '';
@@ -2232,7 +2265,7 @@
     const k = Math.min(W, H1) / Math.min(W, H0), grupos = new Map();
     for (const e of els) { const g = e.g || e.id; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push(e); }
     for (const blq of grupos.values()) {
-      const b = union(blq, W, H0); if ((b.r - b.l) * (b.b - b.t) >= 0.5 * W * H0) continue;
+      const b = union(blq, W, H0, true); if ((b.r - b.l) * (b.b - b.t) >= 0.5 * W * H0) continue;
       const cx = (b.l + b.r) / 2 / W, cy = (b.t + b.b) / 2 / H0, zy = cy < 0.4 ? 0 : cy > 0.6 ? 1 : 0.5;
       const ax = cx < 0.4 ? 0 : cx > 0.6 ? W : W / 2, ay0 = zy * H0, ay1 = zy * H1;
       for (const e of blq) {
@@ -2439,10 +2472,13 @@
           else if (el.t !== 'texto') { const h = Math.max(2, v) / (H * PX); if (el.t === 'logo') el.w = r4(el.w * h / el.h); el.h = r4(h); }
           delete el.fit; if (a === 'man' || a === 'mal') delete el.rat; if (el.t === 'foto' && el.src) setPhoto(el, {});
         }, a, true);
-        if (a === 'man' || a === 'mal') {   // the panel is not rebuilt while typing: no button on, and the proportion as the chip says
+        if (a === 'man' || a === 'mal') {   // the panel is not rebuilt while typing: the button of a proportion of the list on (D-044), or the proportion as the chip says
           E.el.querySelectorAll('.lb-panel [data-lb="t-rat"].on').forEach(b => b.classList.remove('on'));
           const ss = selEls(), rb = E.el.querySelector('.lb-panel [data-lb="t-rat"]'), rp = E.el.querySelector('.lb-panel .lb-ratp');
-          if (ss.length === 1 && ss[0].t === 'foto' && rb) { const t = ratTxt(ss[0], W, H); if (rp) rp.textContent = t; else rb.parentNode.insertAdjacentHTML('afterend', `<p class="lb-p lb-ratp">${esc(t)}</p>`); }
+          if (ss.length === 1 && ss[0].t === 'foto' && rb) {
+            const t = ratTxt(ss[0], W, H), on = [...E.el.querySelectorAll('.lb-panel [data-lb="t-rat"]')].find(b => b.dataset.v === t);
+            if (on) { on.classList.add('on'); if (rp) rp.remove(); } else if (rp) rp.textContent = t; else rb.parentNode.insertAdjacentHTML('afterend', `<p class="lb-p lb-ratp">${esc(t)}</p>`);
+          }
         }
         return;
       }

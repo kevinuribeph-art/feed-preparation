@@ -58,10 +58,12 @@
 // v3.44: one tray per client, shared by all its months and the free editor (store 'bandejas', IndexedDB 3), with «Sin
 // usar / Todas» and ✓ on photos used in any month (D-041); the months' old trays are joined into it, a photo once; a photo
 // leaving a collab goes back to the tray of the client that brought it; «⇅ Exportar» carries the trays (file v3).
+// v3.46: the free editor (libre.js 1.20): a text's frame hugs its lines (D-043); a frame of a listed proportion has its
+// button on (D-044).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.45';
+  M.version = '3.46';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

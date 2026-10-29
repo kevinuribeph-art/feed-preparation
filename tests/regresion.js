@@ -980,7 +980,8 @@
     };
     const el = compDe(0).els[0];
     Object.assign(el, { x: 0, y: 0, w: 1, h: 1 }); delete el.rat;
-    await ver('foto a toda la diapositiva', '4:5', '4:5');
+    await ver('foto a toda la diapositiva', '4:5', null);       // un formato de la lista, sin recortar: su botón marcado (D-044)
+    ok(ed().el.querySelector('.lb-panel [data-lb="t-rat"][data-v="4:5"].on'), 'foto a toda la diapositiva: el botón 4:5 no sale marcado');
     Object.assign(el, { h: (w / (16 / 9)) / h, rat: '16:9' }); ed().tOri = 'h';
     await ver('marco 16:9 con su botón', 'Foto 4:5 · marco 16:9', null);
     Object.assign(el, { h: (w / 1.37) / h }); delete el.rat;
@@ -1787,6 +1788,78 @@
     ok(D0.includes(t) && !D0.includes(u), 'las sin usar de la bandeja: ' + json(D0));
     M.libre.cerrar();
     M._in.trayFiltro('sin');
+  });
+
+  // ---------- mesa 3.46 (libre 1.20): la caja de un texto, sus líneas; el botón de una proporción exacta ----------
+  prueba('E40', 'La caja de un texto se ciñe a sus líneas: un clic en lo que sobra elige lo de debajo; ampliar por un lado o una esquina no rompe sus líneas ni lo mueve (D-043)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-forma', { v: 'rect' }); accion('add-txt');
+    const [r, t] = compDe(0).els;
+    Object.assign(r, { x: 0.02, y: 0.3, w: 0.96, h: 0.4 });   // lejos de sus tiradores
+    Object.assign(t, { x: 0.1, y: 0.45, w: 0.85, txt: 'Hola mundo', al: 'izq', rot: 0 });
+    ed().sel = null; ed().mas = []; await dibujado();
+    const { W: w, H: h } = tam(), cy = (t.y + t.h / 2) * h, h0 = t.h, m = await M.libre.rev.medida(t, w, h);
+    ok(m && m.x1 < (t.x + t.w * 0.6) * w, 'el texto de prueba no deja media caja vacía: ' + json(m));
+    const clic = (x, y) => { const [a, b] = aVentana(x, y); puntero('pointerdown', ed().cv, a, b); puntero('pointerup', ed().cv, a, b); };
+    clic((t.x + t.w * 0.9) * w, cy);
+    igual(ed().sel, r.id, 'un clic en lo que sobra de la caja del texto no eligió la forma de debajo');
+    await espera(650);
+    clic(m.x0 + 6, cy);
+    igual(ed().sel, t.id, 'un clic sobre las letras no eligió el texto');
+    await espera(650); await dibujado();
+    const arrastra = (x0, y0, x1, y1) => { const [a, b] = aVentana(x0, y0), [c, d] = aVentana(x1, y1); puntero('pointerdown', ed().cv, a, b, { ctrl: true }); puntero('pointermove', ed().cv, (a + c) / 2, (b + d) / 2, { ctrl: true }); puntero('pointermove', ed().cv, c, d, { ctrl: true }); puntero('pointerup', ed().cv, c, d, { ctrl: true }); };
+    arrastra(m.x1, cy, m.x1 + 40, cy);   // el tirador del lado está en el borde de las letras, no en el de la caja
+    const t1 = compDe(0).els.find(e => e.id === t.id);
+    cerca(t1.x, 0.1, 0.0001, 'ampliar por el lado movió el texto');
+    cerca(t1.w * w, m.x1 - m.x0 + 40, 2, 'el lado no fija el ancho de las líneas en el borde de las letras más lo arrastrado');
+    igual(t1.h, h0, 'ampliar por el lado cambió sus líneas');
+    await dibujado();
+    const m1 = await M.libre.rev.medida(t1, w, h), s0 = t1.size;
+    arrastra(m1.x1, (t1.y + t1.h) * h, m1.x1 + 60, (t1.y + t1.h) * h + 60 * t1.h * h / (m1.x1 - m1.x0));   // la esquina de abajo a la derecha
+    const t2 = compDe(0).els.find(e => e.id === t.id), k = t2.size / s0;
+    ok(k > 1.05, 'la esquina no amplió el texto: ' + json({ s0, s: t2.size }));
+    cerca(t2.h / h0, k, 0.01, 'la esquina rompió sus líneas (el alto no crece como la letra)');
+    cerca(t2.x, 0.1, 0.0001, 'la esquina de abajo a la derecha movió el lado izquierdo');
+    cerca(t2.y, t.y, 0.0001, 'la esquina de abajo a la derecha movió el borde de arriba');
+    // centrado: el clic en un lado de la caja, fuera de las letras, tampoco lo elige; la caja guardada no cambia
+    Object.assign(t2, { al: 'cen', x: 0.1, w: 0.85, size: s0 }); ed().sel = null; await dibujado();
+    const mc = await M.libre.rev.medida(t2, w, h), cyc = (t2.y + t2.h / 2) * h;
+    await espera(650); clic((t2.x + 0.02) * w, cyc);
+    igual(ed().sel, r.id, 'centrado: un clic en el borde izquierdo de la caja, lejos de las letras, eligió el texto');
+    await espera(650); clic((mc.x0 + mc.x1) / 2, cyc);
+    igual(ed().sel, t.id, 'centrado: un clic en el centro de las letras no eligió el texto');
+    igual([t2.x, t2.w], [0.1, 0.85], 'elegirlo cambió su caja guardada');
+    M.libre.cerrar();
+  });
+
+  prueba('E41', '«Proporción del marco»: un marco con un formato exacto de la lista, sin recortar la foto, marca su botón y no lo escribe debajo; recortado o libre, como antes (D-044)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('tres-dos.jpg', 1500, 1000)]);   // 3:2
+    await abrirEditor('r1');
+    const { W: w, H: h } = tam(), el = compDe(0).els[0], rp = () => ed().el.querySelector('.lb-panel .lb-ratp'), on = () => qa('.lb-panel [data-lb="t-rat"].on').map(b => b.dataset.v);
+    const ver = async () => { delete ed().tOri; tecla('a', { meta: true }); await dibujado(); };
+    Object.assign(el, { x: 0, y: 0.1, w: 1, h: (w / 1.5) / h }); delete el.rat;
+    await ver();
+    igual(on(), ['3:2'], 'un marco 3:2 sin recortar no marca su botón');
+    igual(rp(), null, 'un marco 3:2 sin recortar sigue escribiendo la proporción debajo');
+    ok(q('.lb-panel [data-lb="t-ori"][data-v="h"].on'), 'un marco 3:2 no abre «Horizontal»');
+    Object.assign(el, { h: (w / 1.5 + 0.6) / h });                   // medio píxel fuera de 3:2: dentro del margen
+    await ver(); igual(on(), ['3:2'], 'casi 3:2 (medio píxel) no marca su botón');
+    Object.assign(el, { x: 0.25, w: 0.5, h: (0.5 * w / 0.8) / h }); delete el.fit;   // un marco 4:5: la foto 3:2, recortada
+    await ver();
+    igual(on(), [], 'un recorte personalizado marca un botón');
+    ok(rp() && /^Foto 3:2 · marco /.test(rp().textContent), 'un recorte personalizado no dice el formato de la foto y el del marco: ' + (rp() && rp().textContent));
+    Object.assign(el, { x: 0, w: 1, h: (w / 1.37) / h });
+    await ver();
+    igual(on(), [], 'un marco libre marca un botón');
+    Object.assign(el, { w: 1, h: (w / 1.2) / h }); await ver();   // escrito a mano hasta un formato de la lista, sin recortar: se marca al escribir
+    const al = ed().el.querySelector('.lb-panel input[data-lb="mal"]');
+    ok(al && rp() && on().length === 0, 'no está el campo del alto, o un marco 1,20:1 marca un botón');
+    al.value = '720'; al.dispatchEvent(new W.Event('input', { bubbles: true })); await dibujado();   // 1080 × 720: 3:2
+    igual(on(), ['3:2'], 'al escribir el alto hasta 3:2 no se marca su botón');
+    igual(rp(), null, 'al escribir el alto hasta 3:2 sigue escrito debajo');
+    M.libre.cerrar();
   });
 
   // =====================================================================================================

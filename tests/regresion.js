@@ -616,11 +616,160 @@
     for (const f of [id, id2]) await M._in.idbDel('files', f);
   });
 
+  // ---------- la portada de un hueco (D-049) ----------
+  const portada = k => q(`.cell.filler[data-filler="${k}"] img.hfoto`);
+  // la imagen del feed: px(x, y) -> [r, g, b]
+  async function pixelesDe(blob) {
+    const bm = await W.createImageBitmap(blob), c = D.createElement('canvas'); c.width = bm.width; c.height = bm.height;
+    const x = c.getContext('2d'); x.drawImage(bm, 0, 0);
+    return (a, b) => [...x.getImageData(a, b, 1, 1).data].slice(0, 3);
+  }
+  const negro = p => p.every(v => v < 24);
+
+  prueba('M24', 'Portada en un hueco: foto dentro de un borde igual en los 4 lados y con su etiqueta, igual en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    ok(!('previews' in M.board()), 'un tablero sin portadas lleva el campo');
+    const [a] = await M.addFiles([await foto('m24.jpg', 1600, 1000, '#b03030')]);
+    await M._test.setPreview(0, a);
+    await hasta(() => portada(0), 4000, 'la portada en el hueco');
+    ok(M.board().tray.length === 0, 'la foto sigue en la bandeja');
+    const css = W.getComputedStyle(portada(0)), ancho = q('.cell.filler').getBoundingClientRect().width;
+    igual([css.paddingTop, css.paddingRight, css.paddingBottom, css.paddingLeft].filter((v, i, l) => v === l[0]).length, 4, 'el borde no es igual en los 4 lados');
+    cerca(parseFloat(css.paddingTop), ancho * .06, .5, 'el borde');
+    igual(css.objectFit, 'cover', 'la foto no rellena el interior');
+    igual(q('.cell.filler[data-filler="0"] .htag').textContent, 'Preview · próximo mes', 'la etiqueta');
+    ok(W.getComputedStyle(q('.cell.filler .htag')).textTransform === 'none', 'la etiqueta va en mayúsculas');
+    ok(!q('.cell.filler[data-filler="1"] img') && !q('.cell.filler[data-filler="1"] .htag'), 'el hueco sin portada no se ve negro');
+    // no es una publicación
+    igual([M.status().fillers, M.status().filled, M.plan().length], [2, 0, 0], 'huecos, casillas llenas y plan');
+    ok(!json(await M.revisar({ ver: false })).includes('m24'), '«Revisar» habla de la portada');
+    // la imagen del feed: la misma casilla; la 1.ª tiene la foto, la 2.ª es negra (358 × 477, desde y = 250)
+    await M.render('clean');
+    const px = await pixelesDe(M.out.clean);
+    for (const [x, y] of [[10, 490], [348, 490], [179, 260], [179, 717]]) ok(negro(px(x, y)), `el borde no es negro en ${x},${y}: ${px(x, y)}`);
+    for (const [x, y] of [[30, 490], [328, 490], [179, 280]]) ok(!negro(px(x, y)), `no llega la foto a ${x},${y}`);
+    ok(negro(px(179, 663)), 'la etiqueta no lleva su fondo negro: ' + px(179, 663));
+    ok(negro(px(540, 490)), 'el hueco sin portada no es negro en la imagen');
+    // «Vista cliente»: la foto y la etiqueta, sin la ×
+    q('.clientToggle').click();
+    ok(q('#mesa').classList.contains('client'), 'no se abrió «Vista cliente»');
+    ok(portada(0).getBoundingClientRect().width > 0 && W.getComputedStyle(q('.cell.filler .htag')).display !== 'none', 'la vista cliente no enseña la portada');
+    ok(W.getComputedStyle(q('.cell.filler .hx')).display === 'none', 'la vista cliente enseña la ×');
+    q('.clientToggle').click();
+    // reabrir
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    ok(portada(0) && M.board().previews[0] === a, 'al reabrir se perdió la portada');
+    // la × quita la foto, no el hueco; ⌘Z la devuelve
+    await filtro('sin');
+    q('.cell.filler[data-filler="0"] .hx').click(); await espera(30);
+    igual([M.status().fillers, !!portada(0), vista(false)], [2, false, ['m24.jpg']], 'tras quitar la portada');
+    M._test.undo(); await espera(30);
+    igual([M.status().fillers, !!portada(0), vista(false)], [2, true, []], 'tras ⌘Z');
+    M._test.redo(); await espera(30);
+    igual([M.status().fillers, !!portada(0), vista(false)], [2, false, ['m24.jpg']], 'tras ⇧⌘Z');
+    q('.cell.filler[data-filler="0"] .hx').click(); await espera(30);
+    ok(M.status().fillers === 1, 'la × de un hueco sin portada no lo quitó');
+  });
+
+  prueba('M25', 'Portada → usada → mes nuevo → «Sin usar» en todos los meses → en una publicación sin aviso; si se borra ese mes vuelve a usada; si se borra el mes del hueco, la foto queda en la bandeja (D-049, D-022, D-041)', async () => {
+    const DIC = '2026-12', dic = [pub(5, 'Foto', 3, DIC)], claveNov = `${CLIENTE}-${MES}`, claveDic = `${CLIENTE}-${DIC}`;
+    const aviso = () => { const d = dialogo(); return d && d.querySelector('[data-act="repe"]'); };
+    await tablero([pub(1), pub(2)]);
+    await pulsar('[data-act="addfiller"]');
+    const [a] = await M.addFiles([await foto('m25.jpg')]);
+    await filtro('sin');
+    igual(vista(false), ['m25.jpg'], 'antes de ponerla');
+    await M._test.setPreview(0, a);
+    await hasta(() => portada(0), 4000, 'la portada en el hueco');
+    igual([vista(false), vista(true), enBandejaUI()], [[], ['m25.jpg ✓'], []], 'en el hueco del último mes cuenta como usada');
+    await filtro('todas');
+    ok(!q(`.tray .titem[data-file="${a}"] [data-act="del"]`), 'una portada se puede quitar desde la bandeja');
+    await filtro('sin');
+    // en una publicación del mismo mes, avisa (cuenta como usada)
+    M._test.addToSlot('r1', [a]);
+    await hasta(aviso, 4000, 'el aviso de foto ya usada');
+    await pulsar('.detail:not([hidden]) .x[data-act="close"]');
+    igual(slot('r1').photos, [], 'al cancelar entró la foto');
+    await M.flush();
+    // un mes posterior: «Sin usar» allí y en noviembre, sin perder su portada
+    await abrirMes(dic, DIC);
+    await hasta(() => vista(false).includes('m25.jpg'), 6000, '«Sin usar» en diciembre');
+    ok(q('.tray .tcount').textContent.includes('1 sin usar'), 'la cuenta en diciembre: ' + q('.tray .tcount').textContent);
+    await M.flush();
+    await M.open(claveNov);
+    await hasta(() => vista(false).includes('m25.jpg'), 6000, '«Sin usar» en noviembre');
+    ok(portada(0), 'noviembre perdió su portada');
+    // se borra diciembre con noviembre abierto: usada otra vez
+    await M.purge(claveDic);
+    await hasta(() => !vista(false).includes('m25.jpg'), 6000, 'que vuelva a contar como usada');
+    igual(vista(true), ['m25.jpg ✓'], 'tras borrar diciembre');
+    // diciembre otra vez: a su publicación sin aviso, y el hueco de noviembre no cambia
+    await abrirMes(dic, DIC);
+    await hasta(() => vista(false).includes('m25.jpg'), 6000, '«Sin usar» en diciembre otra vez');
+    M._test.addToSlot('r5-2026-12', [a]);
+    await hasta(() => slot('r5-2026-12').photos.includes(a), 4000, 'la foto en la publicación de diciembre');
+    ok(!aviso(), 'saltó el aviso de foto repetida');
+    igual(vista(false), [], 'ya en una publicación sigue en «Sin usar»');
+    await M.flush();
+    await M.open(claveNov);
+    ok(portada(0) && M.board().previews[0] === a, 'el hueco de noviembre perdió la foto');
+    await hasta(() => vista(true).includes('m25.jpg ✓'), 6000, 'con ✓ en noviembre, por la publicación de diciembre');
+    // se borra el mes del hueco, abierto otro mes o abierto él: la foto, que no va en otro sitio, queda en la bandeja del cliente
+    for (const abierto of [DIC, MES]) {
+      await tablero([pub(1)]);
+      await pulsar('[data-act="addfiller"]');
+      const [c] = await M.addFiles([await foto('m25-c.jpg')]);
+      await M._test.setPreview(0, c);
+      await M.flush();
+      await abrirMes(dic, DIC);
+      await hasta(() => vista(false).includes('m25-c.jpg'), 6000, '«Sin usar» en diciembre');
+      ok(!M.board().tray.includes(c), 'la portada está en la bandeja guardada antes de borrar su mes');
+      await M.flush();
+      if (abierto === MES) await M.open(claveNov);
+      await M.purge(claveNov);
+      if (abierto === MES) await M.open(claveDic);
+      await M.flush();
+      ok(M.board().tray.includes(c), 'la foto no quedó en la bandeja al borrar el mes del hueco, abierto ' + abierto);
+      ok(await M._test.fileRec(c), 'se borró la foto, abierto ' + abierto);
+      igual(vista(false), ['m25-c.jpg'], 'tras borrar noviembre, abierto ' + abierto);
+    }
+  });
+
+  prueba('M26', '«⇅ Exportar» e «Importar» conservan la portada de cada hueco; un archivo sin portadas importa igual, con los huecos negros (D-049, D-017)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1)]);
+    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    const [a, b] = await M.addFiles([await foto('m26-a.jpg'), await foto('m26-b.jpg')]);
+    await M._test.setPreview(0, a);
+    await M._test.setPreview(1, b);
+    await hasta(() => portada(1), 4000, 'las dos portadas');
+    await M.flush();
+    const blob = await M.exportAll({ returnBlob: true });
+    await M.purge(clave);
+    ok(!(await M._test.fileRec(a)), 'el último mes del cliente no se llevó la foto');
+    let r = await M.importData(blob, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(clave);
+    igual(M.board().previews, [a, b], 'las portadas tras importar');
+    igual([M.status().fillers, !!portada(0), !!portada(1)], [2, true, true], 'los huecos tras importar');
+    ok((await M._test.fileRec(a)) && (await M._test.fileRec(b)), 'faltan las fotos');
+    igual([vista(false), vista(true).sort()], [[], ['m26-a.jpg ✓', 'm26-b.jpg ✓']], 'la bandeja tras importar');
+    // un archivo de antes de la 3.51
+    const d = JSON.parse(await blob.text()); d.boards.forEach(x => { delete x.previews; });
+    await M.purge(clave);
+    r = await M.importData(new W.Blob([JSON.stringify(d)], { type: 'application/json' }), { confirm: false });
+    ok(r && !r.error, 'importar el archivo antiguo falló: ' + json(r));
+    await M.open(clave);
+    igual([M.status().fillers, !!q('.cell.filler img'), 'previews' in M.board()], [2, false, false], 'el tablero antiguo');
+  });
+
   // =====================================================================================================
   // Editor de diapositivas (libre.js)
   // =====================================================================================================
 
-  prueba('E1', 'Editor: un carrusel vacío abre sin diapositivas, y abrir y salir sin cambios no deja paso en el ⌘Z de la mesa (libre 1.1)', async () => {
+  prueba('E1','Editor: un carrusel vacío abre sin diapositivas, y abrir y salir sin cambios no deja paso en el ⌘Z de la mesa (libre 1.1)', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
     await poner('r2', [await foto('e1a.jpg'), await foto('e1b.jpg')]);
     const h0 = M._test.hist(), f0 = slot('r2').photos;

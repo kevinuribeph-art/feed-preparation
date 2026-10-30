@@ -9,7 +9,7 @@
 <body style="margin:0;font:14px -apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;background:#fafafa;color:#262626">
 <p style="padding:20px">Abriendo la mesa…</p>
 <noscript><p style="padding:20px">La mesa necesita JavaScript.</p></noscript>
-<script src="mesa.js?v=3.56"></script>
+<script src="mesa.js?v=3.57"></script>
 <script>
   window.MESA && MESA.boot ? MESA.boot().catch(function (e) { document.body.textContent = 'No se pudo abrir la mesa: ' + e; })
                            : (document.body.textContent = 'No se pudo cargar mesa.js. Recarga la página.');
@@ -17,9 +17,9 @@
 <!-- the designer, its engine, the editor, the calendar and the review load on their own: the mesa never waits for them («Diseñar» does) -->
 <script async src="kits/motor.js?v=1.3" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).motor = 'fallo'"></script>
 <script async src="diseno.js?v=1.5" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).diseno = 'fallo'"></script>
-<script async src="libre.js?v=1.28" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).libre = 'fallo'"></script>
+<script async src="libre.js?v=1.29" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).libre = 'fallo'"></script>
 <script async src="calendario.js?v=1.0" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).calendario = 'fallo'"></script>
 <script async src="revisar.js?v=1.1" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).revisar = 'fallo'"></script>
-<script async src="historias.js?v=1.3" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).historias = 'fallo'"></script>
+<script async src="historias.js?v=1.4" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).historias = 'fallo'"></script>
 </body>
 </html>

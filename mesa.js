@@ -65,7 +65,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.57'; // 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.58'; // 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1700,8 +1700,8 @@
 #mesa .cell.filler .hx{position:absolute;top:6px;right:6px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:16px;line-height:28px;padding:0;cursor:pointer}
 #mesa .cell.filler .hx:hover{background:rgba(255,255,255,.3)}
 #mesa .cell.filler.tapa{container-type:inline-size}
-#mesa .cell.filler .hfoto{position:absolute;inset:0;box-sizing:border-box;padding:6cqw;background:#000}
-#mesa .cell.filler .htag{position:absolute;left:50%;bottom:9cqw;transform:translateX(-50%);width:max-content;max-width:88cqw;text-align:center;background:#000;color:#fff;font-size:max(9px,5.2cqw);font-weight:600;line-height:1.2;padding:.35em .8em;border-radius:.95em;pointer-events:none}
+#mesa .cell.filler .hfoto{position:absolute;inset:0;background:#000}
+#mesa .cell.filler .htag{position:absolute;left:50%;bottom:9cqw;transform:translateX(-50%);width:max-content;max-width:88cqw;text-align:center;background:rgba(0,0,0,.7);color:#fff;font-size:max(9px,5.2cqw);font-weight:600;line-height:1.2;padding:.35em .8em;border-radius:0;pointer-events:none}
 #mesa .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;padding:12px;color:var(--mute)}
 #mesa .ph b{color:var(--ink);font-size:12.5px}#mesa .ph span{font-size:11px}
 #mesa .pico svg{width:20px;height:20px;color:#8e8e8e}
@@ -1918,12 +1918,14 @@
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
 #mesa .card.post.hascap{max-width:1080px}
-#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);min-height:min(540px,calc(100vh - 150px))}
-#mesa .pright.hascap{contain:size;min-height:0}
+#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);grid-template-rows:minmax(0,1fr);min-height:min(540px,calc(100vh - 150px));overflow:hidden}
+#mesa .card.post.hascap .pleft{min-height:0;overflow:auto}
+#mesa .pright.hascap{contain:size;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
+#mesa .pright.hascap>*{flex-shrink:0}
 #mesa .pright.hascap textarea.note{flex:none;min-height:64px;height:68px}
-#mesa .caps{flex:1;min-height:170px;display:flex;flex-direction:column;margin-top:14px}
+#mesa .caps{flex:1 0 auto;min-height:170px;display:flex;flex-direction:column;margin-top:14px}
 #mesa .caphead{flex:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:0 0 6px}#mesa .caphead .nlab{margin:0}
-#mesa .capbody{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);padding:10px}
+#mesa .capbody{flex:1 0 auto;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line2);border-radius:8px;background:var(--bg);padding:10px}
 #mesa .capempty{margin:auto;padding:12px;color:var(--mute);font-size:12.5px;text-align:center}
 #mesa .capst{font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap;color:var(--mute);border:1px solid var(--line)}
 #mesa .capst.on{color:#fff;background:var(--acc);border-color:var(--acc)}#mesa .capst.ok{color:#fff;background:var(--ok);border-color:var(--ok)}#mesa .capst.chg{background:var(--chg);border-color:var(--chg)}
@@ -1955,7 +1957,7 @@
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;border-left:1px solid var(--line)}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
-@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;min-height:0}#mesa .pright.hascap{contain:none;min-height:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}#mesa .capbody{flex:none;max-height:60vh}}
+@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
 @media (max-width:720px){
 #mesa .toasts{top:46px;bottom:auto}
 #mesa .appbar{height:40px;padding:0 8px;gap:4px}
@@ -2329,7 +2331,7 @@
     // keep the focus and caret of the field being typed in (contexto, nota or a caption) if we're re-rendering the same post
     const ta = document.activeElement;
     const keep = ta && d.contains(ta) && ta.matches('textarea.note, textarea.memo, textarea.capt') && ta.dataset.slot === id ? { c: ta.className, k: ta.dataset.k, a: ta.selectionStart, b: ta.selectionEnd, t: ta.scrollTop } : null;
-    const cb = !d.hidden && d.dataset.slot === id && !d.dataset.prev && d.querySelector('.capbody'), capTop = cb ? cb.scrollTop : 0;   // where the captions were scrolled to
+    const same = !d.hidden && d.dataset.slot === id && !d.dataset.prev, colTop = same ? ['.pright.hascap', '.pbody'].map(q => (d.querySelector(q) || {}).scrollTop || 0) : null;   // where the column was scrolled to (in a phone, the whole body)
     // focus: the close button when the post opens (or when it had it before this re-render, e.g. arrow keys)
     const ae = document.activeElement, fresh = d.hidden || d.dataset.slot !== id || !!d.dataset.prev || !!(ae && d.contains(ae) && ae.matches('.card > .x'));
     cur = { slot: id, idx };
@@ -2383,14 +2385,15 @@
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;
-    fitCaps(d); if (capTop) d.querySelector('.capbody').scrollTop = capTop;
-    if (keep) { const t2 = keep.c === 'capt' ? d.querySelector(`textarea.capt[data-k="${cssq(keep.k)}"]`) : d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); if (t2) { t2.focus({ preventScroll: keep.c === 'capt' }); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; } }
+    fitCaps(d);
+    if (keep) { const t2 = keep.c === 'capt' ? d.querySelector(`textarea.capt[data-k="${cssq(keep.k)}"]`) : d.querySelector('textarea.' + (keep.c === 'memo' ? 'memo' : 'note')); if (t2) { t2.focus({ preventScroll: true }); t2.setSelectionRange(keep.a, keep.b); t2.scrollTop = keep.t; } }
     else if (fresh) focusClose(d);
     if (n) { layoutStage(); loadBig(fid); }
+    if (colTop) ['.pright.hascap', '.pbody'].forEach((q, k) => { d.querySelector(q).scrollTop = colTop[k]; });   // after the stage has its size, or a tall column would clamp
     if (live && M.diseno && M.diseno.vista) M.diseno.vista(d.querySelector('.stage canvas.dzv'), id, idx);   // ready for a reframe
     markReframe();
   }
-  // the post view's «Captions» block: under the Contexto and the Nota, as tall as the column allows, scrolling inside.
+  // the post view's «Captions» block: under the Contexto and the Nota, each caption whole; the column scrolls as one (D-068).
   // The 3 options in the client's tone order, each one editable (its original stays as Claude wrote it); the radio
   // marks the chosen one — one at a time, changeable at any moment.
   function capsHTML(s) {
@@ -2808,7 +2811,11 @@
   let hov = { id: null, t: 0 };
   let memosOpen = false;                 // «Abrir notas»: every Nota open at once until «Cerrar notas»
   const pitOpen = id => !!id && (memosOpen || (hov.id === id && Date.now() - hov.t >= 500));
-  function fitPit(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  function fitPit(ta) {       // height:auto shrinks the column for a moment: its scroller would clamp and jump
+    const col = ta.closest('.pright.hascap'), body = col && col.closest('.pbody'), tops = col && [col.scrollTop, body.scrollTop];
+    ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + ta.offsetHeight - ta.clientHeight + 'px';   // the border counts: nothing left to scroll inside
+    if (col) { col.scrollTop = tops[0]; body.scrollTop = tops[1]; }
+  }
   function editMemo(id) {
     const s = S && S.slots.find(x => x.id === id);
     if (!s || !memoOf(s) || locked || root.classList.contains('client')) return false;
@@ -3943,16 +3950,14 @@
       if (p.blank) {
         x.fillStyle = p.filler ? '#000' : '#efefef'; x.fillRect(px, py, TW, TH);
         if (p.preview) {                   // the same proportions as .hfoto and .htag in the mesa
-          const bmp = await createImageBitmap(p.preview), b = Math.round(TW * .06), iw = TW - 2 * b, ih = TH - 2 * b, k = Math.max(iw / bmp.width, ih / bmp.height), sw = iw / k, sh = ih / k;
+          const bmp = await createImageBitmap(p.preview), k = Math.max(TW / bmp.width, TH / bmp.height), sw = TW / k, sh = TH / k;
           x.imageSmoothingQuality = 'high';
-          x.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, px + b, py + b, iw, ih);
+          x.drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, px, py, TW, TH);
           bmp.close();
           const fs = TW * .052, lbl = 'Preview · próximo mes';
           x.font = `600 ${fs}px ${FONT}`;
           const tw = x.measureText(lbl).width + 1.6 * fs, th = 1.9 * fs, tx = px + (TW - tw) / 2, ty = py + TH - TW * .09 - th;
-          x.fillStyle = '#000'; x.beginPath();
-          if (x.roundRect) x.roundRect(tx, ty, tw, th, th / 2); else x.rect(tx, ty, tw, th);
-          x.fill();
+          x.fillStyle = 'rgba(0,0,0,.7)'; x.fillRect(tx, ty, tw, th);
           x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(lbl, px + TW / 2, ty + th / 2);
           x.textAlign = 'left'; x.textBaseline = 'alphabetic';
         }
@@ -4471,7 +4476,7 @@
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
-    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview,
+    place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim,
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },

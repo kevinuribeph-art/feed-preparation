@@ -20,6 +20,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - `kits/<marca>.json` + `kits/fonts/`: kits de marca para el diseñador y el editor.
 - Sin backend: los datos viven en IndexedDB del navegador donde se abre la mesa (aislados por origen).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
+- `tools/servir-fotos.mjs`: script Node 18+ sin dependencias que sirve a `MESA.importarFotos` una lista de fotos del Mac (D-061). Ni rutas ni nombres de esas fotos en archivos rastreados.
 - `mesa.js` pesa unos 300 KB: busca con grep en vez de leerlo entero. Una función nueva grande va
   en su propio archivo, como `libre.js`.
 

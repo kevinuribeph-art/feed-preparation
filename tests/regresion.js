@@ -1210,6 +1210,281 @@
     ok(punto().offsetParent !== null, 'el punto no se ve en la cuadrícula');
   });
 
+  // ---------- historias solas: fotos sin arrastrar, plantillas del kit y diseño desde fuera (D-061 a D-063) ----------
+  const bytesIguales = async (a, b) => { const x = new Uint8Array(await a.arrayBuffer()), y = new Uint8Array(await b.arrayBuffer()); return x.length === y.length && x.every((v, i) => v === y[i]); };
+  // el kit de verdad para el cliente de prueba, con el monograma entre sus logos: la mesa las siembra (D-062)
+  async function conPlantillas({ logo = true } = {}) {
+    await hasta(() => M.hs && M.diseno && M.libre && M.libre.hist, 6000, 'historias.js, diseno.js y libre.js');
+    const kit = await (await W.fetch('kits/uribe.json', { cache: 'no-store' })).json();
+    const k0 = M.diseno.kit; M.diseno.kit = async () => kit;
+    const c0 = await M._in.idbGet('clients', CLIENTE), libre0 = c0.libre || null;
+    c0.libre = { ...(libre0 || {}), plantillas: ((libre0 && libre0.plantillas) || []).filter(t => !t.historia) };
+    delete c0.libre.historiasKit;
+    let idLogo = null;
+    if (logo) {
+      const c = D.createElement('canvas'); c.width = c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#16110e'; x.fillRect(0, 0, 120, 120);
+      const png = await new Promise(r => c.toBlob(r, 'image/png'));
+      idLogo = `kit-${CLIENTE}-logo-h15`;
+      await M._in.idbPut('files', idLogo, { name: 'uribe-visuals-monograma-ink.png', size: png.size, type: 'image/png', w: 120, h: 120, blob: png, thumb: png });
+      c0.libre.logos = [idLogo];
+    }
+    await M._in.idbPut('clients', CLIENTE, c0);
+    await M.hs.asegurar(CLIENTE); await M._in.loadClients();
+    return { kit, salir: async () => {           // el cliente de prueba sigue entre pruebas: queda como estaba
+      M.diseno.kit = k0;
+      const c = await M._in.idbGet('clients', CLIENTE);
+      if (c) { if (libre0) c.libre = libre0; else delete c.libre; await M._in.idbPut('clients', CLIENTE, c); await M._in.loadClients(); }
+      if (idLogo) { await M._in.idbDel('files', idLogo); delete M.files[idLogo]; }
+    } };
+  }
+  const tplDe = nombre => M.plantillasHistoria().find(t => t.nombre === 'Historia · ' + nombre);
+  const compH = id => { const h = M.hs.lista().find(x => x.id === id); return h.libre.slides[h.photos[0]]; };
+  const textosH = id => compH(id).els.filter(e => e.t === 'texto');
+  const conTexto = (id, s) => textosH(id).find(e => e.txt === s);
+
+  prueba('H14', 'MESA.importarFotos mete en la bandeja los mismos bytes, igual que un arrastre: «añadida», «ya estaba» y error por foto (D-061, D-022)', async () => {
+    await tablero([pub(1)]);
+    const f = await foto('h14.jpg', 2400, 3000), url = W.URL.createObjectURL(f);
+    let r = await M.importarFotos([{ url, name: 'h14.jpg', lastModified: 1767225600000, size: f.size }]);
+    igual(r.map(x => [x.name, x.result]), [['h14.jpg', 'añadida']], 'la primera vez');
+    const id = r[0].fileId;
+    ok(M.board().tray.includes(id), 'no está en la bandeja');
+    const rec = await M._in.idbGet('files', id);
+    igual([rec.size, rec.w, rec.h, rec.lastModified, rec.type], [f.size, 2400, 3000, 1767225600000, 'image/jpeg'], 'tamaño, dimensiones y fecha');
+    ok(await bytesIguales(rec.blob, f), 'los bytes guardados no son los del original');
+    // otra vez: la misma foto (nombre y tamaño, D-022) no entra dos veces
+    r = await M.importarFotos([{ url, name: 'h14.jpg', lastModified: 1 }]);
+    igual([r[0].fileId, r[0].result], [id, 'ya estaba'], 'la segunda vez');
+    igual(M.board().tray.filter(x => x === id).length, 1, 'veces en la bandeja');
+    // cada foto da su resultado, en el orden pedido, y las malas no paran a las demás
+    const g = await foto('h14-b.jpg');
+    const mala = W.URL.createObjectURL(new W.Blob(['no es una imagen'], { type: 'image/jpeg' })), heic = W.URL.createObjectURL(new W.Blob(['x'], { type: 'image/heic' }));
+    r = await M.importarFotos([{ url: mala, name: 'rota.jpg' }, { url: 'http://127.0.0.1:9/nada', name: 'nada.jpg' }, { url: heic, name: 'foto.heic' }, { url, name: 'corta.jpg', size: f.size + 1 }, { name: 'sin-url.jpg' }, { url: W.URL.createObjectURL(g), name: 'h14-b.jpg' }]);
+    igual(r.map(x => x.name), ['rota.jpg', 'nada.jpg', 'foto.heic', 'corta.jpg', 'sin-url.jpg', 'h14-b.jpg'], 'el orden');
+    ok(r.slice(0, 5).every(x => x.error && !x.fileId), 'las malas tenían que dar error: ' + json(r));
+    ok(/HEIC/.test(r[2].error) && /incompleta/.test(r[3].error), 'los motivos: ' + json(r));
+    igual(r[5].result, 'añadida', 'la buena de detrás');
+  });
+
+  prueba('H15', 'Las 8 plantillas salen del kit una sola vez, 9:16 en el editor; la borrada no vuelve y no cuentan para las 24 del cliente (D-062)', async () => {
+    await tablero([pub(1)]);
+    const c0 = await M._in.idbGet('clients', CLIENTE), viejas = Array.from({ length: 24 }, (_, i) => ({ id: 'v' + i, nombre: `Plantilla ${i + 1}`, comp: { bg: '#ffffff', els: [] }, fmt: '4:5', rat: 0.8 }));
+    await M._in.idbPut('clients', CLIENTE, { ...c0, libre: { ...(c0.libre || {}), plantillas: viejas } });
+    const { salir } = await conPlantillas();
+    try {
+      igual((await M._in.idbGet('clients', CLIENTE)).libre.plantillas.filter(t => !t.historia).length, 24, 'las 24 del cliente');
+      igual(M.plantillasHistoria().map(t => t.nombre.replace('Historia · ', '')), ['Texto Ink', 'Texto Paper', 'Texto Terracota', 'Foto a sangre', 'Foto + texto', 'Post enmarcado', 'Secuencia', 'Dato grande'], 'las plantillas');
+      igual(tplDe('Texto Ink').campos, ['titular', 'etiqueta', 'texto'], 'campos de Texto Ink');
+      igual(tplDe('Texto Terracota').campos, ['titular', 'texto'], 'campos de Terracota');
+      igual(tplDe('Foto a sangre').campos, ['foto'], 'campos de Foto a sangre');
+      igual(tplDe('Secuencia').campos, ['foto', 'titular', 'texto', 'serie'], 'campos de Secuencia');
+      igual(tplDe('Dato grande').campos, ['foto', 'dato', 'etiqueta', 'texto', 'serie'], 'campos de Dato grande');
+      let c = await M._in.idbGet('clients', CLIENTE);
+      igual(c.libre.plantillas.length, 32, 'sembrar no se lleva ninguna de las 24 del cliente');
+      ok(c.libre.plantillas.filter(t => t.historia).every(t => t.fmt === '9:16' && Math.abs(t.rat - 9 / 16) < 1e-3), 'el formato de las plantillas');
+      igual(c.libreAt || null, c0.libreAt || null, 'sembrar no toca libreAt (importar de otro Mac sigue mandando)');
+      const terr = c.libre.plantillas.find(t => t.nombre === 'Historia · Texto Terracota');
+      ok(terr.comp.els.some(e => e.t === 'logo' && e.src === `kit-${CLIENTE}-logo-h15`), 'Terracota no lleva el monograma del kit');
+      // en el editor, con el resto; guardar una plantilla sigue tirando la más vieja del cliente, nunca una de historia
+      const id = M.hs.anadir(DIA(10), { note: 'H15' });
+      await M.hs.editar(id);
+      await hasta(() => ed() && ed().plant.length === 32, 4000, 'las plantillas en el editor');
+      await hasta(() => qa('canvas[data-lb="tpl"]').length === 32, 4000, 'las miniaturas');
+      accion('tpl-save');
+      c = await hasta(async () => { const x = await M._in.idbGet('clients', CLIENTE); return x.libre.plantillas.some(t => t.nombre === 'Plantilla 25') && x; }, 4000, 'la plantilla guardada');
+      igual([c.libre.plantillas.filter(t => t.historia).length, c.libre.plantillas.filter(t => !t.historia).length, c.libre.plantillas.some(t => t.id === 'v0')], [8, 24, false], 'las de historia se quedan');
+      M.libre.cerrar();
+      // una borrada no vuelve
+      c.libre.plantillas = c.libre.plantillas.filter(t => t.nombre !== 'Historia · Foto a sangre');
+      await M._in.idbPut('clients', CLIENTE, c); await M._in.loadClients();
+      await M.hs.asegurar(CLIENTE);
+      igual(M.plantillasHistoria().length, 7, 'la borrada ha vuelto');
+    } finally {
+      await salir();
+      const c = await M._in.idbGet('clients', CLIENTE); await M._in.idbPut('clients', CLIENTE, { ...c, libre: c0.libre }); await M._in.loadClients();
+    }
+  });
+
+  prueba('H16', 'Cada plantilla: diseñada a 1440 × 2560, editable, en su zona segura con 1 a 3 líneas, y ninguna etiqueta encima de un titular o un dato (D-062, D-055, D-020)', async () => {
+    await tablero([pub(1)]);
+    const { salir } = await conPlantillas();
+    try {
+      const r = await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h16.jpg', 3000, 5400)), name: 'h16.jpg' }]), fid = r[0].fileId;
+      const lineas = ['Una', 'Una línea que pasa a dos', 'Un titular que ocupa justo tres líneas'];
+      const zona = [['Texto Ink', {}], ['Texto Paper', {}], ['Texto Terracota', {}], ['Foto + texto', { foto: fid }], ['Post enmarcado', { foto: fid }], ['Secuencia', { foto: fid, serie: { n: 1, total: 3 } }], ['Dato grande', { foto: fid, serie: { n: 2, total: 3 } }]];
+      let dia = 3;
+      for (const [nombre, extra] of zona) for (const titular of lineas) {
+        const t = tplDe(nombre), id = M.hs.anadir(DIA(dia++ % 27 + 1), { note: 'H16' });
+        const datos = { plantilla: t.id, ...extra };
+        if (t.campos.includes('titular')) datos.titular = titular; else datos.dato = '85 %';
+        if (t.campos.includes('etiqueta')) datos.etiqueta = 'Una etiqueta';
+        if (t.campos.includes('texto')) datos.texto = 'Un texto corto para ver cómo queda.';
+        const out = await M.disenarHistoria(id, datos);
+        ok(!out.error, `${nombre}: ${out.error}`);
+        igual(out.state, 'diseñada', nombre + ': el estado');
+        ok(!out.problems.some(p => p.tipo === 'zona segura' || p.bloquea), `${nombre} «${titular}»: ${json(out.problems)}`);
+        const h = M.hs.lista().find(x => x.id === id), f = M.files[h.photos[0]];
+        igual([f.w, f.h, f.design], [1440, 2560, true], nombre + ': la imagen');
+        // de abajo arriba: etiqueta por debajo de su titular o su dato
+        const ts = textosH(id), et = conTexto(id, 'Una etiqueta'), gr = datos.titular ? conTexto(id, titular) : conTexto(id, '85 %');
+        if (et) ok(et.y > gr.y + gr.h - 1e-3, `${nombre}: la etiqueta va encima`);
+        // el bloque acaba en su base
+        const base = nombre === 'Secuencia' || nombre === 'Dato grande' ? 0.735 : 0.8, pie = Math.max(...ts.filter(e => !/^\d\d \/ /.test(e.txt) && e.txt !== 'URIBE' && e.txt !== 'U').map(e => e.y + e.h));
+        cerca(pie, base, 2e-3, nombre + ': el pie del bloque');
+      }
+      // Foto a sangre: toda la página y sin nada más, sin ampliar
+      const id = M.hs.anadir(DIA(28), {}), o = await M.disenarHistoria(id, { plantilla: tplDe('Foto a sangre').id, foto: fid });
+      ok(!o.error && !o.problems.some(p => p.tipo === 'resolución'), json(o));
+      igual(compH(id).els.map(e => [e.t, e.x, e.y, e.w, e.h, e.src]), [['foto', 0, 0, 1, 1, fid]], 'Foto a sangre');
+      // Foto + texto: el velo de las portadas
+      const id2 = M.hs.anadir(DIA(28), {}); await M.disenarHistoria(id2, { plantilla: tplDe('Foto + texto').id, foto: fid, titular: 'Velo' });
+      igual(compH(id2).velo, { tipo: 'grad', color: '#16110e', op: 0.85, dir: 'abajo', alc: 0.55 }, 'el velo');
+      // a más de 3 líneas pasa al titular medio y sigue en su sitio
+      const id3 = M.hs.anadir(DIA(28), {}), largo = 'Un titular bastante más largo de lo normal que ya no cabe en tres líneas';
+      await M.disenarHistoria(id3, { plantilla: tplDe('Texto Ink').id, titular: largo });
+      igual(conTexto(id3, largo).size, 0.07, 'el titular medio');
+      // sigue siendo editable: se abre con su composición, sin nada que aplicar, y la foto sigue en la bandeja (D-056)
+      ok(M.board().tray.includes(fid), 'la foto salió de la bandeja');
+      await M.hs.editar(id3);
+      await hasta(() => ed() && ed().historia, 4000, 'el editor');
+      ok(compDe(0).els.some(e => e.t === 'texto' && e.txt === largo), 'el editor no abre la composición');
+      igual(M.libre.abierto() && M.libre.aplicando(), false, 'aplicando');
+      M.libre.cerrar();
+      // los campos que su plantilla no lleva se rechazan sin tocar nada
+      const id4 = M.hs.anadir(DIA(28), {});
+      const mal = await M.disenarHistoria(id4, { plantilla: tplDe('Foto a sangre').id, foto: fid, titular: 'No' });
+      ok(/no lleva titular/.test(mal.error) && mal.state === 'por diseñar', json(mal));
+      ok(/no existe/.test((await M.disenarHistoria(id4, { plantilla: 'otra', titular: 'x' })).error), 'una plantilla que no existe');
+    } finally { await salir(); }
+  });
+
+  prueba('H17', 'La foto que no da los píxeles lo dice en problems; un hueco sin foto bloquea, y el texto que no cabe se devuelve (D-062, D-058)', async () => {
+    await tablero([pub(1)]);
+    const { salir } = await conPlantillas();
+    try {
+      const a = async (nombre, w, h) => (await M.importarFotos([{ url: W.URL.createObjectURL(await foto(nombre, w, h)), name: nombre }]))[0].fileId;
+      const justa = await a('h17-1200.jpg', 1200, 2133), poca = await a('h17-800.jpg', 800, 1422), sobra = await a('h17-2000.jpg', 2000, 3556);
+      const sangre = tplDe('Foto a sangre').id, d = (f) => M.disenarHistoria(M.hs.anadir(DIA(10), {}), { plantilla: sangre, foto: f });
+      let o = await d(sobra);
+      ok(!o.problems.some(p => p.tipo === 'resolución'), 'con píxeles de sobra avisa: ' + json(o.problems));
+      o = await d(justa);
+      ok(o.problems.some(p => p.tipo === 'resolución' && /se amplía/.test(p.texto) && !p.bloquea), 'de 1080 a 1440 se amplía y no lo dice: ' + json(o.problems));
+      o = await d(poca);
+      ok(o.problems.some(p => p.tipo === 'resolución' && /menos de 1080/.test(p.texto)), 'por debajo de 1080 no lo dice: ' + json(o.problems));
+      // sin foto: diseñada, con su hueco, y no sale
+      const id = M.hs.anadir(DIA(11), {});
+      o = await M.disenarHistoria(id, { plantilla: tplDe('Foto + texto').id, titular: 'Sin foto' });
+      ok(o.state === 'diseñada' && o.problems.some(p => p.tipo === 'hueco' && p.bloquea), json(o));
+      // Secuencia: más de 20 palabras, o un texto que no cabe, se devuelve
+      const sec = tplDe('Secuencia').id, largo = Array(40).fill('palabra').join(' ');
+      o = await M.disenarHistoria(M.hs.anadir(DIA(12), {}), { plantilla: sec, foto: sobra, titular: 'Corto', texto: largo, serie: { n: 1, total: 2 } });
+      ok(o.problems.some(p => /40 palabras/.test(p.texto)), 'las palabras: ' + json(o.problems));
+      o = await M.disenarHistoria(M.hs.anadir(DIA(13), {}), { plantilla: sec, foto: sobra, titular: 'Un titular muy largo que ocupa muchísimas líneas en la parte baja de esta historia y se come la foto de arriba', texto: 'Corto', serie: { n: 1, total: 2 } });
+      ok(o.problems.some(p => p.tipo === 'no cabe' && /no cabe/.test(p.texto)), 'lo que no cabe: ' + json(o.problems));
+      // Secuencia necesita su serie; una serie mal hecha no entra
+      ok(/necesita serie/.test((await M.disenarHistoria(M.hs.anadir(DIA(14), {}), { plantilla: sec, titular: 'x' })).error), 'sin serie');
+      ok(/serie no válida/.test((await M.disenarHistoria(M.hs.anadir(DIA(14), {}), { plantilla: sec, titular: 'x', serie: { n: 4, total: 3 } })).error), 'serie mal hecha');
+    } finally { await salir(); }
+  });
+
+  prueba('H18', 'disenarHistoria: una diseñada solo con replace, una programada o cancelada nunca, y una foto de un post posterior no entra (D-062, D-056, D-059)', async () => {
+    await tablero([pub(1, 'Foto', 20)]);
+    await poner('r1', [await foto('h18-post.jpg')]);
+    const { salir } = await conPlantillas();
+    try {
+      const ink = tplDe('Texto Ink').id, sangre = tplDe('Foto a sangre').id, id = M.hs.anadir(DIA(10), {});
+      let o = await M.disenarHistoria(id, { plantilla: ink, titular: 'Primera' });
+      ok(!o.error, json(o));
+      const img = M.hs.lista().find(x => x.id === id).photos[0];
+      o = await M.disenarHistoria(id, { plantilla: ink, titular: 'Segunda' });
+      ok(/replace/.test(o.error) && o.state === 'diseñada', json(o));
+      ok(conTexto(id, 'Primera') && M.hs.lista().find(x => x.id === id).photos[0] === img, 'la pisó sin replace');
+      o = await M.disenarHistoria(id, { plantilla: ink, titular: 'Segunda' }, { replace: true });
+      ok(!o.error && conTexto(id, 'Segunda'), json(o));
+      const img2 = M.hs.lista().find(x => x.id === id).photos[0];
+      ok(img2 !== img, 'la imagen no cambió con replace');
+      ok(!M._in.refsOf(M.board()).has(img), 'la imagen vieja sigue en la historia');
+      // la foto vieja de una sustituida vuelve a la bandeja
+      const u = (await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h18-a.jpg', 1800, 3200)), name: 'h18-a.jpg' }]))[0].fileId;
+      const v = (await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h18-b.jpg', 1800, 3200)), name: 'h18-b.jpg' }]))[0].fileId;
+      const id2 = M.hs.anadir(DIA(11), {});
+      await M.disenarHistoria(id2, { plantilla: sangre, foto: u });
+      await M.disenarHistoria(id2, { plantilla: sangre, foto: v }, { replace: true });
+      ok(M.board().tray.includes(u) && M.board().tray.includes(v), 'las fotos siguen en la bandeja');
+      // programada: nunca, ni con replace
+      M.marcarHistoriasProgramadas([{ id, zernioId: 'z-h18' }]);
+      o = await M.disenarHistoria(id, { plantilla: ink, titular: 'Tercera' }, { replace: true });
+      ok(/programada/.test(o.error) && o.state === 'programada', json(o));
+      ok(conTexto(id, 'Segunda') && M.hs.lista().find(x => x.id === id).photos[0] === img2, 'tocó una programada');
+      // cancelada: tampoco
+      M.hs.cancelar(id2);
+      o = await M.disenarHistoria(id2, { plantilla: ink, titular: 'x' }, { replace: true });
+      ok(/cancelada/.test(o.error), json(o));
+      // no adelanta: la foto de un post posterior no entra y la historia sigue por diseñar
+      const id3 = M.hs.anadir(DIA(12), {}), fpost = slot('r1').photos[0];
+      o = await M.disenarHistoria(id3, { plantilla: sangre, foto: fpost });
+      ok(o.error && /después/.test(o.error) && o.state === 'por diseñar', json(o));
+      igual(M.hs.lista().find(x => x.id === id3).photos, [], 'las fotos de la historia');
+      // después de su post sí: ese es el material de una historia
+      const id4 = M.hs.anadir(DIA(25), {});
+      o = await M.disenarHistoria(id4, { plantilla: sangre, foto: fpost });
+      ok(!o.error && !o.problems.some(p => p.tipo === 'adelanto'), json(o));
+      // ⌘Z deshace el diseño: un paso
+      await M.flush();
+      M._test.undo();
+      await hasta(() => !(M.hs.lista().find(x => x.id === id4).photos || []).length, 3000, 'que ⌘Z deshaga el diseño');
+    } finally { await salir(); }
+  });
+
+  prueba('H19', 'Una serie de 3: numeración 01 / 03, flecha en 1/3 y 2/3 y «Send us a DM» en 3/3, en Secuencia y en Dato grande (D-063)', async () => {
+    await tablero([pub(1)]);
+    const { salir } = await conPlantillas();
+    try {
+      const fid = (await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h19.jpg', 2000, 3000)), name: 'h19.jpg' }]))[0].fileId;
+      const sec = tplDe('Secuencia').id, ids = [];
+      for (const n of [1, 2, 3]) {
+        const id = M.hs.anadir(DIA(10 + n), {}), o = await M.disenarHistoria(id, { plantilla: sec, foto: fid, titular: 'Paso ' + n, texto: 'Un texto corto.', serie: { n, total: 3 } });
+        ok(!o.error && !o.problems.some(p => p.bloquea || p.tipo === 'zona segura' || p.tipo === 'no cabe'), `${n}/3: ${json(o)}`);
+        ids.push(id);
+      }
+      const formas = id => compH(id).els.filter(e => e.t === 'forma').map(e => e.forma);
+      igual(formas(ids[0]), ['elipse', 'flecha'], '1/3');
+      igual(formas(ids[1]), ['elipse', 'flecha'], '2/3');
+      igual(formas(ids[2]), [], '3/3');
+      ok(!conTexto(ids[0], 'Send us a DM') && !conTexto(ids[1], 'Send us a DM'), '«Send us a DM» antes de la última');
+      const dm = conTexto(ids[2], 'Send us a DM');
+      ok(dm && dm.al === 'der' && dm.may && dm.color === '#d07152', 'en 3/3: ' + json(dm));
+      igual([1, 2, 3].map((n, i) => !!conTexto(ids[i], `0${n} / 03`)), [true, true, true], 'la numeración');
+      const num = conTexto(ids[0], '01 / 03');
+      igual([num.x, num.color, num.peso, num.size], [0.074, '#9a8f84', 700, 0.024], 'la numeración, en etiqueta');
+      // el círculo: diámetro 0.082·W, redondo de verdad, borde en 0.926, centrado en 0.785, con la flecha dentro
+      const [ci, fl] = compH(ids[0]).els.filter(e => e.t === 'forma');
+      cerca(ci.x + ci.w, 0.926, 2e-4, 'el borde del círculo');
+      cerca(ci.w * 1440, ci.h * 2560, 0.5, 'el círculo no es redondo');
+      cerca(ci.y + ci.h / 2, 0.785, 2e-4, 'el centro del círculo');
+      igual([ci.color, fl.color, fl.puntas, !!ci.g && ci.g === fl.g], ['#b2503a', '#f4efe8', 'der', true], 'colores y grupo');
+      ok(fl.x > ci.x && fl.x + fl.w < ci.x + ci.w && fl.y > ci.y && fl.y + fl.h < ci.y + ci.h, 'la flecha se sale del círculo');
+      // Secuencia: foto arriba y separación 0.026·W bajo el titular
+      igual(compH(ids[0]).els[0].h, 0.5, 'la foto');
+      const ti = conTexto(ids[0], 'Paso 1'), tx = conTexto(ids[0], 'Un texto corto.');
+      cerca(tx.y - (ti.y + ti.h), 0.026 * 1440 / 2560, 3e-4, 'la separación');
+      igual([ti.size, ti.color, tx.color], [0.07, '#f4efe8', '#c4b8ac'], 'titular medio y texto');
+      // Dato grande: con serie la misma fila, con su numeración; sin serie, ninguna fila
+      const dg = tplDe('Dato grande').id, a = M.hs.anadir(DIA(20), {}), b = M.hs.anadir(DIA(21), {}), c = M.hs.anadir(DIA(22), {});
+      await M.disenarHistoria(a, { plantilla: dg, foto: fid, dato: '85 %', etiqueta: 'De las reservas', texto: 'Un texto.', serie: { n: 1, total: 2 } });
+      await M.disenarHistoria(b, { plantilla: dg, foto: fid, dato: '85 %', etiqueta: 'De las reservas', texto: 'Un texto.', serie: { n: 2, total: 2 } });
+      await M.disenarHistoria(c, { plantilla: dg, foto: fid, dato: '85 %', etiqueta: 'De las reservas', texto: 'Un texto.' });
+      igual(conTexto(a, '01 / 02').color, '#6e635a', 'la numeración de Dato grande');
+      igual([formas(a), formas(b), !!conTexto(b, 'Send us a DM'), formas(c), textosH(c).some(e => / \/ /.test(e.txt)), !!conTexto(c, 'Send us a DM')], [['elipse', 'flecha'], [], true, [], false, false], 'la fila');
+      const da = conTexto(a, '85 %'), et = conTexto(a, 'De las reservas'), tt = conTexto(a, 'Un texto.');
+      ok(da.y + da.h <= et.y && et.y + et.h <= tt.y, 'el orden: dato, etiqueta, texto');
+      cerca(et.y - (da.y + da.h), 0.03 * 1440 / 2560, 3e-4, 'la separación bajo el dato');
+      igual([da.size, da.lh, da.ls, da.peso, da.color, et.color, tt.color], [0.185, 0.9, -0.04, 800, '#16110e', '#6e635a', '#4a4038'], 'los estilos');
+      // la serie en otra plantilla no entra
+      ok(/no lleva serie/.test((await M.disenarHistoria(M.hs.anadir(DIA(23), {}), { plantilla: tplDe('Texto Ink').id, titular: 'x', serie: { n: 1, total: 2 } })).error), 'serie en Texto Ink');
+    } finally { await salir(); }
+  });
+
   // ---------- la portada de un hueco (D-049) ----------
   const portada = k => q(`.cell.filler[data-filler="${k}"] img.hfoto`);
   // la imagen del feed: px(x, y) -> [r, g, b]

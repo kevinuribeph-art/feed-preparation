@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.27';
+  const VERSION = '1.28';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -750,6 +750,7 @@
         tcol = ((raw && raw.colores_texto && raw.colores_texto.principales) || []).map(k => raw.colores && raw.colores[k]).filter(hexOk).map(c => c.toLowerCase());
       } catch (e) { /* this client has no design kit */ }
     }
+    if (M.hs && M.hs.asegurar) await M.hs.asegurar(cid).catch(() => {});   // the story templates of its kit (D-062)
     const c = await I().idbGet('clients', cid), lib = (c && c.libre) || {};
     if (E !== owner) return;
     E.kit = kit; E.fkit = fk; E.estilos = est; E.tcol = tcol; E.margen = mg; E.fuentes = [...fk, ...FUENTES_MESA.filter(f => !fk.some(q => q.file === f.file)), ...FUENTES_MAC];
@@ -2625,9 +2626,9 @@
     const c = compAt(E.i), comp = clone(c), { W, H } = sizeAt(E.i);
     delete comp.origen; delete comp.previa;
     comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
-    const n = E.plant.reduce((a, q) => { const m = /^Plantilla (\d+)$/.exec(q.nombre || ''); return m ? Math.max(a, +m[1]) : a; }, E.plant.length) + 1;
+    const n = E.plant.reduce((a, q) => { const m = /^Plantilla (\d+)$/.exec(q.nombre || ''); return m ? Math.max(a, +m[1]) : a; }, E.plant.filter(q => !q.historia).length) + 1;
     const t = { id: 't' + Date.now().toString(36), nombre: `Plantilla ${n}`, comp, fmt: fmtNombre(E.i), rat: r4(W / H), at: new Date().toISOString() };
-    guardarCliente(l => ({ ...l, plantillas: [...(l.plantillas || []), t].slice(-24) })).then(ok => ok && I().toast(`«${t.nombre}» guardada para este cliente (${t.fmt}).`));
+    guardarCliente(l => { const ps = l.plantillas || []; return { ...l, plantillas: [...ps.filter(q => q.historia), ...[...ps.filter(q => !q.historia), t].slice(-24)] }; }).then(ok => ok && I().toast(`«${t.nombre}» guardada para este cliente (${t.fmt}).`));   // the kit's story templates don't count towards the 24 (D-062)
   }
   // the template's photo holes: a frame of the template (its photo was taken out when it was saved) or a hole a photo filled
   const esHuecoT = e => e.t === 'hueco' || e.t === 'foto';
@@ -3331,6 +3332,44 @@
     }
   }
 
+  // A story designed from outside the editor (M.disenarHistoria, D-062): the composition drawn and kept as «Aplicar» does.
+  // Only the story's image changes hands: the photos it stops using go back to the tray, and a discard it uses stays (D-056).
+  async function pintarHistoria(id, comp) {
+    let counted = false, made = null;
+    try {
+      const S = I().S, h = S && (S.historias || []).find(x => x.id === id);
+      need(h, 'Esa historia ya no está en la mesa.');
+      need(!I().locked, LOCKED);
+      need(!E, 'Cierra el editor antes de diseñar una historia desde fuera.');
+      need(!APL && !REDO.size && !NUMQ.size, 'Espera: la mesa está redibujando una publicación.');
+      need(!I().uploadsBusy(), 'Espera a que termine la subida a Notion.');
+      need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
+      const photos0 = (h.photos || []).slice();
+      APL++; counted = true;
+      made = await guardarImagen(await dibujar(comp, OUT_W, Math.round(OUT_W * 16 / 9)), `${h.name || 'Historia'}.jpg`);
+      if (!(I().S === S && (S.historias || []).includes(h) && I().same(h.photos || [], photos0) && !I().locked)) throw new LbError('La mesa cambió mientras se dibujaba: vuelve a intentarlo.');
+      const before = I().refsOf(S);
+      h.photos = [made]; h.libre = { v: 1, slides: { [made]: comp } }; delete h.guias;
+      const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
+      S.tray.unshift(...lost.filter(f => !M.files[f].design && !isKit(f) && !S.tray.includes(f)));
+      made = null;
+      I().hNorm(S); I().changed();
+      APL--; counted = false;
+      for (const f of lost.filter(f => M.files[f] && M.files[f].design)) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
+      return { ok: true };
+    } catch (e) {
+      if (made) { try { await I().deleteIfUnused(made); } catch (er) { /* the sweep takes it */ } }
+      return { error: e instanceof LbError ? e.message : 'No se pudo dibujar: ' + String((e && e.message) || e) };
+    } finally { if (counted) APL--; drenar(); }
+  }
+  // a text's height and lines as «Aplicar» draws it on a W×H slide, with its font loaded
+  async function altoDe(el, W, H) {
+    if (el.font && el.font.file) await fuente(el.font).p.catch(() => {});
+    ajustarTexto(el, W, H);
+    MC.save(); const n = lineas(MC, el, W).out.length; MC.restore();
+    return n;
+  }
+
   // «Revisar» (revisar.js, mesa ≥ 3.43), as «Aplicar» draws it on a W×H slide: a text, the box of its ink (its lines, or
   // its pill) turned with it, in px; a photo, how many of its px go across the whole slide's width
   async function medida(el, W, H) {
@@ -3362,6 +3401,7 @@
 
   M.libre = { version: VERSION, abrir, fondosKit, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
+    hist: { pintar: pintarHistoria, altoDe, OUT_W },   // a story designed from outside (historias.js, D-062)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)
   // a board the mesa opened before this file loaded: its drawn holes become the element too (not a step of ⌘Z)
   { const S = I() && I().S, ids = S && !I().locked ? migrar(S) : []; if (ids.length) { ids.forEach(id => I().histAmend(id)); I().save(); } }

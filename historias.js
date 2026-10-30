@@ -24,11 +24,16 @@
 //     after updating it in Zernio: it stops being changed. zernioId null: it is no longer in Zernio.
 // Scheduling: tools/zernio.mjs presign -> M.startZernio([{fileId (of files), slotId (the story's id), url, publicUrl}]), which refuses
 // one with a point that stops it -> M.waitZernio -> tools/zernio.mjs schedule, one post per story at its date.
+// Designing from outside (D-062, D-063; the photos come with M.importarFotos, D-061):
+//   M.plantillasHistoria() -> [{id, nombre, campos}], the open client's: the templates of its kit (kit «historias») on c.libre.plantillas.
+//   await M.disenarHistoria(id, {plantilla, foto? (fileId), titular?, etiqueta?, texto?, dato?, serie?: {n, total}}, {replace?}) -> {id, state,
+//     problems: [{tipo, bloquea, texto}]}, and error if it was refused and nothing changed: a programmed or cancelled one never,
+//     a designed one only with replace, a photo of a later post never (D-056), a field its template doesn't have.
 (function historiasBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -190,6 +195,152 @@
     return out;
   }
 
+  // ---------- story templates of the client's kit, and designing a story from outside (D-062, D-063) ----------
+  const HW = 1440, HH = 2560, AS = HW / HH;    // as «Aplicar» draws a story; AS turns a fraction of the width into one of the height
+  const r4 = v => Math.round(v * 1e4) / 1e4, low = c => String(c).toLowerCase(), pad2 = n => String(n).padStart(2, '0');
+  const elBase = { rot: 0, op: 1, lock: false, sh: 0 };
+  const MUESTRA = { titular: 'Titular de la historia', etiqueta: 'Etiqueta', texto: 'Texto de la historia.', dato: '85 %' };
+  const camposDe = p => [...(p.foto ? ['foto'] : []), ...(p.bloque || []).map(b => b.campo), ...(p.fila ? ['serie'] : [])];
+  const cargaLibre = async () => { for (let i = 0; i < 50 && !(M.libre && M.libre.hist && M.libre.rev && M.diseno) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100)); return !!(M.libre && M.libre.hist && M.libre.rev); };
+
+  // t = the kit's «historias» with its fonts resolved and one template in t.p; d = the fields. {comp, avisos}
+  async function componer(t, d, logo) {
+    const { altoDe } = M.libre.hist, { medida } = M.libre.rev, p = t.p, avisos = [], eid = () => 'e' + I().newId();
+    const alto = el => altoDe(el, HW, HH);
+    const texto = (st, txt, color, x, w, o = {}) => ({ id: eid(), t: 'texto', txt, x, y: 0, w, h: 0.1, ...elBase, font: { ...st.font }, peso: st.font.w, size: st.size, color: low(color), al: 'izq', lh: st.lh || 1.2, ls: st.ls || 0, may: !!st.may, ...o });
+    const forma = (forma, x, y, w, h, color, o = {}) => ({ id: eid(), t: 'forma', forma, x: r4(x), y: r4(y), w: r4(w), h: r4(h), ...elBase, color: low(color), r: 0, b: 0, bc: '#000000', ...o });
+    const centrar = async (el, yc) => {        // by its ink, not its box
+      await alto(el); el.y = r4(yc - el.h / 2);
+      const b = await medida(el, HW, HH); if (b) el.y = r4(el.y + (yc * HH - (b.y0 + b.y1) / 2) / HH);
+    };
+    const c = { bg: low(p.bg || '#ffffff'), velo: p.velo ? { tipo: 'grad', color: low(p.velo.color), op: p.velo.op, dir: 'abajo', alc: p.velo.alc } : null, els: [] };
+    let tope = 0;
+    if (p.foto) {
+      const [x, y, w, h] = p.foto;
+      c.els.push({ id: eid(), t: 'foto', src: d.foto || null, x, y, w, h, cx: 0.5, cy: 0.5, z: 1, ...elBase, fx: false, fy: false, b: 0, bc: '#ffffff', r: 0 });
+      if (y + h < 1) tope = y + h;
+    }
+    if (p.cabecera) {
+      const k = t.cabecera, o = p.cabecera, m = t.margen, lado = k.lado * AS, yc = k.y + lado / 2;
+      if (logo) c.els.push({ id: eid(), t: 'logo', src: logo.id, x: m, y: r4(yc - k.lado * AS * (logo.h / logo.w) / 2), w: k.lado, h: r4(k.lado * AS * (logo.h / logo.w)), ...elBase, fx: false, fy: false });
+      else {
+        const g = 'g' + I().newId();
+        c.els.push(forma('rect', m, k.y, k.lado, lado, o.cuadrado, { g }));
+        const u = texto({ font: k.font, size: k.letra_size, lh: 1 }, k.letra, o.letra, m, k.lado, { al: 'cen', g });
+        await centrar(u, yc); c.els.push(u);
+      }
+      const ma = texto({ font: k.font, size: k.marca_size, lh: 1, ls: k.marca_ls }, k.marca, o.marca, k.marca_x, 0.5);
+      await centrar(ma, yc); c.els.push(ma);
+      tope = Math.max(tope, k.y + lado);
+    }
+    const blq = [];
+    for (const b of p.bloque || []) {
+      const txt = String(d[b.campo] ?? '').trim(); if (!txt) continue;
+      const st = t.estilos[b.estilo || b.campo], w = st.w || t.ancho, el = texto(st, txt, b.color, t.margen, w);
+      const n = await alto(el);
+      if (b.si_no_cabe && n > b.max_lineas) { const s2 = t.estilos[b.si_no_cabe]; Object.assign(el, { size: s2.size, lh: s2.lh, ls: s2.ls || 0, font: { ...s2.font }, peso: s2.font.w }); await alto(el); }   // too many lines: the smaller headline
+      if (b.max_palabras) { const nw = txt.split(/\s+/).length; if (nw > b.max_palabras) avisos.push({ tipo: 'no cabe', bloquea: false, texto: `el texto lleva ${nw} palabras: unas ${b.max_palabras} como máximo` }); }
+      blq.push({ el, sep: (b.sep ?? t.separacion) * AS });
+    }
+    let y = p.base || 0;                         // anchored by its foot, as a text only grows downwards in the editor
+    for (let i = blq.length - 1; i >= 0; i--) { y -= blq[i].el.h; blq[i].el.y = r4(y); if (i) y -= blq[i].sep; }
+    blq.forEach(b => c.els.push(b.el));
+    if (blq.length && tope && y < tope) avisos.push({ tipo: 'no cabe', bloquea: false, texto: 'el texto no cabe: se monta sobre lo que tiene encima' });
+    if (p.fila && d.serie) {
+      const f = t.fila, st = t.estilos.etiqueta, { n, total } = d.serie;
+      const num = texto(st, `${pad2(n)} / ${pad2(total)}`, p.fila.numero, t.margen, 0.4);
+      await centrar(num, f.y); c.els.push(num);
+      if (n < total) {
+        const g = 'g' + I().newId(), lado = f.diametro * AS, h = 4 * f.flecha_trazo * AS;   // an arrow's box is 4 strokes high (TRAZO in libre.js)
+        c.els.push(forma('elipse', f.borde - f.diametro, f.y - lado / 2, f.diametro, lado, f.circulo, { g }));
+        c.els.push(forma('flecha', f.borde - f.diametro / 2 - f.flecha_w / 2, f.y - h / 2, f.flecha_w, h, f.flecha, { g, puntas: 'der' }));
+      } else {
+        const fin = texto(st, f.final, f.final_color, r4(f.borde - 0.5 + (st.ls || 0) * st.size), 0.5, { al: 'der' });   // the spacing after its last letter stays out of the edge
+        await centrar(fin, f.y); c.els.push(fin);
+      }
+    }
+    return { comp: c, avisos };
+  }
+
+  // The kit's templates onto the client's own (c.libre.plantillas), once: one Kevin deletes doesn't come back (c.libre.historiasKit).
+  // libreAt stays: this isn't a change that should win over another Mac's newer templates in an import (D-042).
+  const SIN_KIT = new Set(), SEMBRANDO = new Map();
+  const logoPorNombre = async (c, nombre) => {
+    const X = I(), want = low(nombre);
+    for (const id of (c.libre && c.libre.logos) || []) { const r = await X.idbGet('files', id).catch(() => null); if (r && low(r.name) === want && r.w) return { id, w: r.w, h: r.h }; }
+    return null;
+  };
+  async function plantillaDe(H, kit, p, c) {
+    const fnt = k => { const f = kit.fuentes[k]; return { n: f.familia, file: f.archivo, w: f.peso }; };
+    const estilos = {}; for (const [k, e] of Object.entries(H.estilos)) estilos[k] = { ...e, font: fnt(e.fuente) };
+    const def = { margen: H.margen, ancho: H.ancho, separacion: H.separacion, cabecera: { ...H.cabecera, font: fnt(H.cabecera.fuente) }, estilos, fila: H.fila, p };
+    const logo = p.cabecera && p.cabecera.logo ? await logoPorNombre(c, p.cabecera.logo) : null;
+    const { comp } = await componer(def, p.fila && p.fila.siempre ? { ...MUESTRA, serie: { n: 1, total: 3 } } : MUESTRA, logo);
+    return { id: 'historia-' + p.id, nombre: p.nombre, comp, fmt: '9:16', rat: r4(AS), at: new Date().toISOString(), historia: { v: H.v, campos: camposDe(p), def, logo: !!logo } };
+  }
+  async function sembrar(cid) {
+    if (!cid || !await cargaLibre()) return;
+    const X = I(); if (!X || X.locked) return;
+    let kit = null; try { kit = await M.diseno.kit(cid); } catch (e) { /* no kit */ }
+    const H = kit && kit.historias;
+    if (!H || !Array.isArray(H.plantillas)) { SIN_KIT.add(cid); return; }
+    SIN_KIT.delete(cid);
+    const c = await X.idbGet('clients', cid); if (!c) return;
+    const nuevas = new Map();
+    if ((c.libre || {}).historiasKit !== H.v) for (const p of H.plantillas) nuevas.set('historia-' + p.id, await plantillaDe(H, kit, p, c));
+    else for (const t of c.libre.plantillas || []) if (t.historia && !t.historia.logo && t.historia.def.p.cabecera && t.historia.def.p.cabecera.logo && await logoPorNombre(c, t.historia.def.p.cabecera.logo)) nuevas.set(t.id, await plantillaDe(H, kit, t.historia.def.p, c));   // its logo has arrived
+    if (!nuevas.size || I().locked) return;
+    const c2 = await X.idbGet('clients', cid); if (!c2) return;   // what changed meanwhile stays
+    const lib = c2.libre || {}, ps = lib.plantillas || [];
+    c2.libre = { ...lib, historiasKit: H.v, plantillas: [...ps.map(t => nuevas.get(t.id) || t), ...[...nuevas.values()].filter(t => !ps.some(q => q.id === t.id))] };
+    await X.idbPut('clients', cid, c2); await X.loadClients();
+  }
+  const asegurar = cid => {                    // one at a time per client
+    if (!SEMBRANDO.has(cid)) SEMBRANDO.set(cid, sembrar(cid).finally(() => SEMBRANDO.delete(cid)));
+    return SEMBRANDO.get(cid);
+  };
+  // the templates a story can be designed from: right after a client's first opening they may take a moment to be there
+  function plantillasHistoria() {
+    const X = I(); if (!X || !X.S) return [];
+    const c = (X.CL || []).find(x => x.id === X.S.client), ps = (c && c.libre && c.libre.plantillas) || [];
+    return ps.filter(t => t.historia).map(t => ({ id: t.id, nombre: t.nombre, campos: t.historia.campos.slice() }));
+  }
+  const CAMPOS = ['foto', 'titular', 'etiqueta', 'texto', 'dato', 'serie'];
+  async function disenar(id, d, o) {
+    let X = I(); if (!X || !X.S) return { id, error: 'no hay mesa abierta' };
+    const S = X.S, h = porId(id); if (!h) return { id, error: 'esa historia no está en este tablero' };
+    const no = error => ({ id, state: estado(h), problems: X.hProblemas(h), error });
+    if (X.locked) return no('locked: la mesa está abierta en otra pestaña; no se ha guardado nada');
+    if (h.zernio) return no('está programada: no se toca');
+    if (h.cancelada) return no('está cancelada');
+    if ((h.photos || []).length && !o.replace) return no('ya está diseñada: usa replace para sustituirla');
+    if (!await cargaLibre()) return no('no se pudo cargar el editor (libre.js)');
+    await asegurar(S.client).catch(() => {});
+    X = I(); if (X.S !== S) return no('la mesa cambió: vuelve a intentarlo');
+    const c = (X.CL || []).find(x => x.id === S.client), t = ((c && c.libre && c.libre.plantillas) || []).find(q => q.id === d.plantilla && q.historia);
+    if (!t) return no(`no existe la plantilla «${d.plantilla}» en este cliente`);
+    const campos = t.historia.campos, def = t.historia.def, p = def.p, lleva = k => d[k] != null && d[k] !== '';
+    const sobran = CAMPOS.filter(k => lleva(k) && !campos.includes(k));
+    if (sobran.length) return no(`«${t.nombre}» no lleva ${sobran.join(', ')}: lleva ${campos.join(', ')}`);
+    if (!campos.some(lleva)) return no('sin nada que poner en la plantilla');
+    if (lleva('serie')) { const { n, total } = d.serie; if (!Number.isInteger(n) || !Number.isInteger(total) || n < 1 || n > total) return no('serie no válida: {n, total}, con n de 1 a total'); }
+    else if (p.fila && p.fila.siempre) return no(`«${t.nombre}» necesita serie: {n, total}`);
+    if (lleva('foto')) {
+      await X.loadThumbs([d.foto]);
+      const f = M.files[d.foto]; if (!f || f.design || String(d.foto).startsWith('kit-')) return no('esa foto no está en la mesa');
+      const u = await X.usoHistoria(f.name, f.size, h); if (u) return no(u.txt);   // D-056: no one to ask here, so it doesn't go in
+    }
+    const logo = p.cabecera && p.cabecera.logo ? await logoPorNombre(c, p.cabecera.logo) : null;
+    const { comp, avisos } = await componer(def, d, logo);
+    const r = await M.libre.hist.pintar(id, comp); if (r.error) return no(r.error);
+    const foto = comp.els.find(e => e.t === 'foto' && e.src), m = foto && await M.libre.rev.medida(foto, HW, HH);
+    if (m && m.px < HW && Math.round(m.px) >= 1080) avisos.push({ tipo: 'resolución', bloquea: false, texto: `la foto se amplía: equivale a ${Math.round(m.px)} px de ancho y la historia sale a ${HW}` });   // under 1080, «Revisar» says it
+    const rv = M.revisar ? (await M.revisar({ historias: 'solo' })).puntos.filter(q => q.historiaId === id).map(q => ({ tipo: q.tipo, bloquea: q.bloquea, texto: q.texto })) : I().hProblemas(h);
+    return { id, state: estado(h), problems: [...rv, ...avisos] };
+  }
+  let colaD = Promise.resolve();
+  const disenarHistoria = (id, datos, opts) => { const pr = colaD.then(() => disenar(id, datos || {}, opts || {})); colaD = pr.catch(() => {}); return pr; };
+
   // ---------- the view ----------
   const barra = () => { const n = lista().filter(h => !h.cancelada).length; return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
   function ver(on) { ON = !!on; const X = I(); if (!X) return; render(); X.renderBar(); }
@@ -212,6 +363,7 @@
   }
   function render() {
     const X = I(); if (!X || !X.shellReady()) return;
+    if (X.S && X.S.client && !SIN_KIT.has(X.S.client) && !((X.CL || []).find(c => c.id === X.S.client) || { libre: {} }).libre?.historiasKit) asegurar(X.S.client).catch(() => {});   // the kit's story templates, once (D-062)
     const root = X.root(), box = root.querySelector('.main > section.hv');   // the panel, not the cells' .dot.hv (D-035)
     root.classList.toggle('hv-on', ON && !!X.S);
     if (!box) return;
@@ -355,8 +507,9 @@
   const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];
   EV.forEach(([t, f, c]) => document.addEventListener(t, f, c));
   M.historias = historias; M.cargarHistorias = cargarHistorias; M.marcarHistoriasProgramadas = marcarHistoriasProgramadas;
+  M.plantillasHistoria = plantillasHistoria; M.disenarHistoria = disenarHistoria;
   M.hs = {
-    version: VERSION, barra, render, ver, activo: () => ON, lista, estado, anadir, duplicar, mover, setFecha, enlazar, cancelar, reactivar, borrar, setNota, editar, soltar, tras,
+    version: VERSION, barra, render, ver, activo: () => ON, lista, estado, anadir, duplicar, mover, setFecha, enlazar, cancelar, reactivar, borrar, setNota, editar, soltar, tras, asegurar,
     _off: () => { EV.forEach(([t, f, c]) => document.removeEventListener(t, f, c)); if (mv) { if (mv.ghost) mv.ghost.remove(); mv = null; } }
   };
   if (I() && I().shellReady && I().shellReady()) { render(); I().renderBar(); }   // the mesa may have drawn its board before this file arrived

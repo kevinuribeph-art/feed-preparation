@@ -1174,6 +1174,42 @@
     ok(!M._in.locked && hDe(id2), 'no se pudo seguir');
   });
 
+  prueba('H13', 'Con un hueco vacío en el feed, «Historias» abre su panel y lista la historia; el punto «Hueco vacío» no recibe su contenido ni sus estilos (D-054, D-035)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    await poner('r1', [await foto('h13-a.jpg'), await foto('h13-b.jpg')]);
+    await abrirEditor('r1');
+    accion('sl-add');
+    compDe(ed().i).els.push(huecoEl('h13', 0.1, 0.1, 0.8, 0.8));
+    await aplicarEditor();
+    await hasta(() => celda('r1') && celda('r1').querySelector('.dot.hv'), 4000, 'el punto «Hueco vacío» en la casilla');
+    const id = M.hs.anadir(DIA(10), { note: 'H13' });
+    q('.hvsw [data-v="1"]').click();
+    const panel = q('.main > section.hv'), punto = () => celda('r1').querySelector('.dot.hv');
+    ok(q('.feed').offsetParent === null, 'con «Historias» sigue viéndose la cuadrícula');
+    ok(!panel.hidden && panel.offsetParent !== null, 'el panel de historias no se ve');
+    ok(panel.querySelector(`.hv-rail[data-day="${DIA(10)}"] .hv-card[data-h="${id}"]`), 'el panel no lista la historia');
+    igual(qa('.dot.hv .hv-res, .dot.hv .hv-rail').length, 0, 'las filas de historias en el punto');
+    igual(punto().textContent, 'Hueco vacío', 'el texto del punto');
+    // ninguna regla de historias.js, media query incluida, coincide con el punto
+    const reglas = l => [...l].flatMap(r => r.cssRules ? reglas(r.cssRules) : [r]);
+    const ajenas = reglas(D.getElementById('mesa-hv-css').sheet.cssRules).filter(r => punto().matches(r.selectorText)).map(r => r.selectorText);
+    igual(ajenas, [], 'reglas del panel que coinciden con el punto');
+    const c = W.getComputedStyle(punto());
+    igual([c.borderRightWidth, c.flexGrow, c.overflowY, c.paddingTop, c.boxSizing], ['0px', '0', 'hidden', '0px', 'border-box'], 'los estilos del punto');
+    // «Vista cliente»: el panel no sale y su regla no toca el punto
+    const raiz = M._in.root();
+    raiz.classList.add('client');
+    try {
+      ok(panel.offsetParent === null, 'en «Vista cliente» se ve el panel');
+      ok(W.getComputedStyle(punto()).display !== 'none', 'la regla de «Vista cliente» del panel oculta el punto');
+    } finally { raiz.classList.remove('client'); }
+    // de vuelta al feed, el punto se ve
+    q('.hvsw [data-v="0"]').click();
+    ok(q('.feed').offsetParent !== null && panel.hidden, 'con «Feed» no vuelve la cuadrícula');
+    ok(punto().offsetParent !== null, 'el punto no se ve en la cuadrícula');
+  });
+
   // ---------- la portada de un hueco (D-049) ----------
   const portada = k => q(`.cell.filler[data-filler="${k}"] img.hfoto`);
   // la imagen del feed: px(x, y) -> [r, g, b]

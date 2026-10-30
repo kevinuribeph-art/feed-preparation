@@ -1862,6 +1862,42 @@
     M.libre.cerrar();
   });
 
+  prueba('E42', 'F: la foto elegida, original y entera, o la diapositiva, en toda la ventana; Esc, F o un clic la cierran; ningún otro atajo actúa; escribiendo, nada (D-045)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('grande.jpg', 1500, 1000)]);   // 3:2 en un marco 4:5: recortada
+    await abrirEditor('r1');
+    const el = compDe(0).els[0], f0 = json(el), fv = () => ed().fv, vw = D.documentElement.clientWidth, vh = D.documentElement.clientHeight;
+    elegir(el); await dibujado();
+    tecla('f');
+    ok(fv() && fv().isConnected, 'F con una foto elegida no abrió la vista');
+    const img = await hasta(() => { const i = fv().querySelector('img'); return i && i.complete && i.naturalWidth ? i : null; }, 4000, 'la foto en grande');
+    igual([img.naturalWidth, img.naturalHeight], [1500, 1000], 'F no enseña la foto original entera');
+    const r = fv().getBoundingClientRect();
+    igual([r.left, r.top, Math.round(r.width), Math.round(r.height)], [0, 0, vw, vh], 'la vista no ocupa toda la ventana');
+    ok(/grande\.jpg · 1500 × 1000 px/.test(fv().textContent), 'no dice el nombre y los px de la foto: ' + fv().textContent);
+    tecla('Backspace'); tecla('z', { meta: true }); tecla('t');
+    igual(compDe(0).els.map(e => e.id), [el.id], 'con la vista abierta, otro atajo cambió la diapositiva');
+    tecla('f'); ok(!fv(), 'F otra vez no la cerró');
+    igual(ed().sel, el.id, 'cerrar la vista soltó la foto');
+    ed().sel = null; ed().mas = []; await dibujado();             // sin nada elegido: la diapositiva, en su proporción
+    tecla('f');
+    const cv = fv() && fv().querySelector('canvas'); ok(cv, 'F sin nada elegido no enseña la diapositiva');
+    const { W: w, H: h } = tam(), cw = parseFloat(cv.style.width), ch = parseFloat(cv.style.height);
+    cerca(cw / ch, w / h, 0.01, 'la diapositiva no sale en su proporción');
+    ok(Math.abs(ch - vh) < 1 || Math.abs(cw - vw) < 1, 'la diapositiva no llena la ventana: ' + json({ cw, ch, vw, vh }));
+    tecla('Escape'); ok(!fv(), 'Esc no cerró la vista');
+    ok(M.libre.abierto(), 'Esc cerró también el editor');
+    accion('add-txt'); await dibujado();                          // un texto elegido: la diapositiva; un clic la cierra
+    tecla('f'); ok(fv() && fv().querySelector('canvas'), 'F con un texto elegido no enseña la diapositiva');
+    fv().click(); ok(!fv(), 'un clic no cerró la vista');
+    const ta = q('.lb-panel textarea[data-lb="txt"]'); ok(ta, 'no está el campo del texto');
+    ta.focus(); const ev = teclaEv('f', { en: ta });
+    ok(!fv() && !ev.defaultPrevented, 'F actuó mientras se escribía en un texto');
+    ta.blur();
+    igual(json(compDe(0).els[0]), f0, 'ver en grande cambió la foto');
+    M.libre.cerrar();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

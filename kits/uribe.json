@@ -95,5 +95,44 @@
       "marca": false, "pagina": false, "pie": false
     }
   },
+  "historias": {
+    "nota": "Plantillas de historia 9:16 del editor. Medidas en fracciones del lienzo; tamaños de letra y separaciones, en fracción del ancho.",
+    "v": 1,
+    "margen": 0.074,
+    "ancho": 0.852,
+    "separacion": 0.026,
+    "cabecera": { "y": 0.14, "lado": 0.059, "fuente": "extrabold", "letra": "U", "letra_size": 0.027, "marca": "URIBE", "marca_size": 0.028, "marca_ls": -0.045, "marca_x": 0.15 },
+    "estilos": {
+      "grande": { "fuente": "extrabold", "size": 0.115, "lh": 0.98, "ls": -0.035 },
+      "medio": { "fuente": "extrabold", "size": 0.07, "lh": 1.04, "ls": -0.03 },
+      "dato": { "fuente": "extrabold", "size": 0.185, "lh": 0.9, "ls": -0.04 },
+      "etiqueta": { "fuente": "bold", "size": 0.024, "lh": 1.2, "ls": 0.22, "may": true },
+      "texto": { "fuente": "regular", "size": 0.033, "lh": 1.35, "w": 0.796 }
+    },
+    "fila": { "y": 0.785, "diametro": 0.082, "borde": 0.926, "flecha_w": 0.04, "flecha_trazo": 0.0049, "circulo": "#B2503A", "flecha": "#F4EFE8", "final": "Send us a DM", "final_color": "#D07152" },
+    "plantillas": [
+      { "id": "texto-ink", "nombre": "Historia · Texto Ink", "bg": "#16110E", "base": 0.80,
+        "cabecera": { "cuadrado": "#B2503A", "letra": "#F4EFE8", "marca": "#F4EFE8" },
+        "bloque": [ { "campo": "titular", "estilo": "grande", "si_no_cabe": "medio", "max_lineas": 3, "color": "#F4EFE8" }, { "campo": "etiqueta", "color": "#9A8F84" }, { "campo": "texto", "color": "#C4B8AC" } ] },
+      { "id": "texto-paper", "nombre": "Historia · Texto Paper", "bg": "#F4EFE8", "base": 0.80,
+        "cabecera": { "cuadrado": "#B2503A", "letra": "#F4EFE8", "marca": "#16110E" },
+        "bloque": [ { "campo": "titular", "estilo": "grande", "si_no_cabe": "medio", "max_lineas": 3, "color": "#16110E" }, { "campo": "etiqueta", "color": "#6E635A" }, { "campo": "texto", "color": "#16110E" } ] },
+      { "id": "texto-terracota", "nombre": "Historia · Texto Terracota", "bg": "#B2503A", "base": 0.80,
+        "cabecera": { "logo": "uribe-visuals-monograma-ink.png", "cuadrado": "#16110E", "letra": "#F4EFE8", "marca": "#F4EFE8" },
+        "bloque": [ { "campo": "titular", "estilo": "grande", "si_no_cabe": "medio", "max_lineas": 3, "color": "#F4EFE8" }, { "campo": "texto", "color": "#F4EFE8" } ] },
+      { "id": "foto-sangre", "nombre": "Historia · Foto a sangre", "bg": "#16110E", "foto": [0, 0, 1, 1] },
+      { "id": "foto-texto", "nombre": "Historia · Foto + texto", "bg": "#16110E", "base": 0.80, "foto": [0, 0, 1, 1], "velo": { "color": "#16110E", "op": 0.85, "alc": 0.55 },
+        "bloque": [ { "campo": "titular", "estilo": "grande", "si_no_cabe": "medio", "max_lineas": 3, "color": "#F4EFE8" }, { "campo": "etiqueta", "color": "#C4B8AC" } ] },
+      { "id": "post-enmarcado", "nombre": "Historia · Post enmarcado", "bg": "#16110E", "base": 0.80, "foto": [0.074, 0.20, 0.62, 0.4359375],
+        "cabecera": { "cuadrado": "#B2503A", "letra": "#F4EFE8", "marca": "#F4EFE8" },
+        "bloque": [ { "campo": "titular", "estilo": "medio", "color": "#F4EFE8" }, { "campo": "etiqueta", "color": "#9A8F84" } ] },
+      { "id": "secuencia", "nombre": "Historia · Secuencia", "bg": "#16110E", "base": 0.735, "foto": [0, 0, 1, 0.50],
+        "bloque": [ { "campo": "titular", "estilo": "medio", "color": "#F4EFE8" }, { "campo": "texto", "color": "#C4B8AC", "max_palabras": 20 } ],
+        "fila": { "numero": "#9A8F84", "siempre": true } },
+      { "id": "dato-grande", "nombre": "Historia · Dato grande", "bg": "#F4EFE8", "base": 0.735, "foto": [0, 0, 1, 0.46],
+        "bloque": [ { "campo": "dato", "estilo": "dato", "color": "#16110E" }, { "campo": "etiqueta", "sep": 0.03, "color": "#6E635A" }, { "campo": "texto", "color": "#4A4038" } ],
+        "fila": { "numero": "#6E635A" } }
+    ]
+  },
   "final": { "foto": null, "contacto": "Send us a DM" }
 }

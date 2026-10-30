@@ -65,7 +65,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.55'; // 3.55: a tab older than this data can no longer save over it (D-060)
+  M.version = '3.56'; // 3.56: stories designed from outside, from the kit's templates (D-061 to D-063)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

@@ -1,4 +1,5 @@
 // Editor libre de diapositivas — Mesa de trabajo · v1.18
+// «Editar historia» (v1.26, mesa 3.53): a story (historias.js) opens as a reel's cover, one 9:16 page, and may start empty.
 // «Editar diapositivas» (a carousel) / «Editar foto» (a photo post) / «Editar portada» (a reel) in the post view: each slide
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
@@ -91,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.25';
+  const VERSION = '1.26';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -116,7 +117,7 @@
   const isKit = f => String(f || '').startsWith('kit-');   // a client's protected file (logo): never a tray photo
   // this viewer's choices, kept in the browser: the tray open or closed, «Seguidas» in «Ver todas», the panel's open sections, «Guías» open,
   // «Zona del grid» shown
-  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones', LS_RG = 'mesa-lb-guias', LS_ZG = 'mesa-lb-zona';
+  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones', LS_RG = 'mesa-lb-guias', LS_ZG = 'mesa-lb-zona', LS_ZH = 'mesa-lb-zona-historia';
   const lsLeer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsPoner = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* a private window: not kept */ } };
   const ABIERTAS = new Set((lsLeer(LS_PL) || '').split(',').filter(Boolean));
@@ -127,7 +128,9 @@
   const ESCRIBIENDO = 'Estás escribiendo en un texto: termina (Esc o un clic fuera) y vuelve a soltar la foto.';
 
   // ---------- slot helpers ----------
-  const isLibSlot = s => !!s && (I().isCarousel(s.type) || s.type === 'Foto' || I().isReel(s.type));   // a reel: its cover, one 9:16 page
+  const isLibSlot = s => !!s && (I().isCarousel(s.type) || s.type === 'Foto' || I().isReel(s.type) || s.type === 'Historia');   // a reel: its cover, one 9:16 page
+  const esHist = s => !!s && s.type === 'Historia';   // a story (D-055): one 9:16 page, as a reel's cover (E.reel), that may start empty; it lives in S.historias, never in S.slots
+  const conHist = S => [...S.slots, ...(S.historias || [])];
   const entries = s => (s && s.libre && s.libre.slides) || {};
   const srcsOf = comp => ((comp && comp.els) || []).map(e => e.src).filter(Boolean);
   const fotosDe = comp => ((comp && comp.els) || []).filter(e => e.t === 'foto');
@@ -518,7 +521,7 @@
   //         from: id of the post that composition was on (moved here), comp: null (untouched photo) | comp, raw: the photo as
   //         the mesa shows it (comp of an untouched photo), base: signature of the slide as opened, fmt, fmt0 (photo posts)}
   let APL = 0, CLIP = null, ESTILO = null;   // «Aplicar» running; what was copied {els | slide (a whole comp), rat (W/H of its slide), client} (kept between posts of the same client); a text's style {st, client} (⌥⌘C)
-  const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? S.slots.find(x => x.id === E.slotId) : null; return s && (s.design || null) === E.dz && isLibSlot(s) ? s : null; };   // a designed post: the very design it opened with
+  const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? conHist(S).find(x => x.id === E.slotId) : null; return s && (s.design || null) === E.dz && isLibSlot(s) ? s : null; };   // a designed post: the very design it opened with
   const cur = () => E.sl[E.i];
   const EMPTY = { bg: '#ffffff', velo: null, els: [] };
   const compAt = i => { const x = E.sl[i]; return x ? x.comp || x.raw : EMPTY; };
@@ -568,7 +571,7 @@
     if (!E) return false;
     if (E.car && E.fmt !== E.fmt0) return true;
     if (firmaG() !== E.guias0) return true;
-    if (!I().same(E.sl.map(x => x.key), E.photos0)) return true;
+    if (!I().same(E.sl.map(x => x.key).filter(k => k || !E.historia), E.photos0)) return true;
     return E.sl.some(x => changedSl(x) || (!E.car && x.fmt !== x.fmt0));
   }
 
@@ -612,7 +615,7 @@
       need(I(), 'La mesa no tiene el puente del editor: actualiza mesa.js (3.25 o posterior).');
       const S = I().S; need(S, 'No hay ninguna mesa abierta.');
       need(!I().locked, LOCKED);
-      const s = S.slots.find(x => x.id === slotId); need(s, 'Esa publicación ya no está en la mesa.');
+      const s = conHist(S).find(x => x.id === slotId); need(s, 'Esa publicación ya no está en la mesa.');
       need(isLibSlot(s), 'El editor es para carruseles, fotos y portadas de reel.');
       need(!I().isReel(s.type) || s.photos.length, 'El reel no tiene portada: ponle una foto antes de editarla.');
       const dz = s.design || null;                          // a designed carousel: its applied images are the slides
@@ -621,24 +624,25 @@
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
       need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
-      await I().loadThumbs([...s.photos, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray]);
-      need(I().S === S && S.slots.includes(s) && (s.design || null) === dz && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Editar».');
+      await I().loadThumbs([...s.photos, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray, ...(esHist(s) ? Object.values(entries(s)).flatMap(srcsOf) : [])]);
+      need(I().S === S && conHist(S).includes(s) && (s.design || null) === dz && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Editar».');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
       need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
       const marca = I().histMarca ? I().histMarca() : null;   // the whole session is one step of the mesa's ⌘Z
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
-      E = { slotId, board: S, dz, car, reel: I().isReel(s.type), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
+      E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
         bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
-        guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: lsLeer(LS_ZG) === '1', margen: 0 };
+        guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: esHist(s) ? lsLeer(LS_ZH) !== '0' : lsLeer(LS_ZG) === '1', margen: 0 };
       E.guias0 = firmaG();
       E.sl = s.photos.map(key => {
-        const f = compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;
+        const f = esHist(s) && entries(s)[key] ? { s, comp: entries(s)[key] } : compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;   // a story's own: a duplicate shares its image until it is applied
         if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: firma(comp), fmt, fmt0: fmt }; }
         const raw = rawComp(key);
         return { key, out: false, from: null, comp: null, raw, base: firma(raw), fmt, fmt0: fmt };
       });
+      if (esHist(s) && !E.sl.length) { const x = blankSlide(s.fondo || '#ffffff'); x.fmt0 = x.fmt; x.base = firma(x.comp); E.sl = [x]; }   // not designed yet: an empty page, unchanged until something goes on it
       E.i = clamp(idx || 0, 0, E.sl.length - 1);
       const d0 = car && fmt0 === 'h' && M.files[s.photos[0]];
       E.rat0 = d0 && d0.design ? I().fmtRatio('h', d0.w, d0.h) : null;
@@ -652,6 +656,7 @@
       build(s);
       cargarCliente();
       ofrecerNumeros();
+      if (opts.foto) desdeBandeja([opts.foto], { i: null, p: null });   // a photo dropped on a story in the view: as if clicked in this tray, with its warning
       if (opts.fmt) I().toast('Formato cambiado en el editor: pulsa «Aplicar a la casilla» para redibujar las diapositivas editadas.', { ms: 7000 });
       else if (dz) I().toast(E.reel ? 'Reel diseñado: su portada entra como imagen. Si aplicas cambios, el diseño queda fijado así y su foto vuelve a la bandeja (⌘Z en la mesa lo deshace).' : 'Carrusel diseñado: sus diapositivas entran como imagen. Si aplicas cambios, el diseño queda fijado así y sus fotos vuelven a la bandeja (⌘Z en la mesa lo deshace).', { ms: 9000 });
       return { ok: true, slot: s.id, diapositivas: E.sl.length };
@@ -961,6 +966,8 @@
 #mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:2px 8px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
 #mesa .lb-tph.elegida{outline:3px solid var(--acc);outline-offset:-3px}
+#mesa .lb-tph .hs{bottom:5px}
+#mesa .lb-ttl p.lb-guion{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-width:min(60vw,720px);white-space:pre-line}
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
 #mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
@@ -1072,8 +1079,8 @@
     const root = I().root(), el = document.createElement('div');
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
-    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3><p>${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'diseño de «Diseñar»: si aplicas cambios, queda fijado como imagen' : 'lo que no toques se queda como está'}</p></div>`
-      + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">Portada del reel · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
+    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3><p${E.historia ? ' class="lb-guion"' : ''}${E.historia && s.note ? ` title="${esc(s.note)}"` : ''}>${E.historia ? `Editar historia${s.note ? ` · ${esc(s.note)}` : ''}` : `${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'diseño de «Diseñar»: si aplicas cambios, queda fijado como imagen' : 'lo que no toques se queda como está'}`}</p></div>`
+      + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'
       + `<button type="button" class="lb-ib${E.reglas ? ' on' : ''}" data-lb="guias" aria-pressed="${E.reglas}" title="Reglas y guías (⌘G): arrastra desde una regla para crear una guía y fuera de la diapositiva para borrarla. No salen al exportar">Guías</button>`
@@ -1081,8 +1088,8 @@
       + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
       + '<span class="lb-menu" role="menu" hidden><button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>'
       + '<button type="button" role="menuitemcheckbox" data-lb="iman" aria-checked="true" title="Al arrastrar o ampliar: alinea con los bordes, el centro, el margen del kit, las guías y los otros elementos; mide las distancias y marca los espacios y tamaños iguales (con ⌘ pulsado no actúa)">Imán al arrastrar</button>'
-      + '<button type="button" role="menuitemcheckbox" data-lb="zona" aria-checked="false" title="En la portada, oscurece lo que el perfil de Instagram recorta al mostrarla en 3:4. No sale al exportar">Zona del grid <span class="lb-kb">⌘P</span></button></span></span>'
-      + '<span class="lb-state" aria-live="polite"></span><button type="button" class="btn2" data-lb="cerrar">Cerrar</button><button type="button" class="btn" data-lb="aplicar">Aplicar a la casilla</button></header>'
+      + (E.historia ? '<button type="button" role="menuitemcheckbox" data-lb="zona" aria-checked="false" title="Oscurece lo que Instagram tapa en una historia: deja el texto y los logos fuera de ahí. No sale al exportar">Zona segura <span class="lb-kb">⌘P</span></button></span></span>' : '<button type="button" role="menuitemcheckbox" data-lb="zona" aria-checked="false" title="En la portada, oscurece lo que el perfil de Instagram recorta al mostrarla en 3:4. No sale al exportar">Zona del grid <span class="lb-kb">⌘P</span></button></span></span>')
+      + '<span class="lb-state" aria-live="polite"></span><button type="button" class="btn2" data-lb="cerrar">Cerrar</button><button type="button" class="btn" data-lb="aplicar">' + (E.historia ? 'Aplicar a la historia' : 'Aplicar a la casilla') + '</button></header>'
       + '<div class="lb-body"><nav class="lb-list" aria-label="Diapositivas"></nav>'
       + `<section class="lb-mid"><div class="lb-scroll${E.reglas ? ' reglas' : ''}"><div class="lb-cvw"><canvas class="lb-cv" aria-label="Diapositiva"></canvas>`
       + `<canvas class="lb-rx" aria-hidden="true"${E.reglas ? '' : ' hidden'}></canvas><canvas class="lb-ry" aria-hidden="true"${E.reglas ? '' : ' hidden'}></canvas>`
@@ -1375,14 +1382,15 @@
   // «Zona del grid» (⌘P): on the cover, what the Instagram profile crops when it shows it in 3:4, centred, darkened. Only here:
   // never in the thumbnails, the preview, «Aplicar» or the feed
   function zonaGrid(W, H) {
+    if (E.historia) { const t = H * 250 / 1920, b = H * 340 / 1920, l = W * 65 / 1080; return [[0, 0, W, t], [0, H - b, W, b], [0, t, l, H - t - b], [W - l, t, l, H - t - b]]; }   // a story: Instagram's own bars (D-055)
     const r = W / H; if (Math.abs(r / 0.75 - 1) <= 0.005) return [];
     if (r > 0.75) { const s = (W - H * 0.75) / 2; return [[0, 0, s, H], [W - s, 0, s, H]]; }
     const s = (H - W / 0.75) / 2; return [[0, 0, W, s], [0, H - s, W, s]];
   }
   function verZona(x, W, H) { x.save(); x.fillStyle = 'rgba(0,0,0,.55)'; for (const [a, b, c, d] of zonaGrid(W, H)) x.fillRect(a, b, c, d); x.restore(); }
   function zona(on) {
-    E.zona = on; lsPoner(LS_ZG, on ? '1' : '0'); head(); pedir();
-    if (!on || !E.sl.length) return;
+    E.zona = on; lsPoner(E.historia ? LS_ZH : LS_ZG, on ? '1' : '0'); head(); pedir();
+    if (!on || !E.sl.length || E.historia) return;
     if (E.i !== 0) I().toast('Zona del grid: se ve en la portada, la diapositiva 1.');
     else { const { W, H } = sizeAt(0); if (!zonaGrid(W, H).length) I().toast('En 3:4 el perfil no recorta nada.'); }
   }
@@ -2837,7 +2845,7 @@
     ['⌥⌘C · ⌥⌘V', 'copiar el estilo de un texto (fuente, peso, tamaño, color, interlineado, espaciado, alineación y mayúsculas) y pegarlo en uno o varios textos, también de otra diapositiva o publicación'],
     ['⌥⌘G', 'agrupar (⇧⌥⌘G: desagrupar) · ⌘A: elegir todo'],
     ['⌘G', 'guías: reglas arriba y a la izquierda; arrastra desde una para crear una guía y fuera de la diapositiva para borrarla'],
-    ['⌘P', 'zona del grid: en la portada, oscurece lo que el perfil de Instagram recorta al mostrarla en 3:4 (no sale al exportar)'],
+    ['⌘P', 'zona del grid (en una historia, zona segura: lo que tapa Instagram): en la portada, oscurece lo que el perfil de Instagram recorta al mostrarla en 3:4 (no sale al exportar)'],
     ['⌘] · ⌘[', 'adelante · atrás (con ⇧: al frente · al fondo)'],
     ['⌘Z', 'deshacer (⇧⌘Z: rehacer)'],
     ['⌘+ · ⌘−', 'acercar · alejar (también pellizcando o con ⌘ + rueda, hacia el puntero) · ⌘0: entera'],
@@ -2854,7 +2862,7 @@
   const hayArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
   function enUso() { const u = new Set(); E.sl.forEach((x, i) => fotosDe(compAt(i)).forEach(e => { if (e.src) u.add(e.src); })); return u; }
   // a tray photo with ✓ that is in another post of this month goes in as a copy, as in the mesa (D-041)
-  const conCopias = fs => I().paraPoner ? I().paraPoner(fs, E.slotId) : Promise.resolve(fs);
+  const conCopias = fs => I().paraPoner && !E.historia ? I().paraPoner(fs, E.slotId) : Promise.resolve(fs);   // a story uses the photo where it is
   // the client's tray as the mesa shows it (D-041): [{f, u}], u = used in a publication of any month (this post: as it is
   // here, its slides) — with «Sin usar», only the ones without ✓
   function trayFotos(todas) {
@@ -2868,13 +2876,13 @@
     E.trSel = E.trSel.filter(f => fs.some(x => x.f === f));   // only what it shows stays chosen
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
-    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (E.trSel.includes(x.f) ? '*' : '') + (M.files[x.f].thumbUrl || '')).join(',') : '';
+    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (M.files[x.f].thumbUrl || '')).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
-    const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '');
+    const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '') + (x.h ? ' · usada en una historia' : '');
     box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}<b>Bandeja</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
-      + (fs.length ? `<div class="lb-trs">${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img src="${M.files[x.f].thumbUrl || ''}" alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
+      + (fs.length ? `<div class="lb-trs">${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img src="${M.files[x.f].thumbUrl || ''}" alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
   }
   // a photo used before (D-022): before it goes onto slide i, its nearest use — this slide (without the element excl it
@@ -2886,12 +2894,12 @@
     const kOf = f => { const x = M.files[f]; return x ? x.name + '|' + x.size : null; }, aqui = new Set(), post = new Set();
     E.sl.forEach((x, j) => fotosDe(compAt(j)).forEach(e => { const k = e.src && e.id !== excl && kOf(e.src); if (k) (j === i ? aqui : post).add(k); }));
     const rep = [];
-    for (const it of items) { const k = it.name + '|' + it.size, u = await I().usoFoto(it.name, it.size, { slot: s.id, skip: s.id, a: aqui.has(k) ? 1 : post.has(k) ? 2 : null }); if (u) rep.push({ it, u }); }
+    for (const it of items) { const k = it.name + '|' + it.size, u = E.historia ? await I().usoHistoria(it.name, it.size, s) : await I().usoFoto(it.name, it.size, { slot: s.id, skip: s.id, a: aqui.has(k) ? 1 : post.has(k) ? 2 : null }); if (u) rep.push({ it, u }); }   // a story: being used is what it is for; only a post still to come warns (D-056)
     if (E !== owner) return null;
     if (!rep.length) return items;
     const one = items.length === 1;
     return new Promise(res => {
-      preguntar(one ? rep[0].u.txt : `${rep.length === 1 ? '1 foto ya usada' : `${rep.length} fotos ya usadas`} de ${items.length}`, one ? rep[0].it.name : rep.map(r => [r.it.name, r.u.txt]),
+      preguntar(one ? rep[0].u.txt : `${rep.length === 1 ? (E.historia ? '1 foto sale después en el feed' : '1 foto ya usada') : `${rep.length} ${E.historia ? 'fotos salen después en el feed' : 'fotos ya usadas'}`} de ${items.length}`, one ? rep[0].it.name : rep.map(r => [r.it.name, r.u.txt]),
         one ? [['seguir', 'Cancelar', 'btn2'], ['usar', 'Usar igualmente', 'btn']] : [['saltar', 'Saltar repetidas', 'btn2'], ['usar', 'Usar todas', 'btn']],
         v => res(E !== owner ? null : v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null));
       E.askNo = () => res(null);
@@ -3107,11 +3115,11 @@
           const f0 = x.key && M.files[x.key], sz = sizeAt(i), off = !f0 || Math.abs(f0.w / f0.h - sz.W / sz.H) > 0.005;   // ratio, not pixels: a cross-Mac copy is 1080 wide
           const redo = !isRaw(x) && (!x.key || !x.out || changedSl(x) || fmtCh || (!E.car && x.fmt !== x.fmt0) || off);
           if (!redo) { outs.push(x.key); continue; }
-          const id = await guardarImagen(await renderOut(i), E.car ? `${s.name} ${pad2(i + 1)}.jpg` : E.reel ? `${s.name} portada.jpg` : `${s.name}.jpg`);
+          const id = await guardarImagen(await renderOut(i), E.car ? `${s.name} ${pad2(i + 1)}.jpg` : E.reel && !E.historia ? `${s.name} portada.jpg` : `${s.name}.jpg`);
           outs.push(id); made.push(id);
         }
       } catch (e) { for (const f of made) { try { await I().deleteIfUnused(f); } catch (er) { /* the sweep takes it */ } } throw e; }
-      if (!(E === owner && I().S === S && S.slots.includes(s) && I().same(s.photos, E.photos0) && (s.design || null) === E.dz && !I().locked && !I().uploadsBusy())) {   // changed while drawing: nothing is used
+      if (!(E === owner && I().S === S && conHist(S).includes(s) && I().same(s.photos, E.photos0) && (s.design || null) === E.dz && !I().locked && !I().uploadsBusy())) {   // changed while drawing: nothing is used
         for (const f of made) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
         throw new LbError('La mesa cambió mientras se aplicaba: vuelve a intentarlo.');
       }
@@ -3132,18 +3140,19 @@
         if (fmtCh) outs.forEach(f => { if (!lib[f]) S.crops[f] = { ...I().baseCrop(f, S), cx: 0.5, cy: 0.5, z: 1 }; });   // the photos left as they were: centred, as a format change does
       } else if (!E.reel) E.sl.forEach((x, i) => { const f = outs[i]; if (lib[f]) S.crops[f] = { fmt: x.fmt, cx: 0.5, cy: 0.5, z: 1 }; else if (x.fmt !== x.fmt0) S.crops[f] = { ...I().baseCrop(f, S), fmt: x.fmt, cx: 0.5, cy: 0.5, z: 1 }; });   // a reel cover keeps no format of its own: the mesa shows it 9:16
       const used = new Set([...outs, ...Object.values(lib).flatMap(srcsOf)]);
-      S.tray = S.tray.filter(f => !used.has(f));           // photos now in the post leave the tray
+      if (!E.historia) S.tray = S.tray.filter(f => !used.has(f));   // photos now in the post leave the tray; a discard in a story stays, marked (D-056)
       const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
       S.tray.unshift(...lost.filter(f => !M.files[f].design && !isKit(f)));   // photos the post no longer uses go back to the tray (never a logo)
       E.applied = true;
       I().changed();
       if (I().histJuntar && E.marca) I().histJuntar(E.marca);
-      const i0 = E.i, slotId = E.slotId, fijo = !!E.dz, reel = E.reel;
+      const i0 = E.i, slotId = E.slotId, fijo = !!E.dz, reel = E.reel, historia = E.historia;
       E.busy = false; APL--; counted = false;
       cerrar(true);
-      if (I().S === S && I().openDetail) I().openDetail(slotId, Math.min(i0, Math.max(0, s.photos.length - 1)));
+      if (historia) { if (M.hs) M.hs.tras(slotId); }
+      else if (I().S === S && I().openDetail) I().openDetail(slotId, Math.min(i0, Math.max(0, s.photos.length - 1)));
       const n = made.length;
-      I().toast((n ? reel ? 'Portada aplicada: se sube tal cual.' : `${n === 1 ? 'Diapositiva aplicada' : `${n} diapositivas aplicadas`}: se suben tal cual.` : 'Cambios aplicados a la casilla.') + (fijo ? reel ? ' El diseño queda fijado como imagen; su foto está en la bandeja.' : ' El diseño queda fijado como imagen; sus fotos están en la bandeja.' : ''), { ms: fijo ? 8000 : 5000 });
+      I().toast((n ? historia ? 'Historia aplicada.' : reel ? 'Portada aplicada: se sube tal cual.' : `${n === 1 ? 'Diapositiva aplicada' : `${n} diapositivas aplicadas`}: se suben tal cual.` : 'Cambios aplicados a la casilla.') + (fijo ? reel ? ' El diseño queda fijado como imagen; su foto está en la bandeja.' : ' El diseño queda fijado como imagen; sus fotos están en la bandeja.' : ''), { ms: fijo ? 8000 : 5000 });
       for (const f of lost.filter(f => M.files[f] && M.files[f].design)) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
     } catch (e) {
       if (counted) { APL--; counted = false; }

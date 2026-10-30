@@ -111,13 +111,16 @@
   const tam = () => { const E = ed(), x = compDe(E.i), p = x.els.find(e => e.t === 'foto' && M.files[e.src]), d = p ? M.files[p.src] : { w: 4, h: 5 }; return { W: 1440, H: Math.round(1440 / M._in.fmtRatio(E.fmt || 'v45', d.w, d.h)) }; };
   // un hueco de foto (elemento 'hueco', libre ≥ 1.9) en x, y, w, h (fracciones de la diapositiva)
   const huecoEl = (id, x, y, w, h) => ({ id, t: 'hueco', x, y, w, h, rot: 0, op: 1, lock: false, sh: 0, color: '#d9d5cd', b: 0, bc: null, r: 0, textos: [] });
-  // una foto puesta en un hueco como desde la bandeja del editor (pickf), en la diapositiva abierta
-  async function enHueco(i, huecoId, f) {
+  // una foto puesta en un hueco como desde la bandeja del editor (pickf), en la diapositiva abierta; tecla: lo que se contesta
+  // si su orientación no coincide con la del hueco (D-050)
+  async function enHueco(i, huecoId, f, resp) {
     ok(ed().i === i, `la diapositiva abierta es la ${ed().i + 1}, no la ${i + 1}`);
     ed().pick = { modo: 'rep', id: huecoId };
     accion('pickf', { f });
+    if (resp) { await hasta(() => preguntaHueco(), 4000, 'la pregunta 1 / 2'); tecla(resp); }
     return hasta(() => compDe(i).els.find(e => e.t === 'foto' && e.src === f), 4000, 'la foto en el hueco');
   }
+  const preguntaHueco = () => { const a = ed() && ed().ask; return a && a.classList.contains('lb-ask12') ? a : null; };
   async function aplicarEditor() {
     accion('aplicar');
     await hasta(() => !M.libre.abierto() && !M.libre.aplicando(), 15000, 'que el editor aplique y se cierre');
@@ -881,7 +884,31 @@
     igual(compDe(1).els, [h], 'el hueco que vuelve al borrar la foto');
   });
 
-  prueba('E7', 'Encaje en huecos: a sangre rellena, dentro del margen entra entera y centrada, doble clic alterna, #2B231F → #16110E (D-018)', async () => {
+  // un marco vacío (el «+ Foto» de las plantillas) en x, y, w, h
+  const marcoEl = (id, x, y, w, h) => ({ id, t: 'foto', src: null, x, y, w, h, cx: 0.5, cy: 0.5, z: 1, rot: 0, op: 1, lock: false, sh: 0, fx: false, fy: false, b: 0, bc: '#000000', r: 0 });
+
+  prueba('E47', 'Borrar la foto de un marco vacío devuelve el marco tal como era, aunque se haya movido; borrarlo vacío lo quita; una foto suelta se borra (D-014, D-052)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e47a.jpg')]);
+    const [f] = await M.addFiles([await foto('e47b.jpg', 1600, 1000)]);
+    await abrirEditor('r1');
+    accion('sl-add');
+    const h = marcoEl('m1', 0.1, 0.15, 0.8, 0.5);
+    compDe(1).els.push(JSON.parse(json(h)));
+    const p = await enHueco(1, 'm1', f);
+    p.x = 0.2; p.w = 0.5;                            // movida y escalada
+    elegir(p); accion('del');
+    igual(compDe(1).els, [h], 'el marco que vuelve al borrar la foto');
+    elegir(compDe(1).els[0]); ed().pick = { modo: 'fill', id: 'm1' }; accion('del');   // un clic en un marco vacío abre «Foto para el hueco»
+    igual(compDe(1).els, [], 'borrar el marco vacío no lo quitó');
+    ok(!ed().pick && !q('.lb-fl:not([hidden])'), 'quedó abierto lo del marco que ya no está');
+    accion('add'); accion('pickf', { f });           // una foto suelta: se va del todo
+    const s = await hasta(() => compDe(1).els.find(e => e.src === f), 4000, 'la foto suelta');
+    elegir(s); accion('del');
+    igual(compDe(1).els, [], 'la foto suelta dejó algo al borrarla');
+  });
+
+  prueba('E7', 'Encaje en huecos: «Rellenar» cubre el hueco, «Mantener el formato» entra entera y centrada, doble clic alterna, #2B231F → #16110E (D-018, D-050)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('e7a.jpg')]);
     const [ancha, alta] = await M.addFiles([await foto('e7b.jpg', 1600, 1000), await foto('e7c.jpg', 1200, 1500)]);
@@ -889,12 +916,12 @@
     const { W: SW, H: SH } = tam();
     // a sangre, sobre el fondo provisional
     accion('sl-add'); compDe(1).bg = '#2b231f'; compDe(1).els.push(huecoEl('hs', 0, 0, 1, 1));
-    const a = await enHueco(1, 'hs', ancha);
+    const a = await enHueco(1, 'hs', ancha, '1');
     ok(a.x <= 0.001 && a.y <= 0.001 && a.x + a.w >= 0.999 && a.y + a.h >= 0.999, 'a sangre no cubre la diapositiva: ' + json([a.x, a.y, a.w, a.h]));
     igual(String(compDe(1).bg).toLowerCase(), '#16110e', 'el fondo provisional no pasó a Ink');
     // dentro del margen: una foto vertical en un hueco apaisado entra entera, lo más alta posible y centrada
     accion('sl-add'); compDe(2).els.push(huecoEl('hm', 0.1, 0.1, 0.8, 0.5));
-    const b = await enHueco(2, 'hm', alta), d = M.files[alta];
+    const b = await enHueco(2, 'hm', alta, '2'), d = M.files[alta];
     cerca((b.w * SW) / (b.h * SH), d.w / d.h, 0.01, 'la foto no conserva su proporción');
     cerca(b.h, 0.5, 0.002, 'no es lo más grande que cabe');
     ok(b.w < 0.8 - 0.01, 'no deja franjas a los lados');
@@ -1531,7 +1558,7 @@
     // una foto que llenaba un hueco se guarda con ese hueco
     const [fc] = await M.addFiles([await foto('pl-c.jpg')], null, { tray: true });
     accion('sl-add'); const i = ed().i; compDe(i).els.push(huecoEl('h1', 0.1, 0.1, 0.8, 0.5));
-    await enHueco(i, 'h1', fc);
+    await enHueco(i, 'h1', fc, '2');
     const t2 = await guardarPlant(), e2 = t2.comp.els[0];
     ok(e2.t === 'foto' && !e2.src && e2.hueco && e2.hueco.x === 0.1 && e2.hueco.w === 0.8, 'la foto en su hueco no se guardó como hueco: ' + json(e2));
     // la lista: bajo «4:5», con las dos
@@ -2180,6 +2207,417 @@
     ok(q('.lb-panel [data-lb="tal"][data-v="der"].on'), 'el panel no marca «Derecha»');
     q('.lb-panel [data-lb="tal"][data-v="izq"]').click();
     igual(compDe(0).els[0].al, 'izq', '«Izquierda» no alineó el texto');
+    M.libre.cerrar();
+  });
+
+  // ---------- mesa 3.52 (libre 1.25): la foto en un hueco, por orientación (D-050 a D-053) ----------
+  const HV = (id, x = 0.05) => huecoEl(id, x, 0.1, 0.4, 0.8), HH = (id, y = 0.1) => huecoEl(id, 0.5, y, 0.45, 0.2);   // vertical y horizontal
+  // un carrusel con la diapositiva 2 abierta, con esos huecos, y esas fotos en la bandeja
+  async function conHuecos(els, fotos) {
+    await tablero([pub(1, 'Carrusel'), pub(2)]);
+    await poner('r1', [await foto('base.jpg')]);
+    const ids = fotos.length ? await M.addFiles(await Promise.all(fotos.map(([n, w, h]) => foto(n, w, h)))) : [];
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    accion('sl-add');
+    compDe(1).els.push(...JSON.parse(json(els)));
+    await dibujado();
+    return ids;
+  }
+  const V = n => [n, 1200, 1500], A = n => [n, 1600, 1000];   // vertical y apaisada
+  const enLienzo = (fx, fy) => { const r = ed().cv.getBoundingClientRect(); return [r.left + fx * r.width, r.top + fy * r.height]; };
+  // fotos del ordenador soltadas en un punto de la diapositiva
+  async function soltarOrdenador(files, fx, fy) {
+    const dt = new W.DataTransfer(); files.forEach(f => dt.items.add(f));
+    const [x, y] = enLienzo(fx, fy);
+    ed().cv.dispatchEvent(new W.DragEvent('drop', { clientX: x, clientY: y, dataTransfer: dt, bubbles: true, cancelable: true }));
+  }
+  const miniatura = f => ed().el.querySelector(`.lb-tph[data-f="${f}"]`);
+  // arrastre con el ratón desde una foto de la bandeja hasta un punto de la diapositiva
+  function arrastrarDeBandeja(f, fx, fy) {
+    const b = miniatura(f); ok(b, 'la foto no está en la bandeja: ' + f);
+    const r = b.getBoundingClientRect(), [x, y] = enLienzo(fx, fy);
+    puntero('pointerdown', b, r.left + 5, r.top + 5);
+    puntero('pointermove', D, x, y);
+    puntero('pointerup', D, x, y);
+  }
+  const conMeta = f => miniatura(f).dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true }));
+  const elegidas = () => [...ed().el.querySelectorAll('.lb-tph.elegida')].map(b => b.dataset.f);
+  const enCapa = (id, f) => { const e = compDe(1).els.find(q => (q.id === id && !q.hueco) || (q.hueco && q.hueco.id === id)); return e && (f ? e.src === f : e.t === 'hueco' || !e.src); };
+  const pasos = () => ed().hist.undo.length;
+  const cubre = (e, h) => cerca(e.x, h.x, 0.0002, 'x') || cerca(e.y, h.y, 0.0002, 'y') || cerca(e.w, h.w, 0.0002, 'w') || cerca(e.h, h.h, 0.0002, 'h');
+  const aviso = () => qa('.toast').map(t => t.textContent).join(' · ');
+
+  prueba('E48', 'Una foto a un hueco: misma orientación, rellena sin preguntar; distinta, pregunta con su miniatura (1, 2, clic o Esc), va al hueco donde se suelta y ningún atajo actúa; un paso de ⌘Z (D-050)', async () => {
+    const [v, a] = await conHuecos([HV('hv'), HH('hh')], [V('e48a.jpg'), A('e48b.jpg')]);
+    const hv = HV('hv'), { W: SW, H: SH } = tam();
+    // misma orientación: rellena, centrada, sin preguntar
+    let n = pasos();
+    arrastrarDeBandeja(v, 0.2, 0.5);
+    let e = await hasta(() => compDe(1).els.find(q => q.src === v), 4000, 'la vertical en su hueco');
+    ok(!ed().ask, 'preguntó con la misma orientación');
+    cubre(e, hv); igual([e.cx, e.cy, e.z, e.hueco.id], [0.5, 0.5, 1, 'hv'], 'centrada y con su hueco');
+    igual(pasos(), n + 1, 'no es un paso de ⌘Z');
+    tecla('z', { meta: true });
+    ok(enCapa('hv'), '⌘Z no devolvió el hueco');
+    // distinta: al hueco donde se suelta, aunque otro encaje mejor; pregunta y enseña esa foto
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    let pr = await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    igual([...pr.querySelectorAll('[data-ask]')].map(b => b.textContent), ['1 · Rellenar el recuadro', '2 · Mantener el formato de la foto'], 'las dos respuestas');
+    igual(pr.querySelector('img').src, M.files[a].thumbUrl, 'no enseña la miniatura de esa foto');
+    ok(!compDe(1).els.some(q => q.src === a), 'la puso antes de contestar');
+    // mientras está abierta, ningún otro atajo actúa
+    const antes = json(compDe(1)); n = pasos();
+    ['t', 'r', 'f', 'Backspace', 'ArrowLeft'].forEach(k => tecla(k)); tecla('z', { meta: true }); tecla('d', { meta: true }); tecla('3');
+    ok(preguntaHueco() && !ed().fv, 'un atajo cerró la pregunta o actuó');
+    igual(json(compDe(1)), antes, 'un atajo cambió la diapositiva');
+    tecla('2');
+    e = await hasta(() => compDe(1).els.find(q => q.src === a), 4000, 'la foto con «2»');
+    ok(!ed().ask, 'la pregunta sigue abierta');
+    igual(e.hueco.id, 'hv', 'no fue al hueco donde se soltó');
+    cerca((e.w * SW) / (e.h * SH), 1.6, 0.01, '«2» deformó la foto');
+    cerca(e.w, 0.4, 0.002, '«2» no es lo más grande que cabe');
+    cerca(e.y + e.h / 2, 0.5, 0.002, '«2» no la centró');
+    ok(e.h < 0.8 - 0.01, '«2» no deja franjas');
+    igual(pasos(), n + 1, '«2» no es un paso de ⌘Z');
+    // una tecla mantenida nunca contesta
+    tecla('z', { meta: true });
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: '1', repeat: true, bubbles: true, cancelable: true }));
+    ok(preguntaHueco(), 'una tecla mantenida contestó');
+    // 1: rellena el recuadro, sin deformar
+    tecla('1');
+    e = await hasta(() => compDe(1).els.find(q => q.src === a), 4000, 'la foto con «1»');
+    cubre(e, hv); igual([e.cx, e.cy, e.z], [0.5, 0.5, 1], 'centrada');
+    tecla('z', { meta: true });
+    // clic
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    (await hasta(() => preguntaHueco(), 4000, 'la pregunta')).querySelector('[data-ask="entera"]').click();
+    e = await hasta(() => compDe(1).els.find(q => q.src === a), 4000, 'la foto con un clic');
+    ok(e.h < 0.8 - 0.01, 'el clic no mantuvo el formato');
+    tecla('z', { meta: true });
+    // Esc: no entra, su hueco queda libre, ningún paso de ⌘Z
+    n = pasos();
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    tecla('Escape');
+    await hasta(() => !ed().ask, 4000, 'que Esc cierre la pregunta');
+    await espera(30);
+    ok(enCapa('hv') && !compDe(1).els.some(q => q.src === a), 'Esc puso la foto');
+    igual(pasos(), n, 'Esc sumó un paso de ⌘Z');
+    ok(!ed().ojo, 'quedó resaltado el hueco');
+  });
+
+  prueba('E49', 'Varias fotos: cada una a un hueco libre de su orientación, en orden de capas y sin preguntar; las otras, una pregunta por foto; un solo paso de ⌘Z; Esc solo deja fuera esa (D-050)', async () => {
+    // 1 hueco horizontal y 2 verticales con 1 horizontal y 2 verticales, del ordenador: ninguna pregunta
+    await conHuecos([HV('v1'), HH('h1'), HV('v2', 0.5)], []);
+    let n = pasos();
+    await soltarOrdenador([await foto('e49v1.jpg', 1200, 1500), await foto('e49a.jpg', 1600, 1000), await foto('e49v2.jpg', 1200, 1500)], 0.9, 0.95);
+    await hasta(() => compDe(1).els.filter(q => q.src).length === 3, 8000, 'las tres en sus huecos');
+    ok(!ed().ask, 'preguntó con las tres en su orientación');
+    const nombre = e => M.files[e.src].name;
+    igual(compDe(1).els.map(e => [e.hueco.id, nombre(e)]), [['v1', 'e49v1.jpg'], ['h1', 'e49a.jpg'], ['v2', 'e49v2.jpg']], 'cada una en su hueco, en orden de capas');
+    igual(pasos(), n + 1, 'no es un solo paso de ⌘Z');
+    tecla('z', { meta: true });
+    ok(compDe(1).els.every(e => e.t === 'hueco'), '⌘Z no las quitó todas');
+    // 2 huecos verticales con una vertical y una horizontal, de la bandeja: solo pregunta por la horizontal
+    const [v, a] = await conHuecos([HV('v1'), HV('v2', 0.5)], [V('e49c.jpg'), A('e49d.jpg')]);
+    conMeta(a); conMeta(v);
+    n = pasos();
+    arrastrarDeBandeja(v, 0.9, 0.95);
+    const pr = await hasta(() => preguntaHueco(), 4000, 'la pregunta por la horizontal');
+    igual(pr.querySelector('img').src, M.files[a].thumbUrl, 'no pregunta por la horizontal');
+    igual(ed().ojo, 'v2', 'no resalta el hueco que queda');
+    ok(enCapa('v1', v), 'la vertical no entró antes de la pregunta');
+    tecla('1');
+    await hasta(() => enCapa('v2', a), 4000, 'la horizontal en el otro');
+    ok(!ed().ask, 'hizo otra pregunta');
+    igual(pasos(), n + 1, 'con una pregunta no es un solo paso de ⌘Z');
+    tecla('z', { meta: true });
+    ok(compDe(1).els.every(e => e.t === 'hueco'), '⌘Z no las quitó las dos');
+    // Esc en la pregunta: esa no entra, su hueco queda libre y las ya colocadas se quedan
+    conMeta(a); conMeta(v);
+    arrastrarDeBandeja(v, 0.9, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    tecla('Escape');
+    await hasta(() => !ed().ask, 4000, 'que Esc cierre');
+    ok(enCapa('v1', v) && enCapa('v2'), 'Esc no dejó la vertical puesta y el otro hueco libre');
+    ok(miniatura(a), 'la de Esc no sigue en la bandeja');
+    // varias preguntas: una por foto
+    const [a1, a2] = await conHuecos([HV('v1'), HV('v2', 0.5)], [A('e49e.jpg'), A('e49f.jpg')]);
+    conMeta(a1); conMeta(a2);
+    arrastrarDeBandeja(a1, 0.9, 0.95);
+    igual((await hasta(() => preguntaHueco(), 4000, 'la 1.ª')).querySelector('img').src, M.files[a1].thumbUrl, 'la primera pregunta');
+    tecla('2');
+    await hasta(() => enCapa('v1', a1), 4000, 'la primera puesta');
+    igual((await hasta(() => preguntaHueco(), 4000, 'la 2.ª')).querySelector('img').src, M.files[a2].thumbUrl, 'la segunda pregunta');
+    tecla('1');
+    await hasta(() => enCapa('v2', a2), 4000, 'la segunda puesta');
+    tecla('z', { meta: true });
+    ok(compDe(1).els.every(e => e.t === 'hueco'), 'con dos preguntas no es un solo paso de ⌘Z');
+  });
+
+  prueba('E50', 'Más fotos que huecos: las que no caben se quedan en la bandeja, con un aviso que dice cuántas; sin ningún hueco, como siempre (D-050)', async () => {
+    const [a, b, c] = await conHuecos([HV('v1')], [V('e50a.jpg'), V('e50b.jpg'), V('e50c.jpg')]);
+    [a, b, c].forEach(conMeta);
+    igual(elegidas().length, 3, 'las elegidas');
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => enCapa('v1', a), 4000, 'la primera en el hueco');
+    await espera(30);
+    ok(!ed().ask, 'preguntó');
+    igual(compDe(1).els.length, 1, 'alguna entró en la diapositiva');
+    ok(/2 fotos no caben/.test(aviso()), 'el aviso: ' + aviso());
+    ok(miniatura(b) && miniatura(c) && !miniatura(a), 'las que no caben no siguen en la bandeja');
+    // sin ningún hueco: fotos sueltas, como hoy
+    const [d, e] = await conHuecos([], [V('e50d.jpg'), V('e50e.jpg')]);
+    conMeta(d); conMeta(e);
+    arrastrarDeBandeja(d, 0.5, 0.5);
+    await hasta(() => compDe(1).els.length === 2, 4000, 'las dos, sueltas');
+    ok(compDe(1).els.every(q => q.src && !q.hueco) && !ed().ask, 'sin huecos no son fotos sueltas');
+  });
+
+  prueba('E51', 'Una foto: pulsada, al hueco elegido o al primero de su orientación o al primero libre con la pregunta; sobre un hueco lleno lo sustituye y la anterior vuelve a la bandeja; fuera de un hueco, suelta (D-050)', async () => {
+    const [v, a, v2] = await conHuecos([HH('h1'), HV('v1')], [V('e51a.jpg'), A('e51b.jpg'), V('e51c.jpg')]);
+    // sin elegir: el primero libre de su orientación, aunque no sea el primero en capas
+    accion('tr-add', { f: v });
+    await hasta(() => enCapa('v1', v), 4000, 'al vertical');
+    ok(!ed().ask, 'preguntó');
+    tecla('z', { meta: true });
+    // el hueco elegido, aunque no coincida: con la pregunta
+    elegir(compDe(1).els.find(q => q.id === 'v1'));
+    accion('tr-add', { f: a });
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    igual(ed().ojo, 'v1', 'no va al hueco elegido');
+    tecla('Escape');
+    await hasta(() => !ed().ask, 4000, 'que Esc cierre');
+    // lleno el de su orientación, el primero libre, con la pregunta
+    ed().sel = null; ed().mas = [];
+    accion('tr-add', { f: v });
+    await hasta(() => enCapa('v1', v), 4000, 'al vertical');
+    ed().sel = null; ed().mas = [];
+    accion('tr-add', { f: v2 });
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta del hueco que queda');
+    igual(ed().ojo, 'h1', 'no va al primero libre');
+    tecla('1');
+    await hasta(() => enCapa('h1', v2), 4000, 'al horizontal');
+    // sobre un hueco lleno: sustituye con la misma regla; la anterior vuelve a la bandeja, también la de un post ya aplicado
+    await aplicarEditor();
+    await abrirEditor('r1', 1); if (!ed().trOpen) accion('bandeja');
+    await dibujado();
+    ok(!miniatura(v) && miniatura(a), 'en la bandeja antes de sustituir');
+    ok(!ed().ask, 'una pregunta al abrir');
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta al sustituir');
+    igual(ed().ojo, compDe(1).els.find(q => q.hueco && q.hueco.id === 'v1').id, 'no pregunta por el hueco lleno');
+    tecla('2');
+    const e = await hasta(() => compDe(1).els.find(q => q.src === a), 4000, 'la sustituta');
+    igual([e.hueco.id, compDe(1).els.length], ['v1', 2], 'no entró en ese hueco');
+    ok(e.h < 0.8 - 0.01, 'no siguió la regla');
+    await hasta(() => miniatura(v), 4000, 'la anterior en la bandeja');
+    ok(!miniatura(v).classList.contains('uso'), 'la anterior sale como usada');
+    tecla('z', { meta: true });
+    await hasta(() => !miniatura(v), 4000, 'que ⌘Z la devuelva a su hueco');
+    ok(compDe(1).els.some(q => q.src === v), '⌘Z no la devolvió');
+    // todos llenos: pulsada no entra y avisa; soltada fuera de un hueco, suelta
+    ed().sel = null; ed().mas = [];
+    accion('tr-add', { f: a });
+    await hasta(() => /1 foto no cabe/.test(aviso()), 4000, 'el aviso');
+    igual(compDe(1).els.length, 2, 'entró en la diapositiva sin hueco');
+    arrastrarDeBandeja(a, 0.75, 0.8);
+    await hasta(() => compDe(1).els.length === 3, 4000, 'la foto suelta');
+    const s = compDe(1).els.find(q => q.src === a);
+    ok(!s.hueco && !ed().ask, 'fuera de un hueco no es una foto suelta');
+  });
+
+  prueba('E52', 'Bandeja: ⌘+clic elige y quita, se marcan; arrastrar una elegida se las lleva todas y otra solo a sí misma; clic y Esc vacían; con «Todas» sale antes el aviso de lote (D-051, D-022)', async () => {
+    const [a, b, c] = await conHuecos([HV('v1'), HV('v2', 0.5)], [V('e52a.jpg'), V('e52b.jpg'), V('e52c.jpg')]);
+    conMeta(a); conMeta(b);
+    igual(elegidas(), [a, b], '⌘+clic no las elige ni las marca');
+    ok(!compDe(1).els.some(q => q.src), '⌘+clic puso una foto');
+    conMeta(a);
+    igual(elegidas(), [b], '⌘+clic no la quita');
+    conMeta(a);
+    tecla('Escape');
+    igual(elegidas(), [], 'Esc no vacía la selección');
+    ok(M.libre.abierto(), 'Esc cerró el editor');
+    // un clic sin ⌘ hace lo de hoy y la vacía
+    conMeta(a);
+    miniatura(c).click();
+    await hasta(() => enCapa('v1', c), 4000, 'el clic pone la foto');
+    igual(elegidas(), [], 'el clic no vacía la selección');
+    tecla('z', { meta: true });
+    // arrastrar una que no está elegida: solo esa, y las elegidas siguen
+    conMeta(a); conMeta(b);
+    arrastrarDeBandeja(c, 0.2, 0.5);
+    await hasta(() => enCapa('v1', c), 4000, 'solo esa');
+    await espera(30);
+    ok(!enCapa('v2', a) && !enCapa('v2', b) && enCapa('v2'), 'se llevó otra');
+    igual(elegidas(), [a, b], 'la selección cambió');
+    tecla('z', { meta: true });
+    await dibujado();
+    // una de las elegidas: todas, en el orden de la bandeja
+    arrastrarDeBandeja(b, 0.2, 0.5);
+    await hasta(() => enCapa('v1', a) && enCapa('v2', b), 4000, 'las dos elegidas');
+    igual(elegidas(), [], 'la selección no se vació al soltar');
+    // con «Todas» y una ya usada: antes el aviso de lote, luego lo demás
+    const [u, l] = await conHuecos([HV('v1'), HV('v2', 0.5)], [V('e52u.jpg'), V('e52v.jpg')]);
+    M._test.place('r2', u);
+    await hasta(() => slot('r2').photos.includes(u), 4000, 'la foto usada en otra publicación');
+    M._in.trayFiltro('todas');
+    await hasta(() => miniatura(u) && miniatura(u).classList.contains('uso'), 4000, 'la usada, con ✓');
+    conMeta(u); conMeta(l);
+    igual(elegidas().sort(), [u, l].sort(), 'con «Todas» no se eligen');
+    arrastrarDeBandeja(l, 0.2, 0.5);
+    let pr = await hasta(() => ed().ask, 4000, 'el aviso de lote');
+    ok(pr.querySelector('[data-ask="saltar"]') && pr.querySelector('[data-ask="usar"]') && !preguntaHueco(), 'no es el aviso de lote');
+    pr.querySelector('[data-ask="saltar"]').click();
+    await hasta(() => enCapa('v1', l), 4000, 'solo la no usada');
+    await espera(30);
+    ok(enCapa('v2'), '«Saltar repetidas» la puso');
+    tecla('z', { meta: true });
+    await dibujado();
+    conMeta(u); conMeta(l);
+    arrastrarDeBandeja(l, 0.2, 0.5);
+    pr = await hasta(() => ed().ask, 4000, 'el aviso de lote');
+    pr.querySelector('[data-ask="usar"]').click();
+    await hasta(() => compDe(1).els.filter(q => q.src).length === 2, 6000, 'las dos, con «Usar todas»');
+    M._in.trayFiltro('sin');
+  });
+
+  prueba('E53', 'Marco vacío: cuenta como hueco y alterna con doble clic; lo aplicado coincide con el editor; plantilla sin preguntar; «Guardar como plantilla» y «Quitar plantilla» con los huecos nuevos (D-050, D-052, D-034)', async () => {
+    const [a, v] = await conHuecos([marcoEl('m1', 0.05, 0.1, 0.4, 0.8)], [A('e53a.jpg'), V('e53v.jpg')]);
+    const m0 = marcoEl('m1', 0.05, 0.1, 0.4, 0.8), { W: SW, H: SH } = tam();
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta del marco');
+    tecla('2');
+    const e = await hasta(() => compDe(1).els.find(q => q.src === a), 4000, 'la foto en el marco');
+    igual(e.id, 'm1', 'el marco no conserva su capa');
+    cerca((e.w * SW) / (e.h * SH), 1.6, 0.01, 'deformada');
+    // doble clic: alterna
+    const dbl = el => { const [x, y] = enLienzo(el.x + el.w / 2, el.y + el.h / 2); ed().cv.dispatchEvent(new W.MouseEvent('dblclick', { clientX: x, clientY: y, bubbles: true, cancelable: true })); };
+    await dibujado(); dbl(e);
+    cubre(compDe(1).els[0], m0);
+    dbl(compDe(1).els[0]);
+    ok(compDe(1).els[0].h < 0.8 - 0.01, 'el segundo doble clic no volvió a la foto entera');
+    // lo aplicado es lo que enseña el editor: la foto entera y las franjas con el fondo
+    await dibujado();
+    const puntos = [[0.35, 0.55], [0.25, 0.15]], editor = puntos.map(([x, y]) => pixel(x * SW, y * SH).slice(0, 3));
+    ok(editor[1].every(c => c > 240), 'la franja del editor no enseña el fondo: ' + json(editor[1]));
+    await aplicarEditor();
+    const s = slot('r1'), px = await pixelesDe(await M._in.getBlob(s.photos[1]));
+    const bm = await W.createImageBitmap(await M._in.getBlob(s.photos[1]));
+    puntos.forEach(([x, y], k) => { const p = px(Math.round(x * bm.width), Math.round(y * bm.height)); p.forEach((c, j) => cerca(c, editor[k][j], 26, `el píxel ${k} aplicado frente al editor`)); });
+    await abrirEditor('r1', 1); if (!ed().trOpen) accion('bandeja');
+    // la plantilla guarda el hueco, no la foto ni su recorte; aplicarla no pregunta
+    const t = await guardarPlant();
+    igual(t.comp.els[0].src, null, 'la plantilla guardó la foto');
+    accion('sl-add');
+    aplicarPlant(t, 'todo');
+    const h = compDe(2).els[0];
+    igual([h.t, h.src, h.x, h.y, h.w, h.h, !!h.hueco], ['foto', null, m0.x, m0.y, m0.w, m0.h, false], 'al aplicar la plantilla, el marco como era');
+    // «Solo fotos»: el hueco de la plantilla se llena sin preguntar y al borrarla el marco vuelve
+    ed().i = 1; await dibujado();
+    aplicarPlant(t, 'fotos');
+    ok(!ed().ask, 'la plantilla preguntó');
+    const f1 = compDe(1).els.find(q => q.src);
+    ok(f1 && f1.hueco && f1.hueco.src === null, 'la foto de la plantilla no guarda su marco: ' + json(f1));
+    igual([f1.hueco.x, f1.hueco.w], [m0.x, m0.w], 'el marco guardado');
+    elegir(f1); accion('del');
+    igual(compDe(1).els.filter(e => e.t === 'foto' && !e.src).length, 1, 'al borrar la foto el marco no volvió');
+    // «Quitar plantilla» la deja como estaba
+    tecla('z', { meta: true });
+    accion('tpl-quitar');
+    const f2 = compDe(1).els.find(q => q.src === a);
+    ok(f2 && f2.hueco && f2.hueco.id === 'm1', '«Quitar plantilla» no devolvió la foto en su hueco');
+    M.libre.cerrar();
+  });
+
+  prueba('E54', '«Intercambiar»: solo en una foto de un hueco; entre llenos y hacia uno vacío, con la regla de siempre y la pregunta; Esc y un clic fuera cancelan; un paso de ⌘Z; nada en lo que se dibuja (D-053)', async () => {
+    const [p1, p2, p3] = await conHuecos([HV('v1'), HV('v2', 0.5), HH('h1', 0.9), { id: 'tx', t: 'texto', txt: 'Hola', x: 0.1, y: 0.92, w: 0.3, h: 0.04, size: 0.03, color: '#000000', al: 'izq', rot: 0, op: 1 }], [V('e54a.jpg'), V('e54b.jpg'), A('e54c.jpg')]);
+    const hv1 = HV('v1'), hv2 = HV('v2', 0.5), { W: SW, H: SH } = tam();
+    arrastrarDeBandeja(p1, 0.2, 0.5);
+    await hasta(() => enCapa('v1', p1), 4000, 'p1');
+    arrastrarDeBandeja(p2, 0.7, 0.5);
+    await hasta(() => enCapa('v2', p2), 4000, 'p2');
+    const a = () => compDe(1).els.find(e => e.hueco && e.hueco.id === 'v1'), b = () => compDe(1).els.find(e => e.hueco && e.hueco.id === 'v2');
+    const boton = () => q('.lb-fl [data-lb="cambio"]');
+    // solo sale con una foto de un hueco
+    accion('cap', { id: 'tx' }); ok(!boton(), 'sale en un texto');
+    accion('cap', { id: 'v1' });
+    accion('cap', { id: a().id }); ok(boton(), 'no sale en la foto de un hueco');
+    accion('lock'); ok(!boton(), 'sale en una foto bloqueada'); accion('lock');
+    const clic = (fx, fy) => { const [x, y] = enLienzo(fx, fy); puntero('pointerdown', ed().cv, x, y); puntero('pointerup', ed().cv, x, y); };
+    const elegirA = () => { accion('cap', { id: a().id }); ok(boton(), 'sin el botón'); boton().click(); ok(ed().cambio, 'no entró en «Intercambiar»'); };
+    // el rótulo, el resaltado (solo en el lienzo) y la barra
+    await dibujado();
+    const fuera = pixel(0.7 * SW, 0.5 * SH), c0 = json(compDe(1));
+    elegirA();
+    ok(!q('.lb-hint').hidden && /Intercambiar/.test(q('.lb-hint').textContent), 'sin rótulo');
+    ok(q('.lb-fl').hidden, 'la barra sigue ahí');
+    await dibujado();
+    ok(json(pixel(0.7 * SW, 0.5 * SH)) !== json(fuera), 'el otro hueco no se resalta');
+    igual(json(compDe(1)), c0, 'el resaltado cambió la diapositiva');
+    // Esc cancela; ningún otro atajo actúa
+    tecla('Backspace'); tecla('t'); ok(ed().cambio && json(compDe(1)) === c0, 'un atajo actuó');
+    tecla('Escape'); ok(!ed().cambio && M.libre.abierto(), 'Esc no cancela');
+    await dibujado();
+    igual(json(pixel(0.7 * SW, 0.5 * SH)), json(fuera), 'quedó el resaltado');
+    // un clic fuera de un hueco, o fuera de la diapositiva, cancela
+    elegirA(); clic(0.97, 0.05); ok(!ed().cambio && json(compDe(1)) === c0, 'un clic en la diapositiva no cancela');
+    elegirA(); puntero('pointerdown', ed().scroll, 2, 2); ok(!ed().cambio && json(compDe(1)) === c0, 'un clic en el área gris no cancela');
+    elegirA(); puntero('pointerdown', q('.lb-panel'), 2, 2); ok(!ed().cambio, 'un clic en el panel no cancela');
+    // entre dos llenos de la misma orientación: sin preguntar, el encuadre manual se pierde, un paso de ⌘Z
+    a().z = 2; a().cx = 0.1;
+    let n = pasos();
+    elegirA(); await dibujado(); clic(0.7, 0.5);
+    await hasta(() => a().src === p2 && b().src === p1, 4000, 'el intercambio');
+    ok(!ed().ask, 'preguntó');
+    igual([a().z, a().cx, b().z, b().cx], [1, 0.5, 1, 0.5], 'el encuadre no se perdió');
+    cubre(a(), hv1); cubre(b(), hv2);
+    igual(pasos(), n + 1, 'no es un paso de ⌘Z');
+    tecla('z', { meta: true });
+    igual([a().src, b().src, a().z], [p1, p2, 2], '⌘Z no lo deshizo');
+    a().z = 1; a().cx = 0.5;
+    // hacia uno vacío de otra orientación: pregunta, y el suyo queda libre
+    n = pasos();
+    elegirA(); clic(0.7, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta hacia el vacío');
+    igual(ed().ojo, 'h1', 'no resalta el destino');
+    tecla('1');
+    await hasta(() => enCapa('h1', p1), 4000, 'la foto en el vacío');
+    const v1 = compDe(1).els.find(e => e.id === 'v1');
+    ok(v1 && v1.t === 'hueco', 'su hueco no quedó libre: ' + json(compDe(1).els.map(e => e.id)));
+    igual(compDe(1).els.map(e => e.hueco ? e.hueco.id : e.id), ['v1', 'v2', 'h1', 'tx'], 'las capas');
+    igual(pasos(), n + 1, 'no es un paso de ⌘Z');
+    tecla('z', { meta: true });
+    ok(a() && a().src === p1 && enCapa('h1'), '⌘Z no lo devolvió');
+    // Esc en la pregunta: todo como estaba
+    const c1 = json(compDe(1)); n = pasos();
+    elegirA(); clic(0.7, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    tecla('Escape');
+    await hasta(() => !ed().ask, 4000, 'que Esc cierre');
+    await espera(30);
+    igual(json(compDe(1)), c1, 'Esc cambió algo'); igual(pasos(), n, 'Esc sumó un paso');
+    // entre llenos de distinta orientación: una pregunta por cada foto
+    arrastrarDeBandeja(p3, 0.7, 0.95);
+    await hasta(() => enCapa('h1', p3), 4000, 'p3');
+    n = pasos();
+    elegirA(); clic(0.7, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la 1.ª pregunta');
+    igual(preguntaHueco().querySelector('img').src, M.files[p1].thumbUrl, 'la 1.ª es la foto elegida');
+    tecla('2');
+    await hasta(() => preguntaHueco() && preguntaHueco().querySelector('img').src === M.files[p3].thumbUrl, 4000, 'la 2.ª pregunta');
+    tecla('2');
+    await hasta(() => enCapa('h1', p1) && enCapa('v1', p3), 4000, 'el intercambio con preguntas');
+    const ph = compDe(1).els.find(e => e.src === p1);
+    cerca((ph.w * SW) / (ph.h * SH), 0.8, 0.01, 'la vertical deformada');
+    igual(pasos(), n + 1, 'con preguntas no es un paso de ⌘Z');
+    // una foto que cruza diapositivas no lo tiene
+    ph.pan = { id: 'x', n: 2, k: 0 }; accion('cap', { id: ph.id });
+    ok(!boton(), 'sale en una foto que cruza diapositivas');
+    delete ph.pan;
     M.libre.cerrar();
   });
 

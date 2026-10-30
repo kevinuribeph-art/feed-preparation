@@ -91,7 +91,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.23';
+  const VERSION = '1.24';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -1013,6 +1013,7 @@
 #mesa .lb-pv{position:absolute;inset:0;z-index:25;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 #mesa .lb-pv .igtop{align-self:stretch}#mesa .lb-pvt{flex:1;min-width:0;color:rgba(255,255,255,.85);font-size:12.5px}#mesa .lb-pvc{position:absolute;inset:0;width:100%;height:100%;display:block}
 #mesa .lb-fv{position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center;cursor:zoom-out}#mesa .lb-fv img{display:block;width:100%;height:100%;object-fit:contain}#mesa .lb-fv canvas{display:block}
+#mesa .lb-rng.lb-mix input{opacity:.4}#mesa .lb-rng.lb-mix output{font-style:italic}#mesa .lb-fan{display:flex;align-items:center;gap:8px}#mesa .lb-fan .lb-num{width:84px}
 #mesa .lb-fvt{position:absolute;left:16px;top:12px;right:16px;color:rgba(255,255,255,.8);font-size:12.5px;text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
 #mesa .lb-fmtw{display:inline-flex;align-items:center;gap:6px}#mesa .lb-fmtl{font-size:12.5px;color:var(--mute)}
 #mesa .lb-mas{position:relative;display:inline-flex}
@@ -1893,7 +1894,7 @@
   // ---------- the panel ----------
   const pxf = v => Math.round(v) + ' px';
   const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2), gr: v => String(Math.round(v * 2) / 2).replace('.', ',') + ' px' };
-  const rng = (act, label, v, min, max, step) => `<label class="lb-rng"><span>${label}</span><input type="range" data-lb="${act}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${OUTF[act](v)}</output></label>`;
+  const rng = (act, label, v, min, max, step, mix) => `<label class="lb-rng${mix ? ' lb-mix' : ''}"><span>${label}</span><input type="range" data-lb="${act}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${mix ? 'Varios' : OUTF[act](v)}</output></label>`;
   const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', pc: 'relleno', bc: 'borde', 'velo-c': 'velo', lc: 'texto' };
   function sws(act, curC, orig) {  // «Kit <marca>» (its groups for this picker) and «Básicos»; a colour shows once, where it first appears; orig: no colour is a choice («Original»)
     const seen = new Set(), uso = USO[act], cc = hexOk(curC) ? curC.toLowerCase() : orig ? '' : '#ffffff';
@@ -1948,10 +1949,32 @@
       + `<button type="button" class="btn2" data-lb="rotl" title="Girar 90° a la izquierda">⟲ 90°</button><button type="button" class="btn2" data-lb="rotr" title="Girar 90° a la derecha">⟳ 90°</button></div>`
       + (voltear ? `<div class="lb-btns"><button type="button" class="btn2${el.fx ? ' on' : ''}" data-lb="flipx">Voltear ↔</button><button type="button" class="btn2${el.fy ? ' on' : ''}" data-lb="flipy">Voltear ↕</button></div>` : ''));
   }
-  function fuenteSel(el) {
-    const ls = E.fuentes, i = ls.findIndex(f => el.font && (f.file ? f.file === el.font.file : f.css === el.font.css)), opt = (f, k) => `<option value="${k}"${k === i ? ' selected' : ''}>${esc(f.n)}</option>`;
+  function fuenteSel(el, mix) {
+    const ls = E.fuentes, i = mix ? -2 : ls.findIndex(f => el.font && (f.file ? f.file === el.font.file : f.css === el.font.css)), opt = (f, k) => `<option value="${k}"${k === i ? ' selected' : ''}>${esc(f.n)}</option>`;
     const grp = (lbl, pred) => { const o = ls.map((f, k) => pred(f) ? opt(f, k) : '').join(''); return o ? `<optgroup label="${lbl}">${o}</optgroup>` : ''; };
-    return `<select class="lb-sel" data-lb="font" aria-label="Fuente">${i < 0 && el.font ? `<option value="-1" selected>${esc(el.font.n || 'Fuente')}</option>` : ''}${grp('Del kit del cliente', f => f.kit)}${grp('De la mesa', f => f.file && !f.kit)}${grp('Del Mac', f => !f.file)}</select>`;
+    return `<select class="lb-sel" data-lb="font" aria-label="Fuente">${mix ? '<option value="-1" selected>Varias</option>' : ''}${i === -1 && el.font ? `<option value="-1" selected>${esc(el.font.n || 'Fuente')}</option>` : ''}${grp('Del kit del cliente', f => f.kit)}${grp('De la mesa', f => f.file && !f.kit)}${grp('Del Mac', f => !f.file)}</select>`;
+  }
+  // several chosen (D-048): the settings they all have, applied to all at once (one ⌘Z). A value that differs says so
+  // («Varios», no button or colour marked) and changes nothing until it is touched
+  const COMUN = { texto: ['size', 'font', 'peso', 'tal', 'tc', 'sh'], foto: ['fan', 'b', 'bo', 'bc', 'r', 'sh'], logo: ['lc', 'sh'], forma: ['fc', 'sh'], hueco: ['sh'] };
+  const VAL = { size: e => e.size || 0.06, font: e => e.font ? e.font.file || e.font.css || '' : '', peso: e => String(e.peso || 400), tal: e => e.al || 'izq', tc: e => (e.color || '#ffffff').toLowerCase(), sh: e => e.sh || 0,
+    fan: e => Math.round(e.w * 1080), b: e => e.b || 0, bo: e => e.bo || '', bc: e => (e.bc || '#ffffff').toLowerCase(), r: e => e.r || 0, lc: e => hexOk(e.tint) ? e.tint.toLowerCase() : '', fc: e => (e.color || '#ffffff').toLowerCase() };
+  function comunHTML(ss) {
+    const ts = [...new Set(ss.map(e => e.t))], hay = k => ts.every(t => (COMUN[t] || []).includes(k)), e0 = ss[0];
+    const mix = k => ss.some(e => VAL[k](e) !== VAL[k](e0)), lbl = (t, k) => `<span class="lb-l">${t}${mix(k) ? ' · varios' : ''}</span>`;
+    let h = '';
+    if (hay('font')) h += lbl('Fuente', 'font') + fuenteSel(e0, mix('font'));
+    if (hay('size')) h += rng('size', 'Tamaño', VAL.size(e0), 0.015, 0.25, 0.001, mix('size'));
+    if (hay('peso') && ss.every(e => !(e.font && e.font.file))) h += lbl('Grosor', 'peso') + seg('peso', [['300', 'Fina'], ['400', 'Normal'], ['600', 'Semi'], ['700', 'Negrita']], mix('peso') ? null : VAL.peso(e0));
+    if (hay('tal')) h += lbl('Alineación', 'tal') + seg('tal', [['izq', 'Izquierda'], ['cen', 'Centro'], ['der', 'Derecha']], mix('tal') ? null : VAL.tal(e0));
+    if (hay('tc')) h += lbl('Color', 'tc') + sws('tc', mix('tc') ? null : VAL.tc(e0), mix('tc'));
+    if (hay('lc')) h += lbl('Color', 'lc') + `<div class="lb-btns" style="margin-top:0"><button type="button" class="btn2${!mix('lc') && !VAL.lc(e0) ? ' on' : ''}" data-lb="lc" data-c="" title="Sus colores, como se subieron">Original</button></div>${sws('lc', mix('lc') ? null : VAL.lc(e0), true)}`;
+    if (hay('fc')) h += lbl('Color', 'fc') + sws('fc', mix('fc') ? null : VAL.fc(e0), mix('fc'));
+    if (hay('fan')) h += `<label class="lb-l lb-fan">Tamaño · ancho en px <input type="number" class="lb-num" data-lb="fan" min="4" step="1" value="${mix('fan') ? '' : VAL.fan(e0)}" placeholder="Varios"></label>`;
+    if (hay('b')) h += rng('b', 'Borde', VAL.b(e0), 0, 0.06, 0.001, mix('b')) + seg('bo', [['', 'Dentro'], ['fuera', 'Fuera']], mix('bo') ? null : VAL.bo(e0)) + lbl('Color del borde', 'bc') + sws('bc', mix('bc') ? null : VAL.bc(e0), mix('bc'));
+    if (hay('r')) h += rng('r', 'Esquinas', VAL.r(e0), 0, 1, 0.01, mix('r'));
+    if (hay('sh')) h += rng('sh', 'Sombra', VAL.sh(e0), 0, 1, 0.01, mix('sh'));
+    return h ? `<div class="lb-sec"><h4>Lo que comparten <span>· cambia los ${ss.length} a la vez</span></h4>${h}${hay('fan') ? '<p class="lb-p">El ancho cambia cada foto sin deformarla, desde su esquina de arriba a la izquierda.</p>' : ''}</div>` : '';
   }
   function panel() {
     if (!E || !E.el) return;
@@ -1970,8 +1993,8 @@
       const ss = selEls(), grp = ss[0] && ss[0].g && ss.every(e => e.g === ss[0].g);
       h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌥⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌥⌘G">Agrupar</button>'}</div>`
         + `<span class="lb-l">Alinear entre ellos</span><div class="lb-btns">${[['izq', '⇤ Izquierda'], ['cen', '↔ Centro'], ['der', '⇥ Derecha'], ['arr', '⤒ Arriba'], ['med', '↕ Medio'], ['aba', '⤓ Abajo']].map(([v, l]) => `<button type="button" class="btn2" data-lb="al" data-v="${v}">${l}</button>`).join('')}</div>`
-        + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p></div>';
-      h += transformarHTML(ss) + capasHTML(c);
+        + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01, ss.some(e => (e.op ?? 1) !== (ss[0].op ?? 1))) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p></div>';
+      h += comunHTML(ss) + transformarHTML(ss) + capasHTML(c);
     } else if (el) {
       if (el.t === 'foto') {
         const crop = E.crop === el.id;
@@ -1995,7 +2018,7 @@
           + (E.estilos.length ? `<span class="lb-l">Estilo de la marca</span><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2${est && est.k === st.k ? ' on' : ''}" data-lb="est" data-v="${esc(st.k)}" title="Fuente, tamaño, interlineado y espaciado de «${esc(st.n)}» del kit">${esc(st.n)}</button>`).join('')}</div>` : '')
           + `<span class="lb-l">Fuente</span>${fuenteSel(el)}${rng('size', 'Tamaño', el.size || 0.06, 0.015, 0.25, 0.001)}`
           + (css ? `<span class="lb-l">Grosor</span>${seg('peso', [['300', 'Fina'], ['400', 'Normal'], ['600', 'Semi'], ['700', 'Negrita']], String(el.peso || 400))}` : '')
-          + `<span class="lb-l">Alineación</span><div class="lb-btns" style="margin-top:0">${seg('al', [['izq', 'Izquierda'], ['cen', 'Centro'], ['der', 'Derecha']], el.al || 'izq')}<button type="button" class="btn2${el.may ? ' on' : ''}" data-lb="may" title="Todo en mayúsculas">MAYÚS</button></div>`
+          + `<span class="lb-l">Alineación</span><div class="lb-btns" style="margin-top:0">${seg('tal', [['izq', 'Izquierda'], ['cen', 'Centro'], ['der', 'Derecha']], el.al || 'izq')}<button type="button" class="btn2${el.may ? ' on' : ''}" data-lb="may" title="Todo en mayúsculas">MAYÚS</button></div>`
           + `${rng('lh', 'Interlineado', el.lh || 1.2, 0.7, 2.2, 0.01)}${rng('ls', 'Espaciado', el.ls || 0, -0.1, 0.6, 0.005)}`
           + `<span class="lb-l">Color</span>${sws('tc', el.color || '#ffffff')}<span class="lb-l">Píldora</span>${seg('pil', [['', 'Sin píldora'], ['1', 'Con píldora']], el.pil ? '1' : '')}${el.pil ? sws('pc', el.pil.c) : ''}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
         h += girarHTML(el, false);
@@ -2454,6 +2477,7 @@
       case 'al': if (b.dataset.v && !multi()) return; alinear(b.dataset.v); return;
       case 'al1': alinear(b.dataset.v); return;
       case 'may': onEl(el => { if (el.t === 'texto') el.may = !el.may; }); return;
+      case 'tal': { const { W, H } = sizeAt(E.i); onEl(el => { if (el.t === 'texto') { el.al = b.dataset.v; ajustarTexto(el, W, H); } }); return; }
       case 'front': case 'fwd': case 'bwd': case 'back': E.flm = false; orden(a); return;
       case 'dup': {
         const ids = selIds(); if (!ids.length) return;
@@ -2499,6 +2523,7 @@
     if (a === 'font') { const f = E.fuentes[+t.value]; if (!f) return; onEl(el => { if (el.t !== 'texto') return; el.font = { n: f.n, ...(f.file ? { file: f.file, w: f.w } : { css: f.css }) }; ajustarTexto(el, E.sz.W, E.sz.H); }); return; }
     const v = +t.value;
     if (OUTF[a] && t.nextElementSibling) t.nextElementSibling.textContent = OUTF[a](v);
+    if (t.closest('.lb-mix')) t.closest('.lb-mix').classList.remove('lb-mix');
     const c0 = compAt(E.i), { W, H } = E.sz;
     switch (a) {
       case 'velo-op': if (c0.velo) mut('velo-op', () => { ensure().velo.op = v; }, true); return;
@@ -2509,6 +2534,7 @@
       case 'r': onEl(el => { el.r = v; }, 'r', true); return;
       case 'sh': onEl(el => { el.sh = v; }, 'sh', true); return;
       case 'op': onEl(el => { el.op = v; }, 'op', true); return;
+      case 'fan': if (v >= 4) onEl(el => { if (el.t !== 'foto' || el.lock) return; const k = v / 1080 / el.w; el.w = r4(v / 1080); el.h = r4(el.h * k); delete el.fit; if (el.src) setPhoto(el, {}); }, 'fan', true); return;
       case 'z': onEl(el => setPhoto(el, { z: v }), 'z', true); return;
       case 'fit': onEl(el => { if (el.t === 'foto') encajar(el, v); }, 'fit', true); return;
       case 'size': onEl(el => { if (el.t === 'texto') { el.size = v; ajustarTexto(el, W, H); } }, 'size', true); syncNums(selEl()); return;

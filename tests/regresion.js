@@ -1967,6 +1967,73 @@
     M.libre.cerrar();
   });
 
+  prueba('E45', 'Edición múltiple: «Lo que comparten» de fotos, textos o mezclados; «Varios» si difieren, sin cambiar nada; se aplica a todos y se deshace con un ⌘Z (D-048)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const [, fb] = await poner('r1', [await foto('multi-a.jpg', 1200, 1500), await foto('multi-b.jpg', 1500, 1000)]);
+    await abrirEditor('r1');
+    accion('bg', { c: '#000000' });                                 // la diapositiva pasa a ser una composición
+    const { W: w, H: h } = tam(), c = compDe(0), f1 = c.els.find(e => e.t === 'foto');
+    Object.assign(f1, { x: 0.05, y: 0.1, w: 0.4, h: 0.4 * w / 0.8 / h, b: 0.01, r: 0.2 }); delete f1.fit;
+    c.els.push({ ...JSON.parse(json(f1)), id: 'f2', src: fb, x: 0.55, w: 0.3, h: 0.3 * w / 1.5 / h, b: 0.02, r: 0.2 });
+    accion('add-txt'); accion('add-txt');
+    const [t1, t2] = compDe(0).els.filter(e => e.t === 'texto');
+    Object.assign(t1, { size: 0.05, color: '#ffffff', al: 'izq', y: 0.6 }); Object.assign(t2, { size: 0.08, color: '#ffffff', al: 'cen', y: 0.75 });
+    const dos = (a, b) => { accion('cap', { id: a }); q(`.lb-panel .lb-cap[data-id="${b}"]`).dispatchEvent(new W.MouseEvent('click', { bubbles: true, shiftKey: true })); igual([ed().sel, ...ed().mas].sort(), [a, b].sort(), 'no quedaron elegidos los dos'); };
+    const sec = () => qa('.lb-panel .lb-sec').find(s => /Lo que comparten/.test(s.textContent));
+    const fotos = () => compDe(0).els.filter(e => e.t === 'foto').map(e => [e.w, e.h, e.b, e.bo || '', e.r]);
+    // dos fotos: el tamaño y el borde difieren, las esquinas no
+    dos(f1.id, 'f2');
+    const antes = json(compDe(0)), s1 = sec(); ok(s1, 'con dos fotos no sale «Lo que comparten»');
+    const an = s1.querySelector('input[data-lb="fan"]'); ok(an && an.value === '' && an.placeholder === 'Varios', 'el tamaño distinto no sale como «Varios»');
+    ok(s1.querySelector('input[data-lb="b"]').closest('.lb-mix') && /Varios/.test(s1.querySelector('input[data-lb="b"]').closest('label').textContent), 'el borde distinto no dice «Varios»');
+    ok(!s1.querySelector('input[data-lb="r"]').closest('.lb-mix'), 'las esquinas iguales salen como «Varios»');
+    ok(!s1.querySelector('[data-lb="font"], [data-lb="size"], [data-lb="tc"]'), 'con dos fotos salen ajustes de texto');
+    igual(json(compDe(0)), antes, 'enseñar «Varios» cambió algo');
+    const r1 = (f1.w * w) / (f1.h * h), r2 = (0.3 * w) / (0.3 * w / 1.5);
+    an.value = '540'; an.dispatchEvent(new W.Event('input', { bubbles: true }));
+    const [g1, g2] = compDe(0).els.filter(e => e.t === 'foto');
+    igual([g1.w, g2.w], [0.5, 0.5], 'el ancho no cambió las dos fotos');
+    cerca((g1.w * w) / (g1.h * h), r1, 0.003, 'el ancho deformó la primera foto'); cerca((g2.w * w) / (g2.h * h), r2, 0.003, 'el ancho deformó la segunda foto');
+    igual([g1.x, g2.x], [0.05, 0.55], 'el ancho movió la esquina de una foto');
+    tecla('z', { meta: true });
+    igual(compDe(0).els.filter(e => e.t === 'foto').map(e => e.w), [0.4, 0.3], 'un ⌘Z no devolvió las dos fotos');
+    accion('bo', { v: 'fuera' });
+    igual(fotos().map(f => f[3]), ['fuera', 'fuera'], '«Fuera» no se aplicó a las dos');
+    tecla('z', { meta: true });
+    igual(fotos().map(f => f[3]), ['', ''], 'un ⌘Z no quitó «Fuera» de las dos');
+    // dos textos: el tamaño y la alineación difieren
+    dos(t1.id, t2.id);
+    const s2 = sec(); ok(s2, 'con dos textos no sale «Lo que comparten»');
+    ok(s2.querySelector('input[data-lb="size"]').closest('.lb-mix'), 'el tamaño distinto no dice «Varios»');
+    igual(s2.querySelectorAll('[data-lb="tal"].on').length, 0, 'la alineación distinta marca un botón');
+    ok(s2.querySelector('select[data-lb="font"]') && !s2.querySelector('[data-lb="fan"], [data-lb="b"]'), 'con dos textos faltan la fuente o salen ajustes de foto');
+    s2.querySelector('[data-lb="tal"][data-v="der"]').click();
+    igual(compDe(0).els.filter(e => e.t === 'texto').map(e => e.al), ['der', 'der'], 'la alineación no se aplicó a los dos');
+    sec().querySelector('[data-lb="tc"][data-c="#000000"]').click();
+    igual(compDe(0).els.filter(e => e.t === 'texto').map(e => e.color), ['#000000', '#000000'], 'el color no se aplicó a los dos');
+    tecla('z', { meta: true });
+    igual(compDe(0).els.filter(e => e.t === 'texto').map(e => e.color), ['#ffffff', '#ffffff'], 'un ⌘Z no devolvió el color de los dos');
+    // mezclados: solo la sombra
+    dos(f1.id, t1.id);
+    const s3 = sec(); ok(s3, 'con una foto y un texto no sale «Lo que comparten»');
+    igual([...s3.querySelectorAll('[data-lb]')].map(e => e.dataset.lb).filter((v, i, a) => a.indexOf(v) === i), ['sh'], 'con tipos mezclados sale algo más que la sombra');
+    M.libre.cerrar();
+  });
+
+  prueba('E46', 'Un texto solo: «Izquierda / Centro / Derecha» de su panel cambian su alineación (no hacían nada desde la 3.25)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt');
+    const t = compDe(0).els.find(e => e.t === 'texto'); t.al = 'cen';
+    accion('cap', { id: t.id });
+    q('.lb-panel [data-lb="tal"][data-v="der"]').click();
+    igual(compDe(0).els[0].al, 'der', '«Derecha» no alineó el texto');
+    ok(q('.lb-panel [data-lb="tal"][data-v="der"].on'), 'el panel no marca «Derecha»');
+    q('.lb-panel [data-lb="tal"][data-v="izq"]').click();
+    igual(compDe(0).els[0].al, 'izq', '«Izquierda» no alineó el texto');
+    M.libre.cerrar();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

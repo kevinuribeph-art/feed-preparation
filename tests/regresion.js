@@ -64,6 +64,7 @@
 
   async function limpiar() {
     if (M.libre && M.libre.abierto()) M.libre.cerrar();
+    if (M.hs && M.hs.activo()) M.hs.ver(false);
     if (M.revisar && M.revisar._reset) M.revisar._reset();   // una revisión de «sube» pendiente no llega a la prueba siguiente
     await M.flush();                               // el guardado va con retraso: purge borra las fotos que nombra el tablero guardado
     for (const b of await M.boards()) if (DE_PRUEBA(b.client)) await M.purge(b.key);   // con su último mes se va la bandeja del cliente (D-041)
@@ -545,7 +546,7 @@
     await M.flush();
     const antes = M.board().tray.slice(), key = `${CLIENTE}-${MES}`;
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    ok(d.v === 3, 'versión del archivo: ' + d.v);
+    ok(d.v === 4, 'versión del archivo: ' + d.v);
     igual((d.bandejas.find(r => r.client === CLIENTE) || {}).tray, antes, 'la bandeja en el archivo');
     ok(d.boards.every(b => !('tray' in b)), 'un tablero del archivo lleva bandeja');
     ok(antes.every(f => d.files[f]), 'faltan fotos de la bandeja en el archivo');
@@ -617,6 +618,343 @@
     ok(r && !r.error, 'importar el cliente nuevo falló: ' + json(r));
     ok(await M._test.fileRec(id2), 'el logo sin usar del cliente nuevo no llegó');
     for (const f of [id, id2]) await M._in.idbDel('files', f);
+  });
+
+  // ---------- las historias (D-054 a D-057) ----------
+  const DIA = n => `2026-11-${String(n).padStart(2, '0')}`;
+  const hDe = id => (M.board().historias || []).find(h => h.id === id);
+  const horaH = (id, t) => { const h = hDe(id); ok(h, 'no está la historia'); igual(M._in.localTime(h.date), t, 'hora de la historia'); };
+  const sello = async o => (typeof o === 'string' ? o : [...new Uint8Array(await o.arrayBuffer())].join(','));
+  const toastCon = re => qa('.toasts .toast').some(t => re.test(t.textContent));
+  // una historia diseñada con una foto a sangre, como la deja el editor
+  async function historiaConFoto(id, f) {
+    await abrirEditor(id);
+    accion('tr-add', { f });
+    await hasta(() => compDe(0).els.some(e => e.t === 'foto' && e.src === f), 4000, 'la foto en la historia');
+    await aplicarEditor();
+  }
+  const preguntaEditor = () => ed() && ed().ask && ed().ask.querySelector('[data-ask="usar"]');
+  // bytes de lo que el feed enseña y sube: lo que no puede cambiar por tener historias
+  async function vistaFeed() {
+    await M.render('clean');
+    await M.flush();
+    return json({ celdas: qa('.feed .grid .cell').map(c => [c.dataset.slot || '', c.className]), plan: M.plan(), cambios: M.notionChanges(), captions: M.captions(), slots: M.board().slots.map(s => ({ ...s, at: 0 })), estado: M.status().slots, cal: qa('.cal .chip').length, revisar: (await M.revisar()).puntos, imagen: (await sello(M.out.clean)).length });
+  }
+
+  prueba('H1', 'Las historias no se ven en el feed: casillas, imagen, plan, notionChanges, captions, calendario y contadores siguen igual (D-054)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const [a] = await poner('r1', [await foto('h1a.jpg')]);
+    const [b] = await M.addFiles([await foto('h1b.jpg')]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const antes = await vistaFeed();
+    const uno = M.hs.anadir(DIA(10)), dos = M.hs.anadir(DIA(3), { slotId: 'r1' }), tres = M.hs.anadir(DIA(11));
+    await historiaConFoto(uno, b); await historiaConFoto(dos, a);
+    M.hs.cancelar(tres);
+    igual(M.hs.lista().length, 3, 'historias en el tablero');
+    igual(await vistaFeed(), antes, 'el feed cambió con historias');
+    igual(M.board().tray.includes(b), true, 'la foto de la historia sigue en la bandeja');
+    igual(M.board().slots.length, 2, 'las historias entraron en S.slots');
+    M.hs.ver(true);
+    ok(q('.feed').offsetParent === null && q('.hv').offsetParent !== null, 'con «Historias» sigue viéndose la cuadrícula');
+    M.hs.ver(false);
+    ok(q('.feed').offsetParent !== null && q('.hv').hidden, 'con «Feed» no vuelve la cuadrícula');
+    igual(await vistaFeed(), antes, 'el feed cambió tras pasar por la vista');
+  });
+
+  prueba('H2', 'Editar historia: el editor de siempre, 9:16 fijo y una página; se aplica a 1440 × 2560 y la zona segura nunca sale en la imagen (D-055)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const id = M.hs.anadir(DIA(10), { note: 'Guion de prueba' });
+    igual(M.hs.estado(hDe(id)), 'por diseñar', 'estado al crearla');
+    const E = await abrirEditor(id);
+    ok(E.reel && E.historia && E.sl.length === 1, 'no abrió una sola página de historia');
+    ok(!E.el.querySelector('[data-lb="sl-add"]') && !E.el.querySelector('[data-lb="sl-del"]') && !E.el.querySelector('.lb-fmt'), 'se pueden añadir diapositivas o cambiar el formato');
+    ok(/Editar historia/.test(E.el.querySelector('.lb-ttl p').textContent) && /Guion de prueba/.test(E.el.querySelector('.lb-ttl p').textContent), 'la cabecera no enseña la nota');
+    accion('sl-add'); igual(E.sl.length, 1, 'se añadió una diapositiva');
+    tecla('d', { meta: true, code: 'KeyD' }); igual(ed().sl.length, 1, '⌘D duplicó la diapositiva');
+    ok(E.zona, 'la zona segura no sale de entrada');
+    tecla('p', { meta: true, code: 'KeyP' }); ok(!ed().zona, '⌘P no la apaga');
+    tecla('p', { meta: true, code: 'KeyP' }); ok(ed().zona, '⌘P no la enciende');
+    accion('atajos'); accion('atajos');
+    // sin tocar nada no hay nada que aplicar: sigue por diseñar
+    accion('aplicar');
+    await hasta(() => !M.libre.abierto(), 8000, 'que se cierre sin cambios');
+    igual(M.hs.estado(hDe(id)), 'por diseñar', 'aplicar sin cambios la dio por diseñada');
+    await abrirEditor(id);
+    compDe(0).bg = '#112233';
+    await aplicarEditor();
+    const h = hDe(id), f = M.files[h.photos[0]];
+    igual(M.hs.estado(h), 'diseñada', 'estado al aplicar');
+    igual([f.w, f.h], [1440, 2560], 'tamaño de la imagen');
+    ok(f.design, 'no quedó como imagen dibujada');
+    // ni en la zona ni fuera hay rastro del oscurecido: un fondo liso sale liso
+    const bm = await W.createImageBitmap(await M._in.getBlob(h.photos[0])), c = D.createElement('canvas'); c.width = 1440; c.height = 2560;
+    const x = c.getContext('2d'); x.drawImage(bm, 0, 0); bm.close();
+    const px = (a, b) => [...x.getImageData(a, b, 1, 1).data].slice(0, 3);
+    for (const [a, b] of [[720, 20], [720, 2500], [20, 1280], [1420, 1280], [720, 1280]]) { const p = px(a, b); cerca(p[0], 0x11, 4, `rojo en ${a},${b}`); cerca(p[1], 0x22, 4, `verde en ${a},${b}`); cerca(p[2], 0x33, 4, `azul en ${a},${b}`); }
+    // vuelve a abrirse con su composición
+    await abrirEditor(id);
+    igual(compDe(0).bg, '#112233', 'no volvió su composición');
+    M.libre.cerrar();
+    // un reel sigue siendo «Editar portada», con la zona del grid
+    await tablero([pub(1, 'Reel')]);
+    await poner('r1', [await foto('h2r.jpg', 1080, 1920)]);
+    const R = await abrirEditor('r1');
+    ok(R.reel && !R.historia && /Editar portada/.test(R.el.querySelector('.lb-ttl p').textContent), 'la portada de un reel cambió');
+    M.libre.cerrar();
+  });
+
+  prueba('H3', 'No adelantar: en el editor, soltando en la vista y al mover un post avisa; una foto de un post ya salido no; vale cualquier mes cargado (D-056)', async () => {
+    await tablero([pub(1, 'Foto', 3), pub(2, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const [a] = await poner('r1', [await foto('h3a.jpg')]), [b] = await poner('r2', [await foto('h3b.jpg')]);
+    const id = M.hs.anadir(DIA(10), { time: '12:00' });
+    // un post posterior: pregunta; con «Cancelar» no entra
+    await abrirEditor(id);
+    accion('tr-add', { f: b });
+    await hasta(preguntaEditor, 4000, 'la pregunta de no adelantar');
+    ok(/después de esta historia/.test(ed().ask.textContent), 'la pregunta no lo dice: ' + ed().ask.textContent);
+    ed().ask.querySelector('[data-ask="seguir"]').click();
+    await espera(100);
+    ok(!compDe(0).els.some(e => e.src === b), 'con «Cancelar» la foto entró');
+    // un post anterior: entra sin preguntar (D-022 no cuenta en una historia)
+    accion('tr-add', { f: a });
+    await hasta(() => compDe(0).els.some(e => e.src === a), 4000, 'la foto de un post ya salido');
+    ok(!ed().ask, 'una foto de un post ya salido preguntó');
+    await aplicarEditor();
+    igual(M._in.adelantos(hDe(id)), [], 'cuenta como adelanto una foto de un post anterior');
+    ok(slot('r1').photos.includes(a), 'la foto dejó su post');
+    // mover el post detrás de la historia: avisa y queda marcada; sin preguntar nada
+    M._test.setDate('r1', '2026-11-15T12:00:00.000+01:00');
+    await hasta(() => toastCon(/antes de que salga en el feed/), 3000, 'el aviso al mover el post');
+    igual(M._in.adelantos(hDe(id)).map(x => x.f), [a], 'la regla al mover el post');
+    M.hs.ver(true);
+    ok(q(`.hv-card[data-h="${id}"]`).classList.contains('mal'), 'la tarjeta no lo marca');
+    M.hs.ver(false);
+    // mover la historia detrás del post lo arregla
+    M.hs.setFecha(id, DIA(16), '12:00');
+    igual(M._in.adelantos(hDe(id)), [], 'al mover la historia');
+    // soltar desde la bandeja sobre la tarjeta abre el editor con la misma pregunta
+    const [c] = await poner('r2', [await foto('h3c.jpg')]);
+    M.hs.setFecha(id, DIA(4), '12:00');   // antes de r1 y de r2
+    igual(M._in.adelantos(hDe(id)).map(x => x.f), [a], 'antes de r1');
+    M.hs.soltar(id, c);
+    await hasta(preguntaEditor, 4000, 'la pregunta al soltar en la vista');
+    ed().ask.querySelector('[data-ask="seguir"]').click();
+    await espera(100);
+    M.libre.cerrar();
+    // la foto pasa al feed por un camino que no pregunta (D-022) con una historia ya hecha: avisa igual
+    await tablero([pub(1, 'Foto', 20)]);
+    const [d] = await M.addFiles([await foto('h3d.jpg')]);
+    const hd = M.hs.anadir(DIA(10));
+    await historiaConFoto(hd, d);
+    ok(!toastCon(/antes de que salga/), 'avisó sin que hubiera adelanto');
+    M._test.place('r1', d);
+    await hasta(() => toastCon(/antes de que salga en el feed/), 3000, 'el aviso al poner la foto en el feed');
+    // otro mes cargado del mismo cliente
+    await tablero([pub(1, 'Foto', 5, '2026-12')], { mes: '2026-12' });
+    await poner('r1-2026-12', [await foto('h3e.jpg')]);
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1, 'Foto', 3)], past: [], force: true });
+    const [e] = await M.addFiles([await foto('h3e.jpg')]);
+    const he = M.hs.anadir(DIA(10));
+    await abrirEditor(he);
+    accion('tr-add', { f: e });
+    await hasta(preguntaEditor, 4000, 'la pregunta por un post de otro mes');
+    ed().ask.querySelector('[data-ask="seguir"]').click();
+    await espera(100);
+    M.libre.cerrar();
+  });
+
+  prueba('H4', 'Foto usada en una historia: marca propia en la bandeja, sin ✓ ni ×, y al ponerla en una publicación avisa como D-022 (D-056)', async () => {
+    await tablero([pub(1, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const [f] = await M.addFiles([await foto('h4.jpg')]);
+    const id = M.hs.anadir(DIA(10));
+    await historiaConFoto(id, f);
+    const it = await hasta(() => q(`.tray .titem[data-file="${f}"]`), 3000, 'la foto en la bandeja');
+    ok(it.querySelector('.hs') && !it.classList.contains('uso') && !it.querySelector('.x'), 'la bandeja no la marca como usada en historia');
+    // en la bandeja del editor también
+    await abrirEditor(id);
+    await hasta(() => { const b = ed().el.querySelector(`.lb-tph[data-f="${f}"]`); return (b && b.querySelector('.hs')) || !ed().el.querySelector(`.lb-tph[data-f="${f}"]`); }, 3000, 'la bandeja del editor');
+    M.libre.cerrar();
+    // a una publicación: pregunta
+    M._test.addToSlot('r1', [f]);
+    const d = await hasta(() => { const x = dialogo(); return x && x.querySelector('[data-act="repe"][data-m="usar"]') && x; }, 4000, 'el aviso al ponerla en una publicación');
+    ok(/una historia del/.test(d.textContent), 'el aviso no dice que va en una historia: ' + d.textContent);
+    d.querySelector('[data-act="close"]').click();
+    await espera(100);
+    igual(slot('r1').photos, [], 'con «Cancelar» entró en la publicación');
+    // una historia cancelada no cuenta (como D-022)
+    M.hs.cancelar(id);
+    await hasta(() => !q(`.tray .titem[data-file="${f}"] .hs`), 3000, 'que se quite la marca');
+  });
+
+  prueba('H5', 'Enlace con el post: se mueve con él a la misma distancia, también por una collab; se cancela con él y vuelve; la cancelada a mano no (D-057)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    const a = M.hs.anadir(DIA(5), { slotId: 'r1', time: '13:30' }), b = M.hs.anadir(DIA(6), { slotId: 'r1', time: '09:00' }), suelta = M.hs.anadir(DIA(6), { time: '10:00' }), mano = M.hs.anadir(DIA(7), { slotId: 'r1', time: '11:00' });
+    M.hs.cancelar(mano);
+    M._test.setDate('r1', '2026-11-08T14:00:00.000+01:00');   // +3 días y 2 h
+    const k = id => M._in.localDay(hDe(id).date) + ' ' + M._in.localTime(hDe(id).date);
+    igual(k(a), '2026-11-08 15:30', 'la enlazada no conservó la distancia');
+    igual(k(b), '2026-11-09 11:00', 'la segunda enlazada no conservó la distancia');
+    igual(k(suelta), '2026-11-06 10:00', 'la suelta se movió');
+    M.setEstado('r1', 'cancelado');
+    await espera(50);
+    igual([M.hs.estado(hDe(a)), M.hs.estado(hDe(b)), M.hs.estado(hDe(suelta))], ['cancelada', 'cancelada', 'por diseñar'], 'al cancelar el post');
+    M.setEstado('r1', null);
+    await espera(50);
+    igual([M.hs.estado(hDe(a)), M.hs.estado(hDe(mano))], ['por diseñar', 'cancelada'], 'al reactivar el post');
+    // desenlazada ya no lo sigue
+    M.hs.enlazar(a, null);
+    M._test.setDate('r1', '2026-11-09T14:00:00.000+01:00');
+    igual(k(a), '2026-11-08 15:30', 'la desenlazada lo siguió');
+    // una collab: el post cambia en el tablero de otro cliente y su historia lo sigue en el suyo
+    await limpiar();
+    const col = { id: 'colab1', name: 'COLLAB Foto 1', type: 'Foto', date: `${DIA(5)}T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    const c = M.hs.anadir(DIA(5), { slotId: 'colab1', time: '13:00' });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [col], past: [], force: true });
+    igual(M._test.shared('colab1').length, 1, 'la collab no quedó enlazada');
+    M._test.setDate('colab1', `${DIA(7)}T12:00:00.000+01:00`);
+    await M.flush();
+    const otra = await hasta(async () => { const r = await M._in.idbGet('boards', `${CLIENTE2}-${MES}`); return r && (r.slots[0].date.startsWith(DIA(7)) || M._in.localDay(r.slots[0].date) === DIA(7)) && r; }, 4000, 'que la collab llegue al otro tablero');
+    igual(M._in.localDay(otra.historias[0].date) + ' ' + M._in.localTime(otra.historias[0].date), `${DIA(7)} 13:00`, 'la historia del otro cliente no siguió a la collab');
+    igual(otra.historias[0].id, c, 'historia del otro tablero');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [{ ...col, date: `${DIA(7)}T12:00:00.000+01:00` }], past: [], force: true });
+    igual(M._in.localTime(hDe(c).date), '13:00', 'al abrir el otro tablero');
+  });
+
+  prueba('H6', '⌘Z cubre las historias: crear, borrar, cambiar la hora, aplicar (un paso) y lo que mueve el post (D-054)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const id = M.hs.anadir(DIA(5), { slotId: 'r1', time: '13:00' });
+    M._test.undo(); ok(!hDe(id), '⌘Z no quitó la historia nueva');
+    M._test.redo(); ok(hDe(id), '⇧⌘Z no la devolvió');
+    M.hs.setFecha(id, DIA(5), '18:00'); horaH(id, '18:00');
+    M._test.undo(); horaH(id, '13:00');
+    M._test.setDate('r1', '2026-11-06T12:00:00.000+01:00');
+    igual(M._in.localDay(hDe(id).date), DIA(6), 'no se movió con el post');
+    M._test.undo();
+    igual(M._in.localDay(hDe(id).date), DIA(5), '⌘Z no devolvió la historia con el post');
+    igual(M._in.localDay(slot('r1').date), DIA(5), '⌘Z no devolvió el post');
+    M._test.setDate('r1', slot('r1').date);
+    // toda la sesión del editor es un paso
+    const [f] = await M.addFiles([await foto('h6.jpg')]), n1 = M._test.hist().undo;
+    await historiaConFoto(id, f);
+    igual(M._test.hist().undo, n1 + 1, 'aplicar no fue un solo paso');
+    ok(hDe(id).photos.length === 1, 'no se aplicó');
+    M._test.undo();
+    igual(M.hs.estado(hDe(id)), 'por diseñar', '⌘Z no deshizo la edición');
+    ok(M.board().tray.includes(f), 'la foto no sigue en la bandeja');
+    M._test.redo();
+    igual(M.hs.estado(hDe(id)), 'diseñada', '⇧⌘Z no rehízo la edición');
+    M.hs.borrar(id); ok(!hDe(id), 'no se borró');
+    M._test.undo(); ok(hDe(id) && hDe(id).photos.length === 1, '⌘Z no devolvió la borrada con su imagen');
+  });
+
+  prueba('H7', 'Exportar e importar llevan las historias y sus imágenes; un archivo de antes se sigue importando; nada borra un archivo que solo usa una historia (D-054, D-017)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const [f] = await M.addFiles([await foto('h7.jpg')]);
+    const id = M.hs.anadir(DIA(10), { note: 'Nota h7' });
+    await historiaConFoto(id, f);
+    const img = hDe(id).photos[0];
+    await M.flush();
+    // lo que solo usa una historia no se borra
+    igual(await M._in.sweepDesigns(true), 0, 'la limpieza borró algo');
+    ok(await M._test.fileRec(img), 'la limpieza se llevó la imagen de la historia');
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    igual(d.v, 4, 'versión del archivo');
+    const b0 = d.boards.find(b => b.key === `${CLIENTE}-${MES}`);
+    igual(b0.historias.map(h => [h.id, h.note]), [[id, 'Nota h7']], 'la historia en el archivo');
+    ok(d.files[img] && d.files[f], 'el archivo no lleva la imagen o la foto de la historia');
+    // en una mesa sin ese tablero
+    await M.purge(`${CLIENTE}-${MES}`);
+    ok(!(await M._test.fileRec(img)), 'borrar el mes dejó la imagen de la historia');
+    let r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(hDe(id).note, 'Nota h7', 'la historia no volvió');
+    ok(await M._test.fileRec(img), 'la imagen no volvió');
+    ok(M.files[img] && M.files[img].thumbUrl, 'la miniatura no se cargó al abrir');
+    await abrirEditor(id);
+    ok(compDe(0).els.some(e => e.src === f), 'la composición no volvió con su foto');
+    M.libre.cerrar();
+    // un archivo de antes (v3, sin historias)
+    const v3 = JSON.parse(JSON.stringify(d)); v3.v = 3; v3.boards.forEach(b => { delete b.historias; b.editedAt = '2020-01-01T00:00:00.000Z'; b.savedAt = '2020-01-01T00:00:00.000Z'; });
+    r = await M.importData(v3, { confirm: false });
+    ok(r && !r.error, 'el archivo v3 no se importó: ' + json(r));
+    await M.open(`${CLIENTE}-${MES}`);
+    ok(hDe(id), 'un archivo de antes, más viejo, se llevó la historia');
+    // recargar el mes desde Notion no las pierde
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1, 'Foto', 5)], past: [], force: true });
+    ok(hDe(id), 'cargar el mes de nuevo perdió la historia');
+    // un archivo más nuevo que esta mesa, no
+    const v9 = await M.importData({ ...d, v: 9 }, { confirm: false });
+    ok(v9 && v9.error, 'un archivo de una versión más nueva entró');
+  });
+
+  prueba('H8', 'La vista: un carril por día, añadir, duplicar, orden por hora a 1 minuto, arrastrar, cambiar la hora en su ventana; un tablero sin historias se ve igual (D-054)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    ok(q('.bar .hvsw') && !M.hs.lista().length && !('historias' in M.board()), 'un tablero sin historias lleva datos de historias');
+    igual(q('.hv').hidden, true, 'la vista sale abierta');
+    q('.hvsw [data-v="1"]').click();
+    ok(M.hs.activo() && !q('.hv').hidden, 'el conmutador no abre la vista');
+    igual(qa('.hv-rail[data-day]').length, 30, 'carriles de noviembre');
+    ok(q(`.hv-rail[data-day="${DIA(5)}"] .hv-post`), 'el carril no enseña su post');
+    // añadir desde su botón: abre la ventana
+    q(`.hv-rail[data-day="${DIA(10)}"] [data-hv="add"]`).click();
+    const a = M.hs.lista()[0].id;
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'historia', 2000, 'la ventana de la historia');
+    horaH(a, '12:00');
+    // la hora, desde su campo
+    const hora = q('.detail [data-hv-c="hora"]'); hora.value = '19:45'; hora.dispatchEvent(new W.Event('change', { bubbles: true }));
+    horaH(a, '19:45');
+    const nota = q('.detail [data-hv-c="nota"]'); nota.value = 'Guion'; nota.dispatchEvent(new W.Event('change', { bubbles: true }));
+    igual(hDe(a).note, 'Guion', 'la nota');
+    const post = q('.detail [data-hv-c="post"]'); post.value = 'r1'; post.dispatchEvent(new W.Event('change', { bubbles: true }));
+    igual(hDe(a).slotId, 'r1', 'el enlace');
+    M._in.closeDetail();
+    // dos a la misma hora: separadas un minuto, en su orden
+    const b = M.hs.anadir(DIA(12), { time: '10:00' }), c = M.hs.anadir(DIA(12), { time: '10:00' }), e = M.hs.duplicar(c);
+    horaH(b, '10:00'); horaH(c, '10:01'); horaH(e, '10:02');
+    const orden = () => qa(`.hv-rail[data-day="${DIA(12)}"] .hv-card`).map(x => x.dataset.h);
+    igual(orden(), [b, c, e], 'orden del carril');
+    // reordenar: intercambian las horas del día
+    M.hs.mover(e, DIA(12), 0);
+    igual(orden(), [e, b, c], 'al mover al principio');
+    horaH(e, '10:00'); horaH(b, '10:01'); horaH(c, '10:02');
+    // a otro día: junto a sus vecinas; a un día vacío conserva su hora
+    M.hs.mover(c, DIA(10), 0);
+    igual(M._in.localDay(hDe(c).date), DIA(10), 'al mover a otro día');
+    ok(M._in.ts(hDe(c).date) < M._in.ts(hDe(a).date), 'no quedó delante de su vecina');
+    M.hs.mover(b, DIA(20), 0);
+    igual(M._in.localDay(hDe(b).date) + ' ' + M._in.localTime(hDe(b).date), `${DIA(20)} 10:01`, 'al mover a un día vacío');
+    // arrastrar con el puntero
+    q(`.hv-rail[data-day="${DIA(20)}"] .hv-add`).scrollIntoView({ block: 'center' }); await espera(30);
+    q(`.hv-card[data-h="${e}"]`).scrollIntoView({ block: 'nearest' }); await espera(30);
+    const a0 = q(`.hv-rail[data-day="${DIA(20)}"] .hv-add`).getBoundingClientRect(), r1 = q(`.hv-card[data-h="${e}"]`).getBoundingClientRect();
+    if (a0.top >= 0 && a0.bottom <= W.innerHeight && r1.top >= 0 && r1.bottom <= W.innerHeight) {
+      const ev = (t, x, y) => q('.hv').dispatchEvent(new W.PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 7, button: 0 }));
+      q(`.hv-card[data-h="${e}"]`).dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: r1.left + 10, clientY: r1.top + 10, pointerId: 7, button: 0 }));
+      ev('pointermove', a0.left + 2, a0.top + 2); ev('pointermove', a0.left + 4, a0.top + 4); ev('pointerup', a0.left + 4, a0.top + 4);
+      await espera(30);
+      igual(M._in.localDay(hDe(e).date), DIA(20), 'el arrastre no la llevó al otro día');
+    }
+    // borrar: solo lo que no está en Zernio; cancelar la lleva abajo
+    M.hs.cancelar(c);
+    ok(q(`.hv-canc .hv-card[data-h="${c}"]`), 'la cancelada no va abajo');
+    M.hs.reactivar(c);
+    ok(!q(`.hv-canc .hv-card[data-h="${c}"]`), 'no se reactivó');
+    // «Vista cliente»: nada de esto
+    M._in.root().classList.add('client');
+    ok(q('.hv').offsetParent === null && q('.feed').offsetParent !== null && q('.hvsw').offsetParent === null, 'en «Vista cliente» se ven las historias');
+    M._in.root().classList.remove('client');
+    M.hs.ver(false);
   });
 
   // ---------- la portada de un hueco (D-049) ----------

@@ -65,7 +65,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.52';
+  M.version = '3.53';
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -210,6 +210,14 @@
   const slotRefs = s => [...(s.photos || []), ...dSrc(s), ...dOut(s)];
   const previewsOf = b => (b && Array.isArray(b.previews) ? b.previews : []).filter(Boolean);   // the photos on a board's fillers (D-049)
   const refsOf = b => new Set([...(b.tray || []), ...(b.slots || []).flatMap(slotRefs), ...(b.prev || []).filter(p => p.own).flatMap(p => p.photos || []), ...previewsOf(b)]);
+  // Stories (historias.js, D-054): a board's b.historias, apart from b.slots, so the feed never has to filter them out. Each
+  // has a post's shape ({id, type: 'Historia', name, date, photos, libre, guias}) so the free editor opens it as it opens a
+  // reel's cover, plus slotId + postDate (the post it supports and that post's date when last seen), note, fondo, and
+  // cancelada / porPost (cancelled by hand, or because of its post). refsOf stays the feed's and the tray's: it decides what
+  // goes back to a tray. refsTodo also counts the stories: whatever decides that a file can go, or travels, uses it.
+  const hsDe = b => (b && Array.isArray(b.historias) ? b.historias : []);
+  const hRefs = b => hsDe(b).flatMap(h => [...(h.photos || []), ...lSrc(h)]);
+  const refsTodo = b => new Set([...refsOf(b), ...hRefs(b)]);
   const kitRef = c => { const f = c && c.kit && c.kit.final && c.kit.final.foto; return typeof f === 'string' && f.startsWith('kit-') ? f : null; };   // a client's fixed final photo (file id)
   // upload file names: no / \ : * ? " < > | nor control characters (a normal name stays exactly as it is)
   const safeName = n => String(n).replace(/"/g, "'").replace(/[/\\:*?<>|]/g, '-').replace(/[\u0000-\u001f\u007f]/g, '');
@@ -318,7 +326,7 @@
   function slotFmt(s, B) { return s.fmt || (s.photos.length ? baseCrop(s.photos[0], B).fmt : 'v45'); }
   function cropOf(fid, s, B = S) {
     const c = { ...baseCrop(fid, B) };
-    if (s && isReel(s.type)) c.fmt = 'r916';
+    if (s && (isReel(s.type) || s.type === 'Historia')) c.fmt = 'r916';
     else if (s && isCarousel(s.type)) c.fmt = slotFmt(s, B);
     return c;
   }
@@ -564,7 +572,9 @@
   function save() {
     usoS = null;                       // the open board's photos in use: looked at again on the next warning (D-022)
     if (!S || locked) return;
+    alinearH(S);                       // a post's stories follow it, before this save point is taken
     track(S);                          // ⌘Z history: each save point is a step (several quick actions stay separate)
+    vigilaH();
     clearTimeout(saveTimer);
     setSave('Guardando…');
     const B = S;
@@ -579,6 +589,7 @@
     clearTimeout(noteTimer); noteTimer = null;
     if (!S || locked) return null;
     const B = S;
+    alinearH(B);
     track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString();
     await guardar(B);
     await pushShared(B);
@@ -682,7 +693,7 @@
               const refs = refsOf({ ...ob, tray: T }), lost = had.filter(f => !refs.has(f) && !srcRefs.has(f));   // never orphan a photo (one this board still holds stays only here)
               if (lost.length) { T.unshift(...lost); if (!suya) (vivo ? mia = true : dirty.add(oc)); }
             }
-            if (hit) { ob.editedAt = new Date().toISOString(); st.boards.put(ob, k); }
+            if (hit) { alinearH(ob); ob.editedAt = new Date().toISOString(); st.boards.put(ob, k); }
           }
           if (--n === 0) dirty.forEach(c => st.bandejas.put({ ...trays[c], at: new Date().toISOString() }, c));
         }; } };
@@ -782,14 +793,76 @@
     for (const s of b.slots || []) {
       if (!vivo(s)) continue;
       const out = new Set([...dOut(s), ...lOut(s)]), m = cycleOf(s.date, cd) || b.month;
-      new Set([...(s.photos || []).filter(f => !out.has(f)), ...dSrc(s)]).forEach(f => put(f, { slot: s.id, m }));
+      new Set([...(s.photos || []).filter(f => !out.has(f)), ...dSrc(s)]).forEach(f => put(f, { slot: s.id, m, date: s.date, name: s.name }));
     }
     for (const p of b.prev || []) if (p.own) (p.photos || []).forEach(f => put(f, { prev: true, m: cycleOf(p.date, cd) }));
     if (finDe(b) >= usoFin) previewsOf(b).forEach(f => put(f, { hueco: true, m: finDe(b) }));   // with a later month, it is free again (D-049)
   }
   function usoMap(b, map = new Map()) { usosDe(b, (f, u) => { const k = fileKey(f); if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(u); }); return map; }
+  // ---------- stories: what they use and the rule of not showing a photo before its post (D-056) ----------
+  let usoHO = new Map();               // photos used in the stories of the client's other boards: key -> [{id, date}]
+  function hUsos(b, map = new Map()) { hsDe(b).forEach(h => { if (h.cancelada) return; new Set(lSrc(h)).forEach(f => { const k = fileKey(f); if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push({ id: h.id, date: h.date }); }); }); return map; }
+  const usoHMap = () => { const m = hUsos(S); usoHO.forEach((l, k) => m.set(k, [...(m.get(k) || []), ...l])); return m; };
+  const hFecha = iso => { const p = madParts(ts(iso)); return `${+p.day.slice(8)} ${MONTHS[+p.day.slice(5, 7) - 1].slice(0, 3)} ${p.time}`; };
+  const tsPost = d => (dOnly(d) ? ts(madridISO(localDay(d), '23:59')) : ts(d));   // a post with no time yet: its day counts whole
+  function postsDespues(k, t) {        // the client's live posts of any loaded month with the photo, later than t: the nearest first
+    if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    return [...(usoS.map.get(k) || []), ...(usoO.get(k) || [])].filter(u => u.slot && u.date && tsPost(u.date) > t).sort((a, b) => tsPost(a.date) - tsPost(b.date));
+  }
+  function adelantos(h) {              // what a story shows before its post: [{f, post, date}], one per photo
+    if (!S || !h || h.cancelada) return [];
+    const out = [];
+    for (const f of new Set(lSrc(h))) { const k = fileKey(f), u = k && postsDespues(k, ts(h.date))[0]; if (u) out.push({ f, post: u.name, date: u.date }); }
+    return out;
+  }
+  async function usoHistoria(name, size, h) {   // the warning for a photo going into a story
+    await usoP;
+    if (!S || !h) return null;
+    const u = postsDespues(fkey(name, size), ts(h.date))[0];
+    return u ? { n: 7, txt: `Sale en el feed después de esta historia: ${u.name}, ${hFecha(u.date)}` } : null;
+  }
+  // Any change: a warning when a story has come to show a photo before its post, whichever way it happened (a post moved, a
+  // photo moved or pasted, a template…). It asks nothing: D-022's silent ways stay silent, and «Revisar» stops that story.
+  let hVistas = { key: null, set: new Set() };
+  function vigilaH() {
+    if (!S || !hsDe(S).length) return;
+    const now = new Set(); let nuevo = null;
+    for (const h of hsDe(S)) for (const a of adelantos(h)) { const k = h.id + '|' + a.f; now.add(k); if (!nuevo && hVistas.key === S.key && !hVistas.set.has(k)) nuevo = { h, a }; }
+    hVistas = { key: S.key, set: now };
+    if (nuevo) toast(`La historia del ${hFecha(nuevo.h.date)} enseña una foto antes de que salga en el feed (${nuevo.a.post}, ${hFecha(nuevo.a.date)}).`, { ms: 9000, key: 'historia-adelanta' });
+  }
+  // ---------- stories: the link with their post (D-057), every way a post can change ----------
+  const isoDe = t => new Date(t).toISOString().replace(/\.000Z$/, 'Z');
+  // Stories of a day in time order, at least a minute apart so they come out in that order; each named after its moment.
+  function hNorm(B) {
+    const l = hsDe(B); if (!l.length) return;
+    const dias = {};
+    l.forEach(h => { if (!h.cancelada) { const d = localDay(h.date); (dias[d] = dias[d] || []).push(h); } });
+    Object.values(dias).forEach(a => { a.sort((x, y) => ts(x.date) - ts(y.date)); let t = -Infinity; a.forEach(h => { if (ts(h.date) < t + 6e4) h.date = isoDe(t + 6e4); t = ts(h.date); }); });
+    l.forEach(h => { h.name = 'Historia ' + hFecha(h.date); });
+    l.sort((x, y) => ts(x.date) - ts(y.date));
+  }
+  // Its stories follow a post: the same distance when its date changes, cancelled while it is cancelled or gone (those
+  // cancelled by hand stay so when it comes back). Idempotent: it runs on every save, on opening a board and when a collab
+  // writes through to another board, so it doesn't matter how the post changed.
+  function alinearH(B) {
+    let cambio = false;
+    for (const h of hsDe(B)) {
+      if (!h.slotId) continue;
+      const s = (B.slots || []).find(x => x.id === h.slotId), caido = !s || !vivo(s);
+      if (caido && !h.cancelada) { h.cancelada = true; h.porPost = true; cambio = true; }
+      else if (!caido && h.porPost) { delete h.cancelada; delete h.porPost; cambio = true; }
+      if (s && !sameDate(s.date, h.postDate)) {
+        const d = tsPost(s.date) - tsPost(h.postDate);
+        if (h.postDate && d) h.date = isoDe(ts(h.date) + d);
+        h.postDate = s.date; cambio = true;
+      }
+    }
+    if (cambio) hNorm(B);
+  }
+  function hsRender() { if (M.hs && M.hs.render) { try { M.hs.render(); } catch (e) { console.warn('historias:', e); } } }
   function usosOtros() {               // the same client's other boards
-    const B = S, tok = ++usoTok; usoO = new Map(); usoIdsO = new Map(); usoFin = finDe(B); usoPrevO = [];
+    const B = S, tok = ++usoTok; usoO = new Map(); usoIdsO = new Map(); usoHO = new Map(); usoFin = finDe(B); usoPrevO = [];
     usoP = (async () => {
       const clientOf = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1];
       const all = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).filter(b => b && b.key !== B.key && clientOf(b) === B.client);
@@ -797,13 +870,16 @@
       await loadThumbs(prevs);
       if (tok !== usoTok) return;
       usoFin = all.map(finDe).reduce((a, m) => (m > a ? m : a), finDe(B)); usoPrevO = prevs; usoS = null;
-      const need = new Set(); all.forEach(b => usosDe(b, f => { if (trayable(f) && !M.files[f] && !metaKey.has(f)) need.add(f); }));
+      const need = new Set(), pide = f => { if (trayable(f) && !M.files[f] && !metaKey.has(f)) need.add(f); };
+      all.forEach(b => usosDe(b, pide));
+      if ([...all, B].some(b => hsDe(b).length)) { usosDe(B, pide); [...all, B].forEach(b => hRefs(b).forEach(pide)); }   // with stories, what they and this board's slides use must be known by name and size (D-056)
       for (const f of need) { const r = await idbGet('files', f).catch(() => null); metaKey.set(f, r && !r.design ? fkey(r.name, r.size) : null); if (r && r.de) metaDe.set(f, r.de); }
       if (tok !== usoTok) return;
-      const map = new Map(), ids = new Map(); all.forEach(b => usoMap(b, map)); usoO = map;
+      usoS = null;
+      const map = new Map(), ids = new Map(), hm = new Map(); all.forEach(b => { usoMap(b, map); hUsos(b, hm); }); usoO = map; usoHO = hm;
       all.sort((a, b) => String(b.month || '').localeCompare(String(a.month || ''))).forEach(b => usosDe(b, f => { const k = fileKey(f); if (k && !ids.has(k) && !ajena(f, B.client)) ids.set(k, f); }));
       usoIdsO = ids;                   // «Todas» in the tray (D-041): a photo of each one used in the other months, the newest month's
-      if (B === S) { renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }   // their ✓ are known now
+      if (B === S) { renderTray(); hsRender(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }   // their ✓ are known now
     })().catch(() => { /* without it the photo just goes in */ });
   }
   // the nearest use of a photo going into post sid: {n: 2 this post · 3 this month · 4 the previous month · 5 another
@@ -817,6 +893,7 @@
     const cand = (n, m) => { if (!best || n < best.n || (n === 5 && best.n === 5 && Math.abs(mi(m) - mi(S.month)) < Math.abs(mi(best.m) - mi(S.month)))) best = { n, m }; };
     for (const u of usoS.map.get(k) || []) if (!u.slot || u.slot !== skip) cand(u.prev ? 4 : u.slot === sid ? 2 : 3, u.m);
     for (const u of usoO.get(k) || []) cand(u.m === pm ? 4 : mine.includes(u.m) ? 3 : 5, u.m);
+    if (!best) { const h = usoHMap().get(k); if (h && h.length) return { n: 6, m: S.month, txt: `Ya usada en una historia del ${hFecha(h[0].date)}` }; }   // the feed's own uses first (D-056)
     return best && { ...best, txt: best.n < 5 ? AVISOS[best.n] : /^\d{4}-\d{2}$/.test(best.m || '') ? `Ya usada en la mesa en ${rangeLabel(best.m, 1, false, curCd()).toLowerCase()}` : 'Ya usada en otro mes de la mesa' };
   }
   // one dialog per action: the photos [{name, size, …}] that would go in again, each with its nearest use. Resolves with the
@@ -1286,10 +1363,10 @@
   }
   async function deleteIfUnused(fileId) {
     if (String(fileId).startsWith('kit-') || String(fileId).startsWith('perfil-')) return;   // a client's fixed design photo (diseno.js) and profile photo stay
-    if (S && refsOf(S).has(fileId)) return;
+    if (S && refsTodo(S).has(fileId)) return;
     if (histRefs().has(fileId)) { delList(l => l.includes(fileId) ? l : [...l, fileId]); return; }   // ⌘Z can still bring it back
     const boards = await idbAll('boards');
-    if (boards.some(b => (!S || b.key !== S.key) && refsOf(b).has(fileId))) return;
+    if (boards.some(b => (!S || b.key !== S.key) && refsTodo(b).has(fileId))) return;
     if ((await trayRefs()).has(fileId)) return;   // in a client's tray (D-041)
     await idbDel('files', fileId);
     if (M.files[fileId]) URL.revokeObjectURL(M.files[fileId].thumbUrl);
@@ -1311,16 +1388,17 @@
       tray: B.tray.slice(),
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null })),
-      ...(previewsOf(B).length ? { previews: B.previews.slice(), fillers: B.fillers } : {})   // the fillers' previews (D-049), with their count
+      ...(previewsOf(B).length ? { previews: B.previews.slice(), fillers: B.fillers } : {}),   // the fillers' previews (D-049), with their count
+      ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {})   // the stories, whole (D-054)
     };
   }
-  const stRefs = st => new Set([...st.tray, ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st)]);
+  const stRefs = st => new Set([...st.tray, ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
   function histRefs() { const r = new Set(); if (H.b && H.b === S) [...H.undo, ...H.redo].forEach(st => stRefs(st).forEach(f => r.add(f))); return r; }
   function histReset() { H = { b: S, cur: S ? editState(S) : null, curJ: '', undo: [], redo: [], tag: null, t: 0 }; if (H.cur) H.curJ = JSON.stringify(H.cur); }
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
-    if (J(a.tray) !== J(b.tray) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length) return null;
+    if (J(a.tray) !== J(b.tray) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias)) return null;
     const ds = [];
     for (let i = 0; i < a.slots.length; i++) { if (a.slots[i].id !== b.slots[i].id) return null; if (J(a.slots[i]) !== J(b.slots[i])) ds.push(i); }
     const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
@@ -1390,6 +1468,7 @@
     S.tray = st.tray.filter(has);
     S.crops = JSON.parse(JSON.stringify(st.crops));
     if (st.previews) { S.previews = st.previews.map(f => (f && has(f) ? f : null)); S.fillers = st.fillers; } else delete S.previews;
+    if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
     const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
     if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
     if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
@@ -1421,7 +1500,7 @@
     const ids = [];
     await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.value && c.value.design) ids.push(String(c.key)); c.continue(); }; });
     if (!ids.length) return 0;
-    const refs = new Set([...((await idbAll('boards')) || []).map(b => newest(b.key, b)).flatMap(b => [...refsOf(b)]), ...(S ? refsOf(S) : []), ...histRefs()]);
+    const refs = new Set([...((await idbAll('boards')) || []).map(b => newest(b.key, b)).flatMap(b => [...refsTodo(b)]), ...(S ? refsTodo(S) : []), ...histRefs()]);
     let n = 0;
     for (const id of ids) if (!refs.has(id) && !busy()) {
       await idbDel('files', id); n++;
@@ -1674,6 +1753,7 @@
 #mesa .trayhead .tcount{min-width:0}#mesa .trayhead .btn{white-space:nowrap}
 #mesa .tfil{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
 #mesa .tfil button{border:0;background:none;padding:2px 9px;font:inherit;font-size:12px;color:var(--mute);cursor:pointer}#mesa .tfil button.on{background:var(--ink);color:#fff}
+#mesa .hs{position:absolute;bottom:22px;left:5px;width:14px;height:14px;border-radius:50%;border:2.5px solid #d6249f;background:rgba(0,0,0,.35);box-sizing:border-box;pointer-events:none}
 #mesa .titem.uso::after{content:'✓';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px;line-height:18px;text-align:center;pointer-events:none}
 #mesa .btn2{border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:13px;padding:6px 11px}
 #mesa .btn2:hover{border-color:#bdbdbd}
@@ -1936,6 +2016,7 @@
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
       + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)">+ Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
+      + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
     const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
@@ -1952,7 +2033,7 @@
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
       if (S) {
-        main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section>'
+        main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div>'
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
@@ -2118,6 +2199,7 @@
       + ((S.prev || []).length ? `<span class="lp" title="${esc(below)}"><span class="ln"></span>Debajo: <b>${esc(pm)}</b> · ${shown} publicada${shown === 1 ? '' : 's'}${nh ? ` · ${nh} oculta${nh === 1 ? '' : 's'}` : ''}${PB && PB.slots.length ? ' (de tu mesa)' : ''}</span>${lockBtn}` : `<span class="lp">Sin publicaciones de ${esc(pm.toLowerCase())} cargadas</span>`) + memoBtn;
     fitGrid();
     calRender();
+    hsRender();
   }
   // the calendar (calendario.js) follows every redraw of the grid; if it didn't load or throws, the mesa goes on without it
   function calRender() { if (M.calendario && M.calendario.render) { try { M.calendario.render(); } catch (e) { /* never needed by the mesa */ } } }
@@ -2147,14 +2229,14 @@
   function bandejaVista(o = {}) {
     if (!S) return [];
     if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
-    const todas = o.todas ?? trayTodas(), mas = o.mas || new Set(), c = S.client, out = [], ya = new Set();
+    const todas = o.todas ?? trayTodas(), mas = o.mas || new Set(), c = S.client, out = [], ya = new Set(), hm = usoHMap();
     const cuenta = u => !o.sin || u.slot !== o.sin;
     const usada = (f, k) => mas.has(f) || (!!k && ((usoS.map.get(k) || []).some(cuenta) || (usoO.get(k) || []).some(cuenta)));
     const add = f => {
       if (!f || ya.has(f) || !M.files[f] || M.files[f].design || !trayable(f) || ajena(f, c)) return;
       const k = fileKey(f); if (k && ya.has(k)) return;
       ya.add(f); if (k) ya.add(k);
-      out.push({ f, u: usada(f, k) });
+      out.push({ f, u: usada(f, k), ...(k && hm.has(k) ? { h: true } : {}) });   // h: in a story (not ✓: it is still free for the feed, D-056)
     };
     S.tray.forEach(add);
     [...previewsOf(S), ...usoPrevO].forEach(add);   // a filler's photo: with ✓ while it counts as used, free once there is a later month (D-049)
@@ -2175,9 +2257,9 @@
     tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     tray.classList.toggle('isempty', !vis.length);
     const enHueco = new Set([...previewsOf(S), ...usoPrevO]);   // on a filler: it comes off there, not from the tray (D-049)
-    tray.querySelector('.tgrid').innerHTML = vis.map(({ f: id, u }) => {
+    tray.querySelector('.tgrid').innerHTML = vis.map(({ f: id, u, h }) => {
       const f = M.files[id];
-      return `<div class="titem${sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}<span class="tname">${esc(f.name)}</span>${u || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
+      return `<div class="titem${sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${u || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
     }).join('');
     pdRefresh();
   }
@@ -2718,11 +2800,13 @@
     if (cell && cell.dataset.prev && d.from === 'slot') return null;
     if (cell && cell.dataset.slot && d.from === 'prev') return null;
     const hueco = d.from === 'tray' && t.closest('.cell.filler'); if (hueco) return { el: hueco, hueco };
+    const hcard = d.from === 'tray' && t.closest('.hv-card[data-h]'); if (hcard) return { el: hcard, hcard };
     if (cell) return cell.dataset.slot ? { el: cell, cell } : { el: cell, pc: cell };
     if (tray) return { el: tray, tray };
     return null;
   }
-  function dropOn(d, { cell, pc, tray, hueco }) {
+  function dropOn(d, { cell, pc, tray, hueco, hcard }) {
+    if (hcard) { if (M.hs) M.hs.soltar(hcard.dataset.h, d.fileId); return; }
     if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); return; }
     if (hueco) { if (d.from === 'tray') setPreview(+hueco.dataset.filler, d.fileId); return; }
     if (pc) {
@@ -3374,6 +3458,7 @@
       ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
       ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
       ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
+      ...(hsDe(old).length ? { historias: old.historias } : {}),
       // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
       ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
@@ -3382,7 +3467,8 @@
     renumber();
     sortSlots();
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
-    const ids = [...new Set([...S.tray, ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S)])];
+    alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
+    const ids = [...new Set([...S.tray, ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
     const missing = await loadThumbs(ids);
     if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
     await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
@@ -3929,8 +4015,8 @@
       const bandejas = ((await idbAll('bandejas')) || []).filter(r => r && r.client && (r.tray || []).length);
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
-      const ids = [...new Set([...boards.flatMap(b => [...refsOf(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
-      const parts = ['{"format":"mesa-feed","v":3,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041)
+      const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
+      const parts = ['{"format":"mesa-feed","v":4,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring
         + ',"clients":' + JSON.stringify(clients) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -4000,7 +4086,7 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (d.v !== 1 && d.v !== 2 && d.v !== 3) return +d.v > 3 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (d.v !== 1 && d.v !== 2 && d.v !== 3 && d.v !== 4) return +d.v > 4 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -4032,7 +4118,7 @@
     // boards kept here (newer) that still take caption batches only the file has
     P.capKeep = P.newer.map(b => { const o = JSON.parse(JSON.stringify(byKey[b.key])), was = JSON.stringify(o.slots); keepCaps(o, b); return JSON.stringify(o.slots) === was ? null : o; }).filter(Boolean);
     const pk = new Set(P.put.map(b => b.key));
-    P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsOf(b)]));   // photos the mesa uses after the import
+    P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsTodo(b)]));   // photos the mesa uses after the import
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
     d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });   // a profile photo only when it is used
     // the clients' trays (D-041): what the file's adds to each one here (never takes anything out of it)
@@ -4264,9 +4350,9 @@
     if (!last && S && S.key === key) await idbPut('bandejas', c, { client: c, tray: own, at: new Date().toISOString() });   // what the open board had
     else if (libres.length && S && S.client === c) { S.tray.unshift(...libres); save(); }
     else if (libres.length) await idbPut('bandejas', c, { client: c, tray: own, at: new Date().toISOString() });
-    const otherRefs = new Set([...others.flatMap(x => [...refsOf(x)]), ...trays.filter(r => r.client !== c).flatMap(r => r.tray || []), ...(last ? [] : own), ...(S && S.key !== key ? refsOf(S) : [])]);
+    const otherRefs = new Set([...others.flatMap(x => [...refsTodo(x)]), ...trays.filter(r => r.client !== c).flatMap(r => r.tray || []), ...(last ? [] : own), ...(S && S.key !== key ? refsTodo(S) : [])]);
     let n = 0;
-    for (const id of new Set([...refsOf(b), ...(last ? own : [])])) if (!otherRefs.has(id)) {
+    for (const id of new Set([...refsTodo(b), ...(last ? own : [])])) if (!otherRefs.has(id)) {
       await idbDel('files', id);
       if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
       if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
@@ -4305,7 +4391,8 @@
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
-    huecosVacios, lComp, vivo, showDialog, monthLabel   // for the review (revisar.js, mesa ≥ 3.43)
+    huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
+    hsDe, hNorm, adelantos, usoHistoria, hFecha, ts, isoDe, sameDate, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview,

@@ -65,7 +65,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.54'; // 3.54: review, Zernio and the API of the stories (D-058, D-059), and the Zernio upload goes public
+  M.version = '3.55'; // 3.55: a tab older than this data can no longer save over it (D-060)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -154,13 +154,27 @@
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
-      const r = indexedDB.open('mesa-feed', 3);   // 3 (mesa 3.44): + 'bandejas', the client's tray (D-041)
+      // 3 (mesa 3.44): + 'bandejas', the client's tray (D-041). 4 (mesa 3.55): no new store: a tab that doesn't know the stories
+      // (before 3.53) saved a board without them and deleted their images, so it must no longer reach the data (D-060). Raise
+      // it whenever a board starts to keep something an older tab would drop.
+      const r = indexedDB.open('mesa-feed', 4);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
-      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; }; res(d); };
-      r.onerror = () => { dbp = null; rej(r.error); };
+      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
+      r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
       r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady()) toast(m); else if (document.body) document.body.textContent = m; };
     });
     return dbp;
+  }
+  // Another tab opened a newer mesa, whose data this code must not touch: it stops here, without saving, until it is reloaded
+  function versionNueva() {
+    locked = true;
+    if (held) { held(); held = null; }   // the new tab needn't wait for this one
+    const m = 'Hay una versión nueva de la mesa';
+    if (!shellReady()) { if (document.body) document.body.textContent = m + ': recarga esta pestaña.'; return; }
+    root.querySelectorAll('.lock').forEach(x => x.remove());
+    const o = document.createElement('div'); o.className = 'lock';
+    o.innerHTML = `<div class="card dlg"><h3>${m}</h3><p>Esta pestaña se ha pausado para no pisar los datos. Recárgala para seguir: lo guardado no se pierde.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="recargar">Recargar</button></div></div></div>`;
+    root.append(o);
   }
   async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
     const d = await db();
@@ -3214,7 +3228,7 @@
       if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer)) return;
       stamp(S);
       S.savedAt = new Date().toISOString();
-      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S }));   // sync: survives a reload that kills the async write
+      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 4 }));   // sync: survives a reload that kills the async write
       flushNow().catch(() => { /* */ });
     };
     document.addEventListener('visibilitychange', M._onHide); window.addEventListener('pagehide', M._onHide);
@@ -3290,6 +3304,7 @@
     else if (act === 'prevhide') { const it = prevItem(a.dataset.id); if (it) { it.hidden = !it.hidden; changed(); openPast(it.id); } }
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
+    else if (act === 'recargar') location.reload();
     else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') { a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar'; return; }
@@ -3380,7 +3395,8 @@
   // the newest saved copy of a board: IndexedDB's or the synchronous one a reload left in localStorage (mesa-pending)
   function newest(key, b) {
     let p = null; try { p = JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { /* */ }
-    return p && p.key === key && p.board && String(p.board.savedAt || '') > String((b && b.savedAt) || '') ? p.board : b;
+    if (!(p && p.key === key && p.board && String(p.board.savedAt || '') > String((b && b.savedAt) || ''))) return b;
+    return !p.v && !('historias' in p.board) && hsDe(b).length ? { ...p.board, historias: b.historias } : p.board;   // left by a tab that doesn't know the stories: its changes, and the stories (D-060)
   }
   // a re-init must not drop a month the board holds: a month of the range with posts here but none in cfg, or a
   // shorter range whose dropped months have photos, notes or uploads -> error message (null = fine)
@@ -3570,6 +3586,7 @@
   // Opens what was open last (or the first client) — used by the loader page.
   M.boot = async () => {
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
+    await db().catch(() => { /* the calls below say why */ });   // first: an older tab is cut off before it is asked to save (claim)
     await claim();
     await migrateLegacy();
     await loadClients();
@@ -4455,6 +4472,7 @@
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview,
+    versionNueva, claim,
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),

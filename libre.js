@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.26';
+  const VERSION = '1.27';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -761,6 +761,12 @@
   // the kit's colours for the pickers: its «grupos» in order, each one only in the pickers of its «usos» (all without them);
   // a kit without «grupos» is one group with every colour. Keys of «colores» left out of every group are not offered.
   const USOS = ['fondo', 'texto', 'relleno', 'borde', 'velo'];
+  // the colours a client's story background may take (D-016): the kit's for «fondo», black and white; null: no kit
+  async function fondosKit(cid) {
+    if (!(M.diseno && M.diseno.kit)) return null;
+    let p = null; try { p = paletaKit(await M.diseno.kit(cid)); } catch (e) { return null; }
+    return p ? [...new Set([...p.grupos.filter(g => !g.usos || g.usos.includes('fondo')).flatMap(g => g.cols.map(c => c.c)), '#000000', '#ffffff'])] : null;
+  }
   function paletaKit(raw) {
     const C = (raw && raw.colores) || {}, col = k => hexOk(C[k]) ? { n: String(k).replace(/_/g, ' '), c: C[k].toLowerCase() } : null;
     let gs = (Array.isArray(raw && raw.grupos) ? raw.grupos : []).filter(g => g && Array.isArray(g.colores)).map(g => {
@@ -3354,7 +3360,7 @@
     return { x0: Math.min(...p.map(q => q[0])), x1: Math.max(...p.map(q => q[0])), y0: Math.min(...p.map(q => q[1])), y1: Math.max(...p.map(q => q[1])) };
   }
 
-  M.libre = { version: VERSION, abrir, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
+  M.libre = { version: VERSION, abrir, fondosKit, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)
   // a board the mesa opened before this file loaded: its drawn holes become the element too (not a step of ⌘Z)

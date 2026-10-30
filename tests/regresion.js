@@ -957,6 +957,186 @@
     M.hs.ver(false);
   });
 
+  // ---------- las historias: revisión, API y Zernio (D-058, D-059) ----------
+  const textoFuera = () => ({ id: 'tz', t: 'texto', txt: 'Arriba del todo', x: 0.2, y: 0.01, w: 0.6, h: 0.03, size: 0.03, color: '#000000', al: 'cen', rot: 0, op: 1 });
+  const tipos = (r, id) => r.puntos.filter(p => p.historiaId === id).map(p => p.tipo + (p.bloquea ? '!' : ''));
+  const usarIgualmente = async () => { (await hasta(preguntaEditor, 4000, 'la pregunta de no adelantar')).click(); };
+
+  prueba('H9', '«Revisar» con historias: lo que bloquea y lo que avisa; sin la opción sigue solo con el feed; un clic abre la historia (D-058)', async () => {
+    await tablero([pub(1, 'Foto', 5), pub(2, 'Foto', 20), pub(3, 'Foto', 7)]);
+    await hasta(() => M.libre && M.hs && M.revisar, 4000, 'libre.js, historias.js y revisar.js');
+    await poner('r1', [await foto('h9a.jpg')]);
+    const [b] = await poner('r2', [await foto('h9b.jpg')]);
+    const ids9 = await M.addFiles([await foto('h9d.jpg'), await foto('h9c.jpg', 400, 500), await foto('h9e.jpg')]), porNombre = n => ids9.find(i => M.files[i].name === n);
+    const desc = porNombre('h9d.jpg'), chica = porNombre('h9c.jpg'), otra = porNombre('h9e.jpg');
+    const sinDis = M.hs.anadir(DIA(10), { time: '09:00' });
+    const conHueco = M.hs.anadir(DIA(10), { time: '10:00' });
+    await abrirEditor(conHueco); compDe(0).els.push(huecoEl('hh', 0.1, 0.2, 0.8, 0.5)); await aplicarEditor();
+    const adel = M.hs.anadir(DIA(11), { time: '10:00' });
+    await abrirEditor(adel); accion('tr-add', { f: b }); await usarIgualmente(); await hasta(() => compDe(0).els.some(e => e.src === b), 4000, 'la foto'); await aplicarEditor();
+    const antes = M.hs.anadir(DIA(5), { slotId: 'r1', time: '09:00' });
+    await historiaConFoto(antes, otra);
+    const caida = M.hs.anadir(DIA(7), { slotId: 'r3', time: '13:00' });
+    M.setEstado('r3', 'cancelado');
+    const fuera = M.hs.anadir(DIA(12), { time: '10:00' });
+    await abrirEditor(fuera); compDe(0).els.push(textoFuera()); await aplicarEditor();
+    const d1 = M.hs.anadir(DIA(13), { time: '10:00' }), d2 = M.hs.anadir(DIA(14), { time: '10:00' });
+    await historiaConFoto(d1, desc); await historiaConFoto(d2, desc);
+    const peq = M.hs.anadir(DIA(15), { time: '10:00' });
+    await abrirEditor(peq); accion('tr-add', { f: chica });
+    { const e = await hasta(() => compDe(0).els.find(x => x.src === chica), 4000, 'la foto pequeña'); e.x = 0.1; e.y = 0.2; e.h = e.h * 0.8 / e.w; e.w = 0.8; }   // ampliada: equivale a menos de 1080 px
+    await aplicarEditor();
+    const seis = []; for (let i = 0; i < 6; i++) seis.push(M.hs.anadir(DIA(16), { time: '10:00' }));
+    await M.flush();
+    const r = await M.revisar({ historias: 'solo' });
+    igual(tipos(r, sinDis), ['sin diseñar!'], 'sin diseñar');
+    igual(tipos(r, conHueco), ['hueco!'], 'con un hueco vacío');
+    ok(tipos(r, adel).includes('adelanto!'), 'foto de un post posterior: ' + tipos(r, adel));
+    igual(tipos(r, antes), ['antes del post!'], 'antes de su post');
+    igual(tipos(r, caida), ['post cancelado!'], 'post cancelado');
+    ok(tipos(r, fuera).includes('zona segura'), 'texto fuera de la zona segura: ' + tipos(r, fuera));
+    ok(tipos(r, d2).includes('descarte repetido') && tipos(r, d1).includes('descarte repetido'), 'descarte en otra historia');
+    ok(tipos(r, peq).includes('resolución'), 'foto de menos de 1080: ' + tipos(r, peq));
+    ok(tipos(r, seis[5]).includes('bloque') && !tipos(r, seis[4]).includes('bloque'), 'más de 5 en un bloque');
+    ok(!r.ok && r.puntos.every(p => p.historiaId && !p.slotId), 'con «solo» salen puntos del feed');
+    // sin la opción: solo el feed; un mes con historias no cambia lo que ve «sube»
+    const f = await M.revisar();
+    ok(!f.puntos.some(p => p.historiaId) && f.ok, 'M.revisar() sin opción mira las historias: ' + json(f.puntos.slice(0, 2)));
+    const u = await M.revisar({ slots: ['r1'] });
+    ok(!u.puntos.some(p => p.historiaId), 'la revisión de «sube» mira las historias');
+    const t = await M.revisar({ historias: true });
+    ok(t.puntos.some(p => p.historiaId) && t.bloquean > 0, 'con true no salen las historias');
+    // el botón las enseña y un clic abre la historia
+    q('.rvbtn').click();
+    const b0 = await hasta(() => q(`.detail [data-hv="ir"][data-id="${sinDis}"]`), 4000, 'la historia en la lista de «Revisar»');
+    b0.click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'historia', 2000, 'su ventana');
+    ok(M.hs.activo(), 'no abrió la vista de historias');
+    M._in.closeDetail();
+  });
+
+  prueba('H10', 'API: cargarHistorias, historias y marcarHistoriasProgramadas; nunca pisa una diseñada sin replace ni una programada; changed y cambios (D-059)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.libre && M.hs && M.historias, 4000, 'libre.js e historias.js');
+    igual(M.historias(), [], 'sin historias');
+    const [f] = await M.addFiles([await foto('h10.jpg')]);
+    const d = `${DIA(6)}T10:00:00.000Z`;
+    let r = await M.cargarHistorias([{ date: d, order: 2, note: 'Dos' }, { date: d, order: 1, note: 'Uno' }, { date: `${DIA(5)}T15:00:00Z`, order: 1, slotId: 'r1', note: 'Tras el post' }]);
+    igual(r.map(x => x.result), ['creada', 'creada', 'creada'], 'al crear');
+    igual(r.map(x => x.order), [2, 1, 1], 'orden devuelto');
+    const uno = r[1].id, dos = r[0].id;
+    igual(M.historias(uno)[0].dateMadrid, `${DIA(6)} 11:00`, 'hora en Madrid');
+    igual(M.historias(dos)[0].dateMadrid, `${DIA(6)} 11:01`, 'el bloque no va a 1 minuto, en su orden');
+    igual(M.historias(uno)[0].date, `${DIA(6)}T10:00:00Z`, 'fecha en UTC');
+    const v = M.historias(uno)[0];
+    igual(Object.keys(v), ['id', 'date', 'dateMadrid', 'order', 'slotId', 'state', 'note', 'files', 'zernioId', 'changed', 'cambios', 'problems'], 'campos');
+    igual([v.state, v.note, v.files, v.zernioId, v.changed, v.cambios], ['por diseñar', 'Uno', [], null, false, []], 'valores');
+    ok(v.problems.some(p => p.tipo === 'sin diseñar' && p.bloquea), 'problems no dice que está sin diseñar');
+    igual(M.historias(r[2].id)[0].slotId, 'r1', 'enlace');
+    igual(M.historias([uno, dos]).length, 2, 'con una lista');
+    // errores, sin crear nada
+    const n0 = M.historias().length;
+    r = await M.cargarHistorias([{ date: '2026-11-08', order: 1 }, { date: `${DIA(8)}T10:00:00Z`, slotId: 'nada' }, { date: '2027-03-01T10:00:00Z', order: 1 }, { date: `${DIA(8)}T10:00:00Z`, fondo: 'rojo' }]);
+    ok(r.every(x => x.error), 'errores: ' + json(r));
+    igual(M.historias().length, n0, 'un error creó una historia');
+    // el fondo, solo del kit (D-016)
+    const fk = M.libre.fondosKit; M.libre.fondosKit = async () => ['#112233', '#000000', '#ffffff'];
+    try {
+      r = await M.cargarHistorias([{ date: `${DIA(9)}T10:00:00Z`, order: 1, fondo: '#FF0000' }, { date: `${DIA(9)}T11:00:00Z`, order: 1, fondo: '#112233' }]);
+      ok(/kit/.test(r[0].error) && r[1].result === 'creada', 'fondo: ' + json(r));
+      await abrirEditor(r[1].id);
+      igual(compDe(0).bg, '#112233', 'el editor no abre con su fondo');
+      M.libre.cerrar();
+    } finally { M.libre.fondosKit = fk; }
+    // el mismo día y orden: por diseñar se reescribe; diseñada, no; con replace, sí; programada, nunca
+    r = await M.cargarHistorias([{ date: d, order: 1, note: 'Uno bis' }]);
+    igual([r[0].id, r[0].result], [uno, 'sustituida'], 'una por diseñar');
+    igual(M.historias(uno)[0].note, 'Uno bis', 'no se reescribió');
+    await historiaConFoto(uno, f);
+    const img = M.historias(uno)[0].files[0];
+    r = await M.cargarHistorias([{ date: d, order: 1, note: 'Pisada' }]);
+    igual([r[0].id, r[0].result], [uno, 'ya diseñada'], 'una diseñada sin replace');
+    igual(M.historias(uno)[0].note, 'Uno bis', 'pisó una diseñada');
+    igual(M.historias(uno)[0].files, [img], 'perdió su imagen');
+    // marcar: programada; rechaza la que bloquea
+    igual(M.marcarHistoriasProgramadas([{ id: dos, zernioId: 'z2' }])[0].error, 'está sin diseñar', 'marcó una que bloquea');
+    igual(M.marcarHistoriasProgramadas([{ id: uno, zernioId: 'z1' }]), [{ id: uno, state: 'programada' }], 'al marcar');
+    let h = M.historias(uno)[0];
+    igual([h.state, h.zernioId, h.changed, h.cambios], ['programada', 'z1', false, []], 'recién programada');
+    r = await M.cargarHistorias([{ date: d, order: 1, note: 'Pisada' }], { replace: true });
+    igual(r[0].result, 'programada', 'replace pisó una programada');
+    // cambios
+    M.hs.setFecha(uno, DIA(6), '12:00');
+    h = M.historias(uno)[0]; igual([h.changed, h.cambios], [true, ['fecha']], 'al cambiar la fecha');
+    M._test.undo();
+    h = M.historias(uno)[0]; igual([h.changed, h.cambios], [false, []], '⌘Z deja de marcarla');
+    M.hs.cancelar(uno);
+    h = M.historias(uno)[0]; igual([h.state, h.changed, h.cambios], ['cancelada', true, ['cancelada']], 'al cancelarla');
+    M.hs.reactivar(uno);
+    await abrirEditor(uno); compDe(0).bg = '#334455'; await aplicarEditor();
+    h = M.historias(uno)[0]; igual([h.state, h.cambios], ['programada', ['imagen']], 'al cambiar la imagen');
+    M.marcarHistoriasProgramadas([{ id: uno, zernioId: 'z1' }]);
+    h = M.historias(uno)[0]; igual([h.changed, h.cambios], [false, []], 'marcar otra vez la pone al día');
+    M.marcarHistoriasProgramadas([{ id: uno, zernioId: null }]);
+    igual(M.historias(uno)[0].state, 'diseñada', 'sin zernioId deja de estar programada');
+    // con replace, una diseñada se reescribe y pierde su imagen
+    r = await M.cargarHistorias([{ date: d, order: 1, note: 'Otra' }], { replace: true });
+    igual(r[0].result, 'sustituida', 'con replace');
+    h = M.historias(uno)[0]; igual([h.state, h.note, h.files], ['por diseñar', 'Otra', []], 'tras replace');
+    igual(M.board().slots.length, 1, 'la API tocó el feed');
+  });
+
+  prueba('H11', 'Zernio: nada sale con un punto que bloquea; la imagen de una historia sube tal cual; a Notion nunca; las fotos del feed, como siempre (D-058, D-059)', async () => {
+    await tablero([pub(1, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs && M.startZernio, 4000, 'libre.js, historias.js y startZernio');
+    const [p] = await poner('r1', [await foto('h11p.jpg')]), [f] = await M.addFiles([await foto('h11f.jpg')]);
+    const buena = M.hs.anadir(DIA(10)), mala = M.hs.anadir(DIA(11));
+    await historiaConFoto(buena, f);
+    await abrirEditor(mala); accion('tr-add', { f: p }); await usarIgualmente(); await hasta(() => compDe(0).els.some(e => e.src === p), 4000, 'la foto'); await aplicarEditor();
+    await M.flush();
+    const fb = M.historias(buena)[0].files[0], fm = M.historias(mala)[0].files[0];
+    const puts = [], XHR = W.XMLHttpRequest;
+    W.XMLHttpRequest = class { constructor() { this.upload = {}; this.status = 200; this.responseText = ''; } open(m, u) { this.m = m; this.u = u; } setRequestHeader() {} abort() {} send(b) { puts.push({ m: this.m, u: this.u, type: b.type, size: b.size }); if (this.m === 'POST') this.responseText = JSON.stringify({ status: 'uploaded', file_upload_id: 'n1' }); setTimeout(() => this.onload(), 0); } };
+    try {
+      const it = (fileId, slotId) => ({ fileId, slotId, url: `https://r2.invalid/${fileId}`, publicUrl: `https://cdn.invalid/${fileId}` });
+      // bloquea: no llega a subirse
+      M.startZernio([it(fm, mala)]);
+      let s = M.zernioStatus([fm])[fm];
+      ok(s.state === 'error' && /antes de que salga/.test(s.err || ''), 'subió una historia que bloquea: ' + json(s));
+      igual(puts, [], 'hubo una subida');
+      // sin diseñar
+      const vacia = M.hs.anadir(DIA(12));
+      M.startZernio([{ ...it('nada', vacia) }]);
+      igual(puts, [], 'subió algo de una historia sin diseñar');
+      // bien: tal cual, JPEG
+      M.startZernio([it(fb, buena)]);
+      await M.waitZernio([fb], 8000);
+      s = M.zernioStatus([fb])[fb];
+      igual([s.state, s.publicUrl], ['ok', `https://cdn.invalid/${fb}`], 'la subida de la historia');
+      igual(puts.map(x => [x.m, x.u, x.type]), [['PUT', `https://r2.invalid/${fb}`, 'image/jpeg']], 'qué se subió');
+      ok(puts[0].size < 8000000, 'pesa más de 8 MB');
+      // también sin decir de qué historia es
+      puts.length = 0;
+      M.startZernio([{ fileId: fb, url: 'https://r2.invalid/b', publicUrl: 'https://cdn.invalid/b' }]);
+      await M.waitZernio([fb], 8000);
+      igual(M.zernioStatus([fb])[fb].state, 'ok', 'sin slotId');
+      // a Notion no
+      M.startUpload([{ fileId: fb, slotId: buena, url: 'https://notion.invalid', auth: 'x' }]);
+      igual(M.uploadStatus([fb])[fb].state, 'error', 'la imagen de una historia iba a Notion');
+      // una foto del feed sigue igual, también con historias
+      puts.length = 0;
+      M.startZernio([it(p, 'r1')]);
+      await M.waitZernio([p], 8000);
+      igual(M.zernioStatus([p])[p].state, 'ok', 'una foto del feed');
+      igual(puts.length, 1, 'subidas de la foto del feed');
+      // y a Notion: la subida que comparte código con la de Zernio
+      puts.length = 0;
+      M.startUpload([{ fileId: p, slotId: 'r1', url: 'https://notion.invalid/up', auth: 'Bearer x' }]);
+      await M.waitUpload([p], 8000);
+      igual([M.uploadStatus([p])[p].state, M.uploadStatus([p])[p].fileUploadId, puts.map(x => x.m)], ['ok', 'n1', ['POST']], 'la subida a Notion de una foto del feed');
+    } finally { W.XMLHttpRequest = XHR; }
+  });
+
   // ---------- la portada de un hueco (D-049) ----------
   const portada = k => q(`.cell.filler[data-filler="${k}"] img.hfoto`);
   // la imagen del feed: px(x, y) -> [r, g, b]

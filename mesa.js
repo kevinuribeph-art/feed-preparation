@@ -65,11 +65,12 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.53';
+  M.version = '3.54'; // 3.54: review, Zernio and the API of the stories (D-058, D-059), and the Zernio upload goes public
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
   const MAX_UPLOAD = 20 * 1024 * 1024 - 256 * 1024;      // Notion single-part limit (20 MiB) with margin
+  const ZERNIO_MAX = 8 * 1000 * 1000;                    // Zernio recompresses images over 8 MB: stay under it
   M.cfg = Object.assign({ uploadIdleMs: 120000, uploadConc: 1 }, M.cfg || {});   // idle = no bytes sent/received
   const UNDO_MS = 6000;
   const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -84,10 +85,11 @@
   M.pastPending = {};
   M.pastErrors = {};
   M.uploads = M.uploads || {};         // fileId -> {state,...}
+  M.zUploads = M.zUploads || {};       // fileId -> {state,...} of the uploads to Zernio (their own record, apart from Notion's)
   M.out = M.out || {};                 // rendered preview Blobs
   const OUT_SLOTS = {};                // mode -> ids of the posts drawn in M.out[mode] (the later months are blank cells)
-  M._ctrl = M._ctrl || {};             // fileId -> controller of the running upload
-  M._gen = M._gen || {};               // fileId -> generation of the latest upload request
+  M._ctrl = M._ctrl || {};             // fileId ('z:' + fileId for Zernio) -> controller of the running upload
+  M._gen = M._gen || {};               // fileId ('z:' + fileId for Zernio) -> generation of the latest upload request
 
   let S = null;          // open board (month of one client), persisted
   let PB = null;         // same client's previous-month board, read only (null if it doesn't exist)
@@ -228,7 +230,8 @@
   const slot = id => S && (S.slots.find(s => s.id === id) || (S.prev || []).find(p => p.id === id));
   const prevItem = id => S && (S.prev || []).find(p => p.id === id);
   const isPrev = s => !!(s && S && S.prev && S.prev.includes(s));
-  const uploadsBusy = () => Object.values(M.uploads).some(u => u.state === 'pending' || u.state === 'uploading');
+  const upBusy = u => !!u && (u.state === 'pending' || u.state === 'uploading');
+  const uploadsBusy = () => Object.values(M.uploads).some(upBusy) || Object.values(M.zUploads).some(upBusy);
 
   function monthOf(iso) {
     const d = new Date(String(iso || '').replace(' ', 'T'));
@@ -735,16 +738,26 @@
     try { const w = bmp.width, h = bmp.height; return { w, h, thumb: await thumbFromBitmap(bmp, w, h) }; }
     finally { bmp.close(); }
   }
-  async function reencode(blob) {
+  // JPEG of a canvas under max bytes, trying each quality in turn. With shrink, a canvas still too big at the lowest
+  // quality is scaled down until it fits (for Zernio: Instagram keeps 1440 px wide at most, so nothing visible is lost).
+  async function toJpeg(c, max, qs, shrink) {
+    for (;;) {
+      let b = null;
+      for (const q of qs) { b = await new Promise(r => c.toBlob(r, 'image/jpeg', q)); if (b && b.size <= max) return { blob: b, w: c.width, h: c.height }; }
+      if (!shrink || !b || c.width <= 1440) return null;
+      const k = Math.max(0.5, Math.sqrt(max / b.size) * 0.95), d = document.createElement('canvas');
+      d.width = Math.max(1440, Math.round(c.width * k)); d.height = Math.round(c.height * d.width / c.width);
+      const x = d.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, d.width, d.height); c = d;
+    }
+  }
+  async function reencode(blob, max = MAX_UPLOAD, shrink = false) {
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
     const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
     cx.drawImage(bmp, 0, 0); bmp.close();
-    for (const q of [0.92, 0.88, 0.82, 0.75]) {
-      const b = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
-      if (b && b.size <= MAX_UPLOAD) return b;
-    }
-    throw new Error('supera 20 MB incluso recomprimida');
+    const out = await toJpeg(c, max, [0.92, 0.88, 0.82, 0.75], shrink);
+    if (out) return out.blob;
+    throw new Error(`supera ${Math.round(max / 1048576)} MB incluso recomprimida`);
   }
   async function getBlob(id) {
     if (M.blobs[id]) return M.blobs[id];
@@ -752,16 +765,17 @@
     if (!rec || !rec.blob) throw new Error('foto no encontrada en la mesa');
     return (M.blobs[id] = rec.blob);
   }
-  async function cropBlob(blob, fid, r) {
+  async function cropBlob(blob, fid, r, max = MAX_UPLOAD, shrink = false) {
     const f = M.files[fid];
-    if (r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && blob.type === 'image/jpeg' && blob.size <= MAX_UPLOAD) return { blob, w: f.w, h: f.h, original: true };
+    if (r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && blob.type === 'image/jpeg' && blob.size <= max) return { blob, w: f.w, h: f.h, original: true };
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     const k = bmp.width / f.w;
     const c = document.createElement('canvas'); c.width = Math.round(r.w * k); c.height = Math.round(r.h * k);
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high';
     x.drawImage(bmp, r.x * k, r.y * k, r.w * k, r.h * k, 0, 0, c.width, c.height); bmp.close();
-    for (const q of [0.93, 0.9, 0.85, 0.8]) { const b = await new Promise(res => c.toBlob(res, 'image/jpeg', q)); if (b && b.size <= MAX_UPLOAD) return { blob: b, w: c.width, h: c.height }; }
-    throw new Error('supera 20 MB incluso recortada');
+    const out = await toJpeg(c, max, [0.93, 0.9, 0.85, 0.8], shrink);
+    if (out) return out;
+    throw new Error(`supera ${Math.round(max / 1048576)} MB incluso recortada`);
   }
   async function loadThumbs(ids) {
     const missing = [];
@@ -813,6 +827,25 @@
     if (!S || !h || h.cancelada) return [];
     const out = [];
     for (const f of new Set(lSrc(h))) { const k = fileKey(f), u = k && postsDespues(k, ts(h.date))[0]; if (u) out.push({ f, post: u.name, date: u.date }); }
+    return out;
+  }
+  // What stops or warns about a story without measuring anything, for its API, «Revisar» and the upload to Zernio (D-058):
+  // [{tipo, bloquea, texto}]. What needs its fonts (the safe zone) and the photo's px, only in M.revisar.
+  function hProblemas(h) {
+    const out = [], add = (tipo, texto, bloquea = false) => out.push({ tipo, bloquea, texto });
+    if (h.cancelada) { if (h.porPost) add('post cancelado', 'su publicación está cancelada', true); return out; }
+    const f0 = (h.photos || [])[0], comp = f0 && h.libre && h.libre.slides && h.libre.slides[f0];
+    if (!f0) add('sin diseñar', 'está sin diseñar', true);
+    else if (vacia(comp)) add('hueco', 'tiene un hueco de foto vacío', true);
+    adelantos(h).forEach(a => add('adelanto', `enseña una foto antes de que salga en el feed: ${a.post}, ${hFecha(a.date)}`, true));
+    const s = h.slotId && (S.slots || []).find(x => x.id === h.slotId);
+    if (s && !dOnly(s.date) && ts(h.date) < ts(s.date)) add('antes del post', `va antes que su publicación: ${s.name}, ${hFecha(s.date)}`, true);
+    if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    const hm = usoHMap(), rep = new Set();
+    for (const f of new Set(lSrc(h))) { const k = fileKey(f); if (k && !(usoS.map.get(k) || []).length && !(usoO.get(k) || []).length && (hm.get(k) || []).some(u => u.id !== h.id)) rep.add(k); }
+    if (rep.size) add('descarte repetido', rep.size === 1 ? 'usa un descarte que ya va en otra historia' : `usa ${rep.size} descartes que ya van en otras historias`);
+    const dia = localDay(h.date), hoy = hsDe(S).filter(x => !x.cancelada && localDay(x.date) === dia).sort((a, b) => ts(a.date) - ts(b.date));
+    if (hoy.indexOf(h) >= 5) add('bloque', 'es la sexta o más de un bloque: pasa de 5 historias en el día');
     return out;
   }
   async function usoHistoria(name, size, h) {   // the warning for a photo going into a story
@@ -2516,7 +2549,7 @@
     try {
       M.bigUrls = M.bigUrls || {}; M.bigOrder = (M.bigOrder || []).filter(x => x !== fid); M.bigOrder.push(fid);
       if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(await getBlob(fid));
-      while (M.bigOrder.length > 6) { const old = M.bigOrder.shift(); if (M.bigUrls[old]) URL.revokeObjectURL(M.bigUrls[old]); delete M.bigUrls[old]; if (!['pending', 'uploading'].includes((M.uploads[old] || {}).state)) delete M.blobs[old]; }
+      while (M.bigOrder.length > 6) { const old = M.bigOrder.shift(); if (M.bigUrls[old]) URL.revokeObjectURL(M.bigUrls[old]); delete M.bigUrls[old]; if (!upBusy(M.uploads[old]) && !upBusy(M.zUploads[old])) delete M.blobs[old]; }
       const st = root.querySelector('.detail .stage'); if (st && st.dataset.file === fid) st.querySelector('img.big').src = M.bigUrls[fid];
     } catch (e) { /* keep the thumbnail */ }
   }
@@ -2746,7 +2779,7 @@
   }
   function setSave(msg, err) { if (!shellReady()) return; const s = root.querySelector('.save'); s.textContent = msg; s.classList.toggle('err', !!err); }
   function busyGuard() {
-    if (uploadsBusy()) { toast('Espera a que termine la subida a Notion.'); return true; }
+    if (uploadsBusy()) { toast('Espera a que termine la subida de fotos.'); return true; }
     if (importing) { toast('Espera a que terminen de prepararse las fotos.'); return true; }
     return false;
   }
@@ -3601,98 +3634,124 @@
     };
   }) : [];
 
+  // Where a photo goes: Notion (multipart POST with the upload's auth) or Zernio (raw PUT to a presigned URL: the API
+  // key stays in tools/zernio.mjs, never here). Each keeps its own record, so one never aborts or overwrites the other.
+  const DEST = {
+    notion: { label: 'Notion', store: () => M.uploads, key: fid => fid, max: MAX_UPLOAD },
+    zernio: { label: 'Zernio', store: () => M.zUploads, key: fid => 'z:' + fid, max: ZERNIO_MAX, jpegOnly: true, shrink: true }   // Instagram takes JPEG only
+  };
   // items: [{fileId, slotId, url, auth, crop?}] — starts in background, poll with waitUpload().
   // The crop is fixed at the moment of the call, so later edits or a board switch can't change what is sent.
   // A new request for a photo that is still uploading replaces (aborts) the previous one.
-  M.startUpload = (items, conc = M.cfg.uploadConc) => {
+  M.startUpload = (items, conc = M.cfg.uploadConc) => startJobs('notion', items, conc);
+  // ---------- upload to Zernio (to schedule on Instagram) ----------
+  // items: [{fileId, slotId, url, publicUrl}] — url / publicUrl from `node tools/zernio.mjs presign <n>`. Same crop as the
+  // upload to Notion, always JPEG and under 8 MB. Poll with waitZernio(); each 'ok' carries its publicUrl for the
+  // post's mediaItems (in the order of plan().files).
+  M.startZernio = (items, conc = M.cfg.uploadConc) => startJobs('zernio', items, conc);
+  function startJobs(dn, items, conc) {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
-    revAuto('sube', items);
-    const B = S;
+    revAuto(dn === 'zernio' ? 'programa' : 'sube', items);
+    const D = DEST[dn], U = D.store(), B = S;
     const jobs = [];
     for (const it of items || []) {
-      const fid = it.fileId;
+      const fid = it.fileId, k = D.key(fid);
       const s = B && (it.slotId ? B.slots.find(x => x.id === it.slotId) : B.slots.find(x => publishList(x).includes(fid)));
-      if (M._ctrl[fid]) { try { M._ctrl[fid].abort('replaced'); } catch (e) { /* */ } }
-      const gen = M._gen[fid] = (M._gen[fid] || 0) + 1;
-      if (it.crop !== false && (!s || !s.photos.includes(fid))) {
-        M.uploads[fid] = { state: 'error', err: 'la foto no está en ninguna casilla de la mesa abierta' };
+      const hz = dn === 'zernio' && B && !s ? hsDe(B).find(h => (!it.slotId || h.id === it.slotId) && (h.photos || []).includes(fid)) : null;   // a story's image goes to Zernio, never to Notion (D-059)
+      if (M._ctrl[k]) { try { M._ctrl[k].abort('replaced'); } catch (e) { /* */ } }
+      const gen = M._gen[k] = (M._gen[k] || 0) + 1;
+      const hb = hz && hProblemas(hz).find(p => p.bloquea);
+      if (hb) { U[fid] = { state: 'error', err: `la historia ${hb.texto}: arréglalo antes de programarla` }; continue; }   // nothing reaches Zernio with a point that stops it (D-058)
+      if (it.crop !== false && !hz && (!s || !s.photos.includes(fid))) {
+        U[fid] = { state: 'error', err: 'la foto no está en ninguna casilla de la mesa abierta' };
         continue;
       }
-      if (s && huecosVacios(s).length) { M.uploads[fid] = { state: 'error', err: 'la publicación tiene un hueco de foto vacío: llénalo en el editor antes de subirla' }; continue; }   // D-035
-      const rect = it.crop !== false && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
+      if (s && huecosVacios(s).length) { U[fid] = { state: 'error', err: 'la publicación tiene un hueco de foto vacío: llénalo en el editor antes de subirla' }; continue; }   // D-035
+      if (dn === 'zernio' && !it.publicUrl) { U[fid] = { state: 'error', err: 'falta publicUrl (la da tools/zernio.mjs presign junto a url)' }; continue; }
+      const rect = it.crop !== false && !hz && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
       const sig = s ? fileSig(fid, s, B) : null;
-      M.uploads[fid] = { state: 'pending', slotId: s ? s.id : null, sig };
-      jobs.push({ fid, url: it.url, auth: it.auth, rect, sig, gen, slotId: s ? s.id : null, name: s && s.photos.includes(fid) && (M.files[fid] || {}).design ? dName(s, fid) : null });
+      U[fid] = { state: 'pending', slotId: s ? s.id : hz ? hz.id : null, sig };
+      jobs.push({ dn, fid, url: it.url, auth: it.auth, publicUrl: it.publicUrl, rect, sig, gen, slotId: s ? s.id : null, name: s && s.photos.includes(fid) && (M.files[fid] || {}).design ? dName(s, fid) : null });
     }
     if (jobs.length) {
-      UP.total += jobs.length; busyUpload();
+      UP.total += jobs.length; UP.label = D.label; busyUpload();
       const q = jobs.slice();
       const worker = async () => { while (q.length) await runJob(q.shift()); };
       const nw = Math.min(conc, q.length);
       for (let i = 0; i < nw; i++) worker();
     }
-    return M.uploadStatus((items || []).map(i => i.fileId));
-  };
+    return upStatus(U, (items || []).map(i => i.fileId));
+  }
   function busyUpload(pct) {
     if (UP.done >= UP.total) { UP = { total: 0, done: 0 }; setBusy('up', null); }
-    else setBusy('up', `Subiendo fotos a Notion: ${UP.done}/${UP.total}${pct != null ? ` · ${pct}%` : ''}`);
+    else setBusy('up', `Subiendo fotos a ${UP.label || 'Notion'}: ${UP.done}/${UP.total}${pct != null ? ` · ${pct}%` : ''}`);
   }
   // XHR instead of fetch: upload progress lets a slow connection keep going; only a stall (no bytes for
   // M.cfg.uploadIdleMs) or a newer request for the same photo stops it.
-  function postForm(url, auth, fd, ctrl, onProgress) {
+  function send(method, url, headers, body, ctrl, label, onProgress) {
     return new Promise((res, rej) => {
       const x = new XMLHttpRequest();
       let last = Date.now(), done = false;
       const end = () => { done = true; clearInterval(iv); };
       const iv = setInterval(() => { if (!done && Date.now() - last > M.cfg.uploadIdleMs) { ctrl.reason = 'idle'; x.abort(); } }, 1000);
-      x.open('POST', url);
-      x.setRequestHeader('authorization', auth);
+      x.open(method, url);
+      for (const [h, v] of Object.entries(headers)) if (v != null) x.setRequestHeader(h, v);
       x.upload.onprogress = e => { last = Date.now(); if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total); };
       x.onprogress = () => { last = Date.now(); };
       x.onload = () => { end(); res({ status: x.status, ok: x.status >= 200 && x.status < 300, text: x.responseText || '' }); };
-      x.onerror = () => { end(); rej(new Error('sin conexión con Notion')); };
+      x.onerror = () => { end(); rej(new Error('sin conexión con ' + label)); };
       x.onabort = () => { end(); rej(new Error('aborted')); };
       ctrl.abort = reason => { ctrl.reason = ctrl.reason || reason; if (!done) x.abort(); };
       if (ctrl.reason) { end(); rej(new Error('aborted')); return; }
-      x.send(fd);
+      x.send(body);
     });
   }
   async function runJob(j) {
-    const live = () => M._gen[j.fid] === j.gen;
+    const D = DEST[j.dn], U = D.store(), k = D.key(j.fid);
+    const live = () => M._gen[k] === j.gen;
     if (!live()) { UP.done++; busyUpload(); return; }
-    const ctrl = { reason: null, abort(r) { this.reason = this.reason || r; } }; M._ctrl[j.fid] = ctrl;
-    M.uploads[j.fid] = { ...M.uploads[j.fid], state: 'uploading' };
+    const ctrl = { reason: null, abort(r) { this.reason = this.reason || r; } }; M._ctrl[k] = ctrl;
+    U[j.fid] = { ...U[j.fid], state: 'uploading' };
     let res;
     try {
       let blob = await getBlob(j.fid);
       let name = j.name || (M.files[j.fid] || {}).name || 'foto.jpg';
       let reencoded = false, cropped = null;
-      if (j.rect) { const cb = await cropBlob(blob, j.fid, j.rect); if (!cb.original) { blob = cb.blob; cropped = cb.w + 'x' + cb.h; name = name.replace(/\.[^.]+$/, '') + '.jpg'; } }
-      else if (blob.size > MAX_UPLOAD) { blob = await reencode(blob); reencoded = true; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
+      if (j.rect) { const cb = await cropBlob(blob, j.fid, j.rect, D.max, D.shrink); if (!cb.original) { blob = cb.blob; cropped = cb.w + 'x' + cb.h; name = name.replace(/\.[^.]+$/, '') + '.jpg'; } }
+      else if (blob.size > D.max || (D.jpegOnly && blob.type !== 'image/jpeg')) { blob = await reencode(blob, D.max, D.shrink); reencoded = true; name = name.replace(/\.[^.]+$/, '') + '.jpg'; }
       if (ctrl.reason) throw new Error('aborted');
       name = safeName(name);
-      const fd = new FormData(); fd.append('file', blob, name);
-      const r = await postForm(j.url, j.auth, fd, ctrl, f => { if (live()) busyUpload(Math.round(f * 100)); });
-      let js = {}; try { js = JSON.parse(r.text); } catch (e) { /* not json */ }
-      res = (r.ok && js.status === 'uploaded')
-        ? { state: 'ok', fileUploadId: js.file_upload_id, name, mb: +(blob.size / 1048576).toFixed(1), reencoded, cropped }
-        : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
+      const prog = f => { if (live()) busyUpload(Math.round(f * 100)); }, mb = +(blob.size / 1048576).toFixed(1);
+      if (j.dn === 'zernio') {
+        const r = await send('PUT', j.url, { 'content-type': 'image/jpeg' }, blob, ctrl, D.label, prog);
+        res = r.ok ? { state: 'ok', publicUrl: j.publicUrl, name, mb, reencoded, cropped } : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
+      } else {
+        const fd = new FormData(); fd.append('file', blob, name);
+        const r = await send('POST', j.url, { authorization: j.auth }, fd, ctrl, D.label, prog);
+        let js = {}; try { js = JSON.parse(r.text); } catch (e) { /* not json */ }
+        res = (r.ok && js.status === 'uploaded')
+          ? { state: 'ok', fileUploadId: js.file_upload_id, name, mb, reencoded, cropped }
+          : { state: 'error', http: r.status, err: r.text.slice(0, 200) };
+      }
     } catch (e) {
       delete M.blobs[j.fid];
       const why = ctrl.reason === 'idle' ? `sin progreso durante ${Math.round(M.cfg.uploadIdleMs / 1000)} s: vuelve a intentarlo` : ctrl.reason ? 'sustituida por un nuevo intento' : String(e.message || e).slice(0, 200);
       res = { state: 'error', err: why };
     }
-    if (M._ctrl[j.fid] === ctrl) delete M._ctrl[j.fid];
-    if (live()) M.uploads[j.fid] = { ...res, slotId: j.slotId, sig: j.sig };
+    if (M._ctrl[k] === ctrl) delete M._ctrl[k];
+    if (live()) U[j.fid] = { ...res, slotId: j.slotId, sig: j.sig };
     UP.done++; busyUpload();
   }
-  M.uploadStatus = ids => Object.fromEntries((ids || Object.keys(M.uploads)).map(id => [id, M.uploads[id] || { state: 'none' }]));
-  M.waitUpload = async (ids, ms = 45000) => {
+  const upStatus = (U, ids) => Object.fromEntries((ids || Object.keys(U)).map(id => [id, U[id] || { state: 'none' }]));
+  async function upWait(U, ids, ms) {
     const t0 = Date.now();
-    const busy = () => ids.some(id => ['pending', 'uploading'].includes((M.uploads[id] || {}).state));
-    while (busy() && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 400));
-    return M.uploadStatus(ids);
-  };
+    while (ids.some(id => upBusy(U[id])) && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 400));
+    return upStatus(U, ids);
+  }
+  M.uploadStatus = ids => upStatus(M.uploads, ids);
+  M.waitUpload = (ids, ms = 45000) => upWait(M.uploads, ids, ms);
+  M.zernioStatus = ids => upStatus(M.zUploads, ids);
+  M.waitZernio = (ids, ms = 45000) => upWait(M.zUploads, ids, ms);
   // list: [{slotId, fileIds, note}] — records exactly the crop that was sent for each photo.
   M.markUploaded = list => {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
@@ -4205,7 +4264,7 @@
     const fail = m => { xferErr(m); return { error: m }; };
     if (locked) return fail('La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de importar.');
     if (xferRun) return fail('Espera: ya se está exportando o importando la mesa.');
-    if (uploadsBusy()) return fail('Espera a que termine la subida a Notion.');
+    if (uploadsBusy()) return fail('Espera a que termine la subida de fotos.');
     if (importing) return fail('Espera a que terminen de prepararse las fotos.');
     xferRun = 'import';
     let cleared = false, back = null;
@@ -4245,7 +4304,7 @@
       if (opts.confirm !== false && shellReady() && !(await xferConfirm(xferSummaryHTML(d, P)))) return { cancelled: true };
       if (locked) return fail('La mesa está abierta en otra pestaña: no se ha importado nada.');
       await addQ; await flushPending();
-      if (uploadsBusy() || importing) return fail('Espera a que termine la subida a Notion: no se ha importado nada.');   // the board couldn't reopen
+      if (uploadsBusy() || importing) return fail('Espera a que termine la subida de fotos: no se ha importado nada.');   // the board couldn't reopen
       P = await xferPlan(d);                       // again, with what is saved now
       const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0, ...(P.kitUpd.length ? { kits: P.kitUpd.map(c => c.id) } : {}) };
       const newPast = P.newPast.filter(id => gotPast[id]);
@@ -4392,7 +4451,7 @@
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
-    hsDe, hNorm, adelantos, usoHistoria, hFecha, ts, isoDe, sameDate, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
+    hsDe, hNorm, adelantos, hProblemas, usoHistoria, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview,

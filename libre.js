@@ -91,7 +91,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.22';
+  const VERSION = '1.23';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -330,8 +330,9 @@
   }
 
   // ---------- drawing (one function for the editor, its thumbnails and «Aplicar») ----------
-  function pathRR(ctx, x, y, w, h, r) {
-    r = Math.max(0, Math.min(r, w / 2, h / 2)); ctx.beginPath();
+  function pathRR(ctx, x, y, w, h, r) { ctx.beginPath(); rr(ctx, x, y, w, h, r); }
+  function rr(ctx, x, y, w, h, r) {   // a rounded rectangle, added to the path
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
     if (!r) { ctx.rect(x, y, w, h); return; }
     ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
@@ -344,14 +345,26 @@
   }
   function sombra(ctx, el, W, k) { ctx.shadowColor = `rgba(0,0,0,${(0.2 + 0.35 * el.sh).toFixed(3)})`; ctx.shadowBlur = W * 0.05 * el.sh * k; ctx.shadowOffsetY = W * 0.016 * el.sh * k; }
   // k: device pixels per slide unit (shadows are not scaled by the canvas transform); ph: draw empty frames as placeholders
+  // a photo's border «Fuera» (D-047): around its frame, without covering the photo; its width in px, 0 when inside or none.
+  // On a photo over the whole slide (a sangre) it stays in the slide: the photo shrinks inside it, keeping its proportion
+  const cubre = el => !el.rot && aSangre(el);
+  const bordeFuera = (el, W) => el.t === 'foto' && el.bo === 'fuera' && el.b > 0 && !cubre(el) ? el.b * W : 0;
+  function drawSangre(ctx, el, W, H, img, k, ph) {
+    const bw = el.b * W, iw = W - 2 * bw, ih = H - 2 * bw, s = Math.max(iw / W, ih / H), r = (el.r || 0) * Math.min(iw, ih) / 2;
+    ctx.save(); pathRR(ctx, bw, bw, iw, ih, r); ctx.clip();
+    drawFoto(ctx, { ...el, x: 0.5 + (el.x - 0.5) * s, y: 0.5 + (el.y - 0.5) * s, w: el.w * s, h: el.h * s, b: 0, r: 0, sh: 0 }, W, H, img, k, ph);
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha *= el.op ?? 1; ctx.beginPath(); ctx.rect(0, 0, W, H); rr(ctx, bw, bw, iw, ih, r); ctx.fillStyle = hexOk(el.bc) ? el.bc : '#ffffff'; ctx.fill('evenodd'); ctx.restore();
+  }
   function drawFoto(ctx, el, W, H, img, k, ph) {
     const fw = el.w * W, fh = el.h * H; if (fw < 0.5 || fh < 0.5) return;
-    const r = (el.r || 0) * Math.min(fw, fh) / 2, bw = (el.b || 0) * W, ib = hueco(el, fw, fh), card = el.marco === 'polaroid' || el.marco === 'pelicula';
+    if (el.bo === 'fuera' && el.b > 0 && cubre(el)) { drawSangre(ctx, el, W, H, img, k, ph); return; }
+    const r = (el.r || 0) * Math.min(fw, fh) / 2, bw = (el.b || 0) * W, o = bordeFuera(el, W), ib = hueco(el, fw, fh), card = el.marco === 'polaroid' || el.marco === 'pelicula';
     ctx.save();
     ctx.translate(el.x * W + fw / 2, el.y * H + fh / 2);
     if (el.rot) ctx.rotate(el.rot * Math.PI / 180);
     ctx.globalAlpha *= el.op ?? 1;
-    if (el.sh > 0) { ctx.save(); sombra(ctx, el, W, k); pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.fillStyle = card && el.marco === 'polaroid' ? '#fbfaf7' : '#000'; ctx.fill(); ctx.restore(); }
+    if (el.sh > 0) { ctx.save(); sombra(ctx, el, W, k); pathRR(ctx, -fw / 2 - o, -fh / 2 - o, fw + 2 * o, fh + 2 * o, r && r + o); ctx.fillStyle = card && el.marco === 'polaroid' ? '#fbfaf7' : '#000'; ctx.fill(); ctx.restore(); }
     if (card) {
       pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.fillStyle = el.marco === 'polaroid' ? '#fbfaf7' : '#141414'; ctx.fill();
       if (el.marco === 'pelicula') {             // the perforations of the strip, above and below the photo
@@ -371,9 +384,10 @@
       ctx.fillStyle = '#d9d5cd'; ctx.fillRect(ib.x, ib.y, ib.w, ib.h);
       if (ph && !el.src) { ctx.fillStyle = '#8a8478'; ctx.font = `600 ${Math.max(12, Math.min(ib.w, ib.h) * 0.09)}px -apple-system,BlinkMacSystemFont,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('+ Foto', ib.x + ib.w / 2, ib.y + ib.h / 2); }
     }
-    if (bw > 0 && !card) { ctx.lineWidth = bw * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#ffffff'; pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.stroke(); }
+    if (bw > 0 && !card && !o) { ctx.lineWidth = bw * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#ffffff'; pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.stroke(); }
     ctx.restore();
-    if (bw > 0 && card) { ctx.save(); pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.clip(); ctx.lineWidth = bw * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#ffffff'; ctx.stroke(); ctx.restore(); }
+    if (bw > 0 && card && !o) { ctx.save(); pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.clip(); ctx.lineWidth = bw * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#ffffff'; ctx.stroke(); ctx.restore(); }
+    if (o) { ctx.beginPath(); rr(ctx, -fw / 2 - o, -fh / 2 - o, fw + 2 * o, fh + 2 * o, r && r + o); rr(ctx, -fw / 2, -fh / 2, fw, fh, r); ctx.fillStyle = hexOk(el.bc) ? el.bc : '#ffffff'; ctx.fill('evenodd'); }
     if (el.marco === 'cinta') {                // two strips of tape over the top corners
       const m2 = Math.min(fw, fh), tw = m2 * 0.3, th = m2 * 0.085; ctx.fillStyle = 'rgba(243,234,205,.82)';
       for (const s of [-1, 1]) { ctx.save(); ctx.translate(s * (fw / 2 - tw * 0.22), -fh / 2 + th * 0.2); ctx.rotate(s * Math.PI / 4.6); ctx.fillRect(-tw / 2, -th / 2, tw, th); ctx.restore(); }
@@ -1200,8 +1214,8 @@
   function geoCaja(el, W, H) { const w = el.w * W, h = el.h * H; return { cx: el.x * W + w / 2, cy: el.y * H + h / 2, w, h, a: (el.rot || 0) * Math.PI / 180 }; }
   // what the editor draws around an element and takes its clicks on (and the magnet's edges): a text's lines, not its box (D-043)
   function geo(el, W, H) {
-    const g = geoCaja(el, W, H), c = el.t === 'texto' ? cenido(el, W) : null;
-    return c ? { ...g, cx: g.cx + c.o * Math.cos(g.a), cy: g.cy + c.o * Math.sin(g.a), w: c.w } : g;
+    const g = geoCaja(el, W, H), c = el.t === 'texto' ? cenido(el, W) : null, o = c ? 0 : bordeFuera(el, W);   // a photo: with its border «Fuera» (D-047)
+    return c ? { ...g, cx: g.cx + c.o * Math.cos(g.a), cy: g.cy + c.o * Math.sin(g.a), w: c.w } : o ? { ...g, w: g.w + 2 * o, h: g.h + 2 * o } : g;
   }
   // a text's lines across: as wide as the longest one (a pill's, with its padding), where its alignment draws them; o, their
   // centre from the box's. The box's width (el.w) is still where its lines break. Empty, null: the whole box
@@ -1581,7 +1595,7 @@
   const GRIDS = [['2h', '2 en columna'], ['2v', '2 en fila'], ['3a', '1 grande + 2'], ['3h', '3 en columna'], ['3v', '3 en fila'], ['4', '4 (2 × 2)']];
   function rejilla(c, name, g) {       // the slide's photos go into the cells in order (styles kept by position); texts, logos and shapes stay on top
     const { W, H } = sizeAt(E.i), cs = cells(name, W, H, g * W), old = fotosDe(c), fotos = old.map(e => e.src).filter(Boolean), otros = c.els.filter(e => e.t !== 'foto');
-    c.els = [...cs.map((q, k) => { const o = old[k], e = fotoEl(fotos[k] || null); if (o) Object.assign(e, { b: o.b, bc: o.bc, r: o.r, sh: o.sh, op: o.op ?? 1 }); return Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H) }); }), ...otros];
+    c.els = [...cs.map((q, k) => { const o = old[k], e = fotoEl(fotos[k] || null); if (o) Object.assign(e, { b: o.b, bc: o.bc, r: o.r, sh: o.sh, op: o.op ?? 1 }, o.bo ? { bo: o.bo } : {}); return Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H) }); }), ...otros];
     c.rej = { n: name, g };
   }
   function separar(c, g) {             // the gap of the grid in place: same photos, same cells
@@ -1645,7 +1659,7 @@
     } else if (d.t === 'size') {
       const g0 = geo(d.el0, W, H), cen = e.altKey, f = cen ? 2 : 1;   // ⌥: from the centre, the opposite side (or the four) moving too
       const A = cen ? { x: g0.cx, y: g0.cy } : world(g0, { x: -d.hx * g0.w / 2, y: -d.hy * g0.h / 2 }), ga = { ...g0, cx: A.x, cy: A.y }, l = local(ga, p), MIN = 0.03 * W;
-      let w = g0.w, h = g0.h;
+      let w = g0.w, h = g0.h, eje = 'x';
       const prop = el.t === 'logo' || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
       if (prop) { const s = f * (l.x * d.hx * g0.w + l.y * d.hy * g0.h) / (g0.w * g0.w + g0.h * g0.h); w = g0.w * s; h = g0.h * s; if (w < MIN || h < MIN) { const k = MIN / Math.min(g0.w, g0.h); w = g0.w * k; h = g0.h * k; } }
       else { if (d.hx) w = Math.max(MIN, f * l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, f * l.y * d.hy); delete el.rat; }   // a side: the frame is cropped, its format is no longer the one chosen
@@ -1660,12 +1674,14 @@
         const sx = d.hx ? tira(d.hx, A.x, w, t.xs, bs.map(b => b.r - b.l)) : null, sy = d.hy ? tira(d.hy, A.y, h, t.ys, bs.map(b => b.b - b.t)) : null;
         if (prop) {                   // a corner: the axis whose edge is nearer; the other follows the proportion
           const s = sx && (!sy || sx.d <= sy.d) ? sx : sy, k = s ? s.n / (s === sx ? w : h) : 1;
-          if (s && w * k >= MIN && h * k >= MIN) { w *= k; h *= k; if (s.at != null) E.guides.push(s === sx ? { x: s.at } : { y: s.at }); }
+          if (s && w * k >= MIN && h * k >= MIN) { w *= k; h *= k; eje = s === sx ? 'x' : 'y'; if (s.at != null) E.guides.push(s === sx ? { x: s.at } : { y: s.at }); }
         } else {
           if (sx && sx.n >= MIN) { w = sx.n; if (sx.at != null) E.guides.push({ x: sx.at }); }
           if (sy && sy.n >= (el.t === 'forma' ? 2 : MIN)) { h = sy.n; if (sy.at != null) E.guides.push({ y: sy.at }); }
         }
       }
+      const o = bordeFuera(d.el0, W);   // a border «Fuera» (D-047): the frame is the box less the border; a corner keeps the photo's proportion
+      if (o && prop) { if (eje === 'y') w = (g0.w - 2 * o) * (h - 2 * o) / (g0.h - 2 * o) + 2 * o; else h = (g0.h - 2 * o) * (w - 2 * o) / (g0.w - 2 * o) + 2 * o; }
       if (el.t === 'texto') {         // its lines were resized (D-043): a corner scales the text and the width they break at, a side sets that width (½ px over, so the longest line still fits)
         const s0 = d.el0.size || 0.06;
         if (prop) { el.size = r4(s0 * w / g0.w); el.w = r4(d.el0.w * el.size / s0 + 0.0005); } else el.w = r4(w / W + 0.0005);
@@ -1673,8 +1689,8 @@
         const c = cenido(el, W), cw = c ? c.w : el.w * W, o = c ? c.o : 0, hh = el.h * H, C = cen ? A : world(ga, { x: d.hx * cw / 2, y: d.hy * hh / 2 });
         el.x = r4((C.x - o * Math.cos(g0.a) - el.w * W / 2) / W); el.y = d.hy ? r4((C.y - o * Math.sin(g0.a) - hh / 2) / H) : d.el0.y; delete el.fit;   // a text keeps its top when only its width changes
       } else {
-        const C = cen ? A : world(ga, { x: d.hx * w / 2, y: d.hy * h / 2 });
-        el.w = r4(w / W); el.h = r4(h / H); el.x = r4((C.x - w / 2) / W); el.y = r4((C.y - h / 2) / H); delete el.fit;
+        const C = cen ? A : world(ga, { x: d.hx * w / 2, y: d.hy * h / 2 }), mw = Math.max(1, w - 2 * o), mh = Math.max(1, h - 2 * o);
+        el.w = r4(mw / W); el.h = r4(mh / H); el.x = r4((C.x - mw / 2) / W); el.y = r4((C.y - mh / 2) / H); delete el.fit;
       }
       if (el.src) setPhoto(el, {});
       if (mag && !el.rot) E.cotas = medidas(aabb(el, W, H), [el.id], { ancho: !!d.hx, alto: !!d.hy });
@@ -1690,7 +1706,7 @@
       delete el.fit;
     } else if (d.t === 'pan') {
       const f = el.src && M.files[el.src]; if (!f) return;
-      const g0 = geo(d.el0, W, H), ib = hueco(d.el0, g0.w, g0.h), sr = srcRect(d.el0, f.w, f.h, ib.w, ib.h), s = ib.w / sr.w;
+      const g0 = geoCaja(d.el0, W, H), ib = hueco(d.el0, g0.w, g0.h), sr = srcRect(d.el0, f.w, f.h, ib.w, ib.h), s = ib.w / sr.w;
       const dl = local({ ...g0, cx: 0, cy: 0 }, { x: p.x - d.p0.x, y: p.y - d.p0.y });
       const ddx = d.el0.fx ? -dl.x : dl.x, ddy = d.el0.fy ? -dl.y : dl.y;
       setPhoto(el, { cx: d.el0.cx - ddx / s / f.w, cy: d.el0.cy - ddy / s / f.h });
@@ -1967,7 +1983,7 @@
         if (el.hueco) h += '<p class="lb-p">Llena un hueco de la plantilla: doble clic para verla entera o llenando el hueco. Si la borras, el hueco vuelve como era.</p>';
         h += '</div>' + cruzarHTML(el) + transformarHTML([el]);
         h += plegable('estilo', 'Marco y estilo', 'borde, esquinas, sombra', `<div class="lb-sub"><h5>Marco</h5>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`
-          + `<div class="lb-sub"><h5>Estilo</h5>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`);
+          + `<div class="lb-sub"><h5>Estilo</h5>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}${seg('bo', [['', 'Dentro'], ['fuera', 'Fuera']], el.bo || '')}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`);
         h += girarHTML(el, true);
       } else if (el.t === 'texto') {
         const css = !(el.font && el.font.file);
@@ -2428,6 +2444,7 @@
       case 'crop-c': onEl(el => setPhoto(el, { cx: 0.5, cy: 0.5, z: 1 })); return;
       case 'encajar': onEl(el => { if (el.t === 'foto') encajar(el, el.fit != null ? el.fit : 0); }); return;
       case 'llenar': onEl(el => { if (el.t === 'foto') llenar(el); }); return;
+      case 'bo': onEl(el => { if (el.t !== 'foto') return; if (b.dataset.v) el.bo = 'fuera'; else delete el.bo; }); return;
       case 'marco': onEl(el => { if (el.t !== 'foto') return; el.marco = b.dataset.v || null; if (el.marco) delete el.fit; setPhoto(el, {}); }); return;
       case 'rotl': onEl(el => { el.rot = ((Math.round((el.rot || 0) - 90) + 540) % 360) - 180; delete el.fit; }); return;
       case 'rotr': onEl(el => { el.rot = ((Math.round((el.rot || 0) + 90) + 540) % 360) - 180; delete el.fit; }); return;

@@ -28,7 +28,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';
+  const VERSION = '1.2';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -212,7 +212,7 @@
   }
   function render() {
     const X = I(); if (!X || !X.shellReady()) return;
-    const root = X.root(), box = root.querySelector('.hv');
+    const root = X.root(), box = root.querySelector('.main > section.hv');   // the panel, not the cells' .dot.hv (D-035)
     root.classList.toggle('hv-on', ON && !!X.S);
     if (!box) return;
     box.hidden = !(ON && X.S);
@@ -278,12 +278,12 @@
   let mv = null, noClick = false;
   function onDown(e) {
     if (e.button || !(e.target.closest)) return;
-    const c = e.target.closest('#mesa .hv .hv-card[data-h]'); if (!c || c.closest('.hv-canc')) return;
+    const c = e.target.closest('#mesa .main > section.hv .hv-card[data-h]'); if (!c || c.closest('.hv-canc')) return;
     mv = { id: c.dataset.h, el: c, x: e.clientX, y: e.clientY, pid: e.pointerId, on: false };
   }
   // where the pointer would put it: {day, idx}, and the mark
   function destino(x, y) {
-    const t = document.elementFromPoint(x, y), rail = t && t.closest && t.closest('#mesa .hv .hv-rail[data-day]'); if (!rail) return null;
+    const t = document.elementFromPoint(x, y), rail = t && t.closest && t.closest('#mesa .main > section.hv .hv-rail[data-day]'); if (!rail) return null;
     const cards = [...rail.querySelectorAll('.hv-card[data-h]')].filter(c => c !== mv.el);
     let idx = cards.length;
     for (let i = 0; i < cards.length; i++) { const r = cards[i].getBoundingClientRect(); if (y < r.bottom && x < r.left + r.width / 2) { idx = i; break; } }
@@ -314,8 +314,8 @@
   }
   const onUp = e => fin(e, true), onCancel = e => fin(e, false);
 
-  const CSS = `#mesa.hv-on:not(.client) .feed{display:none}#mesa.client .hv,#mesa.client .hvsw{display:none}
-#mesa .hv{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--bg);border-right:1px solid var(--line);padding:10px 14px 24px;box-sizing:border-box}
+  const CSS = `#mesa.hv-on:not(.client) .feed{display:none}#mesa.client .main > section.hv,#mesa.client .hvsw{display:none}
+#mesa .main > section.hv{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--bg);border-right:1px solid var(--line);padding:10px 14px 24px;box-sizing:border-box}
 #mesa.hv-on:not(.client) .side{flex:0 0 min(420px,38vw)}#mesa.hv-on .tcount{white-space:nowrap}
 #mesa .hvsw{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
 #mesa .hvsw button{border:0;background:none;color:var(--mute);font:inherit;font-size:12.5px;padding:4px 11px;cursor:pointer}#mesa .hvsw button.on{background:var(--ink);color:#fff}
@@ -347,7 +347,7 @@
 #mesa .hv-fh{display:flex;gap:6px}#mesa .hv-fh input{flex:1;min-width:0}
 #mesa .hv-e{margin:0 0 9px;font-size:13px}#mesa .hv-mal{margin:0 0 9px;font-size:13px;color:var(--red)}
 #mesa .hv-form .row{display:flex;flex-wrap:wrap;gap:6px}
-@media (max-width:720px){#mesa.hv-on:not(.client) .side{flex:none}#mesa .hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}#mesa .hv-dlg{grid-template-columns:1fr}#mesa .hv-big{width:110px}}`;
+@media (max-width:720px){#mesa.hv-on:not(.client) .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}#mesa .hv-dlg{grid-template-columns:1fr}#mesa .hv-big{width:110px}}`;
   let style = document.getElementById('mesa-hv-css');
   if (!style) { style = document.createElement('style'); style.id = 'mesa-hv-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
   style.textContent = CSS;

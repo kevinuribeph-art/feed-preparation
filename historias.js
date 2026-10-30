@@ -24,7 +24,7 @@
 //     after updating it in Zernio: it stops being changed. zernioId null: it is no longer in Zernio.
 // Scheduling: tools/zernio.mjs presign -> M.startZernio([{fileId (of files), slotId (the story's id), url, publicUrl}]), which refuses
 // one with a point that stops it -> M.waitZernio -> tools/zernio.mjs schedule, one post per story at its date.
-// Designing from outside (D-062, D-063; the photos come with M.importarFotos, D-061):
+// Designing from outside (D-062, D-063; the photos are dragged to the client's tray, D-061):
 //   M.plantillasHistoria() -> [{id, nombre, campos}], the open client's: the templates of its kit (kit «historias») on c.libre.plantillas.
 //   await M.disenarHistoria(id, {plantilla, foto? (fileId), titular?, etiqueta?, texto?, dato?, serie?: {n, total}}, {replace?}) -> {id, state,
 //     problems: [{tipo, bloquea, texto}]}, and error if it was refused and nothing changed: a programmed or cancelled one never,

@@ -1210,7 +1210,7 @@
     ok(punto().offsetParent !== null, 'el punto no se ve en la cuadrícula');
   });
 
-  // ---------- historias solas: fotos sin arrastrar, plantillas del kit y diseño desde fuera (D-061 a D-063) ----------
+  // ---------- historias solas: fotos a la bandeja, plantillas del kit y diseño desde fuera (D-061 a D-063) ----------
   const bytesIguales = async (a, b) => { const x = new Uint8Array(await a.arrayBuffer()), y = new Uint8Array(await b.arrayBuffer()); return x.length === y.length && x.every((v, i) => v === y[i]); };
   // el kit de verdad para el cliente de prueba, con el monograma entre sus logos: la mesa las siembra (D-062)
   async function conPlantillas({ logo = true } = {}) {
@@ -1242,28 +1242,16 @@
   const textosH = id => compH(id).els.filter(e => e.t === 'texto');
   const conTexto = (id, s) => textosH(id).find(e => e.txt === s);
 
-  prueba('H14', 'MESA.importarFotos mete en la bandeja los mismos bytes, igual que un arrastre: «añadida», «ya estaba» y error por foto (D-061, D-022)', async () => {
+  prueba('H14', 'Una foto que entra a la bandeja guarda los mismos bytes y dimensiones, y la misma foto no entra dos veces (D-061, D-022)', async () => {
     await tablero([pub(1)]);
-    const f = await foto('h14.jpg', 2400, 3000), url = W.URL.createObjectURL(f);
-    let r = await M.importarFotos([{ url, name: 'h14.jpg', lastModified: 1767225600000, size: f.size }]);
-    igual(r.map(x => [x.name, x.result]), [['h14.jpg', 'añadida']], 'la primera vez');
-    const id = r[0].fileId;
+    const f = await foto('h14.jpg', 2400, 3000), id = (await M.addFiles([f]))[0];
     ok(M.board().tray.includes(id), 'no está en la bandeja');
     const rec = await M._in.idbGet('files', id);
     igual([rec.size, rec.w, rec.h, rec.lastModified, rec.type], [f.size, 2400, 3000, 1767225600000, 'image/jpeg'], 'tamaño, dimensiones y fecha');
     ok(await bytesIguales(rec.blob, f), 'los bytes guardados no son los del original');
-    // otra vez: la misma foto (nombre y tamaño, D-022) no entra dos veces
-    r = await M.importarFotos([{ url, name: 'h14.jpg', lastModified: 1 }]);
-    igual([r[0].fileId, r[0].result], [id, 'ya estaba'], 'la segunda vez');
+    igual((await M.addFiles([await foto('h14.jpg', 2400, 3000)], null, { tray: true }))[0], id, 'la segunda vez');
     igual(M.board().tray.filter(x => x === id).length, 1, 'veces en la bandeja');
-    // cada foto da su resultado, en el orden pedido, y las malas no paran a las demás
-    const g = await foto('h14-b.jpg');
-    const mala = W.URL.createObjectURL(new W.Blob(['no es una imagen'], { type: 'image/jpeg' })), heic = W.URL.createObjectURL(new W.Blob(['x'], { type: 'image/heic' }));
-    r = await M.importarFotos([{ url: mala, name: 'rota.jpg' }, { url: 'http://127.0.0.1:9/nada', name: 'nada.jpg' }, { url: heic, name: 'foto.heic' }, { url, name: 'corta.jpg', size: f.size + 1 }, { name: 'sin-url.jpg' }, { url: W.URL.createObjectURL(g), name: 'h14-b.jpg' }]);
-    igual(r.map(x => x.name), ['rota.jpg', 'nada.jpg', 'foto.heic', 'corta.jpg', 'sin-url.jpg', 'h14-b.jpg'], 'el orden');
-    ok(r.slice(0, 5).every(x => x.error && !x.fileId), 'las malas tenían que dar error: ' + json(r));
-    ok(/HEIC/.test(r[2].error) && /incompleta/.test(r[3].error), 'los motivos: ' + json(r));
-    igual(r[5].result, 'añadida', 'la buena de detrás');
+    igual(M.files[id].name, 'h14.jpg', 'su nombre, con el que se busca para diseñar');
   });
 
   prueba('H15', 'Las 8 plantillas salen del kit una sola vez, 9:16 en el editor; la borrada no vuelve y no cuentan para las 24 del cliente (D-062)', async () => {
@@ -1309,7 +1297,7 @@
     await tablero([pub(1)]);
     const { salir } = await conPlantillas();
     try {
-      const r = await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h16.jpg', 3000, 5400)), name: 'h16.jpg' }]), fid = r[0].fileId;
+      const fid = (await M.addFiles([await foto('h16.jpg', 3000, 5400)]))[0];
       const lineas = ['Una', 'Una línea que pasa a dos', 'Un titular que ocupa justo tres líneas'];
       const zona = [['Texto Ink', {}], ['Texto Paper', {}], ['Texto Terracota', {}], ['Foto + texto', { foto: fid }], ['Post enmarcado', { foto: fid }], ['Secuencia', { foto: fid, serie: { n: 1, total: 3 } }], ['Dato grande', { foto: fid, serie: { n: 2, total: 3 } }]];
       let dia = 3;
@@ -1362,7 +1350,7 @@
     await tablero([pub(1)]);
     const { salir } = await conPlantillas();
     try {
-      const a = async (nombre, w, h) => (await M.importarFotos([{ url: W.URL.createObjectURL(await foto(nombre, w, h)), name: nombre }]))[0].fileId;
+      const a = async (nombre, w, h) => (await M.addFiles([await foto(nombre, w, h)]))[0];
       const justa = await a('h17-1200.jpg', 1200, 2133), poca = await a('h17-800.jpg', 800, 1422), sobra = await a('h17-2000.jpg', 2000, 3556);
       const sangre = tplDe('Foto a sangre').id, d = (f) => M.disenarHistoria(M.hs.anadir(DIA(10), {}), { plantilla: sangre, foto: f });
       let o = await d(sobra);
@@ -1405,8 +1393,8 @@
       ok(img2 !== img, 'la imagen no cambió con replace');
       ok(!M._in.refsOf(M.board()).has(img), 'la imagen vieja sigue en la historia');
       // la foto vieja de una sustituida vuelve a la bandeja
-      const u = (await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h18-a.jpg', 1800, 3200)), name: 'h18-a.jpg' }]))[0].fileId;
-      const v = (await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h18-b.jpg', 1800, 3200)), name: 'h18-b.jpg' }]))[0].fileId;
+      const u = (await M.addFiles([await foto('h18-a.jpg', 1800, 3200)]))[0];
+      const v = (await M.addFiles([await foto('h18-b.jpg', 1800, 3200)]))[0];
       const id2 = M.hs.anadir(DIA(11), {});
       await M.disenarHistoria(id2, { plantilla: sangre, foto: u });
       await M.disenarHistoria(id2, { plantilla: sangre, foto: v }, { replace: true });
@@ -1440,7 +1428,7 @@
     await tablero([pub(1)]);
     const { salir } = await conPlantillas();
     try {
-      const fid = (await M.importarFotos([{ url: W.URL.createObjectURL(await foto('h19.jpg', 2000, 3000)), name: 'h19.jpg' }]))[0].fileId;
+      const fid = (await M.addFiles([await foto('h19.jpg', 2000, 3000)]))[0];
       const sec = tplDe('Secuencia').id, ids = [];
       for (const n of [1, 2, 3]) {
         const id = M.hs.anadir(DIA(10 + n), {}), o = await M.disenarHistoria(id, { plantilla: sec, foto: fid, titular: 'Paso ' + n, texto: 'Un texto corto.', serie: { n, total: 3 } });

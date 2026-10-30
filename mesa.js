@@ -65,7 +65,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.56'; // 3.56: photos of this Mac to the tray without dragging, and stories designed from outside (D-061 to D-063)
+  M.version = '3.56'; // 3.56: stories designed from outside, from the kit's templates (D-061 to D-063)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1060,37 +1060,6 @@
     if (targetSlotId && d && !d.hidden && d.dataset.slot === targetSlotId) refreshDetail();
     return got;
   }
-
-  // Photos of this Mac into the open client's tray without dragging them (D-061): the same way as a drop, with the same bytes.
-  // await M.importarFotos([{url, name, lastModified, size?}]) -> [{name, fileId, result: 'añadida' | 'ya estaba'} | {name, error}],
-  // in the order given. url comes from tools/servir-fotos.mjs; one at a time, so a long list never holds them all in memory.
-  M.importarFotos = async list => {
-    const B = S; if (!B) return { error: 'no hay mesa abierta' };
-    if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
-    const out = [];
-    for (const it of [].concat(list ?? [])) {
-      const name = String((it && it.name) || '');
-      try {
-        if (!name || !it.url) throw new Error('falta la url o el nombre');
-        if (S !== B) throw new Error('la mesa cambió mientras se importaba');
-        const r = await fetch(it.url, { cache: 'no-store', credentials: 'omit' }).catch(async () => {
-          const p = await navigator.permissions.query({ name: 'local-network-access' }).then(x => x.state).catch(() => '');
-          throw new Error(p === 'denied' ? 'este navegador no deja a la mesa leer de este Mac (permiso de red local denegado): el navegador integrado de la app lo deniega siempre; en Chrome, permítelo' : 'no se pudo descargar: ¿sigue abierto tools/servir-fotos.mjs?');
-        });
-        if (!r.ok) throw new Error(`la descarga falló (${r.status})`);
-        const blob = await r.blob(), n = Math.max(+r.headers.get('content-length') || 0, +it.size || 0);
-        if (n && blob.size !== n) throw new Error(`descarga incompleta: ${blob.size} de ${n} bytes`);
-        if (!blob.size) throw new Error('el archivo está vacío');
-        const type = [blob.type, { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[name.split('.').pop().toLowerCase()]].find(t => OK_TYPES.includes(t));
-        if (!type) throw new Error(/heic|heif/i.test(name + blob.type) ? 'HEIC no se puede leer aquí: expórtala como JPG' : 'formato no compatible (usa JPG o PNG)');
-        const ya = B.tray.some(id => M.files[id] && M.files[id].name === name && M.files[id].size === blob.size);
-        const got = await M.addFiles([new File([blob], name, { type, lastModified: +it.lastModified || Date.now() })], null, { tray: true });
-        if (!got[0]) throw new Error('no se pudo leer o el navegador no tiene espacio');
-        out.push({ name, fileId: got[0], result: ya ? 'ya estaba' : 'añadida' });
-      } catch (e) { out.push({ name, error: String((e && e.message) || e) }); }
-    }
-    return out;
-  };
 
   // ---------- board mutations ----------
   function takeFromTray(fileId) { S.tray = S.tray.filter(x => x !== fileId); }

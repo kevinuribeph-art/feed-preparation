@@ -1931,6 +1931,42 @@
     M.libre.cerrar();
   });
 
+  prueba('E44', 'Borde «Fuera»: rodea el marco sin tapar la foto; la caja, el clic y los tiradores van por fuera y una esquina no deforma la foto; a sangre, el borde en el canto y la foto dentro; «Dentro», como antes (D-047)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('borde.jpg', 1200, 1500)]);
+    await abrirEditor('r1');
+    const { W: w, H: h } = tam(), el = compDe(0).els[0];
+    compDe(0).bg = '#0000ff';
+    Object.assign(el, { x: 0.25, y: 0.25, w: 0.5, h: 0.5 * w / 0.8 / h, b: 0.02, bc: '#ff0000' }); delete el.fit;
+    const bw = 0.02 * w, x0 = 0.25 * w, cy = (el.y + el.h / 2) * h, x1 = x0 + 0.5 * w, y1 = (el.y + el.h) * h;
+    const rojo = p => { const v = pixel(...p); return v[0] > 200 && v[1] < 60 && v[2] < 60; }, azul = p => { const v = pixel(...p); return v[2] > 200 && v[0] < 60 && v[1] < 60; };
+    const nada = async () => { ed().sel = null; ed().mas = []; await dibujado(); };
+    await nada();
+    await hasta(async () => { await dibujado(); return rojo([x0 + bw / 2, cy]) && azul([x0 - bw / 2, cy]); }, 4000, '«Dentro» (sin elegir) tapa el borde de la foto como antes');
+    elegir(el); accion('bo', { v: 'fuera' });
+    igual(compDe(0).els[0].bo, 'fuera', '«Fuera» no quedó en la foto');
+    igual([el.x, el.w, el.b], [0.25, 0.5, 0.02], '«Fuera» movió o cambió la foto');
+    await nada();
+    ok(rojo([x0 - bw / 2, cy]) && !rojo([x0 + bw / 2, cy]) && !azul([x0 + bw / 2, cy]), '«Fuera» no deja el borde fuera del marco y la foto entera dentro');
+    const clic = (x, y) => { const [a, b] = aVentana(x, y); puntero('pointerdown', ed().cv, a, b); puntero('pointerup', ed().cv, a, b); };
+    clic(x0 - bw / 2, cy); igual(ed().sel, el.id, 'un clic en el borde de fuera no elige la foto');
+    await dibujado();
+    const r0 = (el.w * w) / (el.h * h), [a, b] = aVentana(x1 + bw, y1 + bw), [c, d] = aVentana(x1 + bw + 80, y1 + bw + 80);   // el tirador de abajo a la derecha, en la esquina de fuera
+    puntero('pointerdown', ed().cv, a, b, { ctrl: true }); puntero('pointermove', ed().cv, (a + c) / 2, (b + d) / 2, { ctrl: true }); puntero('pointermove', ed().cv, c, d, { ctrl: true }); puntero('pointerup', ed().cv, c, d, { ctrl: true });
+    const e1 = compDe(0).els[0];
+    ok(e1.w > 0.5 + 0.02, 'la esquina de fuera no amplió la foto: ' + e1.w);
+    cerca((e1.w * w) / (e1.h * h), r0, 0.004, 'la esquina deformó la foto');
+    cerca(e1.x * w, x0, 1, 'la esquina de abajo movió el lado izquierdo de la foto');
+    igual(e1.b, 0.02, 'ampliar cambió el borde');
+    Object.assign(e1, { x: 0, y: 0, w: 1, h: 1 }); delete e1.fit;   // a sangre: el borde en el canto, la foto dentro
+    await nada();
+    ok(rojo([bw / 2, h / 2]) && rojo([w - bw / 2, h / 2]) && rojo([w / 2, bw / 2]) && rojo([w / 2, h - bw / 2]), 'a sangre, el borde no está en el canto de la diapositiva');
+    ok(!rojo([bw * 1.5, h / 2]) && !azul([bw * 1.5, h / 2]), 'a sangre, la foto no llega hasta el borde');
+    elegir(e1); accion('bo', { v: '' });
+    ok(!('bo' in compDe(0).els[0]), '«Dentro» no volvió al borde de siempre');
+    M.libre.cerrar();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

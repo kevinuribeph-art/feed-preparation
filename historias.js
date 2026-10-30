@@ -1,9 +1,11 @@
-// Historias — Mesa de trabajo · v1.1
+// Historias — Mesa de trabajo · v1.4
 // The month's Instagram stories, beside the grid, never in it (D-054). A switch in the board's bar shows, instead of the
 // grid, one rail per day: that day's post, if any, and its stories in order, 9:16. From there a story is added, duplicated,
 // dragged to another place or day, timed, linked to the post it supports, cancelled, deleted or opened in the free editor
 // («Editar historia», libre.js as a reel's cover: one 9:16 page, D-055). The tray beside it is the client's (D-041), and a
-// photo dropped on a story opens that story's editor with it.
+// photo dropped on a story opens that story's editor with it. A story's dialog: its state and post, its image as big as the
+// window allows, day and time; ⌘E opens the editor, ⌘D duplicates, the arrows go through its day (D-065). In «Vista cliente» the
+// view stays, read only: the designed stories with their date and time (D-064).
 // A story lives in the board's b.historias, apart from S.slots, so nothing of the feed sees it; mesa.js keeps what can't
 // depend on this file: ⌘Z, the files they use, export, a post's stories following it (D-057) and the rule of not showing a
 // photo before its post (D-056). Stories are read and changed only through the mesa's bridge (M._in, mesa ≥ 3.53). If this
@@ -33,14 +35,14 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
-  let ON = false, abierta = null;              // the view is on; the story whose dialog is open
+  let ON = false, abierta = null, enUso = null;   // the view is on; the story whose dialog is open; the field of it in use
 
   const puede = () => { const X = I(); if (!X || !X.S) return false; if (X.locked) { X.toast('La mesa está abierta en otra pestaña: pulsa «Usar aquí».'); return false; } return true; };
   const lista = () => { const X = I(); return X && X.S ? X.hsDe(X.S) : []; };
@@ -48,6 +50,8 @@
   const estado = h => (h.cancelada ? 'cancelada' : h.zernio ? 'programada' : (h.photos || []).length ? 'diseñada' : 'por diseñar');
   const delDia = (day, sin) => { const X = I(); return lista().filter(h => !h.cancelada && h !== sin && X.localDay(h.date) === day).sort((a, b) => X.ts(a.date) - X.ts(b.date)); };
   const hecho = () => { const X = I(); X.hNorm(X.S); X.changed(); };
+  const cliente = () => { const X = I(); return !!(X && X.root() && X.root().classList.contains('client')); };   // «Vista cliente»
+  const paraCliente = h => !h.cancelada && (h.photos || []).length > 0;   // what it sees (D-064)
   // what changed in a programmed story since it was marked: derived, so undoing a change takes it off
   const cambiosDe = h => { const X = I(), z = h.zernio; return !z ? [] : [...(h.cancelada ? ['cancelada'] : []), ...(X.sameDate(h.date, z.date) ? [] : ['fecha']), ...((h.photos || [])[0] === z.file ? [] : ['imagen'])]; };
 
@@ -116,7 +120,7 @@
     X.changed();
     X.toast('Historia borrada. ⌘Z la devuelve.');
   }
-  function setNota(id, txt) { const h = porId(id); if (!h || !puede() || h.note === txt) return; h.note = txt; I().changed(); }
+  function setNota(id, txt) { const h = porId(id); if (!h || (h.note || '') === txt || !puede()) return; h.note = txt; I().changed(); }
   async function editar(id, o = {}) {
     const h = porId(id); if (!h) return { error: 'no existe' };
     const X = I();
@@ -125,7 +129,7 @@
     cerrarDlg();
     return M.libre.abrir(id, 0, o);
   }
-  const soltar = (id, fileId) => editar(id, { foto: fileId });
+  const soltar = (id, fileId) => (cliente() ? null : editar(id, { foto: fileId }));
   const tras = () => { ver(true); };           // back from the editor: the view, as it is now
 
   // ---------- what the skill uses ----------
@@ -342,7 +346,7 @@
   const disenarHistoria = (id, datos, opts) => { const pr = colaD.then(() => disenar(id, datos || {}, opts || {})); colaD = pr.catch(() => {}); return pr; };
 
   // ---------- the view ----------
-  const barra = () => { const n = lista().filter(h => !h.cancelada).length; return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
+  const barra = () => { const n = lista().filter(cliente() ? paraCliente : h => !h.cancelada).length; return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
   function ver(on) { ON = !!on; const X = I(); if (!X) return; render(); X.renderBar(); }
   function dias() {                            // the board's days, and any a story has moved beyond them (with its post)
     const X = I(), ms = X.boardMonths(), cd = X.curCd(), lo = X.cycleStart(ms[0], cd), hi = X.cycleEnd(ms[ms.length - 1], cd), out = new Set();
@@ -356,6 +360,7 @@
     return `<div class="hv-post" title="${esc(s.name)}">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="" draggable="false">` : '<div class="hv-nof"></div>'}<span>${esc(X.localTime(s.date) || 'sin hora')}</span></div>`;
   }
   function cardHTML(h) {
+    if (cliente()) { const X = I(), g = M.files[(h.photos || [])[0]]; return `<div class="hv-card" data-h="${esc(h.id)}" role="button" tabindex="0"><div class="hv-img">${g && g.thumbUrl ? `<img src="${g.thumbUrl}" alt="" draggable="false">` : ''}</div><div class="hv-pie"><b>${esc(X.localTime(h.date))}</b></div></div>`; }
     const X = I(), e = estado(h), f = M.files[(h.photos || [])[0]], s = h.slotId && X.S.slots.find(x => x.id === h.slotId), mal = X.adelantos(h).length;
     return `<div class="hv-card e-${e.replace(' ', '-')}${mal ? ' mal' : ''}" data-h="${esc(h.id)}" role="button" tabindex="0" title="${esc(h.name)}${s ? ` · apoya a ${esc(s.name)}` : ''}${mal ? ' · enseña una foto antes de su post' : ''}">`
       + `<div class="hv-img">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="" draggable="false">` : `<p>${esc(h.note || 'Sin diseñar')}</p>`}</div>`
@@ -369,34 +374,73 @@
     if (!box) return;
     box.hidden = !(ON && X.S);
     if (box.hidden) { if (abierta) cerrarDlg(); return; }
-    const top = box.scrollTop, S = X.S, ds = dias(), vivas = lista().filter(h => !h.cancelada).length;
-    const canc = lista().filter(h => h.cancelada), hoy = X.hoy();
-    box.innerHTML = `<p class="hv-res">${vivas ? `${vivas} ${vivas === 1 ? 'historia' : 'historias'} en este mes` : 'Aún no hay historias en este mes: pulsa + en un día.'}</p>`
+    const top = box.scrollTop, S = X.S, cl = cliente(), todas = lista().filter(cl ? paraCliente : h => !h.cancelada), vivas = todas.length;
+    const ds = cl ? [...new Set(todas.map(h => X.localDay(h.date)))].sort() : dias(), canc = cl ? [] : lista().filter(h => h.cancelada), hoy = X.hoy();
+    box.innerHTML = `<p class="hv-res">${vivas ? `${vivas} ${vivas === 1 ? 'historia' : 'historias'} en este mes` : cl ? 'Aún no hay historias en este mes.' : 'Aún no hay historias en este mes: pulsa + en un día.'}</p>`
       + ds.map(d => {
-        const posts = S.slots.filter(s => X.vivo(s) && X.localDay(s.date) === d), hs = delDia(d);
+        const posts = cl ? [] : S.slots.filter(s => X.vivo(s) && X.localDay(s.date) === d), hs = delDia(d).filter(cl ? paraCliente : () => true);
         return `<div class="hv-rail${d === hoy ? ' hoy' : ''}${posts.length || hs.length ? '' : ' vacio'}" data-day="${d}"><div class="hv-dia">${diaTxt(d)}</div><div class="hv-posts">${posts.map(postHTML).join('')}</div>`
-          + `<div class="hv-cards">${hs.map(cardHTML).join('')}<button type="button" class="hv-add" data-hv="add" data-day="${d}" title="Añadir una historia a este día" aria-label="Añadir una historia al ${+d.slice(8)}">+</button></div></div>`;
+          + `<div class="hv-cards">${hs.map(cardHTML).join('')}${cl ? '' : `<button type="button" class="hv-add" data-hv="add" data-day="${d}" title="Añadir una historia a este día" aria-label="Añadir una historia al ${+d.slice(8)}">+</button>`}</div></div>`;
       }).join('')
       + (canc.length ? `<div class="hv-rail hv-canc"><div class="hv-dia">Canceladas</div><div class="hv-posts"></div><div class="hv-cards">${canc.map(cardHTML).join('')}</div></div>` : '');
     box.scrollTop = top;
-    if (abierta) { const h = porId(abierta), d = root.querySelector('.detail'); if (h && d && !d.hidden && d.dataset.dlg === 'historia') d.querySelector('.card').innerHTML = dlgHTML(h); else if (!h) cerrarDlg(); }
+    if (abierta) { const h = porId(abierta); if (h && dlgAbierto()) refrescaDlg(h); else if (!h) cerrarDlg(); }
   }
   // ---------- one story's dialog ----------
-  function dlgHTML(h) {
-    const X = I(), e = estado(h), f = M.files[(h.photos || [])[0]], posts = X.S.slots.filter(X.vivo), mal = X.adelantos(h);
-    return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(h.name)}</h3>`
-      + `<div class="hv-dlg"><div class="hv-img hv-big">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="">` : '<p>Sin diseñar</p>'}</div><div class="form hv-form">`
-      + (mal.length ? `<p class="hv-mal">${mal.map(a => `Enseña una foto antes de que salga en el feed: ${esc(a.post)}, ${esc(X.hFecha(a.date))}.`).join('<br>')}</p>` : '')
-      + `<p class="hv-e">Estado: ${e}${h.porPost ? ', porque su publicación lo está' : ''}${cambiosDe(h).length ? `. Cambió aquí después de programarla (${cambiosDe(h).join(', ')}): falta actualizar Zernio` : ''}</p>`
-      + `<label>Día y hora (Madrid)<span class="hv-fh"><input type="date" data-hv-c="dia" value="${X.localDay(h.date)}"${h.cancelada ? ' disabled' : ''}><input type="time" data-hv-c="hora" value="${esc(X.localTime(h.date))}"${h.cancelada ? ' disabled' : ''}></span></label>`
-      + `<label>Publicación que apoya<select data-hv-c="post"><option value="">Ninguna</option>${posts.map(s => `<option value="${esc(s.id)}"${s.id === h.slotId ? ' selected' : ''}>${esc(s.name)} · ${esc(X.hFecha(s.date))}</option>`).join('')}</select></label>`
-      + `<label>Nota<textarea data-hv-c="nota" rows="4" placeholder="El guion de esta historia">${esc(h.note || '')}</textarea></label>`
-      + `<div class="row"><button type="button" class="btn" data-hv="editar"${h.cancelada ? ' disabled' : ''}>Editar historia</button><button type="button" class="btn2" data-hv="duplicar">Duplicar</button>`
-      + (h.cancelada ? '<button type="button" class="btn2" data-hv="reactivar">Reactivar</button>' : '<button type="button" class="btn2" data-hv="cancelar">Cancelar</button>')
-      + (h.zernio ? '' : '<button type="button" class="btn2" data-hv="borrar">Borrar</button>') + '</div></div></div>';
+  const CHEV = { l: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5.5 8.5 12l6.5 6.5"/></svg>', r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"/></svg>' };
+  const PAPELERA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></svg>';
+  const dlgAbierto = () => { const X = I(), d = X && X.root() && X.root().querySelector('.detail'); return !!(abierta && d && !d.hidden && d.dataset.dlg === 'historia'); };
+  const vecinas = h => { const d = delDia(I().localDay(h.date)); return h.cancelada ? [] : cliente() ? d.filter(paraCliente) : d; };   // its day, by time (D-065)
+  // the original, not the thumbnail, which isn't sharp at this size: the last few, kept so going back doesn't blink
+  const GRANDES = new Map();
+  async function cargaGrande() {
+    const X = I(), hueco = () => X.root().querySelector('.detail[data-dlg="historia"] .hv-big img'), im = hueco(); if (!im) return;
+    const fid = im.dataset.f;
+    if (GRANDES.has(fid)) { const u = GRANDES.get(fid); GRANDES.delete(fid); GRANDES.set(fid, u); return; }
+    const r = await X.idbGet('files', fid).catch(() => null); if (!r || !r.blob || GRANDES.has(fid)) return;
+    GRANDES.set(fid, URL.createObjectURL(r.blob));
+    if (GRANDES.size > 6) { const [k, u] = GRANDES.entries().next().value; URL.revokeObjectURL(u); GRANDES.delete(k); }
+    const i2 = hueco(); if (i2 && i2.dataset.f === fid) i2.src = GRANDES.get(fid);
   }
-  function abrirDlg(id) { const h = porId(id), X = I(); if (!h || !X) return; abierta = id; X.showDialog('historia', dlgHTML(h)); }
+  function visHTML(h) {
+    const fid = (h.photos || [])[0], f = M.files[fid], v = vecinas(h), i = v.indexOf(h);
+    const flecha = (d, c, svg, txt, off) => `<button type="button" class="nav ${c}" data-hv="nav" data-d="${d}" aria-label="${txt}" title="${txt}"${off ? ' disabled' : ''}>${svg}</button>`;
+    return `<div class="hv-vis">${v.length > 1 && i >= 0 ? flecha(-1, 'prev', CHEV.l, 'Historia anterior de este día', i === 0) + flecha(1, 'next', CHEV.r, 'Historia siguiente de este día', i === v.length - 1) : ''}`
+      + `<div class="hv-img hv-big">${f && f.thumbUrl ? `<img src="${GRANDES.get(fid) || f.thumbUrl}" data-f="${esc(fid)}" alt="">` : '<p>Sin diseñar</p>'}</div></div>`;
+  }
+  // one block per child of .hv-story: refrescaDlg changes only those that changed, and never a field being used
+  function dlgHTML(h) {
+    const X = I(), x = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
+    if (cliente()) return `${x}<div class="hv-story" role="group" aria-label="${esc(h.name)}">${visHTML(h)}<p class="hv-cf">${esc(X.hFecha(h.date))}</p></div>`;
+    const e = estado(h), posts = X.S.slots.filter(X.vivo), mal = X.adelantos(h), off = h.cancelada ? ' disabled' : '';
+    return `${x}<div class="hv-story form hv-form" role="group" aria-label="${esc(h.name)}">`
+      + `<div class="hv-av">${mal.length ? `<p class="hv-mal">${mal.map(a => `Enseña una foto antes de que salga en el feed: ${esc(a.post)}, ${esc(X.hFecha(a.date))}.`).join('<br>')}</p>` : ''}`
+      + `<p class="hv-e">Estado: ${e}${h.porPost ? ', porque su publicación lo está' : ''}${cambiosDe(h).length ? `. Cambió aquí después de programarla (${cambiosDe(h).join(', ')}): falta actualizar Zernio` : ''}</p></div>`
+      + `<label class="hv-lin">Publicación que apoya<select data-hv-c="post"><option value="">Ninguna</option>${posts.map(s => `<option value="${esc(s.id)}"${s.id === h.slotId ? ' selected' : ''}>${esc(s.name)} · ${esc(X.hFecha(s.date))}</option>`).join('')}</select></label>`
+      + visHTML(h)
+      + `<label class="hv-lin">Día y hora (Madrid)<span class="hv-fh"><input type="date" data-hv-c="dia" value="${X.localDay(h.date)}"${off}><input type="time" data-hv-c="hora" value="${esc(X.localTime(h.date))}"${off}></span></label>`
+      + `<div class="hv-acc">${h.cancelada ? '<button type="button" data-hv="reactivar">Reactivar</button>' : '<button type="button" data-hv="cancelar">Cancelar</button>'}${h.zernio ? '' : `<button type="button" class="hv-tr" data-hv="borrar" aria-label="Borrar" title="Borrar">${PAPELERA}</button>`}</div></div>`;
+  }
+  function abrirDlg(id) { const h = porId(id), X = I(); if (!h || !X) return; abierta = id; enUso = null; X.showDialog('historia', dlgHTML(h)); cargaGrande(); }
   function cerrarDlg() { const X = I(); abierta = null; const d = X && X.root() && X.root().querySelector('.detail'); if (d && !d.hidden && d.dataset.dlg === 'historia') X.closeDetail(); }
+  // the dialog after a change: typing a time changes the story at every step, so a field in use stays where it is
+  function refrescaDlg(h) {
+    const X = I(), d = X.root().querySelector('.detail'), a = d.querySelector('.hv-story'), t = document.createElement('div'), ac = enUso || document.activeElement;   // going from a time's hours to its minutes, the page says body
+    t.innerHTML = dlgHTML(h);
+    const b = t.querySelector('.hv-story');
+    if (!a || a.children.length !== b.children.length) d.querySelector('.card').innerHTML = t.innerHTML;
+    else [...a.children].forEach((o, i) => { const n = b.children[i]; if (!o.isEqualNode(n) && !(ac && ac.matches('input,select') && o.contains(ac))) o.replaceWith(n.cloneNode(true)); });
+    const di = d.querySelector('[data-hv-c="dia"]'), ho = d.querySelector('[data-hv-c="hora"]');
+    if (di && di !== ac) di.value = X.localDay(h.date);
+    if (ho && ho !== ac) ho.value = X.localTime(h.date);
+    cargaGrande();
+  }
+  function irA(d) {
+    const h = porId(abierta); if (!h) return;
+    const v = vecinas(h), t = v[v.indexOf(h) + d]; if (!t) return;
+    abrirDlg(t.id);
+    const b = I().root().querySelector(`.detail [data-hv="nav"][data-d="${d}"]`); if (b && !b.disabled) b.focus();   // so the keyboard can go on
+  }
 
   // ---------- clicks, fields and dragging a story ----------
   function onClick(e) {
@@ -408,29 +452,45 @@
       if (a === 'ver') ver(b.dataset.v === '1');
       else if (a === 'ir') { ver(true); abrirDlg(b.dataset.id); }   // a point of «Revisar»
       else if (a === 'add') { const nid = anadir(b.dataset.day); if (nid) abrirDlg(nid); }
-      else if (a === 'editar') editar(id);
-      else if (a === 'duplicar') { const nid = duplicar(id); if (nid) abrirDlg(nid); }
+      else if (a === 'nav') irA(+b.dataset.d);
       else if (a === 'cancelar') cancelar(id);
       else if (a === 'reactivar') reactivar(id);
       else if (a === 'borrar') { borrar(id); cerrarDlg(); }
       return;
     }
     const c = e.target.closest('.hv-card[data-h]');
-    if (c) { const f = X.pick(); if (f) { X.pickOff(); soltar(c.dataset.h, f); } else abrirDlg(c.dataset.h); }   // a photo picked in the tray, then the story
+    if (c) { const f = cliente() ? null : X.pick(); if (f) { X.pickOff(); soltar(c.dataset.h, f); } else abrirDlg(c.dataset.h); }   // a photo picked in the tray, then the story
   }
   function onChange(e) {
-    const t = e.target, c = t.dataset && t.dataset.hvC; if (!c || !abierta) return;
+    const t = e.target, c = t.dataset && t.dataset.hvC;
+    if (t.matches && t.matches('.clientToggle')) { render(); const sw = I().root().querySelector('.hvsw'); if (sw) sw.outerHTML = barra(); return; }   // the mesa only changes its class
+    if (!c || !abierta) return;
     const h = porId(abierta); if (!h) return;
     const X = I(), box = t.closest('.hv-form');
-    if (c === 'nota') setNota(abierta, t.value);
-    else if (c === 'post') enlazar(abierta, t.value || null);
+    if (c === 'post') enlazar(abierta, t.value || null);
     else setFecha(abierta, box.querySelector('[data-hv-c="dia"]').value || X.localDay(h.date), box.querySelector('[data-hv-c="hora"]').value || X.localTime(h.date));
   }
-  function onKey(e) { const c = e.target.closest && e.target.closest('.hv-card[data-h]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirDlg(c.dataset.h); } }
+  function onKey(e) {
+    const k = String(e.key).toLowerCase();
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (k === 'e' || k === 'd')) {   // only with a story open (D-065); with the editor open, its own ⌘D
+      if (!dlgAbierto() || cliente()) return;
+      e.preventDefault(); if (e.repeat) return;
+      const h = porId(abierta); if (!h) return;
+      if (k === 'd') { const nid = duplicar(h.id); if (nid) abrirDlg(nid); } else if (!h.cancelada) editar(h.id);
+      return;
+    }
+    const c = e.target.closest && e.target.closest('.hv-card[data-h]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirDlg(c.dataset.h); }
+  }
+  function onFocoIn(e) { const t = e.target; enUso = t.matches && t.matches('.detail [data-hv-c]') ? t : null; }
+  function onFoco(e) {                         // out of a date or time: what the story ended up with (one minute from another, an empty field)
+    if (e.target === enUso) enUso = null;
+    const c = e.target.dataset && e.target.dataset.hvC; if (c !== 'dia' && c !== 'hora') return;
+    setTimeout(() => { const h = dlgAbierto() && porId(abierta); if (h) refrescaDlg(h); }, 0);
+  }
   let mv = null, noClick = false;
   function onDown(e) {
     if (e.button || !(e.target.closest)) return;
-    const c = e.target.closest('#mesa .main > section.hv .hv-card[data-h]'); if (!c || c.closest('.hv-canc')) return;
+    const c = e.target.closest('#mesa .main > section.hv .hv-card[data-h]'); if (!c || c.closest('.hv-canc') || cliente()) return;
     mv = { id: c.dataset.h, el: c, x: e.clientX, y: e.clientY, pid: e.pointerId, on: false };
   }
   // where the pointer would put it: {day, idx}, and the mark
@@ -466,9 +526,9 @@
   }
   const onUp = e => fin(e, true), onCancel = e => fin(e, false);
 
-  const CSS = `#mesa.hv-on:not(.client) .feed{display:none}#mesa.client .main > section.hv,#mesa.client .hvsw{display:none}
+  const CSS = `#mesa.hv-on .feed{display:none}#mesa.client .hv-card{cursor:pointer;touch-action:auto}
 #mesa .main > section.hv{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--bg);border-right:1px solid var(--line);padding:10px 14px 24px;box-sizing:border-box}
-#mesa.hv-on:not(.client) .side{flex:0 0 min(420px,38vw)}#mesa.hv-on .tcount{white-space:nowrap}
+#mesa.hv-on .side{flex:0 0 min(420px,38vw)}#mesa.hv-on .tcount{white-space:nowrap}
 #mesa .hvsw{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
 #mesa .hvsw button{border:0;background:none;color:var(--mute);font:inherit;font-size:12.5px;padding:4px 11px;cursor:pointer}#mesa .hvsw button.on{background:var(--ink);color:#fff}
 #mesa .hvsw i{font-style:normal;font-weight:600;margin-left:2px}
@@ -493,18 +553,31 @@
 #mesa .hv-add{width:34px;height:34px;border:1px dashed var(--line);border-radius:50%;background:none;color:var(--mute);font:inherit;font-size:17px;line-height:1;cursor:pointer;align-self:center}
 #mesa .hv-add:hover,#mesa .hv-add:focus-visible{border-color:var(--ink);color:var(--ink);outline:0}
 #mesa .hv-rail.vacio .hv-add{width:26px;height:26px;font-size:14px}
-#mesa .hv-dlg{display:grid;grid-template-columns:150px 1fr;gap:14px;margin-top:8px}#mesa .hv-big{width:150px}
-#mesa .hv-form label{display:block;font-size:12.5px;color:var(--mute);margin:0 0 9px}
-#mesa .hv-form input,#mesa .hv-form select,#mesa .hv-form textarea{display:block;width:100%;box-sizing:border-box;margin-top:3px;font:inherit;font-size:13px;color:var(--ink);padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+#mesa .detail[data-dlg="historia"]{container-type:size}
+#mesa .detail[data-dlg="historia"] .card{display:flex;flex-direction:column;box-sizing:border-box;height:100%;max-width:none;width:min(100%,max(440px,calc((100cqh - 150px) * 9 / 16 + 112px)));overflow:hidden;padding:12px 14px}
+#mesa.client .detail[data-dlg="historia"] .card{width:min(100%,max(440px,calc((100cqh - 60px) * 9 / 16 + 112px)))}
+#mesa .hv-story{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+#mesa .hv-av{padding-right:22px}#mesa .hv-av p:last-child{margin-bottom:0}
+#mesa .hv-vis{flex:1;min-height:0;position:relative;container-type:size;display:flex;align-items:center;justify-content:center}
+#mesa .hv-big{flex:none;width:min(calc(100cqw - 84px),calc(100cqh * 9 / 16))}
+#mesa .hv-big img{object-fit:contain}#mesa .hv-big p{display:flex;align-items:center;justify-content:center;font-size:13px}
+#mesa .hv-vis .nav{width:32px;height:32px;display:flex;align-items:center;justify-content:center;line-height:0;background:var(--panel);color:var(--ink);border:1px solid var(--line);box-shadow:none;cursor:pointer}
+#mesa .hv-vis .nav.prev{left:0}#mesa .hv-vis .nav.next{right:0}#mesa .hv-vis .nav svg{width:16px;height:16px}#mesa .hv-vis .nav:disabled{opacity:.35;cursor:default}
+#mesa .hv-form label.hv-lin{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap}
+#mesa .hv-lin select,#mesa .hv-lin .hv-fh{flex:1;min-width:0}
+#mesa .hv-form input,#mesa .hv-form select{display:block;width:100%;box-sizing:border-box;margin:0;font:inherit;font-size:13px;color:var(--ink);padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
 #mesa .hv-fh{display:flex;gap:6px}#mesa .hv-fh input{flex:1;min-width:0}
+#mesa .hv-acc{display:flex;align-items:center;justify-content:center;gap:6px}
+#mesa .hv-acc button{border:0;background:none;color:var(--mute);font:inherit;font-size:12px;padding:2px 6px;border-radius:5px;cursor:pointer;line-height:1.3}
+#mesa .hv-acc button:hover{color:var(--ink);background:var(--line2)}#mesa .hv-tr{display:inline-flex}#mesa .hv-tr svg{width:15px;height:15px}
+#mesa .hv-cf{margin:0;text-align:center;font-size:13px}
 #mesa .hv-e{margin:0 0 9px;font-size:13px}#mesa .hv-mal{margin:0 0 9px;font-size:13px;color:var(--red)}
-#mesa .hv-form .row{display:flex;flex-wrap:wrap;gap:6px}
-@media (max-width:720px){#mesa.hv-on:not(.client) .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}#mesa .hv-dlg{grid-template-columns:1fr}#mesa .hv-big{width:110px}}`;
+@media (max-width:720px){#mesa.hv-on .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}}`;
   let style = document.getElementById('mesa-hv-css');
   if (!style) { style = document.createElement('style'); style.id = 'mesa-hv-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
   style.textContent = CSS;
 
-  const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];
+  const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['focusin', onFocoIn, false], ['focusout', onFoco, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];
   EV.forEach(([t, f, c]) => document.addEventListener(t, f, c));
   M.historias = historias; M.cargarHistorias = cargarHistorias; M.marcarHistoriasProgramadas = marcarHistoriasProgramadas;
   M.plantillasHistoria = plantillasHistoria; M.disenarHistoria = disenarHistoria;

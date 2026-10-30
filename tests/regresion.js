@@ -669,7 +669,7 @@
     const E = await abrirEditor(id);
     ok(E.reel && E.historia && E.sl.length === 1, 'no abrió una sola página de historia');
     ok(!E.el.querySelector('[data-lb="sl-add"]') && !E.el.querySelector('[data-lb="sl-del"]') && !E.el.querySelector('.lb-fmt'), 'se pueden añadir diapositivas o cambiar el formato');
-    ok(/Editar historia/.test(E.el.querySelector('.lb-ttl p').textContent) && /Guion de prueba/.test(E.el.querySelector('.lb-ttl p').textContent), 'la cabecera no enseña la nota');
+    igual(E.el.querySelector('.lb-ttl textarea.lb-guion').value, 'Guion de prueba', 'la cabecera no enseña la nota');
     accion('sl-add'); igual(E.sl.length, 1, 'se añadió una diapositiva');
     tecla('d', { meta: true, code: 'KeyD' }); igual(ed().sl.length, 1, '⌘D duplicó la diapositiva');
     ok(E.zona, 'la zona segura no sale de entrada');
@@ -914,8 +914,6 @@
     // la hora, desde su campo
     const hora = q('.detail [data-hv-c="hora"]'); hora.value = '19:45'; hora.dispatchEvent(new W.Event('change', { bubbles: true }));
     horaH(a, '19:45');
-    const nota = q('.detail [data-hv-c="nota"]'); nota.value = 'Guion'; nota.dispatchEvent(new W.Event('change', { bubbles: true }));
-    igual(hDe(a).note, 'Guion', 'la nota');
     const post = q('.detail [data-hv-c="post"]'); post.value = 'r1'; post.dispatchEvent(new W.Event('change', { bubbles: true }));
     igual(hDe(a).slotId, 'r1', 'el enlace');
     M._in.closeDetail();
@@ -950,10 +948,6 @@
     ok(q(`.hv-canc .hv-card[data-h="${c}"]`), 'la cancelada no va abajo');
     M.hs.reactivar(c);
     ok(!q(`.hv-canc .hv-card[data-h="${c}"]`), 'no se reactivó');
-    // «Vista cliente»: nada de esto
-    M._in.root().classList.add('client');
-    ok(q('.hv').offsetParent === null && q('.feed').offsetParent !== null && q('.hvsw').offsetParent === null, 'en «Vista cliente» se ven las historias');
-    M._in.root().classList.remove('client');
     M.hs.ver(false);
   });
 
@@ -1201,7 +1195,7 @@
     const raiz = M._in.root();
     raiz.classList.add('client');
     try {
-      ok(panel.offsetParent === null, 'en «Vista cliente» se ve el panel');
+      ok(panel.offsetParent !== null, 'en «Vista cliente» no se ve el panel (D-064)');
       ok(W.getComputedStyle(punto()).display !== 'none', 'la regla de «Vista cliente» del panel oculta el punto');
     } finally { raiz.classList.remove('client'); }
     // de vuelta al feed, el punto se ve
@@ -1471,6 +1465,206 @@
       // la serie en otra plantilla no entra
       ok(/no lleva serie/.test((await M.disenarHistoria(M.hs.anadir(DIA(23), {}), { plantilla: tplDe('Texto Ink').id, titular: 'x', serie: { n: 1, total: 2 } })).error), 'serie en Texto Ink');
     } finally { await salir(); }
+  });
+
+  // ---------- la ventana de una historia, su nota y «Vista cliente» (D-064 a D-066) ----------
+  const viva = id => M.hs.lista().find(h => h.id === id);
+  const conFichero = (id, fid) => { viva(id).photos = [fid]; M._in.changed(); };
+  const abrirH = async id => { q(`.hv-card[data-h="${id}"]`).click(); await hasta(() => dialogo() && dialogo().dataset.dlg === 'historia' && q('.detail .hv-story'), 2000, 'la ventana de la historia'); };
+  const cmd = key => { const e = new W.KeyboardEvent('keydown', { key, metaKey: true, bubbles: true, cancelable: true }); D.body.dispatchEvent(e); return e; };
+  const flecha = d => q(`.detail [data-hv="nav"][data-d="${d}"]`);
+  const fijarCampo = (c, v) => { const t = q(`.detail [data-hv-c="${c}"]`); t.value = v; t.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  prueba('H20', 'La ventana de una historia: arriba estado y publicación, la imagen 9:16 entera con el archivo original, día y hora, y debajo solo Cancelar y la papelera, sin scroll (D-065)', async () => {
+    await tablero([pub(1, 'Foto', 5), pub(2, 'Foto', 20)]);
+    await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
+    M.hs.ver(true);
+    const fid = (await M.addFiles([await foto('h20.jpg', 1440, 2560)]))[0], id = M.hs.anadir(DIA(10), { note: 'Guion H20' });
+    conFichero(id, fid);
+    await abrirH(id);
+    const top = s => q('.detail ' + s).getBoundingClientRect().top;
+    ok(top('.hv-e') < top('[data-hv-c="post"]') && top('[data-hv-c="post"]') < top('.hv-big') && top('.hv-big') < top('[data-hv-c="hora"]') && top('[data-hv-c="hora"]') < top('[data-hv="cancelar"]'), 'el orden vertical');
+    const card = q('.detail .card'), r = q('.detail .hv-big').getBoundingClientRect();
+    ok(card.scrollHeight <= card.clientHeight && card.scrollWidth <= card.clientWidth, 'la ventana se desplaza');
+    cerca(r.width / r.height, 9 / 16, 0.01, 'la imagen no es 9:16');
+    ok(r.bottom <= card.getBoundingClientRect().bottom && r.height > 200, 'la imagen no cabe o sale pequeña');
+    igual(W.getComputedStyle(q('.detail .hv-big img')).objectFit, 'contain', 'la imagen se recorta');
+    await hasta(() => q('.detail .hv-big img').src !== M.files[fid].thumbUrl && q('.detail .hv-big img').naturalWidth === 1440, 4000, 'el archivo original');
+    ok(!q('.detail [data-hv-c="nota"]') && !q('.detail [data-hv="editar"]') && !q('.detail [data-hv="duplicar"]'), 'siguen la nota o los botones de editar y duplicar');
+    igual(qa('.detail .hv-acc button').map(b => b.dataset.hv), ['cancelar', 'borrar'], 'lo de abajo');
+    // la hora, sin perder el campo en uso
+    const hora = q('.detail [data-hv-c="hora"]'); hora.focus(); fijarCampo('hora', '18:30');
+    horaH(id, '18:30');
+    ok(q('.detail [data-hv-c="hora"]') === hora && D.activeElement === hora, 'cambiar la hora rehízo el campo en uso');
+    q('.detail [data-hv="cancelar"]').focus(); await espera(20);
+    // Zernio: sin papelera; lo que cambió aquí se dice
+    viva(id).zernio = { id: 'z', date: viva(id).date, file: fid }; M._in.changed();
+    igual(qa('.detail .hv-acc button').map(b => b.dataset.hv), ['cancelar'], 'en Zernio');
+    fijarCampo('hora', '18:40');
+    await hasta(() => /falta actualizar Zernio/.test(q('.detail .hv-e').textContent), 2000, '«falta actualizar Zernio»');
+    delete viva(id).zernio; M._in.changed();
+    // cancelada: «Reactivar» sustituye a «Cancelar» y no se tocan día ni hora
+    await pulsar('.detail [data-hv="cancelar"]');
+    igual(qa('.detail .hv-acc button').map(b => b.dataset.hv), ['reactivar', 'borrar'], 'cancelada');
+    ok(q('.detail [data-hv-c="dia"]').disabled && q('.detail [data-hv-c="hora"]').disabled, 'día y hora siguen editables');
+    await pulsar('.detail [data-hv="reactivar"]');
+    ok(!viva(id).cancelada && !q('.detail [data-hv-c="hora"]').disabled, 'no se reactivó');
+    await pulsar('.detail [data-hv="borrar"]');
+    ok(!viva(id) && dialogo() === null, 'la papelera no la borró');
+    // no adelantar: su aviso sigue
+    const f2 = (await M.addFiles([await foto('h20b.jpg')]))[0], k = M.hs.anadir(DIA(10), { time: '12:00' });
+    await historiaConFoto(k, f2);
+    M._test.place('r2', f2);
+    await abrirH(k);
+    ok(/antes de que salga en el feed/.test(q('.detail .hv-mal').textContent), 'el aviso de adelanto');
+    const c2 = q('.detail .card'); ok(c2.scrollHeight <= c2.clientHeight, 'con el aviso, la ventana se desplaza');
+    M._in.closeDetail();
+    M.hs.ver(false);
+  });
+
+  prueba('H21', '⌘E abre el editor y ⌘D duplica y abre la copia, solo con la historia abierta; en una cancelada ⌘E no hace nada (D-065)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
+    M.hs.ver(true);
+    const id = M.hs.anadir(DIA(10), { time: '12:00', note: 'H21' });
+    // sin la ventana abierta: como si nada
+    const n0 = cmd('d');
+    ok(!n0.defaultPrevented && M.hs.lista().length === 1, '⌘D actuó sin la historia abierta');
+    ok(!cmd('e').defaultPrevented, '⌘E actuó sin la historia abierta');
+    await abrirH(id);
+    const ev = cmd('d');
+    ok(ev.defaultPrevented, '⌘D no anula el marcador');
+    igual(M.hs.lista().length, 2, 'historias tras ⌘D');
+    const copia = M.hs.lista().find(h => h.id !== id).id;
+    igual(q('.detail [data-hv-c="hora"]').value, '12:01', 'la ventana no abrió la copia');
+    const sinRepetir = new W.KeyboardEvent('keydown', { key: 'd', metaKey: true, repeat: true, bubbles: true, cancelable: true }); D.body.dispatchEvent(sinRepetir);
+    igual(M.hs.lista().length, 2, 'mantener ⌘D sigue duplicando');
+    ok(cmd('e').defaultPrevented, '⌘E no se anula');
+    await hasta(() => ed() && ed().el && ed().el.isConnected, 4000, 'el editor abierto');
+    igual(ed().slotId, copia, 'el editor abrió otra historia');
+    ok(dialogo() === null, 'la ventana sigue abierta debajo');
+    // en el editor, su ⌘D de siempre: no crea historias
+    cmd('d'); igual(M.hs.lista().length, 2, '⌘D en el editor duplicó la historia');
+    M.libre.cerrar();
+    await hasta(() => !ed(), 2000, 'cerrar el editor');
+    // cerrada con ×, ni ⌘D ni ⌘E
+    await abrirH(id);
+    q('.detail .x').click();
+    ok(!cmd('d').defaultPrevented && M.hs.lista().length === 2, '⌘D actuó con la ventana cerrada');
+    // cancelada: ⌘E no hace nada, ⌘D sí, y la copia empieza libre
+    M.hs.cancelar(id);
+    await abrirH(id);
+    ok(cmd('e').defaultPrevented, '⌘E en una cancelada abre lo del navegador');
+    await espera(50);
+    ok(!ed() && dialogo() && dialogo().dataset.dlg === 'historia', '⌘E abrió una cancelada');
+    M._in.closeDetail();
+    M.hs.ver(false);
+  });
+
+  prueba('H22', 'Las flechas: por hora entre las no canceladas de su día, sin flechas con una sola o en una cancelada, y siguen al día nuevo (D-065)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    M.hs.ver(true);
+    const a = M.hs.anadir(DIA(10), { time: '10:00' }), b = M.hs.anadir(DIA(10), { time: '11:00' }), c = M.hs.anadir(DIA(10), { time: '12:00' }), x = M.hs.anadir(DIA(10), { time: '10:30' }), sola = M.hs.anadir(DIA(14), { time: '08:00' });
+    M.hs.cancelar(x);
+    const hora = () => q('.detail [data-hv-c="hora"]').value;
+    await abrirH(a);
+    ok(flecha(-1).disabled && !flecha(1).disabled, 'la primera');
+    flecha(1).click(); await espera(20); igual(hora(), '11:00', 'la siguiente salta la cancelada');
+    ok(!flecha(-1).disabled && !flecha(1).disabled, 'la del medio');
+    flecha(1).click(); await espera(20); igual(hora(), '12:00', 'la última');
+    ok(!flecha(-1).disabled && flecha(1).disabled, 'la última');
+    flecha(-1).click(); await espera(20); igual(hora(), '11:00', 'volver');
+    // por hora, no por orden de creación
+    fijarCampo('hora', '09:00');
+    await hasta(() => flecha(-1) && flecha(-1).disabled, 2000, 'la nueva primera');
+    // con otro día, usa el suyo
+    fijarCampo('dia', DIA(14));
+    await hasta(() => flecha(-1) && !flecha(-1).disabled && flecha(1).disabled, 2000, 'las flechas de su día nuevo');
+    igual(M._in.localDay(viva(b).date), DIA(14), 'el día');
+    flecha(-1).click(); await espera(20); igual(hora(), '08:00', 'la otra del día nuevo');
+    M._in.closeDetail();
+    // una sola en el día y una cancelada: sin flechas
+    await abrirH(a);
+    fijarCampo('dia', DIA(16));
+    await hasta(() => !flecha(1) && !flecha(-1), 2000, 'sin flechas con una sola');
+    M._in.closeDetail();
+    await abrirH(x);
+    ok(!flecha(1) && !flecha(-1), 'una cancelada lleva flechas');
+    M._in.closeDetail();
+    M.hs.ver(false);
+    ok(sola, 'sin historia');
+  });
+
+  prueba('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar; un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
+    M.hs.ver(true);
+    const id = M.hs.anadir(DIA(10), { note: 'Antes' });
+    await M.flush();
+    await abrirEditor(id);
+    const t = ed().el.querySelector('textarea.lb-guion');
+    igual(t.value, 'Antes', 'la nota en la cabecera');
+    t.value = 'Después'; t.dispatchEvent(new W.Event('change', { bubbles: true }));
+    igual(hDe(id).note, 'Después', 'la nota al salir del campo');
+    igual(ed().el.querySelector('.lb-state').textContent, 'Sin cambios', 'la nota pide «Aplicar»');
+    t.value = 'Sin salir del campo';
+    M.libre.cerrar();
+    await hasta(() => !ed(), 2000, 'cerrar el editor');
+    igual(hDe(id).note, 'Sin salir del campo', 'al cerrar el editor se pierde la nota');
+    igual(q(`.hv-card[data-h="${id}"] .hv-img p`).textContent, 'Sin salir del campo', 'la tarjeta');
+    q('#mesa').focus && D.body.focus();
+    cmd('z');
+    await hasta(() => hDe(id) && hDe(id).note === 'Antes', 2000, '⌘Z devuelve la nota de antes del editor');
+    M.hs.ver(false);
+    // el editor de una publicación no lleva nota
+    await abrirEditor('r1');
+    ok(!ed().el.querySelector('textarea.lb-guion') && ed().el.querySelector('.lb-ttl p'), 'la cabecera de una publicación cambió');
+    M.libre.cerrar();
+  });
+
+  prueba('H24', '«Vista cliente»: conmutador y solo las diseñadas no canceladas, de solo lectura, en grande con flechas, fecha y hora; sin nada de la mesa (D-064)', async () => {
+    await tablero([pub(1, 'Foto', 5), pub(2, 'Foto', 20)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    const fid = (await M.addFiles([await foto('h24.jpg', 1440, 2560)]))[0];
+    const a = M.hs.anadir(DIA(10), { time: '10:00', slotId: 'r2' }), z = M.hs.anadir(DIA(10), { time: '11:00' }), sin = M.hs.anadir(DIA(10), { time: '12:00', note: 'Privado' }), can = M.hs.anadir(DIA(12), { time: '12:00' }), sola = M.hs.anadir(DIA(14), { time: '09:00' });
+    [a, z, can, sola].forEach(i => { viva(i).photos = [fid]; });
+    viva(z).zernio = { id: 'z', date: viva(z).date, file: fid };
+    M.hs.cancelar(can);
+    M.hs.ver(true);
+    const cliente = () => q('.clientToggle').click();
+    cliente();
+    ok(q('.hvsw').offsetParent !== null && q('.hv').offsetParent !== null && q('.feed').offsetParent === null, 'no se ven las historias');
+    igual(q('.hvsw [data-v="1"] i').textContent, '3', 'el contador');
+    igual(qa('.hv-card[data-h]').map(c => c.dataset.h).sort(), [a, z, sola].sort(), 'las tarjetas');
+    igual(qa('.hv-rail').map(r => r.dataset.day), [DIA(10), DIA(14)], 'los carriles');
+    ok(!qa('.hv .hv-add, .hv .hv-est, .hv .hv-lk, .hv .hv-post, .hv .hv-canc').length && !/Privado|apoya/.test(q('.hv').textContent), 'se ve algo de la mesa');
+    igual(q(`.hv-card[data-h="${a}"] .hv-pie b`).textContent, '10:00', 'la hora');
+    // sin arrastre
+    const c0 = q(`.hv-card[data-h="${a}"]`), r0 = c0.getBoundingClientRect(), pe = (t, el, x, y) => el.dispatchEvent(new W.PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 9, button: 0 }));
+    pe('pointerdown', c0, r0.left + 5, r0.top + 5); pe('pointermove', q('.hv'), r0.left + 60, r0.top + 60); ok(!q('.hv-ghost'), 'la tarjeta se arrastra'); pe('pointerup', q('.hv'), r0.left + 60, r0.top + 60);
+    // abierta: imagen, flechas, fecha y hora, nada más
+    await abrirH(a);
+    ok(q('.detail .hv-big img') && /10 nov 10:00/.test(q('.detail .hv-cf').textContent), 'la imagen o su fecha');
+    ok(!qa('.detail input, .detail select, .detail .hv-acc, .detail .hv-e, .detail .hv-mal').length, 'la ventana enseña algo de la mesa');
+    ok(flecha(-1).disabled && !flecha(1).disabled, 'las flechas');
+    const card = q('.detail .card'); ok(card.scrollHeight <= card.clientHeight, 'la ventana se desplaza');
+    const n = M.hs.lista().length;
+    ok(!cmd('d').defaultPrevented && M.hs.lista().length === n, '⌘D actúa');
+    ok(!cmd('e').defaultPrevented && !(M.libre && ed()), '⌘E actúa');
+    flecha(1).click(); await espera(20);
+    ok(/10 nov 11:00/.test(q('.detail .hv-cf').textContent) && flecha(1).disabled, 'la siguiente no salta a la que no está diseñada');
+    M._in.closeDetail();
+    await abrirH(sola);
+    ok(!flecha(1) && !flecha(-1), 'con una sola lleva flechas');
+    M._in.closeDetail();
+    // Feed y vuelta, y al salir todo sigue
+    q('.hvsw [data-v="0"]').click();
+    ok(q('.feed').offsetParent !== null && q('.hv').offsetParent === null, 'el conmutador no vuelve al feed');
+    q('.hvsw [data-v="1"]').click();
+    cliente();
+    ok(q('.hv-add') && q('.hv-est') && q(`.hv-card[data-h="${sin}"]`) && q(`.hv-canc .hv-card[data-h="${can}"]`), 'al salir de «Vista cliente» no vuelve la vista normal');
+    igual(q('.hvsw [data-v="1"] i').textContent, '4', 'el contador al salir');
+    M.hs.ver(false);
   });
 
   // ---------- la portada de un hueco (D-049) ----------

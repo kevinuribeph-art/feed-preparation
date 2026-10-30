@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.28';
+  const VERSION = '1.29';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -683,11 +683,15 @@
     E.askNo = () => SIN_NUM.add(key);
   }
   function blankSlide(bg) { const comp = { bg, velo: null, els: [] }; return { key: null, out: false, from: null, comp, raw: null, base: null, fmt: E && !E.car ? (E.reel ? 'r916' : 'v45') : null, fmt0: null }; }
+  // a story's note, in the head: it isn't part of the image, so it needs no «Aplicar» and is saved on leaving the field or closing
+  function guardarGuion(e) { const t = e.el && e.el.querySelector('textarea.lb-guion'); if (t && M.hs && M.hs.setNota) M.hs.setNota(e.slotId, t.value); }
+  function altoGuion(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
   function cerrar(silent) {
     if (!E) return { ok: true };
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', sinEspacio, true); window.removeEventListener('blur', sinEspacio);
     window.removeEventListener('resize', fvDibujar); if (e.fvUrl) URL.revokeObjectURL(e.fvUrl);
+    if (e.historia) guardarGuion(e);
     if (e.raf) cancelAnimationFrame(e.raf);
     if (e.ro) e.ro.disconnect();
     for (const b of e.bm.values()) if (b.im && b.im.close) b.im.close();
@@ -974,7 +978,8 @@
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
 #mesa .lb-tph.elegida{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .lb-tph .hs{bottom:5px}
-#mesa .lb-ttl p.lb-guion{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-width:min(60vw,720px);white-space:pre-line}
+#mesa .lb-ttl textarea.lb-guion{display:block;box-sizing:border-box;width:100%;max-width:min(60vw,720px);max-height:calc(3 * 1.3em + 4px);margin:2px 0 0 -5px;padding:1px 4px;border:1px solid transparent;border-radius:4px;background:none;color:var(--mute);font:inherit;font-size:12.5px;line-height:1.3;resize:none;overflow-y:auto}
+#mesa .lb-ttl textarea.lb-guion:hover{border-color:var(--line)}#mesa .lb-ttl textarea.lb-guion:focus{border-color:var(--ink);color:var(--ink);outline:0}
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
 #mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
@@ -1086,7 +1091,7 @@
     const root = I().root(), el = document.createElement('div');
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
-    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3><p${E.historia ? ' class="lb-guion"' : ''}${E.historia && s.note ? ` title="${esc(s.note)}"` : ''}>${E.historia ? `Editar historia${s.note ? ` · ${esc(s.note)}` : ''}` : `${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'diseño de «Diseñar»: si aplicas cambios, queda fijado como imagen' : 'lo que no toques se queda como está'}`}</p></div>`
+    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : `<p>${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'diseño de «Diseñar»: si aplicas cambios, queda fijado como imagen' : 'lo que no toques se queda como está'}</p>`}</div>`
       + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'
@@ -1113,6 +1118,8 @@
     const ae = document.activeElement; if (ae && ae.blur && root.contains(ae)) ae.blur();
     el.focus({ preventScroll: true });
     wire(el);
+    const gn = el.querySelector('textarea.lb-guion');
+    if (gn) { altoGuion(gn); gn.addEventListener('input', () => altoGuion(gn)); gn.addEventListener('change', () => { if (E) guardarGuion(E); }); }
     window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', sinEspacio, true); window.addEventListener('blur', sinEspacio);
     E.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => pedir()) : null;
     if (E.ro) E.ro.observe(E.scroll);

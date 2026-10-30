@@ -1137,6 +1137,43 @@
     } finally { W.XMLHttpRequest = XHR; }
   });
 
+  prueba('H12', 'Una pestaña antigua no puede pisar las historias: la base de datos sube de versión, lo que deja en localStorage no se las lleva y esta se para y pide recargar (D-060)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
+    igual(info.version, 4, 'versión de la base de datos');
+    const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
+    await M.flush();
+    const guardado = await M._in.idbGet('boards', key);
+    // lo que deja una pestaña de antes de la 3.53: sus cambios, sin el campo de las historias, más nuevo que lo guardado
+    const { historias, ...viejo } = JSON.parse(json(guardado));
+    ok(historias.length === 1, 'no se guardó la historia');
+    viejo.savedAt = new Date(Date.now() + 60000).toISOString(); viejo.slots[0].note = 'De la pestaña antigua';
+    W.localStorage.setItem('mesa-pending', json({ key, board: viejo }));
+    await M.open(key);
+    ok(hDe(id), 'lo que dejó una pestaña antigua se llevó la historia');
+    igual(slot('r1').note, 'De la pestaña antigua', 'se perdió su cambio');
+    // de una mesa de ahora, sí manda: se borró la última
+    await M.flush();
+    const { historias: h2, ...nuevo } = JSON.parse(json(await M._in.idbGet('boards', key)));
+    ok(h2.length === 1, 'la historia no siguió guardada');
+    nuevo.savedAt = new Date(Date.now() + 120000).toISOString();
+    W.localStorage.setItem('mesa-pending', json({ key, board: nuevo, v: 4 }));
+    await M.open(key);
+    ok(!hDe(id), 'volvió una historia borrada');
+    // otra pestaña abre una versión más nueva: esta se para, no guarda y pide recargar
+    const id2 = M.hs.anadir(DIA(11));
+    await M.flush();
+    const s0 = (await M._in.idbGet('boards', key)).savedAt;
+    M._test.versionNueva();
+    ok(M._in.locked && q('.lock [data-act="recargar"]'), 'no pide recargar');
+    M._in.save(); await M.flush(); await espera(350);
+    igual((await M._in.idbGet('boards', key)).savedAt, s0, 'guardó estando parada');
+    qa('.lock').forEach(x => x.remove());
+    await M._test.claim();
+    ok(!M._in.locked && hDe(id2), 'no se pudo seguir');
+  });
+
   // ---------- la portada de un hueco (D-049) ----------
   const portada = k => q(`.cell.filler[data-filler="${k}"] img.hfoto`);
   // la imagen del feed: px(x, y) -> [r, g, b]

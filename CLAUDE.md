@@ -28,6 +28,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
   `index.html`, los dos iguales. Si cambias `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js` o `kits/motor.js`, sube también
   su `?v=` en `index.html`. Sin esto el navegador sigue sirviendo la versión en caché.
+- Si un tablero empieza a guardar algo que el código anterior no conoce, sube también la versión de IndexedDB en `db()`: si no, una pestaña antigua lo pisa (D-060).
 - Tras publicar, comprueba con `curl` que Pages sirve los archivos nuevos.
 
 ## Probar

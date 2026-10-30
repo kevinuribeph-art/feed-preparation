@@ -1898,6 +1898,39 @@
     M.libre.cerrar();
   });
 
+  prueba('E43', 'Color de un logo o pegatina: todo pasa a un color plano (solo kit y básicos), con su forma y transparencia; «Original» lo devuelve; ⌘Z; sin color, como antes (D-046, D-016)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const c = D.createElement('canvas'); c.width = 200; c.height = 100; const x = c.getContext('2d');
+    x.fillStyle = '#ff0000'; x.fillRect(0, 0, 100, 100); x.fillStyle = '#00ff00'; x.fillRect(100, 0, 100, 100); x.clearRect(80, 30, 40, 40);   // dos colores y un agujero
+    const png = await new Promise(r => c.toBlob(r, 'image/png')), id = `kit-${CLIENTE}-logo-e43`;
+    await M._in.idbPut('files', id, { name: 'e43-logo.png', size: png.size, type: 'image/png', w: 200, h: 100, lastModified: Date.now(), blob: png, thumb: png, logo: true });
+    const c0 = await M._in.idbGet('clients', CLIENTE); ok(c0, 'no está el cliente de prueba');
+    await M._in.idbPut('clients', CLIENTE, { ...c0, libre: { ...(c0.libre || {}), logos: [id] }, libreAt: new Date().toISOString() });
+    await abrirEditor('r1');
+    accion('sl-add'); await hasta(() => M.files[id], 4000, 'el logo del cliente en el editor');
+    compDe(0).bg = '#0000ff';
+    accion('logo', { f: id });
+    const lg = compDe(0).els.find(e => e.t === 'logo'); ok(lg, 'no entró el logo');
+    const { W: w, H: h } = tam(); Object.assign(lg, { x: 0.1, y: 0.2, w: 0.8, h: 0.4 * w / h });
+    const x0 = 0.1 * w, y0 = 0.2 * h, lw = 0.8 * w, cy = y0 + 0.4 * w / 2;
+    const roj = [x0 + lw * 0.2, cy], ver = [x0 + lw * 0.8, cy], agu = [x0 + lw * 0.5, cy];
+    const es = (p, rgb, tol = 24) => { const v = pixel(...p); return rgb.every((c, k) => Math.abs(v[k] - c) <= tol); };
+    const ve = async (r, v, a, que) => { await hasta(async () => { await dibujado(); return es(roj, r) && es(ver, v) && es(agu, a); }, 4000, que); };
+    await ve([255, 0, 0], [0, 255, 0], [0, 0, 255], 'el logo sin color no se ve con sus colores y su agujero');
+    ok(q('.lb-panel [data-lb="lc"][data-c=""].on'), '«Original» no sale marcado en un logo sin color');
+    igual(qa('.lb-panel [data-lb="lc"][data-c^="#"]').map(b => b.dataset.c), ['#000000', '#ffffff'], 'sin kit, el selector no da solo negro y blanco');
+    q('.lb-panel [data-lb="lc"][data-c="#000000"]').click();
+    igual(compDe(0).els.find(e => e.t === 'logo').tint, '#000000', 'el color no quedó en el logo');
+    await ve([0, 0, 0], [0, 0, 0], [0, 0, 255], 'con un color, el logo no pasa entero a ese color con su agujero');
+    ok(q('.lb-panel [data-lb="lc"][data-c="#000000"].on') && !q('.lb-panel [data-lb="lc"][data-c=""].on'), 'el selector no marca el color elegido');
+    tecla('z', { meta: true });
+    ok(!compDe(0).els.find(e => e.t === 'logo').tint, '⌘Z no quitó el color');
+    await ve([255, 0, 0], [0, 255, 0], [0, 0, 255], 'tras ⌘Z el logo no vuelve a sus colores');
+    elegir(compDe(0).els.find(e => e.t === 'logo')); accion('lc', { c: '#ffffff' }); accion('lc', { c: '' });
+    ok(!('tint' in compDe(0).els.find(e => e.t === 'logo')), '«Original» no devolvió el logo a sus colores');
+    M.libre.cerrar();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

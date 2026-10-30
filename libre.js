@@ -91,7 +91,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.21';
+  const VERSION = '1.22';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -400,6 +400,16 @@
     });
     ctx.restore();
   }
+  // a logo or sticker in one flat colour (D-046): its shape and transparency, drawn once per image, colour and size in pixels
+  const TINTE = new Map();
+  function tenido(m, src, c, w, h) {
+    const key = [src, c, w, h].join('|'), t = TINTE.get(key);
+    if (t && t.im === m.im) return t.cv;
+    if (TINTE.size > 40) TINTE.clear();
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const x = cv.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(m.im, 0, 0, w, h); x.globalCompositeOperation = 'source-in'; x.fillStyle = c; x.fillRect(0, 0, w, h);
+    TINTE.set(key, { im: m.im, cv }); return cv;
+  }
   function drawLogo(ctx, el, W, H, img, k, ph) {
     const fw = el.w * W, fh = el.h * H; if (fw < 0.5 || fh < 0.5) return;
     const m = el.src ? img(el.src) : null;
@@ -408,7 +418,7 @@
     ctx.globalAlpha *= el.op ?? 1;
     if (el.sh > 0) sombra(ctx, el, W, k);
     ctx.scale(el.fx ? -1 : 1, el.fy ? -1 : 1);
-    if (m) ctx.drawImage(m.im, -fw / 2, -fh / 2, fw, fh);
+    if (m) ctx.drawImage(hexOk(el.tint) ? tenido(m, el.src, el.tint.toLowerCase(), Math.max(1, Math.min(4096, Math.round(fw * k))), Math.max(1, Math.min(4096, Math.round(fh * k)))) : m.im, -fw / 2, -fh / 2, fw, fh);
     else if (ph) { ctx.strokeStyle = 'rgba(128,128,128,.7)'; ctx.setLineDash([6, 5]); ctx.strokeRect(-fw / 2, -fh / 2, fw, fh); }
     ctx.restore();
   }
@@ -1868,15 +1878,15 @@
   const pxf = v => Math.round(v) + ' px';
   const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2), gr: v => String(Math.round(v * 2) / 2).replace('.', ',') + ' px' };
   const rng = (act, label, v, min, max, step) => `<label class="lb-rng"><span>${label}</span><input type="range" data-lb="${act}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${OUTF[act](v)}</output></label>`;
-  const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', pc: 'relleno', bc: 'borde', 'velo-c': 'velo' };
-  function sws(act, curC) {        // «Kit <marca>» (its groups for this picker) and «Básicos»; a colour shows once, where it first appears
-    const seen = new Set(), uso = USO[act], cc = hexOk(curC) ? curC.toLowerCase() : '#ffffff';
+  const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', pc: 'relleno', bc: 'borde', 'velo-c': 'velo', lc: 'texto' };
+  function sws(act, curC, orig) {  // «Kit <marca>» (its groups for this picker) and «Básicos»; a colour shows once, where it first appears; orig: no colour is a choice («Original»)
+    const seen = new Set(), uso = USO[act], cc = hexOk(curC) ? curC.toLowerCase() : orig ? '' : '#ffffff';
     const nuevos = os => os.filter(o => !seen.has(o.c) && seen.add(o.c));
     const gs = (E.kit ? E.kit.grupos : []).filter(g => !g.usos || g.usos.includes(uso)).map(g => ({ n: g.n, os: nuevos(g.cols.map(k => ({ c: k.c, t: k.n + ' · ' + k.c }))) })).filter(g => g.os.length);
     const bas = nuevos(BASICOS.map(([c, n]) => ({ c, t: n + ' · ' + c })));
     const sw = o => `<button type="button" class="lb-sw${o.c === cc ? ' on' : ''}" style="background:${o.c}" data-lb="${act}" data-c="${o.c}" title="${esc(o.t)}" aria-label="${esc(o.t)}"></button>`;
     const fuera = 'Color actual · fuera de esta lista';   // an element's colour that this picker does not offer: kept, and shown so it can be replaced
-    return '<div class="lb-cols">' + (seen.has(cc) ? '' : `<div class="lb-swf"><span class="lb-sw on" style="background:${cc}" role="img" title="${fuera} (${cc})" aria-label="${fuera} (${cc})"></span>${fuera}</div>`)
+    return '<div class="lb-cols">' + (seen.has(cc) || !cc ? '' : `<div class="lb-swf"><span class="lb-sw on" style="background:${cc}" role="img" title="${fuera} (${cc})" aria-label="${fuera} (${cc})"></span>${fuera}</div>`)
       + (gs.length ? `<div class="lb-swk">Kit ${esc(E.kit.n)}</div><div class="lb-swgs">${gs.map(g => `<div class="lb-swg">${g.n ? `<span>${esc(g.n)}</span>` : ''}<div class="lb-sws">${g.os.map(sw).join('')}</div></div>`).join('')}</div>` : '')
       + `<div class="lb-swk">Básicos</div><div class="lb-sws">${bas.map(sw).join('')}</div></div>`;
   }
@@ -1974,7 +1984,9 @@
           + `<span class="lb-l">Color</span>${sws('tc', el.color || '#ffffff')}<span class="lb-l">Píldora</span>${seg('pil', [['', 'Sin píldora'], ['1', 'Con píldora']], el.pil ? '1' : '')}${el.pil ? sws('pc', el.pil.c) : ''}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
         h += girarHTML(el, false);
       } else if (el.t === 'logo') {
-        h += `<div class="lb-sec"><h4>Logo <span>· ${esc((M.files[el.src] || {}).name || '')}</span></h4>${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}<p class="lb-p">Las esquinas lo escalan sin deformarlo.</p></div>`;
+        h += `<div class="lb-sec"><h4>Logo <span>· ${esc((M.files[el.src] || {}).name || '')}</span></h4><span class="lb-l" style="margin-top:0">Color</span>`
+          + `<div class="lb-btns" style="margin-top:0"><button type="button" class="btn2${hexOk(el.tint) ? '' : ' on'}" data-lb="lc" data-c="" title="Sus colores, como se subió">Original</button></div>${sws('lc', el.tint, true)}`
+          + `${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}<p class="lb-p">Un color pasa todo el logo a ese color, con su forma. Las esquinas lo escalan sin deformarlo.</p></div>`;
         h += girarHTML(el, true);
       } else if (el.t === 'hueco') {
         h += `<div class="lb-sec"><h4>Hueco de foto <span>· libre</span></h4><div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>`
@@ -2401,6 +2413,7 @@
       case 'bc': onEl(el => { el.bc = col(); }, 'bc'); return;
       case 'tc': onEl(el => { if (el.t === 'texto') el.color = col(); }, 'tc'); return;
       case 'fc': onEl(el => { if (el.t === 'forma') el.color = col(); }, 'fc'); return;
+      case 'lc': onEl(el => { if (el.t !== 'logo') return; if (hexOk(b.dataset.c)) el.tint = col(); else delete el.tint; }, 'lc'); return;
       case 'bg': mut('bg', () => { ensure().bg = col(); }); return;
       case 'velo': mut(null, () => { const c = ensure(); c.velo = b.dataset.v ? { tipo: b.dataset.v, color: (c.velo && c.velo.color) || '#000000', op: (c.velo && c.velo.op) || 0.35, dir: (c.velo && c.velo.dir) || 'abajo', alc: (c.velo && c.velo.alc) || 0.6 } : null; }); return;
       case 'velo-c': mut('velo-c', () => { const c = ensure(); if (c.velo) c.velo.color = col(); }); return;

@@ -1,4 +1,4 @@
-// Revisión — Mesa de trabajo · v1.0
+// Revisión — Mesa de trabajo · v1.1
 // «Revisar» (the board's bar) lists, by post and slide, what to look at in the open board before uploading or scheduling
 // it; a click opens that point (the editor on its slide, or the post's view). The same review runs by itself (mesa.js
 // calls auto) when the skill uploads to Notion («sube», M.startUpload) or schedules with Zernio («programa»,
@@ -12,14 +12,18 @@
 // The weight (8 MB, JPEG only) and the widest side (1440 px) are not listed: «programa» always sends a JPEG under 8 MB and
 // Instagram scales a wider one down. It reads the board only through the mesa's bridge (M._in, mesa ≥ 3.43), and texts
 // and photos as libre.js draws them (M.libre.rev, libre ≥ 1.18); without libre (or the kit) those checks are left out.
-//   M.revisar({slots?, ver?}) -> Promise<{ok (nothing blocks), bloquean, avisos, puntos: [{slotId, post, diapositiva
+//   M.revisar({slots?, ver?, historias?}) -> Promise<{ok (nothing blocks), bloquean, avisos, puntos: [{slotId, post, diapositiva
 //     (1…, null: the whole post), tipo, bloquea, texto, donde ('editor'|'post')}]}>; ver: shown in the mesa
+//   historias (D-058): none, the feed only, as «sube», «programa» and the skill's own call need it; true, the feed and the
+//     board's stories (the «Revisar» button); 'solo', only the stories. A story's point: {historiaId, slotId: null, post (its
+//     name), diapositiva: null, tipo, bloquea, texto, donde: 'historia'}, tipo as hProblemas in mesa.js gives it, or
+//     'zona segura' (a text or logo under Instagram's bars) and 'resolución' (a photo with fewer than 1080 px), which warn.
 // If this file doesn't load, the mesa works as before (no «Revisar»; uploads still refuse empty holes).
 (function revisarBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -34,6 +38,29 @@
     if (!(M.diseno && M.diseno.kit) || !cid) return 0;
     try { const k = await M.diseno.kit(cid); return k && k.lienzo && +k.lienzo.margen > 0 ? +k.lienzo.margen / (+k.lienzo.ancho || 1080) : 0; } catch (e) { return 0; }
   }
+  // a story's points: what the mesa knows at once (M._in.hProblemas), then what takes its fonts and photos
+  const ZONA = { t: 250 / 1920, b: 340 / 1920, l: 65 / 1080 };
+  async function puntosHistorias(B) {
+    const X = I(), R = M.libre && M.libre.rev, out = [];
+    for (const h of X.hsDe(B).slice()) {
+      const add = (tipo, texto, bloquea = false) => out.push({ historiaId: h.id, slotId: null, post: h.name || '', diapositiva: null, tipo, bloquea, texto, donde: 'historia' });
+      X.hProblemas(h).forEach(p => add(p.tipo, p.texto, p.bloquea));
+      const f0 = (h.photos || [])[0], comp = f0 && h.libre && h.libre.slides && h.libre.slides[f0];
+      if (h.cancelada || !comp || !R) continue;
+      const f = M.files[f0] || {}, W = f.w || 1440, H = f.h || 2560, tol = 2 * W / 1080, x0 = ZONA.l * W, x1 = W - x0, y0 = ZONA.t * H, y1 = H - ZONA.b * H, fuera = [];
+      let px = Infinity, logos = 0;
+      for (const e of comp.els || []) {
+        if (!e || e.oculto) continue;
+        if (e.t === 'foto' && e.src) { const r = await R.medida(e, W, H); if (r) px = Math.min(px, r.px); }
+        else if (e.t === 'texto' && String(e.txt ?? '').trim()) { const b = await R.medida(e, W, H); if (b && (b.x0 < x0 - tol || b.x1 > x1 + tol || b.y0 < y0 - tol || b.y1 > y1 + tol)) fuera.push(`«${corto(e.txt)}»`); }
+        else if (e.t === 'logo' && (e.x * W < x0 - tol || (e.x + e.w) * W > x1 + tol || e.y * H < y0 - tol || (e.y + e.h) * H > y1 + tol)) logos++;
+      }
+      if (fuera.length) add('zona segura', `${fuera.length === 1 ? 'texto' : fuera.length + ' textos'} bajo la interfaz de Instagram: ${listar(fuera)}`);
+      if (logos) add('zona segura', logos === 1 ? 'un logo bajo la interfaz de Instagram' : `${logos} logos bajo la interfaz de Instagram`);
+      if (Math.round(px) < MIN_PX) add('resolución', `foto de menos de 1080 px: equivale a ${Math.round(px)} px de ancho`);
+    }
+    return out;
+  }
   const fmtDe = r => Math.abs(r - 3 / 4) < 0.01 ? '3:4' : Math.abs(r - 9 / 16) < 0.01 ? '9:16' : Math.abs(r - 2 / 3) < 0.01 ? '2:3' : String(Math.round(r * 100) / 100).replace('.', ',') + ':1';
 
   async function revisar(opts = {}) {
@@ -43,7 +70,7 @@
     const X = I(), R = M.libre && M.libre.rev;
     let mg = null;                               // the kit is read only when there is a text to measure
     const solo = opts.slots ? new Set(opts.slots) : null, puntos = [];
-    for (const s of B.slots.slice()) {
+    for (const s of opts.historias === 'solo' ? [] : B.slots.slice()) {
       if (!X.vivo(s) || (solo && !solo.has(s.id))) continue;
       const pub = X.publishList(s), n = pub.length; if (!n) continue;
       const add = (i, tipo, texto, o = {}) => puntos.push({ slotId: s.id, post: s.name || '', diapositiva: i == null ? null : i + 1, tipo, bloquea: !!o.bloquea, texto, donde: o.donde || (i == null ? 'post' : 'editor') });
@@ -81,6 +108,7 @@
     const pos = new Map(B.slots.map((s, i) => [s.id, [String(s.date || ''), i]]));   // by publication date, as the calendar
     const antes = (a, b) => { const x = pos.get(a.slotId), y = pos.get(b.slotId); return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1]; };
     puntos.sort((a, b) => antes(a, b) || (a.diapositiva ?? 0) - (b.diapositiva ?? 0) || ORDEN[a.tipo] - ORDEN[b.tipo]);
+    if (opts.historias) puntos.push(...await puntosHistorias(B));   // after the feed's, by date
     if (!I().S || I().S.key !== B.key) return nada;   // another board opened meanwhile: this one is not the one in view
     const bloquean = puntos.filter(p => p.bloquea).length, res = { ok: !bloquean, bloquean, avisos: puntos.length - bloquean, puntos, key: B.key };
     if (opts.ver) ver(res, 'revisar');
@@ -98,9 +126,9 @@
     const X = I(), B = X.S, esc = X.esc;
     const c = B && X.CL.find(x => x.id === B.client), donde = B ? `${(c && c.name) || B.client}, ${X.monthLabel(B.month)}` : '';
     const grupos = [];
-    for (const p of res.puntos) { const g = grupos[grupos.length - 1]; if (g && g.slotId === p.slotId) g.ps.push(p); else grupos.push({ slotId: p.slotId, post: p.post, ps: [p] }); }
+    for (const p of res.puntos) { const g = grupos[grupos.length - 1], id = p.historiaId || p.slotId; if (g && g.id === id) g.ps.push(p); else grupos.push({ id, post: p.post, ps: [p] }); }
     const otros = o.otros || [];
-    const lista = grupos.length ? `<ul class="rv">${grupos.map(g => `<li><b>${esc(g.post)}</b><ul>${g.ps.map(p => `<li><button type="button" class="rv-i${p.bloquea ? ' rv-b' : ''}" data-act="rv-ir" data-slot="${esc(p.slotId)}" data-k="${p.diapositiva ? p.diapositiva - 1 : 0}"${p.donde === 'editor' ? ' data-ed="1"' : ''}>${p.diapositiva ? `Diapositiva ${p.diapositiva}: ` : ''}${esc(p.texto)}${p.bloquea ? ' <i>(bloquea)</i>' : ''}</button></li>`).join('')}</ul></li>`).join('')}</ul>` : '';
+    const lista = grupos.length ? `<ul class="rv">${grupos.map(g => `<li><b>${esc(g.post)}</b><ul>${g.ps.map(p => `<li><button type="button" class="rv-i${p.bloquea ? ' rv-b' : ''}" ${p.historiaId ? `data-hv="ir" data-id="${esc(p.historiaId)}"` : `data-act="rv-ir" data-slot="${esc(p.slotId)}" data-k="${p.diapositiva ? p.diapositiva - 1 : 0}"${p.donde === 'editor' ? ' data-ed="1"' : ''}`}>${p.diapositiva ? `Diapositiva ${p.diapositiva}: ` : ''}${esc(p.texto)}${p.bloquea ? ' <i>(bloquea)</i>' : ''}</button></li>`).join('')}</ul></li>`).join('')}</ul>` : '';
     const fuera = otros.length ? `<p>${otros.length === 1 ? 'Y un hueco de foto vacío en otro mes' : `Y huecos de foto vacíos en ${otros.length} publicaciones de otros meses`} (la copia los lleva tal cual):</p>`
       + `<ul class="xsum">${otros.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(h.cliente)}, ${esc(h.mes)}</span></li>`).join('')}</ul>` : '';
     const msg = o.msg ? `${esc(o.msg)}. ` : '';
@@ -153,7 +181,7 @@
   style.textContent = CSS;
 
   revisar.version = VERSION; revisar.auto = auto; revisar.ultima = null;
-  revisar.ver = (opts = {}) => revisar({ ...opts, ver: true });
+  revisar.ver = (opts = {}) => revisar({ historias: true, ...opts, ver: true });   // the button: the month's feed and stories
   revisar._reset = () => { if (AUTO) clearTimeout(AUTO.t); AUTO = null; };   // tests: a pending review never reaches the next one
   M.revisar = revisar;
 })();

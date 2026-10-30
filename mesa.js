@@ -65,7 +65,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.53';
+  M.version = '3.54'; // 3.54: review, Zernio and the API of the stories (D-058, D-059), and the Zernio upload goes public
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -827,6 +827,25 @@
     if (!S || !h || h.cancelada) return [];
     const out = [];
     for (const f of new Set(lSrc(h))) { const k = fileKey(f), u = k && postsDespues(k, ts(h.date))[0]; if (u) out.push({ f, post: u.name, date: u.date }); }
+    return out;
+  }
+  // What stops or warns about a story without measuring anything, for its API, «Revisar» and the upload to Zernio (D-058):
+  // [{tipo, bloquea, texto}]. What needs its fonts (the safe zone) and the photo's px, only in M.revisar.
+  function hProblemas(h) {
+    const out = [], add = (tipo, texto, bloquea = false) => out.push({ tipo, bloquea, texto });
+    if (h.cancelada) { if (h.porPost) add('post cancelado', 'su publicación está cancelada', true); return out; }
+    const f0 = (h.photos || [])[0], comp = f0 && h.libre && h.libre.slides && h.libre.slides[f0];
+    if (!f0) add('sin diseñar', 'está sin diseñar', true);
+    else if (vacia(comp)) add('hueco', 'tiene un hueco de foto vacío', true);
+    adelantos(h).forEach(a => add('adelanto', `enseña una foto antes de que salga en el feed: ${a.post}, ${hFecha(a.date)}`, true));
+    const s = h.slotId && (S.slots || []).find(x => x.id === h.slotId);
+    if (s && !dOnly(s.date) && ts(h.date) < ts(s.date)) add('antes del post', `va antes que su publicación: ${s.name}, ${hFecha(s.date)}`, true);
+    if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    const hm = usoHMap(), rep = new Set();
+    for (const f of new Set(lSrc(h))) { const k = fileKey(f); if (k && !(usoS.map.get(k) || []).length && !(usoO.get(k) || []).length && (hm.get(k) || []).some(u => u.id !== h.id)) rep.add(k); }
+    if (rep.size) add('descarte repetido', rep.size === 1 ? 'usa un descarte que ya va en otra historia' : `usa ${rep.size} descartes que ya van en otras historias`);
+    const dia = localDay(h.date), hoy = hsDe(S).filter(x => !x.cancelada && localDay(x.date) === dia).sort((a, b) => ts(a.date) - ts(b.date));
+    if (hoy.indexOf(h) >= 5) add('bloque', 'es la sexta o más de un bloque: pasa de 5 historias en el día');
     return out;
   }
   async function usoHistoria(name, size, h) {   // the warning for a photo going into a story
@@ -3638,17 +3657,20 @@
     for (const it of items || []) {
       const fid = it.fileId, k = D.key(fid);
       const s = B && (it.slotId ? B.slots.find(x => x.id === it.slotId) : B.slots.find(x => publishList(x).includes(fid)));
+      const hz = dn === 'zernio' && B && !s ? hsDe(B).find(h => (!it.slotId || h.id === it.slotId) && (h.photos || []).includes(fid)) : null;   // a story's image goes to Zernio, never to Notion (D-059)
       if (M._ctrl[k]) { try { M._ctrl[k].abort('replaced'); } catch (e) { /* */ } }
       const gen = M._gen[k] = (M._gen[k] || 0) + 1;
-      if (it.crop !== false && (!s || !s.photos.includes(fid))) {
+      const hb = hz && hProblemas(hz).find(p => p.bloquea);
+      if (hb) { U[fid] = { state: 'error', err: `la historia ${hb.texto}: arréglalo antes de programarla` }; continue; }   // nothing reaches Zernio with a point that stops it (D-058)
+      if (it.crop !== false && !hz && (!s || !s.photos.includes(fid))) {
         U[fid] = { state: 'error', err: 'la foto no está en ninguna casilla de la mesa abierta' };
         continue;
       }
       if (s && huecosVacios(s).length) { U[fid] = { state: 'error', err: 'la publicación tiene un hueco de foto vacío: llénalo en el editor antes de subirla' }; continue; }   // D-035
       if (dn === 'zernio' && !it.publicUrl) { U[fid] = { state: 'error', err: 'falta publicUrl (la da tools/zernio.mjs presign junto a url)' }; continue; }
-      const rect = it.crop !== false && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
+      const rect = it.crop !== false && !hz && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
       const sig = s ? fileSig(fid, s, B) : null;
-      U[fid] = { state: 'pending', slotId: s ? s.id : null, sig };
+      U[fid] = { state: 'pending', slotId: s ? s.id : hz ? hz.id : null, sig };
       jobs.push({ dn, fid, url: it.url, auth: it.auth, publicUrl: it.publicUrl, rect, sig, gen, slotId: s ? s.id : null, name: s && s.photos.includes(fid) && (M.files[fid] || {}).design ? dName(s, fid) : null });
     }
     if (jobs.length) {
@@ -4429,7 +4451,7 @@
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
-    hsDe, hNorm, adelantos, usoHistoria, hFecha, ts, isoDe, sameDate, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
+    hsDe, hNorm, adelantos, hProblemas, usoHistoria, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview,

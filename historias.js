@@ -1,4 +1,4 @@
-// Historias — Mesa de trabajo · v1.0
+// Historias — Mesa de trabajo · v1.1
 // The month's Instagram stories, beside the grid, never in it (D-054). A switch in the board's bar shows, instead of the
 // grid, one rail per day: that day's post, if any, and its stories in order, 9:16. From there a story is added, duplicated,
 // dragged to another place or day, timed, linked to the post it supports, cancelled, deleted or opened in the free editor
@@ -11,11 +11,24 @@
 //   M.hs: barra() the switch · render() · ver(on) · activo() · lista() · estado(h) · anadir(day, {time?, slotId?, note?, fondo?})
 //   duplicar(id) · mover(id, day, idx) · setFecha(id, day, time) · enlazar(id, slotId | null) · cancelar(id) · reactivar(id)
 //   borrar(id) · setNota(id, text) · editar(id, {foto?}) · soltar(id, fileId) · tras(id)
+// The skill diseno-historias works with these (D-059):
+//   M.historias(ids?) (one id, a list or none = the open board's) -> [{id, date (UTC), dateMadrid ('YYYY-MM-DD HH:MM'), order (1… in its
+//     day; null if cancelled), slotId | null, state ('por diseñar' | 'diseñada' | 'programada' | 'cancelada'), note, files: [fileId],
+//     zernioId | null, changed (a programmed one that changed here since), cambios: ['fecha' | 'imagen' | 'cancelada'],
+//     problems: [{tipo, bloquea, texto}] (without measuring: the safe zone and the px only in M.revisar({historias: 'solo'}))}]
+//   await M.cargarHistorias([{date (with Z or its offset), order (1… in its day), slotId?, note, fondo? (a colour of the kit's
+//     backgrounds)}], {replace?}) -> [{id, date, order, result: 'creada' | 'sustituida' | 'ya diseñada' | 'programada'} | {error}], in
+//     the order given. The same day and order is the same story: one still to design is rewritten; a designed one only with
+//     replace (its image goes), and a programmed one never. Without fondo it finishes at once, before its promise resolves.
+//   M.marcarHistoriasProgramadas([{id, zernioId}]) -> [{id, state} | {id, error}]: refuses one with a point that stops it. Again
+//     after updating it in Zernio: it stops being changed. zernioId null: it is no longer in Zernio.
+// Scheduling: tools/zernio.mjs presign -> M.startZernio([{fileId (of files), slotId (the story's id), url, publicUrl}]), which refuses
+// one with a point that stops it -> M.waitZernio -> tools/zernio.mjs schedule, one post per story at its date.
 (function historiasBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -30,6 +43,8 @@
   const estado = h => (h.cancelada ? 'cancelada' : h.zernio ? 'programada' : (h.photos || []).length ? 'diseñada' : 'por diseñar');
   const delDia = (day, sin) => { const X = I(); return lista().filter(h => !h.cancelada && h !== sin && X.localDay(h.date) === day).sort((a, b) => X.ts(a.date) - X.ts(b.date)); };
   const hecho = () => { const X = I(); X.hNorm(X.S); X.changed(); };
+  // what changed in a programmed story since it was marked: derived, so undoing a change takes it off
+  const cambiosDe = h => { const X = I(), z = h.zernio; return !z ? [] : [...(h.cancelada ? ['cancelada'] : []), ...(X.sameDate(h.date, z.date) ? [] : ['fecha']), ...((h.photos || [])[0] === z.file ? [] : ['imagen'])]; };
 
   // ---------- what can be done with a story ----------
   function anadir(day, o = {}) {
@@ -108,6 +123,73 @@
   const soltar = (id, fileId) => editar(id, { foto: fileId });
   const tras = () => { ver(true); };           // back from the editor: the view, as it is now
 
+  // ---------- what the skill uses ----------
+  function historias(ids) {
+    const X = I(); if (!X || !X.S) return [];
+    const solo = ids == null ? null : new Set([].concat(ids));
+    return lista().filter(h => !solo || solo.has(h.id)).map(h => {
+      const c = cambiosDe(h), dia = X.localDay(h.date);
+      return { id: h.id, date: h.date, dateMadrid: `${dia} ${X.localTime(h.date)}`, order: h.cancelada ? null : delDia(dia).indexOf(h) + 1, slotId: h.slotId || null, state: estado(h), note: h.note || '', files: (h.photos || []).slice(), zernioId: h.zernio ? h.zernio.id : null, changed: c.length > 0, cambios: c, problems: X.hProblemas(h) };
+    });
+  }
+  async function cargarHistorias(items, opts = {}) {
+    let X = I(); if (!X || !X.S) return { error: 'no hay mesa abierta' };
+    if (X.locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
+    const S = X.S, list = [].concat(items ?? []);
+    let fondos = null;
+    if (list.some(it => it && it.fondo)) {
+      for (let i = 0; i < 50 && !(M.libre && M.libre.fondosKit) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100));
+      fondos = M.libre && M.libre.fondosKit ? await M.libre.fondosKit(S.client) : null;
+      X = I(); if (!X || X.S !== S) return { error: 'la mesa cambió mientras se cargaban: vuelve a intentarlo' };
+    }
+    const res = list.map(() => null), dias = new Map();
+    list.forEach((it, i) => {
+      const t = it && !X.dOnly(it.date) ? X.ts(it.date) : 0, day = t ? X.localDay(it.date) : null, s = it && it.slotId ? S.slots.find(x => x.id === it.slotId) : null;
+      const fondo = it && it.fondo ? String(it.fondo).toLowerCase() : null;
+      const mal = !it ? 'historia vacía' : !t ? 'fecha no válida: tiene que llevar hora y Z o su diferencia' : it.slotId && !s ? 'esa publicación no está en este tablero' : !s && !X.inBoard(day) ? 'fuera de la mesa' : fondo && !/^#[0-9a-f]{6}$/.test(fondo) ? 'fondo no válido' : fondo && fondos && !fondos.includes(fondo) ? 'ese fondo no es del kit del cliente' : '';
+      if (mal) { res[i] = { error: mal, ...(it && it.date ? { date: it.date } : {}) }; return; }
+      if (!dias.has(day)) dias.set(day, []);
+      dias.get(day).push({ it, i, t, s, fondo });
+    });
+    const quedan = new Map(), hechas = [];
+    for (const [day, a] of dias) {
+      const antes = delDia(day);                 // the day as it was: the same order is the same story
+      a.sort((x, y) => (+x.it.order || 1e9) - (+y.it.order || 1e9) || x.t - y.t);
+      let ult = -Infinity;
+      for (const { it, i, t, s, fondo } of a) {
+        const e = +it.order > 0 ? antes[+it.order - 1] : null;
+        if (e && e.zernio) { res[i] = { id: e.id, result: 'programada' }; quedan.set(i, e); continue; }
+        if (e && (e.photos || []).length && !opts.replace) { res[i] = { id: e.id, result: 'ya diseñada' }; quedan.set(i, e); continue; }
+        const h = e || { id: 'h-' + X.newId(), type: 'Historia', name: '', photos: [] };
+        if (e) { h.photos = []; delete h.libre; delete h.guias; delete h.fondo; }
+        const v = Math.max(t, ult + 6e4); ult = v;   // the same time: one behind another, in their order
+        h.date = X.isoDe(v); h.note = String(it.note ?? ''); h.slotId = s ? s.id : null;
+        if (s) h.postDate = s.date; else delete h.postDate;
+        if (fondo) h.fondo = fondo;
+        if (!e) S.historias = [...X.hsDe(S), h];
+        res[i] = { id: h.id, result: e ? 'sustituida' : 'creada' }; quedan.set(i, h); hechas.push(h);
+      }
+    }
+    if (hechas.length) hecho();
+    quedan.forEach((h, i) => { res[i].date = h.date; res[i].order = h.cancelada ? null : delDia(X.localDay(h.date)).indexOf(h) + 1; });
+    return res;
+  }
+  function marcarHistoriasProgramadas(list) {
+    const X = I(); if (!X || !X.S) return { error: 'no hay mesa abierta' };
+    if (X.locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
+    let n = 0;
+    const out = [].concat(list ?? []).map(it => {
+      const id = it && it.id, h = porId(id); if (!h) return { id, error: 'no existe' };
+      if (it.zernioId == null || it.zernioId === '') { if (h.zernio) { delete h.zernio; n++; } return { id, state: estado(h) }; }
+      if (h.cancelada) return { id, error: 'está cancelada' };
+      const b = X.hProblemas(h).find(p => p.bloquea); if (b) return { id, error: b.texto };
+      h.zernio = { id: String(it.zernioId), date: h.date, file: h.photos[0] }; n++;
+      return { id, state: estado(h) };
+    });
+    if (n) X.changed();
+    return out;
+  }
+
   // ---------- the view ----------
   const barra = () => { const n = lista().filter(h => !h.cancelada).length; return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
   function ver(on) { ON = !!on; const X = I(); if (!X) return; render(); X.renderBar(); }
@@ -126,7 +208,7 @@
     const X = I(), e = estado(h), f = M.files[(h.photos || [])[0]], s = h.slotId && X.S.slots.find(x => x.id === h.slotId), mal = X.adelantos(h).length;
     return `<div class="hv-card e-${e.replace(' ', '-')}${mal ? ' mal' : ''}" data-h="${esc(h.id)}" role="button" tabindex="0" title="${esc(h.name)}${s ? ` · apoya a ${esc(s.name)}` : ''}${mal ? ' · enseña una foto antes de su post' : ''}">`
       + `<div class="hv-img">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="" draggable="false">` : `<p>${esc(h.note || 'Sin diseñar')}</p>`}</div>`
-      + `<div class="hv-pie"><b>${esc(X.localTime(h.date))}</b>${s ? '<span class="hv-lk" aria-label="Enlazada">↪</span>' : ''}</div><div class="hv-est">${e}</div></div>`;
+      + `<div class="hv-pie"><b>${esc(X.localTime(h.date))}</b>${s ? '<span class="hv-lk" aria-label="Enlazada">↪</span>' : ''}</div><div class="hv-est">${e}${cambiosDe(h).length ? ' · cambió' : ''}</div></div>`;
   }
   function render() {
     const X = I(); if (!X || !X.shellReady()) return;
@@ -153,7 +235,7 @@
     return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(h.name)}</h3>`
       + `<div class="hv-dlg"><div class="hv-img hv-big">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="">` : '<p>Sin diseñar</p>'}</div><div class="form hv-form">`
       + (mal.length ? `<p class="hv-mal">${mal.map(a => `Enseña una foto antes de que salga en el feed: ${esc(a.post)}, ${esc(X.hFecha(a.date))}.`).join('<br>')}</p>` : '')
-      + `<p class="hv-e">Estado: ${e}${h.porPost ? ', porque su publicación lo está' : ''}</p>`
+      + `<p class="hv-e">Estado: ${e}${h.porPost ? ', porque su publicación lo está' : ''}${cambiosDe(h).length ? `. Cambió aquí después de programarla (${cambiosDe(h).join(', ')}): falta actualizar Zernio` : ''}</p>`
       + `<label>Día y hora (Madrid)<span class="hv-fh"><input type="date" data-hv-c="dia" value="${X.localDay(h.date)}"${h.cancelada ? ' disabled' : ''}><input type="time" data-hv-c="hora" value="${esc(X.localTime(h.date))}"${h.cancelada ? ' disabled' : ''}></span></label>`
       + `<label>Publicación que apoya<select data-hv-c="post"><option value="">Ninguna</option>${posts.map(s => `<option value="${esc(s.id)}"${s.id === h.slotId ? ' selected' : ''}>${esc(s.name)} · ${esc(X.hFecha(s.date))}</option>`).join('')}</select></label>`
       + `<label>Nota<textarea data-hv-c="nota" rows="4" placeholder="El guion de esta historia">${esc(h.note || '')}</textarea></label>`
@@ -172,6 +254,7 @@
     if (b) {
       const a = b.dataset.hv, id = abierta;
       if (a === 'ver') ver(b.dataset.v === '1');
+      else if (a === 'ir') { ver(true); abrirDlg(b.dataset.id); }   // a point of «Revisar»
       else if (a === 'add') { const nid = anadir(b.dataset.day); if (nid) abrirDlg(nid); }
       else if (a === 'editar') editar(id);
       else if (a === 'duplicar') { const nid = duplicar(id); if (nid) abrirDlg(nid); }
@@ -271,6 +354,7 @@
 
   const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];
   EV.forEach(([t, f, c]) => document.addEventListener(t, f, c));
+  M.historias = historias; M.cargarHistorias = cargarHistorias; M.marcarHistoriasProgramadas = marcarHistoriasProgramadas;
   M.hs = {
     version: VERSION, barra, render, ver, activo: () => ON, lista, estado, anadir, duplicar, mover, setFecha, enlazar, cancelar, reactivar, borrar, setNota, editar, soltar, tras,
     _off: () => { EV.forEach(([t, f, c]) => document.removeEventListener(t, f, c)); if (mv) { if (mv.ghost) mv.ghost.remove(); mv = null; } }

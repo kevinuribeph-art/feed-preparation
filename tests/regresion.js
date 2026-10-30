@@ -1677,7 +1677,7 @@
   }
   const negro = p => p.every(v => v < 24);
 
-  prueba('M24', 'Portada en un hueco: foto dentro de un borde igual en los 4 lados y con su etiqueta, igual en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
+  prueba('M24', 'Portada en un hueco: foto y etiqueta en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
     ok(!('previews' in M.board()), 'un tablero sin portadas lleva el campo');
@@ -1685,10 +1685,7 @@
     await M._test.setPreview(0, a);
     await hasta(() => portada(0), 4000, 'la portada en el hueco');
     ok(M.board().tray.length === 0, 'la foto sigue en la bandeja');
-    const css = W.getComputedStyle(portada(0)), ancho = q('.cell.filler').getBoundingClientRect().width;
-    igual([css.paddingTop, css.paddingRight, css.paddingBottom, css.paddingLeft].filter((v, i, l) => v === l[0]).length, 4, 'el borde no es igual en los 4 lados');
-    cerca(parseFloat(css.paddingTop), ancho * .06, .5, 'el borde');
-    igual(css.objectFit, 'cover', 'la foto no rellena el interior');
+    igual(W.getComputedStyle(portada(0)).objectFit, 'cover', 'la foto no rellena la casilla');
     igual(q('.cell.filler[data-filler="0"] .htag').textContent, 'Preview · próximo mes', 'la etiqueta');
     ok(W.getComputedStyle(q('.cell.filler .htag')).textTransform === 'none', 'la etiqueta va en mayúsculas');
     ok(!q('.cell.filler[data-filler="1"] img') && !q('.cell.filler[data-filler="1"] .htag'), 'el hueco sin portada no se ve negro');
@@ -1698,9 +1695,7 @@
     // la imagen del feed: la misma casilla; la 1.ª tiene la foto, la 2.ª es negra (358 × 477, desde y = 250)
     await M.render('clean');
     const px = await pixelesDe(M.out.clean);
-    for (const [x, y] of [[10, 490], [348, 490], [179, 260], [179, 717]]) ok(negro(px(x, y)), `el borde no es negro en ${x},${y}: ${px(x, y)}`);
     for (const [x, y] of [[30, 490], [328, 490], [179, 280]]) ok(!negro(px(x, y)), `no llega la foto a ${x},${y}`);
-    ok(negro(px(179, 663)), 'la etiqueta no lleva su fondo negro: ' + px(179, 663));
     ok(negro(px(540, 490)), 'el hueco sin portada no es negro en la imagen');
     // «Vista cliente»: la foto y la etiqueta, sin la ×
     q('.clientToggle').click();
@@ -1722,6 +1717,83 @@
     igual([M.status().fillers, !!portada(0), vista(false)], [2, false, ['m24.jpg']], 'tras ⇧⌘Z');
     q('.cell.filler[data-filler="0"] .hx').click(); await espera(30);
     ok(M.status().fillers === 1, 'la × de un hueco sin portada no lo quitó');
+  });
+
+  prueba('M27', 'Portada a toda la casilla, sin borde negro y con la etiqueta recta y traslúcida, igual en la mesa, «Vista cliente» y la imagen del feed, sobre foto clara y oscura (D-067)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    igual(M.status().fillers, 2, 'los huecos');
+    const [clara, oscura] = await M.addFiles([await foto('m27-clara.jpg', 1600, 1000, '#f6f6f6'), await foto('m27-oscura.jpg', 1000, 1600, '#101010')]);
+    await M._test.setPreview(0, clara); await M._test.setPreview(1, oscura);
+    await hasta(() => portada(0) && portada(1), 4000, 'las portadas');
+    const mira = () => {
+      for (const k of [0, 1]) {
+        const c = q(`.cell.filler[data-filler="${k}"]`).getBoundingClientRect(), f = portada(k).getBoundingClientRect(), css = W.getComputedStyle(portada(k)), t = W.getComputedStyle(q(`.cell.filler[data-filler="${k}"] .htag`));
+        igual(css.paddingTop + css.paddingLeft, '0px0px', 'la portada lleva margen');
+        for (const l of ['left', 'top', 'right', 'bottom']) cerca(f[l], c[l], .5, 'la foto no llega al canto ' + l);
+        igual(t.borderTopLeftRadius, '0px', 'la etiqueta lleva redondeo');
+        igual(t.backgroundColor, 'rgba(0, 0, 0, 0.7)', 'el fondo de la etiqueta');
+      }
+    };
+    mira();
+    q('.clientToggle').click(); mira(); q('.clientToggle').click();
+    // la imagen del feed (casillas de 358 × 477, desde y = 250): la foto llega a los cantos y la etiqueta deja pasar un 30 %
+    await M.render('clean');
+    const px = await pixelesDe(M.out.clean), blanca = p => p.every(v => v > 225), hueco2 = 358 + 3;
+    for (const [x, y] of [[1, 251], [356, 251], [1, 725], [356, 725]]) ok(blanca(px(x, y)), `la foto clara no llega a ${x},${y}: ${px(x, y)}`);
+    for (const [x, y] of [[hueco2 + 1, 725], [hueco2 + 356, 725]]) { const p = px(x, y); ok(p.every(v => v < 40 && v > 6), `la foto oscura no llega a ${x},${y}: ${p}`); }
+    // el pie de la etiqueta, a la izquierda del texto; esquina recta: el píxel del canto ya lleva su fondo
+    const [tx, ty] = (() => { for (let x = 1; x < 179; x++) if (!blanca(px(x, 663))) return [x, 663]; throw new Error('sin etiqueta en la imagen'); })();
+    const fondo = px(tx + 3, ty);
+    fondo.forEach(v => cerca(v, Math.round(246 * .3), 8, 'el fondo de la etiqueta en la foto clara'));
+    let abajo = ty; while (!blanca(px(tx + 3, abajo + 1))) abajo++;
+    fondo.forEach((v, i) => cerca(px(tx + 1, abajo - 1)[i], v, 12, 'la esquina de la etiqueta no es recta'));
+    px(hueco2 + tx + 3, ty).forEach(v => cerca(v, Math.round(16 * .3), 8, 'el fondo de la etiqueta en la foto oscura'));
+  });
+
+  prueba('M28', 'La columna derecha de la publicación se desliza entera: captions enteros, sin scroll propio; la foto fija; escribir o redibujar no mueve el scroll; en móvil se desliza la ventana (D-068)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('m28.jpg')]);
+    const largo = n => Array.from({ length: 14 }, (_, i) => `Caption ${n}, línea ${i + 1} con algo de texto para que ocupe.`).join('\n');
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: largo(1) }, { tone: 'b', text: largo(2) }, { tone: 'c', text: largo(3) }] }]);
+    const marco = W.frameElement, ancho0 = marco.style.width;
+    q('.cell[data-slot="r1"]').click();
+    const col = await hasta(() => q('.detail .pright.hascap'), 3000, 'la ventana');
+    const caps = () => qa('.detail textarea.capt');
+    igual(W.getComputedStyle(col).overflowY, 'auto', 'la columna no se desliza');
+    igual(W.getComputedStyle(q('.detail .capbody')).overflowY, 'visible', 'los captions tienen scroll propio');
+    ok(col.scrollHeight > col.clientHeight + 200, 'la columna no tiene de qué deslizarse');
+    caps().forEach((t, i) => ok(t.clientHeight >= t.scrollHeight, `el caption ${i + 1} tiene scroll interno: ${t.clientHeight} de ${t.scrollHeight}`));
+    // la foto, fija
+    const foto0 = q('.detail .stage').getBoundingClientRect().top;
+    col.scrollTop = 250; await espera(30);
+    igual(col.scrollTop, 250, 'el scroll de la columna');
+    igual(q('.detail .stage').getBoundingClientRect().top, foto0, 'la foto se mueve con la columna');
+    // escribir no lo mueve, tampoco abajo del todo, donde el alto automático lo recortaría
+    const escribe = (t, v) => { t.focus({ preventScroll: true }); t.value = v; t.dispatchEvent(new W.Event('input', { bubbles: true })); };
+    col.scrollTop = 1e6; await espera(30);
+    const fondo = col.scrollTop, ult = caps()[2];
+    escribe(ult, ult.value + '\notra');
+    igual(col.scrollTop, fondo, 'escribir hizo saltar la columna');
+    ok(ult.clientHeight >= ult.scrollHeight, 'el caption que crece tiene scroll interno');
+    // redibujar la ventana con el foco en el caption: mismo scroll, mismo foco
+    col.scrollTop = 250; await espera(30);
+    M._test.refreshDetail();
+    const col2 = q('.detail .pright.hascap');
+    ok(col2 !== col, 'la ventana no se redibujó');
+    igual(col2.scrollTop, 250, 'redibujar movió la columna');
+    ok(D.activeElement && D.activeElement.matches('textarea.capt'), 'redibujar perdió el foco del caption');
+    igual(col2.scrollTop, 250, 'recuperar el foco movió la columna');
+    // móvil: se desliza la ventana, la foto incluida, y redibujar tampoco la mueve
+    marco.style.width = '420px'; W.dispatchEvent(new W.Event('resize')); await espera(120);
+    const movil = q('.detail .pright.hascap'), cuerpo = q('.detail .pbody');
+    igual(W.getComputedStyle(movil).overflowY, 'visible', 'en móvil la columna tiene scroll propio');
+    ok(cuerpo.scrollHeight > cuerpo.clientHeight + 200, 'en móvil no se desliza la ventana');
+    caps().forEach((t, i) => ok(t.clientHeight >= t.scrollHeight, `en móvil, el caption ${i + 1} tiene scroll interno`));
+    cuerpo.scrollTop = 400; await espera(30);
+    M._test.refreshDetail();
+    igual(q('.detail .pbody').scrollTop, 400, 'en móvil, redibujar movió la ventana');
+    marco.style.width = ancho0; W.dispatchEvent(new W.Event('resize')); await espera(60);
   });
 
   prueba('M25', 'Portada → usada → mes nuevo → «Sin usar» en todos los meses → en una publicación sin aviso; si se borra ese mes vuelve a usada; si se borra el mes del hueco, la foto queda en la bandeja (D-049, D-022, D-041)', async () => {

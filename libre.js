@@ -21,7 +21,7 @@
 //            'punt'), puntas (an arrow: 'der'|'izq'|'dos'), its stroke h·H / TRAZO[forma] (an arrow's box is its heads' width)
 //   'hueco': a free photo hole (v1.9): color (its fill, null: none, the background shows), b, bc, r (as 'forma'), textos
 //            ([texto el]: its label and guide text, x, y, w, h fractions of the hole's area, size of the slide's width)
-//   a 'foto' that filled a hole carries it: hueco (the 'hueco' element as it was; deleting the photo gives it back)
+//   a 'foto' that filled a hole carries it: hueco (the 'hueco' element or the empty frame as it was; deleting the photo gives it back)
 //   comp.previa: the slide as it was before its last template (with its own previa, up to PREVIAS deep; rat: its W/H)
 // The client's colours, templates and logos live on the client record: c.libre = {colores, plantillas:[{id, nombre, comp, fmt
 // (its format's name, from 1.16), rat (W/H)}], logos}.
@@ -91,7 +91,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.24';
+  const VERSION = '1.25';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -153,12 +153,18 @@
   }
 
   // ---------- photo holes ----------
-  // A hole is a 'hueco' element, or a photo frame with no photo. A photo dropped on a 'hueco' takes its place among the
-  // layers, never stretched: a hole a sangre is filled (scaled to cover it, centred, what is left over cropped), one inside
-  // the margin takes it whole (the biggest that fits, centred, the background in the strips); the hole's fill, border and
-  // texts go; the photo carries the hole (el.hueco) and gives it back, as it was, when it is deleted (sacar), even moved or
-  // scaled. An empty frame keeps its own rules (colocar). Any hole counts, locked or not.
-  const huecosDe = comp => ((comp && comp.els) || []).filter(e => !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && !e.src && !e.lock)));   // the free ones, in drawing order
+  // A hole is a 'hueco' element, or a photo frame with no photo. A photo dropped on one takes its place among the layers,
+  // never stretched: of its own orientation it fills the hole (scaled to cover it, centred, what is left over cropped);
+  // of another, the editor asks (D-050): filling it, or whole (the biggest that fits, centred, the background in the
+  // strips). Where nobody is asked (a template, a drop on the mesa) a hole a sangre is filled and one inside the margin
+  // takes it whole, and an empty frame keeps its own rules (colocar). A 'hueco''s fill, border and texts go; the photo
+  // carries the hole (el.hueco) and gives it back, as it was, when it is deleted (sacar), even moved or scaled. Any
+  // 'hueco' counts, locked or not.
+  const libre = e => !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && !e.src && !e.lock));
+  const lleno = e => e.t === 'foto' && !!e.src && !!e.hueco && !e.pan && !e.lock && !e.oculto;   // a photo in a hole: another can take its place
+  const huecosDe = comp => ((comp && comp.els) || []).filter(libre);   // the free ones, in drawing order
+  const huecosTodos = comp => ((comp && comp.els) || []).filter(e => libre(e) || lleno(e));   // free or filled, in drawing order
+  const areaHueco = e => e.hueco || e;   // where a hole is: its photo may be smaller than it
   const enHueco = (h, t) => ({ ...t, x: h.x + t.x * h.w, y: h.y + t.y * h.h, w: t.w * h.w, h: (t.h || 0) * h.h });   // a hole's text, on the slide
   const textosDe = comp => comp.els.flatMap(e => e.t === 'texto' ? [e] : e.t === 'hueco' ? e.textos || [] : []);
   const orienta = (w, h) => w > h * 1.05 ? 'h' : h > w * 1.05 ? 'v' : 'q';
@@ -189,28 +195,32 @@
   const cubreHueco = (el, W, H) => { const h = el.hueco, ex = 1 / W, ey = 1 / H; return el.x <= h.x + ex && el.y <= h.y + ey && el.x + el.w >= h.x + h.w - ex && el.y + el.h >= h.y + h.h - ey; };
   const PROVISIONAL = '#2b231f', INK = '#16110E';   // the templates' provisional hole colour (in no kit) and the brand's Ink
   const sinProvisional = comp => { if (String(comp.bg || '').toLowerCase() === PROVISIONAL) comp.bg = INK; };
+  const coincide = (f, h, W, H) => { const d = M.files[f]; return !!d && orienta(d.w, d.h) === orienta(h.w * W, h.h * H); };   // photo f and hole h (its area), the same way round
+  const llenaSola = (f, h, W, H) => coincide(f, h, W, H) || aSangre(h);   // where nobody can be asked
   // photo f into free hole h (slide W×H): a 'hueco' gives way to the photo, in its layer; an empty frame keeps its frame.
-  // Returns the photo's element.
-  function rellenar(comp, h, f, W, H) {
+  // llena: filling the hole, or whole inside it; not given, nobody is asked. Returns the photo's element.
+  function rellenar(comp, h, f, W, H, llena) {
+    const vacio = clone(h); delete vacio.hueco;
     if (h.t === 'hueco') {
-      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, hueco: clone(h) }, W, H);
+      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, hueco: vacio }, W, H, llena ?? llenaSola(f, h, W, H));
       comp.els.splice(comp.els.indexOf(h), 1, el);
       sinProvisional(comp);
       return el;
     }
-    Object.assign(h, { src: f, cx: 0.5, cy: 0.5, z: 1 });
-    colocar(h, W, H);
+    Object.assign(h, { src: f, cx: 0.5, cy: 0.5, z: 1, hueco: vacio });
+    if (llena == null) colocar(h, W, H); else encajeHueco(h, W, H, llena);
+    sinProvisional(comp);
     return h;
   }
-  function reajustar(comp, el, f, W, H) {   // a hole already filled takes photo f: fitted to the hole again, by the same rule
-    el.src = f; encajeHueco(el, W, H); sinProvisional(comp);
+  function reajustar(comp, el, f, W, H, llena = llenaSola(f, el.hueco, W, H)) {   // a hole already filled takes photo f: fitted to the hole again
+    el.src = f; encajeHueco(el, W, H, llena); sinProvisional(comp);
     return el;
   }
-  function sacar(comp, quita) {      // the elements quita(e) leave the slide; a photo that filled a hole gives it back, in its layer
+  function sacar(comp, quita) {      // the elements quita(e) leave the slide; a photo that filled a hole gives it back, in its layer (an empty frame is the hole: it goes)
     comp.els = comp.els.flatMap(e => {
       if (!quita(e)) return [e];
-      if (e.t !== 'foto' || !e.hueco) return [];
-      const h = clone(e.hueco); if (!h.id || comp.els.some(q => q.id === h.id)) h.id = uid();
+      if (e.t !== 'foto' || !e.hueco || !e.src) return [];
+      const h = clone(e.hueco); if (!h.id || comp.els.some(q => q !== e && q.id === h.id)) h.id = uid();
       return [h];
     });
   }
@@ -620,7 +630,7 @@
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
-        bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
+        bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: lsLeer(LS_ZG) === '1', margen: 0 };
       E.guias0 = firmaG();
       E.sl = s.photos.map(key => {
@@ -950,11 +960,13 @@
 #mesa .lb-tray{flex:none;margin:6px 14px 2px;padding:8px 10px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 #mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:2px 8px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
+#mesa .lb-tph.elegida{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
 #mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
 #mesa .lb-marq{position:fixed;z-index:6;border:1px solid #0095f6;background:rgba(0,149,246,.08);pointer-events:none}
 #mesa .lb-menu.lb-cm{position:fixed;top:0;right:auto;z-index:20}#mesa .lb-menu.lb-cm button{display:flex;justify-content:space-between;align-items:center}#mesa .lb-menu.lb-cm button:disabled{color:var(--faint);background:none;cursor:default}
+#mesa .lb-ghostn{position:fixed;z-index:31;min-width:20px;height:20px;margin:-42px 0 0 22px;padding:0 5px;box-sizing:border-box;border-radius:10px;background:var(--acc);color:#fff;font-size:12px;font-weight:700;line-height:20px;text-align:center;pointer-events:none}
 #mesa .lb-ghost{position:fixed;z-index:30;width:64px;height:64px;object-fit:cover;border-radius:6px;transform:translate(-50%,-50%);pointer-events:none;opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #mesa .lb-panel{overflow-y:auto;padding:0 16px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .lb-sec{padding:12px 0 14px;border-bottom:1px solid var(--line2)}#mesa .lb-sec:last-child{border-bottom:0}
@@ -1005,6 +1017,7 @@
 #mesa .lb-ask{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .lb-askc{background:var(--panel);border-radius:12px;padding:18px 18px 16px;max-width:400px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
 #mesa .lb-askl{list-style:none;margin:0 0 8px;padding:0;max-height:min(50vh,300px);overflow:auto;font-size:13px}#mesa .lb-askl li{padding:5px 0;border-top:1px solid var(--line2)}#mesa .lb-askl li span{display:block;color:var(--mute);font-size:12.5px}
+#mesa .lb-askimg{display:block;max-width:100%;max-height:150px;margin:0 auto 10px;border-radius:6px}
 #mesa .lb-askc h4{margin:0 0 6px;font-size:15px}#mesa .lb-askc p{margin:0 0 6px;color:var(--mute);font-size:13px}
 #mesa .lb-askin{display:block;width:100%;box-sizing:border-box;margin:8px 0 4px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px}#mesa .lb-askin:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
 #mesa .lb-it,#mesa .lb-allit{position:relative}#mesa .lb-it.lb-drg,#mesa .lb-allit.lb-drg{opacity:.4}
@@ -1031,7 +1044,7 @@
 #mesa .lb-scroll.reglas{padding-top:44px;padding-left:44px}
 #mesa .lb-rx,#mesa .lb-ry{position:absolute;background:var(--panel);color:var(--mute);touch-action:none}#mesa .lb-rx[hidden],#mesa .lb-ry[hidden]{display:none}
 #mesa .lb-rx{left:0;top:-22px;cursor:row-resize;border-bottom:1px solid var(--line)}#mesa .lb-ry{top:0;left:-22px;cursor:col-resize;border-right:1px solid var(--line)}
-#mesa .lb-fl{position:absolute;z-index:4;display:flex;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.14);line-height:1.4;white-space:nowrap}
+#mesa .lb-fl{position:absolute;z-index:4;display:flex;flex-wrap:wrap;width:max-content;max-width:100%;box-sizing:border-box;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.14);line-height:1.4;white-space:nowrap}
 #mesa .lb-fl>button{border:0;background:none;border-radius:7px;padding:6px 10px;font-size:12.5px;color:var(--ink)}
 #mesa .lb-fl>button:hover:not(:disabled),#mesa .lb-fl>button[aria-expanded="true"]{background:var(--line2)}#mesa .lb-fl>button:disabled{opacity:.35;cursor:default}
 #mesa .lb-fl>button.del{color:var(--chg)}
@@ -1171,7 +1184,8 @@
     if (el && E.crop === el.id) cropView(x, el, W, H, k);
     if (E.zona && E.i === 0) verZona(x, W, H);
     if (E.reglas) verGuias(x, W, H);
-    const ss = selEls(); ss.forEach(e => marco(x, e, W, H, ss.length === 1));
+    if (E.cambio || E.ojo) verHuecos(x, W, H);
+    const ss = selEls(); ss.forEach(e => marco(x, e, W, H, ss.length === 1 && !E.cambio));
     posBarra(); posRat();
     for (const g of E.guides) {
       const c = g.x != null ? Math.abs(g.x - W / 2) < 1e-6 : Math.abs(g.y - H / 2) < 1e-6;   // the slide's centre: green and dashed
@@ -1188,6 +1202,17 @@
     x.save(); x.translate(el.x * W + fw / 2, el.y * H + fh / 2); if (el.rot) x.rotate(el.rot * Math.PI / 180); x.translate(ib.x + ib.w / 2, ib.y + ib.h / 2); x.scale(el.fx ? -1 : 1, el.fy ? -1 : 1);
     x.globalAlpha = 0.38; x.drawImage(m.im, 0, 0, m.im.width, m.im.height, -ib.w / 2 - sr.x * s, -ib.h / 2 - sr.y * s, f.w * s, f.h * s); x.restore();
     drawEl(x, el, W, H, viewImg, k, true);
+  }
+  // the holes a photo can go to: only on the editor's canvas, never in what is drawn for the post
+  function verHuecos(x, W, H) {
+    const hs = E.cambio ? huecosCambio() : compAt(E.i).els.filter(e => e.id === E.ojo), u = 1 / E.k;
+    for (const e of hs) {
+      const g = geoCaja(areaHueco(e), W, H);
+      x.save(); x.translate(g.cx, g.cy); x.rotate(g.a);
+      x.fillStyle = 'rgba(0,149,246,.28)'; x.fillRect(-g.w / 2, -g.h / 2, g.w, g.h);
+      x.lineWidth = 2 * u; x.strokeStyle = '#0095f6'; x.setLineDash([7 * u, 5 * u]); x.strokeRect(-g.w / 2, -g.h / 2, g.w, g.h);
+      x.restore();
+    }
   }
   function marco(x, el, W, H, solo) {
     const g = geo(el, W, H), u = 1 / E.k;
@@ -1601,7 +1626,7 @@
   }
   function separar(c, g) {             // the gap of the grid in place: same photos, same cells
     const { W, H } = sizeAt(E.i), cs = cells(c.rej.n, W, H, g * W);
-    fotosDe(c).forEach((e, k) => { const q = cs[k]; if (!q) return; Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H), rot: 0 }); delete e.fit; delete e.rat; if (e.src) setPhoto(e, {}); });
+    fotosDe(c).forEach((e, k) => { const q = cs[k]; if (!q) return; Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H), rot: 0 }); if (e.hueco) Object.assign(e.hueco, { x: e.x, y: e.y, w: e.w, h: e.h, rot: 0 }); delete e.fit; delete e.rat; if (e.src) setPhoto(e, {}); });
     c.rej.g = g;
   }
 
@@ -1611,6 +1636,7 @@
     if (e.button !== 0 || E.busy || !E.sl.length) return;
     E.el.focus({ preventScroll: true });
     const p = toSlide(e), sel = selEl();
+    if (E.cambio) { e.preventDefault(); const t = huecosCambio().reverse().find(q => inside(areaHueco(q), p)); if (t) intercambiar(t.id); else salirCambio(); return; }   // «Intercambiar» waits for a hole: any other click cancels it
     let d = null;
     if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) d = { t: 'pan', id: el.id, p0: p, el0: clone(el) }; else { E.crop = null; panel(); } }
     if (!d && sel && !sel.lock && !multi() && !e.shiftKey) { const h = hitHandle(sel, p); if (h) d = h.rot ? { t: 'rot', id: sel.id, el0: clone(sel) } : { t: 'size', id: sel.id, el0: clone(sel), hx: h.hx, hy: h.hy }; }
@@ -1733,7 +1759,8 @@
     if (E.esp && hayZoom()) { mano(); return; }
     const p = toSlide(e), sel = selEl();
     let c = 'default';
-    if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) c = 'grab'; }
+    if (E.cambio) { if (huecosCambio().some(q => inside(areaHueco(q), p))) c = 'pointer'; }
+    else if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) c = 'grab'; }
     else {
       const h = sel && !sel.lock && !multi() ? hitHandle(sel, p) : null;
       const g = !h && E.reglas ? hitGuia(p) : null;
@@ -2029,7 +2056,7 @@
         h += girarHTML(el, true);
       } else if (el.t === 'hueco') {
         h += `<div class="lb-sec"><h4>Hueco de foto <span>· libre</span></h4><div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>`
-          + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa, a sangre llenando el hueco y dentro del margen entera. Si luego la borras, el hueco vuelve.</p></div>';
+          + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa y, con su misma orientación, lo rellena; si no, te pregunta cómo. Si luego la borras, el hueco vuelve.</p></div>';
       } else {
         const tr = TRAZO[el.forma];
         h += `<div class="lb-sec"><h4>${FORMAS[el.forma] || 'Forma'}</h4><span class="lb-l" style="margin-top:0">${tr ? 'Color' : 'Relleno'}</span>${sws('fc', el.color || '#ffffff')}`
@@ -2063,14 +2090,14 @@
     }
     p.innerHTML = h; p.scrollTop = top;
     p.querySelectorAll('canvas[data-lb="tpl"]').forEach(cv => { const t = E.plant.find(q => q.id === cv.dataset.id); if (t) dibujarPlantilla(cv, t); });
-    const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing (the rest: «?»)
-    pista.hidden = !enc; pista.textContent = enc ? 'Encuadrando: arrastra la foto dentro del marco · rueda o «Zoom» para acercar · Esc o «Listo» para terminar' : '';
+    const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing or choosing where to swap (the rest: «?»)
+    pista.hidden = !enc && !E.cambio; pista.textContent = E.cambio ? 'Intercambiar: pulsa otro hueco de esta diapositiva · Esc o un clic fuera de un hueco para cancelar' : enc ? 'Encuadrando: arrastra la foto dentro del marco · rueda o «Zoom» para acercar · Esc o «Listo» para terminar' : '';
     barra();
   }
   // ---------- the bar over the selection: Duplicar · Bloquear · Delante / detrás · Borrar ----------
   function barra() {
     const fl = E && E.el && E.el.querySelector('.lb-fl'); if (!fl) return;
-    const ss = E.sl.length && !E.crop && !E.pick ? selEls() : [];
+    const ss = E.sl.length && !E.crop && !E.pick && !E.cambio ? selEls() : [];
     if (!ss.length) { fl.hidden = true; fl.innerHTML = ''; E.flm = false; posRat(); return; }
     const c = compAt(E.i), n = c.els.length, idx = ss.map(e => c.els.indexOf(e)), el = selEl();
     const lock = ss.every(e => e.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
@@ -2078,6 +2105,7 @@
     fl.innerHTML = '<button type="button" data-lb="copy" title="Copiar (⌘C): ⌘V lo pega en el mismo sitio, en esta u otra diapositiva o publicación">Copiar</button>'
       + '<button type="button" data-lb="dup" title="Duplicar (⌘D)">Duplicar</button>'
       + `<button type="button" data-lb="lock" aria-pressed="${lock}">${lock ? 'Desbloquear' : 'Bloquear'}</button>`
+      + (!multi() && el && lleno(el) ? `<button type="button" data-lb="cambio" title="Cambiar esta foto con otro hueco de la diapositiva"${huecosCambio().length ? '' : ' disabled'}>Intercambiar</button>` : '')
       + `<button type="button" data-lb="flm" aria-haspopup="menu" aria-expanded="${E.flm}"${arriba && abajo ? ' disabled' : ''}>Delante / detrás</button>`
       + (!multi() && el && el.g ? '<button type="button" data-lb="ungroup" title="⇧⌥⌘G">Desagrupar</button>' : '')
       + `<button type="button" class="del" data-lb="del" title="Borrar (⌫)"${lock ? ' disabled' : ''}>Borrar</button>`
@@ -2419,7 +2447,14 @@
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
       case 'tr-fil': if (I().trayFiltro) I().trayFiltro(b.dataset.v); bandeja(); return;   // the same filter as the mesa's tray
-      case 'tr-add': { const owner = E; avisar(fotoIt([b.dataset.f]), E.i).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(fs => { if (fs && fs.length && E === owner) ponerFotos(fs, null, null); }); return; }
+      case 'tr-add': {
+        const f = b.dataset.f;
+        if (b._meta) { E.trSel = E.trSel.includes(f) ? E.trSel.filter(q => q !== f) : [...E.trSel, f]; bandeja(); return; }   // ⌘ + click: one more or one less of the chosen
+        if (E.trSel.length) { E.trSel = []; bandeja(); }
+        desdeBandeja([f], { i: null, p: null });
+        return;
+      }
+      case 'cambio': { const el = selEl(); if (!el || multi() || !lleno(el) || !huecosCambio().length) return; E.cambio = el.id; E.crop = null; E.pick = null; panel(); pedir(); return; }
       case 'add-txt': { const hayFoto = fotosDe(compAt(E.i)).length > 0; nuevo(textoEl(hayFoto ? '#ffffff' : '#000000')); const el = selEl(); if (el) ajustarTexto(el, E.sz.W, E.sz.H); return; }
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
       case 'add-pil': nuevo(pildoraEl()); return;
@@ -2440,11 +2475,12 @@
         avisar(fotoIt([f]), E.i, pk.id).then(r => {
           if (!r || !r.length || E !== owner || E.pick !== pk) return;
           E.pick = null;
+          const h = pk.modo === 'add' ? null : compAt(E.i).els.find(q => q.id === pk.id);
+          if (h && (h.t === 'hueco' || (h.t === 'foto' && (!h.src || (h.hueco && !h.pan))))) { repartir([{ f, h }], 0); return; }   // a hole, free or filled (D-050)
           mut(null, () => {
             const c = ensure();
             if (pk.modo === 'add') { const e = fotoEl(f); const top = c.els.reduce((a, q, i) => q.t === 'foto' ? i + 1 : a, 0); c.els.splice(top, 0, e); E.sel = e.id; E.mas = []; encajar(e, 0.08); delete e.fit; }   // a new photo goes above the photos, under texts and logos
-            else if ((c.els.find(q => q.id === pk.id) || {}).t === 'hueco') { const { W, H } = sizeAt(E.i); E.sel = rellenar(c, c.els.find(q => q.id === pk.id), f, W, H).id; E.mas = []; }
-            else { const e = c.els.find(q => q.id === pk.id); if (e && e.hueco && !e.pan) { const { W, H } = sizeAt(E.i); E.sel = reajustar(c, e, f, W, H).id; E.mas = []; } else if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
+            else { const e = c.els.find(q => q.id === pk.id); if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
           });
         });
         return;
@@ -2494,7 +2530,7 @@
         if (ss.every(e => e.lock)) { I().toast(ss.length > 1 ? 'Están bloqueados: desbloquéalos para borrarlos.' : 'Está bloqueado: desbloquéalo para borrarlo.'); return; }
         mut(null, () => {
           const c = ensure(), ids = ss.filter(e => !e.lock).map(e => e.id), pans = ss.filter(e => !e.lock && e.pan).map(e => e.pan.id);
-          sacar(c, e => ids.includes(e.id)); soltar(); E.crop = null;   // a photo that filled a hole leaves the hole as it was
+          sacar(c, e => ids.includes(e.id)); soltar(); E.crop = null; E.pick = null;   // a photo that filled a hole leaves the hole as it was
           if (pans.length) E.sl.forEach((x, j) => { if (j !== E.i && x.comp) sacar(x.comp, e => !!(e.pan && pans.includes(e.pan.id))); });   // a crossing photo goes from all its slides
         });
         return;
@@ -2619,7 +2655,7 @@
           if (h.oculto) continue;
           const f = fotos[k++]; if (!f) break;
           if (h.t === 'hueco') { rellenar(c, h, f, W, H); continue; }
-          Object.assign(h, { src: f, cx: 0.5, cy: 0.5, z: 1 });
+          Object.assign(h, { src: f, cx: 0.5, cy: 0.5, z: 1, hueco: clone(h) });   // it gives the hole back when it is deleted (D-052)
           if (h.fit != null) { const r = h.rot || 0; encajar(h, h.fit); h.rot = r; }
         }
       };
@@ -2682,9 +2718,10 @@
       const b = e.target.closest('[data-lb]'); if (!b || !el.contains(b) || E.busy) return;
       if ((b.tagName === 'INPUT' && b.type !== 'button') || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
       if (b.dataset.lb === 'logo' && e.altKey) { const f = b.dataset.f; preguntar('¿Quitar este logo del kit?', 'Las diapositivas ya hechas con él no cambian.', [['seguir', 'Cancelar', 'btn2'], ['q', 'Quitar', 'btn']], v => { if (v === 'q') guardarCliente(l => ({ ...l, logos: (l.logos || []).filter(q => q !== f) })); }); return; }
-      b._shift = e.shiftKey;
+      b._shift = e.shiftKey; b._meta = e.metaKey || e.ctrlKey;
       act(b.dataset.lb, b);
     });
+    el.addEventListener('pointerdown', e => { if (E && E.cambio && (e.target !== E.cv || e.button !== 0)) { salirCambio(); if (E.scroll.contains(e.target)) e.stopPropagation(); } }, true);   // a click outside the slide cancels «Intercambiar»
     el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); });
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.pl; if (!k) return; if (e.target.open) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(',')); }, true);
@@ -2722,7 +2759,12 @@
     if ((e.metaKey || e.ctrlKey) && (e.code === 'KeyP' || String(e.key).toLowerCase() === 'p')) e.preventDefault();   // with the editor open ⌘P never prints
     if (E.busy) { if (!e.metaKey) e.preventDefault(); return; }
     if (!E.el.isConnected || !curSlot()) { cerrar(true); return; }
-    if (E.ask) { if (e.key === 'Escape') { e.preventDefault(); cerrarPregunta(); } else if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('lb-askin')) { e.preventDefault(); E.askOk(); } return; }
+    if (E.ask) {
+      if (e.key === 'Escape') { e.preventDefault(); cerrarPregunta(); }
+      else if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('lb-askin')) { e.preventDefault(); E.askOk(); }
+      else if ((e.key === '1' || e.key === '2') && E.ask.classList.contains('lb-ask12')) { e.preventDefault(); if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) E.ask.querySelectorAll('[data-ask]')[+e.key - 1].click(); }   // held down, it never answers the next question
+      return;
+    }
     if (E.fv) {                     // F's view: Esc or F close it, no other key acts on what it hides
       if (e.key === 'Escape' || (String(e.key).toLowerCase() === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey)) { e.preventDefault(); verGrande(false); }
       return;
@@ -2732,12 +2774,14 @@
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const j = E.pvI + (e.key === 'ArrowLeft' ? -1 : 1); if (j >= 0 && j < E.sl.length) { E.pvI = j; pintarPv(); } }
       return;
     }
+    if (E.cambio) { if (e.key === 'Escape') { e.preventDefault(); salirCambio(); } return; }   // «Intercambiar» waits for a hole: no other key acts
     const t = e.target, typing = esTexto(t);
     const mod = (e.metaKey || e.ctrlKey) && !e.altKey, k = String(e.key).toLowerCase();
     if (e.key === 'Escape') {
       e.preventDefault();
       if (cerrarMenus(null)) return;
       if (typing && t.blur) { t.blur(); E.el.focus({ preventScroll: true }); return; }
+      if (E.trSel.length) { E.trSel = []; bandeja(); return; }
       if (E.pick) { E.pick = null; panel(); } else if (E.crop) { E.crop = null; panel(); pedir(); } else if (!E.allEl.hidden) verTodas(false); else if (E.sel) { soltar(); panel(); pedir(); } else pedirCerrar();
       return;
     }
@@ -2802,6 +2846,8 @@
     ['T · R', 'añadir un texto · un rectángulo'],
     ['F', 'ver en grande, en toda la ventana: la foto elegida, original y entera · sin una foto elegida, la diapositiva · Esc, F o un clic: cerrar'],
     ['⌘ al arrastrar', 'sin imán (con él, distancias en px, espacios y tamaños iguales en violeta, el centro de la diapositiva en verde discontinuo) · ⇧ al girar: de 15° en 15°'],
+    ['⌘ + clic en la bandeja', 'elegir varias fotos: arrastrar una de ellas se las lleva todas · Esc: soltarlas'],
+    ['1 · 2', 'en la pregunta de una foto que no coincide con su hueco: rellenar el recuadro · mantener el formato de la foto · Esc: no ponerla'],
     ['Esc', 'soltar la selección o terminar de encuadrar'],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl><p>Suelta fotos del ordenador en la diapositiva o en la bandeja.</p>';
   const FLECHA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -2813,21 +2859,22 @@
   // here, its slides) — with «Sin usar», only the ones without ✓
   function trayFotos(todas) {
     const uso = enUso();
-    if (I().bandejaVista) return I().bandejaVista({ todas, sin: E.slotId, mas: uso }).filter(x => !isKit(x.f));
-    return E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f)).map(f => ({ f, u: uso.has(f) }));
+    const vista = I().bandejaVista ? I().bandejaVista({ todas, sin: E.slotId, mas: uso }).filter(x => !isKit(x.f)) : E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f)).map(f => ({ f, u: uso.has(f) }));
+    return [...[...E.vuelven].filter(f => M.files[f] && !uso.has(f) && !vista.some(x => x.f === f)).map(f => ({ f, u: false })), ...vista];   // a photo another took the place of is back in the tray at once, not only when it is applied
   }
   function bandeja() {               // drawn again only when it shows something else
     if (!E || !E.el) return;
     const todas = !!(I().trayTodas && I().trayTodas()), box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(todas), n = fs.filter(x => !x.u).length, uso = enUso();
+    E.trSel = E.trSel.filter(f => fs.some(x => x.f === f));   // only what it shows stays chosen
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
-    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (M.files[x.f].thumbUrl || '')).join(',') : '';
+    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (E.trSel.includes(x.f) ? '*' : '') + (M.files[x.f].thumbUrl || '')).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
     const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '');
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}<b>Bandeja</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
-      + (fs.length ? `<div class="lb-trs">${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img src="${M.files[x.f].thumbUrl || ''}" alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}<b>Bandeja</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
+      + (fs.length ? `<div class="lb-trs">${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img src="${M.files[x.f].thumbUrl || ''}" alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
   }
   // a photo used before (D-022): before it goes onto slide i, its nearest use — this slide (without the element excl it
@@ -2850,31 +2897,127 @@
       E.askNo = () => res(null);
     });
   }
-  // photos onto slide i (null: the one open): the first into the empty frame under the pointer (or the one selected),
-  // the rest as new photos above the others, at the pointer when there is one; a post with no slide gets one
-  function ponerFotos(fs, p, i) {
-    fs = fs.filter(f => M.files[f] && !M.files[f].design && !isKit(f)); if (!fs.length || !E || E.busy) return;
+  // photo f and hole h of the open slide that don't match: filling it (true), whole (false) or, with Esc or a click outside, neither (null)
+  const ORI_F = { h: 'horizontal', v: 'vertical', q: 'cuadrada' }, ORI_H = { h: 'horizontal', v: 'vertical', q: 'cuadrado' };
+  function preguntaEncaje(f, h, esc) {
+    const owner = E, d = M.files[f], a = areaHueco(h), { W, H } = sizeAt(E.i);
+    return new Promise(res => {
+      const fin = v => { if (E === owner) { E.ojo = null; pedir(); } res(v); };
+      E.ojo = h.id; pedir();
+      preguntar(`Esta foto es ${ORI_F[orienta(d.w, d.h)]} y el recuadro, ${ORI_H[orienta(a.w * W, a.h * H)]}`, esc,
+        [['llena', '1 · Rellenar el recuadro', 'btn2'], ['entera', '2 · Mantener el formato de la foto', 'btn2']], v => fin(v === 'llena' ? true : v === 'entera' ? false : null));
+      E.askNo = () => fin(null);
+      E.ask.classList.add('lb-ask12');
+      const im = document.createElement('img'); im.className = 'lb-askimg'; im.alt = ''; im.src = d.thumbUrl || '';
+      E.ask.querySelector('.lb-askc').prepend(im);
+      E.el.focus({ preventScroll: true });   // no button holds the keys: only 1, 2 and Esc answer
+    });
+  }
+  // photos into holes of the open slide, pares [{f, h}] (a filled one: its photo goes back to the tray), one step of ⌘Z:
+  // first the ones of the hole's orientation, then a question for each of the others. sobran: the ones with no hole, left in
+  // the tray. -> how many went in and how many didn't fit
+  async function repartir(pares, sobran) {
+    const owner = E, { W, H } = sizeAt(E.i); let dado = false, puestas = 0;
+    E.pick = null; E.crop = null;
+    const pon = (lista, llena) => {
+      if (!dado) { paso(); dado = true; }
+      const c = ensure();
+      for (const { f, h: h0 } of lista) {
+        const h = c.els.find(q => q.id === h0.id); if (!h) continue;
+        if (h.src) E.vuelven.add(h.src);
+        E.sel = (h.src ? reajustar(c, h, f, W, H, llena) : rellenar(c, h, f, W, H, llena)).id; E.mas = []; puestas++;
+      }
+      despues();
+    };
+    const iguales = pares.filter(x => coincide(x.f, areaHueco(x.h), W, H));
+    if (iguales.length) pon(iguales, true);
+    for (const x of pares) {
+      if (iguales.includes(x)) continue;
+      const llena = await preguntaEncaje(x.f, x.h, 'Esc: no ponerla.');
+      if (E !== owner) return null;
+      if (llena != null) pon([x], llena);
+    }
+    if (!puestas) panel();
+    if (sobran) I().toast(sobran === 1 ? '1 foto no cabe: no queda hueco libre y sigue en la bandeja.' : `${sobran} fotos no caben: no quedan huecos libres y siguen en la bandeja.`, { ms: 6000 });
+    return { puestas, sobran };
+  }
+  // «Intercambiar»: the holes the chosen photo can change places with, and its change with hole id; each photo goes in by
+  // the same rule, one step of ⌘Z. Nothing changes until both are answered: Esc in a question cancels it all
+  const huecosCambio = () => { const a = selEl(); return huecosTodos(compAt(E.i)).filter(e => e !== a && !e.lock); };
+  function salirCambio() { if (!E.cambio) return; E.cambio = null; panel(); pedir(); }
+  async function intercambiar(id) {
+    const owner = E, c0 = compAt(E.i), a = c0.els.find(q => q.id === E.cambio), b = c0.els.find(q => q.id === id), { W, H } = sizeAt(E.i);
+    E.cambio = null; panel(); pedir();
+    if (!a || !b) return;
+    const encaje = async (f, h) => coincide(f, areaHueco(h), W, H) ? true : preguntaEncaje(f, h, 'Esc: dejarlas como estaban.');
+    const fa = a.src, fb = b.src, ra = await encaje(fa, b);
+    if (E !== owner || ra == null) return;
+    const rb = fb ? await encaje(fb, a) : null;
+    if (E !== owner || (fb && rb == null)) return;
+    mut(null, () => {
+      const c = ensure(), x = c.els.find(q => q.id === a.id), y = c.els.find(q => q.id === b.id); if (!x || !y) return;
+      const giro = { fx: x.fx, fy: x.fy };   // a flipped photo stays flipped: it is the photo's
+      if (fb) { Object.assign(x, { fx: y.fx, fy: y.fy }); reajustar(c, x, fb, W, H, rb); Object.assign(reajustar(c, y, fa, W, H, ra), giro); E.sel = y.id; }
+      else { const n = rellenar(c, y, fa, W, H, ra); Object.assign(n, giro); sacar(c, e => e === x); E.sel = n.id; }
+      E.mas = [];
+    });
+  }
+  // the photos that go on a slide with holes (D-050): one, into the hole under the pointer or the one chosen, else the first
+  // free one of its orientation, else the first free one; several, each into a free one of its orientation, in drawing order,
+  // and the rest into those left. null: no hole for it there, it is a loose photo as ever
+  function planHuecos(fs, p, c, s0) {
+    const { W, H } = sizeAt(E.i), libres = huecosDe(c);
+    if (fs.length === 1) {
+      const f = fs[0], h = p ? huecosTodos(c).reverse().find(q => inside(areaHueco(q), p))
+        : (s0 && huecosTodos(c).find(q => q.id === s0.id)) || libres.find(q => coincide(f, q, W, H)) || libres[0];
+      return h ? { pares: [{ f, h }], sobran: 0 } : p ? null : { pares: [], sobran: 1 };
+    }
+    const pares = [], resto = [], quedan = libres.slice();
+    for (const f of fs) { const j = quedan.findIndex(q => coincide(f, q, W, H)); if (j < 0) resto.push(f); else pares.push({ f, h: quedan.splice(j, 1)[0] }); }
+    for (const f of resto) if (quedan.length) pares.push({ f, h: quedan.shift() });
+    return { pares, sobran: fs.length - pares.length };
+  }
+  // photos onto slide i (null: the one open). On a slide with holes, into them (planHuecos); else as new photos above the
+  // others, at the pointer when there is one; a post with no slide gets one. -> how many went in and how many didn't fit
+  async function ponerFotos(fs, p, i) {
+    fs = fs.filter(f => M.files[f] && !M.files[f].design && !isKit(f)); if (!fs.length || !E || E.busy) return null;
     if (E.ask) cerrarPregunta();
     if (E.pv) preview(false);
     if (E.fv) verGrande(false);
     if (!E.allEl.hidden) verTodas(false);
-    const otra = i != null && E.sl[i] && i !== E.i, s0 = !otra && !p ? selEl() : null;
+    if (E.cambio) salirCambio();
+    const otra = i != null && E.sl[i] && i !== E.i, s0 = !otra && !p ? selEl() : null, c0 = E.sl.length ? compAt(otra ? i : E.i) : null;
+    if (huecosTodos(c0).length) {
+      if (otra) elegir(i);
+      const plan = planHuecos(fs, p, c0, s0);
+      if (plan) return repartir(plan.pares, plan.sobran);
+    }
     mut(null, () => {
       if (!E.sl.length) { E.sl.push(blankSlide('#ffffff')); E.i = 0; } else if (otra) E.i = i;
       E.pick = null; E.crop = null;
-      const c = ensure(), { W, H } = sizeAt(E.i), hs = huecosDe(c);
-      const hole = p ? hs.slice().reverse().find(h => inside(h, p)) : (s0 && hs.find(h => h.id === s0.id)) || hs[0], ids = [];   // the free hole under the point (the topmost); no point: the one selected, or the slide's first
+      const c = ensure(), { W, H } = sizeAt(E.i), ids = [];
       fs.forEach((f, k) => {
-        if (!k && hole) { ids.push(rellenar(c, hole, f, W, H).id); return; }
         const e = fotoEl(f), top = c.els.reduce((a, q, j) => q.t === 'foto' ? j + 1 : a, 0);
         c.els.splice(top, 0, e); encajar(e, 0.08); delete e.fit;
-        const d = (k - (hole ? 1 : 0)) * 0.03, cx = p ? p.x / W : e.x + e.w / 2 + d, cy = p ? p.y / H : e.y + e.h / 2 + d;
+        const d = k * 0.03, cx = p ? p.x / W : e.x + e.w / 2 + d, cy = p ? p.y / H : e.y + e.h / 2 + d;
         e.x = r4(clamp(cx - e.w / 2 + (p ? d : 0), 0, 1 - e.w)); e.y = r4(clamp(cy - e.h / 2 + (p ? d : 0), 0, 1 - e.h));
         ids.push(e.id);
       });
       E.sel = ids[ids.length - 1]; E.mas = [];
     });
     if (otra) { const it = E.el.querySelectorAll('.lb-list .lb-it')[E.i]; if (it) it.scrollIntoView({ block: 'nearest' }); }
+    return { puestas: fs.length, sobran: 0 };
+  }
+  // the filled hole a single photo would replace there (D-022 doesn't count the photo that goes)
+  function aSustituir(p, i) {
+    if (!E.sl.length || (i != null && i !== E.i)) return undefined;
+    const e = p ? huecosTodos(compAt(E.i)).reverse().find(q => inside(areaHueco(q), p)) : selEl();
+    return e && lleno(e) ? e.id : undefined;
+  }
+  // tray photos to a place t ({i, p}, see destino): the warning first (D-022), a copy if it is used this month (D-041)
+  function desdeBandeja(fs, t) {
+    const owner = E;
+    avisar(fotoIt(fs), t.i != null ? t.i : E.i, fs.length === 1 ? aSustituir(t.p, t.i) : undefined).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(go => { if (go && go.length && E === owner) ponerFotos(go, t.p, t.i); });
   }
   // where a photo would land: a slide of the strip, a point of the slide, or around it (centred on the slide open)
   function destino(ev) {
@@ -2892,14 +3035,14 @@
     t.el.classList.add('over');
   }
   async function soltarArchivos(e) {
-    if (!E || E.busy) return;
+    if (!E || E.busy || E.ask) return;
     if (I().locked) { I().toast(LOCKED); return; }
     const owner = E, files = [...(e.dataTransfer.files || [])], guardar = !!e.target.closest('.lb-tray'), t = guardar ? null : destino(e) || { i: null, p: null };
     if (!files.length) return;
     if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }   // onto the grey while writing: nothing
     let go = files;
     if (!guardar) {       // onto a slide: the warning first (into the tray they just go in)
-      const r = await avisar(files.filter(f => f && f.size).map(f => ({ f, name: f.name, size: f.size })), t.i != null ? t.i : E.i);
+      const r = await avisar(files.filter(f => f && f.size).map(f => ({ f, name: f.name, size: f.size })), t.i != null ? t.i : E.i, files.length === 1 ? aSustituir(t.p, t.i) : undefined);
       if (!r || E !== owner) return;
       go = r.map(x => x.f); if (!go.length) return;
     }
@@ -2908,27 +3051,35 @@
     bandeja();
     if (!got || !got.length) return;
     if (guardar) { if (!E.trOpen) { E.trOpen = true; bandeja(); } I().toast(got.length === 1 ? 'Foto guardada en la bandeja.' : `${got.length} fotos guardadas en la bandeja.`); return; }
-    ponerFotos(got, t.p, t.i);
-    I().toast(`${got.length === 1 ? 'Foto puesta' : `${got.length} fotos puestas`} en la diapositiva ${E.i + 1}. Quedan en la bandeja hasta que apliques.`);
+    const r = await ponerFotos(got, t.p, t.i);
+    if (E === owner && r && r.puestas && !r.sobran) I().toast(`${r.puestas === 1 ? 'Foto puesta' : `${r.puestas} fotos puestas`} en la diapositiva ${E.i + 1}. Quedan en la bandeja hasta que apliques.`);
   }
   function arrastrarBandeja(e) {     // a tray photo dragged onto the slide or onto a slide of the strip (a click puts it on the open one)
     const b = e.target.closest('.lb-tph'); if (!b || e.button !== 0 || !E || E.busy) return;
-    const f = b.dataset.f, x0 = e.clientX, y0 = e.clientY, owner = E; let g = null;
+    const f = b.dataset.f, x0 = e.clientX, y0 = e.clientY, owner = E; let g = null, gn = null;
+    const lote = E.trSel.includes(f) ? [...E.el.querySelectorAll('.lb-tph')].map(q => q.dataset.f).filter(q => E.trSel.includes(q)) : [f];   // one of the chosen takes them all, in the tray's order
     const move = ev => {
       if (E !== owner) return;
-      if (!g) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; g = document.createElement('img'); g.className = 'lb-ghost'; g.alt = ''; g.src = (M.files[f] || {}).thumbUrl || ''; E.el.append(g); }
-      g.style.left = ev.clientX + 'px'; g.style.top = ev.clientY + 'px'; resaltar(ev);
+      if (!g) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+        g = document.createElement('img'); g.className = 'lb-ghost'; g.alt = ''; g.src = (M.files[f] || {}).thumbUrl || ''; E.el.append(g);
+        if (lote.length > 1) { gn = document.createElement('span'); gn.className = 'lb-ghostn'; gn.textContent = lote.length; E.el.append(gn); }
+      }
+      g.style.left = ev.clientX + 'px'; g.style.top = ev.clientY + 'px'; if (gn) { gn.style.left = ev.clientX + 'px'; gn.style.top = ev.clientY + 'px'; } resaltar(ev);
     };
     const end = drop => ev => {
       document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true);
       if (g) g.remove();
+      if (gn) gn.remove();
       if (E !== owner) return;
       resaltar(null);
       const lejos = Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6;   // released far away before any move was seen: a drag too
       if (!drop || !(g || lejos)) return;
       E.noClick = true; setTimeout(() => { if (E === owner) E.noClick = false; }, 0);
       const t = destino(ev); if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }
-      if (t) avisar(fotoIt([f]), t.i != null ? t.i : E.i).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(fs => { if (fs && fs.length && E === owner) ponerFotos(fs, t.p, t.i); });
+      if (!t) return;
+      if (lote.length > 1) { E.trSel = []; bandeja(); }
+      desdeBandeja(lote, t);
     };
     const up = end(true), cancel = end(false);
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);

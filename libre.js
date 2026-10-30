@@ -91,7 +91,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.20';
+  const VERSION = '1.21';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -648,6 +648,7 @@
     if (!E) return { ok: true };
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', sinEspacio, true); window.removeEventListener('blur', sinEspacio);
+    window.removeEventListener('resize', fvDibujar); if (e.fvUrl) URL.revokeObjectURL(e.fvUrl);
     if (e.raf) cancelAnimationFrame(e.raf);
     if (e.ro) e.ro.disconnect();
     for (const b of e.bm.values()) if (b.im && b.im.close) b.im.close();
@@ -987,6 +988,8 @@
 #mesa .lb-allit.lb-dl::before,#mesa .lb-allit.lb-dr::after{content:'';position:absolute;top:0;bottom:0;width:3px;border-radius:2px;background:var(--acc)}#mesa .lb-allit.lb-dl::before{left:-10px}#mesa .lb-allit.lb-dr::after{right:-10px}
 #mesa .lb-pv{position:absolute;inset:0;z-index:25;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 #mesa .lb-pv .igtop{align-self:stretch}#mesa .lb-pvt{flex:1;min-width:0;color:rgba(255,255,255,.85);font-size:12.5px}#mesa .lb-pvc{position:absolute;inset:0;width:100%;height:100%;display:block}
+#mesa .lb-fv{position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center;cursor:zoom-out}#mesa .lb-fv img{display:block;width:100%;height:100%;object-fit:contain}#mesa .lb-fv canvas{display:block}
+#mesa .lb-fvt{position:absolute;left:16px;top:12px;right:16px;color:rgba(255,255,255,.8);font-size:12.5px;text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
 #mesa .lb-fmtw{display:inline-flex;align-items:center;gap:6px}#mesa .lb-fmtl{font-size:12.5px;color:var(--mute)}
 #mesa .lb-mas{position:relative;display:inline-flex}
 #mesa .lb-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:12;display:flex;flex-direction:column;min-width:220px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
@@ -1099,6 +1102,7 @@
     E.el.querySelectorAll('.lb-list .lb-it canvas').forEach((cv, i) => { if (E.sl[i]) mini(cv, i, 216); });
     if (!E.allEl.hidden) E.allEl.querySelectorAll('canvas').forEach((cv, i) => { if (E.sl[i]) mini(cv, i, 360); });
     if (E.pv) pvDibujar();
+    if (E.fv) fvDibujar();
   }
   function verTodas(on) {
     const a = E.allEl;
@@ -2147,6 +2151,26 @@
     const x = cv.getContext('2d'), k = cv.width / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
     FUERA = true; try { drawComp(x, compAt(E.pvI), W, H, viewImg, k, false); } finally { FUERA = false; }
   }
+  // F: see it big, over the whole window (D-045): the chosen photo, original and whole; else the slide as it leaves the
+  // editor (no guides, grid zone, selection or hole labels). Only a view: it never goes into an image.
+  function verGrande(on) {
+    if (E.fv) { E.fv.remove(); if (E.fvUrl) URL.revokeObjectURL(E.fvUrl); E.fv = E.fvUrl = null; window.removeEventListener('resize', fvDibujar); }
+    if (!on) { E.el.focus({ preventScroll: true }); return; }
+    if (!E.sl.length) return;
+    const el = selIds().length === 1 ? selEl() : null, src = el && el.t === 'foto' && el.src && M.files[el.src] ? el.src : null, f = src && M.files[src];
+    const fv = E.fv = document.createElement('div'); fv.className = 'lb-fv'; fv.setAttribute('role', 'dialog'); fv.setAttribute('aria-label', f ? 'La foto, en grande' : 'La diapositiva, en grande');
+    fv.innerHTML = `<span class="lb-fvt">${f ? `${esc(f.name || 'Foto')} · ${f.w} × ${f.h} px, entera` : `Diapositiva ${E.i + 1}`} · Esc o F para cerrar</span>${f ? '<img alt="">' : '<canvas></canvas>'}`;
+    E.el.append(fv);
+    if (f) { const owner = E; I().getBlob(src).then(b => { if (E !== owner || E.fv !== fv || !b) return; E.fvUrl = URL.createObjectURL(b); fv.querySelector('img').src = E.fvUrl; }).catch(() => {}); }
+    else { E.fvI = E.i; window.addEventListener('resize', fvDibujar); fvDibujar(); }
+  }
+  function fvDibujar() {           // the slide in F's view (again when its photos have loaded or the window changes)
+    const cv = E && E.fv && E.fv.querySelector('canvas'); if (!cv || !E.sl[E.fvI]) return;
+    const { W, H } = sizeAt(E.fvI), r = E.fv.getBoundingClientRect(), s = Math.min(r.width / W, r.height / H), dpr = window.devicePixelRatio || 1;
+    cv.style.width = W * s + 'px'; cv.style.height = H * s + 'px'; cv.width = Math.max(1, Math.round(W * s * dpr)); cv.height = Math.max(1, Math.round(H * s * dpr));
+    const x = cv.getContext('2d'), k = cv.width / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
+    FUERA = true; try { drawComp(x, compAt(E.fvI), W, H, viewImg, k, false); } finally { FUERA = false; }
+  }
 
   // ---------- actions ----------
   function onEl(fn, tag, quiet) {  // a change to the selected element (to every selected one when several)
@@ -2598,6 +2622,7 @@
       if (E.noClick) { E.noClick = false; return; }
       cerrarMenus(e.target);
       if (E.pv && e.target === E.pv) { preview(false); return; }   // a click outside the post closes the preview
+      if (E.fv && E.fv.contains(e.target)) { verGrande(false); return; }
       const b = e.target.closest('[data-lb]'); if (!b || !el.contains(b) || E.busy) return;
       if ((b.tagName === 'INPUT' && b.type !== 'button') || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
       if (b.dataset.lb === 'logo' && e.altKey) { const f = b.dataset.f; preguntar('¿Quitar este logo del kit?', 'Las diapositivas ya hechas con él no cambian.', [['seguir', 'Cancelar', 'btn2'], ['q', 'Quitar', 'btn']], v => { if (v === 'q') guardarCliente(l => ({ ...l, logos: (l.logos || []).filter(q => q !== f) })); }); return; }
@@ -2642,6 +2667,10 @@
     if (E.busy) { if (!e.metaKey) e.preventDefault(); return; }
     if (!E.el.isConnected || !curSlot()) { cerrar(true); return; }
     if (E.ask) { if (e.key === 'Escape') { e.preventDefault(); cerrarPregunta(); } else if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('lb-askin')) { e.preventDefault(); E.askOk(); } return; }
+    if (E.fv) {                     // F's view: Esc or F close it, no other key acts on what it hides
+      if (e.key === 'Escape' || (String(e.key).toLowerCase() === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey)) { e.preventDefault(); verGrande(false); }
+      return;
+    }
     if (E.pv) {                     // the preview: Esc closes it, ← → go through the slides
       if (e.key === 'Escape') { e.preventDefault(); preview(false); }
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const j = E.pvI + (e.key === 'ArrowLeft' ? -1 : 1); if (j >= 0 && j < E.sl.length) { E.pvI = j; pintarPv(); } }
@@ -2667,6 +2696,7 @@
     const sola = !e.metaKey && !e.ctrlKey && !e.altKey, teclado = t && t !== E.el && t !== document.body && t.matches && t.matches(':focus-visible');
     if (e.key === ' ' && sola && !E.cmOn && !teclado && sobreGris()) { e.preventDefault(); if (!E.esp) { E.esp = true; mano(); } return; }   // space over the slide or the grey: the hand
     if (sola && !e.shiftKey && (k === 't' || k === 'r')) { if (E.sl.length && !e.repeat) { e.preventDefault(); if (k === 't') act('add-txt'); else act('add-forma', { dataset: { v: 'rect' } }); } return; }
+    if (sola && !e.shiftKey && k === 'f') { if (E.sl.length && !e.repeat) { e.preventDefault(); verGrande(true); } return; }
     if (t && t.classList && t.classList.contains('lb-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!E.allEl.hidden) verTodas(false); elegir(+t.dataset.i); return; }
     if (mod && k === 'z') { e.preventDefault(); deshacer(!e.shiftKey); return; }
     if (mod && k === 'y') { e.preventDefault(); deshacer(false); return; }
@@ -2714,6 +2744,7 @@
     ['Espacio + arrastrar', 'mover la vista cuando hay zoom'],
     ['Fuera de la diapositiva', 'clic: soltar la selección · arrastrar: elegir lo que quede dentro (con ⇧, sumarlo) · doble clic: ajustar · clic derecho: pegar y añadir'],
     ['T · R', 'añadir un texto · un rectángulo'],
+    ['F', 'ver en grande, en toda la ventana: la foto elegida, original y entera · sin una foto elegida, la diapositiva · Esc, F o un clic: cerrar'],
     ['⌘ al arrastrar', 'sin imán (con él, distancias en px, espacios y tamaños iguales en violeta, el centro de la diapositiva en verde discontinuo) · ⇧ al girar: de 15° en 15°'],
     ['Esc', 'soltar la selección o terminar de encuadrar'],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl><p>Suelta fotos del ordenador en la diapositiva o en la bandeja.</p>';
@@ -2769,6 +2800,7 @@
     fs = fs.filter(f => M.files[f] && !M.files[f].design && !isKit(f)); if (!fs.length || !E || E.busy) return;
     if (E.ask) cerrarPregunta();
     if (E.pv) preview(false);
+    if (E.fv) verGrande(false);
     if (!E.allEl.hidden) verTodas(false);
     const otra = i != null && E.sl[i] && i !== E.i, s0 = !otra && !p ? selEl() : null;
     mut(null, () => {

@@ -16,7 +16,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 ## Stack
 - HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual.
 - `index.html` carga `mesa.js` (núcleo, expone `window.MESA`) y, en async, `kits/motor.js` (motor de
-  diseño), `diseno.js` (diseñador), `libre.js` (editor de diapositivas), `calendario.js` (calendario), `revisar.js` (revisión antes de subir o programar) e `historias.js` (historias de Instagram). La mesa nunca espera a los async.
+  diseño), `diseno.js` (diseñador), `libre.js` (editor de diapositivas), `calendario.js` (calendario), `revisar.js` (revisión antes de subir o programar), `historias.js` (historias de Instagram) y `carpetas.js` (subir y crear carpetas en la bandeja). La mesa nunca espera a los async.
 - `kits/<marca>.json` + `kits/fonts/`: kits de marca para el diseñador y el editor.
 - Sin backend: los datos viven en IndexedDB del navegador donde se abre la mesa (aislados por origen).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
@@ -26,7 +26,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 ## Publicar
 - Pages publica desde `main`. Cada cambio va en una rama y entra por PR.
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
-  `index.html`, los dos iguales. Si cambias `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js` o `kits/motor.js`, sube también
+  `index.html`, los dos iguales. Si cambias `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js` o `kits/motor.js`, sube también
   su `?v=` en `index.html`. Sin esto el navegador sigue sirviendo la versión en caché.
 - Si un tablero empieza a guardar algo que el código anterior no conoce, sube también la versión de IndexedDB en `db()`: si no, una pestaña antigua lo pisa (D-060).
 - Tras publicar, comprueba con `curl` que Pages sirve los archivos nuevos.
@@ -35,7 +35,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Nunca abras la URL publicada en el navegador integrado de Claude para probar: ahí están los datos reales de Kevin.
   Ábrela solo para lo que Kevin pida hacer en su mesa.
 - Prueba siempre en localhost sobre una copia: copia `index.html`, `mesa.js`, `diseno.js`,
-  `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
+  `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
 - Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
   («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.

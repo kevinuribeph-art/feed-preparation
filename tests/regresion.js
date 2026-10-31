@@ -4023,6 +4023,8 @@
     await espera(300);
     ok(await M._test.fileRec(p1), 'se borró una foto que tenía la copia de una recarga');
     W.localStorage.removeItem('mesa-pending');
+    await M._in.deleteIfUnused(p1);
+    ok(!(await M._test.fileRec(p1)), 'sin la copia de la recarga, la foto se queda');
   });
 
   prueba('C11', 'La bandeja solo se va con el cliente, carpetas incluidas: el botón dice cuánto y no toca fotos fijas ni de otros (D-072)', async () => {
@@ -4087,6 +4089,244 @@
     } finally { W.URL.createObjectURL = orig; }
   });
 
+  // ---------- subir y crear carpetas (D-074, D-075) ----------
+  const ui = () => { ok(M.carpetasUI, 'carpetas.js no se cargó'); return M.carpetasUI; };
+  const iguales = async (a, b) => { const x = new Uint8Array(await a.arrayBuffer()), y = new Uint8Array(await b.arrayBuffer()); return x.length === y.length && x.every((v, i) => v === y[i]); };
+  const porNombre = () => Object.fromEntries(M.board().carpetas.map(c => [c.name, c]));
+  const nombres = c => c.files.map(f => M.files[f].name);
+
+  prueba('C14', 'Subir una carpeta: conserva nombre y subcarpetas, los bytes son los del disco y salta lo que no entra (D-074)', async () => {
+    await tablero([pub(1)]);
+    const a = await foto('c14-b.jpg', 900, 700), b = await foto('c14-a.jpg', 700, 900), c = await foto('c14-c.jpg', 500, 600), d = await foto('c14-d.jpg', 500, 600);
+    const r = await ui().subir([
+      { path: ['Sesión'], file: a }, { path: ['Sesión'], file: b }, { path: ['Sesión', 'Terraza'], file: c }, { path: ['Sesión', 'Terraza', 'Noche'], file: d },
+      { path: ['Sesión'], file: new W.File(['x'], '.DS_Store') }, { path: ['Sesión'], file: new W.File(['x'], '._c14-a.jpg', { type: 'image/jpeg' }) },
+      { path: ['Sesión'], file: new W.File(['xx'], 'clip.MOV', { type: 'video/quicktime' }) }, { path: ['Sesión', 'Solo vídeo'], file: new W.File(['xx'], 'otro.mov', { type: 'video/quicktime' }) },
+      { path: ['Sesión'], file: new W.File([], 'vacia.jpg', { type: 'image/jpeg' }) }, { path: ['Sesión'], file: new W.File(['xx'], 'foto.heic', { type: 'image/heic' }) },
+    ], null, { sinAviso: true });
+    igual([r.total, r.subidas, r.yaEstaban, r.parada], [4, 4, 0, null], 'el resultado');
+    ok(/6 archivos saltados/.test(r.saltados) && /\.MOV/.test(r.saltados) && /del sistema/.test(r.saltados) && /\.HEIC/.test(r.saltados), 'lo saltado: ' + r.saltados);
+    const n = porNombre();
+    igual(Object.keys(n).sort(), ['Historias', 'Noche', 'Sesión', 'Terraza'], 'las carpetas (sin la de solo vídeo)');
+    igual([n['Terraza'].parent, n['Noche'].parent, n['Sesión'].parent], [n['Sesión'].id, n['Terraza'].id, null], 'el árbol');
+    igual(nombres(n['Sesión']), ['c14-a.jpg', 'c14-b.jpg'], 'en orden de nombre');
+    igual(nombres(n['Noche']), ['c14-d.jpg'], 'la subcarpeta honda');
+    ok(await iguales(await M._in.getBlob(n['Sesión'].files[1]), a), 'los bytes no son los del disco');
+    const rec = await M._test.fileRec(n['Sesión'].files[1]);
+    igual([rec.w, rec.h, rec.type, rec.reduced], [900, 700, 'image/jpeg', false], 'la ficha');
+    await M.flush();
+    const g = await M._in.idbGet('bandejas', CLIENTE);
+    igual(g.carpetas.find(x => x.name === 'Noche').files, n['Noche'].files, 'guardado');
+    ok(M.board().tray.includes(n['Noche'].files[0]), 'board().tray no lleva las fotos subidas');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos');
+  });
+
+  prueba('C15', 'Una foto ya presente no escribe bytes: raíz, usada o en otra carpeta; volver a subir retoma sin repetir; otro cliente tiene la suya (D-074, D-069, D-041)', async () => {
+    await tablero([pub(1)]);
+    const f1 = await foto('c15-1.jpg'), f2 = await foto('c15-2.jpg'), f3 = await foto('c15-3.jpg');
+    const [en1] = await M.addFiles([f1]);
+    const [en2] = await poner('r1', [f2]);
+    const antes = await medida();
+    const r = await ui().subir([{ path: ['Dup'], file: f1 }, { path: ['Dup'], file: f2 }, { path: ['Dup'], file: f3 }], null, { sinAviso: true });
+    igual([r.subidas, r.yaEstaban], [1, 2], 'el resultado');
+    const c = porNombre()['Dup'];
+    igual(c.files.slice(0, 2), [en1, en2], 'es el mismo archivo');
+    igual((await medida()).claves, antes.claves + 1, 'solo la nueva escribe');
+    igual(raiz(false), [], 'la de la raíz pasa a la carpeta');
+    igual(M._in.bandejaVista({ carpeta: c.id, todas: true }).filter(x => x.u).map(x => x.f), [en2], 'la usada sale con ✓');
+    const med = await medida();
+    const r2 = await ui().subir([{ path: ['Dup'], file: f1 }, { path: ['Dup'], file: f2 }, { path: ['Dup'], file: f3 }], null, { sinAviso: true });
+    igual([r2.subidas, r2.yaEstaban, r2.carpetas], [0, 3, 0], 'volver a subir');
+    igual(await medida(), med, 'volver a subir escribió');
+    igual(porNombre()['Dup'].files.length, 3, 'se repitieron en la carpeta');
+    await M.flush();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    const r3 = await ui().subir([{ path: ['Dup'], file: f1 }], null, { sinAviso: true });
+    igual([r3.subidas, r3.yaEstaban], [1, 0], 'otro cliente');
+    ok(porNombre()['Dup'].files[0] !== en1, 'otro cliente comparte el archivo');
+  });
+
+  prueba('C16', 'El aviso antes de subir dice fotos, GB, espacio, lo que ya está y lo que se salta; «Cancelar» no hace nada y «Subir» sube (D-074)', async () => {
+    await tablero([pub(1)]);
+    const f1 = await foto('c16-1.jpg');
+    await M.addFiles([f1]);
+    const antes = await medida();
+    const lista = [{ path: ['Aviso'], file: f1 }, { path: ['Aviso', 'Sub'], file: await foto('c16-2.jpg') }, { path: ['Aviso'], file: new W.File(['xx'], 'a.CR3') }];
+    await ui().subir(lista, null);
+    const t = dialogo().textContent;
+    for (const x of ['Subir «Aviso»', '2 fotos', 'en 2 carpetas', 'a la bandeja', 'Una ya está', 'libres para la Mesa', '1 archivo saltado', '.CR3']) ok(t.includes(x), `el aviso no dice «${x}»: ${t}`);
+    ok(!q('.detail [data-act="cp-ir"]').disabled, 'sin botón Subir');
+    await pulsar('.detail .btn2[data-act="close"]');
+    igual(await medida(), antes, 'cancelar escribió');
+    igual(M.carpetas().map(c => c.name), ['Historias'], 'cancelar creó carpetas');
+    await ui().subir(lista, null);
+    await pulsar('[data-act="cp-ir"]');
+    await hasta(() => porNombre()['Sub'] && porNombre()['Sub'].files.length && !M.subiendo(), 6000, 'que suba');
+    igual((await medida()).claves, antes.claves + 1, 'tras subir');
+    // lo que no cabe: lo dice y se puede intentar
+    const m0 = M.cfg.margenSubida; M.cfg.margenSubida = 1e15;
+    try {
+      await ui().subir([{ path: ['Grande'], file: await foto('c16-3.jpg') }], null);
+      ok(dialogo().textContent.includes('No cabe todo'), 'no avisa de que no cabe');
+      await pulsar('.detail .btn2[data-act="close"]');
+    } finally { M.cfg.margenSubida = m0; }
+  });
+
+  prueba('C17', 'Sin espacio la subida se para, lo dice y deja lo subido en su carpeta, sin restos ni carpetas vacías; también al dejar el margen; «Cancelar» igual (D-074)', async () => {
+    await tablero([pub(1)]);
+    const base = await medida();
+    const fs = await Promise.all([0, 1, 2, 3, 4].map(i => foto(`c17-${i}.jpg`, 400, 500)));
+    const proto = W.IDBObjectStore.prototype, put0 = proto.put; let n = 0;
+    proto.put = function (v, k) { if (this.name === 'files' && v && String(v.name).startsWith('c17-') && ++n === 3) throw new W.DOMException('sin sitio', 'QuotaExceededError'); return put0.call(this, v, k); };
+    let r; try { r = await ui().subir(fs.map(file => ({ path: ['Llena', 'Honda'], file })).concat([{ path: ['Otra'], file: await foto('c17-z.jpg', 400, 500) }]), null, { sinAviso: true }); }
+    finally { proto.put = put0; }
+    igual([r.parada, r.subidas], ['espacio', 2], 'el resultado');
+    const c = porNombre();
+    igual(c['Honda'].files.length, 2, 'lo subido sigue en su carpeta');
+    ok(c['Llena'], 'perdió la carpeta padre');
+    ok(!c['Otra'], 'dejó una carpeta vacía');
+    ok(dialogo() && dialogo().textContent.includes('Subida parada') && dialogo().textContent.includes('No queda espacio'), 'no avisa');
+    M._in.closeDetail();
+    igual(M.board().tray.length, 2, 'la bandeja coherente');
+    igual((await medida()).claves, base.claves + 2, 'el store coherente');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos');
+    igual(Object.keys(M.files).filter(k => M.files[k].name === 'c17-2.jpg'), [], 'queda en memoria la que falló');
+    // seguir: lo que ya está no se repite
+    const r2 = await ui().subir(fs.map(file => ({ path: ['Llena', 'Honda'], file })), null, { sinAviso: true });
+    igual([r2.parada, r2.subidas, r2.yaEstaban], [null, 3, 2], 'al seguir');
+    igual(porNombre()['Honda'].files.length, 5, 'tras seguir');
+    // el margen, antes de escribir nada
+    const m0 = M.cfg.margenSubida; M.cfg.margenSubida = 1e15;
+    try {
+      const r3 = await ui().subir([{ path: ['Margen'], file: await foto('c17-m.jpg', 400, 500) }], null, { sinAviso: true });
+      igual([r3.parada, r3.subidas], ['espacio', 0], 'el margen');
+      ok(!porNombre()['Margen'], 'el margen dejó una carpeta vacía');
+      M._in.closeDetail();
+    } finally { M.cfg.margenSubida = m0; }
+    // cancelar a medias
+    const lista = await Promise.all(Array.from({ length: 30 }, (_, i) => foto(`c17-k${i}.jpg`, 300, 400)));
+    const pr = ui().subir(lista.map(file => ({ path: ['Corta'], file })), null, { sinAviso: true });
+    await hasta(() => q('[data-act="cp-cancelar"]') && porNombre()['Corta'] && porNombre()['Corta'].files.length, 8000, 'que empiece');
+    q('[data-act="cp-cancelar"]').click();
+    const r4 = await pr;
+    igual(r4.parada, 'cancelada', 'cancelar');
+    ok(r4.subidas < 30 && porNombre()['Corta'].files.length === r4.subidas, 'lo subido al cancelar');
+    ok(!q('.cpprog'), 'la barra sigue');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos al cancelar');
+  });
+
+  prueba('C18', 'Una subida sigue al cambiar de mes y de cliente, sin perder nada ni pisar la bandeja; bloquea importar y borrar carpeta (D-074)', async () => {
+    await tablero([pub(1)]);
+    const lista = await Promise.all(Array.from({ length: 24 }, (_, i) => foto(`c18-${i}.jpg`, 300, 400)));
+    const pr = ui().subir(lista.map(file => ({ path: ['Viaja'], file })), null, { sinAviso: true });
+    await hasta(() => porNombre()['Viaja'] && porNombre()['Viaja'].files.length >= 3, 8000, 'que empiece');
+    ok(M.subiendo(), 'no dice que sube');
+    const b = await M.borrarCarpeta(porNombre()['Viaja'].id);
+    ok(b && b.error, 'se pudo borrar una carpeta durante la subida');
+    const im = await M.importData(await M.exportAll({ returnBlob: true }), { confirm: false });
+    ok(im && im.error, 'se pudo importar durante la subida');
+    M._in.clearToasts();
+    await M.init({ client: CLIENTE, month: '2026-12', slots: [pub(9, 'Foto', 9, '2026-12')], past: [], force: true });
+    ok(porNombre()['Viaja'], 'el otro mes no tiene la carpeta');
+    await hasta(() => porNombre()['Viaja'].files.length >= 8, 8000, 'que siga en el otro mes');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    igual(M.carpetas().map(c => c.name), ['Historias'], 'la carpeta sale en otro cliente');
+    const r = await pr;
+    igual([r.subidas, r.parada], [24, null], 'el resultado');
+    igual(M.carpetas().map(c => c.name), ['Historias'], 'al terminar, en otro cliente');
+    const g = await M._in.idbGet('bandejas', CLIENTE);
+    igual(g.carpetas.find(c => c.name === 'Viaja').files.length, 24, 'lo guardado del cliente');
+    igual(new Set(g.tray).size, 24, 'su bandeja');
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(porNombre()['Viaja'].files.length, 24, 'al volver');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos');
+  });
+
+  prueba('C19', 'Lo arrastrado se lee por tandas, con subcarpetas, sin carpetas del sistema; las fotos sueltas van a lo abierto: pocas sin aviso, muchas con él (D-074)', async () => {
+    await tablero([pub(1)]);
+    const fich = file => ({ isFile: true, isDirectory: false, name: file.name, file: (ok2) => ok2(file) });
+    const dir = (name, hijos) => ({ isFile: false, isDirectory: true, name, createReader: () => { const t = hijos.slice(); return { readEntries: ok2 => setTimeout(() => ok2(t.splice(0, 2))) }; } });
+    const fs = await Promise.all([0, 1, 2, 3, 4].map(i => foto(`c19-${i}.jpg`, 300, 400)));
+    const arbol = dir('Rodaje', [fich(fs[0]), fich(fs[1]), fich(fs[2]), dir('Parte', [fich(fs[3])]), dir('Vacía', []), dir('.Spotlight-V100', [fich(fs[4])]), fich(new W.File(['x'], '.DS_Store'))]);
+    const r = await ui().desdeEntradas([arbol], null, { sinAviso: true });
+    igual([r.subidas, r.parada], [4, null], 'por tandas');
+    const c = porNombre();
+    igual(Object.keys(c).sort(), ['Historias', 'Parte', 'Rodaje'], 'las carpetas');
+    igual(c['Rodaje'].files.length, 3, 'las de arriba');
+    igual(c['Parte'].parent, c['Rodaje'].id, 'la subcarpeta');
+    // soltar: una carpeta sube; fotos sueltas, a la abierta
+    M._in.trayAbrir(c['Parte'].id);
+    await ui().elegidas([await foto('c19-s.jpg', 300, 400)], M._in.trayCarpeta);
+    igual(nombres(porNombre()['Parte']).includes('c19-s.jpg'), true, 'una suelta, a la abierta');
+    const muchas = await Promise.all(Array.from({ length: 20 }, (_, i) => foto(`c19-m${i}.jpg`, 200, 300)));
+    await ui().elegidas(muchas, M._in.trayCarpeta);
+    ok(dialogo() && dialogo().textContent.includes('Subir 20 fotos') && dialogo().textContent.includes('«Parte»'), 'veinte sueltas no avisan');
+    await pulsar('.detail .btn2[data-act="close"]');
+    M._in.trayAbrir(null);
+  });
+
+  prueba('C20', 'Entrar y volver: la carpeta sale delante de las fotos, «+ Carpeta» crea dentro de lo abierto, la × quita de la abierta, el filtro funciona dentro; el editor navega igual y las vistas largas cargan lo visible (D-075)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await M.addFiles([await foto('c20-r.jpg', 300, 400)]);
+    const r = await ui().subir([{ path: ['Abre'], file: await foto('c20-a.jpg', 300, 400) }, { path: ['Abre', 'Dentro'], file: await foto('c20-b.jpg', 300, 400) }], null, { sinAviso: true });
+    ok(r && !r.parada, json(r));
+    const tiles = () => qa('.tgrid .tcarpeta .cn').map(x => x.textContent), fotos = () => qa('.tgrid .titem').map(x => M.files[x.dataset.file].name);
+    const n = porNombre();
+    igual(tiles(), ['Historias', 'Abre'], 'las carpetas de la raíz');
+    igual(fotos(), ['c20-r.jpg'], 'las fotos de la raíz');
+    ok(q('.tgrid').firstElementChild.classList.contains('tcarpeta'), 'las carpetas no van delante');
+    await pulsar(`.tcarpeta[data-id="${n['Abre'].id}"]`);
+    igual([tiles(), fotos()], [['Dentro'], ['c20-a.jpg']], 'dentro');
+    ok(q('.cpruta').textContent.includes('Abre') && q('.cpvolver'), 'sin ruta ni volver');
+    // + Carpeta, dentro de lo abierto
+    await pulsar('[data-act="cp-nueva"]');
+    const input = await hasta(() => q('#cp-nombre'), 2000, 'el nombre');
+    input.value = 'Nueva';
+    q('form[data-form="cp-nueva"]').requestSubmit();
+    await hasta(() => porNombre()['Nueva'], 2000, 'que se cree');
+    igual(porNombre()['Nueva'].parent, n['Abre'].id, 'dentro de la abierta');
+    igual(tiles().sort(), ['Dentro', 'Nueva'], 'sale');
+    // el filtro dentro
+    M._test.place('r1', n['Abre'].files[0]);
+    igual(fotos(), [], '«Sin usar» dentro');
+    M._in.trayFiltro('todas');
+    igual(fotos(), ['c20-a.jpg'], '«Todas» dentro');
+    igual(qa('.tgrid .titem.uso').length, 1, 'con ✓');
+    M._in.trayFiltro('sin');
+    // el editor ve lo mismo
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    await hasta(() => ed().el.querySelector('.lb-tcarp'), 2000, 'las carpetas en el editor');
+    igual([...ed().el.querySelectorAll('.lb-tcarp span')].map(x => x.textContent).sort(), ['Dentro', 'Nueva'], 'las carpetas en el editor');
+    accion('tr-carp', { id: '' });
+    await hasta(() => [...ed().el.querySelectorAll('.lb-tcarp span')].some(x => x.textContent === 'Abre'), 2000, 'volver en el editor');
+    igual(M._in.trayCarpeta, null, 'la misma bandeja');
+    M.libre.cerrar();
+    igual(tiles(), ['Historias', 'Abre'], 'la mesa sigue al editor');
+    // la × quita de la abierta
+    const [h] = await aCarpeta('historias', [await foto('c20-h.jpg', 300, 400)]);
+    await aCarpeta(n['Dentro'].id, [await foto('c20-h.jpg', 300, 400)]);
+    M._in.trayAbrir(n['Dentro'].id);
+    const x = q(`.titem[data-file="${h}"] .x`);
+    ok(x, 'sin ×'); x.click();
+    igual(carp(n['Dentro'].id).files.includes(h), false, 'la × no la quitó de la abierta');
+    igual(hist().files.includes(h), true, 'la × la quitó de la otra');
+    // una vista larga: sin URL hasta llegar a la pantalla
+    const lista = await Promise.all(Array.from({ length: 90 }, (_, i) => foto(`c20-l${i}.jpg`, 120, 160)));
+    await ui().subir(lista.map(file => ({ path: ['Larga'], file })), null, { sinAviso: true });
+    M._in.trayAbrir(porNombre()['Larga'].id);
+    igual(qa('.tgrid .titem').length, 90, 'las fotos de la vista');
+    await hasta(() => qa('.tgrid .titem img[src]').length > 0, 4000, 'las primeras miniaturas');
+    ok(qa('.tgrid .titem img[src]').length < 90 || D.documentElement.clientHeight > 3000, 'cargó todas: ' + qa('.tgrid .titem img[src]').length);
+    M._in.trayAbrir(null);
+    // cambiar de cliente vuelve a la raíz
+    M._in.trayAbrir(n['Abre'].id);
+    await M.flush();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    igual(M._in.trayCarpeta, null, 'otro cliente empieza en la raíz');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================
@@ -4103,6 +4343,8 @@
     W = fr.contentWindow; D = W.document;
     await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in && W.MESA.revisar && W.MESA.diseno, 15000, 'que carguen mesa.js, libre.js, revisar.js y diseno.js');
     M = W.MESA;
+    await hasta(() => M.carpetasUI, 15000, 'carpetas.js');
+    M.cfg.margenSubida = 0;                         // el cupo de un Chrome sin ventana es pequeño: el margen se prueba aparte (C16, C17)
     // index.html lanza MESA.boot() sin esperarlo: termina cuando la mesa tiene su armazón y no está cambiando de tablero
     await hasta(() => M._in.shellReady() && !M._in.switching(), 15000, 'que la mesa termine de arrancar');
     ok(!M._in.locked, 'la mesa está abierta en otra pestaña de este puerto: ciérrala');

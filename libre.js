@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.30';
+  const VERSION = '1.31';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -976,6 +976,8 @@
 #mesa .lb-tray{flex:none;margin:6px 14px 2px;padding:8px 10px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 #mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:2px 8px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
+#mesa .lb-tcarp{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink)}#mesa .lb-tcarp span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
+#mesa .lb-trv{width:24px;height:22px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--panel);line-height:1}
 #mesa .lb-tph.elegida{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .lb-tph .hs{bottom:5px}
 #mesa .lb-ttl textarea.lb-guion{display:block;box-sizing:border-box;width:100%;max-width:min(60vw,720px);max-height:calc(3 * 1.3em + 4px);margin:2px 0 0 -5px;padding:1px 4px;border:1px solid transparent;border-radius:4px;background:none;color:var(--mute);font:inherit;font-size:12.5px;line-height:1.3;resize:none;overflow-y:auto}
@@ -2468,6 +2470,7 @@
       }
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
+      case 'tr-carp': E.trSel = []; I().trayAbrir(b.dataset.id || null); bandeja(); return;
       case 'tr-fil': if (I().trayFiltro) I().trayFiltro(b.dataset.v); bandeja(); return;   // the same filter as the mesa's tray
       case 'tr-add': {
         const f = b.dataset.f;
@@ -2890,14 +2893,16 @@
     E.trSel = E.trSel.filter(f => fs.some(x => x.f === f));   // only what it shows stays chosen
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
-    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (M.files[x.f].thumbUrl || '')).join(',') : '';
+    const carps = I().carpetasDeVista ? I().carpetasDeVista() : [], ruta = I().rutaCarpeta ? I().rutaCarpeta() : [], perez = fs.length > (I().MINIS_DE_UNA || 80);   // the tray's folders, the same as the mesa's (D-075)
+    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
     const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '') + (x.h ? ' · usada en una historia' : '');
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}<b>Bandeja</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
-      + (fs.length ? `<div class="lb-trs">${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img src="${M.files[x.f].thumbUrl || ''}" alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
+      + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
+    if (perez && tr) I().minisPerezosas(tr);
   }
   // a photo used before (D-022): before it goes onto slide i, its nearest use — this slide (without the element excl it
   // replaces), another slide of this post, or what the mesa finds — and «Usar igualmente» / «Cancelar» (several: a list,
@@ -3059,6 +3064,7 @@
   async function soltarArchivos(e) {
     if (!E || E.busy || E.ask) return;
     if (I().locked) { I().toast(LOCKED); return; }
+    if ([...(e.dataTransfer.items || [])].some(i => { const x = i.kind === 'file' && i.webkitGetAsEntry && i.webkitGetAsEntry(); return x && x.isDirectory; })) { I().toast('Las carpetas se suben desde la bandeja de la mesa.'); return; }
     const owner = E, files = [...(e.dataTransfer.files || [])], guardar = !!e.target.closest('.lb-tray'), t = guardar ? null : destino(e) || { i: null, p: null };
     if (!files.length) return;
     if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }   // onto the grey while writing: nothing
@@ -3068,7 +3074,7 @@
       if (!r || E !== owner) return;
       go = r.map(x => x.f); if (!go.length) return;
     }
-    const got = await M.addFiles(go, null, { tray: true });
+    const got = await M.addFiles(go, null, { tray: true, ...(guardar && I().trayCarpeta ? { carpeta: I().trayCarpeta } : {}) });
     if (E !== owner) return;
     bandeja();
     if (!got || !got.length) return;

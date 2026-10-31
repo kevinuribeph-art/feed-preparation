@@ -63,10 +63,11 @@
 // v3.51: a «+ Hueco» can hold a preview of next month's first post, with a black border and its label, in the mesa, «Vista
 // cliente» and the feed image; in the tray it counts as used until the client has a later month (D-049).
 // v3.59: folders inside a client's tray, with a fixed «Historias» (data, deleting and leaving nothing behind: D-069 to D-073).
+// v3.60: folders come in (carpetas.js): dragged or chosen, with a warning first and a progress bar; going in and back (D-074, D-075).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.59'; // 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.60'; // 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1910,6 +1911,20 @@
 #mesa .btn2:hover{border-color:#bdbdbd}
 #mesa .btn2.danger{color:var(--red);border-color:#efc2c2}
 #mesa .tbody{padding:0 12px 24px}
+#mesa .cpnav{display:flex;align-items:center;gap:6px;padding:0 12px 8px;font-size:12.5px;min-height:28px}
+#mesa .cpvolver{flex:none;width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:14px;line-height:1;padding:0}
+#mesa .cpvolver:hover{border-color:#bdbdbd}
+#mesa .cpruta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute)}#mesa .cpruta b{color:var(--ink);font-weight:600}
+#mesa .cpruta button{border:0;background:none;padding:0;font:inherit;color:var(--mute);cursor:pointer}#mesa .cpruta button:hover{color:var(--ink);text-decoration:underline}
+#mesa .cpacc{display:inline-flex;flex:none;gap:6px;margin-left:auto}#mesa .cpacc .btn2{font-size:12px;padding:4px 9px;white-space:nowrap}
+#mesa .tcarpeta{position:relative;aspect-ratio:3/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:6px 5px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);text-align:center;cursor:pointer}
+#mesa .tcarpeta:hover{border-color:#bdbdbd}#mesa .tcarpeta.over{outline:2px dashed var(--acc);outline-offset:-2px}
+#mesa .tcarpeta .cn{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
+#mesa .tcarpeta .cf{font-size:10.5px;color:var(--mute);line-height:1.25}
+#mesa .cpprog{margin:0 12px 8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12px;color:var(--mute)}
+#mesa .cpprog .cpt{display:flex;align-items:center;gap:8px}#mesa .cpprog .cptx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mesa .cpprog .btn2{flex:none;font-size:12px;padding:3px 8px}
+#mesa .cpbar{height:4px;margin-top:6px;border-radius:2px;background:var(--line);overflow:hidden}#mesa .cpbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 #mesa .drop{border:1.5px dashed #c7c7c7;border-radius:10px;padding:14px;text-align:center;color:var(--mute);font-size:12.5px;margin-bottom:10px;background:var(--panel)}
 #mesa .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
 #mesa .titem{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#efefef;cursor:default;user-select:none;-webkit-user-select:none}
@@ -2187,8 +2202,8 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
-          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div>'
-          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
+          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div><div class="cpnav"></div>'
+          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
         watchFeed();
@@ -2405,6 +2420,43 @@
     if (need.length && !todasCarga) { const B = S; todasCarga = loadThumbs(need).catch(() => need).then(m => { (m || []).forEach(f => sinMini.add(f)); todasCarga = null; if (B === S) { renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); } }); }
     return out;
   }
+  // ---------- the folders in the tray: going in and back (D-075) ----------
+  // A long view gets its thumbnails as they come into sight: lazy loading doesn't apply to blob: URLs.
+  const MINIS_DE_UNA = 80;
+  function minisPerezosas(box) {
+    if (box._io) box._io.disconnect();
+    const io = box._io = new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      const f = M.files[e.target.dataset.mini]; if (f) e.target.src = f.thumbUrl;
+      io.unobserve(e.target);
+    }), { root: document, scrollMargin: '400px', rootMargin: '400px' });
+    box.querySelectorAll('img[data-mini]').forEach(x => io.observe(x));
+  }
+  const ICON_CARPETA = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+  const carpetasDeVista = () => (S && S.carpetas ? S.carpetas.filter(c => (c.parent || null) === trayCarpeta) : []);
+  function cuentaCarpeta(c) {
+    const subs = S.carpetas.filter(x => x.parent === c.id).length;
+    return [c.files.length ? nOf(c.files.length, 'foto', 'fotos') : (subs ? '' : 'vacía'), subs ? nOf(subs, 'carpeta', 'carpetas') : ''].filter(Boolean).join(' · ');
+  }
+  const tileCarpeta = c => `<button type="button" class="tcarpeta" data-act="cp-entrar" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${ICON_CARPETA}<span class="cn">${esc(c.name)}</span><span class="cf">${esc(cuentaCarpeta(c))}</span></button>`;
+  function rutaCarpeta() {             // from the root to the open folder
+    const r = []; let c = trayCarpeta && S ? (S.carpetas || []).find(x => x.id === trayCarpeta) : null;
+    while (c) { r.unshift(c); const p = c.parent; c = p ? S.carpetas.find(x => x.id === p) : null; }
+    return r;
+  }
+  function navCarpetas(tray) {
+    const nav = tray.querySelector('.cpnav'); if (!nav) return;
+    const r = rutaCarpeta();
+    const ruta = !r.length ? '' : `<button type="button" class="cpvolver" data-act="cp-entrar" data-id="${esc(r[r.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button><span class="cpruta"><button type="button" data-act="cp-entrar" data-id="">Bandeja</button>${r.map((c, i) => ` / ${i === r.length - 1 ? `<b>${esc(c.name)}</b>` : `<button type="button" data-act="cp-entrar" data-id="${esc(c.id)}">${esc(c.name)}</button>`}`).join('')}</span>`;
+    const html = `${ruta}<span class="cpacc"><button type="button" class="btn2" data-act="cp-nueva">+ Carpeta</button><button type="button" class="btn2" data-act="cp-subir">Subir carpeta</button></span>`;
+    if (nav._html !== html) { nav.innerHTML = html; nav._html = html; }
+  }
+  function trayAbrir(id) {
+    trayCarpeta = id && S && (S.carpetas || []).some(c => c.id === id) ? id : null;
+    if (sel && !enVista(sel)) sel = null;
+    renderTray();
+    if (M.libre && M.libre.bandeja) M.libre.bandeja();
+  }
   const enVista = f => bandejaVista({ todas: true }).some(x => x.f === f);   // a photo the tray can show (click to place)
   // the free photos of what the tray has open: the lists of photos in the designer and the editor follow it, never all the folders
   function trayDeVista() {
@@ -2421,10 +2473,17 @@
     tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     tray.classList.toggle('isempty', !vis.length);
     const enHueco = new Set([...previewsOf(S), ...usoPrevO]);   // on a filler: it comes off there, not from the tray (D-049)
-    tray.querySelector('.tgrid').innerHTML = vis.map(({ f: id, u, h }) => {
+    const perez = vis.length > MINIS_DE_UNA;
+    navCarpetas(tray);
+    const html = carpetasDeVista().map(tileCarpeta).join('') + vis.map(({ f: id, u, h }) => {
       const f = M.files[id];
-      return `<div class="titem${sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img src="${f.thumbUrl}" alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${u || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
+      return `<div class="titem${sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${u || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
     }).join('');
+    const grid = tray.querySelector('.tgrid');
+    if (!perez || grid._html !== html) {   // a long view is drawn only when it changes: its scroll and its loaded thumbnails stay
+      grid.innerHTML = html; grid._html = perez ? html : null;
+      if (perez) minisPerezosas(grid);
+    }
     pdRefresh();
   }
 
@@ -3135,7 +3194,7 @@
       const pv = postDrop(e); if (pv && hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; pv.classList.add('over'); return; }
       if (drag) { const tg = dragTarget(e.target, drag); if (tg) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; tg.el.classList.add('over'); } return; }
       if (cell) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; cell.classList.add('over'); }
-      else if (tray) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; tray.classList.add('over'); }
+      else if (tray) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; tray.classList.add('over'); const t = hasFiles(e) && e.target.closest('.tcarpeta'); if (t) t.classList.add('over'); }
       else if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
     });
     root.addEventListener('dragleave', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) clearOver(); });
@@ -3147,7 +3206,10 @@
       if (hasFiles(e)) {
         e.preventDefault(); drag = null;
         if (!S) { toast('Abre un mes antes de añadir fotos.'); return; }
-        const pv = postDrop(e); if (pv) { M.addFiles(e.dataTransfer.files, root.querySelector('.detail').dataset.slot); return; }
+        const pv = postDrop(e);
+        if (tray && !pv && M.carpetasUI) { const t = e.target.closest('.tcarpeta'); M.carpetasUI.soltar(e.dataTransfer, t ? t.dataset.id : trayCarpeta); return; }   // photos and folders, into what the tray has open (D-074)
+        if ([...(e.dataTransfer.items || [])].some(i => { const x = i.kind === 'file' && i.webkitGetAsEntry && i.webkitGetAsEntry(); return x && x.isDirectory; })) { toast('Suelta la carpeta en la bandeja.'); return; }
+        if (pv) { M.addFiles(e.dataTransfer.files, root.querySelector('.detail').dataset.slot); return; }
         if (pc) { const id = pc.dataset.prev; M.addFiles(e.dataTransfer.files, null).then(got => { if (got && got[0]) withPrev(() => prevSetFromTray(id, got[0]), 'edit'); }); return; }
         const tgt = cell && S.slots.find(x => x.id === cell.dataset.slot);
         if (tgt && tgt.photos.length && isMulti(tgt.type)) { const sid = tgt.id; M.addFiles(e.dataTransfer.files, null, { aviso: sid }).then(got => askAddMode(sid, got)); return; }
@@ -3273,7 +3335,7 @@
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
       else if (e.target.matches('.cappick')) setCapPick(e.target.dataset.slot, +e.target.dataset.k);
-      else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) M.addFiles(fl).finally(() => { e.target.value = ''; }); }
+      else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) { const lista = [...fl]; e.target.value = ''; if (M.carpetasUI) M.carpetasUI.elegidas(lista, trayCarpeta); else M.addFiles(lista); } }
       else if (e.target.matches('.avin')) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) avPick(f); }
     });
     root.addEventListener('focusout', e => {
@@ -3359,7 +3421,9 @@
   async function onAct(a, e) {
     const act = a.dataset.act;
     if (act === 'add') root.querySelector('.picker').click();
-    else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file); }
+    else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file, trayCarpeta); }
+    else if (act === 'cp-entrar') trayAbrir(a.dataset.id || null);
+    else if (String(act).startsWith('cp-')) { if (M.carpetasUI) M.carpetasUI.accion(act, a); else toast('Un momento: las carpetas aún se están cargando.'); }
     else if (act === 'tfil') trayFiltro(a.dataset.v);
     else if (act === 'close') closeDetail();
     else if (act === 'carpeta-borrar') { const id = a.dataset.id; closeDetail(); const r = await M.borrarCarpeta(id); if (r && r.error) toast(r.error); }
@@ -3486,6 +3550,7 @@
     const boards = (await idbAll('boards')) || [];
     const n = boards.filter(b => b.client === id).length;
     if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
+    if (subida && subida.client === id) return 'Espera a que termine la subida de la carpeta.';
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
     await idbDel('clients', id);
     if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
@@ -3552,6 +3617,7 @@
     if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
     await claim();
     await addQ;
+    if (subida) await subida.paso.catch(() => null);   // a photo being written goes first: the upload waits while the board changes (D-074)
     cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
     if (cfg.months != null && !(Number.isInteger(+cfg.months) && +cfg.months >= 1 && +cfg.months <= 3)) throw new Error('months debe ser 1, 2 o 3');
     if (!okCd(cfg.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
@@ -3674,6 +3740,7 @@
     { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
     { const kept = refsOf(S); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { S.tray.push(f); kept.add(f); } })); }
     sharedInit(oldById, base);
+    if (curClient !== client || !S.carpetas.some(c => c.id === trayCarpeta)) trayCarpeta = null;   // another client's tray starts at its root
     curClient = client;
     lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
@@ -4416,6 +4483,7 @@
     if (locked) return fail('La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de importar.');
     if (xferRun) return fail('Espera: ya se está exportando o importando la mesa.');
     if (uploadsBusy()) return fail('Espera a que termine la subida de fotos.');
+    if (subida) return fail('Espera a que termine la subida de la carpeta.');
     if (importing) return fail('Espera a que terminen de prepararse las fotos.');
     xferRun = 'import';
     let cleared = false, back = null;
@@ -4606,6 +4674,82 @@
     changed();
     return { id };
   };
+  // Uploading into folders (D-074; the interface is carpetas.js). Each photo is written with its place in the tray in one
+  // transaction: a reload or a full disk half way leaves what went in, in its folder, and nothing loose. The upload belongs to
+  // the client, not to the board: it waits while another month or client opens, and goes on.
+  let subida = null;
+  const MARGEN_SUBIDA = 20 * 1073741824;   // what an upload leaves free: with the disk full the browser may empty the whole site
+  async function indiceFotos() {           // name|size -> its file, of this client
+    await usoP.catch(() => null);
+    const c = S.client, idx = new Map(), mias = new Set([...refsTodo(S), ...enCarpetas(S.carpetas)]);
+    Object.keys(M.files).forEach(id => { const x = M.files[id]; if (x.design || fijo(id)) return; if (x.de === c || (!x.de && mias.has(id))) { const k = fkey(x.name, x.size); if (!idx.has(k)) idx.set(k, id); } });
+    usoIdsO.forEach((id, k) => { if (!idx.has(k)) idx.set(k, id); });
+    return idx;
+  }
+  async function empezarSubida() {
+    if (!S || locked || subida) return null;
+    const sb = { client: S.client, idx: null, paso: Promise.resolve() };
+    subida = sb;
+    sb.idx = await indiceFotos();
+    return sb;
+  }
+  async function entrarFoto(sb, cid, f, type) {
+    const k = fkey(f.name, f.size); let id = sb.idx.get(k), nuevo = null;
+    if (!id) {                             // decoding first, outside the transaction; a damaged photo stops here
+      const { w, h, thumb } = await makeThumb(f);
+      id = newId();
+      nuevo = { rec: { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb, de: sb.client }, thumb };
+    }
+    while (switching > 0) await new Promise(r => setTimeout(r, 30));
+    if (locked) { const e = new Error('otra pestaña'); e.name = 'MesaLocked'; throw e; }
+    const c = sb.client, abierto = S && S.client === c, at = new Date().toISOString();
+    const yaEnEsa = abierto && cid && (S.carpetas.find(x => x.id === cid) || { files: [] }).files.includes(id);
+    const pon = st => {
+      if (nuevo) st.tray.unshift(id);
+      if (cid && !yaEnEsa) { const x = (st.carpetas || []).find(y => y.id === cid); if (x) x.files.push(id); }
+    };
+    if (nuevo) { M.files[id] = metaArchivo(nuevo.rec, nuevo.thumb); M.thumbBlobs[id] = nuevo.thumb; }
+    if (abierto) sinPaso(pon);
+    const paso = tx(['files', 'bandejas'], 'readwrite', st => {
+      if (nuevo) st.files.put(nuevo.rec, id);
+      if (abierto) { st.bandejas.put({ client: c, tray: S.tray, carpetas: S.carpetas, at }, c); return; }
+      const g = st.bandejas.get(c);        // that client is not open now: on its record
+      g.onsuccess = () => {
+        const r = g.result || { client: c, tray: [] };
+        r.carpetas = carpetasBien(r.carpetas);
+        if (nuevo) r.tray.unshift(id);
+        const x = cid && r.carpetas.find(y => y.id === cid); if (x && !x.files.includes(id)) x.files.push(id);
+        r.at = at; st.bandejas.put(r, c);
+      };
+    });
+    sb.paso = paso;
+    try { await paso; }
+    catch (e) {                            // nothing was written: the mesa goes back to what it had
+      if (abierto && S && S.client === c) sinPaso(st => {
+        if (nuevo) st.tray = st.tray.filter(x => x !== id);
+        if (cid && !yaEnEsa) { const y = (st.carpetas || []).find(z => z.id === cid); if (y) y.files = y.files.filter(x => x !== id); }
+      });
+      if (nuevo) soltarArchivo(id);
+      throw e;
+    }
+    sb.idx.set(k, id);
+    return { id, nuevo: !!nuevo, bytes: nuevo ? f.size + nuevo.thumb.size : 0 };
+  }
+  // the end: the folders made for it that stayed empty (a cancelled or stopped upload) go; a board open now shows what came in
+  async function acabarSubida(sb, creadas = []) {
+    const mias = new Set(creadas), vacia = (l, c) => mias.has(c.id) && !c.files.length && !l.some(x => x.parent === c.id);
+    const limpia = l => { let r = l; for (let n = r.filter(c => vacia(r, c)); n.length; n = r.filter(c => vacia(r, c))) { const fuera = new Set(n.map(c => c.id)); r = r.filter(c => !fuera.has(c.id)); } return r; };
+    if (S && S.client === sb.client) {
+      sinPaso(st => { st.carpetas = limpia(st.carpetas); });
+      if (trayCarpeta && !S.carpetas.some(c => c.id === trayCarpeta)) trayCarpeta = null;
+      subida = null;
+      changed();
+      await flushNow().catch(() => null);
+    } else {
+      subida = null;
+      await tx('bandejas', 'readwrite', st => { const g = st.get(sb.client); g.onsuccess = () => { const r = g.result; if (r) { r.carpetas = limpia(carpetasBien(r.carpetas)); st.put(r, sb.client); } }; }).catch(() => null);
+    }
+  }
   // What deleting a folder would do. A photo stays if anything else has it (D-070): another folder, or a post, cancelled or
   // not, a story, a hole's preview, the month before, another client's tray, or the slides of the open editor.
   const POR_QUE = { otra: ['también en otra carpeta', 'también en otra carpeta'], pub: ['en una publicación', 'en publicaciones'], cancelada: ['en una publicación cancelada', 'en publicaciones canceladas'], historia: ['en una historia', 'en historias'], hueco: ['en la portada de un hueco', 'en portadas de hueco'], mes: ['en el mes anterior', 'en el mes anterior'], editor: ['en el editor abierto', 'en el editor abierto'] };
@@ -4646,7 +4790,7 @@
   // one of them in a post can't be kept, so ⌘Z stops there (D-070). The list of the ones to delete covers a reload half way.
   M.borrarCarpeta = async id => {
     if (locked) return { error: 'Esta pestaña no puede guardar.' };
-    if (importing || uploadsBusy() || (M.libre && M.libre.aplicando && M.libre.aplicando()) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return { error: 'Espera a que termine lo que está en marcha.' };
+    if (subida || importing || uploadsBusy() || (M.libre && M.libre.aplicando && M.libre.aplicando()) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return { error: 'Espera a que termine lo que está en marcha.' };
     const p = await planCarpeta(id);
     if (p.error) return p;
     const va = new Set(p.borran), enPost = st => st.slots.some(s => slotRefs(s).some(f => va.has(f))) || st.prev.some(x => x.own && x.photos.some(f => va.has(f))) || previewsOf(st).some(f => va.has(f)) || hRefs(st).some(f => va.has(f));
@@ -4688,6 +4832,7 @@
     }; });
     return out;
   };
+  M.subiendo = () => !!subida;
   M.espacio = async () => {            // what the browser says: its quota, not the real free space of the disk
     const e = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : {};
     const p = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted().catch(() => persistida) : persistida;
@@ -4704,6 +4849,8 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
+    get trayCarpeta() { return trayCarpeta; }, trayAbrir, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
+    showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,

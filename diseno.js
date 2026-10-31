@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.5';
+  const VERSION = '1.6';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -873,7 +873,7 @@
   }
   function availPhotos(s) {     // this design's photos, the slot's and the tray's
     const S = I().S;
-    return [...new Set([...srcsOf(s), ...rawPhotos(s), ...S.tray])].filter(f => M.files[f] && !M.files[f].design && !String(f).startsWith('kit-'));
+    return [...new Set([...srcsOf(s), ...rawPhotos(s), ...(I().trayDeVista ? I().trayDeVista() : S.tray)])].filter(f => M.files[f] && !M.files[f].design && !String(f).startsWith('kit-'));
   }
   function photosHTML(s, cur, act) {
     const list = availPhotos(s);

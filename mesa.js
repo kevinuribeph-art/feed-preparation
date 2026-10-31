@@ -62,10 +62,11 @@
 // button on (D-044).
 // v3.51: a «+ Hueco» can hold a preview of next month's first post, with a black border and its label, in the mesa, «Vista
 // cliente» and the feed image; in the tray it counts as used until the client has a later month (D-049).
+// v3.59: folders inside a client's tray, with a fixed «Historias» (data, deleting and leaving nothing behind: D-069 to D-073).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.58'; // 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.59'; // 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -156,8 +157,9 @@
     if (!dbp) dbp = new Promise((res, rej) => {
       // 3 (mesa 3.44): + 'bandejas', the client's tray (D-041). 4 (mesa 3.55): no new store: a tab that doesn't know the stories
       // (before 3.53) saved a board without them and deleted their images, so it must no longer reach the data (D-060). Raise
-      // it whenever a board starts to keep something an older tab would drop.
-      const r = indexedDB.open('mesa-feed', 4);
+      // it whenever a board starts to keep something an older tab would drop. 5 (mesa 3.59): no new store: a tab that doesn't
+      // know the tray's folders (`carpetas` in 'bandejas') would rewrite the record without them (D-069).
+      const r = indexedDB.open('mesa-feed', 5);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
@@ -523,16 +525,32 @@
   // same transaction, and never inside it. A photo brought by another client (a collab's, file record `de`) never stays in
   // this one's: saving moves it to its own. Boards saved before 3.44 kept a tray each (b.tray): juntarBandeja moves them
   // into their client's, a photo once (same id, or same name and size as in D-022), and takes them off the boards.
+  // Folders (D-069): the same record keeps carpetas: [{id, name, parent, files: [fileId…], fija?}], in S.carpetas while its
+  // client is open. tray stays what it was, every free photo of the client: the root's and the unused ones of its folders, so
+  // whatever takes a photo out or brings it back needs to know nothing about folders. A photo stays in c.files while a post
+  // uses it: that is why it goes back to its folder on its own. The root shows tray minus what is in a folder.
+  const CARPETA_FIJA = 'historias';
+  function carpetasBien(l) {           // as saved, with its fixed «Historias» there for every client, new or old
+    const out = (Array.isArray(l) ? l : []).filter(c => c && c.id).map(c => ({ ...c, parent: c.parent || null, files: Array.isArray(c.files) ? c.files : [] }));
+    if (!out.some(c => c.id === CARPETA_FIJA)) out.unshift({ id: CARPETA_FIJA, name: 'Historias', parent: null, files: [], fija: true });
+    return out;
+  }
+  const enCarpetas = l => { const r = new Set(); (l || []).forEach(c => (c.files || []).forEach(f => r.add(f))); return r; };
+  function subCarpetas(l, id) {        // a folder and everything under it
+    const r = new Set([id]);
+    for (let mas = true; mas;) { mas = false; l.forEach(c => { if (c.parent && r.has(c.parent) && !r.has(c.id)) { r.add(c.id); mas = true; } }); }
+    return r;
+  }
   const deDe = f => (M.files[f] && M.files[f].de) || metaDe.get(f) || null;   // the client that brought the photo (3.44 on)
   const ajena = (f, c) => { const d = deDe(f); return !!d && d !== c && CL.some(x => x.id === d); };
   function guardar(B) {
-    const b = JSON.parse(JSON.stringify(B)), c = B.client || boardClient(B), fuera = {};
-    delete b.tray;
+    const { tray: _t, carpetas: _c, ...cuerpo } = B, b = JSON.parse(JSON.stringify(cuerpo)), c = B.client || boardClient(B), fuera = {};
     if (!c) return idbPut('boards', B.key, b);
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
-      st.bandejas.put({ client: c, tray, at: B.savedAt }, c);
+      if (B.carpetas) st.bandejas.put({ client: c, tray, carpetas: B.carpetas, at: B.savedAt }, c);
+      else { const g = st.bandejas.get(c); g.onsuccess = () => st.bandejas.put({ ...(g.result || {}), client: c, tray, at: B.savedAt }, c); }   // a board that doesn't hold them: the saved ones stay
       for (const o of Object.keys(fuera)) { const g = st.bandejas.get(o); g.onsuccess = () => { const r = g.result || { client: o, tray: [] }; r.tray = [...fuera[o].filter(f => !r.tray.includes(f)), ...r.tray]; r.at = B.savedAt; st.bandejas.put(r, o); }; }
     }).then(() => {
       const n = Object.values(fuera).flat();
@@ -574,17 +592,27 @@
         g.onsuccess = () => {
           const b = g.result;
           if (b && Array.isArray(b.tray)) { b.tray.forEach(f => { if (!vistos.has(f) && !tray.includes(f)) tray.push(f); }); delete b.tray; st.boards.put(b, v.key); }   // as it is now: only what came in meanwhile
-          if (--n === 0) st.bandejas.put({ client: c, tray, at: new Date().toISOString() }, c);
+          if (--n === 0) st.bandejas.put({ ...(rec || {}), client: c, tray, at: new Date().toISOString() }, c);   // its folders stay
         };
       }
     });
     if (gone.length) delList(l => [...new Set([...l, ...gone])]);   // the same photo twice: the copy left out goes (deleteIfUnused: only if nothing uses it)
     return tray;
   }
-  // every photo in a tray (the open one's as it is now)
+  // every photo in a tray or its folders (the open one's as it is now)
   async function trayRefs() {
     const all = (await idbAll('bandejas')) || [];
-    return new Set([...all.filter(r => !S || r.client !== S.client).flatMap(r => r.tray || []), ...(S ? S.tray : [])]);
+    return new Set([...all.filter(r => !S || r.client !== S.client).flatMap(r => [...(r.tray || []), ...enCarpetas(r.carpetas)]), ...(S ? [...S.tray, ...enCarpetas(S.carpetas)] : [])]);
+  }
+  // A folder's photo that nothing uses any more (its month deleted, an import) is free again: in the tray, so it shows as
+  // unused in its folder and MESA.board().tray has it. boards: all the saved ones.
+  function libresDeCarpetas(B, boards) {
+    const usadas = new Set(refsOf(B));
+    boards.forEach(b => { if (b.key !== B.key) refsOf(b).forEach(f => usadas.add(f)); });
+    (B.prev || []).forEach(p => { if (p.own) (p.photos || []).forEach(f => usadas.add(f)); });
+    const nuevas = [...enCarpetas(B.carpetas)].filter(f => !usadas.has(f));
+    if (nuevas.length) B.tray.push(...nuevas);
+    return nuevas.length;
   }
   function save() {
     usoS = null;                       // the open board's photos in use: looked at again on the next warning (D-022)
@@ -791,13 +819,26 @@
     if (out) return out;
     throw new Error(`supera ${Math.round(max / 1048576)} MB incluso recortada`);
   }
+  // What M.files keeps of a stored photo. A tray can hold thousands (D-069): the URL of its thumbnail is made the first time
+  // something asks for it, and photos are read in batches, each in one transaction.
+  const URLS_MINI = new WeakMap();
+  function metaArchivo(rec, thumb) {
+    const o = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h };
+    if (rec.reduced) o.reduced = true; if (rec.design) o.design = true; if (rec.de) o.de = rec.de;
+    Object.defineProperty(o, 'thumbUrl', { enumerable: true, configurable: true, get() { let u = URLS_MINI.get(o); if (!u) { u = URL.createObjectURL(thumb); URLS_MINI.set(o, u); } return u; }, set(v) { URLS_MINI.set(o, v); } });
+    return o;
+  }
   async function loadThumbs(ids) {
-    const missing = [];
-    for (const id of ids) {
-      if (M.files[id]) continue;
-      const rec = await idbGet('files', id);
-      if (rec && rec.thumb) { M.files[id] = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, thumbUrl: URL.createObjectURL(rec.thumb) }; if (rec.reduced) M.files[id].reduced = true; if (rec.design) M.files[id].design = true; if (rec.de) M.files[id].de = rec.de; M.thumbBlobs[id] = rec.thumb; }
-      else missing.push(id);
+    const faltan = [...new Set(ids)].filter(id => !M.files[id]), missing = [];
+    for (let i = 0; i < faltan.length; i += 200) {
+      const trozo = faltan.slice(i, i + 200), recs = {};
+      await tx('files', 'readonly', st => trozo.forEach(id => { const g = st.get(id); g.onsuccess = () => { recs[id] = g.result; }; }));
+      for (const id of trozo) {
+        if (M.files[id]) continue;
+        const rec = recs[id];
+        if (rec && rec.thumb) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }
+        else missing.push(id);
+      }
     }
     return missing;
   }
@@ -1002,7 +1043,7 @@
       if (!ok) return [];
       const go = new Set(ok.map(x => x.f)); files = files.filter(f => go.has(f) || !OK_TYPES.includes(f.type || ''));
     }
-    const got = [], fresh = [], refs = refsOf(B);
+    const got = [], fresh = [], refs = refsOf(B), cid = opts && opts.carpeta;   // cid: into that folder of the tray (D-069)
     importing += files.length;
     try {
       let i = 0;
@@ -1017,6 +1058,10 @@
         // the same photo already here: in the tray (the client's, D-041) it is taken from there (never twice in it); used in
         // this board, a copy goes in (each post keeps its own crop); only in other boards of this client, its record is the same
         const same = Object.keys(M.files).filter(id => M.files[id].name === f.name && M.files[id].size === f.size && !M.files[id].design);
+        if (cid) {                     // into a folder the same photo of this client is the same file, used or not: its bytes are never written twice
+          const ya = same.find(id => M.files[id].de === B.client || (!M.files[id].de && refs.has(id))) || usoIdsO.get(fkey(f.name, f.size));   // another client's keeps its own (D-041)
+          if (ya) { if (!got.includes(ya)) got.push(ya); continue; }
+        }
         const inTray = same.find(id => B.tray.includes(id) || fresh.includes(id));
         if (inTray) { if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
         const dup = same.find(id => !refs.has(id) && M.files[id].de === B.client);   // another client's photo keeps its own
@@ -1025,9 +1070,10 @@
           const { w, h, thumb } = await makeThumb(f);
           decoded = true;
           const id = dup || newId();
+          if (!dup) delList(l => [...l, id]);   // a reload before it reaches the tray can't leave it behind (D-071): next open, deleted if nothing holds it
           await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb, de: B.client });   // de: the client it came in for (D-041)
           if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
-          M.files[id] = { name: f.name, size: f.size, type, w, h, de: B.client, thumbUrl: URL.createObjectURL(thumb) };
+          M.files[id] = metaArchivo({ name: f.name, size: f.size, type, w, h, de: B.client }, thumb);
           M.thumbBlobs[id] = thumb;
           delete M.blobs[id];
           fresh.push(id);
@@ -1039,6 +1085,10 @@
       }
     } finally {
       if (fresh.length) B.tray.unshift(...fresh);          // newest imports first, in name order
+      if (cid && got.length) {
+        const fn = st => { const c = (st.carpetas || []).find(x => x.id === cid); if (c) { const ya = new Set(c.files); c.files.push(...got.filter(f => !ya.has(f))); } };
+        if (B === S) sinPaso(fn); else fn(B);              // not a step of ⌘Z (D-070)
+      }
       importing -= files.length; setBusy('imp', null);
     }
     if (B !== S) {                     // another board opened meanwhile: the photos go to their client's tray (D-041)
@@ -1394,32 +1444,72 @@
     const [f] = s.photos.splice(k, 1); s.photos.splice(j, 0, f);
     changed(); openDetail(slotId, j);
   }
-  // Removing from the tray is undoable for a few seconds; only then is the photo deleted (if no board uses it).
-  function removeFile(fileId) {
-    if (!S || !S.tray.includes(fileId)) return;
-    const B = S, name = (M.files[fileId] || {}).name || 'La foto';
+  // Removing from the tray is undoable for a few seconds; only then is the photo deleted (if no board uses it). carpeta: it
+  // comes out of that folder only (D-071): in another folder it stays and nothing is deleted. A reload during those seconds
+  // can't leave it behind: it is on the list of the ones to delete from the start.
+  function removeFile(fileId, carpeta) {
+    if (!S) return;
+    const de = (S.carpetas || []).filter(c => c.files.includes(fileId) && (!carpeta || c.id === carpeta)), deIds = de.map(c => c.id);
+    if (!S.tray.includes(fileId) && !de.length) return;
+    const B = S, name = (M.files[fileId] || {}).name || 'La foto', otra = (S.carpetas || []).some(c => c.files.includes(fileId) && !deIds.includes(c.id));
+    const volver = () => (S.carpetas || []).forEach(c => { if (deIds.includes(c.id) && !c.files.includes(fileId)) c.files.unshift(fileId); });
+    de.forEach(c => { c.files = c.files.filter(x => x !== fileId); });
+    if (otra || !S.tray.includes(fileId)) {   // the file stays: in its other folder, or in the post that uses it
+      changed();
+      toast(`«${name}» quitada de la carpeta.`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => { if (S === B) { volver(); changed(); } } });
+      return;
+    }
     takeFromTray(fileId);
     if (sel === fileId) sel = null;
+    delList(l => l.includes(fileId) ? l : [...l, fileId]);
     changed();
     const t = setTimeout(() => deleteIfUnused(fileId), UNDO_MS);
     toast(`«${name}» quitada de la mesa.`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
       clearTimeout(t);
-      if (S === B && !refsOf(S).has(fileId) && M.files[fileId]) { S.tray.unshift(fileId); changed(); }
+      if (S === B && !refsOf(S).has(fileId) && M.files[fileId]) { delList(l => l.filter(x => x !== fileId)); S.tray.unshift(fileId); volver(); changed(); }
       else deleteIfUnused(fileId);
     } });
   }
-  async function deleteIfUnused(fileId) {
-    if (String(fileId).startsWith('kit-') || String(fileId).startsWith('perfil-')) return;   // a client's fixed design photo (diseno.js) and profile photo stay
-    if (S && refsTodo(S).has(fileId)) return;
-    if (histRefs().has(fileId)) { delList(l => l.includes(fileId) ? l : [...l, fileId]); return; }   // ⌘Z can still bring it back
-    const boards = await idbAll('boards');
-    if (boards.some(b => (!S || b.key !== S.key) && refsTodo(b).has(fileId))) return;
-    if ((await trayRefs()).has(fileId)) return;   // in a client's tray (D-041)
-    await idbDel('files', fileId);
-    if (M.files[fileId]) URL.revokeObjectURL(M.files[fileId].thumbUrl);
-    if (M.bigUrls && M.bigUrls[fileId]) { URL.revokeObjectURL(M.bigUrls[fileId]); delete M.bigUrls[fileId]; }
-    delete M.files[fileId]; delete M.blobs[fileId]; delete M.thumbBlobs[fileId];
+  // Every way a file leaves the mesa ends here (D-071). Never a client's fixed files: kit-, its logos too, perfil-, past:.
+  const fijo = id => /^(kit-|perfil-|past:)/.test(String(id));
+  function soltarArchivo(id) {         // lets go of all that points at a deleted file: the browser frees it when the last handle goes
+    const f = M.files[id];
+    if (f) { const d = Object.getOwnPropertyDescriptor(f, 'thumbUrl'), u = d && (d.get ? URLS_MINI.get(f) : d.value); if (u) URL.revokeObjectURL(u); }
+    if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
+    if (M.bigOrder) M.bigOrder = M.bigOrder.filter(x => x !== id);
+    delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
+    metaKey.delete(id); metaDe.delete(id); sinMini.delete(id);
   }
+  async function eliminarArchivos(ids) {
+    const l = ids.filter(id => !fijo(id));
+    for (let i = 0; i < l.length; i += 100) {
+      const trozo = l.slice(i, i + 100);
+      await tx('files', 'readwrite', st => trozo.forEach(id => st.delete(id)));
+      trozo.forEach(soltarArchivo);
+    }
+    if (l.length) { const fuera = new Set(l); delList(x => x.some(f => fuera.has(f)) ? x.filter(f => !fuera.has(f)) : x); }
+    return l.length;
+  }
+  // the ones nothing uses are deleted, all at once; the ones a step of ⌘Z can bring back wait on the list
+  async function borrarSiNadie(ids) {
+    const l = ids.filter(id => !fijo(id));   // a client's fixed design photo (diseno.js) and profile photo stay
+    if (!l.length) return 0;
+    const vivas = S ? refsTodo(S) : new Set(), hist = histRefs();
+    const enBoards = new Set(); ((await idbAll('boards')) || []).forEach(b => { if (!S || b.key !== S.key) refsTodo(b).forEach(f => enBoards.add(f)); });
+    const enTrays = await trayRefs(), va = [];   // in a client's tray or folders (D-041, D-069)
+    try {                              // the copy a reload left in localStorage may be the only one that has it, until its month opens
+      const p = JSON.parse(lsGet('mesa-pending') || 'null');
+      if (p && p.board && (!S || p.key !== S.key)) { refsTodo(p.board).forEach(f => enBoards.add(f)); enCarpetas(p.board.carpetas).forEach(f => enBoards.add(f)); }
+    } catch (e) { /* */ }
+    for (const id of l) {
+      if (vivas.has(id)) continue;
+      if (hist.has(id)) { delList(x => x.includes(id) ? x : [...x, id]); continue; }   // ⌘Z can still bring it back
+      if (enBoards.has(id) || enTrays.has(id)) continue;
+      va.push(id);
+    }
+    return eliminarArchivos(va);
+  }
+  const deleteIfUnused = fileId => borrarSiNadie([fileId]);
   function changed() { normalize(); save(); render(); }
 
   // ---------- undo / redo (⌘Z / ⇧⌘Z) ----------
@@ -1433,19 +1523,20 @@
     return {
       slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); return o; }),
       tray: B.tray.slice(),
+      ...(B.carpetas ? { carpetas: B.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}),   // the tray's folders (D-069)
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null })),
       ...(previewsOf(B).length ? { previews: B.previews.slice(), fillers: B.fillers } : {}),   // the fillers' previews (D-049), with their count
       ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {})   // the stories, whole (D-054)
     };
   }
-  const stRefs = st => new Set([...st.tray, ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
+  const stRefs = st => new Set([...st.tray, ...enCarpetas(st.carpetas), ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
   function histRefs() { const r = new Set(); if (H.b && H.b === S) [...H.undo, ...H.redo].forEach(st => stRefs(st).forEach(f => r.add(f))); return r; }
   function histReset() { H = { b: S, cur: S ? editState(S) : null, curJ: '', undo: [], redo: [], tag: null, t: 0 }; if (H.cur) H.curJ = JSON.stringify(H.cur); }
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
-    if (J(a.tray) !== J(b.tray) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias)) return null;
+    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias)) return null;
     const ds = [];
     for (let i = 0; i < a.slots.length; i++) { if (a.slots[i].id !== b.slots[i].id) return null; if (J(a.slots[i]) !== J(b.slots[i])) ds.push(i); }
     const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
@@ -1513,6 +1604,10 @@
       if (o.fmt) p.fmt = o.fmt; else delete p.fmt;
     });
     S.tray = st.tray.filter(has);
+    if (st.carpetas) {                             // a deleted folder never comes back, whatever step this is (D-070)
+      const ya = H.fueraC || new Set();
+      S.carpetas = st.carpetas.filter(c => !ya.has(c.id)).map(c => ({ ...c, parent: ya.has(c.parent) ? null : c.parent, files: c.files.filter(has) }));
+    }
     S.crops = JSON.parse(JSON.stringify(st.crops));
     if (st.previews) { S.previews = st.previews.map(f => (f && has(f) ? f : null)); S.fillers = st.fillers; } else delete S.previews;
     if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
@@ -1537,6 +1632,14 @@
     refreshDetail();
   }
   const undo = () => histStep(true), redo = () => histStep(false);
+  // A change of the folders that is not a step of ⌘Z (creating one, photos coming in, deleting one): it goes into every step
+  // too, so going back to one never undoes it. fn gets S and then each step: {tray, carpetas…}.
+  function sinPaso(fn) {
+    const mia = S && H.b === S && H.cur;
+    if (mia) track(S);                             // a change not saved yet stays a step of its own
+    fn(S);
+    if (mia) { [...H.undo, ...H.redo].forEach(st => { if (st.carpetas) fn(st); }); H.cur = editState(S); H.curJ = JSON.stringify(H.cur); H.tag = null; }
+  }
   // rendered images (design:true) nothing refers to any more — replaced on another Mac and imported back, or written by an
   // «Aplicar» cut short by a reload — are deleted: once per session (or after an import), never while an «Aplicar» runs
   let swept = false;
@@ -1551,19 +1654,20 @@
     let n = 0;
     for (const id of ids) if (!refs.has(id) && !busy()) {
       await idbDel('files', id); n++;
-      if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
-      delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
+      soltarArchivo(id);
     }
     return n;
   }
   // a photo removed from the mesa is deleted only when no step of the history can bring it back (list kept across reloads)
   function delList(fn) { let l = []; try { l = JSON.parse(lsGet('mesa-del') || '[]'); } catch (e) { /* */ } if (!fn) return l; l = fn(l); lsSet('mesa-del', JSON.stringify(l)); return l; }
   async function delSweep() {
+    if (importing) return;             // a photo on its way to the tray is on the list until it gets there
     const l = delList(); if (!l.length) return;
     const keep = histRefs(), go = l.filter(id => !keep.has(id));
     if (!go.length) return;
-    delList(x => x.filter(id => !go.includes(id)));
-    for (const id of go) { try { await deleteIfUnused(id); } catch (e) { /* */ } }
+    const fuera = new Set(go);
+    delList(x => x.filter(id => !fuera.has(id)));
+    try { await borrarSiNadie(go); } catch (e) { /* */ }
   }
 
   // ---------- previous month (under the line) ----------
@@ -2274,19 +2378,23 @@
   const LS_TF = 'mesa-bandeja-filtro';
   const trayTodas = () => lsGet(LS_TF) === 'todas';
   function trayFiltro(v) { lsSet(LS_TF, v === 'todas' ? 'todas' : 'sin'); renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }
+  let trayCarpeta = null;              // the folder the tray has open (null: the root)
   let todasCarga = null; const sinMini = new Set();   // photos of «Todas» whose thumbnail can't load: not asked again
   function bandejaVista(o = {}) {
     if (!S) return [];
     if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    // o.carpeta: that folder (null: the root); by default, what the tray has open. A folder's photos never show in the root (D-069)
+    const carp = o.carpeta !== undefined ? o.carpeta : trayCarpeta, c0 = carp ? (S.carpetas || []).find(x => x.id === carp) : null, enC = c0 ? new Set() : enCarpetas(S.carpetas);
     const todas = o.todas ?? trayTodas(), mas = o.mas || new Set(), c = S.client, out = [], ya = new Set(), hm = usoHMap();
     const cuenta = u => !o.sin || u.slot !== o.sin;
     const usada = (f, k) => mas.has(f) || (!!k && ((usoS.map.get(k) || []).some(cuenta) || (usoO.get(k) || []).some(cuenta)));
     const add = f => {
-      if (!f || ya.has(f) || !M.files[f] || M.files[f].design || !trayable(f) || ajena(f, c)) return;
+      if (!f || ya.has(f) || enC.has(f) || !M.files[f] || M.files[f].design || !trayable(f) || ajena(f, c)) return;
       const k = fileKey(f); if (k && ya.has(k)) return;
       ya.add(f); if (k) ya.add(k);
       out.push({ f, u: usada(f, k), ...(k && hm.has(k) ? { h: true } : {}) });   // h: in a story (not ✓: it is still free for the feed, D-056)
     };
+    if (c0) { c0.files.forEach(add); return todas ? out : out.filter(x => !x.u); }   // used or not, it stays in its folder, with ✓
     S.tray.forEach(add);
     [...previewsOf(S), ...usoPrevO].forEach(add);   // a filler's photo: with ✓ while it counts as used, free once there is a later month (D-049)
     if (!todas) return out.filter(x => !x.u);
@@ -2298,6 +2406,13 @@
     return out;
   }
   const enVista = f => bandejaVista({ todas: true }).some(x => x.f === f);   // a photo the tray can show (click to place)
+  // the free photos of what the tray has open: the lists of photos in the designer and the editor follow it, never all the folders
+  function trayDeVista() {
+    if (!S) return [];
+    const c0 = trayCarpeta ? (S.carpetas || []).find(x => x.id === trayCarpeta) : null;
+    if (c0) { const t = new Set(S.tray); return c0.files.filter(f => t.has(f)); }
+    const enC = enCarpetas(S.carpetas); return S.tray.filter(f => !enC.has(f));
+  }
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
@@ -3235,7 +3350,7 @@
       if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer)) return;
       stamp(S);
       S.savedAt = new Date().toISOString();
-      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 4 }));   // sync: survives a reload that kills the async write
+      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 5 }));   // sync: survives a reload that kills the async write
       flushNow().catch(() => { /* */ });
     };
     document.addEventListener('visibilitychange', M._onHide); window.addEventListener('pagehide', M._onHide);
@@ -3247,6 +3362,7 @@
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file); }
     else if (act === 'tfil') trayFiltro(a.dataset.v);
     else if (act === 'close') closeDetail();
+    else if (act === 'carpeta-borrar') { const id = a.dataset.id; closeDetail(); const r = await M.borrarCarpeta(id); if (r && r.error) toast(r.error); }
     else if (act === 'repe') { const f = repeAsk; repeAsk = null; closeDetail(); if (f) f(a.dataset.m); }
     else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast('Para cambiar diapositivas, usa «Diseñar».'); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
@@ -3314,7 +3430,12 @@
     else if (act === 'recargar') location.reload();
     else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
-      if (a.dataset.confirm !== '1') { a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar'; return; }
+      if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
+        a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
+        const r = await resumenBandeja(curClient);
+        if (r.fotos && a.isConnected) a.textContent = `Confirmar: eliminar y borrar ${nOf(r.fotos, 'foto', 'fotos')} de su bandeja${r.carpetas ? ` y ${nOf(r.carpetas, 'carpeta', 'carpetas')}` : ''} (${pesoTxt(r.bytes)})`;
+        return;
+      }
       const c = CL.find(x => x.id === curClient);
       const r = await M.removeClient(curClient);
       closeDetail();
@@ -3367,7 +3488,7 @@
     if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
     await idbDel('clients', id);
-    if (tr) { await idbDel('bandejas', id); for (const f of tr.tray || []) { try { await deleteIfUnused(f); } catch (e) { /* */ } } }   // its tray, with no month left (D-041)
+    if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
     if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } }   // its profile photo
     await loadClients();
     if (curClient === id) {
@@ -3460,6 +3581,8 @@
     if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
     const bandeja = await juntarBandeja(client);   // the client's tray, shared by all its months (D-041)
     const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
+    const recCarp = await idbGet('bandejas', client);   // its folders; those of the copy a reload left in localStorage, if newer (D-069)
+    const carp0 = old.carpetas && String(old.savedAt || '') > String((recCarp && recCarp.at) || '') ? old.carpetas : recCarp && recCarp.carpetas;
     const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
     const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
@@ -3468,7 +3591,7 @@
     try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     if (pd) pdCancel();
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
-    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
+    try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
     if (!shellReady()) buildShell(); else closeDetail();
     setSave('Cargando…');
     await importShared(cfg.slots, old, key);
@@ -3509,6 +3632,7 @@
       key, client, month, span, cycleDay: cd,
       slots: cfg.slots.map(merge),
       tray: [...bandeja, ...(old.tray || []), ...orphans],   // old.tray: the copy a reload left in localStorage, or a board from before 3.44
+      carpetas: carpetasBien(carp0),
       past: pastIn.filter(p => p.date && cycleOf(p.date, cd) === pm).map(p => ({ id: p.id, name: p.name, type: p.type, date: p.date })),
       crops: old.crops || {},
       ...(old.pins && old.pins.some(id => cfg.slots.some(x => x.id === id)) ? { pins: old.pins.filter(id => cfg.slots.some(x => x.id === id)) } : {}),
@@ -3524,13 +3648,15 @@
     sortSlots();
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
     alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
-    const ids = [...new Set([...S.tray, ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
+    const ids = [...new Set([...S.tray, ...enCarpetas(S.carpetas), ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
     const missing = await loadThumbs(ids);
+    if (missing.length) { const no = new Set(missing); S.carpetas.forEach(c => { c.files = c.files.filter(f => !no.has(f)); }); }
     if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
     await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
     if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
     S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1).filter(f => !dOut(s).includes(f))); s.photos = s.photos.slice(0, 1); } });
-    S.tray = [...new Set(S.tray)].filter(id => !S.slots.some(s => s.photos.includes(id)));
+    { const enPost = new Set(S.slots.flatMap(s => s.photos)); S.tray = [...new Set(S.tray)].filter(id => !enPost.has(id)); }
+    libresDeCarpetas(S, (await idbAll('boards')) || []);
     normalize();
     // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
     const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
@@ -4093,8 +4219,11 @@
       await addQ; await flushPending();
       const clients = (await idbAll('clients')) || [];
       for (const c of new Set([...clients.map(x => x.id), ...((await idbAll('boards')) || []).map(boardClient)])) await juntarBandeja(c);   // the months' old trays, into their client's (D-041)
-      const bandejas = ((await idbAll('bandejas')) || []).filter(r => r && r.client && (r.tray || []).length);
-      const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).sort((a, b) => String(a.key).localeCompare(String(b.key)));
+      // the tray's folders stay here (D-073): only the root travels, and a folder's photos only if a post or a story uses them (they go with the boards)
+      const recsB = ((await idbAll('bandejas')) || []).filter(r => r && r.client), enTodas = enCarpetas(recsB.flatMap(r => r.carpetas || []));
+      const carpetasFuera = recsB.reduce((n, r) => n + (r.carpetas || []).filter(c => (c.files || []).length).length, 0);
+      const bandejas = recsB.map(r => ({ client: r.client, tray: (r.tray || []).filter(f => !enTodas.has(f)), at: r.at })).filter(r => r.tray.length);
+      const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).map(({ carpetas, ...b }) => { if (Array.isArray(b.tray)) { const en = enCarpetas(carpetas); b.tray = b.tray.filter(f => !enTodas.has(f) && !en.has(f)); } return b; }).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
       const parts = ['{"format":"mesa-feed","v":4,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring
@@ -4135,11 +4264,11 @@
         setTimeout(() => URL.revokeObjectURL(u), 120000);
       }
       const mb = +(blob.size / 1048576).toFixed(1);
-      const msg = `Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : '');
+      const msg = `Exportada: ${nOf(boards.length, 'mes', 'meses')}, ${nOf(photos, 'foto', 'fotos')} (${mb} MB)` + (skipped ? ` · ${skipped} no se pudieron leer` : '') + (carpetasFuera ? ` · ${carpetasFuera === 1 ? 'una carpeta de la bandeja no viaja' : `${carpetasFuera} carpetas de la bandeja no viajan`}` : '');
       const aviso = () => { if (huecos.length) dlgHuecos(msg, huecos, clients); else toast(msg, { ms: 7000 }); };
       if (M.revisar && M.revisar.auto) M.revisar.auto('exportar', null, { msg, fallo: aviso, huecos: huecos.map(h => ({ ...h, cliente: (clients.find(c => c.id === h.client) || {}).name || h.client, mes: monthLabel(h.month) })) });   // the review, with the holes of the other months (D-037, D-040)
       else aviso();
-      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb, huecos };
+      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb, huecos, carpetasFuera };
     } catch (e) { const q = xferW ? await xferDrop() : 'borrado'; return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e) + (q === 'vacio' ? ' Puede haber quedado un archivo vacío con el nombre elegido: bórralo.' : '')); }
     finally { xferRun = null; xferW = null; xferH = null; xferSz = null; setBusy('imp', null); }
   };
@@ -4177,7 +4306,7 @@
     return null;
   }
   // what the file changes here: boards added / replaced (newer) / kept (newer here) / same content; clients to add
-  const boardBody = ({ cycleDay, ...b }) => JSON.stringify({ ...b, savedAt: null, editedAt: null, slots: (b.slots || []).map(({ at, ...s }) => s), cycleDay: cdOf(cycleDay) });   // no cycle day (older mesa) = day 1
+  const boardBody = ({ cycleDay, carpetas, ...b }) => JSON.stringify({ ...b, savedAt: null, editedAt: null, slots: (b.slots || []).map(({ at, ...s }) => s), cycleDay: cdOf(cycleDay) });   // no cycle day (older mesa) = day 1
   const eAt = b => String(b.editedAt || b.savedAt || '');
   const newerEdit = (b, o) => eAt(b) > eAt(o) || (eAt(b) === eAt(o) && String(b.savedAt || '') > String(o.savedAt || ''));
   async function xferPlan(d) {
@@ -4203,9 +4332,9 @@
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
     d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });   // a profile photo only when it is used
     // the clients' trays (D-041): what the file's adds to each one here (never takes anything out of it)
-    const locTr = {}; ((await idbAll('bandejas')) || []).forEach(r => { locTr[r.client] = new Set(r.tray || []); });
+    const locTr = {}; ((await idbAll('bandejas')) || []).forEach(r => { locTr[r.client] = new Set([...(r.tray || []), ...enCarpetas(r.carpetas)]); });
     local.forEach(b => { if (Array.isArray(b.tray)) { const c = boardClient(b); (locTr[c] = locTr[c] || new Set()); b.tray.forEach(f => locTr[c].add(f)); } });   // boards from before 3.44
-    if (S) locTr[S.client] = new Set([...(locTr[S.client] || []), ...S.tray]);
+    if (S) locTr[S.client] = new Set([...(locTr[S.client] || []), ...S.tray, ...enCarpetas(S.carpetas)]);
     P.trays = (d.bandejas || []).map(r => ({ client: r.client, at: r.at || '', add: r.tray.filter(f => typeof f === 'string' && (d.files[f] || P.files.has(f)) && !(locTr[r.client] || new Set()).has(f)) })).filter(r => r.add.length);
     P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);
     P.trays.forEach(r => r.add.forEach(f => P.refs.add(f)));
@@ -4342,7 +4471,7 @@
       S = null; PB = null; cleared = true;         // nothing in memory may overwrite what is written now
       for (const id of [...new Set([...P.newFiles, ...P.kitFiles])]) if (got[id]) {  // photos first: a board never points at a photo that isn't here
         await idbPut('files', id, got[id]); res.photos++;
-        if (M.files[id]) { URL.revokeObjectURL(M.files[id].thumbUrl); delete M.files[id]; } delete M.blobs[id]; delete M.thumbBlobs[id];
+        soltarArchivo(id);
       }
       for (const id of newPast) { await idbPut('files', 'past:' + id, gotPast[id]); res.past++; }
       for (const c of P.newClients) await idbPut('clients', c.id, c);
@@ -4423,22 +4552,17 @@
     const b = boards.find(x => x.key === key); if (!b) return 'no existe';
     if (S && S.key === key) { clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; }   // no save of it while it goes
     const others = boards.filter(x => x.key !== key);
-    // the client's tray (D-041) stays with its other months; with its last month it goes too, as a month's tray did
-    const c = boardClient(b), last = !others.some(x => boardClient(x) === c), trays = (await idbAll('bandejas')) || [];
-    const own = S && S.client === c ? S.tray.slice() : ((trays.find(r => r.client === c) || {}).tray || []);
-    const libres = last ? [] : previewsOf(b).filter(f => !own.includes(f) && !others.some(x => refsOf(x).has(f)));   // a filler's photo is not a post's: it stays with its client (D-049)
+    // the client's tray and its folders (D-041, D-069) stay, also with its last month: they go only with the client (D-072).
+    // A post's photo goes with its month unless something else has it, a folder of the tray included.
+    const c = boardClient(b), trays = (await idbAll('bandejas')) || [], rec = trays.find(r => r.client === c);
+    const propia = S && S.client === c, own = propia ? S.tray.slice() : ((rec || {}).tray || []).slice(), carp = propia ? S.carpetas : (rec || {}).carpetas;
+    const libres = previewsOf(b).filter(f => !own.includes(f) && !others.some(x => refsOf(x).has(f)));   // a filler's photo is not a post's: it stays with its client (D-049)
     own.unshift(...libres);
-    if (!last && S && S.key === key) await idbPut('bandejas', c, { client: c, tray: own, at: new Date().toISOString() });   // what the open board had
-    else if (libres.length && S && S.client === c) { S.tray.unshift(...libres); save(); }
-    else if (libres.length) await idbPut('bandejas', c, { client: c, tray: own, at: new Date().toISOString() });
-    const otherRefs = new Set([...others.flatMap(x => [...refsTodo(x)]), ...trays.filter(r => r.client !== c).flatMap(r => r.tray || []), ...(last ? [] : own), ...(S && S.key !== key ? refsTodo(S) : [])]);
-    let n = 0;
-    for (const id of new Set([...refsTodo(b), ...(last ? own : [])])) if (!otherRefs.has(id)) {
-      await idbDel('files', id);
-      if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
-      if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
-      delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id]; n++;
-    }
+    if (S && S.key === key) await idbPut('bandejas', c, { client: c, tray: own, carpetas: S.carpetas, at: new Date().toISOString() });   // what the open board had
+    else if (libres.length && propia) { S.tray.unshift(...libres); save(); }
+    else if (libres.length) await idbPut('bandejas', c, { ...(rec || {}), client: c, tray: own, at: new Date().toISOString() });
+    const otherRefs = new Set([...others.flatMap(x => [...refsTodo(x)]), ...trays.filter(r => r.client !== c).flatMap(r => [...(r.tray || []), ...enCarpetas(r.carpetas)]), ...own, ...enCarpetas(carp), ...(S && S.key !== key ? refsTodo(S) : [])]);
+    const n = await eliminarArchivos([...refsTodo(b)].filter(id => !otherRefs.has(id)));
     const otherPast = new Set(others.flatMap(x => (x.past || []).map(p => p.id)));
     for (const p of b.past || []) if (!otherPast.has(p.id)) {
       await idbDel('files', 'past:' + p.id);
@@ -4446,12 +4570,128 @@
       delete M.pastThumbs[p.id]; delete M.pastBlobs[p.id];
     }
     await idbDel('boards', key);
-    if (last) { await idbDel('bandejas', c); if (S && S.client === c && S.key !== key) S.tray = []; }
+    if (propia && S.key !== key && libresDeCarpetas(S, others)) save();   // a folder's photo that only this month used is free again
     dropIdx([key]); if (S && S.key !== key) renderFeed();
     if (S && S.key !== key && S.client === c) { usoS = null; usosOtros(); }   // a filler's photo may count as used again (D-049)
     if (S && S.key === key) { clearTimeout(saveTimer); clearTimeout(noteTimer); S = null; PB = null; if (shellReady()) { closeDetail(); await refreshMonths(); render(); } }
     else if (PB && PB.key === key) { PB = null; renderFeed(); }
     return `borrada ${key}: ${n} fotos eliminadas`;
+  };
+  // ---------- the tray's folders (D-069 to D-073) ----------
+  let persistida = null;               // what the browser said to keeping this site's data under disk pressure
+  const pesoTxt = n => { const g = n / 1073741824; return g >= 1 ? `${g.toLocaleString('es-ES', { maximumFractionDigits: 1 })} GB` : `${Math.max(1, Math.round(n / 1048576)).toLocaleString('es-ES')} MB`; };
+  const pesoDe = async ids => {        // bytes of these stored files, photo and thumbnail
+    let n = 0;
+    for (let i = 0; i < ids.length; i += 200) {
+      const trozo = ids.slice(i, i + 200);
+      await tx('files', 'readonly', st => trozo.forEach(id => { const g = st.get(id); g.onsuccess = () => { const r = g.result; if (r) n += ((r.blob && r.blob.size) || 0) + ((r.thumb && r.thumb.size) || 0); }; }));
+    }
+    return n;
+  };
+  async function resumenBandeja(c) {
+    const r = (await idbGet('bandejas', c)) || {}, ids = [...new Set([...(r.tray || []), ...enCarpetas(r.carpetas)])].filter(f => !fijo(f));
+    return { fotos: ids.length, carpetas: (r.carpetas || []).filter(x => !x.fija).length, bytes: await pesoDe(ids) };
+  }
+  M.carpetas = () => (S ? (S.carpetas || []).map(c => ({ id: c.id, name: c.name, parent: c.parent, fija: !!c.fija, fotos: c.files.length })) : []);
+  // a new folder at the root or inside another; two sisters with the same name are one: it gives the one already there
+  M.crearCarpeta = (nombre, padre = null) => {
+    if (!S) return { error: 'no hay ningún mes abierto' };
+    const name = String(nombre || '').trim();
+    if (!name) return { error: 'la carpeta necesita un nombre' };
+    if (padre && !S.carpetas.some(c => c.id === padre)) return { error: 'esa carpeta ya no está' };
+    const ya = S.carpetas.find(c => (c.parent || null) === (padre || null) && c.name === name);
+    if (ya) return { id: ya.id, ya: true };
+    const id = newId(), nueva = { id, name, parent: padre || null, files: [] };
+    sinPaso(st => { if (!st.carpetas.some(c => c.id === id)) st.carpetas.push({ ...nueva, files: [] }); });
+    changed();
+    return { id };
+  };
+  // What deleting a folder would do. A photo stays if anything else has it (D-070): another folder, or a post, cancelled or
+  // not, a story, a hole's preview, the month before, another client's tray, or the slides of the open editor.
+  const POR_QUE = { otra: ['también en otra carpeta', 'también en otra carpeta'], pub: ['en una publicación', 'en publicaciones'], cancelada: ['en una publicación cancelada', 'en publicaciones canceladas'], historia: ['en una historia', 'en historias'], hueco: ['en la portada de un hueco', 'en portadas de hueco'], mes: ['en el mes anterior', 'en el mes anterior'], editor: ['en el editor abierto', 'en el editor abierto'] };
+  async function planCarpeta(id) {
+    const c = S && (S.carpetas || []).find(x => x.id === id);
+    if (!c) return { error: 'Esa carpeta ya no está.' };
+    if (c.fija) return { error: `La carpeta «${c.name}» no se puede borrar: sus fotos se quitan una a una.` };
+    const subs = subCarpetas(S.carpetas, id), dentro = new Set(), fuera = new Set();
+    S.carpetas.forEach(x => x.files.forEach(f => (subs.has(x.id) ? dentro : fuera).add(f)));
+    const boards = [S, ...((await idbAll('boards')) || []).filter(b => b.key !== S.key)], uso = new Map(), pon = (f, w) => { if (!uso.has(f)) uso.set(f, w); };
+    boards.forEach(b => (b.slots || []).forEach(s => { if (vivo(s)) slotRefs(s).forEach(f => pon(f, 'pub')); }));
+    boards.forEach(b => (b.slots || []).forEach(s => { if (!vivo(s)) slotRefs(s).forEach(f => pon(f, 'cancelada')); }));
+    boards.forEach(b => hRefs(b).forEach(f => pon(f, 'historia')));
+    boards.forEach(b => previewsOf(b).forEach(f => pon(f, 'hueco')));
+    boards.forEach(b => (b.prev || []).forEach(p => { if (p.own) (p.photos || []).forEach(f => pon(f, 'mes')); }));
+    fuera.forEach(f => pon(f, 'otra'));
+    ((await idbAll('bandejas')) || []).forEach(r => { if (r.client !== S.client) [...(r.tray || []), ...enCarpetas(r.carpetas)].forEach(f => pon(f, 'otra')); });
+    if (M.libre && M.libre.fotosSesion) M.libre.fotosSesion().forEach(f => pon(f, 'editor'));
+    const borran = [], quedan = {};
+    dentro.forEach(f => { const w = uso.get(f); if (w) quedan[w] = (quedan[w] || 0) + 1; else borran.push(f); });
+    return { id, name: c.name, fotos: dentro.size, subcarpetas: subs.size - 1, borran, quedan, bytes: await pesoDe(borran), subs };
+  }
+  M.planBorrarCarpeta = async id => { const p = await planCarpeta(id); if (p.error) return p; const { subs, borran, ...r } = p; return { ...r, nBorran: borran.length }; };
+  M.pedirBorrarCarpeta = async id => {
+    const p = await planCarpeta(id);
+    if (p.error) { toast(p.error); return p; }
+    const nq = Object.values(p.quedan).reduce((a, b) => a + b, 0);
+    const quedan = Object.entries(p.quedan).map(([w, n]) => `${n} ${POR_QUE[w][n === 1 ? 0 : 1]}`).join(', ');
+    showDialog('borrarcarpeta', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Borrar la carpeta «${esc(p.name)}»</h3>`
+      + `<p>Tiene ${nOf(p.fotos, 'foto', 'fotos')}${p.subcarpetas ? ` y ${nOf(p.subcarpetas, 'subcarpeta', 'subcarpetas')}` : ''}.</p>`
+      + `<p>${p.borran.length ? `Se ${p.borran.length === 1 ? 'borra una foto' : `borran ${p.borran.length} fotos`} y se liberan ${pesoTxt(p.bytes)}.` : 'No se borra ninguna foto.'}</p>`
+      + (nq ? `<p>Se ${nq === 1 ? 'queda una' : `quedan ${nq}`}: ${esc(quedan)}.</p>` : '')
+      + `<p>Esto no se puede deshacer.</p><div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="carpeta-borrar" data-id="${esc(id)}">Borrar</button></div></div>`);
+    root.querySelector('.detail [data-act="close"].btn2').focus();
+    return p;
+  };
+  // Deleting a folder is not undone: the warning takes the place of ⌘Z. Its photos leave every step at once; a step that had
+  // one of them in a post can't be kept, so ⌘Z stops there (D-070). The list of the ones to delete covers a reload half way.
+  M.borrarCarpeta = async id => {
+    if (locked) return { error: 'Esta pestaña no puede guardar.' };
+    if (importing || uploadsBusy() || (M.libre && M.libre.aplicando && M.libre.aplicando()) || (M.diseno && M.diseno.aplicando && M.diseno.aplicando())) return { error: 'Espera a que termine lo que está en marcha.' };
+    const p = await planCarpeta(id);
+    if (p.error) return p;
+    const va = new Set(p.borran), enPost = st => st.slots.some(s => slotRefs(s).some(f => va.has(f))) || st.prev.some(x => x.own && x.photos.some(f => va.has(f))) || previewsOf(st).some(f => va.has(f)) || hRefs(st).some(f => va.has(f));
+    if (S && H.b === S && H.cur) {
+      track(S);
+      const corta = (l, cuenta) => { let k = -1; l.forEach((st, i) => { if (enPost(st)) k = i; }); if (k >= 0) { l.splice(0, k + 1); if (cuenta) H.drop = (H.drop || 0) + k + 1; } };
+      corta(H.undo, true); corta(H.redo, false);   // both lists keep the step furthest from now first
+      H.fueraC = new Set([...(H.fueraC || []), ...p.subs]);
+    }
+    sinPaso(st => {
+      st.tray = st.tray.filter(f => !va.has(f));
+      st.carpetas = st.carpetas.filter(c => !p.subs.has(c.id)).map(c => ({ ...c, parent: p.subs.has(c.parent) ? null : c.parent, files: c.files.filter(f => !va.has(f)) }));
+    });
+    if (S.crops) va.forEach(f => { delete S.crops[f]; });
+    if (sel && va.has(sel)) sel = null;
+    if (trayCarpeta && p.subs.has(trayCarpeta)) trayCarpeta = null;
+    if (H.b === S && H.cur) { H.cur = editState(S); H.curJ = JSON.stringify(H.cur); }
+    delList(l => [...new Set([...l, ...p.borran])]);
+    changed();
+    await flushNow();
+    await eliminarArchivos(p.borran);
+    toast(`Carpeta «${p.name}» borrada${p.borran.length ? `: ${nOf(p.borran.length, 'foto', 'fotos')}, ${pesoTxt(p.bytes)} liberados` : ''}.`, { ms: 6000 });
+    return { ok: true, borradas: p.borran.length, bytes: p.bytes, quedan: p.quedan };
+  };
+  // Read only (D-073): what the store 'files' holds and what nothing refers to. It deletes nothing. kit-, perfil- and past: are
+  // never orphans; logos are kit-, and a story's photos count as used.
+  M.informeArchivos = async () => {
+    const refs = new Set(S ? [...refsTodo(S), ...enCarpetas(S.carpetas), ...histRefs()] : []);
+    ((await idbAll('boards')) || []).forEach(b => refsTodo(newest(b.key, b)).forEach(f => refs.add(f)));
+    ((await idbAll('bandejas')) || []).forEach(r => { (r.tray || []).forEach(f => refs.add(f)); enCarpetas(r.carpetas).forEach(f => refs.add(f)); });
+    ((await idbAll('clients')) || []).forEach(c => { [kitRef(c), c.foto, ...((c.libre && c.libre.logos) || [])].forEach(f => { if (f) refs.add(f); }); });
+    const lista = new Set(delList()), out = { claves: 0, bytes: 0, huerfanos: [], bytesHuerfanos: 0 };
+    await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => {
+      const c = r.result; if (!c) return;
+      const v = c.value || {}, id = String(c.key), n = ((v.blob && v.blob.size) || 0) + ((v.thumb && v.thumb.size) || 0);
+      out.claves++; out.bytes += n;
+      if (!fijo(id) && !refs.has(id)) { out.huerfanos.push({ id, name: v.name || null, bytes: n, design: !!v.design, deCliente: v.de || null, pendiente: lista.has(id) }); out.bytesHuerfanos += n; }
+      c.continue();
+    }; });
+    return out;
+  };
+  M.espacio = async () => {            // what the browser says: its quota, not the real free space of the disk
+    const e = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : {};
+    const p = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted().catch(() => persistida) : persistida;
+    return { usado: e.usage ?? null, cupo: e.quota ?? null, persistida: p };
   };
   M.boards = async () => {           // tray: its client's (D-041), the same in all its months
     const tr = Object.fromEntries(((await idbAll('bandejas')) || []).map(r => [r.client, (r.tray || []).length]));
@@ -4464,7 +4704,7 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
-    bandejaVista, trayFiltro, trayTodas, paraPoner,   // the client's tray as the trays show it (D-041)
+    bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
@@ -4490,6 +4730,12 @@
     shared: id => sharedWith(slot(id)), idx: () => JSON.parse(JSON.stringify(IDX)), deleteIfUnused,
     setSlot: (id, patch) => { const s = slot(id); if (s) { Object.assign(s, patch); save(); render(); } },
     capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
+  };
+  M._test.removeFile = removeFile;
+  M._test.borrarBandeja = async c => {  // the battery starts each test with an empty tray: months no longer take it away (D-072)
+    const r = await idbGet('bandejas', c);
+    if (S && S.client === c) { S.tray = []; S.carpetas = carpetasBien(); }
+    if (r) { await idbDel('bandejas', c); await borrarSiNadie([...new Set([...(r.tray || []), ...enCarpetas(r.carpetas)])]); }
   };
   M._test.fileRec = async id => {       // stored photo: record fields + the real size of its image and thumbnail
     const r = await idbGet('files', id); if (!r) return null;

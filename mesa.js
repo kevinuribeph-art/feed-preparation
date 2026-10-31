@@ -64,10 +64,11 @@
 // cliente» and the feed image; in the tray it counts as used until the client has a later month (D-049).
 // v3.59: folders inside a client's tray, with a fixed «Historias» (data, deleting and leaving nothing behind: D-069 to D-073).
 // v3.60: folders come in (carpetas.js): dragged or chosen, with a warning first and a progress bar; going in and back (D-074, D-075).
+// v3.61: the tray's tabs and the folders' menu (D-076).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.60'; // 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.61'; // 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1608,6 +1609,7 @@
     if (st.carpetas) {                             // a deleted folder never comes back, whatever step this is (D-070)
       const ya = H.fueraC || new Set();
       S.carpetas = st.carpetas.filter(c => !ya.has(c.id)).map(c => ({ ...c, parent: ya.has(c.parent) ? null : c.parent, files: c.files.filter(has) }));
+      pestValidar();
     }
     S.crops = JSON.parse(JSON.stringify(st.crops));
     if (st.previews) { S.previews = st.previews.map(f => (f && has(f) ? f : null)); S.fillers = st.fillers; } else delete S.previews;
@@ -1911,7 +1913,18 @@
 #mesa .btn2:hover{border-color:#bdbdbd}
 #mesa .btn2.danger{color:var(--red);border-color:#efc2c2}
 #mesa .tbody{padding:0 12px 24px}
-#mesa .cpnav{display:flex;align-items:center;gap:6px;padding:0 12px 8px;font-size:12.5px;min-height:28px}
+#mesa .cpnav{padding:0 12px 8px;font-size:12.5px}
+#mesa .cpfila{display:flex;align-items:center;gap:6px;min-height:28px}#mesa .cpfila+.cpfila{margin-top:6px}
+#mesa .cptabs{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none}#mesa .cptabs::-webkit-scrollbar{display:none}
+#mesa .cptab{display:inline-flex;flex:none;align-items:center;max-width:150px;height:26px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--mute);font-size:12px}
+#mesa .cptab.on{border-color:var(--ink);color:var(--ink);font-weight:600}#mesa .cptab:hover{border-color:#bdbdbd}#mesa .cptab.on:hover{border-color:var(--ink)}#mesa .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}
+#mesa .cptab button{border:0;background:none;padding:0 8px;height:100%;font:inherit;color:inherit;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mesa .cptab .cpx{flex:none;padding:0 6px 0 0;font-size:14px;line-height:1;color:var(--mute)}#mesa .cptab .cpx:hover{color:var(--ink)}
+#mesa .cpmenu{position:fixed;z-index:70;display:flex;flex-direction:column;min-width:230px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+#mesa .cpmenu button{display:flex;justify-content:space-between;align-items:center;border:0;background:none;border-radius:7px;padding:8px 10px;text-align:left;font-size:13px;color:var(--ink)}
+#mesa .cpmenu button:hover:not(:disabled){background:var(--line2)}#mesa .cpmenu button:disabled{color:var(--faint);cursor:default}#mesa .cpmenu .kb{margin-left:12px;color:var(--mute)}
+#mesa .cpmenu hr{width:100%;height:1px;margin:4px 0;border:0;background:var(--line)}
+#mesa .detail[data-dlg="borrarcarpeta"]{z-index:40}
 #mesa .cpvolver{flex:none;width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:14px;line-height:1;padding:0}
 #mesa .cpvolver:hover{border-color:#bdbdbd}
 #mesa .cpruta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute)}#mesa .cpruta b{color:var(--ink);font-weight:600}
@@ -2447,16 +2460,58 @@
   function navCarpetas(tray) {
     const nav = tray.querySelector('.cpnav'); if (!nav) return;
     const r = rutaCarpeta();
+    const tabs = `<div class="cptabs" role="tablist" aria-label="Pestañas de la bandeja">${pestanas.map(p => `<span class="cptab${p.id === pestAct ? ' on' : ''}${p.id === 'fija' ? ' fija' : ''}" data-pest="${esc(p.id)}"><button type="button" role="tab" aria-selected="${p.id === pestAct}" data-act="cp-pest" data-id="${esc(p.id)}" title="${esc(pestNombre(p))}">${esc(pestNombre(p))}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-act="cp-cerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(pestNombre(p))}">×</button>`}</span>`).join('')}</div>`;
     const ruta = !r.length ? '' : `<button type="button" class="cpvolver" data-act="cp-entrar" data-id="${esc(r[r.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button><span class="cpruta"><button type="button" data-act="cp-entrar" data-id="">Bandeja</button>${r.map((c, i) => ` / ${i === r.length - 1 ? `<b>${esc(c.name)}</b>` : `<button type="button" data-act="cp-entrar" data-id="${esc(c.id)}">${esc(c.name)}</button>`}`).join('')}</span>`;
-    const html = `${ruta}<span class="cpacc"><button type="button" class="btn2" data-act="cp-nueva">+ Carpeta</button><button type="button" class="btn2" data-act="cp-subir">Subir carpeta</button></span>`;
+    const html = `<div class="cpfila">${tabs}<span class="cpacc"><button type="button" class="btn2" data-act="cp-nueva">+ Carpeta</button><button type="button" class="btn2" data-act="cp-subir">Subir carpeta</button></span></div>${ruta ? `<div class="cpfila">${ruta}</div>` : ''}`;
     if (nav._html !== html) { nav.innerHTML = html; nav._html = html; }
   }
-  function trayAbrir(id) {
-    trayCarpeta = id && S && (S.carpetas || []).some(c => c.id === id) ? id : null;
+  // Tabs (D-076): a fixed one and the ones opened, each looking at one folder, remembered per client in this browser. Going
+  // into a folder happens in the tab in use. Closing a tab never deletes anything. trayCarpeta is what the tab in use shows.
+  const LS_PEST = 'mesa-pestanas:';
+  let pestanas = [{ id: 'fija', carpeta: null }], pestAct = 'fija';
+  const pestUso = () => pestanas.find(p => p.id === pestAct) || pestanas[0];
+  function pestValidar() {             // a tab whose folder is gone closes; the fixed one goes back to the root
+    const hay = id => !!(S && (S.carpetas || []).some(c => c.id === id));
+    pestanas = pestanas.filter(p => p.id === 'fija' || !p.carpeta || hay(p.carpeta));
+    pestanas[0].carpeta = hay(pestanas[0].carpeta) ? pestanas[0].carpeta : null;
+    if (!pestanas.some(p => p.id === pestAct)) pestAct = 'fija';
+    trayCarpeta = pestUso().carpeta;
+  }
+  function pestCargar(c) {
+    let d = null; try { d = JSON.parse(lsGet(LS_PEST + c) || 'null'); } catch (e) { /* */ }
+    const l = d && Array.isArray(d.tabs) ? d.tabs.filter(p => p && p.id) : [], f = l.find(p => p.id === 'fija');
+    pestanas = [{ id: 'fija', carpeta: (f && f.carpeta) || null }, ...l.filter(p => p.id !== 'fija').map(p => ({ id: String(p.id), carpeta: p.carpeta || null }))];
+    pestAct = (d && d.act) || 'fija';
+    pestValidar();
+  }
+  function pestVer() {
+    if (S) lsSet(LS_PEST + S.client, JSON.stringify({ tabs: pestanas, act: pestAct }));
+    trayCarpeta = pestUso().carpeta;
     if (sel && !enVista(sel)) sel = null;
     renderTray();
     if (M.libre && M.libre.bandeja) M.libre.bandeja();
   }
+  function trayAbrir(id) {             // in the tab in use
+    pestUso().carpeta = id && S && (S.carpetas || []).some(c => c.id === id) ? id : null;
+    pestVer();
+  }
+  function pestNueva(id) {             // a folder already open in a tab: that tab
+    if (!S || !(S.carpetas || []).some(c => c.id === id)) return null;
+    let p = pestanas.find(x => x.carpeta === id);
+    if (!p) { p = { id: newId(), carpeta: id }; pestanas.push(p); }
+    pestAct = p.id;
+    pestVer();
+    return p.id;
+  }
+  function pestIr(id) { if (pestanas.some(p => p.id === id)) { pestAct = id; pestVer(); } }
+  function pestQuitar(id) {            // the one to its left takes over, if it was in use
+    const i = pestanas.findIndex(p => p.id === id); if (i < 1) return;
+    pestanas.splice(i, 1);
+    if (pestAct === id) pestAct = pestanas[Math.min(i, pestanas.length) - 1].id;
+  }
+  function pestCerrar(id) { pestQuitar(id); pestVer(); }
+  const pestNombre = p => { const c = p.carpeta && S ? (S.carpetas || []).find(x => x.id === p.carpeta) : null; return p.id === 'fija' || !c ? 'Bandeja' : c.name; };
+  const pestLista = () => pestanas.map(p => ({ id: p.id, carpeta: p.carpeta, nombre: pestNombre(p), activa: p.id === pestAct }));
   const enVista = f => bandejaVista({ todas: true }).some(x => x.f === f);   // a photo the tray can show (click to place)
   // the free photos of what the tray has open: the lists of photos in the designer and the editor follow it, never all the folders
   function trayDeVista() {
@@ -3423,6 +3478,8 @@
     if (act === 'add') root.querySelector('.picker').click();
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file, trayCarpeta); }
     else if (act === 'cp-entrar') trayAbrir(a.dataset.id || null);
+    else if (act === 'cp-pest') pestIr(a.dataset.id);
+    else if (act === 'cp-cerrar') pestCerrar(a.dataset.id);
     else if (String(act).startsWith('cp-')) { if (M.carpetasUI) M.carpetasUI.accion(act, a); else toast('Un momento: las carpetas aún se están cargando.'); }
     else if (act === 'tfil') trayFiltro(a.dataset.v);
     else if (act === 'close') closeDetail();
@@ -3740,7 +3797,7 @@
     { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
     { const kept = refsOf(S); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { S.tray.push(f); kept.add(f); } })); }
     sharedInit(oldById, base);
-    if (curClient !== client || !S.carpetas.some(c => c.id === trayCarpeta)) trayCarpeta = null;   // another client's tray starts at its root
+    pestCargar(client);                // its tabs, as they were left in this browser (D-076)
     curClient = client;
     lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
     let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
@@ -4741,7 +4798,7 @@
     const limpia = l => { let r = l; for (let n = r.filter(c => vacia(r, c)); n.length; n = r.filter(c => vacia(r, c))) { const fuera = new Set(n.map(c => c.id)); r = r.filter(c => !fuera.has(c.id)); } return r; };
     if (S && S.client === sb.client) {
       sinPaso(st => { st.carpetas = limpia(st.carpetas); });
-      if (trayCarpeta && !S.carpetas.some(c => c.id === trayCarpeta)) trayCarpeta = null;
+      pestValidar();
       subida = null;
       changed();
       await flushNow().catch(() => null);
@@ -4770,7 +4827,7 @@
     if (M.libre && M.libre.fotosSesion) M.libre.fotosSesion().forEach(f => pon(f, 'editor'));
     const borran = [], quedan = {};
     dentro.forEach(f => { const w = uso.get(f); if (w) quedan[w] = (quedan[w] || 0) + 1; else borran.push(f); });
-    return { id, name: c.name, fotos: dentro.size, subcarpetas: subs.size - 1, borran, quedan, bytes: await pesoDe(borran), subs };
+    return { id, name: c.name, padre: c.parent || null, fotos: dentro.size, subcarpetas: subs.size - 1, borran, quedan, bytes: await pesoDe(borran), subs };
   }
   M.planBorrarCarpeta = async id => { const p = await planCarpeta(id); if (p.error) return p; const { subs, borran, ...r } = p; return { ...r, nBorran: borran.length }; };
   M.pedirBorrarCarpeta = async id => {
@@ -4806,7 +4863,10 @@
     });
     if (S.crops) va.forEach(f => { delete S.crops[f]; });
     if (sel && va.has(sel)) sel = null;
-    if (trayCarpeta && p.subs.has(trayCarpeta)) trayCarpeta = null;
+    pestanas.filter(x => x.id !== 'fija' && p.subs.has(x.carpeta)).forEach(x => pestQuitar(x.id));   // its tabs and its subfolders' close (D-076)
+    if (p.subs.has(pestanas[0].carpeta)) pestanas[0].carpeta = p.padre;   // the fixed one stays: on what held it
+    pestValidar();
+    pestVer();
     if (H.b === S && H.cur) { H.cur = editState(S); H.curJ = JSON.stringify(H.cur); }
     delList(l => [...new Set([...l, ...p.borran])]);
     changed();
@@ -4849,7 +4909,7 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
-    get trayCarpeta() { return trayCarpeta; }, trayAbrir, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
+    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,

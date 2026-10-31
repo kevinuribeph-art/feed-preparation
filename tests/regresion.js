@@ -69,6 +69,7 @@
     await M.flush();                               // el guardado va con retraso: purge borra las fotos que nombra el tablero guardado
     for (const b of await M.boards()) if (DE_PRUEBA(b.client)) await M.purge(b.key);
     for (const c of [CLIENTE, CLIENTE2]) await M._test.borrarBandeja(c);   // la bandeja ya no se va con el último mes (D-072)
+    for (const c of [CLIENTE, CLIENTE2]) W.localStorage.removeItem('mesa-pestanas:' + c);
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -4325,6 +4326,157 @@
     await M.flush();
     await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
     igual(M._in.trayCarpeta, null, 'otro cliente empieza en la raíz');
+  });
+
+  // ---------- pestañas y menú (D-076) ----------
+  const tabsTxt = () => M._in.pestLista().map(p => (p.activa ? '*' : '') + p.nombre);
+  const clicDerecho = el => { const r = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5 })); return q('.cpmenu'); };
+  const itemMenu = t => [...q('.cpmenu').querySelectorAll('button')].find(b => b.textContent.startsWith(t));
+  const arbolTabs = async () => {
+    await tablero([pub(1)]);
+    const r = await ui().subir([{ path: ['Uno'], file: await foto('c21-a.jpg', 300, 400) }, { path: ['Uno', 'Hija'], file: await foto('c21-b.jpg', 300, 400) }, { path: ['Dos'], file: await foto('c21-c.jpg', 300, 400) }], null, { sinAviso: true });
+    ok(r && !r.parada, json(r));
+    return porNombre();
+  };
+
+  prueba('C21', 'Pestañas: una fija y las abiertas, cada una con su carpeta; entrar va en la pestaña en uso y cerrar nunca borra (D-076)', async () => {
+    const n = await arbolTabs();
+    igual(tabsTxt(), ['*Bandeja'], 'de entrada');
+    ok(!q('.cptab.fija .cpx'), 'la fija se puede cerrar');
+    await pulsar(`.tcarpeta[data-id="${n['Uno'].id}"]`);
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], n['Uno'].id], 'entrar va en la fija');
+    M._in.pestNueva(n['Dos'].id);
+    igual(tabsTxt(), ['Bandeja', '*Dos'], 'una nueva');
+    igual(qa('.tgrid .titem').map(x => M.files[x.dataset.file].name), ['c21-c.jpg'], 'lo de la pestaña nueva');
+    const dup = M._in.pestLista().length; M._in.pestNueva(n['Dos'].id);
+    igual(M._in.pestLista().length, dup, 'la misma carpeta abre otra pestaña');
+    await pulsar('.cptab.fija [data-act="cp-pest"]');
+    igual(M._in.trayCarpeta, n['Uno'].id, 'la fija conserva dónde estaba');
+    await pulsar(`.tcarpeta[data-id="${n['Hija'].id}"]`);
+    igual(tabsTxt(), ['*Bandeja', 'Dos'], 'entrar en la fija no toca la otra');
+    await pulsar('.cpvolver');
+    igual(M._in.trayCarpeta, n['Uno'].id, 'volver');
+    M._in.pestIr(M._in.pestLista()[1].id);
+    M._in.trayAbrir(null);
+    igual(tabsTxt(), ['Bandeja', '*Bandeja'], 'una abierta que vuelve a la raíz');
+    M._in.trayAbrir(n['Dos'].id);
+    const antes = await medida(), bd = (await M._in.idbGet('bandejas', CLIENTE));
+    await pulsar('.cptab:not(.fija) .cpx');
+    igual(tabsTxt(), ['*Bandeja'], 'cerrar pasa a la de la izquierda');
+    igual(await medida(), antes, 'cerrar borró algo');
+    await M.flush();
+    igual((await M._in.idbGet('bandejas', CLIENTE)).carpetas.map(c => c.files.length), bd.carpetas.map(c => c.files.length), 'cerrar cambió las carpetas');
+  });
+
+  prueba('C22', 'Las pestañas se recuerdan por cliente, también entre meses y al recargar; la de una carpeta que ya no está se cierra (D-076)', async () => {
+    const clave = `${CLIENTE}-${MES}`, n = await arbolTabs();
+    M._in.trayAbrir(n['Uno'].id); M._in.pestNueva(n['Dos'].id); M._in.pestNueva(n['Hija'].id);
+    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'las abiertas');
+    await M.flush();
+    await M.init({ client: CLIENTE, month: '2026-12', slots: [pub(9, 'Foto', 9, '2026-12')], past: [], force: true });
+    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'en otro mes');
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], null], 'otro cliente tiene las suyas');
+    await M.open(clave);
+    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'al volver al cliente');
+    igual(M._in.pestLista()[0].carpeta, n['Uno'].id, 'la fija, donde estaba');
+    // una carpeta que ya no está
+    const k = 'mesa-pestanas:' + CLIENTE, d = JSON.parse(W.localStorage.getItem(k));
+    d.tabs.push({ id: 'xx', carpeta: 'nada' }); d.tabs[0].carpeta = 'nada'; d.act = 'xx';
+    W.localStorage.setItem(k, json(d));
+    await M.open(clave);
+    igual(tabsTxt(), ['*Bandeja', 'Dos', 'Hija'], 'sin la carpeta');
+    igual(M._in.trayCarpeta, null, 'la fija en la raíz');
+    W.localStorage.setItem(k, 'esto no es json');
+    await M.open(clave);
+    igual(tabsTxt(), ['*Bandeja'], 'con lo guardado roto');
+  });
+
+  prueba('C23', 'Clic derecho en una carpeta: sus cinco opciones, «Abrir» y «Abrir en una pestaña nueva» funcionan, Esc y un clic fuera lo cierran y «Historias» no se borra (D-076)', async () => {
+    const n = await arbolTabs();
+    const tile = id => q(`.tcarpeta[data-id="${id}"]`);
+    let m = clicDerecho(tile(n['Uno'].id));
+    ok(m, 'no sale el menú');
+    igual([...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Abrir', 'Abrir en una pestaña nueva', 'Copiar', 'Pegar', 'Borrar carpeta…'], 'las opciones');
+    itemMenu('Abrir en').click();
+    ok(!q('.cpmenu'), 'el menú sigue');
+    igual(tabsTxt(), ['Bandeja', '*Uno'], 'en una pestaña nueva');
+    await pulsar('.cptab.fija [data-act="cp-pest"]');
+    clicDerecho(tile(n['Dos'].id));
+    itemMenu('Abrir').click();
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja', 'Uno'], n['Dos'].id], '«Abrir» va en la pestaña en uso');
+    await pulsar('.cpvolver');
+    clicDerecho(tile(n['Dos'].id));
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    ok(!q('.cpmenu'), 'Esc no lo cierra');
+    clicDerecho(tile(n['Dos'].id));
+    D.body.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+    ok(!q('.cpmenu'), 'un clic fuera no lo cierra');
+    clicDerecho(tile('historias'));
+    ok(itemMenu('Borrar').disabled, 'en «Historias» se puede borrar');
+    ui().cerrarMenu();
+    // sin menú en las fotos: sigue el del navegador
+    const foto1 = q('.tgrid .titem');
+    if (foto1) { clicDerecho(foto1); ok(!q('.cpmenu'), 'una foto saca el menú de carpeta'); }
+  });
+
+  prueba('C24', '«Borrar carpeta…» avisa y cierra las pestañas de ella y de sus subcarpetas; la fija pasa a la carpeta que la contenía (D-076, D-070)', async () => {
+    const n = await arbolTabs();
+    M._in.pestNueva(n['Uno'].id); M._in.pestNueva(n['Hija'].id); M._in.pestNueva(n['Dos'].id);
+    M._in.pestIr('fija'); M._in.trayAbrir(n['Uno'].id); M._in.trayAbrir(n['Hija'].id);
+    igual(tabsTxt(), ['*Bandeja', 'Uno', 'Hija', 'Dos'], 'antes');
+    M._in.trayAbrir(n['Uno'].id);
+    clicDerecho(q(`.tcarpeta[data-id="${n['Hija'].id}"]`));
+    itemMenu('Borrar').click();
+    await hasta(() => q('[data-act="carpeta-borrar"]'), 3000, 'el aviso');
+    await pulsar('[data-act="carpeta-borrar"]');
+    await hasta(() => !carp(n['Hija'].id), 4000, 'que se borre');
+    igual(tabsTxt(), ['*Bandeja', 'Uno', 'Dos'], 'la pestaña de la hija');
+    // la fija dentro de la que se borra, y otra en su subcarpeta
+    const hija2 = M.crearCarpeta('Nieta', n['Uno'].id).id;
+    M._in.pestNueva(hija2); M._in.pestIr('fija'); M._in.trayAbrir(hija2);
+    const r = await M.borrarCarpeta(n['Uno'].id);
+    ok(r && r.ok, json(r));
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja', 'Dos'], null], 'tras borrar la de arriba');
+    // la pestaña en uso se borra: pasa a la de su izquierda
+    M._in.pestIr(M._in.pestLista()[1].id);
+    const r2 = await M.borrarCarpeta(n['Dos'].id);
+    ok(r2 && r2.ok, json(r2));
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], null], 'la pestaña en uso');
+    igual(JSON.parse(W.localStorage.getItem('mesa-pestanas:' + CLIENTE)).tabs.length, 1, 'lo recordado');
+  });
+
+  prueba('C25', 'En el editor: las mismas pestañas, el mismo menú y el aviso de borrar encima del editor (D-076)', async () => {
+    const n = await arbolTabs();
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    const box = () => ed().el.querySelector('.lb-tray');
+    await hasta(() => box().querySelector('.lb-tcarp'), 2000, 'las carpetas');
+    ok(!box().querySelector('.cptab'), 'con una sola pestaña no hace falta enseñarlas');
+    const tile = box().querySelector(`.lb-tcarp[data-id="${n['Uno'].id}"]`);
+    clicDerecho(tile);
+    ok(q('.cpmenu'), 'no sale el menú');
+    const r = q('.cpmenu').getBoundingClientRect();
+    ok(D.elementFromPoint(r.x + r.width / 2, r.y + 10).closest('.cpmenu'), 'el menú queda detrás del editor');
+    itemMenu('Abrir en').click();
+    await hasta(() => box().querySelector('.cptab'), 2000, 'las pestañas en el editor');
+    igual([...box().querySelectorAll('.cptab button:not(.cpx)')].map(b => b.textContent), ['Bandeja', 'Uno'], 'las pestañas');
+    igual(tabsTxt(), ['Bandeja', '*Uno'], 'las mismas de la mesa');
+    accion('tr-pest', { id: 'fija' });
+    igual(M._in.trayCarpeta, null, 'cambiar de pestaña');
+    accion('tr-pcerrar', { id: M._in.pestLista()[1].id });
+    igual(tabsTxt(), ['*Bandeja'], 'cerrar');
+    // borrar desde el editor: visible y con el editor abierto
+    clicDerecho(box().querySelector(`.lb-tcarp[data-id="${n['Dos'].id}"]`));
+    itemMenu('Borrar').click();
+    const b = await hasta(() => q('[data-act="carpeta-borrar"]'), 3000, 'el aviso');
+    const rb = b.getBoundingClientRect();
+    igual(D.elementFromPoint(rb.x + rb.width / 2, rb.y + rb.height / 2), b, 'el aviso queda detrás del editor');
+    b.click();
+    await hasta(() => !carp(n['Dos'].id), 4000, 'que se borre');
+    await hasta(() => !box().querySelector(`.lb-tcarp[data-id="${n['Dos'].id}"]`), 2000, 'que salga del cajón');
+    ok(M.libre.abierto(), 'se cerró el editor');
+    M.libre.cerrar();
   });
 
   // =====================================================================================================

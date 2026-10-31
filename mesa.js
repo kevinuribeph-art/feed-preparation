@@ -2128,6 +2128,8 @@
 #mesa .tray.isempty .tgrid{display:none}
 #mesa .tgrid{height:64px;grid-auto-flow:column;grid-template-columns:none;grid-template-rows:64px;grid-auto-columns:48px;gap:5px}
 #mesa .titem{border-radius:5px}#mesa .titem .x{top:2px;right:2px}#mesa .tname{padding:8px 3px 2px;font-size:8.5px}
+#mesa .tcarpeta{gap:1px;padding:3px 2px;border-radius:5px}#mesa .tcarpeta svg{width:18px;height:18px}#mesa .tcarpeta .cn{font-size:9px}#mesa .tcarpeta .cf{display:none}
+#mesa .cpnav{padding:0 10px 4px}#mesa .cpfila{min-height:26px}#mesa .cpfila+.cpfila{margin-top:3px}
 }
 #mesa .appbar .xfer{align-self:center}
 #mesa .xsum{list-style:none;margin:0 0 10px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
@@ -2625,7 +2627,7 @@
     const todas = trayTodas(), vis = bandejaVista({ todas }), n = vis.filter(x => !x.u).length;
     tray.querySelector('.tcount').textContent = todas ? `${n} sin usar · ${vis.length - n} ✓` : n ? `${n} sin usar` : 'vacía';
     tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    tray.classList.toggle('isempty', !vis.length);
+    tray.classList.toggle('isempty', !vis.length && !carpetasDeVista().length);   // a view with only folders is not empty: in a narrow window «empty» hides the grid
     const enHueco = new Set([...previewsOf(S), ...usoPrevO]);   // on a filler: it comes off there, not from the tray (D-049)
     const perez = vis.length > MINIS_DE_UNA;
     navCarpetas(tray);

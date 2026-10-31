@@ -4783,6 +4783,23 @@
     M.libre.cerrar();
   });
 
+  prueba('C33', 'En una ventana estrecha, una vista con solo carpetas no cuenta como vacía: las carpetas se ven y se puede entrar (D-075)', async () => {
+    const n = await arbolMover(), fr = $('mesa'), w0 = fr.style.width;
+    fr.style.width = '580px';
+    try {
+      await hasta(() => W.innerWidth <= 720, 2000, 'la ventana estrecha');
+      M._in.renderTray();
+      ok(!q('.tray').classList.contains('isempty'), 'con carpetas cuenta como vacía');
+      const t = tile(n['A'].id);
+      ok(t.getBoundingClientRect().height > 30 && t.getBoundingClientRect().width > 30, 'la carpeta no se ve');
+      await pulsar(`.tcarpeta[data-id="${n['A'].id}"]`);
+      igual(M._in.trayCarpeta, n['A'].id, 'no entra');
+      M._in.trayAbrir(M.crearCarpeta('Vacía').id);
+      ok(q('.tray').classList.contains('isempty') && W.getComputedStyle(q('.tray .drop')).display !== 'none', 'una carpeta vacía no invita a soltar');
+      M._in.trayAbrir(null);
+    } finally { fr.style.width = w0; }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

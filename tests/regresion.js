@@ -70,6 +70,7 @@
     for (const b of await M.boards()) if (DE_PRUEBA(b.client)) await M.purge(b.key);
     for (const c of [CLIENTE, CLIENTE2]) await M._test.borrarBandeja(c);   // la bandeja ya no se va con el último mes (D-072)
     for (const c of [CLIENTE, CLIENTE2]) W.localStorage.removeItem('mesa-pestanas:' + c);
+    M._test.vaciarClip();
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -4415,9 +4416,6 @@
     clicDerecho(tile('historias'));
     ok(itemMenu('Borrar').disabled, 'en «Historias» se puede borrar');
     ui().cerrarMenu();
-    // sin menú en las fotos: sigue el del navegador
-    const foto1 = q('.tgrid .titem');
-    if (foto1) { clicDerecho(foto1); ok(!q('.cpmenu'), 'una foto saca el menú de carpeta'); }
   });
 
   prueba('C24', '«Borrar carpeta…» avisa y cierra las pestañas de ella y de sus subcarpetas; la fija pasa a la carpeta que la contenía (D-076, D-070)', async () => {
@@ -4477,6 +4475,329 @@
     await hasta(() => !box().querySelector(`.lb-tcarp[data-id="${n['Dos'].id}"]`), 2000, 'que salga del cajón');
     ok(M.libre.abierto(), 'se cerró el editor');
     M.libre.cerrar();
+  });
+
+  // ---------- mover, copiar y pegar (D-077) ----------
+  const conCmd = el => { el.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true })); };
+  const focoBandeja = () => q('.tray .tbody').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+  const focoFuera = () => q('.feed').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+  const teclaMesa = (key, o = {}) => D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key, metaKey: !!o.meta, shiftKey: !!o.shift, bubbles: true, cancelable: true }));
+  const titem = f => q(`.tgrid .titem[data-file="${f}"]`), tile = id => q(`.tcarpeta[data-id="${id}"]`);
+  const arbolMover = async () => {
+    await tablero([pub(1), pub(2)]);
+    const r = await ui().subir([
+      { path: ['A'], file: await foto('c26-1.jpg', 300, 400) }, { path: ['A'], file: await foto('c26-2.jpg', 300, 400) }, { path: ['A'], file: await foto('c26-3.jpg', 300, 400) },
+      { path: ['A', 'Sub'], file: await foto('c26-4.jpg', 300, 400) }, { path: ['B'], file: await foto('c26-5.jpg', 300, 400) },
+    ], null, { sinAviso: true });
+    ok(r && !r.parada, json(r));
+    await M.flush();
+    return porNombre();
+  };
+
+  prueba('C26', '⌘+clic en la bandeja de la mesa: elige y quita fotos y carpetas, se marcan; un clic sin ⌘ y Esc vacían; solo sigue elegido lo que se ve (D-077, D-051)', async () => {
+    const n = await arbolMover();
+    await pulsar(`.tcarpeta[data-id="${n['A'].id}"]`);
+    const [f1, f2] = n['A'].files;
+    conCmd(titem(f1)); conCmd(titem(f2)); conCmd(tile(n['Sub'].id));
+    igual(M._in.trayLote(), { files: [f1, f2], carpetas: [n['Sub'].id] }, 'lo elegido');
+    igual(qa('.tgrid .elegida').length, 3, 'se marcan');
+    ok(!q('.detail:not([hidden])'), '⌘+clic abrió la foto');
+    ok(M._in.trayCarpeta === n['A'].id, '⌘+clic entró en la carpeta');
+    conCmd(titem(f1));
+    igual(M._in.trayLote().files, [f2], '⌘+clic la quita');
+    M._in.renderTray();
+    igual(qa('.tgrid .elegida').length, 2, 'redibujar pierde la marca');
+    teclaMesa('Escape');
+    igual(M._in.trayLote(), { files: [], carpetas: [] }, 'Esc');
+    conCmd(titem(f1));
+    q('.tray .tbody .drop').click();
+    igual(M._in.trayLote().files, [], 'un clic sin ⌘');
+    conCmd(titem(f1));
+    M._in.trayAbrir(null);
+    igual(M._in.trayLote().files, [], 'cambiar de vista la deja elegida');
+  });
+
+  prueba('C27', 'Mover: fotos y carpetas a una carpeta, a una pestaña o a la raíz; sin bytes nuevos; ⌘Z y ⇧⌘Z; dentro de sí misma no; «Historias» no; las hermanas se juntan y sus pestañas las siguen (D-077)', async () => {
+    const n = await arbolMover(), antes = await medida();
+    const [f1, f2, f3] = n['A'].files, [f5] = n['B'].files;
+    M._in.trayAbrir(n['A'].id);
+    M._in.trayMover({ files: [f1, f2] }, n['B'].id);
+    igual([carp(n['A'].id).files, carp(n['B'].id).files], [[f3], [f5, f1, f2]], 'a otra carpeta');
+    igual(M.board().tray.includes(f1), true, 'board().tray');
+    igual(await medida(), antes, 'mover escribió');
+    // ⌘Z: un paso
+    await M.flush();
+    M._test.undo();
+    igual([carp(n['A'].id).files.length, carp(n['B'].id).files.length], [3, 1], '⌘Z');
+    M._test.redo();
+    igual([carp(n['A'].id).files.length, carp(n['B'].id).files.length], [1, 3], '⇧⌘Z');
+    await M.flush();
+    // a la raíz
+    M._in.trayAbrir(n['B'].id);
+    M._in.trayMover({ files: [f5] }, null);
+    igual(raiz(), [f5], 'a la raíz');
+    ok(!carp(n['B'].id).files.includes(f5), 'sigue en la carpeta');
+    // de la raíz a una carpeta
+    M._in.trayAbrir(null);
+    M._in.trayMover({ files: [f5] }, 'historias');
+    igual([raiz(), hist().files], [[], [f5]], 'de la raíz a «Historias»');
+    // a la raíz estando también en otra: lo dice
+    await aCarpeta(n['A'].id, [await foto('c26-5.jpg', 300, 400)]);
+    M._in.trayAbrir('historias'); M._in.clearToasts();
+    M._in.trayMover({ files: [f5] }, null);
+    ok(qa('.toast').some(t => t.textContent.includes('también en otra carpeta')), 'no avisa de que sigue en otra');
+    igual(carp(n['A'].id).files.includes(f5), true, 'sigue en la otra');
+    // carpetas
+    M._in.trayAbrir(n['A'].id);
+    M._in.trayMover({ carpetas: [n['Sub'].id] }, n['B'].id);
+    igual(carp(n['Sub'].id).parent, n['B'].id, 'una carpeta a otra');
+    M._in.trayAbrir(null);
+    M._in.trayMover({ carpetas: [n['B'].id] }, n['Sub'].id);
+    igual(carp(n['B'].id).parent, null, 'dentro de su hija');
+    M._in.trayMover({ carpetas: [n['B'].id] }, n['B'].id);
+    igual(carp(n['B'].id).parent, null, 'dentro de sí misma');
+    M._in.clearToasts();
+    M._in.trayMover({ carpetas: ['historias'] }, n['A'].id);
+    igual(hist().parent, null, '«Historias» se movió');
+    ok(qa('.toast').some(t => t.textContent.includes('se queda donde está')), 'no lo dice');
+    // hermanas con el mismo nombre: se juntan, con sus hijas y sus pestañas
+    const x = M.crearCarpeta('Dup', n['A'].id).id, y = M.crearCarpeta('Dup', n['B'].id).id;
+    const [p] = await aCarpeta(x, [await foto('c27-p.jpg', 200, 300)]), [s] = await aCarpeta(y, [await foto('c27-s.jpg', 200, 300)]);
+    M._in.pestNueva(y);
+    M._in.pestIr('fija'); M._in.trayAbrir(n['B'].id);
+    M._in.trayMover({ carpetas: [y] }, n['A'].id);
+    ok(!carp(y), 'quedan dos con el mismo nombre');
+    igual(carp(x).files.sort(), [p, s].sort(), 'juntas');
+    igual(M._in.pestLista().find(q2 => q2.carpeta === x).nombre, 'Dup', 'la pestaña sigue a la carpeta');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos');
+  });
+
+  prueba('C28', 'Copiar y pegar: el mismo archivo en dos carpetas, sin bytes ni repetir; carpetas enteras con sus hijas; ⌘Z; sobrevive a borrar el origen; dentro de sí misma no; a otro cliente no (D-077)', async () => {
+    const n = await arbolMover(), [f1, f2] = n['A'].files, antes = await medida();
+    M._in.trayCopiar({ files: [f1, f2] });
+    M._in.trayPegar(n['B'].id);
+    igual(carp(n['B'].id).files.slice(-2), [f1, f2], 'el mismo id');
+    igual(carp(n['A'].id).files.includes(f1), true, 'copiar la quitó del origen');
+    igual(await medida(), antes, 'copiar escribió');
+    M._in.trayPegar(n['B'].id);
+    igual(carp(n['B'].id).files.length, 3, 'se repitieron');
+    // ⌘Z
+    await M.flush();
+    M._test.undo();
+    igual(carp(n['B'].id).files.length, 1, '⌘Z de pegar');
+    M._test.redo();
+    igual(carp(n['B'].id).files.length, 3, '⇧⌘Z de pegar');
+    await M.flush();
+    // carpeta entera
+    M._in.trayCopiar({ carpetas: [n['A'].id] });
+    M._in.trayPegar(n['B'].id);
+    const copia = M.board().carpetas.find(c => c.name === 'A' && c.parent === n['B'].id), hija = M.board().carpetas.find(c => c.name === 'Sub' && c.parent === copia.id);
+    ok(copia && hija && copia.id !== n['A'].id, 'la copia y su hija');
+    igual([copia.files, hija.files], [n['A'].files, n['Sub'].files], 'sus fotos');
+    ok(!copia.fija, 'copia rara');
+    igual(await medida(), antes, 'copiar la carpeta escribió');
+    // dentro de sí misma: ni de la original en su hija ni en ella
+    M._in.clearToasts();
+    M._in.trayCopiar({ carpetas: [n['A'].id] });
+    const n0 = M.board().carpetas.length;
+    M._in.trayPegar(n['A'].id); M._in.trayPegar(n['Sub'].id);
+    igual(M.board().carpetas.length, n0, 'se copió dentro de sí misma');
+    ok(qa('.toast').some(t => t.textContent.includes('dentro de sí misma')), 'no lo dice');
+    // en la raíz: las fotos no; una carpeta sí; «Historias» se copia como carpeta normal
+    M._in.trayCopiar({ files: [f1] }); M._in.clearToasts();
+    M._in.trayPegar(null);
+    ok(!raiz().includes(f1) && qa('.toast').some(t => t.textContent.includes('se pegan en una carpeta')), 'una foto en la raíz');
+    M._in.trayCopiar({ carpetas: ['historias'] });
+    M._in.trayPegar(n['A'].id);
+    const cH = M.board().carpetas.find(c => c.name === 'Historias' && c.parent === n['A'].id);
+    ok(cH && !cH.fija && cH.id !== 'historias', 'la copia de «Historias»');
+    // de la raíz a una carpeta: pasa a ella
+    const [r0] = await M.addFiles([await foto('c28-r.jpg', 200, 300)]);
+    M._in.trayCopiar({ files: [r0] }); M._in.trayPegar(n['B'].id);
+    igual(raiz().includes(r0), false, 'sigue suelta en la raíz');
+    // copiada a «Historias», sobrevive al borrar su origen
+    M._in.trayCopiar({ files: [f1] }); M._in.trayPegar('historias');
+    const rec = await M._test.fileRec(f1);
+    await M.borrarCarpeta(copia.id); await M.borrarCarpeta(n['B'].id); const r = await M.borrarCarpeta(n['A'].id);
+    ok(r && r.ok, json(r));
+    igual(await M._test.fileRec(f1), rec, 'la de «Historias» tras borrar su origen');
+    ok(hist().files.includes(f1), 'salió de «Historias»');
+    ok(!(await M._test.fileRec(f2)), 'la otra sigue');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos');
+    // a otro cliente, nada
+    M._in.trayCopiar({ files: [f1] });
+    await M.flush();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    M._in.clearToasts();
+    const r2 = M._in.trayPegar('historias');
+    ok(r2.error, 'pegó en otro cliente');
+    igual(hist().files, [], 'en la bandeja de otro cliente');
+    ok(qa('.toast').some(t => t.textContent.includes('otro cliente')), 'no lo dice');
+    ok(!M._in.trayPuedePegar(), 'el menú dejaría pegar');
+  });
+
+  prueba('C29', '⌘C / ⌘V solo con lo último pulsado en la bandeja y algo elegido, también en el editor, sin tocar su copiar y pegar (D-077)', async () => {
+    const n = await arbolMover(), [f1] = n['A'].files;
+    M._in.trayAbrir(n['A'].id);
+    conCmd(titem(f1));
+    focoFuera();
+    teclaMesa('c', { meta: true });
+    ok(!M._in.trayClip, 'copió con lo último pulsado fuera');
+    focoBandeja();
+    teclaMesa('c', { meta: true });
+    igual(M._in.trayClip && M._in.trayClip.files, [f1], '⌘C');
+    M._in.trayAbrir(n['B'].id);
+    focoFuera();
+    teclaMesa('v', { meta: true });
+    igual(carp(n['B'].id).files.includes(f1), false, 'pegó con lo último pulsado fuera');
+    focoBandeja();
+    teclaMesa('v', { meta: true });
+    igual(carp(n['B'].id).files.includes(f1), true, '⌘V');
+    // escribiendo no actúa
+    await M.flush();
+    await pulsar('[data-act="cp-nueva"]');
+    const inp = await hasta(() => q('#cp-nombre'), 2000, 'el campo');
+    const antes = carp(n['B'].id).files.length;
+    inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'v', metaKey: true, bubbles: true, cancelable: true }));
+    igual(carp(n['B'].id).files.length, antes, 'actuó escribiendo');
+    M._in.closeDetail();
+    // ⌘Z de la mesa deshace el pegado hecho con teclas
+    M._test.undo();
+    igual(carp(n['B'].id).files.includes(f1), false, '⌘Z');
+    await M.flush();
+    // el editor: con una diapositiva, su ⌘C y su ⌘V siguen siendo suyos
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    accion('sl-add'); await espera(50);
+    M._in.trayAbrir(n['A'].id); await espera(30);
+    const claveClip = M._in.trayClip;
+    focoFuera();
+    tecla('c', { meta: true });
+    igual(M._in.trayClip, claveClip, '⌘C del editor tocó el portapapeles de la bandeja');
+    // ⌘+clic en el cajón y ⌘C con el foco en él
+    const box = ed().el.querySelector('.lb-tray');
+    box.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+    const mini = await hasta(() => box.querySelector(`.lb-tph[data-f="${n['A'].files[1]}"]`), 2000, 'la miniatura');
+    mini.dispatchEvent(new W.MouseEvent('click', { bubbles: true, metaKey: true }));
+    tecla('c', { meta: true });
+    igual(M._in.trayClip.files, [n['A'].files[1]], '⌘C en el cajón');
+    M._in.trayAbrir(n['B'].id); await espera(30);
+    box.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+    tecla('v', { meta: true });
+    igual(carp(n['B'].id).files.includes(n['A'].files[1]), true, '⌘V en el cajón');
+    M.libre.cerrar();
+  });
+
+  prueba('C30', 'El clic derecho copia y pega: en una carpeta, en una foto y en un hueco de la bandeja; con la selección si se pulsa en ella (D-077)', async () => {
+    const n = await arbolMover(), [f1, f2] = n['A'].files;
+    await pulsar(`.tcarpeta[data-id="${n['A'].id}"]`);
+    let m = clicDerecho(titem(f1));
+    igual([...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Copiar', 'Pegar'], 'el menú de una foto');
+    ok(itemMenu('Pegar').disabled, 'pegar sin nada copiado');
+    itemMenu('Copiar').click();
+    igual(M._in.trayClip.files, [f1], 'copiar una foto');
+    // con selección: si se pulsa en ella, toda; si no, solo esa
+    conCmd(titem(f1)); conCmd(titem(f2));
+    clicDerecho(titem(f2)); itemMenu('Copiar').click();
+    igual(M._in.trayClip.files, [f1, f2], 'copiar lo elegido');
+    M._in.traySoltar();
+    await pulsar('.cpvolver');
+    m = clicDerecho(tile(n['B'].id));
+    ok(!itemMenu('Pegar').disabled && !itemMenu('Copiar').disabled, 'apagados');
+    itemMenu('Pegar').click();
+    igual(carp(n['B'].id).files.slice(-2), [f1, f2], 'pegar sobre una carpeta');
+    igual(M._in.trayCarpeta, null, 'pegar cambió de vista');
+    clicDerecho(tile(n['A'].id)); itemMenu('Copiar').click();
+    igual(M._in.trayClip.carpetas, [n['A'].id], 'copiar una carpeta');
+    await pulsar(`.tcarpeta[data-id="${n['B'].id}"]`);
+    const hueco = q('.tray .tbody .drop');
+    clicDerecho(hueco);
+    igual([...q('.cpmenu').querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Pegar'], 'el menú de un hueco');
+    itemMenu('Pegar').click();
+    ok(M.board().carpetas.find(c => c.name === 'A' && c.parent === n['B'].id), 'pegar en un hueco');
+    // sin nada copiado, en un hueco sigue el del navegador
+    await M.flush();
+    M._in.trayAbrir(null);
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
+    clicDerecho(q('.tray .tbody .drop'));
+    ok(!q('.cpmenu'), 'en otro cliente saca el menú de pegar');
+  });
+
+  prueba('C31', 'Las fotos de carpeta van a publicaciones como las de la raíz: D-022 avisa, varias soltadas entran, una historia la usa con anillo y una colab la devuelve a su cliente y a su carpeta (D-069, D-077)', async () => {
+    const col = { id: 'c31', name: 'COLLAB Noviembre 1', type: 'Foto', date: `${MES}-20T12:00:00.000+01:00` };
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel'), col]);
+    const c = M.crearCarpeta('Usos').id;
+    const fC = await foto('c31-a.jpg');
+    const [a, b, d, e, g] = await aCarpeta(c, [fC, await foto('c31-b.jpg'), await foto('c31-c.jpg'), await foto('c31-d.jpg'), await foto('c31-e.jpg')]);
+    M._in.trayAbrir(c);
+    // D-022: ya usada avisa y pregunta
+    M._test.place('r1', a);
+    const p = M._test.addToSlot('r2', [a]);
+    const h = await hasta(() => { const x = dialogo(); return x && x.querySelector('[data-act="repe"][data-m="usar"]') && x; }, 4000, 'el aviso de D-022');
+    ok(/este mes/i.test(h.textContent), 'el aviso no dice su uso: ' + h.textContent);
+    h.querySelector('.btn2[data-act="close"], [data-act="close"]').click();
+    await espera(50); await p;
+    igual(slot('r2').photos, [], 'cancelar');
+    igual(M._in.bandejaVista({ carpeta: c, todas: true }).find(x => x.f === a).u, true, 'con ✓ en su carpeta');
+    // volver a subir esa misma foto a una publicación también avisa
+    const pr = M.addFiles([fC], 'r2');
+    const h2 = await hasta(() => { const x = dialogo(); return x && x.querySelector('[data-act="repe"][data-m="usar"]') && x; }, 4000, 'el aviso al soltarla');
+    h2.querySelector('[data-act="repe"][data-m="usar"]').click();
+    await pr;
+    igual(slot('r2').photos.length, 1, '«Usar igualmente»');
+    // varias a un carrusel, con el lote de la mesa
+    M._test.addToSlot('r3', [b, d]);
+    await hasta(() => { const x = dialogo(); return slot('r3').photos.length === 2 || (x && x.querySelector('[data-act="addmode"]')); }, 3000, 'que entren');
+    igual(slot('r3').photos, [b, d], 'varias en un carrusel');
+    ok(!M.board().tray.includes(b), 'usada en board().tray');
+    igual(carp(c).files.includes(b), true, 'salió de su carpeta');
+    // historia: el anillo y borrar la carpeta la deja en la raíz
+    const hid = M.hs.anadir(`${MES}-21`); M._in.S.historias.find(x => x.id === hid).libre = { slides: { r0: { els: [{ id: 'e1', t: 'foto', src: e }] } } }; M._in.save();
+    await M.flush();
+    await hasta(() => M._in.bandejaVista({ carpeta: c, todas: false }).find(x => x.f === e && x.h), 4000, 'el anillo de la historia');
+    igual(M._in.bandejaVista({ carpeta: c, todas: false }).some(x => x.f === e), true, 'la de la historia sale de «Sin usar»');
+    // colab: de la carpeta a la publicación compartida; vuelve a su cliente y a su carpeta
+    M._test.place('c31', g);
+    await M.flush();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(9), col], past: [], force: true });
+    igual(slot('c31').photos, [g], 'la colab en el otro cliente');
+    M._test.unassign('c31');
+    await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    ok(M.board().tray.includes(g), 'no volvió a su cliente');
+    igual(M._in.bandejaVista({ carpeta: c, todas: false }).some(x => x.f === g), true, 'no volvió a su carpeta');
+    igual(raiz().includes(g), false, 'salió suelta en la raíz');
+  });
+
+  prueba('C32', '⌘+clic del editor con fotos de carpeta: se eligen y se arrastran juntas a sus huecos, y mover desde el cajón va en la misma bandeja (D-051, D-077)', async () => {
+    const [a, b, c2] = await conHuecos([HV('v1'), HV('v2', 0.5)], [V('c32a.jpg'), V('c32b.jpg'), V('c32c.jpg')]);
+    const cid = M.crearCarpeta('En cajón').id;
+    M._in.trayMover({ files: [a, b, c2] }, cid, null);
+    M._in.trayAbrir(cid);
+    await hasta(() => miniatura(a), 2000, 'la miniatura de la carpeta');
+    conMeta(a); conMeta(b);
+    igual(elegidas(), [a, b], '⌘+clic con fotos de carpeta');
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => (enCapa('v1', a) || enCapa('v2', a)) && (enCapa('v1', b) || enCapa('v2', b)), 4000, 'las dos a sus huecos');
+    ok(carp(cid).files.includes(a) && carp(cid).files.includes(c2), 'salieron de su carpeta');
+    M.libre.cerrar();
+  });
+
+  prueba('C33', 'En una ventana estrecha, una vista con solo carpetas no cuenta como vacía: las carpetas se ven y se puede entrar (D-075)', async () => {
+    const n = await arbolMover(), fr = $('mesa'), w0 = fr.style.width;
+    fr.style.width = '580px';
+    try {
+      await hasta(() => W.innerWidth <= 720, 2000, 'la ventana estrecha');
+      M._in.renderTray();
+      ok(!q('.tray').classList.contains('isempty'), 'con carpetas cuenta como vacía');
+      const t = tile(n['A'].id);
+      ok(t.getBoundingClientRect().height > 30 && t.getBoundingClientRect().width > 30, 'la carpeta no se ve');
+      await pulsar(`.tcarpeta[data-id="${n['A'].id}"]`);
+      igual(M._in.trayCarpeta, n['A'].id, 'no entra');
+      M._in.trayAbrir(M.crearCarpeta('Vacía').id);
+      ok(q('.tray').classList.contains('isempty') && W.getComputedStyle(q('.tray .drop')).display !== 'none', 'una carpeta vacía no invita a soltar');
+      M._in.trayAbrir(null);
+    } finally { fr.style.width = w0; }
   });
 
   // =====================================================================================================

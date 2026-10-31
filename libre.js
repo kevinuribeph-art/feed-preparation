@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.32';
+  const VERSION = '1.33';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -979,7 +979,8 @@
 #mesa .lb-tcarp{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink)}#mesa .lb-tcarp span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
 #mesa .lb-trh .lb-trt{display:inline-flex;vertical-align:middle;max-width:50%;margin-right:8px}#mesa .lb-trh .lb-trt .cptab{height:22px}
 #mesa .lb-trv{width:24px;height:22px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--panel);line-height:1}
-#mesa .lb-tph.elegida{outline:3px solid var(--acc);outline-offset:-3px}
+#mesa .lb-tph.elegida,#mesa .lb-tcarp.elegida{outline:3px solid var(--acc);outline-offset:-3px}#mesa .lb-tcarp.over,#mesa .lb-trv.over,#mesa .lb-tray .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}
+#mesa .lb-ghostc{display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--line);color:var(--ink)}
 #mesa .lb-tph .hs{bottom:5px}
 #mesa .lb-ttl textarea.lb-guion{display:block;box-sizing:border-box;width:100%;max-width:min(60vw,720px);max-height:calc(3 * 1.3em + 4px);margin:2px 0 0 -5px;padding:1px 4px;border:1px solid transparent;border-radius:4px;background:none;color:var(--mute);font:inherit;font-size:12.5px;line-height:1.3;resize:none;overflow-y:auto}
 #mesa .lb-ttl textarea.lb-guion:hover{border-color:var(--line)}#mesa .lb-ttl textarea.lb-guion:focus{border-color:var(--ink);color:var(--ink);outline:0}
@@ -2471,7 +2472,9 @@
       }
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
-      case 'tr-carp': E.trSel = []; I().trayAbrir(b.dataset.id || null); bandeja(); return;
+      case 'tr-carp':
+        if (b._meta && b.classList.contains('lb-tcarp')) { const id = b.dataset.id; E.trCar = E.trCar.includes(id) ? E.trCar.filter(q => q !== id) : [...E.trCar, id]; bandeja(); return; }   // ⌘ + click (D-077)
+        E.trSel = []; E.trCar = []; I().trayAbrir(b.dataset.id || null); bandeja(); return;
       case 'tr-pest': E.trSel = []; I().pestIr(b.dataset.id); bandeja(); return;
       case 'tr-pcerrar': E.trSel = []; I().pestCerrar(b.dataset.id); bandeja(); return;
       case 'tr-fil': if (I().trayFiltro) I().trayFiltro(b.dataset.v); bandeja(); return;   // the same filter as the mesa's tray
@@ -2809,7 +2812,7 @@
       e.preventDefault();
       if (cerrarMenus(null)) return;
       if (typing && t.blur) { t.blur(); E.el.focus({ preventScroll: true }); return; }
-      if (E.trSel.length) { E.trSel = []; bandeja(); return; }
+      if (E.trSel.length || (E.trCar || []).length) { E.trSel = []; E.trCar = []; bandeja(); return; }
       if (E.pick) { E.pick = null; panel(); } else if (E.crop) { E.crop = null; panel(); pedir(); } else if (!E.allEl.hidden) verTodas(false); else if (E.sel) { soltar(); panel(); pedir(); } else pedirCerrar();
       return;
     }
@@ -2828,6 +2831,9 @@
     if (t && t.classList && t.classList.contains('lb-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (!E.allEl.hidden) verTodas(false); elegir(+t.dataset.i); return; }
     if (mod && k === 'z') { e.preventDefault(); deshacer(!e.shiftKey); return; }
     if (mod && k === 'y') { e.preventDefault(); deshacer(false); return; }
+    // the tray's own (D-077): only with the last press inside it and, ⌘C, with something chosen in it; otherwise, the slide's
+    if (mod && !e.shiftKey && k === 'c' && I().trayFoco && (E.trSel.length || (E.trCar || []).length)) { e.preventDefault(); I().trayCopiar(trayLote()); return; }
+    if (mod && !e.shiftKey && k === 'v' && I().trayFoco && I().trayPuedePegar()) { e.preventDefault(); I().trayPegar(I().trayCarpeta); E.trSel = []; E.trCar = []; bandeja(); return; }
     if (mod && k === 'c') { if (E.sl.length && !E.crop) { e.preventDefault(); copiar(); } return; }   // nothing chosen: the whole slide
     if (mod && k === 'v') { if (clip()) { e.preventDefault(); pegar(); } return; }
     if (mod && k === 'd') { e.preventDefault(); if (E.sel) act('dup'); else if (!e.repeat) duplicarSl(); return; }
@@ -2894,17 +2900,18 @@
     if (!E || !E.el) return;
     const todas = !!(I().trayTodas && I().trayTodas()), box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(todas), n = fs.filter(x => !x.u).length, uso = enUso();
     E.trSel = E.trSel.filter(f => fs.some(x => x.f === f));   // only what it shows stays chosen
+    E.trCar = (E.trCar || []).filter(id => I().carpetasDeVista().some(c => c.id === id));
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
     const pest = I().pestLista ? I().pestLista() : [];   // its tabs, the same as the mesa's (D-076): shown once there is more than the fixed one
     const carps = I().carpetasDeVista ? I().carpetasDeVista() : [], ruta = I().rutaCarpeta ? I().rutaCarpeta() : [], perez = fs.length > (I().MINIS_DE_UNA || 80);   // the tray's folders, the same as the mesa's (D-075)
-    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
+    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + E.trCar.join(',') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
     const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '') + (x.h ? ' · usada en una historia' : '');
     box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
-      + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
+      + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp${E.trCar.includes(c.id) ? ' elegida' : ''}" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
     if (perez && tr) I().minisPerezosas(tr);
   }
@@ -3087,17 +3094,24 @@
     if (E === owner && r && r.puestas && !r.sobran) I().toast(`${r.puestas === 1 ? 'Foto puesta' : `${r.puestas} fotos puestas`} en la diapositiva ${E.i + 1}. Quedan en la bandeja hasta que apliques.`);
   }
   function arrastrarBandeja(e) {     // a tray photo dragged onto the slide or onto a slide of the strip (a click puts it on the open one)
-    const b = e.target.closest('.lb-tph'); if (!b || e.button !== 0 || !E || E.busy) return;
-    const f = b.dataset.f, x0 = e.clientX, y0 = e.clientY, owner = E; let g = null, gn = null;
-    const lote = E.trSel.includes(f) ? [...E.el.querySelectorAll('.lb-tph')].map(q => q.dataset.f).filter(q => E.trSel.includes(q)) : [f];   // one of the chosen takes them all, in the tray's order
+    const b = e.target.closest('.lb-tph, .lb-tcarp'); if (!b || e.button !== 0 || !E || E.busy) return;
+    const cf = b.classList.contains('lb-tcarp') ? b.dataset.id : null, f = b.dataset.f, x0 = e.clientX, y0 = e.clientY, owner = E; let g = null, gn = null;
+    const lote = cf || E.trSel.includes(f) ? (cf && !E.trCar.includes(cf) ? [] : [...E.el.querySelectorAll('.lb-tph')].map(q => q.dataset.f).filter(q => E.trSel.includes(q))) : [f];   // one of the chosen takes them all, in the tray's order
+    const loteC = cf ? (E.trCar.includes(cf) ? E.trCar.slice() : [cf]) : E.trSel.includes(f) ? E.trCar.slice() : [];
+    // onto a folder, a tab or «←» of the tray: it moves there (D-077)
+    const destBandeja = ev => { const t = document.elementFromPoint(ev.clientX, ev.clientY), c = t && t.closest && t.closest('.lb-tray .lb-tcarp[data-id], .lb-tray .cptab, .lb-tray .lb-trv[data-id]'); if (!c || (c.dataset.id && loteC.includes(c.dataset.id))) return null; if (c.classList.contains('cptab')) { const p = I().pestLista().find(q => q.id === c.querySelector('button').dataset.id); return p ? { el: c, hacia: p.carpeta } : null; } return { el: c, hacia: c.dataset.id || null }; };
     const move = ev => {
       if (E !== owner) return;
       if (!g) {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
-        g = document.createElement('img'); g.className = 'lb-ghost'; g.alt = ''; g.src = (M.files[f] || {}).thumbUrl || ''; E.el.append(g);
-        if (lote.length > 1) { gn = document.createElement('span'); gn.className = 'lb-ghostn'; gn.textContent = lote.length; E.el.append(gn); }
+        if (cf && !lote.length) { g = document.createElement('div'); g.className = 'lb-ghost lb-ghostc'; g.innerHTML = I().ICON_CARPETA; }
+        else { g = document.createElement('img'); g.className = 'lb-ghost'; g.alt = ''; g.src = (M.files[f || lote[0]] || {}).thumbUrl || ''; }
+        E.el.append(g);
+        if (lote.length + loteC.length > 1) { gn = document.createElement('span'); gn.className = 'lb-ghostn'; gn.textContent = lote.length + loteC.length; E.el.append(gn); }
       }
       g.style.left = ev.clientX + 'px'; g.style.top = ev.clientY + 'px'; if (gn) { gn.style.left = ev.clientX + 'px'; gn.style.top = ev.clientY + 'px'; } resaltar(ev);
+      E.el.querySelectorAll('.lb-tray .over').forEach(q => q.classList.remove('over'));
+      const db = destBandeja(ev); if (db) db.el.classList.add('over');
     };
     const end = drop => ev => {
       document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true);
@@ -3105,9 +3119,13 @@
       if (gn) gn.remove();
       if (E !== owner) return;
       resaltar(null);
+      E.el.querySelectorAll('.lb-tray .over').forEach(q => q.classList.remove('over'));
       const lejos = Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6;   // released far away before any move was seen: a drag too
       if (!drop || !(g || lejos)) return;
       E.noClick = true; setTimeout(() => { if (E === owner) E.noClick = false; }, 0);
+      const db = destBandeja(ev);
+      if (db) { I().trayMover({ files: lote, carpetas: loteC }, db.hacia); E.trSel = []; E.trCar = []; bandeja(); return; }
+      if (cf && !lote.length) return;   // a folder goes nowhere else
       const t = destino(ev); if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }
       if (!t) return;
       if (lote.length > 1) { E.trSel = []; bandeja(); }
@@ -3418,7 +3436,8 @@
 
   // the photos the open session has or can bring back with its ⌘Z, applied or not: deleting a tray's folder leaves them (D-070)
   const fotosSesion = () => { if (!E) return []; const out = new Set(); for (const m of [JSON.stringify(E.sl), ...E.hist.undo, ...E.hist.redo].join('').matchAll(/"(?:src|key)":"([^"]+)"/g)) out.add(m[1]); return [...out]; };
-  M.libre = { version: VERSION, abrir, fondosKit, fotosSesion, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
+  const trayLote = () => (E ? { files: E.trSel.slice(), carpetas: (E.trCar || []).slice() } : { files: [], carpetas: [] });
+  M.libre = { version: VERSION, abrir, fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     hist: { pintar: pintarHistoria, altoDe, OUT_W },   // a story designed from outside (historias.js, D-062)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)

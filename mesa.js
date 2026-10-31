@@ -65,10 +65,11 @@
 // v3.59: folders inside a client's tray, with a fixed «Historias» (data, deleting and leaving nothing behind: D-069 to D-073).
 // v3.60: folders come in (carpetas.js): dragged or chosen, with a warning first and a progress bar; going in and back (D-074, D-075).
 // v3.61: the tray's tabs and the folders' menu (D-076).
+// v3.62: moving and copying in the tray (D-077).
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.61'; // 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.62'; // 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1917,7 +1918,7 @@
 #mesa .cpfila{display:flex;align-items:center;gap:6px;min-height:28px}#mesa .cpfila+.cpfila{margin-top:6px}
 #mesa .cptabs{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none}#mesa .cptabs::-webkit-scrollbar{display:none}
 #mesa .cptab{display:inline-flex;flex:none;align-items:center;max-width:150px;height:26px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--mute);font-size:12px}
-#mesa .cptab.on{border-color:var(--ink);color:var(--ink);font-weight:600}#mesa .cptab:hover{border-color:#bdbdbd}#mesa .cptab.on:hover{border-color:var(--ink)}#mesa .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}
+#mesa .cptab.on{border-color:var(--ink);color:var(--ink);font-weight:600}#mesa .cptab:hover{border-color:#bdbdbd}#mesa .cptab.on:hover{border-color:var(--ink)}#mesa .cptab.over,#mesa .cpruta button.over,#mesa .cpvolver.over{outline:2px dashed var(--acc);outline-offset:1px}
 #mesa .cptab button{border:0;background:none;padding:0 8px;height:100%;font:inherit;color:inherit;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .cptab .cpx{flex:none;padding:0 6px 0 0;font-size:14px;line-height:1;color:var(--mute)}#mesa .cptab .cpx:hover{color:var(--ink)}
 #mesa .cpmenu{position:fixed;z-index:70;display:flex;flex-direction:column;min-width:230px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
@@ -1931,6 +1932,8 @@
 #mesa .cpruta button{border:0;background:none;padding:0;font:inherit;color:var(--mute);cursor:pointer}#mesa .cpruta button:hover{color:var(--ink);text-decoration:underline}
 #mesa .cpacc{display:inline-flex;flex:none;gap:6px;margin-left:auto}#mesa .cpacc .btn2{font-size:12px;padding:4px 9px;white-space:nowrap}
 #mesa .tcarpeta{position:relative;aspect-ratio:3/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:6px 5px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);text-align:center;cursor:pointer}
+#mesa .titem.elegida,#mesa .tcarpeta.elegida{outline:3px solid var(--acc);outline-offset:-3px}
+#mesa .pdghost>.pdn{position:absolute;top:-8px;right:-8px;width:auto !important;height:20px !important;min-width:20px;padding:0 5px;box-sizing:border-box;border-radius:10px;background:var(--acc);color:#fff;font-size:12px;font-weight:600;line-height:20px;text-align:center}
 #mesa .tcarpeta:hover{border-color:#bdbdbd}#mesa .tcarpeta.over{outline:2px dashed var(--acc);outline-offset:-2px}
 #mesa .tcarpeta .cn{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
 #mesa .tcarpeta .cf{font-size:10.5px;color:var(--mute);line-height:1.25}
@@ -2486,6 +2489,7 @@
   }
   function pestVer() {
     if (S) lsSet(LS_PEST + S.client, JSON.stringify({ tabs: pestanas, act: pestAct }));
+    if (trayCarpeta !== pestUso().carpeta) { traySel.clear(); traySelC.clear(); }   // only what it shows stays chosen (D-051)
     trayCarpeta = pestUso().carpeta;
     if (sel && !enVista(sel)) sel = null;
     renderTray();
@@ -2511,6 +2515,101 @@
   }
   function pestCerrar(id) { pestQuitar(id); pestVer(); }
   const pestNombre = p => { const c = p.carpeta && S ? (S.carpetas || []).find(x => x.id === p.carpeta) : null; return p.id === 'fija' || !c ? 'Bandeja' : c.name; };
+  // ---------- moving and copying in the tray (D-077) ----------
+  // Dragging moves; ⌘C / ⌘V copies: the same file in two folders, never more bytes. Both change only S.carpetas and go through
+  // changed(), so each is one step of ⌘Z. The clipboard is the tray's own and knows its client (D-041). ⌘C and ⌘V act only
+  // with the last press inside the tray, so they never get in the way of the editor's.
+  let traySel = new Set(), traySelC = new Set(), trayClip = null, trayFoco = false;
+  const trayLote = () => ({ files: [...traySel], carpetas: [...traySelC] });
+  function marcarTray() {              // on the drawn tiles: a long view is not drawn again for this
+    const g = root && root.querySelector('.tray .tgrid'); if (!g) return;
+    g.querySelectorAll('.elegida').forEach(x => x.classList.remove('elegida'));
+    if (traySel.size) g.querySelectorAll('.titem[data-file]').forEach(x => { if (traySel.has(x.dataset.file)) x.classList.add('elegida'); });
+    if (traySelC.size) g.querySelectorAll('.tcarpeta[data-id]').forEach(x => { if (traySelC.has(x.dataset.id)) x.classList.add('elegida'); });
+  }
+  function trayElegir(el) {            // ⌘ + click: one more or one less (D-051)
+    if (el.dataset.file) { if (!traySel.delete(el.dataset.file)) traySel.add(el.dataset.file); }
+    else if (!traySelC.delete(el.dataset.id)) traySelC.add(el.dataset.id);
+    marcarTray();
+  }
+  function traySoltar() { if (!traySel.size && !traySelC.size) return false; traySel.clear(); traySelC.clear(); marcarTray(); return true; }
+  const carpetaPor = id => (S && id ? (S.carpetas || []).find(c => c.id === id) : null) || null;
+  const sumaFotos = (c, fs) => {       // into a folder, without repeating one: the same id, or the same name and size (D-022)
+    const ya = new Set(c.files), kk = new Set(c.files.map(fileKey).filter(Boolean)); let n = 0;
+    fs.forEach(f => { const k = fileKey(f); if (ya.has(f) || (k && kk.has(k))) return; c.files.push(f); ya.add(f); if (k) kk.add(k); n++; });
+    return n;
+  };
+  function trayMover({ files = [], carpetas = [] }, hacia = null, desde = trayCarpeta) {
+    if (!S || locked) return { error: 'Esta pestaña no puede guardar.' };
+    hacia = hacia || null; desde = desde || null;
+    if (hacia && !carpetaPor(hacia)) return { error: 'Esa carpeta ya no está.' };
+    const de = carpetaPor(desde), a = carpetaPor(hacia), mapa = new Map(), avisos = [];
+    let fotos = 0, nc = 0, siguen = 0;
+    if (desde !== hacia) {
+      const van = files.filter(f => M.files[f]), fuera = new Set(van);
+      if (a) sumaFotos(a, van);
+      if (de) de.files = de.files.filter(x => !fuera.has(x));
+      if (!a) { const en = enCarpetas(S.carpetas); siguen = van.filter(f => en.has(f)).length; }
+      fotos = van.length;
+    }
+    const poner = (c, padre) => {      // a sister with the same name is the same folder: they join (D-069)
+      const her = S.carpetas.find(x => (x.parent || null) === padre && x.name === c.name && x.id !== c.id);
+      if (!her) { c.parent = padre; return; }
+      sumaFotos(her, c.files);
+      S.carpetas.filter(x => x.parent === c.id).forEach(h => poner(h, her.id));
+      S.carpetas = S.carpetas.filter(x => x.id !== c.id);
+      mapa.set(c.id, her.id);
+    };
+    carpetas.forEach(id => {
+      const c = carpetaPor(id); if (!c) return;
+      if (c.fija) { avisos.push(`«${c.name}» se queda donde está.`); return; }
+      if (hacia && subCarpetas(S.carpetas, id).has(hacia)) { avisos.push('Una carpeta no se puede mover dentro de sí misma.'); return; }
+      if ((c.parent || null) === hacia) return;
+      poner(c, hacia); nc++;
+    });
+    if (mapa.size) pestanas.forEach(p => { while (mapa.has(p.carpeta)) p.carpeta = mapa.get(p.carpeta); });
+    traySoltar();
+    if (fotos || nc) { pestValidar(); changed(); pestVer(); toast(`${[fotos ? nOf(fotos, 'foto movida', 'fotos movidas') : '', nc ? nOf(nc, 'carpeta movida', 'carpetas movidas') : ''].filter(Boolean).join(' y ')} a ${a ? `«${a.name}»` : 'la bandeja'}.${siguen ? ` ${siguen === 1 ? 'Sigue' : `${siguen} siguen`} también en otra carpeta: no sale en la raíz.` : ''}`, { ms: 4000 }); }
+    if (avisos.length) toast(avisos.join(' '));
+    return { fotos, carpetas: nc, avisos };
+  }
+  function trayCopiar({ files = [], carpetas = [] }) {
+    if (!S || (!files.length && !carpetas.length)) return false;
+    trayClip = { client: S.client, files: files.slice(), carpetas: carpetas.slice() };
+    const n = [files.length ? nOf(files.length, 'foto', 'fotos') : '', carpetas.length ? nOf(carpetas.length, 'carpeta', 'carpetas') : ''].filter(Boolean).join(' y ');
+    toast(`${n} para pegar con ⌘V.`, { ms: 2500 });
+    return true;
+  }
+  const trayPuedePegar = () => !!(S && trayClip && trayClip.client === S.client);
+  function trayPegar(hacia = trayCarpeta) {
+    if (!S || locked) return { error: 'Esta pestaña no puede guardar.' };
+    if (!trayClip) return { error: 'No hay nada copiado.' };
+    if (trayClip.client !== S.client) { toast('Nada se copia a la bandeja de otro cliente.'); return { error: 'otro cliente' }; }
+    hacia = hacia || null;
+    const a = carpetaPor(hacia); if (hacia && !a) return { error: 'Esa carpeta ya no está.' };
+    const fs = trayClip.files.filter(f => M.files[f]), avisos = [];
+    let fotos = 0, nuevas = 0, yaAqui = 0;
+    if (a) fotos = sumaFotos(a, fs);
+    else if (fs.length) avisos.push('Las fotos se pegan en una carpeta: para sacarlas a la raíz, arrástralas.');
+    const copia = (c, padre) => {
+      const hijos = S.carpetas.filter(x => x.parent === c.id);   // before adding any: a copy never copies itself
+      let d = S.carpetas.find(x => (x.parent || null) === padre && x.name === c.name);
+      if (d && d.id === c.id) { yaAqui++; return; }
+      if (d) fotos += sumaFotos(d, c.files);
+      else { d = { id: newId(), name: c.name, parent: padre, files: c.files.filter(f => M.files[f]) }; S.carpetas.push(d); nuevas++; fotos += d.files.length; }
+      hijos.forEach(h => copia(h, d.id));
+    };
+    trayClip.carpetas.forEach(id => {
+      const c = carpetaPor(id); if (!c) return;
+      if (hacia && subCarpetas(S.carpetas, id).has(hacia)) { avisos.push('Una carpeta no se puede copiar dentro de sí misma.'); return; }
+      copia(c, hacia);
+    });
+    traySoltar();
+    if (fotos || nuevas) { changed(); pestVer(); toast(`Pegado en ${a ? `«${a.name}»` : 'la bandeja'}: ${[nuevas ? nOf(nuevas, 'carpeta', 'carpetas') : '', nOf(fotos, 'foto', 'fotos')].filter(Boolean).join(' y ')}. No ocupan más.`, { ms: 4000 }); }
+    else if (!avisos.length) toast(yaAqui ? 'Esa carpeta ya está aquí.' : 'Ya estaba todo en esta carpeta.');
+    if (avisos.length) toast(avisos.join(' '));
+    return { fotos, carpetas: nuevas, avisos };
+  }
   const pestLista = () => pestanas.map(p => ({ id: p.id, carpeta: p.carpeta, nombre: pestNombre(p), activa: p.id === pestAct }));
   const enVista = f => bandejaVista({ todas: true }).some(x => x.f === f);   // a photo the tray can show (click to place)
   // the free photos of what the tray has open: the lists of photos in the designer and the editor follow it, never all the folders
@@ -2532,13 +2631,16 @@
     navCarpetas(tray);
     const html = carpetasDeVista().map(tileCarpeta).join('') + vis.map(({ f: id, u, h }) => {
       const f = M.files[id];
-      return `<div class="titem${sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${u || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
+      return `<div class="titem${!perez && sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${u || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
     }).join('');
     const grid = tray.querySelector('.tgrid');
     if (!perez || grid._html !== html) {   // a long view is drawn only when it changes: its scroll and its loaded thumbnails stay
       grid.innerHTML = html; grid._html = perez ? html : null;
       if (perez) minisPerezosas(grid);
     }
+    if (perez) grid.querySelectorAll('.titem').forEach(x => x.classList.toggle('sel', x.dataset.file === sel));
+    { const ven = new Set(vis.map(x => x.f)); traySel.forEach(f => { if (!ven.has(f)) traySel.delete(f); }); const cv = new Set(carpetasDeVista().map(c => c.id)); traySelC.forEach(c => { if (!cv.has(c)) traySelC.delete(c); }); }
+    marcarTray();
     pdRefresh();
   }
 
@@ -3078,6 +3180,15 @@
   // where a carried item would land over element t: {el: what lights up, cell | pc | tray} — null = not there
   function dragTarget(t, d) {
     if (!t || !t.closest || !d) return null;
+    if (d.from === 'tray' || d.from === 'carpeta') {   // onto a folder, a tab or the route: it moves there (D-077)
+      const c = t.closest('.tcarpeta[data-id], .cptab[data-pest], .cpruta button[data-id], .cpvolver[data-id]');
+      if (c) {
+        const hacia = c.dataset.pest ? (pestanas.find(p => p.id === c.dataset.pest) || {}).carpeta || null : c.dataset.id || null;
+        if (d.lote && d.lote.carpetas.includes(hacia)) return null;
+        return { el: c, cdest: true, hacia };
+      }
+      if (d.from === 'carpeta') return null;
+    }
     const cell = t.closest('.cell[data-slot], .cell.past[data-prev]'), tray = t.closest('.tray');
     if (d.from === 'memo') return cell && cell.dataset.slot && cell.dataset.slot !== d.slotId ? { el: cell, cell } : null;
     if (cell && cell.dataset.prev && d.from === 'slot') return null;
@@ -3088,7 +3199,8 @@
     if (tray) return { el: tray, tray };
     return null;
   }
-  function dropOn(d, { cell, pc, tray, hueco, hcard }) {
+  function dropOn(d, { cell, pc, tray, hueco, hcard, cdest, hacia }) {
+    if (cdest) { trayMover(d.lote || { files: [d.fileId] }, hacia); return; }
     if (hcard) { if (M.hs) M.hs.soltar(hcard.dataset.h, d.fileId); return; }
     if (d.from === 'memo') { if (cell) moveMemo(d.slotId, cell.dataset.slot); return; }
     if (hueco) { if (d.from === 'tray') setPreview(+hueco.dataset.filler, d.fileId); return; }
@@ -3097,7 +3209,7 @@
       else if (d.from === 'prev') withPrev(() => prevSwap(d.prevId, pc.dataset.prev), 'edit');
     }
     else if (cell) {
-      if (d.from === 'tray') addToSlot(cell.dataset.slot, [d.fileId]);
+      if (d.from === 'tray') { const fs = d.lote && d.lote.files.length ? d.lote.files : [d.fileId]; traySoltar(); addToSlot(cell.dataset.slot, fs); }
       else if (d.from === 'slot') swap(d.slotId, cell.dataset.slot);
       else toast('Una publicación del mes anterior no pasa directamente al mes nuevo: arrástrala antes a la bandeja.');
     }
@@ -3106,6 +3218,7 @@
   }
   function dragSource(t) {
     if (!t || !t.closest || t.closest('.pit.edit, textarea, input, .detail')) return null;
+    const tc = t.closest('.tcarpeta[data-id]'); if (tc) return { from: 'carpeta', carpeta: tc.dataset.id, el: tc };
     const act = t.closest('[data-act]'); if (act && !act.matches('.titem .x, .cell.past .pmonth')) return null;
     const pm = t.closest('.pit[data-memo]'); if (pm) return { from: 'memo', slotId: pm.dataset.memo, el: pm };
     const ti = t.closest('.titem[data-file]'); if (ti) return { from: 'tray', fileId: ti.dataset.file, el: ti };
@@ -3123,10 +3236,15 @@
   function pdBegin() {
     const d = pd.d;
     if (!d.el.isConnected) {                                       // re-drawn while pressed (e.g. a Nota being edited ended)
-      const q = d.from === 'memo' ? `.feed .pit[data-memo="${cssq(d.slotId)}"]` : d.from === 'tray' ? `.titem[data-file="${cssq(d.fileId)}"]` : d.from === 'slot' ? `.cell.full[data-slot="${cssq(d.slotId)}"]` : `.cell.past[data-prev="${cssq(d.prevId)}"]`;
+      const q = d.from === 'carpeta' ? `.tcarpeta[data-id="${cssq(d.carpeta)}"]` : d.from === 'memo' ? `.feed .pit[data-memo="${cssq(d.slotId)}"]` : d.from === 'tray' ? `.titem[data-file="${cssq(d.fileId)}"]` : d.from === 'slot' ? `.cell.full[data-slot="${cssq(d.slotId)}"]` : `.cell.past[data-prev="${cssq(d.prevId)}"]`;
       d.el = root.querySelector(q); if (!d.el) { pd = null; return false; }
     }
     if (d.from === 'prev' && prevLocked()) { pd = null; withPrev(() => {}, 'none'); return false; }
+    if (d.from === 'carpeta' && carpetaPor(d.carpeta) && carpetaPor(d.carpeta).fija && !traySelC.has(d.carpeta)) { pd = null; toast('«Historias» se queda donde está.'); return false; }
+    if (d.from === 'tray' || d.from === 'carpeta') {   // one of the chosen takes them all; another, only itself, and they stay chosen (D-051)
+      const mia = d.from === 'tray' ? traySel.has(d.fileId) : traySelC.has(d.carpeta);
+      d.lote = mia ? trayLote() : d.from === 'tray' ? { files: [d.fileId], carpetas: [] } : { files: [], carpetas: [d.carpeta] };
+    }
     const r = d.el.getBoundingClientRect(), g = document.createElement('div');
     g.className = 'pdghost';
     if (d.from === 'memo') { g.innerHTML = `<span class="pit">${POSTIT}</span>`; g.style.width = g.style.height = '17px'; pd.dx = pd.dy = 8; }
@@ -3137,6 +3255,7 @@
       g.appendChild(c); g.style.width = r.width + 'px'; g.style.height = r.height + 'px';
       pd.dx = pd.x - r.left; pd.dy = pd.y - r.top;
     }
+    if (d.lote && d.lote.files.length + d.lote.carpetas.length > 1) { const n = document.createElement('span'); n.className = 'pdn'; n.textContent = d.lote.files.length + d.lote.carpetas.length; g.appendChild(n); }
     root.appendChild(g); pd.ghost = g; pd.on = true;
     drag = d; d.el.classList.add('dragging'); root.classList.add('grabbing');
     try { const sl = window.getSelection(); if (sl) sl.removeAllRanges(); } catch (err) { /* */ }
@@ -3205,7 +3324,7 @@
     if (!pd || !pd.on) return;
     const d = pd.d;
     if (!d.el || !d.el.isConnected) {
-      const q = d.from === 'memo' ? `.feed .pit[data-memo="${cssq(d.slotId)}"]` : d.from === 'tray' ? `.titem[data-file="${cssq(d.fileId)}"]` : d.from === 'slot' ? `.cell.full[data-slot="${cssq(d.slotId)}"]` : `.cell.past[data-prev="${cssq(d.prevId)}"]`;
+      const q = d.from === 'carpeta' ? `.tcarpeta[data-id="${cssq(d.carpeta)}"]` : d.from === 'memo' ? `.feed .pit[data-memo="${cssq(d.slotId)}"]` : d.from === 'tray' ? `.titem[data-file="${cssq(d.fileId)}"]` : d.from === 'slot' ? `.cell.full[data-slot="${cssq(d.slotId)}"]` : `.cell.past[data-prev="${cssq(d.prevId)}"]`;
       const el = root.querySelector(q); if (el) { d.el = el; el.classList.add('dragging'); }
     }
     pd.over = null; if (pd.lx != null) pdAt(pd.lx, pd.ly);
@@ -3281,6 +3400,9 @@
     if (M._pd) { document.removeEventListener('pointermove', M._pd.move, true); document.removeEventListener('pointerup', M._pd.up, true); document.removeEventListener('pointercancel', M._pd.cancel, true); window.removeEventListener('blur', M._pd.cancel); }
     if (M._pd) { document.removeEventListener('pointerdown', M._pd.down, true); document.removeEventListener('contextmenu', M._pd.cancel, true); }
     M._pd = { move: pdMove, up: e => { btnDown = false; pdUp(e); }, cancel: () => { btnDown = false; pdCancel(); }, down: e => { btnDown = e.button === 0; pdHold = null; } };
+    if (M._trayFoco) document.removeEventListener('pointerdown', M._trayFoco, true);
+    M._trayFoco = e => { trayFoco = !!(e.target.closest && e.target.closest('.tray, .lb-tray, .cpmenu')); };
+    document.addEventListener('pointerdown', M._trayFoco, true);
     document.addEventListener('pointerdown', M._pd.down, true); document.addEventListener('contextmenu', M._pd.cancel, true);
     document.addEventListener('pointermove', M._pd.move, true); document.addEventListener('pointerup', M._pd.up, true); document.addEventListener('pointercancel', M._pd.cancel, true); window.addEventListener('blur', M._pd.cancel);
     root.addEventListener('click', e => { if (pdNoClick || stripNoClick) { pdNoClick = false; stripNoClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
@@ -3331,6 +3453,9 @@
     }, { passive: false });
     root.addEventListener('click', e => {
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
+      const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');
+      if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
+      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab')) traySoltar();   // a click without ⌘ does what it always did and empties the choice
       const a = e.target.closest('[data-act]');
       if (a) { onAct(a, e); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
@@ -3440,12 +3565,18 @@
       const open = !root.querySelector('.detail').hidden;
       if (e.key === 'Escape' && pd && pd.on) { e.preventDefault(); pdCancel(); return; }
       if (e.key === 'Escape' && e.target.matches && e.target.matches('.pitin')) { e.preventDefault(); e.target.blur(); return; }
-      if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } return; }
+      if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } else traySoltar(); return; }
       const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'ig' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); igNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2')) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
+      // ⌘C / ⌘V of the tray: only with the last press inside it and, ⌘C, with something chosen; the editor has its own (D-077)
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && trayFoco && !typing && !open && !drag && S && !(M.libre && M.libre.abierto())) {
+        const k = String(e.key).toLowerCase();
+        if (k === 'c' && (traySel.size || traySelC.size)) { e.preventDefault(); trayCopiar(trayLote()); return; }
+        if (k === 'v' && trayClip) { e.preventDefault(); trayPegar(trayCarpeta); return; }
+      }
       // ⌘Z / ⇧⌘Z (Ctrl on other systems): undo/redo in the mesa — not while writing in Contexto/Nota (the text field
       // undoes its own typing) nor with a dialog open; the date/time fields and the zoom do use it
       if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
@@ -4909,7 +5040,7 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
-    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
+    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
@@ -4939,6 +5070,7 @@
     capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
   };
   M._test.removeFile = removeFile;
+  M._test.vaciarClip = () => { trayClip = null; };
   M._test.borrarBandeja = async c => {  // the battery starts each test with an empty tray: months no longer take it away (D-072)
     const r = await idbGet('bandejas', c);
     if (S && S.client === c) { S.tray = []; S.carpetas = carpetasBien(); }

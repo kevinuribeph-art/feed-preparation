@@ -1,4 +1,4 @@
-// carpetas.js 1.0: folders into the tray (D-074, D-075), loaded on its own: the mesa never waits for it.
+// carpetas.js 1.1: folders into the tray (D-074, D-075) and their right-click menu (D-076), loaded on its own: the mesa never waits for it.
 // A folder dragged onto the tray or chosen with «Subir carpeta» becomes a folder of the client's tray with its subfolders; so
 // does «+ Carpeta», empty. Before an upload it says how many photos and GB and how much room is left; then a progress bar. The
 // photos and their place in the tray are written by mesa.js (entrarFoto), one transaction each: the same bytes as a tray
@@ -7,7 +7,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   const AVISO_DESDE = 20;                      // loose photos: fewer than this go in as always, without a warning
   const SISTEMA = /^(\.|__MACOSX$|Thumbs\.db$|desktop\.ini$)/i;   // .DS_Store, ._foto.jpg (the disk is exFAT), the system's folders
   const POR_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
@@ -204,5 +204,46 @@
     else if (act === 'cp-ir') { const p = pendiente; pendiente = null; I().closeDetail(); if (p) subirYa(p); }
     else if (act === 'cp-cancelar') { if (enMarcha) enMarcha.cancelar = true; }
   }
-  M.carpetasUI = { version: VERSION, accion, soltar, elegidas, subir, desdeEntradas, clasificar };
+
+  // ---------- the right-click menu of a folder, in the mesa's tray and in the editor's (D-076) ----------
+  let menuAbierto = null;
+  function cerrarMenu() {
+    if (!menuAbierto) return;
+    const m = menuAbierto; menuAbierto = null;
+    m.el.remove();
+    document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true);
+    window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); document.removeEventListener('scroll', cerrarMenu, true);
+  }
+  function abrirMenu(x, y, id) {
+    cerrarMenu();
+    const root = I().root(), c = I().S && I().S.carpetas.find(q => q.id === id); if (!c) return;
+    const it = (a, t, on = true, kb = '', tip = '') => `<button type="button" role="menuitem" data-a="${a}"${on ? '' : ' disabled'}${tip ? ` title="${I().esc(tip)}"` : ''}>${t}${kb ? `<span class="kb">${kb}</span>` : ''}</button>`;
+    const el = document.createElement('div'); el.className = 'cpmenu'; el.setAttribute('role', 'menu');
+    el.innerHTML = it('abrir', 'Abrir') + it('pestana', 'Abrir en una pestaña nueva') + '<hr>'
+      + it('copiar', 'Copiar', false, '⌘C') + it('pegar', 'Pegar', false, '⌘V') + '<hr>'
+      + it('borrar', 'Borrar carpeta…', !c.fija, '', c.fija ? `«${c.name}» no se puede borrar: sus fotos se quitan una a una` : '');
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return;
+      cerrarMenu();
+      if (b.dataset.a === 'abrir') I().trayAbrir(id);
+      else if (b.dataset.a === 'pestana') I().pestNueva(id);
+      else if (b.dataset.a === 'borrar') M.pedirBorrarCarpeta(id);
+    });
+    root.append(el);
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.max(8, Math.min(x, innerWidth - r.width - 8))}px`;
+    el.style.top = `${Math.max(8, Math.min(y, innerHeight - r.height - 8))}px`;
+    const m = menuAbierto = { el, fuera: e => { if (!el.contains(e.target)) cerrarMenu(); }, tecla: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrarMenu(); } } };
+    document.addEventListener('pointerdown', m.fuera, true); document.addEventListener('keydown', m.tecla, true);
+    window.addEventListener('blur', cerrarMenu); window.addEventListener('resize', cerrarMenu); document.addEventListener('scroll', cerrarMenu, true);
+    const b0 = el.querySelector('button'); if (b0) b0.focus();
+  }
+  document.addEventListener('contextmenu', e => {
+    const t = e.target.closest && e.target.closest('.tcarpeta[data-id], .lb-tcarp[data-id]');
+    if (!t || !I() || !I().root) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    abrirMenu(e.clientX, e.clientY, t.dataset.id);
+  }, true);
+
+  M.carpetasUI = { version: VERSION, accion, soltar, elegidas, subir, desdeEntradas, clasificar, abrirMenu, cerrarMenu };
 })();

@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.31';
+  const VERSION = '1.32';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -977,6 +977,7 @@
 #mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:2px 8px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
 #mesa .lb-tcarp{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink)}#mesa .lb-tcarp span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
+#mesa .lb-trh .lb-trt{display:inline-flex;vertical-align:middle;max-width:50%;margin-right:8px}#mesa .lb-trh .lb-trt .cptab{height:22px}
 #mesa .lb-trv{width:24px;height:22px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--panel);line-height:1}
 #mesa .lb-tph.elegida{outline:3px solid var(--acc);outline-offset:-3px}
 #mesa .lb-tph .hs{bottom:5px}
@@ -2471,6 +2472,8 @@
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
       case 'bandeja': E.trOpen = !E.trOpen; lsPoner(LS_TR, E.trOpen ? '1' : '0'); bandeja(); return;
       case 'tr-carp': E.trSel = []; I().trayAbrir(b.dataset.id || null); bandeja(); return;
+      case 'tr-pest': E.trSel = []; I().pestIr(b.dataset.id); bandeja(); return;
+      case 'tr-pcerrar': E.trSel = []; I().pestCerrar(b.dataset.id); bandeja(); return;
       case 'tr-fil': if (I().trayFiltro) I().trayFiltro(b.dataset.v); bandeja(); return;   // the same filter as the mesa's tray
       case 'tr-add': {
         const f = b.dataset.f;
@@ -2893,13 +2896,14 @@
     E.trSel = E.trSel.filter(f => fs.some(x => x.f === f));   // only what it shows stays chosen
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
+    const pest = I().pestLista ? I().pestLista() : [];   // its tabs, the same as the mesa's (D-076): shown once there is more than the fixed one
     const carps = I().carpetasDeVista ? I().carpetasDeVista() : [], ruta = I().rutaCarpeta ? I().rutaCarpeta() : [], perez = fs.length > (I().MINIS_DE_UNA || 80);   // the tray's folders, the same as the mesa's (D-075)
-    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
+    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
     const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '') + (x.h ? ' · usada en una historia' : '');
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
       + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
     if (perez && tr) I().minisPerezosas(tr);

@@ -67,8 +67,11 @@
     if (M.hs && M.hs.activo()) M.hs.ver(false);
     if (M.revisar && M.revisar._reset) M.revisar._reset();   // una revisión de «sube» pendiente no llega a la prueba siguiente
     await M.flush();                               // el guardado va con retraso: purge borra las fotos que nombra el tablero guardado
-    for (const b of await M.boards()) if (DE_PRUEBA(b.client)) await M.purge(b.key);   // con su último mes se va la bandeja del cliente (D-041)
+    for (const b of await M.boards()) if (DE_PRUEBA(b.client)) await M.purge(b.key);
+    for (const c of [CLIENTE, CLIENTE2]) await M._test.borrarBandeja(c);   // la bandeja ya no se va con el último mes (D-072)
   }
+  // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
+  const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
   // un tablero nuevo del cliente de prueba (borra antes los suyos)
   async function tablero(slots, { mes = MES } = {}) {
     await limpiar();
@@ -187,7 +190,7 @@
     const antes = corte(M.board());
     const blob = await M.exportAll({ returnBlob: true });
     ok(blob && blob.size > 1000, 'la exportación salió vacía');
-    await M.purge(`${CLIENTE}-${MES}`);
+    await sinMes(`${CLIENTE}-${MES}`);
     ok(!(await M.boards()).some(b => b.key === `${CLIENTE}-${MES}`), 'el tablero no se borró');
     const r = await M.importData(blob, { confirm: false });
     ok(r && !r.error, 'importar falló: ' + json(r));
@@ -550,15 +553,14 @@
     igual((d.bandejas.find(r => r.client === CLIENTE) || {}).tray, antes, 'la bandeja en el archivo');
     ok(d.boards.every(b => !('tray' in b)), 'un tablero del archivo lleva bandeja');
     ok(antes.every(f => d.files[f]), 'faltan fotos de la bandeja en el archivo');
-    await M.purge(key);
-    ok(!(await M._in.idbGet('bandejas', CLIENTE)), 'la bandeja no se fue con el último mes');
+    await sinMes(key);
     let r = await M.importData(d, { confirm: false });
     ok(r && !r.error, 'importar falló: ' + json(r));
     await M.open(key);
     igual(M.board().tray, antes, 'la bandeja importada');
     // un archivo de antes de la 3.44: v2, sin bandejas, con la bandeja en el tablero
     const v2 = JSON.parse(JSON.stringify(d)); v2.v = 2; delete v2.bandejas; v2.boards.find(b => b.key === key).tray = antes.slice();
-    await M.purge(key);
+    await sinMes(key);
     r = await M.importData(v2, { confirm: false });
     ok(r && !r.error, 'importar el archivo v2 falló: ' + json(r));
     await M.open(key);
@@ -872,7 +874,7 @@
     igual(b0.historias.map(h => [h.id, h.note]), [[id, 'Nota h7']], 'la historia en el archivo');
     ok(d.files[img] && d.files[f], 'el archivo no lleva la imagen o la foto de la historia');
     // en una mesa sin ese tablero
-    await M.purge(`${CLIENTE}-${MES}`);
+    await sinMes(`${CLIENTE}-${MES}`);
     ok(!(await M._test.fileRec(img)), 'borrar el mes dejó la imagen de la historia');
     let r = await M.importData(d, { confirm: false });
     ok(r && !r.error, 'importar falló: ' + json(r));
@@ -1135,7 +1137,7 @@
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
-    igual(info.version, 4, 'versión de la base de datos');
+    igual(info.version, 5, 'versión de la base de datos');
     const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
     await M.flush();
     const guardado = await M._in.idbGet('boards', key);
@@ -1870,8 +1872,8 @@
     await hasta(() => portada(1), 4000, 'las dos portadas');
     await M.flush();
     const blob = await M.exportAll({ returnBlob: true });
-    await M.purge(clave);
-    ok(!(await M._test.fileRec(a)), 'el último mes del cliente no se llevó la foto');
+    await sinMes(clave);
+    ok(!(await M._test.fileRec(a)), 'borrar el mes y la bandeja dejó la foto');
     let r = await M.importData(blob, { confirm: false });
     ok(r && !r.error, 'importar falló: ' + json(r));
     await M.open(clave);
@@ -1881,7 +1883,7 @@
     igual([vista(false), vista(true).sort()], [[], ['m26-a.jpg ✓', 'm26-b.jpg ✓']], 'la bandeja tras importar');
     // un archivo de antes de la 3.51
     const d = JSON.parse(await blob.text()); d.boards.forEach(x => { delete x.previews; });
-    await M.purge(clave);
+    await sinMes(clave);
     r = await M.importData(new W.Blob([JSON.stringify(d)], { type: 'application/json' }), { confirm: false });
     ok(r && !r.error, 'importar el archivo antiguo falló: ' + json(r));
     await M.open(clave);
@@ -3739,6 +3741,350 @@
     ok(!boton(), 'sale en una foto que cruza diapositivas');
     delete ph.pan;
     M.libre.cerrar();
+  });
+
+  // ---------- carpetas de la bandeja (D-069 a D-073) ----------
+  const hist = () => M.board().carpetas.find(c => c.id === 'historias');
+  const carp = id => M.board().carpetas.find(c => c.id === id);
+  const raiz = (todas = true) => M._in.bandejaVista({ carpeta: null, todas }).map(x => x.f);
+  const enCarpeta = (id, todas = true) => M._in.bandejaVista({ carpeta: id, todas }).map(x => x.f);
+  const aCarpeta = (id, files) => M.addFiles(files, null, { carpeta: id });
+  const medida = async () => { const r = await M.informeArchivos(); return { claves: r.claves, bytes: r.bytes }; };
+
+  prueba('C1', '«Historias» existe para todo cliente, nuevo o de antes, es fija y la base de datos va en la 5 (D-069, D-060)', async () => {
+    await tablero([pub(1)]);
+    igual(M.carpetas(), [{ id: 'historias', name: 'Historias', parent: null, fija: true, fotos: 0 }], 'las carpetas de un cliente nuevo');
+    await M.flush();
+    const rec = await M._in.idbGet('bandejas', CLIENTE);
+    igual(rec.carpetas.map(c => c.id), ['historias'], 'guardada en su registro');
+    // un cliente de antes: su registro sin carpetas
+    await M._in.idbPut('bandejas', CLIENTE, { client: CLIENTE, tray: rec.tray, at: rec.at });
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(M.carpetas().map(c => c.id), ['historias'], 'las carpetas de un cliente de antes');
+    const err = await M.borrarCarpeta('historias');
+    ok(err && err.error, 'se pudo borrar «Historias»');
+    await M.pedirBorrarCarpeta('historias');
+    ok(!dialogo() || !q('[data-act="carpeta-borrar"]'), 'avisa como si se pudiera borrar');
+    const v = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => { const n = r.result.version; r.result.close(); res(n); }; r.onerror = () => rej(r.error); });
+    igual(v, 5, 'versión de IndexedDB');
+  });
+
+  prueba('C2', 'Ninguna escritura de «bandejas» pierde las carpetas: guardar, juntar, borrar mes, importar y la copia de una recarga; board().tray lleva las sin usar y la raíz no (D-069)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1)]);
+    const c = M.crearCarpeta('Sesión').id, s2 = M.crearCarpeta('Sub', c).id;
+    igual(M.crearCarpeta('Sesión').id, c, 'dos hermanas con el mismo nombre');
+    const [a] = await aCarpeta(s2, [await foto('c2-a.jpg')]);
+    const [b] = await M.addFiles([await foto('c2-b.jpg')]);
+    ok(M.board().tray.includes(a), 'board().tray no lleva la foto de la carpeta');
+    igual(raiz(), [b], 'la raíz');
+    igual(enCarpeta(s2), [a], 'la carpeta');
+    igual(M._in.bandejaVista().map(x => x.f), [b], 'lo que enseña la bandeja abierta en la raíz');
+    const mira = async que => { igual(((await M._in.idbGet('bandejas', CLIENTE)).carpetas || []).map(x => [x.id, x.files.length]).sort(), [['historias', 0], [c, 0], [s2, 1]].sort(), que); };
+    await M.flush(); await mira('guardar');
+    ok(!('carpetas' in (await M._in.idbGet('boards', clave))), 'el tablero guarda las carpetas');
+    // juntar: un tablero de antes de la 3.44 con su bandeja
+    const viejo = await M._in.idbGet('boards', clave); viejo.tray = [b]; await M._in.idbPut('boards', clave, viejo);
+    await M.open(clave); await M.flush(); await mira('juntar');
+    igual(carp(s2).files, [a], 'tras reabrir');
+    // borrar otro mes y el último: se quedan (D-072)
+    await M.init({ client: CLIENTE, month: '2026-12', slots: [pub(9, 'Foto', 9, '2026-12')], past: [], force: true });
+    igual(carp(s2).files, [a], 'en el otro mes');
+    await M.flush();
+    await M.purge(clave); await mira('borrar un mes con otro abierto');
+    await M.purge(`${CLIENTE}-2026-12`); await mira('borrar el último mes, abierto');
+    ok(await M._test.fileRec(a), 'el último mes se llevó la foto de la carpeta');
+    // importar
+    await M.init({ client: CLIENTE, month: MES, slots: [pub(1)], past: [], force: true });
+    igual(carp(s2).files, [a], 'el mes nuevo trae la bandeja');
+    await M.flush();
+    const blob = await M.exportAll({ returnBlob: true });
+    const r = await M.importData(blob, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(clave); await M.flush(); await mira('importar');
+    // la copia que deja una recarga: si es más nueva manda
+    const b0 = await M._in.idbGet('boards', clave), futuro = new Date(Date.now() + 60000).toISOString();
+    W.localStorage.setItem('mesa-pending', json({ key: clave, v: 5, board: { ...b0, savedAt: futuro, tray: [a, b], carpetas: [{ id: 'historias', name: 'Historias', parent: null, files: [b], fija: true }, { id: c, name: 'Sesión', parent: null, files: [] }, { id: s2, name: 'Sub', parent: c, files: [a] }] } }));
+    await M.open(clave);
+    igual(hist().files, [b], 'la copia de una recarga');
+  });
+
+  prueba('C3', 'Una foto en dos carpetas es un solo archivo: sobrevive a borrar una, con los mismos bytes, y se va al quitarla de la otra (D-069, D-071)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1)]);
+    const c = M.crearCarpeta('Origen').id, antes = await medida();
+    const [a] = await aCarpeta(c, [await foto('c3-a.jpg', 1400, 1000)]);
+    const con = await medida(), rec0 = await M._test.fileRec(a);
+    ok(con.claves === antes.claves + 1, 'la foto no entró');
+    const [a2] = await aCarpeta('historias', [await foto('c3-a.jpg', 1400, 1000)]);
+    igual(a2, a, 'es otro archivo');
+    igual(await medida(), con, 'copiarla escribió bytes');
+    igual(hist().files, [a], '«Historias»');
+    const p = await M.planBorrarCarpeta(c);
+    igual([p.fotos, p.nBorran, p.quedan.otra, p.bytes], [1, 0, 1, 0], 'el plan');
+    const r = await M.borrarCarpeta(c);
+    ok(r && r.ok, json(r));
+    igual(await M._test.fileRec(a), rec0, 'los bytes tras borrar el origen');
+    ok(M.board().tray.includes(a) && hist().files.includes(a), 'sigue en «Historias»');
+    M._test.removeFile(a, 'historias');
+    ok(!M.board().tray.includes(a) && !hist().files.includes(a), 'no salió de «Historias»');
+    ok(M._in.delList().includes(a), 'no queda apuntada para borrar');
+    await M.flush(); await M.open(clave);      // ya ningún paso de ⌘Z la tiene
+    await hasta(async () => !(await M._test.fileRec(a)), 6000, 'que se borre su archivo');
+    igual(await medida(), antes, 'lo guardado tras quitarla');
+  });
+
+  prueba('C4', 'Borrar carpeta: el aviso dice lo que hay, lo que se borra, lo que se queda y por qué; se queda lo de publicaciones (también canceladas), historias, huecos y otras carpetas (D-070)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const c = M.crearCarpeta('Sesión').id, sub = M.crearCarpeta('Sub', c).id, sub2 = M.crearCarpeta('Vacía', sub).id;
+    const nombres = ['c4-pub', 'c4-can', 'c4-his', 'c4-hue', 'c4-otr', 'c4-lib'];
+    const ids = await aCarpeta(c, await Promise.all(nombres.map(n => foto(n + '.jpg'))));
+    const [pu, ca, hi, hu, ot, li] = ids;
+    const [zz] = await aCarpeta(sub, [await foto('c4-zz.jpg')]);
+    M._test.place('r1', pu); M._test.place('r2', ca); M.setEstado('r2', 'cancelado');
+    const hid = M.hs.anadir(`${MES}-20`);
+    M._in.S.historias.find(h => h.id === hid).photos = [hi]; M._in.save();
+    await pulsar('[data-act="addfiller"]'); await M._test.setPreview(0, hu);
+    await aCarpeta('historias', [await foto('c4-otr.jpg')]);
+    await M.flush();
+    const p = await M.planBorrarCarpeta(c);
+    igual([p.fotos, p.subcarpetas, p.nBorran], [7, 2, 2], 'el plan');
+    igual(p.quedan, { pub: 1, cancelada: 1, historia: 1, hueco: 1, otra: 1 }, 'lo que se queda y por qué');
+    const reales = (await M._test.fileRec(li)).bytes + (await M._test.fileRec(zz)).bytes;
+    ok(p.bytes >= reales, 'el espacio que libera no cuenta las fotos');
+    await M.pedirBorrarCarpeta(c);
+    const t = dialogo().textContent;
+    for (const x of ['«Sesión»', '7 fotos', '2 subcarpetas', 'borran 2 fotos', 'quedan 5', 'en una publicación', 'en una publicación cancelada', 'en una historia', 'portada de un hueco', 'también en otra carpeta', 'no se puede deshacer']) ok(t.includes(x), `el aviso no dice «${x}»: ${t}`);
+    ok(q('.detail .btn2[data-act="close"]').textContent === 'Cancelar' && q('[data-act="carpeta-borrar"]').textContent === 'Borrar', 'los botones');
+    await pulsar('.detail .btn2[data-act="close"]');
+    ok(carp(c), 'cancelar borró la carpeta');
+    await M.pedirBorrarCarpeta(c);
+    await pulsar('[data-act="carpeta-borrar"]');
+    await hasta(async () => !carp(c) && !(await M._test.fileRec(li)), 6000, 'que se borre');
+    igual([!!carp(sub), !!carp(sub2), !!(await M._test.fileRec(zz))], [false, false, false], 'las subcarpetas y sus fotos');
+    for (const f of [pu, ca, hi, hu, ot]) ok(await M._test.fileRec(f), 'se borró una foto que se usa: ' + M.files[f]);
+    ok(raiz().includes(hi), 'la foto de la historia no queda en la raíz (D-056)');
+    ok(!raiz().includes(ot) && hist().files.includes(ot), 'la de «Historias» salió suelta en la raíz');
+    const rec = await M._in.idbGet('bandejas', CLIENTE);
+    igual(rec.carpetas.map(x => x.id), ['historias'], 'guardado');
+    ok(!rec.tray.includes(li) && !M._in.delList().includes(li), 'quedan restos en la bandeja o en la lista');
+  });
+
+  prueba('C5', 'Borrar carpeta suelta la memoria y sale del historial: ⌘Z no la devuelve, los pasos que quedan funcionan y uno con su foto en una publicación se corta (D-070, D-071)', async () => {
+    await tablero([pub(1)]);
+    const c = M.crearCarpeta('Una').id;
+    const [a, b] = await aCarpeta(c, [await foto('c5-a.jpg'), await foto('c5-b.jpg')]);
+    const [t1] = await M.addFiles([await foto('c5-t1.jpg')]);
+    const [t2] = await M.addFiles([await foto('c5-t2.jpg')]);
+    await M.flush();
+    M._test.place('r1', a); await M.flush();   // paso: a en la publicación
+    M._in.S.slots[0].photos = []; M._in.S.tray.unshift(a); M._in.changed(); await M.flush();   // paso: vuelve a su carpeta
+    ok(M.board().tray.includes(a) && enCarpeta(c, false).includes(a), 'no volvió a su carpeta');
+    M._test.place('r1', t1); await M.flush();  // paso: otra foto en la publicación
+    ok(M._test.hist().undo >= 3, 'faltan pasos');
+    const url = M.files[b].thumbUrl;
+    ok(String(url).startsWith('blob:'), 'sin miniatura');
+    M.blobs[b] = await M._in.getBlob(b); M.bigUrls = M.bigUrls || {}; M.bigUrls[b] = W.URL.createObjectURL(M.blobs[b]);
+    const r = await M.borrarCarpeta(c);
+    ok(r && r.ok && r.borradas === 2, json(r));
+    for (const f of [a, b]) {
+      ok(!M.files[f] && !M.blobs[f] && !M.thumbBlobs[f] && !(M.bigUrls && M.bigUrls[f]), 'queda en memoria');
+      ok(!(await M._test.fileRec(f)), 'queda el archivo');
+    }
+    const u1 = M._test.hist().undo;
+    ok(u1 === 1, 'el paso con la foto en la publicación no se cortó: ' + u1);
+    M._test.place('r1', t2); await M.flush();
+    M._test.undo(); await M.flush();
+    igual(slot('r1').photos.includes(t2), false, 'deshacer un paso que queda');
+    for (let i = 0; i < 4; i++) { M._test.undo(); await M.flush(); }
+    ok(!carp(c), '⌘Z devolvió la carpeta');
+    ok(!M.board().tray.some(f => f === a || f === b), '⌘Z devolvió las fotos');
+    for (let i = 0; i < 4; i++) { M._test.redo(); await M.flush(); }
+    ok(!carp(c) && !(await M._test.fileRec(a)), 'rehacer devolvió algo');
+  });
+
+  prueba('C6', 'Sin restos: rondas de subir y borrar una carpeta dejan las claves y los bytes de «files» como estaban (D-071)', async () => {
+    await tablero([pub(1)]);
+    await M.flush();
+    const antes = await medida();
+    for (let n = 0; n < 3; n++) {
+      const c = M.crearCarpeta('Ronda ' + n).id;
+      await aCarpeta(c, await Promise.all(Array.from({ length: 12 }, (_, i) => foto(`c6-${n}-${i}.jpg`, 500, 600))));
+      const con = await medida();
+      ok(con.claves === antes.claves + 12, 'no entraron: ' + con.claves);
+      const r = await M.borrarCarpeta(c);
+      ok(r && r.ok && r.borradas === 12, json(r));
+      igual(await medida(), antes, 'tras la ronda ' + n);
+    }
+    igual(Object.keys(M.files).filter(k => M.files[k].name && M.files[k].name.startsWith('c6-')), [], 'M.files');
+    igual((await M.informeArchivos()).huerfanos, [], 'huérfanos');
+  });
+
+  prueba('C7', 'Una foto que sale de una publicación vuelve a su carpeta si sigue; si no, a la raíz. Se ve con ✓ dentro de la carpeta, «Sin usar» la esconde y sigue el aviso de D-022 (D-069)', async () => {
+    await tablero([pub(1)]);
+    const c = M.crearCarpeta('Vuelta').id;
+    const [a] = await aCarpeta(c, [await foto('c7-a.jpg')]);
+    M._test.place('r1', a);
+    ok(!M.board().tray.includes(a), 'sigue en board().tray estando usada');
+    igual(enCarpeta(c, false), [], '«Sin usar»');
+    igual(M._in.bandejaVista({ carpeta: c, todas: true }).map(x => [x.f, !!x.u]), [[a, true]], '«Todas», con ✓');
+    igual(raiz(true), [], 'una foto usada de una carpeta no sale en la raíz');
+    await M.flush();
+    M._in.S.slots[0].photos = []; M._in.S.tray.unshift(a); M._in.changed();
+    igual(enCarpeta(c, false), [a], 'no volvió a su carpeta');
+    M._test.place('r1', a); await M.flush();
+    const r = await M.borrarCarpeta(c);
+    ok(r && r.ok && r.borradas === 0, json(r));
+    ok(await M._test.fileRec(a), 'se borró la foto usada');
+    igual(raiz(true), [a], 'sin carpeta sale en la raíz, con ✓');
+    M._in.S.slots[0].photos = []; M._in.S.tray.unshift(a); M._in.changed();
+    igual(raiz(false), [a], 'vuelve a la raíz');
+  });
+
+  prueba('C8', '«⇅ Exportar» no lleva las carpetas ni sus fotos, salvo las usadas, y avisa de cuántas no viajan; importar no las toca (D-073)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1), pub(2)]);
+    const c = M.crearCarpeta('Fuera').id;
+    const [l, u, h] = await aCarpeta(c, [await foto('c8-1.jpg'), await foto('c8-2.jpg'), await foto('c8-3.jpg')]);
+    const [g] = await aCarpeta('historias', [await foto('c8-4.jpg')]);
+    const [r0] = await M.addFiles([await foto('c8-5.jpg')]);
+    M._test.place('r1', u);
+    const hid = M.hs.anadir(`${MES}-20`); M._in.S.historias.find(x => x.id === hid).photos = [h]; M._in.save();
+    await M.flush();
+    const res = await M.exportAll({ returnBlob: true });
+    const d = JSON.parse(await res.text());
+    igual(d.bandejas.find(x => x.client === CLIENTE).tray, [r0], 'la bandeja del archivo: solo la raíz');
+    ok(!('carpetas' in d.bandejas[0]) && d.boards.every(b => !('carpetas' in b)), 'el archivo lleva carpetas');
+    ok(!d.files[l] && !d.files[g], 'el archivo lleva fotos sin usar de las carpetas');
+    ok(d.files[u] && d.files[h] && d.files[r0], 'al archivo le faltan las usadas o la raíz');
+    const exp = await M.exportAll();
+    igual(exp.carpetasFuera, 2, 'las carpetas que no viajan');
+    await hasta(() => /2 carpetas de la bandeja no viajan/.test(M._in.root().textContent), 4000, 'el aviso de las carpetas');
+    M._in.closeDetail();
+    // en otra mesa
+    await sinMes(clave);
+    const r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(clave);
+    igual(M.carpetas().map(x => [x.id, x.fotos]), [['historias', 0]], 'en la otra mesa');
+    ok(slot('r1').photos.includes(u) && (await M._test.fileRec(u)), 'la foto usada no viajó');
+    igual(raiz(false).includes(r0), true, 'la raíz no viajó');
+    // sobre esta misma mesa, importar no quita carpetas
+    const c2 = M.crearCarpeta('Aquí').id; await aCarpeta(c2, [await foto('c8-6.jpg')]); await M.flush();
+    const r2 = await M.importData(d, { confirm: false });
+    ok(r2 && !r2.error, 'importar sobre la mesa falló');
+    await M.open(clave);
+    igual(carp(c2).files.length, 1, 'importar quitó una carpeta');
+  });
+
+  prueba('C9', 'El informe de huérfanos solo lee: los lista sin borrarlos y nunca cuenta kit-, perfil-, past:, logos ni fotos de historias (D-073)', async () => {
+    await tablero([pub(1)]);
+    const [ph] = await M.addFiles([await foto('c9-h.jpg')]);
+    const hid = M.hs.anadir(`${MES}-20`); M._in.S.historias.find(x => x.id === hid).photos = [ph]; M._in.S.tray = M._in.S.tray.filter(f => f !== ph); M._in.save();
+    await M.flush();
+    const blob = await (await foto('c9-o.jpg')).arrayBuffer(), b = new W.Blob([blob], { type: 'image/jpeg' });
+    const claves = ['c9-huerfano', 'kit-c9-logo', 'perfil-c9', 'past:c9'];
+    for (const k of claves) await M._in.idbPut('files', k, { name: k + '.jpg', size: b.size, type: 'image/jpeg', w: 10, h: 10, blob: b, thumb: b });
+    const antes = await medida(), r = await M.informeArchivos();
+    igual(r.huerfanos.map(x => x.id), ['c9-huerfano'], 'los huérfanos');
+    igual(r.bytesHuerfanos, b.size * 2, 'sus bytes');
+    igual(await medida(), antes, 'el informe cambió algo');
+    for (const k of claves) ok(await M._in.idbGet('files', k), 'el informe borró ' + k);
+    for (const k of claves) await M._in.idbDel('files', k);
+  });
+
+  prueba('C10', 'Quitar una foto suelta no deja restos: apuntada desde el principio, «Deshacer» la saca de la lista y una recarga la borra; lo que entra a medias tampoco queda (D-071)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1)]);
+    const [a, b] = await M.addFiles([await foto('c10-a.jpg'), await foto('c10-b.jpg')]);
+    await M.flush(); await M.open(clave);      // la lista de lo que entra se vacía al abrir
+    igual(M._in.delList().filter(f => f === a || f === b), [], 'la lista al abrir');
+    M._test.removeFile(a);
+    ok(M._in.delList().includes(a), 'no se apuntó');
+    const des = await hasta(() => qa('.toast button, .toasts button').find(x => /Deshacer/.test(x.textContent)), 2000, 'el botón Deshacer');
+    des.click();
+    ok(M.board().tray.includes(a) && !M._in.delList().includes(a), '«Deshacer» no la devolvió o sigue apuntada');
+    M._test.removeFile(b);
+    await M.flush(); await M.open(clave);      // como una recarga dentro de los 6 s
+    await hasta(async () => !(await M._test.fileRec(b)), 6000, 'que se borre al abrir');
+    ok(await M._test.fileRec(a), 'se borró la que volvió');
+    // un archivo escrito que no llegó a la bandeja: una recarga a media subida
+    const blob = await foto('c10-c.jpg');
+    await M._in.idbPut('files', 'c10-suelto', { name: 'c10-c.jpg', size: blob.size, type: blob.type, w: 10, h: 10, blob, thumb: blob });
+    M._in.delList(l => [...l, 'c10-suelto']);
+    await M.open(clave);
+    await hasta(async () => !(await M._in.idbGet('files', 'c10-suelto')), 6000, 'que se borre lo que quedó a medias');
+    // pero no lo que solo tiene la copia que deja una recarga, de otro mes
+    const [p1] = await M.addFiles([await foto('c10-p.jpg')]);
+    await M.flush();
+    M._in.S.tray = M._in.S.tray.filter(f => f !== p1); M._in.delList(l => [...l, p1]);
+    W.localStorage.setItem('mesa-pending', json({ key: `${CLIENTE}-2026-12`, v: 5, board: { key: `${CLIENTE}-2026-12`, client: CLIENTE, slots: [], tray: [p1], savedAt: new Date().toISOString() } }));
+    await M.flush(); await M.open(clave);
+    await espera(300);
+    ok(await M._test.fileRec(p1), 'se borró una foto que tenía la copia de una recarga');
+    W.localStorage.removeItem('mesa-pending');
+  });
+
+  prueba('C11', 'La bandeja solo se va con el cliente, carpetas incluidas: el botón dice cuánto y no toca fotos fijas ni de otros (D-072)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1)]);
+    const c = M.crearCarpeta('Se va').id;
+    const [a] = await aCarpeta(c, [await foto('c11-a.jpg')]);
+    const [g] = await aCarpeta('historias', [await foto('c11-g.jpg')]);
+    const [t] = await M.addFiles([await foto('c11-t.jpg')]);
+    M._test.place('r1', a);               // solo la usa ese mes y está en una carpeta: se queda
+    await M.flush();
+    await M.purge(clave);
+    const rec = await M._in.idbGet('bandejas', CLIENTE);
+    ok(rec && rec.tray.includes(t) && rec.carpetas.some(x => x.id === c), 'el último mes se llevó la bandeja');
+    for (const f of [a, g, t]) ok(await M._test.fileRec(f), 'el último mes se llevó una foto de la bandeja');
+    await M.init({ client: CLIENTE, month: MES, slots: [pub(1)], past: [], force: true });
+    ok(M.board().tray.includes(a) && enCarpeta(c, false).includes(a), 'la foto cuyo mes se borró no volvió a estar libre en su carpeta');
+    igual(M.carpetas().length, 2, 'las carpetas al volver a crear el mes');
+    await M.flush();
+    await M.purge(clave);
+    const r = await M.removeClient(CLIENTE);
+    ok(r === true, 'no se pudo borrar el cliente: ' + r);
+    ok(!(await M._in.idbGet('bandejas', CLIENTE)), 'quedó su bandeja');
+    for (const f of [a, g, t]) ok(!(await M._test.fileRec(f)), 'quedó una foto del cliente');
+  });
+
+  prueba('C12', 'Con el editor abierto, una foto puesta en una diapositiva sin aplicar se queda al borrar su carpeta (D-070)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const c = M.crearCarpeta('En uso').id;
+    const [a, b] = await aCarpeta(c, [await foto('c12-a.jpg'), await foto('c12-b.jpg')]);
+    await abrirEditor('r1');
+    const E = ed();
+    igual(typeof M.libre.fotosSesion, 'function', 'sin fotosSesion');
+    E.hist.undo.push(json({ sl: [{ key: a }], i: 0, fmt: E.fmt }));
+    const p = await M.planBorrarCarpeta(c);
+    igual([p.nBorran, p.quedan.editor], [1, 1], 'el plan con el editor abierto');
+    const r = await M.borrarCarpeta(c);
+    ok(r && r.ok && r.borradas === 1, json(r));
+    ok(await M._test.fileRec(a), 'se borró la foto del editor');
+    ok(!(await M._test.fileRec(b)), 'no se borró la otra');
+    E.hist.undo.pop();
+    M.libre.cerrar();
+  });
+
+  prueba('C13', 'Las miniaturas no crean URL hasta que se piden y se leen por tandas; la imagen de una foto de carpeta se abre igual (D-069)', async () => {
+    const clave = `${CLIENTE}-${MES}`;
+    await tablero([pub(1)]);
+    const c = M.crearCarpeta('Muchas').id;
+    await aCarpeta(c, await Promise.all(Array.from({ length: 5 }, (_, i) => foto(`c13-${i}.jpg`, 400, 500))));
+    await M.flush();
+    Object.keys(M.files).forEach(k => { delete M.files[k]; });
+    let urls = 0; const orig = W.URL.createObjectURL; W.URL.createObjectURL = o => { urls++; return orig.call(W.URL, o); };
+    try {
+      await M.open(clave);
+      const f = carp(c).files[0];
+      ok(M.files[f] && M.files[f].name.startsWith('c13-'), 'no se cargó su ficha');
+      const antes = urls;
+      igual(typeof M.files[f].w, 'number', 'sus medidas');
+      igual(urls, antes, 'leer la ficha creó una URL');
+      ok(String(M.files[f].thumbUrl).startsWith('blob:'), 'sin URL al pedirla');
+      igual(urls, antes + 1, 'pedirla no creó una URL');
+    } finally { W.URL.createObjectURL = orig; }
   });
 
   // =====================================================================================================

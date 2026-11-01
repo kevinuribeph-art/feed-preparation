@@ -92,7 +92,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.33';
+  const VERSION = '1.34';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -656,7 +656,7 @@
       build(s);
       cargarCliente();
       ofrecerNumeros();
-      if (opts.foto) desdeBandeja([opts.foto], { i: null, p: null });   // a photo dropped on a story in the view: as if clicked in this tray, with its warning
+      if (opts.foto) desdeBandeja([opts.foto], { i: null, p: null }, opts.modo);   // a photo dropped on a story in the view: as if clicked in this tray, with its warning (its question was asked there, D-078)
       if (opts.fmt) I().toast('Formato cambiado en el editor: pulsa «Aplicar a la casilla» para redibujar las diapositivas editadas.', { ms: 7000 });
       else if (dz) I().toast(E.reel ? 'Reel diseñado: su portada entra como imagen. Si aplicas cambios, el diseño queda fijado así y su foto vuelve a la bandeja (⌘Z en la mesa lo deshace).' : 'Carrusel diseñado: sus diapositivas entran como imagen. Si aplicas cambios, el diseño queda fijado así y sus fotos vuelven a la bandeja (⌘Z en la mesa lo deshace).', { ms: 9000 });
       return { ok: true, slot: s.id, diapositivas: E.sl.length };
@@ -3017,7 +3017,7 @@
   }
   // photos onto slide i (null: the one open). On a slide with holes, into them (planHuecos); else as new photos above the
   // others, at the pointer when there is one; a post with no slide gets one. -> how many went in and how many didn't fit
-  async function ponerFotos(fs, p, i) {
+  async function ponerFotos(fs, p, i, m) {
     fs = fs.filter(f => M.files[f] && !M.files[f].design && !isKit(f)); if (!fs.length || !E || E.busy) return null;
     if (E.ask) cerrarPregunta();
     if (E.pv) preview(false);
@@ -3025,9 +3025,10 @@
     if (!E.allEl.hidden) verTodas(false);
     if (E.cambio) salirCambio();
     const otra = i != null && E.sl[i] && i !== E.i, s0 = !otra && !p ? selEl() : null, c0 = E.sl.length ? compAt(otra ? i : E.i) : null;
+    if (m && m.sustituye) return sustituirFoto(m.sustituye, fs[0]);
     if (huecosTodos(c0).length) {
       if (otra) elegir(i);
-      const plan = planHuecos(fs, p, c0, s0);
+      const plan = m && m.anadir ? planAnadir(fs[0], p, c0, s0) : planHuecos(fs, p, c0, s0);
       if (plan) return repartir(plan.pares, plan.sobran);
     }
     mut(null, () => {
@@ -3052,10 +3053,62 @@
     const e = p ? huecosTodos(compAt(E.i)).reverse().find(q => inside(areaHueco(q), p)) : selEl();
     return e && lleno(e) ? e.id : undefined;
   }
-  // tray photos to a place t ({i, p}, see destino): the warning first (D-022), a copy if it is used this month (D-041)
-  function desdeBandeja(fs, t) {
+  // ---------- one photo on a story that has one: «1 · Sustituir» or «2 · Añadir» (D-078) ----------
+  const cambiables = comp => fotosDe(comp).filter(e => e.src && !e.lock && !e.oculto && !e.pan);
+  const enHistoria = s => { const key = s && s.photos[0]; if (!key) return 0; const f = entries(s)[key] ? { comp: entries(s)[key] } : compOf(I().S, key); return f ? cambiables(f.comp).length : 1; };
+  // the one «Sustituir» takes: under the pointer, the one chosen, or the one with the biggest surface
+  function aCambiar(c, p) {
+    const fs = cambiables(c), bajo = p && [...fs].reverse().find(e => inside(areaHueco(e), p)), s = selEl();
+    return bajo || (s && fs.find(e => e.id === s.id)) || fs.reduce((a, e) => (e.w * e.h > a.w * a.h ? e : a));
+  }
+  // a single photo going to place t: undefined, no question (no photo to take the place of, or a free hole is its place);
+  // null, cancelled; else what to do, for ponerFotos. modo: the answer given in the view, before the editor opened
+  function modoFoto(n, t, modo) {
+    if (!E.historia || n !== 1) return Promise.resolve(undefined);
+    const c = compAt(E.i), p = t.p, fs = cambiables(c); if (!fs.length) return Promise.resolve(undefined);
+    const hueco = p ? [...c.els].reverse().find(e => (libre(e) || fs.includes(e)) && inside(areaHueco(e), p)) : selEl();
+    if (hueco && libre(hueco)) return Promise.resolve(undefined);
+    const id = aCambiar(c, p).id, de = v => (v === 'sustituir' ? { sustituye: id } : v === 'anadir' ? { anadir: true } : null);
+    if (modo) return Promise.resolve(de(modo));
+    return new Promise(res => {
+      preguntar('Esta historia ya tiene imagen', '¿Qué hago con la nueva?', [['sustituir', '1 · Sustituir', 'btn2'], ['anadir', '2 · Añadir', 'btn2']], v => res(de(v)));
+      E.askNo = () => res(null);
+      E.ask.classList.add('lb-ask12');
+      E.el.focus({ preventScroll: true });   // no button holds the keys: only 1, 2 and Esc answer
+    });
+  }
+  // «Añadir»: into the free hole under the pointer or chosen, else the first free one (D-050); with none, null: a new loose photo
+  function planAnadir(f, p, c, s0) {
+    const { W, H } = sizeAt(E.i), libres = huecosDe(c);
+    const h = p ? [...libres].reverse().find(q => inside(areaHueco(q), p)) : (s0 && libres.find(q => q.id === s0.id)) || libres.find(q => coincide(f, q, W, H)) || libres[0];
+    return h ? { pares: [{ f, h }], sobran: 0 } : null;
+  }
+  // «Sustituir»: photo f takes the place of element id, the others stay. In a hole, by the rule of D-050; a loose one's frame
+  // counts as its hole. Its old photo goes back to the tray; Esc in the question of D-050 changes nothing
+  async function sustituirFoto(id, f) {
+    const owner = E, { W, H } = sizeAt(E.i), e0 = compAt(E.i).els.find(q => q.id === id); if (!e0) return null;
+    if (e0.hueco) return repartir([{ f, h: e0 }], 0);
+    const llena = coincide(f, e0, W, H) ? true : await preguntaEncaje(f, e0, 'Esc: dejarla como estaba.');
+    if (E !== owner || llena == null) return null;
+    E.pick = null; E.crop = null;
+    mut(null, () => {
+      const c = ensure(), e = c.els.find(q => q.id === id); if (!e) return;
+      const caja = { x: e.x, y: e.y, w: e.w, h: e.h, rot: e.rot || 0 }, ant = M.files[e.src];
+      if (ant && !ant.design) E.vuelven.add(e.src);
+      e.src = f; delete e.fit; delete e.rat; delete e.mano;
+      if (llena) alHueco(e, caja); else ajustarHueco(e, caja, W, H);
+      sinProvisional(c); E.sel = e.id; E.mas = [];
+    });
+    return { puestas: 1, sobran: 0 };
+  }
+  // tray photos to a place t ({i, p}, see destino): on a story that has a photo, the question (D-078); the warning (D-022); a
+  // copy if it is used this month (D-041)
+  function desdeBandeja(fs, t, modo) {
     const owner = E;
-    avisar(fotoIt(fs), t.i != null ? t.i : E.i, fs.length === 1 ? aSustituir(t.p, t.i) : undefined).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(go => { if (go && go.length && E === owner) ponerFotos(go, t.p, t.i); });
+    modoFoto(fs.length, t, modo).then(m => {
+      if (m === null || E !== owner) return;
+      avisar(fotoIt(fs), t.i != null ? t.i : E.i, fs.length === 1 ? (m ? m.sustituye : aSustituir(t.p, t.i)) : undefined).then(r => r && r.length && E === owner ? conCopias(r.map(x => x.f)) : null).then(go => { if (go && go.length && E === owner) ponerFotos(go, t.p, t.i, m); });
+    });
   }
   // where a photo would land: a slide of the strip, a point of the slide, or around it (centred on the slide open)
   function destino(ev) {
@@ -3079,9 +3132,11 @@
     const owner = E, files = [...(e.dataTransfer.files || [])], guardar = !!e.target.closest('.lb-tray'), t = guardar ? null : destino(e) || { i: null, p: null };
     if (!files.length) return;
     if (t && t.el === E.scroll && t.i == null && !t.p && escribiendo()) { I().toast(ESCRIBIENDO); return; }   // onto the grey while writing: nothing
-    let go = files;
-    if (!guardar) {       // onto a slide: the warning first (into the tray they just go in)
-      const r = await avisar(files.filter(f => f && f.size).map(f => ({ f, name: f.name, size: f.size })), t.i != null ? t.i : E.i, files.length === 1 ? aSustituir(t.p, t.i) : undefined);
+    let go = files, m;
+    if (!guardar) {       // onto a slide: on a story that has a photo, the question (D-078); then the warning (into the tray they just go in)
+      m = await modoFoto(files.length, t);
+      if (m === null || E !== owner) return;
+      const r = await avisar(files.filter(f => f && f.size).map(f => ({ f, name: f.name, size: f.size })), t.i != null ? t.i : E.i, files.length === 1 ? (m ? m.sustituye : aSustituir(t.p, t.i)) : undefined);
       if (!r || E !== owner) return;
       go = r.map(x => x.f); if (!go.length) return;
     }
@@ -3090,7 +3145,7 @@
     bandeja();
     if (!got || !got.length) return;
     if (guardar) { if (!E.trOpen) { E.trOpen = true; bandeja(); } I().toast(got.length === 1 ? 'Foto guardada en la bandeja.' : `${got.length} fotos guardadas en la bandeja.`); return; }
-    const r = await ponerFotos(got, t.p, t.i);
+    const r = await ponerFotos(got, t.p, t.i, m);
     if (E === owner && r && r.puestas && !r.sobran) I().toast(`${r.puestas === 1 ? 'Foto puesta' : `${r.puestas} fotos puestas`} en la diapositiva ${E.i + 1}. Quedan en la bandeja hasta que apliques.`);
   }
   function arrastrarBandeja(e) {     // a tray photo dragged onto the slide or onto a slide of the strip (a click puts it on the open one)
@@ -3437,7 +3492,7 @@
   // the photos the open session has or can bring back with its ⌘Z, applied or not: deleting a tray's folder leaves them (D-070)
   const fotosSesion = () => { if (!E) return []; const out = new Set(); for (const m of [JSON.stringify(E.sl), ...E.hist.undo, ...E.hist.redo].join('').matchAll(/"(?:src|key)":"([^"]+)"/g)) out.add(m[1]); return [...out]; };
   const trayLote = () => (E ? { files: E.trSel.slice(), carpetas: (E.trCar || []).slice() } : { files: [], carpetas: [] });
-  M.libre = { version: VERSION, abrir, fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
+  M.libre = { version: VERSION, abrir, fotosHistoria: id => enHistoria(((I().S && I().S.historias) || []).find(h => h.id === id)), fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     hist: { pintar: pintarHistoria, altoDe, OUT_W },   // a story designed from outside (historias.js, D-062)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)

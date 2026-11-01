@@ -1566,41 +1566,42 @@
     M.hs.ver(false);
   });
 
-  prueba('H22', 'Las flechas: por hora entre las no canceladas de su día, sin flechas con una sola o en una cancelada, y siguen al día nuevo (D-065)', async () => {
+  prueba('H22', 'Las flechas recorren todo el mes por fecha y hora: saltan días vacíos y canceladas, se desactivan en los extremos y siguen a la historia si cambia (D-080, D-065)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     M.hs.ver(true);
-    const a = M.hs.anadir(DIA(10), { time: '10:00' }), b = M.hs.anadir(DIA(10), { time: '11:00' }), c = M.hs.anadir(DIA(10), { time: '12:00' }), x = M.hs.anadir(DIA(10), { time: '10:30' }), sola = M.hs.anadir(DIA(14), { time: '08:00' });
+    const a = M.hs.anadir(DIA(10), { time: '10:00' }), b = M.hs.anadir(DIA(10), { time: '11:00' }), x = M.hs.anadir(DIA(10), { time: '10:30' }), c = M.hs.anadir(DIA(14), { time: '09:00' }), d = M.hs.anadir(DIA(14), { time: '08:00' }), e = M.hs.anadir(DIA(20), { time: '12:00' });
     M.hs.cancelar(x);
-    const hora = () => q('.detail [data-hv-c="hora"]').value;
+    const rotulo = () => q('.detail .hv-dn').textContent, hora = () => q('.detail [data-hv-c="hora"]').value;
     await abrirH(a);
-    ok(flecha(-1).disabled && !flecha(1).disabled, 'la primera');
-    flecha(1).click(); await espera(20); igual(hora(), '11:00', 'la siguiente salta la cancelada');
-    ok(!flecha(-1).disabled && !flecha(1).disabled, 'la del medio');
-    flecha(1).click(); await espera(20); igual(hora(), '12:00', 'la última');
-    ok(!flecha(-1).disabled && flecha(1).disabled, 'la última');
-    flecha(-1).click(); await espera(20); igual(hora(), '11:00', 'volver');
-    // por hora, no por orden de creación
-    fijarCampo('hora', '09:00');
-    await hasta(() => flecha(-1) && flecha(-1).disabled, 2000, 'la nueva primera');
-    // con otro día, usa el suyo
-    fijarCampo('dia', DIA(14));
-    await hasta(() => flecha(-1) && !flecha(-1).disabled && flecha(1).disabled, 2000, 'las flechas de su día nuevo');
-    igual(M._in.localDay(viva(b).date), DIA(14), 'el día');
-    flecha(-1).click(); await espera(20); igual(hora(), '08:00', 'la otra del día nuevo');
+    igual(rotulo(), 'Mar 10 nov · 1 de 2', 'el rótulo');
+    ok(flecha(-1).disabled && !flecha(1).disabled, 'la primera del mes');
+    flecha(1).click(); await espera(20); igual(hora(), '11:00', 'salta la cancelada'); igual(rotulo(), 'Mar 10 nov · 2 de 2', 'dentro del día');
+    ok(!flecha(1).disabled, 'la última del día se para');
+    flecha(1).click(); await espera(20); igual(hora(), '08:00', 'cruza por hora y salta los días vacíos'); igual(rotulo(), 'Sáb 14 nov · 1 de 2', 'el día siguiente');
+    flecha(1).click(); await espera(20); igual(hora(), '09:00', 'en su día');
+    flecha(1).click(); await espera(20); igual(rotulo(), 'Vie 20 nov · 1 de 1', 'el último día');
+    ok(!flecha(-1).disabled && flecha(1).disabled, 'la última del mes');
+    flecha(-1).click(); await espera(20); igual(rotulo(), 'Sáb 14 nov · 2 de 2', 'volver cruza a la última del día anterior');
+    flecha(-1).click(); await espera(20); flecha(-1).click(); await espera(20); igual(rotulo(), 'Mar 10 nov · 2 de 2', 'volver al primer día');
+    // la abierta cambia de día: el rótulo y el recorrido la siguen
+    fijarCampo('dia', DIA(20));
+    await hasta(() => /Vie 20 nov/.test(rotulo()), 2000, 'el rótulo de su día nuevo');
+    igual(M._in.localDay(viva(b).date), DIA(20), 'el día');
     M._in.closeDetail();
-    // una sola en el día y una cancelada: sin flechas
-    await abrirH(a);
-    fijarCampo('dia', DIA(16));
-    await hasta(() => !flecha(1) && !flecha(-1), 2000, 'sin flechas con una sola');
-    M._in.closeDetail();
+    // una cancelada: sin flechas, y lo dice
     await abrirH(x);
     ok(!flecha(1) && !flecha(-1), 'una cancelada lleva flechas');
+    igual(rotulo(), 'Mar 10 nov · cancelada', 'el rótulo de una cancelada');
+    M._in.closeDetail();
+    // una sola en el mes: sin flechas
+    [a, b, c, d].forEach(i => M.hs.cancelar(i));
+    await abrirH(e);
+    ok(!flecha(1) && !flecha(-1), 'con una sola lleva flechas');
+    igual(rotulo(), 'Vie 20 nov · 1 de 1', 'el rótulo de una sola');
     M._in.closeDetail();
     M.hs.ver(false);
-    ok(sola, 'sin historia');
   });
-
   prueba('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar; un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
@@ -1658,10 +1659,14 @@
     ok(!cmd('d').defaultPrevented && M.hs.lista().length === n, '⌘D actúa');
     ok(!cmd('e').defaultPrevented && !(M.libre && ed()), '⌘E actúa');
     flecha(1).click(); await espera(20);
-    ok(/10 nov 11:00/.test(q('.detail .hv-cf').textContent) && flecha(1).disabled, 'la siguiente no salta a la que no está diseñada');
-    M._in.closeDetail();
-    await abrirH(sola);
-    ok(!flecha(1) && !flecha(-1), 'con una sola lleva flechas');
+    ok(/10 nov 11:00/.test(q('.detail .hv-cf').textContent), 'la siguiente salta a la que no está diseñada');
+    igual(q('.detail .hv-dn').textContent, 'Mar 10 nov · 2 de 2', 'el día cuenta solo las que ve');
+    // todo el mes, también aquí, y con ← → (D-080)
+    flecha(1).click(); await espera(20);
+    ok(/14 nov/.test(q('.detail .hv-cf').textContent) && flecha(1).disabled, 'cruza a la última que ve');
+    ok(!q('.detail .hv-post, .detail select'), 'sale la publicación');
+    tecla('ArrowLeft'); await espera(20);
+    ok(/10 nov 11:00/.test(q('.detail .hv-cf').textContent), '← no vuelve');
     M._in.closeDetail();
     // Feed y vuelta, y al salir todo sigue
     q('.hvsw [data-v="0"]').click();
@@ -1899,6 +1904,50 @@
     M._in.closeDetail();
     M.hs.ver(false);
     ok(b, 'sin historia');
+  });
+
+
+  prueba('H28', '← → como las flechas, solo con la ventana abierta y nunca en un campo; el cambio de día se marca: flecha, velo y rótulo (D-080)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    M.hs.ver(true);
+    const a = M.hs.anadir(DIA(10), { time: '10:00' }), b = M.hs.anadir(DIA(10), { time: '11:00' }), c = M.hs.anadir(DIA(14), { time: '09:00' });
+    const rotulo = () => q('.detail .hv-dn').textContent, veces = t => { const e = new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }); t.dispatchEvent(e); return e; };
+    // sin ventana, nada
+    tecla('ArrowRight'); await espera(20); ok(!dialogo(), '→ sin ventana abrió algo');
+    await abrirH(a);
+    igual(flecha(1).classList.contains('otro'), false, 'dentro del día, la flecha marca otro día');
+    tecla('ArrowRight'); await espera(20); igual(rotulo(), 'Mar 10 nov · 2 de 2', '→');
+    ok(!q('.detail .hv-cruce') && !q('.detail .hv-dn.cruce'), 'dentro del día marca un cruce');
+    // en la última del día, la flecha lo anuncia
+    ok(flecha(1).classList.contains('otro') && /Sáb 14/.test(flecha(1).textContent), 'no anuncia el día de destino');
+    igual(flecha(1).title, 'Día siguiente: Sáb 14 nov', 'su título');
+    // al cruzar: velo y rótulo en acento; el velo no para las teclas
+    tecla('ArrowRight'); await espera(20); igual(rotulo(), 'Sáb 14 nov · 1 de 1', '→ cruza');
+    ok(q('.detail .hv-big .hv-cruce') && /Sábado 14 nov/.test(q('.detail .hv-cruce').textContent) && /1 historia/.test(q('.detail .hv-cruce').textContent), 'el velo');
+    ok(q('.detail .hv-dn.cruce'), 'el rótulo en acento');
+    igual(W.getComputedStyle(q('.detail .hv-cruce')).pointerEvents, 'none', 'el velo para los clics');
+    await hasta(() => !q('.detail .hv-cruce'), 3000, 'que el velo se vaya');
+    ok(q('.detail .hv-dn.cruce'), 'el acento se fue con el velo');
+    tecla('ArrowRight'); await espera(20); igual(rotulo(), 'Sáb 14 nov · 1 de 1', '→ en la última del mes');
+    tecla('ArrowLeft'); await espera(20); igual(rotulo(), 'Mar 10 nov · 2 de 2', '← cruza');
+    ok(q('.detail .hv-cruce'), 'volver también marca el cruce');
+    tecla('ArrowLeft'); await espera(20); igual(rotulo(), 'Mar 10 nov · 1 de 2', '← dentro del día');
+    ok(!q('.detail .hv-cruce') && !q('.detail .hv-dn.cruce'), 'dentro del día sigue la marca');
+    tecla('ArrowLeft'); await espera(20); igual(rotulo(), 'Mar 10 nov · 1 de 2', '← en la primera del mes');
+    // en un campo no cambia de historia; con modificadores tampoco
+    for (const sel of ['[data-hv-c="hora"]', '[data-hv-c="dia"]', '[data-hv-c="post"]']) {
+      const t = q(`.detail ${sel}`); t.focus();
+      const e = veces(t); await espera(20);
+      igual(rotulo(), 'Mar 10 nov · 1 de 2', `→ en ${sel}`);
+      ok(!e.defaultPrevented, `→ quitó la tecla a ${sel}`);
+    }
+    D.activeElement.blur();
+    tecla('ArrowRight', { meta: true }); await espera(20); igual(rotulo(), 'Mar 10 nov · 1 de 2', '⌘→');
+    tecla('ArrowRight', { shift: true }); await espera(20); igual(rotulo(), 'Mar 10 nov · 1 de 2', '⇧→');
+    M._in.closeDetail();
+    M.hs.ver(false);
+    ok(b && c, 'sin historias');
   });
 
   prueba('M24', 'Portada en un hueco: foto y etiqueta en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {

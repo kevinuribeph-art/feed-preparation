@@ -4,7 +4,7 @@
 // dragged to another place or day, timed, linked to the post it supports, cancelled, deleted or opened in the free editor
 // («Editar historia», libre.js as a reel's cover: one 9:16 page, D-055). The tray beside it is the client's (D-041), and a
 // photo dropped on a story opens that story's editor with it, asking first if it has one to replace (D-078). A story's dialog: its state and post, its image as big as the
-// window allows, day and time; ⌘E opens the editor, ⌘D duplicates, the arrows go through its day (D-065). In «Vista cliente» the
+// window allows, day and time; ⌘E opens the editor, ⌘D duplicates, the arrows and ← → go through the month (D-080). In «Vista cliente» the
 // view stays, read only: the designed stories with their date and time (D-064).
 // A story lives in the board's b.historias, apart from S.slots, so nothing of the feed sees it; mesa.js keeps what can't
 // depend on this file: ⌘Z, the files they use, export, a post's stories following it (D-057) and the rule of not showing a
@@ -35,13 +35,14 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.6';
+  const VERSION = '1.7';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
+  let cruzo = null;                            // the day the arrows just crossed to (D-080)
   let ON = false, abierta = null, enUso = null;   // the view is on; the story whose dialog is open; the field of it in use
 
   const puede = () => { const X = I(); if (!X || !X.S) return false; if (X.locked) { X.toast('La mesa está abierta en otra pestaña: pulsa «Usar aquí».'); return false; } return true; };
@@ -395,7 +396,14 @@
   const CHEV = { l: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5.5 8.5 12l6.5 6.5"/></svg>', r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"/></svg>' };
   const PAPELERA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></svg>';
   const dlgAbierto = () => { const X = I(), d = X && X.root() && X.root().querySelector('.detail'); return !!(abierta && d && !d.hidden && d.dataset.dlg === 'historia'); };
-  const vecinas = h => { const d = delDia(I().localDay(h.date)); return h.cancelada ? [] : cliente() ? d.filter(paraCliente) : d; };   // its day, by time (D-065)
+  const recorrido = h => { const X = I(); return h.cancelada ? [] : lista().filter(cliente() ? paraCliente : x => !x.cancelada).sort((a, b) => X.ts(a.date) - X.ts(b.date)); };   // the month, by date and time (D-080)
+  const delMismoDia = h => { const d = delDia(I().localDay(h.date)); return cliente() ? d.filter(paraCliente) : d; };
+  const diaCorto = d => { const [, m, x] = d.split('-'), w = DOW[new Date(utc(d)).getUTCDay()]; return `${w[0].toUpperCase()}${w.slice(1, 3)} ${+x} ${I().MONTHS[+m - 1].slice(0, 3)}`; };
+  // the day it is and its place in it, always in sight; the accent says the arrows just crossed to this day (D-080)
+  function rotuloHTML(h) {
+    const X = I(), dia = X.localDay(h.date), d = delMismoDia(h);
+    return `<p class="hv-dn${dia === cruzo ? ' cruce' : ''}">${esc(diaCorto(dia))} · ${h.cancelada ? 'cancelada' : `${d.indexOf(h) + 1} de ${d.length}`}</p>`;
+  }
   // the original, not the thumbnail, which isn't sharp at this size: the last few, kept so going back doesn't blink
   const GRANDES = new Map();
   async function cargaGrande() {
@@ -408,25 +416,28 @@
     const i2 = hueco(); if (i2 && i2.dataset.f === fid) i2.src = GRANDES.get(fid);
   }
   function visHTML(h) {
-    const fid = (h.photos || [])[0], f = M.files[fid], v = vecinas(h), i = v.indexOf(h);
-    const flecha = (d, c, svg, txt, off) => `<button type="button" class="nav ${c}" data-hv="nav" data-d="${d}" aria-label="${txt}" title="${txt}"${off ? ' disabled' : ''}>${svg}</button>`;
-    return `<div class="hv-vis">${v.length > 1 && i >= 0 ? flecha(-1, 'prev', CHEV.l, 'Historia anterior de este día', i === 0) + flecha(1, 'next', CHEV.r, 'Historia siguiente de este día', i === v.length - 1) : ''}`
+    const X = I(), fid = (h.photos || [])[0], f = M.files[fid], v = recorrido(h), i = v.indexOf(h), dia = X.localDay(h.date);
+    const flecha = (d, c, svg, txt) => {
+      const t = v[i + d], otro = t && X.localDay(t.date) !== dia, sale = otro ? diaCorto(X.localDay(t.date)) : '', tit = otro ? `Día ${txt}: ${sale}` : `Historia ${txt}`;
+      return `<button type="button" class="nav ${c}${otro ? ' otro' : ''}" data-hv="nav" data-d="${d}" aria-label="${esc(tit)}" title="${esc(tit)}"${t ? '' : ' disabled'}>${svg}${otro ? `<span class="hv-nd" aria-hidden="true">${esc(sale.split(' ').slice(0, 2).join(' '))}</span>` : ''}</button>`;
+    };
+    return `<div class="hv-vis">${v.length > 1 && i >= 0 ? flecha(-1, 'prev', CHEV.l, 'anterior') + flecha(1, 'next', CHEV.r, 'siguiente') : ''}`
       + `<div class="hv-img hv-big">${f && f.thumbUrl ? `<img src="${GRANDES.get(fid) || f.thumbUrl}" data-f="${esc(fid)}" alt="">` : '<p>Sin diseñar</p>'}</div></div>`;
   }
   // one block per child of .hv-story: refrescaDlg changes only those that changed, and never a field being used
   function dlgHTML(h) {
     const X = I(), x = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
-    if (cliente()) return `${x}<div class="hv-story" role="group" aria-label="${esc(h.name)}">${visHTML(h)}<p class="hv-cf">${esc(X.hFecha(h.date))}</p></div>`;
+    if (cliente()) return `${x}<div class="hv-story" role="group" aria-label="${esc(h.name)}">${rotuloHTML(h)}${visHTML(h)}<p class="hv-cf">${esc(X.hFecha(h.date))}</p></div>`;
     const e = estado(h), posts = X.S.slots.filter(X.vivo), mal = X.adelantos(h), off = h.cancelada ? ' disabled' : '';
     return `${x}<div class="hv-story form hv-form" role="group" aria-label="${esc(h.name)}">`
       + `<div class="hv-av">${mal.length ? `<p class="hv-mal">${mal.map(a => `Enseña una foto antes de que salga en el feed: ${esc(a.post)}, ${esc(X.hFecha(a.date))}.`).join('<br>')}</p>` : ''}`
       + `<p class="hv-e">Estado: ${e}${h.porPost ? ', porque su publicación lo está' : ''}${cambiosDe(h).length ? `. Cambió aquí después de programarla (${cambiosDe(h).join(', ')}): falta actualizar Zernio` : ''}</p></div>`
       + `<label class="hv-lin">Publicación que apoya<select data-hv-c="post"><option value="">Ninguna</option>${posts.map(s => `<option value="${esc(s.id)}"${s.id === h.slotId ? ' selected' : ''}>${esc(s.name)} · ${esc(X.hFecha(s.date))}</option>`).join('')}</select></label>`
-      + visHTML(h)
+      + rotuloHTML(h) + visHTML(h)
       + `<label class="hv-lin">Día y hora (Madrid)<span class="hv-fh"><input type="date" data-hv-c="dia" value="${X.localDay(h.date)}"${off}><input type="time" data-hv-c="hora" value="${esc(X.localTime(h.date))}"${off}></span></label>`
       + `<div class="hv-acc">${h.cancelada ? '<button type="button" data-hv="reactivar">Reactivar</button>' : '<button type="button" data-hv="cancelar">Cancelar</button>'}${h.zernio ? '' : `<button type="button" class="hv-tr" data-hv="borrar" aria-label="Borrar" title="Borrar">${PAPELERA}</button>`}</div></div>`;
   }
-  function abrirDlg(id) { const h = porId(id), X = I(); if (!h || !X) return; abierta = id; enUso = null; X.showDialog('historia', dlgHTML(h)); cargaGrande(); }
+  function abrirDlg(id, dia = null) { const h = porId(id), X = I(); if (!h || !X) return; abierta = id; enUso = null; cruzo = dia; X.showDialog('historia', dlgHTML(h)); cargaGrande(); }
   function cerrarDlg() { const X = I(); abierta = null; const d = X && X.root() && X.root().querySelector('.detail'); if (d && !d.hidden && d.dataset.dlg === 'historia') X.closeDetail(); }
   // the dialog after a change: typing a time changes the story at every step, so a field in use stays where it is
   function refrescaDlg(h) {
@@ -442,9 +453,17 @@
   }
   function irA(d) {
     const h = porId(abierta); if (!h) return;
-    const v = vecinas(h), t = v[v.indexOf(h) + d]; if (!t) return;
-    abrirDlg(t.id);
-    const b = I().root().querySelector(`.detail [data-hv="nav"][data-d="${d}"]`); if (b && !b.disabled) b.focus();   // so the keyboard can go on
+    const X = I(), v = recorrido(h), t = v[v.indexOf(h) + d]; if (!t) return;
+    const dia = X.localDay(t.date), otro = dia !== X.localDay(h.date);
+    abrirDlg(t.id, otro ? dia : null);
+    const b = X.root().querySelector(`.detail [data-hv="nav"][data-d="${d}"]`); if (b && !b.disabled) b.focus();   // so the keyboard can go on
+    const big = otro && X.root().querySelector('.detail .hv-big');
+    if (big) {                                 // another day: its name over the image for a moment (D-080)
+      const n = delMismoDia(t).length, c = document.createElement('div'), w = DOW[new Date(utc(dia)).getUTCDay()];
+      c.className = 'hv-cruce'; c.innerHTML = `<b>${esc(w[0].toUpperCase() + w.slice(1))} ${esc(diaCorto(dia).split(' ').slice(1).join(' '))}</b><span>${n} ${n === 1 ? 'historia' : 'historias'}</span>`;
+      setTimeout(() => c.remove(), 1100);      // by the clock: an animation stops in a tab or pane out of sight
+      big.append(c);
+    }
   }
 
   // ---------- clicks, fields and dragging a story ----------
@@ -486,6 +505,7 @@
       if (k === 'd') { const nid = duplicar(h.id); if (nid) abrirDlg(nid); } else if (!h.cancelada) editar(h.id);
       return;
     }
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && dlgAbierto() && !(e.target.matches && e.target.matches('input,textarea,select,[contenteditable]'))) { e.preventDefault(); irA(e.key === 'ArrowLeft' ? -1 : 1); return; }   // only with a story open, never in a field (D-080)
     const c = e.target.closest && e.target.closest('.hv-card[data-h]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirDlg(c.dataset.h); }
   }
   function onFocoIn(e) { const t = e.target; enUso = t.matches && t.matches('.detail [data-hv-c]') ? t : null; }
@@ -580,6 +600,10 @@
 #mesa .hv-acc button{border:0;background:none;color:var(--mute);font:inherit;font-size:12px;padding:2px 6px;border-radius:5px;cursor:pointer;line-height:1.3}
 #mesa .hv-acc button:hover{color:var(--ink);background:var(--line2)}#mesa .hv-tr{display:inline-flex}#mesa .hv-tr svg{width:15px;height:15px}
 #mesa .hv-cf{margin:0;text-align:center;font-size:13px}
+#mesa .hv-dn{flex:none;align-self:center;margin:0;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink);background:var(--line2)}#mesa .hv-dn.cruce{background:var(--acc);color:#fff}
+#mesa .hv-vis .nav.otro{background:var(--ink);color:#fff;border-color:var(--ink);overflow:visible}#mesa .hv-nd{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font-size:11px;font-weight:600;line-height:1.2;color:var(--ink);white-space:nowrap}#mesa .hv-vis .nav.prev .hv-nd{left:0;transform:none}#mesa .hv-vis .nav.next .hv-nd{left:auto;right:0;transform:none}
+#mesa .hv-big{position:relative}#mesa .hv-cruce{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(0,0,0,.62);color:#fff;pointer-events:none;animation:hvCruce 1.1s ease-in forwards}#mesa .hv-cruce b{font-size:24px;font-weight:600}#mesa .hv-cruce span{font-size:14px}
+@keyframes hvCruce{0%,70%{opacity:1}100%{opacity:0}}@media (prefers-reduced-motion:reduce){#mesa .hv-cruce{display:none}}
 #mesa .hv-e{margin:0 0 9px;font-size:13px}#mesa .hv-mal{margin:0 0 9px;font-size:13px;color:var(--red)}
 @media (max-width:720px){#mesa.hv-on .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}}`;
   let style = document.getElementById('mesa-hv-css');

@@ -743,6 +743,8 @@
     M.hs.setFecha(id, DIA(4), '12:00');   // antes de r1 y de r2
     igual(M._in.adelantos(hDe(id)).map(x => x.f), [a], 'antes de r1');
     M.hs.soltar(id, c);
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'addmode', 2000, 'sustituir o añadir: la historia ya tiene imagen');
+    tecla('2');
     await hasta(preguntaEditor, 4000, 'la pregunta al soltar en la vista');
     ed().ask.querySelector('[data-ask="seguir"]').click();
     await espera(100);
@@ -1680,6 +1682,167 @@
     return (a, b) => [...x.getImageData(a, b, 1, 1).data].slice(0, 3);
   }
   const negro = p => p.every(v => v < 24);
+
+
+  prueba('H25', 'Una foto soltada en una historia con imagen: 1 Sustituir, 2 Añadir (tecla o clic), Esc nada; sin imagen no pregunta; siguen D-056 y Zernio (D-078)', async () => {
+    await tablero([pub(1, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const [fa, fb, fc, fd] = await M.addFiles([await foto('h25a.jpg'), await foto('h25b.jpg'), await foto('h25c.jpg'), await foto('h25d.jpg')]);
+    const [post] = await poner('r1', [await foto('h25p.jpg')]);
+    const id = M.hs.anadir(DIA(10), { time: '12:00' });
+    M.hs.ver(true);
+    const pregunta = () => hasta(() => dialogo() && dialogo().dataset.dlg === 'addmode', 2000, 'la pregunta');
+    const src = () => compDe(0).els.filter(e => e.t === 'foto').map(e => e.src);
+    const n0 = M.board().historias.length;
+    // sin imagen no pregunta
+    M.hs.soltar(id, fa);
+    await hasta(() => ed() && ed().el && compDe(0).els.some(e => e.src === fa), 4000, 'la foto en una historia sin imagen');
+    ok(!dialogo(), 'preguntó sin imagen');
+    await aplicarEditor();
+    // Esc: nada cambia y el editor no se abre
+    const antes = json(hDe(id));
+    M.hs.soltar(id, fb);
+    await pregunta();
+    ok(/Sustituir/.test(dialogo().textContent) && /Añadir/.test(dialogo().textContent), 'no ofrece las dos');
+    ok(!M.libre.abierto(), 'el editor se abrió antes de contestar');
+    tecla('Escape');
+    await espera(50);
+    ok(!dialogo() && !M.libre.abierto(), 'Esc dejó algo abierto');
+    igual(json(hDe(id)), antes, 'Esc cambió la historia');
+    // 1: sustituye
+    M.hs.soltar(id, fb);
+    await pregunta();
+    tecla('1');
+    await hasta(() => ed() && ed().el && src().includes(fb), 4000, 'la nueva foto');
+    igual(src(), [fb], 'al sustituir');
+    await aplicarEditor();
+    // 2: añade en esa misma historia
+    M.hs.soltar(id, fc);
+    await pregunta();
+    tecla('2');
+    await hasta(() => ed() && ed().el && src().includes(fc), 4000, 'la foto añadida');
+    igual(src().sort(), [fb, fc].sort(), 'al añadir');
+    await aplicarEditor();
+    igual(M.board().historias.length, n0, 'creó otra historia');
+    // también con un clic
+    M.hs.soltar(id, fd);
+    await pregunta();
+    q('.detail [data-act="addmode"][data-m="add"]').click();
+    await hasta(() => ed() && ed().el && src().includes(fd), 4000, 'con un clic');
+    igual(src().length, 3, 'con un clic');
+    M.libre.cerrar(); await espera(50);
+    // el aviso de adelanto sigue, después de la pregunta
+    M.hs.soltar(id, post);
+    await pregunta();
+    tecla('1');
+    await hasta(preguntaEditor, 4000, 'el aviso de no adelantar');
+    ed().ask.querySelector('[data-ask="seguir"]').click();
+    await espera(100);
+    ok(!src().includes(post), 'con «Cancelar» entró la foto');
+    M.libre.cerrar(); await espera(50);
+    // programada: sustituir la marca como pendiente de Zernio
+    viva(id).zernio = { id: 'z', date: viva(id).date, file: viva(id).photos[0] };
+    M.hs.soltar(id, fa);
+    await pregunta();
+    tecla('1');
+    await hasta(() => ed() && ed().el && src().includes(fa), 4000, 'en una programada');
+    await aplicarEditor();
+    ok(M.historias().find(h => h.id === id).cambios.includes('imagen'), 'no falta actualizar Zernio');
+    // cancelada: no pregunta, lo dice
+    const can = M.hs.anadir(DIA(11), { time: '12:00' });
+    viva(can).photos = [fa];
+    M.hs.cancelar(can);
+    M.hs.soltar(can, fb);
+    await espera(50);
+    ok(!dialogo() && !M.libre.abierto(), 'una cancelada preguntó o se abrió');
+    M.hs.ver(false);
+  });
+
+  prueba('H26', 'En el editor de una historia: qué sustituye con varias fotos, «Añadir» a un hueco libre o suelta, sin pregunta en un hueco libre elegido; Esc no cambia nada (D-078, D-050)', async () => {
+    await tablero([pub(1, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    const [fa, fb, fc, fd, fh] = await M.addFiles([await foto('h26a.jpg'), await foto('h26b.jpg'), await foto('h26c.jpg'), await foto('h26d.jpg'), await foto('h26h.jpg', 1500, 1000)]);
+    const id = M.hs.anadir(DIA(10), { time: '12:00' });
+    await abrirEditor(id);
+    const src = () => compDe(0).els.filter(e => e.t === 'foto').map(e => e.src);
+    const pregunta = () => hasta(() => ed().ask && /ya tiene imagen/.test(ed().ask.textContent), 2000, 'la pregunta');
+    // sin foto: entra sin preguntar
+    accion('tr-add', { f: fa });
+    await hasta(() => src().includes(fa), 2000, 'la primera');
+    ok(!ed().ask, 'preguntó sin foto');
+    // con foto: Esc no cambia nada
+    const c0 = json(compDe(0));
+    accion('tr-add', { f: fb });
+    await pregunta();
+    tecla('Escape');
+    await espera(50);
+    igual(json(compDe(0)), c0, 'Esc cambió la página');
+    ok(!ed().ask, 'Esc no cerró');
+    // 2 sin huecos: un elemento nuevo
+    accion('tr-add', { f: fb });
+    await pregunta();
+    tecla('2');
+    await hasta(() => src().includes(fb), 2000, 'la añadida');
+    igual(src().length, 2, 'al añadir');
+    const [ea, eb] = compDe(0).els.filter(e => e.t === 'foto');
+    Object.assign(ea, { w: 0.2, h: 0.2, x: 0.05, y: 0.05 }); Object.assign(eb, { w: 0.8, h: 0.5, x: 0.1, y: 0.4 });
+    // 1 sin nada elegido: la de mayor superficie; la otra y su sitio no cambian
+    const a0 = json(ea), caja = [eb.x, eb.y, eb.w, eb.h];
+    ed().sel = null; ed().mas = [];
+    accion('tr-add', { f: fc });
+    await pregunta();
+    tecla('1');
+    await hasta(() => src().includes(fc), 2000, 'la sustituta');
+    ok(!src().includes(fb), 'no sustituyó la mayor');
+    igual(json(compDe(0).els.find(e => e.id === ea.id)), a0, 'la otra cambió');
+    const nueva = compDe(0).els.find(e => e.src === fc);
+    igual([nueva.x, nueva.y, nueva.w, nueva.h], caja, 'su recuadro');
+    ok(ed().vuelven.has(fb), 'la anterior no vuelve a la bandeja');
+    // 1 con una elegida: esa; un paso de ⌘Z lo deshace
+    elegir(compDe(0).els.find(e => e.src === fa));
+    accion('tr-add', { f: fd });
+    await pregunta();
+    tecla('1');
+    await hasta(() => src().includes(fd), 2000, 'la elegida');
+    ok(!src().includes(fa) && src().includes(fc), 'no sustituyó la elegida');
+    tecla('z', { meta: true, code: 'KeyZ' });
+    await hasta(() => src().includes(fa) && !src().includes(fd), 2000, '⌘Z');
+    // distinta orientación: la pregunta de D-050; con Esc nada cambia
+    elegir(compDe(0).els.find(e => e.src === fa));
+    const c1 = json(compDe(0));
+    accion('tr-add', { f: fh });
+    await pregunta();
+    tecla('1');
+    await hasta(() => ed().ask && /Esta foto es/.test(ed().ask.textContent), 2000, 'la pregunta de encaje');
+    tecla('Escape');
+    await espera(50);
+    igual(json(compDe(0)), c1, 'Esc en la pregunta de encaje');
+    M.libre.cerrar(); await espera(50);
+    // con huecos: «Añadir» va a un hueco libre; uno libre elegido no pregunta; «Sustituir» en un hueco lleno sigue D-050
+    const id2 = M.hs.anadir(DIA(12), { time: '12:00' });
+    await abrirEditor(id2);
+    accion('tr-add', { f: fa });
+    await hasta(() => src().includes(fa), 2000, 'la primera');
+    compDe(0).els.push(huecoEl('h1', 0.1, 0.1, 0.3, 0.4), huecoEl('h2', 0.5, 0.1, 0.3, 0.4));
+    ed().sel = null;
+    accion('tr-add', { f: fb });
+    await pregunta();
+    tecla('2');
+    await hasta(() => src().includes(fb), 2000, 'al hueco libre');
+    ok(compDe(0).els.find(e => e.src === fb).hueco, 'no fue a un hueco');
+    elegir(compDe(0).els.find(e => e.id === 'h2'));
+    accion('tr-add', { f: fc });
+    await hasta(() => src().includes(fc), 2000, 'al hueco libre elegido');
+    ok(!ed().ask, 'preguntó con un hueco libre elegido');
+    // todos llenos y una foto más: «Añadir» la pone suelta, no se queda fuera
+    ed().sel = null;
+    accion('tr-add', { f: fd });
+    await pregunta();
+    tecla('2');
+    await hasta(() => src().includes(fd), 2000, 'suelta');
+    ok(!compDe(0).els.find(e => e.src === fd).hueco, 'no es suelta');
+    M.libre.cerrar(); await espera(50);
+  });
 
   prueba('M24', 'Portada en un hueco: foto y etiqueta en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);

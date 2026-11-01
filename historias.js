@@ -3,7 +3,7 @@
 // grid, one rail per day: that day's post, if any, and its stories in order, 9:16. From there a story is added, duplicated,
 // dragged to another place or day, timed, linked to the post it supports, cancelled, deleted or opened in the free editor
 // («Editar historia», libre.js as a reel's cover: one 9:16 page, D-055). The tray beside it is the client's (D-041), and a
-// photo dropped on a story opens that story's editor with it. A story's dialog: its state and post, its image as big as the
+// photo dropped on a story opens that story's editor with it, asking first if it has one to replace (D-078). A story's dialog: its state and post, its image as big as the
 // window allows, day and time; ⌘E opens the editor, ⌘D duplicates, the arrows go through its day (D-065). In «Vista cliente» the
 // view stays, read only: the designed stories with their date and time (D-064).
 // A story lives in the board's b.historias, apart from S.slots, so nothing of the feed sees it; mesa.js keeps what can't
@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.4';
+  const VERSION = '1.5';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -129,7 +129,12 @@
     cerrarDlg();
     return M.libre.abrir(id, 0, o);
   }
-  const soltar = (id, fileId) => (cliente() ? null : editar(id, { foto: fileId }));
+  function soltar(id, fileId) {                // on one with a photo, first the question: its editor opens only with an answer (D-078)
+    if (cliente()) return null;
+    const h = porId(id);
+    if (h && !h.cancelada && M.libre && M.libre.fotosHistoria && M.libre.fotosHistoria(id)) { I().askModoHistoria(modo => editar(id, { foto: fileId, modo })); return null; }
+    return editar(id, { foto: fileId });
+  }
   const tras = () => { ver(true); };           // back from the editor: the view, as it is now
 
   // ---------- what the skill uses ----------

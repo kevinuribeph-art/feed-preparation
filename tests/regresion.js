@@ -1844,6 +1844,63 @@
     M.libre.cerrar(); await espera(50);
   });
 
+
+  prueba('H27', 'Las publicaciones en la vista: su tipo sin abrirlas; un clic las abre en grande sin «Editar», sin cambiar nada y fuera del recorrido de las historias (D-079)', async () => {
+    await tablero([pub(1, 'Foto', 10), pub(2, 'Carrusel', 10), pub(3, 'Reel', 10), pub(4, 'Foto', 12)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    await poner('r1', [await foto('h27a.jpg')]);
+    await poner('r2', [await foto('h27b.jpg'), await foto('h27c.jpg')]);
+    await poner('r3', [await foto('h27d.jpg', 1080, 1920)]);
+    await poner('r4', [await foto('h27e.jpg'), await foto('h27f.jpg')]);
+    const [libre] = await M.addFiles([await foto('h27g.jpg')]);
+    const a = M.hs.anadir(DIA(10), { time: '10:00' }), b = M.hs.anadir(DIA(10), { time: '11:00' });
+    M.hs.ver(true);
+    const post = id => q(`.hv-post[data-slot="${id}"]`);
+    for (const [id, t] of [['r1', 'Foto'], ['r2', 'Carrusel'], ['r3', 'Reel'], ['r4', 'Carrusel']]) {
+      ok(post(id).querySelector('.hv-pt svg') && post(id).querySelector('.hv-pt').offsetWidth > 0, `sin indicativo en ${id}`);
+      ok(post(id).title.startsWith(t), `${id} no dice ${t}: ${post(id).title}`);
+    }
+    igual(post('r1').querySelector('.hv-pt').innerHTML === post('r2').querySelector('.hv-pt').innerHTML, false, 'foto y carrusel con el mismo icono');
+    igual(post('r2').querySelector('.hv-pt').innerHTML === post('r3').querySelector('.hv-pt').innerHTML, false, 'carrusel y reel con el mismo icono');
+    const antes = () => json({ b: M.board(), h: M.historias() }), a0 = antes();
+    // un clic: en grande, sin «Editar»; y nada cambia
+    post('r2').click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'ig' && q('.detail .igmedia img'), 3000, 'la previsualización');
+    ok(!q('.detail .igedit'), 'lleva «Editar»');
+    // ← → pasan sus fotos, no una historia
+    const s0 = q('.detail .igmedia img').src;
+    tecla('ArrowRight');
+    await hasta(() => q('.detail .igmedia img') && q('.detail .igmedia img').src !== s0, 2000, 'la segunda foto');
+    ok(!q('.detail .igedit'), 'al cambiar de foto vuelve «Editar»');
+    igual(dialogo().dataset.dlg, 'ig', 'salió de la publicación');
+    tecla('Escape');
+    await hasta(() => !dialogo(), 1000, 'que Esc la cierre');
+    igual(antes(), a0, 'abrirla cambió algo');
+    ok(q('.hv').offsetParent !== null, 'no sigue en la vista');
+    // con el teclado, sobre un reel
+    post('r3').focus(); post('r3').click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'ig', 3000, 'el reel');
+    q('.detail [data-act="close"]').click();
+    await hasta(() => !dialogo(), 1000, 'la ×');
+    // con una foto elegida en la bandeja, no la coloca
+    const tarjeta = q(`.tray .titem[data-file="${libre}"]`); ok(tarjeta, 'la foto no está en la bandeja'); tarjeta.click();
+    post('r1').click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'ig', 3000, 'con una elegida');
+    tecla('Escape');
+    await hasta(() => !dialogo(), 1000, 'Esc');
+    igual(antes(), a0, 'con una foto elegida cambió algo');
+    // las flechas de una historia no pasan por las publicaciones
+    q(`.hv-card[data-h="${a}"]`).click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'historia', 2000, 'la historia');
+    q('.detail [data-hv="nav"][data-d="1"]').click();
+    await espera(50);
+    igual(q('.detail [data-hv-c="hora"]').value, '11:00', 'la siguiente no es la historia');
+    igual(dialogo().dataset.dlg, 'historia', 'la flecha salió de las historias');
+    M._in.closeDetail();
+    M.hs.ver(false);
+    ok(b, 'sin historia');
+  });
+
   prueba('M24', 'Portada en un hueco: foto y etiqueta en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');

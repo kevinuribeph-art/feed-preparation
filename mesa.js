@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.63'; // 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.64'; // 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -203,6 +203,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
   const isCarousel = t => t === 'Carrusel' || t === 'Foto';         // a Foto works as a carousel (3.26): one photo or several pages, all published
+  const tipoPost = s => isReel(s.type) ? { ico: ICON.reel, txt: 'Reel' } : s.type === 'Carrusel' || (s.type === 'Foto' && s.photos.length > 1) ? { ico: ICON.carousel, txt: 'Carrusel' } : { ico: ICON.photo, txt: 'Foto' };   // the stories' view (D-079)
   const typeIcon = (t, n) => isReel(t) ? ICON.reel : t === 'Carrusel' || (t === 'Foto' && n > 1) ? ICON.carousel : '';   // as Instagram's grid: a Foto of one page has none
   const isMulti = isCarousel;
   const edLabel = s => s.type === 'Foto' ? 'Editar foto' : isReel(s.type) ? 'Editar portada' : 'Editar diapositivas';   // the free editor's button: the label follows the post's
@@ -2990,10 +2991,11 @@
     for (const m of text.matchAll(IG_TAG)) { const at = m.index + m[1].length; out += esc(text.slice(i, at)) + `<span class="igtag">${esc(m[2])}</span>`; i = at + m[2].length; }
     return out + esc(text.slice(i));
   }
-  async function openIG(id, idx) {
+  async function openIG(id, idx, soloVer) {   // soloVer: from the stories' view, without «Editar» (D-079)
     const P = igFotos(id); if (!P || !shellReady()) return;
     const n = P.list.length; idx = Math.max(0, Math.min(n - 1, idx || 0));
-    ig = { id, idx, prev: P.prev };
+    soloVer = soloVer || (ig && ig.id === id && ig.soloVer);
+    ig = { id, idx, prev: P.prev, soloVer };
     await loadClientPhotos();
     const it = P.list[idx];
     let R = 4 / 5, media = `<div class="igph">Sin foto todavía</div>`;
@@ -3011,7 +3013,7 @@
     const capText = igCaption(id), cap = capText ? `<div class="igcap">${avatarHTML(c0)}<div class="igct"><b>${esc(handle)}</b> ${igCapHTML(capText)}</div></div>` : '';
     const nav = n > 1 ? `<button class="nav prev" data-act="ignav" data-d="-1" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="ignav" data-d="1" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${P.list.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
     const d = root.querySelector('.detail');
-    d.innerHTML = `<div class="igwrap"><div class="igtop"><button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button><button type="button" class="igx" data-act="close" aria-label="Cerrar">×</button></div>`
+    d.innerHTML = `<div class="igwrap"><div class="igtop">${soloVer ? '' : '<button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button>'}<button type="button" class="igx" data-act="close" aria-label="Cerrar">×</button></div>`
       + `<div class="igcard${capText ? ' hascap' : ''}" role="dialog" aria-label="${esc(P.name)}"><div class="igmedia" style="width:${w}px;height:${h}px">${media}${nav}</div>`
       + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><span class="igmore" aria-hidden="true">${IGI.more}</span></header><div class="igbody">${cap}</div>`
       + `<div class="igacts" aria-hidden="true">${IGI.heart}${IGI.comment}${IGI.repost}${IGI.share}<span class="igsave">${IGI.save}</span></div>`
@@ -5060,7 +5062,7 @@
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
-    hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
+    hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,

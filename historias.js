@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.5';
+  const VERSION = '1.6';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -361,8 +361,8 @@
   }
   const diaTxt = d => { const X = I(), [, m, x] = d.split('-'); return `<b>${+x}</b> ${X.MONTHS[+m - 1].slice(0, 3)}<span>${DOW[new Date(utc(d)).getUTCDay()]}</span>`; };
   function postHTML(s) {
-    const X = I(), f = M.files[(s.photos || [])[0]];
-    return `<div class="hv-post" title="${esc(s.name)}">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="" draggable="false">` : '<div class="hv-nof"></div>'}<span>${esc(X.localTime(s.date) || 'sin hora')}</span></div>`;
+    const X = I(), f = M.files[(s.photos || [])[0]], t = X.tipoPost(s);
+    return `<button type="button" class="hv-post" data-slot="${esc(s.id)}" title="${esc(t.txt)} · ${esc(s.name)}" aria-label="Ver ${esc(s.name)} (${esc(t.txt)})"><span class="hv-pim">${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="" draggable="false">` : '<span class="hv-nof"></span>'}<span class="hv-pt" aria-hidden="true">${t.ico}</span></span><span>${esc(X.localTime(s.date) || 'sin hora')}</span></button>`;
   }
   function cardHTML(h) {
     if (cliente()) { const X = I(), g = M.files[(h.photos || [])[0]]; return `<div class="hv-card" data-h="${esc(h.id)}" role="button" tabindex="0"><div class="hv-img">${g && g.thumbUrl ? `<img src="${g.thumbUrl}" alt="" draggable="false">` : ''}</div><div class="hv-pie"><b>${esc(X.localTime(h.date))}</b></div></div>`; }
@@ -463,6 +463,8 @@
       else if (a === 'borrar') { borrar(id); cerrarDlg(); }
       return;
     }
+    const p = e.target.closest('.hv-post[data-slot]');
+    if (p) { X.openIG(p.dataset.slot, 0, true); return; }   // only to look at it: it never enters the stories' way through (D-079)
     const c = e.target.closest('.hv-card[data-h]');
     if (c) { const f = cliente() ? null : X.pick(); if (f) { X.pickOff(); soltar(c.dataset.h, f); } else abrirDlg(c.dataset.h); }   // a photo picked in the tray, then the story
   }
@@ -542,8 +544,10 @@
 #mesa .hv-rail.vacio{padding:4px 0;align-items:center}#mesa .hv-rail.hoy .hv-dia b{color:var(--acc)}
 #mesa .hv-dia{font-size:12px;color:var(--mute);line-height:1.25}#mesa .hv-dia b{font-size:17px;color:var(--ink)}#mesa .hv-dia span{display:block}
 #mesa .hv-rail.vacio .hv-dia span{display:none}
-#mesa .hv-posts{display:flex;gap:6px}#mesa .hv-post{width:60px;font-size:11.5px;color:var(--mute);text-align:center}
-#mesa .hv-post img,#mesa .hv-nof{display:block;width:60px;height:75px;object-fit:cover;border-radius:4px;background:var(--line2);margin-bottom:3px}
+#mesa .hv-posts{display:flex;gap:6px}#mesa .hv-post{display:block;width:60px;padding:0;border:0;background:none;font:inherit;font-size:11.5px;color:var(--mute);text-align:center;cursor:pointer;border-radius:4px}
+#mesa .hv-post:focus-visible{outline:2px solid var(--acc);outline-offset:2px}#mesa .hv-pim{position:relative;display:block;margin-bottom:3px}
+#mesa .hv-post img,#mesa .hv-nof{display:block;width:60px;height:75px;object-fit:cover;border-radius:4px;background:var(--line2)}
+#mesa .hv-pt{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center}#mesa .hv-pt svg{width:11px;height:11px}
 #mesa .hv-cards{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;min-width:0}
 #mesa .hv-card{width:88px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:6px;outline-offset:2px}
 #mesa .hv-img{aspect-ratio:9/16;border-radius:6px;overflow:hidden;background:var(--line2);border:1px solid var(--line);box-sizing:border-box}

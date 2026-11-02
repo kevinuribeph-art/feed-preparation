@@ -1,4 +1,4 @@
-// Calendario — Mesa de trabajo · v1.3
+// Calendario — Mesa de trabajo · v1.4
 // The open board's month under the tray (half of the right column), Monday to Sunday as in Notion: one chip per post —
 // its short name, time and the mark of its state (a dot, ✓, two ✓ or ✕: the mesa's estIco, D-081) — on a pastel of its
 // type, as Notion's tags. A cancelled post says why on hover, if it has a reason (D-082). Linked both ways with the grid:
@@ -22,7 +22,7 @@
 //   back), the current one in a black pill, the next one with a thin border (pressed, the month goes on) and the later ones
 //   in grey. 1.3 (D-085, mesa ≥ 3.69): going on carries the posts in the step it leaves (M.setEstado), never a cancelled
 //   one nor one put back by hand in its post view; a post already past the new step is not touched. Going on to:
-//     Captions      nothing is forced: Captions follows from a photo and a contexto
+//     Captions      nothing is forced: Captions follows from a photo (1.4: the contexto doesn't count, D-086)
 //     Por aprobar   nothing is forced (a chosen caption); runs «Revisar» (the feed and the stories, D-040, D-058) first
 //     Aprobado      Por aprobar → Aprobado; No aprobado stays
 //     Programado    only the approved reels (also Collab Reel and Trial Reel) → Programado: photos and carousels are
@@ -37,7 +37,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -191,7 +191,7 @@
   function porQue(X, s) {
     const e = X.estadoDe(s), v = s.estado && s.estado.v;
     if (X.retenida ? X.retenida(s) : retr(X, s)) return 'retrasada a mano';
-    if (e === 'empezar') return !s.photos.length && !X.noteOf(s) ? 'sin foto ni contexto' : !s.photos.length ? 'sin foto' : 'sin contexto';
+    if (e === 'empezar') return 'sin foto';    // the contexto doesn't count (D-086)
     if (e === 'captions') return 'sin caption elegido';
     if (e === 'noaprobado') return 'No aprobado';
     if (e === 'aprobar') return v === 'aprobado' ? 'cambió tras aprobarla' : v === 'noaprobado' ? 'cambió tras no aprobarla' : 'sin aprobar';
@@ -236,9 +236,9 @@
     const vivas = S.slots.filter(X.vivo), canc = S.slots.length - vivas.length;
     const cl = X.CL.find(c => c.id === S.client), mes = (M.status && (M.status() || {}).range) || X.monthLabel(S.month);
     const alDia = vivas.filter(s => !tarde.includes(s));   // what goes on with the month: how many have what the step asks for
-    const k = to === 'captions' ? alDia.filter(s => s.photos.length && X.noteOf(s)).length : to === 'aprobar' && X.estadoAuto ? alDia.filter(s => X.estadoAuto(s) === 'aprobar').length : 0;
+    const k = to === 'captions' ? alDia.filter(s => s.photos.length).length : to === 'aprobar' && X.estadoAuto ? alDia.filter(s => X.estadoAuto(s) === 'aprobar').length : 0;
     const cuerpo = LLEVA[to] ? `<p class="xwhat"><b>${van.length ? lleva(to, van.length) : 'Ninguna publicación cambia de estado'}</b>${van.length ? `: <span class="cpn">${nombres(X, van)}</span>` : ''}.${to === 'programado' ? ' Fotos y carruseles se programan con «programa».' : ''}</p>`
-      : to === 'captions' ? `<p class="xwhat">${nDe(k, 'tiene', 'tienen')} foto y contexto.</p>` : `<p class="xwhat">${PUB(k)} con su caption elegido.</p>`;
+      : to === 'captions' ? `<p class="xwhat">${nDe(k, 'tiene', 'tienen')} foto.</p>` : `<p class="xwhat">${PUB(k)} con su caption elegido.</p>`;
     const lista = tarde.length ? `<p>${nDe(tarde.length, 'se queda atrás', 'se quedan atrás')}:</p><ul class="xsum cplist">${tarde.map(s => `<li><b>${esc(X.shortLabel(s.name, s.type))}</b> <span>· ${esc(porQue(X, s))}</span></li>`).join('')}</ul>` : '';
     const tok = (paso && paso.tok || 0) + 1;
     paso = { key: S.key, to, tok };

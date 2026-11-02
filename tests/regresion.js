@@ -218,7 +218,7 @@
     ok(M.captions('r1')[0].outdated, 'quitar una foto no los marca desactualizados (la prueba no distingue)');
   });
 
-  prueba('M4', 'Un caption subido sin fotos ni Contexto subidos no pone «✓ en Notion» (M4)', async () => {
+  prueba('M4', 'Un caption subido sin fotos ni Contexto subidos no da la publicación por subida; la casilla ya no dice «✓ en Notion» (M4, D-081)', async () => {
     await tablero([pub(1), pub(2)]);
     await poner('r1', [await foto('m4a.jpg')]);      // foto y Contexto puestos, pero sin subir
     M._test.setNote('r1', 'Contexto');
@@ -227,7 +227,7 @@
     const r = M.markCaptionsUploaded(['r1']);
     ok(r[0].result === 'subido', 'no se marcó subido: ' + json(r));
     await espera(50);
-    ok(!celda('r1').querySelector('.st.ok'), 'la casilla dice «✓ en Notion» solo con el caption');
+    ok(!celda('r1').querySelector('.st, .dot'), 'la casilla lleva una marca de Notion (D-081)');
     const p = M.plan().find(x => x.slotId === 'r1');
     ok(p && p.status === 'nueva', 'plan() no la da como nueva: ' + json(p));
     // control: con su foto y su Contexto subidos sí sale
@@ -235,7 +235,8 @@
     M._test.setNote('r2', 'Contexto');
     M.markUploaded([{ slotId: 'r2', fileIds: [f] }]);
     await espera(50);
-    ok(celda('r2').querySelector('.st.ok'), 'una publicación subida de verdad no dice «✓ en Notion» (la prueba no distingue)');
+    igual((M.plan().find(x => x.slotId === 'r2') || {}).status, 'ya subida', 'una publicación subida de verdad no sale como subida (la prueba no distingue)');
+    ok(!celda('r2').querySelector('.st, .dot'), 'la casilla subida lleva una marca de Notion (D-081)');
   });
 
   prueba('M5', 'loadCaptions rechaza un tono o un texto que no sean texto (M5)', async () => {
@@ -297,18 +298,154 @@
     ok(M.status().fillers === 1, 'quitar un hueco no lo quitó');
   });
 
-  prueba('M10', 'La cuadrícula no muestra puntos de estado (D-004)', async () => {
-    await tablero([pub(1), pub(2), pub(3)]);
-    await poner('r1', [await foto('m10.jpg')]);
-    M._test.setNote('r1', 'Contexto');
+  // cuatro publicaciones con foto, contexto y caption elegido: «Por aprobar» (las que se pidan)
+  async function porAprobar(ids, pre = 'pa') {
+    for (const id of ids) { await poner(id, [await foto(`${pre}-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); }
+    M.loadCaptions(ids.map(slotId => ({ slotId, options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] })));
+    ids.forEach(id => M._test.setSlot(id, { caption: { ...slot(id).caption, pick: 0 } }));
+    ids.forEach(id => igual(M._in.estadoDe(slot(id)), 'aprobar', `${id} no está «Por aprobar»`));
+  }
+  const marcas = id => { const c = celda(id); return c ? [...c.querySelectorAll('.mks .mk')].map(e => [...e.classList].find(k => /^e-/.test(k)) || 'cambios') : null; };
+
+  prueba('M10', 'La cuadrícula enseña solo Programado (✓), Publicado (dos ✓) y No aprobado (●), en una fila junto a la fecha; sin puntos arriba ni «en Notion» en la barra (D-081, sustituye D-004)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4), pub(5), pub(6)]);
+    await porAprobar(['r1', 'r2', 'r3', 'r4'], 'm10');
+    M.setEstado('r1', 'programado'); M.setEstado('r2', 'publicado'); M.setEstado('r3', 'noaprobado'); M.setEstado('r4', 'aprobado'); M.setEstado('r5', 'cancelado');
+    await espera(60);
+    igual(marcas('r1'), ['e-programado'], 'Programado');
+    igual(marcas('r2'), ['e-publicado'], 'Publicado');
+    igual(marcas('r3'), ['e-noaprobado'], 'No aprobado');
+    igual(marcas('r4'), [], 'Aprobado no sale en la cuadrícula');
+    igual(marcas('r6'), [], 'Por empezar no sale en la cuadrícula');
+    ok(!celda('r5'), 'una cancelada sale en la cuadrícula');
+    const fila = celda('r1').querySelector('.lab .mks');
+    ok(fila && fila.nextSibling && fila.nextSibling.nodeType === 3 && /nov/.test(fila.nextSibling.textContent), 'las marcas no van junto a la fecha');
+    ok(celda('r6').querySelector('.ph span') && !celda('r6').querySelector('.badges'), 'la casilla sin foto lleva algo arriba a la izquierda');
+    ok(!qa('.cell .badges .dot, .cell .badges .mk, .cell .dot, .cell .st, .cell .dchg').length, 'quedan indicadores de antes en las casillas');
+    const ancho = sel => q(sel).getBoundingClientRect().width;
+    ok(ancho('.cell[data-slot="r2"] .e-publicado') <= ancho('.cell[data-slot="r1"] .e-programado') + 0.5, 'el doble tick ocupa más que el ✓');
+    ok(!q('.bar .stats').textContent.includes('Notion'), 'la barra sigue contando «en Notion»');
+    // «Vista cliente»: ninguna marca
+    M._in.root().classList.add('client');
+    try { ok(qa('.cell .mks').every(e => e.offsetParent === null), 'las marcas salen en «Vista cliente»'); } finally { M._in.root().classList.remove('client'); }
+  });
+
+  prueba('M29', 'Un solo marcador de cambios desde la última subida (caption, foto o encuadre, fecha u hora, contexto, nombre o tipo); al pasar el ratón dice qué cambió (D-081)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    await porAprobar(['r1'], 'm29');
+    const f = slot('r1').photos[0];
+    M.markUploaded([{ slotId: 'r1', fileIds: [f] }]); M.markCaptionsUploaded(['r1']);
+    await espera(60);
+    const mk = () => celda('r1') && celda('r1').querySelector('.mks .mk-cambios');
+    ok(!mk(), 'sale el marcador sin cambios');
+    M._test.setNote('r1', 'Otro contexto');
+    await hasta(() => mk(), 3000, 'el marcador tras cambiar el contexto');
+    igual(mk().dataset.tip, 'Cambió: contexto', 'lo que dice el marcador');
+    M._test.setCrop(f, 'r1', { z: 1.6 });
+    await hasta(() => mk() && mk().dataset.tip === 'Cambió: foto o encuadre y contexto', 3000, 'el encuadre en el marcador');
+    M._test.setDate('r1', '2026-11-20T18:00:00.000+01:00');
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } });
+    M._test.setType('r1', 'Carrusel');
+    await hasta(() => mk() && mk().dataset.tip === 'Cambió: caption, foto o encuadre, fecha u hora, contexto y nombre o tipo', 3000, 'los cinco cambios, en su orden: ' + (mk() && mk().dataset.tip));
+    igual(qa('.cell[data-slot="r1"] .mk-cambios').length, 1, 'más de un marcador de cambios');
+    const r = mk().getBoundingClientRect(); igual([Math.round(r.width), Math.round(r.height)], [10, 10], 'el tamaño del marcador (el del punto de antes: 7 px y su aro)');
+    igual(mk().getAttribute('title'), '', 'el marcador deja ver el título de la casilla');
+    igual(W.getComputedStyle(mk()).pointerEvents, 'auto', 'el marcador no recibe el puntero');
+    igual(W.getComputedStyle(mk(), '::after').content, '"Cambió: caption, foto o encuadre, fecha u hora, contexto y nombre o tipo"', 'el texto al pasar el ratón');
+    ok(+W.getComputedStyle(mk(), '::after').zIndex < +W.getComputedStyle(q('.detail')).zIndex, 'el texto del marcador queda por encima de las ventanas');
+    igual([...mk().querySelectorAll('circle')].map(c => c.getAttribute('fill')), ['#ffcf1f', '#1f5fd6', '#e3262b'], 'los tres colores: aro amarillo, disco azul, punto rojo');
+    // el calendario lleva el mismo marcador, con lo que cambió
+    const cm = await hasta(() => q('.side > .cal .chip[data-slot="r1"] .mk-cambios'), 3000, 'el marcador en el calendario');
+    ok(/contexto/.test(cm.title), 'el calendario no dice qué cambió: ' + cm.title);
+    // deshecho el contexto, sale de la lista
+    M._test.setNote('r1', 'Contexto r1');
+    await hasta(() => mk() && !/contexto/.test(mk().dataset.tip), 3000, 'el contexto fuera de la lista');
+  });
+
+  prueba('M30', 'No aprobado: va después de Por aprobar, se pone desde Por aprobar y vuelve a Por aprobar si la publicación cambia (D-082)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m30.jpg')]); M._test.setNote('r1', 'Contexto');
+    igual(M.setEstado('r1', 'noaprobado')[0].error, 'para marcarla como no aprobada le falta elegir el caption', 'sin caption elegido');
     M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
-    M.setEstado('r2', 'cancelado'); M.setEstado('r3', 'programado');
-    await espera(50);
-    const conEstado = qa('.cell [class]').filter(e => [...e.classList].some(c => /^e-/.test(c)));
-    ok(!conEstado.length, 'hay puntos de estado en la cuadrícula: ' + conEstado.map(e => e.className).join(', '));
-    M._in.openDetail('r1', 0);                     // control: la ventana de la publicación sí lo muestra
-    await hasta(() => qa('.detail [class]').some(e => [...e.classList].some(c => /^e-/.test(c))), 3000, 'el estado en la ventana de la publicación');
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    igual(M.setEstado('r1', 'noaprobado')[0].estado, 'noaprobado', 'no se puso No aprobado');
+    const E = M._in.ESTADOS.map(e => e[0]); igual(E.indexOf('noaprobado'), E.indexOf('aprobar') + 1, 'No aprobado no va después de Por aprobar');
+    M._in.openDetail('r1', 0);
+    const sel = await hasta(() => q('.detail .essel'), 3000, 'el estado en la publicación');
+    igual([sel.value, sel.selectedOptions[0].textContent], ['noaprobado', 'No aprobado'], 'el selector');
+    igual([...sel.options].map(o => o.textContent).slice(2, 4), ['Por aprobar', 'No aprobado'], 'el orden del selector');
+    ok(q('.detail .pest .edot.e-noaprobado'), 'la publicación no lleva el ● rojo');
     M._in.closeDetail();
+    // la publicación cambia: vuelve a Por aprobar y lo dice; deshecho el cambio, vuelve a No aprobado
+    M._test.setNote('r1', 'Otro');
+    igual(M._in.estadoDe(slot('r1')), 'aprobar', 'cambiada, sigue No aprobado');
+    M._in.openDetail('r1', 0);
+    await hasta(() => q('.detail .esold') && /no aprobarla/.test(q('.detail .esold').textContent), 3000, 'el aviso «cambió tras no aprobarla»');
+    M._in.closeDetail();
+    M._test.setNote('r1', 'Contexto');
+    igual(M._in.estadoDe(slot('r1')), 'noaprobado', 'deshecho el cambio, no vuelve a No aprobado');
+    // desde el selector de la ventana, a Aprobado y otra vez a No aprobado
+    M._in.openDetail('r1', 0);
+    const s2 = await hasta(() => q('.detail .essel'), 3000, 'el selector');
+    s2.value = 'aprobado'; s2.dispatchEvent(new W.Event('change', { bubbles: true }));
+    await hasta(() => M._in.estadoDe(slot('r1')) === 'aprobado', 3000, 'Aprobado desde la ventana');
+    const s3 = await hasta(() => q('.detail .essel'), 3000, 'el selector');
+    s3.value = 'noaprobado'; s3.dispatchEvent(new W.Event('change', { bubbles: true }));
+    await hasta(() => M._in.estadoDe(slot('r1')) === 'noaprobado', 3000, 'No aprobado desde la ventana');
+    M._in.closeDetail();
+  });
+
+  prueba('M31', 'Cancelar con «Motivo» opcional: se escribe en la publicación, se ve al abrirla y en el calendario al pasar el ratón, y viaja al exportar; IndexedDB 6 (D-082, D-060)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    M._in.openDetail('r1', 0);
+    const sel = await hasta(() => q('.detail .essel'), 3000, 'el estado en la publicación');
+    sel.value = 'cancelado'; sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+    const mi = await hasta(() => q('.detail .esmot'), 3000, 'el campo «Motivo»');
+    igual(D.activeElement, mi, 'el campo «Motivo» no recibe el foco al cancelar');
+    igual(mi.placeholder, 'Motivo (opcional)', 'el texto del campo');
+    const MOT = 'El cliente cambia la fecha del evento';
+    mi.value = MOT; mi.dispatchEvent(new W.Event('input', { bubbles: true }));
+    await espera(500);
+    igual(slot('r1').estado, { v: 'cancelado', motivo: MOT }, 'el motivo no se guardó');
+    ok(q('.detail .esmot') === mi, 'el campo se redibujó mientras se escribía');
+    M._in.closeDetail();
+    const chip = await hasta(() => q('.side > .cal .chip[data-slot="r1"]'), 3000, 'la cancelada en el calendario');
+    ok(chip.title.endsWith('· Cancelada: ' + MOT), 'el calendario no dice el motivo: ' + chip.title);
+    ok(chip.querySelector('.eico.e-cancelado svg'), 'la cancelada no lleva ✕ en el calendario');
+    M._in.openDetail('r1', 0);
+    igual((await hasta(() => q('.detail .esmot'), 3000, 'el motivo al abrirla')).value, MOT, 'la publicación no enseña el motivo');
+    M._in.closeDetail();
+    // M.setEstado: cancelar otra vez lo conserva; uno nuevo lo cambia; '' lo quita; solo una cancelada lleva motivo
+    igual(M.setEstado('r1', 'cancelado')[0].motivo, MOT, 'cancelar otra vez perdió el motivo');
+    igual(M.setEstado('r1', 'cancelado', { motivo: 'Otro' })[0].motivo, 'Otro', 'el motivo nuevo');
+    igual(M.setEstado('r2', 'programado', { motivo: 'x' })[0].error, 'solo una cancelada lleva motivo', 'motivo en una no cancelada');
+    M.setEstado('r1', 'cancelado', { motivo: MOT });
+    // viaja al exportar (archivo v5) y se vuelve a importar
+    await M.flush();
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    igual(d.v, 5, 'la versión del archivo');
+    igual(d.boards.find(b => b.client === CLIENTE).slots.find(x => x.id === 'r1').estado, { v: 'cancelado', motivo: MOT }, 'el motivo no viaja al exportar');
+    M.setEstado('r1', null);
+    ok(!slot('r1').estado, 'reactivada, guarda el estado');
+    const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 6, 'la versión de IndexedDB');
+  });
+
+  prueba('M32', 'Calendario: Aprobado ● verde, No aprobado ● rojo, Programado ✓, Publicado dos ✓, Cancelado ✕ rojo; Por empezar, Captions y Por aprobar como antes; la leyenda al día (D-081)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4), pub(5), pub(6), pub(7)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    await porAprobar(['r1', 'r2', 'r3', 'r4', 'r7'], 'm32');
+    M.setEstado('r1', 'aprobado'); M.setEstado('r2', 'noaprobado'); M.setEstado('r3', 'programado'); M.setEstado('r4', 'publicado'); M.setEstado('r5', 'cancelado');
+    await espera(80);
+    const ico = id => q(`.side > .cal .chip[data-slot="${id}"] .cl > i:first-child`);
+    igual(['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'].map(id => ico(id) && ico(id).className), ['edot e-aprobado', 'edot e-noaprobado', 'eico e-programado', 'eico e-publicado', 'eico e-cancelado', 'edot e-empezar', 'edot e-aprobar'], 'la marca de cada estado');
+    const cs = id => W.getComputedStyle(ico(id));
+    igual([cs('r1').backgroundColor, cs('r2').backgroundColor, cs('r3').color, cs('r4').color, cs('r5').color], ['rgb(26, 127, 55)', 'rgb(192, 57, 43)', 'rgb(26, 127, 55)', 'rgb(26, 127, 55)', 'rgb(192, 57, 43)'], 'los colores');
+    igual(ico('r4').querySelectorAll('path:not(.h)').length, 2, 'Publicado no lleva dos ✓');
+    igual(qa('.side > .cal .cleg > span').map(x => x.textContent), ['Por empezar', 'Captions', 'Por aprobar', 'No aprobado', 'Aprobado', 'Programado', 'Publicado', 'Cancelado'], 'la leyenda');
+    igual(qa('.side > .cal .cleg > span > i').map(x => x.className), ['edot e-empezar', 'edot e-captions', 'edot e-aprobar', 'edot e-noaprobado', 'edot e-aprobado', 'eico e-programado', 'eico e-publicado', 'eico e-cancelado'], 'las marcas de la leyenda');
   });
 
   prueba('M11', 'Una foto ya usada avisa y pregunta en vez de bloquearse; la bandeja no la duplica (D-022)', async () => {
@@ -551,7 +688,7 @@
     await M.flush();
     const antes = M.board().tray.slice(), key = `${CLIENTE}-${MES}`;
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    ok(d.v === 4, 'versión del archivo: ' + d.v);
+    ok(d.v === 5, 'versión del archivo: ' + d.v);   // v5 desde la 3.66 (D-082)
     igual((d.bandejas.find(r => r.client === CLIENTE) || {}).tray, antes, 'la bandeja en el archivo');
     ok(d.boards.every(b => !('tray' in b)), 'un tablero del archivo lleva bandeja');
     ok(antes.every(f => d.files[f]), 'faltan fotos de la bandeja en el archivo');
@@ -873,7 +1010,7 @@
     igual(await M._in.sweepDesigns(true), 0, 'la limpieza borró algo');
     ok(await M._test.fileRec(img), 'la limpieza se llevó la imagen de la historia');
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 4, 'versión del archivo');
+    igual(d.v, 5, 'versión del archivo');   // v5 desde la 3.66 (D-082)
     const b0 = d.boards.find(b => b.key === `${CLIENTE}-${MES}`);
     igual(b0.historias.map(h => [h.id, h.note]), [[id, 'Nota h7']], 'la historia en el archivo');
     ok(d.files[img] && d.files[f], 'el archivo no lleva la imagen o la foto de la historia');
@@ -1141,7 +1278,7 @@
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
-    igual(info.version, 5, 'versión de la base de datos');
+    igual(info.version, 6, 'versión de la base de datos');   // 6 desde la 3.66 (D-082)
     const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
     await M.flush();
     const guardado = await M._in.idbGet('boards', key);
@@ -1174,7 +1311,7 @@
     ok(!M._in.locked && hDe(id2), 'no se pudo seguir');
   });
 
-  prueba('H13', 'Con un hueco vacío en el feed, «Historias» abre su panel y lista la historia; el punto «Hueco vacío» no recibe su contenido ni sus estilos (D-054, D-035)', async () => {
+  prueba('H13', 'Con un hueco vacío en el feed, «Historias» abre su panel y lista la historia; la casilla ya no lleva el punto «Hueco vacío» (D-054, D-035, D-081)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await hasta(() => M.hs, 4000, 'historias.js');
     await poner('r1', [await foto('h13-a.jpg'), await foto('h13-b.jpg')]);
@@ -1182,32 +1319,21 @@
     accion('sl-add');
     compDe(ed().i).els.push(huecoEl('h13', 0.1, 0.1, 0.8, 0.8));
     await aplicarEditor();
-    await hasta(() => celda('r1') && celda('r1').querySelector('.dot.hv'), 4000, 'el punto «Hueco vacío» en la casilla');
+    await hasta(() => (M.plan().find(x => x.slotId === 'r1') || {})['hueco vacío'], 4000, 'el hueco vacío en plan()');
+    ok(celda('r1') && !celda('r1').querySelector('.dot, .hv'), 'la casilla lleva todavía el punto «Hueco vacío» (D-081)');
     const id = M.hs.anadir(DIA(10), { note: 'H13' });
     q('.hvsw [data-v="1"]').click();
-    const panel = q('.main > section.hv'), punto = () => celda('r1').querySelector('.dot.hv');
+    const panel = q('.main > section.hv');
     ok(q('.feed').offsetParent === null, 'con «Historias» sigue viéndose la cuadrícula');
     ok(!panel.hidden && panel.offsetParent !== null, 'el panel de historias no se ve');
     ok(panel.querySelector(`.hv-rail[data-day="${DIA(10)}"] .hv-card[data-h="${id}"]`), 'el panel no lista la historia');
-    igual(qa('.dot.hv .hv-res, .dot.hv .hv-rail').length, 0, 'las filas de historias en el punto');
-    igual(punto().textContent, 'Hueco vacío', 'el texto del punto');
-    // ninguna regla de historias.js, media query incluida, coincide con el punto
-    const reglas = l => [...l].flatMap(r => r.cssRules ? reglas(r.cssRules) : [r]);
-    const ajenas = reglas(D.getElementById('mesa-hv-css').sheet.cssRules).filter(r => punto().matches(r.selectorText)).map(r => r.selectorText);
-    igual(ajenas, [], 'reglas del panel que coinciden con el punto');
-    const c = W.getComputedStyle(punto());
-    igual([c.borderRightWidth, c.flexGrow, c.overflowY, c.paddingTop, c.boxSizing], ['0px', '0', 'hidden', '0px', 'border-box'], 'los estilos del punto');
-    // «Vista cliente»: el panel no sale y su regla no toca el punto
+    // «Vista cliente»: el panel sigue saliendo (D-064)
     const raiz = M._in.root();
     raiz.classList.add('client');
-    try {
-      ok(panel.offsetParent !== null, 'en «Vista cliente» no se ve el panel (D-064)');
-      ok(W.getComputedStyle(punto()).display !== 'none', 'la regla de «Vista cliente» del panel oculta el punto');
-    } finally { raiz.classList.remove('client'); }
-    // de vuelta al feed, el punto se ve
+    try { ok(panel.offsetParent !== null, 'en «Vista cliente» no se ve el panel (D-064)'); } finally { raiz.classList.remove('client'); }
     q('.hvsw [data-v="0"]').click();
     ok(q('.feed').offsetParent !== null && panel.hidden, 'con «Feed» no vuelve la cuadrícula');
-    ok(punto().offsetParent !== null, 'el punto no se ve en la cuadrícula');
+    ok(celda('r1').offsetParent !== null, 'la casilla no se ve en la cuadrícula');
   });
 
   // ---------- historias solas: fotos a la bandeja, plantillas del kit y diseño desde fuera (D-061 a D-063) ----------
@@ -3034,16 +3160,17 @@
     const s = slot('r1');
     igual(s.photos.length, 4, 'las diapositivas aplicadas');
     ok(Object.values(s.libre.slides).filter(c => c.els.some(e => e.t === 'hueco')).length === 2, 'los huecos vacíos no se guardaron');
-    await hasta(() => celda('r1') && celda('r1').querySelector('.dot.hv'), 4000, 'la marca «Hueco vacío» en la casilla');
+    await hasta(() => (M.plan().find(x => x.slotId === 'r1') || {})['hueco vacío'], 4000, 'el hueco vacío en plan()');
+    ok(!celda('r1').querySelector('.dot'), 'la casilla lleva todavía el punto «Hueco vacío» (D-081)');
     igual(M.plan().find(x => x.slotId === 'r1')['hueco vacío'], [p + 1, j + 1].sort((a, b) => a - b), 'plan() no marca las diapositivas con hueco vacío');
-    ok(!celda('r2').querySelector('.dot.hv') && !('hueco vacío' in (M.plan().find(x => x.slotId === 'r2') || {})), 'un post sin hueco vacío salió marcado');
+    ok(!('hueco vacío' in (M.plan().find(x => x.slotId === 'r2') || {})), 'un post sin hueco vacío salió marcado');
     const fid = s.photos[j];
     M.startUpload([{ fileId: fid, slotId: 'r1', url: 'http://127.0.0.1:9/no', auth: 'x' }]);
     ok(M.uploads[fid] && M.uploads[fid].state === 'error' && /hueco/.test(M.uploads[fid].err), 'la subida no se paró: ' + json(M.uploads[fid]));
     // intercambiar casillas mueve las fotos, no su composición: la marca y el bloqueo van con las fotos
     M._test.swap('r1', 'r4');
     igual((M.plan().find(x => x.slotId === 'r4') || {})['hueco vacío'], [p + 1, j + 1].sort((a, b) => a - b), 'tras intercambiar, plan() no marca el post que tiene las fotos');
-    await hasta(() => celda('r4') && celda('r4').querySelector('.dot.hv') && !celda('r1').querySelector('.dot.hv'), 4000, 'la marca tras intercambiar las casillas');
+    await hasta(() => (M.plan().find(x => x.slotId === 'r4') || {})['hueco vacío'] && !('hueco vacío' in (M.plan().find(x => x.slotId === 'r1') || {})), 4000, 'la marca tras intercambiar las casillas');
     M.startUpload([{ fileId: fid, slotId: 'r4', url: 'http://127.0.0.1:9/no', auth: 'x' }]);
     ok(M.uploads[fid].state === 'error' && /hueco/.test(M.uploads[fid].err), 'tras intercambiar, la subida no se paró: ' + json(M.uploads[fid]));
     M._test.swap('r1', 'r4');
@@ -3103,7 +3230,7 @@
     accion('sl-add'); const p = ed().i;
     compDe(p).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8));
     await aplicarEditor();
-    await hasta(() => celda('r1') && celda('r1').querySelector('.dot.hv'), 4000, 'la marca «Hueco vacío» en la casilla');
+    await hasta(() => (M.plan().find(x => x.slotId === 'r1') || {})['hueco vacío'], 4000, 'el hueco vacío en plan()');
     // la descarga, interceptada; todo se restaura
     const LS = 'mesa-export-descarga', antes = W.localStorage.getItem(LS), A = W.HTMLAnchorElement.prototype, click = A.click;
     let cap = null;
@@ -4037,7 +4164,7 @@
     await M.pedirBorrarCarpeta('historias');
     ok(!dialogo() || !q('[data-act="carpeta-borrar"]'), 'avisa como si se pudiera borrar');
     const v = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => { const n = r.result.version; r.result.close(); res(n); }; r.onerror = () => rej(r.error); });
-    igual(v, 5, 'versión de IndexedDB');
+    igual(v >= 5, true, 'versión de IndexedDB');   // 5 por las carpetas; 6 desde la 3.66 (D-082)
   });
 
   prueba('C2', 'Ninguna escritura de «bandejas» pierde las carpetas: guardar, juntar, borrar mes, importar y la copia de una recarga; board().tray lleva las sin usar y la raíz no (D-069)', async () => {

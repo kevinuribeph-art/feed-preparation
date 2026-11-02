@@ -1,6 +1,7 @@
-// Calendario — Mesa de trabajo · v1.0
+// Calendario — Mesa de trabajo · v1.1
 // The open board's month under the tray (half of the right column), Monday to Sunday as in Notion: one chip per post —
-// its short name, time and a dot of its state — on a pastel of its type, as Notion's tags. Linked both ways with the grid:
+// its short name, time and the mark of its state (a dot, ✓, two ✓ or ✕: the mesa's estIco, D-081) — on a pastel of its
+// type, as Notion's tags. A cancelled post says why on hover, if it has a reason (D-082). Linked both ways with the grid:
 // a click opens the same post view as its cell, hovering one lights the other up. It reads the board only through the
 // mesa's bridge (M._in, mesa ≥ 3.32) and is drawn again on every redraw of the grid (renderFeed → M.calendario.render):
 // it keeps no copy of any post. If this file doesn't load, the mesa works as before (the tray takes the whole column).
@@ -12,14 +13,14 @@
 //   cancelled posts don't count.
 //   Moving: a chip dragged to another day keeps its time and goes through the mesa's setDate, as the post view's date field
 //   (it renumbers, reorders the grid, reaches a collab's boards and is one step of ⌘Z); a past day is refused.
-//   Notion: the mesa doesn't read Notion live — each chip has the grid's mark of a change made here, and the header says
-//   how many are not uploaded yet and when the board last had Notion's data (S.notionAt: loaded or upload confirmed).
+//   Notion: the mesa doesn't read Notion live — each chip has the grid's mark of changes since the last upload (1.1: the one
+//   mark of D-081, also for a caption, photo or contexto), and the header says how many dates, names or types are not uploaded yet and when the board last had Notion's data (S.notionAt: loaded or upload confirmed).
 //   Vista cliente: read only — type, time and colour; no moving, no states, no Notion marks, no cancelled posts.
 (function calendarioBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -52,11 +53,12 @@
   // ---------- drawing ----------
   let hi = null;                               // {k: 'slot' | 'prev', id} lit up in both places
   function chipHTML(X, s, client) {
-    const est = X.estadoDe(s), lab = X.ESTADOS.find(e => e[0] === est), t = X.localTime(s.date);
+    const est = X.estadoDe(s), lab = X.ESTADOS.find(e => e[0] === est), t = X.localTime(s.date), mot = est === 'cancelado' ? X.motivoDe(s) : '';
     const cls = `chip ty-${TYPE[s.type] || 'otro'}${est === 'cancelado' ? ' cx' : ''}`;
-    const mk = client || est === 'cancelado' ? '' : X.dateChg(s) ? X.DCHG : X.nameChg(s) || X.typeChg(s) ? X.DNM : '';   // the grid's own marks
-    return `<button type="button" class="${cls}" data-slot="${esc(s.id)}" title="${esc(s.name)} · ${esc(X.fmtDate(s.date))}">`
-      + `<span class="cl">${client ? '' : `<i class="edot e-${est}" title="${esc(lab ? lab[1] : est)}"></i>`}<span class="cn">${esc(X.shortLabel(s.name, s.type))}</span>${mk}</span>`
+    const mk = client || est === 'cancelado' ? '' : X.cambiosIco(s, 'cmk');   // the grid's own mark of changes
+    const tit = `${s.name} · ${X.fmtDate(s.date)}${est === 'cancelado' ? ' · Cancelada' + (mot ? ': ' + mot : '') : ''}`;
+    return `<button type="button" class="${cls}" data-slot="${esc(s.id)}" title="${esc(tit)}">`
+      + `<span class="cl">${client ? '' : X.estIco(est, ` title="${esc(lab ? lab[1] : est)}"`)}<span class="cn">${esc(X.shortLabel(s.name, s.type))}</span>${mk}</span>`
       + (t ? `<span class="ct">${esc(t)}</span>` : '') + '</button>';
   }
   const pastHTML = (X, p) => `<button type="button" class="chip past" data-prev="${esc(p.id)}" title="${esc(p.name)} · ${esc(X.fmtDate(p.date))} · publicada">`
@@ -99,7 +101,7 @@
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : '<span class="csync">Igual que Notion</span>';
     const nat = `<span class="cnat" title="La mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}</span>`;
-    const leg = X.ESTADOS.map(([k, l]) => `<span><i class="edot e-${k}"></i>${esc(l)}</span>`).join('');
+    const leg = X.ESTADOS.map(([k, l]) => `<span>${X.estIco(k)}${esc(l)}</span>`).join('');
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false;
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
@@ -241,6 +243,7 @@
 #mesa .chip.cx{background:#f4f4f3;color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}
 #mesa .chip:hover{filter:brightness(.97)}
 #mesa .chip .dchg{flex:none;margin:0 0 0 1px}
+#mesa .chip .cmk{display:inline-flex;flex:none;width:9px;height:9px;margin:0 0 0 1px}#mesa .chip .cmk svg{width:100%;height:100%}
 #mesa .side>.cal{user-select:none;-webkit-user-select:none}
 #mesa .chip.cmoving{opacity:.35}
 #mesa .cghost{position:fixed;left:0;top:0;z-index:30;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.18);opacity:.95}
@@ -253,7 +256,7 @@
 #mesa .cgrid>.ccnt.z{color:var(--faint);font-weight:400}
 #mesa .ctot{grid-column:1/8;padding:4px 8px;text-align:right;font-size:11px;color:var(--mute);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2)}
 #mesa .ctotn{min-height:22px}
-#mesa.client .edot,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
+#mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
 #mesa.client .chip{cursor:pointer}
 @media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}}`;
   let style = document.getElementById('mesa-cal-css');

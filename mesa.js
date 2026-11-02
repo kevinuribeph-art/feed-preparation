@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.65'; // 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.66'; // 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -161,8 +161,9 @@
       // 3 (mesa 3.44): + 'bandejas', the client's tray (D-041). 4 (mesa 3.55): no new store: a tab that doesn't know the stories
       // (before 3.53) saved a board without them and deleted their images, so it must no longer reach the data (D-060). Raise
       // it whenever a board starts to keep something an older tab would drop. 5 (mesa 3.59): no new store: a tab that doesn't
-      // know the tray's folders (`carpetas` in 'bandejas') would rewrite the record without them (D-069).
-      const r = indexedDB.open('mesa-feed', 5);
+      // know the tray's folders (`carpetas` in 'bandejas') would rewrite the record without them (D-069). 6 (mesa 3.66): no new
+      // store: a post may be «No aprobado» or keep the reason of its cancellation (D-082), which an older tab doesn't know.
+      const r = indexedDB.open('mesa-feed', 6);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
@@ -1825,26 +1826,23 @@
 #mesa .ico svg{width:100%;height:100%}#mesa .cell.empty .ico.pinned{color:#8e8e8e;filter:none;z-index:3}
 #mesa .lab{position:absolute;left:0;right:0;bottom:0;padding:18px 7px 6px;background:linear-gradient(transparent,rgba(0,0,0,.66));color:#fff;font-size:10.5px;line-height:1.25;pointer-events:none}
 #mesa .lab b{display:block;font-size:11.5px}
-#mesa .tag{display:inline-block;margin-top:3px;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:1px 5px}
-#mesa .lab .tag{background:rgba(255,255,255,.22)}
-#mesa span.ltag{display:block;width:fit-content;max-width:100%;margin-top:3px;font-size:10px;font-weight:600;background:#0064d1;color:#fff;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#mesa.client .ltag{display:none}
+#mesa .mks{display:inline-flex;align-items:center;gap:4px;height:10px;margin:0 5px 0 1px;vertical-align:-1px}
+#mesa .mks .mk{position:relative;display:inline-flex;flex:none;width:10px;height:10px;pointer-events:auto;cursor:default}
+#mesa .mks .mk svg{width:100%;height:100%;overflow:visible}
+#mesa .mks .mk.edot{width:7px;height:7px;margin:0 1.5px;box-shadow:0 0 0 1.5px #fff}
+#mesa .mks .eico .h{display:inline;stroke:#fff;stroke-width:4.4}
+#mesa .mks .mk[data-tip]::after{content:attr(data-tip);position:absolute;left:-3px;bottom:calc(100% + 6px);width:max-content;max-width:130px;padding:3px 6px;border-radius:5px;background:rgba(20,20,20,.92);color:#fff;font-size:10.5px;font-weight:500;line-height:1.3;font-style:normal;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;z-index:4;transition:opacity .1s ease,visibility 0s linear .1s}
+#mesa .mks .mk[data-tip]:hover::after{opacity:1;visibility:visible;transition-delay:.3s,.3s}
 #mesa .phead p.lk{margin-top:4px;color:var(--acc2);font-size:12px}
 #mesa .badges{position:absolute;top:6px;left:6px;right:30px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:3;pointer-events:none}
-#mesa .badges .mk{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
-#mesa .badges .dot{pointer-events:auto;display:block;box-sizing:border-box;width:auto;height:17px;min-width:17px;max-width:17px;padding:0;border-radius:9px;overflow:hidden;white-space:nowrap;margin:0;font-size:10px;font-weight:600;line-height:17px;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:max-width .18s ease}
-#mesa .badges .dot .dl{display:block;padding:0 7px;opacity:0;transition:opacity .1s ease}
-#mesa .badges .dot:hover{max-width:240px;transition-delay:.5s}
-#mesa .badges .dot:hover .dl{opacity:1;transition-delay:.55s}
-#mesa .badges .dot.nb{background:#fff;color:var(--ink)}
 #mesa .edot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%}
 #mesa .e-empezar{background:#f3f1ef;box-shadow:inset 0 0 0 1.5px #a8a29e}#mesa .e-captions{background:#e3b341}#mesa .e-aprobar{background:#74b3e8}
-#mesa .e-aprobado{background:#2f6fd0}#mesa .e-programado{background:#c9649f}#mesa .e-publicado{background:#3d3d3d}#mesa .e-cancelado{background:#fff;box-shadow:inset 0 0 0 1.5px #c4c4c4}
+#mesa .e-noaprobado{background:var(--red)}#mesa .e-aprobado{background:var(--ok)}
+#mesa .eico{display:inline-flex;flex:none;width:10px;height:9px}#mesa .eico.e-cancelado{width:9px}
+#mesa .eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;overflow:visible}#mesa .eico .h{display:none}
+#mesa .e-programado,#mesa .e-publicado{color:var(--ok)}#mesa .e-cancelado{color:var(--red)}
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
-#mesa .badges .dot.ok{background:var(--ok);color:#fff}
-#mesa .badges .dot.chg{background:var(--chg);color:#fff}
-#mesa .badges .dot.hv{background:var(--red);color:#fff}
-#mesa .badges .dot.ltag,#mesa .badges .dot.cb{background:#0064d1;color:#fff}
+#mesa .esmot{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;min-height:30px;box-sizing:border-box;width:210px;max-width:100%}
 #mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:#f8df74;color:#3d3300;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45));transition:max-width .18s ease,max-height .18s ease}
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
 #mesa .pit{cursor:default}#mesa .pit.dragging{opacity:.35}
@@ -1872,8 +1870,6 @@
 #mesa .cell.empty>.pit{position:absolute;left:6px;bottom:6px;z-index:3;margin:0;max-width:17px}
 #mesa .cell.empty>.pit:hover{max-width:calc(100% - 12px)}
 #mesa.client .pit{display:none}
-#mesa .nb{width:21px;height:21px;border-radius:50%;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
-#mesa .nb svg{width:13px;height:13px}
 #mesa .st{font-size:10px;border-radius:4px;padding:1px 5px;color:#fff;white-space:nowrap}
 #mesa .st.ok{background:var(--ok)}#mesa .st.chg{background:var(--chg)}
 #mesa .mpill{font-size:9.5px;font-weight:600;background:rgba(38,38,38,.88);color:#fff;border-radius:999px;padding:1px 7px;line-height:17px}
@@ -2187,7 +2183,7 @@
 
   function counts() {
     const L = S.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
-    const st = L.map(slotStatus); return { n, filled, notes, ok: st.filter(x => x === 'ok').length, chg: st.filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length };
+    return { n, filled, notes, chg: L.map(slotStatus).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length };
   }
   function renderBar() {
     if (!shellReady()) return;
@@ -2205,7 +2201,7 @@
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
-      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span><span><b>${k.ok}</b> en Notion</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto o caption): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
+      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span>${k.chg ? `<span class="c" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto o caption): pide a Claude que las vuelva a subir"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</span>` : ''}`
         + (k.dates ? `<span class="c dates" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}"><i class="dchg" aria-hidden="true"></i><b class="c">${k.dates}</b> con fecha nueva</span>` : '') + '</div>';
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
@@ -2244,37 +2240,79 @@
   }
 
   function nextMonthName(cd) { const m = cycleOf(new Date().toISOString(), cd); let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return MONTHS[mo - 1]; }   // the next cycle to load
-  function photoStatus(s) {                   // its photos and contexto as uploaded (what plan() reports)
+  function photoParts(s) {                    // what changed of its photos and of its contexto since the upload (null: never uploaded)
     const u = s.uploaded; if (!u) return null;
     const asRendered = publishList(s).length && publishList(s).every(f => (M.files[f] || {}).design);   // a design's images go up as rendered: a new render is new files
-    return same(u.fileIds || [], publishList(s)) && (u.note || '') === noteOf(s) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s))) ? 'ok' : 'chg';
+    return { foto: !(same(u.fileIds || [], publishList(s)) && (u.crop == null || asRendered || u.crop === cropSig(s) || (isReel(s.type) && u.crop === cropSig34(s)))), contexto: (u.note || '') !== noteOf(s) };
   }
+  function photoStatus(s) { const p = photoParts(s); return !p ? null : p.foto || p.contexto ? 'chg' : 'ok'; }   // its photos and contexto as uploaded (what plan() reports)
   // the post as a whole: «cambiada» when its photo, crop or contexto — or its uploaded caption — changed after the upload;
   // «en Notion» only when its photos and contexto are (an uploaded caption alone never makes it so)
   function slotStatus(s) { const a = photoStatus(s), b = capStatus(s); return a === 'chg' || b === 'chg' ? 'chg' : a; }
+  // what changed since the last upload, in this order (D-081): the cell's one mark of changes says it on hover
+  const CAMBIOS = [['caption', s => capStatus(s) === 'chg'], ['foto o encuadre', s => !!(photoParts(s) || {}).foto], ['fecha u hora', s => dateChg(s)],
+    ['contexto', s => !!(photoParts(s) || {}).contexto], ['nombre o tipo', s => nameChg(s) || typeChg(s)]];
+  const cambiosDe = s => CAMBIOS.filter(([, f]) => f(s)).map(([l]) => l);
+  const listaY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0] || '';
   // the post's state (3.32), one at a time and the same everywhere. The first three follow from its data: «Por empezar»
   // (no photo or no contexto), «Captions» (none chosen yet), «Por aprobar» (one chosen, the preview still to approve).
-  const ESTADOS = [['empezar', 'Por empezar'], ['captions', 'Captions'], ['aprobar', 'Por aprobar'], ['aprobado', 'Aprobado'], ['programado', 'Programado'], ['publicado', 'Publicado'], ['cancelado', 'Cancelado']];
-  // The other four are chosen in the post view (s.estado = {v}). «Aprobado» keeps what was approved (sig: its photos with
+  const ESTADOS = [['empezar', 'Por empezar'], ['captions', 'Captions'], ['aprobar', 'Por aprobar'], ['noaprobado', 'No aprobado'], ['aprobado', 'Aprobado'], ['programado', 'Programado'], ['publicado', 'Publicado'], ['cancelado', 'Cancelado']];
+  // The other five are chosen in the post view (s.estado = {v}). «Aprobado» keeps what was approved (sig: its photos with
   // their crops, contexto and chosen caption, as the upload records compare them): once one of them changes it is «Por
-  // aprobar» again (undoing the change makes it «Aprobado» again). «Cancelado» leaves the feed, the counts and everything
-  // uploaded or scheduled (M.plan, M.notionChanges, M.captions); none of its data is deleted and Notion is not touched.
-  const MANUAL = ['aprobado', 'programado', 'publicado', 'cancelado'];
+  // aprobar» again (undoing the change makes it «Aprobado» again). «No aprobado» (the client turned it down, D-082) keeps
+  // what was turned down the same way. «Cancelado» leaves the feed, the counts and everything uploaded or scheduled
+  // (M.plan, M.notionChanges, M.captions); none of its data is deleted and Notion is not touched; it may keep a reason.
+  const MANUAL = ['noaprobado', 'aprobado', 'programado', 'publicado', 'cancelado'];
+  const FIRMADO = ['noaprobado', 'aprobado'];   // the two that hold only while the post stays as it was
   const estadoAuto = s => !s.photos.length || !noteOf(s) ? 'empezar' : capFinal(s) == null ? 'captions' : 'aprobar';
   const aprobSig = s => JSON.stringify([cropSig(s), noteOf(s), capFinal(s)]);
   function estadoDe(s) {
     const v = s.estado && s.estado.v, a = estadoAuto(s);
-    return !v ? a : v === 'aprobado' ? (a === 'aprobar' && s.estado.sig === aprobSig(s) ? v : a) : v;
+    return !v ? a : FIRMADO.includes(v) ? (a === 'aprobar' && s.estado.sig === aprobSig(s) ? v : a) : v;
   }
   const vivo = s => !(s && s.estado && s.estado.v === 'cancelado');
-  // v: one of MANUAL, or null (back to the one its data gives). Returns why it can't be, or ''.
-  function setEstado(id, v) {
+  const motivoDe = s => s && s.estado && s.estado.v === 'cancelado' ? String(s.estado.motivo || '').trim() : '';   // why it was cancelled (optional)
+  // v: one of MANUAL, or null (back to the one its data gives). Returns why it can't be, or ''. A cancelled post cancelled
+  // again keeps its reason; o.motivo sets it (only for «Cancelado»).
+  function setEstado(id, v, o = {}) {
     const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
     if (v != null && !MANUAL.includes(v)) return 'estado no válido';
     const a = estadoAuto(s);
-    if (v === 'aprobado' && a !== 'aprobar') return a === 'empezar' ? 'para aprobarla le falta la foto o el contexto' : 'para aprobarla le falta elegir el caption';
-    if (v) s.estado = v === 'aprobado' ? { v, sig: aprobSig(s) } : { v }; else delete s.estado;
+    if (FIRMADO.includes(v) && a !== 'aprobar') return (v === 'aprobado' ? 'para aprobarla' : 'para marcarla como no aprobada') + (a === 'empezar' ? ' le falta la foto o el contexto' : ' le falta elegir el caption');
+    if (o.motivo != null && v !== 'cancelado') return 'solo una cancelada lleva motivo';
+    const mot = o.motivo != null ? String(o.motivo).trim() : motivoDe(s);
+    if (v) s.estado = FIRMADO.includes(v) ? { v, sig: aprobSig(s) } : v === 'cancelado' && mot ? { v, motivo: mot } : { v }; else delete s.estado;
     return '';
+  }
+  let motTimer = null;
+  function setMotivo(id, text) {             // the reason of a cancelled post, typed in its view: saved as it is typed
+    const s = slot(id); if (!s || !s.estado || s.estado.v !== 'cancelado') return;
+    if (String(text).trim()) s.estado.motivo = String(text); else delete s.estado.motivo;
+    clearTimeout(motTimer);
+    motTimer = setTimeout(() => { motTimer = null; save(); calRender(); }, 400);
+  }
+  // the marks of the states (D-081): a dot, or a ✓ (Programado), two (Publicado) or ✕ (Cancelado); the same drawing in the
+  // calendar, the post view and, for some, the grid. The white stroke (.h) is drawn only in the grid, over the photo.
+  const trazo = d => `<path class="h" d="${d}"/><path d="${d}"/>`;
+  const SVG_EST = {
+    programado: `<svg viewBox="0 0 12 10" aria-hidden="true">${trazo('M1.6 5.3l2.9 2.9 6-6.4')}</svg>`,
+    publicado: `<svg viewBox="0 0 12 10" aria-hidden="true">${trazo('M.9 5.4l2.6 2.6 5-5.8')}${trazo('M4.9 6.6l1.4 1.4 5-5.8')}</svg>`,
+    cancelado: `<svg viewBox="0 0 10 10" aria-hidden="true">${trazo('M2.2 2.2l5.6 5.6M7.8 2.2L2.2 7.8')}</svg>`
+  };
+  const estIco = (e, at = '') => SVG_EST[e] ? `<i class="eico e-${e}"${at}>${SVG_EST[e]}</i>` : `<i class="edot e-${e}"${at}></i>`;
+  // the mark of changes since the last upload: a yellow ring, a blue disc and a red dot, the size of the old date dot
+  const CAMBIO_SVG = '<svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="#ffcf1f"/><circle cx="5" cy="5" r="3.4" fill="#1f5fd6"/><circle cx="5" cy="5" r="1.45" fill="#e3262b"/></svg>';
+  function cambiosIco(s, cls = 'mk') {
+    const c = cambiosDe(s); if (!c.length) return '';
+    const t = 'Cambió desde la última subida: ' + listaY(c);
+    return `<i class="${cls} mk-cambios"${cls === 'mk' ? ` title="" data-tip="${esc('Cambió: ' + listaY(c))}"` : ` title="${esc(t)}"`} aria-label="${esc(t)}">${CAMBIO_SVG}</i>`;   // the grid's own tip; elsewhere, the browser's
+  }
+  // the cell's marks (D-081), in one row before its date: Programado, Publicado, No aprobado and the changes
+  const MARCA_GRID = { programado: 'Programado', publicado: 'Publicado', noaprobado: 'No aprobado' };
+  function marcasHTML(s) {
+    const e = estadoDe(s), m = MARCA_GRID[e] ? estIco(e, ` title="" data-tip="${MARCA_GRID[e]}" aria-label="${MARCA_GRID[e]}"`).replace(/class="e(ico|dot) /, 'class="mk e$1 ') : '';
+    const c = cambiosIco(s);
+    return m || c ? `<span class="mks">${m}${c}</span>` : '';
   }
   function pickEstado(id, v) {               // from the post view
     if (locked) return;
@@ -2285,36 +2323,28 @@
       if (v === 'cancelado') toast(`${s.name} cancelada: sale del feed y no se sube ni se programa. «Reactivar» la devuelve.`, { ms: 6000 });
     }
     refreshDetail();
+    const mi = !why && v === 'cancelado' && root.querySelector('.detail .esmot'); if (mi) mi.focus();   // its reason, if there is one (D-082)
   }
-  // the post view's state: the automatic one its data gives (the other two can't be chosen) and the four chosen by hand
+  // the post view's state: the automatic one its data gives (the other two can't be chosen) and the five chosen by hand;
+  // a cancelled one, its optional reason (D-082)
   function estadoHTML(s) {
-    const e = estadoDe(s), a = estadoAuto(s), id = esc(s.id), old = s.estado && s.estado.v === 'aprobado' && e !== 'aprobado';
+    const e = estadoDe(s), a = estadoAuto(s), id = esc(s.id), v0 = s.estado && s.estado.v, old = FIRMADO.includes(v0) && e !== v0;
     const opts = ESTADOS.map(([k, l]) => {
-      const auto = !MANUAL.includes(k), dis = auto ? k !== a : k === 'aprobado' && a !== 'aprobar' && e !== k;
+      const auto = !MANUAL.includes(k), dis = auto ? k !== a : FIRMADO.includes(k) && a !== 'aprobar' && e !== k;
       return `<option value="${auto ? '' : k}"${k === e ? ' selected' : ''}${dis ? ' disabled' : ''}>${esc(l)}</option>`;
     }).join('');
     const btn = e === 'aprobar' ? `<button type="button" class="btn2 esbtn" data-act="aprobar" data-slot="${id}" title="Has revisado el preview completo: fotos, reels y caption">Aprobar</button>`
       : e === 'cancelado' ? `<button type="button" class="btn2 esbtn" data-act="reactivar" data-slot="${id}" title="Vuelve al feed con el estado que le toque">Reactivar</button>` : '';
-    return `<span class="pest"><i class="edot e-${e}" aria-hidden="true"></i><select class="essel" data-slot="${id}" aria-label="Estado" title="Por empezar, Captions y Por aprobar van solos; los demás se eligen aquí">${opts}</select>${btn}`
-      + (old ? '<span class="esold" title="Cambió la foto, el recorte, el contexto o el caption después de aprobarla">cambió tras aprobarla</span>' : '') + '</span>';
+    const mot = e === 'cancelado' ? `<input type="text" class="esmot" data-slot="${id}" maxlength="200" value="${esc((s.estado && s.estado.motivo) || '')}" placeholder="Motivo (opcional)" aria-label="Motivo de la cancelación" autocomplete="off">` : '';
+    return `<span class="pest">${estIco(e, ' aria-hidden="true"')}<select class="essel" data-slot="${id}" aria-label="Estado" title="Por empezar, Captions y Por aprobar van solos; los demás se eligen aquí">${opts}</select>${btn}${mot}`
+      + (old ? (v0 === 'aprobado' ? '<span class="esold" title="Cambió la foto, el recorte, el contexto o el caption después de aprobarla">cambió tras aprobarla</span>' : '<span class="esold" title="Cambió la foto, el recorte, el contexto o el caption después de que el cliente no la aprobara">cambió tras no aprobarla</span>') : '') + '</span>';
   }
   function statusBadge(s) {
     const st = slotStatus(s);
     return st === 'ok' ? '<span class="st ok" title="Subida a Notion tal como está">✓ en Notion</span>' : st === 'chg' ? '<span class="st chg" title="Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir">cambiada</span>' : '';
   }
-  // cell markers: month pill, then a column of dots (text, Notion, collab) that open into their label after 0.5 s of hover;
-  // the post's state is not one of them (the calendar and the post view show it)
-  const dot = (cls, label, aria) => `<span class="dot ${cls}" title="" aria-label="${esc(aria || label)}"><span class="dl">${esc(label)}</span></span>`;
-  function badgesHTML(s, pill) {
-    const mp = pill ? `<span class="mpill">${esc(pill)}</span>` : '';
-    const cx = !!noteOf(s), st = slotStatus(s), w = sharedWith(s);
-    const hv = huecosVacios(s);
-    const d = (hv.length ? dot('hv', 'Hueco vacío', `Hueco de foto vacío (${hv.length === 1 ? 'diapositiva' : 'diapositivas'} ${hv.join(', ')}): no se sube ni se programa hasta llenarlo`) : '')
-      + (cx && st !== 'ok' ? dot('nb', 'Contexto', 'Tiene contexto') : '')
-      + (st === 'ok' ? dot('st ok', '✓ en Notion', 'Subida a Notion tal como está') : st === 'chg' ? dot('st chg', 'cambiada', 'Cambiada después de subirla a Notion (foto, encuadre, contexto o caption): pide a Claude que la vuelva a subir') : '')
-      + (w.length ? dot('ltag', 'Collab ↔ ' + w.join(' · '), 'Collab enlazada con ' + w.join(' y ') + ': foto, fecha, hora, contexto, nota, captions y estado se cambian en las dos') : s.type === 'Collab Reel' ? dot('tag cb', 'Collab') : '');
-    return mp || d ? `<div class="badges">${mp}${d ? `<div class="mk">${d}</div>` : ''}</div>` : '';
-  }
+  // the cell's top left keeps only the month pill of a range board: its marks go in one row by its date (marcasHTML, D-081)
+  const badgesHTML = (s, pill) => pill ? `<div class="badges"><span class="mpill">${esc(pill)}</span></div>` : '';
   const POSTIT = '<svg viewBox="0 0 17 17" aria-hidden="true"><path d="M1.5 1.5h14v14H7.4C4 15.5 1.5 13 1.5 9.6z" fill="#f8df74"/><path d="M1.5 1.5h14v2.6h-14z" fill="#fcebaa"/><path d="M1.5 9.6c0 3.3 2.6 5.9 5.9 5.9-1.2-1.6-1.6-3.5-1.2-5.4-1.6.4-3.3.3-4.7-.5z" fill="#d9ad35"/></svg>';
   // the Nota's post-it; while it is edited in its cell (double click once open), a text field in its place
   let memoEdit = null;
@@ -2322,10 +2352,8 @@
     if (memoEdit === s.id) return `<span class="pit edit" data-memo="${esc(s.id)}" title="">${POSTIT}<textarea class="pitin" data-slot="${esc(s.id)}" rows="1" aria-label="Nota (solo para ti, no se sube)">${esc(s.memo || '')}</textarea></span>`;
     const m = memoOf(s); return m ? `<span class="pit" data-memo="${esc(s.id)}" title="" aria-label="Nota: ${esc(m)} (doble clic para editarla; arrástrala a otra publicación para moverla)">${POSTIT}<span class="pt">${esc(m)}</span></span>` : '';
   };
-  const DCHG = '<i class="dchg" title="Fecha cambiada aquí: pendiente de pasar a Notion"></i>';
-  const DNM = '<i class="dchg nm" title="Cambia en Notion al subir (nombre o tipo)"></i>';
   function cellHTML(s, pill) {
-    const lab = shortLabel(s.name, s.type), when = (dateChg(s) ? DCHG : nameChg(s) || typeChg(s) ? DNM : '') + esc(fmtDate(s.date));
+    const lab = shortLabel(s.name, s.type), when = marcasHTML(s) + esc(fmtDate(s.date));
     const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s);
     if (!s.photos.length) {
       return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${ICON.pin}</span>` : ''}${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
@@ -2939,7 +2967,7 @@
     const p = d.querySelector('.phead p'); if (!p) return;
     const old = p.querySelector(':scope > .st'), html = statusBadge(s);
     if (old) old.outerHTML = html; else if (html) p.insertAdjacentHTML('beforeend', html);
-    const pe = p.querySelector('.pest'), eh = estadoHTML(s); if (pe && pe.outerHTML !== eh) pe.outerHTML = eh;   // its state follows too
+    const pe = p.querySelector('.pest'), eh = estadoHTML(s); if (pe && pe.outerHTML !== eh && !pe.querySelector('.esmot:focus')) pe.outerHTML = eh;   // its state follows too (not under a reason being typed)
   }
   let refreshLater = false;   // a refresh asked for while a photo is being dragged in the post view: done when it is let go
   function refreshDetail() {
@@ -3504,6 +3532,7 @@
         if (c && b) b.classList.toggle('edited', e.target.value !== c.orig[k]);   // «Editado» / «Volver al original» as soon as it differs
       }
       else if (e.target.matches('.pitin')) { setMemo(e.target.dataset.slot, e.target.value); fitPit(e.target); }
+      else if (e.target.matches('.esmot')) setMotivo(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.zoomr')) {
         flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
         const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaZoom) M.diseno.vistaZoom(+e.target.value); return; }
@@ -4201,15 +4230,16 @@
     holdOrphans(); renumber(); changed(); refreshDetail();
     return M.notionChanges();
   };
-  // States (3.32): ids = a slotId or a list; estado = 'aprobado' (only from «Por aprobar») | 'programado' | 'publicado' |
-  // 'cancelado', or null to give the post back the state its data gives. Returns each post's state after it.
-  M.setEstado = (ids, estado) => {
+  // States (3.32): ids = a slotId or a list; estado = 'aprobado' or 'noaprobado' (only from «Por aprobar», D-082) |
+  // 'programado' | 'publicado' | 'cancelado', or null to give the post back the state its data gives; opts.motivo: the
+  // reason of a cancellation (optional; '' takes it away). Returns each post's state after it.
+  M.setEstado = (ids, estado, opts = {}) => {
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; no se ha guardado nada' };
     if (!S) return [];
     const v = estado == null || estado === '' ? null : String(estado).trim().toLowerCase();
     const out = [].concat(ids ?? []).map(id => {
-      const why = setEstado(id, v), s = S.slots.find(x => x.id === id);
-      return { slotId: id, name: s ? s.name : null, estado: s ? estadoDe(s) : null, ...(why ? { error: why } : {}) };
+      const why = setEstado(id, v, opts && opts.motivo != null ? { motivo: opts.motivo } : {}), s = S.slots.find(x => x.id === id);
+      return { slotId: id, name: s ? s.name : null, estado: s ? estadoDe(s) : null, ...(s && motivoDe(s) ? { motivo: motivoDe(s) } : {}), ...(why ? { error: why } : {}) };
     });
     if (out.some(x => !x.error)) { changed(); refreshDetail(); }
     return out;
@@ -4492,7 +4522,7 @@
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).map(({ carpetas, ...b }) => { if (Array.isArray(b.tray)) { const en = enCarpetas(carpetas); b.tray = b.tray.filter(f => !enTodas.has(f) && !en.has(f)); } return b; }).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
-      const parts = ['{"format":"mesa-feed","v":4,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring
+      const parts = ['{"format":"mesa-feed","v":5,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082)
         + ',"clients":' + JSON.stringify(clients) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -4562,7 +4592,7 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (d.v !== 1 && d.v !== 2 && d.v !== 3 && d.v !== 4) return +d.v > 4 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5].includes(d.v)) return +d.v > 5 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -5059,7 +5089,7 @@
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
-    dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, DCHG, DNM,
+    dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, estIco, cambiosIco, motivoDe,   // the marks (D-081, mesa ≥ 3.66)
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)

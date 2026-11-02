@@ -5464,7 +5464,7 @@
     igual(M.board().paso, 'programado', 'el paso no vuelve al abrir el mes');
   });
 
-  prueba('P3', 'Pasar a Captions con publicaciones sin foto o sin contexto: la ventana las lista como atrasadas, con el motivo; Cancelar, la × y Esc no cambian nada; aceptar es un paso de ⌘Z (D-084, D-085)', async () => {
+  prueba('P3', 'Pasar a Captions con publicaciones sin foto: la ventana las lista como atrasadas, con el motivo (el contexto no cuenta, D-086); Cancelar, la × y Esc no cambian nada; aceptar es un paso de ⌘Z (D-084, D-085)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await poner('r1', [await foto('p3-a.jpg')]); M._test.setNote('r1', 'Contexto');
@@ -5472,13 +5472,13 @@
     M._test.setNote('r3', 'Contexto');
     await M.flush();
     const ids = ['r1', 'r2', 'r3', 'r4'], antes = est(ids), h0 = M._test.hist().undo;
-    igual(antes, ['captions', 'empezar', 'empezar', 'empezar'], 'los estados de partida');
+    igual(antes, ['captions', 'captions', 'empezar', 'empezar'], 'los estados de partida');
     const cierres = [d => d.querySelector('.form [data-act="close"]').click(), d => d.querySelector('.x[data-act="close"]').click(), () => tecla('Escape')];
     for (const cierra of cierres) {
       const d = await pulsarPaso('captions');
       igual(d.querySelector('h3').textContent, 'Pasar a Captions', 'el título');
-      ok(/1 tiene foto y contexto\.3 se quedan atrás:/.test(d.textContent), 'las cifras: ' + d.textContent);
-      igual(lis(d), [`${nm('r2')} · sin contexto`, `${nm('r3')} · sin foto`, `${nm('r4')} · sin foto ni contexto`], 'las que se quedan');
+      ok(/2 tienen foto\.2 se quedan atrás:/.test(d.textContent), 'las cifras: ' + d.textContent);
+      igual(lis(d), [`${nm('r3')} · sin foto`, `${nm('r4')} · sin foto`], 'las que se quedan');
       igual(W.document.activeElement, d.querySelector('[data-cal="paso-ok"]'), 'el foco no está en «Pasar a Captions»');
       cierra(d); await espera(60);
       ok(!dialogo(), 'la confirmación sigue abierta');
@@ -5506,7 +5506,7 @@
     ponerPaso('captions');
     const d = await pulsarPaso('aprobar', 20000);
     ok(/1 publicación con su caption elegido/.test(d.textContent), 'las cifras: ' + d.textContent);
-    igual(lis(d), [`${nm('r2')} · sin caption elegido`, `${nm('r3')} · sin foto ni contexto`], 'las que se quedan');
+    igual(lis(d), [`${nm('r2')} · sin caption elegido`, `${nm('r3')} · sin foto`], 'las que se quedan');
     const rv = d.querySelector('.cprv');
     ok(rv && /Revisar:/.test(rv.textContent), 'la ventana salió sin los puntos de «Revisar»: ' + d.textContent);
     ok(/1 punto bloquea/.test(rv.textContent) && /aviso/.test(rv.textContent), 'el resumen de «Revisar»: ' + rv.textContent);
@@ -5528,7 +5528,7 @@
     const ids = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'], h0 = M._test.hist().undo;
     const d = await pulsarPaso('aprobado');
     ok(new RegExp(`^3 publicaciones pasan a Aprobado: ${nm('r1')}, ${nm('r2')}, ${nm('r3')}\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
-    igual(lis(d), [`${nm('r4')} · No aprobado`, `${nm('r5')} · sin caption elegido`, `${nm('r6')} · sin foto ni contexto`], 'las que se quedan');
+    igual(lis(d), [`${nm('r4')} · No aprobado`, `${nm('r5')} · sin caption elegido`, `${nm('r6')} · sin foto`], 'las que se quedan');
     aceptarPaso(d);
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
     igual(est(ids), ['aprobado', 'aprobado', 'aprobado', 'noaprobado', 'captions', 'empezar', 'aprobado'], 'los estados tras pasar');
@@ -5553,7 +5553,7 @@
     try {
       const d = await pulsarPaso('programado');
       ok(new RegExp(`^2 reels pasan a Programado: ${nm('r2')}, ${nm('r3')}\\. Fotos y carruseles se programan con «programa»\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
-      igual(lis(d), [`${nm('r1')} · sin programar`, `${nm('r5')} · sin foto ni contexto`], 'las que se quedan');
+      igual(lis(d), [`${nm('r1')} · sin programar`, `${nm('r5')} · sin foto`], 'las que se quedan');
       ok(!d.querySelector('[data-cal="reels"], [data-cal="reels-si"], .cpreels'), 'sigue el botón «Marcar como programados»');
       igual(est(['r2', 'r3']), ['aprobado', 'aprobado'], 'abrir la ventana marcó los reels');
       aceptarPaso(d);
@@ -5575,7 +5575,7 @@
     const ids = ['r1', 'r2', 'r3', 'r4'];
     const d = await pulsarPaso('publicado');
     ok(new RegExp(`^1 publicación pasa a Publicado: ${nm('r2')}\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
-    igual(lis(d), [`${nm('r3')} · sin programar`, `${nm('r4')} · sin foto ni contexto`], 'las que se quedan');
+    igual(lis(d), [`${nm('r3')} · sin programar`, `${nm('r4')} · sin foto`], 'las que se quedan');
     aceptarPaso(d);
     await hasta(() => pasoAct() === 'Publicado', 3000, 'Publicado en la barra');
     const antes = est(ids);
@@ -5707,7 +5707,7 @@
     // sin caption elegido: Por aprobar no se puede, ni desde la API ni en el selector
     await poner('r5', [await foto('p12-e.jpg')]); M._test.setNote('r5', 'Contexto');
     igual(M.setEstado('r5', 'aprobar')[0].error, 'para ponerla en Por aprobar le falta elegir el caption', 'se retrasó a un estado posterior');
-    igual(M.setEstado('r4', 'captions')[0].error, 'para ponerla en Captions le falta la foto o el contexto', 'se retrasó a Captions sin foto');
+    igual(M.setEstado('r4', 'captions')[0].error, 'para ponerla en Captions le falta la foto', 'se retrasó a Captions sin foto');
     ok(!slot('r5').estado && !slot('r4').estado, 'un retraso rechazado guardó algo');
     M._in.openDetail('r5', 0);
     let sel = await hasta(() => q('.detail .essel'), 3000, 'el selector');
@@ -5725,7 +5725,7 @@
     ponerPaso('aprobar');
     const d = await pulsarPaso('aprobado');
     ok(/^1 publicación pasa a Aprobado: /.test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
-    igual(lis(d), [`${nm('r2')} · retrasada a mano`, `${nm('r4')} · sin foto ni contexto`, `${nm('r5')} · sin caption elegido`], 'las que se quedan');
+    igual(lis(d), [`${nm('r2')} · retrasada a mano`, `${nm('r4')} · sin foto`, `${nm('r5')} · sin caption elegido`], 'las que se quedan');
     aceptarPaso(d);
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
     igual(est(['r1', 'r2', 'r3']), ['programado', 'aprobar', 'aprobado'], 'la retrasada se movió o la adelantada bajó');
@@ -5769,6 +5769,26 @@
     const v8 = JSON.parse(JSON.stringify(d)); v8.v = 8;
     const r8 = await M.importData(v8, { confirm: false });
     ok(r8 && r8.error && /más nueva/.test(r8.error), 'un archivo más nuevo entró: ' + json(r8));
+  });
+
+  prueba('P14', 'El contexto no decide el estado: con foto y sin contexto, Captions y, con caption elegido, Por aprobar; se aprueba y la barra la lleva sin contexto; sin foto, Por empezar aunque tenga contexto (D-086)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    await poner('r1', [await foto('p14-a.jpg')]);
+    await poner('r2', [await foto('p14-b.jpg')]);
+    M._test.setNote('r3', 'Contexto');
+    igual(est(['r1', 'r2', 'r3']), ['captions', 'captions', 'empezar'], 'con foto y sin contexto no está en Captions');
+    M.loadCaptions(['r1', 'r2'].map(slotId => ({ slotId, options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] })));
+    ['r1', 'r2'].forEach(id => M._test.setSlot(id, { caption: { ...slot(id).caption, pick: 0 } }));
+    igual(est(['r1', 'r2']), ['aprobar', 'aprobar'], 'con caption elegido y sin contexto no está en Por aprobar');
+    igual(M.setEstado('r1', 'aprobado')[0].estado, 'aprobado', 'sin contexto no se aprueba');
+    igual(M.setEstado('r3', 'captions')[0].error, 'para ponerla en Captions le falta la foto', 'el motivo de no poder');
+    ponerPaso('aprobar');
+    const d = await pulsarPaso('aprobado');
+    igual(lis(d), [`${nm('r3')} · sin foto`], 'las que se quedan');
+    aceptarPaso(d);
+    await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
+    igual(est(['r1', 'r2', 'r3']), ['aprobado', 'aprobado', 'empezar'], 'la barra no llevó la de sin contexto');
   });
 
   // =====================================================================================================

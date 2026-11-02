@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.72'; // 3.72: ⌘E with a post open does what its «Editar …» does, on the slide being seen (D-088). 3.71: the month's step to Programado carries everything approved but the reels, which are marked by hand (calendario.js 1.5, D-087). 3.70: the contexto no longer decides a post's state: a photo takes it from Por empezar to Captions (calendario.js 1.4, D-086). 3.69: the month's step bar carries the posts and warns only of what stays behind (calendario.js 1.3, D-085): a post can be put back by hand to Por empezar, Captions or Por aprobar (s.estado.v), where the bar never moves it; IndexedDB 8, export v7. 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.73'; // 3.73: the post view loses its designer button: «Editar …» is its only design button and applies a design with changes before opening (D-089); diseno.js keeps loading and M.diseno answers as before. 3.72: ⌘E with a post open does what its «Editar …» does, on the slide being seen (D-088). 3.71: the month's step to Programado carries everything approved but the reels, which are marked by hand (calendario.js 1.5, D-087). 3.70: the contexto no longer decides a post's state: a photo takes it from Por empezar to Captions (calendario.js 1.4, D-086). 3.69: the month's step bar carries the posts and warns only of what stays behind (calendario.js 1.3, D-085): a post can be put back by hand to Por empezar, Captions or Por aprobar (s.estado.v), where the bar never moves it; IndexedDB 8, export v7. 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1156,7 +1156,7 @@
     if (sinPortada(A, B)) return;
     const fa = coverOf(A), fb = coverOf(B); if (!fa && !fb) return;
     const comp = [[A, fa], [B, fb]].find(([x, f]) => portadaCompartida(x, f));
-    if (comp) { toast(`La portada de ${comp[0].name} también se usa en otra diapositiva: cámbiala con «Cambiar portada» o en «Diseñar».`, { ms: 7000 }); return; }
+    if (comp) { toast(`La portada de ${comp[0].name} también se usa en otra diapositiva: cámbiala con «Cambiar portada».`, { ms: 7000 }); return; }
     if ((!fb && designed(A)) || (!fa && designed(B))) { toast('Una publicación diseñada no se queda sin portada: para cambiársela, arrastra otra foto sobre su casilla o usa «Cambiar portada».', { ms: 6000 }); return; }
     setCoverPhoto(A, fb); setCoverPhoto(B, fa);
     if (fb) centerCrop(fb, null); if (fa) centerCrop(fa, null);
@@ -1185,7 +1185,7 @@
   function sinPortada(...ps) {
     const bad = ps.find(x => designed(x) && !(M.diseno && M.diseno._tienePortada && M.diseno._tienePortada(x)));
     if (!bad) return false;
-    toast(M.diseno && M.diseno._tienePortada ? `${bad.name}: su diseño no tiene diapositiva de portada; cámbiala en «Diseñar».` : 'El diseñador no está cargado: recarga la página para cambiar la portada de una publicación diseñada.', { ms: 6000 });
+    toast(M.diseno && M.diseno._tienePortada ? `${bad.name}: su diseño no tiene diapositiva de portada; cámbiala en «${edLabel(bad)}».` : 'El diseñador no está cargado: recarga la página para cambiar la portada de una publicación diseñada.', { ms: 6000 });
     return true;
   }
   const rerender = s => { if (designed(s) && s.design.out && M.diseno && M.diseno.reaplicar) { const id = s.id; setTimeout(() => M.diseno.reaplicar(id), 0); } };
@@ -1271,7 +1271,7 @@
     S.tray.unshift(...tb);
     changed();
     const after = s.photos.slice();
-    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : 'Imágenes del diseño quitadas de la casilla: siguen en «Diseñar».', { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
+    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : `Imágenes del diseño quitadas de la casilla: vuelven al pulsar «${edLabel(s)}».`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
       if (S !== B || !slot(slotId) || !same(s.photos, after) || !tb.every(id => S.tray.includes(id))) { toast('No se puede deshacer: la casilla ya ha cambiado.'); return; }
       S.tray = S.tray.filter(id => !tb.includes(id));
       S.slots.forEach(o => { if (o !== s) o.photos = o.photos.filter(id => !before.photos.includes(id)); });
@@ -2752,14 +2752,14 @@
       const dsrc = live && M.diseno && M.diseno._srcVista ? M.diseno._srcVista(s, idx) : null, zv = (dsrc ? baseCrop(dsrc, S) : c).z || 1;
       const lo = fd && !s.design && isLib(fid);   // an image drawn by the free editor: its format is changed here (drawn again there)
       const tools = lo ? `${fmtCtl}<span class="muted">Editada: se sube tal cual · cámbiala en «${edLabel(s)}»</span>`
-        : fd && !live ? `<span class="muted">${designed(s) ? 'Diseño con cambios sin aplicar: reencuádralo en «Diseñar»' : 'Imagen diseñada: se sube tal cual'}</span>`
+        : fd && !live ? `<span class="muted">${designed(s) ? `Diseño con cambios sin aplicar: se aplica al pulsar «${edLabel(s)}»` : 'Imagen diseñada: se sube tal cual'}</span>`
         : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
         + (car && n > 1 && !(fd && s.design) ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
-        + (fd && s.design && (car || reel) ? (car ? '<span class="muted">Las demás diapositivas se cambian en «Diseñar»</span>' : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
+        + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «${edLabel(s)}»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
       const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
         + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img src="${M.files[f].thumbUrl}" alt=""></button>`).join('')}</div>` : '') + '</div>' : '';
@@ -2771,10 +2771,10 @@
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);
-    const dzB = (car || reel) && !nl ? `<button type="button" class="btn2" data-act="disenar" data-slot="${esc(id)}">Diseñar</button>` : '';   // «Diseñar» while no slide comes from the free editor; the editor also opens a designed carousel (3.27)
-    const edB = car || (reel && n) ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
+    // the post's only design button (D-089): a designed reel whose cell was emptied keeps it, and the editor applies a design with changes first
+    const edB = car || (reel && (n || designed(s))) ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
     const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${reel ? 'Portada editada · se sube tal cual' : nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
-    const dz = dzB || edB ? `<div class="pdz">${dzB}${edB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? '<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · abre «Diseñar» y pulsa Aplicar</span>' : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
+    const dz = edB ? `<div class="pdz">${edB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica al pulsar «${edLabel(s)}»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>·</span>${typeHTML(s)}<span>·</span>${estadoHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
@@ -2981,14 +2981,8 @@
     d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file; pickOpen = null; ig = null;
     if (wasPrev && prevOnce) { prevOnce = false; renderFeed(); }
   }
-  // the designer loads on its own (async script): «Diseñar» waits for it a few seconds; a script that failed is said at once
-  async function waitDesigner(id) {
-    const failed = () => (window.MESA_CARGA || {}).diseno === 'fallo', B = S;
-    if (!failed()) { toast('Cargando el diseñador…'); for (let i = 0; i < 150 && !(M.diseno && M.diseno.abrir) && !failed(); i++) await new Promise(r => setTimeout(r, 100)); }
-    if (M.diseno && M.diseno.abrir) { if (S === B && slot(id)) M.diseno.abrir(id); }
-    else toast('El diseñador no está cargado: recarga la página.');
-  }
-  async function waitLibre(id, k, opts) {     // the same for the free editor (libre.js)
+  // the free editor loads on its own (async script): «Editar …» waits for it a few seconds; a script that failed is said at once
+  async function waitLibre(id, k, opts) {
     const failed = () => (window.MESA_CARGA || {}).libre === 'fallo', B = S;
     if (!failed()) { toast('Cargando el editor…'); for (let i = 0; i < 150 && !(M.libre && M.libre.abrir) && !failed(); i++) await new Promise(r => setTimeout(r, 100)); }
     if (M.libre && M.libre.abrir) { if (S === B && slot(id)) M.libre.abrir(id, k, opts); }
@@ -3703,7 +3697,7 @@
     else if (act === 'close') closeDetail();
     else if (act === 'carpeta-borrar') { const id = a.dataset.id; closeDetail(); const r = await M.borrarCarpeta(id); if (r && r.error) toast(r.error); }
     else if (act === 'repe') { const f = repeAsk; repeAsk = null; closeDetail(); if (f) f(a.dataset.m); }
-    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast('Para cambiar diapositivas, usa «Diseñar».'); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
+    else if (act === 'unpick') { const s = slot(a.dataset.slot), f = s && s.photos[+a.dataset.k]; if (f && s.design && (isCarousel(s.type) || isReel(s.type)) && (M.files[f] || {}).design) { toast(`Para cambiar diapositivas, usa «${edLabel(s)}».`); refreshDetail(); return; } unassign(a.dataset.slot, +a.dataset.k); refreshDetail(); }
     else if (act === 'left') { move(a.dataset.slot, +a.dataset.k, -1); openDetail(a.dataset.slot, +a.dataset.k - 1); }
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
@@ -3746,7 +3740,6 @@
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
-    else if (act === 'disenar') { if (libN(slot(a.dataset.slot))) { toast('Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» para usar «Diseñar».', { ms: 7000 }); return; } if (M.diseno && M.diseno.abrir) M.diseno.abrir(a.dataset.slot); else waitDesigner(a.dataset.slot); }
     else if (act === 'editar') { if (M.libre && M.libre.abrir) M.libre.abrir(a.dataset.slot, +a.dataset.k || 0); else waitLibre(a.dataset.slot, +a.dataset.k || 0); }
     else if (act === 'datereset') { const s = slot(a.dataset.slot); if (s && !isPrev(s)) setDate(s.id, s.notionDate, true); }
     else if (act === 'aprobar') pickEstado(a.dataset.slot, 'aprobado');
@@ -4032,7 +4025,7 @@
     render();
     usoS = null; usosOtros();         // the photos in use (D-022): this board on the first warning, the client's other boards now
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
-    if (retyped.length) toast(`En Notion cambió el tipo de ${retyped.join(', ')}: su diseño se ha convertido y está pendiente de aplicar («Diseñar»).`, { ms: 9000 });
+    if (retyped.length) toast(`En Notion cambió el tipo de ${retyped.join(', ')}: su diseño se ha convertido y se aplica al pulsar su «Editar …».`, { ms: 9000 });
     if (won.length) toast(`En Notion cambió la fecha, el nombre o el tipo de ${won.length > 4 ? won.slice(0, 4).join(', ') + ` y ${won.length - 4} más` : won.join(', ')}: se queda lo de Notion y se descarta el cambio hecho aquí.`, { ms: 9000 });
     return M.status();
   };

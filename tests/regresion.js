@@ -5859,6 +5859,284 @@
   });
 
   // =====================================================================================================
+  // Sin «Diseñar» (D-089): el diseñador sigue cargado y respondiendo, solo sin botón en la ventana
+  // =====================================================================================================
+  // el cliente de prueba toma prestado el kit de kits/uribe.json solo durante fn (el diseñador lo pide como
+  // kits/prueba-regresion.json); al salir lo olvida, para que las demás pruebas sigan sin kit
+  async function conKitPrueba(fn) {
+    await hasta(() => M.diseno && M.diseno.cargar && M.libre, 6000, 'diseno.js y libre.js');
+    const f0 = W.fetch, mio = `kits/${CLIENTE}.json`;
+    W.fetch = function (u, o) { const s = typeof u === 'string' ? u : u && u.url; return f0.call(W, s && s.includes(mio) ? s.replace(mio, 'kits/uribe.json') : u, o); };
+    try { return await fn(); }
+    finally { W.fetch = f0; await M.diseno.kit(CLIENTE); }   // lo vuelve a pedir y no está: sin kit otra vez
+  }
+  // una publicación diseñada como la deja Claude: sus fotos, sus textos con cargar() y, si aplicar, «Aplicar»
+  async function disenada(id, fotos, slides, aplicar = true) {
+    await poner(id, fotos);
+    const c = await M.diseno.cargar(id, { slides }); ok(c && !c.error, 'cargar() falló: ' + json(c));
+    if (aplicar) { const r = await M.diseno.aplicar(id); ok(r && r.ok, 'aplicar() falló: ' + json(r)); }
+    return slot(id);
+  }
+  const estadoDz = id => M.diseno.estadoDe(slot(id));
+  const salida = id => ((slot(id).design || {}).out || []).filter(Boolean);
+  const textoVentana = () => (dialogo() || {}).textContent || '';
+  // la ventana abierta, sin botón ni texto que mande a «Diseñar»
+  function sinDisenar(que) {
+    const d = dialogo(); ok(d, 'sin ventana: ' + que);
+    ok(!d.querySelector('[data-act="disenar"]'), 'la ventana tiene «Diseñar»: ' + que);
+    const t = d.textContent, i = t.indexOf('Diseñar');
+    ok(i < 0, `la ventana manda a «Diseñar» (${que}): …${t.slice(Math.max(0, i - 80), i + 20)}`);
+  }
+  const huella = async f => { const b = await M._in.getBlob(f), h = await W.crypto.subtle.digest('SHA-256', await b.arrayBuffer()); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join(''); };
+  const abierto = (ms = 20000) => hasta(() => ed() && ed().el && ed().el.isConnected, ms, 'el editor abierto');
+  const cerrarEd = async () => { M.libre.cerrar(); await hasta(() => !ed(), 2000, 'cerrar el editor'); };
+  const DOS = ['portada', 'ficha'];
+  const textos = (n, ...t) => t.map((titulo, i) => ({ tipo: DOS[i] || 'ficha', titulo: `${titulo} ${n}` }));
+
+  prueba('D1', '«Editar diapositivas» con un diseño con cambios sin aplicar lo aplica antes y abre sus imágenes; cerrar y ⌘Z lo deshacen de una vez; si no se puede aplicar, el editor no abre y dice por qué (D-089)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d1a.jpg', 1080, 1350), await foto('d1b.jpg', 1080, 1350)], textos('D1', 'Portada', 'Ficha'), false);
+      const crudas = slot('r1').photos.slice();
+      igual(estadoDz('r1'), 'chg', 'el diseño cargado sin aplicar');
+      M._in.openDetail('r1', 0); sinDisenar('carrusel con cambios sin aplicar');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica al pulsar «Editar diapositivas»'), 'la ventana no dice que «Editar diapositivas» lo aplica');
+      const h0 = M._test.hist().undo;
+      await pulsar('.detail [data-act="editar"]');
+      await abierto();
+      igual(estadoDz('r1'), 'ok', 'el diseño no quedó aplicado');
+      igual(slot('r1').photos, salida('r1'), 'la casilla no lleva sus imágenes');
+      igual(salida('r1').length, 2, 'sus imágenes');
+      igual(ed().sl.map(x => x.key), salida('r1'), 'el editor no abrió sus imágenes');
+      ok(salida('r1').every(f => M.files[f] && M.files[f].design), 'sus imágenes no son de diseño');
+      ok(toastCon(/ya está aplicado/), 'sin aviso de que se aplicó');
+      await cerrarEd();
+      igual(M._test.hist().undo, h0 + 1, 'aplicar y la sesión del editor no son un solo paso de ⌘Z');
+      M._test.undo();
+      igual(slot('r1').photos, crudas, '⌘Z no devolvió sus fotos');
+      igual(estadoDz('r1'), 'chg', '⌘Z no dejó el diseño sin aplicar');
+      await disenada('r2', [await foto('d1c.jpg', 1080, 1350)], textos('D1', 'Sin kit'), false);
+    });
+    // sin kit el diseñador no puede aplicar: el editor no abre y el aviso dice por qué, sin mandar a «Diseñar»
+    const r = await M.libre.abrir('r2', 0);
+    ok(r && r.error && /^No se pudo aplicar el diseño: .*kit/.test(r.error) && !r.error.includes('Diseñar'), 'el error: ' + json(r));
+    ok(!ed(), 'el editor abrió sin aplicar');
+    igual(estadoDz('r2'), 'chg', 'el diseño cambió sin poder aplicarse');
+  });
+
+  prueba('D2', 'Un reel sin foto no tiene botón de diseño y ⌘E no hace nada; con su foto, «Editar portada» abre su portada (D-089, D-088)', async () => {
+    await tablero([pub(1, 'Reel')]);
+    await hasta(() => M.libre, 4000, 'libre.js');
+    M._in.openDetail('r1', 0); sinDisenar('reel sin foto');
+    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz'), 'el reel sin foto tiene un botón de diseño');
+    ok(textoVentana().includes('Sin foto todavía'), 'la ventana no dice cómo ponerle foto');
+    tecla('e', { meta: true }); await espera(80);
+    ok(!ed(), '⌘E abrió el editor de un reel sin foto');
+    await poner('r1', [await foto('d2.jpg', 1080, 1920)]);
+    M._in.openDetail('r1', 0); sinDisenar('reel con foto');
+    igual(qa('.detail .pdz button').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+    await pulsar('.detail [data-act="editar"]');
+    await abierto(4000);
+    ok(ed().reel && ed().slotId === 'r1', 'no abrió la portada del reel');
+    await cerrarEd();
+  });
+
+  prueba('D3', 'Un reel diseñado con la casilla vaciada conserva «Editar portada», que le devuelve su diseño aplicado; ni el aviso de vaciarla ni la ventana mandan a «Diseñar» (D-089)', async () => {
+    await tablero([pub(1, 'Reel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d3.jpg', 1080, 1920)], [{ titulo: 'Portada D3' }]);
+      igual(estadoDz('r1'), 'ok', 'el reel diseñado');
+      M._test.unassign('r1', null, true);
+      igual(slot('r1').photos, [], 'la casilla no se vació');
+      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al pulsar «Editar portada»/), 'el aviso de vaciarla');
+      M._in.openDetail('r1', 0); sinDisenar('reel diseñado vacío');
+      ok(textoVentana().includes('se aplica al pulsar «Editar portada»'), 'la ventana no dice que «Editar portada» lo aplica');
+      await pulsar('.detail [data-act="editar"]');
+      await abierto();
+      ok(ed().reel, 'no abrió la portada');
+      igual(estadoDz('r1'), 'ok', 'su diseño no volvió');
+      igual([slot('r1').photos.length, slot('r1').photos], [1, salida('r1')], 'la casilla no lleva su imagen');
+      igual(slot('r1').design.slides[0].titulo, 'Portada D3', 'la portada perdió su título');
+      await cerrarEd();
+    });
+  });
+
+  prueba('D4', 'La portada de un carrusel diseñado cambia sin «Diseñar»: intercambiada con otra publicación se redibuja sola; sin diapositiva de portada, el aviso manda a «Editar diapositivas» (D-089)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2), pub(3, 'Carrusel'), pub(4)]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d4a.jpg', 1080, 1350), await foto('d4b.jpg', 1080, 1350)], textos('D4', 'Portada', 'Ficha'));
+      const [nueva] = await poner('r2', [await foto('d4c.jpg', 1080, 1350)]);
+      const vieja = M.diseno._portada(slot('r1')), out0 = salida('r1');
+      M._test.swap('r1', 'r2');
+      await hasta(() => M.diseno._portada(slot('r1')) === nueva && estadoDz('r1') === 'ok' && !M.diseno.aplicando() && salida('r1')[0] !== out0[0], 20000, 'que se redibuje con la portada nueva');
+      igual(slot('r2').photos, [vieja], 'la otra publicación no se quedó con la portada vieja');
+      igual(slot('r1').photos, salida('r1'), 'la casilla no lleva sus imágenes');
+      await disenada('r3', [await foto('d4d.jpg', 1080, 1350)], [{ tipo: 'final', titulo: 'Solo el final D4' }], false);   // su portada es su primera diapositiva que no es el final
+      await poner('r4', [await foto('d4e.jpg', 1080, 1350)]);
+      M._test.swap('r3', 'r4');
+      ok(toastCon(/su diseño no tiene diapositiva de portada; cámbiala en «Editar diapositivas»/), 'el aviso sin diapositiva de portada');
+    });
+  });
+
+  prueba('D5', 'En la ventana, un carrusel diseñado se reencuadra en vivo y cambia de formato sin «Diseñar»; con textos nuevos sin aplicar, la ventana manda a «Editar diapositivas», que los aplica (D-089)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      const sl = textos('D5', 'Portada', 'Ficha');
+      await disenada('r1', [await foto('d5a.jpg', 1080, 1350), await foto('d5b.jpg', 1080, 1350)], sl);
+      M._in.openDetail('r1', 0); sinDisenar('carrusel diseñado al día');
+      ok(textoVentana().includes('Diseño aplicado · se sube tal cual'), 'la ventana no dice que está aplicado');
+      const cv = await hasta(() => q('.detail .stage[data-live="1"] canvas.dzv'), 4000, 'el lienzo del reencuadre en vivo');
+      ok(await M.diseno.vista(cv, 'r1', 0), 'el reencuadre en vivo no se prepara');
+      await pulsar('.detail [data-act="fmt"][data-fmt="v34"]');
+      await hasta(() => slot('r1').design.fmt === 'v34' && estadoDz('r1') === 'ok' && !M.diseno.aplicando() && M.files[salida('r1')[0]], 20000, 'el diseño redibujado en 3:4');
+      const f0 = M.files[salida('r1')[0]]; cerca(f0.w / f0.h, 3 / 4, 0.01, 'la imagen no salió en 3:4');
+      const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada nueva' }, sl[1]] }); ok(c && !c.error, 'cargar(): ' + json(c));
+      igual(estadoDz('r1'), 'chg', 'los textos nuevos sin aplicar');
+      M._in.openDetail('r1', 0); sinDisenar('carrusel con textos nuevos');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica al pulsar «Editar diapositivas»'), 'las herramientas no mandan a «Editar diapositivas»');
+      ok(textoVentana().includes('Las demás diapositivas se cambian en «Editar diapositivas»'), 'las miniaturas no mandan a «Editar diapositivas»');
+      await pulsar('.detail [data-act="editar"]');
+      await abierto();
+      igual([estadoDz('r1'), slot('r1').design.slides[0].titulo], ['ok', 'Portada nueva'], 'no aplicó los textos nuevos');
+      await cerrarEd();
+    });
+  });
+
+  prueba('D6', 'Un carrusel diseñado que pasa a reel queda pendiente y «Editar portada» lo aplica; el tipo cambiado en Notion avisa sin mandar a «Diseñar» (D-089)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d6a.jpg', 1080, 1350), await foto('d6b.jpg', 1080, 1350)], textos('D6', 'Portada', 'Ficha'));
+      M._test.setType('r1', 'Reel');
+      igual([slot('r1').type, estadoDz('r1')], ['Reel', 'chg'], 'el diseño convertido no quedó pendiente');
+      M._in.openDetail('r1', 0); sinDisenar('reel convertido');
+      ok(textoVentana().includes('se aplica al pulsar «Editar portada»'), 'la ventana no dice que «Editar portada» lo aplica');
+      await pulsar('.detail [data-act="editar"]');
+      await abierto();
+      ok(ed().reel, 'no abrió la portada');
+      igual([estadoDz('r1'), salida('r1').length, slot('r1').design.slides[0].titulo], ['ok', 1, 'Portada D6'], 'no aplicó su portada');
+      igual(slot('r1').photos, salida('r1'), 'la casilla no lleva su imagen');
+      await cerrarEd();
+      // desde Notion: un carrusel diseñado que llega como reel
+      await tablero([pub(2, 'Carrusel')]);
+      await disenada('r2', [await foto('d6c.jpg', 1080, 1350)], textos('D6', 'Notion'));
+      await M.flush();
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(2, 'Carrusel'), type: 'Reel' }], past: [], force: true });
+      await hasta(() => toastCon(/En Notion cambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica al pulsar su «Editar …»/), 4000, 'el aviso del tipo cambiado en Notion');
+      igual(estadoDz('r2'), 'chg', 'el diseño de Notion no quedó pendiente');
+    });
+  });
+
+  prueba('D7', 'Una collab enlazada con un diseño pendiente: «Editar» lo aplica y la copia del otro cliente recibe el mismo diseño y las mismas imágenes (D-089, D-008)', async () => {
+    await limpiar();
+    const col = { id: 'colab-d7', name: 'COLLAB Carrusel D7', type: 'Carrusel', date: `${MES}-10T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [col], past: [], force: true });
+    igual(M._test.shared('colab-d7').length, 1, 'la collab no quedó enlazada');
+    await conKitPrueba(async () => {
+      await disenada('colab-d7', [await foto('d7a.jpg', 1080, 1350), await foto('d7b.jpg', 1080, 1350)], textos('D7', 'Collab', 'Ficha'), false);
+      const r = await M.libre.abrir('colab-d7', 0); ok(r && r.ok, 'no abrió: ' + json(r));
+      await cerrarEd();
+      igual(estadoDz('colab-d7'), 'ok', 'no se aplicó');
+    });
+    await M.flush();
+    const s = slot('colab-d7');
+    const otra = await hasta(async () => { const b = await M._in.idbGet('boards', `${CLIENTE2}-${MES}`), x = b && b.slots.find(y => y.id === 'colab-d7'); return x && x.design && x.design.sig === s.design.sig && x; }, 6000, 'que el diseño llegue a la copia del otro cliente');
+    igual([otra.photos, otra.design.out, otra.design.slides.map(x => x.titulo)], [s.photos, s.design.out, ['Collab D7', 'Ficha D7']], 'la copia del otro cliente no es igual');
+  });
+
+  prueba('D8', 'Exportar e importar un carrusel diseñado lo devuelve igual: su diseño, sus imágenes de diseño y al día (D-089, D-017)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d8a.jpg', 1080, 1350), await foto('d8b.jpg', 1080, 1350)], textos('D8', 'Portada', 'Ficha'));
+      await M.flush();
+      const antes = json({ photos: slot('r1').photos, design: slot('r1').design });
+      const blob = await M.exportAll({ returnBlob: true }); ok(blob && blob.size > 1000, 'la exportación salió vacía');
+      await sinMes(`${CLIENTE}-${MES}`);
+      const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar falló: ' + json(r));
+      await M.open(`${CLIENTE}-${MES}`);
+      igual(json({ photos: slot('r1').photos, design: slot('r1').design }), antes, 'el diseño importado no es igual');
+      ok(salida('r1').length === 2 && salida('r1').every(f => M.files[f] && M.files[f].design), 'sus imágenes no llegaron como de diseño');
+      igual(estadoDz('r1'), 'ok', 'el diseño importado no está al día');
+    });
+  });
+
+  prueba('D9', 'Descargar y «Revisar» leen un carrusel diseñado como antes: «Solo la foto» da su foto y «Con textos» su imagen, y «Revisar» no lo marca (D-089, D-083, D-040)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d9a.jpg', 1080, 1350), await foto('d9b.jpg', 1080, 1350)], [{ tipo: 'portada', titulo: 'UN TITULAR GRANDE D9' }, { tipo: 'ficha', titulo: 'Ficha D9' }]);
+      await hasta(() => M.descargar && M.descargar._pieza && M.revisar, 6000, 'descargar.js y revisar.js');
+      const s = slot('r1'), fid = salida('r1')[0];
+      const px = async b => { const bm = await W.createImageBitmap(b), c = D.createElement('canvas'); c.width = 108; c.height = Math.round(108 * bm.height / bm.width); const x = c.getContext('2d'); x.drawImage(bm, 0, 0, c.width, c.height); const w = bm.width; bm.close(); return { w, d: x.getImageData(0, 0, c.width, c.height).data }; };
+      const dif = (a, b) => { let n = 0; for (let i = 0; i < a.length; i += 4) n += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]); return n / (a.length / 4); };
+      const con = await px((await M.descargar._pieza(s, fid, { textos: true, ancho: '1080' })).blob), sin = await px((await M.descargar._pieza(s, fid, { textos: false, ancho: '1080' })).blob);
+      const foto0 = await px(await M._in.getBlob(s.design.slides[0].src));
+      igual([con.w, sin.w], [1080, 1080], 'el ancho de las piezas');
+      ok(dif(sin.d, foto0.d) < 3, '«Solo la foto» no es su foto: ' + dif(sin.d, foto0.d).toFixed(2));
+      ok(dif(con.d, sin.d) > 2, '«Con textos» sale sin sus textos: ' + dif(con.d, sin.d).toFixed(2));
+      const r = await M.revisar();
+      igual(r.puntos.filter(p => p.slotId === 'r1'), [], '«Revisar» marca el carrusel diseñado');
+    });
+  });
+
+  prueba('D10', 'Todas las funciones de M.diseno siguen y responden: estado, ver, kit, estadoDe, aplicando, abierto, y abrir y cerrar el diseñador por la API (D-089)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await hasta(() => M.diseno && M.diseno.cargar, 6000, 'diseno.js');
+    const NOMBRES = ['cargar', 'estado', 'aplicar', 'ver', 'kit', 'ajustarKit', 'fijarFinal', 'abrir', 'cerrar', 'estadoDe', 'prepararKits', 'sync', 'volcar', 'aplicando', '_retipo', '_sustituir', '_portada', '_ponerPortada', 'reaplicar', 'vista', 'vistaEmpezar', 'vistaMover', 'vistaZoom', 'vistaCentrar', 'vistaSoltar', 'vistaLibre', 'formato', '_srcVista', '_tienePortada', 'abierto'];
+    igual(NOMBRES.filter(k => typeof M.diseno[k] !== 'function'), [], 'funciones de M.diseno que faltan');
+    ok(typeof M.diseno.version === 'string', 'M.diseno sin versión');
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d10a.jpg', 1080, 1350), await foto('d10b.jpg', 1080, 1350)], textos('D10', 'Portada', 'Ficha'));
+      const e = await M.diseno.estado('r1'); ok(e && e.aplicado === true && e.slides.length === 2, 'estado(): ' + json(e).slice(0, 300));
+      const v = await M.diseno.ver('r1', 1); ok(v && v.n === 1 && M.out.diseno && M.out.diseno.size > 0, 'ver(): ' + json(v));
+      const k = await M.diseno.kit(CLIENTE); ok(k && !k.error && k.lienzo, 'kit(): ' + json(k).slice(0, 200));
+      igual([M.diseno.estadoDe(slot('r1')), M.diseno.aplicando(), M.diseno.abierto(), M.diseno._tienePortada(slot('r1'))], ['ok', false, null, true], 'estadoDe, aplicando, abierto y _tienePortada');
+      M.diseno.abrir('r1');
+      await hasta(() => M.diseno.abierto(), 6000, 'el diseñador abierto por la API');
+      igual(M.diseno.abierto().slot, 'r1', 'el diseñador abrió otra publicación');
+      M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador');
+    });
+  });
+
+  prueba('D11', 'Un carrusel diseñado y al día se ve igual: la casilla, la ventana y el editor enseñan sus mismas imágenes, con los mismos bytes, y abrir y cerrar el editor no lo redibuja (D-089)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d11a.jpg', 1080, 1350), await foto('d11b.jpg', 1080, 1350)], textos('D11', 'Portada', 'Ficha'));
+      const out = salida('r1'), h0 = await Promise.all(out.map(huella)), n0 = Object.keys(M.files).length, sig0 = slot('r1').design.sig;
+      igual(slot('r1').photos, out, 'la casilla no lleva sus imágenes');
+      const img = () => celda('r1').querySelector('img.crop'), vista0 = [img().getAttribute('src'), img().getAttribute('style')];
+      igual(vista0[0], M.files[out[0]].thumbUrl, 'la casilla no enseña su imagen');
+      M._in.openDetail('r1', 1);
+      igual(q('.detail .stage').dataset.file, out[1], 'la ventana no enseña su imagen');
+      await pulsar('.detail [data-act="editar"]');
+      await abierto(6000);
+      igual([ed().sl.map(x => x.key), ed().i], [out, 1], 'el editor no abrió sus imágenes en la diapositiva que se ve');
+      ok(ed().sl.every(x => !x.out && x.raw), 'el editor no las abrió como imagen');
+      await cerrarEd();
+      igual([slot('r1').photos, salida('r1'), slot('r1').design.sig, Object.keys(M.files).length], [out, out, sig0, n0], 'abrir el editor lo redibujó');
+      igual(await Promise.all(out.map(huella)), h0, 'sus imágenes cambiaron de bytes');
+      igual([img().getAttribute('src'), img().getAttribute('style')], vista0, 'la casilla cambió');
+      igual(estadoDz('r1'), 'ok', 'dejó de estar al día');
+    });
+  });
+
+  prueba('D12', 'Ningún botón ni texto manda a «Diseñar»: ni el código de la mesa, el editor y el diseñador, ni la ventana de un carrusel, una Foto o un reel sin diseño (D-089)', async () => {
+    for (const a of ['mesa.js', 'libre.js', 'diseno.js']) {
+      const t = await (await fetch(`../${a}?v=${Date.now()}`, { cache: 'no-store' })).text();
+      ok(t.length > 1000 && !t.includes('«Diseñar»') && !t.includes('data-act="disenar"'), `${a} todavía manda a «Diseñar»`);
+    }
+    await tablero([pub(1, 'Carrusel'), pub(2), pub(3, 'Reel')]);
+    await hasta(() => M.libre, 4000, 'libre.js');
+    await poner('r1', [await foto('d12a.jpg'), await foto('d12b.jpg')]);
+    await poner('r2', [await foto('d12c.jpg')]);
+    await poner('r3', [await foto('d12d.jpg', 1080, 1920)]);
+    for (const [id, et] of [['r1', 'Editar diapositivas'], ['r2', 'Editar foto'], ['r3', 'Editar portada']]) {
+      M._in.openDetail(id, 0); sinDisenar(id);
+      igual(qa('.detail .pdz button').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
+    }
+  });
+
+  // =====================================================================================================
   // ejecución
   // =====================================================================================================
   const filas = $('filas');

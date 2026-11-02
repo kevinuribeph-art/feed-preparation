@@ -9,13 +9,13 @@
 // uploaded to Notion exactly as rendered); the original photos then live only in slides[].src. A 'final' slide always
 // uses the client's fixed final photo (kit override final.foto = protected file 'kit-<clientId>-final').
 // Claude drives it through M.diseno (cargar / estado / abrir / aplicar / ver / kit / ajustarKit / fijarFinal);
-// Kevin through the editor that «Diseñar» opens in the post view. Uses the mesa's bridge M._in (mesa.js ≥ 3.18).
+// Kevin no longer opens it by hand (1.7, D-089): «Editar …» in the post view applies a design with changes first. Uses the mesa's bridge M._in (mesa.js ≥ 3.18).
 (function disenoBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.6';
+  const VERSION = '1.7';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -35,11 +35,11 @@
   const need = (ok, msg, slide) => { if (!ok) throw new DzError(msg, slide); };
   const LOCKED = 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de diseñar.';
   // a post with images drawn by the free editor (libre.js) is designed there, not here (v1.4)
-  const LIBRE = 'Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» para usar «Diseñar».';
+  const LIBRE = 'Este carrusel tiene diapositivas del editor: quítales la edición en «Editar diapositivas» antes de cargarle un diseño.';
   const libreEn = s => !s.design && (s.photos || []).some(f => (M.files[f] || {}).design && I().S.slots.some(x => x.libre && x.libre.slides && x.libre.slides[f]));
   const NO_ENGINE = 'El motor de diseño no está cargado (kits/motor.js): recarga la página.';
-  const NO_DESIGN = 'Esta publicación aún no tiene diseño: carga los textos con cargar() o ábrela con «Diseñar».';
-  const NO_FINAL = 'Falta la foto final del cliente: elígela en «Diseñar» («Usar otra foto como final del cliente»).';
+  const NO_DESIGN = 'Esta publicación aún no tiene diseño: carga los textos con cargar().';
+  const NO_FINAL = 'Falta la foto final del cliente: pídele a Claude que la fije.';
   const api = fn => async (...a) => {
     try { return await fn(...a); }
     catch (e) { if (e instanceof DzError) return e.slide != null ? { error: e.message, diapositiva: e.slide + 1 } : { error: e.message }; console.warn('diseño:', e); return { error: 'Error del diseñador: ' + String((e && e.message) || e) }; }
@@ -403,7 +403,7 @@
   async function renderFull(s, i, kit, fin, sz, rawHash, noBlob) {
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src], k0 = rawHash != null ? avKey(s, i, rawHash, sz, fin) : null;
     let blob0;
-    try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: elige otra en «Diseñar».`); }
+    try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: pídele a Claude que elija otra.`); }
     const bmp = await createImageBitmap(blob0, { imageOrientation: 'from-image' });
     try {
       const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
@@ -421,7 +421,7 @@
   function checkPhotos(s, fin) {
     s.design.slides.forEach((sl, i) => {
       if (sl.tipo === 'final') need(fin, NO_FINAL, i);
-      else { need(sl.src, `La diapositiva ${i + 1} no tiene foto: elígela en «Diseñar».`, i); need(M.files[sl.src], `La foto de la diapositiva ${i + 1} ya no está en la mesa: elige otra en «Diseñar».`, i); }
+      else { need(sl.src, `La diapositiva ${i + 1} no tiene foto: pídele a Claude que elija una.`, i); need(M.files[sl.src], `La foto de la diapositiva ${i + 1} ya no está en la mesa: pídele a Claude que elija otra.`, i); }
     });
   }
 
@@ -582,7 +582,7 @@
     const fin = await finalReady(raw);
     await I().loadThumbs(srcsOf(s));
     const sl = d.slides[i], src = effSrc(sl, fin);
-    if (sl.tipo === 'final') need(fin, NO_FINAL); else need(src && M.files[src], `La diapositiva ${i + 1} no tiene foto: elígela en «Diseñar».`);
+    if (sl.tipo === 'final') need(fin, NO_FINAL); else need(src && M.files[src], `La diapositiva ${i + 1} no tiene foto: pídele a Claude que elija una.`);
     const r = await renderFull(s, i, kit, fin, sizeOf(kit, d, fin), kitHash(raw));
     M.out.diseno = r.blob;
     return { n: i + 1, w: r.w, h: r.h, kb: Math.round(r.blob.size / 1024), decision: r.decision, bloque: r.bloque, avisos: r.avisos };
@@ -711,7 +711,7 @@
   const D = () => curSlot().design;
   // at least 25 % of a moved text block (and 80 px each way) stays on the canvas: never out of reach
   const lim = (v, pos, size, max) => { const keep = Math.min(size, Math.max(size * 0.25, 80)); return Math.max(keep - size - pos, Math.min(max - keep - pos, v)); };
-  // a new design from the slot's photos (first «Diseñar» without texts from Claude)
+  // a new design from the slot's photos (the designer opened without texts from Claude)
   function newDesign(s, cid) {
     const reel = isReelS(s), raw = rawPhotos(s);
     const slides = reel ? [blankSlide('reel', raw[0])] : (raw.length ? raw.slice(0, MAX_SLIDES) : [null]).map((f, i) => blankSlide(i === 0 ? 'portada' : 'ficha', f));
@@ -745,7 +745,7 @@
       const { kit, raw } = await engineKit(cid, true);   // the kit file is read again: edited on disk counts
       const fin = await finalReady(raw);
       await I().loadThumbs(srcsOf(s));
-      need(I().S === S && S.slots.includes(s) && (I().isCarousel(s.type) || I().isReel(s.type)) && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Diseñar».');
+      need(I().S === S && S.slots.includes(s) && (I().isCarousel(s.type) || I().isReel(s.type)) && !(I().switching && I().switching()), 'La mesa cambió: vuelve a abrir el diseñador.');
       if (E) cerrar();
       const entrada = instantanea(s, fin);                 // «No guardar» goes back to this (before the editor touched anything)
       const marca = I().histMarca ? I().histMarca() : null;   // the whole session will be one step of the mesa's ⌘Z
@@ -1544,7 +1544,7 @@
     (e.inert || []).forEach(c => c.removeAttribute('inert'));
     if (I() && S === e.board) {
       I().refreshDetail(); I().renderFeed();
-      const b = I().root() && I().root().querySelector('.detail [data-act="disenar"]'); if (b) b.focus({ preventScroll: true });   // back where the editor was opened
+      const b = I().root() && I().root().querySelector('.detail [data-act="editar"]'); if (b) b.focus({ preventScroll: true });   // back on the post's design button (D-089: «Editar …»)
     }
     return { ok: true };
   }

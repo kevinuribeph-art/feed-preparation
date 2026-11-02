@@ -4,7 +4,7 @@
 // becomes a free composition —
 // photos in frames (move, scale, rotate, flip, crop, border, corners, shadow, frames), texts, logos and stickers of the client,
 // shapes and lines, over a colour background with an optional veil and texture — and «Aplicar a la casilla» draws it as a JPEG
-// that goes in the slot exactly as drawn (file flagged design:true, uploaded as rendered, like «Diseñar»). A slide that is
+// that goes in the slot exactly as drawn (file flagged design:true, uploaded as rendered, like the designer's). A slide that is
 // not touched stays the photo it was, with the mesa's own reframe.
 //   s.libre = {v:1, slides:{<renderedFileId>: comp}}    the composition behind each rendered image of the post
 //   comp = {bg:'#rrggbb', velo:null|{tipo:'plano'|'grad', color, op, dir:'abajo'|'arriba'|'izq'|'der', alc}, tex:null|{tipo, op},
@@ -26,8 +26,9 @@
 //   comp.previa: the slide as it was before its last template (with its own previa, up to PREVIAS deep; rat: its W/H)
 // The client's colours, templates and logos live on the client record: c.libre = {colores, plantillas:[{id, nombre, comp, fmt
 // (its format's name, from 1.16), rat (W/H)}], logos}.
-// A post designed with «Diseñar» (s.design) opens here with its applied images as the slides (v1.4); applying a change fixes
-// the design as images (s.design goes, its photos go back to the tray). The other way round, an edited post is not designed.
+// A post designed by the designer (diseno.js, s.design) opens here with its applied images as the slides (v1.4); applying a
+// change fixes the design as images (s.design goes, its photos go back to the tray). A design with changes not applied is
+// applied first (1.36, D-089: the post view has no designer button any more). The other way round, an edited post is not designed.
 // Uses the mesa's bridge M._in (mesa.js ≥ 3.25).
 // v1.3 (mesa 3.26): a Foto has pages like a carousel; «Transformar» gives a photo's frame a format (vertical or horizontal)
 // and leaves it ready to reframe (el.rat = the format chosen, kept while the frame keeps its proportion); slides are dragged
@@ -92,7 +93,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.35';
+  const VERSION = '1.36';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -617,19 +618,22 @@
       need(!I().locked, LOCKED);
       const s = conHist(S).find(x => x.id === slotId); need(s, 'Esa publicación ya no está en la mesa.');
       need(isLibSlot(s), 'El editor es para carruseles, fotos y portadas de reel.');
-      need(!I().isReel(s.type) || s.photos.length, 'El reel no tiene portada: ponle una foto antes de editarla.');
       const dz = s.design || null;                          // a designed carousel: its applied images are the slides
-      need(!dz || ((I().isCarousel(s.type) || I().isReel(s.type)) && s.photos.length && I().same(s.photos, (dz.out || []).filter(Boolean))), 'Aplica antes el diseño en «Diseñar»: el editor trabaja sobre sus imágenes.');
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
       need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
+      // a design with changes not applied (its type or its kit changed, its cell was emptied…) is applied first, as the
+      // designer's «Aplicar» did: «Editar …» is the post's only design button (D-089); that and the session are one ⌘Z step
+      const dzTipo = dz && (I().isCarousel(s.type) || I().isReel(s.type)), marca0 = dzTipo && dzPend(s) ? await aplicarDz(S, s, dz) : null;
+      need(!I().isReel(s.type) || s.photos.length, 'El reel no tiene portada: ponle una foto antes de editarla.');
+      need(!dz || (dzTipo && s.photos.length && I().same(s.photos, (dz.out || []).filter(Boolean))), 'El diseño de esta publicación no está aplicado: vuelve a pulsar «Editar».');
       await I().loadThumbs([...s.photos, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray, ...(esHist(s) ? Object.values(entries(s)).flatMap(srcsOf) : [])]);
       need(I().S === S && conHist(S).includes(s) && (s.design || null) === dz && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Editar».');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
       need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
-      const marca = I().histMarca ? I().histMarca() : null;   // the whole session is one step of the mesa's ⌘Z
+      const marca = (marca0 && marca0.m) || (I().histMarca ? I().histMarca() : null);   // the whole session is one step of the mesa's ⌘Z (with the design applied at opening)
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
@@ -658,7 +662,7 @@
       ofrecerNumeros();
       if (opts.foto) desdeBandeja([opts.foto], { i: null, p: null }, opts.modo);   // a photo dropped on a story in the view: as if clicked in this tray, with its warning (its question was asked there, D-078)
       if (opts.fmt) I().toast('Formato cambiado en el editor: pulsa «Aplicar a la casilla» para redibujar las diapositivas editadas.', { ms: 7000 });
-      else if (dz) I().toast(E.reel ? 'Reel diseñado: su portada entra como imagen. Si aplicas cambios, el diseño queda fijado así y su foto vuelve a la bandeja (⌘Z en la mesa lo deshace).' : 'Carrusel diseñado: sus diapositivas entran como imagen. Si aplicas cambios, el diseño queda fijado así y sus fotos vuelven a la bandeja (⌘Z en la mesa lo deshace).', { ms: 9000 });
+      else if (dz) I().toast((marca0 ? ['Su diseño tenía cambios sin aplicar: ya está aplicado.', ...marca0.notas, ''].join(' ') : '') + (E.reel ? 'Reel diseñado: su portada entra como imagen. Si aplicas cambios, el diseño queda fijado así y su foto vuelve a la bandeja (⌘Z en la mesa lo deshace).' : 'Carrusel diseñado: sus diapositivas entran como imagen. Si aplicas cambios, el diseño queda fijado así y sus fotos vuelven a la bandeja (⌘Z en la mesa lo deshace).'), { ms: 9000 });
       return { ok: true, slot: s.id, diapositivas: E.sl.length };
     } catch (e) {
       const m = e instanceof LbError ? e.message : 'No se pudo abrir el editor: ' + String((e && e.message) || e);
@@ -666,6 +670,18 @@
       if (I() && I().toast) I().toast(m);
       return { error: m };
     }
+  }
+  // a design with changes not applied (diseno.js says so; without it, its images not in the cell)
+  const dzPend = s => M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) === 'chg' : !I().same(s.photos, ((s.design && s.design.out) || []).filter(Boolean));
+  // applies it with the designer's «Aplicar»: {m: the mesa's ⌘Z mark from before it, notas}; an error stops the opening
+  async function aplicarDz(S, s, dz) {
+    need(M.diseno && M.diseno.aplicar, 'El diseñador no está cargado: recarga la página para aplicar el diseño de esta publicación.');
+    const m = I().histMarca ? I().histMarca() : null;
+    if (I().setBusy) I().setBusy('dz', `Aplicando el diseño de ${s.name}…`);
+    let r; try { r = await M.diseno.aplicar(s.id); } finally { if (I().setBusy) I().setBusy('dz', null); }
+    need(r && !r.error, 'No se pudo aplicar el diseño: ' + ((r && r.error) || 'error desconocido'));
+    need(I().S === S && conHist(S).includes(s) && (s.design || null) === dz, 'La mesa cambió: vuelve a pulsar «Editar».');
+    return { m, notas: r.notas || [] };
   }
   // texts written by hand like «02 / 11»: one question to make them all automatic («Ahora no»: not again for this post here)
   const SIN_NUM = new Set();
@@ -1095,7 +1111,7 @@
     const root = I().root(), el = document.createElement('div');
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
-    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : `<p>${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'diseño de «Diseñar»: si aplicas cambios, queda fijado como imagen' : 'lo que no toques se queda como está'}</p>`}</div>`
+    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : `<p>${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'publicación diseñada: si aplicas cambios, queda fijada como imagen' : 'lo que no toques se queda como está'}</p>`}</div>`
       + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'

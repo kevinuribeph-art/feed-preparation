@@ -5458,7 +5458,7 @@
     igual(pasoDe(), 'aprobado', 'no manda la más atrasada');
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
     ok(!('paso' in M.board()), 'cambiar publicaciones le puso un paso');
-    aceptarPaso(await pulsarPaso('programado'));
+    await pasoDirecto('programado');   // las aprobadas pasan y no queda nada atrás: sin ventana (D-087)
     await hasta(() => M.board().paso === 'programado', 3000, 'el paso guardado en el tablero');
     await M.flush(); await M.open(key);
     igual(M.board().paso, 'programado', 'el paso no vuelve al abrir el mes');
@@ -5542,24 +5542,25 @@
     igual(est(['r1', 'r2', 'r3']), ['aprobado', 'aprobado', 'aprobado'], '⇧⌘Z no las aprobó');
   });
 
-  prueba('P6', 'Pasar a Programado: los reels aprobados pasan solos a Programado; una foto aprobada se queda en Aprobado y sale como «sin programar»; nada de Zernio ni botón de marcar (D-085)', async () => {
-    await tablero([pub(1), pub(2, 'Reel'), pub(3, 'Reel'), pub(4), pub(5)]);
+  prueba('P6', 'Pasar a Programado: todo lo aprobado menos los reels pasa a Programado; los reels aprobados se quedan en Aprobado para marcarlos a mano y no salen como atrasados; nada de Zernio ni botón de marcar (D-087)', async () => {
+    await tablero([pub(1), pub(2, 'Reel'), pub(3, 'Reel'), pub(4), pub(5), pub(6, 'Carrusel')]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
-    await porAprobar(['r1', 'r2', 'r3', 'r4'], 'p6');
-    M.setEstado(['r1', 'r2', 'r3'], 'aprobado'); M.setEstado('r4', 'programado');
+    await porAprobar(['r1', 'r2', 'r3', 'r4', 'r6'], 'p6');
+    M.setEstado(['r1', 'r2', 'r3', 'r6'], 'aprobado'); M.setEstado('r4', 'programado');
     ponerPaso('aprobado'); await M.flush();
     const h0 = M._test.hist().undo;
     let zernio = 0; const sz = M.startZernio; M.startZernio = (...a) => { zernio++; return sz && sz(...a); };
     try {
       const d = await pulsarPaso('programado');
-      ok(new RegExp(`^2 reels pasan a Programado: ${nm('r2')}, ${nm('r3')}\\. Fotos y carruseles se programan con «programa»\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
-      igual(lis(d), [`${nm('r1')} · sin programar`, `${nm('r5')} · sin foto`], 'las que se quedan');
+      ok(new RegExp(`^2 publicaciones pasan a Programado: ${nm('r1')}, ${nm('r6')}\\. 2 reels se quedan en Aprobado, para marcarlos a mano\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
+      igual(lis(d), [`${nm('r5')} · sin foto`], 'las que se quedan');
       ok(!d.querySelector('[data-cal="reels"], [data-cal="reels-si"], .cpreels'), 'sigue el botón «Marcar como programados»');
-      igual(est(['r2', 'r3']), ['aprobado', 'aprobado'], 'abrir la ventana marcó los reels');
+      igual(est(['r1', 'r6']), ['aprobado', 'aprobado'], 'abrir la ventana cambió publicaciones');
       aceptarPaso(d);
       await hasta(() => pasoAct() === 'Programado', 3000, 'Programado en la barra');
-      igual(est(['r1', 'r2', 'r3', 'r4', 'r5']), ['aprobado', 'programado', 'programado', 'programado', 'empezar'], 'los estados tras pasar');
-      igual(marcas('r2'), ['e-programado'], 'el reel no lleva el ✓ de las programadas');
+      igual(est(['r1', 'r2', 'r3', 'r4', 'r5', 'r6']), ['programado', 'aprobado', 'aprobado', 'programado', 'empezar', 'programado'], 'los estados tras pasar');
+      igual(marcas('r1'), ['e-programado'], 'la foto no lleva el ✓ de las programadas');
+      ok(qa('.toast').some(t => /El mes pasa a Programado: 2 publicaciones pasan a Programado; 2 reels se quedan en Aprobado, para marcarlos a mano\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
       await M.flush();
       igual(M._test.hist().undo, h0 + 1, 'no es un solo paso de ⌘Z');
       igual(zernio, 0, 'se llamó a Zernio');
@@ -5662,21 +5663,22 @@
     ok(qa('.toast').some(t => /El mes pasa a Por aprobar\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
   });
 
-  prueba('P10', 'Caso de un mes casi todo programado: todo Programado salvo dos reels Aprobados (Reel y Collab Reel); al pasar a Programado los reels pasan solos, sin ventana (D-085)', async () => {
+  prueba('P10', 'Caso de un mes casi todo programado: al pasar a Programado pasan las fotos y carruseles aprobados, los reels aprobados (Reel y Collab Reel) se quedan para marcarlos a mano y no hay ventana; marcados, a Publicado pasan todas (D-085, D-087)', async () => {
     await tablero([pub(1), pub(2), { ...pub(3, 'Reel'), type: 'Collab Reel' }, pub(4, 'Reel'), { ...pub(5, 'Reel'), type: 'Trial Reel' }, pub(6, 'Carrusel')]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     const ids = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
     await porAprobar(ids, 'p10');
-    M.setEstado(['r1', 'r2', 'r5', 'r6'], 'programado'); M.setEstado(['r3', 'r4'], 'aprobado');
+    M.setEstado(['r1', 'r2', 'r5'], 'programado'); M.setEstado(['r3', 'r4', 'r6'], 'aprobado');
     ponerPaso('aprobado'); await M.flush();
     let zernio = 0; const sz = M.startZernio; M.startZernio = (...a) => { zernio++; return sz && sz(...a); };
     try {
       await pasoDirecto('programado');
-      igual(est(ids), ['programado', 'programado', 'programado', 'programado', 'programado', 'programado'], 'los reels no pasaron');
-      ok(qa('.toast').some(t => /El mes pasa a Programado: 2 reels pasan a Programado\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
+      igual(est(ids), ['programado', 'programado', 'aprobado', 'aprobado', 'programado', 'programado'], 'los estados tras pasar');
+      ok(qa('.toast').some(t => /El mes pasa a Programado: 1 publicación pasa a Programado; 2 reels se quedan en Aprobado, para marcarlos a mano\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
       igual(zernio, 0, 'se llamó a Zernio');
     } finally { M.startZernio = sz; }
-    // y a Publicado: las programadas pasan, sin ventana
+    // los reels, a mano; y a Publicado: las programadas pasan, sin ventana
+    M.setEstado(['r3', 'r4'], 'programado');
     await pasoDirecto('publicado');
     igual(est(ids), ids.map(() => 'publicado'), 'las programadas no pasaron a Publicado');
   });

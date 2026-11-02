@@ -269,7 +269,8 @@
 #mesa .dl-n{font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums}
 #mesa .dl-prog{margin:12px 0 0;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--mute)}
 #mesa .dl-barra{height:6px;border-radius:999px;background:var(--line2);overflow:hidden}#mesa .dl-barra i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s ease}
-#mesa .card.dl-run .dl-ch span,#mesa .card.dl-run .dl-pz{cursor:default}
+#mesa .dl-prog[hidden]{display:none}
+#mesa .card.dl-run .dl-ch span,#mesa .card.dl-run .dl-pz{cursor:default}#mesa .card.dl-run [data-dl]{opacity:.45}
 @media (max-width:560px){#mesa .dl-im{height:72px}#mesa .dl-ops{gap:8px}}`;
   let style = document.getElementById('mesa-dl-css');
   if (!style) { style = document.createElement('style'); style.id = 'mesa-dl-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body

@@ -5289,6 +5289,7 @@
     igual([d.querySelector('input[name="dl-txt"]:checked').value, d.querySelector('input[name="dl-res"]:checked').value], ['con', 'orig'], 'las opciones de partida');
     igual(qa('.dl-op .dl-ch span').map(x => x.textContent), ['Con textos', 'Solo la foto', 'Original', '1440', '1080'], 'las opciones');
     igual(q('.dl-res').textContent, '5 piezas · cliente-de-prueba-2026-11.zip', 'la cuenta');
+    ok(q('.dl-prog').offsetParent === null, 'la barra de progreso se ve antes de descargar');
     q('.dl-post[data-slot="r1"] [data-dl="todas"]').click();
     igual(q('.dl-res').textContent, '2 piezas · cliente-de-prueba-2026-11.zip', '«Ninguna» no desmarca el carrusel');
     q('.dl-post[data-slot="r3"] .dl-pz input').click();

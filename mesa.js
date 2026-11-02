@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.67'; // 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.68'; // 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -163,7 +163,8 @@
       // it whenever a board starts to keep something an older tab would drop. 5 (mesa 3.59): no new store: a tab that doesn't
       // know the tray's folders (`carpetas` in 'bandejas') would rewrite the record without them (D-069). 6 (mesa 3.66): no new
       // store: a post may be «No aprobado» or keep the reason of its cancellation (D-082), which an older tab doesn't know.
-      const r = indexedDB.open('mesa-feed', 6);
+      // 7 (mesa 3.68): no new store: a board keeps the month's step (S.paso, D-084), which an older tab would drop.
+      const r = indexedDB.open('mesa-feed', 7);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
@@ -1539,7 +1540,8 @@
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null })),
       ...(previewsOf(B).length ? { previews: B.previews.slice(), fillers: B.fillers } : {}),   // the fillers' previews (D-049), with their count
-      ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {})   // the stories, whole (D-054)
+      ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {}),   // the stories, whole (D-054)
+      ...(B.paso ? { paso: B.paso } : {})   // the month's step (D-084)
     };
   }
   const stRefs = st => new Set([...st.tray, ...enCarpetas(st.carpetas), ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
@@ -1548,7 +1550,7 @@
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
-    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias)) return null;
+    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias) || a.paso !== b.paso) return null;   // a change of step is a step of its own (D-084)
     const ds = [];
     for (let i = 0; i < a.slots.length; i++) { if (a.slots[i].id !== b.slots[i].id) return null; if (J(a.slots[i]) !== J(b.slots[i])) ds.push(i); }
     const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
@@ -1623,6 +1625,7 @@
     }
     S.crops = JSON.parse(JSON.stringify(st.crops));
     if (st.previews) { S.previews = st.previews.map(f => (f && has(f) ? f : null)); S.fillers = st.fillers; } else delete S.previews;
+    if (st.paso) S.paso = st.paso; else delete S.paso;
     if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
     const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
     if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
@@ -2272,6 +2275,18 @@
     return !v ? a : FIRMADO.includes(v) ? (a === 'aprobar' && s.estado.sig === aprobSig(s) ? v : a) : v;
   }
   const vivo = s => !(s && s.estado && s.estado.v === 'cancelado');
+  // The month's step (D-084): where the open board is, chosen in the calendar's step bar (calendario.js) and kept in the board
+  // (S.paso). «No aprobado» and «Cancelado» are not steps. A board saved before 3.68 has none: it shows the step of its most
+  // delayed post (not counting cancelled ones; «No aprobado» counts as «Por aprobar») until it is changed; a new board starts
+  // at «Por empezar».
+  const PASOS = [['empezar', 'Por empezar'], ['captions', 'Captions'], ['aprobar', 'Por aprobar'], ['aprobado', 'Aprobado'], ['programado', 'Programado'], ['publicado', 'Publicado']];
+  const PASO_DE = { empezar: 0, captions: 1, aprobar: 2, noaprobado: 2, aprobado: 3, programado: 4, publicado: 5 };
+  function pasoDe(B) {
+    if (!B) return null;
+    if (PASOS.some(p => p[0] === B.paso)) return B.paso;
+    const vivas = (B.slots || []).filter(vivo);
+    return vivas.length ? PASOS[Math.min(...vivas.map(s => PASO_DE[estadoDe(s)] ?? 0))][0] : 'empezar';
+  }
   const motivoDe = s => s && s.estado && s.estado.v === 'cancelado' ? String(s.estado.motivo || '').trim() : '';   // why it was cancelled (optional)
   // v: one of MANUAL, or null (back to the one its data gives). Returns why it can't be, or ''. A cancelled post cancelled
   // again keeps its reason; o.motivo sets it (only for «Cancelado»).
@@ -3937,6 +3952,7 @@
       ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
       ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
       ...(hsDe(old).length ? { historias: old.historias } : {}),
+      ...(old.paso ? { paso: old.paso } : !saved ? { paso: 'empezar' } : {}),   // the month's step (D-084)
       // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
       ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
@@ -4526,7 +4542,7 @@
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).map(({ carpetas, ...b }) => { if (Array.isArray(b.tray)) { const en = enCarpetas(carpetas); b.tray = b.tray.filter(f => !enTodas.has(f) && !en.has(f)); } return b; }).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
-      const parts = ['{"format":"mesa-feed","v":5,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082)
+      const parts = ['{"format":"mesa-feed","v":6,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084)
         + ',"clients":' + JSON.stringify(clients) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -4596,7 +4612,7 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5].includes(d.v)) return +d.v > 5 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6].includes(d.v)) return +d.v > 6 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -5094,6 +5110,7 @@
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, estIco, cambiosIco, motivoDe,   // the marks (D-081, mesa ≥ 3.66)
+    PASOS, pasoDe, noteOf,   // the month's step bar (D-084, mesa ≥ 3.68)
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)

@@ -449,6 +449,71 @@
     igual(qa('.side > .cal .cleg .cpaso > i, .side > .cal .cleg .cextra > span > i').map(x => x.className), ['edot e-empezar', 'edot e-captions', 'edot e-aprobar', 'edot e-aprobado', 'eico e-programado', 'eico e-publicado', 'edot e-noaprobado', 'eico e-cancelado'], 'las marcas de la leyenda');
   });
 
+  prueba('M33', '⌘E con la ventana de una publicación abierta hace lo de su «Editar …» en la diapositiva que se ve y guarda antes el campo en el que se escribe; nada en «Vista cliente», sin el botón, mantenida ni con el editor abierto (D-088)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Foto'), pub(3, 'Reel'), pub(4, 'Reel')]);
+    await hasta(() => M.libre, 4000, 'libre.js');
+    await poner('r1', [await foto('m33a.jpg'), await foto('m33b.jpg'), await foto('m33c.jpg')]);
+    await poner('r2', [await foto('m33d.jpg')]);
+    await poner('r3', [await foto('m33e.jpg', 1080, 1920)]);
+    M.loadCaptions([{ slotId: 'r2', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    const tE = (o = {}) => { const e = new W.KeyboardEvent('keydown', { key: 'e', metaKey: true, repeat: !!o.repeat, bubbles: true, cancelable: true }); (o.en || D.body).dispatchEvent(e); return e; };
+    const escribe = (t, v) => { t.focus(); t.value = v; t.dispatchEvent(new W.Event('input', { bubbles: true })); };
+    const abrio = async (id, i, que) => {
+      await hasta(() => ed() && ed().el && ed().el.isConnected, 4000, 'el editor abierto');
+      igual([ed().slotId, ed().i, !!ed().car, !!ed().reel], [id, i, que === 'car', que === 'reel'], 'el editor abrió otra publicación o diapositiva');
+      M.libre.cerrar(); await hasta(() => !ed(), 2000, 'cerrar el editor');
+    };
+    const guardada = async id => { await M.flush(); return (await M._in.idbGet('boards', M.board().key)).slots.find(s => s.id === id); };
+    // sin la ventana abierta: como si nada
+    ok(!tE().defaultPrevented, '⌘E actuó sin la ventana abierta');
+    await espera(50); ok(!ed(), '⌘E abrió el editor sin la ventana');
+    // carrusel, en la 2.ª diapositiva, escribiendo en la Nota: la guarda antes de abrir (su post-it sale al momento en la casilla)
+    M._in.openDetail('r1', 1);
+    const memo = q('.detail textarea.memo'); escribe(memo, 'M33 nota');
+    ok(!q('.cell[data-slot="r1"] .pit'), 'la nota se guardó sin esperar');
+    ok(tE({ en: memo }).defaultPrevented, '⌘E no se anula');
+    ok(q('.cell[data-slot="r1"] .pit') && D.activeElement !== memo, 'la nota no se guardó antes de abrir el editor');
+    await abrio('r1', 1, 'car');
+    igual((await guardada('r1')).memo, 'M33 nota', 'la nota guardada');
+    // foto, escribiendo en un caption
+    M._in.openDetail('r2', 0);
+    escribe(q('.detail textarea.capt[data-k="1"]'), '2 editado');
+    ok(tE({ en: q('.detail textarea.capt[data-k="1"]') }).defaultPrevented, '⌘E en un caption no se anula');
+    await abrio('r2', 0, 'car');
+    igual((await guardada('r2')).caption.text[1], '2 editado', 'el caption guardado');
+    // reel, escribiendo en el Contexto: su portada
+    M._in.openDetail('r3', 0);
+    escribe(q('.detail textarea.note'), 'M33 contexto');
+    tE({ en: q('.detail textarea.note') });
+    await abrio('r3', 0, 'reel');
+    igual((await guardada('r3')).note, 'M33 contexto', 'el contexto guardado');
+    // mantenida no abre; soltada y otra vez, sí, en la diapositiva que se ve tras moverse con →
+    M._in.openDetail('r1', 1);
+    tecla('ArrowRight'); await espera(20);
+    ok(tE({ repeat: true }).defaultPrevented, '⌘E mantenida no se anula');
+    await espera(80); ok(!ed(), '⌘E mantenida abrió el editor');
+    tE(); await abrio('r1', 2, 'car');
+    // un reel sin portada no tiene «Editar portada»: nada
+    M._in.openDetail('r4', 0);
+    ok(!q('.detail [data-act="editar"]'), 'el reel sin portada tiene botón');
+    tE(); await espera(80);
+    ok(!ed() && dialogo() && dialogo().dataset.slot === 'r4', '⌘E hizo algo sin el botón');
+    M._in.closeDetail();
+    // con el editor abierto, sus teclas: ⌘E no lo cambia
+    await abrirEditor('r1', 0);
+    tE(); await espera(80);
+    igual([ed() && ed().slotId, ed() && ed().i], ['r1', 0], '⌘E en el editor lo cambió');
+    M.libre.cerrar(); await hasta(() => !ed(), 2000, 'cerrar el editor');
+    // «Vista cliente»: su ventana no edita
+    const raiz = M._in.root(); raiz.classList.add('client');
+    try {
+      celda('r1').click(); await espera(30);
+      ok(dialogo() && dialogo().dataset.dlg === 'ig', 'en «Vista cliente» no se abrió su ventana');
+      ok(!tE().defaultPrevented, '⌘E se anula en «Vista cliente»');
+      await espera(80); ok(!ed(), '⌘E abrió el editor en «Vista cliente»');
+    } finally { raiz.classList.remove('client'); M._in.closeDetail(); }
+  });
+
   prueba('M11', 'Una foto ya usada avisa y pregunta en vez de bloquearse; la bandeja no la duplica (D-022)', async () => {
     await tablero([pub(1), pub(2), pub(3)]);
     await poner('r1', [await foto('m11.jpg')]);

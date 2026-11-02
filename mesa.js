@@ -1831,7 +1831,7 @@
 #mesa .mks .mk svg{width:100%;height:100%;overflow:visible}
 #mesa .mks .mk.edot{width:7px;height:7px;margin:0 1.5px;box-shadow:0 0 0 1.5px #fff}
 #mesa .mks .eico .h{display:inline;stroke:#fff;stroke-width:4.4}
-#mesa .mks .mk[data-tip]::after{content:attr(data-tip);position:absolute;left:-3px;bottom:calc(100% + 6px);width:max-content;max-width:130px;padding:3px 6px;border-radius:5px;background:rgba(20,20,20,.92);color:#fff;font-size:10.5px;font-weight:500;line-height:1.3;font-style:normal;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;z-index:8;transition:opacity .1s ease,visibility 0s linear .1s}
+#mesa .mks .mk[data-tip]::after{content:attr(data-tip);position:absolute;left:-3px;bottom:calc(100% + 6px);width:max-content;max-width:130px;padding:3px 6px;border-radius:5px;background:rgba(20,20,20,.92);color:#fff;font-size:10.5px;font-weight:500;line-height:1.3;font-style:normal;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;z-index:4;transition:opacity .1s ease,visibility 0s linear .1s}
 #mesa .mks .mk[data-tip]:hover::after{opacity:1;visibility:visible;transition-delay:.3s,.3s}
 #mesa .phead p.lk{margin-top:4px;color:var(--acc2);font-size:12px}
 #mesa .badges{position:absolute;top:6px;left:6px;right:30px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:3;pointer-events:none}

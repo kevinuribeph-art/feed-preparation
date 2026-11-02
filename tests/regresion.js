@@ -353,6 +353,7 @@
     igual(mk().getAttribute('title'), '', 'el marcador deja ver el título de la casilla');
     igual(W.getComputedStyle(mk()).pointerEvents, 'auto', 'el marcador no recibe el puntero');
     igual(W.getComputedStyle(mk(), '::after').content, '"Cambió: caption, foto o encuadre, fecha u hora, contexto y nombre o tipo"', 'el texto al pasar el ratón');
+    ok(+W.getComputedStyle(mk(), '::after').zIndex < +W.getComputedStyle(q('.detail')).zIndex, 'el texto del marcador queda por encima de las ventanas');
     igual([...mk().querySelectorAll('circle')].map(c => c.getAttribute('fill')), ['#ffcf1f', '#1f5fd6', '#e3262b'], 'los tres colores: aro amarillo, disco azul, punto rojo');
     // el calendario lleva el mismo marcador, con lo que cambió
     const cm = await hasta(() => q('.side > .cal .chip[data-slot="r1"] .mk-cambios'), 3000, 'el marcador en el calendario');

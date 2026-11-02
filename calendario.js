@@ -1,4 +1,4 @@
-// Calendario — Mesa de trabajo · v1.2
+// Calendario — Mesa de trabajo · v1.3
 // The open board's month under the tray (half of the right column), Monday to Sunday as in Notion: one chip per post —
 // its short name, time and the mark of its state (a dot, ✓, two ✓ or ✕: the mesa's estIco, D-081) — on a pastel of its
 // type, as Notion's tags. A cancelled post says why on hover, if it has a reason (D-082). Linked both ways with the grid:
@@ -20,20 +20,24 @@
 //   aprobar › Aprobado › Programado › Publicado, each with its mark (still the legend of the chips) — and, apart and only as a
 //   legend, No aprobado and Cancelado, which are states of a post, not steps. The steps done in ink (pressed, the month goes
 //   back), the current one in a black pill, the next one with a thin border (pressed, the month goes on) and the later ones
-//   in grey. Every change asks first and says what will happen, with figures; a post that is behind never stops it: it is
-//   listed and stays as it is. Going on to:
-//     Captions      warns of the posts without a photo or a contexto
-//     Por aprobar   runs «Revisar» (the feed and the stories, D-040, D-058) and shows its points
-//     Aprobado      the posts «Por aprobar» become «Aprobado» (M.setEstado): the only step that changes posts
-//     Programado    schedules nothing: how many are scheduled and how many are not; the approved reels, as «Reels: N por
-//                   programar», with «Marcar como programados» (asks first; the same ✓ as the scheduled posts)
-//     Publicado     marks the month as published; each post is still marked by hand
-//   Going back changes the step only. The step and what it changes are one step of ⌘Z. Nothing of it in the vista cliente.
+//   in grey. 1.3 (D-085, mesa ≥ 3.69): going on carries the posts in the step it leaves (M.setEstado), never a cancelled
+//   one nor one put back by hand in its post view; a post already past the new step is not touched. Going on to:
+//     Captions      nothing is forced: Captions follows from a photo and a contexto
+//     Por aprobar   nothing is forced (a chosen caption); runs «Revisar» (the feed and the stories, D-040, D-058) first
+//     Aprobado      Por aprobar → Aprobado; No aprobado stays
+//     Programado    only the approved reels (also Collab Reel and Trial Reel) → Programado: photos and carousels are
+//                   scheduled with «programa»
+//     Publicado     Programado → Publicado
+//   Behind: not cancelled and, after the change, before the month's step; listed by date with why («retrasada a mano», «sin
+//   foto», «sin caption elegido», «No aprobado», «sin programar»…). With nothing behind (and, to Por aprobar, no points in
+//   «Revisar») the step changes straight away with a toast; otherwise it asks, and Cancelar, × or Esc change nothing.
+//   Going back changes the step only, straight away. The step and what it moves are one step of ⌘Z. Nothing of it in the
+//   vista cliente; nothing of Zernio, captions or emails.
 (function calendarioBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -174,100 +178,100 @@
     const extra = ['noaprobado', 'cancelado'].map(k => `<span>${X.estIco(k, ' aria-hidden="true"')}${esc((X.ESTADOS.find(e => e[0] === k) || [k, k])[1])}</span>`).join('');
     return `<div class="cleg" role="group" aria-label="Paso del mes">${pasos}<span class="cextra" title="Estados de cada publicación, no pasos del mes">${extra}</span></div>`;
   }
-  // What a change of step will do, with figures: built again when the dialog opens and after its reels are marked
-  let paso = null;                             // the confirmation open: {key, to, tok}
-  function abrirPaso(to, preguntaReels = false) {
-    const X = I(), S = X && X.S; if (!S || !X.PASOS) return;
-    if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia el paso.'); return; }
-    const P = X.PASOS, de = X.pasoDe(S), i = P.findIndex(p => p[0] === de), j = P.findIndex(p => p[0] === to);
-    if (j < 0 || j === i || j > i + 1) return;  // on: only to the next step; back: to any done
-    const sube = j > i, lab = k => (X.ESTADOS.find(e => e[0] === k) || [k, k])[1];
-    const t = x => { const v = Date.parse(x.date); return isNaN(v) ? Infinity : v; };   // listed by date, as the calendar
-    const vivas = S.slots.filter(X.vivo).sort((a, b) => t(a) - t(b)), canc = S.slots.length - vivas.length, por = {};
-    vivas.forEach(s => { const e = X.estadoDe(s); (por[e] = por[e] || []).push(s); });
-    const de_ = (...es) => es.flatMap(e => por[e] || []);
-    const nombres = l => l.map(s => esc(X.shortLabel(s.name, s.type))).join(', ');
-    const fila = (txt, l) => `<li>${txt}${l && l.length ? `: <span>${nombres(l)}</span>` : ''}</li>`;
-    const siguen = es => es.filter(e => (por[e] || []).length).map(e => fila(`${nDe(por[e].length, 'sigue', 'siguen')} en ${esc(lab(e))}`, por[e])).join('');
-    const cl = X.CL.find(c => c.id === S.client), mes = (M.status && (M.status() || {}).range) || X.monthLabel(S.month);
-    let cuerpo = '', lista = '';
-    if (!sube) {
-      lista = X.ESTADOS.filter(([e]) => (por[e] || []).length).map(([e, l]) => fila(`${por[e].length} en ${esc(l)}`, por[e])).join('');
-    } else if (to === 'captions') {
-      const falta = por.empezar || [];
-      cuerpo = `<p class="xwhat">${nDe(vivas.length - falta.length, 'tiene', 'tienen')} foto y contexto.${falta.length ? ` ${nDe(falta.length, 'se queda', 'se quedan')} en Por empezar:` : ''}</p>`;
-      lista = falta.map(s => `<li><b>${esc(X.shortLabel(s.name, s.type))}</b> <span>· ${!s.photos.length && !X.noteOf(s) ? 'sin foto ni contexto' : !s.photos.length ? 'sin foto' : 'sin contexto'}</span></li>`).join('');
-    } else if (to === 'aprobar') {
-      const ya = de_('aprobar', 'noaprobado', 'aprobado', 'programado', 'publicado');
-      cuerpo = `<p class="xwhat">${PUB(ya.length)} con su caption elegido${ya.length - (por.aprobar || []).length ? ` (${(por.aprobar || []).length} en Por aprobar)` : ''}.</p>`;
-      lista = siguen(['empezar', 'captions']);
-    } else if (to === 'aprobado') {
-      const pasan = por.aprobar || [], ya = de_('aprobado', 'programado', 'publicado');
-      cuerpo = `<p class="xwhat"><b>${PUB(pasan.length)} ${pasan.length === 1 ? 'pasa' : 'pasan'} a Aprobado</b>${ya.length ? `; ${ya.length} ya ${ya.length === 1 ? 'estaba aprobada' : 'estaban aprobadas'}` : ''}.</p>`;
-      lista = siguen(['empezar', 'captions', 'noaprobado']);
-    } else if (to === 'programado') {
-      const prog = de_('programado', 'publicado'), reels = (por.aprobado || []).filter(s => X.isReel(s.type)), otras = (por.aprobado || []).filter(s => !X.isReel(s.type));
-      const np = (por.publicado || []).length, faltan = vivas.length - prog.length;
-      cuerpo = `<p class="xwhat"><b>Programadas: ${prog.length} de ${vivas.length}</b>${np ? ` (${np} ya ${np === 1 ? 'publicada' : 'publicadas'})` : ''}; ${!faltan ? 'no falta ninguna' : faltan === 1 ? 'falta 1' : `faltan ${faltan}`}. Aquí no se programa nada: se programa con «programa».</p>`;
-      if (reels.length) cuerpo += preguntaReels
-        ? `<div class="cpreels cpconf"><span>¿Marcar ${nDe(reels.length, 'reel', 'reels')} como ${reels.length === 1 ? 'programado' : 'programados'}? ${reels.length === 1 ? 'Lleva' : 'Llevan'} el mismo ✓ que las programadas.</span><span class="cpbtns"><button type="button" class="btn2" data-cal="reels-no" data-paso="${to}">No</button><button type="button" class="btn" data-cal="reels-si" data-paso="${to}">Marcar</button></span></div>`
-        : `<div class="cpreels"><span>Reels: <b>${reels.length} por programar</b> <span class="cpn">· ${nombres(reels)}</span></span><button type="button" class="btn2" data-cal="reels" data-paso="${to}">Marcar como programados</button></div>`;
-      lista = (otras.length ? fila(`${otras.length} ${otras.length === 1 ? 'aprobada' : 'aprobadas'} por programar con «programa»`, otras) : '') + siguen(['empezar', 'captions', 'aprobar', 'noaprobado']);
-    } else if (to === 'publicado') {
-      const pub = por.publicado || [];
-      cuerpo = `<p class="xwhat"><b>Publicadas: ${pub.length} de ${vivas.length}</b>${vivas.length - pub.length ? `; ${vivas.length - pub.length} sin marcar como ${vivas.length - pub.length === 1 ? 'publicada, que se marca' : 'publicadas, que se marcan'} a mano en cada una` : ''}.</p>`;
-      lista = siguen(['empezar', 'captions', 'aprobar', 'noaprobado', 'aprobado', 'programado']);
-    }
-    const tok = (paso && paso.tok || 0) + 1;
-    paso = { key: S.key, to, tok };
-    X.showDialog('paso', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${sube ? 'Pasar' : 'Volver'} a ${esc(P[j][1])}</h3>`
-      + `<p>${esc((cl && cl.name) || S.client)}, ${esc(mes)}: el mes ${sube ? 'pasa' : 'vuelve'} de ${esc(P[i][1])} a ${esc(P[j][1])}.${sube ? '' : ' Las publicaciones no cambian de estado:'}</p>`
-      + cuerpo + (lista ? `<ul class="xsum cplist">${lista}</ul>` : '')
-      + (sube && to === 'aprobar' ? '<div class="cprv" aria-live="polite"><p>Revisando el mes…</p></div>' : '')
-      + (canc ? `<p class="cpnota">${nDe(canc, 'cancelada no cuenta', 'canceladas no cuentan')}.</p>` : '')
-      + `<div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-cal="paso-ok" data-paso="${to}">${sube ? 'Pasar' : 'Volver'} a ${esc(P[j][1])}</button></div></div>`);
-    const d = X.root().querySelector('.detail'), c = d && d.querySelector(preguntaReels ? '[data-cal="reels-si"]' : '[data-cal="paso-ok"]'); if (c) c.focus();
-    if (sube && to === 'aprobar') revisarEn(tok);
+  // A step on carries the posts in the step it leaves (D-085), never a cancelled one nor one put back by hand: Por aprobar →
+  // Aprobado; the approved reels (also Collab Reel and Trial Reel) → Programado, as photos and carousels are scheduled with
+  // «programa»; Programado → Publicado. Captions and Por aprobar follow from the posts' data: nothing is forced. No
+  // aprobado stays, and a post already past the new step is not touched.
+  const LLEVA = { aprobado: 'aprobar', programado: 'aprobado', publicado: 'programado' };
+  const retr = (X, s) => !!(X.retrasada && X.retrasada(s));
+  const nivel = (X, e) => X.PASO_DE ? X.PASO_DE[e] ?? 0 : Math.max(0, X.PASOS.findIndex(p => p[0] === (e === 'noaprobado' ? 'aprobar' : e)));
+  const porFecha = (a, b) => { const t = x => { const v = Date.parse(x.date); return isNaN(v) ? Infinity : v; }; return t(a) - t(b); };   // listed by date, as the calendar
+  const mueven = (X, S, to) => LLEVA[to] ? S.slots.filter(s => X.vivo(s) && !retr(X, s) && X.estadoDe(s) === LLEVA[to] && (to !== 'programado' || X.isReel(s.type))).sort(porFecha) : [];
+  // why a post stays behind, in a few words
+  function porQue(X, s) {
+    const e = X.estadoDe(s), v = s.estado && s.estado.v;
+    if (X.retenida ? X.retenida(s) : retr(X, s)) return 'retrasada a mano';
+    if (e === 'empezar') return !s.photos.length && !X.noteOf(s) ? 'sin foto ni contexto' : !s.photos.length ? 'sin foto' : 'sin contexto';
+    if (e === 'captions') return 'sin caption elegido';
+    if (e === 'noaprobado') return 'No aprobado';
+    if (e === 'aprobar') return v === 'aprobado' ? 'cambió tras aprobarla' : v === 'noaprobado' ? 'cambió tras no aprobarla' : 'sin aprobar';
+    return e === 'aprobado' ? 'sin programar' : 'sin publicar';
   }
-  const abierto = tok => { const X = I(), d = X && X.root().querySelector('.detail'); return !!(d && !d.hidden && d.dataset.dlg === 'paso' && paso && paso.tok === tok); };
-  async function revisarEn(tok) {              // «Revisar» (D-040, D-058): its points in the confirmation; never a reason not to go on
-    let res = null;
-    try { if (M.revisar) res = await M.revisar({ historias: true }); } catch (e) { console.warn('revisión del paso:', e); }
-    if (!abierto(tok)) return;
-    const X = I(), box = X.root().querySelector('.detail .cprv'); if (!box) return;
-    if (!res) { box.innerHTML = `<p>${M.revisar ? 'No se pudo pasar «Revisar».' : 'La revisión (revisar.js) no está cargada: no se ha pasado «Revisar».'} El mes puede pasar igualmente.</p>`; return; }
-    if (!res.puntos.length) { box.innerHTML = '<p class="xwhat">Revisar: todo en orden.</p>'; return; }
+  // behind: not cancelled and, after the change, in a state before the month's step (j)
+  const atrasadas = (X, S, j, van) => S.slots.filter(s => X.vivo(s) && !van.includes(s) && nivel(X, X.estadoDe(s)) < j).sort(porFecha);
+  const nombres = (X, l) => l.map(s => esc(X.shortLabel(s.name, s.type))).join(', ');
+  const lleva = (to, k) => to === 'programado' ? `${nDe(k, 'reel', 'reels')} ${k === 1 ? 'pasa' : 'pasan'} a Programado` : `${PUB(k)} ${k === 1 ? 'pasa' : 'pasan'} a ${to === 'aprobado' ? 'Aprobado' : 'Publicado'}`;
+  function revisarHTML(res) {                  // «Revisar» (D-040, D-058): its points; never a reason not to go on
+    if (!res) return `<p>${M.revisar ? 'No se pudo pasar «Revisar».' : 'La revisión (revisar.js) no está cargada: no se ha pasado «Revisar».'} El mes puede pasar igualmente.</p>`;
+    if (!res.puntos.length) return '<p class="xwhat">Revisar: todo en orden.</p>';
     const grupos = [];
     for (const p of res.puntos) { const g = grupos[grupos.length - 1], id = p.historiaId || p.slotId; if (g && g.id === id) g.ps.push(p); else grupos.push({ id, post: p.post, h: !!p.historiaId, ps: [p] }); }
     const cuenta = [res.bloquean ? nDe(res.bloquean, 'punto bloquea', 'puntos bloquean') : '', res.avisos ? nDe(res.avisos, 'aviso', 'avisos') : ''].filter(Boolean).join(' y ');
-    box.innerHTML = `<p class="xwhat">Revisar: ${cuenta}. No impide${res.bloquean ? ' pasar de paso; lo que bloquea no se sube ni se programa' : ' pasar de paso'}.</p>`
+    return `<p class="xwhat">Revisar: ${cuenta}. No impide${res.bloquean ? ' pasar de paso; lo que bloquea no se sube ni se programa' : ' pasar de paso'}.</p>`
       + `<ul class="xsum cplist">${grupos.map(g => `<li><b>${esc(g.post)}</b>${g.h ? ' <span>· historia</span>' : ''}${g.ps.map(p => `<br><span class="${p.bloquea ? 'cpb' : ''}">${p.diapositiva ? `Diapositiva ${p.diapositiva}: ` : ''}${esc(p.texto)}${p.bloquea ? ' (bloquea)' : ''}</span>`).join('')}</li>`).join('')}</ul>`;
   }
+  // A step on goes straight on, with a toast, when nothing stays behind (and, to Por aprobar, «Revisar» gives no points);
+  // otherwise it asks, saying what changes, what stays behind and why, and «Revisar»'s points. Back: the step only, straight.
+  let paso = null;                             // the confirmation open: {key, to, tok}
+  let revisando = null;                        // a step on to Por aprobar waiting for «Revisar»: the board's key
+  async function abrirPaso(to) {
+    let X = I(), S = X && X.S; if (!S || !X.PASOS) return;
+    if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia el paso.'); return; }
+    const P = X.PASOS, de = X.pasoDe(S), i = P.findIndex(p => p[0] === de), j = P.findIndex(p => p[0] === to);
+    if (j < 0 || j === i || j > i + 1) return;  // on: only to the next step; back: to any done
+    if (j < i) { aplicar(X, S, to); return; }
+    let res = null;
+    if (to === 'aprobar') {                      // «Revisar» first: what it says decides whether to ask
+      if (revisando) return;
+      const key = S.key; revisando = key;
+      const aviso = setTimeout(() => X.toast('Revisando el mes antes de pasar a Por aprobar…', { key: 'paso-revisar', ms: 60000 }), 400);
+      try { if (M.revisar) res = await M.revisar({ historias: true }); } catch (e) { console.warn('revisión del paso:', e); }
+      clearTimeout(aviso); revisando = null;
+      X = I(); S = X && X.S;
+      if (X) X.root().querySelectorAll('.toasts [data-msg="paso-revisar"]').forEach(t => t.remove());
+      if (!S || S.key !== key || X.pasoDe(S) !== de || X.locked) return;   // the month changed meanwhile: nothing
+    }
+    const van = mueven(X, S, to), tarde = atrasadas(X, S, j, van);
+    if (!tarde.length && (to !== 'aprobar' || (res && !res.puntos.length))) { aplicar(X, S, to); return; }
+    const vivas = S.slots.filter(X.vivo), canc = S.slots.length - vivas.length;
+    const cl = X.CL.find(c => c.id === S.client), mes = (M.status && (M.status() || {}).range) || X.monthLabel(S.month);
+    const alDia = vivas.filter(s => !tarde.includes(s));   // what goes on with the month: how many have what the step asks for
+    const k = to === 'captions' ? alDia.filter(s => s.photos.length && X.noteOf(s)).length : to === 'aprobar' && X.estadoAuto ? alDia.filter(s => X.estadoAuto(s) === 'aprobar').length : 0;
+    const cuerpo = LLEVA[to] ? `<p class="xwhat"><b>${van.length ? lleva(to, van.length) : 'Ninguna publicación cambia de estado'}</b>${van.length ? `: <span class="cpn">${nombres(X, van)}</span>` : ''}.${to === 'programado' ? ' Fotos y carruseles se programan con «programa».' : ''}</p>`
+      : to === 'captions' ? `<p class="xwhat">${nDe(k, 'tiene', 'tienen')} foto y contexto.</p>` : `<p class="xwhat">${PUB(k)} con su caption elegido.</p>`;
+    const lista = tarde.length ? `<p>${nDe(tarde.length, 'se queda atrás', 'se quedan atrás')}:</p><ul class="xsum cplist">${tarde.map(s => `<li><b>${esc(X.shortLabel(s.name, s.type))}</b> <span>· ${esc(porQue(X, s))}</span></li>`).join('')}</ul>` : '';
+    const tok = (paso && paso.tok || 0) + 1;
+    paso = { key: S.key, to, tok };
+    X.showDialog('paso', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar a ${esc(P[j][1])}</h3>`
+      + `<p>${esc((cl && cl.name) || S.client)}, ${esc(mes)}: el mes pasa de ${esc(P[i][1])} a ${esc(P[j][1])}.</p>`
+      + cuerpo + lista
+      + (to === 'aprobar' ? `<div class="cprv">${revisarHTML(res)}</div>` : '')
+      + (canc ? `<p class="cpnota">${nDe(canc, 'cancelada no cuenta', 'canceladas no cuentan')}.</p>` : '')
+      + `<div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-cal="paso-ok" data-paso="${to}">Pasar a ${esc(P[j][1])}</button></div></div>`);
+    const d = X.root().querySelector('.detail'), c = d && d.querySelector('[data-cal="paso-ok"]'); if (c) c.focus();
+  }
   function enPaso(b) {
-    const X = I(), S = X && X.S, a = b.dataset.cal, to = b.dataset.paso;
+    const X = I(), S = X && X.S;
     if (!S || !paso || paso.key !== S.key) { if (X) X.closeDetail(); return; }
-    if (a === 'reels') abrirPaso(to, true);
-    else if (a === 'reels-no') abrirPaso(to);
-    else if (a === 'reels-si') {                 // the approved reels, as the scheduled posts (they are published by hand)
-      const ids = S.slots.filter(s => X.vivo(s) && X.isReel(s.type) && X.estadoDe(s) === 'aprobado').map(s => s.id);
-      const r = ids.length && M.setEstado ? M.setEstado(ids, 'programado') : [], hechos = Array.isArray(r) ? r.filter(x => !x.error).length : 0;
-      if (r && r.error) X.toast(r.error);
-      else if (hechos) X.toast(`${nDe(hechos, 'reel marcado', 'reels marcados')} como ${hechos === 1 ? 'programado' : 'programados'}.`);
-      abrirPaso(to);
-    } else if (a === 'paso-ok') confirmar(to);
+    if (b.dataset.cal === 'paso-ok') confirmar(b.dataset.paso);
   }
   function confirmar(to) {
     const X = I(), S = X && X.S; paso = null;
     if (!S) return;
-    if (X.locked) { X.closeDetail(); X.toast('La mesa está abierta en otra pestaña: aquí no se cambia el paso.'); return; }
-    const P = X.PASOS, i = P.findIndex(p => p[0] === X.pasoDe(S)), j = P.findIndex(p => p[0] === to);
     X.closeDetail();
+    if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia el paso.'); return; }
+    const P = X.PASOS, i = P.findIndex(p => p[0] === X.pasoDe(S)), j = P.findIndex(p => p[0] === to);
     if (j < 0 || j === i || j > i + 1) return;
-    const ids = to === 'aprobado' && j > i ? S.slots.filter(s => X.vivo(s) && X.estadoDe(s) === 'aprobar').map(s => s.id) : [];
-    S.paso = to;                                 // with the posts it approves: one save, one step of ⌘Z
-    const r = ids.length ? M.setEstado(ids, 'aprobado') : null, hechos = Array.isArray(r) ? r.filter(x => !x.error).length : 0;
+    aplicar(X, S, to);
+  }
+  // the step and the posts it carries (counted again now): one save, one step of ⌘Z
+  function aplicar(X, S, to) {
+    const P = X.PASOS, i = P.findIndex(p => p[0] === X.pasoDe(S)), j = P.findIndex(p => p[0] === to), sube = j > i;
+    const van = sube ? mueven(X, S, to) : [];
+    S.paso = to;
+    const r = van.length ? M.setEstado(van.map(s => s.id), to) : null, hechos = Array.isArray(r) ? r.filter(x => !x.error).length : 0;
     if (!hechos) X.changed();
-    X.toast(j > i ? `El mes pasa a ${P[j][1]}${to === 'aprobado' ? `: ${PUB(hechos)} ${hechos === 1 ? 'pasa' : 'pasan'} a Aprobado` : ''}. ⌘Z lo deshace.` : `El mes vuelve a ${P[j][1]}. ⌘Z lo deshace.`, { ms: 6000 });
+    X.toast(sube ? `El mes pasa a ${P[j][1]}${hechos ? `: ${lleva(to, hechos)}` : ''}. ⌘Z lo deshace.` : `El mes vuelve a ${P[j][1]}; las publicaciones no cambian. ⌘Z lo deshace.`, { ms: 6000 });
   }
 
   // ---------- moving a post to another day (its time stays) ----------
@@ -355,9 +359,7 @@
 #mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}
 #mesa .detail .cpnota{font-size:12px}
 #mesa .detail .cprv>p{margin:0 0 10px;color:var(--mute);font-size:12.5px}#mesa .detail .cprv>p.xwhat{color:var(--ink);font-size:13px}
-#mesa .detail .cpreels{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 10px;margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--bg);font-size:13px}
-#mesa .detail .cpreels .cpn{color:var(--mute);font-size:12.5px}#mesa .detail .cpreels .cpbtns{display:inline-flex;gap:6px}
-#mesa .detail .cpreels .btn,#mesa .detail .cpreels .btn2{padding:4px 10px;font-size:12.5px;min-height:30px}
+#mesa .detail .xwhat .cpn{color:var(--mute);font-size:12.5px}
 #mesa .calbody{flex:1;min-height:0;overflow:auto;padding:0 10px 10px}
 #mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 28px;border-left:1px solid var(--line2);border-top:1px solid var(--line2)}
 #mesa .cal.nocnt .cgrid{grid-template-columns:repeat(7,minmax(0,1fr)) 16px}

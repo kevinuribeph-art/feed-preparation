@@ -422,15 +422,15 @@
     igual(M.setEstado('r1', 'cancelado', { motivo: 'Otro' })[0].motivo, 'Otro', 'el motivo nuevo');
     igual(M.setEstado('r2', 'programado', { motivo: 'x' })[0].error, 'solo una cancelada lleva motivo', 'motivo en una no cancelada');
     M.setEstado('r1', 'cancelado', { motivo: MOT });
-    // viaja al exportar (archivo v5 desde la 3.66; v6 desde la 3.68, D-084) y se vuelve a importar
+    // viaja al exportar (archivo v5 desde la 3.66; v6 desde la 3.68, D-084; v7 desde la 3.69, D-085) y se vuelve a importar
     await M.flush();
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 6, 'la versión del archivo');
+    igual(d.v, 7, 'la versión del archivo');
     igual(d.boards.find(b => b.client === CLIENTE).slots.find(x => x.id === 'r1').estado, { v: 'cancelado', motivo: MOT }, 'el motivo no viaja al exportar');
     M.setEstado('r1', null);
     ok(!slot('r1').estado, 'reactivada, guarda el estado');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 7, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 8, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085)
   });
 
   prueba('M32', 'Calendario: Aprobado ● verde, No aprobado ● rojo, Programado ✓, Publicado dos ✓, Cancelado ✕ rojo; Por empezar, Captions y Por aprobar como antes; la leyenda al día (D-081)', async () => {
@@ -689,7 +689,7 @@
     await M.flush();
     const antes = M.board().tray.slice(), key = `${CLIENTE}-${MES}`;
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    ok(d.v === 6, 'versión del archivo: ' + d.v);   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084)
+    ok(d.v === 7, 'versión del archivo: ' + d.v);   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084); v7 desde la 3.69 (D-085)
     igual((d.bandejas.find(r => r.client === CLIENTE) || {}).tray, antes, 'la bandeja en el archivo');
     ok(d.boards.every(b => !('tray' in b)), 'un tablero del archivo lleva bandeja');
     ok(antes.every(f => d.files[f]), 'faltan fotos de la bandeja en el archivo');
@@ -1011,7 +1011,7 @@
     igual(await M._in.sweepDesigns(true), 0, 'la limpieza borró algo');
     ok(await M._test.fileRec(img), 'la limpieza se llevó la imagen de la historia');
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 6, 'versión del archivo');   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084)
+    igual(d.v, 7, 'versión del archivo');   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084); v7 desde la 3.69 (D-085)
     const b0 = d.boards.find(b => b.key === `${CLIENTE}-${MES}`);
     igual(b0.historias.map(h => [h.id, h.note]), [[id, 'Nota h7']], 'la historia en el archivo');
     ok(d.files[img] && d.files[f], 'el archivo no lleva la imagen o la foto de la historia');
@@ -1279,7 +1279,7 @@
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
-    igual(info.version, 7, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084)
+    igual(info.version, 8, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085)
     const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
     await M.flush();
     const guardado = await M._in.idbGet('boards', key);
@@ -5403,10 +5403,18 @@
   const lis = d => [...d.querySelectorAll(':scope > .cplist li')].map(li => li.textContent);
   const ponerPaso = k => { M._in.S.paso = k; M._in.changed(); };
   // pulsa el paso k en la barra y espera su confirmación (la tarjeta)
-  async function pulsarPaso(k) {
+  async function pulsarPaso(k, ms = 3000) {
     const b = await hasta(() => q(`.side > .cal .cleg button.cpaso[data-paso="${k}"]`), 3000, `el paso ${k} en la barra`);
     b.click();
-    return hasta(() => q('.detail:not([hidden])[data-dlg="paso"] .card'), 3000, 'la confirmación del paso');
+    return hasta(() => q('.detail:not([hidden])[data-dlg="paso"] .card'), ms, 'la confirmación del paso');
+  }
+  // pulsa el paso k cuando no hay nada que avisar: cambia directo, sin ventana (D-085)
+  async function pasoDirecto(k, ms = 3000) {
+    const b = await hasta(() => q(`.side > .cal .cleg button.cpaso[data-paso="${k}"]`), 3000, `el paso ${k} en la barra`);
+    b.click();
+    await hasta(() => pasoDe() === k, ms, `el mes en ${k}`);
+    await espera(60);
+    ok(!dialogo(), 'salió una ventana sin nada que avisar: ' + (dialogo() || {}).textContent);
   }
   const aceptarPaso = d => d.querySelector('[data-cal="paso-ok"]').click();
 
@@ -5456,7 +5464,7 @@
     igual(M.board().paso, 'programado', 'el paso no vuelve al abrir el mes');
   });
 
-  prueba('P3', 'Pasar a Captions avisa, con cifras, de las publicaciones sin foto o sin contexto, que se quedan en Por empezar; Cancelar, la × y Esc no cambian nada; aceptar es un paso de ⌘Z (D-084)', async () => {
+  prueba('P3', 'Pasar a Captions con publicaciones sin foto o sin contexto: la ventana las lista como atrasadas, con el motivo; Cancelar, la × y Esc no cambian nada; aceptar es un paso de ⌘Z (D-084, D-085)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await poner('r1', [await foto('p3-a.jpg')]); M._test.setNote('r1', 'Contexto');
@@ -5469,7 +5477,7 @@
     for (const cierra of cierres) {
       const d = await pulsarPaso('captions');
       igual(d.querySelector('h3').textContent, 'Pasar a Captions', 'el título');
-      ok(/1 tiene foto y contexto\. 3 se quedan en Por empezar/.test(d.textContent), 'las cifras: ' + d.textContent);
+      ok(/1 tiene foto y contexto\.3 se quedan atrás:/.test(d.textContent), 'las cifras: ' + d.textContent);
       igual(lis(d), [`${nm('r2')} · sin contexto`, `${nm('r3')} · sin foto`, `${nm('r4')} · sin foto ni contexto`], 'las que se quedan');
       igual(W.document.activeElement, d.querySelector('[data-cal="paso-ok"]'), 'el foco no está en «Pasar a Captions»');
       cierra(d); await espera(60);
@@ -5489,17 +5497,18 @@
     M._test.redo(); igual(pasoDe(), 'captions', '⇧⌘Z no lo rehízo');
   });
 
-  prueba('P4', 'Pasar a Por aprobar corre «Revisar» con las historias y enseña sus puntos; lo que bloquea no impide pasar; las que no tienen caption elegido se listan y se quedan (D-084, D-040, D-058)', async () => {
+  prueba('P4', 'Pasar a Por aprobar espera a «Revisar» (con las historias) y enseña sus puntos en la ventana; lo que bloquea no impide pasar; las que no tienen caption elegido se listan y se quedan (D-084, D-085, D-040, D-058)', async () => {
     await tablero([pub(1), pub(2), pub(3)]);
     await hasta(() => M.calendario && M.revisar && M.hs && M.libre, 6000, 'calendario.js, revisar.js, historias.js y libre.js');
     await porAprobar(['r1'], 'p4');
     await poner('r2', [await foto('p4-chica.jpg', 800, 1000)]); M._test.setNote('r2', 'Contexto');   // menos de 1080 px: un aviso
     M.hs.anadir(DIA(9), { time: '10:00' });                                                            // una historia sin diseñar: bloquea
     ponerPaso('captions');
-    const d = await pulsarPaso('aprobar');
+    const d = await pulsarPaso('aprobar', 20000);
     ok(/1 publicación con su caption elegido/.test(d.textContent), 'las cifras: ' + d.textContent);
-    igual(lis(d), [`1 sigue en Por empezar: ${nm('r3')}`, `1 sigue en Captions: ${nm('r2')}`], 'las que se quedan');
-    const rv = await hasta(() => { const b = d.querySelector('.cprv'); return b && /Revisar:/.test(b.textContent) && b; }, 20000, 'los puntos de «Revisar»');
+    igual(lis(d), [`${nm('r2')} · sin caption elegido`, `${nm('r3')} · sin foto ni contexto`], 'las que se quedan');
+    const rv = d.querySelector('.cprv');
+    ok(rv && /Revisar:/.test(rv.textContent), 'la ventana salió sin los puntos de «Revisar»: ' + d.textContent);
     ok(/1 punto bloquea/.test(rv.textContent) && /aviso/.test(rv.textContent), 'el resumen de «Revisar»: ' + rv.textContent);
     ok(/historia/.test(rv.textContent) && /diseñ/i.test(rv.textContent), 'falta la historia sin diseñar: ' + rv.textContent);
     ok(rv.textContent.includes(nm('r2')) || rv.textContent.includes(slot('r2').name), 'falta la foto pequeña: ' + rv.textContent);
@@ -5509,7 +5518,7 @@
     igual(est(['r1', 'r2', 'r3']), ['aprobar', 'captions', 'empezar'], 'las publicaciones cambiaron');
   });
 
-  prueba('P5', 'Pasar a Aprobado: las Por aprobar pasan a Aprobado; las atrasadas y la No aprobada se listan y se quedan; el paso y las aprobadas son un solo paso de ⌘Z (D-084)', async () => {
+  prueba('P5', 'Pasar a Aprobado: las Por aprobar pasan a Aprobado; las atrasadas y la No aprobada se listan con su motivo y se quedan; el paso y las aprobadas son un solo paso de ⌘Z (D-084, D-085)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4), pub(5), pub(6), pub(7)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await porAprobar(['r1', 'r2', 'r3', 'r4', 'r7'], 'p5');
@@ -5518,8 +5527,8 @@
     ponerPaso('aprobar'); await M.flush();
     const ids = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'], h0 = M._test.hist().undo;
     const d = await pulsarPaso('aprobado');
-    ok(/3 publicaciones pasan a Aprobado; 1 ya estaba aprobada\./.test(d.textContent), 'las cifras: ' + d.textContent);
-    igual(lis(d), [`1 sigue en Por empezar: ${nm('r6')}`, `1 sigue en Captions: ${nm('r5')}`, `1 sigue en No aprobado: ${nm('r4')}`], 'las que se quedan');
+    ok(new RegExp(`^3 publicaciones pasan a Aprobado: ${nm('r1')}, ${nm('r2')}, ${nm('r3')}\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
+    igual(lis(d), [`${nm('r4')} · No aprobado`, `${nm('r5')} · sin caption elegido`, `${nm('r6')} · sin foto ni contexto`], 'las que se quedan');
     aceptarPaso(d);
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
     igual(est(ids), ['aprobado', 'aprobado', 'aprobado', 'noaprobado', 'captions', 'empezar', 'aprobado'], 'los estados tras pasar');
@@ -5533,67 +5542,56 @@
     igual(est(['r1', 'r2', 'r3']), ['aprobado', 'aprobado', 'aprobado'], '⇧⌘Z no las aprobó');
   });
 
-  prueba('P6', 'Pasar a Programado no programa nada: cuántas están programadas y cuántas faltan; «Reels: N por programar» con «Marcar como programados», que pregunta antes y les pone el ✓ de las programadas (D-084)', async () => {
+  prueba('P6', 'Pasar a Programado: los reels aprobados pasan solos a Programado; una foto aprobada se queda en Aprobado y sale como «sin programar»; nada de Zernio ni botón de marcar (D-085)', async () => {
     await tablero([pub(1), pub(2, 'Reel'), pub(3, 'Reel'), pub(4), pub(5)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await porAprobar(['r1', 'r2', 'r3', 'r4'], 'p6');
     M.setEstado(['r1', 'r2', 'r3'], 'aprobado'); M.setEstado('r4', 'programado');
-    ponerPaso('aprobado');
+    ponerPaso('aprobado'); await M.flush();
+    const h0 = M._test.hist().undo;
     let zernio = 0; const sz = M.startZernio; M.startZernio = (...a) => { zernio++; return sz && sz(...a); };
     try {
-      let d = await pulsarPaso('programado');
-      ok(/Programadas: 1 de 5; faltan 4\. Aquí no se programa nada/.test(d.textContent), 'las cifras: ' + d.textContent);
-      ok(/Reels: 2 por programar/.test(d.querySelector('.cpreels').textContent), 'los reels: ' + d.querySelector('.cpreels').textContent);
-      igual(lis(d), [`1 aprobada por programar con «programa»: ${nm('r1')}`, `1 sigue en Por empezar: ${nm('r5')}`], 'las que faltan');
-      // «No» no marca nada
-      d.querySelector('[data-cal="reels"]').click();
-      d = await hasta(() => q('.detail [data-cal="reels-si"]') && q('.detail .card'), 3000, 'la pregunta de los reels');
-      ok(/¿Marcar 2 reels como programados\?/.test(d.textContent), 'la pregunta: ' + d.textContent);
-      d.querySelector('[data-cal="reels-no"]').click(); await espera(30);
-      igual(est(['r2', 'r3']), ['aprobado', 'aprobado'], '«No» marcó los reels');
-      // «Marcar»: los dos, con el ✓, y la confirmación se pone al día sin cambiar el paso
-      q('.detail [data-cal="reels"]').click();
-      (await hasta(() => q('.detail [data-cal="reels-si"]'), 3000, 'la pregunta de los reels')).click();
-      await hasta(() => est(['r2', 'r3']).every(e => e === 'programado'), 3000, 'los reels programados');
-      d = q('.detail:not([hidden])[data-dlg="paso"] .card');
-      ok(d, 'la confirmación del paso se cerró');
-      ok(/Programadas: 3 de 5; faltan 2/.test(d.textContent) && !d.querySelector('.cpreels'), 'la confirmación no se puso al día: ' + d.textContent);
-      igual(pasoDe(), 'aprobado', 'marcar los reels cambió el paso');
-      igual(marcas('r2'), ['e-programado'], 'el reel no lleva el ✓ de las programadas');
-      // cancelar el paso deja los reels marcados (tuvieron su propia pregunta) y el mes donde estaba
-      d.querySelector('.form [data-act="close"]').click(); await espera(30);
-      igual(pasoDe(), 'aprobado', 'cancelar cambió el paso');
-      aceptarPaso(await pulsarPaso('programado'));
+      const d = await pulsarPaso('programado');
+      ok(new RegExp(`^2 reels pasan a Programado: ${nm('r2')}, ${nm('r3')}\\. Fotos y carruseles se programan con «programa»\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
+      igual(lis(d), [`${nm('r1')} · sin programar`, `${nm('r5')} · sin foto ni contexto`], 'las que se quedan');
+      ok(!d.querySelector('[data-cal="reels"], [data-cal="reels-si"], .cpreels'), 'sigue el botón «Marcar como programados»');
+      igual(est(['r2', 'r3']), ['aprobado', 'aprobado'], 'abrir la ventana marcó los reels');
+      aceptarPaso(d);
       await hasta(() => pasoAct() === 'Programado', 3000, 'Programado en la barra');
-      igual(est(['r1', 'r2', 'r3', 'r4', 'r5']), ['aprobado', 'programado', 'programado', 'programado', 'empezar'], 'pasar a Programado cambió publicaciones');
+      igual(est(['r1', 'r2', 'r3', 'r4', 'r5']), ['aprobado', 'programado', 'programado', 'programado', 'empezar'], 'los estados tras pasar');
+      igual(marcas('r2'), ['e-programado'], 'el reel no lleva el ✓ de las programadas');
+      await M.flush();
+      igual(M._test.hist().undo, h0 + 1, 'no es un solo paso de ⌘Z');
       igual(zernio, 0, 'se llamó a Zernio');
     } finally { M.startZernio = sz; }
   });
 
-  prueba('P7', 'Pasar a Publicado marca el mes y deja cada publicación como está; retroceder solo cambia el paso, con las atrasadas y las adelantadas tal cual; hacia delante no se salta ningún paso (D-084)', async () => {
+  prueba('P7', 'Pasar a Publicado: las Programadas pasan a Publicado y una aprobada sale como «sin programar»; retroceder es directo y solo cambia el paso, con las atrasadas y las adelantadas tal cual; hacia delante no se salta ningún paso (D-085)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await porAprobar(['r1', 'r2', 'r3'], 'p7');
     M.setEstado('r1', 'publicado'); M.setEstado('r2', 'programado'); M.setEstado('r3', 'aprobado');
     ponerPaso('programado');
-    const ids = ['r1', 'r2', 'r3', 'r4'], antes = est(ids);
-    let d = await pulsarPaso('publicado');
-    ok(/Publicadas: 1 de 4; 3 sin marcar como publicadas, que se marcan a mano en cada una\./.test(d.textContent), 'las cifras: ' + d.textContent);
-    igual(lis(d), [`1 sigue en Por empezar: ${nm('r4')}`, `1 sigue en Aprobado: ${nm('r3')}`, `1 sigue en Programado: ${nm('r2')}`], 'las que no están publicadas');
+    const ids = ['r1', 'r2', 'r3', 'r4'];
+    const d = await pulsarPaso('publicado');
+    ok(new RegExp(`^1 publicación pasa a Publicado: ${nm('r2')}\\.$`).test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
+    igual(lis(d), [`${nm('r3')} · sin programar`, `${nm('r4')} · sin foto ni contexto`], 'las que se quedan');
     aceptarPaso(d);
     await hasta(() => pasoAct() === 'Publicado', 3000, 'Publicado en la barra');
-    igual(est(ids), antes, 'pasar a Publicado cambió publicaciones');
+    const antes = est(ids);
+    igual(antes, ['publicado', 'publicado', 'aprobado', 'empezar'], 'los estados tras pasar');
     igual(qa('.side > .cal .cleg .cpaso.sig').length, 0, 'después de Publicado hay un paso siguiente');
-    // atrás, a Captions: «Cancelar» no cambia nada; aceptar solo mueve el paso
-    d = await pulsarPaso('captions');
-    igual(d.querySelector('h3').textContent, 'Volver a Captions', 'el título');
-    ok(/el mes vuelve de Publicado a Captions\. Las publicaciones no cambian de estado/.test(d.textContent), 'lo que pasa: ' + d.textContent);
-    igual(lis(d), [`1 en Por empezar: ${nm('r4')}`, `1 en Aprobado: ${nm('r3')}`, `1 en Programado: ${nm('r2')}`, `1 en Publicado: ${nm('r1')}`], 'lo que hay en cada estado');
-    d.querySelector('.form [data-act="close"]').click(); await espera(30);
-    igual(pasoDe(), 'publicado', 'cancelar retrocedió');
-    aceptarPaso(await pulsarPaso('captions'));
+    // atrás, a Captions: sin ventana, solo el paso, con un aviso y un paso de ⌘Z
+    await M.flush();
+    const h0 = M._test.hist().undo;
+    q('.side > .cal .cleg button.cpaso[data-paso="captions"]').click(); await espera(60);
+    ok(!dialogo(), 'retroceder abrió una ventana');
     await hasta(() => pasoAct() === 'Captions', 3000, 'Captions en la barra');
     igual(est(ids), antes, 'retroceder cambió publicaciones');
+    ok(qa('.toast').some(t => /El mes vuelve a Captions; las publicaciones no cambian\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso de volver');
+    await M.flush();
+    igual(M._test.hist().undo, h0 + 1, 'retroceder no es un paso de ⌘Z');
+    M._test.undo(); igual(pasoDe(), 'publicado', '⌘Z no devolvió el paso'); M._test.redo();
     ok(q('.side > .cal .cleg button.cpaso[data-paso="aprobar"]'), 'Por aprobar no se pulsa');
     ok(!q('.side > .cal .cleg button.cpaso[data-paso="aprobado"]'), 'se puede saltar a Aprobado');
   });
@@ -5608,7 +5606,7 @@
     await M.open(key);
     igual(M.board().paso, 'captions', 'el paso al abrir el mes');
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 6, 'la versión del archivo');
+    igual(d.v, 7, 'la versión del archivo');
     igual(d.boards.find(b => b.key === key).paso, 'captions', 'el paso en el archivo');
     await sinMes(key);
     let r = await M.importData(d, { confirm: false });
@@ -5624,7 +5622,153 @@
     ok(!('paso' in M.board()), 'un archivo sin paso trajo uno');
     igual(pasoDe(), 'empezar', 'sin paso, el de su publicación más atrasada');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 7, 'la versión de IndexedDB');
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 8, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085)
+  });
+
+  // retrasar desde el selector de la ventana de la publicación (D-085)
+  async function retrasarUI(id, k) {
+    M._in.openDetail(id, 0);
+    const sel = await hasta(() => q('.detail .essel'), 3000, 'el estado en la publicación');
+    const o = [...sel.options].find(x => x.value === k);
+    ok(o && !o.disabled, `${k} no se puede elegir en ${id}: ` + json([...sel.options].map(x => [x.value, x.textContent, x.disabled])));
+    sel.value = k; sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+    await hasta(() => q('.detail .essel') && q('.detail .essel').value === k, 3000, `${id} en ${k}`);
+  }
+
+  prueba('P9', 'Mes en Por aprobar, todo con caption y nada retrasado: al pasar a Aprobado pasan todas sin ventana, con un aviso; un ⌘Z lo deshace entero (D-085)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    const ids = ['r1', 'r2', 'r3'];
+    await porAprobar(ids, 'p9');
+    ponerPaso('aprobar'); await M.flush();
+    const h0 = M._test.hist().undo;
+    await pasoDirecto('aprobado');
+    igual(est(ids), ['aprobado', 'aprobado', 'aprobado'], 'no pasaron todas');
+    ok(qa('.toast').some(t => /El mes pasa a Aprobado: 3 publicaciones pasan a Aprobado\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
+    await M.flush();
+    igual(M._test.hist().undo, h0 + 1, 'no es un solo paso de ⌘Z');
+    M._test.undo();
+    igual([pasoDe(), ...est(ids)], ['aprobar', 'aprobar', 'aprobar', 'aprobar'], '⌘Z no lo deshizo entero');
+    M._test.redo();
+    igual([pasoDe(), ...est(ids)], ['aprobado', 'aprobado', 'aprobado', 'aprobado'], '⇧⌘Z no lo rehízo');
+    // a Por aprobar, sin nada atrasado y sin puntos en «Revisar»: también directo
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.calendario && M.revisar, 6000, 'calendario.js y revisar.js');
+    await porAprobar(['r1', 'r2'], 'p9b');
+    ponerPaso('captions');
+    const rv = await M.revisar({ historias: true });
+    igual(rv.puntos.length, 0, '«Revisar» da puntos en un mes limpio: ' + json(rv.puntos));
+    await pasoDirecto('aprobar', 20000);
+    ok(qa('.toast').some(t => /El mes pasa a Por aprobar\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
+  });
+
+  prueba('P10', 'Caso de un mes casi todo programado: todo Programado salvo dos reels Aprobados (Reel y Collab Reel); al pasar a Programado los reels pasan solos, sin ventana (D-085)', async () => {
+    await tablero([pub(1), pub(2), { ...pub(3, 'Reel'), type: 'Collab Reel' }, pub(4, 'Reel'), { ...pub(5, 'Reel'), type: 'Trial Reel' }, pub(6, 'Carrusel')]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    const ids = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
+    await porAprobar(ids, 'p10');
+    M.setEstado(['r1', 'r2', 'r5', 'r6'], 'programado'); M.setEstado(['r3', 'r4'], 'aprobado');
+    ponerPaso('aprobado'); await M.flush();
+    let zernio = 0; const sz = M.startZernio; M.startZernio = (...a) => { zernio++; return sz && sz(...a); };
+    try {
+      await pasoDirecto('programado');
+      igual(est(ids), ['programado', 'programado', 'programado', 'programado', 'programado', 'programado'], 'los reels no pasaron');
+      ok(qa('.toast').some(t => /El mes pasa a Programado: 2 reels pasan a Programado\. ⌘Z lo deshace\./.test(t.textContent)), 'el aviso: ' + qa('.toast').map(t => t.textContent).join(' | '));
+      igual(zernio, 0, 'se llamó a Zernio');
+    } finally { M.startZernio = sz; }
+    // y a Publicado: las programadas pasan, sin ventana
+    await pasoDirecto('publicado');
+    igual(est(ids), ids.map(() => 'publicado'), 'las programadas no pasaron a Publicado');
+  });
+
+  prueba('P11', 'Retrasar a mano: desde la ventana de la publicación se baja a Por empezar aunque tenga foto, contexto y caption; dice «retrasada a mano»; en Captions, al pasar a Por aprobar, sale la ventana y la lista como «retrasada a mano» (D-085)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await hasta(() => M.calendario && M.revisar, 6000, 'calendario.js y revisar.js');
+    await porAprobar(['r1', 'r2', 'r3'], 'p11');
+    ponerPaso('captions');
+    await retrasarUI('r2', 'empezar');
+    igual(est(['r1', 'r2', 'r3']), ['aprobar', 'empezar', 'aprobar'], 'no se retrasó');
+    igual(slot('r2').estado, { v: 'empezar' }, 'lo que se guarda');
+    ok(M._in.retrasada(slot('r2')), 'no cuenta como retrasada');
+    await hasta(() => q('.detail .esold') && q('.detail .esold').textContent === 'retrasada a mano', 3000, 'el aviso «retrasada a mano» en la publicación');
+    ok(q('.detail .pest .edot.e-empezar'), 'la publicación no lleva la marca de Por empezar');
+    M._in.closeDetail();
+    const d = await pulsarPaso('aprobar', 20000);
+    igual(lis(d), [`${nm('r2')} · retrasada a mano`], 'la retrasada no sale en la ventana');
+    ok(/2 publicaciones con su caption elegido\./.test(d.textContent), 'las cifras: ' + d.textContent);
+    aceptarPaso(d);
+    await hasta(() => pasoAct() === 'Por aprobar', 3000, 'Por aprobar en la barra');
+    igual(est(['r1', 'r2', 'r3']), ['aprobar', 'empezar', 'aprobar'], 'pasar movió la retrasada');
+  });
+
+  prueba('P12', 'Retrasar: nunca a un estado posterior al que dan sus datos; una retrasada nunca se mueve con la barra; una adelantada nunca baja; retroceder no cambia ninguna; elegir el estado de sus datos la suelta (D-085)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4), pub(5)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    // sin caption elegido: Por aprobar no se puede, ni desde la API ni en el selector
+    await poner('r5', [await foto('p12-e.jpg')]); M._test.setNote('r5', 'Contexto');
+    igual(M.setEstado('r5', 'aprobar')[0].error, 'para ponerla en Por aprobar le falta elegir el caption', 'se retrasó a un estado posterior');
+    igual(M.setEstado('r4', 'captions')[0].error, 'para ponerla en Captions le falta la foto o el contexto', 'se retrasó a Captions sin foto');
+    ok(!slot('r5').estado && !slot('r4').estado, 'un retraso rechazado guardó algo');
+    M._in.openDetail('r5', 0);
+    let sel = await hasta(() => q('.detail .essel'), 3000, 'el selector');
+    igual([...sel.options].slice(0, 3).map(o => [o.textContent, o.value, o.disabled]), [['Por empezar', 'empezar', false], ['Captions', '', false], ['Por aprobar', 'aprobar', true]], 'el selector en Captions');
+    M._in.closeDetail();
+    // r1 adelantada (Programado), r2 retrasada a Por aprobar desde Aprobado, r3 Por aprobar
+    await porAprobar(['r1', 'r2', 'r3'], 'p12');
+    M.setEstado('r1', 'programado'); M.setEstado('r2', 'aprobado');
+    await retrasarUI('r2', 'aprobar');
+    igual(est(['r1', 'r2', 'r3']), ['programado', 'aprobar', 'aprobar'], 'los estados de partida');
+    ok(M._in.retrasada(slot('r2')) && !M._in.retrasada(slot('r3')), 'la retrasada');
+    sel = q('.detail .essel');
+    igual([...sel.options].slice(0, 3).map(o => [o.value, o.disabled]), [['empezar', false], ['captions', false], ['aprobar', false]], 'el selector de la retrasada');
+    M._in.closeDetail();
+    ponerPaso('aprobar');
+    const d = await pulsarPaso('aprobado');
+    ok(/^1 publicación pasa a Aprobado: /.test(d.querySelector('.xwhat').textContent), 'lo que cambia: ' + d.textContent);
+    igual(lis(d), [`${nm('r2')} · retrasada a mano`, `${nm('r4')} · sin foto ni contexto`, `${nm('r5')} · sin caption elegido`], 'las que se quedan');
+    aceptarPaso(d);
+    await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
+    igual(est(['r1', 'r2', 'r3']), ['programado', 'aprobar', 'aprobado'], 'la retrasada se movió o la adelantada bajó');
+    // retroceder: ninguna cambia, ni la retrasada ni la adelantada
+    const antes = est(['r1', 'r2', 'r3', 'r4', 'r5']);
+    await pasoDirecto('empezar');
+    igual(est(['r1', 'r2', 'r3', 'r4', 'r5']), antes, 'retroceder cambió publicaciones');
+    // los datos cambian: la retrasada sigue retenida; si sus datos caen detrás, manda lo de sus datos
+    M._test.setSlot('r2', { caption: { ...slot('r2').caption, pick: null } });
+    igual(M._in.estadoDe(slot('r2')), 'captions', 'sin caption, sigue en Por aprobar');
+    M._test.setSlot('r2', { caption: { ...slot('r2').caption, pick: 0 } });
+    igual(M._in.estadoDe(slot('r2')), 'aprobar', 'con el caption otra vez, no vuelve a su retraso');
+    // r3 retrasada a Captions: elegir Por aprobar (el de sus datos) la suelta
+    await retrasarUI('r3', 'captions');
+    igual(est(['r3']), ['captions'], 'r3 no se retrasó desde Aprobado');
+    sel = q('.detail .essel');
+    const pa = [...sel.options].find(o => o.textContent === 'Por aprobar');
+    igual([pa.value, pa.disabled], ['', false], 'Por aprobar no devuelve la publicación a sus datos');
+    sel.value = ''; sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+    await hasta(() => !slot('r3').estado, 3000, 'r3 suelta');
+    igual(M._in.estadoDe(slot('r3')), 'aprobar', 'suelta, no va a Por aprobar');
+    ok(!q('.detail .esold'), 'suelta, sigue diciendo «retrasada a mano»');
+    M._in.closeDetail();
+  });
+
+  prueba('P13', 'Exportar e importar conservan el retrasado (archivo v7); una mesa anterior no lo importa (D-085, D-017, D-060)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    await porAprobar(['r1', 'r2'], 'p13');
+    igual(M.setEstado('r1', 'captions')[0].estado, 'captions', 'no se retrasó');
+    await M.flush();
+    const key = `${CLIENTE}-${MES}`;
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    igual(d.v, 7, 'la versión del archivo');
+    igual(d.boards.find(b => b.key === key).slots.find(x => x.id === 'r1').estado, { v: 'captions' }, 'el retraso en el archivo');
+    await sinMes(key);
+    const r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(key);
+    igual([M._in.estadoDe(slot('r1')), M._in.retrasada(slot('r1')), M._in.estadoDe(slot('r2'))], ['captions', true, 'aprobar'], 'el retraso importado');
+    const v8 = JSON.parse(JSON.stringify(d)); v8.v = 8;
+    const r8 = await M.importData(v8, { confirm: false });
+    ok(r8 && r8.error && /más nueva/.test(r8.error), 'un archivo más nuevo entró: ' + json(r8));
   });
 
   // =====================================================================================================

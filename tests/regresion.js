@@ -6136,6 +6136,33 @@
     }
   });
 
+  prueba('D13', 'Un diseño vacío que nunca se aplicó (abrir el diseñador y cerrarlo sin hacer nada) desaparece al abrir el tablero: sin «cambios sin aplicar», con su foto y su recorte; uno con textos sin aplicar se queda (D-090)', async () => {
+    await tablero([pub(1, 'Reel'), pub(2, 'Carrusel')]);
+    const key = `${CLIENTE}-${MES}`;
+    await conKitPrueba(async () => {
+      const [f1] = await poner('r1', [await foto('d13a.jpg', 1080, 1920)]);
+      M.diseno.abrir('r1');
+      await hasta(() => M.diseno.abierto(), 6000, 'el diseñador abierto');
+      M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador');
+      ok(slot('r1').design && !salida('r1').length, 'abrir y cerrar el diseñador no dejó su diseño vacío (el caso a arreglar)');
+      igual(estadoDz('r1'), 'chg', 'el diseño vacío no salía como «cambios sin aplicar»');
+      await disenada('r2', [await foto('d13b.jpg', 1080, 1350)], textos('D13', 'Con texto'), false);
+      const recorte = M._test.cropSig('r1');
+      await M.flush();
+      await M.open(key);
+      ok(!slot('r1').design, 'el diseño vacío sigue al abrir el tablero');
+      igual([slot('r1').photos, M._test.cropSig('r1')], [[f1], recorte], 'el reel cambió de foto o de recorte');
+      igual(estadoDz('r1'), null, 'el reel sigue con estado de diseño');
+      M._in.openDetail('r1', 0); sinDisenar('reel sin su diseño vacío');
+      ok(!textoVentana().includes('cambios sin aplicar'), 'la ventana sigue diciendo «cambios sin aplicar»');
+      igual(qa('.detail .pdz button').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+      ok(slot('r2').design && slot('r2').design.slides[0].titulo === 'Con texto D13' && estadoDz('r2') === 'chg', 'el diseño con textos sin aplicar no se quedó');
+      await M.flush();
+      const g = await M._in.idbGet('boards', key);
+      ok(!g.slots.find(x => x.id === 'r1').design && g.slots.find(x => x.id === 'r2').design, 'lo guardado no es lo que se ve');
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

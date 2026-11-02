@@ -5196,6 +5196,202 @@
     } finally { fr.style.width = w0; }
   });
 
+  // ---------- descargar fotos (D-083) ----------
+  const clicCelda = (id, meta) => celda(id).dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: !!meta }));
+  const ventanaDl = () => q('.detail:not([hidden])[data-dlg="descargar"] .card');
+  // la descarga, interceptada: {name, blob}; todo se restaura
+  async function conDescarga(fn) {
+    const A = W.HTMLAnchorElement.prototype, click = A.click; let cap = null;
+    A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
+    try { await fn(() => cap); } finally { A.click = click; }
+    return cap ? { name: cap.name, blob: await (await W.fetch(cap.href)).blob() } : null;
+  }
+  async function descargarYa(opts = {}) {
+    const d = await hasta(() => ventanaDl(), 3000, 'la ventana de descarga');
+    if (opts.txt) d.querySelector(`input[name="dl-txt"][value="${opts.txt}"]`).click();
+    if (opts.res) d.querySelector(`input[name="dl-res"][value="${opts.res}"]`).click();
+    return conDescarga(async cap => { d.querySelector('[data-dl="ir"]').click(); await hasta(() => cap() || !ventanaDl(), 60000, 'la descarga'); await hasta(() => cap(), 3000, 'el archivo'); });
+  }
+  // un ZIP leído a mano: entradas {name, data, crc} por sus cabeceras locales, y el número del directorio final
+  async function leerZip(blob) {
+    const b = new Uint8Array(await blob.arrayBuffer()), v = new DataView(b.buffer), out = [], dec = new TextDecoder();
+    let o = 0;
+    while (v.getUint32(o, true) === 0x04034b50) {
+      const crc = v.getUint32(o + 14, true), sz = v.getUint32(o + 18, true), n = v.getUint16(o + 26, true), x = v.getUint16(o + 28, true);
+      igual([v.getUint16(o + 8, true), v.getUint32(o + 22, true)], [0, sz], 'una entrada comprimida');
+      out.push({ name: dec.decode(b.subarray(o + 30, o + 30 + n)), data: b.slice(o + 30 + n + x, o + 30 + n + x + sz), crc });
+      o += 30 + n + x + sz;
+    }
+    const e = b.length - 22; igual(v.getUint32(e, true), 0x06054b50, 'el final del ZIP');
+    igual(v.getUint16(e + 10, true), out.length, 'las entradas del directorio central');
+    for (const f of out) igual(await M.descargar._crc32(new W.Blob([f.data])), f.crc, 'el CRC de ' + f.name);
+    return out;
+  }
+  const anchoDe = async data => { const bm = await W.createImageBitmap(new W.Blob([data], { type: 'image/jpeg' })); const r = [bm.width, bm.height]; bm.close(); return r; };
+
+  prueba('B1', '⌘+clic en una casilla la elige o la quita sin abrirla; un clic sin ⌘, Esc u otro mes vacían la selección; «Descargar (n)» sale en la barra (D-083, D-077)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    await poner('r1', [await foto('b1-a.jpg')]); await poner('r2', [await foto('b1-b.jpg')]); await poner('r3', [await foto('b1-c.jpg')]);
+    // antes, ⌘+clic solo actuaba en la bandeja: una casilla se abría
+    clicCelda('r1', true);
+    ok(!dialogo(), '⌘+clic abrió la publicación');
+    ok(celda('r1').classList.contains('dlsel'), 'la casilla elegida no se marca');
+    ok(+W.getComputedStyle(celda('r1'), '::before').zIndex < +W.getComputedStyle(q('.detail')).zIndex, 'el marco de la elegida queda por encima de las ventanas');
+    clicCelda('r3', true);
+    igual(M.descargar.elegidas(), ['r1', 'r3'], 'las elegidas');
+    igual(q('.bar [data-dl="abrir"]').textContent, 'Descargar (2)', 'el botón de la barra');
+    clicCelda('r3', true);
+    igual(M.descargar.elegidas(), ['r1'], '⌘+clic otra vez no la quita');
+    ok(!celda('r3').classList.contains('dlsel'), 'la quitada sigue marcada');
+    clicCelda('r4', true);
+    igual(M.descargar.elegidas(), ['r1'], 'una publicación sin foto entra en la selección');
+    // la marca sigue tras redibujar la cuadrícula
+    M._in.renderFeed(); ok(celda('r1').classList.contains('dlsel'), 'redibujada, la casilla pierde su marca');
+    // Esc la vacía
+    tecla('Escape'); await espera(30);
+    igual(M.descargar.elegidas(), [], 'Esc no vacía la selección');
+    ok(!q('.bar [data-dl="abrir"]'), 'sin nada elegido sigue el botón');
+    // un clic sin ⌘ hace lo de siempre y la vacía
+    clicCelda('r1', true); clicCelda('r2', true);
+    clicCelda('r2');
+    await hasta(() => dialogo() && !q('.detail[data-dlg]'), 3000, 'la publicación abierta con un clic');
+    igual(M.descargar.elegidas(), [], 'un clic sin ⌘ no vacía la selección');
+    M._in.closeDetail();
+    // la bandeja sigue eligiendo con ⌘+clic (D-077)
+    const [f] = await M.addFiles([await foto('b1-d.jpg')]);
+    await espera(50);
+    const t = await hasta(() => q(`.tray .titem[data-file="${f}"]`), 3000, 'la foto en la bandeja');
+    t.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true }));
+    ok(q(`.tray .titem[data-file="${f}"]`).classList.contains('elegida'), '⌘+clic en la bandeja dejó de elegir');
+    igual(M.descargar.elegidas(), [], 'un ⌘+clic en la bandeja eligió una casilla');
+    // otro mes vacía la selección
+    clicCelda('r1', true); igual(M.descargar.elegidas(), ['r1'], 'elegida otra vez');
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', slots: [pub(1, 'Foto', 3, '2026-12')], past: [], force: true });
+    igual(M.descargar.elegidas(), [], 'otro mes conserva la selección');
+    await M.purge(`${CLIENTE}-2026-12`);
+  });
+
+  prueba('B2', 'La ventana de descarga: por fecha, de la más cercana a hoy a la más lejana; cada pieza en miniatura y marcada; de un reel, su portada; desmarcar cambia la cuenta (D-083)', async () => {
+    await tablero([pub(1, 'Carrusel', 25), pub(2, 'Reel', 4), pub(3, 'Foto', 14)]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    await poner('r1', [await foto('b2-a.jpg'), await foto('b2-b.jpg'), await foto('b2-c.jpg')]);
+    await poner('r2', [await foto('b2-d.jpg', 1080, 1920)]);
+    await poner('r3', [await foto('b2-e.jpg')]);
+    ['r1', 'r2', 'r3'].forEach(id => clicCelda(id, true));
+    q('.bar [data-dl="abrir"]').click();
+    const d = await hasta(() => ventanaDl(), 3000, 'la ventana');
+    const lejos = id => Math.abs(Date.parse(slot(id).date) - Date.now());
+    igual(qa('.dl-post').map(x => x.dataset.slot), ['r1', 'r2', 'r3'].sort((a, b) => lejos(a) - lejos(b)), 'el orden de las publicaciones');
+    igual(qa('.dl-post[data-slot="r1"] .dl-pz input').map(i => i.checked), [true, true, true], 'las piezas del carrusel');
+    igual(qa('.dl-post[data-slot="r2"] .dl-pz').map(x => x.textContent.trim()), ['Portada'], 'la pieza del reel');
+    ok(qa('.dl-pz img').every(i => i.getAttribute('src')), 'una miniatura sin imagen');
+    igual([d.querySelector('input[name="dl-txt"]:checked').value, d.querySelector('input[name="dl-res"]:checked').value], ['con', 'orig'], 'las opciones de partida');
+    igual(qa('.dl-op .dl-ch span').map(x => x.textContent), ['Con textos', 'Solo la foto', 'Original', '1440', '1080'], 'las opciones');
+    igual(q('.dl-res').textContent, '5 piezas · cliente-de-prueba-2026-11.zip', 'la cuenta');
+    ok(q('.dl-prog').offsetParent === null, 'la barra de progreso se ve antes de descargar');
+    q('.dl-post[data-slot="r1"] [data-dl="todas"]').click();
+    igual(q('.dl-res').textContent, '2 piezas · cliente-de-prueba-2026-11.zip', '«Ninguna» no desmarca el carrusel');
+    q('.dl-post[data-slot="r3"] .dl-pz input').click();
+    igual(q('.dl-res').textContent, '1 pieza · un JPG', 'desmarcar una pieza');
+    q('.dl-post[data-slot="r2"] .dl-pz input').click();
+    ok(q('[data-dl="ir"]').disabled, 'sin nada marcado se puede descargar');
+    M._in.closeDetail();
+  });
+
+  prueba('B3', 'Varias piezas van en un ZIP «cliente-AAAA-MM» sin compresión: nombres por fecha, publicación y pieza; el número de archivos; cada ancho (Original, 1440, 1080) (D-083)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Reel')]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    await poner('r1', [await foto('b3-a.jpg', 2000, 2500), await foto('b3-b.jpg', 2000, 2500)]);
+    await poner('r2', [await foto('b3-c.jpg', 3000, 2000)]);   // la portada de un reel: 9:16 de una horizontal
+    clicCelda('r1', true); clicCelda('r2', true);
+    for (const [res, anchos] of [['orig', [2000, 2000, 1125]], ['1440', [1440, 1440, 1440]], ['1080', [1080, 1080, 1080]]]) {
+      q('.bar [data-dl="abrir"]').click();
+      const z = await descargarYa({ res });
+      igual(z && z.name, 'cliente-de-prueba-2026-11.zip', 'el nombre del ZIP');
+      const e = await leerZip(z.blob);
+      const d1 = M._in.localDay(slot('r1').date), d2 = M._in.localDay(slot('r2').date);
+      igual(e.map(x => x.name).sort(), [`${d1}_Carrusel-1.1_01.jpg`, `${d1}_Carrusel-1.1_02.jpg`, `${d2}_Reel-1.2_01.jpg`].sort(), 'los nombres de los archivos');
+      const dims = {}; for (const x of e) dims[x.name] = await anchoDe(x.data);
+      igual(e.map(x => dims[x.name][0]).sort((a, b) => b - a), anchos.slice().sort((a, b) => b - a), `los anchos con ${res}`);
+      const reel = dims[`${d2}_Reel-1.2_01.jpg`]; cerca(reel[0] / reel[1], 9 / 16, 0.01, 'la portada del reel no sale en 9:16');
+      igual(M.descargar.ultimo.piezas.length, 3, 'el número de piezas');
+      ok(!ventanaDl(), 'la ventana no se cerró al terminar');
+    }
+    igual(M.descargar.elegidas(), ['r1', 'r2'], 'descargar vacía la selección');
+  });
+
+  prueba('B4', 'Una sola pieza se descarga como JPG con su nombre; en Original y sin recorte, el mismo archivo; «Solo la foto» quita textos y logos de una diapositiva del editor; Original de una diapositiva = lo que da su foto (D-083)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    const orig = await foto('b4-a.jpg', 1200, 1500);
+    const [f] = await poner('r1', [orig]);
+    clicCelda('r1', true);
+    q('.bar [data-dl="abrir"]').click();
+    const j = await descargarYa();
+    igual(j.name, `${M._in.localDay(slot('r1').date)}_Foto-1.1_01.jpg`, 'el nombre del JPG');
+    ok(await bytesIguales(j.blob, orig), 'en Original y sin recorte no es el mismo archivo');
+    // una diapositiva del editor con un texto: con y sin textos
+    await poner('r2', [await foto('b4-b.jpg', 1600, 2000, '#20262c')]);
+    await abrirEditor('r2');
+    accion('add-txt');
+    const t = compDe(0).els.find(e => e.t === 'texto'); Object.assign(t, { txt: 'TEXTO GRANDE', size: 0.12, color: '#ffffff', y: 0.42 });
+    await aplicarEditor();
+    const s = slot('r2'), fid = s.photos[0];
+    ok(M._in.lComp(s, fid), 'la diapositiva no quedó en el editor');
+    const con = await M.descargar._pieza(s, fid, { textos: true, ancho: '1080' }), sin = await M.descargar._pieza(s, fid, { textos: false, ancho: '1080' });
+    const px = async b => { const bm = await W.createImageBitmap(b), c = D.createElement('canvas'); c.width = 108; c.height = Math.round(108 * bm.height / bm.width); const x = c.getContext('2d'); x.drawImage(bm, 0, 0, c.width, c.height); bm.close(); return x.getImageData(0, 0, c.width, c.height).data; };
+    const dif = (a, b) => { let n = 0; for (let i = 0; i < a.length; i += 4) n += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]); return n / (a.length / 4); };
+    const [pc, ps] = [await px(con.blob), await px(sin.blob)];
+    ok(dif(pc, ps) > 2, 'con y sin textos salen iguales: ' + dif(pc, ps).toFixed(2));
+    igual([con.w, sin.w], [1080, 1080], 'el ancho pedido');
+    const sinT = { ...M._in.lComp(s, fid), els: M._in.lComp(s, fid).els.filter(e => e.t !== 'texto' && e.t !== 'logo') };
+    ok(dif(ps, await px(await M.libre.pieza(sinT, 1080, 1350))) < 1.5, '«Solo la foto» no es la diapositiva sin textos ni logos');
+    // Original de una diapositiva: el ancho al que su foto se dibuja 1:1 (la foto de 1600 a sangre)
+    const o = await M.descargar._pieza(s, fid, { textos: true, ancho: 'orig' });
+    igual(o.w, 1600, 'el ancho Original de la diapositiva');
+    igual((await anchoDe(new Uint8Array(await o.blob.arrayBuffer())))[0], 1600, 'el JPEG Original de la diapositiva');
+  });
+
+  prueba('B5', 'Con una foto de 24 MP: una pieza cada vez, con barra de progreso, sin colgar la página; Original sin ampliar (D-083)', async () => {
+    await tablero([pub(1, 'Reel'), pub(2)]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    await poner('r1', [await foto('b5-24mp.jpg', 6000, 4000, '#6d5a43')]);
+    await poner('r2', [await foto('b5-b.jpg', 4000, 6000, '#2f4b3a')]);
+    clicCelda('r1', true); clicCelda('r2', true);
+    q('.bar [data-dl="abrir"]').click();
+    const d = await hasta(() => ventanaDl(), 3000, 'la ventana');
+    let hueco = 0, t = performance.now(), visto = false;
+    const iv = W.setInterval(() => { const n = performance.now(); hueco = Math.max(hueco, n - t); t = n; const p = q('.dl-prog'); if (p && !p.hidden && /Pieza \d de 2/.test(p.textContent)) visto = true; }, 30);
+    let z;
+    try { z = await descargarYa(); } finally { W.clearInterval(iv); }
+    ok(visto, 'no se vio la barra de progreso');
+    ok(hueco < 2500, `la página se colgó ${Math.round(hueco)} ms`);
+    const e = await leerZip(z.blob), dims = await Promise.all(e.map(x => anchoDe(x.data)));
+    igual(dims.map(x => x.join('×')).sort(), ['2250×4000', '4000×5000'].sort(), 'Original: la portada 9:16 de la de 24 MP y la 4:5 de la vertical, sin ampliar');
+  });
+
+  prueba('B6', 'Cancelar a media descarga no guarda nada (D-083)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    await poner('r1', [await foto('b6-a.jpg', 3000, 3750), await foto('b6-b.jpg', 3000, 3750), await foto('b6-c.jpg', 3000, 3750), await foto('b6-d.jpg', 3000, 3750)]);
+    clicCelda('r1', true);
+    q('.bar [data-dl="abrir"]').click();
+    const d = await hasta(() => ventanaDl(), 3000, 'la ventana');
+    d.querySelector('input[name="dl-res"][value="1080"]').click();
+    const C = W.HTMLCanvasElement.prototype, toBlob = C.toBlob;   // cada pieza tarda medio segundo: da tiempo a cancelar
+    C.toBlob = function (cb, ...a) { toBlob.call(this, b => setTimeout(() => cb(b), 500), ...a); };
+    const r = await conDescarga(async cap => {
+      d.querySelector('[data-dl="ir"]').click();
+      await hasta(() => /Pieza 2 de 4/.test(q('.dl-pt') ? q('.dl-pt').textContent : ''), 20000, 'la segunda pieza');
+      d.querySelector('.form [data-act="close"]').click();
+      await espera(2500);
+      ok(!cap(), 'se descargó tras cancelar');
+    }).finally(() => { C.toBlob = toBlob; });
+    igual(r, null, 'se guardó un archivo');
+    ok(qa('.toast').some(x => /cancelada/.test(x.textContent)), 'no se avisa de la cancelación');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

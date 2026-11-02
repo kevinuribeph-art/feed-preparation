@@ -1,4 +1,4 @@
-// Calendario — Mesa de trabajo · v1.1
+// Calendario — Mesa de trabajo · v1.2
 // The open board's month under the tray (half of the right column), Monday to Sunday as in Notion: one chip per post —
 // its short name, time and the mark of its state (a dot, ✓, two ✓ or ✕: the mesa's estIco, D-081) — on a pastel of its
 // type, as Notion's tags. A cancelled post says why on hover, if it has a reason (D-082). Linked both ways with the grid:
@@ -16,11 +16,24 @@
 //   Notion: the mesa doesn't read Notion live — each chip has the grid's mark of changes since the last upload (1.1: the one
 //   mark of D-081, also for a caption, photo or contexto), and the header says how many dates, names or types are not uploaded yet and when the board last had Notion's data (S.notionAt: loaded or upload confirmed).
 //   Vista cliente: read only — type, time and colour; no moving, no states, no Notion marks, no cancelled posts.
+//   The month's step (1.2, D-084, mesa ≥ 3.68): the legend is the open board's step bar — Por empezar › Captions › Por
+//   aprobar › Aprobado › Programado › Publicado, each with its mark (still the legend of the chips) — and, apart and only as a
+//   legend, No aprobado and Cancelado, which are states of a post, not steps. The steps done in ink (pressed, the month goes
+//   back), the current one in a black pill, the next one with a thin border (pressed, the month goes on) and the later ones
+//   in grey. Every change asks first and says what will happen, with figures; a post that is behind never stops it: it is
+//   listed and stays as it is. Going on to:
+//     Captions      warns of the posts without a photo or a contexto
+//     Por aprobar   runs «Revisar» (the feed and the stories, D-040, D-058) and shows its points
+//     Aprobado      the posts «Por aprobar» become «Aprobado» (M.setEstado): the only step that changes posts
+//     Programado    schedules nothing: how many are scheduled and how many are not; the approved reels, as «Reels: N por
+//                   programar», with «Marcar como programados» (asks first; the same ✓ as the scheduled posts)
+//     Publicado     marks the month as published; each post is still marked by hand
+//   Going back changes the step only. The step and what it changes are one step of ⌘Z. Nothing of it in the vista cliente.
 (function calendarioBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';
+  const VERSION = '1.2';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -101,13 +114,13 @@
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : '<span class="csync">Igual que Notion</span>';
     const nat = `<span class="cnat" title="La mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}</span>`;
-    const leg = X.ESTADOS.map(([k, l]) => `<span>${X.estIco(k)}${esc(l)}</span>`).join('');
+    const leg = X.PASOS ? pasosHTML(X) : `<div class="cleg">${X.ESTADOS.map(([k, l]) => `<span>${X.estIco(k)}${esc(l)}</span>`).join('')}</div>`;   // a mesa before 3.68: the legend as it was
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false;
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
     sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${sync}${nat}`
       + `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button><span class="cmes">${esc(cap(X.MONTHS[mo - 1]))} ${y}</span><button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button></span></div>`
-      + `<div class="cleg">${leg}</div><div class="calbody"><div class="cgrid" style="grid-template-rows:auto repeat(${rows},minmax(58px,auto))${cf ? '' : ' auto'}">${body}</div></div>`;
+      + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:auto repeat(${rows},minmax(58px,auto))${cf ? '' : ' auto'}">${body}</div></div>`;
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
   }
@@ -129,11 +142,13 @@
   }
   function onClick(e) {
     const X = I(); if (!X || !e.target.closest) return;
+    const dl = e.target.closest('#mesa .detail[data-dlg="paso"] [data-cal]'); if (dl) { enPaso(dl); return; }   // the step's confirmation
     const sec = e.target.closest('#mesa .side > .cal'); if (!sec) return;
     const root = X.root(), client = root.classList.contains('client');
     const b = e.target.closest('[data-cal]');
     if (b) {
       const a = b.dataset.cal;
+      if (a === 'paso') { if (!client) abrirPaso(b.dataset.paso); return; }
       if (a === 'fold') lsSet(LS_FOLD, folded() ? '0' : '1');
       else if (a === 'cnt') lsSet(LS_CNT, cntFolded() ? '0' : '1');
       else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
@@ -142,6 +157,117 @@
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
+  }
+
+  // ---------- the month's step (D-084) ----------
+  const nDe = (k, uno, varios) => `${k} ${k === 1 ? uno : varios}`;
+  const PUB = k => nDe(k, 'publicación', 'publicaciones');
+  function pasosHTML(X) {
+    const P = X.PASOS, i = P.findIndex(p => p[0] === X.pasoDe(X.S));
+    const pasos = P.map(([k, l], j) => {
+      const ico = X.estIco(k, ' aria-hidden="true"'), t = `${ico}${esc(l)}`;
+      if (j === i) return `<span class="cpaso act" aria-current="step" title="El mes va en ${esc(l)}">${t}</span>`;
+      if (j === i + 1) return `<button type="button" class="cpaso sig" data-cal="paso" data-paso="${k}" title="Pasar el mes a ${esc(l)}">${t}</button>`;
+      if (j < i) return `<button type="button" class="cpaso hecho" data-cal="paso" data-paso="${k}" title="Volver a ${esc(l)}">${t}</button>`;
+      return `<span class="cpaso fut" title="Antes, el mes pasa a ${esc(P[i + 1][1])}">${t}</span>`;
+    }).join('<span class="csep" aria-hidden="true">›</span>');
+    const extra = ['noaprobado', 'cancelado'].map(k => `<span>${X.estIco(k, ' aria-hidden="true"')}${esc((X.ESTADOS.find(e => e[0] === k) || [k, k])[1])}</span>`).join('');
+    return `<div class="cleg" role="group" aria-label="Paso del mes">${pasos}<span class="cextra" title="Estados de cada publicación, no pasos del mes">${extra}</span></div>`;
+  }
+  // What a change of step will do, with figures: built again when the dialog opens and after its reels are marked
+  let paso = null;                             // the confirmation open: {key, to, tok}
+  function abrirPaso(to, preguntaReels = false) {
+    const X = I(), S = X && X.S; if (!S || !X.PASOS) return;
+    if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia el paso.'); return; }
+    const P = X.PASOS, de = X.pasoDe(S), i = P.findIndex(p => p[0] === de), j = P.findIndex(p => p[0] === to);
+    if (j < 0 || j === i || j > i + 1) return;  // on: only to the next step; back: to any done
+    const sube = j > i, lab = k => (X.ESTADOS.find(e => e[0] === k) || [k, k])[1];
+    const t = x => { const v = Date.parse(x.date); return isNaN(v) ? Infinity : v; };   // listed by date, as the calendar
+    const vivas = S.slots.filter(X.vivo).sort((a, b) => t(a) - t(b)), canc = S.slots.length - vivas.length, por = {};
+    vivas.forEach(s => { const e = X.estadoDe(s); (por[e] = por[e] || []).push(s); });
+    const de_ = (...es) => es.flatMap(e => por[e] || []);
+    const nombres = l => l.map(s => esc(X.shortLabel(s.name, s.type))).join(', ');
+    const fila = (txt, l) => `<li>${txt}${l && l.length ? `: <span>${nombres(l)}</span>` : ''}</li>`;
+    const siguen = es => es.filter(e => (por[e] || []).length).map(e => fila(`${nDe(por[e].length, 'sigue', 'siguen')} en ${esc(lab(e))}`, por[e])).join('');
+    const cl = X.CL.find(c => c.id === S.client), mes = (M.status && (M.status() || {}).range) || X.monthLabel(S.month);
+    let cuerpo = '', lista = '';
+    if (!sube) {
+      lista = X.ESTADOS.filter(([e]) => (por[e] || []).length).map(([e, l]) => fila(`${por[e].length} en ${esc(l)}`, por[e])).join('');
+    } else if (to === 'captions') {
+      const falta = por.empezar || [];
+      cuerpo = `<p class="xwhat">${nDe(vivas.length - falta.length, 'tiene', 'tienen')} foto y contexto.${falta.length ? ` ${nDe(falta.length, 'se queda', 'se quedan')} en Por empezar:` : ''}</p>`;
+      lista = falta.map(s => `<li><b>${esc(X.shortLabel(s.name, s.type))}</b> <span>· ${!s.photos.length && !X.noteOf(s) ? 'sin foto ni contexto' : !s.photos.length ? 'sin foto' : 'sin contexto'}</span></li>`).join('');
+    } else if (to === 'aprobar') {
+      const ya = de_('aprobar', 'noaprobado', 'aprobado', 'programado', 'publicado');
+      cuerpo = `<p class="xwhat">${PUB(ya.length)} con su caption elegido${ya.length - (por.aprobar || []).length ? ` (${(por.aprobar || []).length} en Por aprobar)` : ''}.</p>`;
+      lista = siguen(['empezar', 'captions']);
+    } else if (to === 'aprobado') {
+      const pasan = por.aprobar || [], ya = de_('aprobado', 'programado', 'publicado');
+      cuerpo = `<p class="xwhat"><b>${PUB(pasan.length)} ${pasan.length === 1 ? 'pasa' : 'pasan'} a Aprobado</b>${ya.length ? `; ${ya.length} ya ${ya.length === 1 ? 'estaba aprobada' : 'estaban aprobadas'}` : ''}.</p>`;
+      lista = siguen(['empezar', 'captions', 'noaprobado']);
+    } else if (to === 'programado') {
+      const prog = de_('programado', 'publicado'), reels = (por.aprobado || []).filter(s => X.isReel(s.type)), otras = (por.aprobado || []).filter(s => !X.isReel(s.type));
+      const np = (por.publicado || []).length, faltan = vivas.length - prog.length;
+      cuerpo = `<p class="xwhat"><b>Programadas: ${prog.length} de ${vivas.length}</b>${np ? ` (${np} ya ${np === 1 ? 'publicada' : 'publicadas'})` : ''}; ${!faltan ? 'no falta ninguna' : faltan === 1 ? 'falta 1' : `faltan ${faltan}`}. Aquí no se programa nada: se programa con «programa».</p>`;
+      if (reels.length) cuerpo += preguntaReels
+        ? `<div class="cpreels cpconf"><span>¿Marcar ${nDe(reels.length, 'reel', 'reels')} como ${reels.length === 1 ? 'programado' : 'programados'}? ${reels.length === 1 ? 'Lleva' : 'Llevan'} el mismo ✓ que las programadas.</span><span class="cpbtns"><button type="button" class="btn2" data-cal="reels-no" data-paso="${to}">No</button><button type="button" class="btn" data-cal="reels-si" data-paso="${to}">Marcar</button></span></div>`
+        : `<div class="cpreels"><span>Reels: <b>${reels.length} por programar</b> <span class="cpn">· ${nombres(reels)}</span></span><button type="button" class="btn2" data-cal="reels" data-paso="${to}">Marcar como programados</button></div>`;
+      lista = (otras.length ? fila(`${otras.length} ${otras.length === 1 ? 'aprobada' : 'aprobadas'} por programar con «programa»`, otras) : '') + siguen(['empezar', 'captions', 'aprobar', 'noaprobado']);
+    } else if (to === 'publicado') {
+      const pub = por.publicado || [];
+      cuerpo = `<p class="xwhat"><b>Publicadas: ${pub.length} de ${vivas.length}</b>${vivas.length - pub.length ? `; ${vivas.length - pub.length} sin marcar como ${vivas.length - pub.length === 1 ? 'publicada, que se marca' : 'publicadas, que se marcan'} a mano en cada una` : ''}.</p>`;
+      lista = siguen(['empezar', 'captions', 'aprobar', 'noaprobado', 'aprobado', 'programado']);
+    }
+    const tok = (paso && paso.tok || 0) + 1;
+    paso = { key: S.key, to, tok };
+    X.showDialog('paso', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${sube ? 'Pasar' : 'Volver'} a ${esc(P[j][1])}</h3>`
+      + `<p>${esc((cl && cl.name) || S.client)}, ${esc(mes)}: el mes ${sube ? 'pasa' : 'vuelve'} de ${esc(P[i][1])} a ${esc(P[j][1])}.${sube ? '' : ' Las publicaciones no cambian de estado:'}</p>`
+      + cuerpo + (lista ? `<ul class="xsum cplist">${lista}</ul>` : '')
+      + (sube && to === 'aprobar' ? '<div class="cprv" aria-live="polite"><p>Revisando el mes…</p></div>' : '')
+      + (canc ? `<p class="cpnota">${nDe(canc, 'cancelada no cuenta', 'canceladas no cuentan')}.</p>` : '')
+      + `<div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-cal="paso-ok" data-paso="${to}">${sube ? 'Pasar' : 'Volver'} a ${esc(P[j][1])}</button></div></div>`);
+    const d = X.root().querySelector('.detail'), c = d && d.querySelector(preguntaReels ? '[data-cal="reels-si"]' : '[data-cal="paso-ok"]'); if (c) c.focus();
+    if (sube && to === 'aprobar') revisarEn(tok);
+  }
+  const abierto = tok => { const X = I(), d = X && X.root().querySelector('.detail'); return !!(d && !d.hidden && d.dataset.dlg === 'paso' && paso && paso.tok === tok); };
+  async function revisarEn(tok) {              // «Revisar» (D-040, D-058): its points in the confirmation; never a reason not to go on
+    let res = null;
+    try { if (M.revisar) res = await M.revisar({ historias: true }); } catch (e) { console.warn('revisión del paso:', e); }
+    if (!abierto(tok)) return;
+    const X = I(), box = X.root().querySelector('.detail .cprv'); if (!box) return;
+    if (!res) { box.innerHTML = `<p>${M.revisar ? 'No se pudo pasar «Revisar».' : 'La revisión (revisar.js) no está cargada: no se ha pasado «Revisar».'} El mes puede pasar igualmente.</p>`; return; }
+    if (!res.puntos.length) { box.innerHTML = '<p class="xwhat">Revisar: todo en orden.</p>'; return; }
+    const grupos = [];
+    for (const p of res.puntos) { const g = grupos[grupos.length - 1], id = p.historiaId || p.slotId; if (g && g.id === id) g.ps.push(p); else grupos.push({ id, post: p.post, h: !!p.historiaId, ps: [p] }); }
+    const cuenta = [res.bloquean ? nDe(res.bloquean, 'punto bloquea', 'puntos bloquean') : '', res.avisos ? nDe(res.avisos, 'aviso', 'avisos') : ''].filter(Boolean).join(' y ');
+    box.innerHTML = `<p class="xwhat">Revisar: ${cuenta}. No impide${res.bloquean ? ' pasar de paso; lo que bloquea no se sube ni se programa' : ' pasar de paso'}.</p>`
+      + `<ul class="xsum cplist">${grupos.map(g => `<li><b>${esc(g.post)}</b>${g.h ? ' <span>· historia</span>' : ''}${g.ps.map(p => `<br><span class="${p.bloquea ? 'cpb' : ''}">${p.diapositiva ? `Diapositiva ${p.diapositiva}: ` : ''}${esc(p.texto)}${p.bloquea ? ' (bloquea)' : ''}</span>`).join('')}</li>`).join('')}</ul>`;
+  }
+  function enPaso(b) {
+    const X = I(), S = X && X.S, a = b.dataset.cal, to = b.dataset.paso;
+    if (!S || !paso || paso.key !== S.key) { if (X) X.closeDetail(); return; }
+    if (a === 'reels') abrirPaso(to, true);
+    else if (a === 'reels-no') abrirPaso(to);
+    else if (a === 'reels-si') {                 // the approved reels, as the scheduled posts (they are published by hand)
+      const ids = S.slots.filter(s => X.vivo(s) && X.isReel(s.type) && X.estadoDe(s) === 'aprobado').map(s => s.id);
+      const r = ids.length && M.setEstado ? M.setEstado(ids, 'programado') : [], hechos = Array.isArray(r) ? r.filter(x => !x.error).length : 0;
+      if (r && r.error) X.toast(r.error);
+      else if (hechos) X.toast(`${nDe(hechos, 'reel marcado', 'reels marcados')} como ${hechos === 1 ? 'programado' : 'programados'}.`);
+      abrirPaso(to);
+    } else if (a === 'paso-ok') confirmar(to);
+  }
+  function confirmar(to) {
+    const X = I(), S = X && X.S; paso = null;
+    if (!S) return;
+    if (X.locked) { X.closeDetail(); X.toast('La mesa está abierta en otra pestaña: aquí no se cambia el paso.'); return; }
+    const P = X.PASOS, i = P.findIndex(p => p[0] === X.pasoDe(S)), j = P.findIndex(p => p[0] === to);
+    X.closeDetail();
+    if (j < 0 || j === i || j > i + 1) return;
+    const ids = to === 'aprobado' && j > i ? S.slots.filter(s => X.vivo(s) && X.estadoDe(s) === 'aprobar').map(s => s.id) : [];
+    S.paso = to;                                 // with the posts it approves: one save, one step of ⌘Z
+    const r = ids.length ? M.setEstado(ids, 'aprobado') : null, hechos = Array.isArray(r) ? r.filter(x => !x.error).length : 0;
+    if (!hechos) X.changed();
+    X.toast(j > i ? `El mes pasa a ${P[j][1]}${to === 'aprobado' ? `: ${PUB(hechos)} ${hechos === 1 ? 'pasa' : 'pasan'} a Aprobado` : ''}. ⌘Z lo deshace.` : `El mes vuelve a ${P[j][1]}. ⌘Z lo deshace.`, { ms: 6000 });
   }
 
   // ---------- moving a post to another day (its time stays) ----------
@@ -215,8 +341,23 @@
 #mesa .cnav button{border:0;background:none;width:24px;height:24px;border-radius:6px;font-size:17px;line-height:1;color:var(--ink)}
 #mesa .cnav button:hover:not(:disabled){background:var(--line2)}#mesa .cnav button:disabled{color:var(--line);cursor:default}
 #mesa .cmes{min-width:104px;text-align:center;font-weight:600;font-size:12.5px}
-#mesa .cleg{flex:none;display:flex;flex-wrap:wrap;gap:2px 10px;padding:0 12px 6px;font-size:10.5px;color:var(--mute)}
+#mesa .cleg{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:3px 2px;padding:0 10px 6px;font-size:10.5px;color:var(--mute)}
 #mesa .cleg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+#mesa .cpaso{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid transparent;border-radius:999px;padding:1px 7px;background:none;font:inherit;font-size:10.5px;line-height:15px;color:var(--ink)}
+#mesa button.cpaso{cursor:pointer}#mesa button.cpaso:hover{background:var(--line2)}
+#mesa button.cpaso:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+#mesa .cpaso.act{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+#mesa .cpaso.act .e-programado,#mesa .cpaso.act .e-publicado{color:#7bd88f}
+#mesa .cpaso.sig{border-color:var(--faint)}#mesa .cpaso.sig:hover{border-color:var(--ink)}
+#mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
+#mesa .cleg .csep{color:var(--faint);font-size:11px}
+#mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--faint)}
+#mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}
+#mesa .detail .cpnota{font-size:12px}
+#mesa .detail .cprv>p{margin:0 0 10px;color:var(--mute);font-size:12.5px}#mesa .detail .cprv>p.xwhat{color:var(--ink);font-size:13px}
+#mesa .detail .cpreels{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 10px;margin:0 0 10px;padding:8px 10px;border-radius:8px;background:var(--bg);font-size:13px}
+#mesa .detail .cpreels .cpn{color:var(--mute);font-size:12.5px}#mesa .detail .cpreels .cpbtns{display:inline-flex;gap:6px}
+#mesa .detail .cpreels .btn,#mesa .detail .cpreels .btn2{padding:4px 10px;font-size:12.5px;min-height:30px}
 #mesa .calbody{flex:1;min-height:0;overflow:auto;padding:0 10px 10px}
 #mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 28px;border-left:1px solid var(--line2);border-top:1px solid var(--line2)}
 #mesa .cal.nocnt .cgrid{grid-template-columns:repeat(7,minmax(0,1fr)) 16px}

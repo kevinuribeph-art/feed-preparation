@@ -90,11 +90,13 @@
 // where its alignment draws it; the box's width still says where they break. A frame of the list's proportion, the photo
 // not cropped by it, has its button on in «Proporción del marco» instead of the proportion written under it (D-044).
 // The tray's size (v1.37, mesa 3.75): a slider at the foot, by «?», makes its photos 36 to 144 px, still one row (D-091).
+// v1.38 (mesa 3.76): its strip goes back to where each folder was, apart from the mesa's, and its tabs are put in order by
+// dragging them, the same order as the mesa's (D-092).
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.37';
+  const VERSION = '1.38';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -709,6 +711,7 @@
     window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', sinEspacio, true); window.removeEventListener('blur', sinEspacio);
     window.removeEventListener('resize', fvDibujar); if (e.fvUrl) URL.revokeObjectURL(e.fvUrl);
     if (e.historia) guardarGuion(e);
+    { const box = e.el && e.el.querySelector('.lb-tray'), tr = box && box.querySelector('.lb-trs'); if (tr && box._vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr, tr, 'x', tr.getBoundingClientRect().left); }   // where its strip was (D-092)
     if (e.raf) cancelAnimationFrame(e.raf);
     if (e.tamRaf) cancelAnimationFrame(e.tamRaf);
     if (e.ro) e.ro.disconnect();
@@ -2949,11 +2952,16 @@
     tamBandeja();
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
-    const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;
+    // where each folder was, apart from the mesa's (D-092): kept before it shows another one, or closes, and gone back to
+    const vista = E.trOpen ? ((I().S || {}).client || '') + '|' + (I().trayCarpeta || '') : '', tr0 = box.querySelector('.lb-trs');
+    if (tr0 && box._vista && box._vista !== vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr0, tr0, 'x', tr0.getBoundingClientRect().left);
+    const sx = tr0 ? tr0.scrollLeft : 0;
     const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '') + (x.h ? ' · usada en una historia' : '');
     box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
       + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp${E.trCar.includes(c.id) ? ' elegida' : ''}" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
-    const tr = box.querySelector('.lb-trs'); if (tr) tr.scrollLeft = sx;
+    const tr = box.querySelector('.lb-trs');
+    if (tr && box._vista !== vista && I().dondeVolver) I().dondeVolver('e|' + vista, tr, tr, 'x', tr.getBoundingClientRect().left); else if (tr) tr.scrollLeft = sx;
+    box._vista = vista;
     if (perez && tr) I().minisPerezosas(tr);
   }
   // a photo used before (D-022): before it goes onto slide i, its nearest use — this slide (without the element excl it
@@ -3190,6 +3198,7 @@
     if (E === owner && r && r.puestas && !r.sobran) I().toast(`${r.puestas === 1 ? 'Foto puesta' : `${r.puestas} fotos puestas`} en la diapositiva ${E.i + 1}. Quedan en la bandeja hasta que apliques.`);
   }
   function arrastrarBandeja(e) {     // a tray photo dragged onto the slide or onto a slide of the strip (a click puts it on the open one)
+    if (E && !E.busy && e.target.closest('.cptab') && I().pestArrastrar) { const owner = E; I().pestArrastrar(e, () => { if (E !== owner) return; E.noClick = true; setTimeout(() => { if (E === owner) E.noClick = false; }, 0); }); return; }   // its tabs, into another order (D-092)
     const b = e.target.closest('.lb-tph, .lb-tcarp'); if (!b || e.button !== 0 || !E || E.busy) return;
     const cf = b.classList.contains('lb-tcarp') ? b.dataset.id : null, f = b.dataset.f, x0 = e.clientX, y0 = e.clientY, owner = E; let g = null, gn = null;
     const lote = cf || E.trSel.includes(f) ? (cf && !E.trCar.includes(cf) ? [] : [...E.el.querySelectorAll('.lb-tph')].map(q => q.dataset.f).filter(q => E.trSel.includes(q))) : [f];   // one of the chosen takes them all, in the tray's order

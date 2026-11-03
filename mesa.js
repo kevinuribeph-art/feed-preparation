@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.75'; // 3.75: a slider like the Finder's makes the tray's photos bigger or smaller, in the mesa and in the editor (libre.js 1.37); its middle is the size of always, remembered in this browser (D-091). 3.74: an empty design that was never applied (left by opening the designer and closing it) is dropped when its board opens: no «cambios sin aplicar» on a post nobody designed (D-090). 3.73: the post view loses its designer button: «Editar …» is its only design button and applies a design with changes before opening (D-089); diseno.js keeps loading and M.diseno answers as before. 3.72: ⌘E with a post open does what its «Editar …» does, on the slide being seen (D-088). 3.71: the month's step to Programado carries everything approved but the reels, which are marked by hand (calendario.js 1.5, D-087). 3.70: the contexto no longer decides a post's state: a photo takes it from Por empezar to Captions (calendario.js 1.4, D-086). 3.69: the month's step bar carries the posts and warns only of what stays behind (calendario.js 1.3, D-085): a post can be put back by hand to Por empezar, Captions or Por aprobar (s.estado.v), where the bar never moves it; IndexedDB 8, export v7. 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.76'; // 3.76: the tray's tabs and route stay in sight under its head while it scrolls; each folder goes back to where it was, per client, by its first photo in sight, until the mesa reloads; tabs are put in order by dragging them, in the mesa and in the editor (libre.js 1.38, D-092). 3.75: a slider like the Finder's makes the tray's photos bigger or smaller, in the mesa and in the editor (libre.js 1.37); its middle is the size of always, remembered in this browser (D-091). 3.74: an empty design that was never applied (left by opening the designer and closing it) is dropped when its board opens: no «cambios sin aplicar» on a post nobody designed (D-090). 3.73: the post view loses its designer button: «Editar …» is its only design button and applies a design with changes before opening (D-089); diseno.js keeps loading and M.diseno answers as before. 3.72: ⌘E with a post open does what its «Editar …» does, on the slide being seen (D-088). 3.71: the month's step to Programado carries everything approved but the reels, which are marked by hand (calendario.js 1.5, D-087). 3.70: the contexto no longer decides a post's state: a photo takes it from Por empezar to Captions (calendario.js 1.4, D-086). 3.69: the month's step bar carries the posts and warns only of what stays behind (calendario.js 1.3, D-085): a post can be put back by hand to Por empezar, Captions or Por aprobar (s.estado.v), where the bar never moves it; IndexedDB 8, export v7. 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1934,10 +1934,11 @@
 #mesa .btn2:hover{border-color:#bdbdbd}
 #mesa .btn2.danger{color:var(--red);border-color:#efc2c2}
 #mesa .tbody{padding:0 12px 24px}
-#mesa .cpnav{padding:0 12px 8px;font-size:12.5px}
+#mesa .cpnav{position:sticky;top:var(--thh,51px);z-index:2;padding:0 12px 8px;font-size:12.5px;background:inherit}
 #mesa .cpfila{display:flex;align-items:center;gap:6px;min-height:28px}#mesa .cpfila+.cpfila{margin-top:6px}
 #mesa .cptabs{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none}#mesa .cptabs::-webkit-scrollbar{display:none}
-#mesa .cptab{display:inline-flex;flex:none;align-items:center;max-width:150px;height:26px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--mute);font-size:12px}
+#mesa .cptab{display:inline-flex;flex:none;align-items:center;max-width:150px;height:26px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--mute);font-size:12px;user-select:none;-webkit-user-select:none}
+#mesa .cptabs.ordenando .cptab:not(.arrastrada){transition:transform .15s}#mesa .cptab.arrastrada{position:relative;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:grabbing}#mesa .cptab.arrastrada button{cursor:grabbing}
 #mesa .cptab.on{border-color:var(--ink);color:var(--ink);font-weight:600}#mesa .cptab:hover{border-color:#bdbdbd}#mesa .cptab.on:hover{border-color:var(--ink)}#mesa .cptab.over,#mesa .cpruta button.over,#mesa .cpvolver.over{outline:2px dashed var(--acc);outline-offset:1px}
 #mesa .cptab button{border:0;background:none;padding:0 8px;height:100%;font:inherit;color:inherit;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .cptab .cpx{flex:none;padding:0 6px 0 0;font-size:14px;line-height:1;color:var(--mute)}#mesa .cptab .cpx:hover{color:var(--ink)}
@@ -2151,7 +2152,7 @@
 #mesa .tgrid{height:64px;grid-auto-flow:column;grid-template-columns:none;grid-template-rows:64px;grid-auto-columns:48px;gap:5px}
 #mesa .titem{border-radius:5px}#mesa .titem .x{top:2px;right:2px}#mesa .tname{padding:8px 3px 2px;font-size:8.5px}
 #mesa .tcarpeta{gap:1px;padding:3px 2px;border-radius:5px}#mesa .tcarpeta svg{width:18px;height:18px}#mesa .tcarpeta .cn{font-size:9px}#mesa .tcarpeta .cf{display:none}
-#mesa .cpnav{padding:0 10px 4px}#mesa .cpfila{min-height:26px}#mesa .cpfila+.cpfila{margin-top:3px}
+#mesa .cpnav{position:static;z-index:auto;padding:0 10px 4px;background:none}#mesa .cpfila{min-height:26px}#mesa .cpfila+.cpfila{margin-top:3px}
 }
 #mesa .appbar .xfer{align-self:center}
 #mesa .xsum{list-style:none;margin:0 0 10px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
@@ -2238,6 +2239,7 @@
     const cn = (CL.find(x => x.id === curClient) || {}).name || '';
     const mode = S ? 'board:' + S.key : CL.length ? 'empty-client:' + curClient + ':' + cn : 'no-clients';
     if (mode !== mainMode) {
+      { const t = main.querySelector('.tray'); if (t) trayDonde(t); }   // the place of the folder it showed (D-092)
       mainMode = mode;
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
@@ -2248,7 +2250,8 @@
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
-        watchFeed(); tamVigilar(); tamAplicar();
+        watchFeed(); tamVigilar(); tamAplicar(); fijoAlto();
+        { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
         main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
@@ -2600,6 +2603,56 @@
   }
   function pestCerrar(id) { pestQuitar(id); pestVer(); }
   const pestNombre = p => { const c = p.carpeta && S ? (S.carpetas || []).find(x => x.id === p.carpeta) : null; return p.id === 'fija' || !c ? 'Bandeja' : c.name; };
+  function pestOrdenar(ids) {          // a new order, the fixed one always first; kept where the tabs are kept (D-092)
+    const por = new Map(pestanas.map(p => [p.id, p])), l = ids.filter(x => x !== 'fija').map(x => por.get(x)).filter(Boolean);
+    if (l.length !== pestanas.length - 1 || new Set(l).size !== l.length) return false;   // the tabs changed meanwhile
+    pestanas = [pestanas[0], ...l];
+    pestVer();
+    return true;
+  }
+  // Ordering the tabs with the mouse (D-092), in the mesa and in the editor: the one carried follows the mouse along its row,
+  // the others step aside, and it stays where it is let go. «Bandeja», the fixed one, is always the first and is not carried;
+  // the × only closes. A click without moving still changes tab. Not a step of ⌘Z: the tabs are not the board's.
+  // alSoltar: once a real drag ends, so that its click chooses nothing.
+  let pestMov = null;
+  function pestArrastrar(e, alSoltar) {
+    const tab = e.button === 0 && !pestMov && e.target.closest && !e.target.closest('.cpx') ? e.target.closest('.cptab') : null, b = tab && tab.querySelector('button[data-id]');
+    if (!b || b.dataset.id === 'fija' || !tab.parentElement) return false;
+    const fila = tab.parentElement, id = b.dataset.id, x0 = e.clientX, y0 = e.clientY, s0 = fila.scrollLeft;
+    const idDe = t => (t.querySelector('button[data-id]') || { dataset: {} }).dataset.id;
+    let on = false, ts = [], rs = [], k = -1, to = -1, paso = 0;
+    const mv = ev => {
+      if (ev.pointerId !== e.pointerId) return;
+      if (!on) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+        ts = [...fila.children].filter(t => t.classList.contains('cptab')); k = to = ts.indexOf(tab);
+        if (k < 1) { fin(false)(ev); return; }
+        on = true; pestMov = tab;
+        rs = ts.map(t => t.getBoundingClientRect());
+        paso = rs[k].width + Math.max(0, k + 1 < ts.length ? rs[k + 1].left - rs[k].right : rs[k].left - rs[k - 1].right);   // its width and the gap
+        tab.classList.add('arrastrada'); fila.classList.add('ordenando');
+      }
+      ev.preventDefault();
+      const fr = fila.getBoundingClientRect();
+      if (ev.clientX < fr.left + 20) fila.scrollLeft -= 8; else if (ev.clientX > fr.right - 20) fila.scrollLeft += 8;   // a row longer than its place
+      const d = ev.clientX - x0 + fila.scrollLeft - s0, c = rs[k].left + rs[k].width / 2 + d;   // its middle where the mouse takes it, even past the ends
+      tab.style.transform = `translateX(${Math.max(rs[1].left - rs[k].left, Math.min(rs[ts.length - 1].right - rs[k].right, d))}px)`;   // drawn within the row
+      to = 1; ts.forEach((t, i) => { if (i > 0 && i !== k && rs[i].left + rs[i].width / 2 < c) to++; });   // its place: after the ones whose middle it passed
+      ts.forEach((t, i) => { if (i === k) return; const d = k < to && i > k && i <= to ? -paso : to < k && i >= to && i < k ? paso : 0; t.style.transform = d ? `translateX(${d}px)` : ''; });
+    };
+    const fin = drop => ev => {
+      if (ev.pointerId !== e.pointerId) return;
+      document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true);
+      if (!on) return;
+      on = false; pestMov = null;
+      fila.classList.remove('ordenando'); tab.classList.remove('arrastrada'); ts.forEach(t => { t.style.transform = ''; });
+      if (alSoltar) alSoltar();
+      if (drop && to !== k) { const ids = ts.map(idDe); ids.splice(k, 1); ids.splice(to, 0, id); pestOrdenar(ids); }
+    };
+    const up = fin(true), cancel = fin(false);
+    document.addEventListener('pointermove', mv, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);
+    return true;
+  }
   // ---------- moving and copying in the tray (D-077) ----------
   // Dragging moves; ⌘C / ⌘V copies: the same file in two folders, never more bytes. Both change only S.carpetas and go through
   // changed(), so each is one step of ⌘Z. The clipboard is the tray's own and knows its client (D-041). ⌘C and ⌘V act only
@@ -2704,6 +2757,45 @@
     if (c0) { const t = new Set(S.tray); return c0.files.filter(f => t.has(f)); }
     const enC = enCarpetas(S.carpetas); return S.tray.filter(f => !enC.has(f));
   }
+  // ---------- where each folder was (D-092) ----------
+  // Per client and folder (the root counts as one), until the mesa reloads: the first photo or folder in sight, not the
+  // pixels, so it holds when the size changes (D-091) or photos come and go; if that one is gone, the next that is still
+  // there. The tray (up and down), its strip in a narrow window and the editor's strip each keep their own. A folder not
+  // seen yet starts at the top. borde: where the view starts, under what stays fixed.
+  const donde = new Map();
+  const dondeId = t => t.dataset.file || t.dataset.f ? 'f:' + (t.dataset.file || t.dataset.f) : t.dataset.id ? 'c:' + t.dataset.id : '';
+  function dondeGuardar(clave, sc, lista, eje, borde) {
+    if (!sc.clientWidth || !sc.clientHeight) return;   // not laid out: what it had stays
+    const ts = [...lista.children].filter(dondeId), y = eje === 'y';
+    let lo = 0, hi = ts.length;                         // the first one more than half past the edge: tiles go in order
+    while (lo < hi) { const m = (lo + hi) >> 1, r = ts[m].getBoundingClientRect(); if ((y ? r.top + r.height / 2 : r.left + r.width / 2) > borde) hi = m; else lo = m + 1; }
+    if (!lo || !ts.length) donde.delete(clave); else donde.set(clave, ts.slice(Math.min(lo, ts.length - 1)).map(dondeId));
+  }
+  function dondeVolver(clave, sc, lista, eje, borde) {
+    if (!sc.clientWidth || !sc.clientHeight) return false;
+    const l = donde.get(clave), ts = [...lista.children].filter(dondeId), y = eje === 'y';
+    let el = null;
+    if (l && ts.length) { const por = new Map(ts.map(t => [dondeId(t), t])); el = l.map(k => por.get(k)).find(Boolean) || ts[ts.length - 1]; }
+    if (!el || el === ts[0]) { if (y) sc.scrollTop = 0; else sc.scrollLeft = 0; return true; }
+    const r = el.getBoundingClientRect();
+    if (y) sc.scrollTop += r.top - borde; else sc.scrollLeft += r.left - borde;
+    return true;
+  }
+  function trayDonde(tray, volver) {   // the mesa's tray: up and down under its tabs and route, or its narrow strip
+    const g = tray.querySelector('.tgrid'); if (!g || !g._vista) return;
+    const n = NARROW.matches, sc = n ? tray.querySelector('.tbody') : tray, nav = tray.querySelector('.cpnav'); if (!sc || !nav) return;
+    const borde = n ? sc.getBoundingClientRect().left + parseFloat(getComputedStyle(sc).paddingLeft) : nav.getBoundingClientRect().bottom;
+    if (!volver) dondeGuardar((n ? 'h|' : 'v|') + g._vista, sc, g, n ? 'x' : 'y', borde);
+    else g._volver = !dondeVolver((n ? 'h|' : 'v|') + g._vista, sc, g, n ? 'x' : 'y', borde);   // hidden now: once it shows
+  }
+  let dondeT = 0;
+  function dondeAlDeslizar() {         // also kept a moment after it scrolls: a tray hidden later («Vista cliente») can't tell
+    clearTimeout(dondeT); dondeT = setTimeout(() => { const t = root && root.querySelector('.tray'); if (t) trayDonde(t); }, 150);
+  }
+  function fijoAlto() {                // the tabs and the route stay right under the tray's head (D-092)
+    const tray = root && root.querySelector('.tray'), h = tray && tray.querySelector('.trayhead'), a = h ? h.getBoundingClientRect().height : 0;
+    if (a && tray.style.getPropertyValue('--thh') !== a + 'px') tray.style.setProperty('--thh', a + 'px');
+  }
   // ---------- the size of the tray's photos (D-091) ----------
   // A slider like the Finder's, in the tray's head: its middle is the size of always (columns of 92 px at least), its left
   // end 46 px and its right end three photos a row in the tray's width of now, in two straight stretches. Its place is
@@ -2729,17 +2821,19 @@
     w.hidden = br.left - fr.right < TAM_ANCHO + 28;
   }
   let tamRO = null;
-  function tamVigilar() {              // the panel's width: the right end is three a row of it (after the change: no loop)
-    if (tamRO) { tamRO.disconnect(); tamRO = null; }
+  function tamVigilar() {              // the panel's width: the right end is three a row of it (after the change: no loop);
+    if (tamRO) { tamRO.disconnect(); tamRO = null; }   // the head's height, for the tabs under it, and a folder's place to go back to once it shows (D-092)
     const tray = root.querySelector('.tray'); if (!tray || typeof ResizeObserver !== 'function') return;
     let raf = 0;
-    tamRO = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { tamAplicar(); tamColocar(); }); });
-    tamRO.observe(tray);
+    tamRO = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { tamAplicar(); tamColocar(); fijoAlto(); const g = tray.querySelector('.tgrid'); if (g && g._volver) trayDonde(tray, true); }); });
+    tamRO.observe(tray); tamRO.observe(tray.querySelector('.trayhead'));
   }
   function tamCambiar(r, p) { if (p != null) r.value = p; lsSet(LS_TAM, String(Math.round(+r.value))); tamAplicar(); }
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
+    const vista = S.client + '|' + (trayCarpeta || ''), otra = tray.querySelector('.tgrid')._vista !== vista;
+    if (otra) trayDonde(tray);   // where the folder it shows was, before it shows another (D-092)
     const todas = trayTodas(), vis = bandejaVista({ todas }), n = vis.filter(x => !x.u).length;
     { const tc = tray.querySelector('.tcount'), t = todas ? `${n} sin usar · ${vis.length - n} ✓` : n ? `${n} sin usar` : 'vacía'; if (tc.textContent !== t || !tc._tam) { tc.textContent = t; tc._tam = true; tamColocar(); } }   // the size slider goes where there is room
     tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
@@ -2756,6 +2850,7 @@
       grid.innerHTML = html; grid._html = perez ? html : null;
       if (perez) minisPerezosas(grid);
     }
+    if (otra) { grid._vista = vista; trayDonde(tray, true); }   // and where the one it shows now was
     if (perez) grid.querySelectorAll('.titem').forEach(x => x.classList.toggle('sel', x.dataset.file === sel));
     { const ven = new Set(vis.map(x => x.f)); traySel.forEach(f => { if (!ven.has(f)) traySel.delete(f); }); const cv = new Set(carpetasDeVista().map(c => c.id)); traySelC.forEach(c => { if (!cv.has(c)) traySelC.delete(c); }); }
     marcarTray();
@@ -3339,7 +3434,7 @@
     const pc = t.closest('.cell.past[data-prev]'); if (pc) return { from: 'prev', prevId: pc.dataset.prev, el: pc };
     return null;
   }
-  let pd = null, pdNoClick = false, pdHold = null, stripNoClick = false;   // stripNoClick: a thumbnail of the post view was just dragged   // the mouse drag in progress (pd.on once it really moves); pdHold: a cancelled one still pressed
+  let pd = null, pdNoClick = false, pdHold = null, stripNoClick = false, pestNoClick = false;   // stripNoClick: a thumbnail of the post view was just dragged; pestNoClick: a tray tab was just carried (D-092)   // the mouse drag in progress (pd.on once it really moves); pdHold: a cancelled one still pressed
   function pdDown(e) {
     pdHold = null;
     if (e.button !== 0 || e.ctrlKey || e.pointerType === 'touch' || pd || drag || !S || locked) return;
@@ -3394,7 +3489,12 @@
     let box = t && t.closest ? t.closest('.feed, .tray') : null;
     if (!box) box = [...root.querySelectorAll('.feed, .tray')].find(b => { const r = b.getBoundingClientRect(); return x >= r.left && x < r.right && (y < r.top || y >= r.bottom); }) || null;
     if (!box) return { box: null, sv: 0 };
-    const b = box.getBoundingClientRect(), hd = box.querySelector('.legend, .trayhead'), top = hd && hd.offsetParent ? Math.max(b.top, hd.getBoundingClientRect().bottom) : b.top;
+    const b = box.getBoundingClientRect(), hd = box.querySelector('.legend, .trayhead'), nav = !NARROW.matches && box.querySelector('.cpnav');
+    let top = hd && hd.offsetParent ? Math.max(b.top, hd.getBoundingClientRect().bottom) : b.top;
+    if (nav && nav.offsetParent) {     // the tabs and the route stay in sight (D-092): the zone starts under them, and over them nothing scrolls
+      const n = nav.getBoundingClientRect(); if (y >= n.top && y < n.bottom && x >= n.left && x < n.right) return { box, sv: 0 };
+      top = Math.max(top, n.bottom);
+    }
     if (y < top + E) return { box, sv: -speed(top + E - y) };
     if (y > b.bottom - E) return { box, sv: speed(y - b.bottom + E) };
     return { box, sv: 0 };
@@ -3518,7 +3618,9 @@
     document.addEventListener('pointerdown', M._trayFoco, true);
     document.addEventListener('pointerdown', M._pd.down, true); document.addEventListener('contextmenu', M._pd.cancel, true);
     document.addEventListener('pointermove', M._pd.move, true); document.addEventListener('pointerup', M._pd.up, true); document.addEventListener('pointercancel', M._pd.cancel, true); window.addEventListener('blur', M._pd.cancel);
-    root.addEventListener('click', e => { if (pdNoClick || stripNoClick) { pdNoClick = false; stripNoClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    root.addEventListener('click', e => { if (pdNoClick || stripNoClick || pestNoClick) { pdNoClick = false; stripNoClick = false; pestNoClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    // the tray's tabs, carried into another order (D-092): nothing else of a drag happens on them (see dragSource)
+    root.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.tray .cptab')) pestArrastrar(e, () => { pestNoClick = true; setTimeout(() => { pestNoClick = false; }, 0); }); });
     // the post view's thumbnails (a carousel's or a Foto's pages, not a designed post's) are dragged into another place
     root.addEventListener('pointerdown', e => {
       const th = e.button === 0 && e.target.closest && e.target.closest('.detail .card.post .strip .th[data-act="pick"]'); if (!th) return;
@@ -5173,7 +5275,7 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
-    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
+    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
@@ -5206,6 +5308,7 @@
   };
   M._test.removeFile = removeFile;
   M._test.vaciarClip = () => { trayClip = null; };
+  M._test.olvidarDonde = () => { donde.clear(); };   // each test starts as a mesa just loaded: no folder seen yet (D-092)
   M._test.borrarBandeja = async c => {  // the battery starts each test with an empty tray: months no longer take it away (D-072)
     const r = await idbGet('bandejas', c);
     if (S && S.client === c) { S.tray = []; S.carpetas = carpetasBien(); }

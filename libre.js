@@ -89,11 +89,12 @@
 // v1.20 (mesa 3.46): a text's frame, handles and click are its lines', not its box (D-043): as wide as its longest line,
 // where its alignment draws it; the box's width still says where they break. A frame of the list's proportion, the photo
 // not cropped by it, has its button on in «Proporción del marco» instead of the proportion written under it (D-044).
+// The tray's size (v1.37, mesa 3.75): a slider at the foot, by «?», makes its photos 36 to 144 px, still one row (D-091).
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.36';
+  const VERSION = '1.37';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -709,6 +710,7 @@
     window.removeEventListener('resize', fvDibujar); if (e.fvUrl) URL.revokeObjectURL(e.fvUrl);
     if (e.historia) guardarGuion(e);
     if (e.raf) cancelAnimationFrame(e.raf);
+    if (e.tamRaf) cancelAnimationFrame(e.tamRaf);
     if (e.ro) e.ro.disconnect();
     for (const b of e.bm.values()) if (b.im && b.im.close) b.im.close();
     if (e.inert) e.inert.forEach(c => c.removeAttribute('inert'));
@@ -993,6 +995,8 @@
 #mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:2px 8px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
 #mesa .lb-tcarp{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink)}#mesa .lb-tcarp span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
+#mesa .lb-tray.tam-on .lb-tph,#mesa .lb-tray.tam-on .lb-tcarp{width:var(--tw)}#mesa .lb-tray.tam-on .lb-tcarp svg{width:clamp(14px,calc(var(--tw) * .361),48px);height:auto}#mesa .lb-tray.tam-on .lb-tcarp span{font-size:clamp(8px,calc(var(--tw) * .146),13px)}
+#mesa .lb-foot .ttam{right:52px}
 #mesa .lb-trh .lb-trt{display:inline-flex;vertical-align:middle;max-width:50%;margin-right:8px}#mesa .lb-trh .lb-trt .cptab{height:22px}
 #mesa .lb-trv{width:24px;height:22px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--panel);line-height:1}
 #mesa .lb-tph.elegida,#mesa .lb-tcarp.elegida{outline:3px solid var(--acc);outline-offset:-3px}#mesa .lb-tcarp.over,#mesa .lb-trv.over,#mesa .lb-tray .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}
@@ -1128,6 +1132,7 @@
       + '<div class="lb-fl" role="toolbar" aria-label="Elemento elegido" hidden></div><div class="lb-rat" hidden></div></div></div>'
       + '<p class="lb-hint" aria-live="polite" hidden></p>'
       + `<div class="lb-tray" id="lb-tray" hidden></div><div class="lb-foot"><button type="button" class="lb-trb" data-lb="bandeja" aria-expanded="false" aria-controls="lb-tray" title="Bandeja: sus fotos, para ponerlas en la diapositiva"><span class="lb-trn">Bandeja</span>${FLECHA}</button>`
+      + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div>`
       + `<button type="button" class="lb-help" data-lb="atajos" aria-label="Atajos de teclado" aria-expanded="false" title="Atajos de teclado">?</button><div class="lb-atajos" role="dialog" aria-label="Atajos de teclado" hidden>${ATAJOS}</div></div></section>`
       + '<aside class="lb-panel"></aside></div><div class="lb-all" hidden></div><div class="lb-menu lb-cm" role="menu" aria-label="Fuera de la diapositiva" hidden></div><input type="file" class="lb-logoin" accept="image/png,image/webp,image/jpeg" multiple hidden>';
     root.append(el);
@@ -1141,7 +1146,7 @@
     const gn = el.querySelector('textarea.lb-guion');
     if (gn) { altoGuion(gn); gn.addEventListener('input', () => altoGuion(gn)); gn.addEventListener('change', () => { if (E) guardarGuion(E); }); }
     window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', sinEspacio, true); window.addEventListener('blur', sinEspacio);
-    E.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => pedir()) : null;
+    E.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { pedir(); if (E) { cancelAnimationFrame(E.tamRaf); E.tamRaf = requestAnimationFrame(tamBandeja); } }) : null;   // the slider's room and the narrow window (D-091)
     if (E.ro) E.ro.observe(E.scroll);
     todo();
   }
@@ -2770,6 +2775,10 @@
     });
     el.addEventListener('pointerdown', e => { if (E && E.cambio && (e.target !== E.cv || e.button !== 0)) { salirCambio(); if (E.scroll.contains(e.target)) e.stopPropagation(); } }, true);   // a click outside the slide cancels «Intercambiar»
     el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); });
+    { const r = el.querySelector('.lb-foot .ttam input'); let raton = false;   // let go with the mouse, it gives the keys back to the editor
+      r.addEventListener('pointerdown', () => { raton = true; }); r.addEventListener('keydown', () => { raton = false; });
+      r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) r.blur(); });
+      r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.pl; if (!k) return; if (e.target.open) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(',')); }, true);
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
@@ -2912,6 +2921,21 @@
     const vista = I().bandejaVista ? I().bandejaVista({ todas, sin: E.slotId, mas: uso }).filter(x => !isKit(x.f)) : E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f)).map(f => ({ f, u: uso.has(f) }));
     return [...[...E.vuelven].filter(f => M.files[f] && !uso.has(f) && !vista.some(x => x.f === f)).map(f => ({ f, u: false })), ...vista];   // a photo another took the place of is back in the tray at once, not only when it is applied
   }
+  // the size of its photos (D-091): a slider like the mesa's, at the foot by «?» while the tray is open and there is room;
+  // its middle is the size of always (72 px), its ends 36 and 144 px, still one row. Remembered apart from the mesa's
+  const LS_TAM = 'mesa-lb-bandeja-tamano', TAM_MED = 72, TAM_ANCHO = 104;
+  const tamPos = () => { const v = lsLeer(LS_TAM), n = v == null || v === '' ? 50 : Math.round(+v); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 50; };
+  const estrecha = () => !!(window.matchMedia && matchMedia('(max-width:720px)').matches);   // the mesa's strip: no slider
+  function tamBandeja() {
+    if (!E || !E.el) return;
+    const box = E.el.querySelector('.lb-tray'), w = E.el.querySelector('.lb-foot .ttam'), p = tamPos(), angosta = estrecha();
+    const px = angosta ? TAM_MED : Math.floor(p <= 50 ? TAM_MED / 2 + TAM_MED / 2 * p / 50 : TAM_MED + TAM_MED * (p - 50) / 50);
+    if (px === TAM_MED) { box.style.removeProperty('--tw'); box.classList.remove('tam-on'); } else { box.style.setProperty('--tw', px + 'px'); box.classList.add('tam-on'); }
+    if (!w) return;
+    const fr = w.parentNode.getBoundingClientRect(), br = E.el.querySelector('.lb-trb').getBoundingClientRect();
+    w.hidden = !E.trOpen || angosta || fr.right - 52 - TAM_ANCHO - 12 < br.right;
+  }
+  function tamCambiar(r, p) { if (p != null) r.value = p; lsPoner(LS_TAM, String(Math.round(+r.value))); tamBandeja(); }
   function bandeja() {               // drawn again only when it shows something else
     if (!E || !E.el) return;
     const todas = !!(I().trayTodas && I().trayTodas()), box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(todas), n = fs.filter(x => !x.u).length, uso = enUso();
@@ -2922,6 +2946,7 @@
     const pest = I().pestLista ? I().pestLista() : [];   // its tabs, the same as the mesa's (D-076): shown once there is more than the fixed one
     const carps = I().carpetasDeVista ? I().carpetasDeVista() : [], ruta = I().rutaCarpeta ? I().rutaCarpeta() : [], perez = fs.length > (I().MINIS_DE_UNA || 80);   // the tray's folders, the same as the mesa's (D-075)
     const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + E.trCar.join(',') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
+    tamBandeja();
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
     const sx = (box.querySelector('.lb-trs') || {}).scrollLeft || 0;

@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.74'; // 3.74: an empty design that was never applied (left by opening the designer and closing it) is dropped when its board opens: no «cambios sin aplicar» on a post nobody designed (D-090). 3.73: the post view loses its designer button: «Editar …» is its only design button and applies a design with changes before opening (D-089); diseno.js keeps loading and M.diseno answers as before. 3.72: ⌘E with a post open does what its «Editar …» does, on the slide being seen (D-088). 3.71: the month's step to Programado carries everything approved but the reels, which are marked by hand (calendario.js 1.5, D-087). 3.70: the contexto no longer decides a post's state: a photo takes it from Por empezar to Captions (calendario.js 1.4, D-086). 3.69: the month's step bar carries the posts and warns only of what stays behind (calendario.js 1.3, D-085): a post can be put back by hand to Por empezar, Captions or Por aprobar (s.estado.v), where the bar never moves it; IndexedDB 8, export v7. 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
+  M.version = '3.75'; // 3.75: a slider like the Finder's makes the tray's photos bigger or smaller, in the mesa and in the editor (libre.js 1.37); its middle is the size of always, remembered in this browser (D-091). 3.74: an empty design that was never applied (left by opening the designer and closing it) is dropped when its board opens: no «cambios sin aplicar» on a post nobody designed (D-090). 3.73: the post view loses its designer button: «Editar …» is its only design button and applies a design with changes before opening (D-089); diseno.js keeps loading and M.diseno answers as before. 3.72: ⌘E with a post open does what its «Editar …» does, on the slide being seen (D-088). 3.71: the month's step to Programado carries everything approved but the reels, which are marked by hand (calendario.js 1.5, D-087). 3.70: the contexto no longer decides a post's state: a photo takes it from Por empezar to Captions (calendario.js 1.4, D-086). 3.69: the month's step bar carries the posts and warns only of what stays behind (calendario.js 1.3, D-085): a post can be put back by hand to Por empezar, Captions or Por aprobar (s.estado.v), where the bar never moves it; IndexedDB 8, export v7. 3.68: the calendar's legend is the month's step bar (calendario.js 1.2, D-084): the open board keeps its step (S.paso), one ⌘Z step with what it changes; IndexedDB 7, export v6. 3.67: ⌘+click on cells chooses posts and «Descargar (n)» takes their pieces away as JPG or ZIP, with or without texts, at Original, 1440 or 1080 px (descargar.js, D-083). 3.66: the cell's marks in one row by its date — Programado, Publicado, No aprobado and one mark of changes that says what changed on hover — instead of the old dots; a new state «No aprobado» and the reason of a cancellation (D-081, D-082). 3.65: a story's arrows and ← → go through the whole month, with its day and place in sight and a mark when the day changes (D-080). 3.64: in the stories' view a post's thumbnail says its type and opens its preview, read only (D-079). 3.63: a photo put on a story that has one asks «1 · Sustituir» or «2 · Añadir», in the view and in its editor (D-078). 3.62: the tray's photos and folders move by dragging and copy with ⌘C / ⌘V and the right click, chosen with ⌘+click, and ⌘Z undoes both (D-077). 3.61: the tray's tabs, remembered per client, and the folders' right-click menu with «Borrar carpeta…» (D-076). 3.60: folders come in: a folder dragged or chosen, «+ Carpeta», going in and back, and each photo written with its folder in one transaction (carpetas.js, D-074, D-075). 3.59: folders in the tray's data, a fixed «Historias», deleting a folder and its bytes, the orphans' report; months no longer take the tray away (D-069 to D-073). 3.58: a hole's preview fills the cell, its label square and see-through (D-067); the post view's right column scrolls as one (D-068). 3.57: a story's dialog with its image big, ⌘E and ⌘D, arrows through its day; the note in the editor; stories in «Vista cliente» (D-064 to D-066)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1922,6 +1922,12 @@
 #mesa .trayhead .tcount{min-width:0}#mesa .trayhead .btn{white-space:nowrap}
 #mesa .tfil{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
 #mesa .tfil button{border:0;background:none;padding:2px 9px;font:inherit;font-size:12px;color:var(--mute);cursor:pointer}#mesa .tfil button.on{background:var(--ink);color:#fff}
+#mesa .ttam{position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:6px;color:var(--faint)}#mesa .ttam[hidden]{display:none}
+#mesa .ttam i{flex:none;box-sizing:border-box;border:1.5px solid currentColor;border-radius:2px}#mesa .ttam i:first-child{width:8px;height:10px}#mesa .ttam i:last-child{width:11px;height:14px}
+#mesa .ttam input{width:72px;height:16px;margin:0;padding:0;-webkit-appearance:none;appearance:none;background:linear-gradient(var(--faint),var(--faint)) center/1px 8px no-repeat;cursor:pointer}
+#mesa .ttam input::-webkit-slider-runnable-track{height:2px;border-radius:1px;background:var(--line)}#mesa .ttam input::-moz-range-track{height:2px;border-radius:1px;background:var(--line)}
+#mesa .ttam input::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:12px;height:12px;margin-top:-5px;border:1px solid #b5b5b5;border-radius:50%;background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.15)}#mesa .ttam input::-moz-range-thumb{box-sizing:border-box;width:12px;height:12px;border:1px solid #b5b5b5;border-radius:50%;background:var(--panel)}
+#mesa .ttam input:hover::-webkit-slider-thumb{border-color:var(--ink)}#mesa .ttam input:hover::-moz-range-thumb{border-color:var(--ink)}#mesa .ttam input:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
 #mesa .hs{position:absolute;bottom:22px;left:5px;width:14px;height:14px;border-radius:50%;border:2.5px solid #d6249f;background:rgba(0,0,0,.35);box-sizing:border-box;pointer-events:none}
 #mesa .titem.uso::after{content:'✓';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px;line-height:18px;text-align:center;pointer-events:none}
 #mesa .btn2{border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:13px;padding:6px 11px}
@@ -1951,12 +1957,14 @@
 #mesa .tcarpeta:hover{border-color:#bdbdbd}#mesa .tcarpeta.over{outline:2px dashed var(--acc);outline-offset:-2px}
 #mesa .tcarpeta .cn{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
 #mesa .tcarpeta .cf{font-size:10.5px;color:var(--mute);line-height:1.25}
+#mesa .tray.tam-chica .tname,#mesa .tray.tam-chica .tcarpeta .cf{display:none}#mesa .tray.tam-chica .titem .x{top:2px;right:2px;width:20px;height:20px;font-size:14px;line-height:20px}
+#mesa .tray.tam-on .tcarpeta{gap:clamp(1px,calc(var(--tw) * .033),4px);padding:clamp(3px,calc(var(--tw) * .065),8px) clamp(1px,calc(var(--tw) * .03),5px)}#mesa .tray.tam-on .tcarpeta svg{width:clamp(16px,calc(var(--tw) * .283),52px);height:auto}#mesa .tray.tam-on .tcarpeta .cn{font-size:clamp(9px,calc(var(--tw) * .13),14px)}
 #mesa .cpprog{margin:0 12px 8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12px;color:var(--mute)}
 #mesa .cpprog .cpt{display:flex;align-items:center;gap:8px}#mesa .cpprog .cptx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .cpprog .btn2{flex:none;font-size:12px;padding:3px 8px}
 #mesa .cpbar{height:4px;margin-top:6px;border-radius:2px;background:var(--line);overflow:hidden}#mesa .cpbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 #mesa .drop{border:1.5px dashed #c7c7c7;border-radius:10px;padding:14px;text-align:center;color:var(--mute);font-size:12.5px;margin-bottom:10px;background:var(--panel)}
-#mesa .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+#mesa .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tw,92px),1fr));gap:6px}
 #mesa .titem{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:#efefef;cursor:default;user-select:none;-webkit-user-select:none}
 #mesa .titem img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 #mesa .titem.sel{outline:3px solid var(--acc);outline-offset:-3px}
@@ -2235,11 +2243,12 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
-          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button></div><div class="cpnav"></div>'
+          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button>'
+          + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
-        watchFeed();
+        watchFeed(); tamVigilar(); tamAplicar();
       } else if (CL.length) {
         const c = CL.find(x => x.id === curClient);
         main.innerHTML = `<div class="empty"><div class="ecard">${ICON.grid}<h3>${esc(c ? c.name : 'Elige un cliente')}${c ? ': aún no hay ningún mes en la mesa' : ''}</h3>Los meses se cargan desde Notion, con las publicaciones del calendario ya creado. Pídeselo a Claude en el chat:<br><span class="say">«Carga ${esc(nextMonthName(c && c.cycleDay))} de ${esc(c ? c.name : 'este cliente')} en la mesa»</span></div></div>`;
@@ -2695,11 +2704,44 @@
     if (c0) { const t = new Set(S.tray); return c0.files.filter(f => t.has(f)); }
     const enC = enCarpetas(S.carpetas); return S.tray.filter(f => !enC.has(f));
   }
+  // ---------- the size of the tray's photos (D-091) ----------
+  // A slider like the Finder's, in the tray's head: its middle is the size of always (columns of 92 px at least), its left
+  // end 46 px and its right end three photos a row in the tray's width of now, in two straight stretches. Its place is
+  // remembered in this browser (the editor keeps its own); in the middle nothing changes. A narrow window keeps its strip.
+  const LS_TAM = 'mesa-bandeja-tamano', TAM_MIN = 46, TAM_MED = 92, TAM_ANCHO = 104;
+  const tamPos = () => { const v = lsGet(LS_TAM), n = v == null || v === '' ? 50 : Math.round(+v); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 50; };
+  function tamPx(p, ancho) {           // the narrowest column for place p (0–100) in a grid ancho px wide (gaps of 6 px)
+    if (p <= 50) return Math.floor(TAM_MIN + (TAM_MED - TAM_MIN) * p / 50);
+    return Math.floor(TAM_MED + (Math.max(TAM_MED, Math.floor((ancho - 12) / 3)) - TAM_MED) * (p - 50) / 50);
+  }
+  function tamAplicar() {
+    const tray = root && root.querySelector('.tray'), g = tray && tray.querySelector('.tgrid'); if (!g) return;
+    const p = tamPos(), px = NARROW.matches || p === 50 ? TAM_MED : tamPx(p, p > 50 ? g.clientWidth : 0);
+    if (px === TAM_MED) { tray.style.removeProperty('--tw'); tray.classList.remove('tam-on', 'tam-chica'); return; }
+    tray.style.setProperty('--tw', px + 'px'); tray.classList.add('tam-on'); tray.classList.toggle('tam-chica', px < TAM_MED);
+  }
+  function tamColocar() {              // left of «Añadir fotos», only where there is room: it never moves nor covers anything
+    const h = root && root.querySelector('.tray .trayhead'), w = h && h.querySelector('.ttam'); if (!w) return;
+    const b = h.querySelector('.btn'), f = h.querySelector('.tfil'), hr = h.getBoundingClientRect();
+    if (NARROW.matches || !b || !f || !hr.width) { w.hidden = true; return; }
+    const br = b.getBoundingClientRect(), fr = f.getBoundingClientRect();
+    w.style.right = Math.round(hr.right - br.left + 14) + 'px';
+    w.hidden = br.left - fr.right < TAM_ANCHO + 28;
+  }
+  let tamRO = null;
+  function tamVigilar() {              // the panel's width: the right end is three a row of it (after the change: no loop)
+    if (tamRO) { tamRO.disconnect(); tamRO = null; }
+    const tray = root.querySelector('.tray'); if (!tray || typeof ResizeObserver !== 'function') return;
+    let raf = 0;
+    tamRO = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { tamAplicar(); tamColocar(); }); });
+    tamRO.observe(tray);
+  }
+  function tamCambiar(r, p) { if (p != null) r.value = p; lsSet(LS_TAM, String(Math.round(+r.value))); tamAplicar(); }
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
     const todas = trayTodas(), vis = bandejaVista({ todas }), n = vis.filter(x => !x.u).length;
-    tray.querySelector('.tcount').textContent = todas ? `${n} sin usar · ${vis.length - n} ✓` : n ? `${n} sin usar` : 'vacía';
+    { const tc = tray.querySelector('.tcount'), t = todas ? `${n} sin usar · ${vis.length - n} ✓` : n ? `${n} sin usar` : 'vacía'; if (tc.textContent !== t || !tc._tam) { tc.textContent = t; tc._tam = true; tamColocar(); } }   // the size slider goes where there is room
     tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     tray.classList.toggle('isempty', !vis.length && !carpetasDeVista().length);   // a view with only folders is not empty: in a narrow window «empty» hides the grid
     const enHueco = new Set([...previewsOf(S), ...usoPrevO]);   // on a filler: it comes off there, not from the tray (D-049)
@@ -3512,6 +3554,7 @@
     root.addEventListener('pointerover', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'), id = p ? p.dataset.memo : null; if (id !== hov.id) hov = { id, t: Date.now() }; });
     root.addEventListener('pointerout', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'); if (p && !(e.relatedTarget && p.contains(e.relatedTarget))) hov = { id: null, t: 0 }; });
     root.addEventListener('dblclick', e => {
+      if (e.target.matches && e.target.matches('.trayhead .ttam input')) { tamCambiar(e.target, 50); e.target.blur(); return; }   // back to the middle (D-091)
       const p = e.target.closest && e.target.closest('.feed .pit[data-memo]');
       if (!p || p.classList.contains('edit') || sel || !pitOpen(p.dataset.memo)) return;
       e.preventDefault(); editMemo(p.dataset.memo);
@@ -3526,7 +3569,7 @@
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
       const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
-      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab')) traySoltar();   // a click without ⌘ does what it always did and empties the choice
+      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab, .ttam')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
       const a = e.target.closest('[data-act]');
       if (a) { onAct(a, e); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
@@ -3565,6 +3608,7 @@
       }
       else if (e.target.matches('.pitin')) { setMemo(e.target.dataset.slot, e.target.value); fitPit(e.target); }
       else if (e.target.matches('.esmot')) setMotivo(e.target.dataset.slot, e.target.value);
+      else if (e.target.matches('.trayhead .ttam input')) tamCambiar(e.target);
       else if (e.target.matches('.zoomr')) {
         flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
         const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaZoom) M.diseno.vistaZoom(+e.target.value); return; }
@@ -3582,6 +3626,7 @@
         save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot);
       }
       else if (e.target.matches('.pwhen input')) onWhen(e.target);
+      else if (e.target.matches('.trayhead .ttam input')) { if (!kbd) e.target.blur(); }   // let go with the mouse: the keys go back where they went
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
@@ -3673,7 +3718,7 @@
     };
     document.addEventListener('keydown', M._onKey);
     if (M._mq && M._onMq) { try { M._mq.removeEventListener('change', M._onMq); } catch (e) { /* */ } }
-    M._mq = NARROW; M._onMq = () => { if (shellReady()) renderTabs(); };
+    M._mq = NARROW; M._onMq = () => { if (shellReady()) { renderTabs(); tamAplicar(); tamColocar(); } };
     try { NARROW.addEventListener('change', M._onMq); } catch (e) { /* old engines */ }
     if (M._onResize) window.removeEventListener('resize', M._onResize);
     M._onResize = () => { layoutStage(); fitCaps(root.querySelector('.detail')); if (ig) openIG(ig.id, ig.idx); };

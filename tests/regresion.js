@@ -6170,6 +6170,258 @@
   });
 
   // =====================================================================================================
+  // Tamaño de las fotos de la bandeja (D-091)
+  // =====================================================================================================
+  const LS_TAM = 'mesa-bandeja-tamano', LS_TAM_ED = 'mesa-lb-bandeja-tamano';
+  const barra = () => q('.trayhead .ttam'), barraEd = () => ed() && ed().el.querySelector('.lb-foot .ttam');
+  const visto = el => !!el && !el.closest('[hidden]') && W.getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
+  // la barra de tamaño a v, como al soltarla (no es la deslizar del panel del editor)
+  function aTam(b, v) { const r = b.querySelector('input'); r.value = v; r.dispatchEvent(new W.Event('input', { bubbles: true })); r.dispatchEvent(new W.Event('change', { bubbles: true })); }
+  const dobleClic = b => b.querySelector('input').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+  const columnas = () => W.getComputedStyle(q('.tray .tgrid')).gridTemplateColumns.split(' ').length;
+  const tw = () => q('.tray').style.getPropertyValue('--tw');
+  const cajas = sel => qa(sel).map(e => e.getBoundingClientRect());
+  // un mes con fotos en la bandeja: una horizontal (H), dos en un carrusel (✓ con «Todas») y una en una carpeta
+  async function bandejaTam(n = 12) {
+    W.localStorage.removeItem(LS_TAM); W.localStorage.removeItem(LS_TAM_ED);
+    await tablero([pub(1, 'Carrusel'), pub(2), pub(3)]);
+    const fs = []; for (let i = 0; i < n; i++) fs.push(await foto(`t${i}.jpg`, i === 2 ? 1600 : 900, i === 2 ? 1000 : 1200));
+    const ids = await M.addFiles(fs);
+    ok(ids.length === n, 'no entraron las fotos');
+    M._test.place('r1', ids[0]); M._test.place('r1', ids[1]);
+    const c = M.crearCarpeta('Carpeta T');
+    M._in.trayMover({ files: [ids[n - 1]] }, c.id, null);
+    await M.flush(); M._in.trayAbrir(null); M._in.renderTray();
+    q('.tray').scrollTop = 0;
+    await hasta(() => visto(barra()), 3000, 'la barra en la cabecera de la bandeja');
+    return { ids, c };
+  }
+  // la bandeja y el editor vuelven al tamaño de siempre, sin nada guardado
+  function sinTam() {
+    if (barra()) aTam(barra(), 50);
+    if (barraEd()) aTam(barraEd(), 50);
+    W.localStorage.removeItem(LS_TAM); W.localStorage.removeItem(LS_TAM_ED);
+    M._in.trayFiltro('sin'); M._in.traySoltar();
+  }
+  async function editorConBandeja(slotId = 'r1') {
+    await abrirEditor(slotId);
+    if (!ed().trOpen) accion('bandeja');
+    await hasta(() => visto(ed().el.querySelector('.lb-trs')), 3000, 'la bandeja del editor abierta');
+  }
+
+  prueba('T1', 'Sin nada guardado la barra sale en el centro y todo es como siempre: columnas de 92 px con nombre y «N fotos», 72 px en el editor; la barra no mueve ni tapa nada (D-091)', async () => {
+    const { c } = await bandejaTam();
+    try {
+      igual(+barra().querySelector('input').value, 50, 'la barra de la mesa no sale en el centro');
+      ok(!tw() && !q('.tray').classList.contains('tam-on'), 'la bandeja lleva un tamaño');
+      const g = q('.tray .tgrid'), w = g.clientWidth;
+      igual(columnas(), Math.floor((w + 6) / 98), 'las columnas no son las de 92 px');
+      const cs = cajas('.tray .tgrid > *');
+      ok(cs.every(b => b.width >= 92 && Math.abs(b.width - cs[0].width) < 0.6 && Math.abs(b.height - cs[0].height) < 0.6), 'fotos y carpetas no miden lo mismo');
+      ok(visto(q('.tray .titem .tname')) && visto(q(`.tcarpeta[data-id="${c.id}"] .cf`)), 'falta el nombre o el «N fotos»');
+      // la barra, entre «Sin usar / Todas» y «Añadir fotos»; quitarla no mueve nada de la cabecera
+      const h = q('.trayhead'), pos = () => [...h.children].filter(e => !e.classList.contains('ttam')).map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); });
+      const b = barra().getBoundingClientRect(), f = h.querySelector('.tfil').getBoundingClientRect(), a = h.querySelector('.btn').getBoundingClientRect();
+      ok(b.left > f.right && b.right < a.left, 'la barra pisa «Sin usar / Todas» o «Añadir fotos»');
+      const con = pos(); barra().hidden = true; const sin = pos(); barra().hidden = false;
+      igual(con, sin, 'la barra mueve la cabecera');
+      await editorConBandeja();
+      ok(visto(barraEd()) && +barraEd().querySelector('input').value === 50, 'la barra del editor no sale en el centro');
+      const es = cajas('.lb-tray .lb-tph, .lb-tray .lb-tcarp');
+      ok(es.length > 3 && es.every(x => Math.abs(x.width - 72) < 0.6 && Math.abs(x.height - 72) < 0.6), 'las fotos del editor no miden 72 px: ' + json(es.map(x => x.width)));
+      ok(!ed().el.querySelector('.lb-tray').classList.contains('tam-on'), 'la bandeja del editor lleva un tamaño');
+      const be = barraEd().getBoundingClientRect(), t = q('.lb-trb').getBoundingClientRect(), hp = q('.lb-help').getBoundingClientRect();
+      ok(be.left > t.right && be.right < hp.left, 'la barra del editor pisa «Bandeja» o «?»');
+      accion('bandeja'); ok(!visto(barraEd()), 'la barra del editor sigue con la bandeja cerrada');
+      accion('bandeja'); ok(visto(barraEd()), 'la barra del editor no vuelve con la bandeja');
+      M.libre.cerrar();
+    } finally { sinTam(); }
+  });
+
+  prueba('T2', 'Mesa: a la izquierda 46 px, sin nombre ni «N fotos» y con H, ✓, selección y ×; a la derecha 3 por fila, también al cambiar el ancho; dos tramos rectos; las carpetas cambian con las fotos (D-091)', async () => {
+    const { ids, c } = await bandejaTam();
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      M._in.trayFiltro('todas');
+      aTam(barra(), 0);
+      igual(W.localStorage.getItem(LS_TAM), '0', 'no se guardó');
+      const w = q('.tray .tgrid').clientWidth;
+      igual([tw(), columnas()], ['46px', Math.floor((w + 6) / 52)], 'a la izquierda');
+      let cs = cajas('.tray .tgrid > *');
+      ok(cs.every(b => b.width >= 46 && b.width < 52.5 && Math.abs(b.height - cs[0].height) < 0.6), 'fotos o carpetas fuera de 46 px: ' + json(cs.map(b => Math.round(b.width))));
+      ok(!visto(q('.tray .titem .tname')) && !visto(q(`.tcarpeta[data-id="${c.id}"] .cf`)), 'siguen el nombre o el «N fotos»');
+      const t = tile(c.id); ok(t.scrollHeight <= t.clientHeight + 1 && visto(t.querySelector('svg')) && visto(t.querySelector('.cn')), 'la carpeta no cabe en su casilla');
+      ok(visto(q('.tray .titem .hb')), 'falta la H');
+      ok(W.getComputedStyle(q('.tray .titem.uso'), '::after').content.includes('✓'), 'falta el ✓');
+      conCmd(titem(ids[3]));
+      ok(titem(ids[3]).classList.contains('elegida') && W.getComputedStyle(titem(ids[3])).outlineStyle === 'solid', 'no se marca lo elegido');
+      M._in.traySoltar();
+      const x = titem(ids[3]).querySelector('.x'); x.style.display = 'block';
+      const xr = x.getBoundingClientRect(), tr = titem(ids[3]).getBoundingClientRect(); x.style.display = '';
+      ok(xr.width >= 20 && xr.right <= tr.right && xr.top >= tr.top, 'la × no está o se sale');
+      ok(xr.bottom < tr.top + tr.height / 2 && xr.left > tr.left + tr.width / 2 - 1, 'la × tapa el centro de la foto: un clic la quitaría en vez de abrirla');
+      aTam(barra(), 25); igual(tw(), '69px', 'el tramo de la izquierda no es recto');
+      aTam(barra(), 100);
+      const tope = Math.floor((w - 12) / 3);
+      igual([tw(), columnas()], [tope + 'px', 3], 'a la derecha');
+      cs = cajas('.tray .tgrid > *');
+      ok(cs.every(b => Math.abs(b.width - cs[0].width) < 0.6 && Math.abs(b.height - cs[0].height) < 0.6), 'fotos y carpetas no miden lo mismo a la derecha');
+      ok(visto(q('.tray .titem .tname')) && visto(q(`.tcarpeta[data-id="${c.id}"] .cf`)), 'a la derecha falta el nombre o el «N fotos»');
+      aTam(barra(), 75); igual(tw(), Math.floor(92 + (tope - 92) / 2) + 'px', 'el tramo de la derecha no es recto');
+      aTam(barra(), 100);
+      fr.style.width = '1000px';
+      await hasta(() => q('.tray .tgrid').clientWidth < w - 100 && tw() === Math.floor((q('.tray .tgrid').clientWidth - 12) / 3) + 'px', 3000, 'el tope de 3 por fila con el ancho nuevo');
+      igual(columnas(), 3, '3 por fila con el ancho nuevo');
+      fr.style.width = w0;
+      await hasta(() => tw() === tope + 'px', 3000, 'el tope al volver al ancho');
+    } finally { fr.style.width = w0; sinTam(); }
+  });
+
+  prueba('T3', 'Editor: a la izquierda 36 px y a la derecha 144 px, siempre una fila, las carpetas con las fotos; se guarda aparte de la mesa (D-091)', async () => {
+    const { c } = await bandejaTam();
+    try {
+      await editorConBandeja();
+      for (const [v, px] of [[0, 36], [25, 54], [100, 144], [75, 108]]) {
+        aTam(barraEd(), v);
+        const es = cajas('.lb-tray .lb-tph, .lb-tray .lb-tcarp');
+        ok(es.every(x => Math.abs(x.width - px) < 0.6 && Math.abs(x.height - px) < 0.6), `en ${v} no miden ${px} px: ${json(es.map(x => Math.round(x.width)))}`);
+        ok(es.every(x => Math.abs(x.top - es[0].top) < 0.6), `en ${v} no es una fila`);
+        const k = ed().el.querySelector(`.lb-tcarp[data-id="${c.id}"]`); ok(k && visto(k.querySelector('svg')), `en ${v} la carpeta no se ve`);
+      }
+      igual([W.localStorage.getItem(LS_TAM_ED), W.localStorage.getItem(LS_TAM)], ['75', null], 'lo guardado');
+      aTam(barraEd(), 0);
+      ok(visto(ed().el.querySelector('.lb-tph .hb')), 'falta la H en el editor');
+      await espera(100); await dibujado();
+      const k0 = ed().k; aTam(barraEd(), 100);
+      await hasta(() => { M.libre._dibujar(); return ed().k < k0 - 0.005; }, 3000, 'que la diapositiva deje sitio a la bandeja más alta');
+      M.libre.cerrar();
+      ok(!tw(), 'el editor cambió la bandeja de la mesa');
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  prueba('T4', 'El tamaño se recuerda al recargar, uno en la mesa y otro en el editor, en este navegador: ni en el tablero ni en «Exportar» (D-091)', async () => {
+    await bandejaTam();
+    try {
+      aTam(barra(), 20);
+      await editorConBandeja(); aTam(barraEd(), 80); M.libre.cerrar();
+      await M.flush();
+      const g = await M._in.idbGet('boards', `${CLIENTE}-${MES}`);
+      ok(!/tama|"--tw"/.test(json(g)), 'el tamaño entró en el tablero');
+      const blob = await M.exportAll({ returnBlob: true });
+      ok(!/bandeja-tamano/.test(await blob.text()), 'el tamaño entró en la exportación');
+      await preparar();                              // recargar la mesa
+      if (!M.board() || M.board().key !== `${CLIENTE}-${MES}`) await M.open(`${CLIENTE}-${MES}`);
+      await hasta(() => barra(), 3000, 'la barra tras recargar');
+      igual([+barra().querySelector('input').value, tw()], [20, '64px'], 'la mesa no lo recuerda');
+      await editorConBandeja();
+      igual(+barraEd().querySelector('input').value, 80, 'el editor no lo recuerda');
+      const es = cajas('.lb-tray .lb-tph'); ok(es.every(x => Math.abs(x.width - 115) < 0.6), 'el editor no lo aplica: ' + json(es.map(x => x.width)));
+      M.libre.cerrar();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  prueba('T5', 'Doble clic en la barra vuelve al centro, en la mesa y en el editor; tocar la barra no suelta lo elegido (D-091)', async () => {
+    const { ids } = await bandejaTam();
+    try {
+      conCmd(titem(ids[3])); conCmd(titem(ids[4]));
+      aTam(barra(), 10);
+      barra().querySelector('input').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
+      igual(M._in.trayLote().files, [ids[3], ids[4]], 'la barra soltó lo elegido');
+      dobleClic(barra());
+      igual([+barra().querySelector('input').value, W.localStorage.getItem(LS_TAM), tw(), q('.tray').classList.contains('tam-on')], [50, '50', '', false], 'el doble clic no vuelve al centro');
+      igual(columnas(), Math.floor((q('.tray .tgrid').clientWidth + 6) / 98), 'las columnas no son las de siempre');
+      igual(M._in.trayLote().files, [ids[3], ids[4]], 'el doble clic soltó lo elegido');
+      M._in.traySoltar();
+      await editorConBandeja();
+      aTam(barraEd(), 90); dobleClic(barraEd());
+      igual([+barraEd().querySelector('input').value, W.localStorage.getItem(LS_TAM_ED)], [50, '50'], 'el doble clic del editor no vuelve al centro');
+      ok(cajas('.lb-tray .lb-tph').every(x => Math.abs(x.width - 72) < 0.6), 'el editor no vuelve a 72 px');
+      M.libre.cerrar();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  prueba('T6', 'En los dos extremos funcionan el clic con ← →, ⌘+clic, arrastrar a casilla, carpeta y pestaña, ⌘Z y soltar del ordenador, en la mesa y en el editor (D-091)', async () => {
+    const enEl = (el, fy = 0.5) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + Math.min(r.height * fy, 30)]; };
+    const arrastrar = (de, a) => {                   // con el ratón, de una foto de la bandeja a un punto de la mesa
+      const [x0, y0] = enEl(de); puntero('pointerdown', de, x0, y0);
+      puntero('pointermove', D, x0 + 8, y0 + 8); puntero('pointermove', D, a[0], a[1]); puntero('pointerup', D, a[0], a[1]);
+    };
+    const soltarArchivo = async (en, nombre) => { const dt = new W.DataTransfer(); dt.items.add(await foto(nombre, 900, 1200)); en.dispatchEvent(new W.DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); };
+    const conNombre = (fs, n) => fs.some(x => M.files[x] && M.files[x].name === n);
+    try {
+      for (const v of [0, 100]) {
+        // ---- la mesa ----
+        const { ids, c: k } = await bandejaTam(), f = ids.slice(2, -1);
+        aTam(barra(), v); q('.tray').scrollTop = 0;
+        ok(v ? columnas() === 3 : tw() === '46px', `la bandeja no está en ${v}`);
+        titem(f[0]).click();
+        await hasta(() => dialogo() && dialogo().dataset.dlg === 'trayview', 2000, `en ${v}, la foto en grande`);
+        const n0 = dialogo().dataset.file; tecla('ArrowRight'); await espera(30);
+        ok(dialogo().dataset.file !== n0, `en ${v}, → no pasa a la siguiente`);
+        tecla('ArrowLeft'); await espera(30); igual(dialogo().dataset.file, n0, `en ${v}, ← no vuelve`);
+        M._in.closeDetail();
+        conCmd(titem(f[1])); conCmd(titem(f[2])); conCmd(tile('historias'));
+        igual(M._in.trayLote(), { files: [f[1], f[2]], carpetas: ['historias'] }, `en ${v}, ⌘+clic`);
+        M._in.traySoltar();
+        conCmd(titem(f[1])); conCmd(titem(f[2]));
+        arrastrar(titem(f[1]), enEl(tile(k.id), 0.2));
+        await hasta(() => carp(k.id).files.includes(f[1]) && carp(k.id).files.includes(f[2]), 3000, `en ${v}, arrastrar las elegidas a la carpeta`);
+        M._test.undo(); await hasta(() => !carp(k.id).files.includes(f[1]) && !carp(k.id).files.includes(f[2]), 2000, `en ${v}, ⌘Z`);
+        M._in.traySoltar();
+        arrastrar(titem(f[3]), enEl(celda('r2')));
+        await hasta(() => slot('r2').photos.includes(f[3]), 3000, `en ${v}, arrastrar a la casilla`);
+        M._in.pestNueva(k.id); M._in.pestIr('fija'); M._in.renderTray();
+        arrastrar(titem(f[4]), enEl(q('.cptab:not(.fija) button')));
+        await hasta(() => carp(k.id).files.includes(f[4]), 3000, `en ${v}, arrastrar a la pestaña`);
+        await soltarArchivo(q('.tray .tgrid'), `t6-${v}a.jpg`);
+        await hasta(() => conNombre(M._in.bandejaVista({ carpeta: null }).map(x => x.f), `t6-${v}a.jpg`), 4000, `en ${v}, soltar del ordenador en la bandeja`);
+        await soltarArchivo(tile(k.id), `t6-${v}b.jpg`);
+        await hasta(() => conNombre(carp(k.id).files, `t6-${v}b.jpg`), 4000, `en ${v}, soltar del ordenador en la carpeta`);
+        M._in.clearToasts(); sinTam();
+        // ---- el editor ----
+        const [a, b, e3, e4] = await conHuecos([HV('v1'), HV('v2', 0.5)], [V(`t6${v}a.jpg`), V(`t6${v}b.jpg`), V(`t6${v}c.jpg`), V(`t6${v}d.jpg`)]);
+        const cid = M.crearCarpeta('Carpeta E').id;
+        await hasta(() => visto(barraEd()), 2000, `en ${v}, la barra del editor`);
+        aTam(barraEd(), v); await dibujado();
+        ok(Math.abs(miniatura(a).getBoundingClientRect().width - (v ? 144 : 36)) < 0.6, `el editor no está en ${v}`);
+        conMeta(a); conMeta(b);
+        igual(elegidas(), [a, b], `en ${v}, ⌘+clic en el editor`);
+        arrastrarDeBandeja(a, 0.2, 0.5);
+        await hasta(() => (enCapa('v1', a) || enCapa('v2', a)) && (enCapa('v1', b) || enCapa('v2', b)), 4000, `en ${v}, las dos elegidas a sus huecos`);
+        miniatura(e3).click();
+        await hasta(() => compDe(1).els.some(x => x.src === e3), 4000, `en ${v}, clic: a la diapositiva`);
+        await hasta(() => miniatura(e4) && ed().el.querySelector(`.lb-tcarp[data-id="${cid}"]`), 2000, `en ${v}, la carpeta en el cajón`);
+        { const m = miniatura(e4), r = m.getBoundingClientRect(), [x1, y1] = enEl(ed().el.querySelector(`.lb-tcarp[data-id="${cid}"]`));
+          puntero('pointerdown', m, r.left + 5, r.top + 5); puntero('pointermove', D, x1, y1); puntero('pointerup', D, x1, y1); }
+        await hasta(() => carp(cid).files.includes(e4), 3000, `en ${v}, arrastrar a una carpeta del cajón`);
+        await soltarArchivo(ed().el.querySelector('.lb-trs'), `t6-${v}c.jpg`);
+        await hasta(() => [...ed().el.querySelectorAll('.lb-tph')].some(x => M.files[x.dataset.f] && M.files[x.dataset.f].name === `t6-${v}c.jpg`), 4000, `en ${v}, soltar del ordenador en la bandeja del editor`);
+        M.libre.cerrar(); M._in.clearToasts(); sinTam();
+      }
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  prueba('T7', 'Con la ventana a 720 px o menos no hay barra y la tira sigue de 48 × 64, aunque haya un tamaño guardado; la rueda la sigue desplazando (D-091)', async () => {
+    await bandejaTam(30);
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      aTam(barra(), 0); await editorConBandeja(); aTam(barraEd(), 100); M.libre.cerrar();
+      fr.style.width = '700px';
+      await hasta(() => W.innerWidth <= 720 && !visto(barra()) && !tw(), 3000, 'sin barra en la ventana estrecha');
+      const cs = cajas('.tray .tgrid > *'); ok(cs.every(b => Math.abs(b.width - 48) < 0.6 && Math.abs(b.height - 64) < 0.6), 'la tira no es de 48 × 64: ' + json(cs.map(b => [b.width, b.height])));
+      ok(visto(q('.tray .titem .tname')), 'la tira perdió el nombre');
+      const tb = q('.tray .tbody'), x0 = tb.scrollLeft, r = tb.getBoundingClientRect();
+      rueda(tb, r.left + 20, r.top + 20, 120); ok(tb.scrollLeft > x0, 'la rueda no desplaza la tira');
+      await editorConBandeja();
+      await hasta(() => !visto(barraEd()), 2000, 'sin barra en el editor estrecho');
+      ok(cajas('.lb-tray .lb-tph').every(x => Math.abs(x.width - 72) < 0.6), 'el editor estrecho no usa 72 px');
+      M.libre.cerrar();
+      fr.style.width = w0;
+      await hasta(() => visto(barra()) && tw() === '46px', 3000, 'la barra y el tamaño al volver a ensanchar');
+    } finally { fr.style.width = w0; if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  // =====================================================================================================
   // ejecución
   // =====================================================================================================
   const filas = $('filas');

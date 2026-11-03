@@ -4421,7 +4421,13 @@
     ok(!('carpetas' in d.bandejas[0]) && d.boards.every(b => !('carpetas' in b)), 'el archivo lleva carpetas');
     ok(!d.files[l] && !d.files[g], 'el archivo lleva fotos sin usar de las carpetas');
     ok(d.files[u] && d.files[h] && d.files[r0], 'al archivo le faltan las usadas o la raíz');
-    const exp = await M.exportAll();
+    // la descarga, interceptada: la batería no deja archivos en Descargas; todo se restaura
+    const LS = 'mesa-export-descarga', antes = W.localStorage.getItem(LS);
+    let exp;
+    try {
+      W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
+      ok(await conDescarga(async () => { exp = await M.exportAll(); }), 'exportar no hizo la descarga');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
     igual(exp.carpetasFuera, 2, 'las carpetas que no viajan');
     await hasta(() => /2 carpetas de la bandeja no viajan/.test(M._in.root().textContent), 4000, 'el aviso de las carpetas');
     M._in.closeDetail();

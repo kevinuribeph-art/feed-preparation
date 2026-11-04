@@ -240,6 +240,8 @@
   const newId = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const slugify = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24) || 'cliente';
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // waiting for a module that loads on its own (async script): until listo() or until it failed to load (D-115), at most ms
+  const esperar = async (listo, mod, ms = 5000) => { for (let t = 0; !listo() && (window.MESA_CARGA || {})[mod] !== 'fallo' && t < ms; t += 100) await new Promise(r => setTimeout(r, 100)); return !!listo(); };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
   // a slot's design (diseno.js) holds its source photos (slides[].src) and its rendered outputs (out): both are in use
@@ -3200,7 +3202,7 @@
   // the free editor loads on its own (async script): «Editar …» waits for it a few seconds; a script that failed is said at once
   async function waitLibre(id, k, opts) {
     const failed = () => (window.MESA_CARGA || {}).libre === 'fallo', B = S;
-    if (!failed()) { toast('Cargando el editor…'); for (let i = 0; i < 150 && !(M.libre && M.libre.abrir) && !failed(); i++) await new Promise(r => setTimeout(r, 100)); }
+    if (!failed()) { toast('Cargando el editor…'); await esperar(() => M.libre && M.libre.abrir, 'libre', 15000); }
     if (M.libre && M.libre.abrir) { if (S === B && slot(id)) M.libre.abrir(id, k, opts); }
     else toast('El editor no está cargado: recarga la página.');
   }
@@ -5420,7 +5422,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

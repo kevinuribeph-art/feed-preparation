@@ -31,10 +31,9 @@
   const nDe = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
   // libre.js and diseno.js load on their own (async): wait for them a little
-  const C = () => window.MESA_CARGA || {}, pausa = () => new Promise(r => setTimeout(r, 100));
-  async function listos() { for (let i = 0; i < 50 && !(M.libre && M.libre.rev) && C().libre !== 'fallo'; i++) await pausa(); }
+  const listos = () => I().esperar(() => M.libre && M.libre.rev, 'libre');
   async function margenDe(cid) {               // the kit's margin, a fraction of the width (0: no kit, or none in it)
-    for (let i = 0; i < 50 && !M.diseno && C().diseno !== 'fallo'; i++) await pausa();
+    await I().esperar(() => M.diseno, 'diseno');
     if (!(M.diseno && M.diseno.kit) || !cid) return 0;
     try { const k = await M.diseno.kit(cid); return k && k.lienzo && +k.lienzo.margen > 0 ? +k.lienzo.margen / (+k.lienzo.ancho || 1080) : 0; } catch (e) { return 0; }
   }

@@ -112,7 +112,7 @@
     } finally { bmp.close(); }
   }
   const sinTextos = c => ({ ...c, els: (c.els || []).filter(e => e && e.t !== 'texto' && e.t !== 'logo') });   // «Solo la foto»
-  async function libreLista() { for (let i = 0; i < 50 && !(M.libre && M.libre.pieza) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100)); return !!(M.libre && M.libre.pieza); }
+  const libreLista = () => I().esperar(() => M.libre && M.libre.pieza, 'libre');
   // o: {textos, ancho: 'orig' | '1440' | '1080'} → {blob, w, h}
   async function pieza(s, fid, o) {
     const X = I(), f = M.files[fid]; if (!f) throw new Error('la foto no está en la mesa');

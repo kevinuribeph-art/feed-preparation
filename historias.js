@@ -163,7 +163,7 @@
     const S = X.S, list = [].concat(items ?? []);
     let fondos = null;
     if (list.some(it => it && it.fondo)) {
-      for (let i = 0; i < 50 && !(M.libre && M.libre.fondosKit) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100));
+      await X.esperar(() => M.libre && M.libre.fondosKit, 'libre');
       fondos = M.libre && M.libre.fondosKit ? await M.libre.fondosKit(S.client) : null;
       X = I(); if (!X || X.S !== S) return { error: 'la mesa cambió mientras se cargaban: vuelve a intentarlo' };
     }
@@ -224,7 +224,7 @@
   const elBase = { rot: 0, op: 1, lock: false, sh: 0 };
   const MUESTRA = { titular: 'Titular de la historia', etiqueta: 'Etiqueta', texto: 'Texto de la historia.', dato: '85 %' };
   const camposDe = p => [...(p.foto ? ['foto'] : []), ...(p.bloque || []).map(b => b.campo), ...(p.fila ? ['serie'] : [])];
-  const cargaLibre = async () => { for (let i = 0; i < 50 && !(M.libre && M.libre.hist && M.libre.rev && M.diseno) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100)); return !!(M.libre && M.libre.hist && M.libre.rev); };
+  const cargaLibre = async () => { await I().esperar(() => M.libre && M.libre.hist && M.libre.rev && M.diseno, 'libre'); return !!(M.libre && M.libre.hist && M.libre.rev); };
 
   // t = the kit's «historias» with its fonts resolved and one template in t.p; d = the fields. {comp, avisos}
   async function componer(t, d, logo) {

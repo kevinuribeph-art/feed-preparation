@@ -292,7 +292,7 @@
   // the engine loads on its own (async script): wait for it a little before saying it isn't there
   async function motor() {
     if ((window.MESA_CARGA || {}).motor !== 'fallo' && I() && I().toast) I().toast('Cargando el motor de diseño…');
-    for (let i = 0; i < 150 && !(ENG() && ENG().usarKit) && (window.MESA_CARGA || {}).motor !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100));
+    await I().esperar(() => ENG() && ENG().usarKit, 'motor', 15000);
     return ENG();
   }
   async function engineKit(cid, fresh) {

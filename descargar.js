@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';
+  const VERSION = '1.2';
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)

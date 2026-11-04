@@ -2997,7 +2997,7 @@
         + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «${edLabel(s)}»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
       const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
-        + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img src="${M.files[f].thumbUrl}" alt=""></button>`).join('')}</div>` : '') + '</div>' : '';
+        + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img ${tr.length > MINIS_DE_UNA ? `data-mini="${esc(f)}"` : `src="${M.files[f].thumbUrl}"`} alt=""></button>`).join('')}</div>` : '') + '</div>' : '';   // a long tray: thumbnails as they come into sight (B8)
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"${live ? ' data-live="1"' : ''}><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${live ? '<canvas class="dzv" hidden></canvas>' : ''}<div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
@@ -3019,6 +3019,7 @@
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
           ${capsHTML(s)}
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    d.querySelectorAll('.cpick .strip').forEach(minisPerezosas);   // «Cambiar portada» with a long tray (B8)
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;

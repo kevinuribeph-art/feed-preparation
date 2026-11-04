@@ -7643,6 +7643,21 @@
     igual(hDe(id).photos, [b], 'la historia perdió su imagen');
   });
 
+  prueba('M53', '«Cambiar portada» con una bandeja larga carga las miniaturas a medida que se ven, como la bandeja (B8)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('m53-p.jpg', 120, 150)]);
+    const fs = []; for (let i = 0; i < 120; i++) fs.push(await foto(`m53-${i}.jpg`, 40, 50, `hsl(${i * 3},50%,50%)`));
+    await M.addFiles(fs, null, { tray: true });
+    M._in.openDetail('r1', 0);
+    await pulsar('.detail [data-act="pickcover"]');
+    const tira = await hasta(() => q('.detail .cpick .strip'), 3000, 'la tira de «Cambiar portada»');
+    const n = qa('.detail .cpick .strip img').length;
+    ok(n >= 120, 'la tira no tiene la bandeja: ' + n);
+    const conSrc = qa('.detail .cpick .strip img[src^="blob:"]').length;
+    ok(conSrc <= 80, `la tira cargó ${conSrc} miniaturas de golpe`);
+    M._in.closeDetail();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -7562,6 +7562,65 @@
     M._in.closeDetail();
   });
 
+  // ---------- cierre de la auditoría, lote 4 (mesa 3.87): baratos ----------
+  prueba('M50', 'Un botón o un formulario que fallan lo dicen: «Editar cliente» con la escritura rechazada enseña el error en el diálogo, y un botón que falla avisa «No se pudo» (D-113)', async () => {
+    await tablero([pub(1)]);
+    const u0 = M.updateClient;
+    const pulsa = (act, ds = {}) => { const b = D.createElement('button'); b.type = 'button'; b.hidden = true; b.dataset.act = act; Object.assign(b.dataset, ds); M._in.root().append(b); b.click(); b.remove(); };
+    try {
+      pulsa('editclient');
+      const f = await hasta(() => q('form[data-form="editclient"]'), 3000, 'el diálogo de «Editar cliente»');
+      M.updateClient = async () => { throw new Error('QuotaExceededError simulado'); };
+      f.requestSubmit();
+      await hasta(() => { const e = f.querySelector('.ferr'); return e && !e.hidden && /No se pudo/.test(e.textContent); }, 3000, 'el error en el diálogo');
+      M._in.closeDetail(); M._in.clearToasts();
+      const r0 = M.removeClient;
+      M.removeClient = async () => { throw new Error('fallo M50'); };   // «Eliminar cliente» ya confirmado
+      try { pulsa('delclient', { confirm: '1' }); await hasta(() => toastCon(/No se pudo: .*fallo M50/), 3000, 'el aviso del botón que falla'); }
+      finally { M.removeClient = r0; }
+    } finally { M.updateClient = u0; M._in.closeDetail(); }
+  });
+
+  prueba('M51', 'La pregunta «Sustituir / Añadir» de la mesa no se contesta con ⌘1 / ⌘2, Ctrl, ⌥ ni con la tecla mantenida; con 1 o 2 a secas, sí (D-078, D-114)', async () => {
+    await tablero([pub(1)]);
+    let r;
+    M._in.askModoHistoria(v => { r = v; });
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'addmode', 3000, 'la pregunta');
+    for (const o of [{ meta: true }, { ctrl: true }, { alt: true }]) { tecla('2', o); await espera(20); }
+    D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: '1', repeat: true, bubbles: true, cancelable: true })); await espera(20);
+    ok(r === undefined && dialogo() && dialogo().dataset.dlg === 'addmode', 'la pregunta se contestó con un atajo: ' + r);
+    tecla('2'); await espera(30);
+    igual(r, 'anadir', 'el 2 a secas no contestó «Añadir»');
+  });
+
+  prueba('M52', 'Cada módulo dice que cargó entero (MESA_CARGA «ok»), y uno que lanza un error al ejecutarse queda en «fallo» y no en «Cargando…» (D-115)', async () => {
+    await tablero([pub(1)]);
+    const C = () => W.MESA_CARGA || {};
+    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
+    // un módulo que llega pero falla al ejecutarse: el aviso de la mesa (index.html) lo marca «fallo»
+    W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
+    igual(C().revisar, 'ok', 'un error después de cargar marcó «fallo» a un módulo que ya estaba');
+    delete C().revisar;
+    W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
+    igual(C().revisar, 'fallo', 'un error al ejecutarse no marcó el módulo');
+    C().revisar = 'ok';
+  });
+
+  prueba('D20', 'El zoom de una diapositiva diseñada movido antes de que su vista esté lista no se queda marcando un zoom que la foto no tiene (E12)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d20a.jpg', 4000, 5000), await foto('d20b.jpg', 1080, 1350)], textos('D20', 'Portada', 'Ficha'));
+      const f = slot('r1').design.slides[0].src;
+      M._in.openDetail('r1', 0);
+      const z = q('.detail .zoomr'), st = q('.detail .stage');
+      ok(z && st && st.dataset.live, 'la ventana no tiene la vista en vivo del diseño');
+      z.value = '2'; z.dispatchEvent(new W.Event('input', { bubbles: true }));   // en el mismo instante: la vista aún se prepara
+      const zc = (((M._in.S.crops || {})[f]) || {}).z || 1;
+      cerca(+z.value, zc, 0.001, 'el control marca un zoom que la foto no tiene');
+      M._in.closeDetail();
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -28,7 +28,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '1.4';
+  const VERSION = '1.5';
   const TIPOS = ['portada', 'ficha', 'final', 'reel'];
   // Alto mínimo de la zona analizada (y anclaje del velo) en px a factor 1: el de motor.py.
   const ALTO_ANALISIS = { ficha: 400, final: 480 };
@@ -1872,4 +1872,5 @@
       cortesSilabicos, segmentosSinEspacio
     }
   };
+  if (typeof window !== 'undefined') (window.MESA_CARGA = window.MESA_CARGA || {}).motor = 'ok';   // it ran to the end (D-115)
 })(typeof window !== 'undefined' ? window : globalThis);

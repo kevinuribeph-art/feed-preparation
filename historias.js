@@ -35,10 +35,10 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.9';
+  const VERSION = '1.10';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
@@ -639,4 +639,5 @@
     _off: () => { EV.forEach(([t, f, c]) => document.removeEventListener(t, f, c)); if (mv) { if (mv.ghost) mv.ghost.remove(); mv = null; } }
   };
   if (I() && I().shellReady && I().shellReady()) { render(); I().renderBar(); }   // the mesa may have drawn its board before this file arrived
+  (window.MESA_CARGA = window.MESA_CARGA || {}).historias = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

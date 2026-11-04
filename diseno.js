@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.10';
+  const VERSION = '1.11';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -852,7 +852,7 @@
   }
 
   // the element a rebuilt part of the editor should give the focus back to
-  const cssv = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssv = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   function focusKey(el) {
     if (!el || !el.dataset) return null;
     if (el.dataset.dz) return `[data-dz="${cssv(el.dataset.dz)}"]` + (el.dataset.v != null ? `[data-v="${cssv(el.dataset.v)}"]` : '') + (el.dataset.f != null ? `[data-f="${cssv(el.dataset.f)}"]` : '') + (el.dataset.i != null ? `[data-i="${cssv(el.dataset.i)}"]` : '');
@@ -1613,4 +1613,5 @@
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so
   { const S = I() && I().S; if (S) retipoPendientes(); if (S && S.slots.some(s => s.design)) prepararKits(S).then(() => { if (I() && I().S === S) { I().render(); I().refreshDetail(); } }).catch(() => {}); }
+  (window.MESA_CARGA = window.MESA_CARGA || {}).diseno = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

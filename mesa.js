@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.86'; // 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.87'; // 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -225,7 +225,7 @@
   }
 
   // ---------- helpers ----------
-  const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
   const isCarousel = t => t === 'Carrusel' || t === 'Foto';         // a Foto works as a carousel (3.26): one photo or several pages, all published
@@ -3366,6 +3366,11 @@
     showDialog('howmonth', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Añadir otro mes</h3><p>Los meses se cargan desde Notion con las publicaciones del calendario (nombre, fecha, hora y tipo exactos), para que al subir las fotos cada una vaya a su página. Pídeselo a Claude en el chat:</p><p style="color:var(--ink);font-size:14px;margin:12px 0 4px">«Carga ${n1} de ${cn} en la mesa»</p><p>Si ya tienes preparados dos meses, pídelos juntos y se preparan en la misma mesa, con el mes anterior debajo: «Carga ${n1} y ${n2} de ${cn} en la mesa». Las fechas y horas se pueden cambiar aquí; al subir a Notion se cambian allí.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
   }
   const normHandle = h => { h = String(h || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@+/, ''); return h ? '@' + h : ''; };
+  // what failed in a button or a form says so (D-113): a write refused (disk full, a newer tab) no longer looks like a button
+  // that does nothing; and anything else that fails without a catch, too
+  const msgDe = e => String((e && e.message) || e || 'error desconocido');
+  const fallo = e => { try { console.error(e); } catch (x) { /* */ } toast('No se pudo: ' + msgDe(e), { ms: 8000, key: 'fallo' }); };
+  window.addEventListener('unhandledrejection', e => { if (shellReady()) fallo(e.reason); });
   async function submitForm(form) {
     const kind = form.dataset.form, err = form.querySelector('.ferr');
     const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle.value), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : '1';
@@ -3774,7 +3779,7 @@
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
       if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab, .ttam')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
       const a = e.target.closest('[data-act]');
-      if (a) { onAct(a, e); return; }
+      if (a) { onAct(a, e).catch(fallo); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
       if (!S) return;
       const ti = e.target.closest('.titem[data-file]');
@@ -3799,7 +3804,10 @@
         openDetail(id, 0);
       }
     });
-    root.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-form]'); if (f) submitForm(f); });
+    root.addEventListener('submit', e => {
+      e.preventDefault(); const f = e.target.closest('form[data-form]'); if (!f) return;
+      submitForm(f).catch(x => { const err = f.isConnected && f.querySelector('.ferr'); if (err) { err.textContent = 'No se pudo guardar: ' + msgDe(x); err.hidden = false; } else fallo(x); });   // D-113
+    });
     root.addEventListener('input', e => {
       if (!e.target.matches) return;
       if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);
@@ -3814,7 +3822,7 @@
       else if (e.target.matches('.trayhead .ttam input')) tamCambiar(e.target);
       else if (e.target.matches('.zoomr')) {
         flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
-        const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaZoom) M.diseno.vistaZoom(+e.target.value); return; }
+        const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (!(M.diseno && M.diseno.vistaZoom && M.diseno.vistaZoom(+e.target.value))) e.target.value = e.target.defaultValue; return; }   // the view not ready yet: the control stays where the photo is (E12)
         const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); }
       }
     });
@@ -3889,7 +3897,7 @@
       const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'ig' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); igNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
-      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2')) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }
+      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }   // ⌘1 / ⌘2 are the browser's tabs (D-114)
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
       // ⌘E with a post open: its «Editar …» on the slide being seen, the field being typed in saved first (D-088); not in
       // «Vista cliente» nor in a story's window (historias.js, D-065); the editor and the designer, open, keep their keys

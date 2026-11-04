@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1138,6 +1138,14 @@
 
   // ---------- board mutations ----------
   function takeFromTray(fileId) { S.tray = S.tray.filter(x => x !== fileId); }
+  // what may go to the tray: never an image the designer or the editor drew (D-101). Those go to the list of files to delete
+  // once nothing, nor a step of ⌘Z, uses them (D-071)
+  function aBandeja(fs) {
+    const d = fs.filter(f => M.files[f] && M.files[f].design);
+    if (!d.length) return fs;
+    delList(l => [...new Set([...l, ...d])]);
+    return fs.filter(f => !d.includes(f));
+  }
   function place(slotId, fileId, silent) {
     const s = slot(slotId); if (!s) return;
     if (designed(s) && !isMulti(s.type) && sinPortada(s)) return;
@@ -1147,13 +1155,13 @@
     takeFromTray(fileId);
     if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // one more page, after the others
     else if (designed(s)) { const old = setCoverPhoto(s, fileId); centerCrop(fileId, null); if (old && old !== fileId && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old); rerender(s); }   // the texts stay
-    else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId && !dOut(s).includes(x))); s.photos = [fileId]; }
+    else { if (s.photos.length) S.tray.unshift(...aBandeja(s.photos.filter(x => x !== fileId && !dOut(s).includes(x)))); s.photos = [fileId]; }
     if (!silent) changed();
   }
   function fixSingle(s) {
     if (!isMulti(s.type) && s.photos.length > 1) {
-      S.tray.unshift(...s.photos.slice(1)); s.photos = s.photos.slice(0, 1);
-      toast('Los reels solo llevan una portada: las demás fotos vuelven a la bandeja.');
+      const vuelven = aBandeja(s.photos.slice(1)); S.tray.unshift(...vuelven); s.photos = s.photos.slice(0, 1);
+      if (vuelven.length) toast('Los reels solo llevan una portada: las demás fotos vuelven a la bandeja.');
     }
   }
   // Two posts of the same type without design swap all their photos, as always. Otherwise (other types, or a designed
@@ -1281,18 +1289,20 @@
     if (k != null && (k < 0 || k >= s.photos.length)) return;
     const back = k == null ? s.photos.slice() : [s.photos[k]];
     if (!back.length) return;
-    const before = { photos: s.photos.slice(), fmt: s.fmt }, B = S;
+    const before = { photos: s.photos.slice(), fmt: s.fmt, ...(s.libre ? { libre: JSON.parse(JSON.stringify(s.libre)) } : {}) }, B = S, tray0 = new Set(S.tray);
     if (back.includes(sel)) sel = null;
     s.photos = s.photos.filter(x => !back.includes(x));
-    const tb = back.filter(f => !dOut(s).includes(f));          // a design's rendered images stay with it, not in the tray
-    S.tray.unshift(...tb);
+    const fuera = back.filter(f => !dOut(s).includes(f));       // a design's rendered images stay with it, not in the tray
+    const ed = fuera.some(f => M.files[f] && M.files[f].design);
+    S.tray.unshift(...aBandeja(fuera));                          // nor the editor's (D-101): the photos behind them come back instead
     changed();
-    const after = s.photos.slice();
-    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : `Imágenes del diseño quitadas de la casilla: vuelven al pulsar «${edLabel(s)}».`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
+    const after = s.photos.slice(), tb = S.tray.filter(f => !tray0.has(f));   // the photos that came to the tray
+    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : ed ? 'Imagen del editor quitada de la casilla.' : `Imágenes del diseño quitadas de la casilla: vuelven al pulsar «${edLabel(s)}».`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
       if (S !== B || !slot(slotId) || !same(s.photos, after) || !tb.every(id => S.tray.includes(id))) { toast('No se puede deshacer: la casilla ya ha cambiado.'); return; }
       S.tray = S.tray.filter(id => !tb.includes(id));
       S.slots.forEach(o => { if (o !== s) o.photos = o.photos.filter(id => !before.photos.includes(id)); });
       s.photos = before.photos.slice(); if (before.fmt) s.fmt = before.fmt;
+      if (before.libre) s.libre = JSON.parse(JSON.stringify(before.libre));   // the editor's composition, gone with its image
       changed();
     } });
   }
@@ -4170,7 +4180,8 @@
     if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
     await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
     if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
-    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1).filter(f => !dOut(s).includes(f))); s.photos = s.photos.slice(0, 1); } });
+    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...aBandeja(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
+    S.tray = aBandeja(S.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
     { const enPost = new Set(S.slots.flatMap(s => s.photos)); S.tray = [...new Set(S.tray)].filter(id => !enPost.has(id)); }
     libresDeCarpetas(S, (await idbAll('boards')) || []);
     normalize();

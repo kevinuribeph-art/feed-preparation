@@ -7258,6 +7258,41 @@
     igual(r.vueltas, 1, 'lo que devuelve importData');
   });
 
+  prueba('M46', 'La imagen de «Editar portada» de un reel nunca entra en la bandeja: al cambiar la portada o quitarla, su foto vuelve sin ✓, «Deshacer» la devuelve y al reabrir no hay aviso de fotos quitadas (D-101)', async () => {
+    await tablero([pub(1, 'Reel'), pub(2, 'Reel')]);
+    const key = `${CLIENTE}-${MES}`;
+    const disenos = () => M.board().tray.filter(f => M.files[f] && M.files[f].design);
+    const vista = () => M._in.bandejaVista({ carpeta: null, todas: true }).map(x => M.files[x.f].name + (x.u ? ' ✓' : ''));
+    const conEditor = async id => { await abrirEditor(id); accion('add-txt'); await aplicarEditor(); const img = slot(id).photos[0]; ok(M.files[img] && M.files[img].design && slot(id).libre && !slot(id).design, 'el reel no lleva la imagen del editor'); return img; };
+    // cambiar su portada por otra foto
+    const [p] = await poner('r1', [await foto('m46-p.jpg')]);
+    await conEditor('r1');
+    const [q] = await M.addFiles([await foto('m46-q.jpg')]);
+    M._test.place('r1', q); await M.flush();
+    igual(slot('r1').photos, [q], 'la portada nueva');
+    igual(disenos(), [], 'al cambiar la portada, la imagen del editor entró en la bandeja');
+    ok(M.board().tray.includes(p) && vista().includes('m46-p.jpg'), 'la foto de la portada del editor no volvió sin ✓: ' + json(vista()));
+    // quitarla de la casilla: su foto vuelve, el aviso la cuenta y «Deshacer» devuelve la portada con su composición
+    const [r] = await poner('r2', [await foto('m46-r.jpg')]);
+    const img2 = await conEditor('r2');
+    M._in.clearToasts();
+    M._test.unassign('r2', null, true); await M.flush();
+    igual(disenos(), [], 'al quitarla, la imagen del editor entró en la bandeja');
+    ok(M.board().tray.includes(r) && vista().includes('m46-r.jpg'), 'al quitarla, su foto no volvió sin ✓: ' + json(vista()));
+    ok(toastCon(/^La foto vuelve a la bandeja/), 'el aviso: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    (await hasta(() => qa('.toast button, .toasts button').find(x => /Deshacer/.test(x.textContent)), 2000, 'el botón Deshacer')).click();
+    await M.flush();
+    igual(slot('r2').photos, [img2], '«Deshacer» no devolvió la portada');
+    ok(slot('r2').libre && slot('r2').libre.slides[img2] && !M.board().tray.includes(r), '«Deshacer» no devolvió su composición');
+    // con otro cliente abierto se limpian las imágenes que nada usa: al volver, ningún aviso de fotos quitadas
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(9)], past: [], force: true });
+    await M._in.sweepDesigns(true); await M.flush();
+    M._in.clearToasts();
+    await M.open(key);
+    ok(!toastCon(/se han quitado/), 'al reabrir, aviso de fotos quitadas: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    igual(slot('r2').photos, [img2], 'la portada del editor no sigue en su reel');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

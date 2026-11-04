@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.79'; // 3.79: audit, lot 3 — fixes in the stories, the review, the downloads and the calendar (historias 1.8, revisar 1.2, descargar 1.1, calendario 1.6, D-094); the mesa's code doesn't change
+  M.version = '3.80'; // 3.80: audit, lot 4 — the feed image with a cancelled post, the reload copy kept until the board is saved, a cancellation's reason saved on leaving, profile photos let go of their URL, M.setEstado lets go as the post view does, no copy of the code in localStorage
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -645,6 +645,7 @@
   async function flushNow() {
     clearTimeout(saveTimer); saveTimer = null;
     clearTimeout(noteTimer); noteTimer = null;
+    clearTimeout(motTimer); motTimer = null;   // a cancellation's reason being typed: saved with the board
     if (!S || locked) return null;
     const B = S;
     alinearH(B);
@@ -2325,6 +2326,7 @@
     if (RETRASO.includes(v) && ORD_AUTO[v] > ORD_AUTO[a]) return `para ponerla en ${v === 'aprobar' ? 'Por aprobar' : 'Captions'}` + (a === 'empezar' ? ' le falta la foto' : ' le falta elegir el caption');   // only back, never past its data (D-085)
     if (o.motivo != null && v !== 'cancelado') return 'solo una cancelada lleva motivo';
     const mot = o.motivo != null ? String(o.motivo).trim() : motivoDe(s);
+    if (v && RETRASO.includes(v) && v === a && !retenida(s) && !(PASO_DE[estadoDe(s)] > ORD_AUTO[a])) v = null;   // the state its data gives: let go, as the post's view does (D-085)
     if (v) s.estado = FIRMADO.includes(v) ? { v, sig: aprobSig(s) } : v === 'cancelado' && mot ? { v, motivo: mot } : { v }; else delete s.estado;
     return '';
   }
@@ -3306,7 +3308,7 @@
     } catch (e) { toast('No se pudo leer esa foto.'); }
   }
   const loadClientPhotos = () => loadThumbs(CL.map(c => c.foto).filter(f => f && !M.files[f]));
-  async function avDiscard() { const a = avStage; avStage = null; if (a && a.id) { try { await idbDel('files', a.id); } catch (e) { /* */ } delete M.files[a.id]; delete M.thumbBlobs[a.id]; } }
+  async function avDiscard() { const a = avStage; avStage = null; if (a && a.id) { try { await idbDel('files', a.id); } catch (e) { /* */ } soltarArchivo(a.id); } }   // its URL too (D-071)
 
   // ---------- messages ----------
   function clearToasts() { if (shellReady()) root.querySelector('.toasts').innerHTML = ''; }
@@ -3828,7 +3830,7 @@
     if (M._onHide) { document.removeEventListener('visibilitychange', M._onHide); window.removeEventListener('pagehide', M._onHide); }
     M._onHide = e => {
       if ((e.type === 'pagehide' || document.visibilityState === 'hidden') && M.diseno && M.diseno.volcar) M.diseno.volcar();   // the designer's edit in flight
-      if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer)) return;
+      if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer || motTimer)) return;
       stamp(S);
       S.savedAt = new Date().toISOString();
       lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 5 }));   // sync: survives a reload that kills the async write
@@ -3962,7 +3964,7 @@
     let gone = null;
     if (patch.foto !== undefined && (patch.foto || null) !== (c.foto || null)) { gone = c.foto || null; if (patch.foto) c.foto = patch.foto; else delete c.foto; c.fotoAt = new Date().toISOString(); }   // profile photo (vista cliente)
     await idbPut('clients', id, c);
-    if (gone && String(gone).startsWith('perfil-')) { try { await idbDel('files', gone); } catch (e) { /* */ } delete M.files[gone]; delete M.thumbBlobs[gone]; }
+    if (gone && String(gone).startsWith('perfil-')) { try { await idbDel('files', gone); } catch (e) { /* */ } soltarArchivo(gone); }   // its URL too (D-071)
     await loadClients(); render();
     return c;
   };
@@ -3974,7 +3976,7 @@
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
     await idbDel('clients', id);
     if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
-    if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } }   // its profile photo
+    if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } soltarArchivo(c0.foto); }   // its profile photo, and its URL (D-071)
     await loadClients();
     if (curClient === id) {
       curClient = null;
@@ -4074,7 +4076,6 @@
     const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
     if (why) throw new Error(why);
     if (hasCd && !cfg.reopen && cl0.cycleDay !== cd) { await idbPut('clients', client, { ...cl0, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
-    try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     if (pd) pdCancel();
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
     try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
@@ -4171,6 +4172,7 @@
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
     await flushNow();
+    try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
     if (M.diseno && M.diseno.prepararKits) await M.diseno.prepararKits(S);   // plan() right after init knows if a design is out of date
     await refreshMonths();
@@ -4530,8 +4532,8 @@
       ...fresh.map(s => slotPost(s, true)),
       ...earlier.map(s => slotPost(s, false)),
       ...past.map((p, j) => (p.fid
-        ? { mesaIdx: S.slots.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
-        : { mesaIdx: S.slots.length + F + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
+        ? { mesaIdx: order.length + F + j, name: p.name, type: p.type, n: (p.photos || []).length, date: p.date, isNew: false, blob: M.thumbBlobs[p.fid] || null, rect: M.files[p.fid] ? { g: gridRect(p.fid, p.item, p.B), f: M.files[p.fid] } : null }
+        : { mesaIdx: order.length + F + j, name: p.name, type: p.type, date: p.date, isNew: false, blob: p.thumb ? (M.pastBlobs[p.thumb] || null) : null }))
     ];
     const N = pinPosts.length + F + lead + fresh.length;   // first cell below the line
     // each drawn post in the same column as in the mesa, and in the mesa's order
@@ -4659,7 +4661,7 @@
   function blobOf(b64, type) { const s = atob(b64), n = s.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type }); }
   const allKeys = async st => ((await tx(st, 'readonly', s => s.getAllKeys())) || []).map(String);
   // only unsaved changes: a flush stamps savedAt, and savedAt decides which copy of a board wins
-  const flushPending = async () => { if (S && !locked && (saveTimer || noteTimer)) await flushNow(); };
+  const flushPending = async () => { if (S && !locked && (saveTimer || noteTimer || motTimer)) await flushNow(); };
   // short side 1080, never upscaled; a landscape keeps w > h and w/h to 3 decimals, so crops and upload signatures don't move
   function xferDims(w, h) {
     const sh = Math.min(w, h); if (!(sh > XF_SHORT)) return null;
@@ -4972,7 +4974,7 @@
         const o = await idbGet('clients', c.id); if (!o) continue;
         const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto;
         await idbPut('clients', c.id, n);
-        if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } }   // the one it replaces
+        if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } soltarArchivo(o.foto); }   // the one it replaces, and its URL (D-071)
       }
       P.upd.forEach(b => keepCaps(b, P.local[b.key]));
       // a board that only takes caption batches keeps its own editedAt: the batches came from the other Mac, which has them,
@@ -5320,6 +5322,6 @@
     return { name: r.name, type: r.type, w: r.w, h: r.h, size: r.size, lastModified: r.lastModified, reduced: !!r.reduced, bytes: r.blob ? r.blob.size : null, blobType: r.blob ? r.blob.type : null, px: await px(r.blob), thumbPx: await px(r.thumb) };
   };
 
-  try { localStorage.setItem('mesa-code', '(' + mesaBoot.toString() + ')()'); localStorage.setItem('mesa-version', M.version); } catch (e) { /* storage off */ }
+  try { localStorage.removeItem('mesa-code'); localStorage.removeItem('mesa-version'); } catch (e) { /* storage off */ }   // until 3.79 the whole code went there on every load and nobody read it: ~1 MB of the space the reload copy needs
   return 'Mesa de trabajo ' + M.version + ' cargada';
 })();

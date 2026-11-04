@@ -13,7 +13,10 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 8, V_IDB = 10;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119)
+  const V_ARCHIVO = 9, V_IDB = 11;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120)
+  // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
+  // salvo en las pruebas que lo adelantan (D-120)
+  const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
   const CLIENTE2 = 'prueba-regresion-b', NOMBRE2 = 'Otro cliente de prueba';   // el segundo cliente (bandeja por cliente, D-041)
   const DE_PRUEBA = c => c === CLIENTE || c === CLIENTE2;
   const $ = id => document.getElementById(id);
@@ -1104,7 +1107,7 @@
     await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1, 'Foto', 5)], past: [], force: true });
     ok(hDe(id), 'cargar el mes de nuevo perdió la historia');
     // un archivo más nuevo que esta mesa, no
-    const v9 = await M.importData({ ...d, v: 9 }, { confirm: false });
+    const v9 = await M.importData({ ...d, v: V_ARCHIVO + 1 }, { confirm: false });
     ok(v9 && v9.error, 'un archivo de una versión más nueva entró');
   });
 
@@ -5682,7 +5685,7 @@
     await M.open(key);
     igual(pasoGuardado(), 'captions', 'el paso al abrir el mes');
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 8, 'la versión del archivo');
+    igual(d.v, V_ARCHIVO, 'la versión del archivo');
     igual(d.boards.find(b => b.key === key).pasos, { [MES]: 'captions' }, 'el paso en el archivo');
     await sinMes(key);
     let r = await M.importData(d, { confirm: false });
@@ -5974,6 +5977,245 @@
     const d = await pulsarPaso('aprobar', 6000);
     ok(/Foto 1\.1/.test(d.textContent) && /historia/.test(d.textContent), 'la ventana de noviembre no enseña sus puntos');
     d.querySelector('[data-act="close"]').click();
+  });
+
+  // ---------- el calendario en hoy, Publicado solo y las vencidas (D-120) ----------
+  const madrid = (dia, hora = '12:00') => Date.parse(M._in.madridISO(dia, hora));
+  // el reloj de la mesa (M._test.reloj); en una mesa anterior a la 3.92, el Date.now de su página, para que la prueba falle por lo que mira
+  const DATE_NOW = Date.now;
+  const reloj = (dia, hora) => { const t = madrid(dia, hora); if (M._test.reloj) M._test.reloj(t); else W.Date.now = () => t; };
+  const volverReloj = () => { if (M._test.reloj) M._test.reloj(RELOJ_PRUEBAS); else W.Date.now = DATE_NOW; };
+  const revisarV = abrir => M._test.vencRevisar ? M._test.vencRevisar(abrir) : espera(80);
+  const vencidasV = () => M._in.vencidas ? M._in.vencidas() : [];
+  const abrirV = () => { if (M.calendario && M.calendario.vencidas) M.calendario.vencidas(); };
+  const ventanaV = () => q('.detail:not([hidden])[data-dlg="venc"]');
+  const filaV = id => q(`.detail[data-dlg="venc"] .vlist li[data-k$="|${id}"]`);
+  const enFilaV = (id, cal) => { const b = filaV(id) && filaV(id).querySelector(`[data-cal="${cal}"]`); ok(b, `falta ${cal} en la fila de ${id}`); b.click(); };
+  const otroTablero = () => M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [{ id: 'v-otro', name: 'Foto 1.1', type: 'Foto', date: '2026-11-10T12:00:00.000+01:00' }], past: [], force: true });
+  const histDe = id => M._in.hsDe(M._in.S).find(h => h.id === id);
+
+  prueba('V1', 'Al abrir un cliente se abre su tablero que contiene hoy (Madrid), aunque el último usado sea otro, y el calendario en el mes de hoy, con hoy marcado; sin tablero con hoy, el último usado (D-121)', async () => {
+    try {
+      await limpiar();
+      reloj('2026-11-04', '12:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1, 'Foto', 20)], past: [], force: true });
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-10', slots: [pub(1, 'Foto', 20, '2026-10')], past: [], force: true });   // el último usado
+      await otroTablero();
+      await M.openClient(CLIENTE);
+      igual(M.status().key, `${CLIENTE}-${MES}`, 'no abrió el tablero que contiene hoy');
+      await hasta(() => calMes() === 'Noviembre 2026', 3000, 'el calendario en el mes de hoy');
+      ok(q('.side > .cal .cday.today[data-day="2026-11-04"]'), 'hoy no está marcado');
+      await M.open(`${CLIENTE}-2026-10`); await otroTablero();
+      reloj('2027-03-01', '12:00');   // ningún tablero contiene hoy: el último usado
+      await M.openClient(CLIENTE);
+      igual(M.status().key, `${CLIENTE}-2026-10`, 'sin tablero con hoy no abrió el último usado');
+    } finally { volverReloj(); }
+  });
+
+  prueba('V2', 'El calendario abre en el mes de hoy; si hoy no cae en el tablero, en su mes más cercano; ‹ › se respeta hasta que se cambia de tablero (D-121)', async () => {
+    try {
+      reloj('2026-12-10', '12:00');
+      const { key } = await tableroDos();
+      await hasta(() => calMes() === 'Diciembre 2026', 3000, 'el calendario en el mes de hoy');
+      ok(q('.side > .cal .cday.today[data-day="2026-12-10"]'), 'hoy no está marcado');
+      await irMes('Noviembre 2026'); M._in.render(); await espera(30);
+      igual(calMes(), 'Noviembre 2026', 'al redibujar no se respetó ‹');
+      await M.open(key); await espera(30);
+      igual(calMes(), 'Noviembre 2026', 'volver a abrir el mismo tablero no respetó ‹');
+      await otroTablero(); await M.open(key);
+      await hasta(() => calMes() === 'Diciembre 2026', 3000, 'al volver de otro tablero, el mes de hoy');
+      reloj('2026-10-02', '12:00'); await otroTablero(); await M.open(key);
+      await hasta(() => calMes() === 'Noviembre 2026', 3000, 'antes del tablero, su mes más cercano');
+      reloj('2027-02-01', '12:00'); await otroTablero(); await M.open(key);
+      await hasta(() => calMes() === 'Diciembre 2026', 3000, 'después del tablero, su mes más cercano');
+    } finally { volverReloj(); }
+  });
+
+  prueba('V3', 'Una Programada pasa sola a Publicado a su hora (sin hora, al acabar su día), también un reel marcado a mano; una movida después de programarla no pasa y es vencida; un aviso lo dice, ⌘Z las devuelve en un paso y ya no vuelven a pasar solas (D-120, D-103)', async () => {
+    try {
+      reloj('2026-11-01', '09:00');
+      await tablero([pub(1, 'Foto', 3), pub(2, 'Reel', 4), { id: 'r3', name: 'Foto 1.3', type: 'Foto', date: '2026-11-05' }, pub(4, 'Foto', 3)]);
+      await porAprobar(['r1', 'r2', 'r3', 'r4'], 'v3');
+      M.setEstado(['r1', 'r2', 'r3', 'r4'], 'programado');
+      igual(slot('r1').estado.fecha, slot('r1').date, 'la Programada no guarda la fecha con la que se programó');
+      M._test.setDate('r4', M._in.madridISO('2026-11-04', '10:00'));   // movida después de programarla: Zernio sigue con la de antes (D-103)
+      await M.flush();
+      reloj('2026-11-04', '19:00'); M._in.clearToasts();
+      const u0 = M._test.hist().undo;
+      await revisarV();
+      igual(est(['r1', 'r2', 'r3', 'r4']), ['publicado', 'publicado', 'programado', 'programado'], 'lo que pasó a Publicado');
+      ok(toastCon(/^2 publicaciones pasan a Publicado/), 'sin el aviso: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+      igual(M._test.hist().undo, u0 + 1, 'no es un solo paso de ⌘Z');
+      igual(vencidasV().map(v => [v.id, v.movida]), [['r4', true]], 'la movida no es la única vencida');
+      ok(celda('r4').querySelector('.vdate') && !celda('r3').querySelector('.vdate') && !celda('r1').querySelector('.vdate'), 'la marca de vencida en la casilla');
+      ok(q('.side > .cal .chip.venc[data-slot="r4"]') && !q('.side > .cal .chip.venc[data-slot="r1"]'), 'la marca de vencida en el calendario');
+      M._test.undo();
+      igual(est(['r1', 'r2']), ['programado', 'programado'], '⌘Z no las devolvió');
+      await revisarV();
+      igual(est(['r1', 'r2']), ['programado', 'programado'], 'devueltas con ⌘Z, volvieron a pasar solas');
+      igual(vencidasV().map(v => v.id).sort(), ['r1', 'r2', 'r4'], 'devueltas con ⌘Z no son vencidas');
+      M._test.redo(); igual(est(['r1', 'r2']), ['publicado', 'publicado'], '⇧⌘Z no lo rehízo');
+      reloj('2026-11-05', '23:00'); await revisarV();
+      igual(est(['r3']), ['programado'], 'la de sin hora pasó antes de acabar su día');
+      reloj('2026-11-06', '00:30'); await revisarV();
+      igual(est(['r3']), ['publicado'], 'la de sin hora no pasó al acabar su día');
+      M.setEstado('r3', 'programado');   // devuelta a mano porque Zernio no la publicó: ya no pasa sola
+      await revisarV();
+      igual(est(['r3']), ['programado'], 'devuelta a mano, volvió a pasar sola');
+      ok(vencidasV().some(v => v.id === 'r3'), 'devuelta a mano no es vencida');
+    } finally { volverReloj(); }
+  });
+
+  prueba('V4', '«N vencidas» abre la lista por fecha: «Ya se publicó», «Reprogramar» y «Cancelar» con su motivo, cada uno un paso de ⌘Z; Reprogramar una Programada avisa de Zernio y mueve sus historias; sin días por delante no se reprograma (D-120, D-103, D-057, D-082)', async () => {
+    try {
+      reloj('2026-11-01', '09:00');
+      await tablero([pub(1, 'Foto', 2), pub(2, 'Reel', 3), pub(3, 'Carrusel', 4), pub(4, 'Foto', 20)]);
+      await hasta(() => M.calendario && M.hs, 4000, 'calendario.js e historias.js');
+      await porAprobar(['r1', 'r2', 'r3'], 'v4');
+      M.setEstado('r1', 'programado'); M._test.setDate('r1', M._in.madridISO('2026-11-02', '18:00'));
+      M.setEstado(['r2', 'r3'], 'aprobado');
+      const h = M.hs.anadir('2026-11-04', { slotId: 'r3' });   // una historia que apoya a r3
+      await M.flush();
+      reloj('2026-11-05', '10:00'); await revisarV();
+      const cab = await hasta(() => q('.side > .cal .cvenc'), 3000, '«N vencidas» en la cabecera');
+      igual(cab.textContent, '3 vencidas', 'la cuenta de la cabecera');
+      cab.click();
+      await hasta(() => ventanaV(), 3000, 'la ventana de las vencidas');
+      igual(qa('.detail[data-dlg="venc"] .vlist li').map(li => li.dataset.k.split('|')[1]), ['r1', 'r2', 'r3'], 'la lista no va por fecha');
+      ok(/movida después de programarla/.test(filaV('r1').textContent), 'la Programada movida no lo dice');
+      let u = M._test.hist().undo;
+      enFilaV('r2', 'v-pub');
+      igual([est(['r2'])[0], M._test.hist().undo], ['publicado', u + 1], '«Ya se publicó» no es un paso de ⌘Z');
+      ok(!filaV('r2'), 'sigue en la lista');
+      tecla('z', { meta: true, code: 'KeyZ' }); await espera(30);   // con la ventana abierta: sus acciones son pasos (D-120)
+      igual(est(['r2']), ['aprobado'], '⌘Z con la ventana abierta no devolvió «Ya se publicó»');
+      ok(filaV('r2'), 'tras ⌘Z no vuelve a la lista');
+      enFilaV('r2', 'v-can');
+      const mi = await hasta(() => filaV('r2').querySelector('input[data-v="motivo"]'), 2000, 'el campo del motivo');
+      ok(D.activeElement === mi, 'el motivo no coge el foco');
+      mi.value = 'Lo pidió el cliente'; u = M._test.hist().undo;
+      enFilaV('r2', 'v-can-ok');
+      igual([est(['r2'])[0], M._in.motivoDe(slot('r2')), M._test.hist().undo], ['cancelado', 'Lo pidió el cliente', u + 1], 'cancelar con su motivo');
+      M._in.clearToasts();
+      enFilaV('r1', 'v-rep');
+      const di = await hasta(() => filaV('r1').querySelector('input[data-v="dia"]'), 2000, 'el día de Reprogramar');
+      di.value = '2026-11-05'; filaV('r1').querySelector('input[data-v="hora"]').value = '09:00';
+      enFilaV('r1', 'v-rep-ok');
+      igual(M._in.localDay(slot('r1').date), '2026-11-02', 'se reprogramó a una hora que ya pasó');
+      di.value = '2026-11-12'; filaV('r1').querySelector('input[data-v="hora"]').value = '19:30';
+      u = M._test.hist().undo;
+      enFilaV('r1', 'v-rep-ok');
+      igual([M._in.localDay(slot('r1').date), M._in.localTime(slot('r1').date), M._test.hist().undo], ['2026-11-12', '19:30', u + 1], 'Reprogramar');
+      ok(toastCon(/Zernio/), 'reprogramar una Programada no avisó de Zernio');
+      const dh = M._in.localDay(histDe(h).date);
+      enFilaV('r3', 'v-rep');
+      await hasta(() => filaV('r3').querySelector('input[data-v="dia"]'), 2000, 'el día de Reprogramar');
+      filaV('r3').querySelector('input[data-v="dia"]').value = '2026-11-14';
+      enFilaV('r3', 'v-rep-ok');
+      igual([M._in.localDay(slot('r3').date), M._in.localDay(histDe(h).date)], ['2026-11-14', '2026-11-14'], `su historia no la siguió (estaba el ${dh})`);
+      ok(!vencidasV().length, 'quedan vencidas: ' + json(vencidasV().map(v => v.id)));
+      await hasta(() => !q('.side > .cal .cvenc'), 2000, 'la cabecera sin vencidas');
+      M._in.closeDetail();
+      // sin días por delante en su tablero, no se reprograma
+      reloj('2026-12-01', '09:00');
+      abrirV();
+      await hasta(() => filaV('r4'), 3000, 'r4 vencida');
+      ok(filaV('r4').querySelector('[data-cal="v-rep"]').disabled, 'se puede reprogramar sin días por delante');
+      M._in.closeDetail();
+    } finally { volverReloj(); }
+  });
+
+  prueba('V5', 'Al abrir un tablero con vencidas, un aviso «N vencidas · Ver» que abre la ventana, una vez por tablero hasta recargar; en «Vista cliente» no sale nada ni pasa nada solo (D-120, D-095)', async () => {
+    try {
+      reloj('2026-11-10', '12:00'); if (M._test.avisadas) M._test.avisadas().clear();   // otra prueba ya abrió este tablero con vencidas
+      const r = await tablero([pub(1, 'Foto', 2), pub(2, 'Foto', 20)]);
+      await hasta(() => toastCon(/^1 vencida/), 3000, 'el aviso al abrir');
+      const t = qa('.toasts .toast').find(x => /vencida/.test(x.textContent)), b = t.querySelector('button');
+      igual(b && b.textContent, 'Ver', 'el aviso no lleva «Ver»');
+      b.click();
+      await hasta(() => ventanaV(), 3000, '«Ver» no abrió la ventana');
+      M._in.closeDetail(); M._in.clearToasts();
+      await M.open(r.key); await revisarV(true);
+      ok(!toastCon(/vencida/), 'el aviso salió dos veces');
+      // «Vista cliente»: ni marcas, ni cabecera, ni aviso, ni nada que pase solo
+      await porAprobar(['r2'], 'v5'); M.setEstado('r2', 'programado'); await M.flush();
+      M._in.root().classList.add('client'); M._in.render();
+      reloj('2026-11-21', '12:00'); await revisarV(true);
+      igual(est(['r2']), ['programado'], 'en «Vista cliente» pasó a Publicado');
+      ok(!q('.side > .cal .cvenc') && !q('.side > .cal .chip.venc') && !toastCon(/vencida|Publicado/), 'en «Vista cliente» sale lo de las vencidas');
+      M._in.root().classList.remove('client'); M._in.render();
+      await revisarV();
+      igual(est(['r2']), ['publicado'], 'quitada la vista, no pasó a Publicado');
+    } finally { M._in.root().classList.remove('client'); volverReloj(); }
+  });
+
+  prueba('V6', 'Mira también los tableros anteriores del cliente: una Programada de octubre pasa sola y las vencidas de octubre salen con su mes; «Ya se publicó» y «Cancelar» las cambian desde aquí, también la copia de su collab, y ⌘Z lo devuelve; «Reprogramar» no tiene días por delante y el nombre abre su tablero (D-120)', async () => {
+    const OCT = '2026-10', okey = `${CLIENTE}-${OCT}`, okey2 = `${CLIENTE2}-${OCT}`, de = async (k, id) => { await (M._test.fueraListo ? M._test.fueraListo() : null); const b = await M._in.idbGet('boards', k); const s = b.slots.find(x => x.id === id); return s.estado || null; };
+    try {
+      await limpiar();
+      reloj('2026-10-01', '09:00');
+      const o = (id, n, dia) => ({ id, name: `Foto 4.${n}`, type: 'Foto', date: `${OCT}-${dia}T12:00:00.000+02:00` });
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: OCT, slots: [o('o1', 1, 20), o('o2', 2, 22), o('o3', 3, 24)], past: [], force: true });
+      await porAprobar(['o1', 'o2', 'o3'], 'v6'); M.setEstado('o1', 'programado'); M.setEstado(['o2', 'o3'], 'aprobado'); await M.flush();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: OCT, slots: [o('o3', 3, 24)], past: [], force: true }); await M.flush();   // o3, collab con el otro cliente
+      reloj('2026-11-04', '12:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1, 'Foto', 20)], past: [], force: true });
+      await revisarV();
+      igual((await de(okey, 'o1')).v, 'publicado', 'la Programada de octubre no pasó sola');
+      igual(vencidasV().map(v => [v.id, v.aqui]), [['o2', false], ['o3', false]], 'las vencidas de octubre');
+      abrirV();
+      await hasta(() => filaV('o2'), 3000, 'la fila de o2');
+      ok(/Octubre 2026, otro tablero/.test(filaV('o2').textContent), 'no dice su mes');
+      ok(filaV('o2').querySelector('[data-cal="v-rep"]').disabled, 'se puede reprogramar sin días por delante');
+      const u = M._test.hist().undo;
+      enFilaV('o3', 'v-pub');
+      igual([(await de(okey, 'o3')).v, (await de(okey2, 'o3')).v, M._test.hist().undo], ['publicado', 'publicado', u + 1], '«Ya se publicó» en octubre y en su collab');
+      enFilaV('o2', 'v-can');
+      (await hasta(() => filaV('o2').querySelector('input[data-v="motivo"]'), 2000, 'el motivo')).value = 'Se quedó sin hacer';
+      enFilaV('o2', 'v-can-ok');
+      igual(await de(okey, 'o2'), { v: 'cancelado', motivo: 'Se quedó sin hacer' }, 'cancelar la de octubre');
+      M._test.undo(); M._test.undo();
+      igual([(await de(okey, 'o2')).v, (await de(okey, 'o3')).v, (await de(okey2, 'o3')).v], ['aprobado', 'aprobado', 'aprobado'], '⌘Z no devolvió octubre');
+      M._test.undo();
+      const e1 = await de(okey, 'o1');
+      igual([e1.v, !!e1.tarde], ['programado', true], '⌘Z no devolvió la que pasó sola, como vencida');
+      await revisarV();
+      igual((await de(okey, 'o1')).v, 'programado', 'devuelta con ⌘Z volvió a pasar sola');
+      if (M._in.vencRefrescar) await M._in.vencRefrescar(); abrirV();
+      await hasta(() => filaV('o3'), 3000, 'la fila de o3');
+      enFilaV('o3', 'v-abrir');
+      await hasta(() => M.status().key === okey && dialogo() && dialogo().dataset.slot === 'o3', 4000, 'su tablero y su publicación');
+      M._in.closeDetail();
+    } finally { volverReloj(); }
+  });
+
+  prueba('V7', 'La fecha con la que se programó viaja en «⇅ Exportar» (v9); una Programada de antes, sin fecha, toma la que tiene al abrir su tablero; IndexedDB 11 (D-120, D-060, D-017)', async () => {
+    reloj('2026-11-01', '09:00');
+    try {
+      const r = await tablero([pub(1, 'Foto', 20), pub(2, 'Foto', 21)]);
+      await porAprobar(['r1', 'r2'], 'v7'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      igual(d.v, V_ARCHIVO, 'la versión del archivo');
+      igual(d.boards.find(b => b.key === r.key).slots.find(s => s.id === 'r1').estado, { v: 'programado', fecha: slot('r1').date }, 'la fecha en el archivo');
+      const v8 = JSON.parse(JSON.stringify(d)); v8.v = 8; v8.boards.forEach(b => (b.slots || []).forEach(s => { if (s.estado) delete s.estado.fecha; }));
+      await sinMes(r.key);
+      const ri = await M.importData(v8, { confirm: false }); ok(ri && !ri.error, 'el archivo v8 no entró: ' + json(ri));
+      await M.open(r.key);
+      igual(slot('r2').estado, { v: 'programado', fecha: slot('r2').date }, 'una Programada de antes no tomó su fecha al abrir');
+      const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
+      if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
+    } finally { volverReloj(); }
+  });
+
+  prueba('V8', 'Con el tablero abierto se vuelve a mirar sola: al volver a la pestaña, una Programada cuya hora llegó pasa a Publicado sin hacer nada (D-120)', async () => {
+    reloj('2026-11-01', '09:00');
+    try {
+      await tablero([pub(1, 'Foto', 3)]);
+      await porAprobar(['r1'], 'v8'); M.setEstado('r1', 'programado'); await M.flush();
+      reloj('2026-11-03', '12:05');
+      D.dispatchEvent(new W.Event('visibilitychange'));
+      await hasta(() => est(['r1'])[0] === 'publicado', 3000, 'que pase sola a Publicado');
+    } finally { volverReloj(); }
   });
 
   // =====================================================================================================
@@ -7901,6 +8143,7 @@
     W = fr.contentWindow; D = W.document;
     await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in && W.MESA.revisar && W.MESA.diseno, 15000, 'que carguen mesa.js, libre.js, revisar.js y diseno.js');
     M = W.MESA;
+    if (M._test.reloj) M._test.reloj(RELOJ_PRUEBAS);
     await hasta(() => M.carpetasUI, 15000, 'carpetas.js');
     M.cfg.margenSubida = 0;                         // el cupo de un Chrome sin ventana es pequeño: el margen se prueba aparte (C16, C17)
     // index.html lanza MESA.boot() sin esperarlo: termina cuando la mesa tiene su armazón y no está cambiando de tablero

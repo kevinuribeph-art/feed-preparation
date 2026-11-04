@@ -8127,6 +8127,196 @@
     ok(!M.libre.pendiente(), 'tras ir a 1:1 y volver a 4:5 quedan cambios sin aplicar: ' + json(ed().sl.map(x => !!x.comp)));
   });
 
+  // ---------- las marcas de la bandeja: portada o relleno, y cuánto hace (D-122) ----------
+  // p0, p1, p2: portada (azul oscuro, intermedio, claro); r: relleno (naranja); '': sin marca. Con el filtro «Todas».
+  const uMarcas = () => Object.fromEntries(M._in.bandejaVista({ filtro: 'todas', todas: true, carpeta: null }).map(x => [M.files[x.f].name, x.c || '']));
+  async function uEsperaMarcas(esp, que) {
+    const sub = () => { const m = uMarcas(); return Object.fromEntries(Object.keys(esp).map(k => [k, k in m ? m[k] : 'no sale'])); };
+    try { await hasta(() => json(sub()) === json(esp), 6000, que); } catch (e) { igual(sub(), esp, que); }
+  }
+  const uClase = t => !t ? 'no sale' : ((t.className.match(/\bu-(p0|p1|p2|r)\b/) || [])[1] || '') + (t.classList.contains('uso') && !/\bu-(p0|p1|p2|r)\b/.test(t.className) ? '?' : '');
+  const uTileMesa = nombre => qa('.tray .tgrid .titem').find(t => M.files[t.dataset.file].name === nombre);
+  const uTileEd = nombre => qa('.lb-tray .lb-tph').find(t => M.files[t.dataset.f].name === nombre);
+  const uNombres = sel => qa(sel).map(t => M.files[t.dataset.file || t.dataset.f].name).sort();
+  const uFondo = t => W.getComputedStyle(t, '::after').backgroundColor;
+  const U_AGO = '2026-08', U_SEP = '2026-09', U_OCT = '2026-10', U_DIC = '2026-12';
+
+  prueba('U1', 'Portada este mes, el mes pasado, hace 2 meses, hace 3 y en un mes posterior: ✓ azul oscuro, intermedio, claro, sin marca (y en «Sin usar») y oscuro; los meses se cuentan desde el tablero abierto, no desde hoy (D-122)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('u1-nov.jpg')]);
+    await M.flush();
+    for (const [n, mes] of [[2, U_OCT], [3, U_SEP], [4, U_AGO], [5, U_DIC]]) {
+      await abrirMes([pub(n, 'Foto', 5, mes)], mes);
+      await poner(`r${n}-${mes}`, [await foto(`u1-${mes}.jpg`)]);
+      await M.flush();
+    }
+    await M.open(`${CLIENTE}-${MES}`);
+    await uEsperaMarcas({ 'u1-nov.jpg': 'p0', 'u1-2026-10.jpg': 'p1', 'u1-2026-09.jpg': 'p2', 'u1-2026-08.jpg': '', 'u1-2026-12.jpg': 'p0' }, 'las marcas en noviembre');
+    igual(vista(false).filter(x => x.startsWith('u1-')), ['u1-2026-08.jpg'], '«Sin usar» en noviembre: la de hace 3 meses vuelve');
+    await filtro('todas');
+    igual(['u1-nov.jpg', 'u1-2026-10.jpg', 'u1-2026-09.jpg', 'u1-2026-08.jpg', 'u1-2026-12.jpg'].map(n => uClase(uTileMesa(n))), ['p0', 'p1', 'p2', '', 'p0'], 'las marcas en la bandeja de la mesa');
+    ok(!uTileMesa('u1-2026-08.jpg').classList.contains('uso'), 'la de hace 3 meses lleva ✓');
+    // desde septiembre (la batería tiene el reloj en octubre): agosto es el mes pasado y noviembre, posterior
+    await M.open(`${CLIENTE}-${U_SEP}`);
+    await uEsperaMarcas({ 'u1-nov.jpg': 'p0', 'u1-2026-10.jpg': 'p0', 'u1-2026-09.jpg': 'p0', 'u1-2026-08.jpg': 'p1', 'u1-2026-12.jpg': 'p0' }, 'las marcas en septiembre');
+    await filtro('sin');
+  });
+
+  prueba('U2', 'Una sola marca por foto: portada y relleno a la vez → azul; portada hace 1 y 2 meses → la más reciente; portada hace 2 meses y relleno este mes → azul claro; relleno este mes, el pasado y hace 2 → naranja (terracota); relleno hace 3 meses → nada (D-122)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    const [a] = await poner('r1', [await foto('u2-ambas.jpg')]);
+    const viejo = (await poner('r2', [await foto('u2-c-nov.jpg'), await foto('u2-r-nov.jpg'), await foto('u2-x.jpg'), await foto('u2-portada-sep.jpg')])).find(f => M.files[f].name === 'u2-portada-sep.jpg');   // addFiles las ordena por nombre
+    const [a2] = await M._in.paraPoner([a]); M._test.place('r2', a2);       // la misma foto, de relleno en otra publicación del mes (copia, D-041)
+    await M.flush();
+    await abrirMes([pub(4, 'Carrusel', 5, U_OCT), pub(8, 'Foto', 12, U_OCT)], U_OCT);
+    await poner(`r4-${U_OCT}`, [await foto('u2-c-oct.jpg'), await foto('u2-r-oct.jpg')]);
+    const [dos] = await poner(`r8-${U_OCT}`, [await foto('u2-dos-azules.jpg')]); await M.flush();
+    await abrirMes([pub(5, 'Foto', 5, U_SEP), pub(6, 'Carrusel', 9, U_SEP), pub(9, 'Foto', 12, U_SEP)], U_SEP);
+    M._test.place(`r5-${U_SEP}`, viejo);                                     // portada en septiembre, relleno en noviembre
+    M._test.place(`r9-${U_SEP}`, dos);                                       // portada en septiembre y en octubre: gana octubre
+    await poner(`r6-${U_SEP}`, [await foto('u2-c-sep.jpg'), await foto('u2-r-sep.jpg')]); await M.flush();
+    await abrirMes([pub(7, 'Carrusel', 5, U_AGO)], U_AGO);
+    await poner(`r7-${U_AGO}`, [await foto('u2-c-ago.jpg'), await foto('u2-r-ago.jpg')]); await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    await uEsperaMarcas({ 'u2-ambas.jpg': 'p0', 'u2-portada-sep.jpg': 'p2', 'u2-c-nov.jpg': 'p0', 'u2-r-nov.jpg': 'r', 'u2-c-oct.jpg': 'p1', 'u2-r-oct.jpg': 'r', 'u2-c-sep.jpg': 'p2', 'u2-r-sep.jpg': 'r', 'u2-c-ago.jpg': '', 'u2-r-ago.jpg': '', 'u2-dos-azules.jpg': 'p1' }, 'las marcas');
+    await filtro('todas');
+    igual(qa('.tray .tgrid .titem').filter(t => M.files[t.dataset.file].name === 'u2-ambas.jpg').length, 1, 'la foto en dos publicaciones sale dos veces');
+    igual(uClase(uTileMesa('u2-ambas.jpg')), 'p0', 'portada y relleno: una sola marca, azul');
+    const col = ['u2-c-nov.jpg', 'u2-c-oct.jpg', 'u2-c-sep.jpg', 'u2-r-nov.jpg'].map(n => uFondo(uTileMesa(n)));
+    igual(new Set(col).size, 4, 'las cuatro marcas no tienen cuatro colores: ' + json(col));
+    igual(col[3], 'rgb(178, 80, 58)', 'el naranja no es el terracota #B2503A');
+    ok(['u2-r-oct.jpg', 'u2-r-sep.jpg'].every(n => uFondo(uTileMesa(n)) === col[3]), 'el naranja cambia con el mes');
+    ok(/rgb\(255, 255, 255\)/.test(W.getComputedStyle(uTileMesa('u2-c-nov.jpg'), '::after').boxShadow), 'la marca no lleva borde blanco');
+    await filtro('sin');
+  });
+
+  prueba('U3', 'Portada: las dos fotos de una 1.ª diapositiva diseñada, la de un reel y la de un hueco; una publicación cancelada no cuenta; una foto solo en una historia lleva su anillo, sin ✓ (D-122, D-049, D-056)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Reel'), pub(3), pub(4, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    await poner('r1', [await foto('u3-a.jpg'), await foto('u3-b.jpg')]);
+    const ids = await M.addFiles([await foto('u3-c.jpg'), await foto('u3-hueco.jpg', 1600, 1000), await foto('u3-hist.jpg')]), [c, hz, h] = ['u3-c.jpg', 'u3-hueco.jpg', 'u3-hist.jpg'].map(n => ids.find(f => M.files[f].name === n));   // addFiles las ordena por nombre
+    await abrirEditor('r1', 0);
+    accion('tr-add', { f: c });
+    await hasta(() => compDe(0).els.some(e => e.t === 'foto' && e.src === c), 4000, 'la segunda foto en la diapositiva 1');
+    await aplicarEditor();
+    await poner('r2', [await foto('u3-reel.jpg', 1080, 1920)]);
+    const [x] = await poner('r3', [await foto('u3-cancelada.jpg')]);
+    M.setEstado('r3', 'cancelado');
+    const [x2] = await M._in.paraPoner([x]); M._test.place('r1', x2);   // y de relleno en el carrusel: solo cuenta esta
+    await pulsar('[data-act="addfiller"]');
+    await M._test.setPreview(0, hz);
+    const id = M.hs.anadir(DIA(10), { time: '12:00' });
+    await historiaConFoto(id, h);
+    await M.flush();
+    await uEsperaMarcas({ 'u3-a.jpg': 'p0', 'u3-c.jpg': 'p0', 'u3-b.jpg': 'r', 'u3-reel.jpg': 'p0', 'u3-hueco.jpg': 'p0', 'u3-cancelada.jpg': 'r', 'u3-hist.jpg': '' }, 'las marcas');
+    await filtro('todas');
+    const th = uTileMesa('u3-hist.jpg');
+    ok(th && th.querySelector('.hs') && !th.classList.contains('uso'), 'la foto de la historia: anillo y sin ✓');
+    ok(vista(false).includes('u3-hist.jpg'), 'la foto de la historia salió de «Sin usar»');
+    ok(/ · usada en una historia/.test(th.title), 'el título perdió «usada en una historia»: ' + th.title);
+    ok(/portada · hueco del feed · nov/.test(uTileMesa('u3-hueco.jpg').title), 'el título del hueco: ' + uTileMesa('u3-hueco.jpg').title);
+    ok(!uTileMesa('u3-hueco.jpg').querySelector('[data-act="del"]'), 'la portada del hueco tiene ×');
+    await filtro('sin');
+  });
+
+  prueba('U4', 'Editor: la diapositiva 1 es portada y las demás relleno, en el mes del post, antes de aplicar; mover una foto de diapositiva cambia la marca en el momento, también con ⌘Z; en una historia no hay marca (D-122)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    await poner('r1', [await foto('u4-a.jpg'), await foto('u4-b.jpg'), await foto('u4-c.jpg')]);
+    const [h] = await M.addFiles([await foto('u4-h.jpg')]);
+    await M.flush();
+    await editorConBandeja('r1');
+    accion('tr-fil', { v: 'todas' });
+    const enEd = () => ['u4-a.jpg', 'u4-b.jpg', 'u4-c.jpg'].map(n => uClase(uTileEd(n)));
+    igual(enEd(), ['p0', 'r', 'r'], 'al abrir');
+    ok(/^u4-b\.jpg · relleno · Carrusel 1\.1 · diapositiva 2 · 3 nov · ya está en una diapositiva$/.test(uTileEd('u4-b.jpg').title), 'el título en el editor: ' + uTileEd('u4-b.jpg').title);
+    igual(uFondo(uTileEd('u4-c.jpg')), 'rgb(178, 80, 58)', 'el naranja del editor');
+    accion('sl-up', { i: 1 });                     // la b pasa a ser la portada
+    igual(enEd(), ['r', 'p0', 'r'], 'tras mover la diapositiva 2 delante');
+    accion('undo');
+    igual(enEd(), ['p0', 'r', 'r'], 'tras ⌘Z');
+    accion('redo');
+    igual(enEd(), ['r', 'p0', 'r'], 'tras ⇧⌘Z');
+    accion('undo');
+    accion('tr-fil', { v: 'sin' });
+    M.libre.cerrar();
+    // una historia: su foto no lleva marca, ni en el editor ni en la mesa
+    const id = M.hs.anadir(DIA(10), { time: '12:00' });
+    await historiaConFoto(id, h);
+    await editorConBandeja(id);
+    accion('tr-fil', { v: 'todas' });
+    const t = await hasta(() => uTileEd('u4-h.jpg'), 3000, 'la foto de la historia en la bandeja del editor');
+    ok(!t.classList.contains('uso'), 'la foto de la historia lleva ✓ en el editor');
+    accion('tr-fil', { v: 'sin' });
+    ok(uTileEd('u4-h.jpg'), 'la foto de la historia no está en «Sin usar» del editor');
+    M.libre.cerrar();
+  });
+
+  prueba('U5', '«Sin usar / Libres para portada / Todas» en la mesa y en el editor: el mismo filtro, con su contador, recordado al recargar (D-122, D-041)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('u5-a.jpg')]);
+    await poner('r2', [await foto('u5-b.jpg'), await foto('u5-c.jpg')]);
+    await M.addFiles([await foto('u5-d.jpg')]);
+    await M.flush();
+    await abrirMes([pub(3, 'Foto', 5, U_AGO)], U_AGO);
+    await poner(`r3-${U_AGO}`, [await foto('u5-e.jpg')]); await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    await uEsperaMarcas({ 'u5-a.jpg': 'p0', 'u5-b.jpg': 'p0', 'u5-c.jpg': 'r', 'u5-d.jpg': '', 'u5-e.jpg': '' }, 'las marcas');
+    const cuenta = () => q('.tray .tcount').textContent;
+    await filtro('portada');
+    ok(q('.tray [data-act="tfil"][data-v="portada"]').classList.contains('on'), 'el botón «Libres para portada» no se enciende');
+    igual(q('.tray [data-act="tfil"][data-v="portada"]').textContent, 'Libres para portada', 'el nombre del botón');
+    await hasta(() => uNombres('.tray .tgrid .titem').length === 3, 4000, 'tres fotos libres para portada');
+    igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg'], '3 libres para portada'], '«Libres para portada» en la mesa');
+    await filtro('sin');
+    await hasta(() => uNombres('.tray .tgrid .titem').length === 2, 4000, 'dos fotos sin usar');
+    igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-d.jpg', 'u5-e.jpg'], '2 sin usar'], '«Sin usar» en la mesa');
+    await filtro('todas');
+    igual([uNombres('.tray .tgrid .titem').length, cuenta()], [5, '2 sin usar · 3 ✓'], '«Todas» en la mesa');
+    // el editor: el mismo filtro; la portada del post abierto cuenta como está allí
+    await filtro('portada');
+    await editorConBandeja('r1');
+    ok(q('.lb-tray [data-lb="tr-fil"][data-v="portada"]').classList.contains('on'), 'el editor no tiene el filtro de la mesa');
+    igual([uNombres('.lb-tray .lb-tph'), q('.lb-trb .lb-trn').textContent], [['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg'], 'Bandeja · 3'], '«Libres para portada» en el editor');
+    accion('tr-fil', { v: 'sin' });
+    igual(W.localStorage.getItem('mesa-bandeja-filtro'), 'sin', 'el editor no guarda el filtro');
+    accion('tr-fil', { v: 'portada' });
+    M.libre.cerrar();
+    ok(q('.tray [data-act="tfil"][data-v="portada"]').classList.contains('on'), 'la mesa no sigue al editor');
+    // recargar
+    await M.flush();
+    await preparar();
+    if (!M.board() || M.board().key !== `${CLIENTE}-${MES}`) await M.open(`${CLIENTE}-${MES}`);
+    await hasta(() => q('.tray [data-act="tfil"][data-v="portada"].on'), 4000, '«Libres para portada» tras recargar');
+    await hasta(() => json(uNombres('.tray .tgrid .titem')) === json(['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg']), 6000, 'las libres para portada tras recargar');
+    await editorConBandeja('r1');
+    ok(q('.lb-tray [data-lb="tr-fil"][data-v="portada"]').classList.contains('on'), 'el editor no lo recuerda');
+    M.libre.cerrar();
+    await filtro('sin');
+  });
+
+  prueba('U6', 'El título de la foto dice el uso que decide su marca; la que ya no cuenta no tiene ×, en «Sin usar» y en «Todas», y la sin usar sí (D-122, D-041)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('u6-a.jpg')]);
+    await poner('r2', [await foto('u6-b.jpg'), await foto('u6-c.jpg'), await foto('u6-d.jpg')]);
+    await M.addFiles([await foto('u6-libre.jpg')]);
+    await M.flush();
+    await abrirMes([pub(5, 'Foto', 7, U_AGO)], U_AGO);
+    await poner(`r5-${U_AGO}`, [await foto('u6-e.jpg')]); await M.flush();
+    await M.open(`${CLIENTE}-${MES}`);
+    await uEsperaMarcas({ 'u6-a.jpg': 'p0', 'u6-d.jpg': 'r', 'u6-e.jpg': '' }, 'las marcas');
+    await filtro('todas');
+    const tit = n => uTileMesa(n).title;
+    igual(tit('u6-a.jpg'), 'u6-a.jpg · portada · Foto 1.1 · 3 nov · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una portada');
+    igual(tit('u6-d.jpg'), 'u6-d.jpg · relleno · Carrusel 1.2 · diapositiva 3 · 4 nov · arrástrala a una casilla o púlsala y luego la casilla', 'el título de un relleno');
+    igual(tit('u6-e.jpg'), 'u6-e.jpg · usada hace 3 meses o más (portada · Foto 1.5 · 7 ago): ya no cuenta · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una que ya no cuenta');
+    igual(tit('u6-libre.jpg'), 'u6-libre.jpg · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una sin usar');
+    const x = n => !!uTileMesa(n).querySelector('[data-act="del"]');
+    igual(['u6-a.jpg', 'u6-d.jpg', 'u6-e.jpg', 'u6-libre.jpg'].map(x), [false, false, false, true], 'la × en «Todas»');
+    await filtro('sin');
+    igual(['u6-e.jpg', 'u6-libre.jpg'].map(x), [false, true], 'la × en «Sin usar»');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

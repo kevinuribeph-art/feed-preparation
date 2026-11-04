@@ -98,11 +98,13 @@
 // v1.40 (mesa 3.78): audit fixes (D-093) — Esc with a folder's menu open closes the menu; Enter or space never press a button
 // behind a question; the templates' logos load with the editor; «Rejilla» leaves hidden and locked photos alone and keeps a
 // filled hole; a photo filling a grouped hole stays in its group; a font that failed is asked for again when drawing.
+// v1.48 (mesa 3.93): the tray's marks tell a cover from a filling photo and how long ago (D-122): slide 1 of this post is
+// its cover, the others filling, in its month; a story's slides give none; «Sin usar / Libres para portada / Todas».
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.47';
+  const VERSION = '1.48';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1102,7 +1104,8 @@
 #mesa .lb-ttl textarea.lb-guion{display:block;box-sizing:border-box;width:100%;max-width:min(60vw,720px);max-height:calc(3 * 1.3em + 4px);margin:2px 0 0 -5px;padding:1px 4px;border:1px solid transparent;border-radius:4px;background:none;color:var(--mute);font:inherit;font-size:12.5px;line-height:1.3;resize:none;overflow-y:auto}
 #mesa .lb-ttl textarea.lb-guion:hover{border-color:var(--line)}#mesa .lb-ttl textarea.lb-guion:focus{border-color:var(--ink);color:var(--ink);outline:0}
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
-#mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--acc);color:#fff;font-size:11.5px;line-height:16px;text-align:center}
+#mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--uso-p0,#0b2a6b);color:#fff;font-size:11.5px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px rgba(0,0,0,.22)}
+#mesa .lb-tph.u-p1::after{background:var(--uso-p1,#2f5fd0)}#mesa .lb-tph.u-p2::after{background:var(--uso-p2,#a9cbf6);color:var(--uso-p0,#0b2a6b)}#mesa .lb-tph.u-r::after{background:var(--uso-r,#b2503a)}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
 #mesa .lb-marq{position:fixed;z-index:6;border:1px solid #0095f6;background:rgba(0,149,246,.08);pointer-events:none}
 #mesa .lb-menu.lb-cm{position:fixed;top:0;right:auto;z-index:20}#mesa .lb-menu.lb-cm button{display:flex;justify-content:space-between;align-items:center}#mesa .lb-menu.lb-cm button:disabled{color:var(--faint);background:none;cursor:default}
@@ -3038,13 +3041,15 @@
   const FLECHA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const hayArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
   function enUso() { const u = new Set(); E.sl.forEach((x, i) => fotosDe(compAt(i)).forEach(e => { if (e.src) u.add(e.src); })); return u; }
+  // what is on this post's slides for the tray's marks (D-122): fileId -> {p: seen on slide 1, the cover, i: its first slide}
+  function enUsoMarca() { const u = new Map(); E.sl.forEach((x, i) => fotosDe(compAt(i)).forEach(e => { if (!e.src) return; const p = i === 0 && !e.oculto, a = u.get(e.src); if (!a || (p && !a.p)) u.set(e.src, { p, i: a ? Math.min(a.i, i) : i }); })); return u; }
   // a tray photo with ✓ that is in another post of this month goes in as a copy, as in the mesa (D-041)
   const conCopias = fs => I().paraPoner && !E.historia ? I().paraPoner(fs, E.slotId) : Promise.resolve(fs);   // a story uses the photo where it is
-  // the client's tray as the mesa shows it (D-041): [{f, u}], u = used in a publication of any month (this post: as it is
-  // here, its slides) — with «Sin usar», only the ones without ✓
-  function trayFotos(todas) {
-    const uso = enUso();
-    const vista = I().bandejaVista ? I().bandejaVista({ todas, sin: E.slotId, mas: uso }).filter(x => !isKit(x.f)) : E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f)).map(f => ({ f, u: uso.has(f) }));
+  // the client's tray as the mesa shows it (D-041): [{f, u, c, …}] with each photo's mark (D-122), this post counting as it
+  // is here (slide 1 its cover, the others filling), as the filter shows them. A story's slides give no mark (D-056)
+  function trayFotos(fil) {
+    const uso = enUso(), o = E.historia ? {} : { mas: uso, masU: enUsoMarca() };
+    const vista = I().bandejaVista ? I().bandejaVista({ filtro: fil, todas: fil === 'todas', sin: E.slotId, ...o }).filter(x => !isKit(x.f)) : E.board.tray.filter(f => M.files[f] && !M.files[f].design && !isKit(f)).map(f => ({ f, u: uso.has(f) }));
     return [...[...E.vuelven].filter(f => M.files[f] && !uso.has(f) && !vista.some(x => x.f === f)).map(f => ({ f, u: false })), ...vista];   // a photo another took the place of is back in the tray at once, not only when it is applied
   }
   // the size of its photos (D-091): a slider like the mesa's, at the foot by «?» while the tray is open and there is room;
@@ -3100,14 +3105,15 @@
   }
   function bandeja() {               // drawn again only when it shows something else
     if (!E || !E.el) return;
-    const todas = !!(I().trayTodas && I().trayTodas()), box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(todas), n = fs.filter(x => !x.u).length, uso = enUso();
+    const fil = I().trayFiltroV ? I().trayFiltroV() : I().trayTodas && I().trayTodas() ? 'todas' : 'sin', todas = fil === 'todas', box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(fil), uso = enUso();
+    const n = fil === 'todas' ? fs.filter(x => !x.u).length : fs.length;   // what the filter shows: «Todas» counts the ones without a mark (D-122)
     E.trSel = E.trSel.filter(f => fs.some(x => x.f === f));   // only what it shows stays chosen
     E.trCar = (E.trCar || []).filter(id => I().carpetasDeVista().some(c => c.id === id));
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
-    b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto sin usar' : `${n} fotos sin usar`}, para ponerlas en la diapositiva`;
+    b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto' : `${n} fotos`} ${fil === 'portada' ? (n === 1 ? 'libre' : 'libres') + ' para portada' : 'sin usar'}, para ponerlas en la diapositiva`;
     const pest = I().pestLista ? I().pestLista() : [];   // its tabs, the same as the mesa's (D-076): shown once there is more than the fixed one
     const carps = I().carpetasDeVista ? I().carpetasDeVista() : [], ruta = I().rutaCarpeta ? I().rutaCarpeta() : [], perez = fs.length > (I().MINIS_DE_UNA || 80);   // the tray's folders, the same as the mesa's (D-075)
-    const key = E.trOpen ? (todas ? 't:' : 's:') + fs.map(x => x.f + (x.u ? '+' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + E.trCar.join(',') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
+    const key = E.trOpen ? fil + ':' + fs.map(x => x.f + (x.u ? '+' + x.c + (I().usoTexto ? I().usoTexto(x.uso) : '') : '') + (x.ult ? '-' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + E.trCar.join(',') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
     tamBandeja();
     if (key === E.trKey && box.hidden === !E.trOpen) return;
     E.trKey = key; box.hidden = !E.trOpen;
@@ -3115,9 +3121,9 @@
     const vista = E.trOpen ? ((I().S || {}).client || '') + '|' + (I().trayCarpeta || '') : '', tr0 = box.querySelector('.lb-trs');
     if (tr0 && box._vista && box._vista !== vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr0, tr0, 'x', tr0.getBoundingClientRect().left);
     const sx = tr0 ? tr0.scrollLeft : 0;
-    const tit = x => esc(M.files[x.f].name || '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : x.u ? ' · ya usada en una publicación' : '') + (x.h ? ' · usada en una historia' : '');
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['todas', 'Todas']], todas ? 'todas' : 'sin')}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
-      + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp${E.trCar.includes(c.id) ? ' elegida' : ''}" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso' : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
+    const tit = x => esc((M.files[x.f].name || '') + (I().marcaTitulo ? I().marcaTitulo(x) : x.u ? ' · ya usada en una publicación' : '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : '') + (x.h ? ' · usada en una historia' : ''));
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['portada', 'Libres para portada'], ['todas', 'Todas']], fil)}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b> <span>· ${fs.length ? 'clic: a esta diapositiva · o arrástrala donde la quieras · ⌘ + clic: elegir varias · ' : ''}suelta aquí fotos del ordenador para guardarlas en ella</span></div>`
+      + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp${E.trCar.includes(c.id) ? ' elegida' : ''}" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso u-' + x.c : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : fil === 'portada' ? 'No hay fotos libres para portada: mira «Todas».' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs');
     if (tr && box._vista !== vista && I().dondeVolver) I().dondeVolver('e|' + vista, tr, tr, 'x', tr.getBoundingClientRect().left); else if (tr) tr.scrollLeft = sx;
     box._vista = vista;

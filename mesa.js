@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.92'; // 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.93'; // 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -919,16 +919,54 @@
   let usoFin = '', usoPrevO = [];      // the client's last month; the photos on the fillers of its other boards (D-049)
   const finDe = b => { const m = b.month || (String(b.key || '').match(/-(\d{4}-\d{2})$/) || [])[1]; return m ? monthsOf(m, b.span).slice(-1)[0] : ''; };
   const fileKey = f => { if (!trayable(f)) return null; const x = M.files[f]; return x ? (x.design ? null : fkey(x.name, x.size)) : metaKey.get(f) || null; };
-  function usosDe(b, put) {            // each photo used in board b: put(fileId, {slot | prev, m: its month})
+  // each photo used in board b: put(fileId, {slot | prev | hueco, m: its month, p: on the cover, i: its page (0 the first)
+  // or null}), once per photo and post, with its first page. The cover (D-122) is the post's first page: a Foto's photo, a
+  // carousel's first slide, a reel's cover; when that page was drawn by the editor or the designer, every photo it shows.
+  function usosDe(b, put) {
     const cd = cdOf(b.cycleDay);
     for (const s of b.slots || []) {
       if (!vivo(s)) continue;
-      const out = new Set([...dOut(s), ...lOut(s)]), m = cycleOf(s.date, cd) || b.month;
-      new Set([...(s.photos || []).filter(f => !out.has(f)), ...dSrc(s)]).forEach(f => put(f, { slot: s.id, m, date: s.date, name: s.name }));
+      const out = new Set([...dOut(s), ...lOut(s)]), m = cycleOf(s.date, cd) || b.month, pag = new Map(), dz = s.design && s.design.out ? s.design.out : [];
+      const pon = (f, i) => { if (!f) return; const a = pag.get(f); if (a === undefined || (i != null && (a < 0 || i < a))) pag.set(f, i == null ? -1 : i); };
+      (s.photos || []).forEach((f, i) => {
+        const c = lComp(s, f, b.slots), j = dz.indexOf(f);
+        if (c) (c.els || []).forEach(e => { if (e && e.src) pon(e.src, e.oculto ? null : i); });   // a hidden photo is not seen: not the cover
+        else if (j >= 0) pon(((s.design.slides || [])[j] || {}).src, i);
+        else if (!out.has(f)) pon(f, i);
+      });
+      dSrc(s).forEach(f => pon(f, null));   // in the post but on no page (a design kept while its type changed…)
+      pag.forEach((i, f) => put(f, { slot: s.id, m, date: s.date, name: s.name, p: i === 0, i: i < 0 ? null : i }));
     }
-    for (const p of b.prev || []) if (p.own) (p.photos || []).forEach(f => put(f, { prev: true, m: cycleOf(p.date, cd) }));
-    if (finDe(b) >= usoFin) previewsOf(b).forEach(f => put(f, { hueco: true, m: finDe(b) }));   // with a later month, it is free again (D-049)
+    for (const p of b.prev || []) if (p.own) (p.photos || []).forEach((f, i) => put(f, { prev: true, m: cycleOf(p.date, cd), date: p.date, name: p.name, p: i === 0, i }));
+    if (finDe(b) >= usoFin) previewsOf(b).forEach(f => put(f, { hueco: true, m: finDe(b), p: true }));   // with a later month, it is free again (D-049)
   }
+  // ---------- the mark of a used photo in the tray (D-122) ----------
+  // From its uses that count (D-022), in months counted from the open board's: a cover this month or a later one is dark
+  // blue (p0), last month middle blue (p1), two months ago light blue (p2); any other use in those months is orange (r).
+  // Blue wins over orange even when the orange is newer; among blues, the most recent. Three months ago or more a use no
+  // longer counts: with none that counts the photo has no mark and is free again («Sin usar»).
+  const mesN = m => { const [y, mo] = String(m).split('-').map(Number); return y * 12 + mo; };
+  function marcaDe(us, ref) {          // us: [{p, m, date, …}] -> {c: 'p0' | 'p1' | 'p2' | 'r' | '', uso: the use that decides it, ult: the newest use when none counts}
+    let az = null, na = null, ult = null;
+    const mejor = (a, b) => !b || a.k < b.k || (a.k === b.k && (a.d < b.d || (a.d === b.d && a.t > b.t)));   // the nearest month to the open one, then the latest date
+    for (const u of us) {
+      const d = ref - mesN(u.m || S.month), x = { u, k: Math.max(0, d), d: Math.abs(d), t: u.date ? ts(u.date) : 0 };
+      if (d >= 3) { if (mejor(x, ult)) ult = x; } else if (u.p) { if (mejor(x, az)) az = x; } else if (mejor(x, na)) na = x;
+    }
+    return { c: az ? 'p' + az.k : na ? 'r' : '', uso: (az || na || {}).u || null, ult: !az && !na && ult ? ult.u : null };
+  }
+  // what a tray photo's title says of the use that decides its mark: «portada · Foto 1.2 · 5 nov», «relleno · Carrusel 1.1 ·
+  // diapositiva 3 · 12 oct», «portada · hueco del feed · nov» (D-122)
+  const fechas = new Map(), usoTxt = new WeakMap();   // each date and each use said once: Madrid's day is slow to work out for every tile
+  const fechaCorta = d => { if (!d) return ''; let v = fechas.get(d); if (v === undefined) { const x = localDay(d); v = x ? `${+x.slice(8)} ${MONTHS[+x.slice(5, 7) - 1].slice(0, 3)}` : ''; if (fechas.size > 5000) fechas.clear(); fechas.set(d, v); } return v; };
+  const usoTexto = u => {
+    if (!u) return '';
+    let t = usoTxt.get(u);
+    if (t === undefined) usoTxt.set(u, t = [u.p ? 'portada' : 'relleno', u.hueco ? 'hueco del feed' : u.name || 'publicación', !u.p && u.i != null ? `diapositiva ${u.i + 1}` : '',
+      u.hueco ? (u.m ? MONTHS[+u.m.slice(5, 7) - 1].slice(0, 3) : '') : fechaCorta(u.date)].filter(Boolean).join(' · '));
+    return t;
+  };
+  const marcaTitulo = x => x.uso ? ' · ' + usoTexto(x.uso) : x.ult ? ` · usada hace 3 meses o más (${usoTexto(x.ult)}): ya no cuenta` : '';
   function usoMap(b, map = new Map()) { usosDe(b, (f, u) => { const k = fileKey(f); if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(u); }); return map; }
   // ---------- stories: what they use and the rule of not showing a photo before its post (D-056) ----------
   let usoHO = new Map();               // photos used in the stories of the client's other boards: key -> [{id, date}]
@@ -1178,8 +1216,8 @@
       return got;
     }
     if (!into && !(opts && opts.tray) && got.length) {   // into the tray, a photo already used: it is in «Todas», with ✓ (D-041)
-      const ya = bandejaVista({ todas: true }).filter(x => x.u && got.includes(x.f)).length;
-      if (ya && !trayTodas()) toast(ya === 1 ? 'Esa foto ya está usada en una publicación: la ves en «Todas», con ✓.' : `${ya} de esas fotos ya están usadas en publicaciones: las ves en «Todas», con ✓.`, { ms: 6000 });
+      const fil = trayFiltroV(), ya = bandejaVista({ todas: true }).filter(x => got.includes(x.f) && !pasaFiltro(x, fil)).length;   // the ones the filter hides (D-122)
+      if (ya) toast(ya === 1 ? 'Esa foto ya está usada en una publicación: la ves en «Todas», con ✓.' : `${ya} de esas fotos ya están usadas en publicaciones: las ves en «Todas», con ✓.`, { ms: 6000 });
     }
     if (targetSlotId && got.length) {
       const s = slot(targetSlotId);
@@ -1869,7 +1907,7 @@
 
   // ---------- rendering ----------
   const CSS = `
-#mesa{--bg:#fafafa;--panel:#fff;--line:#dbdbdb;--line2:#efefef;--ink:#262626;--mute:#737373;--faint:#a8a8a8;--acc:#0095f6;--acc2:#1877f2;--ok:#1a7f37;--chg:#c2410c;--red:#c0392b;position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:14px/1.4 ${FONT};-webkit-font-smoothing:antialiased}
+#mesa{--bg:#fafafa;--panel:#fff;--line:#dbdbdb;--line2:#efefef;--ink:#262626;--mute:#737373;--faint:#a8a8a8;--acc:#0095f6;--acc2:#1877f2;--uso-p0:#0b2a6b;--uso-p1:#2f5fd0;--uso-p2:#a9cbf6;--uso-r:#b2503a;--ok:#1a7f37;--chg:#c2410c;--red:#c0392b;position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:14px/1.4 ${FONT};-webkit-font-smoothing:antialiased}
 #mesa *{box-sizing:border-box}
 #mesa button{font:inherit;color:inherit;cursor:pointer}
 #mesa :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
@@ -2010,13 +2048,13 @@
 #mesa .side{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}#mesa .side>.tray{flex:1 1 0;min-height:0}
 #mesa.client .side:not(:has(>.cal:not([hidden]))){display:none}
 #mesa .tray.over{background:#e8f3fe}
-#mesa .trayhead{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:10px 12px;background:inherit}
+#mesa .trayhead{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:10px 12px;background:inherit}
 #mesa .trayhead b{font-size:14px}#mesa .trayhead span{color:var(--mute);font-size:12px}
 #mesa .btn{border:0;border-radius:8px;background:var(--acc);color:#fff !important;font-weight:600;font-size:13px;padding:7px 12px;display:inline-flex;gap:6px;align-items:center}
 #mesa .btn svg{width:15px;height:15px}
 #mesa .btn:hover{background:var(--acc2)}
 #mesa .trayhead .btn{margin-left:auto}
-#mesa .trayhead .tcount{min-width:0}#mesa .trayhead .btn{white-space:nowrap}
+#mesa .trayhead .tcount{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .trayhead .btn{white-space:nowrap}
 #mesa .tfil{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
 #mesa .tfil button{border:0;background:none;padding:2px 9px;font:inherit;font-size:12px;color:var(--mute);cursor:pointer}#mesa .tfil button.on{background:var(--ink);color:#fff}
 #mesa .ttam{position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:6px;color:var(--faint)}#mesa .ttam[hidden]{display:none}
@@ -2026,7 +2064,8 @@
 #mesa .ttam input::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:12px;height:12px;margin-top:-5px;border:1px solid #b5b5b5;border-radius:50%;background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.15)}#mesa .ttam input::-moz-range-thumb{box-sizing:border-box;width:12px;height:12px;border:1px solid #b5b5b5;border-radius:50%;background:var(--panel)}
 #mesa .ttam input:hover::-webkit-slider-thumb{border-color:var(--ink)}#mesa .ttam input:hover::-moz-range-thumb{border-color:var(--ink)}#mesa .ttam input:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:4px}
 #mesa .hs{position:absolute;bottom:22px;left:5px;width:14px;height:14px;border-radius:50%;border:2.5px solid #d6249f;background:rgba(0,0,0,.35);box-sizing:border-box;pointer-events:none}
-#mesa .titem.uso::after{content:'✓';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px;line-height:18px;text-align:center;pointer-events:none}
+#mesa .titem.uso::after{content:'✓';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--uso-p0);color:#fff;font-size:12px;font-weight:700;line-height:18px;text-align:center;pointer-events:none;box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px rgba(0,0,0,.22)}
+#mesa .titem.u-p1::after{background:var(--uso-p1)}#mesa .titem.u-p2::after{background:var(--uso-p2);color:var(--uso-p0)}#mesa .titem.u-r::after{background:var(--uso-r)}
 #mesa .btn2{border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:13px;padding:6px 11px}
 #mesa .btn2:hover{border-color:#bdbdbd}
 #mesa .btn2.danger{color:var(--red);border-color:#efc2c2}
@@ -2342,7 +2381,7 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
-          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button>'
+          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada">Libres para portada</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + ICON.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
           + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
@@ -2750,39 +2789,61 @@
     M._ro = new ResizeObserver(() => fitGrid());
     M._ro.observe(feed); M._ro.observe(feed.querySelector('.legend'));
   }
-  // What a tray shows (D-041), the mesa's and the free editor's alike: the client's tray, a photo once, each with u = used
-  // in a publication of any of the client's months (the rule of D-022); with «Todas», also the client's photos used in its
-  // publications that are not in the tray. o.todas: instead of the filter; o.sin: a post whose uses don't count (the one
-  // open in the editor), o.mas: photos in use there (on its slides). Never another client's photo (a collab's, `de`).
-  const LS_TF = 'mesa-bandeja-filtro';
-  const trayTodas = () => lsGet(LS_TF) === 'todas';
-  function trayFiltro(v) { lsSet(LS_TF, v === 'todas' ? 'todas' : 'sin'); renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }
+  // What a tray shows (D-041), the mesa's and the free editor's alike: the client's tray, a photo once, each with its mark
+  // (D-122): c = 'p0' | 'p1' | 'p2' (a cover, dark to light blue) | 'r' (orange) | '' and u = it has one (it counts as
+  // used); pub = in a live post, however long ago (no ×); uso = the use that decides the mark, ult = the newest of a photo
+  // whose uses no longer count. The filter: «Sin usar» (no mark, also the photos whose uses no longer count), «Libres para
+  // portada» (no blue) and «Todas» (also the client's photos used in its posts that are not in the tray). o.filtro or
+  // o.todas: instead of the filter; o.sin: a post whose uses don't count (the one open in the editor), o.mas: photos in use
+  // there (on its slides) and o.masU: fileId -> {p: on its first slide, i: the slide}. Never another client's photo (`de`).
+  const LS_TF = 'mesa-bandeja-filtro', FILTROS = ['sin', 'portada', 'todas'];
+  const trayFiltroV = () => { const v = lsGet(LS_TF); return FILTROS.includes(v) ? v : 'sin'; };   // a tab of before 3.93 reads «portada» as «Sin usar»
+  const trayTodas = () => trayFiltroV() === 'todas';
+  const pasaFiltro = (x, fil) => fil === 'todas' || (fil === 'portada' ? !/^p/.test(x.c || '') : !x.u);
+  function trayFiltro(v) { lsSet(LS_TF, FILTROS.includes(v) ? v : 'sin'); renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }
   let trayCarpeta = null;              // the folder the tray has open (null: the root)
   let todasCarga = null; const sinMini = new Set();   // photos of «Todas» whose thumbnail can't load: not asked again
+  let marcaMemo = null;                // each photo's mark until the uses change (a save, another board read): {s, o, sin, ref, m: key -> mark}
   function bandejaVista(o = {}) {
     if (!S) return [];
     if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
     // o.carpeta: that folder (null: the root); by default, what the tray has open. A folder's photos never show in the root (D-069)
     const carp = o.carpeta !== undefined ? o.carpeta : trayCarpeta, c0 = carp ? (S.carpetas || []).find(x => x.id === carp) : null, enC = c0 ? new Set() : enCarpetas(S.carpetas);
-    const todas = o.todas ?? trayTodas(), mas = o.mas || new Set(), c = S.client, out = [], ya = new Set(), hm = usoHMap();
+    const fil = FILTROS.includes(o.filtro) ? o.filtro : o.todas != null ? (o.todas ? 'todas' : 'sin') : trayFiltroV(), todas = fil === 'todas';
+    const mas = o.mas || new Set(), c = S.client, out = [], ya = new Set(), hm = usoHMap(), ref = mesN(S.month);
     const cuenta = u => !o.sin || u.slot !== o.sin;
-    const usada = (f, k) => mas.has(f) || (!!k && ((usoS.map.get(k) || []).some(cuenta) || (usoO.get(k) || []).some(cuenta)));
+    // the post open in the editor: what is on its slides, as it is there (slide 1 the cover), in that post's month
+    const mu = o.masU || (o.mas ? new Map([...o.mas].map(f => [f, { p: false, i: null }])) : null), s0 = mu && o.sin ? S.slots.find(x => x.id === o.sin) : null;
+    const ed = mu ? { slot: s0 ? s0.id : o.sin, m: (s0 && cycleOf(s0.date, curCd())) || S.month, date: s0 ? s0.date : null, name: s0 ? s0.name : '' } : null, edK = new Map();
+    if (ed) mu.forEach((v, f) => { const k = fileKey(f) || f, a = edK.get(k); if (!a || (v.p && !a.p) || (v.p === a.p && v.i < a.i)) edK.set(k, v); });
+    const sin = o.sin || null;
+    if (!marcaMemo || marcaMemo.s !== usoS || marcaMemo.o !== usoO || marcaMemo.sin !== sin || marcaMemo.ref !== ref) marcaMemo = { s: usoS, o: usoO, sin, ref, m: new Map() };
+    const marca = (f, k) => {
+      const e = ed && edK.get(k || f);
+      if (!e && k && marcaMemo.m.has(k)) return marcaMemo.m.get(k);
+      const us = [];
+      if (k) for (const l of [usoS.map.get(k), usoO.get(k)]) if (l) for (const u of l) if (cuenta(u)) us.push(u);
+      if (e) us.push({ ...ed, p: !!e.p, i: e.i });
+      const r = marcaDe(us, ref), x = { u: !!r.c, c: r.c, pub: us.length > 0 || mas.has(f), uso: r.uso, ult: r.ult };
+      if (!e && k) marcaMemo.m.set(k, x);
+      return x;
+    };
     const add = f => {
       if (!f || ya.has(f) || enC.has(f) || !M.files[f] || M.files[f].design || !trayable(f) || ajena(f, c)) return;
       const k = fileKey(f); if (k && ya.has(k)) return;
       ya.add(f); if (k) ya.add(k);
-      out.push({ f, u: usada(f, k), ...(k && hm.has(k) ? { h: true } : {}) });   // h: in a story (not ✓: it is still free for the feed, D-056)
+      out.push({ f, ...marca(f, k), ...(k && hm.has(k) ? { h: true } : {}) });   // h: in a story (no mark: it is still free for the feed, D-056)
     };
-    if (c0) { c0.files.forEach(add); return todas ? out : out.filter(x => !x.u); }   // used or not, it stays in its folder, with ✓
+    const vista = () => (todas ? out : out.filter(x => pasaFiltro(x, fil)));
+    if (c0) { c0.files.forEach(add); return vista(); }   // used or not, it stays in its folder, with its mark
     S.tray.forEach(add);
-    [...previewsOf(S), ...usoPrevO].forEach(add);   // a filler's photo: with ✓ while it counts as used, free once there is a later month (D-049)
-    if (!todas) return out.filter(x => !x.u);
+    [...previewsOf(S), ...usoPrevO].forEach(add);   // a filler's photo: marked while it counts as used, free once there is a later month (D-049)
     mas.forEach(add);
-    usosDe(S, (f, u) => { if (cuenta(u)) add(f); });
+    usosDe(S, (f, u) => { if (cuenta(u)) add(f); });   // the used ones: with «Sin usar», the ones whose uses no longer count
     usoIdsO.forEach(add);
-    const need = [...usoIdsO.values()].filter(f => !M.files[f] && !sinMini.has(f));
+    const need = [...usoIdsO.values()].filter(f => !M.files[f] && !sinMini.has(f) && (todas || pasaFiltro(marca(f, fileKey(f)), fil)));
     if (need.length && !todasCarga) { const B = S; todasCarga = loadThumbs(need).catch(() => need).then(m => { (m || []).forEach(f => sinMini.add(f)); todasCarga = null; if (B === S) { renderTray(); if (M.libre && M.libre.bandeja) M.libre.bandeja(); } }); }
-    return out;
+    return vista();
   }
   // ---------- the folders in the tray: going in and back (D-075) ----------
   // A long view gets its thumbnails as they come into sight: lazy loading doesn't apply to blob: URLs.
@@ -3077,6 +3138,7 @@
     const b = h.querySelector('.btn'), f = h.querySelector('.tfil'), hr = h.getBoundingClientRect();
     if (NARROW.matches || !b || !f || !hr.width) { w.hidden = true; return; }
     const br = b.getBoundingClientRect(), fr = f.getBoundingClientRect();
+    if (fr.top - hr.top > 20) { w.hidden = true; return; }   // a narrow panel puts the filter and the button on a second line (D-122): no room
     w.style.right = Math.round(hr.right - br.left + 14) + 'px';
     w.hidden = br.left - fr.right < TAM_ANCHO + 28;
   }
@@ -3138,16 +3200,16 @@
     const tray = root.querySelector('.tray'); if (!tray) return;
     const vista = S.client + '|' + (trayCarpeta || ''), otra = tray.querySelector('.tgrid')._vista !== vista;
     if (otra) trayDonde(tray);   // where the folder it shows was, before it shows another (D-092)
-    const todas = trayTodas(), vis = bandejaVista({ todas }), n = vis.filter(x => !x.u).length;
-    { const tc = tray.querySelector('.tcount'), t = todas ? `${n} sin usar · ${vis.length - n} ✓` : n ? `${n} sin usar` : 'vacía'; if (tc.textContent !== t || !tc._tam) { tc.textContent = t; tc._tam = true; tamColocar(); } }   // the size slider goes where there is room
-    tray.querySelectorAll('.tfil button').forEach(b => { const on = (b.dataset.v === 'todas') === todas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    const fil = trayFiltroV(), vis = bandejaVista({ filtro: fil }), n = vis.filter(x => !x.u).length, nl = vis.length;   // the count says what each filter shows (D-122)
+    { const tc = tray.querySelector('.tcount'), t = fil === 'todas' ? `${n} sin usar · ${nl - n} ✓` : fil === 'portada' ? (nl ? `${nl} ${nl === 1 ? 'libre' : 'libres'} para portada` : 'ninguna libre para portada') : n ? `${n} sin usar` : 'vacía'; if (tc.textContent !== t || !tc._tam) { tc.textContent = t; tc._tam = true; tamColocar(); } }   // the size slider goes where there is room
+    tray.querySelectorAll('.tfil button').forEach(b => { const on = b.dataset.v === fil; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     tray.classList.toggle('isempty', !vis.length && !carpetasDeVista().length);   // a view with only folders is not empty: in a narrow window «empty» hides the grid
     const enHueco = new Set([...previewsOf(S), ...usoPrevO]);   // on a filler: it comes off there, not from the tray (D-049)
     const perez = vis.length > MINIS_DE_UNA;
     navCarpetas(tray);
-    const html = carpetasDeVista().map(tileCarpeta).join('') + vis.map(({ f: id, u, h }) => {
-      const f = M.files[id];
-      return `<div class="titem${!perez && sel === id ? ' sel' : ''}${u ? ' uso' : ''}" data-file="${esc(id)}" title="${esc(f.name)}${u ? (enHueco.has(id) ? ' · ya usada' : ' · ya usada en una publicación') : ''}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${u || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
+    const html = carpetasDeVista().map(tileCarpeta).join('') + vis.map(x => {
+      const { f: id, u, h, pub } = x, f = M.files[id];
+      return `<div class="titem${!perez && sel === id ? ' sel' : ''}${u ? ' uso u-' + x.c : ''}" data-file="${esc(id)}" title="${esc(f.name + marcaTitulo(x))}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${pub || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
     }).join('');
     const grid = tray.querySelector('.tgrid');
     if (!perez || grid._html !== html) {   // a long view is drawn only when it changes: its scroll and its loaded thumbnails stay
@@ -5666,6 +5728,7 @@
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
+    trayFiltroV, marcaDe, usoTexto, marcaTitulo,   // its filter and the marks of the used photos (D-122, mesa ≥ 3.93)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, thumbFromBitmap, refsTodo, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,

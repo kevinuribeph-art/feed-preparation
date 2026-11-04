@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.85'; // 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.86'; // 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -968,7 +968,21 @@
     const l = hsDe(B); if (!l.length) return;
     const dias = {};
     l.forEach(h => { if (!h.cancelada) { const d = localDay(h.date); (dias[d] = dias[d] || []).push(h); } });
-    Object.values(dias).forEach(a => { a.sort((x, y) => ts(x.date) - ts(y.date)); let t = -Infinity; a.forEach(h => { if (ts(h.date) < t + 6e4) h.date = isoDe(t + 6e4); t = ts(h.date); }); });
+    // one minute apart, in order; a story in Zernio never moves (it's the other that does) and none leaves its day: past
+    // 23:59 it takes the last free minute of the day (D-110)
+    Object.entries(dias).forEach(([dia, a]) => {
+      a.sort((x, y) => ts(x.date) - ts(y.date));
+      const min = t => Math.floor(t / 6e4), fin = ts(madridISO(dia, '23:59')), usados = new Set(a.filter(h => h.zernio).map(h => min(ts(h.date))));
+      let t = -Infinity;
+      a.forEach(h => {
+        if (h.zernio) return;
+        let v = Math.max(ts(h.date), t + 6e4);
+        while (usados.has(min(v))) v += 6e4;
+        if (v > fin) { v = fin; while (usados.has(min(v)) && v > fin - 864e5) v -= 6e4; }
+        usados.add(min(v)); t = v;
+        if (v !== ts(h.date)) h.date = isoDe(v);
+      });
+    });
     l.forEach(h => { h.name = 'Historia ' + hFecha(h.date); });
     l.sort((x, y) => ts(x.date) - ts(y.date));
   }
@@ -3199,11 +3213,36 @@
     const pe = p.querySelector('.pest'), eh = estadoHTML(s); if (pe && pe.outerHTML !== eh && !pe.querySelector('.esmot:focus')) pe.outerHTML = eh;   // its state follows too (not under a reason being typed)
   }
   let refreshLater = false;   // a refresh asked for while a photo is being dragged in the post view: done when it is let go
+  // A field of the window being typed in is never rebuilt (D-112): a change from outside (Claude, a collab, the calendar) updates
+  // the state, the head and the captions around it, and the whole window is drawn again when the field loses the focus, after
+  // the click that took it away (a button rebuilt under the pointer would lose its click)
+  let refreshFoco = null, vigia = 0, pulsado = 0;
+  const campoVivo = (d, f) => !!(f && d.contains(f) && !f.disabled && (f.matches('textarea') || (f.matches('input') && !/^(range|checkbox|radio|button|submit|file|color)$/.test(f.type))));
   function refreshDetail() {
     const d = root && root.querySelector('.detail');
     if (d && d.querySelector('.stage.panning')) { refreshLater = true; return; }
-    if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); }
+    if (!(d && !d.hidden && d.dataset.slot)) return;
+    const id = d.dataset.slot;
+    if (!slot(id)) { closeDetail(); return; }
+    const f = document.activeElement;
+    if (campoVivo(d, f)) {
+      capSync(id); syncHead(id, f);
+      refreshFoco = f; clearInterval(vigia);
+      vigia = setInterval(() => {   // not on blur: a window without the focus doesn't send it, and a click must land first
+        if (document.activeElement === refreshFoco && refreshFoco.isConnected) return;
+        if (Date.now() - pulsado < 4000) return;   // a press under way: after its click
+        clearInterval(vigia); refreshFoco = null;
+        const d2 = root && root.querySelector('.detail');
+        if (d2 && !d2.hidden && d2.dataset.slot === id) refreshDetail();   // into another field: it waits for that one
+      }, 200);
+      return;
+    }
+    if (refreshFoco) { clearInterval(vigia); refreshFoco = null; }
+    openDetail(id, cur.idx);
   }
+  document.addEventListener('pointerdown', () => { pulsado = Date.now(); }, true);
+  document.addEventListener('pointerup', () => { pulsado = 0; }, true);
+  document.addEventListener('pointercancel', () => { pulsado = 0; }, true);
 
   // ---------- vista cliente: a post opens as in Instagram (B7) ----------
   // Its real proportion (a carousel with the arrows of T6, a reel in 9:16), the client's name and photo, its caption whole

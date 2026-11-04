@@ -2242,14 +2242,15 @@
     escribe(ult, ult.value + '\notra');
     igual(col.scrollTop, fondo, 'escribir hizo saltar la columna');
     ok(ult.clientHeight >= ult.scrollHeight, 'el caption que crece tiene scroll interno');
-    // redibujar la ventana con el foco en el caption: mismo scroll, mismo foco
+    // redibujar con el foco en el caption no lo rehace (D-112): mismo scroll, mismo foco; al dejarlo se redibuja sin moverla
     col.scrollTop = 250; await espera(30);
     M._test.refreshDetail();
-    const col2 = q('.detail .pright.hascap');
-    ok(col2 !== col, 'la ventana no se redibujó');
-    igual(col2.scrollTop, 250, 'redibujar movió la columna');
+    igual(q('.detail .pright.hascap'), col, 'la ventana se rehízo con el caption en uso');
+    igual(col.scrollTop, 250, 'redibujar movió la columna');
     ok(D.activeElement && D.activeElement.matches('textarea.capt'), 'redibujar perdió el foco del caption');
-    igual(col2.scrollTop, 250, 'recuperar el foco movió la columna');
+    D.activeElement.blur();
+    const col2 = await hasta(() => { const c = q('.detail .pright.hascap'); return c !== col && c; }, 2000, 'que la ventana se redibuje al dejar el caption');
+    igual(col2.scrollTop, 250, 'redibujar al dejar el caption movió la columna');
     // móvil: se desliza la ventana, la foto incluida, y redibujar tampoco la mueve
     marco.style.width = '420px'; W.dispatchEvent(new W.Event('resize')); await espera(120);
     const movil = q('.detail .pright.hascap'), cuerpo = q('.detail .pbody');
@@ -7496,6 +7497,69 @@
     igual([h('H35 sin zona').dateMadrid, h('H35 con zona').dateMadrid, h('H35 con Z').dateMadrid], ['2026-11-20 10:00', '2026-11-21 10:00', '2026-11-22 10:00'], 'las horas de Madrid');
     const mal = await M.cargarHistorias([{ date: '2026-11-20', order: 1, note: 'H35 sin hora' }]);
     ok(mal[0] && /fecha no válida/.test(mal[0].error || ''), 'una fecha sin hora no se rechazó: ' + json(mal));
+  });
+
+  // ---------- cierre de la auditoría, lote 3 (mesa 3.86): historias y edición ----------
+  prueba('H36', 'Ordenar las historias del día nunca mueve una que está en Zernio ni hace cruzar el día: se mueve la otra, y al final del día hacia atrás (D-054, D-094, D-110)', async () => {
+    await tablero([pub(1)]);
+    const hora = id => M._in.localDay(viva(id).date) + ' ' + M._in.localTime(viva(id).date);
+    const zer = id => { viva(id).zernio = { id: 'z-' + id, date: viva(id).date, file: null }; };
+    // dos a un minuto, la segunda programada: una soltada entre ellas no mueve a la programada
+    const a = M.hs.anadir(DIA(20), { time: '10:00' }), b = M.hs.anadir(DIA(20), { time: '10:01' });
+    zer(b); M._in.changed();
+    const h = M.hs.anadir(DIA(21), { time: '09:00' });
+    M.hs.mover(h, DIA(20), 1);
+    igual(hora(b), DIA(20) + ' 10:01', 'la programada cambió de hora');
+    igual(hora(a), DIA(20) + ' 10:00', 'la primera cambió de hora');
+    ok(hora(h) !== hora(b) && M._in.localDay(viva(h).date) === DIA(20), 'la soltada quedó a la hora de la programada o en otro día: ' + hora(h));
+    // al final del día: la programada a las 23:59 no se mueve y la que choca con ella no pasa al día siguiente
+    const c = M.hs.anadir(DIA(22), { time: '23:58' }), d = M.hs.anadir(DIA(22), { time: '23:59' });
+    zer(d); M._in.changed();
+    const e = M.hs.anadir(DIA(23), { time: '09:00' });
+    M.hs.setFecha(e, DIA(22), '23:59');
+    igual(hora(d), DIA(22) + ' 23:59', 'la programada de las 23:59 cambió');
+    igual(M._in.localDay(viva(e).date), DIA(22), 'la que chocaba con ella pasó a otro día: ' + hora(e));
+    const hs = M.hs.lista().filter(x => M._in.localDay(x.date) === DIA(22)).map(x => M._in.localTime(x.date));
+    igual(new Set(hs).size, hs.length, 'dos historias del 22 a la misma hora: ' + json(hs));
+    igual(hora(c), DIA(22) + ' 23:58', 'la de las 23:58 cambió');
+  });
+
+  prueba('D19', 'Cambiar el acento del kit deja pendiente un diseño con pie o final; uno sin ellos sigue al día, y uno aplicado antes de la 3.86 también, hasta su siguiente «Aplicar» (D-021, D-089, D-111)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await poner('r1', [await foto('d19a.jpg', 1080, 1350), await foto('d19b.jpg', 1080, 1350)]);
+      const c = await M.diseno.cargar('r1', { slides: textos('D19', 'Portada', 'Ficha'), serie: 'SERIE D19' }); ok(c && !c.error, 'cargar() falló: ' + json(c));
+      const a = await M.diseno.aplicar('r1'); ok(a && a.ok, 'aplicar() falló: ' + json(a));
+      await disenada('r2', [await foto('d19c.jpg', 1080, 1350), await foto('d19d.jpg', 1080, 1350)], textos('D19b', 'Portada', 'Ficha'));
+      igual([estadoDz('r1'), estadoDz('r2')], ['ok', 'ok'], 'recién aplicados');
+      try {
+        await M.diseno.ajustarKit(CLIENTE, { colores: { terracotta_light: '#ff0000', terracotta_dark: '#ff0000' } });
+        igual(estadoDz('r1'), 'chg', 'con otro acento, el diseño con pie sigue al día');
+        igual(estadoDz('r2'), 'ok', 'el diseño sin pie ni final quedó pendiente');
+        const r = await M.diseno.aplicar('r1'); ok(r && r.ok, 'volver a aplicar falló: ' + json(r));
+        igual(estadoDz('r1'), 'ok', 'aplicado con el acento nuevo');
+        delete M._in.slot('r1').design.acc;          // como uno aplicado antes de la 3.86 (en el tablero vivo)
+        await M.diseno.ajustarKit(CLIENTE, { colores: { terracotta_light: '#00ff00', terracotta_dark: '#00ff00' } });
+        igual(estadoDz('r1'), 'ok', 'un diseño aplicado antes de la 3.86 quedó pendiente');
+      } finally { await M.diseno.ajustarKit(CLIENTE, null); }
+    });
+  });
+
+  prueba('M49', 'Un cambio desde fuera con un campo de la ventana en uso no rehace ese campo: el estado se pone al día y la ventana se redibuja al dejarlo (D-112)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m49-a.jpg')]);
+    M._in.openDetail('r1', 0);
+    const ta = await hasta(() => dialogo() && dialogo().querySelector('textarea.note'), 3000, 'el campo de contexto');
+    ta.focus(); ta.value = 'Escribiendo'; ta._marca = 1;
+    M.setEstado('r1', 'cancelado'); M.setEstado('r2', 'cancelado'); await espera(60);
+    const ta2 = dialogo().querySelector('textarea.note');
+    ok(ta2 === ta && ta2._marca === 1, 'el campo en el que se escribe se ha rehecho');
+    ok(D.activeElement === ta, 'el campo perdió el foco');
+    const sel = dialogo().querySelector('.phead .pest select'), elegido = sel && sel.selectedOptions[0];
+    ok(elegido && /Cancelad/.test(elegido.textContent), 'el estado de la ventana no se puso al día: ' + (elegido ? elegido.textContent : 'sin selector'));
+    ta.blur();
+    await hasta(() => dialogo().querySelector('textarea.note') !== ta, 2000, 'que la ventana se redibuje al dejar el campo');
+    M._in.closeDetail();
   });
 
   // =====================================================================================================

@@ -3897,7 +3897,7 @@
       const typing = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName) && e.target.type !== 'range';
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'trayview' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); trayNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
       if (open && !typing && root.querySelector('.detail').dataset.dlg === 'ig' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); igNav(e.key === 'ArrowLeft' ? -1 : 1); return; }
-      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2')) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }
+      if (open && !typing && root.querySelector('.detail').dataset.dlg === 'addmode' && (e.key === '1' || e.key === '2') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat) { e.preventDefault(); doAddMode(e.key === '1' ? 'replace' : 'add'); return; }   // ⌘1 / ⌘2 are the browser's tabs (D-114)
       if (open && !typing && cur.slot && root.querySelector('.detail .stage') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); openDetail(cur.slot, cur.idx + (e.key === 'ArrowLeft' ? -1 : 1)); }
       // ⌘E with a post open: its «Editar …» on the slide being seen, the field being typed in saved first (D-088); not in
       // «Vista cliente» nor in a story's window (historias.js, D-065); the editor and the designer, open, keep their keys

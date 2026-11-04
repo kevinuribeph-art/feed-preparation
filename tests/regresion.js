@@ -7581,6 +7581,18 @@
     } finally { M.updateClient = u0; M._in.closeDetail(); }
   });
 
+  prueba('M51', 'La pregunta «Sustituir / Añadir» de la mesa no se contesta con ⌘1 / ⌘2, Ctrl, ⌥ ni con la tecla mantenida; con 1 o 2 a secas, sí (D-078, D-114)', async () => {
+    await tablero([pub(1)]);
+    let r;
+    M._in.askModoHistoria(v => { r = v; });
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'addmode', 3000, 'la pregunta');
+    for (const o of [{ meta: true }, { ctrl: true }, { alt: true }]) { tecla('2', o); await espera(20); }
+    D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: '1', repeat: true, bubbles: true, cancelable: true })); await espera(20);
+    ok(r === undefined && dialogo() && dialogo().dataset.dlg === 'addmode', 'la pregunta se contestó con un atajo: ' + r);
+    tecla('2'); await espera(30);
+    igual(r, 'anadir', 'el 2 a secas no contestó «Añadir»');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

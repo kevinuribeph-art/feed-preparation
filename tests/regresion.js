@@ -7407,6 +7407,35 @@
     igual([vuelto.g, vuelto.r, vuelto.sh], ['G70', 0.2, 0.5], 'el hueco no volvió tal cual');
   });
 
+  // ---------- cierre de la auditoría, lote 2 (mesa 3.85): datos ----------
+  prueba('M48', 'El registro del cliente se cambia en una sola transacción: dos cambios a la vez desde la mesa y el editor quedan los dos, y un doble «Guardar como plantilla» guarda dos con nombres distintos (D-106)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('m48-a.jpg')]);
+    const c0 = await M._in.idbGet('clients', CLIENTE), antes = { name: c0.name, handle: c0.handle || '', libre: c0.libre ? JSON.parse(json(c0.libre)) : null };
+    try {
+      await Promise.all([M.updateClient(CLIENTE, { handle: 'm48' }), M.updateClient(CLIENTE, { name: 'Nombre M48' })]);
+      let c = await M._in.idbGet('clients', CLIENTE);
+      igual([c.handle, c.name], ['@m48', 'Nombre M48'], 'dos updateClient a la vez: se perdió uno');
+      await abrirEditor('r1');
+      ed().sel = null; ed().mas = [];
+      const ids0 = new Set(((c.libre && c.libre.plantillas) || []).map(t => t.id));
+      accion('tpl-save'); accion('tpl-save');
+      const p1 = M.updateClient(CLIENTE, { handle: 'm48b' });
+      await p1;
+      const nuevas = await hasta(async () => { const x = await M._in.idbGet('clients', CLIENTE), l = ((x.libre && x.libre.plantillas) || []).filter(t => !ids0.has(t.id)); return l.length >= 2 && l; }, 4000, 'las dos plantillas guardadas');
+      igual(nuevas.length, 2, 'las plantillas nuevas');
+      ok(nuevas[0].nombre !== nuevas[1].nombre, 'las dos plantillas se llaman igual: ' + nuevas[0].nombre);
+      c = await M._in.idbGet('clients', CLIENTE);
+      igual(c.handle, '@m48b', 'el cambio de la mesa a la vez que el editor se perdió');
+      igual(ed().plant.filter(t => !ids0.has(t.id)).length, 2, 'el editor no ve las dos plantillas');
+    } finally {
+      if (M.libre.abierto()) M.libre.cerrar();
+      const c2 = await M._in.idbGet('clients', CLIENTE);
+      Object.assign(c2, { name: antes.name, handle: antes.handle }); if (antes.libre) c2.libre = antes.libre; else delete c2.libre;
+      await M._in.idbPut('clients', CLIENTE, c2); await M._in.loadClients();
+    }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

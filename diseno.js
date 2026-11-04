@@ -598,11 +598,14 @@
     need(!I().locked, LOCKED);   // a paused tab writes nothing, as cargar and aplicar
     need(patch === null || isObj(patch), 'ajustarKit espera un objeto con los cambios (null en una clave la devuelve al valor del kit).');
     const { base } = await rawKit(clientId);
-    const c = await I().idbGet('clients', clientId); need(c, 'No existe ese cliente.');
-    const ov0 = c.kit || {};
-    c.kit = patch === null ? (ov0.final && ov0.final.foto ? { final: { foto: ov0.final.foto, fotoAt: ov0.final.fotoAt } } : {}) : deepMerge(ov0, patch);
-    c.kitAt = nowISO();
-    await I().idbPut('clients', clientId, c); await I().loadClients();
+    const c = await I().editarCliente(clientId, c => {   // one transaction (D-106)
+      const ov0 = c.kit || {};
+      c.kit = patch === null ? (ov0.final && ov0.final.foto ? { final: { foto: ov0.final.foto, fotoAt: ov0.final.fotoAt } } : {}) : deepMerge(ov0, patch);
+      c.kitAt = nowISO();
+      return c;
+    });
+    need(c, 'No existe ese cliente.');
+    await I().loadClients();
     delete ENGK[clientId];
     if (E && E.cid === clientId) edKitChanged();
     return { ok: true, override: clone(c.kit), kit: deepMerge(base, c.kit) };
@@ -630,9 +633,8 @@
     delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
     if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
     await I().loadThumbs([id]);
-    const c = await I().idbGet('clients', cid);
-    c.kit = deepMerge(c.kit || {}, { final: { foto: id, fotoAt: at } }); c.kitAt = at;
-    await I().idbPut('clients', cid, c); await I().loadClients();
+    await I().editarCliente(cid, c => { c.kit = deepMerge(c.kit || {}, { final: { foto: id, fotoAt: at } }); c.kitAt = at; return c; });   // one transaction (D-106)
+    await I().loadClients();
     delete ENGK[cid];
     if (E && E.cid === cid) edKitChanged(true);
     return id;

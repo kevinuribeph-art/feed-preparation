@@ -837,14 +837,22 @@
     const el = textoEl(color); Object.assign(el, { x: st.m, w: st.w, al: 'izq' }); conEstilo(el, st);
     return el;
   }
-  async function guardarCliente(fn, cid0) {   // cid0: the client, when the editor may have closed meanwhile (subirLogos)
+  // The client's editor data (templates, logos): one change at a time, each in one transaction of the client's record
+  // (M._in.editarCliente, D-106), so a double click or two changes at once never lose one. fn gets a copy of c.libre as it is
+  // now and returns the new one; it can't await. cid0: the client, when the editor may have closed meanwhile (subirLogos)
+  let colaCli = Promise.resolve();
+  function guardarCliente(fn, cid0) {
     const owner = E, cid = cid0 || (E && E.board.client);
-    if (!cid) { I().toast('Esta mesa no tiene cliente: no se puede guardar en su kit.'); return false; }
-    const c = await I().idbGet('clients', cid); if (!c) { I().toast('No encuentro el cliente de esta mesa.'); return false; }
-    c.libre = fn(clone(c.libre || {})); c.libreAt = new Date().toISOString();
-    await I().idbPut('clients', cid, c); await I().loadClients();
-    if (E === owner) { E.plant = c.libre.plantillas || []; E.logos = (c.libre.logos || []).filter(f => M.files[f]); panel(); }
-    return true;
+    if (!cid) { I().toast('Esta mesa no tiene cliente: no se puede guardar en su kit.'); return Promise.resolve(false); }
+    const paso = colaCli.then(async () => {
+      const c = await I().editarCliente(cid, c => { c.libre = fn(clone(c.libre || {})); c.libreAt = new Date().toISOString(); return c; });
+      if (!c) { I().toast('No encuentro el cliente de esta mesa.'); return false; }
+      await I().loadClients();
+      if (E === owner) { E.plant = c.libre.plantillas || []; E.logos = (c.libre.logos || []).filter(f => M.files[f]); panel(); }
+      return true;
+    }).catch(e => { I().toast('No se pudo guardar en el kit del cliente: ' + (e && e.message || e)); return false; });
+    colaCli = paso;
+    return paso;
   }
   // a logo or sticker of the client: kept as PNG (its transparency), at most 1600 px, in a protected file of the client
   async function subirLogos(files) {
@@ -2681,13 +2689,15 @@
     const c = compAt(E.i), comp = clone(c), { W, H } = sizeAt(E.i);
     delete comp.origen; delete comp.previa;
     comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
-    const n = E.plant.reduce((a, q) => { const m = /^Plantilla (\d+)$/.exec(q.nombre || ''); return m ? Math.max(a, +m[1]) : a; }, E.plant.filter(q => !q.historia).length) + 1;
-    const t = { id: 't' + Date.now().toString(36), nombre: `Plantilla ${n}`, comp, fmt: fmtNombre(E.i), rat: r4(W / H), at: new Date().toISOString() };
+    // its number, over the list as it is when it's written (two clicks in a row: two numbers)
+    const numero = ps => ps.reduce((a, q) => { const m = /^Plantilla (\d+)$/.exec(q.nombre || ''); return m ? Math.max(a, +m[1]) : a; }, ps.filter(q => !q.historia).length) + 1;
+    const t = { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nombre: `Plantilla ${numero(E.plant)}`, comp, fmt: fmtNombre(E.i), rat: r4(W / H), at: new Date().toISOString() };
     // the kit's story templates don't count towards the 24 (D-062); the 25th takes out the oldest, says which and «Deshacer»
     // puts it back where it was and takes the new one out (D-102)
     const cid = E.board.client; let fuera = [], antes = null;
     guardarCliente(l => {
       const ps = l.plantillas || [], propias = [...ps.filter(q => !q.historia), t];
+      t.nombre = `Plantilla ${numero(ps)}`;
       antes = ps; fuera = propias.slice(0, Math.max(0, propias.length - 24));
       return { ...l, plantillas: [...ps.filter(q => q.historia), ...propias.slice(-24)] };
     }, cid).then(ok => {

@@ -310,10 +310,12 @@
     if ((c.libre || {}).historiasKit !== H.v) for (const p of H.plantillas) nuevas.set('historia-' + p.id, await plantillaDe(H, kit, p, c));
     else for (const t of c.libre.plantillas || []) if (t.historia && !t.historia.logo && t.historia.def.p.cabecera && t.historia.def.p.cabecera.logo && await logoPorNombre(c, t.historia.def.p.cabecera.logo)) nuevas.set(t.id, await plantillaDe(H, kit, t.historia.def.p, c));   // its logo has arrived
     if (!nuevas.size || I().locked) return;
-    const c2 = await X.idbGet('clients', cid); if (!c2) return;   // what changed meanwhile stays
-    const lib = c2.libre || {}, ps = lib.plantillas || [];
-    c2.libre = { ...lib, historiasKit: H.v, plantillas: [...ps.map(t => nuevas.get(t.id) || t), ...[...nuevas.values()].filter(t => !ps.some(q => q.id === t.id))] };
-    await X.idbPut('clients', cid, c2); await X.loadClients();
+    const c2 = await X.editarCliente(cid, c2 => {   // what changed meanwhile stays: one transaction (D-106)
+      const lib = c2.libre || {}, ps = lib.plantillas || [];
+      c2.libre = { ...lib, historiasKit: H.v, plantillas: [...ps.map(t => nuevas.get(t.id) || t), ...[...nuevas.values()].filter(t => !ps.some(q => q.id === t.id))] };
+      return c2;
+    });
+    if (c2) await X.loadClients();
   }
   const asegurar = cid => {                    // one at a time per client
     if (!SEMBRANDO.has(cid)) SEMBRANDO.set(cid, sembrar(cid).finally(() => SEMBRANDO.delete(cid)));

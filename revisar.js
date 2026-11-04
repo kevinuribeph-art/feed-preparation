@@ -23,7 +23,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';
+  const VERSION = '1.2';
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -105,7 +105,7 @@
       const malo = formato.find(r => r < IG_MIN - TOL || r > IG_MAX + TOL);
       if (X.isCarousel(s.type) && malo != null) add(null, 'formato', `formato ${fmtDe(malo)}: Instagram, por API, solo admite de 4:5 a 1,91:1`);
     }
-    const pos = new Map(B.slots.map((s, i) => [s.id, [String(s.date || ''), i]]));   // by publication date, as the calendar
+    const pos = new Map(B.slots.map((s, i) => [s.id, [s.date ? I().ts(s.date) : -Infinity, i]]));   // by publication date, as the calendar (the instant: Notion's dates carry +01:00, the mesa's Z)
     const antes = (a, b) => { const x = pos.get(a.slotId), y = pos.get(b.slotId); return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1]; };
     puntos.sort((a, b) => antes(a, b) || (a.diapositiva ?? 0) - (b.diapositiva ?? 0) || ORDEN[a.tipo] - ORDEN[b.tipo]);
     if (opts.historias) puntos.push(...await puntosHistorias(B));   // after the feed's, by date
@@ -141,14 +141,19 @@
   // ---------- by itself: «sube», «programa» and «⇅ Exportar» ----------
   // The skill sends a post's photos in one call or several in a row: those of the next 1.5 s join the same review.
   // Each review belongs to the board it was asked on: if another board is open by then, it is dropped.
-  let AUTO = null;
+  let AUTO = null, ULT = null;                 // ULT: the last review shown; while its dialog is open, the next batch joins it
   function auto(motivo, ids, o = {}) {
     const key = I() && I().S ? I().S.key : null;
     if (motivo === 'exportar') return (revisar.ultima = mostrar(motivo, null, key, o));
-    if (AUTO && AUTO.motivo === motivo && AUTO.key === key) clearTimeout(AUTO.t); else AUTO = { motivo, key, ids: new Set() };
+    if (AUTO && AUTO.motivo === motivo && AUTO.key === key) clearTimeout(AUTO.t);
+    else {
+      AUTO = { motivo, key, ids: new Set() };
+      const r = I() && I().root && I().root(), abierta = r && r.querySelector('.detail:not([hidden])[data-dlg="revisar"]');
+      if (abierta && ULT && ULT.motivo === motivo && ULT.key === key) ULT.ids.forEach(id => AUTO.ids.add(id));   // batches in a row: one review (D-040)
+    }
     (ids || []).forEach(id => AUTO.ids.add(id));
     const a = AUTO;
-    a.t = setTimeout(() => { if (AUTO === a) AUTO = null; revisar.ultima = mostrar(motivo, [...a.ids], key); }, 1500);
+    a.t = setTimeout(() => { if (AUTO === a) AUTO = null; ULT = a; revisar.ultima = mostrar(motivo, [...a.ids], key); }, 1500);
     return null;
   }
   async function mostrar(motivo, ids, key, o = {}) {
@@ -182,6 +187,6 @@
 
   revisar.version = VERSION; revisar.auto = auto; revisar.ultima = null;
   revisar.ver = (opts = {}) => revisar({ historias: true, ...opts, ver: true });   // the button: the month's feed and stories
-  revisar._reset = () => { if (AUTO) clearTimeout(AUTO.t); AUTO = null; };   // tests: a pending review never reaches the next one
+  revisar._reset = () => { if (AUTO) clearTimeout(AUTO.t); AUTO = null; ULT = null; };   // tests: a pending review never reaches the next one
   M.revisar = revisar;
 })();

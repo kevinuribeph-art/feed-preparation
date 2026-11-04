@@ -37,7 +37,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.5';
+  const VERSION = '1.6';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -118,7 +118,7 @@
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : '<span class="csync">Igual que Notion</span>';
     const nat = `<span class="cnat" title="La mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}</span>`;
-    const leg = X.PASOS ? pasosHTML(X) : `<div class="cleg">${X.ESTADOS.map(([k, l]) => `<span>${X.estIco(k)}${esc(l)}</span>`).join('')}</div>`;   // a mesa before 3.68: the legend as it was
+    const leg = pasosHTML(X);
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false;
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
@@ -184,7 +184,7 @@
   // aprobado stays, and a post already past the new step is not touched.
   const LLEVA = { aprobado: 'aprobar', programado: 'aprobado', publicado: 'programado' };
   const retr = (X, s) => !!(X.retrasada && X.retrasada(s));
-  const nivel = (X, e) => X.PASO_DE ? X.PASO_DE[e] ?? 0 : Math.max(0, X.PASOS.findIndex(p => p[0] === (e === 'noaprobado' ? 'aprobar' : e)));
+  const nivel = (X, e) => X.PASO_DE[e] ?? 0;
   const porFecha = (a, b) => { const t = x => { const v = Date.parse(x.date); return isNaN(v) ? Infinity : v; }; return t(a) - t(b); };   // listed by date, as the calendar
   const mueven = (X, S, to) => LLEVA[to] ? S.slots.filter(s => X.vivo(s) && !retr(X, s) && X.estadoDe(s) === LLEVA[to] && (to !== 'programado' || !X.isReel(s.type))).sort(porFecha) : [];
   const reelAMano = (X, s, to) => to === 'programado' && X.isReel(s.type) && X.estadoDe(s) === 'aprobado';   // marked by hand (D-087)
@@ -192,7 +192,7 @@
   // why a post stays behind, in a few words
   function porQue(X, s) {
     const e = X.estadoDe(s), v = s.estado && s.estado.v;
-    if (X.retenida ? X.retenida(s) : retr(X, s)) return 'retrasada a mano';
+    if (X.retenida(s)) return 'retrasada a mano';
     if (e === 'empezar') return 'sin foto';    // the contexto doesn't count (D-086)
     if (e === 'captions') return 'sin caption elegido';
     if (e === 'noaprobado') return 'No aprobado';

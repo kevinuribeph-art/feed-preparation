@@ -225,7 +225,7 @@
   }
 
   // ---------- helpers ----------
-  const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isReel = t => t === 'Reel' || t === 'Collab Reel' || t === 'Trial Reel';
   const isCarousel = t => t === 'Carrusel' || t === 'Foto';         // a Foto works as a carousel (3.26): one photo or several pages, all published

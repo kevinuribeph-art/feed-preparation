@@ -852,7 +852,7 @@
   }
 
   // the element a rebuilt part of the editor should give the focus back to
-  const cssv = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssv = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
   function focusKey(el) {
     if (!el || !el.dataset) return null;
     if (el.dataset.dz) return `[data-dz="${cssv(el.dataset.dz)}"]` + (el.dataset.v != null ? `[data-v="${cssv(el.dataset.v)}"]` : '') + (el.dataset.f != null ? `[data-f="${cssv(el.dataset.f)}"]` : '') + (el.dataset.i != null ? `[data-i="${cssv(el.dataset.i)}"]` : '');

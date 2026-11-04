@@ -246,6 +246,8 @@
   const esperar = async (listo, mod, ms = 5000) => { for (let t = 0; !listo() && (window.MESA_CARGA || {})[mod] !== 'fallo' && t < ms; t += 100) await new Promise(r => setTimeout(r, 100)); return !!listo(); };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
+  // the copy of the open board a reload left in localStorage (the quick save before IndexedDB), or null
+  const pendienteLS = () => { try { return JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { return null; } };
   // a slot's design (diseno.js) holds its source photos (slides[].src) and its rendered outputs (out): both are in use
   const lSrc = s => s && s.libre && s.libre.slides ? Object.values(s.libre.slides).flatMap(c => ((c && c.els) || []).map(e => e && e.src)).filter(Boolean) : [];   // the free editor's compositions (libre.js): the photos behind its images
   const lOut = s => s && s.libre && s.libre.slides ? Object.keys(s.libre.slides) : [];
@@ -719,7 +721,7 @@
   }
   // init: the newest copy of each slot (this board's or another's) becomes the «old» copy the board is built from
   async function importShared(cfgSlots, old, key) {
-    let pend = null; try { pend = JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { /* */ }
+    let pend = pendienteLS();
     const others = ((await idbAll('boards')) || []).filter(b => b.key !== key)
       .map(b => pend && pend.board && pend.key === b.key && String(pend.board.savedAt || '') > String(b.savedAt || '') ? pend.board : b);
     const refs = new Set([...others.flatMap(b => [...refsOf(b)]), ...(await trayRefs())]);   // + the clients' trays (D-041)
@@ -1580,7 +1582,7 @@
     const enBoards = new Set(); ((await idbAll('boards')) || []).forEach(b => { if (!S || b.key !== S.key) refsTodo(b).forEach(f => enBoards.add(f)); });
     const enTrays = await trayRefs(), va = [];   // in a client's tray or folders (D-041, D-069)
     try {                              // the copy a reload left in localStorage may be the only one that has it, until its month opens
-      const p = JSON.parse(lsGet('mesa-pending') || 'null');
+      const p = pendienteLS();
       if (p && p.board && (!S || p.key !== S.key)) { refsTodo(p.board).forEach(f => enBoards.add(f)); enCarpetas(p.board.carpetas).forEach(f => enBoards.add(f)); }
     } catch (e) { /* */ }
     for (const id of l) {
@@ -4091,7 +4093,7 @@
     ((await idbAll('clients')) || []).forEach(c => { if (c.id === id) return; ((c.libre && c.libre.logos) || []).forEach(f => usados.add(f)); const k = kitRef(c); if (k) usados.add(k); });
     boards.forEach(b => refsTodo(b).forEach(f => usados.add(f)));
     (await trayRefs()).forEach(f => usados.add(f));
-    try { const p = JSON.parse(lsGet('mesa-pending') || 'null'); if (p && p.board) refsTodo(p.board).forEach(f => usados.add(f)); } catch (e) { /* */ }
+    try { const p = pendienteLS(); if (p && p.board) refsTodo(p.board).forEach(f => usados.add(f)); } catch (e) { /* */ }
     const va = [...suyos].filter(f => !usados.has(f) && !hist.has(f));
     if (va.length) { await tx('files', 'readwrite', st => va.forEach(f => st.delete(f))); va.forEach(soltarArchivo); }
     return va.length;
@@ -4138,7 +4140,7 @@
   // ---------- init / open ----------
   // the newest saved copy of a board: IndexedDB's or the synchronous one a reload left in localStorage (mesa-pending)
   function newest(key, b) {
-    let p = null; try { p = JSON.parse(lsGet('mesa-pending') || 'null'); } catch (e) { /* */ }
+    let p = pendienteLS();
     if (!(p && p.key === key && p.board && String(p.board.savedAt || '') > String((b && b.savedAt) || ''))) return b;
     return !p.v && !('historias' in p.board) && hsDe(b).length ? { ...p.board, historias: b.historias } : p.board;   // left by a tab that doesn't know the stories: its changes, and the stories (D-060)
   }
@@ -4302,7 +4304,7 @@
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
     await flushNow();
-    try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
+    try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
     if (M.diseno && M.diseno.prepararKits) await M.diseno.prepararKits(S);   // plan() right after init knows if a design is out of date
     await refreshMonths();
@@ -5136,7 +5138,7 @@
         }; });
       }
       for (const c of new Set([...P.put.map(boardClient), ...P.trays.map(r => r.client)])) if (c) await juntarBandeja(c);   // a file from before 3.44: its months' trays
-      try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
+      try { const pend = pendienteLS(); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
@@ -5183,7 +5185,7 @@
   }) : { version: M.version, client: curClient, board: null, locked };
   M.board = () => S && JSON.parse(JSON.stringify(S));
   M.purge = async key => {
-    try { const pend = JSON.parse(lsGet('mesa-pending') || 'null'); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
+    try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
     const boards = await idbAll('boards');
     const b = boards.find(x => x.key === key); if (!b) return 'no existe';
     if (S && S.key === key) { clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; }   // no save of it while it goes

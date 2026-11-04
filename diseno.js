@@ -178,7 +178,7 @@
   // The post view shows the applied image; once the photo is dragged, zoomed or centred there, the slide is drawn live
   // (photo and texts, as «Aplicar» will draw it) on a canvas over it, and on letting go the mesa applies it again.
   const VI = { n: 0, cv: null, slotId: null, i: -1, src: null, sz: null, kit: null, fin: null, bmp: null, ready: false, raf: 0 };
-  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0 }); }
+  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0, arrastre: false, dec: null }); }
   // the photo slide i draws (synchronous: the client's final photo from the kit as known)
   function srcVista(s, i) {
     const sl = s && s.design && s.design.slides[i]; if (!sl) return null;
@@ -215,8 +215,12 @@
       const { W, H } = VI.sz, r = rectOf(VI.src, W, H), k = VI.bmp.width / f.w;
       const capa = ENG().capaFoto(VI.bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, W, H);
       if (VI.cv.width !== W || VI.cv.height !== H) { VI.cv.width = W; VI.cv.height = H; }
-      const ctx = VI.cv.getContext('2d'), opts = { W, H, factor: VI.sz.factor, pagina: pageOf(s, VI.i), serie: str(d.serie), pos: posOf(d) }, slide = slideAt(sl, VI.sz);
+      const ctx = VI.cv.getContext('2d'), opts = { W, H, factor: VI.sz.factor, pagina: pageOf(s, VI.i), serie: str(d.serie), pos: posOf(d) }, slide0 = slideAt(sl, VI.sz);
+      // while the photo is dragged, what the first frame decided (place, alignment, colour, veil) stays, so a frame doesn't
+      // search them again (E4: ~65 ms a frame on a card); letting go draws it all again as always. Its own choices win.
+      const slide = VI.arrastre && VI.dec ? { ...slide0, ov: { ...VI.dec, ...(slide0.ov || {}) } } : slide0;
       const res = ENG().dibujar(ctx, VI.kit, capa, slide, opts), adj = clampOv(sl, slide.ov, res, VI.sz);
+      if (VI.arrastre && !VI.dec && res.decision) { const x = res.decision; VI.dec = Object.fromEntries(Object.entries({ lugar: x.lugar, alinear: x.alinear, color: x.color, velo: x.velo }).filter(([, v]) => v != null)); }
       if (adj) ENG().dibujar(ctx, VI.kit, capa, { ...slide, ov: adj }, opts);
       capa.canvas.width = capa.canvas.height = 0;
       VI.cv.hidden = false;
@@ -226,6 +230,7 @@
   function vistaEmpezar() {
     if (!VI.ready || !M.files[VI.src]) return null;
     const f = M.files[VI.src], r0 = rectOf(VI.src, VI.sz.W, VI.sz.H);
+    VI.arrastre = true; VI.dec = null;
     return { cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h };
   }
   function vistaMover(g, fx, fy) { if (!VI.ready) return; recorte(VI.src, { cx: g.cx - fx * g.fw, cy: g.cy - fy * g.fh }, VI.sz); pedirVista(); }
@@ -235,6 +240,7 @@
   // goes back exactly as it was, so a click, a drag with no room to move or «Centrar» on a centred photo leave the post as is
   function marcoVista() { const r = rectOf(VI.src, VI.sz.W, VI.sz.H); return [r.x, r.y, r.w, r.h].map(v => Math.round(v * 10) / 10).join(','); }
   function vistaSoltar() {
+    if (VI.arrastre) { VI.arrastre = false; VI.dec = null; pedirVista(); }   // let go: decided again, as always (E4)
     if (!VI.ready) return false;
     if (marcoVista() !== VI.base) return true;
     const S = I().S; S.crops = S.crops || {};

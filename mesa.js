@@ -3366,6 +3366,11 @@
     showDialog('howmonth', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Añadir otro mes</h3><p>Los meses se cargan desde Notion con las publicaciones del calendario (nombre, fecha, hora y tipo exactos), para que al subir las fotos cada una vaya a su página. Pídeselo a Claude en el chat:</p><p style="color:var(--ink);font-size:14px;margin:12px 0 4px">«Carga ${n1} de ${cn} en la mesa»</p><p>Si ya tienes preparados dos meses, pídelos juntos y se preparan en la misma mesa, con el mes anterior debajo: «Carga ${n1} y ${n2} de ${cn} en la mesa». Las fechas y horas se pueden cambiar aquí; al subir a Notion se cambian allí.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
   }
   const normHandle = h => { h = String(h || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@+/, ''); return h ? '@' + h : ''; };
+  // what failed in a button or a form says so (D-113): a write refused (disk full, a newer tab) no longer looks like a button
+  // that does nothing; and anything else that fails without a catch, too
+  const msgDe = e => String((e && e.message) || e || 'error desconocido');
+  const fallo = e => { try { console.error(e); } catch (x) { /* */ } toast('No se pudo: ' + msgDe(e), { ms: 8000, key: 'fallo' }); };
+  window.addEventListener('unhandledrejection', e => { if (shellReady()) fallo(e.reason); });
   async function submitForm(form) {
     const kind = form.dataset.form, err = form.querySelector('.ferr');
     const name = form.elements.name.value.trim(), handle = normHandle(form.elements.handle.value), cyc = form.elements.cycleDay ? form.elements.cycleDay.value.trim() : '1';
@@ -3774,7 +3779,7 @@
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
       if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab, .ttam')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
       const a = e.target.closest('[data-act]');
-      if (a) { onAct(a, e); return; }
+      if (a) { onAct(a, e).catch(fallo); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
       if (!S) return;
       const ti = e.target.closest('.titem[data-file]');
@@ -3799,7 +3804,10 @@
         openDetail(id, 0);
       }
     });
-    root.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-form]'); if (f) submitForm(f); });
+    root.addEventListener('submit', e => {
+      e.preventDefault(); const f = e.target.closest('form[data-form]'); if (!f) return;
+      submitForm(f).catch(x => { const err = f.isConnected && f.querySelector('.ferr'); if (err) { err.textContent = 'No se pudo guardar: ' + msgDe(x); err.hidden = false; } else fallo(x); });   // D-113
+    });
     root.addEventListener('input', e => {
       if (!e.target.matches) return;
       if (e.target.matches('textarea.note')) setNote(e.target.dataset.slot, e.target.value);

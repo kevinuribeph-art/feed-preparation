@@ -7562,6 +7562,25 @@
     M._in.closeDetail();
   });
 
+  // ---------- cierre de la auditoría, lote 4 (mesa 3.87): baratos ----------
+  prueba('M50', 'Un botón o un formulario que fallan lo dicen: «Editar cliente» con la escritura rechazada enseña el error en el diálogo, y un botón que falla avisa «No se pudo» (D-113)', async () => {
+    await tablero([pub(1)]);
+    const u0 = M.updateClient;
+    const pulsa = (act, ds = {}) => { const b = D.createElement('button'); b.type = 'button'; b.hidden = true; b.dataset.act = act; Object.assign(b.dataset, ds); M._in.root().append(b); b.click(); b.remove(); };
+    try {
+      pulsa('editclient');
+      const f = await hasta(() => q('form[data-form="editclient"]'), 3000, 'el diálogo de «Editar cliente»');
+      M.updateClient = async () => { throw new Error('QuotaExceededError simulado'); };
+      f.requestSubmit();
+      await hasta(() => { const e = f.querySelector('.ferr'); return e && !e.hidden && /No se pudo/.test(e.textContent); }, 3000, 'el error en el diálogo');
+      M._in.closeDetail(); M._in.clearToasts();
+      const r0 = M.removeClient;
+      M.removeClient = async () => { throw new Error('fallo M50'); };   // «Eliminar cliente» ya confirmado
+      try { pulsa('delclient', { confirm: '1' }); await hasta(() => toastCon(/No se pudo: .*fallo M50/), 3000, 'el aviso del botón que falla'); }
+      finally { M.removeClient = r0; }
+    } finally { M.updateClient = u0; M._in.closeDetail(); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

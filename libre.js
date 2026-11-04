@@ -92,11 +92,14 @@
 // The tray's size (v1.37, mesa 3.75): a slider at the foot, by «?», makes its photos 36 to 144 px, still one row (D-091).
 // v1.38 (mesa 3.76): its strip goes back to where each folder was, apart from the mesa's, and its tabs are put in order by
 // dragging them, the same order as the mesa's (D-092).
+// v1.39 (mesa 3.77): audit fixes — a photo crossing slides never copies its hole; a logo uploaded while the editor closes is
+// kept; «Ver todas» follows ⌘Z; ids never repeat in one millisecond; the tray's size bar keeps its arrows; a click without ⌘
+// lets go of chosen folders; «Reemplazar» gives the old photo back to the tray; «Sustituir» on the cell fills an empty frame.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.38';
+  const VERSION = '1.39';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -112,7 +115,8 @@
   const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const uid = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  let uidN = 0;   // a counter: two ids made in the same millisecond never repeat (the random part alone could)
+  const uid = () => 'e' + Date.now().toString(36) + (uidN++).toString(36) + Math.random().toString(36).slice(2, 6);
   const pad2 = n => String(n).padStart(2, '0');
   const hexOk = v => /^#[0-9a-f]{6}$/i.test(String(v || ''));
   const rgba = (hex, a) => { const n = parseInt(String(hex).slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
@@ -780,8 +784,9 @@
     if (E !== owner) return;
     E.kit = kit; E.fkit = fk; E.estilos = est; E.tcol = tcol; E.margen = mg; E.fuentes = [...fk, ...FUENTES_MESA.filter(f => !fk.some(q => q.file === f.file)), ...FUENTES_MAC];
     E.plant = Array.isArray(lib.plantillas) ? lib.plantillas : [];
-    E.logos = (lib.logos || []).filter(Boolean); await I().loadThumbs(E.logos); E.logos = E.logos.filter(f => M.files[f]);
+    const lg = (lib.logos || []).filter(Boolean); E.logos = lg; await I().loadThumbs(lg);
     if (E !== owner) return;
+    E.logos = lg.filter(f => M.files[f]);
     panel();
   }
   // the kit's colours for the pickers: its «grupos» in order, each one only in the pickers of its «usos» (all without them);
@@ -823,8 +828,8 @@
     const el = textoEl(color); Object.assign(el, { x: st.m, w: st.w, al: 'izq' }); conEstilo(el, st);
     return el;
   }
-  async function guardarCliente(fn) {
-    const owner = E, cid = E.board.client;
+  async function guardarCliente(fn, cid0) {   // cid0: the client, when the editor may have closed meanwhile (subirLogos)
+    const owner = E, cid = cid0 || (E && E.board.client);
     if (!cid) { I().toast('Esta mesa no tiene cliente: no se puede guardar en su kit.'); return false; }
     const c = await I().idbGet('clients', cid); if (!c) { I().toast('No encuentro el cliente de esta mesa.'); return false; }
     c.libre = fn(clone(c.libre || {})); c.libreAt = new Date().toISOString();
@@ -852,7 +857,7 @@
         ids.push(id);
       } catch (e) { I().toast(`${file.name}: no se pudo leer la imagen.`); }
     }
-    if (ids.length && await guardarCliente(l => ({ ...l, logos: [...(l.logos || []), ...ids] }))) I().toast(ids.length === 1 ? 'Logo guardado para este cliente: púlsalo para añadirlo.' : `${ids.length} logos guardados para este cliente.`);
+    if (ids.length && await guardarCliente(l => ({ ...l, logos: [...(l.logos || []), ...ids] }), cid)) I().toast(ids.length === 1 ? 'Logo guardado para este cliente: púlsalo para añadirlo.' : `${ids.length} logos guardados para este cliente.`);
   }
 
   // ---------- history of the editor (⌘Z / ⇧⌘Z) ----------
@@ -872,6 +877,7 @@
     const ids = compAt(E.i).els.map(e => e.id);
     if (E.sel && !ids.includes(E.sel)) soltar(); else E.mas = E.mas.filter(id => ids.includes(id));
     todo();
+    if (!E.allEl.hidden) verTodas(true);   // «Ver todas» open: its slides as they are now
   }
   function mut(tag, fn, quiet) { paso(tag); fn(); despues(quiet); }
   function renumerar() { const n = E.sl.length; E.sl.forEach((x, i) => { if (x.comp) { const { W, H } = sizeAt(i); numerar(x.comp, i, n, W, H); } }); }   // after every change: slides added, deleted, moved, duplicated or pasted
@@ -888,7 +894,7 @@
   // Each slide holds a copy of the same frame, el.pan = {id, n, k}: k is the slide's place in the run (0 = first) and the
   // copy sits k slide widths to the left of the first one (x = x0 − k), so every slide draws its own window of one frame
   // and the seams meet to the pixel. The copy on the open slide is the one edited; the others follow it (enlazar).
-  const PAN_PROPIO = ['id', 'g', 'pan'];
+  const PAN_PROPIO = ['id', 'g', 'pan', 'hueco'];   // the hole stays with the original: a copy deleted or taken back never leaves one (D-052)
   function enlazar() {
     if (!E || !E.car || !E.sl.length) return;
     for (const m of compAt(E.i).els) {
@@ -2505,7 +2511,7 @@
       case 'tr-add': {
         const f = b.dataset.f;
         if (b._meta) { E.trSel = E.trSel.includes(f) ? E.trSel.filter(q => q !== f) : [...E.trSel, f]; bandeja(); return; }   // ⌘ + click: one more or one less of the chosen
-        if (E.trSel.length) { E.trSel = []; bandeja(); }
+        if (E.trSel.length || E.trCar.length) { E.trSel = []; E.trCar = []; bandeja(); }   // a click without ⌘ empties the choice, folders too (D-077)
         desdeBandeja([f], { i: null, p: null });
         return;
       }
@@ -2535,7 +2541,7 @@
           mut(null, () => {
             const c = ensure();
             if (pk.modo === 'add') { const e = fotoEl(f); const top = c.els.reduce((a, q, i) => q.t === 'foto' ? i + 1 : a, 0); c.els.splice(top, 0, e); E.sel = e.id; E.mas = []; encajar(e, 0.08); delete e.fit; }   // a new photo goes above the photos, under texts and logos
-            else { const e = c.els.find(q => q.id === pk.id); if (e) { e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
+            else { const e = c.els.find(q => q.id === pk.id); if (e) { if (e.src && e.src !== f && M.files[e.src] && !M.files[e.src].design) E.vuelven.add(e.src); e.src = f; e.cx = 0.5; e.cy = 0.5; e.z = 1; if (pk.modo === 'fill') { const { W, H } = sizeAt(E.i); colocar(e, W, H); } else if (e.fit != null) encajar(e, e.fit); E.sel = e.id; E.mas = []; } }
           });
         });
         return;
@@ -2780,7 +2786,7 @@
     el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); });
     { const r = el.querySelector('.lb-foot .ttam input'); let raton = false;   // let go with the mouse, it gives the keys back to the editor
       r.addEventListener('pointerdown', () => { raton = true; }); r.addEventListener('keydown', () => { raton = false; });
-      r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) r.blur(); });
+      r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) { raton = false; r.blur(); } });
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.pl; if (!k) return; if (e.target.open) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(',')); }, true);
@@ -2878,7 +2884,7 @@
     if (mod && k === '0') { e.preventDefault(); zoom(1); return; }
     if (e.key === 'Backspace' || e.key === 'Delete') { if (E.sel) { e.preventDefault(); act('del'); } return; }
     if (e.key.startsWith('Arrow')) {
-      if (t && t.closest && t.closest('.seg, .lb-rng')) return;
+      if (t && t.closest && t.closest('.seg, .lb-rng, .ttam')) return;   // the tray's size bar too (D-091)
       e.preventDefault();
       if (e.altKey && !mod) { moverSl(E.i, E.i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1)); return; }   // ⌥ + arrows: the slide moves
       if (E.sel) { const s = e.shiftKey ? 10 : 1; nudge(e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0, e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0); }
@@ -3346,9 +3352,9 @@
         const f = rest.shift(), x = sl[0];
         if (!x) nuevas.push(f);
         else if (!x.comp) { outs[0] = f; portada = true; }      // slide 1 is a photo, not drawn here: the photo changes, as always
-        else if ((hp = x.comp.els.find(e => !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && e.hueco))) || false)) {   // its first hole, free or filled
+        else if ((hp = x.comp.els.find(e => !e.oculto && (e.t === 'hueco' || (e.t === 'foto' && (e.hueco || (!e.src && !e.lock))))) || false)) {   // its first hole, free or filled; an empty frame counts (D-050)
           need(!hp.pan, 'La foto de la portada cruza diapositivas: cámbiala en «Editar».');
-          if (hp.t === 'hueco') rellenar(x.comp, hp, f, W, H); else reajustar(x.comp, hp, f, W, H);
+          if (hp.t === 'hueco' || !hp.src) rellenar(x.comp, hp, f, W, H); else reajustar(x.comp, hp, f, W, H);
           x.mod = portada = true;
         } else {
           const el = fotosDe(x.comp).filter(e => e.src && !e.oculto).reduce((a, e) => !a || e.w * e.h > a.w * a.h ? e : a, null);

@@ -6727,6 +6727,112 @@
     } finally { cli(false); if (plegado == null) W.localStorage.removeItem('mesa-cal-plegado'); else W.localStorage.setItem('mesa-cal-plegado', plegado); M._in.render(); }
   });
 
+  // ---------- auditoría, lote 1 (libre 1.39): arreglos del editor ----------
+  prueba('E55', 'Una foto de un hueco que cruza diapositivas: «Solo esta» no deja huecos fantasma en las otras (D-014, D-052)', async () => {
+    const [v] = await conHuecos([HV('h55', 0.3)], [V('e55a.jpg')]);
+    const e = await enHueco(1, 'h55', v);
+    ok(e.hueco, 'la foto no lleva su hueco');
+    elegir(e); accion('cruzar', { v: 2 });
+    await hasta(() => ed().sl.length >= 3 && compDe(2).els.some(q => q.pan && q.src === v), 4000, 'la foto cruzando a la diapositiva 3');
+    accion('cruzar', { v: 1 });
+    await espera(30);
+    ok(!compDe(2).els.some(q => q.t === 'hueco' || (q.t === 'foto' && !q.src)), 'quedó un hueco fantasma en la diapositiva 3: ' + json(compDe(2).els.map(q => q.t)));
+    ok(compDe(1).els.some(q => q.src === v && q.hueco), 'la foto perdió su hueco');
+    M.libre.cerrar();
+  });
+
+  prueba('E56', 'Un logo que se sube mientras se cierra el editor queda en la lista de logos del cliente', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e56.jpg')]);
+    await abrirEditor('r1');
+    const logos = async () => { const c = await M._in.idbGet('clients', CLIENTE); return ((c && c.libre) || {}).logos || []; };
+    const antes = await logos(), inp = ed().el.querySelector('.lb-logoin'), dt = new W.DataTransfer();
+    dt.items.add(await foto('e56-logo.jpg', 400, 200, '#c0392b'));
+    inp.files = dt.files; inp.dispatchEvent(new W.Event('change'));
+    M.libre.cerrar();
+    const l = await hasta(async () => { const x = await logos(); return x.length > antes.length && x; }, 6000, 'el logo en la lista del cliente');
+    ok(l.some(id => id.startsWith(`kit-${CLIENTE}-logo-`) && !antes.includes(id)), 'el logo nuevo no está en la lista: ' + json(l));
+  });
+
+  prueba('E57', '«Ver todas» se pone al día con ⌘Z', async () => {
+    await tablero([pub(1, 'Carrusel')]); await poner('r1', [await foto('e57a.jpg'), await foto('e57b.jpg')]);
+    await abrirEditor('r1');
+    ed().sel = null; ed().mas = [];
+    accion('todas');
+    const n = () => ed().allEl.querySelectorAll('.lb-allit').length;
+    await hasta(() => !ed().allEl.hidden && n() === 2, 2000, 'las dos diapositivas en «Ver todas»');
+    tecla('d', { meta: true });
+    await hasta(() => ed().sl.length === 3 && n() === 3, 2000, 'la copia en «Ver todas»');
+    tecla('z', { meta: true });
+    await espera(30);
+    igual(ed().sl.length, 2, '⌘Z no quitó la copia');
+    igual(n(), 2, '«Ver todas» sigue enseñando la copia');
+    M.libre.cerrar();
+  });
+
+  prueba('E58', 'Los ids de los elementos del editor no se repiten aunque se creen en el mismo milisegundo', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e58.jpg')]);
+    await abrirEditor('r1');
+    const now = W.Date.now, rnd = W.Math.random;
+    try { W.Date.now = () => 1767225600000; W.Math.random = () => 0.123456; accion('add-txt'); accion('add-txt'); accion('add-txt'); }
+    finally { W.Date.now = now; W.Math.random = rnd; }
+    const ids = compDe(0).els.filter(e => e.t === 'texto').map(e => e.id);
+    igual(ids.length, 3, 'no entraron los tres textos');
+    igual(new Set(ids).size, 3, 'se repitió un id: ' + json(ids));
+    M.libre.cerrar();
+  });
+
+  prueba('E59', 'En el editor, con el foco en la barra de tamaño de la bandeja, las flechas son de la barra (D-091)', async () => {
+    await tablero([pub(1, 'Carrusel')]); await poner('r1', [await foto('e59a.jpg'), await foto('e59b.jpg')]);
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    const r = await hasta(() => ed().el.querySelector('.lb-foot .ttam input'), 2000, 'la barra de tamaño del editor');
+    ed().sel = null; ed().mas = [];
+    const i0 = ed().i; r.focus();
+    const ev = new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }); r.dispatchEvent(ev);
+    ok(!ev.defaultPrevented, 'el editor se quedó la flecha');
+    igual(ed().i, i0, 'la flecha cambió de diapositiva');
+    M.libre.cerrar();
+  });
+
+  prueba('E60', 'En la bandeja del editor, un clic sin ⌘ en una foto suelta también las carpetas elegidas (D-077)', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e60a.jpg')]);
+    const [f] = await M.addFiles([await foto('e60b.jpg')]), c = M.crearCarpeta('E60').id;
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    ed().trCar = [c];
+    accion('tr-add', { f });
+    await espera(30);
+    igual(ed().trCar, [], 'la carpeta sigue elegida');
+    M.libre.cerrar();
+  });
+
+  prueba('E61', '«Reemplazar» en una foto suelta: la que sale vuelve a la bandeja del editor en el momento', async () => {
+    await tablero([pub(1)]); const [a] = await poner('r1', [await foto('e61a.jpg')]);
+    const [b] = await M.addFiles([await foto('e61b.jpg')]);
+    await abrirEditor('r1');
+    const el = compDe(0).els.find(e => e.t === 'foto' && e.src === a); ok(el && !el.hueco, 'la foto de la diapositiva');
+    ed().pick = { modo: 'rep', id: el.id }; accion('pickf', { f: b });
+    await hasta(() => compDe(0).els.some(e => e.src === b), 4000, 'la foto nueva');
+    ok(ed().vuelven.has(a), 'la foto que sale no vuelve a la bandeja del editor');
+    M.libre.cerrar();
+  });
+
+  prueba('E62', 'Una foto soltada en la casilla con «Sustituir»: el marco vacío de la portada cuenta como hueco y se llena (D-050)', async () => {
+    await tablero([pub(1, 'Carrusel')]); const [a] = await poner('r1', [await foto('e62a.jpg'), await foto('e62b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt'); compDe(0).els.push(marcoEl('m62', 0.55, 0.1, 0.4, 0.8));
+    await aplicarEditor();
+    const s0 = slot('r1'), c0 = s0.libre && s0.libre.slides[s0.photos[0]];
+    ok(c0 && c0.els.some(e => e.id === 'm62' && !e.src), 'la portada no quedó con el marco vacío: ' + json(c0 && c0.els.map(e => e.t)));
+    const [nueva] = await M.addFiles([await foto('e62c.jpg')]);
+    M._test.setSel(nueva);
+    celda('r1').click();
+    await pulsar('[data-act="addmode"][data-m="replace"]');
+    const c1 = await hasta(() => { const s = slot('r1'), c = s.libre && s.libre.slides[s.photos[0]]; return c && c.els.some(e => e.src === nueva) && c; }, 15000, 'la portada con la foto nueva');
+    igual(c1.els.find(e => e.id === 'm62').src, nueva, 'el marco vacío no se llenó');
+    ok(c1.els.some(e => e.src === a), 'cambió la otra foto en vez del marco');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -7544,6 +7544,23 @@
     });
   });
 
+  prueba('M49', 'Un cambio desde fuera con un campo de la ventana en uso no rehace ese campo: el estado se pone al día y la ventana se redibuja al dejarlo (D-112)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m49-a.jpg')]);
+    M._in.openDetail('r1', 0);
+    const ta = await hasta(() => dialogo() && dialogo().querySelector('textarea.note'), 3000, 'el campo de contexto');
+    ta.focus(); ta.value = 'Escribiendo'; ta._marca = 1;
+    M.setEstado('r1', 'cancelado'); M.setEstado('r2', 'cancelado'); await espera(60);
+    const ta2 = dialogo().querySelector('textarea.note');
+    ok(ta2 === ta && ta2._marca === 1, 'el campo en el que se escribe se ha rehecho');
+    ok(D.activeElement === ta, 'el campo perdió el foco');
+    const sel = dialogo().querySelector('.phead .pest select'), elegido = sel && sel.selectedOptions[0];
+    ok(elegido && /Cancelad/.test(elegido.textContent), 'el estado de la ventana no se puso al día: ' + (elegido ? elegido.textContent : 'sin selector'));
+    ta.blur();
+    await hasta(() => dialogo().querySelector('textarea.note') !== ta, 2000, 'que la ventana se redibuje al dejar el campo');
+    M._in.closeDetail();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

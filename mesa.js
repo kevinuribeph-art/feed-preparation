@@ -3213,11 +3213,36 @@
     const pe = p.querySelector('.pest'), eh = estadoHTML(s); if (pe && pe.outerHTML !== eh && !pe.querySelector('.esmot:focus')) pe.outerHTML = eh;   // its state follows too (not under a reason being typed)
   }
   let refreshLater = false;   // a refresh asked for while a photo is being dragged in the post view: done when it is let go
+  // A field of the window being typed in is never rebuilt (D-112): a change from outside (Claude, a collab, the calendar) updates
+  // the state, the head and the captions around it, and the whole window is drawn again when the field loses the focus, after
+  // the click that took it away (a button rebuilt under the pointer would lose its click)
+  let refreshFoco = null, vigia = 0, pulsado = 0;
+  const campoVivo = (d, f) => !!(f && d.contains(f) && !f.disabled && (f.matches('textarea') || (f.matches('input') && !/^(range|checkbox|radio|button|submit|file|color)$/.test(f.type))));
   function refreshDetail() {
     const d = root && root.querySelector('.detail');
     if (d && d.querySelector('.stage.panning')) { refreshLater = true; return; }
-    if (d && !d.hidden && d.dataset.slot) { if (slot(d.dataset.slot)) openDetail(d.dataset.slot, cur.idx); else closeDetail(); }
+    if (!(d && !d.hidden && d.dataset.slot)) return;
+    const id = d.dataset.slot;
+    if (!slot(id)) { closeDetail(); return; }
+    const f = document.activeElement;
+    if (campoVivo(d, f)) {
+      capSync(id); syncHead(id, f);
+      refreshFoco = f; clearInterval(vigia);
+      vigia = setInterval(() => {   // not on blur: a window without the focus doesn't send it, and a click must land first
+        if (document.activeElement === refreshFoco && refreshFoco.isConnected) return;
+        if (Date.now() - pulsado < 4000) return;   // a press under way: after its click
+        clearInterval(vigia); refreshFoco = null;
+        const d2 = root && root.querySelector('.detail');
+        if (d2 && !d2.hidden && d2.dataset.slot === id) refreshDetail();   // into another field: it waits for that one
+      }, 200);
+      return;
+    }
+    if (refreshFoco) { clearInterval(vigia); refreshFoco = null; }
+    openDetail(id, cur.idx);
   }
+  document.addEventListener('pointerdown', () => { pulsado = Date.now(); }, true);
+  document.addEventListener('pointerup', () => { pulsado = 0; }, true);
+  document.addEventListener('pointercancel', () => { pulsado = 0; }, true);
 
   // ---------- vista cliente: a post opens as in Instagram (B7) ----------
   // Its real proportion (a carousel with the arrows of T6, a reel in 9:16), the client's name and photo, its caption whole

@@ -43,18 +43,13 @@
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   // pastel of each type (Notion's tag colours); the dot of each state is the mesa's (.edot.e-<state>), other hues
   const TYPE = { 'Reel': 'reel', 'Collab Reel': 'collab', 'Foto': 'foto', 'Carrusel': 'carr', 'Trial Reel': 'trial' };
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const { esc, cssq, lsGet, lsSet, addMonths, utc } = M._in;   // the mesa's own helpers
   const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
-  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage off: not remembered */ } }
   const NARROW = window.matchMedia ? window.matchMedia('(max-width:720px)') : { matches: false };
   const folded = () => { const v = lsGet(LS_FOLD); return v === '1' || (v == null && NARROW.matches); };   // a narrow pane starts folded
   const cntFolded = () => lsGet(LS_CNT) === '1';
 
   // ---------- days ('YYYY-MM-DD', Madrid) and months ('YYYY-MM') ----------
-  function addMonths(m, k) { let [y, mo] = m.split('-').map(Number); mo += k; y += Math.floor((mo - 1) / 12); mo = ((mo - 1) % 12 + 12) % 12 + 1; return y + '-' + String(mo).padStart(2, '0'); }
-  const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
   const addDays = (d, k) => dayAt(utc(d) + k * 864e5);
   const dow = d => (new Date(utc(d)).getUTCDay() + 6) % 7;            // Monday 0 … Sunday 6

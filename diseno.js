@@ -28,7 +28,7 @@
   const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
   const pad2 = n => String(n).padStart(2, '0');
   const nowISO = () => new Date().toISOString();
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const { esc } = M._in;   // the mesa's own
 
   // ---------- errors: every public call returns a plain object; {error:'…'} in Spanish ----------
   class DzError extends Error { constructor(m, slide) { super(m); if (slide != null) this.slide = slide; } }   // slide: index of the slide at fault
@@ -850,7 +850,7 @@
   }
 
   // the element a rebuilt part of the editor should give the focus back to
-  const cssv = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssv = M._in.cssq;   // the mesa's own
   function focusKey(el) {
     if (!el || !el.dataset) return null;
     if (el.dataset.dz) return `[data-dz="${cssv(el.dataset.dz)}"]` + (el.dataset.v != null ? `[data-v="${cssv(el.dataset.v)}"]` : '') + (el.dataset.f != null ? `[data-f="${cssv(el.dataset.f)}"]` : '') + (el.dataset.i != null ? `[data-i="${cssv(el.dataset.i)}"]` : '');

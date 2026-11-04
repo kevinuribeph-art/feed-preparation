@@ -117,7 +117,7 @@
   const RG = 18;                               // the rulers' thickness (screen px)
   const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const { esc } = M._in;   // the mesa's own
   let uidN = 0;   // a counter: two ids made in the same millisecond never repeat (the random part alone could)
   const uid = () => 'e' + Date.now().toString(36) + (uidN++).toString(36) + Math.random().toString(36).slice(2, 6);
   const pad2 = n => String(n).padStart(2, '0');

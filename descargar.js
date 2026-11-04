@@ -16,11 +16,10 @@
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const VERSION = '1.2';
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
   const CANCELADA = 'cancelada';
   const pausa = () => new Promise(r => setTimeout(r, 0));
-  const nOf = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
   // ---------- the choice: posts of the open board, in the order chosen ----------
   let eleg = [], elegKey = null;
@@ -93,7 +92,6 @@
     if (r) r.textContent = !n ? 'Nada marcado' : n === 1 ? '1 pieza · un JPG' : `${n} piezas · ${zipNombre()}.zip`;
     d.querySelectorAll('[data-dl="todas"]').forEach(t => { const any = d.querySelector(`.dl-pz input[data-slot="${cssq(t.dataset.slot)}"]:checked`); t.textContent = any ? 'Ninguna' : 'Todas'; });
   }
-  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
 
   // ---------- one piece as a JPEG ----------
   const tope = (W, r) => Math.max(1, Math.min(Math.round(W), Math.floor(Math.sqrt(MAX_PX / r))));   // r = height / width

@@ -322,6 +322,7 @@
   }
   const ts = iso => { const d = new Date(String(iso || '').replace(' ', 'T')); return isNaN(d) ? 0 : d.getTime(); };
   // ---------- months range + Madrid dates ----------
+  const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };   // a day's midnight, UTC
   function addMonths(m, k) { let [y, mo] = m.split('-').map(Number); mo += k; y += Math.floor((mo - 1) / 12); mo = ((mo - 1) % 12 + 12) % 12 + 1; return y + '-' + String(mo).padStart(2, '0'); }
   const monthsOf = (m, span) => Array.from({ length: Math.max(1, span || 1) }, (_, i) => addMonths(m, i));
   // ---------- work cycles (the only definition, used everywhere) ----------
@@ -5427,7 +5428,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

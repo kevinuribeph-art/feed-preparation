@@ -37,10 +37,8 @@
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const VERSION = '1.10';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-  const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
   let cruzo = null;                            // the day the arrows just crossed to (D-080)
   let ON = false, abierta = null, enUso = null;   // the view is on; the story whose dialog is open; the field of it in use

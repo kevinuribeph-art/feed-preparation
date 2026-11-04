@@ -95,11 +95,14 @@
 // v1.39 (mesa 3.77): audit fixes — a photo crossing slides never copies its hole; a logo uploaded while the editor closes is
 // kept; «Ver todas» follows ⌘Z; ids never repeat in one millisecond; the tray's size bar keeps its arrows; a click without ⌘
 // lets go of chosen folders; «Reemplazar» gives the old photo back to the tray; «Sustituir» on the cell fills an empty frame.
+// v1.40 (mesa 3.78): audit fixes (D-093) — Esc with a folder's menu open closes the menu; Enter or space never press a button
+// behind a question; the templates' logos load with the editor; «Rejilla» leaves hidden and locked photos alone and keeps a
+// filled hole; a photo filling a grouped hole stays in its group; a font that failed is asked for again when drawing.
 (function libreBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.39';
+  const VERSION = '1.40';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -213,7 +216,7 @@
   function rellenar(comp, h, f, W, H, llena) {
     const vacio = clone(h); delete vacio.hueco;
     if (h.t === 'hueco') {
-      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, hueco: vacio }, W, H, llena ?? llenaSola(f, h, W, H));
+      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, ...(h.g ? { g: h.g } : {}), hueco: vacio }, W, H, llena ?? llenaSola(f, h, W, H));   // in the hole's group, if it had one
       comp.els.splice(comp.els.indexOf(h), 1, el);
       sinProvisional(comp);
       return el;
@@ -279,6 +282,7 @@
     ['Gill Sans', '"Gill Sans", "Gill Sans MT", sans-serif'], ['Optima', 'Optima, Candara, sans-serif'], ['Didot', 'Didot, "Bodoni 72", "Bodoni MT", serif'], ['Baskerville', 'Baskerville, "Baskerville Old Face", serif'],
     ['Georgia', 'Georgia, serif'], ['American Typewriter', '"American Typewriter", "Courier New", monospace'], ['Snell Roundhand', '"Snell Roundhand", "Apple Chancery", cursive']].map(([n, css]) => ({ n, css }));
   const FONTS = new Map();                     // kits/ file -> {name, ok, p}
+  const FALLO_FUENTE = new Set();              // fonts already warned about, once a session
   function fuente(f) {                         // a font file registered once; its promise settles when it can be drawn
     let r = FONTS.get(f.file);
     if (!r) {
@@ -605,7 +609,11 @@
   async function dibujar(comp, W, H) {        // a composition at W×H: a JPEG Blob (the editor open or not)
     const cache = new Map();
     try {
-      await Promise.all(textosDe(comp).filter(e => e.font && e.font.file).map(e => fuente(e.font).p.catch(() => {})));
+      const fs0 = [...new Map(textosDe(comp).filter(e => e.font && e.font.file).map(e => [e.font.file, e.font])).values()];
+      fs0.forEach(f => { const r = FONTS.get(f.file); if (r && r.err) FONTS.delete(f.file); });   // a font that failed once is asked for again here
+      await Promise.all(fs0.map(f => fuente(f).p.catch(() => {})));
+      const malas = fs0.filter(f => !(FONTS.get(f.file) || {}).ok && !FALLO_FUENTE.has(f.file));
+      if (malas.length && I()) { malas.forEach(f => FALLO_FUENTE.add(f.file)); I().toast(`No se pudo cargar la fuente ${malas.map(f => f.n || String(f.file).replace(/^.*\//, '')).join(', ')}: ese texto sale con otra letra. Revisa la conexión y vuelve a aplicar.`, { ms: 8000 }); }
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
       for (const f of srcsOf(comp)) if (!cache.has(f)) { const bmp = await createImageBitmap(await I().getBlob(f), { imageOrientation: 'from-image' }); cache.set(f, { im: bmp }); }
       const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -784,7 +792,8 @@
     if (E !== owner) return;
     E.kit = kit; E.fkit = fk; E.estilos = est; E.tcol = tcol; E.margen = mg; E.fuentes = [...fk, ...FUENTES_MESA.filter(f => !fk.some(q => q.file === f.file)), ...FUENTES_MAC];
     E.plant = Array.isArray(lib.plantillas) ? lib.plantillas : [];
-    const lg = (lib.logos || []).filter(Boolean); E.logos = lg; await I().loadThumbs(lg);
+    const lg = (lib.logos || []).filter(Boolean), lgT = E.plant.flatMap(t => ((t.comp && t.comp.els) || []).filter(e => e.t === 'logo' && e.src).map(e => e.src));
+    E.logos = lg; await I().loadThumbs([...new Set([...lg, ...lgT])]);   // + the logos its templates use, so applying one keeps them
     if (E !== owner) return;
     E.logos = lg.filter(f => M.files[f]);
     panel();
@@ -1676,8 +1685,8 @@
   }
   const GRIDS = [['2h', '2 en columna'], ['2v', '2 en fila'], ['3a', '1 grande + 2'], ['3h', '3 en columna'], ['3v', '3 en fila'], ['4', '4 (2 × 2)']];
   function rejilla(c, name, g) {       // the slide's photos go into the cells in order (styles kept by position); texts, logos and shapes stay on top
-    const { W, H } = sizeAt(E.i), cs = cells(name, W, H, g * W), old = fotosDe(c), fotos = old.map(e => e.src).filter(Boolean), otros = c.els.filter(e => e.t !== 'foto');
-    c.els = [...cs.map((q, k) => { const o = old[k], e = fotoEl(fotos[k] || null); if (o) Object.assign(e, { b: o.b, bc: o.bc, r: o.r, sh: o.sh, op: o.op ?? 1 }, o.bo ? { bo: o.bo } : {}); return Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H) }); }), ...otros];
+    const { W, H } = sizeAt(E.i), cs = cells(name, W, H, g * W), quedan = fotosDe(c).filter(e => e.oculto || e.lock), old = fotosDe(c).filter(e => !e.oculto && !e.lock), fotos = old.map(e => e.src).filter(Boolean), otros = c.els.filter(e => e.t !== 'foto');   // hidden and locked photos stay as they are
+    c.els = [...quedan, ...cs.map((q, k) => { const o = old[k], e = fotoEl(fotos[k] || null); if (o) Object.assign(e, { b: o.b, bc: o.bc, r: o.r, sh: o.sh, op: o.op ?? 1 }, o.bo ? { bo: o.bo } : {}); Object.assign(e, { x: r4(q.x / W), y: r4(q.y / H), w: r4(q.w / W), h: r4(q.h / H) }); if (o && o.hueco && o.src && o.src === e.src) e.hueco = { ...clone(o.hueco), x: e.x, y: e.y, w: e.w, h: e.h, rot: 0 }; return e; }), ...otros];   // a filled hole keeps its hole, in its cell (D-052)
     c.rej = { n: name, g };
   }
   function separar(c, g) {             // the gap of the grid in place: same photos, same cells
@@ -2824,9 +2833,12 @@
     if ((e.metaKey || e.ctrlKey) && (e.code === 'KeyP' || String(e.key).toLowerCase() === 'p')) e.preventDefault();   // with the editor open ⌘P never prints
     if (E.busy) { if (!e.metaKey) e.preventDefault(); return; }
     if (!E.el.isConnected || !curSlot()) { cerrar(true); return; }
+    { const cpm = I().root && I().root() && I().root().querySelector('.cpmenu');   // a folder's menu (carpetas.js, D-076): its keys, not the editor's
+      if (cpm && M.carpetasUI) { if (e.key === 'Escape') { e.preventDefault(); M.carpetasUI.cerrarMenu(); } return; } }
     if (E.ask) {
       if (e.key === 'Escape') { e.preventDefault(); cerrarPregunta(); }
       else if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('lb-askin')) { e.preventDefault(); E.askOk(); }
+      else if ((e.key === 'Enter' || e.key === ' ') && !E.ask.contains(e.target)) e.preventDefault();   // a focused button behind the question doesn't take them
       else if ((e.key === '1' || e.key === '2') && E.ask.classList.contains('lb-ask12')) { e.preventDefault(); if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) E.ask.querySelectorAll('[data-ask]')[+e.key - 1].click(); }   // held down, it never answers the next question
       return;
     }

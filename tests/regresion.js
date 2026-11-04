@@ -6423,6 +6423,109 @@
     } finally { fr.style.width = w0; if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
   });
 
+  // ---------- el pellizco sobre la bandeja mueve su barra (D-118) ----------
+  // Chrome y la app: rueda con ctrlKey; Safari: gesturestart / gesturechange / gestureend con su scale
+  const pellizco = (en, dy, x, y) => { const r = en.getBoundingClientRect(); return rueda(en, x ?? r.left + r.width / 2, y ?? r.top + r.height / 2, dy, { ctrl: true }); };
+  function gesto(en, tipo, scale, x, y) {
+    const e = new W.UIEvent(tipo, { bubbles: true, cancelable: true });
+    Object.defineProperties(e, { scale: { value: scale }, clientX: { value: x }, clientY: { value: y } });
+    en.dispatchEvent(e); return e;
+  }
+  // una foto de la bandeja de la mesa que se ve entera en el centro de su vista
+  function fotoEnMedio() {
+    const t = q('.tray'), r = t.getBoundingClientRect(), y = (r.top + r.bottom) / 2;
+    return qa('.tray .tgrid > .titem').find(e => { const b = e.getBoundingClientRect(); return b.top < y && b.bottom > y && b.left > r.left; });
+  }
+
+  prueba('T8', 'Mesa: el pellizco sobre la bandeja mueve su barra, con sus tramos y lo guardado, y la foto bajo el puntero se queda a su altura; también con «Historias»; fuera de la bandeja no cambia nada (D-118)', async () => {
+    await bandejaTam(60);
+    try {
+      const t = q('.tray'); t.scrollTop = Math.round((t.scrollHeight - t.clientHeight) / 2);
+      for (const hv of [false, true]) {
+        if (hv) { q('.hvsw [data-v="1"]').click(); await hasta(() => q('section.hv'), 3000, 'la vista «Historias»'); aTam(barra(), 50); t.scrollTop = Math.round((t.scrollHeight - t.clientHeight) / 2); }
+        const f = fotoEnMedio(); ok(f, 'ninguna foto en el centro de la bandeja');
+        const r0 = f.getBoundingClientRect(), x = r0.left + r0.width * 0.3, y = r0.top + r0.height * 0.6, fy = (y - r0.top) / r0.height;
+        let e = null; for (let i = 0; i < 6; i++) e = pellizco(f, -12, x, y);
+        ok(e.defaultPrevented, 'el pellizco sobre la bandeja haría zoom de la página');
+        const v = +barra().querySelector('input').value;
+        ok(v > 50 && W.localStorage.getItem(LS_TAM) === String(v), `la barra no se movió con el pellizco (${v}, ${W.localStorage.getItem(LS_TAM)})`);
+        const r1 = f.getBoundingClientRect();
+        ok(Math.abs(r1.top + fy * r1.height - y) < 1.5, `la foto bajo el puntero se movió ${Math.round(r1.top + fy * r1.height - y)} px en vertical`);
+        const conP = tw(); aTam(barra(), v); igual(tw(), conP, 'el pellizco no da el mismo tamaño que la barra');
+        for (let i = 0; i < 30; i++) pellizco(fotoEnMedio() || f, 15);
+        const v2 = +barra().querySelector('input').value; ok(v2 < 50 && tw() && parseFloat(tw()) < 92, `cerrar los dedos no achica (${v2}, ${tw()})`);
+        for (let i = 0; i < 80; i++) pellizco(q('.tray .tgrid > .titem'), 40);
+        igual(+barra().querySelector('input').value, 0, 'no se para en el extremo izquierdo'); igual(tw(), '46px', 'el extremo izquierdo no es 46 px');
+        aTam(barra(), 50);
+      }
+      q('.hvsw [data-v="0"]').click();
+      const c = q('.feed .grid .cell'), e = pellizco(c, -60);
+      igual(+barra().querySelector('input').value, 50, 'un pellizco sobre la cuadrícula movió la barra'); ok(!e.defaultPrevented, 'fuera de la bandeja el pellizco ya no es del navegador');
+      const ru = rueda(q('.tray .tgrid > .titem'), 10, 10, 120); ok(!ru.defaultPrevented && !tw(), 'la rueda sin pellizco cambió el tamaño');
+      aTam(barra(), 80); pellizco(q('.tray .tgrid > .titem'), -1); ok(+barra().querySelector('input').value >= 80, 'el pellizco no sigue desde donde se dejó la barra');
+    } finally { if (q('section.hv')) q('.hvsw [data-v="0"]').click(); sinTam(); }
+  });
+
+  prueba('T9', 'Editor: el pellizco sobre su bandeja mueve su barra y la foto bajo el puntero no se mueve; sobre el área gris sigue siendo el zoom del editor; se guarda aparte de la mesa (D-118, D-031)', async () => {
+    await bandejaTam(40);
+    try {
+      await editorConBandeja();
+      const tr = ed().el.querySelector('.lb-trs'); tr.scrollLeft = Math.round((tr.scrollWidth - tr.clientWidth) / 2);
+      const rr = tr.getBoundingClientRect(), f = [...tr.querySelectorAll('.lb-tph')].find(e => { const b = e.getBoundingClientRect(); return b.left > rr.left + rr.width * 0.4 && b.right < rr.right; });
+      ok(f, 'ninguna foto en el centro de la tira');
+      const r0 = f.getBoundingClientRect(), x = r0.left + r0.width * 0.7, y = r0.top + r0.height / 2, fx = (x - r0.left) / r0.width, z0 = ed().zoom;
+      let e = null; for (let i = 0; i < 6; i++) e = pellizco(f, -12, x, y);
+      ok(e.defaultPrevented, 'el pellizco sobre la bandeja del editor haría zoom de la página');
+      const v = +barraEd().querySelector('input').value;
+      ok(v > 50 && W.localStorage.getItem(LS_TAM_ED) === String(v) && W.localStorage.getItem(LS_TAM) == null, `la barra del editor no se movió sola (${v})`);
+      const r1 = f.getBoundingClientRect();
+      ok(Math.abs(r1.left + fx * r1.width - x) < 1.5, `la foto bajo el puntero se movió ${Math.round(r1.left + fx * r1.width - x)} px en horizontal`);
+      igual(ed().zoom, z0, 'el pellizco en la bandeja cambió el zoom del editor');
+      const px = parseFloat(ed().el.querySelector('.lb-tray').style.getPropertyValue('--tw')); aTam(barraEd(), v);
+      igual(parseFloat(ed().el.querySelector('.lb-tray').style.getPropertyValue('--tw')), px, 'el pellizco no da el mismo tamaño que la barra');
+      const [gx, gy] = enGris(); pellizco(gris(), -40, gx, gy);
+      ok(ed().zoom > z0 && +barraEd().querySelector('input').value === v, 'sobre el área gris el pellizco no es el zoom del editor');
+      M.libre.cerrar();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  prueba('T10', 'Safari: gesturestart y gesturechange sobre la bandeja mueven su barra, en la mesa y en el editor, sin zoom de la página; en el editor, sobre la diapositiva siguen haciendo su zoom (D-118)', async () => {
+    await bandejaTam(30);
+    try {
+      const f = q('.tray .tgrid > .titem'), r = f.getBoundingClientRect(), x = r.left + 10, y = r.top + 10;
+      const es = [gesto(f, 'gesturestart', 1, x, y), gesto(f, 'gesturechange', 1.4, x, y), gesto(f, 'gesturechange', 1.8, x, y), gesto(f, 'gestureend', 1.8, x, y)];
+      ok(es.every(e => e.defaultPrevented), 'un gesto sobre la bandeja haría zoom de la página');
+      const v = +barra().querySelector('input').value; ok(v > 50 && W.localStorage.getItem(LS_TAM) === String(v), 'el gesto no movió la barra de la mesa: ' + v);
+      gesto(f, 'gesturestart', 1, x, y); gesto(f, 'gesturechange', 0.5, x, y); gesto(f, 'gestureend', 0.5, x, y);
+      ok(+barra().querySelector('input').value < v, 'cerrar los dedos no achica en la mesa');
+      await editorConBandeja();
+      const g = ed().el.querySelector('.lb-tph'), b = g.getBoundingClientRect(), z0 = ed().zoom;
+      gesto(g, 'gesturestart', 1, b.left + 5, b.top + 5); gesto(g, 'gesturechange', 1.6, b.left + 5, b.top + 5); gesto(g, 'gestureend', 1.6, b.left + 5, b.top + 5);
+      ok(+barraEd().querySelector('input').value > 50 && ed().zoom === z0, 'el gesto no movió la barra del editor o cambió su zoom');
+      const [gx, gy] = enGris(); gesto(gris(), 'gesturestart', 1, gx, gy); gesto(gris(), 'gesturechange', 1.5, gx, gy); gesto(gris(), 'gestureend', 1.5, gx, gy);
+      ok(ed().zoom > z0, 'el gesto sobre el área gris ya no es el zoom del editor');
+      M.libre.cerrar();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
+  prueba('T11', 'Con la ventana a 720 px o menos el pellizco no hace nada en la bandeja, tampoco zoom de la página, en la mesa y en el editor (D-118)', async () => {
+    await bandejaTam(30);
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      fr.style.width = '700px';
+      await hasta(() => W.innerWidth <= 720 && !visto(barra()), 3000, 'sin barra en la ventana estrecha');
+      const f = q('.tray .tgrid > .titem'), r = f.getBoundingClientRect();
+      const e = pellizco(f, -60), g = [gesto(f, 'gesturestart', 1, r.left + 5, r.top + 5), gesto(f, 'gesturechange', 2, r.left + 5, r.top + 5)];
+      ok(e.defaultPrevented && g.every(x => x.defaultPrevented), 'en la ventana estrecha el pellizco haría zoom de la página');
+      ok(W.localStorage.getItem(LS_TAM) == null && !tw(), 'en la ventana estrecha el pellizco cambió el tamaño');
+      gesto(f, 'gestureend', 2, r.left + 5, r.top + 5);
+      await editorConBandeja();
+      const h = ed().el.querySelector('.lb-tph'); pellizco(h, -60);
+      ok(W.localStorage.getItem(LS_TAM_ED) == null && !ed().el.querySelector('.lb-tray').classList.contains('tam-on'), 'en el editor estrecho el pellizco cambió el tamaño');
+      M.libre.cerrar();
+    } finally { fr.style.width = w0; if (M.libre.abierto()) M.libre.cerrar(); sinTam(); }
+  });
+
   // =====================================================================================================
   // Pestañas a la vista, cada carpeta donde se dejó y pestañas en el orden que se quiera (D-092)
   // =====================================================================================================

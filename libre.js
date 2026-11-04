@@ -102,7 +102,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.46';
+  const VERSION = '1.47';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1937,11 +1937,15 @@
     }
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();             // a pinch (ctrl + wheel) or ⌘ + wheel: never the page's zoom, anywhere in the editor
+    if (e.ctrlKey && enBandeja(e)) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
     if (E.sl.length && !E.busy && !escribiendo() && E.scroll.contains(e.target)) zoomEn(E.zoom * Math.exp(-e.deltaY * 0.01), e);
   }
   function onGesto(e) {             // Safari: the pinch comes as gestures, not as ctrl + wheel
     if (!E) return;
     e.preventDefault();
+    if (e.type === 'gesturestart') E.gTr = enBandeja(e);   // a pinch that starts over the tray is its size to the end (D-118)
+    if (E.gTr) { tamGesto(e); if (e.type === 'gestureend') E.gTr = false; return; }
+    if (e.type === 'gestureend') return;
     if (e.type === 'gesturestart') { E.g0 = E.zoom; return; }
     if (E.sl.length && !E.busy && !escribiendo() && !(E.crop && e.target === E.cv) && E.scroll.contains(e.target)) zoomEn((E.g0 || E.zoom) * e.scale, e);
   }
@@ -2912,7 +2916,7 @@
     cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp);
     cv.addEventListener('dblclick', onDbl);
     el.addEventListener('wheel', onWheel, { passive: false });   // on the whole editor: a pinch never zooms the page
-    el.addEventListener('gesturestart', onGesto, { passive: false }); el.addEventListener('gesturechange', onGesto, { passive: false });   // Safari's pinch
+    el.addEventListener('gesturestart', onGesto, { passive: false }); el.addEventListener('gesturechange', onGesto, { passive: false }); el.addEventListener('gestureend', onGesto, { passive: false });   // Safari's pinch
     el.querySelectorAll('.lb-rx, .lb-ry').forEach(r => { r.addEventListener('pointerdown', guiaDown); r.addEventListener('pointermove', onMove); r.addEventListener('pointerup', onUp); r.addEventListener('pointercancel', onUp); });
     const sc = E.scroll;           // the grey area around the slide
     sc.addEventListener('pointerdown', grisDown, true);   // first: with space held, the slide doesn't take the click
@@ -3058,6 +3062,42 @@
     w.hidden = !E.trOpen || angosta || fr.right - 52 - TAM_ANCHO - 12 < br.right;
   }
   function tamCambiar(r, p) { if (p != null) r.value = p; lsPoner(LS_TAM, String(Math.round(+r.value))); tamBandeja(); }
+  // The pinch over the tray moves its slider (D-118), as the mesa's: the same place 0–100 and storage, and the photo under
+  // the pointer stays where it is across (the strip scrolls with it). Over the slide or the grey area it is still the
+  // editor's zoom (D-031). In a narrow window (no slider) it does nothing.
+  const enBandeja = e => !!(e.target && e.target.closest && e.target.closest('.lb-tray'));
+  const tamPxDe = p => p <= 50 ? TAM_MED / 2 + TAM_MED / 2 * p / 50 : TAM_MED + TAM_MED * (p - 50) / 50;
+  const tamPDe = px => Math.max(0, Math.min(100, px <= TAM_MED ? (px - TAM_MED / 2) * 50 / (TAM_MED / 2) : 50 + (px - TAM_MED) * 50 / TAM_MED));
+  function tamPellizco(e, px) {
+    const tr = E.el.querySelector('.lb-tray .lb-trs'); if (!tr || estrecha() || !E.tamG) return;
+    const p = tamPDe(px); E.tamG.p = p;
+    const n = Math.round(p); if (n === tamPos()) return;
+    if (!(E.tamG.a && E.tamG.a.t.isConnected)) {   // the photo under the pointer when the pinch started, kept in place to its end
+      const el = document.elementFromPoint(e.clientX, e.clientY), t0 = el && el.closest && el.closest('.lb-trs > .lb-ph');
+      let t = t0 && tr.contains(t0) ? t0 : null;
+      if (!t) { let bd = Infinity; tr.querySelectorAll(':scope > .lb-ph').forEach(c => { const r = c.getBoundingClientRect(), d = Math.max(r.left - e.clientX, 0, e.clientX - r.right); if (r.width && d < bd) { bd = d; t = c; } }); }
+      const r0 = t && t.getBoundingClientRect();
+      E.tamG.a = t ? { t, x: e.clientX, fx: Math.max(0, Math.min(1, (e.clientX - r0.left) / (r0.width || 1))) } : null;
+    }
+    const a = E.tamG.a;
+    lsPoner(LS_TAM, String(n));
+    const r = E.el.querySelector('.lb-foot .ttam input'); if (r) r.value = n;
+    tamBandeja();
+    if (a && a.t.isConnected) { const b = a.t.getBoundingClientRect(); tr.scrollLeft += b.left + a.fx * b.width - a.x; }
+  }
+  function tamRueda(e) {               // Chrome and the app: a wheel with ctrlKey
+    if (estrecha() || (E.tamG && E.tamG.gesto)) return;
+    const now = performance.now();
+    if (!E.tamG || now - E.tamG.t > 400 || Math.round(E.tamG.p) !== tamPos()) E.tamG = { p: tamPos(), t: now };   // a new pinch starts where the slider is
+    E.tamG.t = now;
+    tamPellizco(e, tamPxDe(E.tamG.p) * Math.exp(-e.deltaY * 0.01));
+  }
+  function tamGesto(e) {               // Safari: e.scale from the gesture's start
+    if (estrecha()) return;
+    if (e.type === 'gesturestart') { const p = tamPos(); E.tamG = { p, px0: tamPxDe(p), t: performance.now(), gesto: true }; return; }
+    if (e.type === 'gestureend') { E.tamG = null; return; }
+    if (E.tamG && E.tamG.gesto && Number.isFinite(e.scale)) tamPellizco(e, E.tamG.px0 * e.scale);
+  }
   function bandeja() {               // drawn again only when it shows something else
     if (!E || !E.el) return;
     const todas = !!(I().trayTodas && I().trayTodas()), box = E.el.querySelector('.lb-tray'), b = E.el.querySelector('.lb-trb'), fs = trayFotos(todas), n = fs.filter(x => !x.u).length, uso = enUso();

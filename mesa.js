@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.89'; // 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.90'; // 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -2922,6 +2922,50 @@
     tamRO.observe(tray); tamRO.observe(tray.querySelector('.trayhead'));
   }
   function tamCambiar(r, p) { if (p != null) r.value = p; lsSet(LS_TAM, String(Math.round(+r.value))); tamAplicar(); }
+  // The pinch over the tray moves its slider (D-118): the same place 0–100, stretches and storage, and the slider moves with
+  // it. Chrome and the app send it as a wheel with ctrlKey, Safari as gestures; over the tray it is never the page's zoom.
+  // The photo under the pointer keeps its height on screen (the scroll follows it): the grid puts the photos in columns
+  // again, so it may change column. In a narrow window (no slider) it does nothing. The pinch keeps its place as a fraction
+  // while it goes on, so slow fingers still move it.
+  let tamG = null;                     // a pinch going on: {p (float), px0 at a gesture's start, t, gesto, a: the photo it keeps in place}
+  const tamMax = ancho => Math.max(TAM_MED, Math.floor((ancho - 12) / 3));
+  const tamPxDe = (p, ancho) => p <= 50 ? TAM_MIN + (TAM_MED - TAM_MIN) * p / 50 : TAM_MED + (tamMax(ancho) - TAM_MED) * (p - 50) / 50;
+  const tamPDe = (px, ancho) => Math.max(0, Math.min(100, px <= TAM_MED ? (px - TAM_MIN) * 50 / (TAM_MED - TAM_MIN) : tamMax(ancho) > TAM_MED ? 50 + (px - TAM_MED) * 50 / (tamMax(ancho) - TAM_MED) : 50));
+  function tamAncla(tray, x, y) {      // the photo or folder under the pointer (or the nearest one) and where in it
+    const el = document.elementFromPoint(x, y), en = el && el.closest && el.closest('.tray .tgrid > .titem, .tray .tgrid > .tcarpeta');
+    let t = en && tray.contains(en) ? en : null;
+    if (!t) { let bd = Infinity; tray.querySelectorAll('.tgrid > .titem, .tgrid > .tcarpeta').forEach(c => { const r = c.getBoundingClientRect(); if (!r.height) return; const dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom), d = dx * dx + dy * dy; if (d < bd) { bd = d; t = c; } }); }
+    if (!t) return null;
+    const r = t.getBoundingClientRect();
+    return { t, y, fy: Math.max(0, Math.min(1, (y - r.top) / (r.height || 1))) };
+  }
+  function tamPellizco(e, px) {        // px: the size the pinch asks for, from where it started
+    const tray = root && root.querySelector('.side > .tray'), g = tray && tray.querySelector('.tgrid');
+    if (!g || NARROW.matches || !tamG) return;
+    const p = tamPDe(px, g.clientWidth);
+    tamG.p = p;
+    const n = Math.round(p); if (n === tamPos()) return;
+    const a = tamG.a && tamG.a.t.isConnected ? tamG.a : (tamG.a = tamAncla(tray, e.clientX, e.clientY));   // the one under the pointer when the pinch started
+    lsSet(LS_TAM, String(n));
+    const r = tray.querySelector('.trayhead .ttam input'); if (r) r.value = n;
+    tamAplicar();
+    if (a && a.t.isConnected) { const b = a.t.getBoundingClientRect(); tray.scrollTop += b.top + a.fy * b.height - a.y; }
+  }
+  function tamRueda(e) {               // Chrome and the app: a wheel with ctrlKey
+    e.preventDefault();
+    const tray = root.querySelector('.side > .tray'), g = tray && tray.querySelector('.tgrid'); if (!g || NARROW.matches || (tamG && tamG.gesto)) return;
+    const now = performance.now();
+    if (!tamG || now - tamG.t > 400 || Math.round(tamG.p) !== tamPos()) tamG = { p: tamPos(), t: now };   // a new pinch starts where the slider is
+    tamG.t = now;
+    tamPellizco(e, tamPxDe(tamG.p, g.clientWidth) * Math.exp(-e.deltaY * 0.01));
+  }
+  function tamGesto(e) {               // Safari: gesturestart, gesturechange and gestureend, with e.scale from the start
+    e.preventDefault();
+    const tray = root.querySelector('.side > .tray'), g = tray && tray.querySelector('.tgrid'); if (!g || NARROW.matches) return;
+    if (e.type === 'gesturestart') { const p = tamPos(); tamG = { p, px0: tamPxDe(p, g.clientWidth), t: performance.now(), gesto: true }; return; }
+    if (e.type === 'gestureend') { tamG = null; return; }
+    if (tamG && tamG.gesto && Number.isFinite(e.scale)) tamPellizco(e, tamG.px0 * e.scale);
+  }
   function renderTray() {
     if (!S || !shellReady()) return;
     const tray = root.querySelector('.tray'); if (!tray) return;
@@ -3790,10 +3834,12 @@
     });
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
     root.addEventListener('wheel', e => {
+      if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
       const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
       if (!tb || tb.scrollWidth <= tb.clientWidth + 1 || tb.scrollHeight > tb.clientHeight + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       tb.scrollLeft += e.deltaY; e.preventDefault();
     }, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => root.addEventListener(t, e => { if ((tamG && tamG.gesto && t !== 'gesturestart') || (e.target.closest && e.target.closest('.side > .tray'))) tamGesto(e); }, { passive: false }));   // Safari's pinch over the tray (D-118)
     root.addEventListener('click', e => {
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
       const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');

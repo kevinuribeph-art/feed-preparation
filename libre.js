@@ -2683,7 +2683,26 @@
     comp.els.forEach(e => { if (e.t === 'foto') { e.src = null; e.cx = 0.5; e.cy = 0.5; e.z = 1; } delete e.lock; delete e.pan; });
     const n = E.plant.reduce((a, q) => { const m = /^Plantilla (\d+)$/.exec(q.nombre || ''); return m ? Math.max(a, +m[1]) : a; }, E.plant.filter(q => !q.historia).length) + 1;
     const t = { id: 't' + Date.now().toString(36), nombre: `Plantilla ${n}`, comp, fmt: fmtNombre(E.i), rat: r4(W / H), at: new Date().toISOString() };
-    guardarCliente(l => { const ps = l.plantillas || []; return { ...l, plantillas: [...ps.filter(q => q.historia), ...[...ps.filter(q => !q.historia), t].slice(-24)] }; }).then(ok => ok && I().toast(`«${t.nombre}» guardada para este cliente (${t.fmt}).`));   // the kit's story templates don't count towards the 24 (D-062)
+    // the kit's story templates don't count towards the 24 (D-062); the 25th takes out the oldest, says which and «Deshacer»
+    // puts it back where it was and takes the new one out (D-102)
+    const cid = E.board.client; let fuera = [], antes = null;
+    guardarCliente(l => {
+      const ps = l.plantillas || [], propias = [...ps.filter(q => !q.historia), t];
+      antes = ps; fuera = propias.slice(0, Math.max(0, propias.length - 24));
+      return { ...l, plantillas: [...ps.filter(q => q.historia), ...propias.slice(-24)] };
+    }, cid).then(ok => {
+      if (!ok) return;
+      if (!fuera.length) { I().toast(`«${t.nombre}» guardada para este cliente (${t.fmt}).`); return; }
+      const ids = new Set(fuera.map(q => q.id)), nombres = fuera.map(q => `«${q.nombre}»`).join(', ');
+      I().toast(`«${t.nombre}» guardada para este cliente (${t.fmt}). Se borró ${nombres}, la más antigua: el máximo es 24.`, {
+        ms: 9000, action: 'Deshacer',
+        onAction: () => guardarCliente(l => {
+          const ps = (l.plantillas || []).filter(q => q.id !== t.id), ya = new Set(ps.map(q => q.id));
+          const vuelven = (antes || []).filter(q => ids.has(q.id) && !ya.has(q.id));   // back in their place: the oldest go first
+          return { ...l, plantillas: [...vuelven, ...ps] };
+        }, cid).then(ok2 => ok2 && I().toast(`${nombres.includes(',') ? 'Han vuelto' : 'Ha vuelto'} ${nombres}; «${t.nombre}» ya no está.`)),
+      });
+    });
   }
   // the template's photo holes: a frame of the template (its photo was taken out when it was saved) or a hole a photo filled
   const esHuecoT = e => e.t === 'hueco' || e.t === 'foto';

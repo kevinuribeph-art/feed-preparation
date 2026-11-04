@@ -7293,6 +7293,38 @@
     igual(slot('r2').photos, [img2], 'la portada del editor no sigue en su reel');
   });
 
+  // ---------- cierre de la auditoría, lote 1 (mesa 3.84): decisiones de Kevin ----------
+  prueba('E69', 'La plantilla 25: sin preguntar, el aviso nombra la que sale (la más antigua) y «Deshacer» la devuelve; el tope sigue en 24 y no cuenta las de historia (D-033, D-102)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e69-a.jpg')]);
+    const c0 = await M._in.idbGet('clients', CLIENTE), antes = c0.libre ? JSON.parse(json(c0.libre)) : null;
+    const ps = Array.from({ length: 24 }, (_, i) => ({ id: 'e69-' + i, nombre: `Vieja ${i + 1}`, comp: { bg: '#ffffff', els: [] }, fmt: '4:5', rat: 0.8, at: '2026-11-01T00:00:00.000Z' }));
+    const hist = { id: 'e69-h', nombre: 'Historia del kit', historia: true, comp: { bg: '#ffffff', els: [] }, fmt: '9:16', rat: 0.5625 };
+    try {
+      await M._in.idbPut('clients', CLIENTE, { ...c0, libre: { ...(c0.libre || {}), plantillas: [hist, ...ps] } });
+      await M._in.loadClients();
+      await abrirEditor('r1');
+      M._in.clearToasts();
+      const t = await guardarPlant();
+      ok(!q('.lb-ask'), 'preguntó algo');
+      const propias = () => ed().plant.filter(x => !x.historia).map(x => x.id);
+      igual(propias().length, 24, 'el tope de 24');
+      ok(!propias().includes('e69-0') && propias().includes(t.id), 'no salió la más antigua: ' + json(propias()));
+      ok(ed().plant.some(x => x.id === 'e69-h'), 'se fue la plantilla de historia');
+      const aviso = await hasta(() => qa('.toasts .toast').find(x => /«Vieja 1»/.test(x.textContent)), 4000, 'el aviso que nombra la plantilla que sale');
+      const b = [...aviso.querySelectorAll('button')].find(x => /Deshacer/.test(x.textContent)); ok(b, 'el aviso no lleva «Deshacer»: ' + aviso.textContent);
+      b.click();
+      await hasta(() => propias()[0] === 'e69-0' && !propias().includes(t.id), 4000, '«Deshacer» devolviendo la plantilla');
+      const c1 = await M._in.idbGet('clients', CLIENTE);
+      igual(c1.libre.plantillas.filter(x => !x.historia).map(x => x.id), ps.map(x => x.id), 'la ficha del cliente tras «Deshacer»');
+      ok(c1.libre.plantillas.some(x => x.id === 'e69-h'), 'la ficha perdió la plantilla de historia');
+    } finally {
+      if (M.libre.abierto()) M.libre.cerrar();
+      const c2 = await M._in.idbGet('clients', CLIENTE);
+      if (c2) { if (antes) c2.libre = antes; else delete c2.libre; await M._in.idbPut('clients', CLIENTE, c2); await M._in.loadClients(); }
+    }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

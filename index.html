@@ -14,6 +14,13 @@
   window.MESA && MESA.boot ? MESA.boot().catch(function (e) { document.body.textContent = 'No se pudo abrir la mesa: ' + e; })
                            : (document.body.textContent = 'No se pudo cargar mesa.js. Recarga la página.');
 </script>
+<script>
+  // a module that arrives but throws while it runs is «fallo», like one that doesn't arrive (D-115): each one says «ok» at its end
+  window.addEventListener('error', function (e) {
+    var m = /\/(?:kits\/)?(motor|diseno|libre|calendario|revisar|historias|carpetas|descargar)\.js(?:\?|$)/.exec(e.filename || ''), C = window.MESA_CARGA = window.MESA_CARGA || {};
+    if (m && C[m[1]] !== 'ok') C[m[1]] = 'fallo';
+  });
+</script>
 <!-- the designer, its engine, the editor, the calendar, the review, the stories, the folders and the downloads load on their own: the mesa never waits for them («Editar …» does) -->
 <script async src="kits/motor.js?v=1.4" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).motor = 'fallo'"></script>
 <script async src="diseno.js?v=1.10" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).diseno = 'fallo'"></script>

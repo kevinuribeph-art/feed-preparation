@@ -1872,4 +1872,5 @@
       cortesSilabicos, segmentosSinEspacio
     }
   };
+  if (typeof window !== 'undefined') (window.MESA_CARGA = window.MESA_CARGA || {}).motor = 'ok';   // it ran to the end (D-115)
 })(typeof window !== 'undefined' ? window : globalThis);

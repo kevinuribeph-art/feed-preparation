@@ -419,4 +419,5 @@
     _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); if (mv) onCancel(); }
   };
   render();                                     // the mesa may have drawn its board before this file arrived
+  (window.MESA_CARGA = window.MESA_CARGA || {}).calendario = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

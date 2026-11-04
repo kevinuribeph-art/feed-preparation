@@ -1613,4 +1613,5 @@
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so
   { const S = I() && I().S; if (S) retipoPendientes(); if (S && S.slots.some(s => s.design)) prepararKits(S).then(() => { if (I() && I().S === S) { I().render(); I().refreshDetail(); } }).catch(() => {}); }
+  (window.MESA_CARGA = window.MESA_CARGA || {}).diseno = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

@@ -7593,6 +7593,19 @@
     igual(r, 'anadir', 'el 2 a secas no contestó «Añadir»');
   });
 
+  prueba('M52', 'Cada módulo dice que cargó entero (MESA_CARGA «ok»), y uno que lanza un error al ejecutarse queda en «fallo» y no en «Cargando…» (D-115)', async () => {
+    await tablero([pub(1)]);
+    const C = () => W.MESA_CARGA || {};
+    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
+    // un módulo que llega pero falla al ejecutarse: el aviso de la mesa (index.html) lo marca «fallo»
+    W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
+    igual(C().revisar, 'ok', 'un error después de cargar marcó «fallo» a un módulo que ya estaba');
+    delete C().revisar;
+    W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
+    igual(C().revisar, 'fallo', 'un error al ejecutarse no marcó el módulo');
+    C().revisar = 'ok';
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

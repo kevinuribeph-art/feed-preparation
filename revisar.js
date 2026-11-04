@@ -189,4 +189,5 @@
   revisar.ver = (opts = {}) => revisar({ historias: true, ...opts, ver: true });   // the button: the month's feed and stories
   revisar._reset = () => { if (AUTO) clearTimeout(AUTO.t); AUTO = null; ULT = null; };   // tests: a pending review never reaches the next one
   M.revisar = revisar;
+  (window.MESA_CARGA = window.MESA_CARGA || {}).revisar = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

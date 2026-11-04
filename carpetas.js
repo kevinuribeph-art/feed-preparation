@@ -259,4 +259,5 @@
   }, true);
 
   M.carpetasUI = { version: VERSION, accion, soltar, elegidas, subir, desdeEntradas, clasificar, abrirMenu, cerrarMenu };
+  (window.MESA_CARGA = window.MESA_CARGA || {}).carpetas = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

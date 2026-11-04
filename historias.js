@@ -639,4 +639,5 @@
     _off: () => { EV.forEach(([t, f, c]) => document.removeEventListener(t, f, c)); if (mv) { if (mv.ghost) mv.ghost.remove(); mv = null; } }
   };
   if (I() && I().shellReady && I().shellReady()) { render(); I().renderBar(); }   // the mesa may have drawn its board before this file arrived
+  (window.MESA_CARGA = window.MESA_CARGA || {}).historias = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)
 })();

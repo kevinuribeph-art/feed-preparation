@@ -7364,6 +7364,34 @@
     M._in.closeDetail();
   });
 
+  prueba('M47', '«Eliminar cliente» borra sus logos (también los quitados de su lista) y su foto final, salvo los que use otro cliente o un mes; los de otro cliente no se tocan (D-104)', async () => {
+    await tablero([pub(1)]);
+    const id = 'prueba-regresion-k', otro = CLIENTE;
+    await M._in.idbDel('clients', id).catch(() => {});
+    const r0 = await M.addClient({ id, name: 'Cliente de prueba K' });
+    ok(r0 && !r0.error, 'no se creó el cliente: ' + json(r0));
+    const blob = await foto('m47.jpg', 64, 64);
+    const fichero = async fid => M._in.idbPut('files', fid, { name: fid + '.png', size: blob.size, type: 'image/png', w: 64, h: 64, lastModified: 1, blob, thumb: blob, logo: true });
+    const k = n => `kit-${id}-${n}`, ajeno = `kit-${otro}-logo-m47zz`;
+    for (const f of [k('logo-m47a'), k('logo-m47b'), k('logo-m47c'), k('final'), ajeno]) await fichero(f);
+    const c = await M._in.idbGet('clients', id);
+    await M._in.idbPut('clients', id, { ...c, libre: { logos: [k('logo-m47a'), k('logo-m47b')] }, kit: { final: { foto: k('final') } } });   // m47c: quitado de su lista
+    const co = await M._in.idbGet('clients', otro), antes = co.libre ? JSON.parse(json(co.libre)) : null;
+    try {
+      await M._in.idbPut('clients', otro, { ...co, libre: { ...(co.libre || {}), logos: [...((co.libre && co.libre.logos) || []), k('logo-m47b')] } });   // otro cliente usa uno suyo
+      await M._in.loadClients();
+      igual(await M.removeClient(id), true, 'no se eliminó el cliente');
+      const hay = async f => !!(await M._in.idbGet('files', f));
+      igual([await hay(k('logo-m47a')), await hay(k('logo-m47c')), await hay(k('final'))], [false, false, false], 'quedan logos o la foto final del cliente eliminado');
+      ok(await hay(k('logo-m47b')), 'se borró el logo que usa otro cliente');
+      ok(await hay(ajeno), 'se borró un logo de otro cliente');
+    } finally {
+      const c2 = await M._in.idbGet('clients', otro); if (c2) { if (antes) c2.libre = antes; else delete c2.libre; await M._in.idbPut('clients', otro, c2); }
+      for (const f of [k('logo-m47a'), k('logo-m47b'), k('logo-m47c'), k('final'), ajeno]) await M._in.idbDel('files', f).catch(() => {});
+      await M._in.idbDel('clients', id).catch(() => {}); await M._in.loadClients();
+    }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

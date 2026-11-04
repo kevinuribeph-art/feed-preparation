@@ -4011,6 +4011,21 @@
     await loadClients(); render();
     return c;
   };
+  // A client's kit files (D-104, replaces that part of D-071): its logos (kit-<id>-logo-…, also those taken out of its list)
+  // and its final photo (kit-<id>-final) go with it, unless another client, a board, a tray or a step of ⌘Z uses them.
+  async function borrarKitDe(id, c0, boards) {
+    const re = new RegExp(`^kit-${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(final|logo-[a-z0-9]+)$`);
+    const suyos = new Set([...((c0 && c0.libre && c0.libre.logos) || []), kitRef(c0), ...(await allKeys('files')).filter(k => re.test(k))].filter(f => f && String(f).startsWith('kit-')));
+    if (!suyos.size) return 0;
+    const usados = new Set(S ? refsTodo(S) : []), hist = histRefs();
+    ((await idbAll('clients')) || []).forEach(c => { if (c.id === id) return; ((c.libre && c.libre.logos) || []).forEach(f => usados.add(f)); const k = kitRef(c); if (k) usados.add(k); });
+    boards.forEach(b => refsTodo(b).forEach(f => usados.add(f)));
+    (await trayRefs()).forEach(f => usados.add(f));
+    try { const p = JSON.parse(lsGet('mesa-pending') || 'null'); if (p && p.board) refsTodo(p.board).forEach(f => usados.add(f)); } catch (e) { /* */ }
+    const va = [...suyos].filter(f => !usados.has(f) && !hist.has(f));
+    if (va.length) { await tx('files', 'readwrite', st => va.forEach(f => st.delete(f))); va.forEach(soltarArchivo); }
+    return va.length;
+  }
   M.removeClient = async id => {
     const boards = (await idbAll('boards')) || [];
     const n = boards.filter(b => b.client === id).length;
@@ -4020,6 +4035,7 @@
     await idbDel('clients', id);
     if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
     if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } soltarArchivo(c0.foto); }   // its profile photo, and its URL (D-071)
+    try { await borrarKitDe(id, c0, boards); } catch (e) { /* */ }   // its logos and final photo, if no other client uses them (D-104)
     await loadClients();
     if (curClient === id) {
       curClient = null;

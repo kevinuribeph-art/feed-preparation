@@ -1139,7 +1139,7 @@
           const id = dup || newId();
           if (!dup) delList(l => [...l, id]);   // a reload before it reaches the tray can't leave it behind (D-071): next open, deleted if nothing holds it
           await idbPut('files', id, { name: f.name, size: f.size, type, w, h, lastModified: f.lastModified || 0, blob: f, thumb, de: B.client });   // de: the client it came in for (D-041)
-          if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
+          if (M.files[id]) soltarArchivo(id);   // the same photo again: what pointed at the old copy goes (D-071)
           M.files[id] = metaArchivo({ name: f.name, size: f.size, type, w, h, de: B.client }, thumb);
           M.thumbBlobs[id] = thumb;
           delete M.blobs[id];
@@ -5426,7 +5426,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

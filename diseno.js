@@ -640,9 +640,7 @@
     const id = `kit-${cid}-final`, at = nowISO();
     rec.name = 'Foto final · ' + String(rec.name || 'foto.jpg').replace(/^Foto final · /, '');
     await I().idbPut('files', id, rec);
-    if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
-    delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
-    if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
+    I().soltarArchivo(id);   // the previous final photo: all that pointed at it goes (D-071)
     await I().loadThumbs([id]);
     await I().editarCliente(cid, c => { c.kit = deepMerge(c.kit || {}, { final: { foto: id, fotoAt: at } }); c.kitAt = at; return c; });   // one transaction (D-106)
     await I().loadClients();

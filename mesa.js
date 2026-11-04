@@ -602,14 +602,16 @@
   const ajena = (f, c) => { const d = deDe(f); return !!d && d !== c && CL.some(x => x.id === d); };
   function guardar(B) {
     const { tray: _t, carpetas: _c, ...cuerpo } = B, b = JSON.parse(JSON.stringify(cuerpo)), c = B.client || boardClient(B), fuera = {};
-    if (!c) return idbPut('boards', B.key, b);
+    // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
+    const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo && !tablerosP) tablerosP = p0.then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
+    if (!c) return idbPut('boards', B.key, b).then(parchea);
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
       if (B.carpetas) st.bandejas.put({ client: c, tray, carpetas: B.carpetas, at: B.savedAt }, c);
       else { const g = st.bandejas.get(c); g.onsuccess = () => st.bandejas.put({ ...(g.result || {}), client: c, tray, at: B.savedAt }, c); }   // a board that doesn't hold them: the saved ones stay
       for (const o of Object.keys(fuera)) { const g = st.bandejas.get(o); g.onsuccess = () => { const r = g.result || { client: o, tray: [] }; r.tray = [...fuera[o].filter(f => !r.tray.includes(f)), ...r.tray]; r.at = B.savedAt; st.bandejas.put(r, o); }; }
-    }).then(() => {
+    }).then(parchea).then(() => {
       const n = Object.values(fuera).flat();
       if (!n.length) return;
       B.tray = B.tray.filter(f => !n.includes(f));

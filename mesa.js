@@ -684,7 +684,7 @@
     const B = S;
     saveTimer = setTimeout(async () => {
       saveTimer = null;
-      try { track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString(); await guardar(B); await pushShared(B); if (B === S) setSave('Guardado'); }
+      try { stamp(B); edited(B); B.savedAt = new Date().toISOString(); await guardar(B); await pushShared(B); if (B === S) setSave('Guardado'); }   // ⌘Z's copy was taken by save() (B14): not a second one
       catch (e) { setSave('No se pudo guardar', true); }
     }, 250);
   }

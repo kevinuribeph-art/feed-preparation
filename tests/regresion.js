@@ -7621,6 +7621,57 @@
     });
   });
 
+  // ---------- cierre de la auditoría, lote 6 (mesa 3.89): rendimiento y memoria ----------
+  prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
+    const key = M.board().key;
+    const id = M.hs.anadir(DIA(10), { note: 'H37' });
+    await M.flush();
+    await abrirEditor(id); accion('add-txt'); await aplicarEditor();
+    const a = hDe(id).photos[0]; ok(M.files[a] && M.files[a].design, 'la historia no tiene imagen');
+    await abrirEditor(id); accion('add-txt'); await aplicarEditor();
+    const b = hDe(id).photos[0]; ok(b && b !== a, 'la imagen no cambió al volver a aplicar');
+    await M.flush();
+    let r = await M.informeArchivos();
+    ok(!r.huerfanos.some(x => x.id === a && !x.pendiente), 'la imagen anterior quedó huérfana sin estar pendiente: ' + json(r.huerfanos));
+    // otro mes y vuelta: sin ⌘Z que la traiga, se borra
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(9)], past: [], force: true });
+    await M.open(key); await M.flush();
+    r = await M.informeArchivos();
+    ok(!r.huerfanos.some(x => x.id === a), 'la imagen anterior sigue en el navegador: ' + json(r.huerfanos));
+    igual(hDe(id).photos, [b], 'la historia perdió su imagen');
+  });
+
+  prueba('M53', '«Cambiar portada» con una bandeja larga carga las miniaturas a medida que se ven, como la bandeja (B8)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('m53-p.jpg', 120, 150)]);
+    const fs = []; for (let i = 0; i < 120; i++) fs.push(await foto(`m53-${i}.jpg`, 40, 50, `hsl(${i * 3},50%,50%)`));
+    await M.addFiles(fs, null, { tray: true });
+    M._in.openDetail('r1', 0);
+    await pulsar('.detail [data-act="pickcover"]');
+    const tira = await hasta(() => q('.detail .cpick .strip'), 3000, 'la tira de «Cambiar portada»');
+    const n = qa('.detail .cpick .strip img').length;
+    ok(n >= 120, 'la tira no tiene la bandeja: ' + n);
+    const conSrc = qa('.detail .cpick .strip img[src^="blob:"]').length;
+    ok(conSrc <= 80, `la tira cargó ${conSrc} miniaturas de golpe`);
+    M._in.closeDetail();
+  });
+
+  prueba('E71', 'Cambiar de formato y volver no deja «cambios sin aplicar» en las diapositivas que no se tocaron (firma resumida, C15)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e71-a.jpg'), await foto('e71-b.jpg')]);
+    await abrirEditor('r1');
+    ok(!M.libre.pendiente(), 'recién abierto ya tiene cambios');
+    accion('fmt', { v: 'q11' }); await espera(30);
+    accion('fmt', { v: 'v45' }); await espera(30);
+    accion('sl', { i: 1 }); elegir(compDe(1).els.find(e => e.t === 'foto'));
+    const lock0 = compDe(1).els.find(e => e.t === 'foto').lock;
+    accion('lock'); accion('lock');                // bloquear y desbloquear: la diapositiva pasa a composición sin cambiar
+    if (lock0 === undefined) delete ed().sl[1].comp.els.find(e => e.t === 'foto').lock;
+    ok(!M.libre.pendiente(), 'tras ir a 1:1 y volver a 4:5 quedan cambios sin aplicar: ' + json(ed().sl.map(x => !!x.comp)));
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

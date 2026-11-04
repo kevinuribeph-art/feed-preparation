@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.88'; // 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.89'; // 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -191,6 +191,7 @@
   function edPendiente() { try { return !!(M.libre && M.libre.abierto && M.libre.abierto() && M.libre.pendiente && M.libre.pendiente()); } catch (e) { return false; } }
   window.addEventListener('beforeunload', e => { if (locked || !edPendiente()) return; e.preventDefault(); e.returnValue = ''; });
   async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
+    if (mode === 'readwrite' && [].concat(store).includes('boards')) tablerosP = null;   // a write: the boards read for an opening go (A4)
     const d = await db();
     return new Promise((res, rej) => {
       const t = d.transaction(store, mode);
@@ -205,7 +206,15 @@
   const idbGet = (st, k) => tx(st, 'readonly', s => s.get(k));
   const idbPut = (st, k, v) => tx(st, 'readwrite', s => s.put(v, k));
   const idbDel = (st, k) => tx(st, 'readwrite', s => s.delete(k));
-  const idbAll = st => tx(st, 'readonly', s => s.getAll());
+  // While a month opens (M.open, M.init, M.boot, M.openClient), all the saved boards are read once and shared (A4): every
+  // step of the opening used to read and deserialize them again (7 times). Any write to the boards lets the list go.
+  let tablerosVivo = 0, tablerosP = null;
+  const conTableros = fn => async (...a) => { tablerosVivo++; try { return await fn(...a); } finally { if (!--tablerosVivo) tablerosP = null; } };
+  const idbAll = st => {
+    if (st !== 'boards' || !tablerosVivo) return tx(st, 'readonly', s => s.getAll());
+    if (!tablerosP) { const p = tablerosP = tx(st, 'readonly', s => s.getAll()); p.catch(() => { if (tablerosP === p) tablerosP = null; }); }
+    return tablerosP;
+  };
   // The client's record is read, changed and written in one transaction (D-106, step 1 of the web's storage layer): two
   // writers (the mesa, the editor, the stories, the designer, an import) never undo each other. fn gets the stored record
   // and returns the new one (it may change it in place), or nothing to leave it; it runs inside the transaction, so it
@@ -593,14 +602,16 @@
   const ajena = (f, c) => { const d = deDe(f); return !!d && d !== c && CL.some(x => x.id === d); };
   function guardar(B) {
     const { tray: _t, carpetas: _c, ...cuerpo } = B, b = JSON.parse(JSON.stringify(cuerpo)), c = B.client || boardClient(B), fuera = {};
-    if (!c) return idbPut('boards', B.key, b);
+    // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
+    const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
+    if (!c) return idbPut('boards', B.key, b).then(parchea);
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
       if (B.carpetas) st.bandejas.put({ client: c, tray, carpetas: B.carpetas, at: B.savedAt }, c);
       else { const g = st.bandejas.get(c); g.onsuccess = () => st.bandejas.put({ ...(g.result || {}), client: c, tray, at: B.savedAt }, c); }   // a board that doesn't hold them: the saved ones stay
       for (const o of Object.keys(fuera)) { const g = st.bandejas.get(o); g.onsuccess = () => { const r = g.result || { client: o, tray: [] }; r.tray = [...fuera[o].filter(f => !r.tray.includes(f)), ...r.tray]; r.at = B.savedAt; st.bandejas.put(r, o); }; }
-    }).then(() => {
+    }).then(parchea).then(() => {
       const n = Object.values(fuera).flat();
       if (!n.length) return;
       B.tray = B.tray.filter(f => !n.includes(f));
@@ -673,7 +684,7 @@
     const B = S;
     saveTimer = setTimeout(async () => {
       saveTimer = null;
-      try { track(B); stamp(B); edited(B); B.savedAt = new Date().toISOString(); await guardar(B); await pushShared(B); if (B === S) setSave('Guardado'); }
+      try { stamp(B); edited(B); B.savedAt = new Date().toISOString(); await guardar(B); await pushShared(B); if (B === S) setSave('Guardado'); }   // ⌘Z's copy was taken by save() (B14): not a second one
       catch (e) { setSave('No se pudo guardar', true); }
     }, 250);
   }
@@ -2986,7 +2997,7 @@
         + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «${edLabel(s)}»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
       const pick = (car || reel) && pickOpen === id ? `<div class="cpick"><span class="muted">${tr.length ? 'Elige la nueva portada en la bandeja (la de ahora vuelve a la bandeja; el texto se queda):' : 'La bandeja está vacía: añade fotos con «Añadir fotos».'}</span>`
-        + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img src="${M.files[f].thumbUrl}" alt=""></button>`).join('')}</div>` : '') + '</div>' : '';
+        + (tr.length ? `<div class="strip">${tr.map(f => `<button class="th" data-act="setcover" data-slot="${esc(id)}" data-f="${esc(f)}" title="${esc(M.files[f].name)}"><img ${tr.length > MINIS_DE_UNA ? `data-mini="${esc(f)}"` : `src="${M.files[f].thumbUrl}"`} alt=""></button>`).join('')}</div>` : '') + '</div>' : '';   // a long tray: thumbnails as they come into sight (B8)
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(fid)}"${live ? ' data-live="1"' : ''}><img class="big" alt="" src="${(M.files[fid] || {}).thumbUrl || ''}">${live ? '<canvas class="dzv" hidden></canvas>' : ''}<div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}${nav}</div></div>
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
@@ -3008,6 +3019,7 @@
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
           ${capsHTML(s)}
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    d.querySelectorAll('.cpick .strip').forEach(minisPerezosas);   // «Cambiar portada» with a long tray (B8)
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
     d.dataset.slot = id; delete d.dataset.dlg; delete d.dataset.prev;
@@ -3191,13 +3203,14 @@
   async function loadBig(fid) {
     try {
       M.bigUrls = M.bigUrls || {}; M.bigOrder = (M.bigOrder || []).filter(x => x !== fid); M.bigOrder.push(fid);
-      if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(await getBlob(fid));
+      if (!M.bigUrls[fid]) { const b = await getBlob(fid); if (!M.files[fid] || !M.bigOrder.includes(fid)) return; if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(b); }   // one URL per photo, only while it's among the 6 (B10)
       while (M.bigOrder.length > 6) { const old = M.bigOrder.shift(); if (M.bigUrls[old]) URL.revokeObjectURL(M.bigUrls[old]); delete M.bigUrls[old]; if (!upBusy(M.uploads[old]) && !upBusy(M.zUploads[old])) delete M.blobs[old]; }
       const st = root.querySelector('.detail .stage'); if (st && st.dataset.file === fid) st.querySelector('img.big').src = M.bigUrls[fid];
     } catch (e) { /* keep the thumbnail */ }
   }
   function closeDetail() {
     repeCancel();
+    if (M.diseno && M.diseno.vistaLibre) M.diseno.vistaLibre();   // the designed slide's photo (up to 15 MB) goes with the window (E11)
     if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
     const d = root && root.querySelector('.detail'); if (!d) return;
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
@@ -4308,8 +4321,10 @@
     await flushNow();
     try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
-    if (M.diseno && M.diseno.prepararKits) await M.diseno.prepararKits(S);   // plan() right after init knows if a design is out of date
     await refreshMonths();
+    // the month is drawn before waiting for its kits (E5: a slow network kept it blank up to 5 s), and again once they're in:
+    // plan() right after init still knows if a design is out of date
+    if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) { render(); await M.diseno.prepararKits(S); }
     render();
     usoS = null; usosOtros();         // the photos in use (D-022): this board on the first warning, the client's other boards now
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);
@@ -4353,11 +4368,12 @@
     if (lc && CL.find(c => c.id === lc)) return M.openClient(lc);
     if (CL.length) return M.openClient(CL[0].id);
     const all = (await idbAll('boards')) || [];
-    if (all.length) return M.open(all.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0].key);
+    if (all.length) return M.open([...all].sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0].key);
     if (!shellReady()) buildShell();
     curClient = null; S = null; render();
     return M.status();
   };
+  M.init = conTableros(M.init); M.open = conTableros(M.open); M.boot = conTableros(M.boot); M.openClient = conTableros(M.openClient);   // the boards read once per opening (A4)
 
   // ---------- past posts from Notion (only when the previous month isn't in the mesa) ----------
   function loadPastOne(id, url) {
@@ -5428,7 +5444,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, thumbFromBitmap, refsTodo, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.12';
+  const VERSION = '1.13';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -178,7 +178,7 @@
   // The post view shows the applied image; once the photo is dragged, zoomed or centred there, the slide is drawn live
   // (photo and texts, as «Aplicar» will draw it) on a canvas over it, and on letting go the mesa applies it again.
   const VI = { n: 0, cv: null, slotId: null, i: -1, src: null, sz: null, kit: null, fin: null, bmp: null, ready: false, raf: 0 };
-  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0 }); }
+  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0, arrastre: false, dec: null }); }
   // the photo slide i draws (synchronous: the client's final photo from the kit as known)
   function srcVista(s, i) {
     const sl = s && s.design && s.design.slides[i]; if (!sl) return null;
@@ -187,6 +187,10 @@
   // prepares the live view of slide i of a post on canvas cv (kit, fonts and the photo decoded once); true when ready
   async function vista(cv, slotId, i) {
     if (VI.cv === cv && VI.slotId === slotId && VI.i === i && VI.ready) return true;
+    if (VI.ready && VI.bmp && VI.slotId === slotId && VI.i === i) {   // the window drawn again: the same photo, a new canvas (E11)
+      const S = I().S, s = S && S.slots.find(x => x.id === slotId), sl = s && s.design && s.design.slides[i];
+      if (sl && effSrc(sl, VI.fin) === VI.src) { VI.cv = cv; return true; }
+    }
     const n = ++VI.n; vistaLibre(); VI.n = n; Object.assign(VI, { cv, slotId, i });
     try {
       const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || !s.design.slides[i]) return false;
@@ -211,8 +215,12 @@
       const { W, H } = VI.sz, r = rectOf(VI.src, W, H), k = VI.bmp.width / f.w;
       const capa = ENG().capaFoto(VI.bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, W, H);
       if (VI.cv.width !== W || VI.cv.height !== H) { VI.cv.width = W; VI.cv.height = H; }
-      const ctx = VI.cv.getContext('2d'), opts = { W, H, factor: VI.sz.factor, pagina: pageOf(s, VI.i), serie: str(d.serie), pos: posOf(d) }, slide = slideAt(sl, VI.sz);
+      const ctx = VI.cv.getContext('2d'), opts = { W, H, factor: VI.sz.factor, pagina: pageOf(s, VI.i), serie: str(d.serie), pos: posOf(d) }, slide0 = slideAt(sl, VI.sz);
+      // while the photo is dragged, what the first frame decided (place, alignment, colour, veil) stays, so a frame doesn't
+      // search them again (E4: ~65 ms a frame on a card); letting go draws it all again as always. Its own choices win.
+      const slide = VI.arrastre && VI.dec ? { ...slide0, ov: { ...VI.dec, ...(slide0.ov || {}) } } : slide0;
       const res = ENG().dibujar(ctx, VI.kit, capa, slide, opts), adj = clampOv(sl, slide.ov, res, VI.sz);
+      if (VI.arrastre && !VI.dec && res.decision) { const x = res.decision; VI.dec = Object.fromEntries(Object.entries({ lugar: x.lugar, alinear: x.alinear, color: x.color, velo: x.velo }).filter(([, v]) => v != null)); }
       if (adj) ENG().dibujar(ctx, VI.kit, capa, { ...slide, ov: adj }, opts);
       capa.canvas.width = capa.canvas.height = 0;
       VI.cv.hidden = false;
@@ -222,6 +230,7 @@
   function vistaEmpezar() {
     if (!VI.ready || !M.files[VI.src]) return null;
     const f = M.files[VI.src], r0 = rectOf(VI.src, VI.sz.W, VI.sz.H);
+    VI.arrastre = true; VI.dec = null;
     return { cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h };
   }
   function vistaMover(g, fx, fy) { if (!VI.ready) return; recorte(VI.src, { cx: g.cx - fx * g.fw, cy: g.cy - fy * g.fh }, VI.sz); pedirVista(); }
@@ -231,6 +240,7 @@
   // goes back exactly as it was, so a click, a drag with no room to move or «Centrar» on a centred photo leave the post as is
   function marcoVista() { const r = rectOf(VI.src, VI.sz.W, VI.sz.H); return [r.x, r.y, r.w, r.h].map(v => Math.round(v * 10) / 10).join(','); }
   function vistaSoltar() {
+    if (VI.arrastre) { VI.arrastre = false; VI.dec = null; pedirVista(); }   // let go: decided again, as always (E4)
     if (!VI.ready) return false;
     if (marcoVista() !== VI.base) return true;
     const S = I().S; S.crops = S.crops || {};
@@ -257,13 +267,14 @@
     return 'no es un JSON válido';
   }
   // fresh: read the file again (cache 'reload': a kit edited or restored on disk counts without reloading the page, whatever its date)
+  const KIT_VA = {};                           // a kit being read: a second call meanwhile shares it (E5)
   async function baseKit(cid, fresh) {
-    if (fresh || !BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'reload' }).then(async r => {
+    if ((fresh && !KIT_VA[cid]) || !BASE[cid]) KIT_VA[cid] = BASE[cid] = fetch(kitUrl(cid), { cache: 'reload' }).then(async r => {
       if (r.status === 404) return { missing: true };
       if (!r.ok) return { offline: true };     // the server failed: not the same as having no kit
       const t = await r.text();
       try { return { kit: JSON.parse(t) }; } catch (e) { return { bad: jsonWhere(e, t) }; }
-    }).catch(() => ({ offline: true }));       // no connection
+    }).catch(() => ({ offline: true })).finally(() => { delete KIT_VA[cid]; });       // no connection
     const k = await BASE[cid];
     if (!k.kit) delete BASE[cid];
     if (k.offline) { need(BASEV[cid], `No se pudo leer el kit kits/${cid}.json (sin conexión): vuelve a intentarlo.`); return BASEV[cid]; }   // the kit already read stays
@@ -417,15 +428,19 @@
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src], k0 = rawHash != null ? avKey(s, i, rawHash, sz, fin) : null;
     let blob0;
     try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: pídele a Claude que elija otra.`); }
-    const bmp = await createImageBitmap(blob0, { imageOrientation: 'from-image' });
+    // the photo decoded at the px the slide uses, never more than the original (D-116): the same image, less memory
+    const r = rectOf(src, sz.W, sz.H), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' };
+    if (usa < 1) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
+    const bmp = await createImageBitmap(blob0, oo);
     try {
-      const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
+      const k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
       const o = { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh, pos: posOf(d) }, slide = slideAt(sl, sz);
       let res = await ENG().render(kit, slide, bmp, rc, o);
       const adj = clampOv(sl, slide.ov, res, sz);
       if (adj) { res.canvas.width = res.canvas.height = 0; res = await ENG().render(kit, { ...slide, ov: adj }, bmp, rc, o); }
       const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
-      const out = { blob, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
+      const thumb = blob && I().thumbFromBitmap ? await I().thumbFromBitmap(res.canvas, res.canvas.width, res.canvas.height) : null;   // not decoding the JPEG just made (E13)
+      const out = { blob, thumb, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
       res.canvas.width = res.canvas.height = 0;
       if (k0) AV[s.id + ':' + i] = { key: k0, avisos: out.avisos, decision: out.decision };
       return out;
@@ -562,7 +577,7 @@
     for (let i = 0; i < d.slides.length; i++) {
       if (!done[i]) { outs.push(prevOut[i]); continue; }   // not drawn again: its image stays
       const r = done[i], name = reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(i + 1)}.jpg`;
-      const { w, h, thumb } = await I().makeThumb(r.blob);
+      const { w, h, thumb } = r.thumb ? r : await I().makeThumb(r.blob);
       const id = I().newId();
       await I().idbPut('files', id, { name, size: r.blob.size, type: 'image/jpeg', w, h, lastModified: Date.now(), blob: r.blob, thumb, design: true });
       M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: URL.createObjectURL(thumb), design: true };

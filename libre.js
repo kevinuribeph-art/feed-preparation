@@ -841,6 +841,12 @@
   // (M._in.editarCliente, D-106), so a double click or two changes at once never lose one. fn gets a copy of c.libre as it is
   // now and returns the new one; it can't await. cid0: the client, when the editor may have closed meanwhile (subirLogos)
   // images that may have no one using them any more: each one is deleted if nothing holds it (the sweep takes what fails)
+  // what the board used before (refs) and no longer does: its photos back to the tray, its drawn images to delete
+  function perdidas(S, before) {
+    const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
+    S.tray.unshift(...I().aBandeja(lost).filter(f => !S.tray.includes(f)));
+    return lost.filter(f => M.files[f] && M.files[f].design);
+  }
   const borrarSueltas = async fs => { for (const f of fs) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } } };
   let colaCli = Promise.resolve();
   function guardarCliente(fn, cid0) {
@@ -3337,8 +3343,7 @@
       } else if (!E.reel) E.sl.forEach((x, i) => { const f = outs[i]; if (lib[f]) S.crops[f] = { fmt: x.fmt, cx: 0.5, cy: 0.5, z: 1 }; else if (x.fmt !== x.fmt0) S.crops[f] = { ...I().baseCrop(f, S), fmt: x.fmt, cx: 0.5, cy: 0.5, z: 1 }; });   // a reel cover keeps no format of its own: the mesa shows it 9:16
       const used = new Set([...outs, ...Object.values(lib).flatMap(srcsOf)]);
       if (!E.historia) S.tray = S.tray.filter(f => !used.has(f));   // photos now in the post leave the tray; a discard in a story stays, marked (D-056)
-      const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
-      S.tray.unshift(...I().aBandeja(lost));   // photos the post no longer uses go back to the tray (never a logo nor a drawn image)
+      const viejas = perdidas(S, before);   // photos the post no longer uses go back to the tray (never a logo nor a drawn image)
       E.applied = true;
       I().changed();
       if (I().histJuntar && E.marca) I().histJuntar(E.marca);
@@ -3349,7 +3354,7 @@
       else if (I().S === S && I().openDetail) I().openDetail(slotId, Math.min(i0, Math.max(0, s.photos.length - 1)));
       const n = made.length;
       I().toast((n ? historia ? 'Historia aplicada.' : reel ? 'Portada aplicada: se sube tal cual.' : `${n === 1 ? 'Diapositiva aplicada' : `${n} diapositivas aplicadas`}: se suben tal cual.` : 'Cambios aplicados a la casilla.') + (fijo ? reel ? ' El diseño queda fijado como imagen; su foto está en la bandeja.' : ' El diseño queda fijado como imagen; sus fotos están en la bandeja.' : ''), { ms: fijo ? 8000 : 5000 });
-      await borrarSueltas(lost.filter(f => M.files[f] && M.files[f].design));
+      await borrarSueltas(viejas);
     } catch (e) {
       if (counted) { APL--; counted = false; }
       if (E === owner && E.busy) { E.busy = false; head(); }
@@ -3429,8 +3434,7 @@
       if (Object.keys(lib).length) s.libre = { v: 1, slides: lib }; else delete s.libre;
       const used = new Set([...s.photos, ...Object.values(lib).flatMap(srcsOf)]);
       S.tray = S.tray.filter(f => !used.has(f));
-      const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
-      S.tray.unshift(...I().aBandeja(lost));   // the photo replaced goes back to the tray
+      const viejas = perdidas(S, before);   // the photo replaced goes back to the tray
       APL--; counted = false; I().setBusy('dz', null);
       I().changed();
       const nl = llenas.length, nn = nuevas.length, partes = [];
@@ -3438,7 +3442,7 @@
       if (nl) partes.push(nl === 1 ? `Hueco de la diapositiva ${llenas[0]} rellenado` : `Huecos de las diapositivas ${llenas.slice(0, -1).join(', ')} y ${llenas[nl - 1]} rellenados`);
       if (nn) partes.push(`${nn === 1 ? '1 diapositiva nueva' : nn + ' diapositivas nuevas'} al final (no quedan huecos)`);
       I().toast(partes.join(' · ') + (made.length ? '. Se suben tal cual.' : '.'), { ms: 6000 });
-      await borrarSueltas(lost.filter(f => M.files[f] && M.files[f].design));
+      await borrarSueltas(viejas);
       return { ok: true, cambios: made.length, portada, rellenas: llenas, nuevas: nuevas.length };
     } catch (e) {
       await borrarSueltas(made);
@@ -3539,12 +3543,11 @@
       if (!(I().S === S && (S.historias || []).includes(h) && I().same(h.photos || [], photos0) && !I().locked)) throw new LbError('La mesa cambió mientras se dibujaba: vuelve a intentarlo.');
       const before = I().refsOf(S);
       h.photos = [made]; h.libre = { v: 1, slides: { [made]: comp } }; delete h.guias;
-      const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
-      S.tray.unshift(...I().aBandeja(lost).filter(f => !S.tray.includes(f)));
+      const viejas = perdidas(S, before);
       made = null;
       I().hNorm(S); I().changed();
       APL--; counted = false;
-      await borrarSueltas(lost.filter(f => M.files[f] && M.files[f].design));
+      await borrarSueltas(viejas);
       return { ok: true };
     } catch (e) {
       if (made) { try { await I().deleteIfUnused(made); } catch (er) { /* the sweep takes it */ } }

@@ -3202,13 +3202,14 @@
   async function loadBig(fid) {
     try {
       M.bigUrls = M.bigUrls || {}; M.bigOrder = (M.bigOrder || []).filter(x => x !== fid); M.bigOrder.push(fid);
-      if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(await getBlob(fid));
+      if (!M.bigUrls[fid]) { const b = await getBlob(fid); if (!M.files[fid] || !M.bigOrder.includes(fid)) return; if (!M.bigUrls[fid]) M.bigUrls[fid] = URL.createObjectURL(b); }   // one URL per photo, only while it's among the 6 (B10)
       while (M.bigOrder.length > 6) { const old = M.bigOrder.shift(); if (M.bigUrls[old]) URL.revokeObjectURL(M.bigUrls[old]); delete M.bigUrls[old]; if (!upBusy(M.uploads[old]) && !upBusy(M.zUploads[old])) delete M.blobs[old]; }
       const st = root.querySelector('.detail .stage'); if (st && st.dataset.file === fid) st.querySelector('img.big').src = M.bigUrls[fid];
     } catch (e) { /* keep the thumbnail */ }
   }
   function closeDetail() {
     repeCancel();
+    if (M.diseno && M.diseno.vistaLibre) M.diseno.vistaLibre();   // the designed slide's photo (up to 15 MB) goes with the window (E11)
     if (noteTimer) { clearTimeout(noteTimer); noteTimer = null; save(); renderFeed(); renderBar(); }
     const d = root && root.querySelector('.detail'); if (!d) return;
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
@@ -5440,7 +5441,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, thumbFromBitmap, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

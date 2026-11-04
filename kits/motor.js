@@ -1846,6 +1846,7 @@
     const canvas = nuevoCanvas(t.W, t.H);
     const ctx = canvas.getContext('2d');
     const r = dibujar(ctx, kit, capa, slide, { W: t.W, H: t.H, factor: t.factor, pagina: opts.pagina, serie: opts.serie, pos: opts.pos });
+    if (capa.canvas) capa.canvas.width = capa.canvas.height = 0;   // the photo layer isn't kept: let go of it now (E13)
     return { canvas, decision: r.decision, bloque: r.bloque, avisos: r.avisos, avisosInfo: r.avisosInfo, lineas: r.lineas };
   }
 
@@ -1857,8 +1858,9 @@
     pc.fillStyle = fondo || '#FFFFFF';
     pc.fillRect(0, 0, plano.width, plano.height);
     pc.drawImage(canvas, 0, 0);
-    if (plano.convertToBlob && !plano.toBlob) return plano.convertToBlob({ type: 'image/jpeg', quality: q });
-    return new Promise((res, rej) => plano.toBlob((b) => (b ? res(b) : rej(new Error('No se pudo exportar la imagen'))), 'image/jpeg', q));
+    const vaciar = (b) => { plano.width = plano.height = 0; return b; };   // the flat copy goes once encoded (E13)
+    if (plano.convertToBlob && !plano.toBlob) return plano.convertToBlob({ type: 'image/jpeg', quality: q }).then(vaciar);
+    return new Promise((res, rej) => plano.toBlob((b) => (b ? res(vaciar(b)) : rej(new Error('No se pudo exportar la imagen'))), 'image/jpeg', q));
   }
 
   global.DisenoMotor = {

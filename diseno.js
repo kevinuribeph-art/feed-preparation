@@ -187,6 +187,10 @@
   // prepares the live view of slide i of a post on canvas cv (kit, fonts and the photo decoded once); true when ready
   async function vista(cv, slotId, i) {
     if (VI.cv === cv && VI.slotId === slotId && VI.i === i && VI.ready) return true;
+    if (VI.ready && VI.bmp && VI.slotId === slotId && VI.i === i) {   // the window drawn again: the same photo, a new canvas (E11)
+      const S = I().S, s = S && S.slots.find(x => x.id === slotId), sl = s && s.design && s.design.slides[i];
+      if (sl && effSrc(sl, VI.fin) === VI.src) { VI.cv = cv; return true; }
+    }
     const n = ++VI.n; vistaLibre(); VI.n = n; Object.assign(VI, { cv, slotId, i });
     try {
       const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || !s.design.slides[i]) return false;
@@ -417,15 +421,19 @@
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src], k0 = rawHash != null ? avKey(s, i, rawHash, sz, fin) : null;
     let blob0;
     try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: pídele a Claude que elija otra.`); }
-    const bmp = await createImageBitmap(blob0, { imageOrientation: 'from-image' });
+    // the photo decoded at the px the slide uses, never more than the original (D-116): the same image, less memory
+    const r = rectOf(src, sz.W, sz.H), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' };
+    if (usa < 1) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
+    const bmp = await createImageBitmap(blob0, oo);
     try {
-      const r = rectOf(src, sz.W, sz.H), k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
+      const k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
       const o = { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh, pos: posOf(d) }, slide = slideAt(sl, sz);
       let res = await ENG().render(kit, slide, bmp, rc, o);
       const adj = clampOv(sl, slide.ov, res, sz);
       if (adj) { res.canvas.width = res.canvas.height = 0; res = await ENG().render(kit, { ...slide, ov: adj }, bmp, rc, o); }
       const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
-      const out = { blob, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
+      const thumb = blob && I().thumbFromBitmap ? await I().thumbFromBitmap(res.canvas, res.canvas.width, res.canvas.height) : null;   // not decoding the JPEG just made (E13)
+      const out = { blob, thumb, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
       res.canvas.width = res.canvas.height = 0;
       if (k0) AV[s.id + ':' + i] = { key: k0, avisos: out.avisos, decision: out.decision };
       return out;
@@ -562,7 +570,7 @@
     for (let i = 0; i < d.slides.length; i++) {
       if (!done[i]) { outs.push(prevOut[i]); continue; }   // not drawn again: its image stays
       const r = done[i], name = reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(i + 1)}.jpg`;
-      const { w, h, thumb } = await I().makeThumb(r.blob);
+      const { w, h, thumb } = r.thumb ? r : await I().makeThumb(r.blob);
       const id = I().newId();
       await I().idbPut('files', id, { name, size: r.blob.size, type: 'image/jpeg', w, h, lastModified: Date.now(), blob: r.blob, thumb, design: true });
       M.files[id] = { name, size: r.blob.size, type: 'image/jpeg', w, h, thumbUrl: URL.createObjectURL(thumb), design: true };

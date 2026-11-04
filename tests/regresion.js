@@ -7052,6 +7052,66 @@
     ok(!M._in.retrasada(s()), 'quedó «retrasada a mano»');
   });
 
+  // ---------- auditoría, lote 5 (mesa 3.81): interfaz de la mesa ----------
+  prueba('M41', '⌘Z deshace «+ Hueco» y «Fijar en el perfil» como pasos propios, sin deshacer el cambio de antes (D-095)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m41.jpg')]);
+    await M.flush();
+    const fotos = () => slot('r1').photos.length;
+    await pulsar('[data-act="addfiller"]'); await M.flush();
+    igual(M.board().fillers, 1, 'no se añadió el hueco');
+    M._test.undo(); await M.flush();
+    ok(!M.board().fillers, '⌘Z no quitó el hueco');
+    igual(fotos(), 1, '⌘Z deshizo la foto puesta antes en vez del hueco');
+    M._in.openDetail('r2', 0);
+    const pin = await hasta(() => q('.detail .pinToggle'), 3000, 'el interruptor «Fijar»');
+    pin.click(); await M.flush(); M._in.closeDetail();
+    igual(M.board().pins, ['r2'], 'no se fijó');
+    M._test.undo(); await M.flush();
+    ok(!(M.board().pins || []).length, '⌘Z no quitó la fijación');
+    igual(fotos(), 1, '⌘Z deshizo la foto en vez de la fijación');
+  });
+
+  prueba('M42', '«Vista cliente» es de solo mirar: ni ⌘Z, ni soltar fotos, ni arrastrar casillas (D-095)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m42a.jpg')]); await poner('r2', [await foto('m42b.jpg')]);
+    await M.flush();
+    const orden = () => M.board().slots.map(s => s.id + ':' + s.photos.length).join(' ');
+    const antes = orden();
+    q('.clientToggle').click();
+    try {
+      tecla('z', { meta: true }); await M.flush();
+      igual(orden(), antes, '⌘Z deshizo en «Vista cliente»');
+      const dt = new W.DataTransfer(); dt.items.add(await foto('m42c.jpg'));
+      celda('r1').dispatchEvent(new W.DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      await espera(300); await M.flush();
+      igual(orden(), antes, 'una foto soltada en «Vista cliente» entró en la casilla');
+      const a = celda('r1').getBoundingClientRect(), b = celda('r2').getBoundingClientRect();
+      const pe = (t, el, x, y, bt) => el.dispatchEvent(new W.PointerEvent(t, { clientX: x, clientY: y, button: 0, buttons: bt, pointerType: 'mouse', pointerId: 1, isPrimary: true, bubbles: true, cancelable: true }));
+      pe('pointerdown', celda('r1'), a.left + 20, a.top + 20, 1);
+      pe('pointermove', celda('r1'), a.left + 40, a.top + 40, 1); pe('pointermove', celda('r2'), b.left + 20, b.top + 20, 1);
+      pe('pointerup', celda('r2'), b.left + 20, b.top + 20, 0);
+      await espera(100); await M.flush();
+      ok(slot('r1').photos[0] && M.files[slot('r1').photos[0]].name === 'm42a.jpg', 'arrastrar en «Vista cliente» intercambió las casillas');
+    } finally { q('.clientToggle').click(); }
+  });
+
+  prueba('M43', 'La tira de miniaturas de la publicación: si su soltar se pierde, el clic siguiente no reordena el carrusel', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const ids = await poner('r1', [await foto('m43a.jpg'), await foto('m43b.jpg'), await foto('m43c.jpg')]);
+    M._in.openDetail('r1', 0);
+    const ths = await hasta(() => { const t = qa('.detail .card.post .strip .th[data-act="pick"]'); return t.length === 3 && t; }, 3000, 'las tres miniaturas');
+    const r0 = ths[0].getBoundingClientRect(), r2 = ths[2].getBoundingClientRect();
+    const pe = (t, el, x, y, bt) => el.dispatchEvent(new W.PointerEvent(t, { clientX: x, clientY: y, button: 0, buttons: bt, pointerType: 'mouse', pointerId: 1, isPrimary: true, bubbles: true, cancelable: true }));
+    pe('pointerdown', ths[0], r0.left + 5, r0.top + 5, 1);
+    pe('pointermove', ths[1], r2.left + r2.width - 2, r2.top + 5, 1);    // arrastrando
+    pe('pointermove', ths[1], r2.left + r2.width - 2, r2.top + 5, 0);    // el botón ya no está pulsado: su soltar se perdió
+    pe('pointerup', D.body, r2.left + r2.width - 2, r2.top + 5, 0);      // el clic siguiente, en otra parte
+    await espera(50);
+    igual(slot('r1').photos, ids, 'el carrusel cambió de orden con el clic siguiente');
+    M._in.closeDetail();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.80'; // 3.80: audit, lot 4 — the feed image with a cancelled post, the reload copy kept until the board is saved, a cancellation's reason saved on leaving, profile photos let go of their URL, M.setEstado lets go as the post view does, no copy of the code in localStorage
+  M.version = '3.81'; // 3.81: audit, lot 5 — ⌘Z covers «+ Hueco» and «Fijar»; «Vista cliente» only looks (no ⌘Z, no dropped photos, no dragged cells); a lost release in the post view's strip no longer reorders the carousel (D-095)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1547,7 +1547,8 @@
       ...(B.carpetas ? { carpetas: B.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}),   // the tray's folders (D-069)
       crops: JSON.parse(JSON.stringify(B.crops || {})),
       prev: (B.prev || []).map(p => ({ id: p.id, own: !!p.own, photos: (p.photos || []).slice(), alt: p.alt || null, hidden: !!p.hidden, fmt: p.fmt || null })),
-      ...(previewsOf(B).length ? { previews: B.previews.slice(), fillers: B.fillers } : {}),   // the fillers' previews (D-049), with their count
+      ...(previewsOf(B).length ? { previews: B.previews.slice() } : {}),   // the fillers' previews (D-049)
+      ...(B.fillers ? { fillers: B.fillers } : {}), ...(B.pins && B.pins.length ? { pins: B.pins.slice() } : {}),   // «+ Hueco» and «Fijar»: steps of ⌘Z too (D-095)
       ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {}),   // the stories, whole (D-054)
       ...(B.paso ? { paso: B.paso } : {})   // the month's step (D-084)
     };
@@ -1558,7 +1559,7 @@
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
-    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias) || a.paso !== b.paso) return null;   // a change of step is a step of its own (D-084)
+    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias) || a.paso !== b.paso || a.fillers !== b.fillers || J(a.pins) !== J(b.pins)) return null;   // a change of step, of the fillers or the pins is a step of its own (D-084)
     const ds = [];
     for (let i = 0; i < a.slots.length; i++) { if (a.slots[i].id !== b.slots[i].id) return null; if (J(a.slots[i]) !== J(b.slots[i])) ds.push(i); }
     const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
@@ -1632,7 +1633,9 @@
       pestValidar();
     }
     S.crops = JSON.parse(JSON.stringify(st.crops));
-    if (st.previews) { S.previews = st.previews.map(f => (f && has(f) ? f : null)); S.fillers = st.fillers; } else delete S.previews;
+    if (st.previews) S.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete S.previews;
+    if (st.fillers) S.fillers = st.fillers; else delete S.fillers;
+    if (st.pins) S.pins = st.pins.slice(); else delete S.pins;
     if (st.paso) S.paso = st.paso; else delete S.paso;
     if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
     const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
@@ -3439,7 +3442,7 @@
   let pd = null, pdNoClick = false, pdHold = null, stripNoClick = false, pestNoClick = false;   // stripNoClick: a thumbnail of the post view was just dragged; pestNoClick: a tray tab was just carried (D-092)   // the mouse drag in progress (pd.on once it really moves); pdHold: a cancelled one still pressed
   function pdDown(e) {
     pdHold = null;
-    if (e.button !== 0 || e.ctrlKey || e.pointerType === 'touch' || pd || drag || !S || locked) return;
+    if (e.button !== 0 || e.ctrlKey || e.pointerType === 'touch' || pd || drag || !S || locked || root.classList.contains('client')) return;   // «Vista cliente» only looks (D-095)
     const d = dragSource(e.target); if (!d) return;
     pd = { d, id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
   }
@@ -3595,6 +3598,7 @@
       if (hasFiles(e)) {
         e.preventDefault(); drag = null;
         if (!S) { toast('Abre un mes antes de añadir fotos.'); return; }
+        if (root.classList.contains('client')) { toast('En «Vista cliente» no se añaden fotos: quítala para trabajar.'); return; }   // only looks (D-095)
         const pv = postDrop(e);
         if (tray && !pv && M.carpetasUI) { const t = e.target.closest('.tcarpeta'); M.carpetasUI.soltar(e.dataTransfer, t ? t.dataset.id : trayCarpeta); return; }   // photos and folders, into what the tray has open (D-074)
         if ([...(e.dataTransfer.items || [])].some(i => { const x = i.kind === 'file' && i.webkitGetAsEntry && i.webkitGetAsEntry(); return x && x.isDirectory; })) { toast('Suelta la carpeta en la bandeja.'); return; }
@@ -3638,12 +3642,13 @@
         to = best.i + (best.after ? 1 : 0); if (to > k) to--;
       };
       const mv = ev => {
+        if (!(ev.buttons & 1)) { cancel(ev); return; }   // its release never came (another app, another window): no drop on the next click
         if (!on) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; on = true; th.classList.add('drg'); }
         aim(ev);
         const r = strip.getBoundingClientRect(); if (ev.clientX < r.left + 24) strip.scrollLeft -= 12; else if (ev.clientX > r.right - 24) strip.scrollLeft += 12;
       };
       const end = drop => ev => {
-        document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true);
+        document.removeEventListener('pointermove', mv, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', cancel, true); window.removeEventListener('blur', cancel);
         if (drop && !on && Math.hypot(ev.clientX - x0, ev.clientY - y0) >= 6) on = true;   // released far away before any move was seen
         if (drop && on) aim(ev);
         ths().forEach(t => t.classList.remove('drg', 'dl', 'dr'));
@@ -3652,7 +3657,7 @@
         if (drop && to != null && to !== k) movePhoto(s.id, k, to);
       };
       const up = end(true), cancel = end(false);
-      document.addEventListener('pointermove', mv, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true);
+      document.addEventListener('pointermove', mv, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', cancel, true); window.addEventListener('blur', cancel);
     });
     // the post-it under the mouse and since when (it opens after 0.5 s)
     root.addEventListener('pointerover', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'), id = p ? p.dataset.memo : null; if (id !== hov.id) hov = { id, t: Date.now() }; });
@@ -3816,7 +3821,7 @@
       // undoes its own typing) nor with a dialog open; the date/time fields and the zoom do use it
       if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
         const writing = e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && /^(text|search|email|url|tel|password|)$/.test(e.target.type || '')));
-        if (writing || e.target.isContentEditable || (open && root.querySelector('.detail').dataset.dlg) || drag) return;
+        if (writing || e.target.isContentEditable || (open && root.querySelector('.detail').dataset.dlg) || drag || root.classList.contains('client')) return;   // not in «Vista cliente» (D-095)
         e.preventDefault(); if (e.shiftKey) redo(); else undo();
       }
     };

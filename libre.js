@@ -153,6 +153,9 @@
   // a composition's signature for «changed?»: a text's height follows its font, which may load after opening, and its origin
   // (aProporcion) is not what it shows
   const firma = c => JSON.stringify(c, function (k, v) { return (k === 'h' && this && this.t === 'texto') || k === 'origen' ? undefined : v; });
+  // a slide's signature as a 53-bit summary (C15): what the session keeps in base, not the whole composition again
+  function resumen(t) { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); }
+  const hfirma = c => resumen(firma(c));
 
   // ---------- automatic numbering (v1.17) ----------
   // a numbered text is its slide's place among all the post's slides, the cover counted; on the cover it shows nothing
@@ -554,7 +557,7 @@
     else E.mas = [...new Set([...E.mas, ...grupo])];
   }
   function ensure() { const x = cur(); if (!x.comp) x.comp = clone(x.raw); return x.comp; }   // a photo slide becomes a composition on its first change
-  const changedSl = x => !!x.comp && firma(x.comp) !== x.base;
+  const changedSl = x => !!x.comp && hfirma(x.comp) !== x.base;
   const isRaw = x => !x.out && !!x.key && !changedSl(x);   // a photo slide not edited (or edited back to the photo): stays the photo
   const base = { rot: 0, op: 1, lock: false, sh: 0 };
   function fotoEl(src, c) { return { id: uid(), t: 'foto', src, x: 0, y: 0, w: 1, h: 1, cx: c ? c.cx ?? 0.5 : 0.5, cy: c ? c.cy ?? 0.5 : 0.5, z: c ? c.z || 1 : 1, ...base, fx: false, fy: false, b: 0, bc: '#ffffff', r: 0 }; }
@@ -704,21 +707,21 @@
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
-        bm: new Map(), bmMini: new Map(), cola: [], decoding: 0, bmI: -1, marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
+        bm: new Map(), bmMini: new Map(), cola: [], decoding: 0, bmI: -1, previas: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: esHist(s) ? lsLeer(LS_ZH) !== '0' : lsLeer(LS_ZG) === '1', margen: 0 };
       E.guias0 = firmaG();
       E.sl = s.photos.map(key => {
         const f = esHist(s) && entries(s)[key] ? { s, comp: entries(s)[key] } : compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;   // a story's own: a duplicate shares its image until it is applied
-        if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: firma(comp), fmt, fmt0: fmt }; }
+        if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: hfirma(comp), fmt, fmt0: fmt }; }
         const raw = rawComp(key);
-        return { key, out: false, from: null, comp: null, raw, base: firma(raw), fmt, fmt0: fmt };
+        return { key, out: false, from: null, comp: null, raw, base: hfirma(raw), fmt, fmt0: fmt };
       });
-      if (esHist(s) && !E.sl.length) { const x = blankSlide(s.fondo || '#ffffff'); x.fmt0 = x.fmt; x.base = firma(x.comp); E.sl = [x]; }   // not designed yet: an empty page, unchanged until something goes on it
+      if (esHist(s) && !E.sl.length) { const x = blankSlide(s.fondo || '#ffffff'); x.fmt0 = x.fmt; x.base = hfirma(x.comp); E.sl = [x]; }   // not designed yet: an empty page, unchanged until something goes on it
       E.i = clamp(idx || 0, 0, E.sl.length - 1);
       const d0 = car && fmt0 === 'h' && M.files[s.photos[0]];
       E.rat0 = d0 && d0.design ? I().fmtRatio('h', d0.w, d0.h) : null;
-      const b0 = E.sl.map(x => x.comp && firma(x.comp));   // a crossing photo whose slides were reordered in the mesa comes apart: not a change made here
-      repararPan(); E.sl.forEach((x, i) => { if (x.comp && x.base === b0[i]) x.base = firma(x.comp); });
+      const b0 = E.sl.map(x => x.comp && hfirma(x.comp));   // a crossing photo whose slides were reordered in the mesa comes apart: not a change made here
+      repararPan(); E.sl.forEach((x, i) => { if (x.comp && x.base === b0[i]) x.base = hfirma(x.comp); });
       E.sl.forEach((x, i) => { if (x.comp) { const d = x.out && M.files[x.key], { W, H } = sizeAt(i); x.rat = d ? d.w / d.h : W / H; } });   // the proportion its texts are placed for: the one it was drawn in
       recolocar();                                         // a slide drawn in another proportion (its post changed type or format): its texts to their place now
       renumerar();                                         // its numbers, if its slides moved in the mesa (sync draws them again; if not, «Aplicar»)
@@ -940,7 +943,13 @@
   }
 
   // ---------- history of the editor (⌘Z / ⇧⌘Z) ----------
-  const estado = () => JSON.stringify({ sl: E.sl, i: E.i, fmt: E.fmt });
+  // each step is the slides as JSON; a template's «previa» (the slide before it, nested up to PREVIAS deep) goes once into
+  // E.previas and the steps keep its summary (D14): a long session with templates no longer grows ×6
+  const estado = () => JSON.stringify({ sl: E.sl, i: E.i, fmt: E.fmt }, (k, v) => {
+    if (k !== 'previa' || !v || typeof v !== 'object') return v;
+    const t = JSON.stringify(v), h = resumen(t); if (!E.previas.has(h)) E.previas.set(h, t); return { _previa: h };
+  });
+  const deEstado = t => JSON.parse(t, (k, v) => (k === 'previa' && v && v._previa && E.previas.has(v._previa) ? JSON.parse(E.previas.get(v._previa)) : v));
   function paso(tag) {          // before a change; a burst with the same tag (a slider, the arrows, typing) is one step
     const h = E.hist, now = Date.now();
     if (tag && h.tag === tag && now - h.t < 1500) { h.t = now; return; }
@@ -951,7 +960,7 @@
     const h = E.hist, from = back ? h.undo : h.redo, to = back ? h.redo : h.undo;
     if (!from.length) return;
     to.push(estado());
-    const st = JSON.parse(from.pop());
+    const st = deEstado(from.pop());
     E.sl = st.sl; E.fmt = st.fmt; E.i = clamp(st.i, 0, Math.max(0, E.sl.length - 1)); h.tag = null; E.crop = null; E.pick = null;
     const ids = compAt(E.i).els.map(e => e.id);
     if (E.sel && !ids.includes(E.sel)) soltar(); else E.mas = E.mas.filter(id => ids.includes(id));
@@ -2575,9 +2584,9 @@
       }
       case 'sl-orig': {
         const e = fotosDe(compAt(E.i)).find(q => q.src && M.files[q.src] && !M.files[q.src].design);
-        if (!e) { if (x.key && !x.out) mut(null, () => { const raw = rawComp(x.key, E.car ? E.fmt !== E.fmt0 : false); Object.assign(x, { comp: null, raw, base: firma(raw) }); soltar(); E.crop = null; }); return; }   // a designed image: back to itself
+        if (!e) { if (x.key && !x.out) mut(null, () => { const raw = rawComp(x.key, E.car ? E.fmt !== E.fmt0 : false); Object.assign(x, { comp: null, raw, base: hfirma(raw) }); soltar(); E.crop = null; }); return; }   // a designed image: back to itself
         if (E.sl.some((o, k) => k !== E.i && o.key === e.src)) { I().toast('Esa foto ya es otra diapositiva de esta publicación.'); return; }
-        mut(null, () => { const raw = rawComp(e.src, E.car ? E.fmt !== E.fmt0 : false); Object.assign(x, { key: e.src, out: false, from: null, comp: null, raw, base: firma(raw) }); soltar(); E.crop = null; });
+        mut(null, () => { const raw = rawComp(e.src, E.car ? E.fmt !== E.fmt0 : false); Object.assign(x, { key: e.src, out: false, from: null, comp: null, raw, base: hfirma(raw) }); soltar(); E.crop = null; });
         return;
       }
       case 'add': E.pick = { modo: 'add' }; soltar(); panel(); return;
@@ -3647,7 +3656,7 @@
   }
 
   // the photos the open session has or can bring back with its ⌘Z, applied or not: deleting a tray's folder leaves them (D-070)
-  const fotosSesion = () => { if (!E) return []; const out = new Set(); for (const m of [JSON.stringify(E.sl), ...E.hist.undo, ...E.hist.redo].join('').matchAll(/"(?:src|key)":"([^"]+)"/g)) out.add(m[1]); return [...out]; };
+  const fotosSesion = () => { if (!E) return []; const out = new Set(); for (const m of [JSON.stringify(E.sl), ...E.hist.undo, ...E.hist.redo, ...E.previas.values()].join('').matchAll(/"(?:src|key)":"([^"]+)"/g)) out.add(m[1]); return [...out]; };
   const trayLote = () => (E ? { files: E.trSel.slice(), carpetas: (E.trCar || []).slice() } : { files: [], carpetas: [] });
   M.libre = { version: VERSION, abrir, fotosHistoria: id => enHistoria(((I().S && I().S.historias) || []).find(h => h.id === id)), fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, pendiente: () => pendiente(), aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)

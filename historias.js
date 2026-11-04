@@ -626,9 +626,7 @@
 @keyframes hvCruce{0%,70%{opacity:1}100%{opacity:0}}@media (prefers-reduced-motion:reduce){#mesa .hv-cruce{display:none}}
 #mesa .hv-e{margin:0 0 9px;font-size:13px}#mesa .hv-mal{margin:0 0 9px;font-size:13px;color:var(--red)}
 @media (max-width:720px){#mesa.hv-on .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}}`;
-  let style = document.getElementById('mesa-hv-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-hv-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-hv-css', CSS);
 
   const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['focusin', onFocoIn, false], ['focusout', onFoco, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];
   EV.forEach(([t, f, c]) => document.addEventListener(t, f, c));

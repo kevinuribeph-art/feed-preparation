@@ -408,9 +408,7 @@
 #mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
 #mesa.client .chip{cursor:pointer}
 @media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}}`;
-  let style = document.getElementById('mesa-cal-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-cal-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-cal-css', CSS);
 
   const ON = [['pointerover', onOver], ['click', onClick, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));

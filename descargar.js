@@ -272,9 +272,7 @@
 #mesa .dl-prog[hidden]{display:none}
 #mesa .card.dl-run .dl-ch span,#mesa .card.dl-run .dl-pz{cursor:default}#mesa .card.dl-run [data-dl]{opacity:.45}
 @media (max-width:560px){#mesa .dl-im{height:72px}#mesa .dl-ops{gap:8px}}`;
-  let style = document.getElementById('mesa-dl-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-dl-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-dl-css', CSS);
 
   M.descargar = {
     version: VERSION, barra, marcar, elegir, vaciar, abrir, elegidas: () => (I() ? vigentes().slice() : []),

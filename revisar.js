@@ -180,9 +180,7 @@
 #mesa .rv>li{margin:0 0 10px}#mesa .rv>li>b{font-size:13.5px}#mesa .rv ul{list-style:none;margin:3px 0 0;padding:0}
 #mesa .rv-i{display:block;width:100%;box-sizing:border-box;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 #mesa .rv-i:hover,#mesa .rv-i:focus-visible{background:var(--line2);outline:0}#mesa .rv-i.rv-b{color:var(--red)}#mesa .rv-i i{font-style:normal;font-weight:600}`;
-  let style = document.getElementById('mesa-rv-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-rv-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-rv-css', CSS);
 
   revisar.version = VERSION; revisar.auto = auto; revisar.ultima = null;
   revisar.ver = (opts = {}) => revisar({ historias: true, ...opts, ver: true });   // the button: the month's feed and stories

@@ -3822,7 +3822,7 @@
       else if (e.target.matches('.trayhead .ttam input')) tamCambiar(e.target);
       else if (e.target.matches('.zoomr')) {
         flashThirds(); const s = slot(cur.slot); if (s) touchPrev(s);
-        const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (M.diseno && M.diseno.vistaZoom) M.diseno.vistaZoom(+e.target.value); return; }
+        const st = root.querySelector('.detail .stage'); if (st && st.dataset.live) { if (!(M.diseno && M.diseno.vistaZoom && M.diseno.vistaZoom(+e.target.value))) e.target.value = e.target.defaultValue; return; }   // the view not ready yet: the control stays where the photo is (E12)
         const fid = s && s.photos[cur.idx]; if (fid) { setCrop(fid, s, { z: +e.target.value }); placeBig(); }
       }
     });

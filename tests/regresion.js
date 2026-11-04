@@ -7606,6 +7606,21 @@
     C().revisar = 'ok';
   });
 
+  prueba('D20', 'El zoom de una diapositiva diseñada movido antes de que su vista esté lista no se queda marcando un zoom que la foto no tiene (E12)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d20a.jpg', 4000, 5000), await foto('d20b.jpg', 1080, 1350)], textos('D20', 'Portada', 'Ficha'));
+      const f = slot('r1').design.slides[0].src;
+      M._in.openDetail('r1', 0);
+      const z = q('.detail .zoomr'), st = q('.detail .stage');
+      ok(z && st && st.dataset.live, 'la ventana no tiene la vista en vivo del diseño');
+      z.value = '2'; z.dispatchEvent(new W.Event('input', { bubbles: true }));   // en el mismo instante: la vista aún se prepara
+      const zc = (((M._in.S.crops || {})[f]) || {}).z || 1;
+      cerca(+z.value, zc, 0.001, 'el control marca un zoom que la foto no tiene');
+      M._in.closeDetail();
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

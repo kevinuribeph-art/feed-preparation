@@ -13,6 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
+  const V_ARCHIVO = 8, V_IDB = 10;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119)
   const CLIENTE2 = 'prueba-regresion-b', NOMBRE2 = 'Otro cliente de prueba';   // el segundo cliente (bandeja por cliente, D-041)
   const DE_PRUEBA = c => c === CLIENTE || c === CLIENTE2;
   const $ = id => document.getElementById(id);
@@ -426,12 +427,12 @@
     // viaja al exportar (archivo v5 desde la 3.66; v6 desde la 3.68, D-084; v7 desde la 3.69, D-085) y se vuelve a importar
     await M.flush();
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 7, 'la versión del archivo');
+    igual(d.v, V_ARCHIVO, 'la versión del archivo');
     igual(d.boards.find(b => b.client === CLIENTE).slots.find(x => x.id === 'r1').estado, { v: 'cancelado', motivo: MOT }, 'el motivo no viaja al exportar');
     M.setEstado('r1', null);
     ok(!slot('r1').estado, 'reactivada, guarda el estado');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
   });
 
   prueba('M32', 'Calendario: Aprobado ● verde, No aprobado ● rojo, Programado ✓, Publicado dos ✓, Cancelado ✕ rojo; Por empezar, Captions y Por aprobar como antes; la leyenda al día (D-081)', async () => {
@@ -755,7 +756,7 @@
     await M.flush();
     const antes = M.board().tray.slice(), key = `${CLIENTE}-${MES}`;
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    ok(d.v === 7, 'versión del archivo: ' + d.v);   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084); v7 desde la 3.69 (D-085)
+    ok(d.v === V_ARCHIVO, 'versión del archivo: ' + d.v);   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084); v7 desde la 3.69 (D-085)
     igual((d.bandejas.find(r => r.client === CLIENTE) || {}).tray, antes, 'la bandeja en el archivo');
     ok(d.boards.every(b => !('tray' in b)), 'un tablero del archivo lleva bandeja');
     ok(antes.every(f => d.files[f]), 'faltan fotos de la bandeja en el archivo');
@@ -1077,7 +1078,7 @@
     igual(await M._in.sweepDesigns(true), 0, 'la limpieza borró algo');
     ok(await M._test.fileRec(img), 'la limpieza se llevó la imagen de la historia');
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 7, 'versión del archivo');   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084); v7 desde la 3.69 (D-085)
+    igual(d.v, V_ARCHIVO, 'versión del archivo');   // v5 desde la 3.66 (D-082); v6 desde la 3.68 (D-084); v7 desde la 3.69 (D-085)
     const b0 = d.boards.find(b => b.key === `${CLIENTE}-${MES}`);
     igual(b0.historias.map(h => [h.id, h.note]), [[id, 'Nota h7']], 'la historia en el archivo');
     ok(d.files[img] && d.files[f], 'el archivo no lleva la imagen o la foto de la historia');
@@ -1345,7 +1346,7 @@
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
-    igual(info.version, 9, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
+    igual(info.version, V_IDB, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
     const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
     await M.flush();
     const guardado = await M._in.idbGet('boards', key);
@@ -5474,7 +5475,8 @@
   const est = ids => ids.map(id => M._in.estadoDe(slot(id)));
   const nm = id => M._in.shortLabel(slot(id).name, slot(id).type);
   const lis = d => [...d.querySelectorAll(':scope > .cplist li')].map(li => li.textContent);
-  const ponerPaso = k => { M._in.S.paso = k; M._in.changed(); };
+  const ponerPaso = k => { M._in.S.pasos = { ...(M._in.S.pasos || {}), [M._in.S.month]: k }; M._in.changed(); };
+  const pasoGuardado = (m = MES) => (M.board().pasos || {})[m];   // el paso guardado de ese mes del tablero (D-119)
   // pulsa el paso k en la barra y espera su confirmación (la tarjeta)
   async function pulsarPaso(k, ms = 3000) {
     const b = await hasta(() => q(`.side > .cal .cleg button.cpaso[data-paso="${k}"]`), 3000, `el paso ${k} en la barra`);
@@ -5485,7 +5487,7 @@
   async function pasoDirecto(k, ms = 3000) {
     const b = await hasta(() => q(`.side > .cal .cleg button.cpaso[data-paso="${k}"]`), 3000, `el paso ${k} en la barra`);
     b.click();
-    await hasta(() => pasoDe() === k, ms, `el mes en ${k}`);
+    await hasta(() => M._in.pasoDe(M._in.S, b.dataset.mes) === k, ms, `el mes en ${k}`);   // el mes de esa barra (D-119)
     await espera(60);
     ok(!dialogo(), 'salió una ventana sin nada que avisar: ' + (dialogo() || {}).textContent);
   }
@@ -5494,7 +5496,7 @@
   prueba('P1', 'La leyenda del calendario es la barra de pasos: el actual en una pastilla negra, el siguiente se pulsa, los hechos vuelven y los posteriores no; No aprobado y Cancelado aparte, sin pulsar; un mes nuevo empieza en Por empezar; nada en «Vista cliente» (D-084)', async () => {
     await tablero([pub(1), pub(2), pub(3)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
-    igual(M.board().paso, 'empezar', 'un mes nuevo no empieza en Por empezar');
+    igual(pasoGuardado(), 'empezar', 'un mes nuevo no empieza en Por empezar');
     await hasta(() => pasoAct() === 'Por empezar', 3000, 'Por empezar como paso actual');
     igual(qa('.side > .cal .cleg .cpaso').map(e => e.textContent), ['Por empezar', 'Captions', 'Por aprobar', 'Aprobado', 'Programado', 'Publicado'], 'los pasos');
     igual(qa('.side > .cal .cleg .cpaso > i').map(e => e.className), ['edot e-empezar', 'edot e-captions', 'edot e-aprobar', 'edot e-aprobado', 'eico e-programado', 'eico e-publicado'], 'las marcas de los pasos');
@@ -5516,10 +5518,10 @@
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     await porAprobar(['r1', 'r2', 'r3'], 'p2');
-    delete M._in.S.paso; M._in.changed(); await M.flush();
+    delete M._in.S.pasos; M._in.changed(); await M.flush();
     const key = `${CLIENTE}-${MES}`;
     await M.open(key);
-    ok(!('paso' in M.board()), 'abrir el mes le puso un paso');
+    ok(!('pasos' in M.board()) && !('paso' in M.board()), 'abrir el mes le puso un paso');
     igual(pasoDe(), 'empezar', 'con una publicación en Por empezar');
     M.setEstado('r4', 'cancelado');
     igual(pasoDe(), 'aprobar', 'cuenta una cancelada');
@@ -5530,11 +5532,11 @@
     M.setEstado('r1', 'publicado');
     igual(pasoDe(), 'aprobado', 'no manda la más atrasada');
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
-    ok(!('paso' in M.board()), 'cambiar publicaciones le puso un paso');
+    ok(!('pasos' in M.board()), 'cambiar publicaciones le puso un paso');
     await pasoDirecto('programado');   // las aprobadas pasan y no queda nada atrás: sin ventana (D-087)
-    await hasta(() => M.board().paso === 'programado', 3000, 'el paso guardado en el tablero');
+    await hasta(() => pasoGuardado() === 'programado', 3000, 'el paso guardado en el tablero');
     await M.flush(); await M.open(key);
-    igual(M.board().paso, 'programado', 'el paso no vuelve al abrir el mes');
+    igual(pasoGuardado(), 'programado', 'el paso no vuelve al abrir el mes');
   });
 
   prueba('P3', 'Pasar a Captions con publicaciones sin foto: la ventana las lista como atrasadas, con el motivo (el contexto no cuenta, D-086); Cancelar, la × y Esc no cambian nada; aceptar es un paso de ⌘Z (D-084, D-085)', async () => {
@@ -5670,33 +5672,33 @@
     ok(!q('.side > .cal .cleg button.cpaso[data-paso="aprobado"]'), 'se puede saltar a Aprobado');
   });
 
-  prueba('P8', 'El paso se guarda en el tablero y vuelve al abrirlo; viaja en «⇅ Exportar» (archivo v6) e «Importar» lo devuelve; un archivo v5, sin paso, entra; IndexedDB 7 (D-084, D-017, D-060)', async () => {
+  prueba('P8', 'El paso se guarda en el tablero y vuelve al abrirlo; viaja en «⇅ Exportar» (archivo v8, por mes) e «Importar» lo devuelve; un archivo v5, sin paso, entra; IndexedDB 10 (D-084, D-119, D-017, D-060)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     aceptarPaso(await pulsarPaso('captions'));
-    await hasta(() => M.board().paso === 'captions', 3000, 'el paso en el tablero');
+    await hasta(() => pasoGuardado() === 'captions', 3000, 'el paso en el tablero');
     await M.flush();
     const key = `${CLIENTE}-${MES}`;
     await M.open(key);
-    igual(M.board().paso, 'captions', 'el paso al abrir el mes');
+    igual(pasoGuardado(), 'captions', 'el paso al abrir el mes');
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 7, 'la versión del archivo');
-    igual(d.boards.find(b => b.key === key).paso, 'captions', 'el paso en el archivo');
+    igual(d.v, 8, 'la versión del archivo');
+    igual(d.boards.find(b => b.key === key).pasos, { [MES]: 'captions' }, 'el paso en el archivo');
     await sinMes(key);
     let r = await M.importData(d, { confirm: false });
     ok(r && !r.error, 'importar falló: ' + json(r));
     await M.open(key);
-    igual(M.board().paso, 'captions', 'el paso importado');
+    igual(pasoGuardado(), 'captions', 'el paso importado');
     await hasta(() => pasoAct() === 'Captions', 3000, 'Captions en la barra tras importar');
-    const v5 = JSON.parse(JSON.stringify(d)); v5.v = 5; v5.boards.forEach(b => { delete b.paso; });
+    const v5 = JSON.parse(JSON.stringify(d)); v5.v = 5; v5.boards.forEach(b => { delete b.paso; delete b.pasos; });
     await sinMes(key);
     r = await M.importData(v5, { confirm: false });
     ok(r && !r.error, 'el archivo v5 no se importó: ' + json(r));
     await M.open(key);
-    ok(!('paso' in M.board()), 'un archivo sin paso trajo uno');
+    ok(!('paso' in M.board()) && !('pasos' in M.board()), 'un archivo sin paso trajo uno');
     igual(pasoDe(), 'empezar', 'sin paso, el de su publicación más atrasada');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107); 10 desde la 3.91 (D-119)
   });
 
   // retrasar desde el selector de la ventana de la publicación (D-085)
@@ -5834,14 +5836,14 @@
     await M.flush();
     const key = `${CLIENTE}-${MES}`;
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-    igual(d.v, 7, 'la versión del archivo');
+    igual(d.v, V_ARCHIVO, 'la versión del archivo');
     igual(d.boards.find(b => b.key === key).slots.find(x => x.id === 'r1').estado, { v: 'captions' }, 'el retraso en el archivo');
     await sinMes(key);
     const r = await M.importData(d, { confirm: false });
     ok(r && !r.error, 'importar falló: ' + json(r));
     await M.open(key);
     igual([M._in.estadoDe(slot('r1')), M._in.retrasada(slot('r1')), M._in.estadoDe(slot('r2'))], ['captions', true, 'aprobar'], 'el retraso importado');
-    const v8 = JSON.parse(JSON.stringify(d)); v8.v = 8;
+    const v8 = JSON.parse(JSON.stringify(d)); v8.v = V_ARCHIVO + 1;
     const r8 = await M.importData(v8, { confirm: false });
     ok(r8 && r8.error && /más nueva/.test(r8.error), 'un archivo más nuevo entró: ' + json(r8));
   });
@@ -5864,6 +5866,114 @@
     aceptarPaso(d);
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado en la barra');
     igual(est(['r1', 'r2', 'r3']), ['aprobado', 'aprobado', 'empezar'], 'la barra no llevó la de sin contexto');
+  });
+
+  // ---------- un paso por mes (D-119) ----------
+  const DIC = '2026-12';
+  // un tablero de noviembre y diciembre: r1 y r2 en noviembre, r3 y r4 en diciembre
+  async function tableroDos() {
+    await limpiar();
+    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2), pub(3, 'Foto', 5, DIC), pub(4, 'Foto', 8, DIC)], past: [], force: true });
+    ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero de dos meses: ' + json(r));
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    return { key: r.key, nov: ['r1', 'r2'], dic: [`r3-${DIC}`, `r4-${DIC}`] };
+  }
+  const calMes = () => (q('.side > .cal .cmes') || {}).textContent;
+  async function irMes(texto) {   // ‹ › hasta el mes del calendario que diga texto («Diciembre 2026»)
+    for (let i = 0; i < 6 && calMes() !== texto; i++) {
+      const a = ['Octubre 2026', 'Noviembre 2026', 'Diciembre 2026', 'Enero 2027'], k = a.indexOf(calMes()) < a.indexOf(texto) ? 'next' : 'prev';
+      q(`.side > .cal [data-cal="${k}"]`).click(); await espera(30);
+    }
+    igual(calMes(), texto, 'el mes del calendario');
+  }
+
+  prueba('P19', 'Un tablero de dos meses lleva un paso por mes: la barra es la del mes que enseña el calendario y ‹ › pasa a la del otro; avanzar en uno solo lleva y lista sus publicaciones; ⌘Z lo deshace en un paso (D-119)', async () => {
+    const { nov, dic } = await tableroDos();
+    igual([pasoGuardado(MES), pasoGuardado(DIC)], ['empezar', 'empezar'], 'un tablero nuevo no empieza en Por empezar en cada mes');
+    await porAprobar([...nov, ...dic], 'p15');
+    M.setEstado('r1', 'noaprobado');
+    M._in.S.pasos = { [MES]: 'aprobar', [DIC]: 'aprobar' }; M._in.changed();
+    await irMes('Diciembre 2026');
+    await hasta(() => pasoAct() === 'Por aprobar', 3000, 'Por aprobar en la barra de diciembre');
+    const u0 = M._test.hist().undo;
+    await pasoDirecto('aprobado');   // el No aprobado de noviembre no es de este mes: nada se queda atrás
+    igual(est([...nov, ...dic]), ['noaprobado', 'aprobar', 'aprobado', 'aprobado'], 'avanzar diciembre llevó publicaciones de noviembre');
+    igual([pasoGuardado(MES), pasoGuardado(DIC)], ['aprobar', 'aprobado'], 'los pasos de cada mes');
+    igual(M._in.pasoDe(M._in.S, MES), 'aprobar', 'noviembre cambió de paso');
+    await irMes('Noviembre 2026');
+    await hasta(() => pasoAct() === 'Por aprobar', 3000, 'noviembre sigue en Por aprobar');
+    const d = await pulsarPaso('aprobado');
+    igual(lis(d), [`${nm('r1')} · No aprobado`], 'la ventana de noviembre lista otras publicaciones');
+    ok(!/Foto 1\.[34]/.test(d.textContent), 'la ventana de noviembre habla de diciembre');
+    d.querySelector('[data-act="close"]').click();
+    await irMes('Diciembre 2026');
+    igual(M._test.hist().undo, u0 + 1, 'el cambio de paso no es un solo paso de ⌘Z');
+    M._test.undo();
+    igual([pasoGuardado(MES), pasoGuardado(DIC), ...est(dic)], ['aprobar', 'aprobar', 'aprobar', 'aprobar'], '⌘Z no lo deshizo entero');
+    await hasta(() => pasoAct() === 'Por aprobar', 3000, '⌘Z no devolvió la barra de diciembre');
+  });
+
+  prueba('P20', 'Un tablero de varios meses guardado con un solo paso: ese paso va al primer mes y los otros enseñan el de su publicación más atrasada hasta que se cambian; igual al importar un archivo v7 (D-119, D-084)', async () => {
+    const { key, nov, dic } = await tableroDos();
+    await porAprobar(nov, 'p16'); M.setEstado(nov, 'aprobado');
+    await poner(dic[0], [await foto('p16-d0.jpg')]); await poner(dic[1], [await foto('p16-d1.jpg')]);
+    const viejo = () => { delete M._in.S.pasos; M._in.S.paso = 'aprobado'; };   // como lo guardaba la 3.90: uno para el tablero
+    viejo(); M._in.changed(); await M.flush();
+    await M.open(key);
+    igual(M.board().pasos, { [MES]: 'aprobado' }, 'el paso de antes no fue al primer mes');
+    ok(!('paso' in M.board()), 'sigue el paso de antes');
+    igual([M._in.pasoDe(M._in.S, MES), M._in.pasoDe(M._in.S, DIC)], ['aprobado', 'captions'], 'el otro mes no enseña su publicación más atrasada');
+    await irMes('Diciembre 2026');
+    await hasta(() => pasoAct() === 'Captions', 3000, 'Captions en la barra de diciembre');
+    // un archivo v7: el paso del tablero, al primer mes
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    d.v = 7; d.boards.forEach(b => { if (b.key === key) { b.paso = 'aprobado'; delete b.pasos; } });
+    await sinMes(key);
+    const r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'el archivo v7 no se importó: ' + json(r));
+    await M.open(key);
+    igual(M.board().pasos, { [MES]: 'aprobado' }, 'importar el archivo v7 no llevó su paso al primer mes');
+    igual(M._in.pasoDe(M._in.S, DIC), 'captions', 'importado, el otro mes no enseña su publicación más atrasada');
+  });
+
+  prueba('P21', 'El ciclo anterior, de solo lectura, no lleva una barra que se pulse; con día de ciclo 15, el mes que solo enseña el final de un ciclo lleva la barra de ese ciclo (D-119)', async () => {
+    await limpiar();
+    const dia = d => `2026-${d}T12:00:00.000+01:00`;
+    try {
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 15, slots: [{ id: 'c15a', name: 'Foto 1.1', type: 'Foto', date: dia('11-20') }, { id: 'c15b', name: 'Foto 1.2', type: 'Foto', date: dia('12-10') }], past: [], force: true });
+      await hasta(() => M.calendario, 4000, 'calendario.js');
+      M._in.S.pasos = { [MES]: 'captions' }; M._in.changed();
+      await irMes('Noviembre 2026');
+      await hasta(() => pasoAct() === 'Captions', 3000, 'Captions en noviembre');
+      await irMes('Octubre 2026');
+      ok(q('.side > .cal .cleg.ro') && !q('.side > .cal .cleg button.cpaso') && !pasoAct(), 'el ciclo anterior lleva una barra que se pulsa');
+      igual(qa('.side > .cal .cleg .cpaso').length, 6, 'el ciclo anterior no lleva la leyenda de los pasos');
+      await irMes('Diciembre 2026');
+      await hasta(() => pasoAct() === 'Captions', 3000, 'diciembre (final del ciclo de noviembre) no lleva su barra');
+      ok(q('.side > .cal .cleg button.cpaso[data-mes="2026-11"]'), 'la barra de diciembre no es la del ciclo de noviembre');
+    } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('P22', '«Revisar» al pasar a Por aprobar mira solo ese mes y sus historias (D-119, D-040, D-058)', async () => {
+    const { nov, dic } = await tableroDos();
+    await hasta(() => M.hs && M.revisar, 4000, 'historias.js y revisar.js');
+    await porAprobar(dic, 'p18');
+    await poner('r1', [await foto('p18-chica.jpg', 600, 750)]); await poner('r2', [await foto('p18-n2.jpg')]);
+    M.hs.anadir('2026-11-10');   // una historia de noviembre sin diseñar: un punto que bloquea
+    M.loadCaptions(nov.map(slotId => ({ slotId, options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] })));
+    nov.forEach(id => M._test.setSlot(id, { caption: { ...slot(id).caption, pick: 0 } }));
+    M._in.S.pasos = { [MES]: 'captions', [DIC]: 'captions' }; M._in.changed(); await M.flush();
+    const rn = await M.revisar({ historias: true, mes: MES }), rd = await M.revisar({ historias: true, mes: DIC });
+    ok(rn.puntos.some(p => p.slotId === 'r1') && rn.puntos.some(p => p.historiaId), 'la revisión de noviembre no ve su foto pequeña o su historia: ' + json(rn.puntos));
+    igual(rd.puntos, [], 'la revisión de diciembre ve cosas de noviembre');
+    await irMes('Diciembre 2026');
+    await hasta(() => pasoAct() === 'Captions', 3000, 'Captions en diciembre');
+    await pasoDirecto('aprobar');   // diciembre está en orden: sin ventana
+    igual(pasoGuardado(MES), 'captions', 'noviembre cambió de paso');
+    await irMes('Noviembre 2026');
+    const d = await pulsarPaso('aprobar', 6000);
+    ok(/Foto 1\.1/.test(d.textContent) && /historia/.test(d.textContent), 'la ventana de noviembre no enseña sus puntos');
+    d.querySelector('[data-act="close"]').click();
   });
 
   // =====================================================================================================
@@ -7558,7 +7668,7 @@
       c = await M._in.idbGet('clients', CLIENTE);
       igual(c.libre.historiasKit, kit.historias.v, 'la versión sembrada');
       const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-      if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');
+      if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
     } finally { await salir(); }
   });
 

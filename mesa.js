@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.90'; // 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.91'; // 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -166,8 +166,9 @@
       // store: a post may be «No aprobado» or keep the reason of its cancellation (D-082), which an older tab doesn't know.
       // 7 (mesa 3.68): no new store: a board keeps the month's step (S.paso, D-084), which an older tab would drop.
       // 8 (mesa 3.69): no new store: a post may be put back by hand (s.estado.v Por empezar, Captions or Por aprobar, D-085),
-      // which an older tab reads as a state of its own and its step bar would move on.
-      const r = indexedDB.open('mesa-feed', 9);
+      // which an older tab reads as a state of its own and its step bar would move on. 9 (mesa 3.85): story templates (D-107).
+      // 10 (mesa 3.91): no new store: a board keeps one step per month (S.pasos, D-119), which an older tab would drop.
+      const r = indexedDB.open('mesa-feed', 10);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
@@ -1626,7 +1627,7 @@
       ...(previewsOf(B).length ? { previews: B.previews.slice() } : {}),   // the fillers' previews (D-049)
       ...(B.fillers ? { fillers: B.fillers } : {}), ...(B.pins && B.pins.length ? { pins: B.pins.slice() } : {}),   // «+ Hueco» and «Fijar»: steps of ⌘Z too (D-095)
       ...(hsDe(B).length ? { historias: JSON.parse(JSON.stringify(B.historias)) } : {}),   // the stories, whole (D-054)
-      ...(B.paso ? { paso: B.paso } : {})   // the month's step (D-084)
+      ...(B.pasos && Object.keys(B.pasos).length ? { pasos: { ...B.pasos } } : {})   // each month's step (D-084, D-119)
     };
   }
   const stRefs = st => new Set([...st.tray, ...enCarpetas(st.carpetas), ...st.slots.flatMap(slotRefs), ...st.prev.filter(p => p.own).flatMap(p => p.photos), ...previewsOf(st), ...hRefs(st)]);
@@ -1635,7 +1636,7 @@
   // what kind of change a→b is, to merge a burst: 'note:<id>' / 'memo:<id>' (one field of one post), 'crop:<file>' (one photo)
   function stepTag(a, b) {
     const J = JSON.stringify;
-    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias) || a.paso !== b.paso || a.fillers !== b.fillers || J(a.pins) !== J(b.pins)) return null;   // a change of step, of the fillers or the pins is a step of its own (D-084)
+    if (J(a.tray) !== J(b.tray) || J(a.carpetas) !== J(b.carpetas) || J(a.prev) !== J(b.prev) || a.slots.length !== b.slots.length || J(a.historias) !== J(b.historias) || J(a.pasos) !== J(b.pasos) || a.fillers !== b.fillers || J(a.pins) !== J(b.pins)) return null;   // a change of step, of the fillers or the pins is a step of its own (D-084)
     const ds = [];
     for (let i = 0; i < a.slots.length; i++) { if (a.slots[i].id !== b.slots[i].id) return null; if (J(a.slots[i]) !== J(b.slots[i])) ds.push(i); }
     const cs = [...new Set([...Object.keys(a.crops), ...Object.keys(b.crops)])].filter(f => J(a.crops[f]) !== J(b.crops[f]));
@@ -1713,7 +1714,7 @@
     if (st.previews) S.previews = st.previews.map(f => (f && has(f) ? f : null)); else delete S.previews;
     if (st.fillers) S.fillers = st.fillers; else delete S.fillers;
     if (st.pins) S.pins = st.pins.slice(); else delete S.pins;
-    if (st.paso) S.paso = st.paso; else delete S.paso;
+    if (st.pasos) S.pasos = { ...st.pasos }; else delete S.pasos;
     if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
     if (S.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
       const hs = hsDe(S);
@@ -2394,16 +2395,26 @@
   const retrasada = s => !!(s && s.estado && RETRASO.includes(s.estado.v));                       // put back by hand
   const retenida = s => retrasada(s) && ORD_AUTO[s.estado.v] <= ORD_AUTO[estadoAuto(s)];          // ... and that is what holds it now
   const vivo = s => !(s && s.estado && s.estado.v === 'cancelado');
-  // The month's step (D-084): where the open board is, chosen in the calendar's step bar (calendario.js) and kept in the board
-  // (S.paso). «No aprobado» and «Cancelado» are not steps. A board saved before 3.68 has none: it shows the step of its most
-  // delayed post (not counting cancelled ones; «No aprobado» counts as «Por aprobar») until it is changed; a new board starts
-  // at «Por empezar».
+  // The month's step (D-084): where each month of the open board is, chosen in the calendar's step bar (calendario.js). Since
+  // 3.91 each cycle of a board has its own (S.pasos, {'YYYY-MM': step}, D-119): until then a board of 2 or 3 months shared
+  // one (S.paso), which is now its first month's. «No aprobado» and «Cancelado» are not steps. A month with none kept shows
+  // the step of its most delayed post (not counting cancelled ones; «No aprobado» counts as «Por aprobar») until it is
+  // changed; a new board starts at «Por empezar» in all its months.
   const PASOS = [['empezar', 'Por empezar'], ['captions', 'Captions'], ['aprobar', 'Por aprobar'], ['aprobado', 'Aprobado'], ['programado', 'Programado'], ['publicado', 'Publicado']];
   const PASO_DE = { empezar: 0, captions: 1, aprobar: 2, noaprobado: 2, aprobado: 3, programado: 4, publicado: 5 };
-  function pasoDe(B) {
+  const mesesDe = B => B && B.month ? monthsOf(B.month, B.span) : [];
+  // the board's cycle a post or a story belongs to: its date's; one before the board or without a date, the first; after it, the last
+  function mesDe(s, B = S) {
+    const ms = mesesDe(B); if (!ms.length) return null;
+    const m = s && cycleOf(s.date, B.cycleDay);
+    return !m || m < ms[0] ? ms[0] : m > ms[ms.length - 1] ? ms[ms.length - 1] : m;
+  }
+  const pasosDe = B => !B ? {} : B.pasos || (B.paso && mesesDe(B).length ? { [mesesDe(B)[0]]: B.paso } : {});   // a board from before 3.91: its first month's
+  function pasoDe(B, m) {               // m: one of its cycles ('YYYY-MM'); none or another, the first
     if (!B) return null;
-    if (PASOS.some(p => p[0] === B.paso)) return B.paso;
-    const vivas = (B.slots || []).filter(vivo);
+    const ms = mesesDe(B); if (!ms.includes(m)) m = ms[0];
+    const g = pasosDe(B)[m]; if (PASOS.some(p => p[0] === g)) return g;
+    const vivas = (B.slots || []).filter(s => vivo(s) && (!m || mesDe(s, B) === m));
     return vivas.length ? PASOS[Math.min(...vivas.map(s => PASO_DE[estadoDe(s)] ?? 0))][0] : 'empezar';
   }
   const motivoDe = s => s && s.estado && s.estado.v === 'cancelado' ? String(s.estado.motivo || '').trim() : '';   // why it was cancelled (optional)
@@ -4222,6 +4233,13 @@
     if (lost.length) return `Esta mesa cubre ${rangeLabel(om, ospan, false, old.cycleDay).toLowerCase()} y ${ml(lost)} ${lost.length > 1 ? 'tienen' : 'tiene'} fotos, notas o subidas: carga los ${ospan} ${u[0]} (o pasa force:true).`;
     return null;
   }
+  // the steps a board starts with (D-119): a new one, «Por empezar» in each month; a saved one keeps those of its months still
+  // in it (one from before 3.91: its step is its first month's), and a month without one shows its most delayed post's
+  function pasosIniciales(saved, old, month, span) {
+    const ms = monthsOf(month, span), o = saved ? pasosDe(old) : Object.fromEntries(ms.map(m => [m, 'empezar']));
+    const p = Object.fromEntries(Object.entries(o).filter(([m, v]) => ms.includes(m) && PASOS.some(x => x[0] === v)));
+    return Object.keys(p).length ? { pasos: p } : {};
+  }
   // cfg = { client, month:'YYYY-MM', months?:1-3, slots:[{id,name,type,date}], past:[{id,name,type,date}] }  (key optional)
   // force: true lets a re-init drop months of the saved board (their photos go to the tray, their notes are lost)
   // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
@@ -4318,7 +4336,7 @@
       ...(old.fillers > 0 ? { fillers: old.fillers } : {}),
       ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
       ...(hsDe(old).length ? { historias: old.historias } : {}),
-      ...(old.paso ? { paso: old.paso } : !saved ? { paso: 'empezar' } : {}),   // the month's step (D-084)
+      ...pasosIniciales(saved, old, month, span),   // each month's step (D-084, D-119)
       // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
       ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
@@ -4914,7 +4932,7 @@
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).map(({ carpetas, ...b }) => { if (Array.isArray(b.tray)) { const en = enCarpetas(carpetas); b.tray = b.tray.filter(f => !enTodas.has(f) && !en.has(f)); } return b; }).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
-      const parts = ['{"format":"mesa-feed","v":7,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085)
+      const parts = ['{"format":"mesa-feed","v":8,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month)
         + ',"clients":' + JSON.stringify(clients) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -4984,7 +5002,7 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7].includes(d.v)) return +d.v > 7 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(d.v)) return +d.v > 8 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -5496,6 +5514,7 @@
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
     dateChg, nameChg, typeChg, sharedWith, MONTHS, hoy: () => madParts(Date.now()).day, openIG, openPast, withPrev, setDate, madridISO, estIco, cambiosIco, motivoDe,   // the marks (D-081, mesa ≥ 3.66)
     PASOS, pasoDe, noteOf,   // the month's step bar (D-084, mesa ≥ 3.68)
+    mesDe, pasosDe, rangeLabel,   // one step per month (D-119, mesa ≥ 3.91)
     PASO_DE, estadoAuto, retrasada, retenida,   // the bar carries the posts (D-085, mesa ≥ 3.69)
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)

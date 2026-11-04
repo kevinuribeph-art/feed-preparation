@@ -12,18 +12,20 @@
 // The weight (8 MB, JPEG only) and the widest side (1440 px) are not listed: «programa» always sends a JPEG under 8 MB and
 // Instagram scales a wider one down. It reads the board only through the mesa's bridge (M._in, mesa ≥ 3.43), and texts
 // and photos as libre.js draws them (M.libre.rev, libre ≥ 1.18); without libre (or the kit) those checks are left out.
-//   M.revisar({slots?, ver?, historias?}) -> Promise<{ok (nothing blocks), bloquean, avisos, puntos: [{slotId, post, diapositiva
+//   M.revisar({slots?, ver?, historias?, mes?}) -> Promise<{ok (nothing blocks), bloquean, avisos, puntos: [{slotId, post, diapositiva
 //     (1…, null: the whole post), tipo, bloquea, texto, donde ('editor'|'post')}]}>; ver: shown in the mesa
 //   historias (D-058): none, the feed only, as «sube», «programa» and the skill's own call need it; true, the feed and the
 //     board's stories (the «Revisar» button); 'solo', only the stories. A story's point: {historiaId, slotId: null, post (its
 //     name), diapositiva: null, tipo, bloquea, texto, donde: 'historia'}, tipo as hProblemas in mesa.js gives it, or
 //     'zona segura' (a text or logo under Instagram's bars) and 'resolución' (a photo with fewer than 1080 px), which warn.
+//   mes (1.5, D-119, mesa ≥ 3.91): one cycle of the board ('YYYY-MM'): only its posts and its stories, as the step bar of
+//     that month needs.
 // If this file doesn't load, the mesa works as before (no «Revisar»; uploads still refuse empty holes).
 (function revisarBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.4';
+  const VERSION = '1.5';
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -39,9 +41,10 @@
   }
   // a story's points: what the mesa knows at once (M._in.hProblemas), then what takes its fonts and photos
   const ZONA = { t: 250 / 1920, b: 340 / 1920, l: 65 / 1080 };
-  async function puntosHistorias(B) {
+  async function puntosHistorias(B, mes) {
     const X = I(), R = M.libre && M.libre.rev, out = [];
     for (const h of X.hsDe(B).slice()) {
+      if (mes && X.mesDe && X.mesDe(h, B) !== mes) continue;
       const add = (tipo, texto, bloquea = false) => out.push({ historiaId: h.id, slotId: null, post: h.name || '', diapositiva: null, tipo, bloquea, texto, donde: 'historia' });
       X.hProblemas(h).forEach(p => add(p.tipo, p.texto, p.bloquea));
       const f0 = (h.photos || [])[0], comp = f0 && h.libre && h.libre.slides && h.libre.slides[f0];
@@ -70,7 +73,7 @@
     let mg = null;                               // the kit is read only when there is a text to measure
     const solo = opts.slots ? new Set(opts.slots) : null, puntos = [];
     for (const s of opts.historias === 'solo' ? [] : B.slots.slice()) {
-      if (!X.vivo(s) || (solo && !solo.has(s.id))) continue;
+      if (!X.vivo(s) || (solo && !solo.has(s.id)) || (opts.mes && X.mesDe && X.mesDe(s, B) !== opts.mes)) continue;
       const pub = X.publishList(s), n = pub.length; if (!n) continue;
       const add = (i, tipo, texto, o = {}) => puntos.push({ slotId: s.id, post: s.name || '', diapositiva: i == null ? null : i + 1, tipo, bloquea: !!o.bloquea, texto, donde: o.donde || (i == null ? 'post' : 'editor') });
       const hv = new Set(X.huecosVacios(s, B.slots)), formato = [];
@@ -107,7 +110,7 @@
     const pos = new Map(B.slots.map((s, i) => [s.id, [s.date ? I().ts(s.date) : -Infinity, i]]));   // by publication date, as the calendar (the instant: Notion's dates carry +01:00, the mesa's Z)
     const antes = (a, b) => { const x = pos.get(a.slotId), y = pos.get(b.slotId); return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1]; };
     puntos.sort((a, b) => antes(a, b) || (a.diapositiva ?? 0) - (b.diapositiva ?? 0) || ORDEN[a.tipo] - ORDEN[b.tipo]);
-    if (opts.historias) puntos.push(...await puntosHistorias(B));   // after the feed's, by date
+    if (opts.historias) puntos.push(...await puntosHistorias(B, opts.mes));   // after the feed's, by date
     if (!I().S || I().S.key !== B.key) return nada;   // another board opened meanwhile: this one is not the one in view
     const bloquean = puntos.filter(p => p.bloquea).length, res = { ok: !bloquean, bloquean, avisos: puntos.length - bloquean, puntos, key: B.key };
     if (opts.ver) ver(res, 'revisar');

@@ -20,7 +20,12 @@
 //   aprobar › Aprobado › Programado › Publicado, each with its mark (still the legend of the chips) — and, apart and only as a
 //   legend, No aprobado and Cancelado, which are states of a post, not steps. The steps done in ink (pressed, the month goes
 //   back), the current one in a black pill, the next one with a thin border (pressed, the month goes on) and the later ones
-//   in grey. 1.10 (D-119, mesa ≥ 3.91): each month of the board has its own step, and the bar is the one of the month the
+//   in grey. 1.11 (D-121, D-120, mesa ≥ 3.92): a board opens on today's month, today marked; if the board doesn't hold today, on
+//   its month nearest to today (‹ › are kept until another board opens). A vencida (not cancelled nor published, its moment
+//   passed and not a Programada that passes to Publicado on its own) has a thin red border and its time in red; «N
+//   vencidas» in the header opens the window that lists the client's, those of its earlier boards too, by date, each with
+//   «Ya se publicó», «Reprogramar» and «Cancelar», one step of ⌘Z each. Nothing of it in the vista cliente.
+//   1.10 (D-119, mesa ≥ 3.91): each month of the board has its own step, and the bar is the one of the month the
 //   calendar shows (‹ › go to another's); a calendar month that only shows the end of a cycle shows that cycle's; the
 //   previous cycle, read only, has the bar as a legend that is not pressed. Going on carries and lists the posts of that
 //   month only, and «Revisar» looks at that month and its stories. 1.3 (D-085, mesa ≥ 3.69): going on carries the posts in the step it leaves (M.setEstado), never a cancelled
@@ -40,7 +45,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.10';
+  const VERSION = '1.11';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -63,15 +68,18 @@
     for (let m = plo.slice(0, 7); m <= hi.slice(0, 7); m = addMonths(m, 1)) list.push(m);
     return { lo, hi, plo, list, first: lo.slice(0, 7) };
   }
-  let view = { key: null, m: null };           // the month shown, per open board (opening another board shows its first month)
+  let view = { key: null, m: null };           // the month shown, per open board (opening another board shows today's, D-121)
+  // the month a board opens on: today's, if the board holds it; else its month nearest to today (D-121)
+  const mesInicial = (X, sp) => { const t = X.hoy(); return t < sp.lo ? sp.lo.slice(0, 7) : t > sp.hi ? sp.hi.slice(0, 7) : t.slice(0, 7); };
 
   // ---------- drawing ----------
   let hi = null;                               // {k: 'slot' | 'prev', id} lit up in both places
   function chipHTML(X, s, client) {
     const est = X.estadoDe(s), lab = X.ESTADOS.find(e => e[0] === est), t = X.localTime(s.date), mot = est === 'cancelado' ? X.motivoDe(s) : '';
-    const cls = `chip ty-${TYPE[s.type] || 'otro'}${est === 'cancelado' ? ' cx' : ''}`;
+    const venc = !client && !!X.vencida && X.vencida(s);   // its moment passed (D-120)
+    const cls = `chip ty-${TYPE[s.type] || 'otro'}${est === 'cancelado' ? ' cx' : ''}${venc ? ' venc' : ''}`;
     const mk = client || est === 'cancelado' ? '' : X.cambiosIco(s, 'cmk');   // the grid's own mark of changes
-    const tit = `${s.name} · ${X.fmtDate(s.date)}${est === 'cancelado' ? ' · Cancelada' + (mot ? ': ' + mot : '') : ''}`;
+    const tit = `${s.name} · ${X.fmtDate(s.date)}${est === 'cancelado' ? ' · Cancelada' + (mot ? ': ' + mot : '') : ''}${venc ? ' · Vencida' : ''}`;
     return `<button type="button" class="${cls}" data-slot="${esc(s.id)}" title="${esc(tit)}">`
       + `<span class="cl">${client ? '' : X.estIco(est, ` title="${esc(lab ? lab[1] : est)}"`)}<span class="cn">${esc(X.shortLabel(s.name, s.type))}</span>${mk}</span>`
       + (t ? `<span class="ct">${esc(t)}</span>` : '') + '</button>';
@@ -86,7 +94,7 @@
     const root = X.root(), sec = root && root.querySelector('.side > .cal'); if (!sec) return;
     const S = X.S; if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
-    if (view.key !== S.key || !sp.list.includes(view.m)) view = { key: S.key, m: sp.first };
+    if (view.key !== S.key || !sp.list.includes(view.m)) view = { key: S.key, m: mesInicial(X, sp) };
     const m = view.m, [y, mo] = m.split('-').map(Number), today = X.hoy();
     // posts by day (sorted by time; a cancelled one is drawn crossed out, never in the vista cliente)
     const by = {};
@@ -117,14 +125,17 @@
     const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : '<span class="csync">Igual que Notion</span>';
     const nat = `<span class="cnat" title="La mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}</span>`;
     const leg = pasosHTML(X, mesBarra(X, m));
+    const nv = !client && X.vencidas ? X.vencidas().length : 0;
+    const vh = nv ? `<button type="button" class="cvenc" data-cal="venc" title="Ver las vencidas y resolverlas">${nv} vencida${nv === 1 ? '' : 's'}</button>` : '';
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false;
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
-    sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${sync}${nat}`
+    sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nat}`
       + `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button><span class="cmes">${esc(cap(X.MONTHS[mo - 1]))} ${y}</span><button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button></span></div>`
       + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:auto repeat(${rows},minmax(58px,auto))${cf ? '' : ' auto'}">${body}</div></div>`;
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
+    vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)
   }
 
   // ---------- linked with the grid ----------
@@ -145,12 +156,14 @@
   function onClick(e) {
     const X = I(); if (!X || !e.target.closest) return;
     const dl = e.target.closest('#mesa .detail[data-dlg="paso"] [data-cal]'); if (dl) { enPaso(dl); return; }   // the step's confirmation
+    const dv = e.target.closest('#mesa .detail[data-dlg="venc"] [data-cal]'); if (dv) { enVenc(dv); return; }   // the vencidas' window (D-120)
     const sec = e.target.closest('#mesa .side > .cal'); if (!sec) return;
     const root = X.root(), client = root.classList.contains('client');
     const b = e.target.closest('[data-cal]');
     if (b) {
       const a = b.dataset.cal;
       if (a === 'paso') { if (!client) abrirPaso(b.dataset.paso, b.dataset.mes); return; }
+      if (a === 'venc') { if (!client) abrirVencidas(); return; }
       if (a === 'fold') lsSet(LS_FOLD, folded() ? '0' : '1');
       else if (a === 'cnt') lsSet(LS_CNT, cntFolded() ? '0' : '1');
       else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
@@ -283,6 +296,90 @@
     X.toast(sube ? `El mes pasa a ${P[j][1]}${hechos ? `: ${lleva(to, hechos)}` : ''}${nr ? `; ${quedanReels(nr)}` : ''}. ⌘Z lo deshace.` : `El mes vuelve a ${P[j][1]}; las publicaciones no cambian. ⌘Z lo deshace.`, { ms: 6000 });
   }
 
+  // ---------- the vencidas (D-120) ----------
+  // The client's vencidas, by date: this board's and those of its earlier boards, which say their month and open in their
+  // board. «Ya se publicó» → Publicado. «Reprogramar» → a day and time ahead inside its board (a Programada warns that
+  // Zernio keeps the old one, D-103; its stories go with it, D-057); one of another board opens there, and one whose board
+  // has no day ahead can't. «Cancelar» → with its reason (D-082). Each one a step of ⌘Z; nothing of Zernio or Notion.
+  const EST_TXT = { empezar: 'Por empezar', captions: 'Captions', aprobar: 'Por aprobar', noaprobado: 'No aprobado', aprobado: 'Aprobado', programado: 'Programada' };
+  let vabre = null;                            // the row with its form open: {k, que: 'rep' | 'can'}
+  const vk = v => v.key + '|' + v.id;
+  function vencHTML(X) {
+    const l = X.vencidas(), S = X.S, cd = X.curCd();
+    const cab = `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${l.length ? `${l.length} vencida${l.length === 1 ? '' : 's'}` : 'Vencidas'}</h3>`;
+    if (!l.length) return cab + '<p>No queda ninguna vencida.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Cerrar</button></div></div>';
+    const hoy = X.hoy(), fin = X.cycleEnd(S.month && X.boardMonths()[X.boardMonths().length - 1], cd);
+    const fila = v => {
+      const k = vk(v), f = vabre && vabre.k === k ? vabre.que : null, s = v.aqui ? X.slot(v.id) : null;
+      const donde = v.aqui ? '' : ` · <span class="votro">${esc(X.rangeLabel ? X.rangeLabel(v.mes, 1, false, X.curCd()) : v.mes)}, otro tablero</span>`;
+      const no = !v.futuro ? ` disabled title="${v.aqui ? 'Su mes ya no tiene días por delante' : 'Su tablero ya no tiene días por delante'}: muévela en Notion o cancélala."` : v.aqui ? '' : ' title="Se abre en su tablero"';
+      let form = '';
+      if (f === 'rep' && s) {
+        const hora = X.dOnly(s.date) ? '' : X.localTime(s.date), dia = hora ? hoy : addDays(hoy, 1);
+        form = `<div class="vform"><input type="date" data-v="dia" min="${hoy}" max="${fin}" value="${dia <= fin ? dia : fin}" aria-label="Día"><input type="time" data-v="hora" value="${esc(hora)}" aria-label="Hora"><button type="button" class="btn" data-cal="v-rep-ok">Mover</button><button type="button" class="btn2" data-cal="v-x">No</button></div>`;
+      } else if (f === 'can') form = `<div class="vform"><input type="text" data-v="motivo" placeholder="Motivo (opcional)" maxlength="300" aria-label="Motivo"><button type="button" class="btn" data-cal="v-can-ok">Cancelar la publicación</button><button type="button" class="btn2" data-cal="v-x">No</button></div>`;
+      return `<li data-k="${esc(k)}"><button type="button" class="vnom" data-cal="v-abrir" title="Abrir la publicación${v.aqui ? '' : ' en su tablero'}"><b>${esc(X.shortLabel(v.name, v.type))}</b></button>`
+        + ` <span class="vque">· ${esc(X.fmtDate(v.date))} · ${esc(EST_TXT[v.estado] || v.estado)}${v.movida ? ', movida después de programarla' : ''}${donde}</span>`
+        + (f ? form : `<div class="vacc"><button type="button" class="btn2" data-cal="v-pub">Ya se publicó</button><button type="button" class="btn2" data-cal="v-rep"${no}>Reprogramar</button><button type="button" class="btn2" data-cal="v-can">Cancelar</button></div>`) + '</li>';
+    };
+    return cab + '<p class="cpnota">Su fecha ya pasó y no están publicadas. Cada cambio se deshace con ⌘Z; no toca Zernio ni Notion.</p>'
+      + `<ul class="vlist">${l.map(fila).join('')}</ul>`;
+  }
+  function abrirVencidas() {
+    const X = I(); if (!X || !X.S || !X.vencidas || X.root().classList.contains('client')) return;
+    vabre = null;
+    X.showDialog('venc', vencHTML(X));
+  }
+  function vencPintar(desdeFuera) {            // drawn again; from a redraw of the mesa, not while one of its fields is in use
+    const X = I(), d = X && X.root && X.root().querySelector('.detail[data-dlg="venc"]'); if (!d || d.hidden || !X.S) return;
+    if (desdeFuera && d.contains(document.activeElement) && document.activeElement.matches('input')) return;
+    const c = d.querySelector('.card'); if (!c) return;
+    const h = vencHTML(X); if (c._h === h) return;
+    c.innerHTML = h; c._h = h;
+    const i = c.querySelector('.vform input[data-v="motivo"], .vform input[data-v="dia"]'); if (i && !desdeFuera) i.focus();
+  }
+  async function enVenc(b) {
+    const X = I(), S = X && X.S, li = b.closest('li[data-k]'), a = b.dataset.cal; if (!S) { if (X) X.closeDetail(); return; }
+    const v = li && X.vencidas().find(x => vk(x) === li.dataset.k);
+    if (a === 'v-x') { vabre = null; vencPintar(); return; }
+    if (!v) { vencPintar(); return; }
+    if (a === 'v-abrir' || (a === 'v-rep' && !v.aqui)) {   // one of another board opens in its board
+      X.closeDetail();
+      if (!v.aqui) { const r = await M.open(v.key); if (r === 'no existe' || (r && r.error)) { I().toast('No se pudo abrir su tablero.'); return; } }
+      const Y = I(); if (Y && Y.slot(v.id)) Y.openDetail(v.id, 0);
+      return;
+    }
+    if (X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambia nada.'); return; }
+    const nom = `«${X.shortLabel(v.name, v.type)}»`;
+    if (a === 'v-pub') {
+      const r = v.aqui ? M.setEstado(v.id, 'publicado') : X.fueraEstado(v.key, v.id, { v: 'publicado' });
+      if ((Array.isArray(r) && r[0] && r[0].error) || (typeof r === 'string' && r)) { X.toast('No se pudo: ' + (Array.isArray(r) ? r[0].error : r) + '.'); return; }
+      X.toast(`${nom} pasa a Publicado. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });
+    } else if (a === 'v-rep' || a === 'v-can') { vabre = { k: vk(v), que: a === 'v-rep' ? 'rep' : 'can' }; vencPintar(); return; }
+    else if (a === 'v-can-ok') {
+      const mot = String((li.querySelector('input[data-v="motivo"]') || {}).value || '').trim();
+      const r = v.aqui ? M.setEstado(v.id, 'cancelado', mot ? { motivo: mot } : {}) : X.fueraEstado(v.key, v.id, mot ? { v: 'cancelado', motivo: mot } : { v: 'cancelado' });
+      if ((Array.isArray(r) && r[0] && r[0].error) || (typeof r === 'string' && r)) { X.toast('No se pudo: ' + (Array.isArray(r) ? r[0].error : r) + '.'); return; }
+      vabre = null;
+      X.toast(`${nom} se cancela${mot ? ': ' + mot : ''}. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });
+    } else if (a === 'v-rep-ok') {
+      const s = X.slot(v.id), dia = (li.querySelector('input[data-v="dia"]') || {}).value, hora = (li.querySelector('input[data-v="hora"]') || {}).value;
+      if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(dia || '')) { X.toast('Elige un día.'); return; }
+      const iso = hora ? X.madridISO(dia, hora) : dia, ya = X.ahora();
+      if (hora ? Date.parse(iso) <= ya : dia <= X.hoy()) { X.toast(hora ? 'Elige un día y una hora por delante.' : 'Elige un día por delante.'); return; }
+      const r = X.setDate(v.id, iso);
+      if (r !== true) { if (r !== 'fuera de la mesa' && r !== 'publicada') X.toast('No se pudo: ' + r + '.'); return; }   // the mesa's setDate says why
+      vabre = null;
+      X.toast(`${nom} pasa al ${X.fmtDate(iso)}. ⌘Z lo deshace.`, { key: 'venc-accion', ms: 6000 });
+    }
+    vencPintar();
+  }
+  function onKey(e) {                          // Enter in a field of the vencidas' window: its button; Esc: closes the form
+    const t = e.target; if (!t || !t.matches || !t.matches('#mesa .detail[data-dlg="venc"] .vform input')) return;
+    if (e.key === 'Enter') { e.preventDefault(); const b = t.closest('.vform').querySelector('[data-cal="v-rep-ok"], [data-cal="v-can-ok"]'); if (b) b.click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); vabre = null; vencPintar(); }
+  }
+
   // ---------- moving a post to another day (its time stays) ----------
   // Pointer events (the mesa keeps HTML drag and drop for photos from the computer); a press that doesn't move is a click.
   let mv = null, later = false, noClick = 0, scr = 0;
@@ -366,6 +463,15 @@
 #mesa .cpaso.sig{border-color:var(--faint)}#mesa .cpaso.sig:hover{border-color:var(--ink)}
 #mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
 #mesa .cpaso.ro{color:var(--mute)}
+#mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:#e0362b;cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
+#mesa .chip.venc{box-shadow:inset 0 0 0 1.5px #e0362b}#mesa .chip.venc .ct{color:#e0362b;font-weight:700}
+#mesa .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}
+#mesa .vlist li{padding:8px 0;border-top:1px solid var(--line)}
+#mesa .vlist .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .vlist .vnom:hover b{text-decoration:underline}
+#mesa .vlist .vque{font-size:12px;color:var(--mute)}#mesa .vlist .votro{color:var(--ink)}
+#mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}#mesa .vacc button,#mesa .vform button{font-size:12px;padding:3px 10px}
+#mesa .vacc button[disabled]{opacity:.45;cursor:default}
+#mesa .vform input{font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}#mesa .vform input[type=text]{flex:1;min-width:160px}
 #mesa .cleg .csep{color:var(--faint);font-size:11px}
 #mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--faint)}
 #mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}
@@ -416,10 +522,10 @@
 @media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}}`;
   I().estilo('mesa-cal-css', CSS);
 
-  const ON = [['pointerover', onOver], ['click', onClick, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel]];
+  const ON = [['pointerover', onOver], ['click', onClick, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
   M.calendario = {
-    version: VERSION, render,
+    version: VERSION, render, vencidas: abrirVencidas,
     _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); if (mv) onCancel(); }
   };
   render();                                     // the mesa may have drawn its board before this file arrived

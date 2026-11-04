@@ -3338,7 +3338,7 @@
       const used = new Set([...outs, ...Object.values(lib).flatMap(srcsOf)]);
       if (!E.historia) S.tray = S.tray.filter(f => !used.has(f));   // photos now in the post leave the tray; a discard in a story stays, marked (D-056)
       const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
-      S.tray.unshift(...lost.filter(f => !M.files[f].design && !isKit(f)));   // photos the post no longer uses go back to the tray (never a logo)
+      S.tray.unshift(...I().aBandeja(lost));   // photos the post no longer uses go back to the tray (never a logo nor a drawn image)
       E.applied = true;
       I().changed();
       if (I().histJuntar && E.marca) I().histJuntar(E.marca);
@@ -3430,7 +3430,7 @@
       const used = new Set([...s.photos, ...Object.values(lib).flatMap(srcsOf)]);
       S.tray = S.tray.filter(f => !used.has(f));
       const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
-      S.tray.unshift(...lost.filter(f => !M.files[f].design && !isKit(f)));   // the photo replaced goes back to the tray
+      S.tray.unshift(...I().aBandeja(lost));   // the photo replaced goes back to the tray
       APL--; counted = false; I().setBusy('dz', null);
       I().changed();
       const nl = llenas.length, nn = nuevas.length, partes = [];
@@ -3540,7 +3540,7 @@
       const before = I().refsOf(S);
       h.photos = [made]; h.libre = { v: 1, slides: { [made]: comp } }; delete h.guias;
       const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
-      S.tray.unshift(...lost.filter(f => !M.files[f].design && !isKit(f) && !S.tray.includes(f)));
+      S.tray.unshift(...I().aBandeja(lost).filter(f => !S.tray.includes(f)));
       made = null;
       I().hNorm(S); I().changed();
       APL--; counted = false;

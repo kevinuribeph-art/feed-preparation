@@ -65,7 +65,7 @@
   // photos dropped from a design go back to the tray when nothing else uses them (never lose a photo)
   function rescue(ids) {
     const S = I().S, refs = I().refsOf(S);
-    const back = [...new Set(ids)].filter(f => f && !refs.has(f) && !String(f).startsWith('kit-') && !(M.files[f] && M.files[f].design));
+    const back = I().aBandeja([...new Set(ids)].filter(f => f && !refs.has(f)));
     if (back.length) { S.tray.unshift(...back); I().renderTray(); }
     return back;
   }

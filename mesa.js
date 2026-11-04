@@ -1183,6 +1183,7 @@
   // what may go to the tray: never an image the designer or the editor drew (D-101). Those go to the list of files to delete
   // once nothing, nor a step of ⌘Z, uses them (D-071)
   function aBandeja(fs) {
+    fs = fs.filter(trayable);   // nor a client's protected file (a logo)
     const d = fs.filter(f => M.files[f] && M.files[f].design);
     if (!d.length) return fs;
     delList(l => [...new Set([...l, ...d])]);
@@ -5426,7 +5427,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

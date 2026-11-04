@@ -105,7 +105,8 @@
   const VERSION = '1.45';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
-  const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
+  const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
+  const MINI_LONG = 720;                       // the slide list, «Todas» and the templates: from the photo's thumbnail
   const MAX_SLIDES = 20;                       // Instagram's limit for a carousel
   // «Transformar»: the frame formats (w/h); 1:1 is in both
   const RATIOS = { v: [['3:4', 3 / 4], ['4:5', 4 / 5], ['9:16', 9 / 16], ['2:3', 2 / 3], ['1:1', 1]], h: [['4:3', 4 / 3], ['5:4', 5 / 4], ['16:9', 16 / 9], ['3:2', 3 / 2], ['1:1', 1]] };
@@ -399,9 +400,10 @@
     }
     if (card) { ctx.beginPath(); ctx.rect(ib.x, ib.y, ib.w, ib.h); } else pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r);
     ctx.save(); ctx.clip();
-    const m = el.src ? img(el.src) : null, f = el.src && M.files[el.src];
+    const f = el.src && M.files[el.src], sr = f ? srcRect(el, f.w, f.h, ib.w, ib.h) : null;
+    const m = el.src ? img(el.src, sr ? Math.max(ib.w * k / sr.w, ib.h * k / sr.h) : undefined) : null;   // the original's px per drawn px (D-116)
     if (m && f) {
-      const sr = srcRect(el, f.w, f.h, ib.w, ib.h), ks = m.im.width / f.w;
+      const ks = m.im.width / f.w;
       ctx.save(); ctx.translate(ib.x + ib.w / 2, ib.y + ib.h / 2); ctx.scale(el.fx ? -1 : 1, el.fy ? -1 : 1);
       ctx.drawImage(m.im, sr.x * ks, sr.y * ks, sr.w * ks, sr.h * ks, -ib.w / 2, -ib.h / 2, ib.w, ib.h);
       ctx.restore();
@@ -587,23 +589,65 @@
     return E.sl.some(x => changedSl(x) || (!E.car && x.fmt !== x.fmt0));
   }
 
-  // ---------- photos for the editor: scaled once, loaded on demand ----------
-  function viewImg(src) {
+  // ---------- photos for the editor: decoded at the size they're drawn, a few at a time (D-116) ----------
+  // need: the original's px per drawn px (drawFoto works it out); without it, the working size. What is drawn small (the
+  // slide list, «Todas», the templates) comes from the photo's thumbnail; the rest at VIEW_LONG, and the original only when
+  // the zoom asks for more. Two decodes at a time; only the photos of the slide being edited and of its neighbours keep
+  // their working size (soltarLejanas). Meanwhile what there is is drawn: the thumbnail, then the photo.
+  function viewImg(src, need, trabajo) {   // trabajo: the slide being edited, at least at the working size
     if (!E) return null;
-    const b = E.bm.get(src);
-    if (b) return b.im ? b : null;
-    const rec = { im: null }, owner = E; E.bm.set(src, rec);
-    (async () => {
-      try {
-        const bmp = await createImageBitmap(await I().getBlob(src), { imageOrientation: 'from-image' });
-        const k = Math.min(1, VIEW_LONG / Math.max(bmp.width, bmp.height));
-        let im = bmp;
-        if (k < 1) { const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, c.width, c.height); bmp.close(); im = c; }
-        if (E !== owner) { if (im.close) im.close(); return; }
-        rec.im = im; E.reMini = true; pedir();
-      } catch (e) { rec.err = true; }
-    })();
+    const f = M.files[src], L = f ? Math.max(f.w, f.h) : 0, b = E.bm.get(src);
+    const quiere = need && L ? need * L : VIEW_LONG;
+    if (L && !trabajo && quiere <= MINI_LONG * 1.05) return b && b.im ? b : miniImg(src);
+    const obj = !L ? 0 : quiere > VIEW_LONG * 1.05 ? L : Math.min(L, VIEW_LONG);
+    if (!b || (!b.err && (b.pide || 0) < obj && (b.long || 0) < obj)) pedirFoto(src, obj, false);
+    const r = E.bm.get(src);
+    return r && r.im ? r : (L ? miniImg(src) : null);
+  }
+  function miniImg(src) {
+    const m = E.bmMini.get(src); if (m) return m.im ? m : null;
+    const rec = { im: null, mini: true }; E.bmMini.set(src, rec);
+    E.cola.push({ src, rec, mini: true }); drenarFotos();
     return null;
+  }
+  function pedirFoto(src, obj, atras) {
+    let rec = E.bm.get(src); if (!rec) { rec = { im: null, long: 0 }; E.bm.set(src, rec); }
+    rec.pide = obj;
+    const t = { src, rec, obj }; if (atras) E.cola.push(t); else E.cola.unshift(t);
+    drenarFotos();
+  }
+  function drenarFotos() {
+    while (E && E.decoding < 2 && E.cola.length) {
+      const t = E.cola.shift();
+      if (t.mini ? E.bmMini.get(t.src) !== t.rec : (E.bm.get(t.src) !== t.rec || t.rec.pide !== t.obj)) continue;   // gone or asked bigger since
+      decodificar(t);
+    }
+  }
+  async function decodificar({ src, rec, obj, mini }) {
+    const owner = E; owner.decoding++;
+    try {
+      const f = M.files[src], L = f ? Math.max(f.w, f.h) : 0;
+      let blob = null, largo = obj;
+      if (mini) { blob = M.thumbBlobs[src] || ((await I().idbGet('files', src).catch(() => null)) || {}).thumb || null; largo = MINI_LONG; }
+      if (!blob) blob = await I().getBlob(src);
+      const o = { imageOrientation: 'from-image' };
+      // the long side only: whichever way the camera turned it, the photo keeps its shape
+      if (f && largo && largo < (mini ? Infinity : L)) { o.resizeQuality = 'high'; if (f.w >= f.h) o.resizeWidth = Math.max(1, Math.round(largo)); else o.resizeHeight = Math.max(1, Math.round(largo)); }
+      let bmp = await createImageBitmap(blob, o);
+      if (mini && Math.max(bmp.width, bmp.height) > MINI_LONG * 1.5) { const b2 = await createImageBitmap(bmp, { resizeQuality: 'high', ...(bmp.width >= bmp.height ? { resizeWidth: MINI_LONG } : { resizeHeight: MINI_LONG }) }); bmp.close(); bmp = b2; }
+      const vivo = E === owner && (mini ? E.bmMini.get(src) === rec : E.bm.get(src) === rec);
+      if (!vivo || (rec.im && Math.max(rec.im.width, rec.im.height) >= Math.max(bmp.width, bmp.height))) { bmp.close(); return; }
+      if (rec.im && rec.im.close) rec.im.close();
+      rec.im = bmp; rec.long = Math.max(bmp.width, bmp.height); E.reMini = true; pedir();
+    } catch (e) { rec.err = true; }
+    finally { owner.decoding--; if (E === owner) drenarFotos(); }
+  }
+  // the working size only for the slide being edited and its neighbours (and the previews open): the rest let go
+  function soltarLejanas() {
+    const quedan = new Set(), vecinas = [];
+    for (const i of [E.i, E.i - 1, E.i + 1, E.pv ? E.pvI : -1, E.fv ? E.fvI : -1]) if (E.sl[i]) srcsOf(compAt(i)).forEach(f => { quedan.add(f); if (i !== E.i) vecinas.push(f); });
+    for (const [f, r] of E.bm) if (!quedan.has(f) && !String(f).startsWith('kit-')) { if (r.im && r.im.close) r.im.close(); E.bm.delete(f); }
+    for (const f of vecinas) { const L = M.files[f] ? Math.max(M.files[f].w, M.files[f].h) : 0; if (L && !E.bm.has(f)) pedirFoto(f, Math.min(L, VIEW_LONG), true); }   // ready when it's opened
   }
   async function renderOut(i) { const { W, H } = sizeAt(i); return dibujar(E.sl[i].comp, W, H); }   // slide i at full size: a JPEG Blob
   async function dibujar(comp, W, H) {        // a composition at W×H: a JPEG Blob (the editor open or not)
@@ -615,7 +659,15 @@
       const malas = fs0.filter(f => !(FONTS.get(f.file) || {}).ok && !FALLO_FUENTE.has(f.file));
       if (malas.length && I()) { malas.forEach(f => FALLO_FUENTE.add(f.file)); I().toast(`No se pudo cargar la fuente ${malas.map(f => f.n || String(f.file).replace(/^.*\//, '')).join(', ')}: ese texto sale con otra letra. Revisa la conexión y vuelve a aplicar.`, { ms: 8000 }); }
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      for (const f of srcsOf(comp)) if (!cache.has(f)) { const bmp = await createImageBitmap(await I().getBlob(f), { imageOrientation: 'from-image' }); cache.set(f, { im: bmp }); }
+      // each photo decoded at the px the slide uses (D-116), never more than the original nor less: a dry run on a 1 × 1
+      // canvas collects them; hidden ones aren't drawn, so they aren't decoded. One at a time.
+      const usa = new Map(), seco = document.createElement('canvas'); seco.width = seco.height = 1;
+      FUERA = true; try { drawComp(seco.getContext('2d'), comp, W, H, (f, need) => { usa.set(f, Math.max(usa.get(f) || 0, need || 1)); return null; }, 1, false); } finally { FUERA = false; }
+      for (const [f, need] of usa) {
+        const r = M.files[f], L = r ? Math.max(r.w, r.h) : 0, largo = L ? Math.round(Math.min(1, need) * L) : 0, o = { imageOrientation: 'from-image' };
+        if (r && largo < L) { o.resizeQuality = 'high'; if (r.w >= r.h) o.resizeWidth = largo; else o.resizeHeight = largo; }
+        cache.set(f, { im: await createImageBitmap(await I().getBlob(f), o) });
+      }
       const c = document.createElement('canvas'); c.width = W; c.height = H;
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
       FUERA = true; try { drawComp(x, comp, W, H, f => cache.get(f) || null, 1, false); } finally { FUERA = false; }
@@ -652,7 +704,7 @@
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
-        bm: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
+        bm: new Map(), bmMini: new Map(), cola: [], decoding: 0, bmI: -1, marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, flm: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: esHist(s) ? lsLeer(LS_ZH) !== '0' : lsLeer(LS_ZG) === '1', margen: 0 };
       E.guias0 = firmaG();
       E.sl = s.photos.map(key => {
@@ -727,7 +779,7 @@
     if (e.raf) cancelAnimationFrame(e.raf);
     if (e.tamRaf) cancelAnimationFrame(e.tamRaf);
     if (e.ro) e.ro.disconnect();
-    for (const b of e.bm.values()) if (b.im && b.im.close) b.im.close();
+    e.cola.length = 0; for (const b of [...e.bm.values(), ...e.bmMini.values()]) if (b.im && b.im.close) b.im.close();
     if (e.inert) e.inert.forEach(c => c.removeAttribute('inert'));
     if (e.el) e.el.remove();
     if (!e.applied && e.marca && I() && I().histJuntar) I().histJuntar(e.marca);   // a tidy-up at opening joins the step before it
@@ -1247,6 +1299,7 @@
   function frame() {
     if (!E) return;
     E.raf = 0;
+    if (E.bmI !== E.i) { E.bmI = E.i; soltarLejanas(); }   // another slide: the far ones let go (D-116)
     E.cv.style.visibility = E.sl.length ? '' : 'hidden';
     if (!E.sl.length) return;
     const { W, H } = E.sz = sizeAt(E.i), sc = E.scroll, cs = getComputedStyle(sc);
@@ -1259,7 +1312,7 @@
     x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
     const comp = compAt(E.i);
     comp.els.forEach(e => { if (e.t === 'texto') ajustarTexto(e, W, H); });   // a text's frame follows its lines (its font may have just loaded)
-    drawComp(x, comp, W, H, viewImg, k, true);
+    drawComp(x, comp, W, H, (f, need) => viewImg(f, need, true), k, true);
     const el = selEl();
     if (el && E.crop === el.id) cropView(x, el, W, H, k);
     if (E.zona && E.i === 0) verZona(x, W, H);

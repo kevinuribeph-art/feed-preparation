@@ -28,7 +28,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   const TIPOS = ['portada', 'ficha', 'final', 'reel'];
   // Alto mínimo de la zona analizada (y anclaje del velo) en px a factor 1: el de motor.py.
   const ALTO_ANALISIS = { ficha: 400, final: 480 };
@@ -981,8 +981,8 @@
 
   // ---- sílabas en español (para partir una palabra que no cabe): V-CV, VC-CV salvo grupos inseparables,
   // VC-CCV / VCC-CV, sin separar diptongos ni triptongos; mínimo 2 letras a cada lado del corte.
-  const VOCALES = new Set([...'aeiouáéíóúü']);
-  const ABIERTAS = new Set([...'aeoáéó']), CERRADAS_TILDE = new Set([...'íú']);
+  const VOCALES = new Set([...'aeiouáéíóúüàèìòùï']);   // with the Catalan ones (València, història)
+  const ABIERTAS = new Set([...'aeoáéóàèò']), CERRADAS_TILDE = new Set([...'íúìùï']);   // ï marks a hiatus (veïna)
   const INSEP = new Set(['pl', 'pr', 'bl', 'br', 'cl', 'cr', 'dr', 'tr', 'fl', 'fr', 'gl', 'gr', 'kl', 'kr']);
   const hiato = (a, b) => (ABIERTAS.has(a) && ABIERTAS.has(b)) || (CERRADAS_TILDE.has(a) && ABIERTAS.has(b)) || (ABIERTAS.has(a) && CERRADAS_TILDE.has(b));
   // s: letras en minúscula; devuelve los índices k donde puede empezar una sílaba (corte antes de s[k])
@@ -1033,7 +1033,7 @@
   // ---- chino, japonés y emojis: se puede cortar entre caracteres, sin guion (con kinsoku básico)
   const CJK_RE = /[⺀-⿿　-〿぀-ヿㇰ-ㇿ㐀-䶿一-鿿豈-﫿＀-￯]/;
   const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
-  const NO_INICIO_CJK = new Set([...'、。，．・：；？！ー〜～…‥」』）】〕〉》｝］〟’”ゝゞヽヾ々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ％‰°℃·»:;?!),.]}']);
+  const NO_INICIO_CJK = new Set([...'©®™℠、。，．・：；？！ー〜～…‥」』）】〕〉》｝］〟’”ゝゞヽヾ々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ％‰°℃·»:;?!),.]}']);
   const NO_FIN_CJK = new Set([...'「『（【〔〈《｛［〝‘“«(¿¡[{']);
   const esIdeo = (c) => CJK_RE.test(c) || EMOJI_RE.test(c);
   // Devuelve los trozos de un token entre los que se puede cortar sin espacio, o null si no hay ninguno.

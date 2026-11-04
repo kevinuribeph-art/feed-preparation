@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.7';
+  const VERSION = '1.8';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -259,12 +259,14 @@
   // fresh: read the file again (cache 'reload': a kit edited or restored on disk counts without reloading the page, whatever its date)
   async function baseKit(cid, fresh) {
     if (fresh || !BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'reload' }).then(async r => {
-      if (!r.ok) return { missing: true };
+      if (r.status === 404) return { missing: true };
+      if (!r.ok) return { offline: true };     // the server failed: not the same as having no kit
       const t = await r.text();
       try { return { kit: JSON.parse(t) }; } catch (e) { return { bad: jsonWhere(e, t) }; }
-    }).catch(() => ({ missing: true }));
+    }).catch(() => ({ offline: true }));       // no connection
     const k = await BASE[cid];
     if (!k.kit) delete BASE[cid];
+    if (k.offline) { need(BASEV[cid], `No se pudo leer el kit kits/${cid}.json (sin conexión): vuelve a intentarlo.`); return BASEV[cid]; }   // the kit already read stays
     BASEV[cid] = k.kit || null;
     need(!k.bad, `El kit kits/${cid}.json tiene un error de formato (${k.bad}).`);
     return k.kit || null;
@@ -593,6 +595,7 @@
   // Per-client override of the kit (sizes, colours, rules…), stored on the client record: travels with export/import.
   // patch keys set to null go back to the kit's value; patch === null clears every override but the final photo.
   async function ajustarKit(clientId, patch) {
+    need(!I().locked, LOCKED);   // a paused tab writes nothing, as cargar and aplicar
     need(patch === null || isObj(patch), 'ajustarKit espera un objeto con los cambios (null en una clave la devuelve al valor del kit).');
     const { base } = await rawKit(clientId);
     const c = await I().idbGet('clients', clientId); need(c, 'No existe ese cliente.');
@@ -619,6 +622,7 @@
     return putFinal(clientId, { name: file.name, size: file.size, type: file.type, w, h, lastModified: file.lastModified || 0, blob: file, thumb });
   }
   async function putFinal(cid, rec) {
+    need(!I().locked, LOCKED);   // a paused tab writes nothing (fijarFinal, fijarFinalArchivo)
     const id = `kit-${cid}-final`, at = nowISO();
     rec.name = 'Foto final · ' + String(rec.name || 'foto.jpg').replace(/^Foto final · /, '');
     await I().idbPut('files', id, rec);

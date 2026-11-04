@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.81'; // 3.81: audit, lot 5 — ⌘Z covers «+ Hueco» and «Fijar»; «Vista cliente» only looks (no ⌘Z, no dropped photos, no dragged cells); a lost release in the post view's strip no longer reorders the carousel (D-095)
+  M.version = '3.82'; // 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

@@ -191,6 +191,7 @@
   function edPendiente() { try { return !!(M.libre && M.libre.abierto && M.libre.abierto() && M.libre.pendiente && M.libre.pendiente()); } catch (e) { return false; } }
   window.addEventListener('beforeunload', e => { if (locked || !edPendiente()) return; e.preventDefault(); e.returnValue = ''; });
   async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
+    if (mode === 'readwrite' && [].concat(store).includes('boards')) tablerosP = null;   // a write: the boards read for an opening go (A4)
     const d = await db();
     return new Promise((res, rej) => {
       const t = d.transaction(store, mode);
@@ -205,7 +206,15 @@
   const idbGet = (st, k) => tx(st, 'readonly', s => s.get(k));
   const idbPut = (st, k, v) => tx(st, 'readwrite', s => s.put(v, k));
   const idbDel = (st, k) => tx(st, 'readwrite', s => s.delete(k));
-  const idbAll = st => tx(st, 'readonly', s => s.getAll());
+  // While a month opens (M.open, M.init, M.boot, M.openClient), all the saved boards are read once and shared (A4): every
+  // step of the opening used to read and deserialize them again (7 times). Any write to the boards lets the list go.
+  let tablerosVivo = 0, tablerosP = null;
+  const conTableros = fn => async (...a) => { tablerosVivo++; try { return await fn(...a); } finally { if (!--tablerosVivo) tablerosP = null; } };
+  const idbAll = st => {
+    if (st !== 'boards' || !tablerosVivo) return tx(st, 'readonly', s => s.getAll());
+    if (!tablerosP) { const p = tablerosP = tx(st, 'readonly', s => s.getAll()); p.catch(() => { if (tablerosP === p) tablerosP = null; }); }
+    return tablerosP;
+  };
   // The client's record is read, changed and written in one transaction (D-106, step 1 of the web's storage layer): two
   // writers (the mesa, the editor, the stories, the designer, an import) never undo each other. fn gets the stored record
   // and returns the new one (it may change it in place), or nothing to leave it; it runs inside the transaction, so it
@@ -4358,6 +4367,7 @@
     curClient = null; S = null; render();
     return M.status();
   };
+  M.init = conTableros(M.init); M.open = conTableros(M.open); M.boot = conTableros(M.boot); M.openClient = conTableros(M.openClient);   // the boards read once per opening (A4)
 
   // ---------- past posts from Notion (only when the previous month isn't in the mesa) ----------
   function loadPastOne(id, url) {

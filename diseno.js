@@ -334,11 +334,22 @@
     if (posKit(k)) kitPart.push(posKit(k));
     return hash(JSON.stringify(own)) + '.' + hash(JSON.stringify(kitPart));
   }
+  // The accent of the cards' footer and the final's contact (D-021) is a part of its own (D-111), kept in the design when it
+  // is applied (d.acc): only designs that show it (a card with the series' name, a final) have it, and one applied before
+  // 3.86 has none and stays as it was until its next «Aplicar». Null: nothing of the design takes the accent.
+  const usaAcento = (d, sl) => sl.tipo === 'final' || (sl.tipo === 'ficha' && !!str(d.serie));
+  function accOf(s, k) {
+    const d = s.design; k = k || {};
+    if (!d.slides.some(sl => usaAcento(d, sl))) return null;
+    return hash(JSON.stringify(((k.colores_texto || {}).acentos || []).map(c => [c, (k.colores || {})[c] || null])));
+  }
+  const accAlDia = (s, k) => s.design.acc == null || s.design.acc === accOf(s, k);
   // what one slide's applied image depends on: the design's common part (kit, format, size, name, positions) and its own
   function firmaSlide(s, raw, fin, sz, i) {
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), crops = I().S.crops || {};
     const comun = sigOf(s, raw).split('.')[1] + '|' + hash(JSON.stringify([d.fmt, str(d.serie), posOf(d), sz.W, sz.H]));
-    return comun + '|' + hash(JSON.stringify([sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null, pageOf(s, i)]));
+    const acc = usaAcento(d, sl) ? accOf(s, raw) : null;
+    return comun + '|' + hash(JSON.stringify([sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null, pageOf(s, i)])) + (acc ? '|' + acc : '');
   }
   // synchronous state for the mesa (post view, upload plan): 'ok' = applied and up to date, 'chg' = not, null = no design.
   // Until the client's kit file has been read once, only the post's own part is compared.
@@ -358,7 +369,7 @@
     if (!s || !s.design || !I()) return null;
     if (!isApplied(s)) return 'chg';
     const r = rawSync(s.design.kit), a = String(s.design.sig || ''), b = sigOf(s, r.raw);
-    return (r.partial ? a.split('.')[0] === b.split('.')[0] : a === b) ? 'ok' : 'chg';
+    return (r.partial ? a.split('.')[0] === b.split('.')[0] : a === b && accAlDia(s, r.raw)) ? 'ok' : 'chg';
   }
   // canvas size of every slide of a design: the first photo decides a horizontal one (an Instagram carousel has one ratio)
   function sizeOf(kit, d, fin) {
@@ -484,7 +495,7 @@
     const aplicado = isApplied(s), used = new Set(srcsOf(s)), cur = await avisosActuales(s, raw, fin);
     return {
       slot: s.id, nombre: s.name, tipo: s.type, kit: d.kit, fmt: d.fmt, serie: d.serie,
-      aplicado, desactualizado: aplicado && !!raw && d.sig !== sigOf(s, raw),
+      aplicado, desactualizado: aplicado && !!raw && (d.sig !== sigOf(s, raw) || !accAlDia(s, raw)),
       fotoFinal: fin ? nameOf(fin) : null,
       slides: d.slides.map((sl, i) => {
         const src = effSrc(sl, fin);
@@ -567,7 +578,7 @@
     if (unused.length) { S.tray.unshift(...unused.filter(f => !S.tray.includes(f))); notas.push(`${unused.length === 1 ? 'Una foto de la casilla no se usa en el diseño: vuelve' : `${unused.length} fotos de la casilla no se usan en el diseño: vuelven`} a la bandeja.`); }
     s.photos = outs.slice();
     if (!reel) s.fmt = d.fmt;
-    d.out = outs; d.sig = sig; d.outAt = nowISO(); d.avisos = avisos.slice(); d.sigs = per; d.avisosPor = avPor; remember(s);
+    d.out = outs; d.sig = sig; d.acc = accOf(s, raw); d.outAt = nowISO(); d.avisos = avisos.slice(); d.sigs = per; d.avisosPor = avPor; remember(s);
     if (opts.silencioso && I().histAmend) I().histAmend(s.id);   // an automatic re-render is part of the change that caused it (⌘Z undoes both)
     I().changed(); if (!(E && E.slotId === slotId)) I().refreshDetail();   // with the editor open, closing it refreshes the post (once: no image load cut short)
     for (const f of old) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }

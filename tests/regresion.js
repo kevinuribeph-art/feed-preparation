@@ -7523,6 +7523,27 @@
     igual(hora(c), DIA(22) + ' 23:58', 'la de las 23:58 cambió');
   });
 
+  prueba('D19', 'Cambiar el acento del kit deja pendiente un diseño con pie o final; uno sin ellos sigue al día, y uno aplicado antes de la 3.86 también, hasta su siguiente «Aplicar» (D-021, D-089, D-111)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await poner('r1', [await foto('d19a.jpg', 1080, 1350), await foto('d19b.jpg', 1080, 1350)]);
+      const c = await M.diseno.cargar('r1', { slides: textos('D19', 'Portada', 'Ficha'), serie: 'SERIE D19' }); ok(c && !c.error, 'cargar() falló: ' + json(c));
+      const a = await M.diseno.aplicar('r1'); ok(a && a.ok, 'aplicar() falló: ' + json(a));
+      await disenada('r2', [await foto('d19c.jpg', 1080, 1350), await foto('d19d.jpg', 1080, 1350)], textos('D19b', 'Portada', 'Ficha'));
+      igual([estadoDz('r1'), estadoDz('r2')], ['ok', 'ok'], 'recién aplicados');
+      try {
+        await M.diseno.ajustarKit(CLIENTE, { colores: { terracotta_light: '#ff0000', terracotta_dark: '#ff0000' } });
+        igual(estadoDz('r1'), 'chg', 'con otro acento, el diseño con pie sigue al día');
+        igual(estadoDz('r2'), 'ok', 'el diseño sin pie ni final quedó pendiente');
+        const r = await M.diseno.aplicar('r1'); ok(r && r.ok, 'volver a aplicar falló: ' + json(r));
+        igual(estadoDz('r1'), 'ok', 'aplicado con el acento nuevo');
+        delete M._in.slot('r1').design.acc;          // como uno aplicado antes de la 3.86 (en el tablero vivo)
+        await M.diseno.ajustarKit(CLIENTE, { colores: { terracotta_light: '#00ff00', terracotta_dark: '#00ff00' } });
+        igual(estadoDz('r1'), 'ok', 'un diseño aplicado antes de la 3.86 quedó pendiente');
+      } finally { await M.diseno.ajustarKit(CLIENTE, null); }
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

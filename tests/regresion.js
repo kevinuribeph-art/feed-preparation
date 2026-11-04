@@ -431,7 +431,7 @@
     M.setEstado('r1', null);
     ok(!slot('r1').estado, 'reactivada, guarda el estado');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 8, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
   });
 
   prueba('M32', 'Calendario: Aprobado ● verde, No aprobado ● rojo, Programado ✓, Publicado dos ✓, Cancelado ✕ rojo; Por empezar, Captions y Por aprobar como antes; la leyenda al día (D-081)', async () => {
@@ -1345,7 +1345,7 @@
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
-    igual(info.version, 8, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085)
+    igual(info.version, 9, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
     const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
     await M.flush();
     const guardado = await M._in.idbGet('boards', key);
@@ -1412,7 +1412,7 @@
     const k0 = M.diseno.kit; M.diseno.kit = async () => kit;
     const c0 = await M._in.idbGet('clients', CLIENTE), libre0 = c0.libre || null;
     c0.libre = { ...(libre0 || {}), plantillas: ((libre0 && libre0.plantillas) || []).filter(t => !t.historia) };
-    delete c0.libre.historiasKit;
+    delete c0.libre.historiasKit; delete c0.libre.historiasKitIds;
     let idLogo = null;
     if (logo) {
       const c = D.createElement('canvas'); c.width = c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#16110e'; x.fillRect(0, 0, 120, 120);
@@ -5695,7 +5695,7 @@
     ok(!('paso' in M.board()), 'un archivo sin paso trajo uno');
     igual(pasoDe(), 'empezar', 'sin paso, el de su publicación más atrasada');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 8, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
   });
 
   // retrasar desde el selector de la ventana de la publicación (D-085)
@@ -7405,6 +7405,97 @@
     elegir(el); accion('del');
     const vuelto = await hasta(() => compDe(i).els.find(e => e.t === 'hueco' && e.id === 'h70'), 3000, 'el hueco de vuelta');
     igual([vuelto.g, vuelto.r, vuelto.sh], ['G70', 0.2, 0.5], 'el hueco no volvió tal cual');
+  });
+
+  // ---------- cierre de la auditoría, lote 2 (mesa 3.85): datos ----------
+  prueba('M48', 'El registro del cliente se cambia en una sola transacción: dos cambios a la vez desde la mesa y el editor quedan los dos, y un doble «Guardar como plantilla» guarda dos con nombres distintos (D-106)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('m48-a.jpg')]);
+    const c0 = await M._in.idbGet('clients', CLIENTE), antes = { name: c0.name, handle: c0.handle || '', libre: c0.libre ? JSON.parse(json(c0.libre)) : null };
+    try {
+      await Promise.all([M.updateClient(CLIENTE, { handle: 'm48' }), M.updateClient(CLIENTE, { name: 'Nombre M48' })]);
+      let c = await M._in.idbGet('clients', CLIENTE);
+      igual([c.handle, c.name], ['@m48', 'Nombre M48'], 'dos updateClient a la vez: se perdió uno');
+      await abrirEditor('r1');
+      ed().sel = null; ed().mas = [];
+      const ids0 = new Set(((c.libre && c.libre.plantillas) || []).map(t => t.id));
+      accion('tpl-save'); accion('tpl-save');
+      const p1 = M.updateClient(CLIENTE, { handle: 'm48b' });
+      await p1;
+      const nuevas = await hasta(async () => { const x = await M._in.idbGet('clients', CLIENTE), l = ((x.libre && x.libre.plantillas) || []).filter(t => !ids0.has(t.id)); return l.length >= 2 && l; }, 4000, 'las dos plantillas guardadas');
+      igual(nuevas.length, 2, 'las plantillas nuevas');
+      ok(nuevas[0].nombre !== nuevas[1].nombre, 'las dos plantillas se llaman igual: ' + nuevas[0].nombre);
+      c = await M._in.idbGet('clients', CLIENTE);
+      igual(c.handle, '@m48b', 'el cambio de la mesa a la vez que el editor se perdió');
+      igual(ed().plant.filter(t => !ids0.has(t.id)).length, 2, 'el editor no ve las dos plantillas');
+    } finally {
+      if (M.libre.abierto()) M.libre.cerrar();
+      const c2 = await M._in.idbGet('clients', CLIENTE);
+      Object.assign(c2, { name: antes.name, handle: antes.handle }); if (antes.libre) c2.libre = antes.libre; else delete c2.libre;
+      await M._in.idbPut('clients', CLIENTE, c2); await M._in.loadClients();
+    }
+  });
+
+  prueba('H34', 'Con una versión nueva del kit, las plantillas de historia borradas no vuelven; entran solo las nuevas y las que siguen se redibujan; IndexedDB 9 (D-062, D-107, D-060)', async () => {
+    await tablero([pub(1)]);
+    const { kit, salir } = await conPlantillas();
+    try {
+      let c = await M._in.idbGet('clients', CLIENTE);
+      igual(M.plantillasHistoria().length, 8, 'las 8 del kit');
+      c.libre.plantillas = c.libre.plantillas.filter(t => t.nombre !== 'Historia · Foto a sangre');
+      await M._in.idbPut('clients', CLIENTE, c); await M._in.loadClients();
+      const p0 = kit.historias.plantillas[0];
+      kit.historias = { ...kit.historias, v: (kit.historias.v || 1) + 1, plantillas: [...kit.historias.plantillas, { ...p0, id: 'h34-nueva', nombre: 'Nueva H34' }] };
+      await M.hs.asegurar(CLIENTE); await M._in.loadClients();
+      const nombres = M.plantillasHistoria().map(t => t.nombre.replace('Historia · ', ''));
+      ok(!nombres.includes('Foto a sangre'), 'la borrada ha vuelto con la versión nueva del kit: ' + json(nombres));
+      ok(nombres.includes('Nueva H34'), 'la nueva del kit no entró: ' + json(nombres));
+      igual(nombres.length, 8, 'las plantillas de historia');
+      c = await M._in.idbGet('clients', CLIENTE);
+      igual(c.libre.historiasKit, kit.historias.v, 'la versión sembrada');
+      const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
+      if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');
+    } finally { await salir(); }
+  });
+
+  prueba('D18', 'Un tipo cambiado en Notion con el diseñador aún sin cargar: al llegar el diseñador, el diseño se convierte, queda pendiente y avisa (D-089, D-108)', async () => {
+    await tablero([pub(2, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r2', [await foto('d18a.jpg', 1080, 1350), await foto('d18b.jpg', 1080, 1350)], textos('D18', 'Portada', 'Ficha'));
+      await M.flush();
+      const rt = M.diseno._retipo, sy = M.diseno.sync;
+      M.diseno._retipo = undefined; M.diseno.sync = undefined;   // como si diseno.js aún no hubiera llegado
+      try { await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(2, 'Carrusel'), type: 'Reel' }], past: [], force: true }); await espera(50); }
+      finally { M.diseno._retipo = rt; M.diseno.sync = sy; }
+      igual(slot('r2').design.slides[0].tipo, 'portada', 'sin el diseñador ya se convirtió');
+      igual(slot('r2').type, 'Reel', 'el tipo de Notion');
+      M._in.clearToasts();
+      M.diseno.sync();
+      await hasta(() => slot('r2').design.slides[0].tipo === 'reel', 3000, 'el diseño convertido a reel');
+      igual(slot('r2').design.slides.length, 1, 'el reel lleva más de una diapositiva');
+      igual(estadoDz('r2'), 'chg', 'el diseño convertido no quedó pendiente');
+      ok(toastCon(/En Notion cambió el tipo de .*su diseño se ha convertido/), 'sin aviso del tipo cambiado: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+      const antes = json(slot('r2').design); M.diseno.sync(); await espera(50);
+      igual(json(slot('r2').design), antes, 'un segundo sync volvió a convertirlo');
+    });
+  });
+
+  prueba('H35', 'cargarHistorias lee una fecha sin zona como hora de Madrid, también en un navegador en otro huso; con Z o su diferencia, como dice (D-109)', async () => {
+    await tablero([pub(1)]);
+    const D0 = W.Date, sz = /T\d\d:\d\d(:\d\d(\.\d+)?)?$/;
+    class Londres extends D0 {                     // un navegador en Londres: en noviembre, una fecha sin zona es UTC
+      constructor(...a) { if (a.length === 1 && typeof a[0] === 'string' && sz.test(a[0])) super(a[0] + 'Z'); else super(...a); }
+      static parse(x) { return typeof x === 'string' && sz.test(x) ? D0.parse(x + 'Z') : D0.parse(x); }
+    }
+    let r;
+    W.Date = Londres;
+    try { r = await M.cargarHistorias([{ date: '2026-11-20T10:00', order: 1, note: 'H35 sin zona' }, { date: '2026-11-21T10:00:00+01:00', order: 1, note: 'H35 con zona' }, { date: '2026-11-22T09:00:00Z', order: 1, note: 'H35 con Z' }]); }
+    finally { W.Date = D0; }
+    ok(Array.isArray(r) && r.every(x => x.result === 'creada'), 'no se crearon: ' + json(r));
+    const h = n => M.historias().find(x => x.note === n);
+    igual([h('H35 sin zona').dateMadrid, h('H35 con zona').dateMadrid, h('H35 con Z').dateMadrid], ['2026-11-20 10:00', '2026-11-21 10:00', '2026-11-22 10:00'], 'las horas de Madrid');
+    const mal = await M.cargarHistorias([{ date: '2026-11-20', order: 1, note: 'H35 sin hora' }]);
+    ok(mal[0] && /fecha no válida/.test(mal[0].error || ''), 'una fecha sin hora no se rechazó: ' + json(mal));
   });
 
   // =====================================================================================================

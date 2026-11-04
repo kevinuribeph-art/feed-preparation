@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.84'; // 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.85'; // 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -167,7 +167,7 @@
       // 7 (mesa 3.68): no new store: a board keeps the month's step (S.paso, D-084), which an older tab would drop.
       // 8 (mesa 3.69): no new store: a post may be put back by hand (s.estado.v Por empezar, Captions or Por aprobar, D-085),
       // which an older tab reads as a state of its own and its step bar would move on.
-      const r = indexedDB.open('mesa-feed', 8);
+      const r = indexedDB.open('mesa-feed', 9);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
@@ -206,6 +206,23 @@
   const idbPut = (st, k, v) => tx(st, 'readwrite', s => s.put(v, k));
   const idbDel = (st, k) => tx(st, 'readwrite', s => s.delete(k));
   const idbAll = st => tx(st, 'readonly', s => s.getAll());
+  // The client's record is read, changed and written in one transaction (D-106, step 1 of the web's storage layer): two
+  // writers (the mesa, the editor, the stories, the designer, an import) never undo each other. fn gets the stored record
+  // and returns the new one (it may change it in place), or nothing to leave it; it runs inside the transaction, so it
+  // can't await. Returns the record written, or null (not there, or left as it was).
+  async function editarCliente(id, fn) {
+    let out = null, err = null;
+    try {
+      await tx('clients', 'readwrite', st => {
+        const g = st.get(id);
+        g.onsuccess = () => {
+          if (!g.result) return;
+          try { const n = fn(g.result); if (n) { st.put(n, id); out = n; } } catch (e) { err = e; st.transaction.abort(); }
+        };
+      });
+    } catch (e) { throw err || e; }
+    return out;
+  }
 
   // ---------- helpers ----------
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -4000,13 +4017,15 @@
   };
   M.updateClient = async (id, patch) => {
     if (!okCd(patch.cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
-    const c = await idbGet('clients', id); if (!c) return 'no existe';
-    if (patch.name != null) c.name = String(patch.name).trim() || c.name;
-    if (patch.handle != null) c.handle = normHandle(patch.handle);
-    if (patch.cycleDay != null && patch.cycleDay !== '') c.cycleDay = cdOf(patch.cycleDay);   // the boards already made keep theirs
     let gone = null;
-    if (patch.foto !== undefined && (patch.foto || null) !== (c.foto || null)) { gone = c.foto || null; if (patch.foto) c.foto = patch.foto; else delete c.foto; c.fotoAt = new Date().toISOString(); }   // profile photo (vista cliente)
-    await idbPut('clients', id, c);
+    const c = await editarCliente(id, c => {
+      if (patch.name != null) c.name = String(patch.name).trim() || c.name;
+      if (patch.handle != null) c.handle = normHandle(patch.handle);
+      if (patch.cycleDay != null && patch.cycleDay !== '') c.cycleDay = cdOf(patch.cycleDay);   // the boards already made keep theirs
+      if (patch.foto !== undefined && (patch.foto || null) !== (c.foto || null)) { gone = c.foto || null; if (patch.foto) c.foto = patch.foto; else delete c.foto; c.fotoAt = new Date().toISOString(); }   // profile photo (vista cliente)
+      return c;
+    });
+    if (!c) return 'no existe';
     if (gone && String(gone).startsWith('perfil-')) { try { await idbDel('files', gone); } catch (e) { /* */ } soltarArchivo(gone); }   // its URL too (D-071)
     await loadClients(); render();
     return c;
@@ -4134,7 +4153,7 @@
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
     const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
     if (why) throw new Error(why);
-    if (hasCd && !cfg.reopen && cl0.cycleDay !== cd) { await idbPut('clients', client, { ...cl0, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
+    if (hasCd && !cfg.reopen && cl0.cycleDay !== cd) { await editarCliente(client, c => c.cycleDay === cd ? null : { ...c, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
     if (pd) pdCancel();
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
     try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
@@ -5042,13 +5061,12 @@
       }
       for (const id of newPast) { await idbPut('files', 'past:' + id, gotPast[id]); res.past++; }
       for (const c of P.newClients) await idbPut('clients', c.id, c);
-      for (const c of P.kitUpd) { const o = await idbGet('clients', c.id); if (o) await idbPut('clients', c.id, { ...o, kit: c.kit, kitAt: c.kitAt }); }
-      for (const c of P.libUpd || []) { const o = await idbGet('clients', c.id); if (o) await idbPut('clients', c.id, { ...o, libre: c.libre, libreAt: c.libreAt }); }
+      for (const c of P.kitUpd) await editarCliente(c.id, o => ({ ...o, kit: c.kit, kitAt: c.kitAt }));
+      for (const c of P.libUpd || []) await editarCliente(c.id, o => ({ ...o, libre: c.libre, libreAt: c.libreAt }));
       for (const c of P.fotoUpd || []) {
-        const o = await idbGet('clients', c.id); if (!o) continue;
-        const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto;
-        await idbPut('clients', c.id, n);
-        if (o.foto && o.foto !== n.foto && String(o.foto).startsWith('perfil-')) { try { await idbDel('files', o.foto); } catch (e) { /* */ } soltarArchivo(o.foto); }   // the one it replaces, and its URL (D-071)
+        let viejo = null;
+        const n = await editarCliente(c.id, o => { viejo = o.foto; const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto; return n; });
+        if (n && viejo && viejo !== n.foto && String(viejo).startsWith('perfil-')) { try { await idbDel('files', viejo); } catch (e) { /* */ } soltarArchivo(viejo); }   // the one it replaces, and its URL (D-071)
       }
       P.upd.forEach(b => keepCaps(b, P.local[b.key]));
       // a board that only takes caption batches keeps its own editedAt: the batches came from the other Mac, which has them,
@@ -5355,7 +5373,7 @@
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
-    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
+    getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
     dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,

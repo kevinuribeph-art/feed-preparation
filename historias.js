@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.8';
+  const VERSION = '1.9';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -168,10 +168,13 @@
       X = I(); if (!X || X.S !== S) return { error: 'la mesa cambió mientras se cargaban: vuelve a intentarlo' };
     }
     const res = list.map(() => null), dias = new Map();
+    // a date with no zone is Madrid's time (D-109), read the same in any browser; one with Z or its offset, as it says
+    const sinZona = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(\.\d+)?)?$/, fechaDe = d => { const m = sinZona.exec(String(d ?? '').trim()); return m ? X.madridISO(m[1], m[2]) : d; };
     list.forEach((it, i) => {
-      const t = it && !X.dOnly(it.date) ? X.ts(it.date) : 0, day = t ? X.localDay(it.date) : null, s = it && it.slotId ? S.slots.find(x => x.id === it.slotId) : null;
+      const date = it ? fechaDe(it.date) : null;
+      const t = it && !X.dOnly(date) ? X.ts(date) : 0, day = t ? X.localDay(date) : null, s = it && it.slotId ? S.slots.find(x => x.id === it.slotId) : null;
       const fondo = it && it.fondo ? String(it.fondo).toLowerCase() : null;
-      const mal = !it ? 'historia vacía' : !t ? 'fecha no válida: tiene que llevar hora y Z o su diferencia' : it.slotId && !s ? 'esa publicación no está en este tablero' : !s && !X.inBoard(day) ? 'fuera de la mesa' : fondo && !/^#[0-9a-f]{6}$/.test(fondo) ? 'fondo no válido' : fondo && fondos && !fondos.includes(fondo) ? 'ese fondo no es del kit del cliente' : '';
+      const mal = !it ? 'historia vacía' : !t ? 'fecha no válida: tiene que llevar hora (sin zona, hora de Madrid; o con Z o su diferencia)' : it.slotId && !s ? 'esa publicación no está en este tablero' : !s && !X.inBoard(day) ? 'fuera de la mesa' : fondo && !/^#[0-9a-f]{6}$/.test(fondo) ? 'fondo no válido' : fondo && fondos && !fondos.includes(fondo) ? 'ese fondo no es del kit del cliente' : '';
       if (mal) { res[i] = { error: mal, ...(it && it.date ? { date: it.date } : {}) }; return; }
       if (!dias.has(day)) dias.set(day, []);
       dias.get(day).push({ it, i, t, s, fondo });
@@ -306,14 +309,21 @@
     if (!H || !Array.isArray(H.plantillas)) { SIN_KIT.add(cid); return; }
     SIN_KIT.delete(cid);
     const c = await X.idbGet('clients', cid); if (!c) return;
-    const nuevas = new Map();
-    if ((c.libre || {}).historiasKit !== H.v) for (const p of H.plantillas) nuevas.set('historia-' + p.id, await plantillaDe(H, kit, p, c));
-    else for (const t of c.libre.plantillas || []) if (t.historia && !t.historia.logo && t.historia.def.p.cabecera && t.historia.def.p.cabecera.logo && await logoPorNombre(c, t.historia.def.p.cabecera.logo)) nuevas.set(t.id, await plantillaDe(H, kit, t.historia.def.p, c));   // its logo has arrived
-    if (!nuevas.size || I().locked) return;
-    const c2 = await X.idbGet('clients', cid); if (!c2) return;   // what changed meanwhile stays
-    const lib = c2.libre || {}, ps = lib.plantillas || [];
-    c2.libre = { ...lib, historiasKit: H.v, plantillas: [...ps.map(t => nuevas.get(t.id) || t), ...[...nuevas.values()].filter(t => !ps.some(q => q.id === t.id))] };
-    await X.idbPut('clients', cid, c2); await X.loadClients();
+    // the ids ever seeded (c.libre.historiasKitIds, D-107): with a new version of the kit only those never seeded come in and
+    // those still there are drawn again; a deleted one stays deleted (D-062). A client seeded before 3.85 gets the list at
+    // its next opening: with the same version, all of that version's were seeded; with another, those it has now.
+    const lib0 = c.libre || {}, nuevas = new Map(), todos = H.plantillas.map(p => 'historia-' + p.id), hay = new Set((lib0.plantillas || []).map(t => t.id));
+    const sembradas = new Set(!lib0.historiasKit ? [] : lib0.historiasKitIds || (lib0.historiasKit === H.v ? todos : (lib0.plantillas || []).filter(t => t.historia).map(t => t.id)));
+    if (lib0.historiasKit !== H.v) { for (const p of H.plantillas) { const id = 'historia-' + p.id; if (!sembradas.has(id) || hay.has(id)) nuevas.set(id, await plantillaDe(H, kit, p, c)); } }
+    else for (const t of lib0.plantillas || []) if (t.historia && !t.historia.logo && t.historia.def.p.cabecera && t.historia.def.p.cabecera.logo && await logoPorNombre(c, t.historia.def.p.cabecera.logo)) nuevas.set(t.id, await plantillaDe(H, kit, t.historia.def.p, c));   // its logo has arrived
+    if ((!nuevas.size && lib0.historiasKitIds) || I().locked) return;
+    const c2 = await X.editarCliente(cid, c2 => {   // what changed meanwhile stays: one transaction (D-106)
+      const lib = c2.libre || {}, ps = lib.plantillas || [], ya = new Set(lib.historiasKit ? lib.historiasKitIds || [...sembradas] : []);
+      const entran = [...nuevas.values()].filter(t => !ps.some(q => q.id === t.id) && !ya.has(t.id));   // deleted meanwhile: stays deleted
+      c2.libre = { ...lib, historiasKit: H.v, historiasKitIds: [...new Set([...ya, ...entran.map(t => t.id), ...ps.filter(t => t.historia).map(t => t.id)])], plantillas: [...ps.map(t => nuevas.get(t.id) || t), ...entran] };
+      return c2;
+    });
+    if (c2) await X.loadClients();
   }
   const asegurar = cid => {                    // one at a time per client
     if (!SEMBRANDO.has(cid)) SEMBRANDO.set(cid, sembrar(cid).finally(() => SEMBRANDO.delete(cid)));
@@ -384,7 +394,7 @@
   }
   function render() {
     const X = I(); if (!X || !X.shellReady()) return;
-    if (X.S && X.S.client && !SIN_KIT.has(X.S.client) && !((X.CL || []).find(c => c.id === X.S.client) || { libre: {} }).libre?.historiasKit) asegurar(X.S.client).catch(() => {});   // the kit's story templates, once (D-062)
+    if (X.S && X.S.client && !SIN_KIT.has(X.S.client) && !(((X.CL || []).find(c => c.id === X.S.client) || { libre: {} }).libre || {}).historiasKitIds) asegurar(X.S.client).catch(() => {});   // the kit's story templates, once (D-062)
     const root = X.root(), box = root.querySelector('.main > section.hv');   // the panel, not the cells' .dot.hv (D-035)
     root.classList.toggle('hv-on', ON && !!X.S);
     if (!box) return;

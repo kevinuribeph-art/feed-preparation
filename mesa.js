@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -4859,6 +4859,20 @@
     P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);
     P.trays.forEach(r => r.add.forEach(f => P.refs.add(f)));
     d.clients.forEach(c => { const o = clients.find(x => x.id === c.id), l = !o || P.libUpd.includes(c) ? c.libre : o.libre; ((l && l.logos) || []).forEach(f => P.refs.add(f)); });   // the editor's logos the client keeps, used or not (also one an import before 3.45 left without its file)
+    // photos only this Mac used: the file's newer month no longer has them, nor anything else here (D-100). They go back to
+    // their client's tray, in front; never an image the designer or the editor drew
+    P.vueltas = 0;
+    for (const b of P.upd) {
+      const o = byKey[b.key], c = boardClient(b); if (!o || !c) continue;
+      const ya = locTr[c] || new Set(), add = [];
+      for (const f of refsTodo(o)) {
+        if (P.refs.has(f) || ya.has(f) || !trayable(f) || !P.files.has(f)) continue;
+        const r = M.files[f] || await idbGet('files', f).catch(() => null);
+        if (!r || r.design) continue;
+        add.push(f); P.refs.add(f);
+      }
+      if (add.length) { P.trays.push({ client: c, at: '', add, vuelta: true }); P.vueltas += add.length; }
+    }
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
@@ -4978,7 +4992,7 @@
       await addQ; await flushPending();
       if (uploadsBusy() || importing) return fail('Espera a que termine la subida de fotos: no se ha importado nada.');   // the board couldn't reopen
       P = await xferPlan(d);                       // again, with what is saved now
-      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0, ...(P.kitUpd.length ? { kits: P.kitUpd.map(c => c.id) } : {}) };
+      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0, ...(P.kitUpd.length ? { kits: P.kitUpd.map(c => c.id) } : {}), ...(P.vueltas ? { vueltas: P.vueltas } : {}) };
       const newPast = P.newPast.filter(id => gotPast[id]);
       if (P.nothing) {
         if (shellReady() && /^xfer/.test(root.querySelector('.detail').dataset.dlg || '')) closeDetail();
@@ -5017,7 +5031,7 @@
       for (const r of P.trays) {           // each client's tray takes the file's photos it lacks: newer tray, in front (D-041)
         await tx('bandejas', 'readwrite', st => { const g = st.get(r.client); g.onsuccess = () => {
           const o = g.result || { client: r.client, tray: [], at: '' }, add = r.add.filter(f => !o.tray.includes(f) && (got[f] || P.files.has(f)));
-          o.tray = String(r.at) > String(o.at || '') ? [...add, ...o.tray] : [...o.tray, ...add]; st.put(o, r.client);
+          o.tray = r.vuelta || String(r.at) > String(o.at || '') ? [...add, ...o.tray] : [...o.tray, ...add]; st.put(o, r.client);
         }; });
       }
       for (const c of new Set([...P.put.map(boardClient), ...P.trays.map(r => r.client)])) if (c) await juntarBandeja(c);   // a file from before 3.44: its months' trays
@@ -5026,7 +5040,7 @@
       await reopen();
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
       const k = P.newer.length;
-      toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
+      toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), P.vueltas && (P.vueltas === 1 ? '1 foto que solo usaba este Mac ha vuelto a la bandeja' : `${P.vueltas} fotos que solo usaba este Mac han vuelto a la bandeja`), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
       return res;
     } catch (e) {
       const q = e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)));

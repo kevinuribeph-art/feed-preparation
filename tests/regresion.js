@@ -7231,6 +7231,33 @@
     ok(!recargaPregunta(), 'con el editor cerrado, recargar pregunta');
   });
 
+  prueba('M45', 'Importar un mes más reciente devuelve a la bandeja las fotos que solo usaba este Mac, con un aviso; nunca una imagen del editor ni una foto que sigue en uso (D-100)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const [f] = await poner('r1', [await foto('m45-f.jpg')]);
+    const [g] = await poner('r2', [await foto('m45-g.jpg')]);
+    await abrirEditor('r2'); accion('add-txt'); await aplicarEditor();   // r2 lleva una imagen del editor hecha con g
+    const img = slot('r2').photos[0];
+    ok(img !== g && M.files[img] && M.files[img].design, 'el editor no dejó su imagen en la publicación');
+    await M.flush();
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`);
+    b.slots.find(s => s.id === 'r1').photos = [];  // en el otro Mac, F salió de su publicación (y de su bandeja)
+    const s2 = b.slots.find(s => s.id === 'r2'); s2.photos = [g]; delete s2.libre;   // y la imagen del editor se quitó
+    delete d.files[f]; delete d.files[img];
+    (d.bandejas || []).forEach(r => { r.tray = r.tray.filter(x => x !== f && x !== img); });
+    b.editedAt = b.savedAt = new Date(Date.now() + 60000).toISOString();
+    M._in.clearToasts();
+    const r = await M.importData(d, { confirm: false });
+    ok(r && r.ok && r.boards.updated.includes(`${CLIENTE}-${MES}`), 'no se importó el mes: ' + json(r));
+    await hasta(() => M.board() && M.board().key === `${CLIENTE}-${MES}`, 4000, 'el mes abierto otra vez');
+    igual([slot('r1').photos, slot('r2').photos], [[], [g]], 'no ganó el mes del archivo');
+    ok(M.board().tray.includes(f), 'la foto que solo usaba este Mac no volvió a la bandeja');
+    ok(!M.board().tray.includes(img), 'la imagen del editor entró en la bandeja');
+    ok(!M.board().tray.includes(g), 'una foto que sigue en su publicación entró en la bandeja');
+    ok(toastCon(/1 foto que solo usaba este Mac ha vuelto a la bandeja/), 'sin aviso: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    igual(r.vueltas, 1, 'lo que devuelve importData');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

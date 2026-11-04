@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -150,7 +150,8 @@
     if (!shellReady()) return;
     root.querySelectorAll('.lock').forEach(x => x.remove());
     const o = document.createElement('div'); o.className = 'lock';
-    o.innerHTML = '<div class="card dlg"><h3>La mesa está abierta en otra pestaña</h3><p>Para no pisar cambios, esta se ha pausado. Lo último que hiciste aquí está guardado.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="takeover">Usar aquí</button></div></div></div>';
+    const ed = edPendiente() ? 'Lo demás que hiciste aquí está guardado. El editor tenía cambios sin aplicar: se perderán al usar la otra pestaña.' : 'Lo último que hiciste aquí está guardado.';
+    o.innerHTML = `<div class="card dlg"><h3>La mesa está abierta en otra pestaña</h3><p>Para no pisar cambios, esta se ha pausado. ${ed}</p><div class="form"><div class="row"><button type="button" class="btn" data-act="takeover">Usar aquí</button></div></div></div>`;
     root.append(o);
   }
 
@@ -182,9 +183,13 @@
     if (!shellReady()) { if (document.body) document.body.textContent = m + ': recarga esta pestaña.'; return; }
     root.querySelectorAll('.lock').forEach(x => x.remove());
     const o = document.createElement('div'); o.className = 'lock';
-    o.innerHTML = `<div class="card dlg"><h3>${m}</h3><p>Esta pestaña se ha pausado para no pisar los datos. Recárgala para seguir: lo guardado no se pierde.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="recargar">Recargar</button></div></div></div>`;
+    o.innerHTML = `<div class="card dlg"><h3>${m}</h3><p>Esta pestaña se ha pausado para no pisar los datos. Recárgala para seguir: lo guardado no se pierde.${edPendiente() ? ' El editor tenía cambios sin aplicar: se perderán al recargar.' : ''}</p><div class="form"><div class="row"><button type="button" class="btn" data-act="recargar">Recargar</button></div></div></div>`;
     root.append(o);
   }
+  // the free editor's session lives only in memory until «Aplicar» (D-099): the pauses say so, and a reload or closing the tab asks
+  // first (not in a paused tab, whose notice already said it)
+  function edPendiente() { try { return !!(M.libre && M.libre.abierto && M.libre.abierto() && M.libre.pendiente && M.libre.pendiente()); } catch (e) { return false; } }
+  window.addEventListener('beforeunload', e => { if (locked || !edPendiente()) return; e.preventDefault(); e.returnValue = ''; });
   async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
     const d = await db();
     return new Promise((res, rej) => {

@@ -7204,6 +7204,33 @@
     igual(k(b), `${DIA(9)} 01:30`, 'con hora a con hora no conservó la distancia');
   });
 
+  prueba('M44', 'Con cambios sin aplicar en el editor, el aviso de otra pestaña y el de versión nueva lo dicen, y recargar o cerrar pregunta; sin cambios, no (D-099)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('m44.jpg')]);
+    const aviso = () => { const l = q('.lock'); return l ? l.textContent : ''; };
+    const recargaPregunta = () => { const e = new W.Event('beforeunload', { cancelable: true }); W.dispatchEvent(e); return e.defaultPrevented; };
+    const activa = async () => { qa('.lock').forEach(x => x.remove()); await M._test.claim(); await hasta(() => !M._in.locked, 3000, 'la mesa activa otra vez'); };
+    const bc = new W.BroadcastChannel('mesa-feed'), otra = async () => { bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' }); await hasta(() => M._in.locked && q('.lock'), 3000, 'la mesa pausada'); };
+    try {
+      await abrirEditor('r1');                     // sin cambios: el aviso de siempre y recargar no pregunta
+      await otra();
+      ok(!/editor/i.test(aviso()), 'sin cambios, el aviso nombra el editor: ' + aviso());
+      await activa();
+      ok(!recargaPregunta(), 'sin cambios, recargar pregunta');
+      accion('add-txt');                           // un cambio sin aplicar
+      await otra();
+      ok(aviso().includes('El editor tenía cambios sin aplicar: se perderán al usar la otra pestaña'), 'el aviso de otra pestaña no nombra el editor: ' + aviso());
+      ok(!recargaPregunta(), 'pausada, recargar pregunta otra vez (el aviso ya lo dijo)');
+      await activa();
+      M._test.versionNueva();
+      ok(/El editor tenía cambios sin aplicar: se perderán al recargar/.test(aviso()), 'el aviso de versión nueva no nombra el editor: ' + aviso());
+      await activa();
+      ok(recargaPregunta(), 'con cambios sin aplicar, recargar o cerrar no pregunta');
+    } finally { bc.close(); if (M._in.locked) await activa(); }
+    M.libre.cerrar();
+    ok(!recargaPregunta(), 'con el editor cerrado, recargar pregunta');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

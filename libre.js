@@ -216,7 +216,7 @@
   function rellenar(comp, h, f, W, H, llena) {
     const vacio = clone(h); delete vacio.hueco;
     if (h.t === 'hueco') {
-      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, ...(h.g ? { g: h.g } : {}), hueco: vacio }, W, H, llena ?? llenaSola(f, h, W, H));   // in the hole's group, if it had one
+      const el = encajeHueco({ ...fotoEl(f), op: h.op ?? 1, ...(h.g ? { g: h.g } : {}), r: h.r || 0, sh: h.sh || 0, hueco: vacio }, W, H, llena ?? llenaSola(f, h, W, H));   // in the hole's group, with its corners and shadow (D-105)
       comp.els.splice(comp.els.indexOf(h), 1, el);
       sinProvisional(comp);
       return el;

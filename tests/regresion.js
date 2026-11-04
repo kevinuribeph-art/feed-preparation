@@ -7392,6 +7392,21 @@
     }
   });
 
+  prueba('E70', 'La foto que llena un hueco hereda su grupo, sus esquinas y su sombra; al borrarla vuelve el hueco tal cual (D-105)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e70-a.jpg')]);
+    const [f] = await M.addFiles([await foto('e70-b.jpg')], null, { tray: true });
+    await abrirEditor('r1');
+    accion('sl-add'); const i = ed().i;
+    const h = { ...huecoEl('h70', 0.1, 0.1, 0.8, 0.5), g: 'G70', r: 0.2, sh: 0.5 };
+    compDe(i).els.push(h, { id: 'x70', t: 'texto', txt: 'Pie', x: 0.1, y: 0.7, w: 0.8, h: 0.08, size: 0.04, color: '#000000', al: 'izq', g: 'G70' });
+    const el = await enHueco(i, 'h70', f, '2');
+    igual([el.g, el.r, el.sh], ['G70', 0.2, 0.5], 'la foto del hueco no heredó grupo, esquinas y sombra');
+    elegir(el); accion('del');
+    const vuelto = await hasta(() => compDe(i).els.find(e => e.t === 'hueco' && e.id === 'h70'), 3000, 'el hueco de vuelta');
+    igual([vuelto.g, vuelto.r, vuelto.sh], ['G70', 0.2, 0.5], 'el hueco no volvió tal cual');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

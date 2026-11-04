@@ -7112,6 +7112,48 @@
     M._in.closeDetail();
   });
 
+  // ---------- auditoría, lote 6 (diseño 1.8, motor 1.4): diseñador y motor ----------
+  prueba('D14', 'Sin conexión, el diseñador sigue con el kit ya leído en vez de decir que el cliente no tiene kit', async () => {
+    await tablero([pub(1)]);
+    await conKitPrueba(async () => {
+      const k1 = await M.diseno.kit(CLIENTE); ok(k1 && !k1.error, 'no se leyó el kit: ' + json(k1));
+      const f1 = W.fetch, mio = `kits/${CLIENTE}.json`;
+      W.fetch = function (u, o) { const s = typeof u === 'string' ? u : u && u.url; return s && s.includes(mio) ? Promise.reject(new TypeError('sin red (prueba)')) : f1.call(W, u, o); };
+      try {
+        const k2 = await M.diseno.kit(CLIENTE);
+        ok(k2 && !k2.error, 'sin red dice: ' + json(k2 && k2.error));
+      } finally { W.fetch = f1; }
+    });
+  });
+
+  prueba('D15', 'Una pestaña pausada no cambia el kit del cliente: ajustarKit se niega, como cargar y aplicar', async () => {
+    await tablero([pub(1)]);
+    await conKitPrueba(async () => {
+      const c0 = await M._in.idbGet('clients', CLIENTE);
+      const bc = new W.BroadcastChannel('mesa-feed'); bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' });
+      try {
+        await hasta(() => M._in.locked, 3000, 'la mesa pausada');
+        const r = await M.diseno.ajustarKit(CLIENTE, { lienzo: { margen: 99 } });
+        ok(r && r.error, 'ajustarKit escribió desde una pestaña pausada');
+        const c1 = await M._in.idbGet('clients', CLIENTE);
+        igual(json((c1 && c1.kit) || null), json((c0 && c0.kit) || null), 'cambió el kit guardado');
+      } finally { bc.close(); await M._test.claim(); await hasta(() => !M._in.locked, 3000, 'la mesa activa otra vez'); }
+    });
+  });
+
+  prueba('D16', 'Motor: ©, ® y ™ nunca empiezan una línea', async () => {
+    const X = W.DisenoMotor._interno;
+    for (const t of ['Travel®', 'Cup™', 'Marca©']) { const s = X.segmentosSinEspacio(t); ok(!s || !s.some(x => /^[©®™]/.test(x)), `«${t}» se puede partir antes del signo: ${json(s)}`); }
+  });
+
+  prueba('D17', 'Motor: las sílabas del catalán (à, è, ò, ï) se cortan bien y las del castellano no cambian', async () => {
+    const X = W.DisenoMotor._interno;
+    const guion = w => { const g = X.grafemas(w), k = [...X.cortesSilabicos(g)].sort((a, b) => a - b); let o = '', p = 0; for (const i of k) { o += g.slice(p, i).join('') + '-'; p = i; } return o + g.slice(p).join(''); };
+    igual(guion('València'), 'Va-lèn-cia', 'València');
+    igual(guion('història'), 'his-tò-ria', 'història');
+    igual(guion('construcción'), 'cons-truc-ción', 'el castellano cambió');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

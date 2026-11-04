@@ -7182,6 +7182,28 @@
     ok(!M.historias(id)[0].zernioId, '⌘Z devolvió una marca de Zernio quitada');
   });
 
+  prueba('H33', 'Un post que no tenía hora, o que la pierde, mueve sus historias por días enteros y cada una conserva su hora (D-057, D-098)', async () => {
+    const k = id => M._in.localDay(hDe(id).date) + ' ' + M._in.localTime(hDe(id).date);
+    const notion = async date => { await M.flush(); await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(1), date }], past: [], force: true }); await M.flush(); };
+    // sin hora → llega de Notion con hora
+    await tablero([{ ...pub(1), date: DIA(5) }]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    const a = M.hs.anadir(DIA(5), { slotId: 'r1', time: '20:00' });
+    await notion(`${DIA(5)}T19:00:00.000+01:00`);
+    igual(k(a), `${DIA(5)} 20:00`, 'al recibir hora, la historia no conservó la suya');
+    // con hora → pierde la hora
+    await tablero([{ ...pub(1), date: `${DIA(5)}T10:00:00.000+01:00` }]);
+    const b = M.hs.anadir(DIA(5), { slotId: 'r1', time: '23:30' });
+    await notion(DIA(5));
+    igual(k(b), `${DIA(5)} 23:30`, 'al perder la hora, la historia cambió de día u hora');
+    // sin hora, a otro día con hora: los mismos días, la misma hora
+    await notion(`${DIA(7)}T09:00:00.000+01:00`);
+    igual(k(b), `${DIA(7)} 23:30`, 'no se movió por días enteros');
+    // con hora a con hora: a la misma distancia, como siempre (D-057)
+    await notion(`${DIA(8)}T11:00:00.000+01:00`);
+    igual(k(b), `${DIA(9)} 01:30`, 'con hora a con hora no conservó la distancia');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

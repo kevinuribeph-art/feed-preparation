@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -328,6 +328,7 @@
   const localDay = iso => { const s = String(iso || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const t = ts(s); return t ? madParts(t).day : null; };
   const localTime = iso => dOnly(iso) || !ts(iso) ? '' : madParts(ts(iso)).time;
   const wallMs = (day, time) => { const [y, mo, d] = day.split('-').map(Number), [h, mi] = time.split(':').map(Number); return Date.UTC(y, mo - 1, d, h, mi); };
+  const diaMs = day => wallMs(day, '00:00'), diaMas = (day, k) => new Date(diaMs(day) + k * 864e5).toISOString().slice(0, 10);   // a calendar day ± k days
   // Madrid wall clock -> ISO UTC (right on both sides of a DST change)
   function madridISO(day, time) {
     const want = wallMs(day, time); let t = want - 7200e3;
@@ -955,8 +956,13 @@
       if (caido && !h.cancelada) { h.cancelada = true; h.porPost = true; cambio = true; }
       else if (!caido && h.porPost) { delete h.cancelada; delete h.porPost; cambio = true; }
       if (s && !sameDate(s.date, h.postDate)) {
-        const d = tsPost(s.date) - tsPost(h.postDate);
-        if (h.postDate && d) h.date = isoDe(ts(h.date) + d);
+        if (h.postDate && (dOnly(s.date) || dOnly(h.postDate))) {   // a post with no time, before or after: whole days, each story keeps its time (D-098)
+          const dd = Math.round((diaMs(localDay(s.date)) - diaMs(localDay(h.postDate))) / 864e5);
+          if (dd) h.date = madridISO(diaMas(localDay(h.date), dd), localTime(h.date));
+        } else {
+          const d = tsPost(s.date) - tsPost(h.postDate);
+          if (h.postDate && d) h.date = isoDe(ts(h.date) + d);
+        }
         h.postDate = s.date; cambio = true;
       }
     }

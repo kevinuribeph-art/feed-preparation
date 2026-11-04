@@ -7658,6 +7658,20 @@
     M._in.closeDetail();
   });
 
+  prueba('E71', 'Cambiar de formato y volver no deja «cambios sin aplicar» en las diapositivas que no se tocaron (firma resumida, C15)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e71-a.jpg'), await foto('e71-b.jpg')]);
+    await abrirEditor('r1');
+    ok(!M.libre.pendiente(), 'recién abierto ya tiene cambios');
+    accion('fmt', { v: 'q11' }); await espera(30);
+    accion('fmt', { v: 'v45' }); await espera(30);
+    accion('sl', { i: 1 }); elegir(compDe(1).els.find(e => e.t === 'foto'));
+    const lock0 = compDe(1).els.find(e => e.t === 'foto').lock;
+    accion('lock'); accion('lock');                // bloquear y desbloquear: la diapositiva pasa a composición sin cambiar
+    if (lock0 === undefined) delete ed().sl[1].comp.els.find(e => e.t === 'foto').lock;
+    ok(!M.libre.pendiente(), 'tras ir a 1:1 y volver a 4:5 quedan cambios sin aplicar: ' + json(ed().sl.map(x => !!x.comp)));
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

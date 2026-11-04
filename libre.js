@@ -404,7 +404,7 @@
     if (card) { ctx.beginPath(); ctx.rect(ib.x, ib.y, ib.w, ib.h); } else pathRR(ctx, -fw / 2, -fh / 2, fw, fh, r);
     ctx.save(); ctx.clip();
     const f = el.src && M.files[el.src], sr = f ? srcRect(el, f.w, f.h, ib.w, ib.h) : null;
-    const m = el.src ? img(el.src, sr ? Math.max(ib.w * k / sr.w, ib.h * k / sr.h) : undefined) : null;   // the original's px per drawn px (D-116)
+    const m = el.src ? img(el.src, sr ? Math.max(ib.w * k / sr.w, ib.h * k / sr.h) : undefined) : null;   // drawn px per px of the original (D-116)
     if (m && f) {
       const ks = m.im.width / f.w;
       ctx.save(); ctx.translate(ib.x + ib.w / 2, ib.y + ib.h / 2); ctx.scale(el.fx ? -1 : 1, el.fy ? -1 : 1);
@@ -593,14 +593,14 @@
   }
 
   // ---------- photos for the editor: decoded at the size they're drawn, a few at a time (D-116) ----------
-  // need: the original's px per drawn px (drawFoto works it out); without it, the working size. What is drawn small (the
+  // need: drawn px per px of the original (drawFoto works it out); without it, the working size. What is drawn small (the
   // slide list, «Todas», the templates) comes from the photo's thumbnail; the rest at VIEW_LONG, and the original only when
   // the zoom asks for more. Two decodes at a time; only the photos of the slide being edited and of its neighbours keep
   // their working size (soltarLejanas). Meanwhile what there is is drawn: the thumbnail, then the photo.
   function viewImg(src, need, trabajo) {   // trabajo: the slide being edited, at least at the working size
     if (!E) return null;
     const f = M.files[src], L = f ? Math.max(f.w, f.h) : 0, b = E.bm.get(src);
-    const quiere = need && L ? need * L : VIEW_LONG;
+    const quiere = need && L ? need * L : VIEW_LONG;   // need: drawn px per px of the original, so need × L = the long side wanted
     if (L && !trabajo && quiere <= MINI_LONG * 1.05) return b && b.im ? b : miniImg(src);
     const obj = !L ? 0 : quiere > VIEW_LONG * 1.05 ? L : Math.min(L, VIEW_LONG);
     if (!b || (!b.err && (b.pide || 0) < obj && (b.long || 0) < obj)) pedirFoto(src, obj, false);
@@ -637,7 +637,7 @@
       // the long side only: whichever way the camera turned it, the photo keeps its shape
       if (f && largo && largo < (mini ? Infinity : L)) { o.resizeQuality = 'high'; if (f.w >= f.h) o.resizeWidth = Math.max(1, Math.round(largo)); else o.resizeHeight = Math.max(1, Math.round(largo)); }
       let bmp = await createImageBitmap(blob, o);
-      if (mini && Math.max(bmp.width, bmp.height) > MINI_LONG * 1.5) { const b2 = await createImageBitmap(bmp, { resizeQuality: 'high', ...(bmp.width >= bmp.height ? { resizeWidth: MINI_LONG } : { resizeHeight: MINI_LONG }) }); bmp.close(); bmp = b2; }
+      if (mini && Math.max(bmp.width, bmp.height) > MINI_LONG * 1.5) { const b0 = bmp; bmp = await createImageBitmap(b0, { resizeQuality: 'high', ...(b0.width >= b0.height ? { resizeWidth: MINI_LONG } : { resizeHeight: MINI_LONG }) }).finally(() => b0.close()); }
       const vivo = E === owner && (mini ? E.bmMini.get(src) === rec : E.bm.get(src) === rec);
       if (!vivo || (rec.im && Math.max(rec.im.width, rec.im.height) >= Math.max(bmp.width, bmp.height))) { bmp.close(); return; }
       if (rec.im && rec.im.close) rec.im.close();
@@ -667,7 +667,7 @@
       const usa = new Map(), seco = document.createElement('canvas'); seco.width = seco.height = 1;
       FUERA = true; try { drawComp(seco.getContext('2d'), comp, W, H, (f, need) => { usa.set(f, Math.max(usa.get(f) || 0, need || 1)); return null; }, 1, false); } finally { FUERA = false; }
       for (const [f, need] of usa) {
-        const r = M.files[f], L = r ? Math.max(r.w, r.h) : 0, largo = L ? Math.round(Math.min(1, need) * L) : 0, o = { imageOrientation: 'from-image' };
+        const r = M.files[f], L = r ? Math.max(r.w, r.h) : 0, largo = L ? Math.max(1, Math.round(Math.min(1, need) * L)) : 0, o = { imageOrientation: 'from-image' };
         if (r && largo < L) { o.resizeQuality = 'high'; if (r.w >= r.h) o.resizeWidth = largo; else o.resizeHeight = largo; }
         cache.set(f, { im: await createImageBitmap(await I().getBlob(f), o) });
       }
@@ -2539,7 +2539,7 @@
   function formatoEd(f, quiet) {
     if (E.reel || !FMTS[f] || f === fmtAt(E.i)) return;   // a reel's cover is 9:16
     const apply = () => {
-      const upd = x => { if (x.key && !x.out) { const fresh = E.car ? f !== E.fmt0 || x.fmt !== x.fmt0 : f !== x.fmt0; x.raw = rawComp(x.key, fresh); if (!x.comp) x.base = firma(x.raw); } };
+      const upd = x => { if (x.key && !x.out) { const fresh = E.car ? f !== E.fmt0 || x.fmt !== x.fmt0 : f !== x.fmt0; x.raw = rawComp(x.key, fresh); if (!x.comp) x.base = hfirma(x.raw); } };
       if (E.car) { E.fmt = f; E.sl.forEach(upd); } else { const x = cur(); x.fmt = f; upd(x); }
       E.sl.forEach((x, i) => fotosDe(x.comp).forEach(e => { if (e.fit != null && e.src) encajar(e, e.fit, i); }));   // «Encajar» holds in the new format
       E.sl.forEach((x, i) => { if (x.comp) mantenerRat(x, i); });                                                    // and so does «Transformar»

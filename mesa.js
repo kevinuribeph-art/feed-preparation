@@ -603,7 +603,7 @@
   function guardar(B) {
     const { tray: _t, carpetas: _c, ...cuerpo } = B, b = JSON.parse(JSON.stringify(cuerpo)), c = B.client || boardClient(B), fuera = {};
     // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
-    const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo && !tablerosP) tablerosP = p0.then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
+    const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
     if (!c) return idbPut('boards', B.key, b).then(parchea);
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
@@ -4368,7 +4368,7 @@
     if (lc && CL.find(c => c.id === lc)) return M.openClient(lc);
     if (CL.length) return M.openClient(CL[0].id);
     const all = (await idbAll('boards')) || [];
-    if (all.length) return M.open(all.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0].key);
+    if (all.length) return M.open([...all].sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0].key);
     if (!shellReady()) buildShell();
     curClient = null; S = null; render();
     return M.status();

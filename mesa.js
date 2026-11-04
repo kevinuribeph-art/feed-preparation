@@ -167,7 +167,7 @@
       // 7 (mesa 3.68): no new store: a board keeps the month's step (S.paso, D-084), which an older tab would drop.
       // 8 (mesa 3.69): no new store: a post may be put back by hand (s.estado.v Por empezar, Captions or Por aprobar, D-085),
       // which an older tab reads as a state of its own and its step bar would move on.
-      const r = indexedDB.open('mesa-feed', 8);
+      const r = indexedDB.open('mesa-feed', 9);
       r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };

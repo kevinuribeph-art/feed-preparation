@@ -431,7 +431,7 @@
     M.setEstado('r1', null);
     ok(!slot('r1').estado, 'reactivada, guarda el estado');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 8, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
   });
 
   prueba('M32', 'Calendario: Aprobado ● verde, No aprobado ● rojo, Programado ✓, Publicado dos ✓, Cancelado ✕ rojo; Por empezar, Captions y Por aprobar como antes; la leyenda al día (D-081)', async () => {
@@ -1345,7 +1345,7 @@
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs, 4000, 'historias.js');
     const info = (await W.indexedDB.databases()).find(d => d.name === 'mesa-feed');
-    igual(info.version, 8, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085)
+    igual(info.version, 9, 'versión de la base de datos');   // 6 desde la 3.66 (D-082); 7 desde la 3.68 (D-084); 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
     const id = M.hs.anadir(DIA(10), { note: 'H12' }), key = `${CLIENTE}-${MES}`;
     await M.flush();
     const guardado = await M._in.idbGet('boards', key);
@@ -1412,7 +1412,7 @@
     const k0 = M.diseno.kit; M.diseno.kit = async () => kit;
     const c0 = await M._in.idbGet('clients', CLIENTE), libre0 = c0.libre || null;
     c0.libre = { ...(libre0 || {}), plantillas: ((libre0 && libre0.plantillas) || []).filter(t => !t.historia) };
-    delete c0.libre.historiasKit;
+    delete c0.libre.historiasKit; delete c0.libre.historiasKitIds;
     let idLogo = null;
     if (logo) {
       const c = D.createElement('canvas'); c.width = c.height = 120; const x = c.getContext('2d'); x.fillStyle = '#16110e'; x.fillRect(0, 0, 120, 120);
@@ -5695,7 +5695,7 @@
     ok(!('paso' in M.board()), 'un archivo sin paso trajo uno');
     igual(pasoDe(), 'empezar', 'sin paso, el de su publicación más atrasada');
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
-    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 8, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085)
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');   // 8 desde la 3.69 (D-085); 9 desde la 3.85 (D-107)
   });
 
   // retrasar desde el selector de la ventana de la publicación (D-085)
@@ -7434,6 +7434,28 @@
       Object.assign(c2, { name: antes.name, handle: antes.handle }); if (antes.libre) c2.libre = antes.libre; else delete c2.libre;
       await M._in.idbPut('clients', CLIENTE, c2); await M._in.loadClients();
     }
+  });
+
+  prueba('H34', 'Con una versión nueva del kit, las plantillas de historia borradas no vuelven; entran solo las nuevas y las que siguen se redibujan; IndexedDB 9 (D-062, D-107, D-060)', async () => {
+    await tablero([pub(1)]);
+    const { kit, salir } = await conPlantillas();
+    try {
+      let c = await M._in.idbGet('clients', CLIENTE);
+      igual(M.plantillasHistoria().length, 8, 'las 8 del kit');
+      c.libre.plantillas = c.libre.plantillas.filter(t => t.nombre !== 'Historia · Foto a sangre');
+      await M._in.idbPut('clients', CLIENTE, c); await M._in.loadClients();
+      const p0 = kit.historias.plantillas[0];
+      kit.historias = { ...kit.historias, v: (kit.historias.v || 1) + 1, plantillas: [...kit.historias.plantillas, { ...p0, id: 'h34-nueva', nombre: 'Nueva H34' }] };
+      await M.hs.asegurar(CLIENTE); await M._in.loadClients();
+      const nombres = M.plantillasHistoria().map(t => t.nombre.replace('Historia · ', ''));
+      ok(!nombres.includes('Foto a sangre'), 'la borrada ha vuelto con la versión nueva del kit: ' + json(nombres));
+      ok(nombres.includes('Nueva H34'), 'la nueva del kit no entró: ' + json(nombres));
+      igual(nombres.length, 8, 'las plantillas de historia');
+      c = await M._in.idbGet('clients', CLIENTE);
+      igual(c.libre.historiasKit, kit.historias.v, 'la versión sembrada');
+      const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
+      if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, 9, 'la versión de IndexedDB');
+    } finally { await salir(); }
   });
 
   // =====================================================================================================

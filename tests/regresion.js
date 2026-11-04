@@ -7154,6 +7154,145 @@
     igual(guion('construcción'), 'cons-truc-ción', 'el castellano cambió');
   });
 
+  // ---------- fallos delicados de la 3.82 ----------
+  prueba('H32', '⌘Z no quita la marca de Zernio: la programada sigue programada, sin papelera y sin que cargarHistorias la pise; deshacer su creación no la quita (D-097)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.libre && M.hs && M.historias, 4000, 'libre.js e historias.js');
+    const [f] = await M.addFiles([await foto('h32.jpg')]);
+    const id = M.hs.anadir(DIA(10));               // un paso: crearla
+    await historiaConFoto(id, f);                  // otro: diseñarla
+    await M.flush();
+    igual(M.marcarHistoriasProgramadas([{ id, zernioId: 'z-h32' }]), [{ id, state: 'programada' }], 'al marcar');
+    await M.flush();
+    const programada = que => { const h = M.historias(id)[0]; ok(h, `${que}: la historia desapareció`); igual([h.state, h.zernioId], ['programada', 'z-h32'], `${que}: perdió la marca de Zernio`); };
+    M._test.undo(); await M.flush();
+    programada('tras un ⌘Z');
+    M.hs.borrar(id);
+    ok(hDe(id), 'una programada se pudo borrar tras ⌘Z');
+    const r = await M.cargarHistorias([{ date: hDe(id).date, order: 1, note: 'Pisada' }], { replace: true });
+    igual(r[0].result, 'programada', 'cargarHistorias con replace la pisó tras ⌘Z');
+    for (let i = 0; i < 3; i++) { M._test.undo(); await M.flush(); }   // hasta antes de crearla
+    programada('tras deshacer su creación');
+    M._test.redo(); await M.flush();
+    programada('tras ⇧⌘Z');
+    // y al revés: quitada la marca (zernioId: null), ⌘Z no la devuelve
+    M.marcarHistoriasProgramadas([{ id, zernioId: null }]); await M.flush();
+    ok(!M.historias(id)[0].zernioId, 'no se quitó la marca');
+    M._test.undo(); await M.flush();
+    ok(!M.historias(id)[0].zernioId, '⌘Z devolvió una marca de Zernio quitada');
+  });
+
+  prueba('H33', 'Un post que no tenía hora, o que la pierde, mueve sus historias por días enteros y cada una conserva su hora (D-057, D-098)', async () => {
+    const k = id => M._in.localDay(hDe(id).date) + ' ' + M._in.localTime(hDe(id).date);
+    const notion = async date => { await M.flush(); await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(1), date }], past: [], force: true }); await M.flush(); };
+    // sin hora → llega de Notion con hora
+    await tablero([{ ...pub(1), date: DIA(5) }]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    const a = M.hs.anadir(DIA(5), { slotId: 'r1', time: '20:00' });
+    await notion(`${DIA(5)}T19:00:00.000+01:00`);
+    igual(k(a), `${DIA(5)} 20:00`, 'al recibir hora, la historia no conservó la suya');
+    // con hora → pierde la hora
+    await tablero([{ ...pub(1), date: `${DIA(5)}T10:00:00.000+01:00` }]);
+    const b = M.hs.anadir(DIA(5), { slotId: 'r1', time: '23:30' });
+    await notion(DIA(5));
+    igual(k(b), `${DIA(5)} 23:30`, 'al perder la hora, la historia cambió de día u hora');
+    // sin hora, a otro día con hora: los mismos días, la misma hora
+    await notion(`${DIA(7)}T09:00:00.000+01:00`);
+    igual(k(b), `${DIA(7)} 23:30`, 'no se movió por días enteros');
+    // con hora a con hora: a la misma distancia, como siempre (D-057)
+    await notion(`${DIA(8)}T11:00:00.000+01:00`);
+    igual(k(b), `${DIA(9)} 01:30`, 'con hora a con hora no conservó la distancia');
+  });
+
+  prueba('M44', 'Con cambios sin aplicar en el editor, el aviso de otra pestaña y el de versión nueva lo dicen, y recargar o cerrar pregunta; sin cambios, no (D-099)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('m44.jpg')]);
+    const aviso = () => { const l = q('.lock'); return l ? l.textContent : ''; };
+    const recargaPregunta = () => { const e = new W.Event('beforeunload', { cancelable: true }); W.dispatchEvent(e); return e.defaultPrevented; };
+    const activa = async () => { qa('.lock').forEach(x => x.remove()); await M._test.claim(); await hasta(() => !M._in.locked, 3000, 'la mesa activa otra vez'); };
+    const bc = new W.BroadcastChannel('mesa-feed'), otra = async () => { bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' }); await hasta(() => M._in.locked && q('.lock'), 3000, 'la mesa pausada'); };
+    try {
+      await abrirEditor('r1');                     // sin cambios: el aviso de siempre y recargar no pregunta
+      await otra();
+      ok(!/editor/i.test(aviso()), 'sin cambios, el aviso nombra el editor: ' + aviso());
+      await activa();
+      ok(!recargaPregunta(), 'sin cambios, recargar pregunta');
+      accion('add-txt');                           // un cambio sin aplicar
+      await otra();
+      ok(aviso().includes('El editor tenía cambios sin aplicar: se perderán al usar la otra pestaña'), 'el aviso de otra pestaña no nombra el editor: ' + aviso());
+      ok(!recargaPregunta(), 'pausada, recargar pregunta otra vez (el aviso ya lo dijo)');
+      await activa();
+      M._test.versionNueva();
+      ok(/El editor tenía cambios sin aplicar: se perderán al recargar/.test(aviso()), 'el aviso de versión nueva no nombra el editor: ' + aviso());
+      await activa();
+      ok(recargaPregunta(), 'con cambios sin aplicar, recargar o cerrar no pregunta');
+    } finally { bc.close(); if (M._in.locked) await activa(); }
+    M.libre.cerrar();
+    ok(!recargaPregunta(), 'con el editor cerrado, recargar pregunta');
+  });
+
+  prueba('M45', 'Importar un mes más reciente devuelve a la bandeja las fotos que solo usaba este Mac, con un aviso; nunca una imagen del editor ni una foto que sigue en uso (D-100)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const [f] = await poner('r1', [await foto('m45-f.jpg')]);
+    const [g] = await poner('r2', [await foto('m45-g.jpg')]);
+    await abrirEditor('r2'); accion('add-txt'); await aplicarEditor();   // r2 lleva una imagen del editor hecha con g
+    const img = slot('r2').photos[0];
+    ok(img !== g && M.files[img] && M.files[img].design, 'el editor no dejó su imagen en la publicación');
+    await M.flush();
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`);
+    b.slots.find(s => s.id === 'r1').photos = [];  // en el otro Mac, F salió de su publicación (y de su bandeja)
+    const s2 = b.slots.find(s => s.id === 'r2'); s2.photos = [g]; delete s2.libre;   // y la imagen del editor se quitó
+    delete d.files[f]; delete d.files[img];
+    (d.bandejas || []).forEach(r => { r.tray = r.tray.filter(x => x !== f && x !== img); });
+    b.editedAt = b.savedAt = new Date(Date.now() + 60000).toISOString();
+    M._in.clearToasts();
+    const r = await M.importData(d, { confirm: false });
+    ok(r && r.ok && r.boards.updated.includes(`${CLIENTE}-${MES}`), 'no se importó el mes: ' + json(r));
+    await hasta(() => M.board() && M.board().key === `${CLIENTE}-${MES}`, 4000, 'el mes abierto otra vez');
+    igual([slot('r1').photos, slot('r2').photos], [[], [g]], 'no ganó el mes del archivo');
+    ok(M.board().tray.includes(f), 'la foto que solo usaba este Mac no volvió a la bandeja');
+    ok(!M.board().tray.includes(img), 'la imagen del editor entró en la bandeja');
+    ok(!M.board().tray.includes(g), 'una foto que sigue en su publicación entró en la bandeja');
+    ok(toastCon(/1 foto que solo usaba este Mac ha vuelto a la bandeja/), 'sin aviso: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    igual(r.vueltas, 1, 'lo que devuelve importData');
+  });
+
+  prueba('M46', 'La imagen de «Editar portada» de un reel nunca entra en la bandeja: al cambiar la portada o quitarla, su foto vuelve sin ✓, «Deshacer» la devuelve y al reabrir no hay aviso de fotos quitadas (D-101)', async () => {
+    await tablero([pub(1, 'Reel'), pub(2, 'Reel')]);
+    const key = `${CLIENTE}-${MES}`;
+    const disenos = () => M.board().tray.filter(f => M.files[f] && M.files[f].design);
+    const vista = () => M._in.bandejaVista({ carpeta: null, todas: true }).map(x => M.files[x.f].name + (x.u ? ' ✓' : ''));
+    const conEditor = async id => { await abrirEditor(id); accion('add-txt'); await aplicarEditor(); const img = slot(id).photos[0]; ok(M.files[img] && M.files[img].design && slot(id).libre && !slot(id).design, 'el reel no lleva la imagen del editor'); return img; };
+    // cambiar su portada por otra foto
+    const [p] = await poner('r1', [await foto('m46-p.jpg')]);
+    await conEditor('r1');
+    const [q] = await M.addFiles([await foto('m46-q.jpg')]);
+    M._test.place('r1', q); await M.flush();
+    igual(slot('r1').photos, [q], 'la portada nueva');
+    igual(disenos(), [], 'al cambiar la portada, la imagen del editor entró en la bandeja');
+    ok(M.board().tray.includes(p) && vista().includes('m46-p.jpg'), 'la foto de la portada del editor no volvió sin ✓: ' + json(vista()));
+    // quitarla de la casilla: su foto vuelve, el aviso la cuenta y «Deshacer» devuelve la portada con su composición
+    const [r] = await poner('r2', [await foto('m46-r.jpg')]);
+    const img2 = await conEditor('r2');
+    M._in.clearToasts();
+    M._test.unassign('r2', null, true); await M.flush();
+    igual(disenos(), [], 'al quitarla, la imagen del editor entró en la bandeja');
+    ok(M.board().tray.includes(r) && vista().includes('m46-r.jpg'), 'al quitarla, su foto no volvió sin ✓: ' + json(vista()));
+    ok(toastCon(/^La foto vuelve a la bandeja/), 'el aviso: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    (await hasta(() => qa('.toast button, .toasts button').find(x => /Deshacer/.test(x.textContent)), 2000, 'el botón Deshacer')).click();
+    await M.flush();
+    igual(slot('r2').photos, [img2], '«Deshacer» no devolvió la portada');
+    ok(slot('r2').libre && slot('r2').libre.slides[img2] && !M.board().tray.includes(r), '«Deshacer» no devolvió su composición');
+    // con otro cliente abierto se limpian las imágenes que nada usa: al volver, ningún aviso de fotos quitadas
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(9)], past: [], force: true });
+    await M._in.sweepDesigns(true); await M.flush();
+    M._in.clearToasts();
+    await M.open(key);
+    ok(!toastCon(/se han quitado/), 'al reabrir, aviso de fotos quitadas: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    igual(slot('r2').photos, [img2], 'la portada del editor no sigue en su reel');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

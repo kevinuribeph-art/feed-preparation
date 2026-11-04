@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.82'; // 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -150,7 +150,8 @@
     if (!shellReady()) return;
     root.querySelectorAll('.lock').forEach(x => x.remove());
     const o = document.createElement('div'); o.className = 'lock';
-    o.innerHTML = '<div class="card dlg"><h3>La mesa está abierta en otra pestaña</h3><p>Para no pisar cambios, esta se ha pausado. Lo último que hiciste aquí está guardado.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="takeover">Usar aquí</button></div></div></div>';
+    const ed = edPendiente() ? 'Lo demás que hiciste aquí está guardado. El editor tenía cambios sin aplicar: se perderán al usar la otra pestaña.' : 'Lo último que hiciste aquí está guardado.';
+    o.innerHTML = `<div class="card dlg"><h3>La mesa está abierta en otra pestaña</h3><p>Para no pisar cambios, esta se ha pausado. ${ed}</p><div class="form"><div class="row"><button type="button" class="btn" data-act="takeover">Usar aquí</button></div></div></div>`;
     root.append(o);
   }
 
@@ -182,9 +183,13 @@
     if (!shellReady()) { if (document.body) document.body.textContent = m + ': recarga esta pestaña.'; return; }
     root.querySelectorAll('.lock').forEach(x => x.remove());
     const o = document.createElement('div'); o.className = 'lock';
-    o.innerHTML = `<div class="card dlg"><h3>${m}</h3><p>Esta pestaña se ha pausado para no pisar los datos. Recárgala para seguir: lo guardado no se pierde.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="recargar">Recargar</button></div></div></div>`;
+    o.innerHTML = `<div class="card dlg"><h3>${m}</h3><p>Esta pestaña se ha pausado para no pisar los datos. Recárgala para seguir: lo guardado no se pierde.${edPendiente() ? ' El editor tenía cambios sin aplicar: se perderán al recargar.' : ''}</p><div class="form"><div class="row"><button type="button" class="btn" data-act="recargar">Recargar</button></div></div></div>`;
     root.append(o);
   }
+  // the free editor's session lives only in memory until «Aplicar» (D-099): the pauses say so, and a reload or closing the tab asks
+  // first (not in a paused tab, whose notice already said it)
+  function edPendiente() { try { return !!(M.libre && M.libre.abierto && M.libre.abierto() && M.libre.pendiente && M.libre.pendiente()); } catch (e) { return false; } }
+  window.addEventListener('beforeunload', e => { if (locked || !edPendiente()) return; e.preventDefault(); e.returnValue = ''; });
   async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
     const d = await db();
     return new Promise((res, rej) => {
@@ -328,6 +333,7 @@
   const localDay = iso => { const s = String(iso || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const t = ts(s); return t ? madParts(t).day : null; };
   const localTime = iso => dOnly(iso) || !ts(iso) ? '' : madParts(ts(iso)).time;
   const wallMs = (day, time) => { const [y, mo, d] = day.split('-').map(Number), [h, mi] = time.split(':').map(Number); return Date.UTC(y, mo - 1, d, h, mi); };
+  const diaMs = day => wallMs(day, '00:00'), diaMas = (day, k) => new Date(diaMs(day) + k * 864e5).toISOString().slice(0, 10);   // a calendar day ± k days
   // Madrid wall clock -> ISO UTC (right on both sides of a DST change)
   function madridISO(day, time) {
     const want = wallMs(day, time); let t = want - 7200e3;
@@ -955,8 +961,13 @@
       if (caido && !h.cancelada) { h.cancelada = true; h.porPost = true; cambio = true; }
       else if (!caido && h.porPost) { delete h.cancelada; delete h.porPost; cambio = true; }
       if (s && !sameDate(s.date, h.postDate)) {
-        const d = tsPost(s.date) - tsPost(h.postDate);
-        if (h.postDate && d) h.date = isoDe(ts(h.date) + d);
+        if (h.postDate && (dOnly(s.date) || dOnly(h.postDate))) {   // a post with no time, before or after: whole days, each story keeps its time (D-098)
+          const dd = Math.round((diaMs(localDay(s.date)) - diaMs(localDay(h.postDate))) / 864e5);
+          if (dd) h.date = madridISO(diaMas(localDay(h.date), dd), localTime(h.date));
+        } else {
+          const d = tsPost(s.date) - tsPost(h.postDate);
+          if (h.postDate && d) h.date = isoDe(ts(h.date) + d);
+        }
         h.postDate = s.date; cambio = true;
       }
     }
@@ -1127,6 +1138,14 @@
 
   // ---------- board mutations ----------
   function takeFromTray(fileId) { S.tray = S.tray.filter(x => x !== fileId); }
+  // what may go to the tray: never an image the designer or the editor drew (D-101). Those go to the list of files to delete
+  // once nothing, nor a step of ⌘Z, uses them (D-071)
+  function aBandeja(fs) {
+    const d = fs.filter(f => M.files[f] && M.files[f].design);
+    if (!d.length) return fs;
+    delList(l => [...new Set([...l, ...d])]);
+    return fs.filter(f => !d.includes(f));
+  }
   function place(slotId, fileId, silent) {
     const s = slot(slotId); if (!s) return;
     if (designed(s) && !isMulti(s.type) && sinPortada(s)) return;
@@ -1136,13 +1155,13 @@
     takeFromTray(fileId);
     if (isCarousel(s.type)) { if (!s.photos.includes(fileId)) s.photos.push(fileId); }   // one more page, after the others
     else if (designed(s)) { const old = setCoverPhoto(s, fileId); centerCrop(fileId, null); if (old && old !== fileId && !(M.files[old] || {}).design && !refsOf(S).has(old)) S.tray.unshift(old); rerender(s); }   // the texts stay
-    else { if (s.photos.length) S.tray.unshift(...s.photos.filter(x => x !== fileId && !dOut(s).includes(x))); s.photos = [fileId]; }
+    else { if (s.photos.length) S.tray.unshift(...aBandeja(s.photos.filter(x => x !== fileId && !dOut(s).includes(x)))); s.photos = [fileId]; }
     if (!silent) changed();
   }
   function fixSingle(s) {
     if (!isMulti(s.type) && s.photos.length > 1) {
-      S.tray.unshift(...s.photos.slice(1)); s.photos = s.photos.slice(0, 1);
-      toast('Los reels solo llevan una portada: las demás fotos vuelven a la bandeja.');
+      const vuelven = aBandeja(s.photos.slice(1)); S.tray.unshift(...vuelven); s.photos = s.photos.slice(0, 1);
+      if (vuelven.length) toast('Los reels solo llevan una portada: las demás fotos vuelven a la bandeja.');
     }
   }
   // Two posts of the same type without design swap all their photos, as always. Otherwise (other types, or a designed
@@ -1270,18 +1289,20 @@
     if (k != null && (k < 0 || k >= s.photos.length)) return;
     const back = k == null ? s.photos.slice() : [s.photos[k]];
     if (!back.length) return;
-    const before = { photos: s.photos.slice(), fmt: s.fmt }, B = S;
+    const before = { photos: s.photos.slice(), fmt: s.fmt, ...(s.libre ? { libre: JSON.parse(JSON.stringify(s.libre)) } : {}) }, B = S, tray0 = new Set(S.tray);
     if (back.includes(sel)) sel = null;
     s.photos = s.photos.filter(x => !back.includes(x));
-    const tb = back.filter(f => !dOut(s).includes(f));          // a design's rendered images stay with it, not in the tray
-    S.tray.unshift(...tb);
+    const fuera = back.filter(f => !dOut(s).includes(f));       // a design's rendered images stay with it, not in the tray
+    const ed = fuera.some(f => M.files[f] && M.files[f].design);
+    S.tray.unshift(...aBandeja(fuera));                          // nor the editor's (D-101): the photos behind them come back instead
     changed();
-    const after = s.photos.slice();
-    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : `Imágenes del diseño quitadas de la casilla: vuelven al pulsar «${edLabel(s)}».`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
+    const after = s.photos.slice(), tb = S.tray.filter(f => !tray0.has(f));   // the photos that came to the tray
+    if (undoable) toast(tb.length > 1 ? `${tb.length} fotos vuelven a la bandeja.` : tb.length ? 'La foto vuelve a la bandeja.' : ed ? 'Imagen del editor quitada de la casilla.' : `Imágenes del diseño quitadas de la casilla: vuelven al pulsar «${edLabel(s)}».`, { action: 'Deshacer', ms: UNDO_MS, onAction: () => {
       if (S !== B || !slot(slotId) || !same(s.photos, after) || !tb.every(id => S.tray.includes(id))) { toast('No se puede deshacer: la casilla ya ha cambiado.'); return; }
       S.tray = S.tray.filter(id => !tb.includes(id));
       S.slots.forEach(o => { if (o !== s) o.photos = o.photos.filter(id => !before.photos.includes(id)); });
       s.photos = before.photos.slice(); if (before.fmt) s.fmt = before.fmt;
+      if (before.libre) s.libre = JSON.parse(JSON.stringify(before.libre));   // the editor's composition, gone with its image
       changed();
     } });
   }
@@ -1610,6 +1631,7 @@
   }
   function applyState(st) {
     const had = refsOf(S), has = f => !!M.files[f];
+    const enZernio = new Map(hsDe(S).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
     const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
     S.slots.forEach(s => {
       const o = by[s.id]; if (!o) return;
@@ -1638,6 +1660,12 @@
     if (st.pins) S.pins = st.pins.slice(); else delete S.pins;
     if (st.paso) S.paso = st.paso; else delete S.paso;
     if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
+    if (S.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
+      const hs = hsDe(S);
+      hs.forEach(h => { const z = enZernio.get(h.id); if (z) h.zernio = JSON.parse(JSON.stringify(z.zernio)); else delete h.zernio; });
+      const faltan = [...enZernio.values()].filter(z => !hs.some(h => h.id === z.id));
+      if (faltan.length) S.historias = [...hs, ...faltan];
+    }
     const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
     if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
     if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
@@ -1652,9 +1680,14 @@
     track(S);                                      // a change not saved yet is a step too
     const from = back ? H.undo : H.redo, to = back ? H.redo : H.undo;
     if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
+    const antes = H.curJ;
     to.push(H.cur);
-    applyState(from.pop());
-    H.cur = editState(S); H.curJ = JSON.stringify(H.cur); H.tag = null;
+    for (;;) {                                     // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
+      applyState(from.pop());
+      H.cur = editState(S); H.curJ = JSON.stringify(H.cur);
+      if (H.curJ !== antes || !from.length) break;
+    }
+    H.tag = null;
     changed();
     refreshDetail();
   }
@@ -4147,7 +4180,8 @@
     if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
     await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
     if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
-    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...s.photos.slice(1).filter(f => !dOut(s).includes(f))); s.photos = s.photos.slice(0, 1); } });
+    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...aBandeja(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
+    S.tray = aBandeja(S.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
     { const enPost = new Set(S.slots.flatMap(s => s.photos)); S.tray = [...new Set(S.tray)].filter(id => !enPost.has(id)); }
     libresDeCarpetas(S, (await idbAll('boards')) || []);
     normalize();
@@ -4836,6 +4870,20 @@
     P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);
     P.trays.forEach(r => r.add.forEach(f => P.refs.add(f)));
     d.clients.forEach(c => { const o = clients.find(x => x.id === c.id), l = !o || P.libUpd.includes(c) ? c.libre : o.libre; ((l && l.logos) || []).forEach(f => P.refs.add(f)); });   // the editor's logos the client keeps, used or not (also one an import before 3.45 left without its file)
+    // photos only this Mac used: the file's newer month no longer has them, nor anything else here (D-100). They go back to
+    // their client's tray, in front; never an image the designer or the editor drew
+    P.vueltas = 0;
+    for (const b of P.upd) {
+      const o = byKey[b.key], c = boardClient(b); if (!o || !c) continue;
+      const ya = locTr[c] || new Set(), add = [];
+      for (const f of refsTodo(o)) {
+        if (P.refs.has(f) || ya.has(f) || !trayable(f) || !P.files.has(f)) continue;
+        const r = M.files[f] || await idbGet('files', f).catch(() => null);
+        if (!r || r.design) continue;
+        add.push(f); P.refs.add(f);
+      }
+      if (add.length) { P.trays.push({ client: c, at: '', add, vuelta: true }); P.vueltas += add.length; }
+    }
     P.newFiles = Object.keys(d.files).filter(id => P.refs.has(id) && !P.files.has(id));
     P.newPast = Object.keys(d.past || {}).filter(id => !P.past.has(id) && d.past[id] && typeof d.past[id].thumb === 'string');
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
@@ -4955,7 +5003,7 @@
       await addQ; await flushPending();
       if (uploadsBusy() || importing) return fail('Espera a que termine la subida de fotos: no se ha importado nada.');   // the board couldn't reopen
       P = await xferPlan(d);                       // again, with what is saved now
-      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0, ...(P.kitUpd.length ? { kits: P.kitUpd.map(c => c.id) } : {}) };
+      const res = { ok: true, boards: { added: P.add.map(b => b.key), updated: P.upd.map(b => b.key), keptNewer: P.newer.map(b => b.key), same: P.same.map(b => b.key) }, clients: P.newClients.map(c => c.id), photos: 0, past: 0, ...(P.kitUpd.length ? { kits: P.kitUpd.map(c => c.id) } : {}), ...(P.vueltas ? { vueltas: P.vueltas } : {}) };
       const newPast = P.newPast.filter(id => gotPast[id]);
       if (P.nothing) {
         if (shellReady() && /^xfer/.test(root.querySelector('.detail').dataset.dlg || '')) closeDetail();
@@ -4994,7 +5042,7 @@
       for (const r of P.trays) {           // each client's tray takes the file's photos it lacks: newer tray, in front (D-041)
         await tx('bandejas', 'readwrite', st => { const g = st.get(r.client); g.onsuccess = () => {
           const o = g.result || { client: r.client, tray: [], at: '' }, add = r.add.filter(f => !o.tray.includes(f) && (got[f] || P.files.has(f)));
-          o.tray = String(r.at) > String(o.at || '') ? [...add, ...o.tray] : [...o.tray, ...add]; st.put(o, r.client);
+          o.tray = r.vuelta || String(r.at) > String(o.at || '') ? [...add, ...o.tray] : [...o.tray, ...add]; st.put(o, r.client);
         }; });
       }
       for (const c of new Set([...P.put.map(boardClient), ...P.trays.map(r => r.client)])) if (c) await juntarBandeja(c);   // a file from before 3.44: its months' trays
@@ -5003,7 +5051,7 @@
       await reopen();
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
       const k = P.newer.length;
-      toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
+      toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), P.vueltas && (P.vueltas === 1 ? '1 foto que solo usaba este Mac ha vuelto a la bandeja' : `${P.vueltas} fotos que solo usaba este Mac han vuelto a la bandeja`), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
       return res;
     } catch (e) {
       const q = e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)));

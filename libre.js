@@ -102,7 +102,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.40';
+  const VERSION = '1.41';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2048;                      // photos drawn in the editor are scaled to this; «Aplicar» reads them at full size
@@ -3560,7 +3560,7 @@
   // the photos the open session has or can bring back with its ⌘Z, applied or not: deleting a tray's folder leaves them (D-070)
   const fotosSesion = () => { if (!E) return []; const out = new Set(); for (const m of [JSON.stringify(E.sl), ...E.hist.undo, ...E.hist.redo].join('').matchAll(/"(?:src|key)":"([^"]+)"/g)) out.add(m[1]); return [...out]; };
   const trayLote = () => (E ? { files: E.trSel.slice(), carpetas: (E.trCar || []).slice() } : { files: [], carpetas: [] });
-  M.libre = { version: VERSION, abrir, fotosHistoria: id => enHistoria(((I().S && I().S.historias) || []).find(h => h.id === id)), fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
+  M.libre = { version: VERSION, abrir, fotosHistoria: id => enHistoria(((I().S && I().S.historias) || []).find(h => h.id === id)), fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, pendiente: () => pendiente(), aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     hist: { pintar: pintarHistoria, altoDe, OUT_W },   // a story designed from outside (historias.js, D-062)
     pieza: (comp, W, H) => dibujar(comp, W, H),   // a slide drawn at any size, as a JPEG Blob: «Descargar» (descargar.js, D-083)

@@ -840,6 +840,8 @@
   // The client's editor data (templates, logos): one change at a time, each in one transaction of the client's record
   // (M._in.editarCliente, D-106), so a double click or two changes at once never lose one. fn gets a copy of c.libre as it is
   // now and returns the new one; it can't await. cid0: the client, when the editor may have closed meanwhile (subirLogos)
+  // images that may have no one using them any more: each one is deleted if nothing holds it (the sweep takes what fails)
+  const borrarSueltas = async fs => { for (const f of fs) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } } };
   let colaCli = Promise.resolve();
   function guardarCliente(fn, cid0) {
     const owner = E, cid = cid0 || (E && E.board.client);
@@ -3312,9 +3314,9 @@
           const id = await guardarImagen(await renderOut(i), E.car ? `${s.name} ${pad2(i + 1)}.jpg` : E.reel && !E.historia ? `${s.name} portada.jpg` : `${s.name}.jpg`);
           outs.push(id); made.push(id);
         }
-      } catch (e) { for (const f of made) { try { await I().deleteIfUnused(f); } catch (er) { /* the sweep takes it */ } } throw e; }
+      } catch (e) { await borrarSueltas(made); throw e; }
       if (!(E === owner && I().S === S && conHist(S).includes(s) && I().same(s.photos, E.photos0) && (s.design || null) === E.dz && !I().locked && !I().uploadsBusy())) {   // changed while drawing: nothing is used
-        for (const f of made) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
+        await borrarSueltas(made);
         throw new LbError('La mesa cambió mientras se aplicaba: vuelve a intentarlo.');
       }
       const before = I().refsOf(S), lib = {};
@@ -3347,7 +3349,7 @@
       else if (I().S === S && I().openDetail) I().openDetail(slotId, Math.min(i0, Math.max(0, s.photos.length - 1)));
       const n = made.length;
       I().toast((n ? historia ? 'Historia aplicada.' : reel ? 'Portada aplicada: se sube tal cual.' : `${n === 1 ? 'Diapositiva aplicada' : `${n} diapositivas aplicadas`}: se suben tal cual.` : 'Cambios aplicados a la casilla.') + (fijo ? reel ? ' El diseño queda fijado como imagen; su foto está en la bandeja.' : ' El diseño queda fijado como imagen; sus fotos están en la bandeja.' : ''), { ms: fijo ? 8000 : 5000 });
-      for (const f of lost.filter(f => M.files[f] && M.files[f].design)) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
+      await borrarSueltas(lost.filter(f => M.files[f] && M.files[f].design));
     } catch (e) {
       if (counted) { APL--; counted = false; }
       if (E === owner && E.busy) { E.busy = false; head(); }
@@ -3436,10 +3438,10 @@
       if (nl) partes.push(nl === 1 ? `Hueco de la diapositiva ${llenas[0]} rellenado` : `Huecos de las diapositivas ${llenas.slice(0, -1).join(', ')} y ${llenas[nl - 1]} rellenados`);
       if (nn) partes.push(`${nn === 1 ? '1 diapositiva nueva' : nn + ' diapositivas nuevas'} al final (no quedan huecos)`);
       I().toast(partes.join(' · ') + (made.length ? '. Se suben tal cual.' : '.'), { ms: 6000 });
-      for (const f of lost.filter(f => M.files[f] && M.files[f].design)) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
+      await borrarSueltas(lost.filter(f => M.files[f] && M.files[f].design));
       return { ok: true, cambios: made.length, portada, rellenas: llenas, nuevas: nuevas.length };
     } catch (e) {
-      for (const f of made) { try { await I().deleteIfUnused(f); } catch (er) { /* the sweep takes it */ } }
+      await borrarSueltas(made);
       const m = e instanceof LbError ? e.message : 'No se pudo poner la foto: ' + String((e && e.message) || e);
       if (!(e instanceof LbError)) console.warn('editor:', e);
       if (I() && I().toast) I().toast(m, { ms: 7000 });
@@ -3489,9 +3491,9 @@
         numerar(x.comp, j, n, W, Hj);
         outs[j] = await guardarImagen(await dibujar(x.comp, W, Hj), reel ? `${s.name} portada.jpg` : `${s.name} ${pad2(j + 1)}.jpg`); made.push(outs[j]);
       }
-      if (I().S === S && S.slots.includes(s) && s.type !== tipo0) { for (const f of made.splice(0)) { try { await I().deleteIfUnused(f); } catch (e) { /* */ } } REDO.add(slotId); return { ok: true, pendiente: true }; }   // its type changed again: drawn for the type it has now
+      if (I().S === S && S.slots.includes(s) && s.type !== tipo0) { await borrarSueltas(made.splice(0)); REDO.add(slotId); return { ok: true, pendiente: true }; }   // its type changed again: drawn for the type it has now
       if (!(I().S === S && S.slots.includes(s) && I().same(s.photos, photos0) && !s.design && !I().locked)) {
-        if (solo) { for (const f of made.splice(0)) { try { await I().deleteIfUnused(f); } catch (e) { /* */ } } if (I().S === S && S.slots.includes(s)) cola.add(slotId); return { ok: true, pendiente: true }; }   // its numbers: again, for what it has now
+        if (solo) { await borrarSueltas(made.splice(0)); if (I().S === S && S.slots.includes(s)) cola.add(slotId); return { ok: true, pendiente: true }; }   // its numbers: again, for what it has now
         throw new LbError(`${s.name} cambió mientras se dibujaba: ábrela en «Editar» y aplica para pasarla al formato nuevo.`);
       }
       const lib = { ...entries(s) };
@@ -3508,7 +3510,7 @@
       for (const x of sl) if (x) { try { await I().deleteIfUnused(x.key); } catch (e) { /* kept */ } }
       return { ok: true, cambios: made.length };
     } catch (e) {
-      for (const f of made) { try { await I().deleteIfUnused(f); } catch (er) { /* the sweep takes it */ } }
+      await borrarSueltas(made);
       const m = e instanceof LbError ? e.message : 'No se pudo redibujar en el formato nuevo: ' + String((e && e.message) || e);
       if (!(e instanceof LbError)) console.warn('editor:', e);
       if (I() && I().toast) I().toast(m, { ms: 7000 });
@@ -3542,7 +3544,7 @@
       made = null;
       I().hNorm(S); I().changed();
       APL--; counted = false;
-      for (const f of lost.filter(f => M.files[f] && M.files[f].design)) { try { await I().deleteIfUnused(f); } catch (e) { /* kept */ } }
+      await borrarSueltas(lost.filter(f => M.files[f] && M.files[f].design));
       return { ok: true };
     } catch (e) {
       if (made) { try { await I().deleteIfUnused(made); } catch (er) { /* the sweep takes it */ } }

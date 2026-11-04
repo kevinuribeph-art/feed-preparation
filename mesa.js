@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.82'; // 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1610,6 +1610,7 @@
   }
   function applyState(st) {
     const had = refsOf(S), has = f => !!M.files[f];
+    const enZernio = new Map(hsDe(S).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
     const by = Object.fromEntries(st.slots.map(s => [s.id, s])), pby = Object.fromEntries(st.prev.map(p => [p.id, p]));
     S.slots.forEach(s => {
       const o = by[s.id]; if (!o) return;
@@ -1638,6 +1639,12 @@
     if (st.pins) S.pins = st.pins.slice(); else delete S.pins;
     if (st.paso) S.paso = st.paso; else delete S.paso;
     if (st.historias) S.historias = JSON.parse(JSON.stringify(st.historias)); else delete S.historias;
+    if (S.historias || enZernio.size) {            // each story keeps the mark it has now; one in Zernio now never goes, as it is
+      const hs = hsDe(S);
+      hs.forEach(h => { const z = enZernio.get(h.id); if (z) h.zernio = JSON.parse(JSON.stringify(z.zernio)); else delete h.zernio; });
+      const faltan = [...enZernio.values()].filter(z => !hs.some(h => h.id === z.id));
+      if (faltan.length) S.historias = [...hs, ...faltan];
+    }
     const now = refsOf(S), lost = [...had].filter(f => !now.has(f) && has(f)), isD = f => !!M.files[f].design;
     if (lost.some(f => !isD(f))) S.tray.unshift(...lost.filter(f => !isD(f)));
     if (lost.some(isD)) delList(l => [...new Set([...l, ...lost.filter(isD)])]);   // rendered images are never photos: deleted once no step needs them
@@ -1652,9 +1659,14 @@
     track(S);                                      // a change not saved yet is a step too
     const from = back ? H.undo : H.redo, to = back ? H.redo : H.undo;
     if (!from.length) { toast(back ? 'Nada que deshacer.' : 'Nada que rehacer.', { ms: 1800 }); return; }
+    const antes = H.curJ;
     to.push(H.cur);
-    applyState(from.pop());
-    H.cur = editState(S); H.curJ = JSON.stringify(H.cur); H.tag = null;
+    for (;;) {                                     // a step that no longer changes anything (only Zernio's mark, D-097) is passed over
+      applyState(from.pop());
+      H.cur = editState(S); H.curJ = JSON.stringify(H.cur);
+      if (H.curJ !== antes || !from.length) break;
+    }
+    H.tag = null;
     changed();
     refreshDetail();
   }

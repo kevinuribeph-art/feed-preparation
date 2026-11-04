@@ -7154,6 +7154,34 @@
     igual(guion('construcción'), 'cons-truc-ción', 'el castellano cambió');
   });
 
+  // ---------- fallos delicados de la 3.82 ----------
+  prueba('H32', '⌘Z no quita la marca de Zernio: la programada sigue programada, sin papelera y sin que cargarHistorias la pise; deshacer su creación no la quita (D-097)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.libre && M.hs && M.historias, 4000, 'libre.js e historias.js');
+    const [f] = await M.addFiles([await foto('h32.jpg')]);
+    const id = M.hs.anadir(DIA(10));               // un paso: crearla
+    await historiaConFoto(id, f);                  // otro: diseñarla
+    await M.flush();
+    igual(M.marcarHistoriasProgramadas([{ id, zernioId: 'z-h32' }]), [{ id, state: 'programada' }], 'al marcar');
+    await M.flush();
+    const programada = que => { const h = M.historias(id)[0]; ok(h, `${que}: la historia desapareció`); igual([h.state, h.zernioId], ['programada', 'z-h32'], `${que}: perdió la marca de Zernio`); };
+    M._test.undo(); await M.flush();
+    programada('tras un ⌘Z');
+    M.hs.borrar(id);
+    ok(hDe(id), 'una programada se pudo borrar tras ⌘Z');
+    const r = await M.cargarHistorias([{ date: hDe(id).date, order: 1, note: 'Pisada' }], { replace: true });
+    igual(r[0].result, 'programada', 'cargarHistorias con replace la pisó tras ⌘Z');
+    for (let i = 0; i < 3; i++) { M._test.undo(); await M.flush(); }   // hasta antes de crearla
+    programada('tras deshacer su creación');
+    M._test.redo(); await M.flush();
+    programada('tras ⇧⌘Z');
+    // y al revés: quitada la marca (zernioId: null), ⌘Z no la devuelve
+    M.marcarHistoriasProgramadas([{ id, zernioId: null }]); await M.flush();
+    ok(!M.historias(id)[0].zernioId, 'no se quitó la marca');
+    M._test.undo(); await M.flush();
+    ok(!M.historias(id)[0].zernioId, '⌘Z devolvió una marca de Zernio quitada');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

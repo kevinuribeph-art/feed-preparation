@@ -7480,6 +7480,24 @@
     });
   });
 
+  prueba('H35', 'cargarHistorias lee una fecha sin zona como hora de Madrid, también en un navegador en otro huso; con Z o su diferencia, como dice (D-109)', async () => {
+    await tablero([pub(1)]);
+    const D0 = W.Date, sz = /T\d\d:\d\d(:\d\d(\.\d+)?)?$/;
+    class Londres extends D0 {                     // un navegador en Londres: en noviembre, una fecha sin zona es UTC
+      constructor(...a) { if (a.length === 1 && typeof a[0] === 'string' && sz.test(a[0])) super(a[0] + 'Z'); else super(...a); }
+      static parse(x) { return typeof x === 'string' && sz.test(x) ? D0.parse(x + 'Z') : D0.parse(x); }
+    }
+    let r;
+    W.Date = Londres;
+    try { r = await M.cargarHistorias([{ date: '2026-11-20T10:00', order: 1, note: 'H35 sin zona' }, { date: '2026-11-21T10:00:00+01:00', order: 1, note: 'H35 con zona' }, { date: '2026-11-22T09:00:00Z', order: 1, note: 'H35 con Z' }]); }
+    finally { W.Date = D0; }
+    ok(Array.isArray(r) && r.every(x => x.result === 'creada'), 'no se crearon: ' + json(r));
+    const h = n => M.historias().find(x => x.note === n);
+    igual([h('H35 sin zona').dateMadrid, h('H35 con zona').dateMadrid, h('H35 con Z').dateMadrid], ['2026-11-20 10:00', '2026-11-21 10:00', '2026-11-22 10:00'], 'las horas de Madrid');
+    const mal = await M.cargarHistorias([{ date: '2026-11-20', order: 1, note: 'H35 sin hora' }]);
+    ok(mal[0] && /fecha no válida/.test(mal[0].error || ''), 'una fecha sin hora no se rechazó: ' + json(mal));
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

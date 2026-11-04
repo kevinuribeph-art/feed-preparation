@@ -168,10 +168,13 @@
       X = I(); if (!X || X.S !== S) return { error: 'la mesa cambió mientras se cargaban: vuelve a intentarlo' };
     }
     const res = list.map(() => null), dias = new Map();
+    // a date with no zone is Madrid's time (D-109), read the same in any browser; one with Z or its offset, as it says
+    const sinZona = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(\.\d+)?)?$/, fechaDe = d => { const m = sinZona.exec(String(d ?? '').trim()); return m ? X.madridISO(m[1], m[2]) : d; };
     list.forEach((it, i) => {
-      const t = it && !X.dOnly(it.date) ? X.ts(it.date) : 0, day = t ? X.localDay(it.date) : null, s = it && it.slotId ? S.slots.find(x => x.id === it.slotId) : null;
+      const date = it ? fechaDe(it.date) : null;
+      const t = it && !X.dOnly(date) ? X.ts(date) : 0, day = t ? X.localDay(date) : null, s = it && it.slotId ? S.slots.find(x => x.id === it.slotId) : null;
       const fondo = it && it.fondo ? String(it.fondo).toLowerCase() : null;
-      const mal = !it ? 'historia vacía' : !t ? 'fecha no válida: tiene que llevar hora y Z o su diferencia' : it.slotId && !s ? 'esa publicación no está en este tablero' : !s && !X.inBoard(day) ? 'fuera de la mesa' : fondo && !/^#[0-9a-f]{6}$/.test(fondo) ? 'fondo no válido' : fondo && fondos && !fondos.includes(fondo) ? 'ese fondo no es del kit del cliente' : '';
+      const mal = !it ? 'historia vacía' : !t ? 'fecha no válida: tiene que llevar hora (sin zona, hora de Madrid; o con Z o su diferencia)' : it.slotId && !s ? 'esa publicación no está en este tablero' : !s && !X.inBoard(day) ? 'fuera de la mesa' : fondo && !/^#[0-9a-f]{6}$/.test(fondo) ? 'fondo no válido' : fondo && fondos && !fondos.includes(fondo) ? 'ese fondo no es del kit del cliente' : '';
       if (mal) { res[i] = { error: mal, ...(it && it.date ? { date: it.date } : {}) }; return; }
       if (!dias.has(day)) dias.set(day, []);
       dias.get(day).push({ it, i, t, s, fondo });

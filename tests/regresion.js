@@ -7293,6 +7293,120 @@
     igual(slot('r2').photos, [img2], 'la portada del editor no sigue en su reel');
   });
 
+  // ---------- cierre de la auditoría, lote 1 (mesa 3.84): decisiones de Kevin ----------
+  prueba('E69', 'La plantilla 25: sin preguntar, el aviso nombra la que sale (la más antigua) y «Deshacer» la devuelve; el tope sigue en 24 y no cuenta las de historia (D-033, D-102)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e69-a.jpg')]);
+    const c0 = await M._in.idbGet('clients', CLIENTE), antes = c0.libre ? JSON.parse(json(c0.libre)) : null;
+    const ps = Array.from({ length: 24 }, (_, i) => ({ id: 'e69-' + i, nombre: `Vieja ${i + 1}`, comp: { bg: '#ffffff', els: [] }, fmt: '4:5', rat: 0.8, at: '2026-11-01T00:00:00.000Z' }));
+    const hist = { id: 'e69-h', nombre: 'Historia del kit', historia: true, comp: { bg: '#ffffff', els: [] }, fmt: '9:16', rat: 0.5625 };
+    try {
+      await M._in.idbPut('clients', CLIENTE, { ...c0, libre: { ...(c0.libre || {}), plantillas: [hist, ...ps] } });
+      await M._in.loadClients();
+      await abrirEditor('r1');
+      M._in.clearToasts();
+      const t = await guardarPlant();
+      ok(!q('.lb-ask'), 'preguntó algo');
+      const propias = () => ed().plant.filter(x => !x.historia).map(x => x.id);
+      igual(propias().length, 24, 'el tope de 24');
+      ok(!propias().includes('e69-0') && propias().includes(t.id), 'no salió la más antigua: ' + json(propias()));
+      ok(ed().plant.some(x => x.id === 'e69-h'), 'se fue la plantilla de historia');
+      const aviso = await hasta(() => qa('.toasts .toast').find(x => /«Vieja 1»/.test(x.textContent)), 4000, 'el aviso que nombra la plantilla que sale');
+      const b = [...aviso.querySelectorAll('button')].find(x => /Deshacer/.test(x.textContent)); ok(b, 'el aviso no lleva «Deshacer»: ' + aviso.textContent);
+      b.click();
+      await hasta(() => propias()[0] === 'e69-0' && !propias().includes(t.id), 4000, '«Deshacer» devolviendo la plantilla');
+      const c1 = await M._in.idbGet('clients', CLIENTE);
+      igual(c1.libre.plantillas.filter(x => !x.historia).map(x => x.id), ps.map(x => x.id), 'la ficha del cliente tras «Deshacer»');
+      ok(c1.libre.plantillas.some(x => x.id === 'e69-h'), 'la ficha perdió la plantilla de historia');
+    } finally {
+      if (M.libre.abierto()) M.libre.cerrar();
+      const c2 = await M._in.idbGet('clients', CLIENTE);
+      if (c2) { if (antes) c2.libre = antes; else delete c2.libre; await M._in.idbPut('clients', CLIENTE, c2); await M._in.loadClients(); }
+    }
+  });
+
+  prueba('P17', 'Mover una Programada, en el calendario o en su ventana, avisa de que Zernio sigue con la fecha y hora de antes; una Publicada no se mueve ni en el calendario ni en su ventana (D-103)', async () => {
+    await tablero([pub(1, 'Foto', 24), pub(2, 'Foto', 25)]);
+    await porAprobar(['r1', 'r2'], 'p17');
+    M.setEstado('r1', 'programado'); M.setEstado('r2', 'publicado'); await espera(60);
+    if (q('.side > .cal.fold')) { q('.side > .cal [data-cal="fold"]').click(); await espera(60); }
+    const fecha = id => M._in.localDay(slot(id).date), avisos = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+    async function arrastra(id, dia) {
+      const ch = await hasta(() => q(`.side > .cal .chip[data-slot="${id}"]`), 3000, 'el chip de ' + id);
+      const d = await hasta(() => q(`.side > .cal .cday[data-day="${dia}"]`), 3000, 'el día ' + dia);
+      d.scrollIntoView({ block: 'center' }); await espera(30);
+      const r = ch.getBoundingClientRect(), rd = d.getBoundingClientRect(), x = rd.left + rd.width / 2, y = rd.top + rd.height / 2;
+      puntero('pointerdown', ch, r.left + 4, r.top + 4);
+      puntero('pointermove', D, (r.left + x) / 2, (r.top + y) / 2); puntero('pointermove', D, x, y); puntero('pointerup', D, x, y);
+      await espera(80);
+    }
+    M._in.clearToasts();
+    await arrastra('r1', '2026-11-27');
+    igual(fecha('r1'), '2026-11-27', 'la Programada no se movió en el calendario');
+    ok(toastCon(/programada en Zernio/), 'mover la Programada no avisó: ' + avisos());
+    M._in.clearToasts();
+    await arrastra('r2', '2026-11-28');
+    igual(fecha('r2'), '2026-11-25', 'la Publicada se movió en el calendario');
+    ok(toastCon(/Ya está publicada/), 'sin aviso al soltar la Publicada: ' + avisos());
+    // la ventana: la Publicada no deja cambiar fecha ni hora; la Programada sí, con el aviso
+    M._in.openDetail('r2', 0);
+    const d2 = await hasta(() => dialogo() && dialogo().querySelector('.dtin'), 3000, 'la ventana de la Publicada');
+    ok(d2.disabled && dialogo().querySelector('.tmin').disabled, 'la fecha y la hora de la Publicada se pueden cambiar');
+    igual(M._in.setDate('r2', '2026-11-28'), 'publicada', 'setDate movió la Publicada');
+    igual(fecha('r2'), '2026-11-25', 'la Publicada se movió por setDate');
+    M._in.closeDetail(); M._in.clearToasts();
+    M._in.openDetail('r1', 0);
+    const d1 = await hasta(() => dialogo() && dialogo().querySelector('.dtin'), 3000, 'la ventana de la Programada');
+    ok(!d1.disabled, 'la fecha de la Programada no se puede cambiar');
+    d1.value = '2026-11-29'; d1.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+    igual(fecha('r1'), '2026-11-29', 'la Programada no se movió desde su ventana');
+    ok(toastCon(/programada en Zernio/), 'mover la Programada desde su ventana no avisó: ' + avisos());
+    M._in.closeDetail();
+  });
+
+  prueba('M47', '«Eliminar cliente» borra sus logos (también los quitados de su lista) y su foto final, salvo los que use otro cliente o un mes; los de otro cliente no se tocan (D-104)', async () => {
+    await tablero([pub(1)]);
+    const id = 'prueba-regresion-k', otro = CLIENTE;
+    await M._in.idbDel('clients', id).catch(() => {});
+    const r0 = await M.addClient({ id, name: 'Cliente de prueba K' });
+    ok(r0 && !r0.error, 'no se creó el cliente: ' + json(r0));
+    const blob = await foto('m47.jpg', 64, 64);
+    const fichero = async fid => M._in.idbPut('files', fid, { name: fid + '.png', size: blob.size, type: 'image/png', w: 64, h: 64, lastModified: 1, blob, thumb: blob, logo: true });
+    const k = n => `kit-${id}-${n}`, ajeno = `kit-${otro}-logo-m47zz`;
+    for (const f of [k('logo-m47a'), k('logo-m47b'), k('logo-m47c'), k('final'), ajeno]) await fichero(f);
+    const c = await M._in.idbGet('clients', id);
+    await M._in.idbPut('clients', id, { ...c, libre: { logos: [k('logo-m47a'), k('logo-m47b')] }, kit: { final: { foto: k('final') } } });   // m47c: quitado de su lista
+    const co = await M._in.idbGet('clients', otro), antes = co.libre ? JSON.parse(json(co.libre)) : null;
+    try {
+      await M._in.idbPut('clients', otro, { ...co, libre: { ...(co.libre || {}), logos: [...((co.libre && co.libre.logos) || []), k('logo-m47b')] } });   // otro cliente usa uno suyo
+      await M._in.loadClients();
+      igual(await M.removeClient(id), true, 'no se eliminó el cliente');
+      const hay = async f => !!(await M._in.idbGet('files', f));
+      igual([await hay(k('logo-m47a')), await hay(k('logo-m47c')), await hay(k('final'))], [false, false, false], 'quedan logos o la foto final del cliente eliminado');
+      ok(await hay(k('logo-m47b')), 'se borró el logo que usa otro cliente');
+      ok(await hay(ajeno), 'se borró un logo de otro cliente');
+    } finally {
+      const c2 = await M._in.idbGet('clients', otro); if (c2) { if (antes) c2.libre = antes; else delete c2.libre; await M._in.idbPut('clients', otro, c2); }
+      for (const f of [k('logo-m47a'), k('logo-m47b'), k('logo-m47c'), k('final'), ajeno]) await M._in.idbDel('files', f).catch(() => {});
+      await M._in.idbDel('clients', id).catch(() => {}); await M._in.loadClients();
+    }
+  });
+
+  prueba('E70', 'La foto que llena un hueco hereda su grupo, sus esquinas y su sombra; al borrarla vuelve el hueco tal cual (D-105)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('e70-a.jpg')]);
+    const [f] = await M.addFiles([await foto('e70-b.jpg')], null, { tray: true });
+    await abrirEditor('r1');
+    accion('sl-add'); const i = ed().i;
+    const h = { ...huecoEl('h70', 0.1, 0.1, 0.8, 0.5), g: 'G70', r: 0.2, sh: 0.5 };
+    compDe(i).els.push(h, { id: 'x70', t: 'texto', txt: 'Pie', x: 0.1, y: 0.7, w: 0.8, h: 0.08, size: 0.04, color: '#000000', al: 'izq', g: 'G70' });
+    const el = await enHueco(i, 'h70', f, '2');
+    igual([el.g, el.r, el.sh], ['G70', 0.2, 0.5], 'la foto del hueco no heredó grupo, esquinas y sombra');
+    elegir(el); accion('del');
+    const vuelto = await hasta(() => compDe(i).els.find(e => e.t === 'hueco' && e.id === 'h70'), 3000, 'el hueco de vuelta');
+    igual([vuelto.g, vuelto.r, vuelto.sh], ['G70', 0.2, 0.5], 'el hueco no volvió tal cual');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -37,7 +37,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.6';
+  const VERSION = '1.7';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -286,7 +286,8 @@
     if (e.button !== 0 || e.pointerType === 'touch' || mv) return;
     const X = I(), ch = e.target.closest && e.target.closest('#mesa .side > .cal .chip[data-slot]');
     if (!ch || !X || X.locked || ch.classList.contains('cx') || X.root().classList.contains('client')) return;
-    mv = { id: ch.dataset.slot, el: ch, x: e.clientX, y: e.clientY, on: false, over: null };
+    const s = X.S && X.S.slots.find(x => x.id === ch.dataset.slot);
+    mv = { id: ch.dataset.slot, el: ch, x: e.clientX, y: e.clientY, on: false, over: null, pub: !!s && X.estadoDe(s) === 'publicado' };   // a published one never lands (D-103)
   }
   function begin() {
     const root = I().root();
@@ -301,7 +302,7 @@
   function over(day) {
     if (mv.over === day) return;
     if (mv.over) mv.over.classList.remove('cover', 'cno');
-    mv.over = day; if (day) day.classList.add(day.dataset.day < I().hoy() ? 'cno' : 'cover');
+    mv.over = day; if (day) day.classList.add(mv.pub || day.dataset.day < I().hoy() ? 'cno' : 'cover');
   }
   function scrollNear(y) {                     // near the top or bottom edge of the month, it scrolls
     cancelAnimationFrame(scr);
@@ -328,6 +329,7 @@
   }
   function drop(id, day) {
     const X = I(), s = X && X.S && X.S.slots.find(x => x.id === id); if (!s || X.localDay(s.date) === day) return;
+    if (X.estadoDe(s) === 'publicado') { X.toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' }); return; }
     if (day < X.hoy()) { X.toast('Ese día ya ha pasado: la publicación no se ha movido.'); return; }
     X.setDate(id, X.dOnly(s.date) ? day : X.madridISO(day, X.localTime(s.date)));   // the mesa's own move (says if it falls outside the board)
   }

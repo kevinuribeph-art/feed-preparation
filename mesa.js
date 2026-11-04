@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.83'; // 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.84'; // 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -512,10 +512,15 @@
   const inBoard = day => boardMonths().includes(cycleOfDay(day, curCd()));
   const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span, false, curCd()).toLowerCase()}).`);
   // back: return to the Notion date (allowed even outside the board's months); src: the post-view input being typed in
+  // A published post doesn't move (back to Notion's date still works); a scheduled one moves and says Zernio keeps the old
+  // time (D-103): the skill's «programa» leaves out what is already in Zernio
   function setDate(id, iso, back, src) {
     const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
     const day = localDay(iso); if (!day) return 'fecha no válida';
     if (!back && !inBoard(day)) { outToast(); return 'fuera de la mesa'; }
+    const est = estadoDe(s);
+    if (!back && est === 'publicado') { toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' }); return 'publicada'; }
+    if (est === 'programado' && !sameDate(iso, s.date)) toast('Está programada en Zernio, que sigue con la fecha y hora de antes: pide a Claude que la cambie allí.', { key: 'mover-programada', ms: 8000 });
     s.date = sameDate(iso, s.notionDate) ? s.notionDate : iso;
     renumber(); sortSlots(); changed();
     const d = root && root.querySelector('.detail');
@@ -3015,7 +3020,7 @@
   const wday = iso => { const d = localDay(iso); return d ? new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC', weekday: 'short' }).format(new Date(d + 'T12:00:00Z')).replace('.', '') : ''; };
   function whenHTML(s) {
     const ms = boardMonths(), max = cycleEnd(ms[ms.length - 1], curCd());
-    const at = `data-slot="${esc(s.id)}" required`;
+    const at = `data-slot="${esc(s.id)}" required${estadoDe(s) === 'publicado' ? ' disabled' : ''}`;   // a published post doesn't move (D-103)
     return `<span class="pwhen"><span class="wd">${esc(wday(s.date))}</span><input type="date" class="dtin" ${at} value="${esc(localDay(s.date) || '')}" min="${cycleStart(ms[0], curCd())}" max="${max}" aria-label="Fecha (hora de Madrid)" title="Cambiar la fecha: al subir a Notion se cambia allí">`
       + (dOnly(s.date) ? '' : `<input type="time" class="tmin" ${at} value="${esc(localTime(s.date))}" aria-label="Hora (Madrid)" title="Hora de Madrid">`) + '</span>';
   }
@@ -4006,6 +4011,21 @@
     await loadClients(); render();
     return c;
   };
+  // A client's kit files (D-104, replaces that part of D-071): its logos (kit-<id>-logo-…, also those taken out of its list)
+  // and its final photo (kit-<id>-final) go with it, unless another client, a board, a tray or a step of ⌘Z uses them.
+  async function borrarKitDe(id, c0, boards) {
+    const re = new RegExp(`^kit-${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(final|logo-[a-z0-9]+)$`);
+    const suyos = new Set([...((c0 && c0.libre && c0.libre.logos) || []), kitRef(c0), ...(await allKeys('files')).filter(k => re.test(k))].filter(f => f && String(f).startsWith('kit-')));
+    if (!suyos.size) return 0;
+    const usados = new Set(S ? refsTodo(S) : []), hist = histRefs();
+    ((await idbAll('clients')) || []).forEach(c => { if (c.id === id) return; ((c.libre && c.libre.logos) || []).forEach(f => usados.add(f)); const k = kitRef(c); if (k) usados.add(k); });
+    boards.forEach(b => refsTodo(b).forEach(f => usados.add(f)));
+    (await trayRefs()).forEach(f => usados.add(f));
+    try { const p = JSON.parse(lsGet('mesa-pending') || 'null'); if (p && p.board) refsTodo(p.board).forEach(f => usados.add(f)); } catch (e) { /* */ }
+    const va = [...suyos].filter(f => !usados.has(f) && !hist.has(f));
+    if (va.length) { await tx('files', 'readwrite', st => va.forEach(f => st.delete(f))); va.forEach(soltarArchivo); }
+    return va.length;
+  }
   M.removeClient = async id => {
     const boards = (await idbAll('boards')) || [];
     const n = boards.filter(b => b.client === id).length;
@@ -4015,6 +4035,7 @@
     await idbDel('clients', id);
     if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
     if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } soltarArchivo(c0.foto); }   // its profile photo, and its URL (D-071)
+    try { await borrarKitDe(id, c0, boards); } catch (e) { /* */ }   // its logos and final photo, if no other client uses them (D-104)
     await loadClients();
     if (curClient === id) {
       curClient = null;

@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.11';
+  const VERSION = '1.12';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -28,7 +28,7 @@
   const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
   const pad2 = n => String(n).padStart(2, '0');
   const nowISO = () => new Date().toISOString();
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const { esc } = M._in;   // the mesa's own
 
   // ---------- errors: every public call returns a plain object; {error:'…'} in Spanish ----------
   class DzError extends Error { constructor(m, slide) { super(m); if (slide != null) this.slide = slide; } }   // slide: index of the slide at fault
@@ -65,7 +65,7 @@
   // photos dropped from a design go back to the tray when nothing else uses them (never lose a photo)
   function rescue(ids) {
     const S = I().S, refs = I().refsOf(S);
-    const back = [...new Set(ids)].filter(f => f && !refs.has(f) && !String(f).startsWith('kit-') && !(M.files[f] && M.files[f].design));
+    const back = I().aBandeja([...new Set(ids)].filter(f => f && !refs.has(f)));
     if (back.length) { S.tray.unshift(...back); I().renderTray(); }
     return back;
   }
@@ -292,7 +292,7 @@
   // the engine loads on its own (async script): wait for it a little before saying it isn't there
   async function motor() {
     if ((window.MESA_CARGA || {}).motor !== 'fallo' && I() && I().toast) I().toast('Cargando el motor de diseño…');
-    for (let i = 0; i < 150 && !(ENG() && ENG().usarKit) && (window.MESA_CARGA || {}).motor !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100));
+    await I().esperar(() => ENG() && ENG().usarKit, 'motor', 15000);
     return ENG();
   }
   async function engineKit(cid, fresh) {
@@ -640,9 +640,7 @@
     const id = `kit-${cid}-final`, at = nowISO();
     rec.name = 'Foto final · ' + String(rec.name || 'foto.jpg').replace(/^Foto final · /, '');
     await I().idbPut('files', id, rec);
-    if (M.files[id]) URL.revokeObjectURL(M.files[id].thumbUrl);
-    delete M.files[id]; delete M.blobs[id]; delete M.thumbBlobs[id];
-    if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; }
+    I().soltarArchivo(id);   // the previous final photo: all that pointed at it goes (D-071)
     await I().loadThumbs([id]);
     await I().editarCliente(cid, c => { c.kit = deepMerge(c.kit || {}, { final: { foto: id, fotoAt: at } }); c.kitAt = at; return c; });   // one transaction (D-106)
     await I().loadClients();
@@ -852,7 +850,7 @@
   }
 
   // the element a rebuilt part of the editor should give the focus back to
-  const cssv = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const cssv = M._in.cssq;   // the mesa's own
   function focusKey(el) {
     if (!el || !el.dataset) return null;
     if (el.dataset.dz) return `[data-dz="${cssv(el.dataset.dz)}"]` + (el.dataset.v != null ? `[data-v="${cssv(el.dataset.v)}"]` : '') + (el.dataset.f != null ? `[data-f="${cssv(el.dataset.f)}"]` : '') + (el.dataset.i != null ? `[data-i="${cssv(el.dataset.i)}"]` : '');

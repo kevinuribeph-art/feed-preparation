@@ -23,7 +23,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -31,10 +31,9 @@
   const nDe = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
   // libre.js and diseno.js load on their own (async): wait for them a little
-  const C = () => window.MESA_CARGA || {}, pausa = () => new Promise(r => setTimeout(r, 100));
-  async function listos() { for (let i = 0; i < 50 && !(M.libre && M.libre.rev) && C().libre !== 'fallo'; i++) await pausa(); }
+  const listos = () => I().esperar(() => M.libre && M.libre.rev, 'libre');
   async function margenDe(cid) {               // the kit's margin, a fraction of the width (0: no kit, or none in it)
-    for (let i = 0; i < 50 && !M.diseno && C().diseno !== 'fallo'; i++) await pausa();
+    await I().esperar(() => M.diseno, 'diseno');
     if (!(M.diseno && M.diseno.kit) || !cid) return 0;
     try { const k = await M.diseno.kit(cid); return k && k.lienzo && +k.lienzo.margen > 0 ? +k.lienzo.margen / (+k.lienzo.ancho || 1080) : 0; } catch (e) { return 0; }
   }
@@ -181,9 +180,7 @@
 #mesa .rv>li{margin:0 0 10px}#mesa .rv>li>b{font-size:13.5px}#mesa .rv ul{list-style:none;margin:3px 0 0;padding:0}
 #mesa .rv-i{display:block;width:100%;box-sizing:border-box;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 #mesa .rv-i:hover,#mesa .rv-i:focus-visible{background:var(--line2);outline:0}#mesa .rv-i.rv-b{color:var(--red)}#mesa .rv-i i{font-style:normal;font-weight:600}`;
-  let style = document.getElementById('mesa-rv-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-rv-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-rv-css', CSS);
 
   revisar.version = VERSION; revisar.auto = auto; revisar.ultima = null;
   revisar.ver = (opts = {}) => revisar({ historias: true, ...opts, ver: true });   // the button: the month's feed and stories

@@ -14,13 +14,12 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
   const CANCELADA = 'cancelada';
   const pausa = () => new Promise(r => setTimeout(r, 0));
-  const nOf = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
   // ---------- the choice: posts of the open board, in the order chosen ----------
   let eleg = [], elegKey = null;
@@ -93,7 +92,6 @@
     if (r) r.textContent = !n ? 'Nada marcado' : n === 1 ? '1 pieza · un JPG' : `${n} piezas · ${zipNombre()}.zip`;
     d.querySelectorAll('[data-dl="todas"]').forEach(t => { const any = d.querySelector(`.dl-pz input[data-slot="${cssq(t.dataset.slot)}"]:checked`); t.textContent = any ? 'Ninguna' : 'Todas'; });
   }
-  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
 
   // ---------- one piece as a JPEG ----------
   const tope = (W, r) => Math.max(1, Math.min(Math.round(W), Math.floor(Math.sqrt(MAX_PX / r))));   // r = height / width
@@ -112,7 +110,7 @@
     } finally { bmp.close(); }
   }
   const sinTextos = c => ({ ...c, els: (c.els || []).filter(e => e && e.t !== 'texto' && e.t !== 'logo') });   // «Solo la foto»
-  async function libreLista() { for (let i = 0; i < 50 && !(M.libre && M.libre.pieza) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100)); return !!(M.libre && M.libre.pieza); }
+  const libreLista = () => I().esperar(() => M.libre && M.libre.pieza, 'libre');
   // o: {textos, ancho: 'orig' | '1440' | '1080'} → {blob, w, h}
   async function pieza(s, fid, o) {
     const X = I(), f = M.files[fid]; if (!f) throw new Error('la foto no está en la mesa');
@@ -272,9 +270,7 @@
 #mesa .dl-prog[hidden]{display:none}
 #mesa .card.dl-run .dl-ch span,#mesa .card.dl-run .dl-pz{cursor:default}#mesa .card.dl-run [data-dl]{opacity:.45}
 @media (max-width:560px){#mesa .dl-im{height:72px}#mesa .dl-ops{gap:8px}}`;
-  let style = document.getElementById('mesa-dl-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-dl-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-dl-css', CSS);
 
   M.descargar = {
     version: VERSION, barra, marcar, elegir, vaciar, abrir, elegidas: () => (I() ? vigentes().slice() : []),

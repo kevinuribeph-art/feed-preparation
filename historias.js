@@ -35,12 +35,10 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.10';
+  const VERSION = '1.11';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const cssq = v => (window.CSS && window.CSS.escape) ? window.CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
+  const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-  const utc = d => { const [y, m, x] = d.split('-').map(Number); return Date.UTC(y, m - 1, x); };
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
   let cruzo = null;                            // the day the arrows just crossed to (D-080)
   let ON = false, abierta = null, enUso = null;   // the view is on; the story whose dialog is open; the field of it in use
@@ -163,7 +161,7 @@
     const S = X.S, list = [].concat(items ?? []);
     let fondos = null;
     if (list.some(it => it && it.fondo)) {
-      for (let i = 0; i < 50 && !(M.libre && M.libre.fondosKit) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100));
+      await X.esperar(() => M.libre && M.libre.fondosKit, 'libre');
       fondos = M.libre && M.libre.fondosKit ? await M.libre.fondosKit(S.client) : null;
       X = I(); if (!X || X.S !== S) return { error: 'la mesa cambió mientras se cargaban: vuelve a intentarlo' };
     }
@@ -224,7 +222,7 @@
   const elBase = { rot: 0, op: 1, lock: false, sh: 0 };
   const MUESTRA = { titular: 'Titular de la historia', etiqueta: 'Etiqueta', texto: 'Texto de la historia.', dato: '85 %' };
   const camposDe = p => [...(p.foto ? ['foto'] : []), ...(p.bloque || []).map(b => b.campo), ...(p.fila ? ['serie'] : [])];
-  const cargaLibre = async () => { for (let i = 0; i < 50 && !(M.libre && M.libre.hist && M.libre.rev && M.diseno) && (window.MESA_CARGA || {}).libre !== 'fallo'; i++) await new Promise(r => setTimeout(r, 100)); return !!(M.libre && M.libre.hist && M.libre.rev); };
+  const cargaLibre = async () => { await I().esperar(() => M.libre && M.libre.hist && M.libre.rev && M.diseno, 'libre'); return !!(M.libre && M.libre.hist && M.libre.rev); };
 
   // t = the kit's «historias» with its fonts resolved and one template in t.p; d = the fields. {comp, avisos}
   async function componer(t, d, logo) {
@@ -626,9 +624,7 @@
 @keyframes hvCruce{0%,70%{opacity:1}100%{opacity:0}}@media (prefers-reduced-motion:reduce){#mesa .hv-cruce{display:none}}
 #mesa .hv-e{margin:0 0 9px;font-size:13px}#mesa .hv-mal{margin:0 0 9px;font-size:13px;color:var(--red)}
 @media (max-width:720px){#mesa.hv-on .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}}`;
-  let style = document.getElementById('mesa-hv-css');
-  if (!style) { style = document.createElement('style'); style.id = 'mesa-hv-css'; document.head.append(style); }   // in the head: the mesa's shell empties the body
-  style.textContent = CSS;
+  I().estilo('mesa-hv-css', CSS);
 
   const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['focusin', onFocoIn, false], ['focusout', onFoco, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];
   EV.forEach(([t, f, c]) => document.addEventListener(t, f, c));

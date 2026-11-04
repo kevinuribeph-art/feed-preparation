@@ -4321,8 +4321,10 @@
     await flushNow();
     try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
-    if (M.diseno && M.diseno.prepararKits) await M.diseno.prepararKits(S);   // plan() right after init knows if a design is out of date
     await refreshMonths();
+    // the month is drawn before waiting for its kits (E5: a slow network kept it blank up to 5 s), and again once they're in:
+    // plan() right after init still knows if a design is out of date
+    if (M.diseno && M.diseno.prepararKits && S.slots.some(s => s.design)) { render(); await M.diseno.prepararKits(S); }
     render();
     usoS = null; usosOtros();         // the photos in use (D-022): this board on the first warning, the client's other boards now
     if (missing.length) toast(`${missing.length} foto(s) guardadas ya no estaban disponibles y se han quitado.`);

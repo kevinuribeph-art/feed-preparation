@@ -261,13 +261,14 @@
     return 'no es un JSON válido';
   }
   // fresh: read the file again (cache 'reload': a kit edited or restored on disk counts without reloading the page, whatever its date)
+  const KIT_VA = {};                           // a kit being read: a second call meanwhile shares it (E5)
   async function baseKit(cid, fresh) {
-    if (fresh || !BASE[cid]) BASE[cid] = fetch(kitUrl(cid), { cache: 'reload' }).then(async r => {
+    if ((fresh && !KIT_VA[cid]) || !BASE[cid]) KIT_VA[cid] = BASE[cid] = fetch(kitUrl(cid), { cache: 'reload' }).then(async r => {
       if (r.status === 404) return { missing: true };
       if (!r.ok) return { offline: true };     // the server failed: not the same as having no kit
       const t = await r.text();
       try { return { kit: JSON.parse(t) }; } catch (e) { return { bad: jsonWhere(e, t) }; }
-    }).catch(() => ({ offline: true }));       // no connection
+    }).catch(() => ({ offline: true })).finally(() => { delete KIT_VA[cid]; });       // no connection
     const k = await BASE[cid];
     if (!k.kit) delete BASE[cid];
     if (k.offline) { need(BASEV[cid], `No se pudo leer el kit kits/${cid}.json (sin conexión): vuelve a intentarlo.`); return BASEV[cid]; }   // the kit already read stays

@@ -7621,6 +7621,28 @@
     });
   });
 
+  // ---------- cierre de la auditoría, lote 6 (mesa 3.89): rendimiento y memoria ----------
+  prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
+    const key = M.board().key;
+    const id = M.hs.anadir(DIA(10), { note: 'H37' });
+    await M.flush();
+    await abrirEditor(id); accion('add-txt'); await aplicarEditor();
+    const a = hDe(id).photos[0]; ok(M.files[a] && M.files[a].design, 'la historia no tiene imagen');
+    await abrirEditor(id); accion('add-txt'); await aplicarEditor();
+    const b = hDe(id).photos[0]; ok(b && b !== a, 'la imagen no cambió al volver a aplicar');
+    await M.flush();
+    let r = await M.informeArchivos();
+    ok(!r.huerfanos.some(x => x.id === a && !x.pendiente), 'la imagen anterior quedó huérfana sin estar pendiente: ' + json(r.huerfanos));
+    // otro mes y vuelta: sin ⌘Z que la traiga, se borra
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(9)], past: [], force: true });
+    await M.open(key); await M.flush();
+    r = await M.informeArchivos();
+    ok(!r.huerfanos.some(x => x.id === a), 'la imagen anterior sigue en el navegador: ' + json(r.huerfanos));
+    igual(hDe(id).photos, [b], 'la historia perdió su imagen');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

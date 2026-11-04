@@ -894,8 +894,10 @@
   // now and returns the new one; it can't await. cid0: the client, when the editor may have closed meanwhile (subirLogos)
   // images that may have no one using them any more: each one is deleted if nothing holds it (the sweep takes what fails)
   // what the board used before (refs) and no longer does: its photos back to the tray, its drawn images to delete
-  function perdidas(S, before) {
-    const after = I().refsOf(S), lost = [...before].filter(f => !after.has(f) && M.files[f]);
+  // a story counts the stories' images too (refsTodo): its previous image is let go when it's applied again (D-117)
+  const refsDe = (S, historia) => historia ? I().refsTodo(S) : I().refsOf(S);
+  function perdidas(S, before, historia) {
+    const after = refsDe(S, historia), lost = [...before].filter(f => !after.has(f) && M.files[f]);
     S.tray.unshift(...I().aBandeja(lost).filter(f => !S.tray.includes(f)));
     return lost.filter(f => M.files[f] && M.files[f].design);
   }
@@ -3378,7 +3380,7 @@
         await borrarSueltas(made);
         throw new LbError('La mesa cambió mientras se aplicaba: vuelve a intentarlo.');
       }
-      const before = I().refsOf(S), lib = {};
+      const before = refsDe(S, E.historia), lib = {};
       for (const [k, c] of Object.entries(entries(s))) if (!E.photos0.includes(k)) lib[k] = c;   // images of this post that are elsewhere now keep their composition
       E.sl.forEach((x, i) => { if (!isRaw(x)) lib[outs[i]] = x.comp; });
       E.sl.forEach(x => {               // a composition moved here with its image leaves the post it was on
@@ -3396,7 +3398,7 @@
       } else if (!E.reel) E.sl.forEach((x, i) => { const f = outs[i]; if (lib[f]) S.crops[f] = { fmt: x.fmt, cx: 0.5, cy: 0.5, z: 1 }; else if (x.fmt !== x.fmt0) S.crops[f] = { ...I().baseCrop(f, S), fmt: x.fmt, cx: 0.5, cy: 0.5, z: 1 }; });   // a reel cover keeps no format of its own: the mesa shows it 9:16
       const used = new Set([...outs, ...Object.values(lib).flatMap(srcsOf)]);
       if (!E.historia) S.tray = S.tray.filter(f => !used.has(f));   // photos now in the post leave the tray; a discard in a story stays, marked (D-056)
-      const viejas = perdidas(S, before);   // photos the post no longer uses go back to the tray (never a logo nor a drawn image)
+      const viejas = perdidas(S, before, E.historia);   // photos the post no longer uses go back to the tray (never a logo nor a drawn image)
       E.applied = true;
       I().changed();
       if (I().histJuntar && E.marca) I().histJuntar(E.marca);
@@ -3594,9 +3596,9 @@
       APL++; counted = true;
       made = await guardarImagen(await dibujar(comp, OUT_W, Math.round(OUT_W * 16 / 9)), `${h.name || 'Historia'}.jpg`);
       if (!(I().S === S && (S.historias || []).includes(h) && I().same(h.photos || [], photos0) && !I().locked)) throw new LbError('La mesa cambió mientras se dibujaba: vuelve a intentarlo.');
-      const before = I().refsOf(S);
+      const before = refsDe(S, true);
       h.photos = [made]; h.libre = { v: 1, slides: { [made]: comp } }; delete h.guias;
-      const viejas = perdidas(S, before);
+      const viejas = perdidas(S, before, true);
       made = null;
       I().hNorm(S); I().changed();
       APL--; counted = false;

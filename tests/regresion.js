@@ -7498,6 +7498,31 @@
     ok(mal[0] && /fecha no válida/.test(mal[0].error || ''), 'una fecha sin hora no se rechazó: ' + json(mal));
   });
 
+  // ---------- cierre de la auditoría, lote 3 (mesa 3.86): historias y edición ----------
+  prueba('H36', 'Ordenar las historias del día nunca mueve una que está en Zernio ni hace cruzar el día: se mueve la otra, y al final del día hacia atrás (D-054, D-094, D-110)', async () => {
+    await tablero([pub(1)]);
+    const hora = id => M._in.localDay(viva(id).date) + ' ' + M._in.localTime(viva(id).date);
+    const zer = id => { viva(id).zernio = { id: 'z-' + id, date: viva(id).date, file: null }; };
+    // dos a un minuto, la segunda programada: una soltada entre ellas no mueve a la programada
+    const a = M.hs.anadir(DIA(20), { time: '10:00' }), b = M.hs.anadir(DIA(20), { time: '10:01' });
+    zer(b); M._in.changed();
+    const h = M.hs.anadir(DIA(21), { time: '09:00' });
+    M.hs.mover(h, DIA(20), 1);
+    igual(hora(b), DIA(20) + ' 10:01', 'la programada cambió de hora');
+    igual(hora(a), DIA(20) + ' 10:00', 'la primera cambió de hora');
+    ok(hora(h) !== hora(b) && M._in.localDay(viva(h).date) === DIA(20), 'la soltada quedó a la hora de la programada o en otro día: ' + hora(h));
+    // al final del día: la programada a las 23:59 no se mueve y la que choca con ella no pasa al día siguiente
+    const c = M.hs.anadir(DIA(22), { time: '23:58' }), d = M.hs.anadir(DIA(22), { time: '23:59' });
+    zer(d); M._in.changed();
+    const e = M.hs.anadir(DIA(23), { time: '09:00' });
+    M.hs.setFecha(e, DIA(22), '23:59');
+    igual(hora(d), DIA(22) + ' 23:59', 'la programada de las 23:59 cambió');
+    igual(M._in.localDay(viva(e).date), DIA(22), 'la que chocaba con ella pasó a otro día: ' + hora(e));
+    const hs = M.hs.lista().filter(x => M._in.localDay(x.date) === DIA(22)).map(x => M._in.localTime(x.date));
+    igual(new Set(hs).size, hs.length, 'dos historias del 22 a la misma hora: ' + json(hs));
+    igual(hora(c), DIA(22) + ' 23:58', 'la de las 23:58 cambió');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

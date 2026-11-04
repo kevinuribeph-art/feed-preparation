@@ -968,7 +968,21 @@
     const l = hsDe(B); if (!l.length) return;
     const dias = {};
     l.forEach(h => { if (!h.cancelada) { const d = localDay(h.date); (dias[d] = dias[d] || []).push(h); } });
-    Object.values(dias).forEach(a => { a.sort((x, y) => ts(x.date) - ts(y.date)); let t = -Infinity; a.forEach(h => { if (ts(h.date) < t + 6e4) h.date = isoDe(t + 6e4); t = ts(h.date); }); });
+    // one minute apart, in order; a story in Zernio never moves (it's the other that does) and none leaves its day: past
+    // 23:59 it takes the last free minute of the day (D-110)
+    Object.entries(dias).forEach(([dia, a]) => {
+      a.sort((x, y) => ts(x.date) - ts(y.date));
+      const min = t => Math.floor(t / 6e4), fin = ts(madridISO(dia, '23:59')), usados = new Set(a.filter(h => h.zernio).map(h => min(ts(h.date))));
+      let t = -Infinity;
+      a.forEach(h => {
+        if (h.zernio) return;
+        let v = Math.max(ts(h.date), t + 6e4);
+        while (usados.has(min(v))) v += 6e4;
+        if (v > fin) { v = fin; while (usados.has(min(v)) && v > fin - 864e5) v -= 6e4; }
+        usados.add(min(v)); t = v;
+        if (v !== ts(h.date)) h.date = isoDe(v);
+      });
+    });
     l.forEach(h => { h.name = 'Historia ' + hFecha(h.date); });
     l.sort((x, y) => ts(x.date) - ts(y.date));
   }

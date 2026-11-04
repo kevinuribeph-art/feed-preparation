@@ -28,7 +28,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '1.5';
+  const VERSION = '1.6';
   const TIPOS = ['portada', 'ficha', 'final', 'reel'];
   // Alto mínimo de la zona analizada (y anclaje del velo) en px a factor 1: el de motor.py.
   const ALTO_ANALISIS = { ficha: 400, final: 480 };

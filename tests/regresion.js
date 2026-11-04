@@ -6833,6 +6833,90 @@
     ok(c1.els.some(e => e.src === a), 'cambió la otra foto en vez del marco');
   });
 
+  // ---------- auditoría, lote 2 (libre 1.40): más arreglos del editor ----------
+  prueba('E63', 'Con el menú de una carpeta abierto en el editor, Esc cierra el menú y no el editor (D-076)', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e63.jpg')]);
+    const c = M.crearCarpeta('E63').id;
+    await abrirEditor('r1');
+    if (!ed().trOpen) accion('bandeja');
+    M.carpetasUI.abrirMenu(200, 200, c);
+    const menu = await hasta(() => q('.cpmenu'), 2000, 'el menú de la carpeta');
+    tecla('Escape', { en: menu.querySelector('button') || D.body });
+    await espera(30);
+    ok(M.libre.abierto(), 'Esc cerró el editor');
+    ok(!q('.cpmenu'), 'el menú sigue abierto');
+    M.libre.cerrar();
+  });
+
+  prueba('E64', 'Con una pregunta del editor abierta, Enter o espacio no pulsan el botón que tenía el foco detrás', async () => {
+    const [a] = await conHuecos([HV('h64')], [A('e64.jpg')]);
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta 1 / 2');
+    const b = [...ed().el.querySelectorAll('button[data-lb]')].find(x => !ed().ask.contains(x) && x.offsetParent);
+    ok(b, 'no hay un botón del editor detrás de la pregunta');
+    for (const key of ['Enter', ' ']) {
+      b.focus();
+      const ev = new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }); b.dispatchEvent(ev);
+      ok(ev.defaultPrevented, `«${key === ' ' ? 'espacio' : key}» puede pulsar el botón de detrás`);
+    }
+    ok(preguntaHueco(), 'la pregunta se cerró');
+    tecla('Escape');
+    M.libre.cerrar();
+  });
+
+  prueba('E65', 'Los logos que usan las plantillas del cliente se cargan con el editor, aunque ya no estén en su lista de logos', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e65.jpg')]);
+    const png = await new Promise(r => { const c = D.createElement('canvas'); c.width = 120; c.height = 60; c.getContext('2d').fillRect(0, 0, 120, 60); c.toBlob(r, 'image/png'); });
+    const id = `kit-${CLIENTE}-logo-e65`;
+    await M._in.idbPut('files', id, { name: 'e65-logo.png', size: png.size, type: 'image/png', w: 120, h: 60, lastModified: Date.now(), blob: png, thumb: png, logo: true });
+    delete M.files[id];   // como en una mesa recién abierta: el logo no está en memoria
+    const c0 = await M._in.idbGet('clients', CLIENTE); ok(c0, 'no está el cliente de prueba');
+    const t = { id: 't-e65', nombre: 'Plantilla E65', comp: { bg: '#ffffff', velo: null, els: [{ id: 'l65', t: 'logo', src: id, x: 0.1, y: 0.1, w: 0.2, h: 0.1, rot: 0, op: 1 }] }, fmt: '4:5', rat: 0.8, at: new Date().toISOString() };
+    await M._in.idbPut('clients', CLIENTE, { ...c0, libre: { ...(c0.libre || {}), plantillas: [...(((c0.libre || {}).plantillas) || []), t] } });
+    try {
+      await abrirEditor('r1');
+      await hasta(() => ed().plant.some(x => x.id === 't-e65'), 4000, 'la plantilla en el editor');
+      await hasta(() => M.files[id], 4000, 'el logo de la plantilla en el editor');
+    } finally { M.libre.cerrar(); const c1 = await M._in.idbGet('clients', CLIENTE); await M._in.idbPut('clients', CLIENTE, { ...c1, libre: { ...(c1.libre || {}), plantillas: ((c1.libre || {}).plantillas || []).filter(x => x.id !== 't-e65') } }); }
+  });
+
+  prueba('E66', '«Rejilla» no saca a la vista las fotos ocultas ni mueve las bloqueadas', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e66a.jpg')]);
+    const [b, c] = await M.addFiles([await foto('e66b.jpg'), await foto('e66c.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    compDe(0).els.push({ ...marcoEl('o66', 0.6, 0.6, 0.3, 0.3), src: b, oculto: true }, { ...marcoEl('k66', 0.05, 0.6, 0.3, 0.3), src: c, lock: true });
+    accion('grid', { v: '2h' });
+    await espera(30);
+    const o = compDe(0).els.find(e => e.src === b), k = compDe(0).els.find(e => e.src === c);
+    ok(o && o.oculto, 'la foto oculta salió a la vista');
+    ok(k && k.lock, 'la foto bloqueada perdió el bloqueo');
+    igual(k && [k.x, k.y, k.w, k.h], [0.05, 0.6, 0.3, 0.3], 'la foto bloqueada se movió');
+    M.libre.cerrar();
+  });
+
+  prueba('E67', 'Una fuente que no cargó se vuelve a pedir al dibujar la diapositiva', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('e67.jpg')]);
+    await abrirEditor('r1');
+    const f0 = W.fetch; let n = 0;
+    W.fetch = (u, o) => { if (String(u).endsWith('fonts/E67.ttf')) { n++; return n === 1 ? Promise.reject(new TypeError('sin red')) : f0.call(W, 'kits/fonts/LibreFranklin-Light.ttf', o); } return f0.call(W, u, o); };
+    try {
+      accion('add-txt');
+      const t = compDe(0).els.find(e => e.t === 'texto'); t.font = { n: 'E67', file: 'fonts/E67.ttf', w: 300 };
+      await dibujado(); await espera(100);
+      ok(n >= 1, 'el editor no pidió la fuente');
+      await M.libre.pieza(compDe(0), 200, 250);
+      ok([...W.document.fonts].some(x => x.family.replace(/"/g, '') === 'LB E67' && x.status === 'loaded'), 'la fuente no se volvió a pedir: sigue sin cargar');
+    } finally { W.fetch = f0; M.libre.cerrar(); }
+  });
+
+  prueba('E68', 'Una foto que llena un hueco agrupado sigue en el grupo del hueco', async () => {
+    const [v] = await conHuecos([{ ...HV('h68'), g: 'g68' }, { ...HH('h68b'), g: 'g68' }], [V('e68.jpg')]);
+    const e = await enHueco(1, 'h68', v);
+    igual(e.g, 'g68', 'la foto salió del grupo del hueco');
+    M.libre.cerrar();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

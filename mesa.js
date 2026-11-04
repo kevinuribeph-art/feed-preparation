@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.77'; // 3.77: audit, lot 1 — fixes in the free editor only (libre 1.39); the mesa's code doesn't change
+  M.version = '3.78'; // 3.78: audit, lot 2 — more fixes in the free editor (libre 1.40, D-093); the mesa's code doesn't change
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

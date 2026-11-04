@@ -2242,14 +2242,15 @@
     escribe(ult, ult.value + '\notra');
     igual(col.scrollTop, fondo, 'escribir hizo saltar la columna');
     ok(ult.clientHeight >= ult.scrollHeight, 'el caption que crece tiene scroll interno');
-    // redibujar la ventana con el foco en el caption: mismo scroll, mismo foco
+    // redibujar con el foco en el caption no lo rehace (D-112): mismo scroll, mismo foco; al dejarlo se redibuja sin moverla
     col.scrollTop = 250; await espera(30);
     M._test.refreshDetail();
-    const col2 = q('.detail .pright.hascap');
-    ok(col2 !== col, 'la ventana no se redibujó');
-    igual(col2.scrollTop, 250, 'redibujar movió la columna');
+    igual(q('.detail .pright.hascap'), col, 'la ventana se rehízo con el caption en uso');
+    igual(col.scrollTop, 250, 'redibujar movió la columna');
     ok(D.activeElement && D.activeElement.matches('textarea.capt'), 'redibujar perdió el foco del caption');
-    igual(col2.scrollTop, 250, 'recuperar el foco movió la columna');
+    D.activeElement.blur();
+    const col2 = await hasta(() => { const c = q('.detail .pright.hascap'); return c !== col && c; }, 2000, 'que la ventana se redibuje al dejar el caption');
+    igual(col2.scrollTop, 250, 'redibujar al dejar el caption movió la columna');
     // móvil: se desliza la ventana, la foto incluida, y redibujar tampoco la mueve
     marco.style.width = '420px'; W.dispatchEvent(new W.Event('resize')); await espera(120);
     const movil = q('.detail .pright.hascap'), cuerpo = q('.detail .pbody');

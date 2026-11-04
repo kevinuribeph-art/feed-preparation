@@ -512,10 +512,15 @@
   const inBoard = day => boardMonths().includes(cycleOfDay(day, curCd()));
   const outToast = () => toast(`Esa fecha cae fuera de la mesa (${rangeLabel(S.month, S.span, false, curCd()).toLowerCase()}).`);
   // back: return to the Notion date (allowed even outside the board's months); src: the post-view input being typed in
+  // A published post doesn't move (back to Notion's date still works); a scheduled one moves and says Zernio keeps the old
+  // time (D-103): the skill's «programa» leaves out what is already in Zernio
   function setDate(id, iso, back, src) {
     const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
     const day = localDay(iso); if (!day) return 'fecha no válida';
     if (!back && !inBoard(day)) { outToast(); return 'fuera de la mesa'; }
+    const est = estadoDe(s);
+    if (!back && est === 'publicado') { toast('Ya está publicada: no se mueve.', { key: 'mover-publicada' }); return 'publicada'; }
+    if (est === 'programado' && !sameDate(iso, s.date)) toast('Está programada en Zernio, que sigue con la fecha y hora de antes: pide a Claude que la cambie allí.', { key: 'mover-programada', ms: 8000 });
     s.date = sameDate(iso, s.notionDate) ? s.notionDate : iso;
     renumber(); sortSlots(); changed();
     const d = root && root.querySelector('.detail');
@@ -3015,7 +3020,7 @@
   const wday = iso => { const d = localDay(iso); return d ? new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC', weekday: 'short' }).format(new Date(d + 'T12:00:00Z')).replace('.', '') : ''; };
   function whenHTML(s) {
     const ms = boardMonths(), max = cycleEnd(ms[ms.length - 1], curCd());
-    const at = `data-slot="${esc(s.id)}" required`;
+    const at = `data-slot="${esc(s.id)}" required${estadoDe(s) === 'publicado' ? ' disabled' : ''}`;   // a published post doesn't move (D-103)
     return `<span class="pwhen"><span class="wd">${esc(wday(s.date))}</span><input type="date" class="dtin" ${at} value="${esc(localDay(s.date) || '')}" min="${cycleStart(ms[0], curCd())}" max="${max}" aria-label="Fecha (hora de Madrid)" title="Cambiar la fecha: al subir a Notion se cambia allí">`
       + (dOnly(s.date) ? '' : `<input type="time" class="tmin" ${at} value="${esc(localTime(s.date))}" aria-label="Hora (Madrid)" title="Hora de Madrid">`) + '</span>';
   }

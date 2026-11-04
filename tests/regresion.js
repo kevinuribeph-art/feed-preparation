@@ -7325,6 +7325,45 @@
     }
   });
 
+  prueba('P17', 'Mover una Programada, en el calendario o en su ventana, avisa de que Zernio sigue con la fecha y hora de antes; una Publicada no se mueve ni en el calendario ni en su ventana (D-103)', async () => {
+    await tablero([pub(1, 'Foto', 24), pub(2, 'Foto', 25)]);
+    await porAprobar(['r1', 'r2'], 'p17');
+    M.setEstado('r1', 'programado'); M.setEstado('r2', 'publicado'); await espera(60);
+    if (q('.side > .cal.fold')) { q('.side > .cal [data-cal="fold"]').click(); await espera(60); }
+    const fecha = id => M._in.localDay(slot(id).date), avisos = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+    async function arrastra(id, dia) {
+      const ch = await hasta(() => q(`.side > .cal .chip[data-slot="${id}"]`), 3000, 'el chip de ' + id);
+      const d = await hasta(() => q(`.side > .cal .cday[data-day="${dia}"]`), 3000, 'el día ' + dia);
+      d.scrollIntoView({ block: 'center' }); await espera(30);
+      const r = ch.getBoundingClientRect(), rd = d.getBoundingClientRect(), x = rd.left + rd.width / 2, y = rd.top + rd.height / 2;
+      puntero('pointerdown', ch, r.left + 4, r.top + 4);
+      puntero('pointermove', D, (r.left + x) / 2, (r.top + y) / 2); puntero('pointermove', D, x, y); puntero('pointerup', D, x, y);
+      await espera(80);
+    }
+    M._in.clearToasts();
+    await arrastra('r1', '2026-11-27');
+    igual(fecha('r1'), '2026-11-27', 'la Programada no se movió en el calendario');
+    ok(toastCon(/programada en Zernio/), 'mover la Programada no avisó: ' + avisos());
+    M._in.clearToasts();
+    await arrastra('r2', '2026-11-28');
+    igual(fecha('r2'), '2026-11-25', 'la Publicada se movió en el calendario');
+    ok(toastCon(/Ya está publicada/), 'sin aviso al soltar la Publicada: ' + avisos());
+    // la ventana: la Publicada no deja cambiar fecha ni hora; la Programada sí, con el aviso
+    M._in.openDetail('r2', 0);
+    const d2 = await hasta(() => dialogo() && dialogo().querySelector('.dtin'), 3000, 'la ventana de la Publicada');
+    ok(d2.disabled && dialogo().querySelector('.tmin').disabled, 'la fecha y la hora de la Publicada se pueden cambiar');
+    igual(M._in.setDate('r2', '2026-11-28'), 'publicada', 'setDate movió la Publicada');
+    igual(fecha('r2'), '2026-11-25', 'la Publicada se movió por setDate');
+    M._in.closeDetail(); M._in.clearToasts();
+    M._in.openDetail('r1', 0);
+    const d1 = await hasta(() => dialogo() && dialogo().querySelector('.dtin'), 3000, 'la ventana de la Programada');
+    ok(!d1.disabled, 'la fecha de la Programada no se puede cambiar');
+    d1.value = '2026-11-29'; d1.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+    igual(fecha('r1'), '2026-11-29', 'la Programada no se movió desde su ventana');
+    ok(toastCon(/programada en Zernio/), 'mover la Programada desde su ventana no avisó: ' + avisos());
+    M._in.closeDetail();
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

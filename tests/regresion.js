@@ -6984,6 +6984,74 @@
     ok(!/X\.PASOS \?|X\.PASO_DE \?|X\.retenida \?/.test(src), 'siguen las ramas para una mesa anterior a la 3.68');
   });
 
+  // ---------- auditoría, lote 4 (mesa 3.80): datos de la mesa ----------
+  prueba('M36', 'La imagen del feed cuadra con una publicación cancelada y el mes anterior debajo (check.ok)', async () => {
+    await limpiar();
+    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2), pub(3)], past: [{ id: 'p36a', name: 'Foto 0.1', type: 'Foto', date: '2026-10-20T12:00:00.000+02:00' }, { id: 'p36b', name: 'Foto 0.2', type: 'Foto', date: '2026-10-22T12:00:00.000+02:00' }], force: true });
+    ok(r && r.key, 'no se abrió el tablero: ' + json(r));
+    await poner('r1', [await foto('m36a.jpg')]); await poner('r2', [await foto('m36b.jpg')]); await poner('r3', [await foto('m36c.jpg')]);
+    ok(!M.setEstado('r2', 'cancelado')[0].error, 'no se canceló');
+    const out = await M.render('clean');
+    ok(out && out.check && out.check.ok, 'la imagen del feed no cuadra con la mesa: ' + json(out && out.check));
+  });
+
+  prueba('M37', 'Abrir un mes no borra la copia de una recarga (mesa-pending) hasta haber guardado el tablero', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('m37.jpg')]);
+    await M.flush();
+    const b = M.board(), key = b.key;
+    b.savedAt = new Date(Date.now() + 60000).toISOString();
+    W.localStorage.setItem('mesa-pending', JSON.stringify({ key, board: b, v: 5 }));
+    const mig = M.libre.migrar; M.libre.migrar = () => { throw new Error('fallo de prueba'); };
+    try { await M.open(key).catch(() => {}); } finally { M.libre.migrar = mig; }
+    const p = JSON.parse(W.localStorage.getItem('mesa-pending') || 'null');
+    ok(p && p.key === key, 'la copia de la recarga se borró antes de guardar el tablero');
+    W.localStorage.removeItem('mesa-pending');
+    await M.open(key);
+  });
+
+  prueba('M38', 'El motivo de una cancelación escrito justo antes de cerrar o recargar la pestaña se guarda (D-082)', async () => {
+    await tablero([pub(1)]);
+    M._in.openDetail('r1', 0);
+    const sel = await hasta(() => q('.detail .essel'), 3000, 'el estado en la publicación');
+    sel.value = 'cancelado'; sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+    const mi = await hasta(() => q('.detail .esmot'), 3000, 'el campo «Motivo»');
+    await M.flush(); W.localStorage.removeItem('mesa-pending');
+    mi.value = 'Motivo de prueba M38'; mi.dispatchEvent(new W.Event('input', { bubbles: true }));
+    M._onHide({ type: 'pagehide' });
+    const p = JSON.parse(W.localStorage.getItem('mesa-pending') || 'null'), s = p && p.board && p.board.slots.find(x => x.id === 'r1');
+    igual(s && s.estado && s.estado.motivo, 'Motivo de prueba M38', 'la copia de la recarga no lleva el motivo');
+    W.localStorage.removeItem('mesa-pending');
+    M._in.closeDetail();
+  });
+
+  prueba('M39', 'Quitar la foto de perfil de un cliente suelta también su URL de objeto (D-071)', async () => {
+    await tablero([pub(1)]);
+    const b = FOTOS['m39.jpg'] || (await foto('m39.jpg', 300, 300), FOTOS['m39.jpg']), id = 'perfil-m39-' + Date.now().toString(36);
+    await M._in.idbPut('files', id, { name: 'Perfil · m39.jpg', size: b.size, type: 'image/jpeg', w: 300, h: 300, lastModified: Date.now(), blob: b, thumb: b });
+    await M._in.loadThumbs([id]);
+    const url = M.files[id] && M.files[id].thumbUrl; ok(url, 'la foto de perfil no tiene miniatura');
+    await M.updateClient(CLIENTE, { foto: id });
+    const rv = W.URL.revokeObjectURL, sueltas = [];
+    W.URL.revokeObjectURL = u => { sueltas.push(u); return rv.call(W.URL, u); };
+    try { await M.updateClient(CLIENTE, { foto: null }); } finally { W.URL.revokeObjectURL = rv; }
+    ok(!M.files[id], 'la foto de perfil sigue en memoria');
+    ok(sueltas.includes(url), 'su URL de objeto no se soltó');
+  });
+
+  prueba('M40', 'La mesa ya no copia su código entero en localStorage (mesa-code y mesa-version, que nadie lee)', async () => {
+    ok(W.localStorage.getItem('mesa-code') === null, 'sigue guardando su código en localStorage («mesa-code»)');
+    ok(W.localStorage.getItem('mesa-version') === null, 'sigue guardando «mesa-version»');
+  });
+
+  prueba('P16', 'M.setEstado con el estado que dan sus datos no la deja «retrasada a mano», como la ventana (D-085)', async () => {
+    await tablero([pub(1)]); await poner('r1', [await foto('p16.jpg')]);
+    const s = () => M._in.S.slots.find(x => x.id === 'r1');
+    igual(M._in.estadoDe(s()), 'captions', 'con foto y sin caption no está en Captions');
+    const r = M.setEstado('r1', 'captions');
+    ok(!r[0].error, 'M.setEstado dio error: ' + json(r));
+    ok(!M._in.retrasada(s()), 'quedó «retrasada a mano»');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

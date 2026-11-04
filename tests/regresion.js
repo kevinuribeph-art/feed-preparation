@@ -5887,7 +5887,7 @@
     igual(calMes(), texto, 'el mes del calendario');
   }
 
-  prueba('P15', 'Un tablero de dos meses lleva un paso por mes: la barra es la del mes que enseña el calendario y ‹ › pasa a la del otro; avanzar en uno solo lleva y lista sus publicaciones; ⌘Z lo deshace en un paso (D-119)', async () => {
+  prueba('P19', 'Un tablero de dos meses lleva un paso por mes: la barra es la del mes que enseña el calendario y ‹ › pasa a la del otro; avanzar en uno solo lleva y lista sus publicaciones; ⌘Z lo deshace en un paso (D-119)', async () => {
     const { nov, dic } = await tableroDos();
     igual([pasoGuardado(MES), pasoGuardado(DIC)], ['empezar', 'empezar'], 'un tablero nuevo no empieza en Por empezar en cada mes');
     await porAprobar([...nov, ...dic], 'p15');
@@ -5913,7 +5913,7 @@
     await hasta(() => pasoAct() === 'Por aprobar', 3000, '⌘Z no devolvió la barra de diciembre');
   });
 
-  prueba('P16', 'Un tablero de varios meses guardado con un solo paso: ese paso va al primer mes y los otros enseñan el de su publicación más atrasada hasta que se cambian; igual al importar un archivo v7 (D-119, D-084)', async () => {
+  prueba('P20', 'Un tablero de varios meses guardado con un solo paso: ese paso va al primer mes y los otros enseñan el de su publicación más atrasada hasta que se cambian; igual al importar un archivo v7 (D-119, D-084)', async () => {
     const { key, nov, dic } = await tableroDos();
     await porAprobar(nov, 'p16'); M.setEstado(nov, 'aprobado');
     await poner(dic[0], [await foto('p16-d0.jpg')]); await poner(dic[1], [await foto('p16-d1.jpg')]);
@@ -5936,7 +5936,7 @@
     igual(M._in.pasoDe(M._in.S, DIC), 'captions', 'importado, el otro mes no enseña su publicación más atrasada');
   });
 
-  prueba('P17', 'El ciclo anterior, de solo lectura, no lleva una barra que se pulse; con día de ciclo 15, el mes que solo enseña el final de un ciclo lleva la barra de ese ciclo (D-119)', async () => {
+  prueba('P21', 'El ciclo anterior, de solo lectura, no lleva una barra que se pulse; con día de ciclo 15, el mes que solo enseña el final de un ciclo lleva la barra de ese ciclo (D-119)', async () => {
     await limpiar();
     const dia = d => `2026-${d}T12:00:00.000+01:00`;
     try {
@@ -5954,7 +5954,7 @@
     } finally { await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
   });
 
-  prueba('P18', '«Revisar» al pasar a Por aprobar mira solo ese mes y sus historias (D-119, D-040, D-058)', async () => {
+  prueba('P22', '«Revisar» al pasar a Por aprobar mira solo ese mes y sus historias (D-119, D-040, D-058)', async () => {
     const { nov, dic } = await tableroDos();
     await hasta(() => M.hs && M.revisar, 4000, 'historias.js y revisar.js');
     await porAprobar(dic, 'p18');

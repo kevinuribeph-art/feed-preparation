@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.7';
+  const VERSION = '1.8';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const cssq = v => (window.CSS && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
@@ -57,11 +57,19 @@
   const cambiosDe = h => { const X = I(), z = h.zernio; return !z ? [] : [...(h.cancelada ? ['cancelada'] : []), ...(X.sameDate(h.date, z.date) ? [] : ['fecha']), ...((h.photos || [])[0] === z.file ? [] : ['imagen'])]; };
 
   // ---------- what can be done with a story ----------
+  // a time that «+1 min» took past midnight stays on its day: the last free minute before 23:59
+  const enDia = (X, day, iso, sin) => {
+    if (X.localDay(iso) === day) return iso;
+    let t = X.ts(X.madridISO(day, '23:59'));
+    while (delDia(day, sin).some(x => Math.abs(X.ts(x.date) - t) < 6e4)) t -= 6e4;
+    return X.isoDe(t);
+  };
   function anadir(day, o = {}) {
     if (!puede()) return null;
     const X = I(), S = X.S, ultima = delDia(day).pop(), post = S.slots.filter(X.vivo).find(s => X.localDay(s.date) === day && !X.dOnly(s.date));
     let date = o.time ? X.madridISO(day, o.time) : ultima ? X.isoDe(X.ts(ultima.date) + 6e4) : post ? X.isoDe(X.ts(post.date) + 30 * 6e4) : X.madridISO(day, '12:00');   // behind the day's last, or half an hour after its post
     for (const x of delDia(day)) if (Math.abs(X.ts(x.date) - X.ts(date)) < 6e4) date = X.isoDe(X.ts(x.date) + 6e4);   // at the same time as others: behind them, in the order they are added
+    date = enDia(X, day, date);
     const h = { id: 'h-' + X.newId(), type: 'Historia', name: '', date, slotId: null, note: o.note || '', photos: [] };
     if (o.fondo) h.fondo = o.fondo;
     if (o.slotId) { const s = S.slots.find(x => x.id === o.slotId); if (s) { h.slotId = s.id; h.postDate = s.date; } }
@@ -72,9 +80,9 @@
   function duplicar(id) {
     const h = porId(id); if (!h || !puede()) return null;
     const X = I(), c = JSON.parse(JSON.stringify(h));
-    c.id = 'h-' + X.newId(); c.date = X.isoDe(X.ts(h.date) + 6e4);
+    c.id = 'h-' + X.newId(); c.date = enDia(X, X.localDay(h.date), X.isoDe(X.ts(h.date) + 6e4));
     delete c.zernio; delete c.cancelada; delete c.porPost;   // a copy of a programmed or cancelled one starts free
-    X.S.historias = [...X.hsDe(X.S), c];
+    const arr = X.hsDe(X.S).slice(); arr.splice(arr.indexOf(h) + 1, 0, c); X.S.historias = arr;   // right behind its original: at the same minute as the next, it goes first
     hecho();
     return c.id;
   }
@@ -89,7 +97,8 @@
       orden.forEach((x, k) => { x.date = horas[k]; });
     } else {
       const a = resto[i - 1], b = resto[i];
-      h.date = a ? X.isoDe(X.ts(a.date) + 6e4) : b ? X.isoDe(X.ts(b.date) - 6e4) : X.madridISO(day, X.localTime(h.date) || '12:00');
+      h.date = enDia(X, day, a ? X.isoDe(X.ts(a.date) + 6e4) : b ? X.isoDe(X.ts(b.date) - 6e4) : X.madridISO(day, X.localTime(h.date) || '12:00'), h);
+      if (b) { const arr = X.hsDe(X.S).filter(x => x !== h); arr.splice(arr.indexOf(b), 0, h); X.S.historias = arr; }   // in front of b: at the same minute, it stays where it was dropped
     }
     hecho();
   }
@@ -97,6 +106,7 @@
     const h = porId(id); if (!h || !puede()) return;
     const X = I(); if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '') || !/^\d\d:\d\d$/.test(time || '')) return;
     h.date = X.madridISO(day, time);
+    X.S.historias = [...X.hsDe(X.S).filter(x => x !== h), h];   // the one being set goes last: at the same minute as another, it is the one that moves
     hecho();
   }
   function enlazar(id, slotId) {

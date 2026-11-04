@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.78'; // 3.78: audit, lot 2 — more fixes in the free editor (libre 1.40, D-093); the mesa's code doesn't change
+  M.version = '3.79'; // 3.79: audit, lot 3 — fixes in the stories, the review, the downloads and the calendar (historias 1.8, revisar 1.2, descargar 1.1, calendario 1.6, D-094); the mesa's code doesn't change
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails

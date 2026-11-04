@@ -6917,6 +6917,73 @@
     M.libre.cerrar();
   });
 
+  // ---------- auditoría, lote 3: historias, revisar, descargar y calendario ----------
+  const diaH = d => M.board().historias.filter(x => !x.cancelada && M._in.localDay(x.date) === d).sort((x, y) => M._in.ts(x.date) - M._in.ts(y.date)).map(x => x.id);
+  const deH = id => M.board().historias.find(x => x.id === id);
+  prueba('H29', 'Una historia soltada en otro día entre dos a un minuto queda donde se soltó; una duplicada, justo detrás de la suya (D-054)', async () => {
+    await tablero([pub(1)]);
+    const a = M.hs.anadir(DIA(5), { time: '10:00' }), b = M.hs.anadir(DIA(5), { time: '10:01' }), h = M.hs.anadir(DIA(6), { time: '18:00' });
+    M.hs.mover(h, DIA(5), 1);
+    igual(diaH(DIA(5)), [a, h, b], 'la soltada entre las dos no quedó en su sitio');
+    const c = M.hs.duplicar(a);
+    igual(diaH(DIA(5)), [a, c, h, b], 'la copia no quedó justo detrás de la suya');
+  });
+
+  prueba('H30', 'Poner a una historia la hora de otra mueve la que se cambia, no la otra (D-054)', async () => {
+    await tablero([pub(1)]);
+    const a = M.hs.anadir(DIA(5), { time: '09:00' }), b = M.hs.anadir(DIA(5), { time: '10:00' });
+    M.hs.setFecha(a, DIA(5), '10:00');
+    igual(M._in.localTime(deH(b).date), '10:00', 'se movió la que no se tocó');
+    igual(M._in.localTime(deH(a).date), '10:01', 'la cambiada no quedó detrás');
+  });
+
+  prueba('H31', 'Añadir o duplicar detrás de una historia de las 23:59 la deja en su día', async () => {
+    await tablero([pub(1)]);
+    const a = M.hs.anadir(DIA(5), { time: '23:59' }), n = M.hs.anadir(DIA(5)), c = M.hs.duplicar(a);
+    igual([M._in.localDay(deH(n).date), M._in.localDay(deH(c).date)], [DIA(5), DIA(5)], 'se fue al día siguiente');
+  });
+
+  prueba('M34', '«Revisar» ordena por la hora de la publicación aunque una fecha venga con +01:00 y otra con Z (D-040)', async () => {
+    await tablero([{ id: 'r1', name: 'Foto 1.1', type: 'Foto', date: '2026-11-10T12:30:00.000+01:00' }, { id: 'r2', name: 'Foto 1.2', type: 'Foto', date: '2026-11-10T11:45:00.000Z' }]);
+    await poner('r1', [await foto('m34a.jpg', 800, 1000)]); await poner('r2', [await foto('m34b.jpg', 700, 900)]);
+    const r = await M.revisar();
+    igual([...new Set(r.puntos.map(p => p.slotId))], ['r1', 'r2'], 'el orden no sigue la hora (12:30 antes que 12:45 en Madrid)');
+  });
+
+  prueba('M35', '«sube» por lotes: el lote siguiente, con la revisión del anterior abierta, se suma a ella (D-040)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('m35a.jpg', 800, 1000)]); await poner('r2', [await foto('m35b.jpg', 700, 900)]);
+    M._in.closeDetail();
+    M.revisar.auto('sube', ['r1']);
+    await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 6000, 'la revisión del primer lote');
+    M.revisar.auto('sube', ['r2']);
+    await espera(1700); await M.revisar.ultima;
+    const d = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 4000, 'la revisión');
+    ok(d.textContent.includes('Foto 1.1') && d.textContent.includes('Foto 1.2'), 'la revisión del segundo lote tapó la del primero: ' + d.textContent.slice(0, 160));
+    M._in.closeDetail();
+  });
+
+  prueba('B7', 'Con el menú de una carpeta abierto, Esc lo cierra y no vacía lo elegido para descargar (D-083, D-076)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.descargar, 4000, 'descargar.js');
+    await poner('r1', [await foto('b7-a.jpg')]);
+    const c = M.crearCarpeta('B7').id;
+    clicCelda('r1', true);
+    igual(M.descargar.elegidas().length, 1, 'no se eligió la casilla');
+    M.carpetasUI.abrirMenu(200, 200, c);
+    const menu = await hasta(() => q('.cpmenu'), 2000, 'el menú de la carpeta');
+    tecla('Escape', { en: menu.querySelector('button') || D.body });
+    await espera(30);
+    ok(!q('.cpmenu'), 'el menú sigue abierto');
+    igual(M.descargar.elegidas().length, 1, 'Esc vació lo elegido');
+    M.descargar.vaciar();
+  });
+
+  prueba('P15', 'El calendario ya no lleva las ramas para una mesa anterior a la 3.68 (código muerto)', async () => {
+    const src = await (await W.fetch('calendario.js?v=' + Date.now())).text();
+    ok(!/X\.PASOS \?|X\.PASO_DE \?|X\.retenida \?/.test(src), 'siguen las ramas para una mesa anterior a la 3.68');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

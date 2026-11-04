@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -234,7 +234,7 @@
   function onKey(e) {
     if (e.key !== 'Escape' || !eleg.length) return;
     const X = I(), root = X && X.root && X.root(), det = root && root.querySelector('.detail');
-    if (!root || (det && !det.hidden) || (M.libre && M.libre.abierto && M.libre.abierto())) return;   // Esc closes what is open first
+    if (!root || (det && !det.hidden) || (M.libre && M.libre.abierto && M.libre.abierto()) || root.querySelector('.cpmenu')) return;   // Esc closes what is open first (a folder's menu too)
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     vaciar();
   }

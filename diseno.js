@@ -1563,9 +1563,28 @@
 
   // called by the mesa on every render: an editor whose board or post is gone closes; the kits of the board's designs
   // are read once so the post view and the upload plan can tell an up-to-date design synchronously
+  // A type changed in Notion while the designer hadn't arrived (M.init converts only when it's here, D-108): the designs
+  // whose slides don't match their post's type are converted when it arrives and on every render, as M.init would have
+  function retipoPendientes() {
+    const X = I(), S = X && X.S; if (!S || X.locked) return;
+    const hechos = [];
+    for (const s of S.slots) {
+      const d = s.design, dk = kindOf(d); if (!dk) continue;
+      const tk = X.isReel(s.type) ? 'r' : X.isCarousel(s.type) ? 'c' : 'f';
+      if (dk === tk || (tk === 'f' && !(d.out && d.out.length))) continue;   // another type: dormant once converted
+      const x = retipo(s, s.type); if (!x) continue;
+      S.tray.unshift(...x.tray.filter(f => M.files[f] && !S.tray.includes(f)));
+      if (x.dead.length) X.delList(l => [...new Set([...l, ...x.dead])]);
+      hechos.push(s.name);
+    }
+    if (!hechos.length) return;
+    X.changed();
+    X.toast(`En Notion cambió el tipo de ${hechos.join(', ')}: su diseño se ha convertido y se aplica al pulsar su «Editar …».`, { ms: 9000 });
+  }
   function sync() {
     if (E && (!E.el.isConnected || !curSlot())) cerrar();
     const S = I() && I().S; if (!S) return;
+    retipoPendientes();
     for (const s of S.slots) {
       const cid = s.design && s.design.kit;
       if (cid && BASEV[cid] === undefined && !BASE[cid]) baseKit(cid).then(k => { if (k && I()) I().refreshDetail(); }).catch(() => {});
@@ -1582,5 +1601,5 @@
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so
-  { const S = I() && I().S; if (S && S.slots.some(s => s.design)) prepararKits(S).then(() => { if (I() && I().S === S) { I().render(); I().refreshDetail(); } }).catch(() => {}); }
+  { const S = I() && I().S; if (S) retipoPendientes(); if (S && S.slots.some(s => s.design)) prepararKits(S).then(() => { if (I() && I().S === S) { I().render(); I().refreshDetail(); } }).catch(() => {}); }
 })();

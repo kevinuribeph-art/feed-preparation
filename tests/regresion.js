@@ -7458,6 +7458,28 @@
     } finally { await salir(); }
   });
 
+  prueba('D18', 'Un tipo cambiado en Notion con el diseñador aún sin cargar: al llegar el diseñador, el diseño se convierte, queda pendiente y avisa (D-089, D-108)', async () => {
+    await tablero([pub(2, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r2', [await foto('d18a.jpg', 1080, 1350), await foto('d18b.jpg', 1080, 1350)], textos('D18', 'Portada', 'Ficha'));
+      await M.flush();
+      const rt = M.diseno._retipo, sy = M.diseno.sync;
+      M.diseno._retipo = undefined; M.diseno.sync = undefined;   // como si diseno.js aún no hubiera llegado
+      try { await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(2, 'Carrusel'), type: 'Reel' }], past: [], force: true }); await espera(50); }
+      finally { M.diseno._retipo = rt; M.diseno.sync = sy; }
+      igual(slot('r2').design.slides[0].tipo, 'portada', 'sin el diseñador ya se convirtió');
+      igual(slot('r2').type, 'Reel', 'el tipo de Notion');
+      M._in.clearToasts();
+      M.diseno.sync();
+      await hasta(() => slot('r2').design.slides[0].tipo === 'reel', 3000, 'el diseño convertido a reel');
+      igual(slot('r2').design.slides.length, 1, 'el reel lleva más de una diapositiva');
+      igual(estadoDz('r2'), 'chg', 'el diseño convertido no quedó pendiente');
+      ok(toastCon(/En Notion cambió el tipo de .*su diseño se ha convertido/), 'sin aviso del tipo cambiado: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+      const antes = json(slot('r2').design); M.diseno.sync(); await espera(50);
+      igual(json(slot('r2').design), antes, 'un segundo sync volvió a convertirlo');
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

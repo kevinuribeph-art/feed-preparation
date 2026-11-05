@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.48';
+  const VERSION = '1.49';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -698,6 +698,10 @@
       // a design with changes not applied (its type or its kit changed, its cell was emptied…) is applied first, as the
       // designer's «Aplicar» did: «Editar …» is the post's only design button (D-089); that and the session are one ⌘Z step
       const dzTipo = dz && (I().isCarousel(s.type) || I().isReel(s.type)), marca0 = dzTipo && dzPend(s) ? await aplicarDz(S, s, dz) : null;
+      if (marca0 && marca0.faltan) {                       // a slide without its photo: the designer opens on it, where Kevin adds it (D-123)
+        const r = await M.diseno.abrir(s.id, { faltaFoto: true });   // it says why, or its own error; the cell keeps its images
+        return r && r.ok ? { ok: true, slot: s.id, disenador: true, faltan: r.faltan || marca0.faltan } : { error: (r && r.error) || 'No se pudo abrir el diseñador.' };
+      }
       need(!I().isReel(s.type) || s.photos.length, 'El reel no tiene portada: ponle una foto antes de editarla.');
       need(!dz || (dzTipo && s.photos.length && I().same(s.photos, (dz.out || []).filter(Boolean))), 'El diseño de esta publicación no está aplicado: vuelve a pulsar «Editar».');
       await I().loadThumbs([...s.photos, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray, ...(esHist(s) ? Object.values(entries(s)).flatMap(srcsOf) : [])]);
@@ -745,14 +749,17 @@
   }
   // a design with changes not applied (diseno.js says so; without it, its images not in the cell)
   const dzPend = s => M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) === 'chg' : !I().same(s.photos, ((s.design && s.design.out) || []).filter(Boolean));
-  // applies it with the designer's «Aplicar»: {m: the mesa's ⌘Z mark from before it, notas}; an error stops the opening
+  // applies it with the designer's «Aplicar»: {m: the mesa's ⌘Z mark from before it, notas}; {faltan}: a photo is missing
+  // (nothing was applied nor changed); any other error stops the opening
   async function aplicarDz(S, s, dz) {
     need(M.diseno && M.diseno.aplicar, 'El diseñador no está cargado: recarga la página para aplicar el diseño de esta publicación.');
     const m = I().histMarca ? I().histMarca() : null;
     if (I().setBusy) I().setBusy('dz', `Aplicando el diseño de ${s.name}…`);
     let r; try { r = await M.diseno.aplicar(s.id); } finally { if (I().setBusy) I().setBusy('dz', null); }
+    const igual = () => I().S === S && conHist(S).includes(s) && (s.design || null) === dz;
+    if (r && r.error && r.faltan && r.faltan.length && M.diseno.abrir) { need(igual(), 'La mesa cambió: vuelve a pulsar «Editar».'); return { faltan: r.faltan }; }
     need(r && !r.error, 'No se pudo aplicar el diseño: ' + ((r && r.error) || 'error desconocido'));
-    need(I().S === S && conHist(S).includes(s) && (s.design || null) === dz, 'La mesa cambió: vuelve a pulsar «Editar».');
+    need(igual(), 'La mesa cambió: vuelve a pulsar «Editar».');
     return { m, notas: r.notas || [] };
   }
   // texts written by hand like «02 / 11»: one question to make them all automatic («Ahora no»: not again for this post here)

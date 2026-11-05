@@ -8076,6 +8076,141 @@
     });
   });
 
+  // ---------- «Editar …» con una foto que falta (mesa 3.94, D-123) ----------
+  const dzAbierto = (ms = 8000) => hasta(() => M.diseno.abierto() && q('.dz'), ms, 'el diseñador abierto');
+  const dzCerrar = async () => { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); };
+  const sinPideClaude = m => ok(!/pídele a Claude que elija/.test(m || ''), 'el aviso todavía manda a Claude: ' + m);
+
+  prueba('D21', '«Editar diapositivas» con una diapositiva sin foto abre el diseñador en ella con el aviso, la casilla sigue con sus imágenes; al ponerle foto y aplicar, la casilla se actualiza y todo es un paso de ⌘Z (D-123)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d21a.jpg', 1080, 1350), await foto('d21b.jpg', 1080, 1350)], textos('D21', 'Portada', 'Ficha'));
+      const viejas = slot('r1').photos.slice();
+      const c = await M.diseno.cargar('r1', { slides: textos('D21', 'Portada', 'Ficha', 'Nueva') }); ok(c && !c.error, 'cargar() falló: ' + json(c));
+      igual(estadoDz('r1'), 'chg', 'los textos nuevos sin aplicar');
+      const ap = await M.diseno.aplicar('r1');
+      igual([ap.error, ap.diapositiva, ap.faltan], ['Falta la foto de la diapositiva 3: añádela y pulsa «Aplicar a la casilla».', 3, [3]], 'el error de aplicar() por la API');
+      const [nueva] = await M.addFiles([await foto('d21c.jpg', 1080, 1350)]);
+      const h0 = M._test.hist().undo;
+      M._in.openDetail('r1', 0);
+      await pulsar('.detail [data-act="editar"]');
+      await dzAbierto();
+      ok(!ed(), 'abrió el editor sin aplicar');
+      igual([M.diseno.abierto().slot, M.diseno.abierto().diapositiva], ['r1', 3], 'el diseñador no abrió en la diapositiva sin foto');
+      ok(toastCon(/^Falta la foto de la diapositiva 3: añádela y pulsa «Aplicar a la casilla»\./), 'sin el aviso de la foto que falta');
+      ok(!toastCon(/No se pudo aplicar/), 'salió el error de antes');
+      igual(slot('r1').photos, viejas, 'la casilla cambió sin aplicar');
+      igual(estadoDz('r1'), 'chg', 'el diseño dejó de estar pendiente sin aplicar');
+      const b = await hasta(() => q(`.dz .dz-ph[data-f="${nueva}"]`), 3000, 'la foto nueva en el panel'); b.click(); await espera(40);
+      igual(slot('r1').design.slides[2].src, nueva, 'la foto no fue a la diapositiva 3');
+      igual(slot('r1').photos, viejas, 'la casilla cambió al elegir la foto');
+      await pulsar('.dz [data-dz="aplicar"]');
+      await hasta(() => !M.diseno.abierto() && estadoDz('r1') === 'ok', 20000, 'aplicar desde el diseñador');
+      igual(slot('r1').photos, salida('r1'), 'la casilla no lleva las imágenes nuevas');
+      igual(salida('r1').length, 3, 'las 3 imágenes');
+      ok(!viejas.some(f => slot('r1').photos.includes(f)), 'la casilla se quedó con alguna imagen vieja');
+      igual(M._test.hist().undo, h0 + 1, 'abrir el diseñador, ponerle la foto y aplicar no son un paso de ⌘Z');
+      await pulsar('.detail [data-act="editar"]');          // ya al día: abre el editor como siempre
+      await abierto();
+      igual(ed().sl.map(x => x.key), salida('r1'), 'después, «Editar diapositivas» no abrió sus imágenes');
+      await cerrarEd();
+      M._test.undo();
+      igual(slot('r1').photos, viejas, '⌘Z no devolvió las imágenes de antes');
+      igual(estadoDz('r1'), 'chg', '⌘Z no dejó el diseño pendiente');
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('D22', 'Con varias diapositivas sin foto, el aviso las nombra todas y el diseñador abre en la primera; cerrar sin aplicar deja la casilla como estaba y se puede volver a entrar (D-123)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d22a.jpg', 1080, 1350)], textos('D22', 'Portada', 'Dos', 'Tres', 'Cuatro'), false);
+      const crudas = slot('r1').photos.slice();
+      const r = await M.libre.abrir('r1', 0);
+      ok(r && r.ok && r.disenador, 'abrir() no dice que abrió el diseñador: ' + json(r));
+      igual(r.faltan, [2, 3, 4], 'las diapositivas sin foto');
+      await dzAbierto();
+      igual(M.diseno.abierto().diapositiva, 2, 'no abrió en la primera sin foto');
+      ok(toastCon(/Faltan las fotos de las diapositivas 2, 3 y 4: añádelas y pulsa «Aplicar a la casilla»\./), 'el aviso no las nombra todas');
+      await pulsar('.dz [data-dz="cerrar"]');
+      await hasta(() => !M.diseno.abierto(), 3000, 'cerrar sin cambios');
+      igual(slot('r1').photos, crudas, 'la casilla cambió');
+      tecla('e', { meta: true }); await espera(30);       // ⌘E sin la ventana no hace nada; con ella, lo mismo que el botón
+      M._in.openDetail('r1', 0); tecla('e', { meta: true });
+      await dzAbierto();
+      igual(M.diseno.abierto().diapositiva, 2, '⌘E no abrió el diseñador en la primera sin foto');
+      await dzCerrar(); M._in.closeDetail();
+      const e = await M.diseno.aplicar('r1');
+      igual([e.diapositiva, e.faltan], [2, [2, 3, 4]], 'aplicar() por la API');
+      sinPideClaude(e.error);
+    });
+  });
+
+  prueba('D23', 'La portada de un reel diseñado sin foto: «Editar portada» abre el diseñador con «Falta la foto de la portada»; al ponerla y aplicar, el reel tiene su portada (D-123)', async () => {
+    await tablero([pub(1, 'Reel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [], [{ titulo: 'Reel D23' }], false);
+      igual([slot('r1').photos.length, slot('r1').design.slides[0].src || null], [0, null], 'el reel sin foto');
+      const [nueva] = await M.addFiles([await foto('d23a.jpg', 1080, 1920)]);
+      M._in.openDetail('r1', 0);
+      await pulsar('.detail [data-act="editar"]');
+      await dzAbierto();
+      ok(!ed(), 'abrió el editor');
+      ok(toastCon(/^Falta la foto de la portada: añádela y pulsa «Aplicar a la casilla»\./), 'sin el aviso de la portada');
+      igual(slot('r1').photos.length, 0, 'la casilla del reel cambió sin aplicar');
+      const b = await hasta(() => q(`.dz .dz-ph[data-f="${nueva}"]`), 3000, 'la foto en el panel'); b.click(); await espera(40);
+      await pulsar('.dz [data-dz="aplicar"]');
+      await hasta(() => !M.diseno.abierto() && estadoDz('r1') === 'ok', 20000, 'aplicar la portada');
+      igual(slot('r1').photos, salida('r1'), 'la casilla no lleva la portada');
+      igual(salida('r1').length, 1, 'una portada');
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('D24', 'Una diapositiva cuya foto ya no está en la mesa cuenta como foto que falta: abre el diseñador en ella y su aviso lo dice (D-123)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d24a.jpg', 1080, 1350), await foto('d24b.jpg', 1080, 1350)], textos('D24', 'Portada', 'Ficha'), false);
+      const f = slot('r1').design.slides[1].src;
+      await M._in.idbDel('files', f); delete M.files[f];
+      const r = await M.libre.abrir('r1', 0);
+      ok(r && r.ok && r.disenador, 'no abrió el diseñador: ' + json(r));
+      await dzAbierto();
+      igual(M.diseno.abierto().diapositiva, 2, 'no abrió en la diapositiva sin su foto');
+      ok(toastCon(/Falta la foto de la diapositiva 2 \(la que tenía ya no está en la mesa\): añádela y pulsa «Aplicar a la casilla»\./), 'el aviso no dice que su foto ya no está');
+      await dzCerrar();
+      const v = await M.diseno.ver('r1', 2); ok(v && v.error && v.faltan, 'ver() de la diapositiva sin foto: ' + json(v)); sinPideClaude(v.error);
+    });
+  });
+
+  prueba('D25', 'Sin la foto final del cliente, «Editar diapositivas» sigue sin abrir nada y dice lo de siempre (D-089, D-123)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d25a.jpg', 1080, 1350), await foto('d25b.jpg', 1080, 1350)], [...textos('D25', 'Portada', 'Ficha'), { tipo: 'final', titulo: 'Final D25' }], false);
+      const crudas = slot('r1').photos.slice();
+      const r = await M.libre.abrir('r1', 0);
+      igual(r && r.error, 'No se pudo aplicar el diseño: Falta la foto final del cliente: pídele a Claude que la fije.', 'el error');
+      ok(!ed() && !M.diseno.abierto(), 'abrió el editor o el diseñador');
+      igual(slot('r1').photos, crudas, 'la casilla cambió');
+    });
+  });
+
+  prueba('D26', 'Con la mesa en otra pestaña, «Editar diapositivas» de un diseño sin foto no abre nada y dice lo de siempre (D-123)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const bc = new W.BroadcastChannel('mesa-feed');
+    try {
+      await conKitPrueba(async () => {
+        await disenada('r1', [await foto('d26a.jpg', 1080, 1350)], textos('D26', 'Portada', 'Ficha'), false);
+        bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' }); await hasta(() => M._in.locked && q('.lock'), 3000, 'la mesa pausada');
+        const r = await M.libre.abrir('r1', 0);
+        igual(r && r.error, 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de editar.', 'el error');
+        ok(!ed() && !M.diseno.abierto(), 'abrió el editor o el diseñador');
+        const a = await M.diseno.abrir('r1', { faltaFoto: true });
+        ok(a && a.error && /otra pestaña/.test(a.error) && !M.diseno.abierto(), 'el diseñador abrió en una pestaña pausada: ' + json(a));
+      });
+    } finally { bc.close(); qa('.lock').forEach(x => x.remove()); await M._test.claim(); await hasta(() => !M._in.locked, 3000, 'la mesa activa otra vez'); }
+  });
+
   // ---------- cierre de la auditoría, lote 6 (mesa 3.89): rendimiento y memoria ----------
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

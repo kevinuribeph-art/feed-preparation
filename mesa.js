@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.94'; // 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.95'; // 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -98,6 +98,7 @@
   let S = null;          // open board (month of one client), persisted
   let PB = null;         // same client's previous-month board, read only (null if it doesn't exist)
   let CL = [];           // clients
+  let UB = {};           // the locations' catalog (D-124): id -> {id, nombre, locationId, at}, one entry per place
   let MB = [];           // month boards of the open client: [{key, month, filled, n}]
   let curClient = null;  // id of the open tab
   let root = null;
@@ -169,8 +170,10 @@
       // which an older tab reads as a state of its own and its step bar would move on. 9 (mesa 3.85): story templates (D-107).
       // 10 (mesa 3.91): no new store: a board keeps one step per month (S.pasos, D-119), which an older tab would drop.
       // 11 (mesa 3.92): no new store: a Programada keeps the date it was scheduled for (s.estado.fecha, D-120).
-      const r = indexedDB.open('mesa-feed', 11);
-      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+      // 12 (mesa 3.95): + 'ubicaciones', the locations' catalog; a client keeps its list (c.ubicaciones) and a post the one
+      // chosen (s.ubicacion), which an older tab would drop (D-124).
+      const r = indexedDB.open('mesa-feed', 12);
+      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas', 'ubicaciones']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
       r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady()) toast(m); else if (document.body) document.body.textContent = m; };
@@ -719,7 +722,7 @@
   // publication, so its photos (with their crops), contexto (note), nota (memo), format, upload record, date, name, captions and state are shared. Each slot
   // keeps a revision (s.at, ms): a save writes the changed ones through to every other board that has them, and
   // opening a board takes the newest copy of each of its slots.
-  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'type', 'notionType', 'design', 'libre', 'caption', 'estado'];
+  const SYNC = ['photos', 'note', 'memo', 'uploaded', 'fmt', 'date', 'notionDate', 'name', 'notionName', 'type', 'notionType', 'design', 'libre', 'caption', 'estado', 'ubicacion'];   // + its location (D-124)
   let IDX = {};                                     // slotId -> [{key, client}] of the other boards that have it
   let SIG = { b: null, m: {}, dirty: new Set() };   // open board: signature of each slot as last saved + slots to write through
   const boardClient = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1] || null;
@@ -819,7 +822,11 @@
   }
   const linkLine = s => { const w = sharedWith(s); return w.length ? `<p class="lk">Collab enlazada con ${esc(w.join(' y '))}: foto, fecha, hora, contexto, nota, captions y estado se cambian en ${w.length > 1 ? 'todas' : 'las dos'}.</p>` : ''; };
 
-  async function loadClients() { CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); return CL; }
+  async function loadClients() {
+    CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    UB = Object.fromEntries(((await idbAll('ubicaciones')) || []).filter(u => u && u.id).map(u => [u.id, u]));   // the locations' catalog (D-124)
+    return CL;
+  }
   async function refreshMonths() {
     const all = (await idbAll('boards')) || [];
     MB = all.filter(b => b.client === curClient).map(b => ({ key: b.key, month: b.month, span: b.span || 1, cycleDay: cdOf(b.cycleDay), filled: (b.slots || []).filter(s => vivo(s) && (s.photos || []).length).length, n: (b.slots || []).filter(vivo).length }))
@@ -1324,6 +1331,49 @@
     if (p.length) S.pins = p; else delete S.pins;
     save(); renderFeed(); return true;
   }
+  // ---------- locations (D-124) ----------
+  // One catalog for every client, each place once: {id, nombre, locationId (the Facebook Page id Zernio takes), at}. Each
+  // client has its closed list (c.ubicaciones: ids), loaded by Claude; a post keeps the id of the one chosen (s.ubicacion),
+  // so correcting a place corrects every post that has it. The mesa shows only names; the Page id goes to Zernio with
+  // «programa». Stories have none (D-059).
+  const conUbicacion = s => !!s && (isCarousel(s.type) || isReel(s.type));
+  const ubCmp = (a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' }) || String(a.id).localeCompare(String(b.id));
+  const ubDeCliente = cid => (((CL.find(x => x.id === cid) || {}).ubicaciones) || []).filter(id => UB[id]);
+  // the dropdown's places: the open client's and, in a collab, the other client's too; one place once (also one loaded on
+  // two Macs under two ids), by name
+  function ubOpciones(s) {
+    const cs = [S.client, ...(IDX[s.id] || []).map(x => x.client).filter(Boolean)];
+    const out = [], vistos = new Map();
+    for (const id of new Set(cs.flatMap(ubDeCliente))) {
+      const u = UB[id], k = u.locationId, o = vistos.get(k);
+      if (o === undefined) { vistos.set(k, out.length); out.push(u); } else if (id === s.ubicacion) out[o] = u;   // the chosen one is the one shown
+    }
+    return out.sort(ubCmp);
+  }
+  // Kevin's choices: with no list it is there, empty, and its only entry says the list is missing (Claude loads it); a
+  // Publicada's is locked, like its date (D-103)
+  function ubSelectHTML(s) {
+    if (!conUbicacion(s)) return '';
+    const ops = ubOpciones(s), v = s.ubicacion || '', pub = estadoDe(s) === 'publicado';
+    const fuera = v && !ops.some(u => u.id === v);   // taken out of the list, or not in this Mac's catalog: it stays chosen
+    return `<select class="ubsel" data-slot="${esc(s.id)}" aria-label="Ubicación" title="${pub ? 'Ya está publicada: la ubicación no se cambia' : 'Ubicación en Instagram'}"${pub ? ' disabled' : ''}>`
+      + `<option value=""${v ? '' : ' selected'}>Sin ubicación</option>`
+      + (fuera ? `<option value="${esc(v)}" selected>${esc((UB[v] && UB[v].nombre) || 'Ubicación que ya no está')}</option>` : '')
+      + ops.map(u => `<option value="${esc(u.id)}"${u.id === v ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')
+      + (ops.length ? '' : '<option value="" disabled>Crear lista de ubicaciones</option>') + '</select>';
+  }
+  // a change is one step of ⌘Z and reaches the collab's other board, like its photo and date; a Programada Foto or Carrusel says
+  // Zernio keeps the old one (as with its date, D-103; reels aren't scheduled there); a Publicada's doesn't change
+  function setUbicacion(slotId, id) {
+    const s = S && S.slots.find(x => x.id === slotId); if (!s || !conUbicacion(s) || locked) return false;
+    if ((s.ubicacion || '') === (id || '')) return true;
+    const est = estadoDe(s);
+    if (est === 'publicado') { toast('Ya está publicada: la ubicación no se cambia.', { key: 'ubicacion-publicada' }); return false; }
+    if (est === 'programado' && isCarousel(s.type)) toast('Está programada en Zernio, que sigue con la ubicación de antes: pide a Claude que la cambie allí.', { key: 'ubicacion-programada', ms: 8000 });
+    if (id) s.ubicacion = id; else delete s.ubicacion;
+    save();
+    return true;
+  }
   // ---------- fillers («+ Hueco») ----------
   // Up to 2 plain black cells at the top of the grid, after the pinned posts, to square the feed into rows of 3. Only how
   // the feed looks (mesa, vista cliente, the feed image): not posts, never in Notion or the counters. Kept per board as a
@@ -1658,7 +1708,7 @@
   let H = { b: null, cur: null, curJ: '', undo: [], redo: [], tag: null, t: 0 };
   function editState(B) {
     return {
-      slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); return o; }),
+      slots: B.slots.map(s => { const o = { id: s.id, type: s.type, photos: s.photos.slice(), note: s.note ?? '', date: s.date }; if (s.memo) o.memo = s.memo; if (s.fmt) o.fmt = s.fmt; if (s.design) o.design = JSON.parse(JSON.stringify(s.design)); if (s.libre) o.libre = JSON.parse(JSON.stringify(s.libre)); if (s.estado) o.estado = { ...s.estado }; if (s.guias) o.guias = JSON.parse(JSON.stringify(s.guias)); if (s.ubicacion) o.ubicacion = s.ubicacion; return o; }),
       tray: B.tray.slice(),
       ...(B.carpetas ? { carpetas: B.carpetas.map(c => ({ ...c, files: c.files.slice() })) } : {}),   // the tray's folders (D-069)
       crops: JSON.parse(JSON.stringify(B.crops || {})),
@@ -1738,6 +1788,7 @@
       if (o.libre) s.libre = JSON.parse(JSON.stringify(o.libre)); else delete s.libre;
       if (o.estado) s.estado = { ...o.estado }; else delete s.estado;
       if (o.guias) s.guias = JSON.parse(JSON.stringify(o.guias)); else delete s.guias;
+      if (o.ubicacion) s.ubicacion = o.ubicacion; else delete s.ubicacion;   // its location: a step of ⌘Z (D-124)
     });
     (S.prev || []).forEach(p => {
       const o = pby[p.id]; if (!o) return;
@@ -2142,7 +2193,7 @@
 #mesa .phead p[hidden]{display:none}
 #mesa .pwhen{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}#mesa .pwhen .wd{min-width:2.2em}
 #mesa .pwhen input{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 6px;min-height:30px}
-#mesa .tysel,#mesa .essel{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 4px;min-height:30px;cursor:pointer}
+#mesa .tysel,#mesa .essel,#mesa .ubsel{font:12.5px ${FONT};color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 4px;min-height:30px;cursor:pointer}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
 #mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
@@ -2295,6 +2346,7 @@
 #mesa .xsum li{padding:6px 0;border-top:1px solid var(--line2);line-height:1.5}#mesa .xsum li span{color:var(--mute)}
 #mesa .card>p.xwhat{color:var(--ink);font-size:13px}
 #mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px}
+#mesa .ubsel{max-width:100%;min-width:0;text-overflow:ellipsis}
 #mesa .pdzav{flex-basis:100%;margin:0;padding:0 0 0 16px;color:var(--chg);font-size:12px;max-height:7.5em;overflow:auto}`;
 
   function buildShell() {
@@ -3282,7 +3334,8 @@
     // the post's only design button (D-089): a designed reel whose cell was emptied keeps it, and the editor applies a design with changes first
     const edB = car || (reel && (n || designed(s))) ? `<button type="button" class="btn2" data-act="editar" data-slot="${esc(id)}" data-k="${idx}">${edLabel(s)}</button>` : '';
     const pg = foto ? 'página' : 'diapositiva', lbT = nl ? `<span class="muted">${reel ? 'Portada editada · se sube tal cual' : nl === 1 ? `1 ${pg} editada · se sube tal cual` : `${nl} ${pg}s editadas · se suben tal cual`}</span>` : '';
-    const dz = edB ? `<div class="pdz">${edB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica al pulsar «${edLabel(s)}»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>` : '';
+    const ubB = ubSelectHTML(s);   // the location, right of «Editar …» on its row; a post without that button has the row for it alone (D-124)
+    const dz = !edB ? (ubB ? `<div class="pdz">${ubB}</div>` : '') : `<div class="pdz">${edB}${ubB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica al pulsar «${edLabel(s)}»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>`;
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
       <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>·</span>${typeHTML(s)}<span>·</span>${estadoHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
@@ -4138,6 +4191,7 @@
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
       else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
+      else if (e.target.matches('.ubsel')) { if (!setUbicacion(e.target.dataset.slot, e.target.value || null)) refreshDetail(); }
       else if (e.target.matches('.cappick')) setCapPick(e.target.dataset.slot, +e.target.dataset.k);
       else if (e.target.matches('.picker')) { const fl = e.target.files; if (fl && fl.length) { const lista = [...fl]; e.target.value = ''; if (M.carpetasUI) M.carpetasUI.elegidas(lista, trayCarpeta); else M.addFiles(lista); } }
       else if (e.target.matches('.avin')) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) avPick(f); }
@@ -4339,6 +4393,83 @@
     const boards = (await idbAll('boards')) || [];
     return CL.map(c => ({ ...c, months: boards.filter(b => b.client === c.id).map(b => b.month).sort() }));
   };
+  // ---------- locations: Claude's API (D-124) ----------
+  // cargar(clientId, [{nombre, locationId}]) makes the client's list exactly that one (it's closed: it isn't edited in the
+  // mesa). A place already in the catalog (same locationId) is reused, never stored twice; with another name, or a name
+  // another place has, nothing is loaded (one name per place, for every client: change it with corregir). All or nothing.
+  // A place taken out of a list stays in the catalog and in the posts that have it. ver() → the catalog with each place's
+  // clients; ver(clientId) → that client's list. corregir(id, {nombre?, locationId?}) changes one place for everyone.
+  const UB_LOC = /^\d{5,25}$/, ubAhora = () => new Date().toISOString();
+  const ubNorm = n => String(n ?? '').trim().replace(/\s+/g, ' ');
+  const ubMismoNombre = (a, b) => ubNorm(a).localeCompare(ubNorm(b), 'es', { sensitivity: 'base' }) === 0;
+  async function ubUsos(ids) {     // posts that have each place, in every board (the open one as it is now)
+    const n = Object.fromEntries(ids.map(id => [id, 0]));
+    const boards = ((await idbAll('boards')) || []).filter(b => !S || b.key !== S.key).concat(S ? [S] : []);
+    boards.forEach(b => (b.slots || []).forEach(s => { if (s.ubicacion in n) n[s.ubicacion]++; }));
+    return n;
+  }
+  M.ubicaciones = {
+    async cargar(clientId, lista) {
+      if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+      await loadClients();
+      const c = CL.find(x => x.id === clientId);
+      if (!c) return { error: `cliente desconocido «${clientId}» (los ids, en MESA.clients())` };
+      if (!Array.isArray(lista)) return { error: 'la lista tiene que ser [{nombre, locationId}]' };
+      const problemas = [], plan = [], cat = Object.values(UB);
+      lista.forEach((it, i) => {
+        const nombre = ubNorm(it && it.nombre), loc = String((it && it.locationId) ?? '').trim();
+        const mal = m => problemas.push({ i, nombre, error: m });
+        if (!nombre) return mal('falta el nombre');
+        if (nombre.length > 80) return mal('el nombre pasa de 80 caracteres');
+        if (!UB_LOC.test(loc)) return mal('locationId tiene que ser el id numérico de la página de Facebook del lugar');
+        if (plan.some(p => p.locationId === loc)) return mal('repetida en la lista (mismo locationId)');
+        if (plan.some(p => ubMismoNombre(p.nombre, nombre))) return mal('repetida en la lista (mismo nombre)');
+        const ya = cat.find(u => u.locationId === loc);
+        if (ya && !ubMismoNombre(ya.nombre, nombre)) return mal(`ya está en el catálogo como «${ya.nombre}» (id ${ya.id}): usa ese nombre, o cámbialo para todos con MESA.ubicaciones.corregir`);
+        const otro = cat.find(u => u.locationId !== loc && ubMismoNombre(u.nombre, nombre));
+        if (otro) return mal(`otra ubicación del catálogo ya se llama «${otro.nombre}» (id ${otro.id}), con otro locationId: elige otro nombre o corrige esa`);
+        plan.push({ nombre, locationId: loc, ya });
+      });
+      if (problemas.length) return { error: 'no se ha cargado nada: hay ubicaciones con problemas', problemas };
+      const ids = plan.map(p => p.ya ? p.ya.id : 'ub-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+      const creadas = plan.map((p, k) => p.ya ? null : { id: ids[k], nombre: p.nombre, locationId: p.locationId, at: ubAhora() }).filter(Boolean);
+      if (creadas.length) await tx('ubicaciones', 'readwrite', st => creadas.forEach(u => st.put(u, u.id)));
+      const antes = (c.ubicaciones || []).slice();
+      await editarCliente(clientId, o => ({ ...o, ubicaciones: ids, ubicacionesAt: ubAhora() }));
+      await loadClients();
+      const quitadas = antes.filter(id => !ids.includes(id)), usos = await ubUsos(quitadas);
+      if (S) refreshDetail();
+      return {
+        ok: true, cliente: clientId,
+        lista: ids.map(id => ({ id, nombre: UB[id].nombre, locationId: UB[id].locationId, nueva: creadas.some(u => u.id === id) })),
+        quitadas: quitadas.map(id => ({ id, nombre: (UB[id] || {}).nombre || null, publicaciones: usos[id] }))   // they stay in those posts
+      };
+    },
+    ver(clientId) {
+      const fila = u => ({ id: u.id, nombre: u.nombre, locationId: u.locationId });
+      if (clientId != null) {
+        const c = CL.find(x => x.id === clientId); if (!c) return { error: `cliente desconocido «${clientId}»` };
+        return ubDeCliente(clientId).map(id => fila(UB[id])).sort(ubCmp);
+      }
+      return { catalogo: Object.values(UB).sort(ubCmp).map(u => ({ ...fila(u), clientes: CL.filter(c => (c.ubicaciones || []).includes(u.id)).map(c => c.id) })) };
+    },
+    async corregir(id, cambios = {}) {
+      if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+      await loadClients();
+      const u = UB[id]; if (!u) return { error: `no hay ninguna ubicación con id «${id}» (MESA.ubicaciones.ver())` };
+      const nombre = cambios.nombre != null ? ubNorm(cambios.nombre) : u.nombre, loc = cambios.locationId != null ? String(cambios.locationId).trim() : u.locationId;
+      if (!nombre || nombre.length > 80) return { error: 'el nombre tiene que tener entre 1 y 80 caracteres' };
+      if (!UB_LOC.test(loc)) return { error: 'locationId tiene que ser el id numérico de la página de Facebook del lugar' };
+      const otros = Object.values(UB).filter(x => x.id !== id);
+      const a = otros.find(x => x.locationId === loc); if (a) return { error: `ese locationId ya es de «${a.nombre}» (id ${a.id})` };
+      const b = otros.find(x => ubMismoNombre(x.nombre, nombre)); if (b) return { error: `«${b.nombre}» ya es el nombre de otra ubicación (id ${b.id})` };
+      const nueva = { ...u, nombre, locationId: loc, at: ubAhora() };
+      await idbPut('ubicaciones', id, nueva);
+      await loadClients();
+      if (S) refreshDetail();
+      return { ok: true, antes: { nombre: u.nombre, locationId: u.locationId }, ahora: { nombre, locationId: loc } };
+    }
+  };
   // cycleDay: the day of the month its work cycle starts (1-28, default 1 = calendar month)
   M.addClient = async ({ id, name, handle, cycleDay } = {}) => {
     if (!okCd(cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
@@ -4533,6 +4664,7 @@
       if (o.caption) r.caption = o.caption;
       if (o.estado) r.estado = o.estado.v === 'programado' && !('fecha' in o.estado) ? { ...o.estado, fecha: o.date ?? null } : o.estado;   // a Programada from before 3.92: the date it has now is the one scheduled (D-120)
       if (o.guias) r.guias = o.guias;
+      if (o.ubicacion) r.ubicacion = o.ubicacion;   // the location chosen here (D-124): Notion doesn't have it
       if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
         const x = M.diseno._retipo(r, r.type);
         if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
@@ -4703,6 +4835,7 @@
       }),
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
+      ...(s.ubicacion && conUbicacion(s) ? { ubicacion: { nombre: (UB[s.ubicacion] || {}).nombre || null, locationId: (UB[s.ubicacion] || {}).locationId || null } } : {}),   // the place chosen and its Facebook Page id, for Zernio (D-124); null: not in this Mac's catalog
       uploaded: s.uploaded || null,
       ...(huecosVacios(s).length ? { 'hueco vacío': huecosVacios(s) } : {}),   // its slides with an empty photo hole: not uploaded (D-035)
       ...(s.design && (isCarousel(s.type) || isReel(s.type)) && dState(s) !== 'ok' ? { 'diseño': dState(s) === 'nc' ? 'sin comprobar' : 'desactualizado' } : {})   // a design not applied as it is now: don't upload silently (a post retyped to Foto just keeps it dormant; designer not loaded: «sin comprobar»)
@@ -5153,8 +5286,9 @@
       const boards = ((await idbAll('boards')) || []).map(b => newest(b.key, b)).map(({ carpetas, ...b }) => { if (Array.isArray(b.tray)) { const en = enCarpetas(carpetas); b.tray = b.tray.filter(f => !enTodas.has(f) && !en.has(f)); } return b; }).sort((a, b) => String(a.key).localeCompare(String(b.key)));
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
-      const parts = ['{"format":"mesa-feed","v":9,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120)
-        + ',"clients":' + JSON.stringify(clients) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
+      const ubicaciones = ((await idbAll('ubicaciones')) || []).filter(u => u && u.id);   // the locations' catalog (D-124)
+      const parts = ['{"format":"mesa-feed","v":10,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124)
+        + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
         setBusy('imp', `Exportando ${++n}/${ids.length} fotos…`);
@@ -5223,10 +5357,11 @@
 
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(d.v)) return +d.v > 9 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(d.v)) return +d.v > 10 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
+    if (d.ubicaciones != null && (!Array.isArray(d.ubicaciones) || d.ubicaciones.some(u => !u || typeof u.id !== 'string' || !u.id || typeof u.nombre !== 'string' || typeof u.locationId !== 'string'))) return bad;   // v10 (D-124)
     if (d.bandejas != null && (!Array.isArray(d.bandejas) || d.bandejas.some(r => !r || typeof r.client !== 'string' || !r.client || !Array.isArray(r.tray)))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
     if (Object.values(d.files).some(f => !f || typeof f.data !== 'string' || !f.data)) return bad;
@@ -5257,7 +5392,11 @@
     const pk = new Set(P.put.map(b => b.key));
     P.refs = new Set([...local.filter(b => !pk.has(b.key)), ...P.put].flatMap(b => [...refsTodo(b)]));   // photos the mesa uses after the import
     P.fotoUpd = d.clients.filter(c => cids.has(c.id) && c.fotoAt && String(c.fotoAt) > String((clients.find(x => x.id === c.id) || {}).fotoAt || ''));   // a newer profile photo of a client that is here
-    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });   // a profile photo only when it is used
+    d.clients.forEach(c => { const k = kitRef(c); if (k) P.refs.add(k); if (c.foto && (!cids.has(c.id) || P.fotoUpd.includes(c))) P.refs.add(c.foto); });
+    // the locations (D-124): a place new here, or corrected later on the other Mac; a client's newer list (a new client brings its own)
+    const ubAqui = Object.fromEntries(((await idbAll('ubicaciones')) || []).map(u => [u.id, u]));
+    P.ubPut = (d.ubicaciones || []).filter(u => !ubAqui[u.id] || String(u.at || '') > String(ubAqui[u.id].at || '')).map(u => ({ id: u.id, nombre: u.nombre, locationId: u.locationId, at: u.at || '' }));
+    P.ubLista = d.clients.filter(c => cids.has(c.id) && Array.isArray(c.ubicaciones) && String(c.ubicacionesAt || '') > String((clients.find(x => x.id === c.id) || {}).ubicacionesAt || ''));   // a profile photo only when it is used
     // the clients' trays (D-041): what the file's adds to each one here (never takes anything out of it)
     const locTr = {}; ((await idbAll('bandejas')) || []).forEach(r => { locTr[r.client] = new Set([...(r.tray || []), ...enCarpetas(r.carpetas)]); });
     local.forEach(b => { if (Array.isArray(b.tray)) { const c = boardClient(b); (locTr[c] = locTr[c] || new Set()); b.tray.forEach(f => locTr[c].add(f)); } });   // boards from before 3.44
@@ -5285,7 +5424,7 @@
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
     P.trays = P.trays.filter(r => cids.has(r.client)); P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);   // a tray only with its client
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd;
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length;
     return P;
   }
   // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
@@ -5314,6 +5453,8 @@
       P.newClients.length && nOf(P.newClients.length, 'cliente nuevo', 'clientes nuevos'), P.kitUpd && P.kitUpd.length && nOf(P.kitUpd.length, 'kit de diseño actualizado', 'kits de diseño actualizados'),
       P.libUpd && P.libUpd.length && nOf(P.libUpd.length, 'cliente con colores y plantillas actualizados', 'clientes con colores y plantillas actualizados'),
       P.fotoUpd && P.fotoUpd.length && nOf(P.fotoUpd.length, 'foto de perfil actualizada', 'fotos de perfil actualizadas'),
+      P.ubPut && P.ubPut.length && nOf(P.ubPut.length, 'ubicación nueva o corregida', 'ubicaciones nuevas o corregidas'),
+      P.ubLista && P.ubLista.length && nOf(P.ubLista.length, 'cliente con su lista de ubicaciones al día', 'clientes con su lista de ubicaciones al día'),
       P.capKeep && P.capKeep.length && `${nOf(P.capKeep.length, 'mes recibe', 'meses reciben')} captions que solo estaban en el archivo`,
       P.trayAdd && `${nOf(P.trayAdd, 'foto entra', 'fotos entran')} en la bandeja`].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
@@ -5419,6 +5560,8 @@
       for (const c of P.newClients) await idbPut('clients', c.id, c);
       for (const c of P.kitUpd) await editarCliente(c.id, o => ({ ...o, kit: c.kit, kitAt: c.kitAt }));
       for (const c of P.libUpd || []) await editarCliente(c.id, o => ({ ...o, libre: c.libre, libreAt: c.libreAt }));
+      if ((P.ubPut || []).length) await tx('ubicaciones', 'readwrite', st => P.ubPut.forEach(u => st.put(u, u.id)));   // D-124
+      for (const c of P.ubLista || []) await editarCliente(c.id, o => ({ ...o, ubicaciones: c.ubicaciones.filter(id => typeof id === 'string'), ubicacionesAt: c.ubicacionesAt }));
       for (const c of P.fotoUpd || []) {
         let viejo = null;
         const n = await editarCliente(c.id, o => { viejo = o.foto; const n = { ...o, fotoAt: c.fotoAt }; if (!c.foto) delete n.foto; else if (got[c.foto] || P.files.has(c.foto)) n.foto = c.foto; return n; });
@@ -5747,6 +5890,7 @@
     reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => avisadas, fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim,
+    ubBorrar: async () => { await tx('ubicaciones', 'readwrite', st => st.clear()); for (const c of CL) if (c.ubicaciones) await editarCliente(c.id, o => { delete o.ubicaciones; delete o.ubicacionesAt; return o; }); await loadClients(); },   // the battery's places go (D-124)
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),

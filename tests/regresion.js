@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 9, V_IDB = 11;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120)
+  const V_ARCHIVO = 10, V_IDB = 12;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -76,6 +76,7 @@
     for (const c of [CLIENTE, CLIENTE2]) W.localStorage.removeItem('mesa-pestanas:' + c);
     M._test.vaciarClip();
     if (M._test.olvidarDonde) M._test.olvidarDonde();
+    if (M._test.ubBorrar) await M._test.ubBorrar();   // el catálogo de ubicaciones y las listas (D-124)
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -6288,7 +6289,7 @@
     await tablero([pub(1, 'Reel')]);
     await hasta(() => M.libre, 4000, 'libre.js');
     M._in.openDetail('r1', 0); sinDisenar('reel sin foto');
-    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz'), 'el reel sin foto tiene un botón de diseño');
+    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz button'), 'el reel sin foto tiene un botón de diseño');   // su fila puede llevar solo la ubicación (D-124)
     ok(textoVentana().includes('Sin foto todavía'), 'la ventana no dice cómo ponerle foto');
     tecla('e', { meta: true }); await espera(80);
     ok(!ed(), '⌘E abrió el editor de un reel sin foto');
@@ -8452,6 +8453,218 @@
     igual(['u6-e.jpg', 'u6-libre.jpg'].map(x), [false, true], 'la × en «Sin usar»');
   });
 
+  // ---------- ubicaciones de las publicaciones (mesa 3.95, D-124) ----------
+  // lugares de prueba: los ids no son de ninguna página de verdad
+  const LUG = { a: { nombre: 'Lugar Alfa', locationId: '100000000000001' }, b: { nombre: 'Lugar Gamma', locationId: '100000000000002' }, c: { nombre: 'Lugar Beta', locationId: '100000000000003' } };
+  const ubSel = () => q('.detail .ubsel');
+  async function ubVentana(id) { M._in.openDetail(id, 0); return hasta(() => ubSel(), 3000, 'el desplegable «Ubicación»'); }
+  const ubNombres = sel => [...sel.options].map(o => o.textContent);
+  async function ubElegir(sel, nombre) {
+    const o = [...sel.options].find(x => x.textContent === nombre); ok(o, `«${nombre}» no está en el desplegable: ` + json(ubNombres(sel)));
+    sel.value = o.value; sel.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(30);
+  }
+  const ubDe = id => { const p = M.plan().find(x => x.slotId === id); ok(p, `${id} no está en plan()`); return p.ubicacion || null; };
+  const centroY = el => { const r = el.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
+
+  prueba('L1', 'Las listas de ubicaciones las carga Claude con MESA.ubicaciones: cada lugar una sola vez en el catálogo aunque lo compartan dos clientes; todo o nada si una está mal; una compartida se corrige en un solo sitio (D-124)', async () => {
+    await tablero([pub(1)]);
+    ok(M.ubicaciones && typeof M.ubicaciones.cargar === 'function', 'no hay MESA.ubicaciones.cargar');
+    let r = await M.ubicaciones.cargar(CLIENTE, [LUG.a, LUG.b]);
+    ok(r.ok, 'cargar: ' + json(r));
+    igual(r.lista.map(x => [x.nombre, x.nueva]), [['Lugar Alfa', true], ['Lugar Gamma', true]], 'la lista del primer cliente');
+    await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+    r = await M.ubicaciones.cargar(CLIENTE2, [{ ...LUG.b }, LUG.c]);
+    ok(r.ok, 'cargar el segundo: ' + json(r));
+    igual(r.lista.map(x => x.nueva), [false, true], 'la compartida se creó otra vez');
+    const cat = M.ubicaciones.ver().catalogo;
+    igual(cat.map(u => [u.nombre, u.locationId, u.clientes.slice().sort()]), [['Lugar Alfa', LUG.a.locationId, [CLIENTE]], ['Lugar Beta', LUG.c.locationId, [CLIENTE2]], ['Lugar Gamma', LUG.b.locationId, [CLIENTE, CLIENTE2].sort()]], 'el catálogo');
+    igual(M.ubicaciones.ver(CLIENTE2).map(u => u.nombre), ['Lugar Beta', 'Lugar Gamma'], 'la lista del segundo, por nombre');
+    // todo o nada
+    r = await M.ubicaciones.cargar(CLIENTE, [LUG.a, { nombre: 'Lugar Delta', locationId: 'lugar-delta' }]);
+    ok(r.error && r.problemas.length === 1 && r.problemas[0].i === 1, 'un id que no es numérico: ' + json(r));
+    r = await M.ubicaciones.cargar(CLIENTE, [LUG.a, { nombre: 'Gamma', locationId: LUG.b.locationId }]);
+    ok(r.error && /ya está en el catálogo como «Lugar Gamma»/.test(r.problemas[0].error), 'otro nombre para un lugar del catálogo: ' + json(r));
+    r = await M.ubicaciones.cargar(CLIENTE, [{ nombre: 'lugar alfa', locationId: '100000000000009' }]);
+    ok(r.error && /ya se llama «Lugar Alfa»/.test(r.problemas[0].error), 'el nombre de otro lugar: ' + json(r));
+    igual(M.ubicaciones.ver(CLIENTE).map(u => u.nombre), ['Lugar Alfa', 'Lugar Gamma'], 'una carga con problemas cambió la lista');
+    igual(M.ubicaciones.ver().catalogo.length, 3, 'una carga con problemas tocó el catálogo');
+    // corregir la compartida: un solo sitio, los dos clientes la ven cambiada
+    const gam = cat.find(u => u.nombre === 'Lugar Gamma').id;
+    r = await M.ubicaciones.corregir(gam, { nombre: 'Lugar Gamma (mirador)', locationId: '100000000000022' });
+    ok(r.ok, 'corregir: ' + json(r));
+    const v = { id: gam, nombre: 'Lugar Gamma (mirador)', locationId: '100000000000022' };
+    igual([CLIENTE, CLIENTE2].map(c => M.ubicaciones.ver(c).find(u => u.id === gam)), [v, v], 'la corregida en los dos clientes');
+    igual((await M._in.idbAll('ubicaciones')).length, 3, 'el catálogo guardado');
+  });
+
+  prueba('L2', 'Desplegable «Ubicación» en la ventana: a la derecha de «Editar …», en su fila, debajo de «Fijar en el perfil» y encima de «Contexto»; vacío al principio y solo con los nombres de su cliente; un reel sin portada lo lleva solo en ese sitio; sin lista sale vacío y su única entrada dice «Crear lista de ubicaciones» (D-124)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel'), pub(3, 'Reel')]);
+    await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+    ok((await M.ubicaciones.cargar(CLIENTE, [LUG.b, LUG.a])).ok, 'cargar');
+    ok((await M.ubicaciones.cargar(CLIENTE2, [LUG.c])).ok, 'cargar el otro');
+    for (const [id, boton] of [['r1', 'Editar foto'], ['r2', 'Editar diapositivas']]) {
+      const sel = await ubVentana(id), fila = sel.parentElement, b = fila.querySelector('[data-act="editar"]');
+      ok(fila.matches('.pdz'), `${id}: no va en la fila de «Editar …»`);
+      ok(b && b.textContent === boton && b.nextElementSibling === sel, `${id}: no va justo a la derecha de «${boton}»`);
+      cerca(centroY(sel), centroY(b), 3, `${id}: no está en la misma línea que el botón`);
+      const hijos = [...q('.detail .pright').children];
+      ok(hijos.indexOf(q('.detail .pinsw')) < hijos.indexOf(fila) && hijos.indexOf(fila) < hijos.indexOf(q('.detail .pright label.nlab')), `${id}: no está entre «Fijar en el perfil» y «Contexto»`);
+      igual(ubNombres(sel), ['Sin ubicación', 'Lugar Alfa', 'Lugar Gamma'], `${id}: las opciones`);
+      igual(sel.value, '', `${id}: no empieza vacío`);
+      const html = q('.detail').innerHTML;
+      ok(![LUG.a, LUG.b, LUG.c].some(u => html.includes(u.locationId)), `${id}: el id de Facebook está en la ventana`);
+      M._in.closeDetail();
+    }
+    const sel = await ubVentana('r3');
+    ok(!q('.detail [data-act="editar"]'), 'el reel sin portada tiene «Editar portada»');
+    ok(sel.parentElement.matches('.pdz') && sel.parentElement.children.length === 1, 'el reel sin portada no lo lleva solo en su fila');
+    M._in.closeDetail();
+    await M._test.ubBorrar();
+    const vacio = await ubVentana('r1');
+    igual(ubNombres(vacio), ['Sin ubicación', 'Crear lista de ubicaciones'], 'sin lista: vacío y el aviso de crearla');
+    igual([...vacio.options].map(o => o.disabled), [false, true], 'sin lista: el aviso no se elige');
+    igual(vacio.value, '', 'sin lista: no está vacío');
+  });
+
+  prueba('L3', 'Elegir la ubicación es un paso de ⌘Z (también con el foco en el desplegable); se guarda, sigue al volver a abrir el mes y MESA.plan() da su nombre y su id de Facebook; «Sin ubicación» la quita; el estado no cambia (D-124)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    ok((await M.ubicaciones.cargar(CLIENTE, [LUG.a, LUG.b])).ok, 'cargar');
+    await poner('r1', [await foto('l3.jpg')]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    igual(M.setEstado('r1', 'aprobado')[0].estado, 'aprobado', 'no se aprobó');
+    await M.flush();
+    const h0 = M._test.hist().undo;
+    await ubElegir(await ubVentana('r1'), 'Lugar Alfa');
+    await M.flush();
+    igual(ubDe('r1'), { nombre: 'Lugar Alfa', locationId: LUG.a.locationId }, 'plan() tras elegirla');
+    igual(M._test.hist().undo, h0 + 1, 'elegirla no es un paso de ⌘Z');
+    igual(M._in.estadoDe(slot('r1')), 'aprobado', 'elegirla cambió el estado');
+    M._test.undo();
+    igual(ubDe('r1'), null, '⌘Z no la quitó');
+    await hasta(() => ubSel() && ubSel().value === '', 3000, 'el desplegable vacío tras ⌘Z');
+    M._test.redo();
+    igual(ubDe('r1') && ubDe('r1').nombre, 'Lugar Alfa', '⇧⌘Z no la devolvió');
+    await hasta(() => ubSel() && ubSel().selectedOptions[0].textContent === 'Lugar Alfa', 3000, 'el desplegable tras ⇧⌘Z');
+    ubSel().focus(); tecla('z', { meta: true, en: ubSel() });
+    await hasta(() => !slot('r1').ubicacion, 3000, '⌘Z con el foco en el desplegable');
+    tecla('z', { meta: true, shift: true, en: ubSel() || D.body });
+    await hasta(() => slot('r1').ubicacion, 3000, '⇧⌘Z con el foco en el desplegable');
+    await M.flush();
+    M._in.closeDetail();
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(ubDe('r1'), { nombre: 'Lugar Alfa', locationId: LUG.a.locationId }, 'al volver a abrir el mes');
+    igual((await ubVentana('r1')).selectedOptions[0].textContent, 'Lugar Alfa', 'elegida en la ventana al volver');
+    await ubElegir(ubSel(), 'Sin ubicación');
+    igual(ubDe('r1'), null, '«Sin ubicación» no la quitó');
+    ok(!('ubicacion' in slot('r1')), 'quedó el campo en la publicación');
+  });
+
+  prueba('L4', 'En una collab el desplegable junta las listas de los dos clientes, sin repetir, y la ubicación elegida pasa al tablero del otro cliente, como la foto y la fecha (D-124, D-008)', async () => {
+    await limpiar();
+    const col = { id: 'colab-l4', name: 'COLLAB Foto 1', type: 'Foto', date: `${MES}-05T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [col, pub(1)], past: [], force: true });
+    igual(M._test.shared('colab-l4').length, 1, 'la collab no quedó enlazada');
+    ok((await M.ubicaciones.cargar(CLIENTE, [LUG.a, LUG.b])).ok, 'cargar');
+    ok((await M.ubicaciones.cargar(CLIENTE2, [LUG.b, LUG.c])).ok, 'cargar el otro');
+    igual(ubNombres(await ubVentana('colab-l4')), ['Sin ubicación', 'Lugar Alfa', 'Lugar Beta', 'Lugar Gamma'], 'las dos listas juntas, sin repetir');
+    M._in.closeDetail();
+    igual(ubNombres(await ubVentana('r1')), ['Sin ubicación', 'Lugar Alfa', 'Lugar Gamma'], 'una publicación que no es collab lleva solo las de su cliente');
+    M._in.closeDetail();
+    await ubElegir(await ubVentana('colab-l4'), 'Lugar Beta');
+    await M.flush();
+    const beta = M.ubicaciones.ver(CLIENTE2).find(u => u.nombre === 'Lugar Beta').id;
+    await hasta(async () => { const r = await M._in.idbGet('boards', `${CLIENTE2}-${MES}`); return r && r.slots.find(s => s.id === 'colab-l4').ubicacion === beta; }, 4000, 'que la ubicación llegue al tablero del otro cliente');
+    M._in.closeDetail();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    igual(slot('colab-l4').ubicacion, beta, 'al abrir el tablero del otro cliente');
+    igual((await ubVentana('colab-l4')).selectedOptions[0].textContent, 'Lugar Beta', 'elegida en la ventana del otro cliente');
+  });
+
+  prueba('L5', '«⇅ Exportar» (archivo v10) lleva el catálogo, la lista de cada cliente y la ubicación de cada publicación, e «Importar» los devuelve; una corrección más nueva llega y una más vieja no la pisa; un archivo v9 entra; IndexedDB 12 (D-124, D-017, D-060)', async () => {
+    await tablero([pub(1)]);
+    ok((await M.ubicaciones.cargar(CLIENTE, [LUG.a, LUG.b])).ok, 'cargar');
+    await ubElegir(await ubVentana('r1'), 'Lugar Gamma'); M._in.closeDetail();
+    await M.flush();
+    const key = `${CLIENTE}-${MES}`;
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    igual(d.v, V_ARCHIVO, 'la versión del archivo');
+    igual((d.ubicaciones || []).map(u => [u.nombre, u.locationId]).sort(), [['Lugar Alfa', LUG.a.locationId], ['Lugar Gamma', LUG.b.locationId]], 'el catálogo en el archivo');
+    const gam = d.ubicaciones.find(u => u.nombre === 'Lugar Gamma').id;
+    igual((d.clients.find(c => c.id === CLIENTE).ubicaciones || []).length, 2, 'la lista del cliente en el archivo');
+    igual(d.boards.find(b => b.key === key).slots.find(s => s.id === 'r1').ubicacion, gam, 'la ubicación de la publicación en el archivo');
+    await sinMes(key); await M._test.ubBorrar();
+    igual(M.ubicaciones.ver(CLIENTE), [], 'quedó la lista');
+    let r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(key);
+    igual(M.ubicaciones.ver(CLIENTE).map(u => u.nombre), ['Lugar Alfa', 'Lugar Gamma'], 'la lista importada');
+    igual(slot('r1').ubicacion, gam, 'la ubicación importada de la publicación');
+    igual((await ubVentana('r1')).selectedOptions[0].textContent, 'Lugar Gamma', 'elegida en la ventana tras importar');
+    M._in.closeDetail();
+    const d2 = JSON.parse(json(d)), u2 = d2.ubicaciones.find(u => u.id === gam);
+    u2.nombre = 'Lugar Gamma (mirador)'; u2.at = new Date(Date.now() + 60000).toISOString();
+    r = await M.importData(d2, { confirm: false }); ok(r && !r.error, 'importar la corrección: ' + json(r));
+    igual(M.ubicaciones.ver(CLIENTE).find(u => u.id === gam).nombre, 'Lugar Gamma (mirador)', 'la corrección más nueva no llegó');
+    r = await M.importData(d, { confirm: false }); ok(r && !r.error, 'importar el archivo viejo: ' + json(r));
+    igual(M.ubicaciones.ver(CLIENTE).find(u => u.id === gam).nombre, 'Lugar Gamma (mirador)', 'una más vieja la pisó');
+    const v9 = JSON.parse(json(d)); v9.v = 9; delete v9.ubicaciones;
+    v9.clients.forEach(c => { delete c.ubicaciones; delete c.ubicacionesAt; }); v9.boards.forEach(b => b.slots.forEach(s => { delete s.ubicacion; }));
+    await sinMes(key);
+    r = await M.importData(v9, { confirm: false }); ok(r && !r.error, 'el archivo v9 no se importó: ' + json(r));
+    const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
+  });
+
+  prueba('L6', 'Una ubicación quitada de la lista se queda en la publicación que la tiene y sigue elegida en su ventana hasta cambiarla; corregirla cambia el dato que da plan() (D-124)', async () => {
+    await tablero([pub(1)]);
+    ok((await M.ubicaciones.cargar(CLIENTE, [LUG.a, LUG.b])).ok, 'cargar');
+    await poner('r1', [await foto('l6.jpg')]);
+    await ubElegir(await ubVentana('r1'), 'Lugar Alfa'); M._in.closeDetail(); await M.flush();
+    const r = await M.ubicaciones.cargar(CLIENTE, [LUG.b]);
+    ok(r.ok, 'cargar sin ella: ' + json(r));
+    igual(r.quitadas.map(x => [x.nombre, x.publicaciones]), [['Lugar Alfa', 1]], 'lo que dice al quitarla');
+    igual(ubDe('r1'), { nombre: 'Lugar Alfa', locationId: LUG.a.locationId }, 'la publicación la perdió');
+    const sel = await ubVentana('r1');
+    igual(ubNombres(sel), ['Sin ubicación', 'Lugar Alfa', 'Lugar Gamma'], 'las opciones con la quitada');
+    igual(sel.selectedOptions[0].textContent, 'Lugar Alfa', 'no sigue elegida');
+    M._in.closeDetail();
+    ok((await M.ubicaciones.corregir(slot('r1').ubicacion, { locationId: '100000000000011' })).ok, 'corregir');
+    igual(ubDe('r1').locationId, '100000000000011', 'plan() no da el dato corregido');
+    await ubElegir(await ubVentana('r1'), 'Lugar Gamma'); M._in.closeDetail();
+    igual(ubNombres(await ubVentana('r1')), ['Sin ubicación', 'Lugar Gamma'], 'la quitada sigue en el desplegable tras cambiarla');
+  });
+
+  prueba('L7', 'Cambiar la ubicación de una Foto Programada avisa de que Zernio sigue con la de antes y la cambia; la de una Publicada no se toca: el desplegable está bloqueado (D-124, D-103)', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Reel')]);
+    ok((await M.ubicaciones.cargar(CLIENTE, [LUG.a, LUG.b])).ok, 'cargar');
+    for (const id of ['r1', 'r2', 'r3']) {
+      await poner(id, [await foto(`l7-${id}.jpg`)]);
+      M.loadCaptions([{ slotId: id, options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+      M._test.setSlot(id, { caption: { ...slot(id).caption, pick: 0 } });
+      igual(M.setEstado(id, 'aprobado')[0].estado, 'aprobado', `${id} no se aprobó`);
+    }
+    igual(M.setEstado('r1', 'programado')[0].estado, 'programado', 'r1 no se programó');
+    igual(M.setEstado('r2', 'publicado')[0].estado, 'publicado', 'r2 no se publicó');
+    igual(M.setEstado('r3', 'programado')[0].estado, 'programado', 'r3 no se programó');
+    await M.flush();
+    const avisos = () => qa('.toast').filter(t => /sigue con la ubicación de antes/.test(t.textContent));
+    qa('.toast').forEach(t => t.remove());
+    await ubElegir(await ubVentana('r1'), 'Lugar Alfa');
+    igual(ubDe('r1') && ubDe('r1').nombre, 'Lugar Alfa', 'la Programada no cambió');
+    ok(avisos().some(t => t.textContent.includes('Está programada en Zernio, que sigue con la ubicación de antes: pide a Claude que la cambie allí.')), 'sin el aviso de Zernio');
+    M._in.closeDetail(); qa('.toast').forEach(t => t.remove());
+    await ubElegir(await ubVentana('r3'), 'Lugar Gamma');
+    ok(!avisos().length, 'un reel programado avisa de Zernio');
+    M._in.closeDetail();
+    const sel = await ubVentana('r2');
+    ok(sel.disabled, 'el desplegable de la Publicada no está bloqueado');
+    sel.value = [...sel.options].find(o => o.textContent === 'Lugar Gamma').value; sel.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(30);
+    ok(!slot('r2').ubicacion, 'la Publicada cambió de ubicación');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================
@@ -8523,6 +8736,7 @@
         ok(r === true && !(await M.boards()).some(b => b.client === CLIENTE), 'no se pudo borrar el cliente de prueba: ' + r);
         if ((await M.clients()).some(c => c.id === CLIENTE2)) { const r2 = await M.removeClient(CLIENTE2); ok(r2 === true, 'no se pudo borrar el segundo cliente de prueba: ' + r2); }
         ok(!(await M._in.idbAll('bandejas')).some(x => DE_PRUEBA(x.client)), 'quedó la bandeja de un cliente de prueba');
+        if (M.ubicaciones) ok(!(await M._in.idbAll('ubicaciones')).length, 'quedaron ubicaciones de prueba en el catálogo');
       } catch (e) { res.limpieza = String((e && e.message) || e); }
     }
     if (listo && !res.fallan && !res.limpieza) {     // sin fallos, la mesa de prueba se cierra (suelta el bloqueo de otras pestañas)

@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.13';
+  const VERSION = '1.14';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -42,7 +42,7 @@
   const NO_FINAL = 'Falta la foto final del cliente: pídele a Claude que la fije.';
   const api = fn => async (...a) => {
     try { return await fn(...a); }
-    catch (e) { if (e instanceof DzError) return e.slide != null ? { error: e.message, diapositiva: e.slide + 1 } : { error: e.message }; console.warn('diseño:', e); return { error: 'Error del diseñador: ' + String((e && e.message) || e) }; }
+    catch (e) { if (e instanceof DzError) return { error: e.message, ...(e.slide != null ? { diapositiva: e.slide + 1 } : {}), ...(e.faltan ? { faltan: e.faltan.map(i => i + 1) } : {}) }; console.warn('diseño:', e); return { error: 'Error del diseñador: ' + String((e && e.message) || e) }; }
   };
 
   // ---------- slot helpers ----------
@@ -427,7 +427,7 @@
   async function renderFull(s, i, kit, fin, sz, rawHash, noBlob) {
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src], k0 = rawHash != null ? avKey(s, i, rawHash, sz, fin) : null;
     let blob0;
-    try { blob0 = await I().getBlob(src); } catch (e) { throw new DzError(`La foto de la diapositiva ${i + 1} ya no está en la mesa: pídele a Claude que elija otra.`); }
+    try { blob0 = await I().getBlob(src); } catch (e) { throw sl.tipo === 'final' ? new DzError(NO_FINAL, i) : faltaError(s, [i]); }
     // the photo decoded at the px the slide uses, never more than the original (D-116): the same image, less memory
     const r = rectOf(src, sz.W, sz.H), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' };
     if (usa < 1) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
@@ -446,11 +446,21 @@
       return out;
     } finally { bmp.close(); }
   }
+  // slides whose photo is missing: none chosen, or the one chosen is no longer in the mesa (the final uses the client's)
+  const sinFoto = s => s.design.slides.reduce((a, sl, i) => sl.tipo !== 'final' && !(sl.src && M.files[sl.src]) ? [...a, i] : a, []);
+  const listaY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : String(a[0]);
+  // Kevin adds a missing photo himself, here: «Editar …» opens the designer on it (D-123)
+  function faltaMsg(s, faltan) {
+    const borrada = faltan.length === 1 && s.design.slides[faltan[0]].src ? ' (la que tenía ya no está en la mesa)' : '';
+    if (isReelS(s)) return `Falta la foto de la portada${borrada}: añádela y pulsa «Aplicar a la casilla».`;
+    return faltan.length === 1 ? `Falta la foto de la diapositiva ${faltan[0] + 1}${borrada}: añádela y pulsa «Aplicar a la casilla».`
+      : `Faltan las fotos de las diapositivas ${listaY(faltan.map(i => i + 1))}: añádelas y pulsa «Aplicar a la casilla».`;
+  }
+  function faltaError(s, faltan) { const e = new DzError(faltaMsg(s, faltan), faltan[0]); e.faltan = faltan; return e; }
   function checkPhotos(s, fin) {
-    s.design.slides.forEach((sl, i) => {
-      if (sl.tipo === 'final') need(fin, NO_FINAL, i);
-      else { need(sl.src, `La diapositiva ${i + 1} no tiene foto: pídele a Claude que elija una.`, i); need(M.files[sl.src], `La foto de la diapositiva ${i + 1} ya no está en la mesa: pídele a Claude que elija otra.`, i); }
-    });
+    const faltan = sinFoto(s);
+    if (faltan.length) throw faltaError(s, faltan);       // all of them at once, the first selected
+    s.design.slides.forEach((sl, i) => { if (sl.tipo === 'final') need(fin, NO_FINAL, i); });
   }
 
   // ---------- API ----------
@@ -610,7 +620,7 @@
     const fin = await finalReady(raw);
     await I().loadThumbs(srcsOf(s));
     const sl = d.slides[i], src = effSrc(sl, fin);
-    if (sl.tipo === 'final') need(fin, NO_FINAL); else need(src && M.files[src], `La diapositiva ${i + 1} no tiene foto: pídele a Claude que elija una.`);
+    if (sl.tipo === 'final') need(fin, NO_FINAL); else if (!(src && M.files[src])) throw faltaError(s, [i]);
     const r = await renderFull(s, i, kit, fin, sizeOf(kit, d, fin), kitHash(raw));
     M.out.diseno = r.blob;
     return { n: i + 1, w: r.w, h: r.h, kb: Math.round(r.blob.size / 1024), decision: r.decision, bloque: r.bloque, avisos: r.avisos };
@@ -765,7 +775,8 @@
       left && `${left === 1 ? 'Una foto nueva no cabe' : `${left} fotos nuevas no caben`}: un carrusel admite como máximo 20 diapositivas (Instagram).`].filter(Boolean).join(' ');
   }
 
-  async function abrir(slotId) {
+  // opts.faltaFoto: opened by «Editar …» because a photo is missing (D-123): on the first one, with the notice
+  async function abrir(slotId, opts) {
     try {
       const s = slotOf(slotId), S = I().S;
       need(!I().locked, LOCKED);
@@ -790,8 +801,12 @@
       if (changedNow) { s.design.at = nowISO(); I().save(); }
       E.entrada = entrada; E.marca = marca;
       const st0 = instantanea(s, fin); E.hist = { undo: [], redo: [], cur: st0, curJ: firma(st0), tag: null, t: 0 }; E.abiertoJ = E.hist.curJ;
-      if (msg) I().toast(msg);
-      return { ok: true, slot: s.id, diapositivas: s.design.slides.length, ...(msg ? { aviso: msg } : {}) };
+      let faltan = null;
+      if (opts && opts.faltaFoto) {                         // the photos new in the cell may have filled them (absorb)
+        const f = sinFoto(s); if (f.length) { faltan = f.map(i => i + 1); select(f[0]); }
+        I().toast([msg, f.length ? faltaMsg(s, f) : 'Pulsa «Aplicar a la casilla» para aplicar el diseño.'].filter(Boolean).join(' '), { ms: 15000 });
+      } else if (msg) I().toast(msg);
+      return { ok: true, slot: s.id, diapositivas: s.design.slides.length, ...(faltan ? { faltan } : {}), ...(msg ? { aviso: msg } : {}) };
     } catch (e) {
       const m = e instanceof DzError ? e.message : 'No se pudo abrir el diseñador: ' + String((e && e.message) || e);
       if (!(e instanceof DzError)) console.warn('diseño:', e);

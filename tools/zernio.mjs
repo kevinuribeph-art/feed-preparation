@@ -70,7 +70,7 @@ function checkTiming(b, isNew) {
 const slim = p => p && ({
   id: p._id, status: p.status, scheduledFor: p.scheduledFor, timezone: p.timezone,
   content: p.content, media: (p.mediaItems || []).map(m => m.url),
-  platforms: (p.platforms || []).map(x => ({ platform: x.platform, accountId: x.accountId && (x.accountId._id || x.accountId), status: x.status, ...(x.platformPostUrl ? { url: x.platformPostUrl } : {}), ...(x.errorMessage ? { error: x.errorMessage } : {}) })),
+  platforms: (p.platforms || []).map(x => ({ platform: x.platform, accountId: x.accountId && (x.accountId._id || x.accountId), status: x.status, ...(x.platformSpecificData && x.platformSpecificData.locationId ? { locationId: x.platformSpecificData.locationId } : {}), ...(x.platformPostUrl ? { url: x.platformPostUrl } : {}), ...(x.errorMessage ? { error: x.errorMessage } : {}) })),   // locationId: the place sent (D-124)
   ...(p.metadata && Object.keys(p.metadata).length ? { metadata: p.metadata } : {})
 });
 

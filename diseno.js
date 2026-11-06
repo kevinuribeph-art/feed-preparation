@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.14';
+  const VERSION = '1.15';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -1561,6 +1561,7 @@
       return;
     }
     if (!typing && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !(t && t.closest && t.closest('.seg'))) { e.preventDefault(); select(E.sel + (e.key === 'ArrowUp' ? -1 : 1)); }
+    else if (!typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !(t && t.closest && t.closest('.seg'))) { e.preventDefault(); select(E.sel + (e.key === 'ArrowLeft' ? -1 : 1)); }   // ← → as ↑ ↓, without modifiers (D-125)
     else if (!typing && t && t.classList && t.classList.contains('dz-it') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(+t.dataset.i); }   // ▲ ▼ × inside work as buttons
   }
 

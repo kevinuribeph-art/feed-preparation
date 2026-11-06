@@ -8453,6 +8453,32 @@
     igual(['u6-e.jpg', 'u6-libre.jpg'].map(x), [false, true], 'la × en «Sin usar»');
   });
 
+  // ---------- ← → en el diseñador (mesa 3.96, diseño 1.15, D-125) ----------
+  prueba('D27', 'En el diseñador ← → pasan a la diapositiva anterior y siguiente, como ↑ ↓; no escribiendo, en un conmutador, en la barra del velo ni con modificadores (D-125)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d27a.jpg', 1080, 1350), await foto('d27b.jpg', 1080, 1350), await foto('d27c.jpg', 1080, 1350)], textos('D27', 'Portada', 'Ficha', 'Otra'), false);
+      const r = await M.diseno.abrir('r1'); ok(!r || !r.error, 'no abrió el diseñador: ' + json(r));
+      await dzAbierto();
+      const dia = () => M.diseno.abierto().diapositiva;
+      igual(dia(), 1, 'no abrió en la primera');
+      tecla('ArrowLeft'); igual(dia(), 1, '← en la primera la movió');
+      tecla('ArrowRight'); igual(dia(), 2, '→ no pasó a la siguiente');
+      tecla('ArrowRight'); igual(dia(), 3, '→ no pasó a la tercera');
+      tecla('ArrowRight'); igual(dia(), 3, '→ en la última la movió');
+      tecla('ArrowLeft'); igual(dia(), 2, '← no volvió a la anterior');
+      for (const m of [{ meta: true }, { ctrl: true }, { alt: true }, { shift: true }]) { tecla('ArrowRight', m); igual(dia(), 2, '→ con modificador ' + json(m)); }
+      const en = sel => { const el = q(sel); ok(el, 'sin ' + sel); el.focus(); return el; };
+      tecla('ArrowRight', { en: en('.dz textarea[data-f="titulo"]') }); igual(dia(), 2, '→ escribiendo el título');
+      tecla('ArrowLeft', { en: en('.dz .seg button') }); igual(dia(), 2, '← en un conmutador');
+      const vr = q('.dz .dz-velor'); if (vr) { tecla('ArrowRight', { en: en('.dz .dz-velor') }); igual(dia(), 2, '→ en la barra del velo'); }
+      D.activeElement.blur();
+      tecla('ArrowDown'); igual(dia(), 3, '↓ dejó de funcionar');
+      tecla('ArrowUp'); igual(dia(), 2, '↑ dejó de funcionar');
+      await dzCerrar();
+    });
+  });
+
   // ---------- ubicaciones de las publicaciones (mesa 3.95, D-124) ----------
   // lugares de prueba: los ids no son de ninguna página de verdad
   const LUG = { a: { nombre: 'Lugar Alfa', locationId: '100000000000001' }, b: { nombre: 'Lugar Gamma', locationId: '100000000000002' }, c: { nombre: 'Lugar Beta', locationId: '100000000000003' } };

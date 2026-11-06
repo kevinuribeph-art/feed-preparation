@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 10, V_IDB = 12;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124)
+  const V_ARCHIVO = 11, V_IDB = 13;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -77,6 +77,7 @@
     M._test.vaciarClip();
     if (M._test.olvidarDonde) M._test.olvidarDonde();
     if (M._test.ubBorrar) await M._test.ubBorrar();   // el catálogo de ubicaciones y las listas (D-124)
+    if (M._test.perBorrar) await M._test.perBorrar();   // las listas de personas (D-130)
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -8948,6 +8949,239 @@
     ok(sel.disabled, 'el desplegable de la Publicada no está bloqueado');
     sel.value = [...sel.options].find(o => o.textContent === 'Lugar Gamma').value; sel.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(30);
     ok(!slot('r2').ubicacion, 'la Publicada cambió de ubicación');
+  });
+
+
+  // ---------- etiquetas y colaboradores (mesa 4.01, D-130) ----------
+  // cuentas de prueba: no son de nadie de verdad y nunca salen de esta copia
+  const GEN = [{ usuario: 'zeta.prueba', colaborador: false }, { usuario: '@Alfa_Prueba', colaborador: true }, { usuario: 'beta.prueba', colaborador: true }];
+  const perSel = campo => q(`.detail .persel[data-campo="${campo}"]`);
+  async function perVentana(id) { M._in.openDetail(id, 0); return hasta(() => q('.detail .pper'), 3000, 'los campos «Etiquetar» y «Colaboradores»'); }
+  const perOps = campo => [...perSel(campo).options].map(o => o.textContent);
+  const perChips = campo => [...perSel(campo).parentElement.querySelectorAll('.perchip')].map(c => c.firstChild.textContent);
+  async function perElegir(campo, usuario) {
+    const sel = perSel(campo), o = [...sel.options].find(x => x.textContent === '@' + usuario);
+    ok(o, `@${usuario} no está en «${campo}»: ` + json(perOps(campo)));
+    sel.value = o.value; sel.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(30);
+  }
+  async function perQuitar(campo, usuario) {
+    const b = perSel(campo).parentElement.querySelector(`[data-act="perquitar"][data-u="${usuario}"]`);
+    ok(b, `@${usuario} no tiene × en «${campo}»`); b.click(); await espera(30);
+  }
+  const perDe = id => { const p = M.plan().find(x => x.slotId === id); ok(p, `${id} no está en plan()`); return { etiquetas: p.etiquetas, colaboradores: p.colaboradores, ...(p.colaboradoresNoValidos ? { noValidos: p.colaboradoresNoValidos } : {}) }; };
+  const conContexto = (...ids) => ids.forEach(id => M._test.setSlot(id, { note: 'contexto de prueba' }));   // para que salgan en plan()
+  async function aprobada(id) {
+    M.loadCaptions([{ slotId: id, options: [{ tone: 'a', text: '1' }, { tone: 'b', text: '2' }, { tone: 'c', text: '3' }] }]);
+    M._test.setSlot(id, { caption: { ...slot(id).caption, pick: 0 } });
+    igual(M.setEstado(id, 'aprobado')[0].estado, 'aprobado', `${id} no se aprobó`);
+  }
+
+  prueba('G1', 'La lista de personas de un cliente la carga Claude con MESA.personas: sin @ y en minúsculas, con si puede ser colaborador; todo o nada si una está mal; ver() da cada persona con sus clientes (D-130)', async () => {
+    await tablero([pub(1)]);
+    ok(M.personas && typeof M.personas.cargar === 'function', 'no hay MESA.personas.cargar');
+    let r = await M.personas.cargar(CLIENTE, GEN);
+    ok(r.ok, 'cargar: ' + json(r));
+    igual(r.lista, [{ usuario: 'alfa_prueba', colaborador: true }, { usuario: 'beta.prueba', colaborador: true }, { usuario: 'zeta.prueba', colaborador: false }], 'la lista cargada');
+    igual(M.personas.ver(CLIENTE).map(p => p.usuario), ['alfa_prueba', 'beta.prueba', 'zeta.prueba'], 'ver(cliente), por orden');
+    await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+    ok((await M.personas.cargar(CLIENTE2, [{ usuario: 'beta.prueba', colaborador: true }, { usuario: 'otra.prueba', colaborador: false }])).ok, 'cargar el segundo');
+    igual(M.personas.ver().personas.map(p => [p.usuario, p.colaborador, p.clientes.slice().sort()]),
+      [['alfa_prueba', true, [CLIENTE]], ['beta.prueba', true, [CLIENTE, CLIENTE2].sort()], ['otra.prueba', false, [CLIENTE2]], ['zeta.prueba', false, [CLIENTE]]], 'ver()');
+    // todo o nada
+    for (const [mala, que] of [[{ usuario: 'con espacio', colaborador: true }, /no es un usuario/], [{ usuario: 'sin.dato' }, /falta colaborador/], [{ usuario: '@ALFA_prueba', colaborador: false }, /repetido/], [{ usuario: '', colaborador: true }, /falta el usuario/], [{ usuario: 'x'.repeat(31), colaborador: true }, /no es un usuario/]]) {
+      r = await M.personas.cargar(CLIENTE, [GEN[1], mala]);
+      ok(r.error && r.problemas.length === 1 && r.problemas[0].i === 1 && que.test(r.problemas[0].error), json(mala) + ': ' + json(r));
+    }
+    igual(M.personas.ver(CLIENTE).length, 3, 'una carga con problemas cambió la lista');
+    igual((await M.personas.cargar('no-existe', GEN)).error.startsWith('cliente desconocido'), true, 'un cliente que no existe');
+  });
+
+  prueba('G2', '«Etiquetar» y «Colaboradores» en la ventana de Foto, Carrusel y Reel: debajo de la fila de «Editar …» y «Ubicación», encima de «Contexto»; vacíos al principio; los @ por orden; «Colaboradores» solo ofrece los que pueden serlo; sin lista, vacíos con «Crear lista de personas», que no se elige (D-130)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel'), pub(3, 'Reel')]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar');
+    for (const id of ['r1', 'r2', 'r3']) {
+      const per = await perVentana(id), hijos = [...q('.detail .pright').children], i = hijos.indexOf(per);
+      ok(hijos[i - 1] && hijos[i - 1].matches('.pdz') && hijos[i - 1].querySelector('.ubsel'), `${id}: no va justo debajo de la fila de «Ubicación»`);
+      ok(hijos[i + 1] && hijos[i + 1].matches('label.nlab') && /Contexto/.test(hijos[i + 1].textContent), `${id}: no va justo encima de «Contexto»`);
+      ok(per.getBoundingClientRect().top >= hijos[i - 1].getBoundingClientRect().bottom - 1, `${id}: no está debajo de la fila`);
+      igual(perOps('etiquetas'), ['Etiquetar', '@alfa_prueba', '@beta.prueba', '@zeta.prueba'], `${id}: «Etiquetar»`);
+      igual(perOps('colaboradores'), ['Colaboradores', '@alfa_prueba', '@beta.prueba'], `${id}: «Colaboradores»`);
+      igual([perSel('etiquetas').value, perSel('colaboradores').value, perChips('etiquetas').length, perChips('colaboradores').length], ['', '', 0, 0], `${id}: no empiezan vacíos`);
+      M._in.closeDetail();
+    }
+    await M._test.perBorrar();
+    await perVentana('r1');
+    igual([perOps('etiquetas'), perOps('colaboradores')], [['Etiquetar', 'Crear lista de personas'], ['Colaboradores', 'Crear lista de personas']], 'sin lista');
+    igual([...perSel('etiquetas').options, ...perSel('colaboradores').options].map(o => o.disabled), [false, true, false, true], 'sin lista: «Crear lista de personas» se elige');
+  });
+
+  prueba('G3', 'Elegir y quitar es un paso de ⌘Z; los elegidos salen por orden, una persona puede estar en los dos, se guardan, siguen al volver a abrir el mes y MESA.plan() los da; el estado no cambia (D-130)', async () => {
+    await tablero([pub(1)]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar');
+    await poner('r1', [await foto('g3.jpg')]); await aprobada('r1');
+    igual(perDe('r1'), { etiquetas: [], colaboradores: [] }, 'plan() sin elegir');
+    await M.flush();
+    const h0 = M._test.hist().undo;
+    await perVentana('r1');
+    await perElegir('etiquetas', 'zeta.prueba');
+    await perElegir('etiquetas', 'alfa_prueba');
+    await perElegir('colaboradores', 'alfa_prueba');
+    igual(M._test.hist().undo, h0 + 3, 'cada elección no es un paso de ⌘Z');
+    igual([perChips('etiquetas'), perChips('colaboradores')], [['@alfa_prueba', '@zeta.prueba'], ['@alfa_prueba']], 'los elegidos en la ventana');
+    igual(perOps('etiquetas'), ['Etiquetar', '@beta.prueba'], '«Etiquetar» ofrece aún los elegidos');
+    igual(perOps('colaboradores'), ['Colaboradores', '@beta.prueba'], '«Colaboradores» ofrece aún el elegido');
+    igual(D.activeElement, perSel('colaboradores'), 'el foco no vuelve a su desplegable');
+    igual(perDe('r1'), { etiquetas: ['alfa_prueba', 'zeta.prueba'], colaboradores: ['alfa_prueba'] }, 'plan()');
+    igual(M._in.estadoDe(slot('r1')), 'aprobado', 'elegirlos cambió el estado');
+    M._test.undo();
+    igual(perDe('r1').colaboradores, [], '⌘Z no quitó el colaborador');
+    await hasta(() => perSel('colaboradores') && !perChips('colaboradores').length, 3000, 'la ventana tras ⌘Z');
+    M._test.redo();
+    await hasta(() => perSel('colaboradores') && perChips('colaboradores').length === 1, 3000, 'la ventana tras ⇧⌘Z');
+    await perQuitar('etiquetas', 'zeta.prueba');
+    igual(perDe('r1').etiquetas, ['alfa_prueba'], 'la × no lo quitó');
+    igual(M._test.hist().undo, h0 + 4, 'quitar no es un paso de ⌘Z');
+    perSel('etiquetas').focus(); tecla('z', { meta: true, en: perSel('etiquetas') });
+    await hasta(() => (slot('r1').etiquetas || []).length === 2, 3000, '⌘Z con el foco en el desplegable');
+    await M.flush();
+    M._in.closeDetail();
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(perDe('r1'), { etiquetas: ['alfa_prueba', 'zeta.prueba'], colaboradores: ['alfa_prueba'] }, 'al volver a abrir el mes');
+    await perVentana('r1');
+    igual([perChips('etiquetas'), perChips('colaboradores')], [['@alfa_prueba', '@zeta.prueba'], ['@alfa_prueba']], 'en la ventana al volver');
+    for (const u of ['alfa_prueba', 'zeta.prueba']) await perQuitar('etiquetas', u);
+    await perQuitar('colaboradores', 'alfa_prueba');
+    ok(!('etiquetas' in slot('r1')) && !('colaboradores' in slot('r1')), 'quedaron los campos vacíos en la publicación');
+    igual(M._in.estadoDe(slot('r1')), 'aprobado', 'quitarlos cambió el estado');
+  });
+
+  prueba('G4', 'Hasta 20 personas etiquetadas y 3 colaboradores: la 21.ª y el 4.º no entran y avisan «Máximo 20 personas» y «Máximo 3 colaboradores» (D-130)', async () => {
+    await tablero([pub(1)]);
+    const us = Array.from({ length: 21 }, (_, k) => 'gente' + String(k + 1).padStart(2, '0'));
+    ok((await M.personas.cargar(CLIENTE, us.map((usuario, k) => ({ usuario, colaborador: k < 4 })))).ok, 'cargar 21');
+    us.slice(0, 20).forEach(u => ok(M._test.setPersona('r1', 'etiquetas', u), `no entró @${u}`));
+    us.slice(0, 3).forEach(u => ok(M._test.setPersona('r1', 'colaboradores', u), `no entró el colaborador @${u}`));
+    qa('.toast').forEach(t => t.remove());
+    await perVentana('r1');
+    igual(perChips('etiquetas').length, 20, 'las 20 en la ventana');
+    await perElegir('etiquetas', 'gente21');
+    igual(slot('r1').etiquetas.length, 20, 'entró la 21.ª');
+    ok(qa('.toast').some(t => t.textContent.includes('Máximo 20 personas')), 'sin el aviso «Máximo 20 personas»');
+    await perElegir('colaboradores', 'gente04');
+    igual(slot('r1').colaboradores, ['gente01', 'gente02', 'gente03'], 'entró el 4.º');
+    ok(qa('.toast').some(t => t.textContent.includes('Máximo 3 colaboradores')), 'sin el aviso «Máximo 3 colaboradores»');
+    igual([perChips('etiquetas').length, perChips('colaboradores').length], [20, 3], 'la ventana tras los avisos');
+  });
+
+  prueba('G5', 'En una collab los dos campos juntan las listas de los dos clientes, sin repetir, y lo elegido pasa al tablero del otro cliente (D-130, D-008)', async () => {
+    await limpiar();
+    const col = { id: 'colab-g5', name: 'COLLAB Foto 1', type: 'Foto', date: `${MES}-05T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [col, pub(1)], past: [], force: true });
+    igual(M._test.shared('colab-g5').length, 1, 'la collab no quedó enlazada');
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar');
+    ok((await M.personas.cargar(CLIENTE2, [{ usuario: 'beta.prueba', colaborador: true }, { usuario: 'otra.prueba', colaborador: true }])).ok, 'cargar el otro');
+    await perVentana('colab-g5');
+    igual(perOps('etiquetas'), ['Etiquetar', '@alfa_prueba', '@beta.prueba', '@otra.prueba', '@zeta.prueba'], 'las dos listas juntas, sin repetir');
+    igual(perOps('colaboradores'), ['Colaboradores', '@alfa_prueba', '@beta.prueba', '@otra.prueba'], 'los colaboradores de las dos');
+    M._in.closeDetail();
+    await perVentana('r1');
+    igual(perOps('etiquetas'), ['Etiquetar', '@alfa_prueba', '@beta.prueba', '@zeta.prueba'], 'una publicación que no es collab lleva solo la lista de su cliente');
+    M._in.closeDetail();
+    await perVentana('colab-g5');
+    await perElegir('etiquetas', 'otra.prueba');
+    await perElegir('colaboradores', 'otra.prueba');
+    await M.flush();
+    await hasta(async () => { const r = await M._in.idbGet('boards', `${CLIENTE2}-${MES}`); const s = r && r.slots.find(x => x.id === 'colab-g5'); return s && json(s.etiquetas) === '["otra.prueba"]' && json(s.colaboradores) === '["otra.prueba"]'; }, 4000, 'que lo elegido llegue al tablero del otro cliente');
+    M._in.closeDetail();
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await perVentana('colab-g5');
+    igual([perChips('etiquetas'), perChips('colaboradores')], [['@otra.prueba'], ['@otra.prueba']], 'en la ventana del otro cliente');
+  });
+
+  prueba('G6', '«⇅ Exportar» (archivo v11) lleva la lista de personas de cada cliente y lo elegido en cada publicación, e «Importar» los devuelve; una lista más vieja no pisa la nueva; un archivo v10 entra; IndexedDB 13 (D-130, D-017, D-060)', async () => {
+    await tablero([pub(1)]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar');
+    conContexto('r1');
+    ok(M._test.setPersona('r1', 'etiquetas', 'beta.prueba') && M._test.setPersona('r1', 'colaboradores', 'alfa_prueba'), 'elegirlos');
+    await M.flush();
+    const key = `${CLIENTE}-${MES}`;
+    const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+    igual(d.v, V_ARCHIVO, 'la versión del archivo');
+    igual((d.clients.find(c => c.id === CLIENTE).personas || []).map(p => p.usuario), ['alfa_prueba', 'beta.prueba', 'zeta.prueba'], 'la lista en el archivo');
+    const ds = d.boards.find(b => b.key === key).slots.find(s => s.id === 'r1');
+    igual([ds.etiquetas, ds.colaboradores], [['beta.prueba'], ['alfa_prueba']], 'lo elegido en el archivo');
+    await sinMes(key); await M._test.perBorrar();
+    igual(M.personas.ver(CLIENTE), [], 'quedó la lista');
+    let r = await M.importData(d, { confirm: false });
+    ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(key);
+    igual(M.personas.ver(CLIENTE).map(p => p.usuario), ['alfa_prueba', 'beta.prueba', 'zeta.prueba'], 'la lista importada');
+    igual(perDe('r1'), { etiquetas: ['beta.prueba'], colaboradores: ['alfa_prueba'] }, 'lo elegido, importado');
+    ok((await M.personas.cargar(CLIENTE, [GEN[2]])).ok, 'una lista más nueva');
+    r = await M.importData(d, { confirm: false }); ok(r && !r.error, 'importar el archivo viejo: ' + json(r));
+    igual(M.personas.ver(CLIENTE).map(p => p.usuario), ['beta.prueba'], 'una lista más vieja pisó la nueva');
+    const v10 = JSON.parse(json(d)); v10.v = 10;
+    v10.clients.forEach(c => { delete c.personas; delete c.personasAt; }); v10.boards.forEach(b => b.slots.forEach(s => { delete s.etiquetas; delete s.colaboradores; }));
+    await sinMes(key);
+    r = await M.importData(v10, { confirm: false }); ok(r && !r.error, 'el archivo v10 no se importó: ' + json(r));
+    const v12 = JSON.parse(json(d)); v12.v = 12;
+    r = await M.importData(v12, { confirm: false }); ok(r && r.error && /más nueva/.test(r.error), 'un archivo v12 entra: ' + json(r));
+    const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
+    if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
+  });
+
+  prueba('G7', 'En una Foto Programada se cambian con el aviso de que Zernio sigue con los de antes (un reel, sin aviso); en una Publicada están bloqueados: desplegables sin abrir y sin × (D-130, D-103)', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Reel')]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar');
+    for (const id of ['r1', 'r2', 'r3']) { await poner(id, [await foto(`g7-${id}.jpg`)]); await aprobada(id); }
+    ok(M._test.setPersona('r2', 'etiquetas', 'zeta.prueba'), 'etiquetar la que se publica');
+    igual(M.setEstado('r1', 'programado')[0].estado, 'programado', 'r1 no se programó');
+    igual(M.setEstado('r2', 'publicado')[0].estado, 'publicado', 'r2 no se publicó');
+    igual(M.setEstado('r3', 'programado')[0].estado, 'programado', 'r3 no se programó');
+    await M.flush();
+    qa('.toast').forEach(t => t.remove());
+    await perVentana('r1');
+    await perElegir('etiquetas', 'beta.prueba');
+    ok(qa('.toast').some(t => t.textContent.includes('Está programada en Zernio, que sigue con las etiquetas de antes: pide a Claude que las cambie allí.')), 'sin el aviso de Zernio de las etiquetas');
+    await perElegir('colaboradores', 'beta.prueba');
+    ok(qa('.toast').some(t => t.textContent.includes('Está programada en Zernio, que sigue con los colaboradores de antes: pide a Claude que los cambie allí.')), 'sin el aviso de Zernio de los colaboradores');
+    igual(perDe('r1'), { etiquetas: ['beta.prueba'], colaboradores: ['beta.prueba'] }, 'la Programada no cambió');
+    M._in.closeDetail(); qa('.toast').forEach(t => t.remove());
+    await perVentana('r3');
+    await perElegir('etiquetas', 'beta.prueba');
+    ok(!qa('.toast').some(t => /sigue con las etiquetas de antes/.test(t.textContent)), 'un reel programado avisa de Zernio');
+    igual(slot('r3').etiquetas, ['beta.prueba'], 'el reel no lo guardó');
+    M._in.closeDetail();
+    await perVentana('r2');
+    ok(perSel('etiquetas').disabled && perSel('colaboradores').disabled, 'los desplegables de la Publicada no están bloqueados');
+    igual(perChips('etiquetas'), ['@zeta.prueba'], 'la Publicada no enseña su etiqueta');
+    ok(!q('.detail [data-act="perquitar"]'), 'la Publicada tiene ×');
+    ok(!M._test.setPersona('r2', 'etiquetas', 'beta.prueba') && !M._test.setPersona('r2', 'etiquetas', 'zeta.prueba', false), 'la Publicada cambió');
+    ok(qa('.toast').some(t => t.textContent.includes('Ya está publicada: las etiquetas no se cambian.')), 'sin el aviso de publicada');
+    igual(slot('r2').etiquetas, ['zeta.prueba'], 'la Publicada cambió de etiquetas');
+  });
+
+  prueba('G8', 'Una persona quitada de la lista, o que ya no puede ser colaborador, se queda elegida y marcada hasta quitarla; cargar dice en cuántas publicaciones está y plan() aparta el colaborador que ya no vale (D-130)', async () => {
+    await tablero([pub(1)]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar');
+    conContexto('r1');
+    ok(M._test.setPersona('r1', 'etiquetas', 'zeta.prueba') && M._test.setPersona('r1', 'colaboradores', 'beta.prueba') && M._test.setPersona('r1', 'colaboradores', 'alfa_prueba'), 'elegirlos');
+    ok(!M._test.setPersona('r1', 'colaboradores', 'zeta.prueba'), 'entró de colaborador quien no puede serlo');
+    ok(!M._test.setPersona('r1', 'etiquetas', 'nadie.prueba'), 'entró quien no está en la lista');
+    await M.flush();
+    const r = await M.personas.cargar(CLIENTE, [{ usuario: 'alfa_prueba', colaborador: true }, { usuario: 'beta.prueba', colaborador: false }]);
+    ok(r.ok, 'cargar sin ella: ' + json(r));
+    igual([r.quitadas, r.yaNoColaborador], [[{ usuario: 'zeta.prueba', etiquetas: 1, colaboradores: 0 }], [{ usuario: 'beta.prueba', publicaciones: 1 }]], 'lo que dice cargar');
+    igual(perDe('r1'), { etiquetas: ['zeta.prueba'], colaboradores: ['alfa_prueba', 'beta.prueba'], noValidos: ['beta.prueba'] }, 'plan()');
+    await perVentana('r1');
+    igual([perChips('etiquetas'), perChips('colaboradores')], [['@zeta.prueba'], ['@alfa_prueba', '@beta.prueba']], 'siguen elegidos');
+    const raros = qa('.detail .perchip.raro').map(c => [c.firstChild.textContent, c.title]);
+    igual(raros, [['@zeta.prueba', 'Ya no está en la lista de personas'], ['@beta.prueba', 'Según la lista, ya no puede ser colaborador']], 'las marcas');
+    await perQuitar('colaboradores', 'beta.prueba');
+    igual(perOps('colaboradores'), ['Colaboradores'], 'se ofrece de nuevo quien ya no puede ser colaborador');
+    ok(!('colaboradoresNoValidos' in M.plan().find(x => x.slotId === 'r1')), 'plan() sigue apartándolo');
   });
 
   // =====================================================================================================

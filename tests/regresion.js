@@ -6266,10 +6266,10 @@
   // =====================================================================================================
   // el cliente de prueba toma prestado el kit de kits/uribe.json solo durante fn (el diseñador lo pide como
   // kits/prueba-regresion.json); al salir lo olvida, para que las demás pruebas sigan sin kit
-  async function conKitPrueba(fn) {
+  async function conKitPrueba(fn, kit = 'uribe') {
     await hasta(() => M.diseno && M.diseno.cargar && M.libre, 6000, 'diseno.js y libre.js');
     const f0 = W.fetch, mio = `kits/${CLIENTE}.json`;
-    W.fetch = function (u, o) { const s = typeof u === 'string' ? u : u && u.url; return f0.call(W, s && s.includes(mio) ? s.replace(mio, 'kits/uribe.json') : u, o); };
+    W.fetch = function (u, o) { const s = typeof u === 'string' ? u : u && u.url; return f0.call(W, s && s.includes(mio) ? s.replace(mio, `kits/${kit}.json`) : u, o); };
     try { return await fn(); }
     finally { W.fetch = f0; await M.diseno.kit(CLIENTE); }   // lo vuelve a pedir y no está: sin kit otra vez
   }
@@ -8630,6 +8630,83 @@
       tecla('ArrowUp'); igual(dia(), 2, '↑ dejó de funcionar');
       await dzCerrar();
     });
+  });
+
+  // ---------- la diapositiva final, siempre la última y con su regla del kit (mesa 3.99, diseño 1.16, D-128) ----------
+  const dzSlides = id => slot(id).design.slides.map(x => [x.tipo, x.ov || {}]);
+  prueba('D28', 'Al volver a cargar los textos con más o menos diapositivas, el ajuste de la final va a la final nueva y ninguna ficha lo hereda; una final que no es la última, o dos, no se cargan (D-128)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d28a.jpg', 1080, 1350), await foto('d28b.jpg', 1080, 1350), await foto('d28c.jpg', 1080, 1350)], [{ tipo: 'portada', titulo: 'Portada D28' }, { tipo: 'ficha', titulo: 'Ficha D28' }, { tipo: 'final', titulo: 'Final D28' }], false);
+      const d = M._in.slot('r1').design; d.slides[1].ov = { velo: 0.3 }; d.slides[2].ov = { lugar: 'centro', alinear: 'centro' }; M._in.changed();
+      let c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada D28' }, { tipo: 'ficha', titulo: 'Ficha D28' }, { tipo: 'ficha', titulo: 'Nueva D28' }, { tipo: 'final', titulo: 'Final D28' }] });
+      ok(c && !c.error, 'cargar() falló: ' + json(c));
+      igual(dzSlides('r1'), [['portada', {}], ['ficha', { velo: 0.3 }], ['ficha', {}], ['final', { lugar: 'centro', alinear: 'centro' }]], 'al añadir una ficha');
+      ok(slot('r1').design.slides[2].src && M.files[slot('r1').design.slides[2].src].name === 'd28c.jpg', 'la ficha nueva no tomó la foto libre');
+      c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada D28' }, { tipo: 'ficha', titulo: 'Ficha D28' }, { tipo: 'final', titulo: 'Final D28' }] });
+      ok(c && !c.error, 'cargar() con una menos falló: ' + json(c));
+      igual(dzSlides('r1'), [['portada', {}], ['ficha', { velo: 0.3 }], ['final', { lugar: 'centro', alinear: 'centro' }]], 'al quitar una ficha');
+      const antes = json(slot('r1').design.slides);
+      for (const l of [[{ tipo: 'portada', titulo: 'P' }, { tipo: 'final', titulo: 'F' }, { tipo: 'ficha', titulo: 'X' }], [{ tipo: 'portada', titulo: 'P' }, { tipo: 'final', titulo: 'F' }, { tipo: 'final', titulo: 'G' }]]) {
+        const e = await M.diseno.cargar('r1', { slides: l });
+        igual(e && e.error, 'La diapositiva final va la última, y solo puede haber una.', 'el error con ' + l.map(x => x.tipo).join(', '));
+      }
+      igual(json(slot('r1').design.slides), antes, 'un cargar() rechazado cambió el diseño');
+    });
+  });
+
+  prueba('D29', 'En el diseñador la final no sale de la última: ▲ en ella y ▼ en la de delante no la mueven; borrada, añadir otra y «Deshacer» la devuelve la última (D-128)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('d29a.jpg', 1080, 1350), await foto('d29b.jpg', 1080, 1350), await foto('d29c.jpg', 1080, 1350)], [{ tipo: 'portada', titulo: 'Portada D29' }, { tipo: 'ficha', titulo: 'Ficha D29' }, { tipo: 'ficha', titulo: 'Otra D29' }, { tipo: 'final', titulo: 'Final D29' }], false);
+      const r = await M.diseno.abrir('r1'); ok(!r || !r.error, 'no abrió: ' + json(r));
+      await dzAbierto();
+      const tipos = () => slot('r1').design.slides.map(x => x.tipo).join(',');
+      igual(tipos(), 'portada,ficha,ficha,final', 'de partida');
+      q('.dz [data-dz="up"][data-i="3"]').click(); await espera(30);
+      igual(tipos(), 'portada,ficha,ficha,final', '▲ movió la final');
+      ok(toastCon(/^La diapositiva final va siempre la última\.$/), 'sin aviso al subir la final');
+      q('.dz [data-dz="down"][data-i="2"]').click(); await espera(30);
+      igual(tipos(), 'portada,ficha,ficha,final', '▼ puso una ficha detrás de la final');
+      q('.dz [data-dz="up"][data-i="2"]').click(); await espera(30);
+      igual(slot('r1').design.slides.map(x => x.titulo), ['Portada D29', 'Otra D29', 'Ficha D29', 'Final D29'], 'mover dos fichas dejó de funcionar');
+      // borrar la final, añadir una ficha al final y «Deshacer»: vuelve la última
+      q('.dz [data-dz="del"][data-i="3"]').click(); await espera(30);
+      igual(tipos(), 'portada,ficha,ficha', 'no se quitó la final');
+      const t = [...qa('.toasts .toast')].find(x => /Diapositiva 4/.test(x.textContent)); ok(t, 'sin el aviso con «Deshacer»');
+      M.diseno.abierto(); q('.dz .dz-it[data-i="2"]').click(); await espera(30);
+      q('.dz [data-dz="add"]').click(); await espera(30);
+      igual(tipos(), 'portada,ficha,ficha,ficha', 'no se añadió la ficha');
+      t.querySelector('button').click(); await espera(60);
+      igual(tipos(), 'portada,ficha,ficha,ficha,final', '«Deshacer» no devolvió la final la última');
+      // con la final elegida, «+ Diapositiva» la pone delante de ella
+      q('.dz .dz-it[data-i="4"]').click(); await espera(30); q('.dz [data-dz="add"]').click(); await espera(30);
+      igual(tipos(), 'portada,ficha,ficha,ficha,ficha,final', '«+ Diapositiva» con la final elegida');
+      await dzCerrar();
+    });
+  });
+
+  prueba('D30', 'El kit con la pieza final centrada: la final va en el medio y centrada, también al añadir diapositivas, y las fichas siguen con su regla (D-128)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const ff = `kit-${CLIENTE}-final`;
+    await conKitPrueba(async () => {
+      try {
+        await disenada('r1', [await foto('d30a.jpg', 1080, 1350), await foto('d30b.jpg', 1080, 1350), await foto('d30c.jpg', 1080, 1350)], [{ tipo: 'portada', titulo: 'Portada D30' }, { tipo: 'ficha', titulo: 'Ficha D30', texto: 'Un texto corto.' }, { tipo: 'final', titulo: 'Final D30', entradilla: 'Una entradilla.' }], false);
+        const [fin] = await M.addFiles([await foto('d30-final.jpg', 1080, 1350)]);
+        const fx = await M.diseno.fijarFinal(CLIENTE, fin); ok(fx && fx.ok, 'fijarFinal() falló: ' + json(fx));
+        let v = await M.diseno.ver('r1', 3); ok(v && !v.error, 'ver() falló: ' + json(v));
+        igual([v.decision.lugar, v.decision.alinear], ['centro', 'centro'], 'la final no va centrada');
+        const mid = (v.bloque.y + v.bloque.h / 2) / v.h; ok(mid > 0.3 && mid < 0.7, 'el bloque de la final no va en el medio: ' + json(v.bloque));
+        const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada D30' }, { tipo: 'ficha', titulo: 'Ficha D30', texto: 'Un texto corto.' }, { tipo: 'ficha', titulo: 'Nueva D30', texto: 'Otro texto.' }, { tipo: 'final', titulo: 'Final D30', entradilla: 'Una entradilla.' }] });
+        ok(c && !c.error, 'cargar() falló: ' + json(c));
+        v = await M.diseno.ver('r1', 4); igual([v.decision.lugar, v.decision.alinear], ['centro', 'centro'], 'la final nueva no va centrada');
+        const f3 = await M.diseno.ver('r1', 3); ok(f3.decision.lugar !== 'centro' && f3.decision.alinear !== 'centro', 'la ficha que ocupa el sitio de la final se centró: ' + json(f3.decision));
+        igual(slot('r1').design.slides[3].ov, {}, 'la final lleva un ajuste suyo');
+      } finally {
+        await M._in.editarCliente(CLIENTE, c => { if (c.kit) { delete c.kit.final; if (!Object.keys(c.kit).length) delete c.kit; } return c; });
+        await M._in.idbDel('files', ff).catch(() => {}); delete M.files[ff];
+      }
+    }, 'kamaya');
   });
 
   // ---------- ubicaciones de las publicaciones (mesa 3.95, D-124) ----------

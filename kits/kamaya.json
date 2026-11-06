@@ -1,6 +1,6 @@
 {
   "cliente": "Kamaya Travel",
-  "version": "1.1",
+  "version": "1.2",
   "marca": "Kamaya Travel",
   "fuentes": {
     "serif": { "familia": "Kamaya Serif", "archivo": "fonts/Newsreader-Display-Light.ttf", "peso": 300 },
@@ -74,8 +74,8 @@
       "marca": true, "pagina": true, "pie": true
     },
     "final": {
-      "nota": "Última diapositiva: siempre la foto fija del cliente; titular + entradilla + contacto en etiqueta, arriba a la izquierda.",
-      "lugar": "arriba", "alinear": "izquierda", "nivel": "titular", "color": "crema",
+      "nota": "Última diapositiva: siempre la foto fija del cliente. Marca arriba a la izquierda, número arriba a la derecha y pie abajo, como en todas; titular + entradilla + contacto en etiqueta, en el medio y centrados. Es regla del kit, no ajuste de la diapositiva: sigue a la última aunque se añadan, muevan o borren diapositivas.",
+      "lugar": "centro", "alinear": "centro", "nivel": "titular", "color": "crema",
       "marca": true, "pagina": true, "pie": true
     },
     "reel": {

@@ -6219,6 +6219,48 @@
     } finally { volverReloj(); }
   });
 
+  // ---------- «N cambiadas» y «N con fecha nueva», pulsables (mesa 3.97, calendario 1.12, D-126) ----------
+  prueba('V9', '«N cambiadas» y «N con fecha nueva» de la barra abren una sola lista por fecha, cada una una vez, con «Cambió: …» como su marcador; el nombre abre la publicación; sin acciones; sin calendario.js no falla; no en «Vista cliente» (D-126)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    for (const id of ['r1', 'r3']) { await poner(id, [await foto(`v9-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
+    await espera(60);
+    M._test.setNote('r1', 'Otro contexto');                                   // r1: cambiada (contexto)
+    M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');                  // r2: con fecha nueva
+    M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');   // r3: las dos
+    const txt = () => qa('.bar .stats button[data-act="cambios"]').map(b => b.textContent.trim());
+    await hasta(() => json(txt()) === json(['2 cambiadas', '2 con fecha nueva']), 3000, 'los dos botones de la barra: ' + json(txt()));
+    const bs = qa('.bar .stats button[data-act="cambios"]');
+    for (const b of bs) {
+      b.click(); await espera(30);
+      const d = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la ventana de la lista');
+      igual(qa('.detail[data-dlg="cambios"] .vlist li').map(li => li.dataset.k), ['r1', 'r3', 'r2'], 'la lista, por fecha y cada una una vez');
+      for (const li of qa('.detail[data-dlg="cambios"] .vlist li')) {
+        const tip = celda(li.dataset.k).querySelector('.mk-cambios').dataset.tip;
+        ok(li.querySelector('.vque').textContent.endsWith('· ' + tip), `la fila de ${li.dataset.k} no dice «${tip}»: ${li.querySelector('.vque').textContent}`);
+      }
+      ok(/\b3 publicaciones con cambios\b/.test(d.querySelector('h3').textContent), 'el título: ' + d.querySelector('h3').textContent);
+      ok(!d.querySelector('.vacc, .vform') && qa('.detail[data-dlg="cambios"] .vlist button').every(x => x.dataset.cal === 'c-abrir'), 'la lista lleva acciones');
+      M._in.closeDetail();
+    }
+    // se dibuja de nuevo con la mesa: r1 sin cambios ya no sale
+    bs[0].click(); await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la ventana otra vez');
+    M._test.setNote('r1', 'Contexto r1');
+    await hasta(() => json(qa('.detail[data-dlg="cambios"] .vlist li').map(li => li.dataset.k)) === json(['r3', 'r2']), 3000, 'r1 fuera de la lista abierta');
+    // el nombre abre la publicación
+    q('.detail[data-dlg="cambios"] li[data-k="r2"] .vnom').click();
+    await hasta(() => { const d = dialogo(); return d && d.dataset.slot === 'r2' && !d.dataset.dlg; }, 3000, 'abrir r2 desde la lista');
+    M._in.closeDetail();
+    // sin calendario.js todavía: no falla y lo dice
+    const cal = M.calendario; M.calendario = undefined;
+    try { q('.bar .stats button[data-act="cambios"]').click(); await espera(30); ok(toastCon(/Vuelve a pulsar en un momento/), 'sin aviso sin calendario.js'); ok(!q('.detail:not([hidden])[data-dlg="cambios"]'), 'se abrió sin calendario.js'); }
+    finally { M.calendario = cal; }
+    // «Vista cliente»: no se ven y no abre
+    M._in.root().classList.add('client');
+    try { ok(qa('.bar .stats button').every(b => b.offsetParent === null), 'los botones salen en «Vista cliente»'); M.calendario.cambios(); ok(!q('.detail:not([hidden])[data-dlg="cambios"]'), 'abre en «Vista cliente»'); }
+    finally { M._in.root().classList.remove('client'); }
+  });
+
   // =====================================================================================================
   // Sin «Diseñar» (D-089): el diseñador sigue cargado y respondiendo, solo sin botón en la ventana
   // =====================================================================================================

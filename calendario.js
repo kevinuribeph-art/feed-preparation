@@ -45,7 +45,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.11';
+  const VERSION = '1.12';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -136,6 +136,7 @@
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
     vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)
+    cambPintar();                                // and the changed ones' (D-126)
   }
 
   // ---------- linked with the grid ----------
@@ -157,6 +158,7 @@
     const X = I(); if (!X || !e.target.closest) return;
     const dl = e.target.closest('#mesa .detail[data-dlg="paso"] [data-cal]'); if (dl) { enPaso(dl); return; }   // the step's confirmation
     const dv = e.target.closest('#mesa .detail[data-dlg="venc"] [data-cal]'); if (dv) { enVenc(dv); return; }   // the vencidas' window (D-120)
+    const dc = e.target.closest('#mesa .detail[data-dlg="cambios"] [data-cal]'); if (dc) { enCamb(dc); return; }   // the changed ones' (D-126)
     const sec = e.target.closest('#mesa .side > .cal'); if (!sec) return;
     const root = X.root(), client = root.classList.contains('client');
     const b = e.target.closest('[data-cal]');
@@ -380,6 +382,37 @@
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); vabre = null; vencPintar(); }
   }
 
+  // ---------- the changed ones (D-126) ----------
+  // «N cambiadas» and «N con fecha nueva» of the month's bar open one list, as the vencidas' window: the open board's posts
+  // changed after their upload or with a new date, by date, each one once, with «Cambió: …» as their mark of changes says
+  // it (D-081). Its name opens the post. No actions: «sube» puts them right.
+  const cambiadas = X => X.S.slots.filter(s => X.vivo(s) && (X.slotStatus(s) === 'chg' || X.dateChg(s))).sort((a, b) => X.ts(a.date) - X.ts(b.date));
+  function cambHTML(X) {
+    const l = cambiadas(X), n = l.length, c = (X.CL || []).find(x => x.id === X.curClient);
+    const cab = `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${n ? `${n} publicaci${n === 1 ? 'ón' : 'ones'} con cambios` : 'Con cambios'}</h3>`;
+    if (!n) return cab + '<p>No queda ninguna con cambios sin subir.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Cerrar</button></div></div>';
+    const fila = s => `<li data-k="${esc(s.id)}"><button type="button" class="vnom" data-cal="c-abrir" title="Abrir la publicación"><b>${esc(X.shortLabel(s.name, s.type))}</b></button>`
+      + ` <span class="vque">· ${esc(X.fmtDate(s.date))} · Cambió: ${esc(X.listaY(X.cambiosDe(s)))}</span></li>`;
+    return cab + `<p class="cpnota">Cambiaron después de subirlas a Notion. Se resuelven con «sube ${esc(c ? c.name : 'el cliente')}».</p>`
+      + `<ul class="vlist">${l.map(fila).join('')}</ul>`;
+  }
+  function abrirCambios() {
+    const X = I(); if (!X || !X.S || !X.cambiosDe || X.root().classList.contains('client')) return;
+    X.showDialog('cambios', cambHTML(X));
+  }
+  function cambPintar() {                      // drawn again with the mesa (a ⌘Z, a change from elsewhere)
+    const X = I(), d = X && X.root && X.root().querySelector('.detail[data-dlg="cambios"]'); if (!d || d.hidden || !X.S || !X.cambiosDe) return;
+    const c = d.querySelector('.card'); if (!c) return;
+    const h = cambHTML(X); if (c._h === h) return;
+    c.innerHTML = h; c._h = h;
+  }
+  function enCamb(b) {
+    const X = I(), li = b.closest('li[data-k]'); if (!X || !X.S) { if (X) X.closeDetail(); return; }
+    if (b.dataset.cal !== 'c-abrir' || !li) return;
+    X.closeDetail();
+    if (X.slot(li.dataset.k)) X.openDetail(li.dataset.k, 0);
+  }
+
   // ---------- moving a post to another day (its time stays) ----------
   // Pointer events (the mesa keeps HTML drag and drop for photos from the computer); a press that doesn't move is a click.
   let mv = null, later = false, noClick = 0, scr = 0;
@@ -525,7 +558,7 @@
   const ON = [['pointerover', onOver], ['click', onClick, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
   M.calendario = {
-    version: VERSION, render, vencidas: abrirVencidas,
+    version: VERSION, render, vencidas: abrirVencidas, cambios: abrirCambios,
     _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); if (mv) onCancel(); }
   };
   render();                                     // the mesa may have drawn its board before this file arrived

@@ -25,7 +25,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.5';
+  const VERSION = '1.6';
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -104,6 +104,7 @@
           formato.push(r.w / r.h);
         } else if (f.w && f.h) formato.push(f.w / f.h);   // drawn by «Diseñar» (1080 wide): only its format
       }
+      if (s.design && X.nombreDistinto) { const f = X.nombreDistinto(s.design); if (f.length) add(null, 'nombre', X.nombreAviso(s.design, f).replace(/^El/, 'el').replace(/\.$/, ''), { donde: 'post' }); }   // the name in the footer and the cover (D-129)
       const malo = formato.find(r => r < IG_MIN - TOL || r > IG_MAX + TOL);
       if (X.isCarousel(s.type) && malo != null) add(null, 'formato', `formato ${fmtDe(malo)}: Instagram, por API, solo admite de 4:5 a 1,91:1`);
     }

@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.16';
+  const VERSION = '1.17';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -510,6 +510,7 @@
     if (d0 && d0.pos) s.design.pos = d0.pos;                // and the post's own positions of marca, número and pie
     if (d0 && d0.fmt !== fmt) stampOffsets(s.design, EXT_H[d0.fmt]);
     release(s, [...oldRest.slice(jr), ...oldFin.slice(jf)].map(x => x.src));   // the old slides no new one took
+    { const f = I().nombreDistinto ? I().nombreDistinto(s.design) : []; if (f.length) avisos.push(I().nombreAviso(s.design, f) + (opts.serie == null ? ' Si cambió, pásalo en `serie`.' : '')); }   // the name in the footer and the cover (D-129)
     remember(s); syncFmt(s);
     I().changed();
     if (E && E.slotId === slotId) edReload();

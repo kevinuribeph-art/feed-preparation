@@ -8709,6 +8709,35 @@
     }, 'kamaya');
   });
 
+  // ---------- el nombre del carrusel frente a su portada (mesa 4.00, D-129) ----------
+  prueba('D31', 'Si el nombre del carrusel (el pie) lleva una palabra o una cifra que la portada no lleva, cargar() y «Revisar» avisan sin bloquear; un nombre corto que cabe en la portada, las contracciones del inglés y las mayúsculas o tildes no cuentan (D-129)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await poner('r1', [await foto('d31a.jpg', 1080, 1350), await foto('d31b.jpg', 1080, 1350)]);
+      await poner('r2', [await foto('d31c.jpg', 1080, 1350), await foto('d31d.jpg', 1080, 1350)]);
+      const dos = titulo => [{ tipo: 'portada', titulo }, { tipo: 'ficha', titulo: 'Ficha D31' }];
+      let c = await M.diseno.cargar('r1', { slides: dos('El Nido<br>a las 9:30'), serie: 'El Nido a las 6:40' });
+      ok(c && !c.error, 'cargar() falló: ' + json(c));
+      igual(c.avisos, ['El nombre del carrusel («El Nido a las 6:40», en el pie) no cuadra con la portada («El Nido a las 9:30»): no lleva «6:40».'], 'el aviso de cargar()');
+      let r = await M.revisar({ slots: ['r1'] });
+      const pt = (r.puntos || []).filter(x => x.tipo === 'nombre');
+      igual(pt.map(x => [x.slotId, x.bloquea, x.texto]), [['r1', false, 'el nombre del carrusel («El Nido a las 6:40», en el pie) no cuadra con la portada («El Nido a las 9:30»): no lleva «6:40»']], 'el punto de «Revisar»');
+      // sin serie al volver a cargar, el aviso dice cómo cambiarlo
+      c = await M.diseno.cargar('r1', { slides: dos('El Nido a las 9:30') });
+      ok((c.avisos || []).some(a => a.endsWith('Si cambió, pásalo en `serie`.')), 'sin serie, el aviso no dice cómo cambiarlo: ' + json(c.avisos));
+      // con el nombre al día, nada
+      c = await M.diseno.cargar('r1', { slides: dos('El Nido a las 9:30'), serie: 'EL NIDO A LAS 9:30' });
+      ok(!c.avisos, 'avisa con el nombre al día: ' + json(c.avisos));
+      // un nombre corto que cabe en la portada, contracciones y tildes: nada
+      for (const [portada, serie] of [['Lo famoso de Filipinas,<br>con nuestra nota', 'Lo famoso, con nuestra nota'], ['How we’d plan<br>a proposal in Palawan', 'How we would plan a proposal in Palawan'], ['You’re already late for Christmas', 'You are already late for Christmas'], ['Qué ver en Bohol', 'QUE VER EN BOHOL']]) {
+        c = await M.diseno.cargar('r2', { slides: dos(portada), serie });
+        ok(!c.avisos, `avisa con «${serie}» y «${portada}»: ` + json(c.avisos));
+      }
+      r = await M.revisar({ slots: ['r1', 'r2'] });
+      igual((r.puntos || []).filter(x => x.tipo === 'nombre').length, 0, 'quedan puntos de nombre');
+    });
+  });
+
   // ---------- ubicaciones de las publicaciones (mesa 3.95, D-124) ----------
   // lugares de prueba: los ids no son de ninguna página de verdad
   const LUG = { a: { nombre: 'Lugar Alfa', locationId: '100000000000001' }, b: { nombre: 'Lugar Gamma', locationId: '100000000000002' }, c: { nombre: 'Lugar Beta', locationId: '100000000000003' } };

@@ -15,13 +15,14 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.15';
+  const VERSION = '1.16';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
   const ESC_MIN = 0.6, ESC_MAX = 1.6, ESC_STEP = 0.05;
   const MAX_SLIDES = 20;                       // Instagram's limit for a carousel
   const MAX_MSG = 'Un carrusel admite como máximo 20 diapositivas (límite de Instagram).';
+  const FINAL_MSG = 'La diapositiva final va la última, y solo puede haber una.', FINAL_VA = 'La diapositiva final va siempre la última.';   // D-128
   const OK_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const str = v => v == null ? '' : String(v);
   const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
@@ -486,13 +487,19 @@
     if (reel && list.length > 1) avisos.push('Un reel lleva una sola portada: se usa solo el primer texto.');
     const old = s.design ? s.design.slides : [];
     await I().loadThumbs(old.map(x => x.src).filter(Boolean));
+    // each new slide takes the photo and adjustments (ov) of the old one in its place among its kind: the final the old
+    // final's, the others the others' in order. Adding or removing slides never gives the final's to a card (D-128)
+    const oldFin = old.filter(x => x.tipo === 'final'), oldRest = old.filter(x => x.tipo !== 'final');
+    let jf = 0, jr = 0;
     const slides = (reel ? list.slice(0, 1) : list).map((x, i) => {
       let tipo = reel ? 'reel' : x.tipo;
       if (!reel && !TIPOS_CAR.includes(tipo)) { need(tipo == null || tipo === '', `Tipo de diapositiva no válido: «${tipo}» (portada, ficha o final).`); tipo = i === 0 ? 'portada' : 'ficha'; }
-      const o = old[i] || {};
+      const o = (tipo === 'final' ? oldFin[jf++] : oldRest[jr++]) || {};
       return { tipo, titulo: str(x.titulo), texto: str(x.texto), entradilla: str(x.entradilla),
         contacto: x.contacto != null ? str(x.contacto) : null, src: o.src || null, ov: isObj(o.ov) ? clone(o.ov) : {} };   // contacto only when given: else the kit's
     });
+    const nf = slides.filter(x => x.tipo === 'final').length;
+    need(!nf || (nf === 1 && slides[slides.length - 1].tipo === 'final'), FINAL_MSG);
     // slides still without a photo take the slot's photos not used yet, in order (a final uses the client's)
     const used = new Set(slides.map(x => x.src).filter(Boolean)), free = rawPhotos(s).filter(f => !used.has(f));
     for (const sl of slides) if (!sl.src && sl.tipo !== 'final' && free.length) sl.src = free.shift();
@@ -502,7 +509,7 @@
     if (d0 && d0.stash) s.design.stash = d0.stash;          // the design kept from its other type (Notion) stays
     if (d0 && d0.pos) s.design.pos = d0.pos;                // and the post's own positions of marca, número and pie
     if (d0 && d0.fmt !== fmt) stampOffsets(s.design, EXT_H[d0.fmt]);
-    release(s, old.slice(slides.length).map(x => x.src));
+    release(s, [...oldRest.slice(jr), ...oldFin.slice(jf)].map(x => x.src));   // the old slides no new one took
     remember(s); syncFmt(s);
     I().changed();
     if (E && E.slotId === slotId) edReload();
@@ -1309,6 +1316,7 @@
   function refOrder() { const d = D(); if (!E.ref || E.refD !== d) { E.ref = d.slides.slice(); E.refD = d; } return E.ref; }
   function moveSlide(i, dir) {
     const d = D(), j = i + dir; if (j < 0 || j >= d.slides.length) return;
+    if (d.slides[i].tipo === 'final' || d.slides[j].tipo === 'final') { I().toast(FINAL_VA, { key: 'dz-final' }); return; }   // the final stays the last (D-128)
     [d.slides[i], d.slides[j]] = [d.slides[j], d.slides[i]];
     { const r = refOrder(), cur = d.slides.filter(x => r.includes(x)); let n = 0; E.ref = r.map(x => d.slides.includes(x) ? cur[n++] : x); }
     if (E.sel === i) E.sel = j; else if (E.sel === j) E.sel = i;
@@ -1344,6 +1352,7 @@
       let k = -1;
       if (at >= 0) { for (const y of r.slice(at + 1)) { const q = d.slides.indexOf(y); if (q >= 0) { k = q; break; } } if (k < 0) for (const y of r.slice(0, at).reverse()) { const q = d.slides.indexOf(y); if (q >= 0) { k = q + 1; break; } } }
       if (k < 0) { const pi = prevSl ? d.slides.indexOf(prevSl) : -1, ni = nextSl ? d.slides.indexOf(nextSl) : -1; k = pi >= 0 ? pi + 1 : ni >= 0 ? ni : Math.min(i, d.slides.length); }
+      { const fi = d.slides.findIndex(x => x.tipo === 'final'); if (gone.tipo === 'final') k = d.slides.length; else if (fi >= 0 && k > fi) k = fi; }   // the final goes back the last, and nothing after it (D-128)
       d.slides.splice(k, 0, gone); E.sel = k;
       rescue([...back, srcAt]);
       touch(); if (!resizeIfNeeded()) { edList(); edPanel(); edHead(); dirty('all'); }

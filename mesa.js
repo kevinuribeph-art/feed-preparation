@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '3.97'; // 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '3.98'; // 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1110,19 +1110,36 @@
     if (!best) { const h = usoHMap().get(k); if (h && h.length) return { n: 6, m: S.month, txt: `Ya usada en una historia del ${hFecha(h[0].date)}` }; }   // the feed's own uses first (D-056)
     return best && { ...best, txt: best.n < 5 ? AVISOS[best.n] : /^\d{4}-\d{2}$/.test(best.m || '') ? `Ya usada en la mesa en ${rangeLabel(best.m, 1, false, curCd()).toLowerCase()}` : 'Ya usada en otro mes de la mesa' };
   }
+  // A photo used only as filling (orange mark, D-122) goes in without asking, with a notice that doesn't stop anything
+  // (D-127): the use that decides its mark, or null for the usual window — a blue mark, already in this post (n 1 or 2),
+  // in a story, or used with no mark (three months ago or more). o: as the tray it comes from counts (marcador)
+  function rellenoLigero(name, size, u, o = {}) {
+    if (!S || !u || !(u.n >= 3 && u.n <= 5)) return null;
+    const k = fkey(name, size); if (usoHMap().has(k)) return null;
+    const x = marcador(o)(null, k);
+    return x.c === 'r' && x.uso ? x.uso : null;
+  }
+  // l: [{it, uso}] that went in; lote: they came with others. «Ya usada como relleno · Carrusel 1.1 · 12 oct»
+  function avisoRelleno(l, lote) {
+    if (!l || !l.length) return;
+    const de = u => [u.name || 'publicación', fechaCorta(u.date)].filter(Boolean).join(' · ');
+    toast(l.length > 1 ? `${l.length} fotos ya usadas como relleno` : lote ? `1 foto ya usada como relleno: ${l[0].it.name} · ${de(l[0].uso)}` : `Ya usada como relleno · ${de(l[0].uso)}`, { key: 'relleno-ligero', ms: 6000, queda: true });   // it stays over «Sustituir / Añadir» if that comes next
+  }
   // one dialog per action: the photos [{name, size, …}] that would go in again, each with its nearest use. Resolves with the
-  // ones that go in (all, or without the repeated ones) or null (Cancelar: nothing changes)
+  // ones that go in (all, or without the repeated ones) or null (Cancelar: nothing changes). The orange ones go in without
+  // asking, with one light notice once the rest is decided (D-127)
   let repeAsk = null;
   const repeCancel = () => { const f = repeAsk; repeAsk = null; if (f) f(null); };
   async function repetidas(items, ctx) {
-    const rep = [];
-    for (const it of items) { const u = await usoFoto(it.name, it.size, ctx); if (u) rep.push({ it, u }); }
-    if (!rep.length || !S || !shellReady()) return items;
+    const rep = [], lig = [];
+    for (const it of items) { const u = await usoFoto(it.name, it.size, ctx); if (!u) continue; const r = rellenoLigero(it.name, it.size, u); if (r) lig.push({ it, uso: r }); else rep.push({ it, u }); }
+    const van = v => { if (v && lig.length) avisoRelleno(lig.filter(l => v.includes(l.it)), items.length > 1); return v; };
+    if (!rep.length || !S || !shellReady()) return van(items);
     const x = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
     showDialog('repe', items.length === 1
       ? `${x}<h3>${esc(rep[0].u.txt)}</h3><p>${esc(rep[0].it.name)}</p><div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="repe" data-m="usar">Usar igualmente</button></div></div>`
       : `${x}<h3>${rep.length === 1 ? '1 foto ya usada' : `${rep.length} fotos ya usadas`} de ${items.length}</h3><ul class="repl">${rep.map(r => `<li><b>${esc(r.it.name)}</b><span>${esc(r.u.txt)}</span></li>`).join('')}</ul><div class="form"><div class="row"><button type="button" class="btn2" data-act="repe" data-m="saltar">Saltar repetidas</button><button type="button" class="btn" data-act="repe" data-m="usar">Usar todas</button></div></div>`);
-    return new Promise(res => { repeAsk = v => res(v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null); });
+    return new Promise(res => { repeAsk = v => res(van(v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null)); });
   }
   // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
   function addToSlot(slotId, ids) {
@@ -2856,13 +2873,12 @@
   let trayCarpeta = null;              // the folder the tray has open (null: the root)
   let todasCarga = null; const sinMini = new Set();   // photos of «Todas» whose thumbnail can't load: not asked again
   let marcaMemo = null;                // each photo's mark until the uses change (a save, another board read): {s, o, sin, ref, m: key -> mark}
-  function bandejaVista(o = {}) {
-    if (!S) return [];
+  // the mark of a photo as the trays show it (D-122), for the trays and for the warning of a photo used again (D-127).
+  // o.sin: a post whose saved uses don't count (the one open in the editor); o.masU / o.mas: what is on its slides now,
+  // counted as it is there. -> (f, k) => {u, c, pub, uso, ult}
+  function marcador(o = {}) {
     if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
-    // o.carpeta: that folder (null: the root); by default, what the tray has open. A folder's photos never show in the root (D-069)
-    const carp = o.carpeta !== undefined ? o.carpeta : trayCarpeta, c0 = carp ? (S.carpetas || []).find(x => x.id === carp) : null, enC = c0 ? new Set() : enCarpetas(S.carpetas);
-    const fil = FILTROS.includes(o.filtro) ? o.filtro : o.todas != null ? (o.todas ? 'todas' : 'sin') : trayFiltroV(), todas = fil === 'todas';
-    const mas = o.mas || new Set(), c = S.client, out = [], ya = new Set(), hm = usoHMap(), ref = mesN(S.month);
+    const mas = o.mas || new Set(), ref = mesN(S.month);
     const cuenta = u => !o.sin || u.slot !== o.sin;
     // the post open in the editor: what is on its slides, as it is there (slide 1 the cover), in that post's month
     const mu = o.masU || (o.mas ? new Map([...o.mas].map(f => [f, { p: false, i: null }])) : null), s0 = mu && o.sin ? S.slots.find(x => x.id === o.sin) : null;
@@ -2880,6 +2896,17 @@
       if (!e && k) marcaMemo.m.set(k, x);
       return x;
     };
+    return marca;
+  }
+  function bandejaVista(o = {}) {
+    if (!S) return [];
+    if (!usoS || usoS.B !== S) usoS = { B: S, map: usoMap(S) };
+    // o.carpeta: that folder (null: the root); by default, what the tray has open. A folder's photos never show in the root (D-069)
+    const carp = o.carpeta !== undefined ? o.carpeta : trayCarpeta, c0 = carp ? (S.carpetas || []).find(x => x.id === carp) : null, enC = c0 ? new Set() : enCarpetas(S.carpetas);
+    const fil = FILTROS.includes(o.filtro) ? o.filtro : o.todas != null ? (o.todas ? 'todas' : 'sin') : trayFiltroV(), todas = fil === 'todas';
+    const mas = o.mas || new Set(), c = S.client, out = [], ya = new Set(), hm = usoHMap();
+    const cuenta = u => !o.sin || u.slot !== o.sin;
+    const marca = marcador(o);
     const add = f => {
       if (!f || ya.has(f) || enC.has(f) || !M.files[f] || M.files[f].design || !trayable(f) || ajena(f, c)) return;
       const k = fileKey(f); if (k && ya.has(k)) return;
@@ -3760,14 +3787,14 @@
   async function avDiscard() { const a = avStage; avStage = null; if (a && a.id) { try { await idbDel('files', a.id); } catch (e) { /* */ } soltarArchivo(a.id); } }   // its URL too (D-071)
 
   // ---------- messages ----------
-  function clearToasts() { if (shellReady()) root.querySelector('.toasts').innerHTML = ''; }
+  function clearToasts() { if (shellReady()) root.querySelectorAll('.toasts .toast:not([data-queda])').forEach(t => t.remove()); }   // a notice with queda stays over the window that opens next (D-127)
   function toast(msg, opt) {
     if (!shellReady()) { toastQ.push({ msg, opt, at: Date.now() }); toastQ = toastQ.slice(-3); return; }
     const box = root.querySelector('.toasts');
     const key = (opt && opt.key) || msg;   // the same message replaces the previous one, unless it has its own key
     [...box.children].forEach(el => { if (el.dataset.msg === key) el.remove(); });
     while (box.children.length >= 2) box.firstElementChild.remove();
-    const t = document.createElement('div'); t.className = 'toast'; t.dataset.msg = key;
+    const t = document.createElement('div'); t.className = 'toast'; t.dataset.msg = key; if (opt && opt.queda) t.dataset.queda = '1';
     const span = document.createElement('span'); span.textContent = msg; t.append(span);
     if (opt && opt.action) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = opt.action;
@@ -5884,6 +5911,7 @@
     ahora, yaPaso, vencida, vencidas, vencRefrescar, vencRevisar, fueraEstado, programadaAlDia, cycleOf,   // what is due (D-120, mesa ≥ 3.92)
     PASO_DE, estadoAuto, retrasada, retenida,   // the bar carries the posts (D-085, mesa ≥ 3.69)
     usoFoto, AVISOS,  // a photo used again (D-022, libre ≥ 1.12)
+    rellenoLigero, avisoRelleno,   // only as filling: in without asking, a light notice (D-127, libre ≥ 1.50)
     huecosVacios, lComp, vivo, showDialog, monthLabel,   // for the review (revisar.js, mesa ≥ 3.43)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };

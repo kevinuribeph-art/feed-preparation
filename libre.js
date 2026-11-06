@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.49';
+  const VERSION = '1.50';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -3144,15 +3144,21 @@
     const owner = E, s = curSlot(); if (!owner || !s || !items.length || !I().usoFoto) return items;
     const kOf = f => { const x = M.files[f]; return x ? x.name + '|' + x.size : null; }, aqui = new Set(), post = new Set();
     E.sl.forEach((x, j) => fotosDe(compAt(j)).forEach(e => { const k = e.src && e.id !== excl && kOf(e.src); if (k) (j === i ? aqui : post).add(k); }));
-    const rep = [];
-    for (const it of items) { const k = it.name + '|' + it.size, u = E.historia ? await I().usoHistoria(it.name, it.size, s) : await I().usoFoto(it.name, it.size, { slot: s.id, skip: s.id, a: aqui.has(k) ? 1 : post.has(k) ? 2 : null }); if (u) rep.push({ it, u }); }   // a story: being used is what it is for; only a post still to come warns (D-056)
+    const rep = [], lig = [], mo = E.historia || !I().rellenoLigero ? null : { sin: s.id, mas: enUso(), masU: enUsoMarca() };   // the mark as its tray counts it (D-122)
+    for (const it of items) {
+      const k = it.name + '|' + it.size, u = E.historia ? await I().usoHistoria(it.name, it.size, s) : await I().usoFoto(it.name, it.size, { slot: s.id, skip: s.id, a: aqui.has(k) ? 1 : post.has(k) ? 2 : null });   // a story: being used is what it is for; only a post still to come warns (D-056)
+      if (!u) continue;
+      const r = mo && I().S ? I().rellenoLigero(it.name, it.size, u, mo) : null;   // only as filling: in without asking (D-127)
+      if (r) lig.push({ it, uso: r }); else rep.push({ it, u });
+    }
     if (E !== owner) return null;
-    if (!rep.length) return items;
+    const van = v => { if (v && lig.length && I().avisoRelleno) I().avisoRelleno(lig.filter(l => v.includes(l.it)), items.length > 1); return v; };
+    if (!rep.length) return van(items);
     const one = items.length === 1;
     return new Promise(res => {
       preguntar(one ? rep[0].u.txt : `${rep.length === 1 ? (E.historia ? '1 foto sale después en el feed' : '1 foto ya usada') : `${rep.length} ${E.historia ? 'fotos salen después en el feed' : 'fotos ya usadas'}`} de ${items.length}`, one ? rep[0].it.name : rep.map(r => [r.it.name, r.u.txt]),
         one ? [['seguir', 'Cancelar', 'btn2'], ['usar', 'Usar igualmente', 'btn']] : [['saltar', 'Saltar repetidas', 'btn2'], ['usar', 'Usar todas', 'btn']],
-        v => res(E !== owner ? null : v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null));
+        v => res(E !== owner ? null : van(v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null)));
       E.askNo = () => res(null);
     });
   }

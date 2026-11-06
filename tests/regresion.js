@@ -8495,6 +8495,117 @@
     igual(['u6-e.jpg', 'u6-libre.jpg'].map(x), [false, true], 'la × en «Sin usar»');
   });
 
+  // ---------- aviso ligero para las fotos ya usadas solo como relleno (mesa 3.98, libre 1.50, D-127) ----------
+  const repeVentana = () => { const d = dialogo(); return d && d.dataset.dlg === 'repe' ? d : null; };
+  const toasts = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+  prueba('U7', 'Mesa: una foto naranja (solo relleno) entra sin preguntar, como portada o como relleno, con un aviso ligero con su uso; azul, ya en esta publicación, en una historia o usada sin marca: la ventana de siempre; en un lote, un aviso para las naranjas y la lista con las demás (D-127)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2), pub(3), pub(4), pub(5, 'Carrusel'), pub(6, 'Carrusel'), pub(7, 'Carrusel')]);
+    const fs = await poner('r1', await Promise.all(['a-portada', 'b-relleno', 'c-relleno', 'd-historia', 'e-relleno', 'f-relleno'].map(n => foto(`u7-${n}.jpg`))));
+    const id = n => fs.find(f => M.files[f].name === `u7-${n}.jpg`);
+    await poner('r5', [await foto('u7-g-portada5.jpg')]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    await historiaConFoto(M.hs.anadir(DIA(10)), id('d-historia'));
+    await M.flush();
+    await uEsperaMarcas({ 'u7-a-portada.jpg': 'p0', 'u7-b-relleno.jpg': 'r', 'u7-c-relleno.jpg': 'r', 'u7-d-historia.jpg': 'r' }, 'las marcas de partida');
+    // naranja como portada de una Foto: entra sin ventana, con el aviso ligero
+    M._test.addToSlot('r2', [id('b-relleno')]);
+    await hasta(() => slot('r2').photos.length === 1, 3000, 'la naranja entra en r2');
+    ok(!repeVentana(), 'la naranja preguntó');
+    ok(toastCon(/^Ya usada como relleno · Carrusel 1\.1 · 3 nov$/), 'sin el aviso ligero: ' + toasts());
+    // naranja como relleno de un carrusel con foto (desde el ordenador): entra al final sin preguntar
+    await M.addFiles([await foto('u7-c-relleno.jpg')], 'r5');
+    ok(!repeVentana(), 'la naranja soltada en un carrusel con foto preguntó por repetida');
+    await hasta(() => slot('r5').photos.length === 2, 3000, 'la naranja como relleno de r5');
+    ok(toastCon(/^Ya usada como relleno · Carrusel 1\.1 · 3 nov$/), 'sin el aviso ligero en r5: ' + toasts());
+    // desde la bandeja a una con foto: sale «Sustituir / Añadir» y el aviso ligero sigue encima
+    qa('.toasts .toast').forEach(t => t.remove());
+    M._test.addToSlot('r5', [id('f-relleno')]);
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'addmode', 3000, '«Sustituir / Añadir»');
+    ok(toastCon(/^Ya usada como relleno · Carrusel 1\.1 · 3 nov$/), 'el aviso ligero no sigue sobre «Sustituir / Añadir»: ' + toasts());
+    q('.detail[data-dlg="addmode"] [data-act="addmode"][data-m="add"]').click();
+    await hasta(() => slot('r5').photos.length === 3, 3000, 'añadida a r5');
+    // azul: la ventana de siempre
+    M._test.addToSlot('r3', [id('a-portada')]);
+    let d = await hasta(repeVentana, 3000, 'la ventana con la azul');
+    ok(/Ya usada este mes/.test(d.textContent), 'la ventana de la azul: ' + d.textContent);
+    d.querySelector('[data-act="close"].btn2, .btn2[data-act="close"]').click(); await espera(30);
+    igual(slot('r3').photos.length, 0, 'Cancelar dejó entrar la azul');
+    // naranja que ya va en esta misma publicación: la ventana
+    M._test.addToSlot('r1', [id('e-relleno')]);
+    d = await hasta(repeVentana, 3000, 'la ventana en la misma publicación');
+    ok(/Ya usada en este post/.test(d.textContent), 'la ventana en la misma publicación: ' + d.textContent);
+    M._in.closeDetail(); await espera(30);
+    // naranja que va también en una historia: la ventana
+    M._test.addToSlot('r4', [id('d-historia')]);
+    d = await hasta(repeVentana, 3000, 'la ventana con la de la historia');
+    M._in.closeDetail(); await espera(30);
+    igual(slot('r4').photos.length, 0, 'la de la historia entró sin preguntar');
+    // un lote: dos naranjas, una azul y una sin usar → un solo aviso y la lista solo con la azul
+    const [nueva] = await M.addFiles([await foto('u7-h-nueva.jpg')]);
+    M._test.addToSlot('r6', [nueva, id('e-relleno'), id('f-relleno'), id('a-portada')]);
+    d = await hasta(repeVentana, 3000, 'la lista del lote');
+    igual(qa('.detail[data-dlg="repe"] .repl li b').map(b => b.textContent), ['u7-a-portada.jpg'], 'la lista lleva solo las demás');
+    ok(!toastCon(/^2 fotos ya usadas como relleno$/), 'el aviso salió antes de decidir');
+    d.querySelector('[data-act="repe"][data-m="saltar"]').click();
+    await hasta(() => slot('r6').photos.length === 3, 3000, 'las naranjas y la nueva entran, la azul no');
+    ok(toastCon(/^2 fotos ya usadas como relleno$/), 'sin el aviso del lote: ' + toasts());
+    // lote con una sola naranja y una azul, «Usar todas»: el aviso la nombra
+    M._test.addToSlot('r7', [id('e-relleno'), id('a-portada')]);
+    d = await hasta(repeVentana, 3000, 'la lista del segundo lote');
+    d.querySelector('[data-act="repe"][data-m="usar"]').click();
+    await hasta(() => slot('r7').photos.length === 2, 3000, 'las dos en r7');
+    ok(toastCon(/^1 foto ya usada como relleno: u7-e-relleno\.jpg · Carrusel 1\.6 · 8 nov$/), 'el aviso de una en un lote (decide el uso más tardío, como el título de la bandeja): ' + toasts());
+    // «Cancelar» en un lote: no entra nada y no hay aviso
+    qa('.toasts .toast').forEach(t => t.remove());
+    M._test.addToSlot('r3', [id('f-relleno'), id('a-portada')]);
+    d = await hasta(repeVentana, 3000, 'la lista del tercer lote');
+    d.querySelector('[data-act="close"]').click(); await espera(60);
+    igual(slot('r3').photos.length, 0, 'Cancelar dejó entrar la naranja');
+    ok(!toastCon(/relleno/), 'con Cancelar salió el aviso ligero');
+  });
+
+  prueba('U8', 'Mesa: usada solo como relleno hace 3 meses o más (sin marca): la ventana de siempre; en un hueco del feed una naranja entra sin preguntar (D-127, D-049)', async () => {
+    await abrirMes([pub(9, 'Carrusel', 5, U_AGO)], U_AGO);
+    await poner(`r9-${U_AGO}`, [await foto('u8-a-ago.jpg'), await foto('u8-b-ago.jpg')]); await M.flush();
+    await abrirMes([pub(1, 'Carrusel'), pub(2)], MES);
+    const fs = await poner('r1', [await foto('u8-c-portada.jpg'), await foto('u8-d-relleno.jpg')]); await M.flush();
+    await uEsperaMarcas({ 'u8-b-ago.jpg': '', 'u8-d-relleno.jpg': 'r' }, 'las marcas');
+    const p = M.addFiles([await foto('u8-b-ago.jpg')], 'r2');
+    const d = await hasta(repeVentana, 4000, 'la ventana con la de agosto');
+    ok(/agosto/i.test(d.textContent), 'la ventana no dice su uso: ' + d.textContent);
+    d.querySelector('[data-act="close"]').click(); await p;
+    // en un hueco del feed (D-049): la naranja entra sin preguntar
+    q('.bar [data-act="addfiller"]').click(); await espera(60);
+    const f = fs.find(x => M.files[x].name === 'u8-d-relleno.jpg');
+    let hecho = false; M._test.setPreview(0, f).then(() => { hecho = true; });
+    await hasta(() => hecho || repeVentana(), 4000, 'la portada del hueco');
+    if (repeVentana()) M._in.closeDetail();
+    ok(hecho, 'la naranja en un hueco preguntó');
+    ok(toastCon(/^Ya usada como relleno · Carrusel 1\.1 · 3 nov$/), 'sin el aviso ligero en el hueco: ' + toasts());
+  });
+
+  prueba('U9', 'Editor: una foto naranja entra en la diapositiva sin preguntar, con el aviso ligero; una azul pregunta; una que ya va en este post pregunta (D-127, D-122)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    const fs = await poner('r1', [await foto('u9-a-portada.jpg'), await foto('u9-b-relleno.jpg')]);
+    await poner('r2', [await foto('u9-c-portada2.jpg'), await foto('u9-d-otra2.jpg')]);
+    await M.flush();
+    const id = n => fs.find(f => M.files[f].name === `u9-${n}.jpg`);
+    await abrirEditor('r2', 1);
+    accion('tr-add', { f: id('b-relleno') });
+    await hasta(() => compDe(1).els.some(e => e.t === 'foto' && M.files[e.src] && M.files[e.src].name === 'u9-b-relleno.jpg'), 4000, 'la naranja en la diapositiva');
+    ok(!preguntaEditor(), 'la naranja preguntó en el editor');
+    ok(toastCon(/^Ya usada como relleno · Carrusel 1\.1 · 3 nov$/), 'sin el aviso ligero en el editor: ' + toasts());
+    accion('tr-add', { f: id('a-portada') });
+    await hasta(preguntaEditor, 3000, 'la pregunta con la azul');
+    ok(/Ya usada este mes/.test(ed().ask.textContent), 'la pregunta de la azul: ' + ed().ask.textContent);
+    ed().ask.querySelector('[data-ask="seguir"]').click(); await espera(30);
+    accion('tr-add', { f: id('b-relleno') });   // ya va en la diapositiva 2 de este post
+    await hasta(preguntaEditor, 3000, 'la pregunta con la que ya va en este post');
+    ok(/Ya usada en (esta diapositiva|este post)/.test(ed().ask.textContent), 'la pregunta de la de este post: ' + ed().ask.textContent);
+    ed().ask.querySelector('[data-ask="seguir"]').click(); await espera(30);
+    await cerrarEd();
+  });
+
   // ---------- ← → en el diseñador (mesa 3.96, diseño 1.15, D-125) ----------
   prueba('D27', 'En el diseñador ← → pasan a la diapositiva anterior y siguiente, como ↑ ↓; no escribiendo, en un conmutador, en la barra del velo ni con modificadores (D-125)', async () => {
     await tablero([pub(1, 'Carrusel')]);

@@ -70,7 +70,16 @@ function checkTiming(b, isNew) {
 const slim = p => p && ({
   id: p._id, status: p.status, scheduledFor: p.scheduledFor, timezone: p.timezone,
   content: p.content, media: (p.mediaItems || []).map(m => m.url),
-  platforms: (p.platforms || []).map(x => ({ platform: x.platform, accountId: x.accountId && (x.accountId._id || x.accountId), status: x.status, ...(x.platformSpecificData && x.platformSpecificData.locationId ? { locationId: x.platformSpecificData.locationId } : {}), ...(x.platformPostUrl ? { url: x.platformPostUrl } : {}), ...(x.errorMessage ? { error: x.errorMessage } : {}) })),   // locationId: the place sent (D-124)
+  platforms: (p.platforms || []).map(x => {
+    const d = x.platformSpecificData || {};
+    return {
+      platform: x.platform, accountId: x.accountId && (x.accountId._id || x.accountId), status: x.status,
+      ...(d.locationId ? { locationId: d.locationId } : {}),   // the place sent (D-124)
+      ...(Array.isArray(d.userTags) && d.userTags.length ? { userTags: d.userTags.map(t => (t && typeof t === 'object' ? `${t.username}${t.mediaIndex ? ' #' + t.mediaIndex : ''}` : String(t))) } : {}),   // the people tagged; #n = slide n+1 (D-130)
+      ...(Array.isArray(d.collaborators) && d.collaborators.length ? { collaborators: d.collaborators } : {}),   // the collaborators invited (D-130)
+      ...(x.platformPostUrl ? { url: x.platformPostUrl } : {}), ...(x.errorMessage ? { error: x.errorMessage } : {})
+    };
+  }),
   ...(p.metadata && Object.keys(p.metadata).length ? { metadata: p.metadata } : {})
 });
 

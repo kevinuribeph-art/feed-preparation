@@ -2096,6 +2096,7 @@
 --i-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
 --i-more:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/svg%3E");
 --i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 16l4 4l4-4m-4 4V4m14 4l-4-4l-4 4m4-4v16'/%3E%3C/svg%3E");
+--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E635A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
 --i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19l-7-7l7-7m7 7H5'/%3E%3C/svg%3E")}
 /* modo oscuro: aquí irán los mismos tokens en oscuro (pendiente; no se activa) */
 :root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{}
@@ -2199,7 +2200,7 @@
 #mesa .eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;overflow:visible}#mesa .eico .h{display:none}
 #mesa .e-programado,#mesa .e-publicado{color:var(--ok)}#mesa .e-cancelado{color:var(--red)}
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
-#mesa .esmot{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px 8px;min-height:30px;box-sizing:border-box;width:210px;max-width:100%}
+#mesa .esmot{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 10px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out;box-sizing:border-box;width:210px;max-width:100%}
 #mesa .pit{pointer-events:auto;display:flex;align-items:flex-start;gap:4px;width:max-content;max-width:17px;max-height:17px;overflow:hidden;margin:0 0 4px;border-radius:2px;background:var(--postit);color:var(--postit-ink);filter:drop-shadow(var(--shadow-pit));transition:max-width .18s ease,max-height .18s ease}
 #mesa .pit svg{flex:none;display:block;width:17px;height:17px}
 #mesa .pit{cursor:default}#mesa .pit.dragging{opacity:.35}
@@ -2249,9 +2250,10 @@
 #mesa .lockbtn.on{border-color:var(--acc);color:var(--acc-ink)}
 #mesa .memobtn{display:inline-flex;align-items:center;gap:6px}#mesa .memobtn svg{flex:none;width:13px;height:13px}
 #mesa.memos .pit:not(.edit){max-width:100%;max-height:8.6em;transition-delay:0s}#mesa.memos .pit .pt{opacity:1;transition-delay:0s}#mesa.memos .cell.empty>.pit:not(.edit){max-width:calc(100% - 12px)}
-#mesa .pthumb{max-width:100%;max-height:60vh;display:block;margin:0 auto;border-radius:var(--r-xs)}
-#mesa .pvacts{display:flex;flex-direction:column;gap:8px;margin-top:4px}
-#mesa .pvacts button{text-align:left}
+#mesa .pthumb{max-width:100%;max-height:60vh;display:block;margin:0 auto;box-shadow:var(--shadow-md)}
+#mesa .pvacts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
+#mesa .pvacts button{text-align:left;justify-content:flex-start;max-width:100%;white-space:normal;line-height:1.3;padding-top:6px;padding-bottom:6px;border-radius:var(--r-md)}
+#mesa .pright>.nlab{line-height:1.45}
 #mesa .vdate{display:inline-block;padding:0 5px;border-radius:var(--r-pill);background:var(--red);color:var(--on-photo);text-shadow:none;font-weight:600}
 #mesa .pdate{position:absolute;left:7px;bottom:6px;z-index:3;font-size:10px;color:var(--on-photo);text-shadow:var(--shadow-photo);pointer-events:none}
 #mesa .cell.past.nophoto .ph b{color:var(--cell-past)}
@@ -2361,22 +2363,27 @@
 #mesa textarea.note,#mesa textarea.memo{width:100%;min-height:74px;resize:vertical;border:1px solid var(--line);border-radius:var(--r-md);padding:9px 11px;font:13px/1.45 var(--font);color:var(--ink);background:var(--panel-2)}
 #mesa textarea.note:focus,#mesa textarea.memo:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
 #mesa textarea.memo{min-height:64px;font-size:12.5px;background:var(--panel)}
-#mesa .nlab.mlab{margin-top:12px}
-/* ===== Ventana de una publicación (lote 2: solo tokens) ===== */
+#mesa .nlab.mlab{margin-top:16px}
+/* ===== Ventana de una publicación (lote 2) ===== */
 #mesa .card.post{max-width:1000px;padding:0;display:flex;flex-direction:column;overflow:hidden}
-#mesa .phead{padding:14px 52px 12px 18px;border-bottom:1px solid var(--line2);flex:none}
-#mesa .phead h3{margin:0;font-size:16px}#mesa .phead p{margin:3px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#mesa .phead .st{font-size:10.5px}
+#mesa .phead{padding:18px 60px 14px 22px;border-bottom:1px solid var(--line2);flex:none}
+#mesa .phead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}#mesa .phead p{margin:10px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap}
+#mesa .card.post>.x{top:14px;right:14px}
+#mesa .phead .st{font-size:10.5px;padding:2px 8px}#mesa .st.pub{background:var(--mute)}#mesa .st.own{background:var(--franja)}
 #mesa .phead p[hidden]{display:none}
 #mesa .pwhen{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}#mesa .pwhen .wd{min-width:2.2em}
-#mesa .pwhen input{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px 6px;min-height:30px}
-#mesa .tysel,#mesa .essel,#mesa .ubsel,#mesa .persel{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px 4px;min-height:30px;cursor:pointer}
+#mesa .pwhen input{font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 8px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
+#mesa .tysel,#mesa .essel,#mesa .ubsel,#mesa .persel{-webkit-appearance:none;appearance:none;font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2) var(--chev) no-repeat right 8px center/14px 14px;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 28px 0 10px;min-height:32px;cursor:pointer;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
+#mesa .pwhen input:hover,#mesa .tysel:hover,#mesa .essel:hover,#mesa .ubsel:hover,#mesa .persel:hover,#mesa .esmot:hover{border-color:var(--line-strong)}
+#mesa .pwhen input:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
+#mesa .tysel:disabled,#mesa .essel:disabled,#mesa .ubsel:disabled,#mesa .persel:disabled{opacity:.5;cursor:default}
+#mesa .pwhen .wd{color:var(--ink-2);font-weight:600}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
 #mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
-#mesa .pleft{padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--bg);border-right:1px solid var(--line2);min-width:0}
+#mesa .pleft{padding:18px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg);min-width:0}
 #mesa .stagewrap{width:100%;display:flex;justify-content:center}
-#mesa .stage{position:relative;overflow:hidden;background:var(--stage);touch-action:none;cursor:default;user-select:none;width:300px;height:375px}
+#mesa .stage{position:relative;overflow:hidden;background:var(--stage);touch-action:none;cursor:default;user-select:none;width:300px;height:375px;box-shadow:var(--shadow-md)}
 #mesa .stage.panning{cursor:grabbing}
 #mesa .stage img.big{position:absolute;max-width:none;pointer-events:none;-webkit-user-drag:none}
 #mesa .stage canvas.dzv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}#mesa .stage canvas.dzv[hidden]{display:none}
@@ -2425,18 +2432,21 @@
 #mesa .lnk{border:0;background:none;color:var(--acc-ink) !important;font-size:12.5px;font-weight:600;padding:8px 4px}
 #mesa .lnk:hover{text-decoration:underline;text-underline-offset:3px}
 #mesa .strip{width:100%;display:flex;gap:6px;overflow-x:auto;padding:2px}
-#mesa .strip .th{position:relative;flex:0 0 58px;height:58px;border:0;padding:0;border-radius:var(--r-sm);overflow:hidden;background:var(--cell-ph);outline:2px solid transparent;outline-offset:-2px}
-#mesa .strip .th.on{outline-color:var(--acc)}
+#mesa .strip .th{position:relative;flex:0 0 58px;height:58px;border:0;padding:0;border-radius:var(--r-sm);overflow:hidden;background:var(--cell-ph);outline:0}
+#mesa .strip .th::before{content:'';position:absolute;inset:0;z-index:1;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1px var(--photo-ring);transition:box-shadow var(--d1) ease-out}
+#mesa .strip .th:hover::before{box-shadow:inset 0 0 0 2px var(--line-strong)}
+#mesa .strip .th.on::before{box-shadow:inset 0 0 0 2px var(--acc),inset 0 0 0 4px var(--panel-2)}
+#mesa .strip .th:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .strip .th.drg{opacity:.4}#mesa .strip .th.dl::after,#mesa .strip .th.dr::after{content:'';position:absolute;top:0;bottom:0;width:3px;background:var(--acc)}#mesa .strip .th.dl::after{left:0}#mesa .strip .th.dr::after{right:0}
 #mesa .strip .th img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
-#mesa .strip .th span{position:absolute;left:0;right:0;bottom:0;font-size:9px;color:var(--on-photo);background:var(--photo-chip);text-align:center;line-height:14px}
+#mesa .strip .th span{position:absolute;left:0;right:0;bottom:0;font-size:9.5px;font-weight:600;color:var(--on-photo);background:var(--photo-chip);text-align:center;line-height:15px}
 #mesa .pacts{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-#mesa .pacts button{border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r-pill);font-size:12px;font-weight:500;padding:0 12px;min-height:32px}
-#mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}
+#mesa .pacts{margin-top:2px}#mesa .pacts button{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:var(--r-pill);font-size:12.5px;font-weight:600;padding:0 13px;min-height:32px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
+#mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}#mesa .pacts button:active:not(:disabled){transform:scale(.97)}
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
-#mesa .pright{padding:14px 16px;display:flex;flex-direction:column;min-width:0}
-#mesa .pinsw{margin:0 0 12px;align-self:flex-start}
+#mesa .pright{padding:18px 20px;display:flex;flex-direction:column;min-width:0}
+#mesa .pinsw{margin:0 0 14px;align-self:flex-start}
 #mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--on-ink);font-weight:800;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
@@ -2446,9 +2456,9 @@
 #mesa .pright.hascap{contain:size;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
 #mesa .pright.hascap>*{flex-shrink:0}
 #mesa .pright.hascap textarea.note{flex:none;min-height:64px;height:68px}
-#mesa .caps{flex:1 0 auto;min-height:170px;display:flex;flex-direction:column;margin-top:14px}
+#mesa .caps{flex:1 0 auto;min-height:170px;display:flex;flex-direction:column;margin-top:18px}
 #mesa .caphead{flex:none;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:0 0 6px}#mesa .caphead .nlab{margin:0}
-#mesa .capbody{flex:1 0 auto;display:flex;flex-direction:column;gap:12px;border-radius:var(--r-md);background:var(--bg);padding:10px}
+#mesa .capbody{flex:1 0 auto;display:flex;flex-direction:column;gap:14px;border-radius:var(--r-lg);background:var(--bg);padding:12px}
 #mesa .capempty{margin:auto;padding:12px;color:var(--mute);font-size:12.5px;text-align:center}
 #mesa .capst{font-size:10.5px;border-radius:var(--r-pill);padding:1px 7px;white-space:nowrap;color:var(--mute);border:1px solid var(--line)}
 #mesa .capst.on{color:var(--on-acc);background:var(--acc);border-color:var(--acc)}#mesa .capst.ok{color:var(--on-acc);background:var(--ok);border-color:var(--ok)}#mesa .capst.chg{background:var(--chg);border-color:var(--chg)}
@@ -2526,9 +2536,9 @@
 #mesa .xsum{list-style:none;margin:0 0 12px;padding:0;font-size:12.5px;max-height:38vh;overflow:auto}
 #mesa .xsum li{padding:7px 0;border-top:1px solid var(--line2);line-height:1.5}#mesa .xsum li span{color:var(--mute)}
 #mesa .card>p.xwhat{color:var(--ink);font-size:13px}
-#mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px}
+#mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 14px}
 #mesa .ubsel{max-width:100%;min-width:0;text-overflow:ellipsis}
-#mesa .pper{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+#mesa .pper{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
 #mesa .perrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 #mesa .persel{flex:none;width:10.6em;max-width:100%}
 #mesa .perchip{display:inline-flex;align-items:center;max-width:100%;min-height:26px;padding:0 2px 0 10px;font-size:12.5px;color:var(--ink);background:var(--bg-2);border:1px solid var(--bg-2);border-radius:var(--r-pill);overflow-wrap:anywhere}
@@ -3679,7 +3689,7 @@
       + (it.own || it.hidden ? `<button class="btn2" data-act="prevrestore" data-id="${esc(id)}">Restaurar como estaba</button>` : '')
       + `</div>`;
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(it.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(it.name)}</h3><p><span>${esc(fmtDate(it.date))} · ${esc(it.type || '')}</span><span class="st ok" style="background:#737373">Publicada</span>${it.hidden ? '<span class="st chg">Oculta</span>' : ''}${it.own ? '<span class="st" style="background:#0095f6">Editada en la mesa</span>' : ''}</p></div>
+      <div class="phead"><h3>${esc(it.name)}</h3><p><span>${esc(fmtDate(it.date))} · ${esc(it.type || '')}</span><span class="st pub">Publicada</span>${it.hidden ? '<span class="st chg">Oculta</span>' : ''}${it.own ? '<span class="st own">Editada en la mesa</span>' : ''}</p></div>
       <div class="pbody"><div class="pleft">${left}</div>
         <div class="pright"><span class="nlab">Mes anterior <span>· solo cambia la vista del feed, no Notion</span></span>${acts}
           <p class="muted" style="margin:12px 0 0">Para cambiar la foto, arrastra una de la bandeja sobre su casilla. Para intercambiar dos publicaciones, arrastra una sobre la otra.</p></div></div></div>`;

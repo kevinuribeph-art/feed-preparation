@@ -131,7 +131,7 @@
   const isKit = f => String(f || '').startsWith('kit-');   // a client's protected file (logo): never a tray photo
   // this viewer's choices, kept in the browser: the tray open or closed, «Seguidas» in «Ver todas», the panel's open sections, «Guías» open,
   // «Zona del grid» shown
-  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones', LS_RG = 'mesa-lb-guias', LS_ZG = 'mesa-lb-zona', LS_ZH = 'mesa-lb-zona-historia';
+  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones', LS_AC = 'mesa-lb-seccion', LS_RG = 'mesa-lb-guias', LS_ZG = 'mesa-lb-zona', LS_ZH = 'mesa-lb-zona-historia';
   const lsLeer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsPoner = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* a private window: not kept */ } };
   const ABIERTAS = new Set((lsLeer(LS_PL) || '').split(',').filter(Boolean));
@@ -1121,7 +1121,21 @@
 #mesa .lb-ghost{position:fixed;z-index:30;width:64px;height:64px;object-fit:cover;border-radius:var(--r-xs);transform:translate(-50%,-50%);pointer-events:none;opacity:.85;box-shadow:var(--shadow-ghost)}
 #mesa .lb-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .lb-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .lb-sec:last-child{border-bottom:0}
-#mesa .lb-sec h4{margin:0 0 10px;font-size:13.5px;font-weight:700;letter-spacing:-.005em}#mesa .lb-sec h4 span{font-weight:400;color:var(--mute);font-size:12.5px}
+#mesa .lb-sec h4{margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.2}#mesa .lb-sec h4 span{font-weight:400;color:var(--mute);font-size:12.5px;letter-spacing:0}
+#mesa .lb-sec.lb-acc{padding:0}#mesa .lb-sec h4.lb-acc-t{margin:0}
+#mesa .lb-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 17px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
+#mesa .lb-acc-n{flex:none;transition:color var(--d1) ease-out}
+#mesa .lb-acc-h .lb-acc-s{flex:1;min-width:0;font-weight:400;font-size:12.5px;letter-spacing:0;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .lb-acc-h::after{content:'';flex:none;width:16px;height:16px;margin-left:auto;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m),background-color var(--d1) ease-out}
+#mesa .lb-acc.on>.lb-acc-t>.lb-acc-h::after{transform:rotate(180deg)}
+#mesa .lb-acc-h:hover::after{background:var(--ink)}#mesa .lb-acc-h:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ring)}
+#mesa .lb-acc-b{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s linear var(--d-m)}
+#mesa .lb-acc.on>.lb-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
+#mesa .lb-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
+#mesa .lb-acc.on>.lb-acc-b>.lb-acc-i{opacity:1;transform:none;transition:opacity .24s ease-out .05s,transform var(--d-m) var(--ease-m)}
+#mesa .lb-acc.on.fin>.lb-acc-b>.lb-acc-i{overflow:visible}
+#mesa .lb-acc-c{padding:0 0 18px}
+@media (prefers-reduced-motion:reduce){#mesa .lb-acc-b:not(#mx),#mesa .lb-acc.on>.lb-acc-b:not(#mx){transition:none !important}#mesa .lb-acc-i:not(#mx){transform:none !important;transition:opacity .15s linear !important}#mesa .lb-acc-h::after{transition:none !important}}
 #mesa .lb-p{margin:6px 0 0;font-size:12.5px;color:var(--mute)}
 #mesa .lb-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 6px}
 #mesa .lb-sws{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
@@ -1206,11 +1220,7 @@
 #mesa .lb-rat{position:absolute;z-index:4;padding:2px 8px;border-radius:var(--r-pill);background:var(--photo-chip-2);color:var(--on-photo);font-size:11.5px;line-height:1.5;white-space:nowrap;pointer-events:none}#mesa .lb-rat[hidden]{display:none}
 #mesa .lb-flm{position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;min-width:140px;padding:6px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg)}
 #mesa .lb-flm button:disabled{opacity:.35;cursor:default}
-#mesa details.lb-pl{padding:0}#mesa details.lb-pl>summary{display:flex;align-items:center;gap:8px;padding:14px 0;cursor:pointer;list-style:none;font-size:13.5px;font-weight:700}
-#mesa details.lb-pl>summary::-webkit-details-marker{display:none}
-#mesa details.lb-pl>summary span{margin-left:auto;font-weight:400;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#mesa details.lb-pl>summary::after{content:'›';color:var(--mute);font-size:15px;line-height:1;transition:transform .15s}#mesa details.lb-pl[open]>summary::after{transform:rotate(90deg)}
-#mesa details.lb-pl>.lb-plc{padding:0 0 14px}#mesa details.lb-pl .lb-plc>.lb-sub{margin:0 0 12px}#mesa details.lb-pl .lb-plc>.lb-sub:last-child{margin-bottom:0}
+#mesa .lb-pl .lb-plc>.lb-sub{margin:0 0 12px}#mesa .lb-pl .lb-plc>.lb-sub:last-child{margin-bottom:0}
 #mesa .lb-sub h5{margin:0 0 6px;font-size:12.5px;font-weight:600}
 #mesa .lb-allh .seg{margin-right:auto}
 #mesa .lb-allg.seguidas{display:flex;gap:0;overflow-x:auto;padding:4px 0 10px}#mesa .lb-allg.seguidas::before,#mesa .lb-allg.seguidas::after{content:'';margin:auto}
@@ -2118,7 +2128,55 @@
     return `Foto <i>${esc(e.src ? (M.files[e.src] || {}).name || '' : 'hueco vacío')}</i>`;
   }
   // a section folded under its title: open or closed as this viewer left it, for every element and every post
-  const plegable = (k, titulo, resumen, html) => `<details class="lb-sec lb-pl" data-pl="${k}"${ABIERTAS.has(k) ? ' open' : ''}><summary>${titulo}<span>${resumen}</span></summary><div class="lb-plc">${html}</div></details>`;
+  const plegable = (k, titulo, resumen, html) => `<div class="lb-sec lb-pl lb-acc${ABIERTAS.has(k) ? ' on fin' : ''}" data-pl="${k}">${accCab(k, titulo, resumen, ABIERTAS.has(k))}<div class="lb-acc-b" id="lb-accb-${k}" role="region" aria-labelledby="lb-acch-${k}"><div class="lb-acc-i"><div class="lb-acc-c lb-plc">${html}</div></div></div></div>`;
+  const accCab = (k, titulo, resumen, on) => `<h4 class="lb-acc-t"><button type="button" class="lb-acc-h" id="lb-acch-${k}" aria-expanded="${on}" aria-controls="lb-accb-${k}"><span class="lb-acc-n">${titulo}</span>${resumen ? `<span class="lb-acc-s">${resumen}</span>` : ''}</button></h4>`;
+  // A slide's panel (nothing chosen): its sections fold under their titles, one open at a time, the last one opened
+  // remembered in this browser (D-137); «Capas» is one of them there. Built as always, then folded here.
+  const SECCIONES = [['Diapositiva', 'diapositiva'], ['Textos de la marca', 'textos'], ['Logos y pegatinas', 'logos'], ['Fondo', 'fondo'], ['Velo', 'velo'], ['Textura', 'textura'], ['Rejilla', 'rejilla'], ['Plantillas', 'plantillas']];
+  function seccionesDiapo(p) {
+    const secs = [];
+    for (const sec of [...p.children]) {
+      if (!sec.classList.contains('lb-sec')) continue;
+      if (sec.dataset.pl === 'capas') { delete sec.dataset.pl; sec.dataset.acc = 'capas'; secs.push(sec); continue; }
+      const h4 = sec.firstElementChild; if (!h4 || h4.tagName !== 'H4') continue;
+      const tit = (h4.firstChild && h4.firstChild.nodeType === 3 ? h4.firstChild.textContent : h4.textContent).trim(), sub = h4.querySelector('span');
+      const k = (SECCIONES.find(([t]) => tit.startsWith(t)) || [])[1]; if (!k) continue;
+      const c = document.createElement('div'); c.className = 'lb-acc-c';
+      while (h4.nextSibling) c.append(h4.nextSibling);
+      h4.outerHTML = accCab(k, esc(tit), sub ? esc(sub.textContent.replace(/^\s*·\s*/, '')) : '', false);
+      const b = document.createElement('div'); b.className = 'lb-acc-b'; b.id = 'lb-accb-' + k; b.setAttribute('role', 'region'); b.setAttribute('aria-labelledby', 'lb-acch-' + k);
+      const i = document.createElement('div'); i.className = 'lb-acc-i'; i.append(c); b.append(i); sec.append(b);
+      sec.classList.add('lb-acc'); sec.dataset.acc = k; secs.push(sec);
+    }
+    let k = lsLeer(LS_AC); if (k == null) k = 'diapositiva';
+    if (k !== '-' && !secs.some(x => x.dataset.acc === k)) k = secs[0] ? secs[0].dataset.acc : '-';
+    secs.forEach(x => abrirSec(x, x.dataset.acc === k, false));
+  }
+  // open or closed; animated only by a click (a redraw of the panel draws it as it was); a second click halfway goes back
+  // from where it is (the CSS transition); open, its inside stops clipping once it has finished (focus rings, shadows)
+  function abrirSec(sec, on, anim) {
+    sec.classList.toggle('on', on); if (!on || anim) sec.classList.remove('fin'); else sec.classList.add('fin');
+    const h = sec.querySelector(':scope > .lb-acc-t > .lb-acc-h'); if (h) h.setAttribute('aria-expanded', String(on));
+    if (on && anim) {
+      const b = sec.querySelector(':scope > .lb-acc-b'), fin = e => { if (e && (e.target !== b || e.propertyName !== 'grid-template-rows')) return; b.removeEventListener('transitionend', fin); clearTimeout(t); if (sec.classList.contains('on')) sec.classList.add('fin'); };
+      const t = setTimeout(fin, 700); b.addEventListener('transitionend', fin);
+    }
+  }
+  function plegar(btn) {
+    const sec = btn.closest('.lb-acc'); if (!sec || !E) return;
+    const on = !sec.classList.contains('on');
+    if (sec.dataset.acc) {                     // a slide's sections: one at a time
+      if (on) sec.parentNode.querySelectorAll(':scope > .lb-acc[data-acc].on').forEach(o => { if (o !== sec) abrirSec(o, false, true); });
+      abrirSec(sec, on, true); lsPoner(LS_AC, on ? sec.dataset.acc : '-');
+      if (on) {                                // its title stays in sight while the one above closes
+        const p = sec.closest('.lb-panel'), y0 = sec.getBoundingClientRect().top - p.getBoundingClientRect().top;
+        if (y0 < 0) p.scrollTo({ top: p.scrollTop + y0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      }
+    } else {                                   // an element's: each one as it was left
+      const k = sec.dataset.pl; abrirSec(sec, on, true);
+      if (on) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(','));
+    }
+  }
   function capasHTML(c) {
     if (!c.els.length) return '';
     const ids = selIds(), n = c.els.length;
@@ -2252,7 +2310,9 @@
         + `<div class="lb-btns"><button type="button" class="btn2" data-lb="tpl-save"${c.els.length || c.velo || c.tex || c.bg !== '#ffffff' ? '' : ' disabled'}>Guardar como plantilla</button>${c.previa ? '<button type="button" class="btn2" data-lb="tpl-quitar" title="La diapositiva vuelve a como estaba antes de su última plantilla">Quitar plantilla</button>' : ''}</div></div>`;
       h += capasHTML(c);
     }
-    p.innerHTML = h; p.scrollTop = top;
+    p.innerHTML = h;
+    if (!multi() && !el) seccionesDiapo(p);   // a slide's panel: its sections fold (D-137)
+    p.scrollTop = top;
     p.querySelectorAll('canvas[data-lb="tpl"]').forEach(cv => { const t = E.plant.find(q => q.id === cv.dataset.id); if (t) dibujarPlantilla(cv, t); });
     const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing or choosing where to swap (the rest: «?»)
     pista.hidden = !enc && !E.cambio; pista.textContent = E.cambio ? 'Intercambiar: pulsa otro hueco de esta diapositiva · Esc o un clic fuera de un hueco para cancelar' : enc ? 'Encuadrando: arrastra la foto dentro del marco · rueda o «Zoom» para acercar · Esc o «Listo» para terminar' : '';
@@ -2918,7 +2978,7 @@
       r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) { raton = false; r.blur(); } });
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
-    el.querySelector('.lb-panel').addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.pl; if (!k) return; if (e.target.open) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(',')); }, true);
+    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
     el.addEventListener('dragover', e => { if (!hayArchivos(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; resaltar(e); });   // not the mesa's: a photo dropped here is for this editor
     el.addEventListener('dragleave', e => { if (!e.relatedTarget || !el.contains(e.relatedTarget)) resaltar(null); });

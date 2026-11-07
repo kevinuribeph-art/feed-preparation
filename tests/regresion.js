@@ -9413,6 +9413,70 @@
     M._in.closeDetail();
   });
 
+  // ---------- secciones plegables del editor y del calendario (D-137) ----------
+  const altoDe = el => el.getBoundingClientRect().height;
+  async function muestras(fn, ms = 500) { const v = [], t0 = Date.now(); while (Date.now() - t0 < ms) { v.push(fn()); await espera(12); } v.push(fn()); return v; }
+  prueba('I8', 'El panel de una diapositiva va en secciones plegables, una abierta a la vez y la última recordada en este navegador; se mueven con la altura y un segundo clic a mitad vuelve desde donde está; las de un elemento se abren cada una a su aire (D-137)', async () => {
+    const LS = 'mesa-lb-seccion', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.removeItem(LS);
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('i8a.jpg'), await foto('i8b.jpg')]);
+      await abrirEditor('r1', 0); ed().sel = null; ed().mas = []; accion('sl', { i: 0 });
+      const secs = () => qa('.lb-panel > .lb-acc[data-acc]'), sec = k => q(`.lb-panel > .lb-acc[data-acc="${k}"]`), abiertas = () => secs().filter(s => s.classList.contains('on')).map(s => s.dataset.acc);
+      await hasta(() => secs().length, 2000, 'las secciones');
+      ok(['diapositiva', 'logos', 'fondo', 'velo', 'textura', 'rejilla', 'plantillas'].every(k => sec(k)), 'faltan secciones: ' + json(secs().map(s => s.dataset.acc)));
+      igual(abiertas(), ['diapositiva'], 'sin nada recordado no empieza abierta «Diapositiva»');
+      const h = k => sec(k).querySelector('.lb-acc-h'), cuerpo = k => sec(k).querySelector('.lb-acc-b');
+      igual([h('diapositiva').getAttribute('aria-expanded'), h('fondo').getAttribute('aria-expanded'), W.getComputedStyle(cuerpo('fondo')).visibility], ['true', 'false', 'hidden'], 'títulos y cuerpos');
+      ok(q('.lb-panel [data-lb="add-txt"]') && q('.lb-panel [data-lb="bg"]'), 'lo de una sección cerrada no está en la página');
+      ok(/grid-template-rows/.test(W.getComputedStyle(cuerpo('fondo')).transitionProperty), 'no se mueve con la altura');
+      await espera(200);                           // el editor redibuja su panel un momento después de cambiar de diapositiva
+      h('fondo').click();
+      igual(abiertas(), ['fondo'], 'abrir «Fondo» no cierra «Diapositiva»');
+      igual(W.localStorage.getItem(LS), 'fondo', 'no se recuerda');
+      const vf = await muestras(() => altoDe(cuerpo('fondo'))), lleno = vf[vf.length - 1];
+      ok(vf.some(v => v > 1 && v < lleno - 1) && altoDe(cuerpo('diapositiva')) < 1, `no se abre poco a poco: ${json(vf.map(Math.round))}`);
+      // a mitad, otro clic vuelve desde donde está, sin saltar
+      h('fondo').click(); await espera(60); const a1 = altoDe(cuerpo('fondo'));
+      h('fondo').click(); await espera(16); const a2 = altoDe(cuerpo('fondo'));
+      ok(a1 > 1 && a1 < lleno && a2 > 1 && a2 < lleno, `un segundo clic a mitad salta: ${a1} → ${a2} de ${lleno}`);
+      await espera(500); igual([abiertas(), W.localStorage.getItem(LS)], [['fondo'], 'fondo'], 'tras volver');
+      // se recuerda al redibujar y al volver a abrir el editor
+      accion('sl', { i: 1 }); await espera(30); igual(abiertas(), ['fondo'], 'otra diapositiva');
+      M.libre.cerrar(); await abrirEditor('r1', 0); ed().sel = null; accion('sl', { i: 0 });
+      await hasta(() => secs().length, 2000, 'las secciones de nuevo'); igual(abiertas(), ['fondo'], 'al volver a abrir el editor');
+      h('fondo').click(); igual([abiertas(), W.localStorage.getItem(LS)], [[], '-'], 'cerrarla');
+      // un elemento: su sección principal sigue abierta y sus plegables van cada uno a su aire
+      accion('add-txt'); await dibujado();
+      ok(q('.lb-panel > .lb-sec > h4') && !q('.lb-panel > .lb-sec[data-acc]'), 'el panel de un elemento se pliega como el de la diapositiva');
+      const pl = qa('.lb-panel > .lb-acc[data-pl]'); ok(pl.length >= 2, 'sin plegables en el elemento');
+      pl.forEach(x => { if (!x.classList.contains('on')) x.querySelector('.lb-acc-h').click(); });
+      ok(qa('.lb-panel > .lb-acc[data-pl]').every(x => x.classList.contains('on')), 'los plegables de un elemento no se abren a la vez');
+      qa('.lb-panel > .lb-acc[data-pl]').forEach(x => x.querySelector('.lb-acc-h').click());
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); W.localStorage.removeItem('mesa-lb-secciones'); }
+  });
+
+  prueba('I9', 'El calendario se pliega y se despliega con la altura, la misma curva que el editor; un segundo clic a mitad vuelve desde donde está (D-137)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    try {
+      await tablero([pub(1), pub(2)]);
+      const cal = await hasta(() => { const c = q('.side > .cal'); return c && !c.hidden && c.querySelector('.cfold') && c; }, 3000, 'el calendario');
+      if (cal.classList.contains('fold')) { cal.querySelector('.cfold').click(); await espera(700); }
+      const abierto = altoDe(cal);
+      cal.querySelector('.cfold').click();
+      ok(cal.classList.contains('fold') && cal.classList.contains('cal-anim'), 'no se pliega con movimiento');
+      await espera(120); const medio = altoDe(cal);
+      await espera(600); const plegado = altoDe(cal);
+      ok(!cal.classList.contains('cal-anim') && !cal.style.height, 'se queda a medias');
+      ok(plegado < abierto && medio < abierto - 1 && medio > plegado + 1, `no se pliega poco a poco: ${abierto} → ${medio} → ${plegado}`);
+      cal.querySelector('.cfold').click(); await espera(90); const b1 = altoDe(cal);
+      cal.querySelector('.cfold').click(); await espera(16); const b2 = altoDe(cal);
+      ok(b1 > plegado + 1 && Math.abs(b2 - b1) < (abierto - plegado) * 0.5, `un segundo clic a mitad salta: ${b1} → ${b2}`);
+      await espera(700); igual([cal.classList.contains('fold'), Math.round(altoDe(cal))], [true, Math.round(plegado)], 'tras volver');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

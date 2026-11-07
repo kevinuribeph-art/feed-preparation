@@ -139,6 +139,22 @@
     cambPintar();                                // and the changed ones' (D-126)
   }
 
+  // the fold opens and closes with its height, the same movement as the editor's sections (D-137): from where it is, so a
+  // second click halfway goes back from there; with «reduce motion», a short fade
+  function pliegue(sec, h0) {
+    if (sec._plFin) sec._plFin();
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { sec.classList.add('cal-fade'); setTimeout(() => sec.classList.remove('cal-fade'), 220); return; }
+    const h1 = sec.getBoundingClientRect().height;   // where it goes: as it is drawn now
+    if (Math.abs(h1 - h0) < 1) return;
+    let t = 0;
+    const fin = () => { clearTimeout(t); sec.removeEventListener('transitionend', alFin); sec._plFin = null; sec.classList.remove('cal-anim'); ['height', 'flex', 'overflow', 'transition'].forEach(k => { sec.style[k] = ''; }); };
+    const alFin = e => { if (e.target === sec && e.propertyName === 'height') fin(); };
+    sec.classList.add('cal-anim'); sec.style.transition = 'none'; sec.style.flex = '0 0 auto'; sec.style.overflow = 'hidden'; sec.style.height = h0 + 'px';
+    void sec.offsetHeight;
+    sec.style.transition = 'height var(--d-m) var(--ease-m)'; sec.style.height = h1 + 'px';
+    sec.addEventListener('transitionend', alFin); t = setTimeout(fin, 700); sec._plFin = fin;
+  }
+
   // ---------- linked with the grid ----------
   function light() {
     const X = I(), root = X && X.root && X.root(); if (!root) return;
@@ -166,8 +182,8 @@
       const a = b.dataset.cal;
       if (a === 'paso') { if (!client) abrirPaso(b.dataset.paso, b.dataset.mes); return; }
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
-      if (a === 'fold') lsSet(LS_FOLD, folded() ? '0' : '1');
-      else if (a === 'cnt') lsSet(LS_CNT, cntFolded() ? '0' : '1');
+      if (a === 'fold') { const h0 = sec.getBoundingClientRect().height; lsSet(LS_FOLD, folded() ? '0' : '1'); render(); pliegue(sec, h0); return; }
+      if (a === 'cnt') lsSet(LS_CNT, cntFolded() ? '0' : '1');
       else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
@@ -482,6 +498,12 @@
 #mesa .cfold svg{width:14px;height:14px;transition:transform .15s}#mesa .cal.fold .cfold svg{transform:rotate(-90deg)}
 #mesa .csync,#mesa .cnat{white-space:nowrap}#mesa .csync.c{color:var(--chg)}#mesa .cnat{font-size:11px;color:var(--faint)}
 #mesa .side>.cal.fold .cnat{display:none}
+#mesa .side>.cal.fold.cal-anim .cleg{display:flex}#mesa .side>.cal.fold.cal-anim .calbody{display:block}#mesa .side>.cal.fold.cal-anim .cnav{display:inline-flex}
+#mesa .side>.cal.fold.cal-anim .cleg,#mesa .side>.cal.fold.cal-anim .calbody,#mesa .side>.cal.fold.cal-anim .cnav{animation:cal-fuera .2s ease-out forwards}
+#mesa .side>.cal.cal-anim:not(.fold) .cleg,#mesa .side>.cal.cal-anim:not(.fold) .calbody,#mesa .side>.cal.cal-anim:not(.fold) .cnav{animation:cal-dentro .28s ease-out}
+#mesa .side>.cal.fold.cal-anim .cfold svg{animation:cal-ch-f var(--d-m) var(--ease-m)}#mesa .side>.cal.cal-anim:not(.fold) .cfold svg{animation:cal-ch-a var(--d-m) var(--ease-m)}
+@keyframes cal-fuera{to{opacity:0}}@keyframes cal-dentro{from{opacity:0}}@keyframes cal-ch-f{from{transform:none}}@keyframes cal-ch-a{from{transform:rotate(-90deg)}}
+@media (prefers-reduced-motion:reduce){#mesa .side>.cal.cal-fade .cleg,#mesa .side>.cal.cal-fade .calbody{animation:cal-dentro .15s linear !important}}
 #mesa .cnav{margin-left:auto;display:inline-flex;align-items:center;gap:2px;color:var(--ink)}
 #mesa .cnav button{border:0;background:none;width:26px;height:26px;border-radius:50%;font-size:17px;line-height:1;color:var(--ink);transition:background var(--d1) ease-out}
 #mesa .cnav button:hover:not(:disabled){background:var(--bg-2)}#mesa .cnav button:disabled{color:var(--line-strong);cursor:default}

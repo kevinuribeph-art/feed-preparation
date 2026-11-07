@@ -9477,6 +9477,32 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  // ---------- la ventana de una publicación a dos columnas (D-138) ----------
+  prueba('I10', 'La ventana de una publicación va en dos columnas a toda altura: la foto arriba del todo de la suya; título, fecha, hora, tipo y estado arriba de la de los campos, junto a la ×; «Etiquetar» y «Colaboradores» uno al lado del otro (D-138)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('i10a.jpg')]);
+    await poner('r2', [await foto('i10b.jpg'), await foto('i10c.jpg')]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar las personas');
+    try {
+      for (const id of ['r1', 'r2']) {
+        const per = await perVentana(id);
+        const R = sel => q(sel).getBoundingClientRect(), card = R('.detail .card'), izq = R('.detail .pleft'), cab = R('.detail .phead'), col = R('.detail .pright'), x = R('.detail .card > .x');
+        ok(q('.detail .pbody > .phead'), `${id}: la cabecera no va en el cuerpo de la ventana`);
+        ok(R('.detail .stage').top - card.top < 40, `${id}: la foto no empieza arriba del todo (${Math.round(R('.detail .stage').top - card.top)} px)`);
+        ok(izq.top - card.top < 2 && card.bottom - izq.bottom < 2, `${id}: la columna de la foto no va a toda altura`);
+        ok(cab.left >= izq.right - 1 && cab.top - card.top < 2, `${id}: la cabecera no va arriba de la columna de los campos`);
+        ok(x.top >= cab.top && x.bottom <= cab.bottom && x.left > R('.detail .phead h3').left, `${id}: la × no va junto a la cabecera`);
+        ok(col.top >= cab.bottom - 1 && col.left >= izq.right - 1, `${id}: los campos no van debajo de la cabecera`);
+        ['.dtin', '.tmin', '.tysel', '.essel'].forEach(s => { const e = q('.detail .phead ' + s); ok(e, `${id}: ${s} no está en la cabecera`); });
+        igual(W.getComputedStyle(q('.detail .pright')).overflowY, 'auto', `${id}: la columna de los campos ya no se desliza entera (D-068)`);
+        const [a, b] = qa('.detail .pper > .perrow').map(r => r.getBoundingClientRect());
+        ok(a && b && Math.abs(a.top - b.top) < 2 && b.left >= a.right, `${id}: «Etiquetar» y «Colaboradores» no van uno al lado del otro`);
+        ok(per.getBoundingClientRect().right <= col.right + 1, `${id}: los dos campos se salen de la columna`);
+        M._in.closeDetail();
+      }
+    } finally { await M._test.perBorrar(); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

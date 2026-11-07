@@ -2398,8 +2398,8 @@
 #mesa .nlab.mlab{margin-top:16px}
 /* ===== Ventana de una publicación (lote 2) ===== */
 #mesa .card.post{max-width:1000px;padding:0;display:flex;flex-direction:column;overflow:hidden}
-#mesa .phead{padding:18px 60px 14px 22px;border-bottom:1px solid var(--line2);flex:none}
-#mesa .phead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}#mesa .phead p{margin:10px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap}
+#mesa .phead{grid-area:cab;padding:20px 58px 14px 20px;border-bottom:1px solid var(--line2);min-width:0}
+#mesa .phead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}#mesa .phead p{margin:12px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #mesa .card.post>.x{top:14px;right:14px}
 #mesa .phead .st{font-size:10.5px;padding:2px 8px}#mesa .st.pub{background:var(--mute)}#mesa .st.own{background:var(--franja)}
 #mesa .phead p[hidden]{display:none}
@@ -2412,8 +2412,8 @@
 #mesa .pwhen .wd{color:var(--ink-2);font-weight:600}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
-#mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
-#mesa .pleft{padding:18px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg);min-width:0}
+#mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"izq cab" "izq col";min-height:0;flex:1;overflow:auto}
+#mesa .pleft{grid-area:izq;padding:18px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg);min-width:0}
 #mesa .stagewrap{width:100%;display:flex;justify-content:center}
 #mesa .stage{position:relative;overflow:hidden;background:var(--stage);touch-action:none;cursor:default;user-select:none;width:300px;height:375px;box-shadow:var(--shadow-md)}
 #mesa .stage.panning{cursor:grabbing}
@@ -2477,13 +2477,13 @@
 #mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}#mesa .pacts button:active:not(:disabled){transform:scale(.97)}
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
-#mesa .pright{padding:18px 20px;display:flex;flex-direction:column;min-width:0}
+#mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .pinsw{margin:0 0 14px;align-self:flex-start}
 #mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--on-ink);font-weight:800;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
 #mesa .card.post.hascap{max-width:1080px}
-#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);grid-template-rows:minmax(0,1fr);min-height:min(540px,calc(100vh - 150px));overflow:hidden}
+#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);grid-template-rows:auto minmax(0,1fr);min-height:min(540px,calc(100vh - 150px));overflow:hidden}
 #mesa .card.post.hascap .pleft{min-height:0;overflow:auto}
 #mesa .pright.hascap{contain:size;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
 #mesa .pright.hascap>*{flex-shrink:0}
@@ -2524,8 +2524,8 @@
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
-@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
-@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
+@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
+@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"cab" "izq" "col";min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
 @media (max-width:720px){
 #mesa .toasts{top:50px;bottom:auto}
 #mesa .appbar{height:44px;padding:0 8px 0 12px;gap:2px}
@@ -2570,7 +2570,7 @@
 #mesa .card>p.xwhat{color:var(--ink);font-size:13px}
 #mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 14px}
 #mesa .ubsel{max-width:100%;min-width:0;text-overflow:ellipsis}
-#mesa .pper{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
+#mesa .pper{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;align-items:start;margin:0 0 16px}#mesa .pper .persel,#mesa .pper .persel+.mx-sel:not(#mx){width:100%}
 #mesa .perrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 #mesa .persel{flex:none;width:10.6em;max-width:100%}
 #mesa .perchip{display:inline-flex;align-items:center;max-width:100%;min-height:26px;padding:0 2px 0 10px;font-size:12.5px;color:var(--ink);background:var(--bg-2);border:1px solid var(--bg-2);border-radius:var(--r-pill);overflow-wrap:anywhere}
@@ -3592,8 +3592,8 @@
     const peB = perHTML(s);   // «Etiquetar» and «Colaboradores», under that row and above «Contexto» (D-130)
     const dz = !edB ? (ubB ? `<div class="pdz">${ubB}</div>` : '') : `<div class="pdz">${edB}${ubB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica al pulsar «${edLabel(s)}»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>`;
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>·</span>${typeHTML(s)}<span>·</span>${estadoHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
+        <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
         <div class="pright hascap"><label class="sw pinsw" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}> Fijar en el perfil</label>${dz}${peB}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
           <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
@@ -3732,8 +3732,8 @@
       + (it.own || it.hidden ? `<button class="btn2" data-act="prevrestore" data-id="${esc(id)}">Restaurar como estaba</button>` : '')
       + `</div>`;
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(it.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(it.name)}</h3><p><span>${esc(fmtDate(it.date))} · ${esc(it.type || '')}</span><span class="st pub">Publicada</span>${it.hidden ? '<span class="st chg">Oculta</span>' : ''}${it.own ? '<span class="st own">Editada en la mesa</span>' : ''}</p></div>
       <div class="pbody"><div class="pleft">${left}</div>
+        <div class="phead"><h3>${esc(it.name)}</h3><p><span>${esc(fmtDate(it.date))} · ${esc(it.type || '')}</span><span class="st pub">Publicada</span>${it.hidden ? '<span class="st chg">Oculta</span>' : ''}${it.own ? '<span class="st own">Editada en la mesa</span>' : ''}</p></div>
         <div class="pright"><span class="nlab">Mes anterior <span>· solo cambia la vista del feed, no Notion</span></span>${acts}
           <p class="muted" style="margin:12px 0 0">Para cambiar la foto, arrastra una de la bandeja sobre su casilla. Para intercambiar dos publicaciones, arrastra una sobre la otra.</p></div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
@@ -3759,8 +3759,7 @@
     const R = slotRatio(s, fid, bOf(s));
     const W = Math.max(200, st.parentElement.clientWidth || 300);
     const n = (slot(st.dataset.slot) || { photos: [] }).photos.length;
-    const ph = root.querySelector('.detail .phead'), hh = ph ? ph.offsetHeight : 80;
-    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - hh - (n > 1 ? 285 : 205)));
+    const H = Math.max(220, Math.min(720, window.innerHeight * 0.7, window.innerHeight - (n > 1 ? 285 : 205)));   // its column has the whole height: the head is beside it (D-138)
     let w = W, h = W / R; if (h > H) { h = H; w = H * R; }
     st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
     placeBig();

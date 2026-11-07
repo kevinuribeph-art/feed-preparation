@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.51';
+  const VERSION = '1.52';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1087,7 +1087,7 @@
 #mesa .lb-mv button,#mesa .lb-ord button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);font-size:11.5px;line-height:24px;padding:0;color:var(--mute)}
 #mesa .lb-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-mv button:disabled,#mesa .lb-ord button:disabled{opacity:.3;cursor:default}
 #mesa .lb-ord{position:absolute;top:4px;right:4px;display:flex;flex-direction:column;background:var(--photo-light);border-radius:var(--r-sm);box-shadow:var(--shadow-md)}
-#mesa .lb-ord button{color:var(--ink)}#mesa .lb-ord button:hover:not(:disabled){background:var(--bg-2)}
+#mesa .lb-ord button{color:var(--photo-ink)}#mesa .lb-ord button:hover:not(:disabled){background:var(--photo-hover)}
 @media (hover:hover) and (min-width:901px){#mesa .lb-it:not(:hover):not(:focus-within) .lb-ord{display:none}}
 #mesa .lb-add{width:100%;font-size:12.5px;padding:6px 4px}
 #mesa .lb-mid{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}

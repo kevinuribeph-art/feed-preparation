@@ -9184,6 +9184,34 @@
     ok(!('colaboradoresNoValidos' in M.plan().find(x => x.slotId === 'r1')), 'plan() sigue apartándolo');
   });
 
+  // ---------- modo oscuro (mesa 4.03, D-132) ----------
+  prueba('O1', 'El botón de la cabecera cambia entre claro y oscuro, se recuerda en este navegador, sigue tras redibujar y no toca los datos (D-132)', async () => {
+    const b = q('.appbar .ibtn.tema'), h = D.documentElement, raiz = q('#mesa');
+    ok(b, 'falta el botón del modo oscuro en la cabecera');
+    const antes = W.localStorage.getItem('mesa-tema');
+    const fondo = () => W.getComputedStyle(raiz).backgroundColor;
+    try {
+      if (h.dataset.theme === 'dark') b.click();
+      igual([b.getAttribute('aria-pressed'), fondo()], ['false', 'rgb(244, 239, 232)'], 'no empieza en claro');
+      let datos0 = json(M.board());
+      b.click();
+      igual(json(M.board()), datos0, 'pasar a oscuro tocó el tablero');
+      igual([h.dataset.theme, b.getAttribute('aria-pressed'), b.title, fondo(), W.getComputedStyle(raiz).colorScheme], ['dark', 'true', 'Modo claro', 'rgb(21, 17, 14)', 'dark'], 'no pasa a oscuro');
+      igual(W.localStorage.getItem('mesa-tema'), 'oscuro', 'no se recuerda el oscuro');
+      await M.open(M.board().key); await espera(200);
+      const b2 = q('.appbar .ibtn.tema');
+      igual([h.dataset.theme, b2.getAttribute('aria-pressed')], ['dark', 'true'], 'se pierde al redibujar');
+      datos0 = json(M.board());
+      b2.click();
+      igual(json(M.board()), datos0, 'volver a claro tocó el tablero');
+      igual([h.dataset.theme || '', b2.getAttribute('aria-pressed'), b2.title, fondo()], ['', 'false', 'Modo oscuro', 'rgb(244, 239, 232)'], 'no vuelve a claro');
+      igual(W.localStorage.getItem('mesa-tema'), 'claro', 'no se recuerda el claro');
+    } finally {
+      if (h.dataset.theme === 'dark') q('.appbar .ibtn.tema').click();
+      if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes);
+    }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

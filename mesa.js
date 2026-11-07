@@ -2077,7 +2077,8 @@
 --ink-2:#4A4038;--mute:#6E635A;--faint:#A39A90;--on-ink:#F4EFE8;
 --line:#DDD4C8;--line2:#EAE3D9;--line-strong:#C7BCAE;
 --acc:#B2503A;--acc-ink:#A0472F;--acc-hover:#9B432F;--acc-on-ink:#D07152;--on-acc:#FFFFFF;--acc-soft:#F3E2DA;--acc2:#A0472F;--focus:#A0472F;
---ok:#2F7440;--red:#C42B3A;--red-soft:#F6DEDF;--chg:#8A5A14;
+--ok:#2F7440;--ok-soft:#E2EDE3;--red:#C42B3A;--red-soft:#F6DEDF;--chg:#8A5A14;--chg-soft:#F3E8D4;
+--sel:#0095F6;--sel-wash:rgba(0,149,246,.08);--checker-a:#DDD6CC;--checker-b:#F6F2EC;--swatch-ring:rgba(22,17,14,.18);--on-photo-soft:rgba(255,255,255,.85);--fv-bg:#000000;--text-on-photo:0 1px 3px rgba(0,0,0,.8);
 --st-empezar:#F4EFE8;--st-empezar-aro:#A39A90;--st-captions:#D9A93A;--st-aprobar:#7FA6D6;
 --uso-p0:#16110E;--uso-p1:#6E635A;--uso-p2:#CFC5B8;--uso-r:#B8813F;--uso-ck:#FFFFFF;--uso-ck2:#16110E;
 --story:#D6249F;--franja:#16110E;--mk-aro:#FFCF1F;--mk-disco:#1F5FD6;--mk-punto:#E3262B;
@@ -2088,7 +2089,7 @@
 --scrim:rgba(22,17,14,.44);--scrim-strong:rgba(22,17,14,.7);--veil-bg:rgba(244,239,232,.94);--tip:rgba(22,17,14,.94);
 --shadow-xs:0 1px 2px rgba(22,17,14,.08);--shadow-sm:0 1px 3px rgba(22,17,14,.08),0 1px 2px rgba(22,17,14,.04);
 --shadow-md:0 6px 18px -6px rgba(22,17,14,.18),0 2px 6px rgba(22,17,14,.06);--shadow-lg:0 24px 60px -18px rgba(22,17,14,.32),0 8px 20px -10px rgba(22,17,14,.14);
---shadow-drag:0 10px 24px rgba(22,17,14,.3);--shadow-pit:0 1px 1.5px rgba(0,0,0,.45);--shadow-ghost:0 6px 14px rgba(22,17,14,.35);--guide-dim:rgba(0,0,0,.22);--shadow-thirds:0 0 1.5px rgba(0,0,0,.35);--shadow-photo:0 1px 2px rgba(0,0,0,.55);
+--shadow-stage:0 4px 22px rgba(22,17,14,.16);--shadow-drag:0 10px 24px rgba(22,17,14,.3);--shadow-pit:0 1px 1.5px rgba(0,0,0,.45);--shadow-ghost:0 6px 14px rgba(22,17,14,.35);--guide-dim:rgba(0,0,0,.22);--shadow-thirds:0 0 1.5px rgba(0,0,0,.35);--shadow-photo:0 1px 2px rgba(0,0,0,.55);
 --ig-bg:#FFFFFF;--ig-ink:#000000;--ig-ink-2:#262626;--ig-mute:#737373;--ig-line:#EFEFEF;--ig-ph:#8E8E8E;--ig-tag:#00376B;--ig-av:#262626;--ig-av-ring:rgba(0,0,0,.08);
 --font:"Mesa Grotesk",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
 --r-xs:6px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;

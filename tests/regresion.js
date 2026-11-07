@@ -6332,13 +6332,13 @@
     await tablero([pub(1, 'Reel')]);
     await hasta(() => M.libre, 4000, 'libre.js');
     M._in.openDetail('r1', 0); sinDisenar('reel sin foto');
-    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz button'), 'el reel sin foto tiene un botón de diseño');   // su fila puede llevar solo la ubicación (D-124)
+    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz button:not(.mx-sel)'), 'el reel sin foto tiene un botón de diseño');   // su fila puede llevar solo la ubicación (D-124), cuyo desplegable de la mesa es un botón (D-135)
     ok(textoVentana().includes('Sin foto todavía'), 'la ventana no dice cómo ponerle foto');
     tecla('e', { meta: true }); await espera(80);
     ok(!ed(), '⌘E abrió el editor de un reel sin foto');
     await poner('r1', [await foto('d2.jpg', 1080, 1920)]);
     M._in.openDetail('r1', 0); sinDisenar('reel con foto');
-    igual(qa('.detail .pdz button').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+    igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
     await pulsar('.detail [data-act="editar"]');
     await abierto(4000);
     ok(ed().reel && ed().slotId === 'r1', 'no abrió la portada del reel');
@@ -6536,7 +6536,7 @@
     await poner('r3', [await foto('d12d.jpg', 1080, 1920)]);
     for (const [id, et] of [['r1', 'Editar diapositivas'], ['r2', 'Editar foto'], ['r3', 'Editar portada']]) {
       M._in.openDetail(id, 0); sinDisenar(id);
-      igual(qa('.detail .pdz button').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
+      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
     }
   });
 
@@ -6559,7 +6559,7 @@
       igual(estadoDz('r1'), null, 'el reel sigue con estado de diseño');
       M._in.openDetail('r1', 0); sinDisenar('reel sin su diseño vacío');
       ok(!textoVentana().includes('cambios sin aplicar'), 'la ventana sigue diciendo «cambios sin aplicar»');
-      igual(qa('.detail .pdz button').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
       ok(slot('r2').design && slot('r2').design.slides[0].titulo === 'Con texto D13' && estadoDz('r2') === 'chg', 'el diseño con textos sin aplicar no se quedó');
       await M.flush();
       const g = await M._in.idbGet('boards', key);

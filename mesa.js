@@ -3600,6 +3600,7 @@
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
           ${capsHTML(s)}
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    if (M.controles && M.controles.mejorar) M.controles.mejorar(d);   // its own dropdowns, date and time before it is laid out: one layout, not two (D-135)
     d.querySelectorAll('.cpick .strip').forEach(minisPerezosas);   // «Cambiar portada» with a long tray (B8)
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;

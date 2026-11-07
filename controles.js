@@ -23,7 +23,6 @@
   const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const DIA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
   const PASO = 15;                             // minutes between two times of the list
-  const MAX_TALLA = 80;                        // a dropdown is as wide as its longest option (as a <select>), up to this many
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const raiz = () => { const X = I(); return (X && X.root && X.root()) || document.getElementById('mesa'); };
   const pocoMov = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -136,8 +135,9 @@
     const dis = !!n.disabled, lab = nombre(n);
     if (g._tipo === 'sel') {
       const o = n.options[PSI.get.call(n)], txt = o ? (o.label || o.textContent) : '';
-      const ops = [...n.options].filter(x => !x.hidden);
-      const html = `<span class="mx-v"><span class="mx-t">${esc(txt)}</span>${ops.length <= MAX_TALLA ? `<span class="mx-z" aria-hidden="true">${ops.map(x => `<span>${esc(x.label || x.textContent)}</span>`).join('')}</span>` : ''}</span>`;
+      // as wide as its longest option, like a <select>: only the two longest by letters are laid out (cheap), hidden under it
+      const largas = [...n.options].filter(x => !x.hidden).map(x => x.label || x.textContent).sort((a, b) => b.length - a.length).slice(0, 2);
+      const html = `<span class="mx-v"><span class="mx-t">${esc(txt)}</span><span class="mx-z" aria-hidden="true">${largas.map(x => `<span>${esc(x)}</span>`).join('')}</span></span>`;
       if (g._html !== html) { g.innerHTML = html; g._html = html; }
       g.disabled = dis;
       if (lab) g.setAttribute('aria-label', lab); else g.removeAttribute('aria-label');
@@ -553,6 +553,7 @@
   M.controles = {
     version: VERSION,
     gemelo: n => (n && n._mx) || null,         // the control drawn for a native one (tests)
+    mejorar: el => { if (el && el.querySelectorAll) el.querySelectorAll(QS).forEach(mejorar); },   // at once, before a window is laid out (mesa.js)
     abierto: () => (abierto ? { tipo: abierto.tipo, pop: abierto.pop, de: abierto.g._nat } : null),
     cerrar: () => cerrar(false),
     _leerFecha: leerFecha, _leerHora: leerHora, _horas: horas,   // tests

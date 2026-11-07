@@ -1133,7 +1133,7 @@
 #mesa .lb-acc.on>.lb-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
 #mesa .lb-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
 #mesa .lb-acc.on>.lb-acc-b>.lb-acc-i{opacity:1;transform:none;transition:opacity .24s ease-out .05s,transform var(--d-m) var(--ease-m)}
-#mesa .lb-acc.on.fin>.lb-acc-b>.lb-acc-i{overflow:visible}
+#mesa .lb-acc.on.fin>.lb-acc-b>.lb-acc-i{overflow:visible}#mesa .lb-acc.zz>.lb-acc-b>.lb-acc-i{content-visibility:hidden}
 #mesa .lb-acc-c{padding:0 0 18px}
 @media (prefers-reduced-motion:reduce){#mesa .lb-acc-b:not(#mx),#mesa .lb-acc.on>.lb-acc-b:not(#mx){transition:none !important}#mesa .lb-acc-i:not(#mx){transform:none !important;transition:opacity .15s linear !important}#mesa .lb-acc-h::after{transition:none !important}}
 #mesa .lb-p{margin:6px 0 0;font-size:12.5px;color:var(--mute)}
@@ -2128,39 +2128,40 @@
     return `Foto <i>${esc(e.src ? (M.files[e.src] || {}).name || '' : 'hueco vacío')}</i>`;
   }
   // a section folded under its title: open or closed as this viewer left it, for every element and every post
-  const plegable = (k, titulo, resumen, html) => `<div class="lb-sec lb-pl lb-acc${ABIERTAS.has(k) ? ' on fin' : ''}" data-pl="${k}">${accCab(k, titulo, resumen, ABIERTAS.has(k))}<div class="lb-acc-b" id="lb-accb-${k}" role="region" aria-labelledby="lb-acch-${k}"><div class="lb-acc-i"><div class="lb-acc-c lb-plc">${html}</div></div></div></div>`;
+  const plegable = (k, titulo, resumen, html, sec) => { const on = sec ? sec.on : ABIERTAS.has(k); return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
+  const accCuerpo = (k, html, cls = '') => `<div class="lb-acc-b" id="lb-accb-${k}" role="region" aria-labelledby="lb-acch-${k}"><div class="lb-acc-i"><div class="lb-acc-c${cls}">${html}</div></div></div>`;
   const accCab = (k, titulo, resumen, on) => `<h4 class="lb-acc-t"><button type="button" class="lb-acc-h" id="lb-acch-${k}" aria-expanded="${on}" aria-controls="lb-accb-${k}"><span class="lb-acc-n">${titulo}</span>${resumen ? `<span class="lb-acc-s">${resumen}</span>` : ''}</button></h4>`;
   // A slide's panel (nothing chosen): its sections fold under their titles, one open at a time, the last one opened
   // remembered in this browser (D-137); «Capas» is one of them there. Built as always, then folded here.
   const SECCIONES = [['Diapositiva', 'diapositiva'], ['Textos de la marca', 'textos'], ['Logos y pegatinas', 'logos'], ['Fondo', 'fondo'], ['Velo', 'velo'], ['Textura', 'textura'], ['Rejilla', 'rejilla'], ['Plantillas', 'plantillas']];
-  function seccionesDiapo(p) {
-    const secs = [];
-    for (const sec of [...p.children]) {
-      if (!sec.classList.contains('lb-sec')) continue;
-      if (sec.dataset.pl === 'capas') { delete sec.dataset.pl; sec.dataset.acc = 'capas'; secs.push(sec); continue; }
-      const h4 = sec.firstElementChild; if (!h4 || h4.tagName !== 'H4') continue;
-      const tit = (h4.firstChild && h4.firstChild.nodeType === 3 ? h4.firstChild.textContent : h4.textContent).trim(), sub = h4.querySelector('span');
-      const k = (SECCIONES.find(([t]) => tit.startsWith(t)) || [])[1]; if (!k) continue;
-      const c = document.createElement('div'); c.className = 'lb-acc-c';
-      while (h4.nextSibling) c.append(h4.nextSibling);
-      h4.outerHTML = accCab(k, esc(tit), sub ? esc(sub.textContent.replace(/^\s*·\s*/, '')) : '', false);
-      const b = document.createElement('div'); b.className = 'lb-acc-b'; b.id = 'lb-accb-' + k; b.setAttribute('role', 'region'); b.setAttribute('aria-labelledby', 'lb-acch-' + k);
-      const i = document.createElement('div'); i.className = 'lb-acc-i'; i.append(c); b.append(i); sec.append(b);
-      sec.classList.add('lb-acc'); sec.dataset.acc = k; secs.push(sec);
-    }
+  const MARCA = '<div class="lb-sec"><h4>';
+  function abiertaDiapo(c) {                   // the remembered one, if this slide's panel has it; nothing remembered: Diapositiva
     let k = lsLeer(LS_AC); if (k == null) k = 'diapositiva';
-    if (k !== '-' && !secs.some(x => x.dataset.acc === k)) k = secs[0] ? secs[0].dataset.acc : '-';
-    secs.forEach(x => abrirSec(x, x.dataset.acc === k, false));
+    const hay = ['diapositiva', E.estilos.length ? 'textos' : '', 'logos', 'fondo', 'velo', 'textura', 'rejilla', 'plantillas', c.els.length ? 'capas' : ''];
+    return k === '-' || hay.includes(k) ? k : 'diapositiva';
+  }
+  function seccionesDiapo(h, abierta) {
+    const partes = h.split(MARCA);
+    return partes[0] + partes.slice(1).map(p => {
+      const e = p.indexOf('</h4>'), j = p.indexOf('<div class="lb-sec lb-acc'), fin = j >= 0 ? j : p.length;   // what follows it (Capas) stays as it is
+      const cab = p.slice(0, e), cierre = p.lastIndexOf('</div>', fin), cuerpo = p.slice(e + 5, cierre), resto = p.slice(cierre + 6);
+      const si = cab.indexOf('<span>'), tit = (si < 0 ? cab : cab.slice(0, si)).trim(), sub = si < 0 ? '' : cab.slice(si + 6, cab.lastIndexOf('</span>')).replace(/^\s*·\s*/, '');
+      const k = (SECCIONES.find(([t]) => tit.startsWith(t)) || [])[1];
+      if (!k) return MARCA + p;
+      const on = k === abierta;
+      return `<div class="lb-sec lb-acc${on ? ' on fin' : ' zz'}" data-acc="${k}">${accCab(k, tit, sub, on)}${accCuerpo(k, cuerpo)}</div>` + resto;
+    }).join('');
   }
   // open or closed; animated only by a click (a redraw of the panel draws it as it was); a second click halfway goes back
   // from where it is (the CSS transition); open, its inside stops clipping once it has finished (focus rings, shadows)
+  // closed, once it has finished closing, its inside isn't laid out at all («zz»: a panel with everything folded is quicker)
   function abrirSec(sec, on, anim) {
+    if (on) sec.classList.remove('zz');
     sec.classList.toggle('on', on); if (!on || anim) sec.classList.remove('fin'); else sec.classList.add('fin');
     const h = sec.querySelector(':scope > .lb-acc-t > .lb-acc-h'); if (h) h.setAttribute('aria-expanded', String(on));
-    if (on && anim) {
-      const b = sec.querySelector(':scope > .lb-acc-b'), fin = e => { if (e && (e.target !== b || e.propertyName !== 'grid-template-rows')) return; b.removeEventListener('transitionend', fin); clearTimeout(t); if (sec.classList.contains('on')) sec.classList.add('fin'); };
-      const t = setTimeout(fin, 700); b.addEventListener('transitionend', fin);
-    }
+    if (!anim) { if (!on) sec.classList.add('zz'); return; }
+    const b = sec.querySelector(':scope > .lb-acc-b'), fin = e => { if (e && (e.target !== b || e.propertyName !== 'grid-template-rows')) return; b.removeEventListener('transitionend', fin); clearTimeout(t); const o = sec.classList.contains('on'); if (o === on) sec.classList.add(o ? 'fin' : 'zz'); };
+    const t = setTimeout(fin, 700); b.addEventListener('transitionend', fin);
   }
   function plegar(btn) {
     const sec = btn.closest('.lb-acc'); if (!sec || !E) return;
@@ -2177,13 +2178,13 @@
       if (on) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(','));
     }
   }
-  function capasHTML(c) {
+  function capasHTML(c, sec) {
     if (!c.els.length) return '';
     const ids = selIds(), n = c.els.length;
     return plegable('capas', 'Capas', String(n), `<p class="lb-p" style="margin:0 0 8px">Arriba, lo que está delante. ⇧ + clic para elegir varias.</p><div class="lb-caps">${c.els.map((e, k) => ({ e, k })).reverse().map(({ e, k }) => `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" data-id="${esc(e.id)}"><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>`
       + `<button type="button" data-lb="cap-ver" data-id="${esc(e.id)}" title="${e.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${e.oculto ? 'Mostrar' : 'Ocultar'}">${e.oculto ? '◌' : '◉'}</button>`
       + `<button type="button" data-lb="cap-lock" data-id="${esc(e.id)}" title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>`
-      + `<button type="button" data-lb="cap-up" data-id="${esc(e.id)}" title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" data-id="${esc(e.id)}" title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button></div>`).join('')}</div>`);
+      + `<button type="button" data-lb="cap-up" data-id="${esc(e.id)}" title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" data-id="${esc(e.id)}" title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button></div>`).join('')}</div>`, sec);
   }
   const grosor = el => Math.round(el.h * sizeAt(E.i).H * PX / TRAZO[el.forma] * 2) / 2;   // a line's or an arrow's stroke, in px of 1080
   function medidasHTML(el) {
@@ -2308,11 +2309,10 @@
       const grupos = [...PLANT_FMT, ''].map(f => [f, E.plant.filter(t => (PLANT_FMT.includes(t.fmt) ? t.fmt : '') === f)]).filter(([, ts]) => ts.length);   // by format; those saved before 1.16 have none
       h += `<div class="lb-sec"><h4>Plantillas <span>· del cliente, para cualquier mes</span></h4>${E.plant.length ? grupos.map(([f, ts]) => `<span class="lb-l">${f || 'Sin formato'}</span><div class="lb-tpls">${ts.map(tpl).join('')}</div>`).join('') : '<p class="lb-p" style="margin:0 0 8px">Guarda una diapositiva entera y reutilízala: al aplicarla eliges solo sus textos, solo sus huecos de foto o todo.</p>'}`
         + `<div class="lb-btns"><button type="button" class="btn2" data-lb="tpl-save"${c.els.length || c.velo || c.tex || c.bg !== '#ffffff' ? '' : ' disabled'}>Guardar como plantilla</button>${c.previa ? '<button type="button" class="btn2" data-lb="tpl-quitar" title="La diapositiva vuelve a como estaba antes de su última plantilla">Quitar plantilla</button>' : ''}</div></div>`;
-      h += capasHTML(c);
+      const ab = abiertaDiapo(c);
+      h = seccionesDiapo(h, ab) + capasHTML(c, { on: ab === 'capas' });   // its sections, folded (D-137)
     }
-    p.innerHTML = h;
-    if (!multi() && !el) seccionesDiapo(p);   // a slide's panel: its sections fold (D-137)
-    p.scrollTop = top;
+    p.innerHTML = h; p.scrollTop = top;
     p.querySelectorAll('canvas[data-lb="tpl"]').forEach(cv => { const t = E.plant.find(q => q.id === cv.dataset.id); if (t) dibujarPlantilla(cv, t); });
     const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing or choosing where to swap (the rest: «?»)
     pista.hidden = !enc && !E.cambio; pista.textContent = E.cambio ? 'Intercambiar: pulsa otro hueco de esta diapositiva · Esc o un clic fuera de un hueco para cancelar' : enc ? 'Encuadrando: arrastra la foto dentro del marco · rueda o «Zoom» para acercar · Esc o «Listo» para terminar' : '';

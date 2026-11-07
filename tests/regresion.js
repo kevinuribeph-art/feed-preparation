@@ -9192,19 +9192,19 @@
     const fondo = () => W.getComputedStyle(raiz).backgroundColor;
     try {
       if (h.dataset.theme === 'dark') b.click();
-      igual([b.getAttribute('aria-pressed'), fondo()], ['false', 'rgb(244, 239, 232)'], 'no empieza en claro');
+      igual([b.getAttribute('aria-checked'), fondo()], ['false', 'rgb(244, 239, 232)'], 'no empieza en claro');   // interruptor desde la 4.04 (D-134): aria-checked y el título dice el modo en uso
       let datos0 = json(M.board());
       b.click();
       igual(json(M.board()), datos0, 'pasar a oscuro tocó el tablero');
-      igual([h.dataset.theme, b.getAttribute('aria-pressed'), b.title, fondo(), W.getComputedStyle(raiz).colorScheme], ['dark', 'true', 'Modo claro', 'rgb(21, 17, 14)', 'dark'], 'no pasa a oscuro');
+      igual([h.dataset.theme, b.getAttribute('aria-checked'), b.title, fondo(), W.getComputedStyle(raiz).colorScheme], ['dark', 'true', 'Modo oscuro', 'rgb(21, 17, 14)', 'dark'], 'no pasa a oscuro');
       igual(W.localStorage.getItem('mesa-tema'), 'oscuro', 'no se recuerda el oscuro');
       await M.open(M.board().key); await espera(200);
       const b2 = q('.appbar .ibtn.tema');
-      igual([h.dataset.theme, b2.getAttribute('aria-pressed')], ['dark', 'true'], 'se pierde al redibujar');
+      igual([h.dataset.theme, b2.getAttribute('aria-checked')], ['dark', 'true'], 'se pierde al redibujar');
       datos0 = json(M.board());
       b2.click();
       igual(json(M.board()), datos0, 'volver a claro tocó el tablero');
-      igual([h.dataset.theme || '', b2.getAttribute('aria-pressed'), b2.title, fondo()], ['', 'false', 'Modo oscuro', 'rgb(244, 239, 232)'], 'no vuelve a claro');
+      igual([h.dataset.theme || '', b2.getAttribute('aria-checked'), b2.title, fondo()], ['', 'false', 'Modo claro', 'rgb(244, 239, 232)'], 'no vuelve a claro');
       igual(W.localStorage.getItem('mesa-tema'), 'claro', 'no se recuerda el claro');
     } finally {
       if (h.dataset.theme === 'dark') q('.appbar .ibtn.tema').click();
@@ -9239,6 +9239,25 @@
     const c = await hasta(() => q('.lb-trh') && q('.lb-tray img') && q('.lb-trh'), 4000, 'la cabecera de la bandeja del editor');
     ok(!/clic: a esta diapositiva|arrástrala|suelta aquí fotos/.test(c.textContent), 'sigue la ayuda en la bandeja del editor: ' + c.textContent);
     ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
+  });
+
+  prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna a la izquierda y estrellas en oscuro, movido con transform (D-134)', async () => {
+    const b = q('.appbar .ibtn.tema'), h = D.documentElement, antes = W.localStorage.getItem('mesa-tema');
+    ok(b && b.getAttribute('role') === 'switch' && b.getAttribute('aria-label') === 'Modo oscuro', 'no es un interruptor «Modo oscuro»');
+    const k = b.querySelector('.tg-k'), est = () => b.querySelector('.tg-s.s1');
+    ok(k && est(), 'faltan el sol / la luna o las estrellas');
+    const lado = () => { const r = b.getBoundingClientRect(), c = k.getBoundingClientRect(); return c.left + c.width / 2 > r.left + r.width / 2 ? 'derecha' : 'izquierda'; };
+    try {
+      if (h.dataset.theme === 'dark') { b.click(); await espera(500); }
+      igual([lado(), W.getComputedStyle(est()).opacity, b.title], ['derecha', '0', 'Modo claro'], 'en claro');
+      ok(/transform/.test(W.getComputedStyle(k).transitionProperty), 'el sol no se mueve con transform');
+      b.click(); await espera(600);
+      igual([lado(), W.getComputedStyle(est()).opacity, b.title, b.getAttribute('aria-checked')], ['izquierda', '1', 'Modo oscuro', 'true'], 'en oscuro');
+      ok(W.getComputedStyle(k).backgroundColor !== 'rgba(0, 0, 0, 0)', 'la luna no se ve');
+    } finally {
+      if (h.dataset.theme === 'dark') b.click();
+      if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes);
+    }
   });
 
   // =====================================================================================================

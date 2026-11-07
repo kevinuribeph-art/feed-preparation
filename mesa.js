@@ -2081,6 +2081,7 @@
 --ok-on-ink:#86C795;--cal-off:#F0EAE2;--cruce-veil:rgba(22,17,14,.62);
 --ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;
 --knob:#FFFFFF;--sw-on:#16110E;
+--tg-track:#E4DBCE;--tg-line:rgba(22,17,14,.06);--tg-line-h:rgba(22,17,14,.18);--tg-sun:#E0A73C;--tg-sun-ring:rgba(224,167,60,.22);--tg-moon:#EDE6DC;--tg-crater:#CBC1B3;--tg-star:#E3B65A;
 --sel:#0095F6;--sel-wash:rgba(0,149,246,.08);--checker-a:#DDD6CC;--checker-b:#F6F2EC;--swatch-ring:rgba(22,17,14,.18);--on-photo-soft:rgba(255,255,255,.85);--fv-bg:#000000;--text-on-photo:0 1px 3px rgba(0,0,0,.8);
 --st-empezar:#F4EFE8;--st-empezar-aro:#A39A90;--st-captions:#D9A93A;--st-aprobar:#7FA6D6;
 --uso-p0:#16110E;--uso-p1:#6E635A;--uso-p2:#CFC5B8;--uso-r:#B8813F;--uso-ck:#FFFFFF;--uso-ck2:#16110E;
@@ -2096,13 +2097,12 @@
 --ig-bg:#FFFFFF;--ig-ink:#000000;--ig-ink-2:#262626;--ig-mute:#737373;--ig-line:#EFEFEF;--ig-ph:#8E8E8E;--ig-tag:#00376B;--ig-av:#262626;--ig-av-ring:rgba(0,0,0,.08);
 --font:"Mesa Grotesk",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
 --r-xs:6px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;
---ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;
+--ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;--ease-m:cubic-bezier(.32,.72,0,1);--d-m:.32s;
 --i-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
 --i-more:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/svg%3E");
 --i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 16l4 4l4-4m-4 4V4m14 4l-4-4l-4 4m4-4v16'/%3E%3C/svg%3E");
 --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E635A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
---i-moon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401'/%3E%3C/svg%3E");
---i-sun:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41'/%3E%3C/svg%3E");
+--i-spark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c.9 6.6 4.4 10.6 12 12-7.6 1.4-11.1 5.4-12 12-.9-6.6-4.4-10.6-12-12 7.6-1.4 11.1-5.4 12-12z'/%3E%3C/svg%3E");
 --i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19l-7-7l7-7m7 7H5'/%3E%3C/svg%3E")}
 /* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
 :root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{color-scheme:dark;
@@ -2117,6 +2117,7 @@
 --franja:#EDE6DC;--cell-ph:#2E2620;--cell-past:#5E5650;
 --checker-a:#2E2722;--checker-b:#3A322B;--swatch-ring:rgba(255,255,255,.24);
 --knob:#EDE6DC;--sw-on:#B2503A;
+--tg-track:#0B0907;--tg-line:rgba(255,255,255,.1);--tg-line-h:rgba(255,255,255,.22);
 --scrim:rgba(0,0,0,.58);--scrim-strong:rgba(0,0,0,.78);--veil-bg:rgba(21,17,14,.94);--tip:rgba(241,235,227,.96);
 --shadow-xs:0 1px 2px rgba(0,0,0,.4);--shadow-sm:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
 --shadow-md:0 6px 18px -6px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4);--shadow-lg:0 24px 60px -18px rgba(0,0,0,.75),0 8px 20px -10px rgba(0,0,0,.55);
@@ -2135,7 +2136,12 @@
 #mesa :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .x::before,#mesa .hx::before,#mesa .cpx::before,#mesa .ibtn.xfer::before,#mesa .ibtn[data-act="editclient"]::before,#mesa .cpvolver::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-x) center/contain no-repeat;mask:var(--i-x) center/contain no-repeat}
 #mesa .ibtn.xfer::before{-webkit-mask-image:var(--i-updown);mask-image:var(--i-updown)}
-#mesa .ibtn.tema{position:relative;font-size:0 !important;color:var(--ink-2)}#mesa .ibtn.tema::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-moon) center/contain no-repeat;mask:var(--i-moon) center/contain no-repeat}#mesa .ibtn.tema[aria-pressed="true"]::before{-webkit-mask-image:var(--i-sun);mask-image:var(--i-sun)}
+#mesa .ibtn.tema{position:relative;width:52px;height:28px;border-radius:var(--r-pill);background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line);font-size:0 !important;line-height:0;overflow:hidden;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}#mesa .ibtn.tema:hover{background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line-h)}#mesa .ibtn.tema:active .tg-k{width:25px}#mesa .ibtn.tema:focus-visible{outline:0;box-shadow:inset 0 0 0 1px var(--tg-line-h),0 0 0 3px var(--ring)}
+#mesa .tg-k{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:var(--r-pill);background:var(--tg-sun);box-shadow:0 0 0 3px var(--tg-sun-ring),var(--shadow-xs);transform:translateX(24px);transition:transform var(--d-m) var(--ease-m),width var(--d-m) var(--ease-m),background-color var(--d-m) var(--ease-m),box-shadow var(--d-m) var(--ease-m)}#mesa .ibtn.tema:not([aria-checked="true"]):active .tg-k{transform:translateX(21px)}
+#mesa .tg-k::before,#mesa .tg-k::after{content:'';position:absolute;border-radius:50%;background:var(--tg-crater);opacity:0;transform:scale(.3);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}#mesa .tg-k::before{width:7px;height:7px;left:4px;top:10px}#mesa .tg-k::after{width:4px;height:4px;left:11px;top:5px}
+#mesa .tg-s{position:absolute;background:var(--tg-star);-webkit-mask:var(--i-spark) center/contain no-repeat;mask:var(--i-spark) center/contain no-repeat;opacity:0;transform:scale(.2) rotate(-60deg);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}#mesa .tg-s.s1{width:9px;height:9px;right:8px;top:5px}#mesa .tg-s.s2{width:6px;height:6px;right:19px;top:14px}#mesa .tg-s.s3{width:5px;height:5px;right:9px;top:18px}
+#mesa .ibtn.tema[aria-checked="true"] .tg-k{transform:translateX(0);background:var(--tg-moon);box-shadow:var(--shadow-xs)}#mesa .ibtn.tema[aria-checked="true"] .tg-k::before,#mesa .ibtn.tema[aria-checked="true"] .tg-k::after{opacity:1;transform:none}#mesa .ibtn.tema[aria-checked="true"] .tg-s{opacity:1;transform:none}#mesa .ibtn.tema[aria-checked="true"] .tg-s.s2{transition-delay:.05s}#mesa .ibtn.tema[aria-checked="true"] .tg-s.s3{transition-delay:.1s}
+@media (prefers-reduced-motion:reduce){#mesa .ibtn.tema .tg-k,#mesa .ibtn.tema .tg-s,#mesa .ibtn.tema .tg-k::before,#mesa .ibtn.tema .tg-k::after{transition:background-color .15s linear,opacity .15s linear !important;transition-delay:0s !important}}
 #mesa .ibtn[data-act="editclient"]::before{-webkit-mask-image:var(--i-more);mask-image:var(--i-more)}
 #mesa .cpvolver::before{width:16px;height:16px;-webkit-mask-image:var(--i-back);mask-image:var(--i-back)}
 #mesa .x,#mesa .hx,#mesa .cpx,#mesa .ibtn.xfer,#mesa .ibtn[data-act="editclient"],#mesa .cpvolver{position:relative;font-size:0 !important;color:var(--ink-2)}
@@ -2579,7 +2585,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button class="ibtn tema" data-act="tema" aria-pressed="false" title="Modo oscuro" aria-label="Modo oscuro">Modo oscuro</button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span><span class="tg-s s1" aria-hidden="true"></span><span class="tg-s s2" aria-hidden="true"></span><span class="tg-s s3" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -2597,7 +2603,7 @@
   function ponerTema(osc) {
     const h = document.documentElement; if (osc) h.dataset.theme = 'dark'; else delete h.dataset.theme;
     const b = root && root.querySelector('.ibtn.tema'); if (!b) return;
-    const t = osc ? 'Modo claro' : 'Modo oscuro'; b.setAttribute('aria-pressed', String(osc)); b.title = t; b.setAttribute('aria-label', t); b.textContent = t;
+    b.setAttribute('aria-checked', String(osc)); b.title = osc ? 'Modo oscuro' : 'Modo claro';   // a switch: it says the mode in use (D-134)
   }
   function cambiarTema() { const osc = document.documentElement.dataset.theme !== 'dark'; ponerTema(osc); lsSet(LS_TEMA, osc ? 'oscuro' : 'claro'); }
   window.addEventListener('storage', e => { if (e.key === LS_TEMA) ponerTema(e.newValue === 'oscuro'); });

@@ -574,9 +574,9 @@
   const CSS = `#mesa.hv-on .feed{display:none}#mesa.client .hv-card{cursor:pointer;touch-action:auto}
 #mesa .main > section.hv{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--bg);border-right:1px solid var(--line);padding:10px 14px 24px;box-sizing:border-box}
 #mesa.hv-on .side{flex:0 0 min(420px,38vw)}#mesa.hv-on .tcount{white-space:nowrap}
-#mesa .hvsw{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
-#mesa .hvsw button{border:0;background:none;color:var(--mute);font:inherit;font-size:12.5px;padding:4px 11px;cursor:pointer}#mesa .hvsw button.on{background:var(--ink);color:#fff}
-#mesa .hvsw i{font-style:normal;font-weight:600;margin-left:2px}
+#mesa .hvsw{display:inline-flex;flex:none;gap:2px;padding:2px;border-radius:999px;background:var(--bg-2,transparent)}
+#mesa .hvsw button{border:0;background:none;border-radius:999px;color:var(--mute);font:inherit;font-size:12.5px;min-height:28px;padding:0 12px;cursor:pointer;transition:background .12s ease-out,color .12s ease-out}#mesa .hvsw button:hover{color:var(--ink)}#mesa .hvsw button.on{background:var(--panel-2,var(--panel));color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm,none)}
+#mesa .hvsw i{font-style:normal;font-weight:600;margin-left:4px;font-variant-numeric:tabular-nums}
 #mesa .hv-res{margin:2px 0 10px;color:var(--mute);font-size:13px}
 #mesa .hv-rail{display:grid;grid-template-columns:62px auto 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line2);align-items:start}
 #mesa .hv-rail.vacio{padding:4px 0;align-items:center}#mesa .hv-rail.hoy .hv-dia b{color:var(--acc)}

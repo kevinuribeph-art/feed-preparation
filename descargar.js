@@ -242,8 +242,8 @@
 
   // ---------- styles (inside #mesa, with its fonts, radii and greys) ----------
   const CSS = `
-#mesa .cell.dlsel::before{content:'';position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 0 3px var(--acc),inset 0 0 0 4px #fff}
-#mesa .mchip.dlbtn{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+#mesa .cell.dlsel::before{content:'';position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 0 3px var(--acc),inset 0 0 0 5px var(--on-photo)}
+#mesa .mchip.dlbtn{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}#mesa .mchip.dlbtn:hover{background:var(--acc-hover);border-color:var(--acc-hover)}
 #mesa .detail[data-dlg="descargar"] .card.dlg{max-width:min(94vw,760px);width:min(94vw,760px)}
 #mesa .dl-ops{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:10px 0 12px}
 #mesa .dl-op{display:inline-flex;align-items:center;gap:0;flex-wrap:wrap}

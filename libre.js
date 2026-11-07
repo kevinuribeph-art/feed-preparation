@@ -1121,7 +1121,7 @@
 #mesa .lb-ghost{position:fixed;z-index:30;width:64px;height:64px;object-fit:cover;border-radius:var(--r-xs);transform:translate(-50%,-50%);pointer-events:none;opacity:.85;box-shadow:var(--shadow-ghost)}
 #mesa .lb-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .lb-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .lb-sec:last-child{border-bottom:0}
-#mesa .lb-sec h4{margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.2}#mesa .lb-sec h4 span{font-weight:400;color:var(--mute);font-size:12.5px;letter-spacing:0}
+#mesa .lb-sec h4{margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.2}#mesa .lb-sec h4:not(.lb-acc-t) span{font-weight:400;color:var(--mute);font-size:12.5px;letter-spacing:0}
 #mesa .lb-sec.lb-acc{padding:0}#mesa .lb-sec h4.lb-acc-t{margin:0}
 #mesa .lb-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 17px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
 #mesa .lb-acc-n{flex:none;transition:color var(--d1) ease-out}

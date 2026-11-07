@@ -9385,6 +9385,9 @@
     // una fecha fuera del tablero: no cambia y el campo vuelve a la suya al salir
     enfocar(inp); inp.value = '15/03/2027'; inp.dispatchEvent(new W.Event('input', { bubbles: true })); desenfocar(inp); await espera(80);
     igual([dia(), inp.value], ['2026-11-25', '25/11/2026'], 'fuera del tablero');
+    // un paso desde fuera de sus días va al más cercano de ellos (revisión del lote 7)
+    nat.value = M.controles._leerFecha('1/10/2026'); igual(inp.value, '01/10/2026', 'el campo no sigue al nativo');
+    enfocar(inp); teclaEn(inp, 'ArrowUp'); igual(dia(), nat.min, '↑ desde antes del tablero no va a su primer día');
     M._in.closeDetail();
   });
 

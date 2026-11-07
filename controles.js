@@ -8,7 +8,7 @@
 //   Dropdown: ↑ ↓ Home End Re Pág Av Pág and letters move, Enter or Space choose, Esc closes, Tab leaves.
 //   Date: typed («29/12», «29 dic», «29», «29/12/2026»); ↑ ↓ a day (⇧ a week), Re Pág / Av Pág a month; the calendar opens
 //   with a click on the field and ⌥↓ takes the keys into it (← → a day, ↑ ↓ a week, Enter chooses, Esc goes back).
-//   Time: typed («1930», «19:30», «9.5», «19»); ↑ ↓ the time before or after in the list (every 15 min, the exact time kept
+//   Time: typed («1930», «19:30», «19.30», «19»); ↑ ↓ the time before or after in the list (every 15 min, the exact time kept
 //   among them), ⇧ an hour; the list opens with a click on the field.
 // If this file doesn't load, the mesa keeps the browser's own controls.
 (function controlesBoot() {
@@ -326,8 +326,8 @@
     } else {
       const base = leerFecha(inp.value, leer(n)) || leer(n) || hoyISO();
       let v = mes ? sumarMeses(base, dir) : sumarDias(base, dir * (grande ? 7 : 1));
-      if (n.min && v < n.min) v = n.min > base ? base : n.min;
-      if (n.max && v > n.max) v = n.max < base ? base : n.max;
+      if (n.min && v < n.min) v = n.min;       // never past its limits: a step from outside them goes to the nearest one
+      if (n.max && v > n.max) v = n.max;
       ponerCampo(g, v);
     }
   }

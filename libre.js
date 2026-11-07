@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.50';
+  const VERSION = '1.51';
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1073,7 +1073,7 @@
 #mesa .lb .seg button{padding:0 10px}
 #mesa .lb-tools{display:inline-flex;align-items:center;gap:4px}
 #mesa .lb-ib{border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r-pill);min-width:32px;height:32px;padding:0 11px;font-size:13px;font-weight:500;color:var(--ink);transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
-#mesa .lb-ib:hover:not(:disabled){border-color:var(--line-strong);background:var(--bg)}#mesa .lb-ib:active:not(:disabled){transform:scale(.97)}
+#mesa .lb-ib:hover:not(:disabled):not(.on){border-color:var(--line-strong);background:var(--bg)}#mesa .lb-ib:active:not(:disabled){transform:scale(.97)}
 #mesa .lb-ib:disabled{opacity:.35;cursor:default}#mesa .lb-ib.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 #mesa .lb-zv{min-width:3.6em;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums}
 #mesa .lb-body{flex:1;min-height:0;display:grid;grid-template-columns:132px minmax(0,1fr) 316px}
@@ -1134,11 +1134,11 @@
 #mesa .lb-rng{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12.5px}#mesa .lb-rng span{flex:none;width:72px}
 #mesa .lb-rng input{flex:1;min-width:0;accent-color:var(--ink)}#mesa .lb-rng output{min-width:3em;text-align:right;color:var(--mute);font-variant-numeric:tabular-nums}
 #mesa .lb-num{width:64px;border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 8px;min-height:30px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
-#mesa .lb-num:hover{border-color:var(--line-strong)}#mesa .lb-num:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
+#mesa .lb-num:hover{border-color:var(--line-strong)}#mesa .lb-num:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .lb-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}#mesa .lb-nums label{font-size:11.5px;color:var(--mute)}#mesa .lb-nums .lb-num{width:100%;box-sizing:border-box;margin-top:2px}
 #mesa .lb-ta{display:block;width:100%;box-sizing:border-box;min-height:70px;resize:vertical;border:1px solid var(--line);border-radius:var(--r-md);padding:8px 10px;font:inherit;font-size:13px;line-height:1.4;color:var(--ink);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .lb-ta:hover,#mesa .lb-sel:hover{border-color:var(--line-strong)}
-#mesa .lb-ta:focus,#mesa .lb-sel:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
+#mesa .lb-ta:focus,#mesa .lb-sel:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .lb-sel{display:block;width:100%;-webkit-appearance:none;appearance:none;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 30px 0 10px;min-height:34px;font:inherit;font-size:13px;color:var(--ink);background:var(--panel-2) var(--chev) no-repeat right 9px center/14px 14px;cursor:pointer;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .lb-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}#mesa .lb-btns .btn2,#mesa .lb-btns .btn{padding:5px 9px;font-size:12.5px}
 #mesa .lb-btns .btn2.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
@@ -1174,7 +1174,7 @@
 #mesa .lb-askl{list-style:none;margin:0 0 8px;padding:0;max-height:min(50vh,300px);overflow:auto;font-size:13px}#mesa .lb-askl li{padding:5px 0;border-top:1px solid var(--line2)}#mesa .lb-askl li span{display:block;color:var(--mute);font-size:12.5px}
 #mesa .lb-askimg{display:block;max-width:100%;max-height:150px;margin:0 auto 12px;border-radius:var(--r-sm)}
 #mesa .lb-askc h4{margin:0 0 8px;font-size:18px;font-weight:800;letter-spacing:-.02em;line-height:1.25}#mesa .lb-askc p{margin:0 0 6px;color:var(--mute);font-size:13px}
-#mesa .lb-askin{display:block;width:100%;box-sizing:border-box;margin:8px 0 4px;border:1px solid var(--line);border-radius:var(--r-md);padding:8px 12px;min-height:38px;font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel-2)}#mesa .lb-askin:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
+#mesa .lb-askin{display:block;width:100%;box-sizing:border-box;margin:8px 0 4px;border:1px solid var(--line);border-radius:var(--r-md);padding:8px 12px;min-height:38px;font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel-2)}#mesa .lb-askin:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .lb-it,#mesa .lb-allit{position:relative}#mesa .lb-it.lb-drg,#mesa .lb-allit.lb-drg{opacity:.4}
 #mesa .lb-it.lb-dl::before,#mesa .lb-it.lb-dr::after{content:'';position:absolute;left:0;right:0;height:3px;border-radius:2px;background:var(--acc)}#mesa .lb-it.lb-dl::before{top:-8px}#mesa .lb-it.lb-dr::after{bottom:-8px}
 #mesa .lb-allit.lb-dl::before,#mesa .lb-allit.lb-dr::after{content:'';position:absolute;top:0;bottom:0;width:3px;border-radius:2px;background:var(--acc)}#mesa .lb-allit.lb-dl::before{left:-10px}#mesa .lb-allit.lb-dr::after{right:-10px}

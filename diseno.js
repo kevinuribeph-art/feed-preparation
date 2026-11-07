@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.17';
+  const VERSION = '1.18';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -693,7 +693,7 @@
 #mesa .dz-in{display:block;width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 10px;min-height:34px;font-family:inherit;font-size:13px;line-height:1.4;color:var(--ink);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .dz-in:hover{border-color:var(--line-strong)}
 #mesa .dz-serie .dz-in{width:190px}
-#mesa .dz-in:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
+#mesa .dz-in:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa textarea.dz-in{resize:vertical;min-height:60px}
 #mesa .dz-state{font-size:11.5px;font-weight:600;border-radius:var(--r-pill);padding:3px 10px;background:var(--bg-2);color:var(--mute);white-space:nowrap}
 #mesa .dz-state.chg{background:var(--chg-soft);color:var(--chg)}#mesa .dz-state.ok{background:var(--ok-soft);color:var(--ok)}

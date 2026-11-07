@@ -45,7 +45,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.12';
+  const VERSION = '1.13';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -504,7 +504,7 @@
 #mesa .vlist .vque{font-size:12px;color:var(--mute)}#mesa .vlist .votro{color:var(--ink)}
 #mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}#mesa .vacc button,#mesa .vform button{font-size:12px;min-height:28px;padding:0 12px}
 #mesa .vacc button[disabled]{opacity:.45;cursor:default}
-#mesa .vform input{font:inherit;font-size:12px;min-height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}#mesa .vform input[type=text]{flex:1;min-width:160px}
+#mesa .vform input{font:inherit;font-size:12px;min-height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}#mesa .vform input[type=text]{flex:1;min-width:160px}
 #mesa .cleg .csep{color:var(--faint);font-size:11px}
 #mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--faint)}
 #mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}

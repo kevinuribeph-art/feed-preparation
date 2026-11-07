@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.11';
+  const VERSION = '1.12';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -610,14 +610,14 @@
 #mesa .hv-big{flex:none;width:min(calc(100cqw - 84px),calc(100cqh * 9 / 16))}
 #mesa .hv-big img{object-fit:contain}#mesa .hv-big p{display:flex;align-items:center;justify-content:center;font-size:13px}
 #mesa .hv-vis .nav{width:34px;height:34px;display:flex;align-items:center;justify-content:center;line-height:0;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow-xs);cursor:pointer;transition:border-color var(--d1) ease-out,background var(--d1) ease-out}
-#mesa .hv-vis .nav:hover:not(:disabled){border-color:var(--line-strong);background:var(--bg)}
+#mesa .hv-vis .nav:hover:not(:disabled):not(.otro){border-color:var(--line-strong);background:var(--bg)}
 #mesa .hv-vis .nav.prev{left:0}#mesa .hv-vis .nav.next{right:0}#mesa .hv-vis .nav svg{width:16px;height:16px}#mesa .hv-vis .nav:disabled{opacity:.35;cursor:default}
 #mesa .hv-form label.hv-lin{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap}
 #mesa .hv-lin select,#mesa .hv-lin .hv-fh{flex:1;min-width:0}
 #mesa .hv-form input,#mesa .hv-form select{display:block;width:100%;box-sizing:border-box;margin:0;font:inherit;font-size:13px;color:var(--ink);min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .hv-form select{-webkit-appearance:none;appearance:none;padding-right:30px;background:var(--panel-2) var(--chev) no-repeat right 9px center/14px 14px;cursor:pointer}
 #mesa .hv-form input:hover,#mesa .hv-form select:hover{border-color:var(--line-strong)}
-#mesa .hv-form input:focus,#mesa .hv-form select:focus-visible{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
+#mesa .hv-form input:focus,#mesa .hv-form select:focus-visible{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .hv-fh{display:flex;gap:6px}#mesa .hv-fh input{flex:1;min-width:0}
 #mesa .hv-acc{display:flex;align-items:center;justify-content:center;gap:6px}
 #mesa .hv-acc button{border:0;background:none;color:var(--mute);font:inherit;font-size:12px;padding:3px 8px;border-radius:var(--r-pill);cursor:pointer;line-height:1.3;transition:background var(--d1) ease-out,color var(--d1) ease-out}

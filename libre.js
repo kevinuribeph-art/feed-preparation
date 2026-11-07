@@ -1974,8 +1974,8 @@
   // ---------- the grey area around the slide: part of the editor ----------
   // a click deselects, a drag chooses what ends up inside its rectangle (⇧ adds), a double click is «Ajustar», a right
   // click opens a menu, space + drag moves the view. Nothing of it while writing in a text: a click there only ends it.
-  const esTexto = t => !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable || (t.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(t.type)));
-  const escribiendo = () => { const t = document.activeElement; return esTexto(t) && t.tagName !== 'SELECT'; };   // a font list left focused is not writing
+  const esTexto = t => !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable || !!(t.classList && t.classList.contains('mx-sel')) || (t.tagName === 'INPUT' && !['range', 'button', 'checkbox', 'radio', 'color'].includes(t.type)));
+  const escribiendo = () => { const t = document.activeElement; return esTexto(t) && t.tagName !== 'SELECT' && !t.classList.contains('mx-sel'); };   // a font list left focused is not writing (also the mesa's own, controles.js)
   function gris(e) {                // on the grey itself, not on the slide, the rulers, the bar or a scrollbar
     const sc = E.scroll, cvw = sc.firstElementChild;
     if (e.target !== sc && e.target !== cvw) return false;

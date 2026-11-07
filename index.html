@@ -18,11 +18,11 @@
 <script>
   // a module that arrives but throws while it runs is «fallo», like one that doesn't arrive (D-115): each one says «ok» at its end
   window.addEventListener('error', function (e) {
-    var m = /\/(?:kits\/)?(motor|diseno|libre|calendario|revisar|historias|carpetas|descargar)\.js(?:\?|$)/.exec(e.filename || ''), C = window.MESA_CARGA = window.MESA_CARGA || {};
+    var m = /\/(?:kits\/)?(motor|diseno|libre|calendario|revisar|historias|carpetas|descargar|controles)\.js(?:\?|$)/.exec(e.filename || ''), C = window.MESA_CARGA = window.MESA_CARGA || {};
     if (m && C[m[1]] !== 'ok') C[m[1]] = 'fallo';
   });
 </script>
-<!-- the designer, its engine, the editor, the calendar, the review, the stories, the folders and the downloads load on their own: the mesa never waits for them («Editar …» does) -->
+<!-- the designer, its engine, the editor, the calendar, the review, the stories, the folders, the downloads and the mesa's own dropdowns, dates and times load on their own: the mesa never waits for them («Editar …» does) -->
 <script async src="kits/motor.js?v=1.6" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).motor = 'fallo'"></script>
 <script async src="diseno.js?v=1.18" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).diseno = 'fallo'"></script>
 <script async src="libre.js?v=1.52" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).libre = 'fallo'"></script>
@@ -31,5 +31,6 @@
 <script async src="historias.js?v=1.12" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).historias = 'fallo'"></script>
 <script async src="carpetas.js?v=1.3" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).carpetas = 'fallo'"></script>
 <script async src="descargar.js?v=1.4" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).descargar = 'fallo'"></script>
+<script async src="controles.js?v=1.0" onerror="(window.MESA_CARGA = window.MESA_CARGA || {}).controles = 'fallo'"></script>
 </body>
 </html>

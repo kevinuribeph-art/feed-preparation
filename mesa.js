@@ -1452,7 +1452,7 @@
       const v = s[campo] || [], t = PER_TXT[campo], cols = campo === 'etiquetas' || [...L.values()].some(Boolean);
       const ops = [...L].filter(([u, col]) => !v.includes(u) && (campo === 'etiquetas' || col)).map(([u]) => u).sort(perCmp);
       const sel = `<select class="persel" data-slot="${id}" data-campo="${campo}" aria-label="${t.rot}" title="${pub ? 'Ya está publicada: no se cambia' : campo === 'etiquetas' ? 'Personas etiquetadas en Instagram (hasta 20)' : 'Colaboradores en Instagram (hasta 3): solo cuentas públicas de empresa o creador'}"${pub ? ' disabled' : ''}>`
-        + `<option value="" selected>${t.rot}</option>` + ops.map(u => `<option value="${esc(u)}">@${esc(u)}</option>`).join('')
+        + `<option value="" selected hidden>${t.rot}</option>` + ops.map(u => `<option value="${esc(u)}">@${esc(u)}</option>`).join('')
         + (!L.size ? '<option value="" disabled>Crear lista de personas</option>' : !cols ? '<option value="" disabled>Nadie de la lista puede ser colaborador</option>' : '') + '</select>';
       const chips = v.slice().sort(perCmp).map(u => {
         const raro = !L.has(u) ? 'Ya no está en la lista de personas' : campo === 'colaboradores' && !L.get(u) ? 'Según la lista, ya no puede ser colaborador' : '';
@@ -2102,6 +2102,10 @@
 --i-more:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/svg%3E");
 --i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 16l4 4l4-4m-4 4V4m14 4l-4-4l-4 4m4-4v16'/%3E%3C/svg%3E");
 --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E635A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
+--i-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
+--i-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+--i-cal:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+--i-clock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
 --i-spark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c.9 6.6 4.4 10.6 12 12-7.6 1.4-11.1 5.4-12 12-.9-6.6-4.4-10.6-12-12 7.6-1.4 11.1-5.4 12-12z'/%3E%3C/svg%3E");
 --i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19l-7-7l7-7m7 7H5'/%3E%3C/svg%3E")}
 /* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
@@ -2400,10 +2404,10 @@
 #mesa .phead .st{font-size:10.5px;padding:2px 8px}#mesa .st.pub{background:var(--mute)}#mesa .st.own{background:var(--franja)}
 #mesa .phead p[hidden]{display:none}
 #mesa .pwhen{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}#mesa .pwhen .wd{min-width:2.2em}
-#mesa .pwhen input{font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 8px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
+#mesa .pwhen .dtin,#mesa .pwhen .tmin{font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 8px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .tysel,#mesa .essel,#mesa .ubsel,#mesa .persel{-webkit-appearance:none;appearance:none;font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2) var(--chev) no-repeat right 8px center/14px 14px;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 28px 0 10px;min-height:32px;cursor:pointer;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
-#mesa .pwhen input:hover,#mesa .tysel:hover,#mesa .essel:hover,#mesa .ubsel:hover,#mesa .persel:hover,#mesa .esmot:hover{border-color:var(--line-strong)}
-#mesa .pwhen input:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
+#mesa .pwhen .dtin:hover,#mesa .pwhen .tmin:hover,#mesa .tysel:hover,#mesa .essel:hover,#mesa .ubsel:hover,#mesa .persel:hover,#mesa .esmot:hover{border-color:var(--line-strong)}
+#mesa .pwhen .dtin:focus,#mesa .pwhen .tmin:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .tysel:disabled,#mesa .essel:disabled,#mesa .ubsel:disabled,#mesa .persel:disabled{opacity:.5;cursor:default}
 #mesa .pwhen .wd{color:var(--ink-2);font-weight:600}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3694,7 +3698,7 @@
     d.querySelector('.phead h3').textContent = s.name; d.querySelector('.card').setAttribute('aria-label', s.name);
     d.querySelector('.pwhen .wd').textContent = wday(s.date);
     d.querySelector('.phead .pnot').outerHTML = pnotHTML(s);
-    d.querySelectorAll('.pwhen input').forEach(el => { if (el !== src) resetWhen(el, s); });
+    d.querySelectorAll('.pwhen .dtin, .pwhen .tmin').forEach(el => { if (el !== src) resetWhen(el, s); });
     layoutStage();
   }
   function resetWhen(el, s) { const v = el.classList.contains('dtin') ? localDay(s.date) : localTime(s.date); if (el.value !== v) el.value = v; }
@@ -4436,7 +4440,7 @@
         }
         save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot);
       }
-      else if (e.target.matches('.pwhen input')) onWhen(e.target);
+      else if (e.target.matches('.pwhen .dtin, .pwhen .tmin')) onWhen(e.target);
       else if (e.target.matches('.trayhead .ttam input')) { if (!kbd) e.target.blur(); }   // let go with the mouse: the keys go back where they went
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
@@ -4454,7 +4458,7 @@
         setTimeout(() => { const a = document.activeElement; if (memoEdit === id && !(a && a.matches && a.matches('.pitin') && a.dataset.slot === id)) endMemoEdit(); }, 0);
         return;
       }
-      const el = e.target, s = el.matches && el.matches('.pwhen input') && slot(el.dataset.slot); if (!s) return;
+      const el = e.target, s = el.matches && el.matches('.pwhen .dtin, .pwhen .tmin') && slot(el.dataset.slot); if (!s) return;
       if (el.classList.contains('dtin') && /^\d{4}-\d{2}-\d{2}$/.test(el.value) && !inBoard(el.value)) outToast();
       resetWhen(el, s);
     });

@@ -1699,7 +1699,7 @@
     // la hora, sin perder el campo en uso
     const hora = q('.detail [data-hv-c="hora"]'); hora.focus(); fijarCampo('hora', '18:30');
     horaH(id, '18:30');
-    ok(q('.detail [data-hv-c="hora"]') === hora && D.activeElement === hora, 'cambiar la hora rehízo el campo en uso');
+    ok(q('.detail [data-hv-c="hora"]') === hora && (D.activeElement === hora || !!(M.controles && M.controles.gemelo(hora) && M.controles.gemelo(hora).contains(D.activeElement))), 'cambiar la hora rehízo el campo en uso');   // desde la 4.04 el foco está en el campo de la mesa que la dibuja (D-136)
     q('.detail [data-hv="cancelar"]').focus(); await espera(20);
     // Zernio: sin papelera; lo que cambió aquí se dice
     viva(id).zernio = { id: 'z', date: viva(id).date, file: fid }; M._in.changed();
@@ -8095,7 +8095,7 @@
   prueba('M52', 'Cada módulo dice que cargó entero (MESA_CARGA «ok»), y uno que lanza un error al ejecutarse queda en «fallo» y no en «Cargando…» (D-115)', async () => {
     await tablero([pub(1)]);
     const C = () => W.MESA_CARGA || {};
-    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
+    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar', 'controles'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
     // un módulo que llega pero falla al ejecutarse: el aviso de la mesa (index.html) lo marca «fallo»
     W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
     igual(C().revisar, 'ok', 'un error después de cargar marcó «fallo» a un módulo que ya estaba');
@@ -8803,7 +8803,7 @@
     }
     const sel = await ubVentana('r3');
     ok(!q('.detail [data-act="editar"]'), 'el reel sin portada tiene «Editar portada»');
-    ok(sel.parentElement.matches('.pdz') && sel.parentElement.children.length === 1, 'el reel sin portada no lo lleva solo en su fila');
+    ok(sel.parentElement.matches('.pdz') && [...sel.parentElement.children].filter(c => !(M.controles && c === M.controles.gemelo(sel))).length === 1, 'el reel sin portada no lo lleva solo en su fila');   // desde la 4.04 con su desplegable de la mesa al lado (D-135)
     M._in.closeDetail();
     await M._test.ubBorrar();
     const vacio = await ubVentana('r1');
@@ -9030,7 +9030,7 @@
     igual([perChips('etiquetas'), perChips('colaboradores')], [['@alfa_prueba', '@zeta.prueba'], ['@alfa_prueba']], 'los elegidos en la ventana');
     igual(perOps('etiquetas'), ['Etiquetar', '@beta.prueba'], '«Etiquetar» ofrece aún los elegidos');
     igual(perOps('colaboradores'), ['Colaboradores', '@beta.prueba'], '«Colaboradores» ofrece aún el elegido');
-    igual(D.activeElement, perSel('colaboradores'), 'el foco no vuelve a su desplegable');
+    ok(D.activeElement === perSel('colaboradores') || (M.controles && D.activeElement === M.controles.gemelo(perSel('colaboradores'))), 'el foco no vuelve a su desplegable');   // desde la 4.04, al de la mesa que lo dibuja (D-135)
     igual(perDe('r1'), { etiquetas: ['alfa_prueba', 'zeta.prueba'], colaboradores: ['alfa_prueba'] }, 'plan()');
     igual(M._in.estadoDe(slot('r1')), 'aprobado', 'elegirlos cambió el estado');
     M._test.undo();
@@ -9258,6 +9258,159 @@
       if (h.dataset.theme === 'dark') b.click();
       if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes);
     }
+  });
+
+  // los controles de la mesa (controles.js, D-135 y D-136): el nativo sigue en la página como fuente de verdad
+  const gem = n => (M.controles ? M.controles.gemelo(n) : null);
+  const capa = () => q('#mesa > .mx-pop.on');
+  const teclaEn = (el, key, o = {}) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key, shiftKey: !!o.shift, altKey: !!o.alt, bubbles: true, cancelable: true }));
+  // en la batería la página no tiene el foco del sistema: focus() y blur() por código no lanzan sus eventos; se lanzan aquí
+  const enfocar = el => { el.focus(); if (!D.hasFocus()) el.dispatchEvent(new W.FocusEvent('focus')); };
+  const desenfocar = el => { el.blur(); if (!D.hasFocus()) el.dispatchEvent(new W.FocusEvent('blur')); };
+  async function escribirEn(inp, txt) { enfocar(inp); inp.value = txt; inp.dispatchEvent(new W.Event('input', { bubbles: true })); teclaEn(inp, 'Enter'); await espera(60); }
+
+  prueba('I4', 'Los desplegables de la ventana de una publicación son de la mesa: el nativo sigue oculto con su valor y su «change»; la lista sale en su capa, fuera de la ventana; ratón, teclado, Esc, clic fuera y deslizar (D-135)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('i4.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    let nat = await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')) && q('.detail .tysel'), 3000, 'el tipo con su desplegable');
+    ok(qa('.detail select').every(s => gem(s)), 'un desplegable de la ventana sin el de la mesa');
+    let g = gem(nat);
+    ok(g === nat.nextElementSibling && g.matches('button.mx-sel[role="combobox"][aria-haspopup="listbox"]'), 'el de la mesa no va justo después del nativo');
+    igual([nat.getAttribute('aria-hidden'), nat.tabIndex, nat.getBoundingClientRect().width <= 1], ['true', -1, true], 'el nativo no está oculto');
+    igual([g.querySelector('.mx-t').textContent, g.getAttribute('aria-label'), g.getAttribute('aria-expanded')], ['Foto', 'Tipo de publicación', 'false'], 'lo que dice el desplegable');
+    // con el ratón: la lista, fuera de la ventana, con las opciones del nativo y la elegida marcada
+    g.click();
+    let pop = await hasta(() => capa(), 2000, 'la lista abierta');
+    igual([pop.getAttribute('role'), !!pop.closest('.card'), g.getAttribute('aria-expanded')], ['listbox', false, 'true'], 'la lista');
+    igual([...pop.querySelectorAll('[role="option"]')].map(o => o.textContent), [...nat.options].filter(o => !o.hidden).map(o => o.textContent), 'las opciones no son las del nativo');
+    igual(pop.querySelector('[aria-selected="true"]').textContent, 'Foto', 'la elegida');
+    const r = pop.getBoundingClientRect();
+    ok(r.left >= 0 && r.top >= 0 && r.right <= W.innerWidth && r.bottom <= W.innerHeight, 'la lista se sale de la página');
+    [...pop.querySelectorAll('[role="option"]')].find(o => o.textContent === 'Carrusel').click();
+    await hasta(() => slot('r1').type === 'Carrusel', 2000, 'el tipo cambiado con el ratón');
+    await hasta(() => !capa(), 1000, 'la lista cerrada tras elegir');
+    nat = await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')) && q('.detail .tysel'), 3000, 'la ventana redibujada');
+    g = gem(nat);
+    ok(D.activeElement === g, 'tras elegir, el foco no sigue en el desplegable');
+    // con el teclado: ↓ abre, ↓ baja, Enter elige
+    teclaEn(g, 'ArrowDown'); await hasta(() => capa(), 1000, 'abrir con ↓');
+    ok(g.getAttribute('aria-activedescendant') && q('#' + g.getAttribute('aria-activedescendant')).textContent === 'Carrusel', 'aria-activedescendant no va a la elegida');
+    teclaEn(g, 'ArrowUp'); teclaEn(g, 'Enter');
+    await hasta(() => slot('r1').type === 'Foto', 2000, 'el tipo cambiado con el teclado');
+    // Esc cierra la lista sin cambiar nada y sin cerrar la ventana
+    nat = await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')) && q('.detail .tysel'), 3000, 'la ventana redibujada');
+    g = gem(nat); g.focus();
+    teclaEn(g, 'ArrowDown'); await hasta(() => capa(), 1000, 'abrir');
+    teclaEn(g, 'ArrowDown'); teclaEn(g, 'Escape'); await espera(50);
+    igual([!!capa(), slot('r1').type, !!dialogo()], [false, 'Foto', true], 'Esc');
+    // un valor puesto por código se ve
+    nat.value = 'Carrusel'; igual(g.querySelector('.mx-t').textContent, 'Carrusel', 'no sigue al nativo'); nat.value = 'Foto';
+    // clic fuera y deslizar cierran
+    g.click(); await hasta(() => capa(), 1000, 'abrir');
+    D.body.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true })); await espera(30);
+    ok(!capa(), 'un clic fuera no la cierra');
+    g.click(); await hasta(() => capa(), 1000, 'abrir');
+    q('.detail .pright').dispatchEvent(new W.Event('scroll')); await espera(30);
+    ok(!capa(), 'deslizar no la cierra');
+    // el estado: sus opciones desactivadas no se eligen
+    const es = q('.detail .essel'), ge = gem(es);
+    ge.click(); pop = await hasta(() => capa(), 1000, 'la lista del estado');
+    const dis = [...es.options].filter(o => o.disabled && !o.hidden).map(o => o.textContent);
+    igual([...pop.querySelectorAll('[aria-disabled="true"]')].map(o => o.textContent), dis, 'las desactivadas');
+    if (dis.length) { const v0 = es.value; [...pop.querySelectorAll('[aria-disabled="true"]')][0].click(); await espera(30); igual(es.value, v0, 'se eligió una desactivada'); }
+    M.controles.cerrar(); M._in.closeDetail();
+  });
+
+  prueba('I5', 'El desplegable de la fuente del editor es de la mesa, con sus grupos; con él en foco las flechas no mueven el texto (D-135)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('i5a.jpg'), await foto('i5b.jpg')]);
+    await abrirEditor('r1', 0);
+    accion('add-txt'); await dibujado();
+    const t = compDe(0).els.find(e => e.t === 'texto'); ok(t && ed().sel === t.id, 'el texto nuevo no está elegido');
+    // el texto nuevo se está escribiendo: al dar el foco a otro sitio termina y el panel se redibuja (también antes, con el nativo)
+    enfocar(await hasta(() => gem(q('.lb-panel select[data-lb="font"]')), 3000, 'la fuente en el panel')); await espera(80);
+    const nat = q('.lb-panel select[data-lb="font"]'), g = gem(nat); enfocar(g);
+    g.click();
+    const pop = await hasta(() => capa(), 1000, 'la lista de fuentes');
+    igual([...pop.querySelectorAll('[role="group"]')].map(x => x.getAttribute('aria-label')), [...nat.querySelectorAll('optgroup')].map(x => x.label), 'los grupos');
+    M.controles.cerrar(); g.focus();
+    ok(g.isConnected, 'el panel se redibujó');
+    const x0 = t.x;
+    teclaEn(g, 'ArrowLeft'); teclaEn(g, 'ArrowRight'); teclaEn(g, 'Backspace');
+    await espera(50);
+    ok(compDe(0).els.some(e => e.id === t.id) && compDe(0).els.find(e => e.id === t.id).x === x0, 'una tecla con la fuente en foco movió o borró el texto');
+    const o2 = [...nat.options].find(o => !o.selected && !o.disabled && o.value !== '-1');
+    teclaEn(g, 'ArrowDown'); await hasta(() => capa(), 1000, 'abrir');
+    capa().querySelector(`[data-i="${o2.index}"]`).click();
+    await hasta(() => compDe(0).els.find(e => e.id === t.id).font && compDe(0).els.find(e => e.id === t.id).font.n === o2.textContent, 2000, 'la fuente elegida');
+  });
+
+  prueba('I6', 'La fecha de una publicación se escribe, se mueve con ↑ ↓ y se elige en un calendario de la mesa; fuera del tablero no cambia (D-136)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('i6.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    const nat = await hasta(() => q('.detail .dtin') && gem(q('.detail .dtin')) && q('.detail .dtin'), 3000, 'la fecha con su campo');
+    const g = gem(nat), inp = g.querySelector('input.mx-in'), dia = () => M._in.localDay(slot('r1').date);
+    ok(g.matches('.mx-f.mx-date') && inp.getAttribute('role') === 'combobox' && inp.getAttribute('aria-haspopup') === 'dialog', 'el campo de la fecha');
+    igual([inp.value, nat.getAttribute('aria-hidden')], ['03/11/2026', 'true'], 'lo que dice');
+    await escribirEn(inp, '5/11');
+    igual([dia(), inp.value, M._in.localTime(slot('r1').date)], ['2026-11-05', '05/11/2026', '12:00'], 'escrita «5/11»');
+    teclaEn(inp, 'ArrowUp'); igual(dia(), '2026-11-06', '↑'); teclaEn(inp, 'ArrowUp', { shift: true }); igual(dia(), '2026-11-13', '⇧↑');
+    teclaEn(inp, 'ArrowDown'); igual([dia(), inp.value], ['2026-11-12', '12/11/2026'], '↓');
+    await escribirEn(inp, '20 nov'); igual(dia(), '2026-11-20', 'escrita «20 nov»');
+    await escribirEn(inp, 'esto no'); igual([dia(), inp.value], ['2026-11-20', '20/11/2026'], 'algo que no es una fecha');
+    // el calendario: al pulsar el campo; los días fuera del tablero no se eligen
+    inp.click();
+    let pop = await hasta(() => capa(), 1000, 'el calendario');
+    igual([pop.getAttribute('role'), !!pop.closest('.card'), pop.querySelector('[aria-selected="true"]').dataset.v, inp.getAttribute('aria-expanded')], ['dialog', false, '2026-11-20', 'true'], 'el calendario abierto');
+    ok(nat.max && nat.min, 'la fecha de la publicación no lleva los días de su tablero');
+    const fuera = [...pop.querySelectorAll('.mx-d')].filter(b => b.dataset.v > nat.max || b.dataset.v < nat.min);
+    ok(fuera.length && fuera.every(b => b.disabled), 'un día fuera del tablero se puede elegir');
+    igual(pop.querySelectorAll('.mx-d').length, 42, 'el mes no va en 6 semanas');
+    pop.querySelector('.mx-d[data-v="2026-11-24"]').click();
+    await hasta(() => dia() === '2026-11-24', 1000, 'el día pulsado');
+    ok(!capa(), 'el calendario no se cierra tras elegir');
+    // con el teclado: ⌥↓ entra en el calendario, → un día, Enter elige, Esc vuelve al campo sin cerrar la ventana
+    inp.focus(); teclaEn(inp, 'ArrowDown', { alt: true });
+    pop = await hasta(() => capa(), 1000, 'el calendario con ⌥↓');
+    await hasta(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.v === '2026-11-24', 1000, 'el foco en el día');
+    teclaEn(D.activeElement, 'ArrowRight'); igual(D.activeElement.dataset.v, '2026-11-25', '→'); teclaEn(D.activeElement, 'Enter');
+    await hasta(() => dia() === '2026-11-25', 1000, 'Enter');
+    inp.click(); await hasta(() => capa(), 1000, 'abrir'); teclaEn(inp, 'ArrowDown', { alt: true }); await espera(30);
+    teclaEn(D.activeElement, 'Escape'); await espera(30);
+    igual([!!capa(), D.activeElement === inp, !!dialogo()], [false, true, true], 'Esc en el calendario');
+    // una fecha fuera del tablero: no cambia y el campo vuelve a la suya al salir
+    enfocar(inp); inp.value = '15/03/2027'; inp.dispatchEvent(new W.Event('input', { bubbles: true })); desenfocar(inp); await espera(80);
+    igual([dia(), inp.value], ['2026-11-25', '25/11/2026'], 'fuera del tablero');
+    M._in.closeDetail();
+  });
+
+  prueba('I7', 'La hora de una publicación se escribe, se mueve con ↑ ↓ a la hora de antes o de después de la lista (cada 15 min, con la exacta en su sitio) y se elige en la lista de la mesa (D-136)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('i7.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    const nat = await hasta(() => q('.detail .tmin') && gem(q('.detail .tmin')) && q('.detail .tmin'), 3000, 'la hora con su campo');
+    const inp = gem(nat).querySelector('input.mx-in'), hora = () => M._in.localTime(slot('r1').date);
+    igual(inp.value, '12:00', 'lo que dice'); inp.focus();
+    teclaEn(inp, 'ArrowUp'); igual(hora(), '12:15', '↑'); teclaEn(inp, 'ArrowDown'); teclaEn(inp, 'ArrowDown'); igual(hora(), '11:45', '↓ ↓');
+    teclaEn(inp, 'ArrowUp', { shift: true }); igual(hora(), '12:45', '⇧↑');
+    await escribirEn(inp, '1937'); igual([hora(), inp.value], ['19:37', '19:37'], 'escrita «1937»');
+    inp.click();
+    const pop = await hasta(() => capa(), 1000, 'la lista de horas');
+    const L = [...pop.querySelectorAll('[role="option"]')].map(o => o.textContent);
+    igual([pop.getAttribute('role'), L.length, L.indexOf('19:37') === L.indexOf('19:30') + 1, L.indexOf('19:45') === L.indexOf('19:37') + 1, pop.querySelector('[aria-selected="true"]').textContent], ['listbox', 97, true, true, '19:37'], 'la lista conserva la hora exacta');
+    teclaEn(inp, 'ArrowUp'); igual(hora(), '19:45', '↑ desde la exacta'); teclaEn(inp, 'ArrowDown'); igual(hora(), '19:30', '↓');
+    [...capa().querySelectorAll('[role="option"]')].find(o => o.textContent === '09:00').click();
+    await hasta(() => hora() === '09:00', 1000, 'la pulsada en la lista');
+    ok(!capa(), 'la lista no se cierra tras elegir');
+    await escribirEn(inp, '930'); igual(hora(), '09:30', 'escrita «930»');
+    await escribirEn(inp, '25:00'); igual([hora(), inp.value], ['09:30', '09:30'], 'una hora que no existe');
+    igual(M._in.localDay(slot('r1').date), '2026-11-03', 'cambiar la hora movió el día');
+    M._in.closeDetail();
   });
 
   // =====================================================================================================

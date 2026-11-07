@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.12';
+  const VERSION = '1.13';
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -463,7 +463,7 @@
     t.innerHTML = dlgHTML(h);
     const b = t.querySelector('.hv-story');
     if (!a || a.children.length !== b.children.length) d.querySelector('.card').innerHTML = t.innerHTML;
-    else [...a.children].forEach((o, i) => { const n = b.children[i]; if (!o.isEqualNode(n) && !(ac && ac.matches('input,select') && o.contains(ac))) o.replaceWith(n.cloneNode(true)); });
+    else [...a.children].forEach((o, i) => { const n = b.children[i]; if (!o.isEqualNode(n) && !(ac && ac.matches('input,select,.mx-sel') && o.contains(ac))) o.replaceWith(n.cloneNode(true)); });
     const di = d.querySelector('[data-hv-c="dia"]'), ho = d.querySelector('[data-hv-c="hora"]');
     if (di && di !== ac) di.value = X.localDay(h.date);
     if (ho && ho !== ac) ho.value = X.localTime(h.date);
@@ -523,7 +523,7 @@
       if (k === 'd') { const nid = duplicar(h.id); if (nid) abrirDlg(nid); } else if (!h.cancelada) editar(h.id);
       return;
     }
-    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && dlgAbierto() && !(e.target.matches && e.target.matches('input,textarea,select,[contenteditable]'))) { e.preventDefault(); irA(e.key === 'ArrowLeft' ? -1 : 1); return; }   // only with a story open, never in a field (D-080)
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && dlgAbierto() && !(e.target.matches && e.target.matches('input,textarea,select,[contenteditable],.mx-sel'))) { e.preventDefault(); irA(e.key === 'ArrowLeft' ? -1 : 1); return; }   // only with a story open, never in a field (D-080)
     const c = e.target.closest && e.target.closest('.hv-card[data-h]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirDlg(c.dataset.h); }
   }
   function onFocoIn(e) { const t = e.target; enUso = t.matches && t.matches('.detail [data-hv-c]') ? t : null; }

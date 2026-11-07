@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '4.03'; // 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '4.04'; // 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1452,7 +1452,7 @@
       const v = s[campo] || [], t = PER_TXT[campo], cols = campo === 'etiquetas' || [...L.values()].some(Boolean);
       const ops = [...L].filter(([u, col]) => !v.includes(u) && (campo === 'etiquetas' || col)).map(([u]) => u).sort(perCmp);
       const sel = `<select class="persel" data-slot="${id}" data-campo="${campo}" aria-label="${t.rot}" title="${pub ? 'Ya está publicada: no se cambia' : campo === 'etiquetas' ? 'Personas etiquetadas en Instagram (hasta 20)' : 'Colaboradores en Instagram (hasta 3): solo cuentas públicas de empresa o creador'}"${pub ? ' disabled' : ''}>`
-        + `<option value="" selected>${t.rot}</option>` + ops.map(u => `<option value="${esc(u)}">@${esc(u)}</option>`).join('')
+        + `<option value="" selected hidden>${t.rot}</option>` + ops.map(u => `<option value="${esc(u)}">@${esc(u)}</option>`).join('')
         + (!L.size ? '<option value="" disabled>Crear lista de personas</option>' : !cols ? '<option value="" disabled>Nadie de la lista puede ser colaborador</option>' : '') + '</select>';
       const chips = v.slice().sort(perCmp).map(u => {
         const raro = !L.has(u) ? 'Ya no está en la lista de personas' : campo === 'colaboradores' && !L.get(u) ? 'Según la lista, ya no puede ser colaborador' : '';
@@ -2081,6 +2081,7 @@
 --ok-on-ink:#86C795;--cal-off:#F0EAE2;--cruce-veil:rgba(22,17,14,.62);
 --ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;
 --knob:#FFFFFF;--sw-on:#16110E;
+--tg-track:#E4DBCE;--tg-line:rgba(22,17,14,.06);--tg-line-h:rgba(22,17,14,.18);--tg-sun:#E0A73C;--tg-sun-ring:rgba(224,167,60,.22);--tg-moon:#EDE6DC;--tg-crater:#CBC1B3;--tg-star:#E3B65A;
 --sel:#0095F6;--sel-wash:rgba(0,149,246,.08);--checker-a:#DDD6CC;--checker-b:#F6F2EC;--swatch-ring:rgba(22,17,14,.18);--on-photo-soft:rgba(255,255,255,.85);--fv-bg:#000000;--text-on-photo:0 1px 3px rgba(0,0,0,.8);
 --st-empezar:#F4EFE8;--st-empezar-aro:#A39A90;--st-captions:#D9A93A;--st-aprobar:#7FA6D6;
 --uso-p0:#16110E;--uso-p1:#6E635A;--uso-p2:#CFC5B8;--uso-r:#B8813F;--uso-ck:#FFFFFF;--uso-ck2:#16110E;
@@ -2096,13 +2097,16 @@
 --ig-bg:#FFFFFF;--ig-ink:#000000;--ig-ink-2:#262626;--ig-mute:#737373;--ig-line:#EFEFEF;--ig-ph:#8E8E8E;--ig-tag:#00376B;--ig-av:#262626;--ig-av-ring:rgba(0,0,0,.08);
 --font:"Mesa Grotesk",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
 --r-xs:6px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;
---ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;
+--ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;--ease-m:cubic-bezier(.32,.72,0,1);--d-m:.32s;
 --i-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
 --i-more:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/svg%3E");
 --i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 16l4 4l4-4m-4 4V4m14 4l-4-4l-4 4m4-4v16'/%3E%3C/svg%3E");
 --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E635A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
---i-moon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401'/%3E%3C/svg%3E");
---i-sun:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41'/%3E%3C/svg%3E");
+--i-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
+--i-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+--i-cal:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+--i-clock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
+--i-spark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c.9 6.6 4.4 10.6 12 12-7.6 1.4-11.1 5.4-12 12-.9-6.6-4.4-10.6-12-12 7.6-1.4 11.1-5.4 12-12z'/%3E%3C/svg%3E");
 --i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19l-7-7l7-7m7 7H5'/%3E%3C/svg%3E")}
 /* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
 :root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{color-scheme:dark;
@@ -2117,6 +2121,7 @@
 --franja:#EDE6DC;--cell-ph:#2E2620;--cell-past:#5E5650;
 --checker-a:#2E2722;--checker-b:#3A322B;--swatch-ring:rgba(255,255,255,.24);
 --knob:#EDE6DC;--sw-on:#B2503A;
+--tg-track:#0B0907;--tg-line:rgba(255,255,255,.1);--tg-line-h:rgba(255,255,255,.22);
 --scrim:rgba(0,0,0,.58);--scrim-strong:rgba(0,0,0,.78);--veil-bg:rgba(21,17,14,.94);--tip:rgba(241,235,227,.96);
 --shadow-xs:0 1px 2px rgba(0,0,0,.4);--shadow-sm:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
 --shadow-md:0 6px 18px -6px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4);--shadow-lg:0 24px 60px -18px rgba(0,0,0,.75),0 8px 20px -10px rgba(0,0,0,.55);
@@ -2135,7 +2140,12 @@
 #mesa :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .x::before,#mesa .hx::before,#mesa .cpx::before,#mesa .ibtn.xfer::before,#mesa .ibtn[data-act="editclient"]::before,#mesa .cpvolver::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-x) center/contain no-repeat;mask:var(--i-x) center/contain no-repeat}
 #mesa .ibtn.xfer::before{-webkit-mask-image:var(--i-updown);mask-image:var(--i-updown)}
-#mesa .ibtn.tema{position:relative;font-size:0 !important;color:var(--ink-2)}#mesa .ibtn.tema::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-moon) center/contain no-repeat;mask:var(--i-moon) center/contain no-repeat}#mesa .ibtn.tema[aria-pressed="true"]::before{-webkit-mask-image:var(--i-sun);mask-image:var(--i-sun)}
+#mesa .ibtn.tema{position:relative;width:52px;height:28px;border-radius:var(--r-pill);background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line);font-size:0 !important;line-height:0;overflow:hidden;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}#mesa .ibtn.tema:hover{background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line-h)}#mesa .ibtn.tema:active .tg-k{width:25px}#mesa .ibtn.tema:focus-visible{outline:0;box-shadow:inset 0 0 0 1px var(--tg-line-h),0 0 0 3px var(--ring)}
+#mesa .tg-k{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:var(--r-pill);background:var(--tg-sun);box-shadow:0 0 0 3px var(--tg-sun-ring),var(--shadow-xs);transform:translateX(24px);transition:transform var(--d-m) var(--ease-m),width var(--d-m) var(--ease-m),background-color var(--d-m) var(--ease-m),box-shadow var(--d-m) var(--ease-m)}#mesa .ibtn.tema:not([aria-checked="true"]):active .tg-k{transform:translateX(21px)}
+#mesa .tg-k::before,#mesa .tg-k::after{content:'';position:absolute;border-radius:50%;background:var(--tg-crater);opacity:0;transform:scale(.3);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}#mesa .tg-k::before{width:7px;height:7px;left:4px;top:10px}#mesa .tg-k::after{width:4px;height:4px;left:11px;top:5px}
+#mesa .tg-s{position:absolute;background:var(--tg-star);-webkit-mask:var(--i-spark) center/contain no-repeat;mask:var(--i-spark) center/contain no-repeat;opacity:0;transform:scale(.2) rotate(-60deg);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}#mesa .tg-s.s1{width:9px;height:9px;right:8px;top:5px}#mesa .tg-s.s2{width:6px;height:6px;right:19px;top:14px}#mesa .tg-s.s3{width:5px;height:5px;right:9px;top:18px}
+#mesa .ibtn.tema[aria-checked="true"] .tg-k{transform:translateX(0);background:var(--tg-moon);box-shadow:var(--shadow-xs)}#mesa .ibtn.tema[aria-checked="true"] .tg-k::before,#mesa .ibtn.tema[aria-checked="true"] .tg-k::after{opacity:1;transform:none}#mesa .ibtn.tema[aria-checked="true"] .tg-s{opacity:1;transform:none}#mesa .ibtn.tema[aria-checked="true"] .tg-s.s2{transition-delay:.05s}#mesa .ibtn.tema[aria-checked="true"] .tg-s.s3{transition-delay:.1s}
+@media (prefers-reduced-motion:reduce){#mesa .ibtn.tema .tg-k,#mesa .ibtn.tema .tg-s,#mesa .ibtn.tema .tg-k::before,#mesa .ibtn.tema .tg-k::after{transition:background-color .15s linear,opacity .15s linear !important;transition-delay:0s !important}}
 #mesa .ibtn[data-act="editclient"]::before{-webkit-mask-image:var(--i-more);mask-image:var(--i-more)}
 #mesa .cpvolver::before{width:16px;height:16px;-webkit-mask-image:var(--i-back);mask-image:var(--i-back)}
 #mesa .x,#mesa .hx,#mesa .cpx,#mesa .ibtn.xfer,#mesa .ibtn[data-act="editclient"],#mesa .cpvolver{position:relative;font-size:0 !important;color:var(--ink-2)}
@@ -2358,7 +2368,6 @@
 #mesa .titem .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
 #mesa .titem:hover .x,#mesa .titem .x:focus-visible{display:block}
 #mesa .tname{position:absolute;left:0;right:0;bottom:0;padding:12px 6px 4px;font-size:9.5px;color:var(--on-photo);background:linear-gradient(transparent,var(--photo-shade));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-#mesa .hint{color:var(--mute);font-size:12px;margin:14px 2px 0;line-height:1.5;max-width:62ch}
 /* ===== Estados vacíos ===== */
 #mesa .empty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
 #mesa .ecard{max-width:440px;text-align:center;color:var(--mute);font-size:13.5px;line-height:1.5}
@@ -2389,22 +2398,22 @@
 #mesa .nlab.mlab{margin-top:16px}
 /* ===== Ventana de una publicación (lote 2) ===== */
 #mesa .card.post{max-width:1000px;padding:0;display:flex;flex-direction:column;overflow:hidden}
-#mesa .phead{padding:18px 60px 14px 22px;border-bottom:1px solid var(--line2);flex:none}
-#mesa .phead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}#mesa .phead p{margin:10px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap}
+#mesa .phead{grid-area:cab;padding:20px 58px 14px 20px;border-bottom:1px solid var(--line2);min-width:0}
+#mesa .phead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}#mesa .phead p{margin:12px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #mesa .card.post>.x{top:14px;right:14px}
 #mesa .phead .st{font-size:10.5px;padding:2px 8px}#mesa .st.pub{background:var(--mute)}#mesa .st.own{background:var(--franja)}
 #mesa .phead p[hidden]{display:none}
 #mesa .pwhen{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}#mesa .pwhen .wd{min-width:2.2em}
-#mesa .pwhen input{font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 8px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
+#mesa .pwhen .dtin,#mesa .pwhen .tmin{font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 8px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .tysel,#mesa .essel,#mesa .ubsel,#mesa .persel{-webkit-appearance:none;appearance:none;font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2) var(--chev) no-repeat right 8px center/14px 14px;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 28px 0 10px;min-height:32px;cursor:pointer;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
-#mesa .pwhen input:hover,#mesa .tysel:hover,#mesa .essel:hover,#mesa .ubsel:hover,#mesa .persel:hover,#mesa .esmot:hover{border-color:var(--line-strong)}
-#mesa .pwhen input:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
+#mesa .pwhen .dtin:hover,#mesa .pwhen .tmin:hover,#mesa .tysel:hover,#mesa .essel:hover,#mesa .ubsel:hover,#mesa .persel:hover,#mesa .esmot:hover{border-color:var(--line-strong)}
+#mesa .pwhen .dtin:focus,#mesa .pwhen .tmin:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .tysel:disabled,#mesa .essel:disabled,#mesa .ubsel:disabled,#mesa .persel:disabled{opacity:.5;cursor:default}
 #mesa .pwhen .wd{color:var(--ink-2);font-weight:600}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
-#mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);min-height:0;flex:1;overflow:auto}
-#mesa .pleft{padding:18px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg);min-width:0}
+#mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"izq cab" "izq col";min-height:0;flex:1;overflow:auto}
+#mesa .pleft{grid-area:izq;padding:18px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg);min-width:0}
 #mesa .stagewrap{width:100%;display:flex;justify-content:center}
 #mesa .stage{position:relative;overflow:hidden;background:var(--stage);touch-action:none;cursor:default;user-select:none;width:300px;height:375px;box-shadow:var(--shadow-md)}
 #mesa .stage.panning{cursor:grabbing}
@@ -2448,7 +2457,7 @@
 @media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igacts{border-top:0}#mesa .igbody{order:1;flex:0 1 auto;min-height:0;max-height:32vh}#mesa .igdate{order:2}#mesa .igadd{display:none}#mesa .igcap{padding:6px 16px 0}#mesa .igcap .igav{display:none}#mesa .igct{padding-top:0}}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:var(--photo-dim)}#mesa .dots i.on{background:var(--on-photo)}
-#mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
+#mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}#mesa .phint:empty{display:none}
 #mesa .seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-pill);background:var(--bg-2)}
 #mesa .seg button{border:0;background:none;border-radius:var(--r-pill);padding:0 12px;min-height:28px;font-size:12.5px;color:var(--mute)}#mesa .seg button:hover{color:var(--ink)}#mesa .seg button.on{background:var(--panel-2);color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
 #mesa .zoom{display:flex;align-items:center;gap:6px;color:var(--mute)}#mesa .zoom input{width:100px;accent-color:var(--ink)}
@@ -2468,13 +2477,13 @@
 #mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}#mesa .pacts button:active:not(:disabled){transform:scale(.97)}
 #mesa .pacts button:disabled{opacity:.35;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
-#mesa .pright{padding:18px 20px;display:flex;flex-direction:column;min-width:0}
+#mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .pinsw{margin:0 0 14px;align-self:flex-start}
 #mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--on-ink);font-weight:800;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
 #mesa .cpick{width:100%;display:flex;flex-direction:column;gap:6px}#mesa .cpick .th{cursor:pointer}
 #mesa .pright textarea.note{flex:1;min-height:180px}
 #mesa .card.post.hascap{max-width:1080px}
-#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);grid-template-rows:minmax(0,1fr);min-height:min(540px,calc(100vh - 150px));overflow:hidden}
+#mesa .card.post.hascap .pbody{grid-template-columns:minmax(0,1fr) clamp(260px,40%,420px);grid-template-rows:auto minmax(0,1fr);min-height:min(540px,calc(100vh - 150px));overflow:hidden}
 #mesa .card.post.hascap .pleft{min-height:0;overflow:auto}
 #mesa .pright.hascap{contain:size;min-height:0;overflow-y:auto;scrollbar-gutter:stable}
 #mesa .pright.hascap>*{flex-shrink:0}
@@ -2515,8 +2524,8 @@
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
-@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
-@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
+@media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
+@media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"cab" "izq" "col";min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
 @media (max-width:720px){
 #mesa .toasts{top:50px;bottom:auto}
 #mesa .appbar{height:44px;padding:0 8px 0 12px;gap:2px}
@@ -2547,7 +2556,7 @@
 #mesa .trayhead b{font-size:14px}#mesa .trayhead span{font-size:11.5px}
 #mesa .trayhead .btn{min-height:28px;padding:0 11px;font-size:12px}#mesa .trayhead .btn svg{width:14px;height:14px}
 #mesa .tbody{flex:none;height:68px;padding:0 10px 4px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,var(--ink) 90%,transparent);mask-image:linear-gradient(to right,var(--ink) 90%,transparent)}
-#mesa .drop,#mesa .hint{display:none}
+#mesa .drop{display:none}
 #mesa .tray.isempty .tbody{height:auto;-webkit-mask-image:none;mask-image:none}
 #mesa .tray.isempty .drop{display:block;height:34px;line-height:31px;padding:0 10px;margin:0;border-radius:var(--r-sm);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .tray.isempty .tgrid{display:none}
@@ -2561,7 +2570,7 @@
 #mesa .card>p.xwhat{color:var(--ink);font-size:13px}
 #mesa .pdz{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 14px}
 #mesa .ubsel{max-width:100%;min-width:0;text-overflow:ellipsis}
-#mesa .pper{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
+#mesa .pper{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;align-items:start;margin:0 0 16px}#mesa .pper .persel,#mesa .pper .persel+.mx-sel:not(#mx){width:100%}
 #mesa .perrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 #mesa .persel{flex:none;width:10.6em;max-width:100%}
 #mesa .perchip{display:inline-flex;align-items:center;max-width:100%;min-height:26px;padding:0 2px 0 10px;font-size:12.5px;color:var(--ink);background:var(--bg-2);border:1px solid var(--bg-2);border-radius:var(--r-pill);overflow-wrap:anywhere}
@@ -2580,7 +2589,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button class="ibtn tema" data-act="tema" aria-pressed="false" title="Modo oscuro" aria-label="Modo oscuro">Modo oscuro</button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span><span class="tg-s s1" aria-hidden="true"></span><span class="tg-s s2" aria-hidden="true"></span><span class="tg-s s3" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -2598,7 +2607,7 @@
   function ponerTema(osc) {
     const h = document.documentElement; if (osc) h.dataset.theme = 'dark'; else delete h.dataset.theme;
     const b = root && root.querySelector('.ibtn.tema'); if (!b) return;
-    const t = osc ? 'Modo claro' : 'Modo oscuro'; b.setAttribute('aria-pressed', String(osc)); b.title = t; b.setAttribute('aria-label', t); b.textContent = t;
+    b.setAttribute('aria-checked', String(osc)); b.title = osc ? 'Modo oscuro' : 'Modo claro';   // a switch: it says the mode in use (D-134)
   }
   function cambiarTema() { const osc = document.documentElement.dataset.theme !== 'dark'; ponerTema(osc); lsSet(LS_TEMA, osc ? 'oscuro' : 'claro'); }
   window.addEventListener('storage', e => { if (e.key === LS_TEMA) ponerTema(e.newValue === 'oscuro'); });
@@ -2671,8 +2680,7 @@
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada">Libres para portada</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
-          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
-          + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
+          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
         watchFeed(); tamVigilar(); tamAplicar(); fijoAlto();
         { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
@@ -3559,7 +3567,7 @@
       const lo = fd && !s.design && isLib(fid);   // an image drawn by the free editor: its format is changed here (drawn again there)
       const tools = lo ? `${fmtCtl}<span class="muted">Editada: se sube tal cual · cámbiala en «${edLabel(s)}»</span>`
         : fd && !live ? `<span class="muted">${designed(s) ? `Diseño con cambios sin aplicar: se aplica al pulsar «${edLabel(s)}»` : 'Imagen diseñada: se sube tal cual'}</span>`
-        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
+        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint"></span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
@@ -3584,14 +3592,15 @@
     const peB = perHTML(s);   // «Etiquetar» and «Colaboradores», under that row and above «Contexto» (D-130)
     const dz = !edB ? (ubB ? `<div class="pdz">${ubB}</div>` : '') : `<div class="pdz">${edB}${ubB}${lbT}${dst === 'ok' ? '<span class="muted">Diseño aplicado · se sube tal cual</span>' : dst === 'nc' ? '<span class="muted">Diseño aplicado · se sube tal cual (sin comprobar: el diseñador no está cargado)</span>' : dst ? `<span class="muted" style="color:var(--chg)">Diseño con cambios sin aplicar · se aplica al pulsar «${edLabel(s)}»</span>` : ''}${dav.length ? `<ul class="pdzav">${dav.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>`;
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}<span>·</span>${typeHTML(s)}<span>·</span>${estadoHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
       <div class="pbody"><div class="pleft">${left}</div>
+        <div class="phead"><h3>${esc(s.name)}</h3><p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p>${pnotHTML(s)}${linkLine(s)}</div>
         <div class="pright hascap"><label class="sw pinsw" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}> Fijar en el perfil</label>${dz}${peB}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
           <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
           ${capsHTML(s)}
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    if (M.controles && M.controles.mejorar) M.controles.mejorar(d);   // its own dropdowns, date and time before it is laid out: one layout, not two (D-135)
     d.querySelectorAll('.cpick .strip').forEach(minisPerezosas);   // «Cambiar portada» with a long tray (B8)
     if (d.hidden || d.dataset.slot !== id) clearToasts();
     d.hidden = false;
@@ -3690,7 +3699,7 @@
     d.querySelector('.phead h3').textContent = s.name; d.querySelector('.card').setAttribute('aria-label', s.name);
     d.querySelector('.pwhen .wd').textContent = wday(s.date);
     d.querySelector('.phead .pnot').outerHTML = pnotHTML(s);
-    d.querySelectorAll('.pwhen input').forEach(el => { if (el !== src) resetWhen(el, s); });
+    d.querySelectorAll('.pwhen .dtin, .pwhen .tmin').forEach(el => { if (el !== src) resetWhen(el, s); });
     layoutStage();
   }
   function resetWhen(el, s) { const v = el.classList.contains('dtin') ? localDay(s.date) : localTime(s.date); if (el.value !== v) el.value = v; }
@@ -3714,7 +3723,7 @@
       const c = cropOf(im.f, it, B);
       const fmtCtl = isReel(it.type) ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}</div></div>
-        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
+        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint"></span></div>
         <div class="pacts"><span class="fname">${esc(M.files[im.f].name)}</span></div>`;
     } else if (im && im.t && M.pastThumbs[im.t]) left = `<img class="pthumb" src="${M.pastThumbs[im.t]}" alt=""><p class="muted" style="margin:0">Foto tal como está en Notion.</p>`;
     else left = '<div class="pempty">Sin foto.<br>Arrastra una foto de la bandeja sobre su casilla.</div>';
@@ -3724,8 +3733,8 @@
       + (it.own || it.hidden ? `<button class="btn2" data-act="prevrestore" data-id="${esc(id)}">Restaurar como estaba</button>` : '')
       + `</div>`;
     d.innerHTML = `<div class="card post" role="dialog" aria-label="${esc(it.name)}"><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>
-      <div class="phead"><h3>${esc(it.name)}</h3><p><span>${esc(fmtDate(it.date))} · ${esc(it.type || '')}</span><span class="st pub">Publicada</span>${it.hidden ? '<span class="st chg">Oculta</span>' : ''}${it.own ? '<span class="st own">Editada en la mesa</span>' : ''}</p></div>
       <div class="pbody"><div class="pleft">${left}</div>
+        <div class="phead"><h3>${esc(it.name)}</h3><p><span>${esc(fmtDate(it.date))} · ${esc(it.type || '')}</span><span class="st pub">Publicada</span>${it.hidden ? '<span class="st chg">Oculta</span>' : ''}${it.own ? '<span class="st own">Editada en la mesa</span>' : ''}</p></div>
         <div class="pright"><span class="nlab">Mes anterior <span>· solo cambia la vista del feed, no Notion</span></span>${acts}
           <p class="muted" style="margin:12px 0 0">Para cambiar la foto, arrastra una de la bandeja sobre su casilla. Para intercambiar dos publicaciones, arrastra una sobre la otra.</p></div></div></div>`;
     if (d.hidden || d.dataset.slot !== id) clearToasts();
@@ -3751,8 +3760,7 @@
     const R = slotRatio(s, fid, bOf(s));
     const W = Math.max(200, st.parentElement.clientWidth || 300);
     const n = (slot(st.dataset.slot) || { photos: [] }).photos.length;
-    const ph = root.querySelector('.detail .phead'), hh = ph ? ph.offsetHeight : 80;
-    const H = Math.max(220, Math.min(680, window.innerHeight * 0.62, window.innerHeight - hh - (n > 1 ? 285 : 205)));
+    const H = Math.max(220, Math.min(720, window.innerHeight * 0.7, window.innerHeight - (n > 1 ? 285 : 205)));   // its column has the whole height: the head is beside it (D-138)
     let w = W, h = W / R; if (h > H) { h = H; w = H * R; }
     st.style.width = Math.round(w) + 'px'; st.style.height = Math.round(h) + 'px';
     placeBig();
@@ -3771,7 +3779,7 @@
     }
     const fixed = !st.dataset.live && p.w >= f.w - 1 && p.h >= f.h - 1;
     st.classList.toggle('fixed', fixed);
-    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : 'Arrastra la foto para reencuadrar';
+    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : '';   // the plain one says nothing new (D-133)
   }
   async function loadBig(fid) {
     try {
@@ -4432,7 +4440,7 @@
         }
         save(); renderFeed(); renderBar(); if (cur.slot) syncEstado(cur.slot);
       }
-      else if (e.target.matches('.pwhen input')) onWhen(e.target);
+      else if (e.target.matches('.pwhen .dtin, .pwhen .tmin')) onWhen(e.target);
       else if (e.target.matches('.trayhead .ttam input')) { if (!kbd) e.target.blur(); }   // let go with the mouse: the keys go back where they went
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
@@ -4450,7 +4458,7 @@
         setTimeout(() => { const a = document.activeElement; if (memoEdit === id && !(a && a.matches && a.matches('.pitin') && a.dataset.slot === id)) endMemoEdit(); }, 0);
         return;
       }
-      const el = e.target, s = el.matches && el.matches('.pwhen input') && slot(el.dataset.slot); if (!s) return;
+      const el = e.target, s = el.matches && el.matches('.pwhen .dtin, .pwhen .tmin') && slot(el.dataset.slot); if (!s) return;
       if (el.classList.contains('dtin') && /^\d{4}-\d{2}-\d{2}$/.test(el.value) && !inBoard(el.value)) outToast();
       resetWhen(el, s);
     });

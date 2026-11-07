@@ -1699,7 +1699,7 @@
     // la hora, sin perder el campo en uso
     const hora = q('.detail [data-hv-c="hora"]'); hora.focus(); fijarCampo('hora', '18:30');
     horaH(id, '18:30');
-    ok(q('.detail [data-hv-c="hora"]') === hora && D.activeElement === hora, 'cambiar la hora rehízo el campo en uso');
+    ok(q('.detail [data-hv-c="hora"]') === hora && (D.activeElement === hora || !!(M.controles && M.controles.gemelo(hora) && M.controles.gemelo(hora).contains(D.activeElement))), 'cambiar la hora rehízo el campo en uso');   // desde la 4.04 el foco está en el campo de la mesa que la dibuja (D-136)
     q('.detail [data-hv="cancelar"]').focus(); await espera(20);
     // Zernio: sin papelera; lo que cambió aquí se dice
     viva(id).zernio = { id: 'z', date: viva(id).date, file: fid }; M._in.changed();
@@ -6332,13 +6332,13 @@
     await tablero([pub(1, 'Reel')]);
     await hasta(() => M.libre, 4000, 'libre.js');
     M._in.openDetail('r1', 0); sinDisenar('reel sin foto');
-    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz button'), 'el reel sin foto tiene un botón de diseño');   // su fila puede llevar solo la ubicación (D-124)
+    ok(!q('.detail [data-act="editar"]') && !q('.detail .pdz button:not(.mx-sel)'), 'el reel sin foto tiene un botón de diseño');   // su fila puede llevar solo la ubicación (D-124), cuyo desplegable de la mesa es un botón (D-135)
     ok(textoVentana().includes('Sin foto todavía'), 'la ventana no dice cómo ponerle foto');
     tecla('e', { meta: true }); await espera(80);
     ok(!ed(), '⌘E abrió el editor de un reel sin foto');
     await poner('r1', [await foto('d2.jpg', 1080, 1920)]);
     M._in.openDetail('r1', 0); sinDisenar('reel con foto');
-    igual(qa('.detail .pdz button').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+    igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
     await pulsar('.detail [data-act="editar"]');
     await abierto(4000);
     ok(ed().reel && ed().slotId === 'r1', 'no abrió la portada del reel');
@@ -6536,7 +6536,7 @@
     await poner('r3', [await foto('d12d.jpg', 1080, 1920)]);
     for (const [id, et] of [['r1', 'Editar diapositivas'], ['r2', 'Editar foto'], ['r3', 'Editar portada']]) {
       M._in.openDetail(id, 0); sinDisenar(id);
-      igual(qa('.detail .pdz button').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
+      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
     }
   });
 
@@ -6559,7 +6559,7 @@
       igual(estadoDz('r1'), null, 'el reel sigue con estado de diseño');
       M._in.openDetail('r1', 0); sinDisenar('reel sin su diseño vacío');
       ok(!textoVentana().includes('cambios sin aplicar'), 'la ventana sigue diciendo «cambios sin aplicar»');
-      igual(qa('.detail .pdz button').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
       ok(slot('r2').design && slot('r2').design.slides[0].titulo === 'Con texto D13' && estadoDz('r2') === 'chg', 'el diseño con textos sin aplicar no se quedó');
       await M.flush();
       const g = await M._in.idbGet('boards', key);
@@ -8095,7 +8095,7 @@
   prueba('M52', 'Cada módulo dice que cargó entero (MESA_CARGA «ok»), y uno que lanza un error al ejecutarse queda en «fallo» y no en «Cargando…» (D-115)', async () => {
     await tablero([pub(1)]);
     const C = () => W.MESA_CARGA || {};
-    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
+    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar', 'controles'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
     // un módulo que llega pero falla al ejecutarse: el aviso de la mesa (index.html) lo marca «fallo»
     W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
     igual(C().revisar, 'ok', 'un error después de cargar marcó «fallo» a un módulo que ya estaba');
@@ -8803,7 +8803,7 @@
     }
     const sel = await ubVentana('r3');
     ok(!q('.detail [data-act="editar"]'), 'el reel sin portada tiene «Editar portada»');
-    ok(sel.parentElement.matches('.pdz') && sel.parentElement.children.length === 1, 'el reel sin portada no lo lleva solo en su fila');
+    ok(sel.parentElement.matches('.pdz') && [...sel.parentElement.children].filter(c => !(M.controles && c === M.controles.gemelo(sel))).length === 1, 'el reel sin portada no lo lleva solo en su fila');   // desde la 4.04 con su desplegable de la mesa al lado (D-135)
     M._in.closeDetail();
     await M._test.ubBorrar();
     const vacio = await ubVentana('r1');
@@ -9030,7 +9030,7 @@
     igual([perChips('etiquetas'), perChips('colaboradores')], [['@alfa_prueba', '@zeta.prueba'], ['@alfa_prueba']], 'los elegidos en la ventana');
     igual(perOps('etiquetas'), ['Etiquetar', '@beta.prueba'], '«Etiquetar» ofrece aún los elegidos');
     igual(perOps('colaboradores'), ['Colaboradores', '@beta.prueba'], '«Colaboradores» ofrece aún el elegido');
-    igual(D.activeElement, perSel('colaboradores'), 'el foco no vuelve a su desplegable');
+    ok(D.activeElement === perSel('colaboradores') || (M.controles && D.activeElement === M.controles.gemelo(perSel('colaboradores'))), 'el foco no vuelve a su desplegable');   // desde la 4.04, al de la mesa que lo dibuja (D-135)
     igual(perDe('r1'), { etiquetas: ['alfa_prueba', 'zeta.prueba'], colaboradores: ['alfa_prueba'] }, 'plan()');
     igual(M._in.estadoDe(slot('r1')), 'aprobado', 'elegirlos cambió el estado');
     M._test.undo();
@@ -9192,24 +9192,318 @@
     const fondo = () => W.getComputedStyle(raiz).backgroundColor;
     try {
       if (h.dataset.theme === 'dark') b.click();
-      igual([b.getAttribute('aria-pressed'), fondo()], ['false', 'rgb(244, 239, 232)'], 'no empieza en claro');
+      igual([b.getAttribute('aria-checked'), fondo()], ['false', 'rgb(244, 239, 232)'], 'no empieza en claro');   // interruptor desde la 4.04 (D-134): aria-checked y el título dice el modo en uso
       let datos0 = json(M.board());
       b.click();
       igual(json(M.board()), datos0, 'pasar a oscuro tocó el tablero');
-      igual([h.dataset.theme, b.getAttribute('aria-pressed'), b.title, fondo(), W.getComputedStyle(raiz).colorScheme], ['dark', 'true', 'Modo claro', 'rgb(21, 17, 14)', 'dark'], 'no pasa a oscuro');
+      igual([h.dataset.theme, b.getAttribute('aria-checked'), b.title, fondo(), W.getComputedStyle(raiz).colorScheme], ['dark', 'true', 'Modo oscuro', 'rgb(21, 17, 14)', 'dark'], 'no pasa a oscuro');
       igual(W.localStorage.getItem('mesa-tema'), 'oscuro', 'no se recuerda el oscuro');
       await M.open(M.board().key); await espera(200);
       const b2 = q('.appbar .ibtn.tema');
-      igual([h.dataset.theme, b2.getAttribute('aria-pressed')], ['dark', 'true'], 'se pierde al redibujar');
+      igual([h.dataset.theme, b2.getAttribute('aria-checked')], ['dark', 'true'], 'se pierde al redibujar');
       datos0 = json(M.board());
       b2.click();
       igual(json(M.board()), datos0, 'volver a claro tocó el tablero');
-      igual([h.dataset.theme || '', b2.getAttribute('aria-pressed'), b2.title, fondo()], ['', 'false', 'Modo oscuro', 'rgb(244, 239, 232)'], 'no vuelve a claro');
+      igual([h.dataset.theme || '', b2.getAttribute('aria-checked'), b2.title, fondo()], ['', 'false', 'Modo claro', 'rgb(244, 239, 232)'], 'no vuelve a claro');
       igual(W.localStorage.getItem('mesa-tema'), 'claro', 'no se recuerda el claro');
     } finally {
       if (h.dataset.theme === 'dark') q('.appbar .ibtn.tema').click();
       if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes);
     }
+  });
+
+  // ---------- cambios de interfaz (mesa 4.04, D-133 a D-138) ----------
+  prueba('I1', 'Sin el texto «Arrastra cada foto a su casilla…» bajo la bandeja del tablero (D-133)', async () => {
+    await tablero([pub(1)]);
+    await M.addFiles([await foto('i1.jpg')]);
+    await hasta(() => q('.side .tray .tgrid img'), 3000, 'la foto en la bandeja');
+    ok(!q('.side .tray .hint') && !/Arrastra cada foto/.test(q('.side .tray').textContent), 'sigue el texto de ayuda bajo la bandeja');
+  });
+
+  prueba('I2', 'Sin «Arrastra la foto para reencuadrar» bajo la foto ni la ayuda «· clic: a esta diapositiva…» en la bandeja del editor; se queda «Se ve entera: usa el zoom…» (D-133)', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel')]);
+    await poner('r1', [await foto('i2h.jpg', 1000, 2000)]);   // muy alta en 4:5: se reencuadra arrastrando, no hace falta decirlo
+    await poner('r2', [await foto('i2v.jpg')]);                // 4:5 en 4:5: se ve entera, el zoom es lo que reencuadra
+    M._in.openDetail('r1', 0);
+    let h = await hasta(() => q('.detail .phint'), 3000, 'la línea bajo la foto');
+    await espera(150);
+    igual([q('.detail .phint').textContent, W.getComputedStyle(q('.detail .phint')).display], ['', 'none'], 'la foto que se reencuadra arrastrando');
+    M._in.openDetail('r2', 0);
+    h = await hasta(() => q('.detail[data-slot="r2"] .phint'), 3000, 'la línea bajo la otra foto');
+    await hasta(() => /Se ve entera/.test(q('.detail .phint').textContent), 2000, '«Se ve entera…»');
+    ok(W.getComputedStyle(q('.detail .phint')).display !== 'none', '«Se ve entera…» no se ve');
+    M._in.closeDetail();
+    await poner('r3', [await foto('i2a.jpg'), await foto('i2b.jpg')]);
+    await M.addFiles([await foto('i2c.jpg')]);
+    await abrirEditor('r3', 0); if (!ed().trOpen) accion('bandeja');
+    const c = await hasta(() => q('.lb-trh') && q('.lb-tray img') && q('.lb-trh'), 4000, 'la cabecera de la bandeja del editor');
+    ok(!/clic: a esta diapositiva|arrástrala|suelta aquí fotos/.test(c.textContent), 'sigue la ayuda en la bandeja del editor: ' + c.textContent);
+    ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
+  });
+
+  prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna a la izquierda y estrellas en oscuro, movido con transform (D-134)', async () => {
+    const b = q('.appbar .ibtn.tema'), h = D.documentElement, antes = W.localStorage.getItem('mesa-tema');
+    ok(b && b.getAttribute('role') === 'switch' && b.getAttribute('aria-label') === 'Modo oscuro', 'no es un interruptor «Modo oscuro»');
+    const k = b.querySelector('.tg-k'), est = () => b.querySelector('.tg-s.s1');
+    ok(k && est(), 'faltan el sol / la luna o las estrellas');
+    const lado = () => { const r = b.getBoundingClientRect(), c = k.getBoundingClientRect(); return c.left + c.width / 2 > r.left + r.width / 2 ? 'derecha' : 'izquierda'; };
+    try {
+      if (h.dataset.theme === 'dark') { b.click(); await espera(500); }
+      igual([lado(), W.getComputedStyle(est()).opacity, b.title], ['derecha', '0', 'Modo claro'], 'en claro');
+      ok(/transform/.test(W.getComputedStyle(k).transitionProperty), 'el sol no se mueve con transform');
+      b.click(); await espera(600);
+      igual([lado(), W.getComputedStyle(est()).opacity, b.title, b.getAttribute('aria-checked')], ['izquierda', '1', 'Modo oscuro', 'true'], 'en oscuro');
+      ok(W.getComputedStyle(k).backgroundColor !== 'rgba(0, 0, 0, 0)', 'la luna no se ve');
+    } finally {
+      if (h.dataset.theme === 'dark') b.click();
+      if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes);
+    }
+  });
+
+  // los controles de la mesa (controles.js, D-135 y D-136): el nativo sigue en la página como fuente de verdad
+  const gem = n => (M.controles ? M.controles.gemelo(n) : null);
+  const capa = () => q('#mesa > .mx-pop.on');
+  const teclaEn = (el, key, o = {}) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key, shiftKey: !!o.shift, altKey: !!o.alt, bubbles: true, cancelable: true }));
+  // en la batería la página no tiene el foco del sistema: focus() y blur() por código no lanzan sus eventos; se lanzan aquí
+  const enfocar = el => { el.focus(); if (!D.hasFocus()) el.dispatchEvent(new W.FocusEvent('focus')); };
+  const desenfocar = el => { el.blur(); if (!D.hasFocus()) el.dispatchEvent(new W.FocusEvent('blur')); };
+  async function escribirEn(inp, txt) { enfocar(inp); inp.value = txt; inp.dispatchEvent(new W.Event('input', { bubbles: true })); teclaEn(inp, 'Enter'); await espera(60); }
+
+  prueba('I4', 'Los desplegables de la ventana de una publicación son de la mesa: el nativo sigue oculto con su valor y su «change»; la lista sale en su capa, fuera de la ventana; ratón, teclado, Esc, clic fuera y deslizar (D-135)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('i4.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    let nat = await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')) && q('.detail .tysel'), 3000, 'el tipo con su desplegable');
+    ok(qa('.detail select').every(s => gem(s)), 'un desplegable de la ventana sin el de la mesa');
+    let g = gem(nat);
+    ok(g === nat.nextElementSibling && g.matches('button.mx-sel[role="combobox"][aria-haspopup="listbox"]'), 'el de la mesa no va justo después del nativo');
+    igual([nat.getAttribute('aria-hidden'), nat.tabIndex, nat.getBoundingClientRect().width <= 1], ['true', -1, true], 'el nativo no está oculto');
+    igual([g.querySelector('.mx-t').textContent, g.getAttribute('aria-label'), g.getAttribute('aria-expanded')], ['Foto', 'Tipo de publicación', 'false'], 'lo que dice el desplegable');
+    // con el ratón: la lista, fuera de la ventana, con las opciones del nativo y la elegida marcada
+    g.click();
+    let pop = await hasta(() => capa(), 2000, 'la lista abierta');
+    igual([pop.getAttribute('role'), !!pop.closest('.card'), g.getAttribute('aria-expanded')], ['listbox', false, 'true'], 'la lista');
+    igual([...pop.querySelectorAll('[role="option"]')].map(o => o.textContent), [...nat.options].filter(o => !o.hidden).map(o => o.textContent), 'las opciones no son las del nativo');
+    igual(pop.querySelector('[aria-selected="true"]').textContent, 'Foto', 'la elegida');
+    const r = pop.getBoundingClientRect();
+    ok(r.left >= 0 && r.top >= 0 && r.right <= W.innerWidth && r.bottom <= W.innerHeight, 'la lista se sale de la página');
+    [...pop.querySelectorAll('[role="option"]')].find(o => o.textContent === 'Carrusel').click();
+    await hasta(() => slot('r1').type === 'Carrusel', 2000, 'el tipo cambiado con el ratón');
+    await hasta(() => !capa(), 1000, 'la lista cerrada tras elegir');
+    nat = await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')) && q('.detail .tysel'), 3000, 'la ventana redibujada');
+    g = gem(nat);
+    ok(D.activeElement === g, 'tras elegir, el foco no sigue en el desplegable');
+    // con el teclado: ↓ abre, ↓ baja, Enter elige
+    teclaEn(g, 'ArrowDown'); await hasta(() => capa(), 1000, 'abrir con ↓');
+    ok(g.getAttribute('aria-activedescendant') && q('#' + g.getAttribute('aria-activedescendant')).textContent === 'Carrusel', 'aria-activedescendant no va a la elegida');
+    teclaEn(g, 'ArrowUp'); teclaEn(g, 'Enter');
+    await hasta(() => slot('r1').type === 'Foto', 2000, 'el tipo cambiado con el teclado');
+    // Esc cierra la lista sin cambiar nada y sin cerrar la ventana
+    nat = await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')) && q('.detail .tysel'), 3000, 'la ventana redibujada');
+    g = gem(nat); g.focus();
+    teclaEn(g, 'ArrowDown'); await hasta(() => capa(), 1000, 'abrir');
+    teclaEn(g, 'ArrowDown'); teclaEn(g, 'Escape'); await espera(50);
+    igual([!!capa(), slot('r1').type, !!dialogo()], [false, 'Foto', true], 'Esc');
+    // un valor puesto por código se ve
+    nat.value = 'Carrusel'; igual(g.querySelector('.mx-t').textContent, 'Carrusel', 'no sigue al nativo'); nat.value = 'Foto';
+    // clic fuera y deslizar cierran
+    g.click(); await hasta(() => capa(), 1000, 'abrir');
+    D.body.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true })); await espera(30);
+    ok(!capa(), 'un clic fuera no la cierra');
+    g.click(); await hasta(() => capa(), 1000, 'abrir');
+    q('.detail .pright').dispatchEvent(new W.Event('scroll')); await espera(30);
+    ok(!capa(), 'deslizar no la cierra');
+    // el estado: sus opciones desactivadas no se eligen
+    const es = q('.detail .essel'), ge = gem(es);
+    ge.click(); pop = await hasta(() => capa(), 1000, 'la lista del estado');
+    const dis = [...es.options].filter(o => o.disabled && !o.hidden).map(o => o.textContent);
+    igual([...pop.querySelectorAll('[aria-disabled="true"]')].map(o => o.textContent), dis, 'las desactivadas');
+    if (dis.length) { const v0 = es.value; [...pop.querySelectorAll('[aria-disabled="true"]')][0].click(); await espera(30); igual(es.value, v0, 'se eligió una desactivada'); }
+    M.controles.cerrar(); M._in.closeDetail();
+  });
+
+  prueba('I5', 'El desplegable de la fuente del editor es de la mesa, con sus grupos; con él en foco las flechas no mueven el texto (D-135)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('i5a.jpg'), await foto('i5b.jpg')]);
+    await abrirEditor('r1', 0);
+    accion('add-txt'); await dibujado();
+    const t = compDe(0).els.find(e => e.t === 'texto'); ok(t && ed().sel === t.id, 'el texto nuevo no está elegido');
+    // el texto nuevo se está escribiendo: al dar el foco a otro sitio termina y el panel se redibuja (también antes, con el nativo)
+    enfocar(await hasta(() => gem(q('.lb-panel select[data-lb="font"]')), 3000, 'la fuente en el panel')); await espera(80);
+    const nat = q('.lb-panel select[data-lb="font"]'), g = gem(nat); enfocar(g);
+    g.click();
+    const pop = await hasta(() => capa(), 1000, 'la lista de fuentes');
+    igual([...pop.querySelectorAll('[role="group"]')].map(x => x.getAttribute('aria-label')), [...nat.querySelectorAll('optgroup')].map(x => x.label), 'los grupos');
+    M.controles.cerrar(); g.focus();
+    ok(g.isConnected, 'el panel se redibujó');
+    const x0 = t.x;
+    teclaEn(g, 'ArrowLeft'); teclaEn(g, 'ArrowRight'); teclaEn(g, 'Backspace');
+    await espera(50);
+    ok(compDe(0).els.some(e => e.id === t.id) && compDe(0).els.find(e => e.id === t.id).x === x0, 'una tecla con la fuente en foco movió o borró el texto');
+    const o2 = [...nat.options].find(o => !o.selected && !o.disabled && o.value !== '-1');
+    teclaEn(g, 'ArrowDown'); await hasta(() => capa(), 1000, 'abrir');
+    capa().querySelector(`[data-i="${o2.index}"]`).click();
+    await hasta(() => compDe(0).els.find(e => e.id === t.id).font && compDe(0).els.find(e => e.id === t.id).font.n === o2.textContent, 2000, 'la fuente elegida');
+  });
+
+  prueba('I6', 'La fecha de una publicación se escribe, se mueve con ↑ ↓ y se elige en un calendario de la mesa; fuera del tablero no cambia (D-136)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('i6.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    const nat = await hasta(() => q('.detail .dtin') && gem(q('.detail .dtin')) && q('.detail .dtin'), 3000, 'la fecha con su campo');
+    const g = gem(nat), inp = g.querySelector('input.mx-in'), dia = () => M._in.localDay(slot('r1').date);
+    ok(g.matches('.mx-f.mx-date') && inp.getAttribute('role') === 'combobox' && inp.getAttribute('aria-haspopup') === 'dialog', 'el campo de la fecha');
+    igual([inp.value, nat.getAttribute('aria-hidden')], ['03/11/2026', 'true'], 'lo que dice');
+    await escribirEn(inp, '5/11');
+    igual([dia(), inp.value, M._in.localTime(slot('r1').date)], ['2026-11-05', '05/11/2026', '12:00'], 'escrita «5/11»');
+    teclaEn(inp, 'ArrowUp'); igual(dia(), '2026-11-06', '↑'); teclaEn(inp, 'ArrowUp', { shift: true }); igual(dia(), '2026-11-13', '⇧↑');
+    teclaEn(inp, 'ArrowDown'); igual([dia(), inp.value], ['2026-11-12', '12/11/2026'], '↓');
+    await escribirEn(inp, '20 nov'); igual(dia(), '2026-11-20', 'escrita «20 nov»');
+    await escribirEn(inp, 'esto no'); igual([dia(), inp.value], ['2026-11-20', '20/11/2026'], 'algo que no es una fecha');
+    // el calendario: al pulsar el campo; los días fuera del tablero no se eligen
+    inp.click();
+    let pop = await hasta(() => capa(), 1000, 'el calendario');
+    igual([pop.getAttribute('role'), !!pop.closest('.card'), pop.querySelector('[aria-selected="true"]').dataset.v, inp.getAttribute('aria-expanded')], ['dialog', false, '2026-11-20', 'true'], 'el calendario abierto');
+    ok(nat.max && nat.min, 'la fecha de la publicación no lleva los días de su tablero');
+    const fuera = [...pop.querySelectorAll('.mx-d')].filter(b => b.dataset.v > nat.max || b.dataset.v < nat.min);
+    ok(fuera.length && fuera.every(b => b.disabled), 'un día fuera del tablero se puede elegir');
+    igual(pop.querySelectorAll('.mx-d').length, 42, 'el mes no va en 6 semanas');
+    pop.querySelector('.mx-d[data-v="2026-11-24"]').click();
+    await hasta(() => dia() === '2026-11-24', 1000, 'el día pulsado');
+    ok(!capa(), 'el calendario no se cierra tras elegir');
+    // con el teclado: ⌥↓ entra en el calendario, → un día, Enter elige, Esc vuelve al campo sin cerrar la ventana
+    inp.focus(); teclaEn(inp, 'ArrowDown', { alt: true });
+    pop = await hasta(() => capa(), 1000, 'el calendario con ⌥↓');
+    await hasta(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.v === '2026-11-24', 1000, 'el foco en el día');
+    teclaEn(D.activeElement, 'ArrowRight'); igual(D.activeElement.dataset.v, '2026-11-25', '→'); teclaEn(D.activeElement, 'Enter');
+    await hasta(() => dia() === '2026-11-25', 1000, 'Enter');
+    inp.click(); await hasta(() => capa(), 1000, 'abrir'); teclaEn(inp, 'ArrowDown', { alt: true }); await espera(30);
+    teclaEn(D.activeElement, 'Escape'); await espera(30);
+    igual([!!capa(), D.activeElement === inp, !!dialogo()], [false, true, true], 'Esc en el calendario');
+    // una fecha fuera del tablero: no cambia y el campo vuelve a la suya al salir
+    enfocar(inp); inp.value = '15/03/2027'; inp.dispatchEvent(new W.Event('input', { bubbles: true })); desenfocar(inp); await espera(80);
+    igual([dia(), inp.value], ['2026-11-25', '25/11/2026'], 'fuera del tablero');
+    // un paso desde fuera de sus días va al más cercano de ellos (revisión del lote 7)
+    nat.value = M.controles._leerFecha('1/10/2026'); igual(inp.value, '01/10/2026', 'el campo no sigue al nativo');
+    enfocar(inp); teclaEn(inp, 'ArrowUp'); igual(dia(), nat.min, '↑ desde antes del tablero no va a su primer día');
+    M._in.closeDetail();
+  });
+
+  prueba('I7', 'La hora de una publicación se escribe, se mueve con ↑ ↓ a la hora de antes o de después de la lista (cada 15 min, con la exacta en su sitio) y se elige en la lista de la mesa (D-136)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('i7.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    const nat = await hasta(() => q('.detail .tmin') && gem(q('.detail .tmin')) && q('.detail .tmin'), 3000, 'la hora con su campo');
+    const inp = gem(nat).querySelector('input.mx-in'), hora = () => M._in.localTime(slot('r1').date);
+    igual(inp.value, '12:00', 'lo que dice'); inp.focus();
+    teclaEn(inp, 'ArrowUp'); igual(hora(), '12:15', '↑'); teclaEn(inp, 'ArrowDown'); teclaEn(inp, 'ArrowDown'); igual(hora(), '11:45', '↓ ↓');
+    teclaEn(inp, 'ArrowUp', { shift: true }); igual(hora(), '12:45', '⇧↑');
+    await escribirEn(inp, '1937'); igual([hora(), inp.value], ['19:37', '19:37'], 'escrita «1937»');
+    inp.click();
+    const pop = await hasta(() => capa(), 1000, 'la lista de horas');
+    const L = [...pop.querySelectorAll('[role="option"]')].map(o => o.textContent);
+    igual([pop.getAttribute('role'), L.length, L.indexOf('19:37') === L.indexOf('19:30') + 1, L.indexOf('19:45') === L.indexOf('19:37') + 1, pop.querySelector('[aria-selected="true"]').textContent], ['listbox', 97, true, true, '19:37'], 'la lista conserva la hora exacta');
+    teclaEn(inp, 'ArrowUp'); igual(hora(), '19:45', '↑ desde la exacta'); teclaEn(inp, 'ArrowDown'); igual(hora(), '19:30', '↓');
+    [...capa().querySelectorAll('[role="option"]')].find(o => o.textContent === '09:00').click();
+    await hasta(() => hora() === '09:00', 1000, 'la pulsada en la lista');
+    ok(!capa(), 'la lista no se cierra tras elegir');
+    await escribirEn(inp, '930'); igual(hora(), '09:30', 'escrita «930»');
+    await escribirEn(inp, '25:00'); igual([hora(), inp.value], ['09:30', '09:30'], 'una hora que no existe');
+    igual(M._in.localDay(slot('r1').date), '2026-11-03', 'cambiar la hora movió el día');
+    M._in.closeDetail();
+  });
+
+  // ---------- secciones plegables del editor y del calendario (D-137) ----------
+  const altoDe = el => el.getBoundingClientRect().height;
+  async function muestras(fn, ms = 500) { const v = [], t0 = Date.now(); while (Date.now() - t0 < ms) { v.push(fn()); await espera(12); } v.push(fn()); return v; }
+  prueba('I8', 'El panel de una diapositiva va en secciones plegables, una abierta a la vez y la última recordada en este navegador; se mueven con la altura y un segundo clic a mitad vuelve desde donde está; las de un elemento se abren cada una a su aire (D-137)', async () => {
+    const LS = 'mesa-lb-seccion', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.removeItem(LS);
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('i8a.jpg'), await foto('i8b.jpg')]);
+      await abrirEditor('r1', 0); ed().sel = null; ed().mas = []; accion('sl', { i: 0 });
+      const secs = () => qa('.lb-panel > .lb-acc[data-acc]'), sec = k => q(`.lb-panel > .lb-acc[data-acc="${k}"]`), abiertas = () => secs().filter(s => s.classList.contains('on')).map(s => s.dataset.acc);
+      await hasta(() => secs().length, 2000, 'las secciones');
+      ok(['diapositiva', 'logos', 'fondo', 'velo', 'textura', 'rejilla', 'plantillas'].every(k => sec(k)), 'faltan secciones: ' + json(secs().map(s => s.dataset.acc)));
+      igual(abiertas(), ['diapositiva'], 'sin nada recordado no empieza abierta «Diapositiva»');
+      const h = k => sec(k).querySelector('.lb-acc-h'), cuerpo = k => sec(k).querySelector('.lb-acc-b');
+      igual([h('diapositiva').getAttribute('aria-expanded'), h('fondo').getAttribute('aria-expanded'), W.getComputedStyle(cuerpo('fondo')).visibility], ['true', 'false', 'hidden'], 'títulos y cuerpos');
+      ok(q('.lb-panel [data-lb="add-txt"]') && q('.lb-panel [data-lb="bg"]'), 'lo de una sección cerrada no está en la página');
+      ok(/grid-template-rows/.test(W.getComputedStyle(cuerpo('fondo')).transitionProperty), 'no se mueve con la altura');
+      await espera(200);                           // el editor redibuja su panel un momento después de cambiar de diapositiva
+      h('fondo').click();
+      igual(abiertas(), ['fondo'], 'abrir «Fondo» no cierra «Diapositiva»');
+      igual(W.localStorage.getItem(LS), 'fondo', 'no se recuerda');
+      const vf = await muestras(() => altoDe(cuerpo('fondo'))), lleno = vf[vf.length - 1];
+      ok(vf.some(v => v > 1 && v < lleno - 1) && altoDe(cuerpo('diapositiva')) < 1, `no se abre poco a poco: ${json(vf.map(Math.round))}`);
+      // a mitad, otro clic vuelve desde donde está, sin saltar
+      h('fondo').click(); await espera(60); const a1 = altoDe(cuerpo('fondo'));
+      h('fondo').click(); await espera(16); const a2 = altoDe(cuerpo('fondo'));
+      ok(a1 > 1 && a1 < lleno && a2 > 1 && a2 < lleno, `un segundo clic a mitad salta: ${a1} → ${a2} de ${lleno}`);
+      await espera(500); igual([abiertas(), W.localStorage.getItem(LS)], [['fondo'], 'fondo'], 'tras volver');
+      // se recuerda al redibujar y al volver a abrir el editor
+      accion('sl', { i: 1 }); await espera(30); igual(abiertas(), ['fondo'], 'otra diapositiva');
+      M.libre.cerrar(); await abrirEditor('r1', 0); ed().sel = null; accion('sl', { i: 0 });
+      await hasta(() => secs().length, 2000, 'las secciones de nuevo'); igual(abiertas(), ['fondo'], 'al volver a abrir el editor');
+      h('fondo').click(); igual([abiertas(), W.localStorage.getItem(LS)], [[], '-'], 'cerrarla');
+      // un elemento: su sección principal sigue abierta y sus plegables van cada uno a su aire
+      accion('add-txt'); await dibujado();
+      ok(q('.lb-panel > .lb-sec > h4') && !q('.lb-panel > .lb-sec[data-acc]'), 'el panel de un elemento se pliega como el de la diapositiva');
+      const pl = qa('.lb-panel > .lb-acc[data-pl]'); ok(pl.length >= 2, 'sin plegables en el elemento');
+      pl.forEach(x => { if (!x.classList.contains('on')) x.querySelector('.lb-acc-h').click(); });
+      ok(qa('.lb-panel > .lb-acc[data-pl]').every(x => x.classList.contains('on')), 'los plegables de un elemento no se abren a la vez');
+      qa('.lb-panel > .lb-acc[data-pl]').forEach(x => x.querySelector('.lb-acc-h').click());
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); W.localStorage.removeItem('mesa-lb-secciones'); }
+  });
+
+  prueba('I9', 'El calendario se pliega y se despliega con la altura, la misma curva que el editor; un segundo clic a mitad vuelve desde donde está (D-137)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    try {
+      await tablero([pub(1), pub(2)]);
+      const cal = await hasta(() => { const c = q('.side > .cal'); return c && !c.hidden && c.querySelector('.cfold') && c; }, 3000, 'el calendario');
+      if (cal.classList.contains('fold')) { cal.querySelector('.cfold').click(); await espera(700); }
+      const abierto = altoDe(cal);
+      cal.querySelector('.cfold').click();
+      ok(cal.classList.contains('fold') && cal.classList.contains('cal-anim'), 'no se pliega con movimiento');
+      await espera(120); const medio = altoDe(cal);
+      await espera(600); const plegado = altoDe(cal);
+      ok(!cal.classList.contains('cal-anim') && !cal.style.height, 'se queda a medias');
+      ok(plegado < abierto && medio < abierto - 1 && medio > plegado + 1, `no se pliega poco a poco: ${abierto} → ${medio} → ${plegado}`);
+      cal.querySelector('.cfold').click(); await espera(90); const b1 = altoDe(cal);
+      cal.querySelector('.cfold').click(); await espera(16); const b2 = altoDe(cal);
+      ok(b1 > plegado + 1 && Math.abs(b2 - b1) < (abierto - plegado) * 0.5, `un segundo clic a mitad salta: ${b1} → ${b2}`);
+      await espera(700); igual([cal.classList.contains('fold'), Math.round(altoDe(cal))], [true, Math.round(plegado)], 'tras volver');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
+  // ---------- la ventana de una publicación a dos columnas (D-138) ----------
+  prueba('I10', 'La ventana de una publicación va en dos columnas a toda altura: la foto arriba del todo de la suya; título, fecha, hora, tipo y estado arriba de la de los campos, junto a la ×; «Etiquetar» y «Colaboradores» uno al lado del otro (D-138)', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('i10a.jpg')]);
+    await poner('r2', [await foto('i10b.jpg'), await foto('i10c.jpg')]);
+    ok((await M.personas.cargar(CLIENTE, GEN)).ok, 'cargar las personas');
+    try {
+      for (const id of ['r1', 'r2']) {
+        const per = await perVentana(id);
+        const R = sel => q(sel).getBoundingClientRect(), card = R('.detail .card'), izq = R('.detail .pleft'), cab = R('.detail .phead'), col = R('.detail .pright'), x = R('.detail .card > .x');
+        ok(q('.detail .pbody > .phead'), `${id}: la cabecera no va en el cuerpo de la ventana`);
+        ok(R('.detail .stage').top - card.top < 40, `${id}: la foto no empieza arriba del todo (${Math.round(R('.detail .stage').top - card.top)} px)`);
+        ok(izq.top - card.top < 2 && card.bottom - izq.bottom < 2, `${id}: la columna de la foto no va a toda altura`);
+        ok(cab.left >= izq.right - 1 && cab.top - card.top < 2, `${id}: la cabecera no va arriba de la columna de los campos`);
+        ok(x.top >= cab.top && x.bottom <= cab.bottom && x.left > R('.detail .phead h3').left, `${id}: la × no va junto a la cabecera`);
+        ok(col.top >= cab.bottom - 1 && col.left >= izq.right - 1, `${id}: los campos no van debajo de la cabecera`);
+        ['.dtin', '.tmin', '.tysel', '.essel'].forEach(s => { const e = q('.detail .phead ' + s); ok(e, `${id}: ${s} no está en la cabecera`); });
+        igual(W.getComputedStyle(q('.detail .pright')).overflowY, 'auto', `${id}: la columna de los campos ya no se desliza entera (D-068)`);
+        const [a, b] = qa('.detail .pper > .perrow').map(r => r.getBoundingClientRect());
+        ok(a && b && Math.abs(a.top - b.top) < 2 && b.left >= a.right, `${id}: «Etiquetar» y «Colaboradores» no van uno al lado del otro`);
+        ok(per.getBoundingClientRect().right <= col.right + 1, `${id}: los dos campos se salen de la columna`);
+        M._in.closeDetail();
+      }
+    } finally { await M._test.perBorrar(); }
   });
 
   // =====================================================================================================

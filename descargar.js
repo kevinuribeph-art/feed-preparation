@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -242,17 +242,18 @@
 
   // ---------- styles (inside #mesa, with its fonts, radii and greys) ----------
   const CSS = `
-#mesa .cell.dlsel::before{content:'';position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 0 3px var(--acc),inset 0 0 0 4px #fff}
-#mesa .mchip.dlbtn{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+#mesa .cell.dlsel::before{content:'';position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 0 3px var(--acc),inset 0 0 0 5px var(--on-photo)}
+#mesa .mchip.dlbtn{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}#mesa .mchip.dlbtn:hover{background:var(--acc-hover);border-color:var(--acc-hover)}
 #mesa .detail[data-dlg="descargar"] .card.dlg{max-width:min(94vw,760px);width:min(94vw,760px)}
 #mesa .dl-ops{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:10px 0 12px}
 #mesa .dl-op{display:inline-flex;align-items:center;gap:0;flex-wrap:wrap}
 #mesa .dl-ch{position:relative;display:inline-flex}
 #mesa .dl-ch input{position:absolute;opacity:0;pointer-events:none}
-#mesa .dl-ch span{display:inline-flex;align-items:center;min-height:30px;padding:0 12px;border:1px solid var(--line);margin-left:-1px;background:var(--panel);font-size:12.5px;cursor:pointer;user-select:none}
-#mesa .dl-ch:first-of-type span{border-radius:8px 0 0 8px;margin-left:0}#mesa .dl-ch:last-of-type span{border-radius:0 8px 8px 0}
-#mesa .dl-ch input:checked+span{background:var(--ink);border-color:var(--ink);color:#fff;position:relative;z-index:1}
-#mesa .dl-ch input:focus-visible+span{outline:2px solid var(--acc);outline-offset:2px}
+#mesa .dl-ch span{display:inline-flex;align-items:center;min-height:30px;padding:0 13px;border:1px solid var(--line);margin-left:-1px;background:var(--panel-2);color:var(--ink);font-size:12.5px;font-weight:500;cursor:pointer;user-select:none;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .dl-ch span:hover{background:var(--bg)}
+#mesa .dl-ch:first-of-type span{border-radius:var(--r-pill) 0 0 var(--r-pill);margin-left:0;padding-left:15px}#mesa .dl-ch:last-of-type span{border-radius:0 var(--r-pill) var(--r-pill) 0;padding-right:15px}
+#mesa .dl-ch input:checked+span{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600;position:relative;z-index:1}
+#mesa .dl-ch input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .dl-u{margin-left:8px;font-size:12px;color:var(--mute)}
 #mesa .dl-list{max-height:min(52vh,460px);overflow:auto;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2)}
 #mesa .dl-post{padding:10px 0;border-top:1px solid var(--line2)}#mesa .dl-post:first-child{border-top:0}
@@ -261,12 +262,12 @@
 #mesa .dl-pzs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px}
 #mesa .dl-pz{position:relative;flex:none;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
 #mesa .dl-pz input{position:absolute;top:5px;left:5px;z-index:2;width:16px;height:16px;margin:0;accent-color:var(--acc)}
-#mesa .dl-im{position:relative;display:block;height:92px;overflow:hidden;border-radius:4px;background:var(--line2)}
+#mesa .dl-im{position:relative;display:block;height:92px;overflow:hidden;border-radius:var(--r-xs);background:var(--cell-ph);transition:opacity var(--d1) ease-out}
 #mesa .dl-im img{position:absolute;max-width:none}
 #mesa .dl-pz input:not(:checked)~.dl-im{opacity:.35}
 #mesa .dl-n{font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums}
 #mesa .dl-prog{margin:12px 0 0;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--mute)}
-#mesa .dl-barra{height:6px;border-radius:999px;background:var(--line2);overflow:hidden}#mesa .dl-barra i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s ease}
+#mesa .dl-barra{height:6px;border-radius:var(--r-pill);background:var(--bg-2);overflow:hidden}#mesa .dl-barra i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s ease}
 #mesa .dl-prog[hidden]{display:none}
 #mesa .card.dl-run .dl-ch span,#mesa .card.dl-run .dl-pz{cursor:default}#mesa .card.dl-run [data-dl]{opacity:.45}
 @media (max-width:560px){#mesa .dl-im{height:72px}#mesa .dl-ops{gap:8px}}`;

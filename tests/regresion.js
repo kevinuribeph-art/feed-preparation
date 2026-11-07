@@ -361,7 +361,7 @@
     igual(W.getComputedStyle(mk()).pointerEvents, 'auto', 'el marcador no recibe el puntero');
     igual(W.getComputedStyle(mk(), '::after').content, '"Cambió: caption, foto o encuadre, fecha u hora, contexto y nombre o tipo"', 'el texto al pasar el ratón');
     ok(+W.getComputedStyle(mk(), '::after').zIndex < +W.getComputedStyle(q('.detail')).zIndex, 'el texto del marcador queda por encima de las ventanas');
-    igual([...mk().querySelectorAll('circle')].map(c => c.getAttribute('fill')), ['#ffcf1f', '#1f5fd6', '#e3262b'], 'los tres colores: aro amarillo, disco azul, punto rojo');
+    igual([...mk().querySelectorAll('circle')].map(c => W.getComputedStyle(c).fill), ['rgb(255, 207, 31)', 'rgb(31, 95, 214)', 'rgb(227, 38, 43)'], 'los tres colores: aro amarillo, disco azul, punto rojo');   // desde el rediseño (D-131) salen del bloque de tokens, no del atributo fill: se mira el color pintado
     // el calendario lleva el mismo marcador, con lo que cambió
     const cm = await hasta(() => q('.side > .cal .chip[data-slot="r1"] .mk-cambios'), 3000, 'el marcador en el calendario');
     ok(/contexto/.test(cm.title), 'el calendario no dice qué cambió: ' + cm.title);
@@ -449,7 +449,7 @@
     const ico = id => q(`.side > .cal .chip[data-slot="${id}"] .cl > i:first-child`);
     igual(['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'].map(id => ico(id) && ico(id).className), ['edot e-aprobado', 'edot e-noaprobado', 'eico e-programado', 'eico e-publicado', 'eico e-cancelado', 'edot e-empezar', 'edot e-aprobar'], 'la marca de cada estado');
     const cs = id => W.getComputedStyle(ico(id));
-    igual([cs('r1').backgroundColor, cs('r2').backgroundColor, cs('r3').color, cs('r4').color, cs('r5').color], ['rgb(26, 127, 55)', 'rgb(192, 57, 43)', 'rgb(26, 127, 55)', 'rgb(26, 127, 55)', 'rgb(192, 57, 43)'], 'los colores');
+    igual([cs('r1').backgroundColor, cs('r2').backgroundColor, cs('r3').color, cs('r4').color, cs('r5').color], ['rgb(47, 116, 64)', 'rgb(196, 43, 58)', 'rgb(47, 116, 64)', 'rgb(47, 116, 64)', 'rgb(196, 43, 58)'], 'los colores');   // verde #2F7440 y rojo #C42B3A del rediseño (D-131): mismos significados, otro tono
     igual(ico('r4').querySelectorAll('path:not(.h)').length, 2, 'Publicado no lleva dos ✓');
     // desde la 3.68 la leyenda es la barra de pasos, con No aprobado y Cancelado aparte (D-084; P1)
     igual(qa('.side > .cal .cleg .cpaso, .side > .cal .cleg .cextra > span').map(x => x.textContent), ['Por empezar', 'Captions', 'Por aprobar', 'Aprobado', 'Programado', 'Publicado', 'No aprobado', 'Cancelado'], 'la leyenda');
@@ -5508,7 +5508,7 @@
     igual(qa('.side > .cal .cleg .cextra > span').map(e => e.textContent), ['No aprobado', 'Cancelado'], 'No aprobado y Cancelado aparte');
     ok(!q('.side > .cal .cleg .cextra button'), 'No aprobado o Cancelado se pulsan');
     igual(qa('.side > .cal .cleg button.cpaso').map(e => e.dataset.paso), ['captions'], 'solo se pulsa el siguiente');
-    igual(W.getComputedStyle(q('.side > .cal .cpaso.act')).backgroundColor, 'rgb(38, 38, 38)', 'el actual no va en una pastilla negra');
+    igual(W.getComputedStyle(q('.side > .cal .cpaso.act')).backgroundColor, 'rgb(22, 17, 14)', 'el actual no va en una pastilla negra');   // el negro de la marca, Ink #16110E (D-131; antes #262626)
     ponerPaso('aprobado');
     await hasta(() => pasoAct() === 'Aprobado', 3000, 'Aprobado como paso actual');
     igual(qa('.side > .cal .cleg button.cpaso').map(e => [e.dataset.paso, e.classList.contains('sig') ? 'siguiente' : 'hecho']), [['empezar', 'hecho'], ['captions', 'hecho'], ['aprobar', 'hecho'], ['programado', 'siguiente']], 'los hechos y el siguiente');
@@ -8363,7 +8363,7 @@
     igual(uClase(uTileMesa('u2-ambas.jpg')), 'p0', 'portada y relleno: una sola marca, azul');
     const col = ['u2-c-nov.jpg', 'u2-c-oct.jpg', 'u2-c-sep.jpg', 'u2-r-nov.jpg'].map(n => uFondo(uTileMesa(n)));
     igual(new Set(col).size, 4, 'las cuatro marcas no tienen cuatro colores: ' + json(col));
-    igual(col[3], 'rgb(178, 80, 58)', 'el naranja no es el terracota #B2503A');
+    igual(col[3], 'rgb(184, 129, 63)', 'el relleno no es el brass #B8813F');   // desde el rediseño (D-131) el relleno va en brass y el terracota queda solo para el acento
     ok(['u2-r-oct.jpg', 'u2-r-sep.jpg'].every(n => uFondo(uTileMesa(n)) === col[3]), 'el naranja cambia con el mes');
     ok(/rgb\(255, 255, 255\)/.test(W.getComputedStyle(uTileMesa('u2-c-nov.jpg'), '::after').boxShadow), 'la marca no lleva borde blanco');
     await filtro('sin');
@@ -8409,7 +8409,7 @@
     const enEd = () => ['u4-a.jpg', 'u4-b.jpg', 'u4-c.jpg'].map(n => uClase(uTileEd(n)));
     igual(enEd(), ['p0', 'r', 'r'], 'al abrir');
     ok(/^u4-b\.jpg · relleno · Carrusel 1\.1 · diapositiva 2 · 3 nov · ya está en una diapositiva$/.test(uTileEd('u4-b.jpg').title), 'el título en el editor: ' + uTileEd('u4-b.jpg').title);
-    igual(uFondo(uTileEd('u4-c.jpg')), 'rgb(178, 80, 58)', 'el naranja del editor');
+    igual(uFondo(uTileEd('u4-c.jpg')), 'rgb(184, 129, 63)', 'el relleno del editor (brass, D-131)');
     accion('sl-up', { i: 1 });                     // la b pasa a ser la portada
     igual(enEd(), ['r', 'p0', 'r'], 'tras mover la diapositiva 2 delante');
     accion('undo');
@@ -9182,6 +9182,34 @@
     await perQuitar('colaboradores', 'beta.prueba');
     igual(perOps('colaboradores'), ['Colaboradores'], 'se ofrece de nuevo quien ya no puede ser colaborador');
     ok(!('colaboradoresNoValidos' in M.plan().find(x => x.slotId === 'r1')), 'plan() sigue apartándolo');
+  });
+
+  // ---------- modo oscuro (mesa 4.03, D-132) ----------
+  prueba('O1', 'El botón de la cabecera cambia entre claro y oscuro, se recuerda en este navegador, sigue tras redibujar y no toca los datos (D-132)', async () => {
+    const b = q('.appbar .ibtn.tema'), h = D.documentElement, raiz = q('#mesa');
+    ok(b, 'falta el botón del modo oscuro en la cabecera');
+    const antes = W.localStorage.getItem('mesa-tema');
+    const fondo = () => W.getComputedStyle(raiz).backgroundColor;
+    try {
+      if (h.dataset.theme === 'dark') b.click();
+      igual([b.getAttribute('aria-pressed'), fondo()], ['false', 'rgb(244, 239, 232)'], 'no empieza en claro');
+      let datos0 = json(M.board());
+      b.click();
+      igual(json(M.board()), datos0, 'pasar a oscuro tocó el tablero');
+      igual([h.dataset.theme, b.getAttribute('aria-pressed'), b.title, fondo(), W.getComputedStyle(raiz).colorScheme], ['dark', 'true', 'Modo claro', 'rgb(21, 17, 14)', 'dark'], 'no pasa a oscuro');
+      igual(W.localStorage.getItem('mesa-tema'), 'oscuro', 'no se recuerda el oscuro');
+      await M.open(M.board().key); await espera(200);
+      const b2 = q('.appbar .ibtn.tema');
+      igual([h.dataset.theme, b2.getAttribute('aria-pressed')], ['dark', 'true'], 'se pierde al redibujar');
+      datos0 = json(M.board());
+      b2.click();
+      igual(json(M.board()), datos0, 'volver a claro tocó el tablero');
+      igual([h.dataset.theme || '', b2.getAttribute('aria-pressed'), b2.title, fondo()], ['', 'false', 'Modo oscuro', 'rgb(244, 239, 232)'], 'no vuelve a claro');
+      igual(W.localStorage.getItem('mesa-tema'), 'claro', 'no se recuerda el claro');
+    } finally {
+      if (h.dataset.theme === 'dark') q('.appbar .ibtn.tema').click();
+      if (antes == null) W.localStorage.removeItem('mesa-tema'); else W.localStorage.setItem('mesa-tema', antes);
+    }
   });
 
   // =====================================================================================================

@@ -45,7 +45,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.12';
+  const VERSION = '1.13';
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -477,34 +477,34 @@
 #mesa .side>.cal.fold .cleg,#mesa .side>.cal.fold .calbody,#mesa .side>.cal.fold .cnav{display:none}
 #mesa .calhead{flex:none;display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:6px 10px 4px 6px;font-size:12px;color:var(--mute)}
 #mesa .side>.cal.fold .calhead{padding:4px 10px 4px 6px}
-#mesa .cfold{display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:2px 4px;border-radius:6px;color:var(--ink);font:inherit}
-#mesa .cfold:hover{background:var(--line2)}#mesa .cfold b{font-size:13px;font-weight:600}
+#mesa .cfold{display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:3px 8px 3px 6px;border-radius:var(--r-pill);color:var(--ink);font:inherit;transition:background var(--d1) ease-out}
+#mesa .cfold:hover{background:var(--bg-2)}#mesa .cfold b{font-size:14px;font-weight:800;letter-spacing:-.015em}
 #mesa .cfold svg{width:14px;height:14px;transition:transform .15s}#mesa .cal.fold .cfold svg{transform:rotate(-90deg)}
 #mesa .csync,#mesa .cnat{white-space:nowrap}#mesa .csync.c{color:var(--chg)}#mesa .cnat{font-size:11px;color:var(--faint)}
 #mesa .side>.cal.fold .cnat{display:none}
 #mesa .cnav{margin-left:auto;display:inline-flex;align-items:center;gap:2px;color:var(--ink)}
-#mesa .cnav button{border:0;background:none;width:24px;height:24px;border-radius:6px;font-size:17px;line-height:1;color:var(--ink)}
-#mesa .cnav button:hover:not(:disabled){background:var(--line2)}#mesa .cnav button:disabled{color:var(--line);cursor:default}
-#mesa .cmes{min-width:104px;text-align:center;font-weight:600;font-size:12.5px}
+#mesa .cnav button{border:0;background:none;width:26px;height:26px;border-radius:50%;font-size:17px;line-height:1;color:var(--ink);transition:background var(--d1) ease-out}
+#mesa .cnav button:hover:not(:disabled){background:var(--bg-2)}#mesa .cnav button:disabled{color:var(--line-strong);cursor:default}
+#mesa .cmes{min-width:112px;text-align:center;font-weight:600;font-size:13px}
 #mesa .cleg{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:3px 2px;padding:0 10px 6px;font-size:10.5px;color:var(--mute)}
 #mesa .cleg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 #mesa .cpaso{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid transparent;border-radius:999px;padding:1px 7px;background:none;font:inherit;font-size:10.5px;line-height:15px;color:var(--ink)}
-#mesa button.cpaso{cursor:pointer}#mesa button.cpaso:hover{background:var(--line2)}
-#mesa button.cpaso:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-#mesa .cpaso.act{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
-#mesa .cpaso.act .e-programado,#mesa .cpaso.act .e-publicado{color:#7bd88f}
+#mesa button.cpaso{cursor:pointer;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}#mesa button.cpaso:hover{background:var(--bg-2)}
+#mesa button.cpaso:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#mesa .cpaso.act{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600}
+#mesa .cpaso.act .e-programado,#mesa .cpaso.act .e-publicado{color:var(--ok-on-ink)}
 #mesa .cpaso.sig{border-color:var(--faint)}#mesa .cpaso.sig:hover{border-color:var(--ink)}
 #mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
 #mesa .cpaso.ro{color:var(--mute)}
-#mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:#e0362b;cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
-#mesa .chip.venc{box-shadow:inset 0 0 0 1.5px #e0362b}#mesa .chip.venc .ct{color:#e0362b;font-weight:700}
+#mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
+#mesa .chip.venc{box-shadow:inset 0 0 0 1.5px var(--red)}#mesa .chip.venc .ct{color:var(--red);font-weight:700}
 #mesa .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}
-#mesa .vlist li{padding:8px 0;border-top:1px solid var(--line)}
+#mesa .vlist li{padding:10px 0;border-top:1px solid var(--line2)}
 #mesa .vlist .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .vlist .vnom:hover b{text-decoration:underline}
 #mesa .vlist .vque{font-size:12px;color:var(--mute)}#mesa .vlist .votro{color:var(--ink)}
-#mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}#mesa .vacc button,#mesa .vform button{font-size:12px;padding:3px 10px}
+#mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}#mesa .vacc button,#mesa .vform button{font-size:12px;min-height:28px;padding:0 12px}
 #mesa .vacc button[disabled]{opacity:.45;cursor:default}
-#mesa .vform input{font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}#mesa .vform input[type=text]{flex:1;min-width:160px}
+#mesa .vform input{font:inherit;font-size:12px;min-height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}#mesa .vform input[type=text]{flex:1;min-width:160px}
 #mesa .cleg .csep{color:var(--faint);font-size:11px}
 #mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--faint)}
 #mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}
@@ -516,36 +516,36 @@
 #mesa .cal.nocnt .cgrid{grid-template-columns:repeat(7,minmax(0,1fr)) 16px}
 #mesa .cdow{padding:3px 6px;font-size:10.5px;color:var(--mute);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);background:var(--bg)}
 #mesa button.cdow.ccnt{border:0;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:3px 0;font:inherit;font-size:10.5px;color:var(--mute);text-align:center}
-#mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--line2)}
+#mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--bg-2)}
 #mesa .cday{min-width:0;display:flex;flex-direction:column;gap:2px;padding:2px 3px 4px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2)}
 #mesa .cday.out .dn{color:var(--faint)}
-#mesa .cday.off,#mesa .cday.prevc{background:#f6f6f6}
+#mesa .cday.off,#mesa .cday.prevc{background:var(--cal-off)}
 #mesa .dh{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:18px;padding:0 1px}
 #mesa .dn{font-size:11px;color:var(--mute);line-height:18px;padding:0 4px;border-radius:999px;white-space:nowrap}
-#mesa .cday.today .dn{background:var(--ink);color:#fff;font-weight:600}
-#mesa .dmany{font-size:10px;line-height:15px;padding:0 5px;border-radius:999px;background:#fdf0e3;color:#9a5a1f}
-#mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:4px;padding:2px 5px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;color:#32302c;background:#eeeeec}
+#mesa .cday.today .dn{background:var(--ink);color:var(--on-ink);font-weight:600}
+#mesa .dmany{font-size:10px;line-height:15px;padding:0 6px;border-radius:var(--r-pill);background:var(--chg-soft);color:var(--chg)}
+#mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:var(--r-xs);padding:2px 6px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;color:var(--ty-trial-ink);background:var(--ty-trial);transition:filter var(--d1) ease-out}
 #mesa .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}
 #mesa .chip .cn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
-#mesa .chip .ct{flex:none;font-size:10px;opacity:.7;font-variant-numeric:tabular-nums}
-#mesa .chip.ty-reel{background:#dbeddb;color:#1c3829}
-#mesa .chip.ty-collab{background:#b3d9bb;color:#11301b}
-#mesa .chip.ty-foto{background:#ffe2dd;color:#5d1715}
-#mesa .chip.ty-carr{background:#e8deee;color:#412454}
-#mesa .chip.ty-trial{background:#e3e2e0;color:#32302c}
-#mesa .chip.past{background:#f1f1ef;color:var(--faint);cursor:pointer}
-#mesa .chip.cx{background:#f4f4f3;color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}
+#mesa .chip .ct{flex:none;font-size:10px;opacity:.75}
+#mesa .chip.ty-reel{background:var(--ty-reel);color:var(--ty-reel-ink)}
+#mesa .chip.ty-collab{background:var(--ty-collab);color:var(--ty-collab-ink)}
+#mesa .chip.ty-foto{background:var(--ty-foto);color:var(--ty-foto-ink)}
+#mesa .chip.ty-carr{background:var(--ty-carr);color:var(--ty-carr-ink)}
+#mesa .chip.ty-trial{background:var(--ty-trial);color:var(--ty-trial-ink)}
+#mesa .chip.past{background:var(--ty-past);color:var(--faint);cursor:pointer}
+#mesa .chip.cx{background:var(--ty-past);color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}
 #mesa .chip:hover{filter:brightness(.97)}
 #mesa .chip .dchg{flex:none;margin:0 0 0 1px}
 #mesa .chip .cmk{display:inline-flex;flex:none;width:9px;height:9px;margin:0 0 0 1px}#mesa .chip .cmk svg{width:100%;height:100%}
 #mesa .side>.cal{user-select:none;-webkit-user-select:none}
 #mesa .chip.cmoving{opacity:.35}
-#mesa .cghost{position:fixed;left:0;top:0;z-index:30;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.18);opacity:.95}
+#mesa .cghost{position:fixed;left:0;top:0;z-index:30;pointer-events:none;box-shadow:var(--shadow-drag);opacity:.95}
 #mesa.calmv,#mesa.calmv *{cursor:grabbing !important}
-#mesa .cday.cover{background:#e8f3fe;box-shadow:inset 0 0 0 2px var(--acc)}
-#mesa .cday.cno{background:#fbeeee}#mesa.calmv .cday.cno,#mesa.calmv .cday.cno *{cursor:not-allowed !important}
+#mesa .cday.cover{background:var(--acc-soft);box-shadow:inset 0 0 0 2px var(--acc)}
+#mesa .cday.cno{background:var(--red-soft)}#mesa.calmv .cday.cno,#mesa.calmv .cday.cno *{cursor:not-allowed !important}
 #mesa .chip.calhi{box-shadow:0 0 0 2px var(--ink)}
-#mesa .cell.calhi::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;box-shadow:inset 0 0 0 2px #fff,inset 0 0 0 4px var(--ink)}
+#mesa .cell.calhi::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;box-shadow:inset 0 0 0 2px var(--on-photo),inset 0 0 0 4px var(--ink)}
 #mesa .cgrid>.ccnt:not(button){display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--ink);background:var(--bg);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums}
 #mesa .cgrid>.ccnt.z{color:var(--faint);font-weight:400}
 #mesa .ctot{grid-column:1/8;padding:4px 8px;text-align:right;font-size:11px;color:var(--mute);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2)}

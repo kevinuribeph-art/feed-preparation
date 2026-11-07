@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.17';
+  const VERSION = '1.18';
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -685,69 +685,75 @@
   // ---------- editor ----------
   const CSS = `
 #mesa .dz{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;background:var(--bg);outline:0}
-#mesa .dz-head{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+#mesa .dz-head{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line2)}
 #mesa .dz-ttl{flex:1 1 170px;min-width:0}
-#mesa .dz-ttl h3{margin:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .dz-ttl h3{margin:0;font-size:18px;font-weight:800;letter-spacing:-.025em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .dz-ttl p{margin:2px 0 0;color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .dz-serie{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mute);white-space:nowrap}
-#mesa .dz-in{display:block;width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-height:32px;font-family:inherit;font-size:13px;line-height:1.4;color:var(--ink);background:var(--panel)}
+#mesa .dz-in{display:block;width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 10px;min-height:34px;font-family:inherit;font-size:13px;line-height:1.4;color:var(--ink);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
+#mesa .dz-in:hover{border-color:var(--line-strong)}
 #mesa .dz-serie .dz-in{width:190px}
-#mesa .dz-in:focus{outline:2px solid var(--acc);outline-offset:-1px;border-color:transparent}
+#mesa .dz-in:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa textarea.dz-in{resize:vertical;min-height:60px}
-#mesa .dz-state{font-size:11.5px;font-weight:600;border-radius:999px;padding:3px 10px;background:var(--line2);color:var(--mute);white-space:nowrap}
-#mesa .dz-state.chg{background:#fdeee6;color:var(--chg)}#mesa .dz-state.ok{background:#e7f4ea;color:var(--ok)}
+#mesa .dz-state{font-size:11.5px;font-weight:600;border-radius:var(--r-pill);padding:3px 10px;background:var(--bg-2);color:var(--mute);white-space:nowrap}
+#mesa .dz-state.chg{background:var(--chg-soft);color:var(--chg)}#mesa .dz-state.ok{background:var(--ok-soft);color:var(--ok)}
 #mesa .dz-head .btn:disabled{opacity:.6;cursor:default}
-#mesa .dz .seg button{padding:5px 9px}
+#mesa .dz .seg button{padding:0 10px}
 #mesa .dz-body{flex:1;min-height:0;display:grid;grid-template-columns:136px minmax(0,1fr) 316px}
-#mesa .dz-list{overflow-y:auto;padding:12px 10px 16px;background:var(--panel);border-right:1px solid var(--line2)}
+#mesa .dz-list{overflow-y:auto;padding:14px 12px 16px;background:var(--panel);border-right:1px solid var(--line2)}
 #mesa .dz-it{margin:0 0 12px;cursor:pointer;user-select:none}
-#mesa .dz-it canvas{display:block;width:100%;height:auto;border-radius:3px;background:#e6e6e6;outline:2px solid transparent;outline-offset:2px}
+#mesa .dz-it canvas{display:block;width:100%;height:auto;border-radius:var(--r-xs);background:var(--cell-ph);box-shadow:0 0 0 1px var(--line2);outline:2px solid transparent;outline-offset:3px;transition:outline-color var(--d1) ease-out}
 #mesa .dz-it.on canvas{outline-color:var(--acc)}
-#mesa .dz-it:hover:not(.on) canvas{outline-color:var(--line)}
+#mesa .dz-it:hover:not(.on) canvas{outline-color:var(--line-strong)}
 #mesa .dz-n{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11.5px;color:var(--mute);white-space:nowrap}
 #mesa .dz-n b{color:var(--ink);font-weight:600}
 #mesa .dz-mv{margin-left:auto;display:flex}
-#mesa .dz-mv button{border:0;background:none;width:20px;height:22px;border-radius:5px;font-size:10.5px;line-height:22px;padding:0;color:var(--mute)}
-#mesa .dz-mv button:hover:not(:disabled){background:var(--line2);color:var(--ink)}
+#mesa .dz-mv button{border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:10.5px;line-height:22px;padding:0;color:var(--mute)}
+#mesa .dz-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}
 #mesa .dz-mv button:disabled{opacity:.25;cursor:default}
 #mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px}
-#mesa .dz-mid{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;overflow:hidden}
-#mesa .dz-cv{display:block;flex:none;background:#e6e6e6;box-shadow:0 4px 22px rgba(0,0,0,.16);touch-action:none}
+#mesa .dz-mid{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;overflow:hidden}
+#mesa .dz-cv{display:block;flex:none;background:var(--cell-ph);box-shadow:var(--shadow-stage);touch-action:none}
 #mesa .dz-cvw{position:relative;flex:none;line-height:0}#mesa .dz-cvw.reframe .thirds{opacity:1}
 #mesa .dz-foot{flex:none;max-width:100%;text-align:center}
 #mesa .dz-av{list-style:none;margin:0 0 4px;padding:0;font-size:12.5px;color:var(--chg)}
 #mesa .dz-av li{margin:2px 0}
 #mesa .dz-hint{margin:0;color:var(--mute);font-size:12px}
-#mesa .dz-panel{overflow-y:auto;padding:0 16px 24px;background:var(--panel);border-left:1px solid var(--line2)}
-#mesa .dz-sec{padding:12px 0 14px;border-bottom:1px solid var(--line2)}#mesa .dz-sec:last-child{border-bottom:0}
-#mesa .dz-sec h4{margin:0 0 8px;font-size:13px;font-weight:600}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
+#mesa .dz-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
+#mesa .dz-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .dz-sec:last-child{border-bottom:0}
+#mesa .dz-sec h4{margin:0 0 10px;font-size:13.5px;font-weight:700;letter-spacing:-.005em}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
 #mesa .dz-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .dz-sec h4+.dz-l{margin-top:0}
 #mesa .dz-p{margin:0;font-size:13px}
 #mesa .dz-row{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-top:8px}
 #mesa .dz-photos{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-#mesa .dz-ph{position:relative;aspect-ratio:3/4;border:0;padding:0;border-radius:5px;overflow:hidden;background:#efefef}
-#mesa .dz-ph.on{outline:3px solid var(--acc);outline-offset:-3px}
+#mesa .dz-ph{position:relative;aspect-ratio:3/4;border:0;padding:0;border-radius:var(--r-sm);overflow:hidden;background:var(--cell-ph)}
+#mesa .dz-ph::before{content:'';position:absolute;inset:0;z-index:1;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1px var(--photo-ring);transition:box-shadow var(--d1) ease-out}
+#mesa .dz-ph:hover::before{box-shadow:inset 0 0 0 2px var(--line-strong)}
+#mesa .dz-ph.on::before{box-shadow:inset 0 0 0 2px var(--acc),inset 0 0 0 4px var(--panel)}
 #mesa .dz-ph img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
-#mesa .dz-ph i{position:absolute;top:3px;left:3px;font-style:normal;font-size:9.5px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:0 4px;pointer-events:none}
+#mesa .dz-ph i{position:absolute;z-index:2;top:5px;left:5px;font-style:normal;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
 #mesa .dz-fin{display:flex;gap:10px;align-items:center;margin-bottom:6px}
-#mesa .dz-fin img{flex:none;width:54px;height:68px;object-fit:cover;border-radius:5px;display:block;background:#efefef}
+#mesa .dz-fin img{flex:none;width:54px;height:68px;object-fit:cover;border-radius:var(--r-sm);display:block;background:var(--cell-ph)}
 #mesa .dz-fin b{display:block;font-size:12.5px}#mesa .dz-fin span{display:block;font-size:11.5px;color:var(--mute);overflow-wrap:anywhere}
-#mesa .dz-drop{border:1.5px dashed #c7c7c7;border-radius:10px;padding:14px 10px;text-align:center;color:var(--mute);font-size:12.5px;background:var(--bg);cursor:pointer;margin-top:8px}
-#mesa .dz-drop.over{border-color:var(--acc);background:#e8f3fe;color:var(--ink)}
+#mesa .dz-drop{border:1.5px dashed var(--line-strong);border-radius:var(--r-md);padding:14px 10px;text-align:center;color:var(--mute);font-size:12.5px;background:var(--bg);cursor:pointer;margin-top:8px;transition:border-color var(--d1) ease-out,background var(--d1) ease-out}
+#mesa .dz-drop:hover{border-color:var(--mute)}
+#mesa .dz-drop.over{border-color:var(--acc);background:var(--acc-soft);color:var(--ink)}
 #mesa .dz-size{display:inline-flex;align-items:center;gap:8px}
 #mesa .dz-size .btn2{min-width:42px;font-weight:600}#mesa .dz-size .btn2:disabled{opacity:.35;cursor:default}
 #mesa .dz-size output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums;font-size:12.5px}
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
-#mesa .dz-sw{width:26px;height:26px;border-radius:50%;border:1px solid rgba(0,0,0,.18);padding:0}
+#mesa .dz-sw{width:26px;height:26px;border-radius:50%;border:1px solid var(--swatch-ring);padding:0;transition:box-shadow var(--d1) ease-out}
+#mesa .dz-sw:hover{box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line-strong)}
 #mesa .dz-sw.on{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--acc)}
 #mesa .dz-posr{display:flex;align-items:center;gap:8px;margin:6px 0}#mesa .dz-posn{flex:1;min-width:0;font-size:12.5px;font-weight:600}#mesa .dz-posn i{display:block;font-style:normal;font-weight:400;font-size:11px;color:var(--mute)}
 #mesa .dz-posr label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mute)}#mesa .dz-posr .dz-pos{width:66px;padding:5px 6px;min-height:30px}
-#mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:#e8f3fe}
-#mesa .dz-ask{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
-#mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed #b5b5b5;background:var(--panel);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
-#mesa .dz-auto{border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;padding:4px 11px;min-height:28px}
-#mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:#fff}
-#mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0}
+#mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:var(--acc-soft)}
+#mesa .dz-ask{position:absolute;inset:0;z-index:30;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
+#mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed var(--line-strong);background:var(--panel-2);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
+#mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:500;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .dz-auto:hover{border-color:var(--line-strong);background:var(--bg)}
+#mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+#mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0;accent-color:var(--ink)}
 #mesa .dz-velo output{min-width:2.6em;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--mute)}
 #mesa .dz-dec{font-weight:400;color:var(--mute);font-size:12px}
 #mesa .dz-max{margin:6px 2px 0;font-size:11px;line-height:1.35}

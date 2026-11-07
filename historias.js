@@ -572,58 +572,63 @@
   const onUp = e => fin(e, true), onCancel = e => fin(e, false);
 
   const CSS = `#mesa.hv-on .feed{display:none}#mesa.client .hv-card{cursor:pointer;touch-action:auto}
-#mesa .main > section.hv{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--bg);border-right:1px solid var(--line);padding:10px 14px 24px;box-sizing:border-box}
+#mesa .main > section.hv{flex:1 1 0;min-width:0;overflow-y:auto;background:var(--bg-2);border-radius:var(--r-lg);padding:14px 18px 24px;box-sizing:border-box}
 #mesa.hv-on .side{flex:0 0 min(420px,38vw)}#mesa.hv-on .tcount{white-space:nowrap}
 #mesa .hvsw{display:inline-flex;flex:none;gap:2px;padding:2px;border-radius:999px;background:var(--bg-2,transparent)}
 #mesa .hvsw button{border:0;background:none;border-radius:999px;color:var(--mute);font:inherit;font-size:12.5px;min-height:28px;padding:0 12px;cursor:pointer;transition:background .12s ease-out,color .12s ease-out}#mesa .hvsw button:hover{color:var(--ink)}#mesa .hvsw button.on{background:var(--panel-2,var(--panel));color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm,none)}
 #mesa .hvsw i{font-style:normal;font-weight:600;margin-left:4px;font-variant-numeric:tabular-nums}
-#mesa .hv-res{margin:2px 0 10px;color:var(--mute);font-size:13px}
-#mesa .hv-rail{display:grid;grid-template-columns:62px auto 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line2);align-items:start}
+#mesa .hv-res{margin:2px 0 12px;color:var(--mute);font-size:13px}
+#mesa .hv-rail{display:grid;grid-template-columns:62px auto 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
 #mesa .hv-rail.vacio{padding:4px 0;align-items:center}#mesa .hv-rail.hoy .hv-dia b{color:var(--acc)}
-#mesa .hv-dia{font-size:12px;color:var(--mute);line-height:1.25}#mesa .hv-dia b{font-size:17px;color:var(--ink)}#mesa .hv-dia span{display:block}
+#mesa .hv-dia{font-size:12px;color:var(--mute);line-height:1.25}#mesa .hv-dia b{font-size:20px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}#mesa .hv-dia span{display:block}
 #mesa .hv-rail.vacio .hv-dia span{display:none}
-#mesa .hv-posts{display:flex;gap:6px}#mesa .hv-post{display:block;width:60px;padding:0;border:0;background:none;font:inherit;font-size:11.5px;color:var(--mute);text-align:center;cursor:pointer;border-radius:4px}
-#mesa .hv-post:focus-visible{outline:2px solid var(--acc);outline-offset:2px}#mesa .hv-pim{position:relative;display:block;margin-bottom:3px}
-#mesa .hv-post img,#mesa .hv-nof{display:block;width:60px;height:75px;object-fit:cover;border-radius:4px;background:var(--line2)}
-#mesa .hv-pt{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center}#mesa .hv-pt svg{width:11px;height:11px}
+#mesa .hv-posts{display:flex;gap:6px}#mesa .hv-post{display:block;width:60px;padding:0;border:0;background:none;font:inherit;font-size:11.5px;color:var(--mute);text-align:center;cursor:pointer;border-radius:var(--r-xs)}
+#mesa .hv-post:focus-visible{outline:2px solid var(--focus);outline-offset:2px}#mesa .hv-pim{position:relative;display:block;margin-bottom:3px}
+#mesa .hv-post img,#mesa .hv-nof{display:block;width:60px;height:75px;object-fit:cover;border-radius:var(--r-xs);background:var(--cell-ph)}
+#mesa .hv-pt{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:var(--photo-btn);color:var(--on-photo);display:flex;align-items:center;justify-content:center}#mesa .hv-pt svg{width:11px;height:11px}
 #mesa .hv-cards{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;min-width:0}
-#mesa .hv-card{width:88px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:6px;outline-offset:2px}
-#mesa .hv-img{aspect-ratio:9/16;border-radius:6px;overflow:hidden;background:var(--line2);border:1px solid var(--line);box-sizing:border-box}
+#mesa .hv-card{width:88px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:var(--r-sm);outline-offset:2px}
+#mesa .hv-img{aspect-ratio:9/16;border-radius:var(--r-sm);overflow:hidden;background:var(--panel-2);border:1px solid var(--line2);box-sizing:border-box;transition:box-shadow var(--d1) ease-out}
+#mesa .hv-card:hover .hv-img{box-shadow:var(--shadow-md)}
 #mesa .hv-img img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
 #mesa .hv-img p{margin:0;padding:6px;font-size:10.5px;line-height:1.3;color:var(--mute);height:100%;overflow:hidden;box-sizing:border-box;overflow-wrap:anywhere}
-#mesa .hv-pie{display:flex;justify-content:space-between;font-size:12px;margin-top:3px}#mesa .hv-lk{color:var(--acc)}
+#mesa .hv-pie{display:flex;justify-content:space-between;font-size:12px;margin-top:4px}#mesa .hv-lk{color:var(--acc-ink);font-weight:600}
 #mesa .hv-est{font-size:11px;color:var(--mute)}#mesa .hv-card.e-programada .hv-est{color:var(--ok)}
 #mesa .hv-card.mal .hv-img{border:2px solid var(--red)}#mesa .hv-card.mal .hv-est{color:var(--red)}
 #mesa .hv-card.e-cancelada{opacity:.55}#mesa .hv-src{opacity:.35}
-#mesa .hv-ghost{position:fixed;left:0;top:0;z-index:40;pointer-events:none;opacity:.9;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#mesa .hv-ghost{position:fixed;left:0;top:0;z-index:40;pointer-events:none;opacity:.9;box-shadow:var(--shadow-ghost)}
 #mesa .hv-mark{box-shadow:-5px 0 0 -2px var(--acc)}
-#mesa .hv-add{width:34px;height:34px;border:1px dashed var(--line);border-radius:50%;background:none;color:var(--mute);font:inherit;font-size:17px;line-height:1;cursor:pointer;align-self:center}
-#mesa .hv-add:hover,#mesa .hv-add:focus-visible{border-color:var(--ink);color:var(--ink);outline:0}
+#mesa .hv-add{width:34px;height:34px;border:1px dashed var(--line-strong);border-radius:50%;background:none;color:var(--mute);font:inherit;font-size:17px;line-height:1;cursor:pointer;align-self:center;transition:border-color var(--d1) ease-out,color var(--d1) ease-out,background var(--d1) ease-out}
+#mesa .hv-add:hover,#mesa .hv-add:focus-visible{border-color:var(--ink);color:var(--ink);background:var(--panel-2);outline:0}
 #mesa .hv-rail.vacio .hv-add{width:26px;height:26px;font-size:14px}
 #mesa .detail[data-dlg="historia"]{container-type:size}
-#mesa .detail[data-dlg="historia"] .card{display:flex;flex-direction:column;box-sizing:border-box;height:100%;max-width:none;width:min(100%,max(440px,calc((100cqh - 150px) * 9 / 16 + 112px)));overflow:hidden;padding:12px 14px}
+#mesa .detail[data-dlg="historia"] .card{display:flex;flex-direction:column;box-sizing:border-box;height:100%;max-width:none;width:min(100%,max(440px,calc((100cqh - 150px) * 9 / 16 + 112px)));overflow:hidden;padding:16px 18px}
 #mesa.client .detail[data-dlg="historia"] .card{width:min(100%,max(440px,calc((100cqh - 60px) * 9 / 16 + 112px)))}
 #mesa .hv-story{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 #mesa .hv-av{padding-right:22px}#mesa .hv-av p:last-child{margin-bottom:0}
 #mesa .hv-vis{flex:1;min-height:0;position:relative;container-type:size;display:flex;align-items:center;justify-content:center}
 #mesa .hv-big{flex:none;width:min(calc(100cqw - 84px),calc(100cqh * 9 / 16))}
 #mesa .hv-big img{object-fit:contain}#mesa .hv-big p{display:flex;align-items:center;justify-content:center;font-size:13px}
-#mesa .hv-vis .nav{width:32px;height:32px;display:flex;align-items:center;justify-content:center;line-height:0;background:var(--panel);color:var(--ink);border:1px solid var(--line);box-shadow:none;cursor:pointer}
+#mesa .hv-vis .nav{width:34px;height:34px;display:flex;align-items:center;justify-content:center;line-height:0;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow-xs);cursor:pointer;transition:border-color var(--d1) ease-out,background var(--d1) ease-out}
+#mesa .hv-vis .nav:hover:not(:disabled){border-color:var(--line-strong);background:var(--bg)}
 #mesa .hv-vis .nav.prev{left:0}#mesa .hv-vis .nav.next{right:0}#mesa .hv-vis .nav svg{width:16px;height:16px}#mesa .hv-vis .nav:disabled{opacity:.35;cursor:default}
 #mesa .hv-form label.hv-lin{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap}
 #mesa .hv-lin select,#mesa .hv-lin .hv-fh{flex:1;min-width:0}
-#mesa .hv-form input,#mesa .hv-form select{display:block;width:100%;box-sizing:border-box;margin:0;font:inherit;font-size:13px;color:var(--ink);padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+#mesa .hv-form input,#mesa .hv-form select{display:block;width:100%;box-sizing:border-box;margin:0;font:inherit;font-size:13px;color:var(--ink);min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
+#mesa .hv-form select{-webkit-appearance:none;appearance:none;padding-right:30px;background:var(--panel-2) var(--chev) no-repeat right 9px center/14px 14px;cursor:pointer}
+#mesa .hv-form input:hover,#mesa .hv-form select:hover{border-color:var(--line-strong)}
+#mesa .hv-form input:focus,#mesa .hv-form select:focus-visible{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--acc-soft)}
 #mesa .hv-fh{display:flex;gap:6px}#mesa .hv-fh input{flex:1;min-width:0}
 #mesa .hv-acc{display:flex;align-items:center;justify-content:center;gap:6px}
-#mesa .hv-acc button{border:0;background:none;color:var(--mute);font:inherit;font-size:12px;padding:2px 6px;border-radius:5px;cursor:pointer;line-height:1.3}
-#mesa .hv-acc button:hover{color:var(--ink);background:var(--line2)}#mesa .hv-tr{display:inline-flex}#mesa .hv-tr svg{width:15px;height:15px}
+#mesa .hv-acc button{border:0;background:none;color:var(--mute);font:inherit;font-size:12px;padding:3px 8px;border-radius:var(--r-pill);cursor:pointer;line-height:1.3;transition:background var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .hv-acc button:hover{color:var(--ink);background:var(--bg-2)}#mesa .hv-tr{display:inline-flex}#mesa .hv-tr svg{width:15px;height:15px}
 #mesa .hv-cf{margin:0;text-align:center;font-size:13px}
-#mesa .hv-dn{flex:none;align-self:center;margin:0;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink);background:var(--line2)}#mesa .hv-dn.cruce{background:var(--acc);color:#fff}
-#mesa .hv-vis .nav.otro{background:var(--ink);color:#fff;border-color:var(--ink);overflow:visible}#mesa .hv-nd{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font-size:11px;font-weight:600;line-height:1.2;color:var(--ink);white-space:nowrap}#mesa .hv-vis .nav.prev .hv-nd{left:0;transform:none}#mesa .hv-vis .nav.next .hv-nd{left:auto;right:0;transform:none}
-#mesa .hv-big{position:relative}#mesa .hv-cruce{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:rgba(0,0,0,.62);color:#fff;pointer-events:none;animation:hvCruce 1.1s ease-in forwards}#mesa .hv-cruce b{font-size:24px;font-weight:600}#mesa .hv-cruce span{font-size:14px}
+#mesa .hv-dn{flex:none;align-self:center;margin:0;padding:3px 12px;border-radius:var(--r-pill);font-size:13px;font-weight:600;color:var(--ink);background:var(--bg-2)}#mesa .hv-dn.cruce{background:var(--acc);color:var(--on-acc)}
+#mesa .hv-vis .nav.otro{background:var(--ink);color:var(--on-ink);border-color:var(--ink);overflow:visible}#mesa .hv-nd{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font-size:11px;font-weight:600;line-height:1.2;color:var(--ink);white-space:nowrap}#mesa .hv-vis .nav.prev .hv-nd{left:0;transform:none}#mesa .hv-vis .nav.next .hv-nd{left:auto;right:0;transform:none}
+#mesa .hv-big{position:relative}#mesa .hv-cruce{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--cruce-veil);color:var(--on-photo);pointer-events:none;animation:hvCruce 1.1s ease-in forwards}#mesa .hv-cruce b{font-size:26px;font-weight:800;letter-spacing:-.03em}#mesa .hv-cruce span{font-size:14px}
 @keyframes hvCruce{0%,70%{opacity:1}100%{opacity:0}}@media (prefers-reduced-motion:reduce){#mesa .hv-cruce{display:none}}
 #mesa .hv-e{margin:0 0 9px;font-size:13px}#mesa .hv-mal{margin:0 0 9px;font-size:13px;color:var(--red)}
-@media (max-width:720px){#mesa.hv-on .side{flex:none}#mesa .main > section.hv{flex:1;border-right:0;border-bottom:1px solid var(--line)}}`;
+@media (max-width:720px){#mesa.hv-on .side{flex:none}#mesa .main > section.hv{flex:1}}`;
   I().estilo('mesa-hv-css', CSS);
 
   const EV = [['click', onClick, false], ['change', onChange, false], ['keydown', onKey, false], ['focusin', onFocoIn, false], ['focusout', onFoco, false], ['pointerdown', onDown, true], ['pointermove', onMove, true], ['pointerup', onUp, true], ['pointercancel', onCancel, true]];

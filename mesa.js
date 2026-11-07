@@ -2078,6 +2078,8 @@
 --line:#DDD4C8;--line2:#EAE3D9;--line-strong:#C7BCAE;
 --acc:#B2503A;--acc-ink:#A0472F;--acc-hover:#9B432F;--acc-on-ink:#D07152;--on-acc:#FFFFFF;--acc-soft:#F3E2DA;--acc2:#A0472F;--focus:#A0472F;
 --ok:#2F7440;--ok-soft:#E2EDE3;--red:#C42B3A;--red-soft:#F6DEDF;--chg:#8A5A14;--chg-soft:#F3E8D4;
+--ok-on-ink:#86C795;--cal-off:#F0EAE2;--cruce-veil:rgba(22,17,14,.62);
+--ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;
 --sel:#0095F6;--sel-wash:rgba(0,149,246,.08);--checker-a:#DDD6CC;--checker-b:#F6F2EC;--swatch-ring:rgba(22,17,14,.18);--on-photo-soft:rgba(255,255,255,.85);--fv-bg:#000000;--text-on-photo:0 1px 3px rgba(0,0,0,.8);
 --st-empezar:#F4EFE8;--st-empezar-aro:#A39A90;--st-captions:#D9A93A;--st-aprobar:#7FA6D6;
 --uso-p0:#16110E;--uso-p1:#6E635A;--uso-p2:#CFC5B8;--uso-r:#B8813F;--uso-ck:#FFFFFF;--uso-ck2:#16110E;

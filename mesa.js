@@ -2358,7 +2358,6 @@
 #mesa .titem .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
 #mesa .titem:hover .x,#mesa .titem .x:focus-visible{display:block}
 #mesa .tname{position:absolute;left:0;right:0;bottom:0;padding:12px 6px 4px;font-size:9.5px;color:var(--on-photo);background:linear-gradient(transparent,var(--photo-shade));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-#mesa .hint{color:var(--mute);font-size:12px;margin:14px 2px 0;line-height:1.5;max-width:62ch}
 /* ===== Estados vacíos ===== */
 #mesa .empty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
 #mesa .ecard{max-width:440px;text-align:center;color:var(--mute);font-size:13.5px;line-height:1.5}
@@ -2448,7 +2447,7 @@
 @media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igacts{border-top:0}#mesa .igbody{order:1;flex:0 1 auto;min-height:0;max-height:32vh}#mesa .igdate{order:2}#mesa .igadd{display:none}#mesa .igcap{padding:6px 16px 0}#mesa .igcap .igav{display:none}#mesa .igct{padding-top:0}}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:var(--photo-dim)}#mesa .dots i.on{background:var(--on-photo)}
-#mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}
+#mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}#mesa .phint:empty{display:none}
 #mesa .seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-pill);background:var(--bg-2)}
 #mesa .seg button{border:0;background:none;border-radius:var(--r-pill);padding:0 12px;min-height:28px;font-size:12.5px;color:var(--mute)}#mesa .seg button:hover{color:var(--ink)}#mesa .seg button.on{background:var(--panel-2);color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
 #mesa .zoom{display:flex;align-items:center;gap:6px;color:var(--mute)}#mesa .zoom input{width:100px;accent-color:var(--ink)}
@@ -2547,7 +2546,7 @@
 #mesa .trayhead b{font-size:14px}#mesa .trayhead span{font-size:11.5px}
 #mesa .trayhead .btn{min-height:28px;padding:0 11px;font-size:12px}#mesa .trayhead .btn svg{width:14px;height:14px}
 #mesa .tbody{flex:none;height:68px;padding:0 10px 4px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,var(--ink) 90%,transparent);mask-image:linear-gradient(to right,var(--ink) 90%,transparent)}
-#mesa .drop,#mesa .hint{display:none}
+#mesa .drop{display:none}
 #mesa .tray.isempty .tbody{height:auto;-webkit-mask-image:none;mask-image:none}
 #mesa .tray.isempty .drop{display:block;height:34px;line-height:31px;padding:0 10px;margin:0;border-radius:var(--r-sm);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .tray.isempty .tgrid{display:none}
@@ -2671,8 +2670,7 @@
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada">Libres para portada</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
-          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div>'
-          + '<p class="hint">Arrastra cada foto a su casilla. Entre casillas se intercambian; de vuelta a la bandeja se quitan. Pulsa una casilla para verla en grande, elegir formato, reencuadrar y dejar una nota.</p></div></aside>'
+          + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
         watchFeed(); tamVigilar(); tamAplicar(); fijoAlto();
         { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
@@ -3559,7 +3557,7 @@
       const lo = fd && !s.design && isLib(fid);   // an image drawn by the free editor: its format is changed here (drawn again there)
       const tools = lo ? `${fmtCtl}<span class="muted">Editada: se sube tal cual · cámbiala en «${edLabel(s)}»</span>`
         : fd && !live ? `<span class="muted">${designed(s) ? `Diseño con cambios sin aplicar: se aplica al pulsar «${edLabel(s)}»` : 'Imagen diseñada: se sube tal cual'}</span>`
-        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span>`;
+        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint"></span>`;
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
@@ -3714,7 +3712,7 @@
       const c = cropOf(im.f, it, B);
       const fmtCtl = isReel(it.type) ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}</div></div>
-        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint">Arrastra la foto para reencuadrar</span></div>
+        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint"></span></div>
         <div class="pacts"><span class="fname">${esc(M.files[im.f].name)}</span></div>`;
     } else if (im && im.t && M.pastThumbs[im.t]) left = `<img class="pthumb" src="${M.pastThumbs[im.t]}" alt=""><p class="muted" style="margin:0">Foto tal como está en Notion.</p>`;
     else left = '<div class="pempty">Sin foto.<br>Arrastra una foto de la bandeja sobre su casilla.</div>';
@@ -3771,7 +3769,7 @@
     }
     const fixed = !st.dataset.live && p.w >= f.w - 1 && p.h >= f.h - 1;
     st.classList.toggle('fixed', fixed);
-    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : 'Arrastra la foto para reencuadrar';
+    const hint = root.querySelector('.detail .phint'); if (hint) hint.textContent = st.dataset.live ? 'Arrastra la foto para reencuadrar: el texto se queda' : fixed ? 'Se ve entera: usa el zoom para reencuadrar' : '';   // the plain one says nothing new (D-133)
   }
   async function loadBig(fid) {
     try {

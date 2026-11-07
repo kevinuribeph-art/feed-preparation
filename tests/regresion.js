@@ -9212,6 +9212,35 @@
     }
   });
 
+  // ---------- cambios de interfaz (mesa 4.04, D-133 a D-138) ----------
+  prueba('I1', 'Sin el texto «Arrastra cada foto a su casilla…» bajo la bandeja del tablero (D-133)', async () => {
+    await tablero([pub(1)]);
+    await M.addFiles([await foto('i1.jpg')]);
+    await hasta(() => q('.side .tray .tgrid img'), 3000, 'la foto en la bandeja');
+    ok(!q('.side .tray .hint') && !/Arrastra cada foto/.test(q('.side .tray').textContent), 'sigue el texto de ayuda bajo la bandeja');
+  });
+
+  prueba('I2', 'Sin «Arrastra la foto para reencuadrar» bajo la foto ni la ayuda «· clic: a esta diapositiva…» en la bandeja del editor; se queda «Se ve entera: usa el zoom…» (D-133)', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel')]);
+    await poner('r1', [await foto('i2h.jpg', 1000, 2000)]);   // muy alta en 4:5: se reencuadra arrastrando, no hace falta decirlo
+    await poner('r2', [await foto('i2v.jpg')]);                // 4:5 en 4:5: se ve entera, el zoom es lo que reencuadra
+    M._in.openDetail('r1', 0);
+    let h = await hasta(() => q('.detail .phint'), 3000, 'la línea bajo la foto');
+    await espera(150);
+    igual([q('.detail .phint').textContent, W.getComputedStyle(q('.detail .phint')).display], ['', 'none'], 'la foto que se reencuadra arrastrando');
+    M._in.openDetail('r2', 0);
+    h = await hasta(() => q('.detail[data-slot="r2"] .phint'), 3000, 'la línea bajo la otra foto');
+    await hasta(() => /Se ve entera/.test(q('.detail .phint').textContent), 2000, '«Se ve entera…»');
+    ok(W.getComputedStyle(q('.detail .phint')).display !== 'none', '«Se ve entera…» no se ve');
+    M._in.closeDetail();
+    await poner('r3', [await foto('i2a.jpg'), await foto('i2b.jpg')]);
+    await M.addFiles([await foto('i2c.jpg')]);
+    await abrirEditor('r3', 0); if (!ed().trOpen) accion('bandeja');
+    const c = await hasta(() => q('.lb-trh') && q('.lb-tray img') && q('.lb-trh'), 4000, 'la cabecera de la bandeja del editor');
+    ok(!/clic: a esta diapositiva|arrástrala|suelta aquí fotos/.test(c.textContent), 'sigue la ayuda en la bandeja del editor: ' + c.textContent);
+    ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

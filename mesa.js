@@ -2504,14 +2504,14 @@
 #mesa .brand span{display:none}
 #mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.add{padding:0 9px;font-size:12.5px;height:30px}
 #mesa .save{font-size:11.5px}
-#mesa .bar{flex-wrap:nowrap;padding:4px 10px 8px;gap:8px}
+#mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
 #mesa .mgrp{flex:1 1 0;min-width:190px;flex-wrap:nowrap}
 #mesa .months{flex:0 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 #mesa .months::-webkit-scrollbar{display:none}
 #mesa .mchip{flex:none;min-height:30px;padding:0 11px;font-size:12px;white-space:nowrap}#mesa .mchip i{font-size:11px}
 #mesa .bar .spacer{display:none}
-#mesa .stats{flex:0 1 auto;min-width:0;font-size:11.5px;line-height:1.25;gap:0 8px}#mesa .stats>span,#mesa .stats>button{white-space:nowrap}#mesa .stats .lg{display:none}
+#mesa .stats{order:9;flex:1 1 100%;min-width:0;font-size:11.5px;line-height:1.25;gap:0 10px}#mesa .stats>span,#mesa .stats>button{white-space:nowrap}#mesa .stats .lg{display:none}
 #mesa .sw{flex:none;gap:6px;font-size:12px}
 #mesa .main{gap:6px;padding:0 6px 6px}
 #mesa .legend{position:static;flex-wrap:nowrap;white-space:nowrap;gap:10px;min-height:32px;padding:1px 10px;font-size:11.5px}

@@ -181,9 +181,9 @@
   }
 
   const CSS = `#mesa .rv{list-style:none;margin:10px 0 0;padding:0;max-height:min(52vh,460px);overflow:auto}
-#mesa .rv>li{margin:0 0 10px}#mesa .rv>li>b{font-size:13.5px}#mesa .rv ul{list-style:none;margin:3px 0 0;padding:0}
-#mesa .rv-i{display:block;width:100%;box-sizing:border-box;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
-#mesa .rv-i:hover,#mesa .rv-i:focus-visible{background:var(--line2);outline:0}#mesa .rv-i.rv-b{color:var(--red)}#mesa .rv-i i{font-style:normal;font-weight:600}`;
+#mesa .rv>li{margin:0 0 14px}#mesa .rv>li>b{font-size:14px;font-weight:700;letter-spacing:-.005em}#mesa .rv ul{list-style:none;margin:5px 0 0;padding:0}
+#mesa .rv-i{display:block;width:100%;box-sizing:border-box;padding:6px 10px;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:inherit;font-size:13px;line-height:1.4;text-align:left;cursor:pointer;transition:background var(--d1) ease-out}
+#mesa .rv-i:hover{background:var(--bg-2)}#mesa .rv-i:focus-visible{background:var(--bg-2);outline:2px solid var(--focus);outline-offset:-2px}#mesa .rv-i.rv-b{color:var(--red)}#mesa .rv-i i{font-style:normal;font-weight:600}`;
   I().estilo('mesa-rv-css', CSS);
 
   revisar.version = VERSION; revisar.auto = auto; revisar.ultima = null;

@@ -399,7 +399,7 @@
   }
 
   // ---------- the changed ones (D-126) ----------
-  // «N cambiadas» and «N con fecha nueva» of the month's bar open one list, as the vencidas' window: the open board's posts
+  // «N cambiadas» of the month's bar (any change, each post once: D-144) opens one list, as the vencidas' window: the open board's posts
   // changed after their upload or with a new date, by date, each one once, with «Cambió: …» as their mark of changes says
   // it (D-081). Its name opens the post. No actions: «sube» puts them right.
   const cambiadas = X => X.S.slots.filter(s => X.vivo(s) && (X.slotStatus(s) === 'chg' || X.dateChg(s))).sort((a, b) => X.ts(a.date) - X.ts(b.date));
@@ -409,7 +409,8 @@
     if (!n) return cab + '<p>No queda ninguna con cambios sin subir.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Cerrar</button></div></div>';
     const fila = s => `<li data-k="${esc(s.id)}"><button type="button" class="vnom" data-cal="c-abrir" title="Abrir la publicación"><b>${esc(X.shortLabel(s.name, s.type))}</b></button>`
       + ` <span class="vque">· ${esc(X.fmtDate(s.date))} · Cambió: ${esc(X.listaY(X.cambiosDe(s)))}</span></li>`;
-    return cab + `<p class="cpnota">Cambiaron después de subirlas a Notion. Se resuelven con «sube ${esc(c ? c.name : 'el cliente')}».</p>`
+    const nr = X.nameChg ? X.S.slots.filter(s => X.vivo(s) && X.nameChg(s)).length : 0;   // what the bar's «con fecha nueva» said in its title (D-144)
+    return cab + `<p class="cpnota">Cambiaron después de subirlas a Notion. Se resuelven con «sube ${esc(c ? c.name : 'el cliente')}»${nr ? `: al subirlas se renombra${nr === 1 ? ' 1 publicación' : `n ${nr} publicaciones`} para que la numeración cuadre` : ''}.</p>`
       + `<ul class="vlist">${l.map(fila).join('')}</ul>`;
   }
   function abrirCambios() {

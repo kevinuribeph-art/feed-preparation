@@ -6221,7 +6221,7 @@
   });
 
   // ---------- «N cambiadas» y «N con fecha nueva», pulsables (mesa 3.97, calendario 1.12, D-126) ----------
-  prueba('V9', '«N cambiadas» y «N con fecha nueva» de la barra abren una sola lista por fecha, cada una una vez, con «Cambió: …» como su marcador; el nombre abre la publicación; sin acciones; sin calendario.js no falla; no en «Vista cliente» (D-126)', async () => {
+  prueba('V9', '«N cambiadas» de la barra (una sola desde D-144) abre una sola lista por fecha, cada una una vez, con «Cambió: …» como su marcador; el nombre abre la publicación; sin acciones; sin calendario.js no falla; no en «Vista cliente» (D-126)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     for (const id of ['r1', 'r3']) { await poner(id, [await foto(`v9-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
@@ -6230,7 +6230,8 @@
     M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');                  // r2: con fecha nueva
     M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');   // r3: las dos
     const txt = () => qa('.bar .stats button[data-act="cambios"]').map(b => b.textContent.trim());
-    await hasta(() => json(txt()) === json(['2 cambiadas', '2 con fecha nueva']), 3000, 'los dos botones de la barra: ' + json(txt()));
+    await hasta(() => json(txt()) === json(['3 cambiadas']), 3000, 'el botón de la barra: ' + json(txt()));   // uno solo, cada una una vez (D-144)
+    await hasta(() => /contexto/.test((celda('r3').querySelector('.mk-cambios') || { dataset: {} }).dataset.tip || ''), 3000, 'la marca de r3 con su contexto');   // el «2 cambiadas» de antes lo esperaba
     const bs = qa('.bar .stats button[data-act="cambios"]');
     for (const b of bs) {
       b.click(); await espera(30);
@@ -8444,9 +8445,9 @@
     const cuenta = () => q('.tray .tcount').textContent;
     await filtro('portada');
     ok(q('.tray [data-act="tfil"][data-v="portada"]').classList.contains('on'), 'el botón «Libres para portada» no se enciende');
-    igual(q('.tray [data-act="tfil"][data-v="portada"]').textContent, 'Libres para portada', 'el nombre del botón');
+    igual(q('.tray [data-act="tfil"][data-v="portada"]').textContent, 'Libres', 'el nombre del botón');   // «Libres» desde D-146
     await hasta(() => uNombres('.tray .tgrid .titem').length === 3, 4000, 'tres fotos libres para portada');
-    igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg'], '3 libres para portada'], '«Libres para portada» en la mesa');
+    igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg'], '3 libres'], '«Libres» en la mesa');
     await filtro('sin');
     await hasta(() => uNombres('.tray .tgrid .titem').length === 2, 4000, 'dos fotos sin usar');
     igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-d.jpg', 'u5-e.jpg'], '2 sin usar'], '«Sin usar» en la mesa');
@@ -9241,18 +9242,18 @@
     ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
   });
 
-  prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna a la izquierda y estrellas en oscuro, movido con transform (D-134)', async () => {
+  prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna con cráteres a la izquierda en oscuro (sin estrellas, D-143), movido con transform (D-134)', async () => {
     const b = q('.appbar .ibtn.tema'), h = D.documentElement, antes = W.localStorage.getItem('mesa-tema');
     ok(b && b.getAttribute('role') === 'switch' && b.getAttribute('aria-label') === 'Modo oscuro', 'no es un interruptor «Modo oscuro»');
-    const k = b.querySelector('.tg-k'), est = () => b.querySelector('.tg-s.s1');
-    ok(k && est(), 'faltan el sol / la luna o las estrellas');
+    const k = b.querySelector('.tg-k'), crater = () => W.getComputedStyle(k, '::before').opacity;
+    ok(k && !b.querySelector('.tg-s'), 'falta el sol / la luna o quedan las estrellas');
     const lado = () => { const r = b.getBoundingClientRect(), c = k.getBoundingClientRect(); return c.left + c.width / 2 > r.left + r.width / 2 ? 'derecha' : 'izquierda'; };
     try {
       if (h.dataset.theme === 'dark') { b.click(); await espera(500); }
-      igual([lado(), W.getComputedStyle(est()).opacity, b.title], ['derecha', '0', 'Modo claro'], 'en claro');
+      igual([lado(), crater(), b.title], ['derecha', '0', 'Modo claro'], 'en claro');
       ok(/transform/.test(W.getComputedStyle(k).transitionProperty), 'el sol no se mueve con transform');
       b.click(); await espera(600);
-      igual([lado(), W.getComputedStyle(est()).opacity, b.title, b.getAttribute('aria-checked')], ['izquierda', '1', 'Modo oscuro', 'true'], 'en oscuro');
+      igual([lado(), crater(), b.title, b.getAttribute('aria-checked')], ['izquierda', '1', 'Modo oscuro', 'true'], 'en oscuro');
       ok(W.getComputedStyle(k).backgroundColor !== 'rgba(0, 0, 0, 0)', 'la luna no se ve');
     } finally {
       if (h.dataset.theme === 'dark') b.click();
@@ -9599,6 +9600,58 @@
     igual([ed().zoom, zv.textContent], [1, '100 %'], 'el doble clic no la deja entera');
     accion('zin'); tecla('0', { meta: true, code: 'Digit0' }); igual(ed().zoom, 1, '⌘0 dejó de funcionar');
     M.libre.cerrar();
+  });
+
+  prueba('J6', 'El interruptor claro / oscuro, centrado en la línea de la cabecera y sin estrellas (D-143)', async () => {
+    const b = q('.appbar .ibtn.tema'), bar = q('.appbar').getBoundingClientRect(), r = b.getBoundingClientRect();
+    ok(!b.querySelector('.tg-s'), 'quedan las estrellas');
+    ok(b.querySelector('.tg-k'), 'falta el sol / la luna');
+    const c = (r.top + r.bottom) / 2, cb = (bar.top + bar.bottom) / 2, ca = (q('.appbar .xfer').getBoundingClientRect().top + q('.appbar .xfer').getBoundingClientRect().bottom) / 2;
+    ok(Math.abs(c - cb) < 1.5 && Math.abs(c - ca) < 1.5, `no va centrado: ${c} frente a ${cb} y ${ca}`);
+  });
+
+  prueba('J7', 'Un solo «N cambiadas» en la barra del mes: cada publicación con cualquier cambio una vez, el número de la lista; los renombres, en la nota de la ventana (D-144)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    for (const id of ['r1', 'r3']) { await poner(id, [await foto(`j7-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
+    await espera(60);
+    M._test.setNote('r1', 'Otro contexto');
+    M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');
+    M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');
+    const bs = () => qa('.bar .stats button[data-act="cambios"]');
+    await hasta(() => bs().length === 1 && bs()[0].textContent.trim() === '3 cambiadas', 3000, 'un solo botón «3 cambiadas»: ' + json(bs().map(b => b.textContent.trim())));
+    ok(!q('.bar .stats .dates') && !/con fecha nueva/.test(q('.bar .stats').textContent), 'queda «con fecha nueva»');
+    ok(/fecha u hora/.test(bs()[0].title) && !/renombran/.test(bs()[0].title), 'el título: ' + bs()[0].title);
+    bs()[0].click();
+    const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista');
+    igual(qa('.detail[data-dlg="cambios"] .vlist li').length, 3, 'la lista no tiene las 3');
+    const nr = M._in.S.slots.filter(s => M._in.vivo(s) && M._in.nameChg(s)).length;
+    const nota = dl.querySelector('.cpnota').textContent;
+    if (nr) ok(/se renombra.*para que la numeración cuadre/.test(nota), 'la nota no dice los renombres: ' + nota);
+    M._in.closeDetail();
+    slot('r1').notionName = 'Nombre de antes'; M._test.setNote('r1', 'Otro contexto más');
+    await espera(60); bs()[0].click();
+    const dl2 = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista otra vez');
+    ok(/se renombran? .*para que la numeración cuadre/.test(dl2.querySelector('.cpnota').textContent), 'la nota no dice los renombres: ' + dl2.querySelector('.cpnota').textContent);
+    M._in.closeDetail();
+  });
+
+  prueba('J9', '«Libres» en el filtro de la bandeja, con «N libres» y su título «Libres para portada», en la mesa y en el editor; el valor guardado sigue siendo «portada» (D-146)', async () => {
+    const antes = W.localStorage.getItem(LS_FIL);
+    try {
+      await tablero([pub(1)]);
+      await poner('r1', [await foto('j9a.jpg')]);
+      await M.addFiles([await foto('j9b.jpg')]); await M.flush();
+      const b = q('.tray [data-act="tfil"][data-v="portada"]');
+      igual([b.textContent, b.title], ['Libres', 'Libres para portada'], 'el botón de la mesa');
+      await filtro('portada');
+      igual(W.localStorage.getItem(LS_FIL), 'portada', 'el valor guardado cambió');
+      await hasta(() => /^(\d+ libres?|ninguna libre)$/.test(q('.tray .tcount').textContent), 3000, 'el contador «N libres»: ' + q('.tray .tcount').textContent);
+      await editorConBandeja('r1');
+      const e = q('.lb-tray [data-lb="tr-fil"][data-v="portada"]');
+      igual([e.textContent, e.title], ['Libres', 'Libres para portada'], 'el botón del editor');
+      M.libre.cerrar();
+    } finally { if (antes == null) W.localStorage.removeItem(LS_FIL); else W.localStorage.setItem(LS_FIL, antes); }
   });
 
   // =====================================================================================================

@@ -2081,7 +2081,7 @@
 --ok-on-ink:#86C795;--cal-off:#F0EAE2;--cruce-veil:rgba(22,17,14,.62);
 --ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;
 --knob:#FFFFFF;--sw-on:#16110E;
---tg-track:#E4DBCE;--tg-line:rgba(22,17,14,.06);--tg-line-h:rgba(22,17,14,.18);--tg-sun:#E0A73C;--tg-sun-ring:rgba(224,167,60,.22);--tg-moon:#EDE6DC;--tg-crater:#CBC1B3;--tg-star:#E3B65A;
+--tg-track:#E4DBCE;--tg-line:rgba(22,17,14,.06);--tg-line-h:rgba(22,17,14,.18);--tg-sun:#E0A73C;--tg-sun-ring:rgba(224,167,60,.22);--tg-moon:#EDE6DC;--tg-crater:#CBC1B3;
 --sel:#0095F6;--sel-wash:rgba(0,149,246,.08);--checker-a:#DDD6CC;--checker-b:#F6F2EC;--swatch-ring:rgba(22,17,14,.18);--on-photo-soft:rgba(255,255,255,.85);--fv-bg:#000000;--text-on-photo:0 1px 3px rgba(0,0,0,.8);
 --st-empezar:#F4EFE8;--st-empezar-aro:#A39A90;--st-captions:#D9A93A;--st-aprobar:#7FA6D6;
 --uso-p0:#16110E;--uso-p1:#6E635A;--uso-p2:#CFC5B8;--uso-r:#B8813F;--uso-ck:#FFFFFF;--uso-ck2:#16110E;
@@ -2106,7 +2106,6 @@
 --i-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
 --i-cal:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
 --i-clock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
---i-spark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c.9 6.6 4.4 10.6 12 12-7.6 1.4-11.1 5.4-12 12-.9-6.6-4.4-10.6-12-12 7.6-1.4 11.1-5.4 12-12z'/%3E%3C/svg%3E");
 --i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19l-7-7l7-7m7 7H5'/%3E%3C/svg%3E")}
 /* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
 :root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{color-scheme:dark;
@@ -2140,12 +2139,11 @@
 #mesa :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .x::before,#mesa .hx::before,#mesa .cpx::before,#mesa .ibtn.xfer::before,#mesa .ibtn[data-act="editclient"]::before,#mesa .cpvolver::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-x) center/contain no-repeat;mask:var(--i-x) center/contain no-repeat}
 #mesa .ibtn.xfer::before{-webkit-mask-image:var(--i-updown);mask-image:var(--i-updown)}
-#mesa .ibtn.tema{position:relative;width:52px;height:28px;border-radius:var(--r-pill);background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line);font-size:0 !important;line-height:0;overflow:hidden;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}#mesa .ibtn.tema:hover{background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line-h)}#mesa .ibtn.tema:active .tg-k{width:25px}#mesa .ibtn.tema:focus-visible{outline:0;box-shadow:inset 0 0 0 1px var(--tg-line-h),0 0 0 3px var(--ring)}
+#mesa .ibtn.tema{position:relative;align-self:center;width:52px;height:28px;border-radius:var(--r-pill);background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line);font-size:0 !important;line-height:0;overflow:hidden;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}#mesa .ibtn.tema:hover{background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line-h)}#mesa .ibtn.tema:active .tg-k{width:25px}#mesa .ibtn.tema:focus-visible{outline:0;box-shadow:inset 0 0 0 1px var(--tg-line-h),0 0 0 3px var(--ring)}
 #mesa .tg-k{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:var(--r-pill);background:var(--tg-sun);box-shadow:0 0 0 3px var(--tg-sun-ring),var(--shadow-xs);transform:translateX(24px);transition:transform var(--d-m) var(--ease-m),width var(--d-m) var(--ease-m),background-color var(--d-m) var(--ease-m),box-shadow var(--d-m) var(--ease-m)}#mesa .ibtn.tema:not([aria-checked="true"]):active .tg-k{transform:translateX(21px)}
 #mesa .tg-k::before,#mesa .tg-k::after{content:'';position:absolute;border-radius:50%;background:var(--tg-crater);opacity:0;transform:scale(.3);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}#mesa .tg-k::before{width:7px;height:7px;left:4px;top:10px}#mesa .tg-k::after{width:4px;height:4px;left:11px;top:5px}
-#mesa .tg-s{position:absolute;background:var(--tg-star);-webkit-mask:var(--i-spark) center/contain no-repeat;mask:var(--i-spark) center/contain no-repeat;opacity:0;transform:scale(.2) rotate(-60deg);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}#mesa .tg-s.s1{width:9px;height:9px;right:8px;top:5px}#mesa .tg-s.s2{width:6px;height:6px;right:19px;top:14px}#mesa .tg-s.s3{width:5px;height:5px;right:9px;top:18px}
-#mesa .ibtn.tema[aria-checked="true"] .tg-k{transform:translateX(0);background:var(--tg-moon);box-shadow:var(--shadow-xs)}#mesa .ibtn.tema[aria-checked="true"] .tg-k::before,#mesa .ibtn.tema[aria-checked="true"] .tg-k::after{opacity:1;transform:none}#mesa .ibtn.tema[aria-checked="true"] .tg-s{opacity:1;transform:none}#mesa .ibtn.tema[aria-checked="true"] .tg-s.s2{transition-delay:.05s}#mesa .ibtn.tema[aria-checked="true"] .tg-s.s3{transition-delay:.1s}
-@media (prefers-reduced-motion:reduce){#mesa .ibtn.tema .tg-k,#mesa .ibtn.tema .tg-s,#mesa .ibtn.tema .tg-k::before,#mesa .ibtn.tema .tg-k::after{transition:background-color .15s linear,opacity .15s linear !important;transition-delay:0s !important}}
+#mesa .ibtn.tema[aria-checked="true"] .tg-k{transform:translateX(0);background:var(--tg-moon);box-shadow:var(--shadow-xs)}#mesa .ibtn.tema[aria-checked="true"] .tg-k::before,#mesa .ibtn.tema[aria-checked="true"] .tg-k::after{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){#mesa .ibtn.tema .tg-k,#mesa .ibtn.tema .tg-k::before,#mesa .ibtn.tema .tg-k::after{transition:background-color .15s linear,opacity .15s linear !important;transition-delay:0s !important}}
 #mesa .ibtn[data-act="editclient"]::before{-webkit-mask-image:var(--i-more);mask-image:var(--i-more)}
 #mesa .cpvolver::before{width:16px;height:16px;-webkit-mask-image:var(--i-back);mask-image:var(--i-back)}
 #mesa .x,#mesa .hx,#mesa .cpx,#mesa .ibtn.xfer,#mesa .ibtn[data-act="editclient"],#mesa .cpvolver{position:relative;font-size:0 !important;color:var(--ink-2)}
@@ -2589,7 +2587,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span><span class="tg-s s1" aria-hidden="true"></span><span class="tg-s s2" aria-hidden="true"></span><span class="tg-s s3" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -2635,7 +2633,7 @@
 
   function counts() {
     const L = S.slots.filter(vivo), n = L.length, filled = L.filter(s => s.photos.length).length, notes = L.filter(s => noteOf(s)).length;   // a cancelled post doesn't count
-    return { n, filled, notes, chg: L.map(slotStatus).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length };
+    return { n, filled, notes, chg: L.map(slotStatus).filter(x => x === 'chg').length, dates: L.filter(dateChg).length, names: L.filter(nameChg).length, cambios: L.filter(s => slotStatus(s) === 'chg' || dateChg(s)).length };   // cambios: each one once, as the list of D-126
   }
   function renderBar() {
     if (!shellReady()) return;
@@ -2653,8 +2651,8 @@
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
-      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span>${k.chg ? `<button type="button" class="c" data-act="cambios" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto o caption): pide a Claude que las vuelva a subir. Pulsa para ver cuáles"><b class="c">${k.chg}</b> ${pl(k.chg, 'cambiada', 'cambiadas')}</button>` : ''}`
-        + (k.dates ? `<button type="button" class="c dates" data-act="cambios" title="Fecha u hora cambiada aquí: al subir a Notion se cambia allí${k.names ? ` y se renombran ${k.names} publicaci${k.names === 1 ? 'ón' : 'ones'} para que la numeración cuadre` : ''}. Pulsa para ver cuáles"><i class="dchg" aria-hidden="true"></i><b class="c">${k.dates}</b> con fecha nueva</button>` : '') + '</div>';
+      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span>${k.cambios ? `<button type="button" class="c" data-act="cambios" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto, caption, fecha u hora): pide a Claude que las vuelva a subir. Pulsa para ver cuáles"><b class="c">${k.cambios}</b> ${pl(k.cambios, 'cambiada', 'cambiadas')}</button>` : ''}`   // one mark for any change, the list's number (D-144)
+        + '</div>';
     }
     bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
       + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)">+ Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
@@ -2678,7 +2676,7 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
-          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada">Libres para portada</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
+          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
           + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
@@ -3507,7 +3505,7 @@
     const vista = S.client + '|' + (trayCarpeta || ''), otra = tray.querySelector('.tgrid')._vista !== vista;
     if (otra) trayDonde(tray);   // where the folder it shows was, before it shows another (D-092)
     const fil = trayFiltroV(), vis = bandejaVista({ filtro: fil }), n = vis.filter(x => !x.u).length, nl = vis.length;   // the count says what each filter shows (D-122)
-    { const tc = tray.querySelector('.tcount'), t = fil === 'todas' ? `${n} sin usar · ${nl - n} ✓` : fil === 'portada' ? (nl ? `${nl} ${nl === 1 ? 'libre' : 'libres'} para portada` : 'ninguna libre para portada') : n ? `${n} sin usar` : 'vacía'; if (tc.textContent !== t || !tc._tam) { tc.textContent = t; tc._tam = true; tamColocar(); } }   // the size slider goes where there is room
+    { const tc = tray.querySelector('.tcount'), t = fil === 'todas' ? `${n} sin usar · ${nl - n} ✓` : fil === 'portada' ? (nl ? `${nl} ${nl === 1 ? 'libre' : 'libres'}` : 'ninguna libre') : n ? `${n} sin usar` : 'vacía'; if (tc.textContent !== t || !tc._tam) { tc.textContent = t; tc._tam = true; tamColocar(); } }   // the size slider goes where there is room
     tray.querySelectorAll('.tfil button').forEach(b => { const on = b.dataset.v === fil; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     tray.classList.toggle('isempty', !vis.length && !carpetasDeVista().length);   // a view with only folders is not empty: in a narrow window «empty» hides the grid
     const enHueco = new Set([...previewsOf(S), ...usoPrevO]);   // on a filler: it comes off there, not from the tray (D-049)

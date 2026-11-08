@@ -2308,8 +2308,8 @@
 @media (min-width:721px){#mesa:not(.client) .side:has(>.tray:not(.fold)):has(>.cal:not([hidden]):not(.fold))>.csplit{display:block}
 #mesa:not(.client) .side:has(>.tray:not(.fold)):has(>.cal:not([hidden]):not(.fold))>.cal{border-top:0;min-height:var(--cal-min,220px)}
 #mesa:not(.client) .side:has(>.cal:not([hidden]):not(.fold))>.tray:not(.fold){min-height:var(--tray-min,calc(var(--thh,58px) + 240px))}}
-#mesa .tfold{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 -6px 0 -6px;padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
-#mesa .tfold:hover{background:var(--bg-2)}#mesa .tfold svg{width:16px;height:16px;transition:transform .15s}#mesa .tray.fold .tfold svg{transform:rotate(-90deg)}
+#mesa .tfold{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 -4px 0 -6px;padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
+#mesa .tfold[hidden]{display:none}#mesa .tfold:hover{background:var(--bg-2)}#mesa .tfold svg{width:16px;height:16px;transition:transform .15s}#mesa .tray.fold .tfold svg{transform:rotate(-90deg)}
 #mesa .trayhead>b{user-select:none;-webkit-user-select:none}
 #mesa .side>.tray.fold{flex:none;overflow:hidden}
 #mesa .tray.fold .tfil,#mesa .tray.fold .ttam,#mesa .tray.fold .trayhead>.btn,#mesa .tray.fold .cpnav,#mesa .tray.fold .tbody{display:none}
@@ -2719,7 +2719,7 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
-          + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold" aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
+          + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold"${sinCal() ? ' hidden' : ''} aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
           + '<span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
@@ -3467,7 +3467,8 @@
   // this browser, nothing in the board.
   const LS_REP = 'mesa-columna-reparto', LS_TPL = 'mesa-bandeja-plegada';
   const repParte = () => { const v = parseFloat(lsGet(LS_REP)); return Number.isFinite(v) && v > 0 && v < 1 ? v : 0.5; };   // the calendar's share
-  const trayPlegada = () => lsGet(LS_TPL) === '1';
+  const sinCal = () => (window.MESA_CARGA || {}).calendario === 'fallo';   // calendario.js didn't load: the tray takes the whole column, as before
+  const trayPlegada = () => lsGet(LS_TPL) === '1' && !sinCal();
   const colVars = (r = repParte()) => `--cal-g:${(2 * r).toFixed(4)};--tray-g:${(2 - 2 * r).toFixed(4)}`;
   const colSide = () => root && root.querySelector('.main .side');
   const colPestanas = side => !!side && !root.classList.contains('client') && !!side.querySelector(':scope > .tray.fold') && !!side.querySelector(':scope > .cal.fold:not([hidden])');
@@ -3476,7 +3477,7 @@
   function repEmpezar(e) {
     const sp = e.target.closest('.side > .csplit'), side = sp && sp.parentNode; if (!sp || e.button !== 0) return;
     const tray = side.querySelector(':scope > .tray'), cal = side.querySelector(':scope > .cal'); if (!tray || !cal) return;
-    colMin(); const t = tray.getBoundingClientRect().height, c = cal.getBoundingClientRect().height;
+    colMin(); const t = tray.getBoundingClientRect().height, c = cal.getBoundingClientRect().height; if (!(t + c > 0)) return;
     rep = { side, y0: e.clientY, c0: c, tot: t + c, minT: parseFloat(getComputedStyle(tray).minHeight) || 0, minC: parseFloat(getComputedStyle(cal).minHeight) || 0, r: null, raf: 0 };
     try { sp.setPointerCapture(e.pointerId); } catch (x) { /* */ }
     side.classList.remove('col-vuelve'); side.classList.add('col-arr'); e.preventDefault();
@@ -3502,10 +3503,11 @@
     const f = trayPlegada(), b = t.querySelector('.tfold');
     if (f && !t.classList.contains('fold')) t._top = t.scrollTop;
     t.classList.toggle('fold', f);
-    if (b) { b.setAttribute('aria-expanded', String(!f)); b.title = f ? 'Abrir la bandeja' : 'Plegar la bandeja'; }
+    if (b) { b.setAttribute('aria-expanded', String(!f)); b.title = f ? 'Abrir la bandeja' : 'Plegar la bandeja'; b.hidden = sinCal(); }
     if (!f && t._top != null) { t.scrollTop = t._top; t._top = null; }   // back where it was
   }
-  function trayPlegar(v) { const f = v == null ? !trayPlegada() : !!v; if (f === trayPlegada()) return; colPliegue('tray', () => { lsSet(LS_TPL, f ? '1' : '0'); trayFold(); }); }
+  let trayPlT = 0;                     // when it last folded or opened: the second click of a double click on its tab doesn't reset the column
+  function trayPlegar(v) { const f = v == null ? !trayPlegada() : !!v; if (f === trayPlegada() || sinCal()) return; trayPlT = Date.now(); colPliegue('tray', () => { lsSet(LS_TPL, f ? '1' : '0'); trayFold(); }); }
   // folding and unfolding with the calendar's movement (D-137), from where it is: the one that changes, with its height; to
   // and from the two tabs, both move to their place
   function colParar(side) { [...side.children].forEach(e => { if (e._plFin) e._plFin(); }); if (side._colFin) side._colFin(); }
@@ -3519,7 +3521,7 @@
     const fade = cual === 'tray' ? 'tray-fade' : 'cal-fade';
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { [t0, c0].forEach(e => { if (e) { e.classList.add(e === el ? fade : 'tray-fade'); setTimeout(() => e.classList.remove(fade, 'tray-fade'), 220); } }); return; }
     if (!antes && !colPestanas(side)) { const r = r0[cual === 'tray' ? 0 : 1]; if (r) colAltura(el, r.height, cual === 'tray' ? 'tray-anim' : 'cal-anim'); return; }
-    colVolar(side, [t0, c0], r0, s0);
+    colVolar(side, [t0, c0], r0, s0, el);
   }
   function colAltura(el, h0, cls) {    // its height, from h0 to as it is drawn now
     const h1 = el.getBoundingClientRect().height; if (Math.abs(h1 - h0) < 1) return;
@@ -3531,7 +3533,7 @@
     el.style.transition = 'height var(--d-m) var(--ease-m)'; el.style.height = h1 + 'px';
     el.addEventListener('transitionend', alFin); t = setTimeout(fin, 700); el._plFin = fin;
   }
-  function colVolar(side, els, r0, s0) {   // to or from the two tabs: each one from its box to its new one
+  function colVolar(side, els, r0, s0, el) {   // to or from the two tabs: each one from its box to its new one (only the one that folds fades and turns its chevron)
     const s1 = side.getBoundingClientRect(), r1 = els.map(e => e && !e.hidden && e.getClientRects().length ? e.getBoundingClientRect() : null);
     const K = ['position', 'left', 'top', 'width', 'height', 'margin', 'transition', 'overflow', 'zIndex', 'flex'];
     let t = 0;
@@ -3542,7 +3544,7 @@
     side.classList.add('col-anim'); side.style.transition = 'none'; side.style.height = s0.height + 'px';
     els.forEach((e, i) => { if (!e || !r1[i]) return; const a = r0[i] || r1[i];
       Object.assign(e.style, { position: 'absolute', margin: '0', flex: 'none', overflow: 'hidden', zIndex: '1', transition: 'none' }, caja(a));
-      e.classList.add(e.classList.contains('cal') ? 'cal-anim' : 'tray-anim'); });
+      if (e === el) e.classList.add(e.classList.contains('cal') ? 'cal-anim' : 'tray-anim'); });
     void side.offsetHeight;
     const tr = ['left', 'top', 'width', 'height'].map(k => `${k} var(--d-m) var(--ease-m)`).join(',');
     side.style.transition = 'height var(--d-m) var(--ease-m)'; side.style.height = s1.height + 'px';
@@ -4515,7 +4517,7 @@
     root.addEventListener('pointerout', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'); if (p && !(e.relatedTarget && p.contains(e.relatedTarget))) hov = { id: null, t: 0 }; });
     root.addEventListener('dblclick', e => {
       if (e.target.matches && e.target.matches('.trayhead .ttam input')) { tamCambiar(e.target, 50); e.target.blur(); return; }   // back to the middle (D-091)
-      if (e.target.matches && e.target.matches('.main .side > .csplit, .main .side > .tray:not(.fold) > .trayhead > b')) { e.preventDefault(); repMitad(); return; }   // the column, half and half (D-148)
+      if (e.target.matches && e.target.matches('.main .side > .csplit, .main .side > .tray:not(.fold) > .trayhead > b') && Date.now() - trayPlT > 500) { e.preventDefault(); repMitad(); return; }   // the column, half and half (D-148)
       const p = e.target.closest && e.target.closest('.feed .pit[data-memo]');
       if (!p || p.classList.contains('edit') || sel || !pitOpen(p.dataset.memo)) return;
       e.preventDefault(); editMemo(p.dataset.memo);
@@ -6351,7 +6353,7 @@
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
-    root: () => root, colPliegue, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
+    root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)

@@ -9831,6 +9831,30 @@
     });
   });
 
+  prueba('Q6', 'Al pasar a pestañas solo se anima el que se pliega; el doble clic en la pestaña de la bandeja no cambia el reparto; sin calendario.js, la bandeja ocupa la columna aunque se dejara plegada (D-148)', async () => {
+    await columna(async ({ side, tray, cal }) => {
+      const sp = q('.main .side > .csplit'), y = sp.getBoundingClientRect().top + 5;
+      ptrCol(sp, 'pointerdown', y); ptrCol(sp, 'pointermove', y + 70); ptrCol(sp, 'pointerup', y + 70); await espera(60);
+      const r0 = W.localStorage.getItem('mesa-columna-reparto'); ok(r0, 'no se guarda el reparto');
+      cal.querySelector('.cfold').click(); await espera(700);
+      tray.querySelector('.tfold').click();
+      ok(q('.main .side > .tray').classList.contains('tray-anim') && !q('.main .side > .cal').classList.contains('cal-anim'), 'el calendario ya plegado se anima otra vez');
+      await espera(700);
+      const b = q('.main .side > .tray > .trayhead > b');
+      b.click(); dblCol(b); await espera(600);
+      ok(!q('.main .side > .tray').classList.contains('fold'), 'pulsar la pestaña no despliega la bandeja');
+      igual(W.localStorage.getItem('mesa-columna-reparto'), r0, 'el doble clic en la pestaña cambia el reparto');
+      // sin calendario.js
+      tray.querySelector('.tfold').click(); await espera(700);
+      const carga = W.MESA_CARGA.calendario;
+      try {
+        W.MESA_CARGA.calendario = 'fallo'; M._in.trayFold();
+        const t = q('.main .side > .tray');
+        ok(!t.classList.contains('fold') && !visto(t.querySelector('.tfold')), 'sin calendario.js la bandeja sigue plegada o enseña el chevrón');
+      } finally { W.MESA_CARGA.calendario = carga; M._in.trayFold(); }
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -6285,6 +6285,8 @@
   const estadoDz = id => M.diseno.estadoDe(slot(id));
   const salida = id => ((slot(id).design || {}).out || []).filter(Boolean);
   const textoVentana = () => (dialogo() || {}).textContent || '';
+  // los botones de diseño de la ventana, por lo que hacen: EDITAR en la cabecera (D-142) y nada más en la fila de Ubicación
+  const edBotones = () => [...qa('.detail .pdz button:not(.mx-sel)'), ...qa('.detail [data-act="editar"]')].map(b => b.getAttribute('aria-label') || b.textContent);
   // la ventana abierta, sin botón ni texto que mande a «Diseñar»
   function sinDisenar(que) {
     const d = dialogo(); ok(d, 'sin ventana: ' + que);
@@ -6305,7 +6307,7 @@
       const crudas = slot('r1').photos.slice();
       igual(estadoDz('r1'), 'chg', 'el diseño cargado sin aplicar');
       M._in.openDetail('r1', 0); sinDisenar('carrusel con cambios sin aplicar');
-      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica al pulsar «Editar diapositivas»'), 'la ventana no dice que «Editar diapositivas» lo aplica');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
       const h0 = M._test.hist().undo;
       await pulsar('.detail [data-act="editar"]');
       await abierto();
@@ -6339,7 +6341,7 @@
     ok(!ed(), '⌘E abrió el editor de un reel sin foto');
     await poner('r1', [await foto('d2.jpg', 1080, 1920)]);
     M._in.openDetail('r1', 0); sinDisenar('reel con foto');
-    igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+    igual(edBotones(), ['Editar portada'], 'los botones de diseño del reel');
     await pulsar('.detail [data-act="editar"]');
     await abierto(4000);
     ok(ed().reel && ed().slotId === 'r1', 'no abrió la portada del reel');
@@ -6353,9 +6355,9 @@
       igual(estadoDz('r1'), 'ok', 'el reel diseñado');
       M._test.unassign('r1', null, true);
       igual(slot('r1').photos, [], 'la casilla no se vació');
-      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al pulsar «Editar portada»/), 'el aviso de vaciarla');
+      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al pulsar «Editar»/), 'el aviso de vaciarla');
       M._in.openDetail('r1', 0); sinDisenar('reel diseñado vacío');
-      ok(textoVentana().includes('se aplica al pulsar «Editar portada»'), 'la ventana no dice que «Editar portada» lo aplica');
+      ok(textoVentana().includes('se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       ok(ed().reel, 'no abrió la portada');
@@ -6379,7 +6381,7 @@
       await disenada('r3', [await foto('d4d.jpg', 1080, 1350)], [{ tipo: 'final', titulo: 'Solo el final D4' }], false);   // su portada es su primera diapositiva que no es el final
       await poner('r4', [await foto('d4e.jpg', 1080, 1350)]);
       M._test.swap('r3', 'r4');
-      ok(toastCon(/su diseño no tiene diapositiva de portada; cámbiala en «Editar diapositivas»/), 'el aviso sin diapositiva de portada');
+      ok(toastCon(/su diseño no tiene diapositiva de portada; cámbiala en «Editar»/), 'el aviso sin diapositiva de portada');
     });
   });
 
@@ -6398,8 +6400,8 @@
       const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada nueva' }, sl[1]] }); ok(c && !c.error, 'cargar(): ' + json(c));
       igual(estadoDz('r1'), 'chg', 'los textos nuevos sin aplicar');
       M._in.openDetail('r1', 0); sinDisenar('carrusel con textos nuevos');
-      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica al pulsar «Editar diapositivas»'), 'las herramientas no mandan a «Editar diapositivas»');
-      ok(textoVentana().includes('Las demás diapositivas se cambian en «Editar diapositivas»'), 'las miniaturas no mandan a «Editar diapositivas»');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica al pulsar «Editar»'), 'las herramientas no mandan a «Editar»');
+      ok(textoVentana().includes('Las demás diapositivas se cambian en «Editar»'), 'las miniaturas no mandan a «Editar»');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       igual([estadoDz('r1'), slot('r1').design.slides[0].titulo], ['ok', 'Portada nueva'], 'no aplicó los textos nuevos');
@@ -6414,7 +6416,7 @@
       M._test.setType('r1', 'Reel');
       igual([slot('r1').type, estadoDz('r1')], ['Reel', 'chg'], 'el diseño convertido no quedó pendiente');
       M._in.openDetail('r1', 0); sinDisenar('reel convertido');
-      ok(textoVentana().includes('se aplica al pulsar «Editar portada»'), 'la ventana no dice que «Editar portada» lo aplica');
+      ok(textoVentana().includes('se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       ok(ed().reel, 'no abrió la portada');
@@ -6537,7 +6539,7 @@
     await poner('r3', [await foto('d12d.jpg', 1080, 1920)]);
     for (const [id, et] of [['r1', 'Editar diapositivas'], ['r2', 'Editar foto'], ['r3', 'Editar portada']]) {
       M._in.openDetail(id, 0); sinDisenar(id);
-      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
+      igual(edBotones(), [et], 'los botones de diseño de ' + id);
     }
   });
 
@@ -6560,7 +6562,7 @@
       igual(estadoDz('r1'), null, 'el reel sigue con estado de diseño');
       M._in.openDetail('r1', 0); sinDisenar('reel sin su diseño vacío');
       ok(!textoVentana().includes('cambios sin aplicar'), 'la ventana sigue diciendo «cambios sin aplicar»');
-      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+      igual(edBotones(), ['Editar portada'], 'los botones de diseño del reel');
       ok(slot('r2').design && slot('r2').design.slides[0].titulo === 'Con texto D13' && estadoDz('r2') === 'chg', 'el diseño con textos sin aplicar no se quedó');
       await M.flush();
       const g = await M._in.idbGet('boards', key);
@@ -8784,18 +8786,17 @@
     igual((await M._in.idbAll('ubicaciones')).length, 3, 'el catálogo guardado');
   });
 
-  prueba('L2', 'Desplegable «Ubicación» en la ventana: a la derecha de «Editar …», en su fila, debajo de «Fijar en el perfil» y encima de «Contexto»; vacío al principio y solo con los nombres de su cliente; un reel sin portada lo lleva solo en ese sitio; sin lista sale vacío y su única entrada dice «Crear lista de ubicaciones» (D-124)', async () => {
+  prueba('L2', 'Desplegable «Ubicación» en la ventana: sola en su fila, arriba de los campos y encima de «Contexto» (D-142; antes, a la derecha de «Editar …», D-124); vacío al principio y solo con los nombres de su cliente; un reel sin portada lo lleva solo en ese sitio; sin lista sale vacío y su única entrada dice «Crear lista de ubicaciones» (D-124)', async () => {
     await tablero([pub(1), pub(2, 'Carrusel'), pub(3, 'Reel')]);
     await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
     ok((await M.ubicaciones.cargar(CLIENTE, [LUG.b, LUG.a])).ok, 'cargar');
     ok((await M.ubicaciones.cargar(CLIENTE2, [LUG.c])).ok, 'cargar el otro');
     for (const [id, boton] of [['r1', 'Editar foto'], ['r2', 'Editar diapositivas']]) {
-      const sel = await ubVentana(id), fila = sel.parentElement, b = fila.querySelector('[data-act="editar"]');
-      ok(fila.matches('.pdz'), `${id}: no va en la fila de «Editar …»`);
-      ok(b && b.textContent === boton && b.nextElementSibling === sel, `${id}: no va justo a la derecha de «${boton}»`);
-      cerca(centroY(sel), centroY(b), 3, `${id}: no está en la misma línea que el botón`);
+      const sel = await ubVentana(id), fila = sel.parentElement, b = q('.detail .phead [data-act="editar"]');
+      ok(fila.matches('.pdz') && !fila.querySelector('[data-act="editar"]'), `${id}: no va sola en su fila`);
+      ok(b && b.getAttribute('aria-label') === boton, `${id}: sin «${boton}» (EDITAR) en la cabecera`);
       const hijos = [...q('.detail .pright').children];
-      ok(hijos.indexOf(q('.detail .pinsw')) < hijos.indexOf(fila) && hijos.indexOf(fila) < hijos.indexOf(q('.detail .pright label.nlab')), `${id}: no está entre «Fijar en el perfil» y «Contexto»`);
+      ok(hijos[0] === fila && hijos.indexOf(fila) < hijos.indexOf(q('.detail .pright label.nlab')), `${id}: no va arriba de los campos, encima de «Contexto»`);
       igual(ubNombres(sel), ['Sin ubicación', 'Lugar Alfa', 'Lugar Gamma'], `${id}: las opciones`);
       igual(sel.value, '', `${id}: no empieza vacío`);
       const html = q('.detail').innerHTML;
@@ -9490,7 +9491,7 @@
     try {
       for (const id of ['r1', 'r2']) {
         const per = await perVentana(id);
-        const R = sel => q(sel).getBoundingClientRect(), card = R('.detail .card'), izq = R('.detail .pleft'), cab = R('.detail .phead'), col = R('.detail .pright'), x = R('.detail .card > .x');
+        const R = sel => q(sel).getBoundingClientRect(), card = R('.detail .card'), izq = R('.detail .pleft'), cab = R('.detail .phead'), col = R('.detail .pright'), x = R('.detail .phead > .x');   // en la cabecera desde D-142
         ok(q('.detail .pbody > .phead'), `${id}: la cabecera no va en el cuerpo de la ventana`);
         ok(R('.detail .stage').top - card.top < 40, `${id}: la foto no empieza arriba del todo (${Math.round(R('.detail .stage').top - card.top)} px)`);
         ok(izq.top - card.top < 2 && card.bottom - izq.bottom < 2, `${id}: la columna de la foto no va a toda altura`);
@@ -9587,19 +9588,47 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
-  prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
-    await tablero([pub(1, 'Carrusel')]);
-    await poner('r1', [await foto('j8a.jpg')]);
-    const E = await abrirEditor('r1');
-    ok(!E.el.querySelector('[data-lb="zfit"]') && !/Ajustar/.test(E.el.querySelector('.lb-head').textContent), 'queda «Ajustar»');
-    const zv = E.el.querySelector('.lb-zv');
-    ok(/doble clic/.test(zv.title), 'el porcentaje no lleva un título que lo explique: ' + zv.title);
-    igual(W.getComputedStyle(zv).userSelect, 'none', 'el doble clic selecciona el texto');
-    accion('zin'); accion('zin'); ok(ed().zoom > 1, 'no acercó');
-    zv.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
-    igual([ed().zoom, zv.textContent], [1, '100 %'], 'el doble clic no la deja entera');
-    accion('zin'); tecla('0', { meta: true, code: 'Digit0' }); igual(ed().zoom, 1, '⌘0 dejó de funcionar');
-    M.libre.cerrar();
+  prueba('J5', 'Ventana de una publicación: «Fijar» en la cabecera, a la izquierda de la ×, con su texto dentro; EDITAR a la derecha, del color de «Añadir fotos», tan alto como fecha y tipo y alineado con la ×; Ubicación sola en su fila; Tab: Fijar, ×, EDITAR (D-142)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Reel')]);
+    await poner('r1', [await foto('j5a.jpg'), await foto('j5b.jpg')]);
+    M._in.openDetail('r1', 0);
+    const d = await hasta(() => dialogo() && q('.detail .phead [data-act="editar"]') && dialogo(), 3000, 'la ventana con EDITAR en la cabecera');
+    const R = sel => q(sel).getBoundingClientRect();
+    const pin = q('.detail .phead .pinToggle');
+    ok(pin && !q('.detail .pright .pinToggle'), '«Fijar» no está en la cabecera');
+    igual([pin.getAttribute('role'), pin.getAttribute('aria-label')], ['switch', 'Fijar en el perfil'], 'el interruptor para el lector de pantalla');
+    const x = R('.detail .phead > .x'), pr = R('.detail .pe-fijar'), t = R('.detail .phead h3'), ebt = q('.detail .phead [data-act="editar"]'), e = ebt.getBoundingClientRect(), f = R('.detail .pe-fila > p');
+    ok(pr.right <= x.left && Math.abs((pr.top + pr.bottom) / 2 - (x.top + x.bottom) / 2) < 3, '«Fijar» no va a la izquierda de la ×');
+    ok(t.right <= pr.left, 'el título pisa «Fijar»');
+    const vis = c => W.getComputedStyle(q('.detail .pe-fijar ' + c)).opacity;
+    igual([q('.detail .pe-f0').textContent, q('.detail .pe-f1').textContent, pin.checked], ['Fijar', 'Fijada', false], 'los textos del interruptor');
+    igual([vis('.pe-f0'), vis('.pe-f1')], ['1', '0'], 'apagado no dice «Fijar»');
+    pin.click(); await espera(450);
+    await hasta(() => q('.detail .pinToggle') && q('.detail .pinToggle').checked && (M._in.S.pins || []).includes('r1'), 2000, 'que se fije');
+    igual([vis('.pe-f0'), vis('.pe-f1')], ['0', '1'], 'encendido no dice «Fijada»');
+    q('.detail .pinToggle').click(); await hasta(() => !(M._in.S.pins || []).includes('r1'), 2000, 'que se quite la fijación');
+    // EDITAR
+    igual([ebt.textContent, W.getComputedStyle(ebt).textTransform, ebt.getAttribute('aria-label')], ['Editar', 'uppercase', 'Editar diapositivas'], 'el texto de EDITAR');
+    ok(Math.abs(e.right - x.right) < 1.5, `EDITAR no se alinea con la ×: ${e.right} frente a ${x.right}`);
+    const ph = q('.detail .phead'), pcs = W.getComputedStyle(ph), ancha = ph.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight) > 300;   // estrecha: EDITAR debajo de los campos, a lo ancho
+    ok((ancha ? e.left >= f.right : e.top >= f.bottom) && e.top >= t.bottom, 'EDITAR pisa la fecha o el título: ' + json({ e: [e.left, e.top], f: [f.right, f.bottom], t: t.bottom, ancha }));
+    if (ancha) ok(Math.abs(e.height - f.height) < 2 && e.height > 60 && e.height > e.width * 0.6, `EDITAR no es tan alto como las dos filas: ${e.height} / ${f.height}`);
+    const add = q('.tray .btn[data-act="add"]'), cs = W.getComputedStyle(ebt), ca = W.getComputedStyle(add);
+    igual([cs.backgroundColor, cs.color], [ca.backgroundColor, ca.color], 'EDITAR no es del color de «Añadir fotos»');
+    // Ubicación, sola en su fila
+    const fila = q('.detail .pdz'); ok(fila && fila.querySelector('.ubsel') && !fila.querySelector('[data-act="editar"]'), 'la fila de Ubicación lleva EDITAR');
+    const ub = M.controles && M.controles.gemelo ? M.controles.gemelo(fila.querySelector('.ubsel')) : fila.querySelector('.ubsel');
+    const ur = ub.getBoundingClientRect();
+    ok([...fila.children].filter(c => c !== ub && c.offsetParent && !c.matches('.mx-nat, select')).every(c => c.getBoundingClientRect().top >= ur.bottom - 1), 'algo va al lado de Ubicación');
+    // Tab
+    const foco = [...q('.detail .phead').querySelectorAll('button, input, select, textarea, [tabindex]')].filter(c => c.tabIndex >= 0 && !c.disabled && c.offsetParent !== null);
+    igual(foco.slice(0, 3).map(c => c.matches('.pinToggle') ? 'fijar' : c.matches('.x') ? 'x' : c.dataset.act || c.className), ['fijar', 'x', 'editar'], 'el orden del Tab');
+    ok(D.querySelector('#mesa .detail .pbody').firstElementChild.matches('.phead'), 'la cabecera no va antes que la foto en el orden');
+    M._in.closeDetail();
+    // un reel sin foto: sin EDITAR y sin hueco
+    M._in.openDetail('r2', 0); await hasta(() => dialogo(), 2000, 'la ventana del reel');
+    ok(!q('.detail [data-act="editar"]') && !q('.detail .pe-fila.pe-con'), 'el reel sin portada tiene EDITAR');
+    M._in.closeDetail();
   });
 
   prueba('J6', 'El interruptor claro / oscuro, centrado en la línea de la cabecera y sin estrellas (D-143)', async () => {
@@ -9634,6 +9663,21 @@
     const dl2 = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista otra vez');
     ok(/se renombran? .*para que la numeración cuadre/.test(dl2.querySelector('.cpnota').textContent), 'la nota no dice los renombres: ' + dl2.querySelector('.cpnota').textContent);
     M._in.closeDetail();
+  });
+
+  prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('j8a.jpg')]);
+    const E = await abrirEditor('r1');
+    ok(!E.el.querySelector('[data-lb="zfit"]') && !/Ajustar/.test(E.el.querySelector('.lb-head').textContent), 'queda «Ajustar»');
+    const zv = E.el.querySelector('.lb-zv');
+    ok(/doble clic/.test(zv.title), 'el porcentaje no lleva un título que lo explique: ' + zv.title);
+    igual(W.getComputedStyle(zv).userSelect, 'none', 'el doble clic selecciona el texto');
+    accion('zin'); accion('zin'); ok(ed().zoom > 1, 'no acercó');
+    zv.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    igual([ed().zoom, zv.textContent], [1, '100 %'], 'el doble clic no la deja entera');
+    accion('zin'); tecla('0', { meta: true, code: 'Digit0' }); igual(ed().zoom, 1, '⌘0 dejó de funcionar');
+    M.libre.cerrar();
   });
 
   prueba('J9', '«Libres» en el filtro de la bandeja, con «N libres» y su título «Libres para portada», en la mesa y en el editor; el valor guardado sigue siendo «portada» (D-146)', async () => {

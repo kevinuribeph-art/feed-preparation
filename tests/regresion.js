@@ -9699,6 +9699,29 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS_FIL); else W.localStorage.setItem(LS_FIL, antes); }
   });
 
+  // ---------- el calendario de las publicaciones con el aspecto del de la fecha (D-147) ----------
+  prueba('Q1', 'El calendario de las publicaciones tiene el aspecto del de la fecha: días redondeados sin líneas de rejilla, hoy con su contorno, ‹ › redondos, con los mismos tokens que el de la fecha (D-147)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.setItem(LS, '0'); M._test.reloj(Date.parse('2026-11-04T10:00:00+01:00'));   // hoy, dentro del tablero
+      await tablero([pub(1), pub(2)]);
+      const cal = await hasta(() => { const c = q('.side > .cal'); return c && !c.hidden && c.querySelector('.cday.today') && c; }, 3000, 'el calendario con hoy');
+      const cs = e => W.getComputedStyle(e), m = cs(q('#mesa')), tok = k => m.getPropertyValue(k).trim();
+      ['--cx-r', '--cx-gap', '--cx-hoy', '--cx-nav', '--cx-otro', '--cx-wk-c', '--cx-tit-fs'].forEach(k => ok(tok(k), 'falta el token ' + k));
+      const dia = cal.querySelector('.cday:not(.out):not(.off):not(.prevc):not(.today)'), hoy = cal.querySelector('.cday.today');
+      igual([cs(dia).borderTopLeftRadius, cs(dia).borderRightWidth, cs(dia).borderBottomWidth], [cs(q('#mesa')).getPropertyValue('--r-sm').trim(), '0px', '0px'], 'un día: redondeado y sin líneas');
+      ok(cs(hoy).boxShadow !== 'none' && cs(hoy.querySelector('.dn')).backgroundColor === 'rgba(0, 0, 0, 0)', 'hoy no lleva su contorno (o sigue con la pastilla): ' + cs(hoy).boxShadow);
+      igual([cs(cal.querySelector('.cgrid')).borderTopWidth, cs(cal.querySelector('.cgrid')).rowGap], ['0px', tok('--cx-gap')], 'la rejilla');
+      const nav = cal.querySelector('.cnav [data-cal="prev"]');
+      igual([cs(nav).width, cs(nav).borderTopLeftRadius !== '0px'], [tok('--cx-nav'), true], 'el botón ‹');
+      // el de la fecha usa los mismos tokens: su hoja de estilos los nombra
+      const hoja = D.getElementById('mesa-mx-css');
+      ok(hoja && ['--cx-r', '--cx-hoy', '--cx-nav', '--cx-otro', '--cx-gap'].every(k => hoja.textContent.includes('var(' + k)), 'el calendario de la fecha no usa los tokens compartidos');
+      const hojaC = D.getElementById('mesa-cal-css');
+      ok(hojaC && ['--cx-r', '--cx-hoy', '--cx-nav', '--cx-otro', '--cx-gap', '--cx-casilla'].every(k => hojaC.textContent.includes('var(' + k)), 'el de las publicaciones no usa los tokens compartidos');
+    } finally { M._test.reloj(RELOJ_PRUEBAS); if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

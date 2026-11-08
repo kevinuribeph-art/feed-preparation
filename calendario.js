@@ -16,6 +16,8 @@
 //   Notion: the mesa doesn't read Notion live — each chip has the grid's mark of changes since the last upload (1.1: the one
 //   mark of D-081, also for a caption, photo or contexto), and the header says how many dates, names or types are not uploaded yet and when the board last had Notion's data (S.notionAt: loaded or upload confirmed).
 //   Vista cliente: read only — type, time and colour; no moving, no states, no Notion marks, no cancelled posts.
+//   Look (1.16, D-147, mesa ≥ 4.06): the date's calendar (controles.js, D-136) — ‹ month year ›, initials in grey, days out of
+//   the month in grey, today with its outline, rounded days without grid lines — with the same tokens (--cx-*, mesa.js).
 //   The month's step (1.2, D-084, mesa ≥ 3.68): the legend is the open board's step bar — Por empezar › Captions › Por
 //   aprobar › Aprobado › Programado › Publicado, each with its mark (still the legend of the chips) — and, apart and only as a
 //   legend, No aprobado and Cancelado, which are states of a post, not steps. The steps done in ink (pressed, the month goes
@@ -45,7 +47,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.15';   // 1.15: the list of changes says the renames (D-144)
+  const VERSION = '1.16';   // 1.16: the look of the date's calendar, with its tokens (D-147)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -132,7 +134,7 @@
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
     sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nat}`
       + `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button><span class="cmes">${esc(cap(X.MONTHS[mo - 1]))} ${y}</span><button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button></span></div>`
-      + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:auto repeat(${rows},minmax(58px,auto))${cf ? '' : ' auto'}">${body}</div></div>`;
+      + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${cf ? '' : ' 26px'}">${body}</div></div>`;
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
     vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)
@@ -495,7 +497,7 @@
 #mesa .calhead{flex:none;display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:6px 10px 4px 6px;font-size:12px;color:var(--mute)}
 #mesa .side>.cal.fold .calhead{padding:4px 10px 4px 6px}
 #mesa .cfold{display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:3px 8px 3px 6px;border-radius:var(--r-pill);color:var(--ink);font:inherit;transition:background var(--d1) ease-out}
-#mesa .cfold:hover{background:var(--bg-2)}#mesa .cfold b{font-size:14px;font-weight:800;letter-spacing:-.015em}
+#mesa .cfold:hover{background:var(--bg-2)}#mesa .cfold b{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
 #mesa .cfold svg{width:14px;height:14px;transition:transform .15s}#mesa .cal.fold .cfold svg{transform:rotate(-90deg)}
 #mesa .csync,#mesa .cnat{white-space:nowrap}#mesa .csync.c{color:var(--chg)}#mesa .cnat{font-size:11px;color:var(--faint)}
 #mesa .side>.cal.fold .cnat{display:none}
@@ -506,9 +508,10 @@
 @keyframes cal-fuera{to{opacity:0}}@keyframes cal-dentro{from{opacity:0}}@keyframes cal-ch-f{from{transform:none}}@keyframes cal-ch-a{from{transform:rotate(-90deg)}}
 @media (prefers-reduced-motion:reduce){#mesa .side>.cal.cal-fade .cleg,#mesa .side>.cal.cal-fade .calbody{animation:cal-dentro .15s linear !important}}
 #mesa .cnav{margin-left:auto;display:inline-flex;align-items:center;gap:2px;color:var(--ink)}
-#mesa .cnav button{border:0;background:none;width:26px;height:26px;border-radius:50%;font-size:17px;line-height:1;color:var(--ink);transition:background var(--d1) ease-out}
-#mesa .cnav button:hover:not(:disabled){background:var(--bg-2)}#mesa .cnav button:disabled{color:var(--line-strong);cursor:default}
-#mesa .cmes{min-width:112px;text-align:center;font-weight:600;font-size:13px}
+#mesa .cnav button{position:relative;border:0;background:none;width:var(--cx-nav);height:var(--cx-nav);padding:0;border-radius:var(--r-pill);font-size:0;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
+#mesa .cnav button::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transform:rotate(90deg)}#mesa .cnav button[data-cal="next"]::before{transform:rotate(-90deg)}
+#mesa .cnav button:hover:not(:disabled){background:var(--cx-hov)}#mesa .cnav button:disabled{color:var(--line-strong);cursor:default}
+#mesa .cmes{min-width:124px;text-align:center;font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
 #mesa .cleg{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:3px 2px;padding:0 10px 6px;font-size:10.5px;color:var(--mute)}
 #mesa .cleg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 #mesa .cpaso{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid transparent;border-radius:999px;padding:1px 7px;background:none;font:inherit;font-size:10.5px;line-height:15px;color:var(--ink)}
@@ -535,17 +538,18 @@
 #mesa .detail .cprv>p{margin:0 0 10px;color:var(--mute);font-size:12.5px}#mesa .detail .cprv>p.xwhat{color:var(--ink);font-size:13px}
 #mesa .detail .xwhat .cpn{color:var(--mute);font-size:12.5px}
 #mesa .calbody{flex:1;min-height:0;overflow:auto;padding:0 10px 10px}
-#mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 28px;border-left:1px solid var(--line2);border-top:1px solid var(--line2)}
+#mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 28px;gap:var(--cx-gap);min-height:100%}
 #mesa .cal.nocnt .cgrid{grid-template-columns:repeat(7,minmax(0,1fr)) 16px}
-#mesa .cdow{padding:3px 6px;font-size:10.5px;color:var(--mute);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);background:var(--bg)}
-#mesa button.cdow.ccnt{border:0;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:3px 0;font:inherit;font-size:10.5px;color:var(--mute);text-align:center}
-#mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--bg-2)}
-#mesa .cday{min-width:0;display:flex;flex-direction:column;gap:2px;padding:2px 3px 4px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2)}
-#mesa .cday.out .dn{color:var(--faint)}
-#mesa .cday.off,#mesa .cday.prevc{background:var(--cal-off)}
+#mesa .cdow{padding:3px 6px;font-size:10.5px;font-weight:600;color:var(--cx-wk-c)}
+#mesa button.cdow.ccnt{border:0;padding:0;border-radius:var(--cx-r);background:none;font:inherit;font-size:10.5px;font-weight:600;color:var(--cx-wk-c);text-align:center;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
+#mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--cx-hov)}
+#mesa .cday{position:relative;min-width:0;display:flex;flex-direction:column;gap:2px;padding:2px 3px 4px;border-radius:var(--cx-r);background:var(--cx-casilla)}
+#mesa .cday.off,#mesa .cday.prevc{background:none}
+#mesa .cday.out .dn,#mesa .cday.off .dn,#mesa .cday.prevc .dn{color:var(--cx-otro)}
+#mesa .cday.today{box-shadow:var(--cx-hoy)}
 #mesa .dh{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:18px;padding:0 1px}
-#mesa .dn{font-size:11px;color:var(--mute);line-height:18px;padding:0 4px;border-radius:999px;white-space:nowrap}
-#mesa .cday.today .dn{background:var(--ink);color:var(--on-ink);font-weight:600}
+#mesa .dn{font-size:11px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink);line-height:18px;padding:0 4px;white-space:nowrap}
+#mesa .cday.today .dn{font-weight:700}
 #mesa .dmany{font-size:10px;line-height:15px;padding:0 6px;border-radius:var(--r-pill);background:var(--chg-soft);color:var(--chg)}
 #mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:var(--r-xs);padding:2px 6px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;color:var(--ty-trial-ink);background:var(--ty-trial);transition:filter var(--d1) ease-out}
 #mesa .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}
@@ -569,9 +573,9 @@
 #mesa .cday.cno{background:var(--red-soft)}#mesa.calmv .cday.cno,#mesa.calmv .cday.cno *{cursor:not-allowed !important}
 #mesa .chip.calhi{box-shadow:0 0 0 2px var(--ink)}
 #mesa .cell.calhi::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;box-shadow:inset 0 0 0 2px var(--on-photo),inset 0 0 0 4px var(--ink)}
-#mesa .cgrid>.ccnt:not(button){display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--ink);background:var(--bg);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums}
-#mesa .cgrid>.ccnt.z{color:var(--faint);font-weight:400}
-#mesa .ctot{grid-column:1/8;padding:4px 8px;text-align:right;font-size:11px;color:var(--mute);border-right:1px solid var(--line2);border-bottom:1px solid var(--line2)}
+#mesa .cgrid>.ccnt:not(button){display:flex;align-items:center;justify-content:center;font:600 11px var(--font);color:var(--ink);font-variant-numeric:tabular-nums}
+#mesa .cgrid>.ccnt.z{color:var(--cx-otro);font-weight:400}
+#mesa .ctot{grid-column:1/8;padding:4px 8px;text-align:right;font-size:11px;color:var(--mute)}
 #mesa .ctotn{min-height:22px}
 #mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
 #mesa.client .chip{cursor:pointer}

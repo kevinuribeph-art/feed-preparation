@@ -9855,6 +9855,137 @@
     });
   });
 
+  // ---------- los días de otro mes del tablero, atenuados (D-153) ----------
+  prueba('Q7', 'En el calendario, los días de otro mes del mismo tablero que asoman en la vista van como los del mes anterior, con sus chips apagados en el color de su tipo y a todo color con el enlace de la casilla; se abren sin desbloquear, se arrastran en los dos sentidos y ⌘Z lo devuelve; resaltado, vencida, cambios, cancelada y hoy se ven igual; en un tablero de un mes no hay ninguno; con día de ciclo 15, igual (D-153)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    W.localStorage.setItem(LS, '0');
+    try {
+      await limpiar();
+      const R3 = `r3-${DIC}`, R4 = `r4-${DIC}`;
+      const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, months: 2, slots: [pub(1), pub(2), pub(3, 'Foto', 5, DIC), pub(4, 'Reel', 6, DIC), pub(5, 'Carrusel', 30)], past: [{ id: 'q7p', name: 'Foto 0.1', type: 'Foto', date: '2026-10-28T12:00:00.000+01:00' }], force: true });
+      ok(r && r.key, 'no se abrió el tablero de dos meses: ' + json(r));
+      await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'el calendario');
+      const cs = e => W.getComputedStyle(e), dia = d => q(`.side > .cal .cday[data-day="${d}"]`), chip = id => q(`.side > .cal .chip[data-slot="${id}"]`);
+      const otros = () => qa('.side > .cal .cday.otromes').map(d => d.dataset.day), pinta = e => [cs(e).backgroundColor, cs(e).color];
+      const casilla = d => [cs(d).backgroundColor, cs(d.querySelector('.dn')).color];
+      const fecha = id => M._in.localDay(slot(id).date);
+      const sinEnlace = async () => { q('.side > .cal .calhead').dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true })); await espera(250); };
+      const enlace = async id => { celda(id).dispatchEvent(new W.PointerEvent('pointerover', { bubbles: true })); await hasta(() => chip(id) && chip(id).classList.contains('calhi'), 2000, 'el enlace casilla → chip de ' + id); await espera(250); return chip(id); };
+      async function arrastra(id, d) {
+        const ch = await hasta(() => chip(id), 3000, 'el chip de ' + id), dd = await hasta(() => dia(d), 3000, 'el día ' + d);
+        dd.scrollIntoView({ block: 'center' }); await espera(30);
+        const rc = ch.getBoundingClientRect(), rd = dd.getBoundingClientRect(), x = rd.left + rd.width / 2, y = rd.top + rd.height / 2;
+        puntero('pointerdown', ch, rc.left + 4, rc.top + 4);
+        puntero('pointermove', D, (rc.left + x) / 2, (rc.top + y) / 2); puntero('pointermove', D, x, y); puntero('pointerup', D, x, y);
+        await espera(450);   // un clic justo después de soltar no abre nada
+      }
+      // noviembre: asoman del 1 al 6 de diciembre, atenuados como el mes anterior
+      await irMes('Noviembre 2026');
+      igual(otros(), ['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05', '2026-12-06'], 'los días de diciembre que asoman en noviembre');
+      ok(dia('2026-10-28').classList.contains('prevc') && !dia('2026-10-28').classList.contains('otromes'), 'el mes anterior cambió');
+      igual(casilla(dia('2026-12-05')), casilla(dia('2026-10-28')), 'la casilla y el número de diciembre no son los del mes anterior');
+      ok(cs(dia('2026-11-20')).backgroundColor !== cs(dia('2026-12-05')).backgroundColor, 'un día de noviembre va sin casilla');
+      const c3 = dia('2026-12-05').querySelector(`.chip[data-slot="${R3}"]`), c1 = chip('r1'), gris = pinta(dia('2026-10-28').querySelector('.chip.past'));
+      ok(c3 && c1, 'faltan los chips');
+      ok(pinta(c3)[0] !== pinta(c1)[0] && pinta(c3)[1] !== pinta(c1)[1], 'el chip de diciembre no va apagado');
+      ok(pinta(c3)[0] !== gris[0] && pinta(c3)[1] !== gris[1], 'el chip de diciembre va gris, como uno bloqueado');
+      igual([cs(c3).opacity, cs(c3).filter], ['1', 'none'], 'el chip se apaga con opacidad o filtro (también sus marcas)');
+      // el enlace con la casilla del feed: a todo color y el mismo contorno
+      const bs1 = cs(await enlace('r1')).boxShadow;
+      const e3 = await enlace(R3);
+      igual([...pinta(e3), cs(e3).boxShadow], [...pinta(chip('r1')), bs1], 'con el enlace, el chip de diciembre no va a todo color o no se ve igual');
+      await sinEnlace();
+      ok(pinta(chip(R3))[0] !== pinta(chip('r1'))[0], 'sin el enlace no vuelve a apagarse');
+      // el resaltado al arrastrar, igual sobre un día atenuado
+      for (const k of ['cover', 'cno']) {
+        const a = dia('2026-11-20'), b = dia('2026-12-06');
+        a.classList.add(k); b.classList.add(k);
+        igual([cs(b).backgroundColor, cs(b).boxShadow], [cs(a).backgroundColor, cs(a).boxShadow], `el resaltado ${k} sobre un día atenuado`);
+        a.classList.remove(k); b.classList.remove(k);
+      }
+      // se abre sin desbloquear; el del mes anterior sigue pidiéndolo
+      chip(R3).click();
+      await hasta(() => dialogo() && dialogo().dataset.slot === R3 && !dialogo().dataset.dlg, 3000, 'la publicación de diciembre al pulsar su chip');
+      M._in.closeDetail(); await espera(30);
+      dia('2026-10-28').querySelector('.chip.past').click();
+      await hasta(() => dialogo() && dialogo().dataset.dlg === 'unlock', 3000, 'pedir desbloquear el mes anterior');
+      M._in.closeDetail(); await espera(30);
+      // se arrastra a un día atenuado y desde él; ⌘Z lo devuelve
+      await arrastra('r1', '2026-12-06');
+      igual(fecha('r1'), '2026-12-06', 'el chip de noviembre no se movió al día atenuado');
+      ok(dia('2026-12-06').querySelector('.chip[data-slot="r1"]'), 'no sale en el día atenuado');
+      M._test.undo(); await espera(60);
+      igual(fecha('r1'), '2026-11-03', '⌘Z no lo devolvió');
+      await arrastra(R3, '2026-11-20');
+      igual(fecha(R3), '2026-11-20', 'el chip atenuado no se movió a noviembre');
+      M._test.undo(); await espera(60);
+      igual(fecha(R3), '2026-12-05', '⌘Z no devolvió el atenuado');
+      // diciembre: asoma el 30 de noviembre, con su chip; enero no es del tablero
+      await irMes('Diciembre 2026');
+      igual(otros(), ['2026-11-30'], 'los días de noviembre que asoman en diciembre');
+      ok(dia('2027-01-01').classList.contains('off') && !dia('2027-01-01').classList.contains('otromes'), 'enero cambió');
+      ok(pinta(chip('r5'))[0] !== pinta(chip(R3))[0], 'el chip del 30 de noviembre no va apagado');
+      await arrastra(R4, '2026-11-30');
+      igual(fecha(R4), '2026-11-30', 'el chip de diciembre no se movió al día atenuado');
+      M._test.undo(); await espera(60);
+      await arrastra('r5', '2026-12-10');
+      igual(fecha('r5'), '2026-12-10', 'el chip atenuado no se movió a diciembre');
+      M._test.undo(); await espera(60);
+      igual([fecha(R4), fecha('r5')], ['2026-12-06', '2026-11-30'], '⌘Z no los devolvió');
+      // «Vista cliente»: los mismos días atenuados
+      await irMes('Noviembre 2026');
+      q('.clientToggle').click(); await espera(60);
+      igual(otros().length, 6, 'en «Vista cliente» no van atenuados');
+      ok(pinta(chip(R3))[0] !== pinta(chip('r1'))[0], 'en «Vista cliente» el chip no va apagado');
+      q('.clientToggle').click(); await espera(60);
+      // la marca de cambios, la vencida, la cancelada y hoy, igual de claras sobre un día atenuado
+      await porAprobar(['r1', R3], 'q7');
+      M.markUploaded(['r1', R3].map(id => ({ slotId: id, fileIds: slot(id).photos }))); M.markCaptionsUploaded(['r1', R3]);
+      M._test.setNote('r1', 'Otro contexto'); M._test.setNote(R3, 'Otro contexto');
+      const mk = id => hasta(() => chip(id) && chip(id).querySelector('.mk-cambios'), 3000, 'la marca de cambios de ' + id);
+      const vmk = m => [cs(m).opacity, m.getBoundingClientRect().width, ...[...m.querySelectorAll('circle')].map(c => cs(c).fill)];
+      igual(vmk(await mk(R3)), vmk(await mk('r1')), 'la marca de cambios sobre un día atenuado');
+      M.setEstado(['r2', R4], 'cancelado'); await espera(60);
+      const cx = id => { const c = chip(id); return [...pinta(c), cs(c.querySelector('.cn')).textDecorationLine]; };
+      igual(cx(R4), cx('r2'), 'la cancelada sobre un día atenuado');
+      M._test.reloj(Date.parse('2026-12-06T13:00:00+01:00')); M._in.render(); await espera(60);
+      await irMes('Noviembre 2026');
+      const vv = id => { const c = chip(id), t = c.querySelector('.ct'); return [c.classList.contains('venc'), cs(c).boxShadow, cs(t).color, cs(t).opacity, cs(t).fontWeight]; };
+      igual(vv(R3), vv('r1'), 'la vencida sobre un día atenuado');
+      const hoyN = dia('2026-12-06');
+      ok(hoyN.classList.contains('today') && hoyN.classList.contains('otromes'), 'hoy no está atenuado en noviembre');
+      const hoyA = [cs(hoyN).boxShadow, cs(hoyN.querySelector('.dn')).fontWeight];
+      await irMes('Diciembre 2026');
+      igual(hoyA, [cs(dia('2026-12-06')).boxShadow, cs(dia('2026-12-06').querySelector('.dn')).fontWeight], 'el contorno de hoy sobre un día atenuado');
+      M._test.reloj(RELOJ_PRUEBAS);
+      // un tablero de un mes: ninguno
+      await tablero([pub(1), pub(2)]);
+      await hasta(() => q('.side > .cal .cgrid'), 3000, 'el calendario');
+      await irMes('Noviembre 2026');
+      igual(otros(), [], 'en un tablero de un mes hay días atenuados de otro mes');
+      ok(dia('2026-12-01').classList.contains('off'), 'diciembre no queda fuera del tablero');
+      // día de ciclo 15 (15 nov – 14 dic): sus días de noviembre que asoman en diciembre, atenuados pero usables
+      await limpiar();
+      const d15 = d => `2026-${d}T12:00:00.000+01:00`;
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 15, slots: [{ id: 'c15a', name: 'Foto 1.1', type: 'Foto', date: d15('11-30') }, { id: 'c15b', name: 'Foto 1.2', type: 'Foto', date: d15('12-10') }], past: [], force: true });
+      await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'el calendario');
+      await irMes('Diciembre 2026');
+      igual(otros(), ['2026-11-30'], 'con día de ciclo 15, los de noviembre que asoman en diciembre');
+      ok(pinta(chip('c15a'))[0] !== pinta(chip('c15b'))[0], 'con día de ciclo 15, el chip no va apagado');
+      chip('c15a').click();
+      await hasta(() => dialogo() && dialogo().dataset.slot === 'c15a' && !dialogo().dataset.dlg, 3000, 'con día de ciclo 15, la publicación al pulsar su chip');
+      M._in.closeDetail(); await espera(30);
+      await irMes('Noviembre 2026');
+      ok(dia('2026-11-10').classList.contains('prevc') && !dia('2026-11-10').classList.contains('otromes'), 'con día de ciclo 15, el ciclo anterior cambió');
+      igual(otros(), ['2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05', '2026-12-06'], 'con día de ciclo 15, los de diciembre que asoman en noviembre');
+    } finally {
+      M._test.reloj(RELOJ_PRUEBAS); M._in.closeDetail();
+      const c = q('.clientToggle'); if (c && c.checked) c.click();
+      if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar();
+    }
+  });
+
   // ---------- los paneles de un elemento, plegables como el de una diapositiva (D-149) ----------
   prueba('R1', 'El panel de un elemento va todo en secciones plegables, una abierta a la vez, sin explicaciones en gris; al elegir un elemento se abre la última abierta en su tipo (la primera vez, la principal) y sobrevive al redibujo; encuadrar abre la principal (D-149)', async () => {
     const LS = 'mesa-lb-seccion-el', antes = W.localStorage.getItem(LS);

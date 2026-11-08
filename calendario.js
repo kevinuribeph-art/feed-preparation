@@ -9,7 +9,9 @@
 //   tray's; pressing it opens it, D-148); the weekly count column folds too. Both are
 //   remembered per browser (localStorage; if it can't be read, open).
 //   Months: the board's cycles and, before them, the previous month (its published posts in grey, read only); the days
-//   outside the board's cycles are dimmed.
+//   outside the board's cycles are dimmed. 1.17 (D-153): so are, with their chips muted in their type's colour, the days of
+//   another month of the board that show in the month seen (the calendar's month decides, not the step bar's cycle); they
+//   work as the others (open, drag, drop) and their chips go back to full colour on hover, focus or the grid's link.
 //   Weekly count: the posts of each week on the days of the month shown, so the weeks add up to the month's total;
 //   cancelled posts don't count.
 //   Moving: a chip dragged to another day keeps its time and goes through the mesa's setDate, as the post view's date field
@@ -48,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.16';   // 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.17';   // 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -115,7 +117,8 @@
       for (let c = 0; c < 7; c++) {
         const d = addDays(start, r * 7 + c), inM = d.slice(0, 7) === m, items = (by[d] || []).filter(it => !client || live(it));
         const k = items.filter(live).length; if (inM) n += k;
-        const cls = `cday${inM ? '' : ' out'}${d < sp.plo || d > sp.hi ? ' off' : d < sp.lo ? ' prevc' : ''}${d === today ? ' today' : ''}`;
+        // out of the board (off), its previous cycle (prevc) or another month of the board that shows here (otromes, D-153)
+        const cls = `cday${inM ? '' : ' out'}${d < sp.plo || d > sp.hi ? ' off' : d < sp.lo ? ' prevc' : inM ? '' : ' otromes'}${d === today ? ' today' : ''}`;
         const num = +d.slice(8) === 1 ? `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}` : String(+d.slice(8));
         body += `<div class="${cls}" data-day="${d}"><div class="dh"><span class="dn">${num}</span>${k > 1 && !client ? `<span class="dmany" title="${k} publicaciones este día">${k}</span>` : ''}</div>`
           + items.map(it => it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
@@ -552,22 +555,23 @@
 #mesa button.cdow.ccnt{border:0;padding:0;border-radius:var(--cx-r);background:none;font:inherit;font-size:10.5px;font-weight:600;color:var(--cx-wk-c);text-align:center;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--cx-hov)}
 #mesa .cday{position:relative;min-width:0;display:flex;flex-direction:column;gap:2px;padding:2px 3px 4px;border-radius:var(--cx-r);background:var(--cx-casilla)}
-#mesa .cday.off,#mesa .cday.prevc{background:none}
-#mesa .cday.out .dn,#mesa .cday.off .dn,#mesa .cday.prevc .dn{color:var(--cx-otro)}
+#mesa .cday.off,#mesa .cday.prevc,#mesa .cday.otromes{background:none}
+#mesa .cday.out .dn,#mesa .cday.off .dn,#mesa .cday.prevc .dn,#mesa .cday.otromes .dn{color:var(--cx-otro)}
 #mesa .cday.today{box-shadow:var(--cx-hoy)}
 #mesa .dh{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:18px;padding:0 1px}
 #mesa .dn{font-size:11px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink);line-height:18px;padding:0 4px;white-space:nowrap}
 #mesa .cday.today .dn{font-weight:700}
 #mesa .dmany{font-size:10px;line-height:15px;padding:0 6px;border-radius:var(--r-pill);background:var(--chg-soft);color:var(--chg)}
-#mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:var(--r-xs);padding:2px 6px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;color:var(--ty-trial-ink);background:var(--ty-trial);transition:filter var(--d1) ease-out}
+#mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:var(--r-xs);padding:2px 6px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;--cb:var(--ty-trial);--ci:var(--ty-trial-ink);color:var(--ci);background:var(--cb);transition:filter var(--d1) ease-out,background-color var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}
 #mesa .chip .cn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 #mesa .chip .ct{flex:none;font-size:10px;opacity:.75}
-#mesa .chip.ty-reel{background:var(--ty-reel);color:var(--ty-reel-ink)}
-#mesa .chip.ty-collab{background:var(--ty-collab);color:var(--ty-collab-ink)}
-#mesa .chip.ty-foto{background:var(--ty-foto);color:var(--ty-foto-ink)}
-#mesa .chip.ty-carr{background:var(--ty-carr);color:var(--ty-carr-ink)}
-#mesa .chip.ty-trial{background:var(--ty-trial);color:var(--ty-trial-ink)}
+#mesa .chip.ty-reel{--cb:var(--ty-reel);--ci:var(--ty-reel-ink)}
+#mesa .chip.ty-collab{--cb:var(--ty-collab);--ci:var(--ty-collab-ink)}
+#mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}
+#mesa .chip.ty-carr{--cb:var(--ty-carr);--ci:var(--ty-carr-ink)}
+#mesa .chip.ty-trial{--cb:var(--ty-trial);--ci:var(--ty-trial-ink)}
+#mesa .cday.otromes .chip:not(.cx):not(.past):not(:hover):not(:focus-visible):not(.calhi){background:color-mix(in srgb,var(--cb) 45%,transparent);color:color-mix(in srgb,var(--ci) 55%,transparent)}
 #mesa .chip.past{background:var(--ty-past);color:var(--faint);cursor:pointer}
 #mesa .chip.cx{background:var(--ty-past);color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}
 #mesa .chip:hover{filter:brightness(.97)}

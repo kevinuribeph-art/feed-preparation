@@ -4756,7 +4756,7 @@
     ok(q('.tgrid').firstElementChild.classList.contains('tcarpeta'), 'las carpetas no van delante');
     await pulsar(`.tcarpeta[data-id="${n['Abre'].id}"]`);
     igual([tiles(), fotos()], [['Dentro'], ['c20-a.jpg']], 'dentro');
-    ok(q('.cpruta').textContent.includes('Abre') && q('.cpvolver'), 'sin ruta ni volver');
+    ok(q('.tray .cptab.on button').title === 'Bandeja / Abre' && q('.cpvolver') && !q('.cpruta'), 'sin la ruta en el title de la pestaña en uso, sin volver o con la ruta en texto (D-151)');
     // + Carpeta, dentro de lo abierto
     await pulsar('[data-act="cp-nueva"]');
     const input = await hasta(() => q('#cp-nombre'), 2000, 'el nombre');
@@ -4821,25 +4821,25 @@
     igual(tabsTxt(), ['*Bandeja'], 'de entrada');
     ok(!q('.cptab.fija .cpx'), 'la fija se puede cerrar');
     await pulsar(`.tcarpeta[data-id="${n['Uno'].id}"]`);
-    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], n['Uno'].id], 'entrar va en la fija');
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Uno'], n['Uno'].id], 'entrar va en la fija (que dice la carpeta, D-151)');
     M._in.pestNueva(n['Dos'].id);
-    igual(tabsTxt(), ['Bandeja', '*Dos'], 'una nueva');
+    igual(tabsTxt(), ['Uno', '*Dos'], 'una nueva');
     igual(qa('.tgrid .titem').map(x => M.files[x.dataset.file].name), ['c21-c.jpg'], 'lo de la pestaña nueva');
     const dup = M._in.pestLista().length; M._in.pestNueva(n['Dos'].id);
     igual(M._in.pestLista().length, dup, 'la misma carpeta abre otra pestaña');
     await pulsar('.cptab.fija [data-act="cp-pest"]');
     igual(M._in.trayCarpeta, n['Uno'].id, 'la fija conserva dónde estaba');
     await pulsar(`.tcarpeta[data-id="${n['Hija'].id}"]`);
-    igual(tabsTxt(), ['*Bandeja', 'Dos'], 'entrar en la fija no toca la otra');
+    igual(tabsTxt(), ['*Hija', 'Dos'], 'entrar en la fija no toca la otra');
     await pulsar('.cpvolver');
     igual(M._in.trayCarpeta, n['Uno'].id, 'volver');
     M._in.pestIr(M._in.pestLista()[1].id);
     M._in.trayAbrir(null);
-    igual(tabsTxt(), ['Bandeja', '*Bandeja'], 'una abierta que vuelve a la raíz');
+    igual(tabsTxt(), ['Uno', '*Bandeja'], 'una abierta que vuelve a la raíz');
     M._in.trayAbrir(n['Dos'].id);
     const antes = await medida(), bd = (await M._in.idbGet('bandejas', CLIENTE));
     await pulsar('.cptab:not(.fija) .cpx');
-    igual(tabsTxt(), ['*Bandeja'], 'cerrar pasa a la de la izquierda');
+    igual(tabsTxt(), ['*Uno'], 'cerrar pasa a la de la izquierda');
     igual(await medida(), antes, 'cerrar borró algo');
     await M.flush();
     igual((await M._in.idbGet('bandejas', CLIENTE)).carpetas.map(c => c.files.length), bd.carpetas.map(c => c.files.length), 'cerrar cambió las carpetas');
@@ -4848,14 +4848,14 @@
   prueba('C22', 'Las pestañas se recuerdan por cliente, también entre meses y al recargar; la de una carpeta que ya no está se cierra (D-076)', async () => {
     const clave = `${CLIENTE}-${MES}`, n = await arbolTabs();
     M._in.trayAbrir(n['Uno'].id); M._in.pestNueva(n['Dos'].id); M._in.pestNueva(n['Hija'].id);
-    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'las abiertas');
+    igual(tabsTxt(), ['Uno', 'Dos', '*Hija'], 'las abiertas (la fija dice la carpeta, D-151)');
     await M.flush();
     await M.init({ client: CLIENTE, month: '2026-12', slots: [pub(9, 'Foto', 9, '2026-12')], past: [], force: true });
-    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'en otro mes');
+    igual(tabsTxt(), ['Uno', 'Dos', '*Hija'], 'en otro mes');
     await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
     igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], null], 'otro cliente tiene las suyas');
     await M.open(clave);
-    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'al volver al cliente');
+    igual(tabsTxt(), ['Uno', 'Dos', '*Hija'], 'al volver al cliente');
     igual(M._in.pestLista()[0].carpeta, n['Uno'].id, 'la fija, donde estaba');
     // una carpeta que ya no está
     const k = 'mesa-pestanas:' + CLIENTE, d = JSON.parse(W.localStorage.getItem(k));
@@ -4881,7 +4881,7 @@
     await pulsar('.cptab.fija [data-act="cp-pest"]');
     clicDerecho(tile(n['Dos'].id));
     itemMenu('Abrir').click();
-    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja', 'Uno'], n['Dos'].id], '«Abrir» va en la pestaña en uso');
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Dos', 'Uno'], n['Dos'].id], '«Abrir» va en la pestaña en uso (la fija dice la carpeta, D-151)');
     await pulsar('.cpvolver');
     clicDerecho(tile(n['Dos'].id));
     D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -4898,14 +4898,14 @@
     const n = await arbolTabs();
     M._in.pestNueva(n['Uno'].id); M._in.pestNueva(n['Hija'].id); M._in.pestNueva(n['Dos'].id);
     M._in.pestIr('fija'); M._in.trayAbrir(n['Uno'].id); M._in.trayAbrir(n['Hija'].id);
-    igual(tabsTxt(), ['*Bandeja', 'Uno', 'Hija', 'Dos'], 'antes');
+    igual(tabsTxt(), ['*Hija', 'Uno', 'Hija', 'Dos'], 'antes (la fija dice la carpeta, D-151)');
     M._in.trayAbrir(n['Uno'].id);
     clicDerecho(q(`.tcarpeta[data-id="${n['Hija'].id}"]`));
     itemMenu('Borrar').click();
     await hasta(() => q('[data-act="carpeta-borrar"]'), 3000, 'el aviso');
     await pulsar('[data-act="carpeta-borrar"]');
     await hasta(() => !carp(n['Hija'].id), 4000, 'que se borre');
-    igual(tabsTxt(), ['*Bandeja', 'Uno', 'Dos'], 'la pestaña de la hija');
+    igual(tabsTxt(), ['*Uno', 'Uno', 'Dos'], 'la pestaña de la hija');
     // la fija dentro de la que se borra, y otra en su subcarpeta
     const hija2 = M.crearCarpeta('Nieta', n['Uno'].id).id;
     M._in.pestNueva(hija2); M._in.pestIr('fija'); M._in.trayAbrir(hija2);
@@ -6985,14 +6985,14 @@
       ok(t.scrollTop > 150, `${que}: la bandeja no se desliza (${t.scrollTop})`);
       cerca(h.top, t.getBoundingClientRect().top, 1, `${que}: la cabecera no sigue arriba`);
       cerca(n.top, h.bottom, 1, `${que}: las pestañas no están pegadas bajo la cabecera`);
-      ok(qa('.tray .cptab, .tray .cpvolver, .tray .cpruta').every(x => { const r = x.getBoundingClientRect(); return r.top >= h.bottom - 0.5 && r.bottom <= n.bottom + 0.5; }), `${que}: una pestaña o la ruta no se ve`);
+      ok(qa('.tray .cptab, .tray .cpvolver').every(x => { const r = x.getBoundingClientRect(); return r.top >= h.bottom - 0.5 && r.bottom <= n.bottom + 0.5; }), `${que}: una pestaña o ← no se ve`);
       const bg = W.getComputedStyle(navK()).backgroundColor; ok(bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent', `${que}: su fondo no es opaco (${bg})`);
       const e = D.elementFromPoint(n.left + n.width / 2, n.bottom - 2); ok(e && navK().contains(e), `${que}: una foto asoma por encima de las pestañas`);
     };
     try {
       q('.tray').scrollTop = 1e5; pegadas('en la raíz');
-      M._in.trayAbrir(k.uno.id); q('.tray').scrollTop = 1e5; pegadas('en «Uno», con ← y la ruta');
-      ok(navK().querySelector('.cpvolver') && navK().querySelector('.cpruta'), 'en «Uno» no están ← y la ruta');
+      M._in.trayAbrir(k.uno.id); q('.tray').scrollTop = 1e5; pegadas('en «Uno», con ←');
+      ok(navK().querySelector('.cpvolver') && !navK().querySelector('.cpruta'), 'en «Uno» no está ← o sigue la ruta en texto (D-151)');
       M.hs.ver(true); await espera(60); q('.tray').scrollTop = 1e5; pegadas('con «Historias»'); M.hs.ver(false); await espera(30);
       ok(visto(q('.side > .cal')), 'el calendario no sale');
       plegar(); await espera(60); q('.tray').scrollTop = 1e5; pegadas('con el calendario plegado o abierto');
@@ -7027,8 +7027,8 @@
     aFotoK(k.fh[15]); const h0 = idK(primeraK());
     q('.tray .cpvolver').click(); dondeK(u0, '«Uno» con ←');
     tile(k.hija.id).click(); dondeK(h0, '«Hija» al volver a entrar');
-    q(`.tray .cpruta button[data-id="${k.uno.id}"]`).click(); dondeK(u0, '«Uno» por la ruta');
-    tile(k.hija.id).click(); q('.tray .cpruta button[data-id=""]').click(); dondeK(r0, 'la raíz por la ruta');
+    q('.tray .cpvolver').click(); dondeK(u0, '«Uno» con ← desde «Hija»');   // sin la ruta en texto, ← (D-151)
+    q('.tray .cpvolver').click(); dondeK(r0, 'la raíz con ←');
     // la raíz otra vez arriba: vuelve arriba
     q('.tray').scrollTop = 0; pulsarPest('Uno'); pulsarPest('Bandeja'); igual(q('.tray').scrollTop, 0, 'la raíz, dejada arriba, no vuelve arriba');
   });
@@ -7186,13 +7186,13 @@
     // soltar en una pestaña con la bandeja deslizada
     await llevarFoto(k.raiz[85], tabK('Dos'), 'en la pestaña');
     await hasta(() => M.board().carpetas.find(c => c.id === k.dos.id).files.includes(k.raiz[85]), 3000, 'soltada en la pestaña no se mueve');
-    // en ← y en la ruta, dentro de «Hija», deslizada
+    // en ←, dentro de «Hija» y de «Uno» (a la raíz), deslizada; sin la ruta en texto (D-151)
     M._in.trayAbrir(k.hija.id); q('.tray').scrollTop = 1e5; ok(q('.tray').scrollTop > 100, '«Hija» no se desliza');
     await llevarFoto(k.fh[28], q('.tray .cpvolver'), 'en ←');
     await hasta(() => M.board().carpetas.find(c => c.id === k.uno.id).files.includes(k.fh[28]), 3000, 'soltada en ← no se mueve');
-    q('.tray').scrollTop = 1e5;
-    await llevarFoto(k.fh[27], q('.tray .cpruta button[data-id=""]'), 'en la ruta');
-    await hasta(() => !M.board().carpetas.some(c => c.files.includes(k.fh[27])), 3000, 'soltada en la ruta no se mueve');
+    M._in.trayAbrir(k.uno.id); q('.tray').scrollTop = 1e5;
+    await llevarFoto(k.fh[28], q('.tray .cpvolver'), 'en ←, a la raíz');
+    await hasta(() => !M.board().carpetas.some(c => c.files.includes(k.fh[28])), 3000, 'soltada en ← de «Uno» no va a la raíz');
     M._in.clearToasts();
   });
 
@@ -9240,7 +9240,7 @@
     await abrirEditor('r3', 0); if (!ed().trOpen) accion('bandeja');
     const c = await hasta(() => q('.lb-trh') && q('.lb-tray img') && q('.lb-trh'), 4000, 'la cabecera de la bandeja del editor');
     ok(!/clic: a esta diapositiva|arrástrala|suelta aquí fotos/.test(c.textContent), 'sigue la ayuda en la bandeja del editor: ' + c.textContent);
-    ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
+    ok(!q('.lb-trh b') && !/Bandeja/.test(c.textContent), 'en la raíz, con la fija sola, la cabecera lleva la ruta en texto (D-151: la dice la pestaña en uso)');
   });
 
   prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna con cráteres a la izquierda en oscuro (sin estrellas, D-143), movido con transform (D-134)', async () => {
@@ -9936,6 +9936,44 @@
       cerca(txtX(ph.querySelector('.mx-o')), xi, 'las horas');
       M.controles.cerrar();
     } finally { sel.remove(); M._in.closeDetail(); }
+  });
+
+  // ---------- la pestaña en uso de la bandeja, con color, y sin la ruta en texto (D-151) ----------
+  prueba('R3', 'La pestaña en uso de la bandeja lleva el color de «Añadir fotos», también la fija; sin la ruta en texto: la pestaña dice su carpeta (también la fija), «←» solo dentro de una carpeta y la ruta entera en su title; soltar sobre ella tiene su propia marca; en la mesa y en el editor (D-151)', async () => {
+    const I = M._in, LT = 'mesa-lb-bandeja', lt0 = W.localStorage.getItem(LT);
+    try {
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('r3a.jpg'), await foto('r3b.jpg')]);
+      const a = M.crearCarpeta('R3 Uno').id, b = M.crearCarpeta('R3 Dos', a).id; await espera(50);
+      I.pestLista().filter(p => p.id !== 'fija').forEach(p => I.pestCerrar(p.id)); I.pestIr('fija'); I.trayAbrir(null); await espera(50);
+      const btn = q('.tray .trayhead > .btn'), acc = W.getComputedStyle(btn).backgroundColor, onAcc = W.getComputedStyle(btn).color;
+      const on = () => q('.tray .cptab.on'), bg = el => W.getComputedStyle(el).backgroundColor, nom = t => t.querySelector('button').textContent, tit = t => t.querySelector('button').title;
+      igual([on() && on().dataset.pest, bg(on()), W.getComputedStyle(on()).color], ['fija', acc, onAcc], 'la fija en uso no lleva el color de «Añadir fotos»');
+      ok(!q('.tray .cpruta') && !q('.tray .cpvolver'), 'en la raíz, ruta o ←');
+      I.trayAbrir(a); await espera(50);
+      igual([on().dataset.pest, nom(on()), tit(on())], ['fija', 'R3 Uno', 'Bandeja / R3 Uno'], 'la fija dentro de una carpeta');
+      ok(q('.tray .cpvolver') && !q('.tray .cpruta'), 'dentro: sin ← o con la ruta en texto');
+      I.trayAbrir(b); await espera(50);
+      igual([nom(on()), tit(on())], ['R3 Dos', 'Bandeja / R3 Uno / R3 Dos'], 'en la subcarpeta');
+      q('.tray .cpvolver').click(); await espera(50);
+      igual(nom(on()), 'R3 Uno', '← no sube un nivel');
+      I.trayAbrir(null); const p2 = I.pestNueva(b); await espera(50);
+      igual([on().dataset.pest, bg(on()), nom(on())], [p2, acc, 'R3 Dos'], 'la abierta en uso');
+      const fija = q('.tray .cptab[data-pest="fija"]'); ok(bg(fija) !== acc && nom(fija) === 'Bandeja', 'la fija sin usar');
+      igual(W.getComputedStyle(on().querySelector('.cpx')).color, onAcc, 'la × de la pestaña en uso');
+      on().classList.add('over'); fija.classList.add('over');
+      const oo = W.getComputedStyle(on()), of = W.getComputedStyle(fija);
+      ok(oo.outlineStyle === 'dashed' && oo.outlineColor === onAcc && of.outlineStyle === 'dashed' && of.outlineColor === acc, `la marca de soltar: ${oo.outlineStyle} ${oo.outlineColor} / ${of.outlineColor}`);
+      on().classList.remove('over'); fija.classList.remove('over');
+      // el editor: con la fija sola dentro de una carpeta, su pestaña dice dónde está
+      I.pestCerrar(p2); I.pestIr('fija'); I.trayAbrir(a); await espera(50);
+      W.localStorage.setItem(LT, '1');
+      await abrirEditor('r1', 0);
+      const eon = await hasta(() => q('.lb-tray .lb-trt .cptab.on'), 2000, 'la pestaña en uso en el editor');
+      igual([nom(eon), tit(eon), bg(eon)], ['R3 Uno', 'Bandeja / R3 Uno', acc], 'en el editor');
+      ok(q('.lb-tray .lb-trv') && !q('.lb-trh b'), 'en el editor: sin ← o con la ruta en texto');
+      M.libre.cerrar();
+    } finally { I.trayAbrir(null); if (lt0 == null) W.localStorage.removeItem(LT); else W.localStorage.setItem(LT, lt0); }
   });
 
   // =====================================================================================================

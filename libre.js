@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.53';
+  const VERSION = '1.54';   // 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1075,7 +1075,7 @@
 #mesa .lb-ib{border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r-pill);min-width:32px;height:32px;padding:0 11px;font-size:13px;font-weight:500;color:var(--ink);transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
 #mesa .lb-ib:hover:not(:disabled):not(.on){border-color:var(--line-strong);background:var(--bg)}#mesa .lb-ib:active:not(:disabled){transform:scale(.97)}
 #mesa .lb-ib:disabled{opacity:.35;cursor:default}#mesa .lb-ib.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
-#mesa .lb-zv{min-width:3.6em;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums}
+#mesa .lb-zv{min-width:3.6em;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums;cursor:default;-webkit-user-select:none;user-select:none}
 #mesa .lb-body{flex:1;min-height:0;display:grid;grid-template-columns:132px minmax(0,1fr) 316px}
 #mesa .lb-list{overflow-y:auto;padding:14px 12px 16px;background:var(--panel);border-right:1px solid var(--line2)}
 #mesa .lb-it{margin:0 0 12px;cursor:pointer;user-select:none;outline:0}
@@ -1089,7 +1089,7 @@
 #mesa .lb-ord{position:absolute;top:4px;right:4px;display:flex;flex-direction:column;background:var(--photo-light);border-radius:var(--r-sm);box-shadow:var(--shadow-md)}
 #mesa .lb-ord button{color:var(--photo-ink)}#mesa .lb-ord button:hover:not(:disabled){background:var(--photo-hover)}
 @media (hover:hover) and (min-width:901px){#mesa .lb-it:not(:hover):not(:focus-within) .lb-ord{display:none}}
-#mesa .lb-add{width:100%;font-size:12.5px;padding:6px 4px}
+#mesa .lb-list .lb-add{width:100%;min-height:28px;padding:0 6px;font-size:12px;white-space:nowrap}#mesa .lb-btns .btn2.lb-add1{width:auto;min-height:28px;padding:0 11px;font-size:12px;white-space:nowrap}
 #mesa .lb-mid{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #mesa .lb-scroll{flex:1;min-height:0;overflow:auto;display:flex;padding:22px}
 #mesa .lb-cvw{margin:auto;flex:none;line-height:0}
@@ -1121,9 +1121,9 @@
 #mesa .lb-ghost{position:fixed;z-index:30;width:64px;height:64px;object-fit:cover;border-radius:var(--r-xs);transform:translate(-50%,-50%);pointer-events:none;opacity:.85;box-shadow:var(--shadow-ghost)}
 #mesa .lb-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .lb-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .lb-sec:last-child{border-bottom:0}
-#mesa .lb-sec h4{margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.2}#mesa .lb-sec h4:not(.lb-acc-t) span{font-weight:400;color:var(--mute);font-size:12.5px;letter-spacing:0}
+#mesa .lb-sec h4{margin:0 0 12px;font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.2}#mesa .lb-sec h4:not(.lb-acc-t) span{font-weight:400;color:var(--mute);font-size:12.5px;letter-spacing:0}
 #mesa .lb-sec.lb-acc{padding:0}#mesa .lb-sec h4.lb-acc-t{margin:0}
-#mesa .lb-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 17px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
+#mesa .lb-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 21px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
 #mesa .lb-acc-n{flex:none;transition:color var(--d1) ease-out}
 #mesa .lb-acc-h .lb-acc-s{flex:1;min-width:0;font-weight:400;font-size:12.5px;letter-spacing:0;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .lb-acc-h::after{content:'';flex:none;width:16px;height:16px;margin-left:auto;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m),background-color var(--d1) ease-out}
@@ -1230,17 +1230,17 @@
 #mesa .lb-seam{position:absolute;top:0;bottom:0;left:0;width:0;border-left:1.5px dashed var(--photo-light-2);box-shadow:-1px 0 0 var(--photo-ring);pointer-events:none}
 #mesa .lb-allg:not(.seguidas) .lb-seam{display:none}
 #mesa .lb-allnota{margin:12px 0 0;text-align:center;color:var(--mute);font-size:12.5px}
-@media (max-width:900px){#mesa .lb-body{grid-template-columns:104px minmax(0,1fr);grid-template-rows:minmax(240px,55%) minmax(0,1fr)}#mesa .lb-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line2)}#mesa .lb-list{grid-row:1;padding:10px 8px}#mesa .lb-scroll{padding:10px}#mesa .lb-add{font-size:11.5px;padding:5px 2px}}`;
+@media (max-width:900px){#mesa .lb-body{grid-template-columns:104px minmax(0,1fr);grid-template-rows:minmax(240px,55%) minmax(0,1fr)}#mesa .lb-panel{grid-column:1/-1;border-left:0;border-top:1px solid var(--line2)}#mesa .lb-list{grid-row:1;padding:10px 8px}#mesa .lb-scroll{padding:10px}#mesa .lb-list .lb-add{padding:0 2px}}`;
   function injectCSS() { let st = document.getElementById('lb-css'); if (!st) { st = document.createElement('style'); st.id = 'lb-css'; document.head.append(st); } if (st.textContent !== CSS) st.textContent = CSS; }
 
   function build(s) {
     const root = I().root(), el = document.createElement('div');
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
-    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : `<p>${E.tipo === 'Foto' ? 'Editar foto' : E.reel ? 'Editar portada' : 'Editar diapositivas'} · ${E.dz ? 'publicación diseñada: si aplicas cambios, queda fijada como imagen' : 'lo que no toques se queda como está'}</p>`}</div>`
+    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : E.dz ? '<p>Publicación diseñada: si aplicas cambios, queda fijada como imagen</p>' : ''}</div>`
       + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="undo" title="Deshacer (⌘Z)" aria-label="Deshacer">↶</button><button type="button" class="lb-ib" data-lb="redo" title="Rehacer (⇧⌘Z)" aria-label="Rehacer">↷</button></span>'
-      + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button><button type="button" class="lb-ib" data-lb="zfit" title="Ver la diapositiva entera">Ajustar</button></span>'
+      + '<span class="lb-tools"><button type="button" class="lb-ib" data-lb="zout" title="Alejar" aria-label="Alejar">−</button><output class="lb-zv" title="Zoom · doble clic: la diapositiva entera, al 100 % (⌘0)">100 %</output><button type="button" class="lb-ib" data-lb="zin" title="Acercar" aria-label="Acercar">+</button></span>'
       + `<button type="button" class="lb-ib${E.reglas ? ' on' : ''}" data-lb="guias" aria-pressed="${E.reglas}" title="Reglas y guías (⌘G): arrastra desde una regla para crear una guía y fuera de la diapositiva para borrarla. No salen al exportar">Guías</button>`
       + '<button type="button" class="lb-ib" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Vista previa</button>'
       + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
@@ -1293,7 +1293,7 @@
         + `<button type="button" data-lb="sl-dn" data-i="${i}" title="Mover después" aria-label="Mover después"${i === n - 1 ? ' disabled' : ''}>▼</button></span>` : '')
         + `<div class="lb-n"><b>${i + 1}</b> ${tag}${changedSl(x) || (!E.car && x.fmt !== x.fmt0) ? ' <em title="Cambios sin aplicar">•</em>' : ''}<span class="lb-mv">`
         + (E.reel ? '' : `<button type="button" data-lb="sl-del" data-i="${i}" title="Quitar la diapositiva (su foto vuelve a la bandeja al aplicar)" aria-label="Quitar la diapositiva">×</button>`) + '</span></div></div>';
-    }).join('') + (E.reel ? '' : `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida">+ Diapositiva sin foto</button>`);
+    }).join('') + (E.reel ? '' : `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida">+ Diapositiva</button>`);
     nav.scrollTop = top;
     minis();
   }
@@ -2108,7 +2108,7 @@
       + (gs.length ? `<div class="lb-swk">Kit ${esc(E.kit.n)}</div><div class="lb-swgs">${gs.map(g => `<div class="lb-swg">${g.n ? `<span>${esc(g.n)}</span>` : ''}<div class="lb-sws">${g.os.map(sw).join('')}</div></div>`).join('')}</div>` : '')
       + `<div class="lb-swk">Básicos</div><div class="lb-sws">${bas.map(sw).join('')}</div></div>`;
   }
-  const seg = (act, opts, v) => `<div class="seg" role="group">${opts.map(([k, l]) => `<button type="button" data-lb="${act}" data-v="${k}" class="${k === v ? 'on' : ''}" aria-pressed="${k === v}">${l}</button>`).join('')}</div>`;
+  const seg = (act, opts, v) => `<div class="seg" role="group">${opts.map(([k, l, t]) => `<button type="button" data-lb="${act}" data-v="${k}" class="${k === v ? 'on' : ''}" aria-pressed="${k === v}"${t ? ` title="${t}"` : ''}>${l}</button>`).join('')}</div>`;
   function gridSvg(name) { const cs = cells(name, 40, 50, 3); return `<svg viewBox="0 0 40 50" aria-hidden="true"><rect x="0" y="0" width="40" height="50" rx="2" class="gb"/>${cs.map(q => `<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="1" class="gc"/>`).join('')}</svg>`; }
   function fotosDisponibles() {    // this post's photos (and the ones in its compositions), then the tray's
     const S = E.board, seen = new Set(), out = [];
@@ -2145,11 +2145,11 @@
     return partes[0] + partes.slice(1).map(p => {
       const e = p.indexOf('</h4>'), j = p.indexOf('<div class="lb-sec lb-acc'), fin = j >= 0 ? j : p.length;   // what follows it (Capas) stays as it is
       const cab = p.slice(0, e), cierre = p.lastIndexOf('</div>', fin), cuerpo = p.slice(e + 5, cierre), resto = p.slice(cierre + 6);
-      const si = cab.indexOf('<span>'), tit = (si < 0 ? cab : cab.slice(0, si)).trim(), sub = si < 0 ? '' : cab.slice(si + 6, cab.lastIndexOf('</span>')).replace(/^\s*·\s*/, '');
+      const si = cab.indexOf('<span>'), tit = (si < 0 ? cab : cab.slice(0, si)).trim();   // its title alone: what followed it explained it (D-141)
       const k = (SECCIONES.find(([t]) => tit.startsWith(t)) || [])[1];
       if (!k) return MARCA + p;
       const on = k === abierta;
-      return `<div class="lb-sec lb-acc${on ? ' on fin' : ' zz'}" data-acc="${k}">${accCab(k, tit, sub, on)}${accCuerpo(k, cuerpo)}</div>` + resto;
+      return `<div class="lb-sec lb-acc${on ? ' on fin' : ' zz'}" data-acc="${k}">${accCab(k, tit, '', on)}${accCuerpo(k, cuerpo)}</div>` + resto;
     }).join('');
   }
   // open or closed; animated only by a click (a redraw of the panel draws it as it was); a second click halfway goes back
@@ -2189,7 +2189,7 @@
   const grosor = el => Math.round(el.h * sizeAt(E.i).H * PX / TRAZO[el.forma] * 2) / 2;   // a line's or an arrow's stroke, in px of 1080
   function medidasHTML(el) {
     const { H } = sizeAt(E.i), v = (a, val, dis) => `<label>${a}<input type="number" class="lb-num" data-lb="m${a.toLowerCase()}" step="1" value="${Math.round(val)}"${dis ? ' disabled' : ''}></label>`;
-    return plegable('medidas', 'Medidas exactas', 'en píxeles', `<div class="lb-nums">${v('X', el.x * 1080)}${v('Y', el.y * H * PX)}${v('An', el.w * 1080)}${v('Al', el.h * H * PX, el.t === 'texto')}</div>`
+    return plegable('medidas', 'Medidas exactas', '', `<div class="lb-nums">${v('X', el.x * 1080)}${v('Y', el.y * H * PX)}${v('An', el.w * 1080)}${v('Al', el.h * H * PX, el.t === 'texto')}</div>`
       + rng('op', 'Opacidad', el.op ?? 1, 0, 1, 0.01)
       + `<div class="lb-btns"><button type="button" class="btn2" data-lb="al1" data-v="h" title="Centrar a lo ancho de la diapositiva">Centrar ↔</button><button type="button" class="btn2" data-lb="al1" data-v="v" title="Centrar a lo alto de la diapositiva">Centrar ↕</button></div>`
       + '<p class="lb-p">En píxeles de una diapositiva de 1080 de ancho.</p>');
@@ -2229,7 +2229,7 @@
   function panel() {
     if (!E || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), top = p.scrollTop, x = cur();
-    if (!x) { p.innerHTML = `<div class="lb-sec"><h4>Sin diapositivas</h4><p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2" data-lb="sl-add">+ Diapositiva sin foto</button>${clip() && clip().slide ? pegarHTML() : ''}</div></div>`; return; }
+    if (!x) { p.innerHTML = `<div class="lb-sec"><h4>Sin diapositivas</h4><p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2 lb-add lb-add1" data-lb="sl-add">+ Diapositiva</button>${clip() && clip().slide ? pegarHTML() : ''}</div></div>`; return; }
     if (E.pick) {
       const ls = fotosDisponibles(), pe = compAt(E.i).els.find(q => q.id === E.pick.id), t = E.pick.modo === 'add' ? 'Añadir una foto' : E.pick.modo === 'rep' && !(pe && pe.t === 'hueco') ? 'Reemplazar la foto' : 'Foto para el hueco';
       p.innerHTML = `<div class="lb-sec"><h4>${t} <span>· de esta publicación y de la bandeja</span></h4>`
@@ -2255,7 +2255,7 @@
           + (el.fit != null ? rng('fit', 'Margen', el.fit, 0, 0.2, 0.005) : '');
         if (el.hueco) h += '<p class="lb-p">Llena un hueco de la plantilla: doble clic para verla entera o llenando el hueco. Si la borras, el hueco vuelve como era.</p>';
         h += '</div>' + cruzarHTML(el) + transformarHTML([el]);
-        h += plegable('estilo', 'Marco y estilo', 'borde, esquinas, sombra', `<div class="lb-sub"><h5>Marco</h5>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`
+        h += plegable('estilo', 'Marco y estilo', '', `<div class="lb-sub"><h5>Marco</h5>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`
           + `<div class="lb-sub"><h5>Estilo</h5>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}${seg('bo', [['', 'Dentro'], ['fuera', 'Fuera']], el.bo || '')}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`);
         h += girarHTML(el, true);
       } else if (el.t === 'texto') {
@@ -2996,6 +2996,7 @@
     const sc = E.scroll;           // the grey area around the slide
     sc.addEventListener('pointerdown', grisDown, true);   // first: with space held, the slide doesn't take the click
     sc.addEventListener('pointermove', grisMove); sc.addEventListener('pointerup', grisUp); sc.addEventListener('pointercancel', grisUp);
+    el.querySelector('.lb-zv').addEventListener('dblclick', e => { e.preventDefault(); if (E && !E.busy) zoom(1); });   // the percentage: the whole slide, at 100 % («Ajustar» was, D-145)
     sc.addEventListener('dblclick', e => { if (!E || !gris(e) || E.busy || E.esp || !E.sl.length || escribiendo() || performance.now() - E.finEscr < 600) return; zoom(1); });
     sc.addEventListener('scroll', () => menuCtx(false));
     el.addEventListener('contextmenu', onCtx);
@@ -3194,7 +3195,7 @@
     if (tr0 && box._vista && box._vista !== vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr0, tr0, 'x', tr0.getBoundingClientRect().left);
     const sx = tr0 ? tr0.scrollLeft : 0;
     const tit = x => esc((M.files[x.f].name || '') + (I().marcaTitulo ? I().marcaTitulo(x) : x.u ? ' · ya usada en una publicación' : '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : '') + (x.h ? ' · usada en una historia' : ''));
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['portada', 'Libres para portada'], ['todas', 'Todas']], fil)}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b></div>`   // no help line: the tray says what it is (D-133)
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['portada', 'Libres', 'Libres para portada'], ['todas', 'Todas']], fil)}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b></div>`   // no help line: the tray says what it is (D-133)
       + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp${E.trCar.includes(c.id) ? ' elegida' : ''}" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso u-' + x.c : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : fil === 'portada' ? 'No hay fotos libres para portada: mira «Todas».' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
     const tr = box.querySelector('.lb-trs');
     if (tr && box._vista !== vista && I().dondeVolver) I().dondeVolver('e|' + vista, tr, tr, 'x', tr.getBoundingClientRect().left); else if (tr) tr.scrollLeft = sx;

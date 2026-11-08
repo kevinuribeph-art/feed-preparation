@@ -914,7 +914,7 @@
     await tablero([pub(1, 'Reel')]);
     await poner('r1', [await foto('h2r.jpg', 1080, 1920)]);
     const R = await abrirEditor('r1');
-    ok(R.reel && !R.historia && /Editar portada/.test(R.el.querySelector('.lb-ttl p').textContent), 'la portada de un reel cambió');
+    ok(R.reel && !R.historia && /Portada del reel/.test(R.el.querySelector('.lb-fmtl').textContent), 'la portada de un reel cambió');   // sin línea bajo el nombre (D-140)
     M.libre.cerrar();
   });
 
@@ -1824,7 +1824,7 @@
     M.hs.ver(false);
     // el editor de una publicación no lleva nota
     await abrirEditor('r1');
-    ok(!ed().el.querySelector('textarea.lb-guion') && ed().el.querySelector('.lb-ttl p'), 'la cabecera de una publicación cambió');
+    ok(!ed().el.querySelector('textarea.lb-guion') && ed().el.querySelector('.lb-ttl h3'), 'la cabecera de una publicación cambió');   // solo su nombre (D-140)
     M.libre.cerrar();
   });
 
@@ -6221,7 +6221,7 @@
   });
 
   // ---------- «N cambiadas» y «N con fecha nueva», pulsables (mesa 3.97, calendario 1.12, D-126) ----------
-  prueba('V9', '«N cambiadas» y «N con fecha nueva» de la barra abren una sola lista por fecha, cada una una vez, con «Cambió: …» como su marcador; el nombre abre la publicación; sin acciones; sin calendario.js no falla; no en «Vista cliente» (D-126)', async () => {
+  prueba('V9', '«N cambiadas» de la barra (una sola desde D-144) abre una sola lista por fecha, cada una una vez, con «Cambió: …» como su marcador; el nombre abre la publicación; sin acciones; sin calendario.js no falla; no en «Vista cliente» (D-126)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
     await hasta(() => M.calendario, 4000, 'calendario.js');
     for (const id of ['r1', 'r3']) { await poner(id, [await foto(`v9-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
@@ -6230,7 +6230,8 @@
     M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');                  // r2: con fecha nueva
     M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');   // r3: las dos
     const txt = () => qa('.bar .stats button[data-act="cambios"]').map(b => b.textContent.trim());
-    await hasta(() => json(txt()) === json(['2 cambiadas', '2 con fecha nueva']), 3000, 'los dos botones de la barra: ' + json(txt()));
+    await hasta(() => json(txt()) === json(['3 cambiadas']), 3000, 'el botón de la barra: ' + json(txt()));   // uno solo, cada una una vez (D-144)
+    await hasta(() => /contexto/.test((celda('r3').querySelector('.mk-cambios') || { dataset: {} }).dataset.tip || ''), 3000, 'la marca de r3 con su contexto');   // el «2 cambiadas» de antes lo esperaba
     const bs = qa('.bar .stats button[data-act="cambios"]');
     for (const b of bs) {
       b.click(); await espera(30);
@@ -6284,6 +6285,8 @@
   const estadoDz = id => M.diseno.estadoDe(slot(id));
   const salida = id => ((slot(id).design || {}).out || []).filter(Boolean);
   const textoVentana = () => (dialogo() || {}).textContent || '';
+  // los botones de diseño de la ventana, por lo que hacen: EDITAR en la cabecera (D-142) y nada más en la fila de Ubicación
+  const edBotones = () => [...qa('.detail .pdz button:not(.mx-sel)'), ...qa('.detail [data-act="editar"]')].map(b => b.getAttribute('aria-label') || b.textContent);
   // la ventana abierta, sin botón ni texto que mande a «Diseñar»
   function sinDisenar(que) {
     const d = dialogo(); ok(d, 'sin ventana: ' + que);
@@ -6304,7 +6307,7 @@
       const crudas = slot('r1').photos.slice();
       igual(estadoDz('r1'), 'chg', 'el diseño cargado sin aplicar');
       M._in.openDetail('r1', 0); sinDisenar('carrusel con cambios sin aplicar');
-      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica al pulsar «Editar diapositivas»'), 'la ventana no dice que «Editar diapositivas» lo aplica');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
       const h0 = M._test.hist().undo;
       await pulsar('.detail [data-act="editar"]');
       await abierto();
@@ -6338,7 +6341,7 @@
     ok(!ed(), '⌘E abrió el editor de un reel sin foto');
     await poner('r1', [await foto('d2.jpg', 1080, 1920)]);
     M._in.openDetail('r1', 0); sinDisenar('reel con foto');
-    igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+    igual(edBotones(), ['Editar portada'], 'los botones de diseño del reel');
     await pulsar('.detail [data-act="editar"]');
     await abierto(4000);
     ok(ed().reel && ed().slotId === 'r1', 'no abrió la portada del reel');
@@ -6352,9 +6355,9 @@
       igual(estadoDz('r1'), 'ok', 'el reel diseñado');
       M._test.unassign('r1', null, true);
       igual(slot('r1').photos, [], 'la casilla no se vació');
-      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al pulsar «Editar portada»/), 'el aviso de vaciarla');
+      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al pulsar «Editar»/), 'el aviso de vaciarla');
       M._in.openDetail('r1', 0); sinDisenar('reel diseñado vacío');
-      ok(textoVentana().includes('se aplica al pulsar «Editar portada»'), 'la ventana no dice que «Editar portada» lo aplica');
+      ok(textoVentana().includes('se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       ok(ed().reel, 'no abrió la portada');
@@ -6378,7 +6381,7 @@
       await disenada('r3', [await foto('d4d.jpg', 1080, 1350)], [{ tipo: 'final', titulo: 'Solo el final D4' }], false);   // su portada es su primera diapositiva que no es el final
       await poner('r4', [await foto('d4e.jpg', 1080, 1350)]);
       M._test.swap('r3', 'r4');
-      ok(toastCon(/su diseño no tiene diapositiva de portada; cámbiala en «Editar diapositivas»/), 'el aviso sin diapositiva de portada');
+      ok(toastCon(/su diseño no tiene diapositiva de portada; cámbiala en «Editar»/), 'el aviso sin diapositiva de portada');
     });
   });
 
@@ -6397,8 +6400,8 @@
       const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada nueva' }, sl[1]] }); ok(c && !c.error, 'cargar(): ' + json(c));
       igual(estadoDz('r1'), 'chg', 'los textos nuevos sin aplicar');
       M._in.openDetail('r1', 0); sinDisenar('carrusel con textos nuevos');
-      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica al pulsar «Editar diapositivas»'), 'las herramientas no mandan a «Editar diapositivas»');
-      ok(textoVentana().includes('Las demás diapositivas se cambian en «Editar diapositivas»'), 'las miniaturas no mandan a «Editar diapositivas»');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica al pulsar «Editar»'), 'las herramientas no mandan a «Editar»');
+      ok(textoVentana().includes('Las demás diapositivas se cambian en «Editar»'), 'las miniaturas no mandan a «Editar»');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       igual([estadoDz('r1'), slot('r1').design.slides[0].titulo], ['ok', 'Portada nueva'], 'no aplicó los textos nuevos');
@@ -6413,7 +6416,7 @@
       M._test.setType('r1', 'Reel');
       igual([slot('r1').type, estadoDz('r1')], ['Reel', 'chg'], 'el diseño convertido no quedó pendiente');
       M._in.openDetail('r1', 0); sinDisenar('reel convertido');
-      ok(textoVentana().includes('se aplica al pulsar «Editar portada»'), 'la ventana no dice que «Editar portada» lo aplica');
+      ok(textoVentana().includes('se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       ok(ed().reel, 'no abrió la portada');
@@ -6536,7 +6539,7 @@
     await poner('r3', [await foto('d12d.jpg', 1080, 1920)]);
     for (const [id, et] of [['r1', 'Editar diapositivas'], ['r2', 'Editar foto'], ['r3', 'Editar portada']]) {
       M._in.openDetail(id, 0); sinDisenar(id);
-      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), [et], 'los botones de diseño de ' + id);
+      igual(edBotones(), [et], 'los botones de diseño de ' + id);
     }
   });
 
@@ -6559,7 +6562,7 @@
       igual(estadoDz('r1'), null, 'el reel sigue con estado de diseño');
       M._in.openDetail('r1', 0); sinDisenar('reel sin su diseño vacío');
       ok(!textoVentana().includes('cambios sin aplicar'), 'la ventana sigue diciendo «cambios sin aplicar»');
-      igual(qa('.detail .pdz button:not(.mx-sel)').map(b => b.textContent), ['Editar portada'], 'los botones de diseño del reel');
+      igual(edBotones(), ['Editar portada'], 'los botones de diseño del reel');
       ok(slot('r2').design && slot('r2').design.slides[0].titulo === 'Con texto D13' && estadoDz('r2') === 'chg', 'el diseño con textos sin aplicar no se quedó');
       await M.flush();
       const g = await M._in.idbGet('boards', key);
@@ -8444,9 +8447,9 @@
     const cuenta = () => q('.tray .tcount').textContent;
     await filtro('portada');
     ok(q('.tray [data-act="tfil"][data-v="portada"]').classList.contains('on'), 'el botón «Libres para portada» no se enciende');
-    igual(q('.tray [data-act="tfil"][data-v="portada"]').textContent, 'Libres para portada', 'el nombre del botón');
+    igual(q('.tray [data-act="tfil"][data-v="portada"]').textContent, 'Libres', 'el nombre del botón');   // «Libres» desde D-146
     await hasta(() => uNombres('.tray .tgrid .titem').length === 3, 4000, 'tres fotos libres para portada');
-    igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg'], '3 libres para portada'], '«Libres para portada» en la mesa');
+    igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-c.jpg', 'u5-d.jpg', 'u5-e.jpg'], '3 libres'], '«Libres» en la mesa');
     await filtro('sin');
     await hasta(() => uNombres('.tray .tgrid .titem').length === 2, 4000, 'dos fotos sin usar');
     igual([uNombres('.tray .tgrid .titem'), cuenta()], [['u5-d.jpg', 'u5-e.jpg'], '2 sin usar'], '«Sin usar» en la mesa');
@@ -8783,18 +8786,17 @@
     igual((await M._in.idbAll('ubicaciones')).length, 3, 'el catálogo guardado');
   });
 
-  prueba('L2', 'Desplegable «Ubicación» en la ventana: a la derecha de «Editar …», en su fila, debajo de «Fijar en el perfil» y encima de «Contexto»; vacío al principio y solo con los nombres de su cliente; un reel sin portada lo lleva solo en ese sitio; sin lista sale vacío y su única entrada dice «Crear lista de ubicaciones» (D-124)', async () => {
+  prueba('L2', 'Desplegable «Ubicación» en la ventana: sola en su fila, arriba de los campos y encima de «Contexto» (D-142; antes, a la derecha de «Editar …», D-124); vacío al principio y solo con los nombres de su cliente; un reel sin portada lo lleva solo en ese sitio; sin lista sale vacío y su única entrada dice «Crear lista de ubicaciones» (D-124)', async () => {
     await tablero([pub(1), pub(2, 'Carrusel'), pub(3, 'Reel')]);
     await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
     ok((await M.ubicaciones.cargar(CLIENTE, [LUG.b, LUG.a])).ok, 'cargar');
     ok((await M.ubicaciones.cargar(CLIENTE2, [LUG.c])).ok, 'cargar el otro');
     for (const [id, boton] of [['r1', 'Editar foto'], ['r2', 'Editar diapositivas']]) {
-      const sel = await ubVentana(id), fila = sel.parentElement, b = fila.querySelector('[data-act="editar"]');
-      ok(fila.matches('.pdz'), `${id}: no va en la fila de «Editar …»`);
-      ok(b && b.textContent === boton && b.nextElementSibling === sel, `${id}: no va justo a la derecha de «${boton}»`);
-      cerca(centroY(sel), centroY(b), 3, `${id}: no está en la misma línea que el botón`);
+      const sel = await ubVentana(id), fila = sel.parentElement, b = q('.detail .phead [data-act="editar"]');
+      ok(fila.matches('.pdz') && !fila.querySelector('[data-act="editar"]'), `${id}: no va sola en su fila`);
+      ok(b && b.getAttribute('aria-label') === boton, `${id}: sin «${boton}» (EDITAR) en la cabecera`);
       const hijos = [...q('.detail .pright').children];
-      ok(hijos.indexOf(q('.detail .pinsw')) < hijos.indexOf(fila) && hijos.indexOf(fila) < hijos.indexOf(q('.detail .pright label.nlab')), `${id}: no está entre «Fijar en el perfil» y «Contexto»`);
+      ok(hijos[0] === fila && hijos.indexOf(fila) < hijos.indexOf(q('.detail .pright label.nlab')), `${id}: no va arriba de los campos, encima de «Contexto»`);
       igual(ubNombres(sel), ['Sin ubicación', 'Lugar Alfa', 'Lugar Gamma'], `${id}: las opciones`);
       igual(sel.value, '', `${id}: no empieza vacío`);
       const html = q('.detail').innerHTML;
@@ -9241,18 +9243,18 @@
     ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
   });
 
-  prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna a la izquierda y estrellas en oscuro, movido con transform (D-134)', async () => {
+  prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna con cráteres a la izquierda en oscuro (sin estrellas, D-143), movido con transform (D-134)', async () => {
     const b = q('.appbar .ibtn.tema'), h = D.documentElement, antes = W.localStorage.getItem('mesa-tema');
     ok(b && b.getAttribute('role') === 'switch' && b.getAttribute('aria-label') === 'Modo oscuro', 'no es un interruptor «Modo oscuro»');
-    const k = b.querySelector('.tg-k'), est = () => b.querySelector('.tg-s.s1');
-    ok(k && est(), 'faltan el sol / la luna o las estrellas');
+    const k = b.querySelector('.tg-k'), crater = () => W.getComputedStyle(k, '::before').opacity;
+    ok(k && !b.querySelector('.tg-s'), 'falta el sol / la luna o quedan las estrellas');
     const lado = () => { const r = b.getBoundingClientRect(), c = k.getBoundingClientRect(); return c.left + c.width / 2 > r.left + r.width / 2 ? 'derecha' : 'izquierda'; };
     try {
       if (h.dataset.theme === 'dark') { b.click(); await espera(500); }
-      igual([lado(), W.getComputedStyle(est()).opacity, b.title], ['derecha', '0', 'Modo claro'], 'en claro');
+      igual([lado(), crater(), b.title], ['derecha', '0', 'Modo claro'], 'en claro');
       ok(/transform/.test(W.getComputedStyle(k).transitionProperty), 'el sol no se mueve con transform');
       b.click(); await espera(600);
-      igual([lado(), W.getComputedStyle(est()).opacity, b.title, b.getAttribute('aria-checked')], ['izquierda', '1', 'Modo oscuro', 'true'], 'en oscuro');
+      igual([lado(), crater(), b.title, b.getAttribute('aria-checked')], ['izquierda', '1', 'Modo oscuro', 'true'], 'en oscuro');
       ok(W.getComputedStyle(k).backgroundColor !== 'rgba(0, 0, 0, 0)', 'la luna no se ve');
     } finally {
       if (h.dataset.theme === 'dark') b.click();
@@ -9489,7 +9491,7 @@
     try {
       for (const id of ['r1', 'r2']) {
         const per = await perVentana(id);
-        const R = sel => q(sel).getBoundingClientRect(), card = R('.detail .card'), izq = R('.detail .pleft'), cab = R('.detail .phead'), col = R('.detail .pright'), x = R('.detail .card > .x');
+        const R = sel => q(sel).getBoundingClientRect(), card = R('.detail .card'), izq = R('.detail .pleft'), cab = R('.detail .phead'), col = R('.detail .pright'), x = R('.detail .phead > .x');   // en la cabecera desde D-142
         ok(q('.detail .pbody > .phead'), `${id}: la cabecera no va en el cuerpo de la ventana`);
         ok(R('.detail .stage').top - card.top < 40, `${id}: la foto no empieza arriba del todo (${Math.round(R('.detail .stage').top - card.top)} px)`);
         ok(izq.top - card.top < 2 && card.bottom - izq.bottom < 2, `${id}: la columna de la foto no va a toda altura`);
@@ -9504,6 +9506,197 @@
         M._in.closeDetail();
       }
     } finally { await M._test.perBorrar(); }
+  });
+
+  // ---------- 8 ajustes de interfaz (mesa 4.05, D-139 a D-146) ----------
+  const LS_FIL = 'mesa-bandeja-filtro';
+  prueba('J1', '«+ Diapositiva» en una línea y del tamaño de los botones pequeños, en la tira y en el panel sin diapositivas; conserva su título y lo que hace (D-139)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('j1a.jpg')]);
+    const E = await abrirEditor('r1');
+    const b = E.el.querySelector('.lb-list [data-lb="sl-add"]');
+    ok(b, 'sin el botón en la tira');
+    igual(b.textContent, '+ Diapositiva', 'el texto de la tira');
+    ok(/solo con color de fondo/.test(b.title), 'perdió su título: ' + b.title);
+    const r = b.getBoundingClientRect();
+    ok(r.height <= 30 && r.height >= 26, 'no es del alto de los botones pequeños: ' + r.height);
+    igual([W.getComputedStyle(b).whiteSpace, W.getComputedStyle(b).fontSize], ['nowrap', '12px'], 'una línea, 12 px');
+    ok(b.scrollWidth <= b.clientWidth + 1, `no cabe en una línea: ${b.scrollWidth} > ${b.clientWidth}`);
+    const n = E.sl.length; b.click(); await dibujado();
+    igual(ed().sl.length, n + 1, 'no añade una diapositiva');
+    M.libre.cerrar();
+    const E2 = await abrirEditor('r2');            // un carrusel sin fotos: el panel sin diapositivas
+    if (!E2.sl.length) {
+      const p2 = await hasta(() => q('.lb-panel [data-lb="sl-add"]'), 2000, 'el botón del panel sin diapositivas');
+      igual(p2.textContent, '+ Diapositiva', 'el texto del panel');
+      ok(p2.getBoundingClientRect().height <= 30 && W.getComputedStyle(p2).whiteSpace === 'nowrap', 'el del panel no es pequeño ni de una línea');
+    }
+    M.libre.cerrar();
+  });
+
+  prueba('J2', 'La cabecera del editor solo lleva el nombre; una publicación diseñada conserva su aviso en esa línea; una historia, su nota (D-140)', async () => {
+    await tablero([pub(1), pub(2, 'Reel'), pub(3, 'Carrusel')]);
+    await poner('r1', [await foto('j2a.jpg')]);
+    await poner('r2', [await foto('j2r.jpg', 1080, 1920)]);
+    for (const id of ['r1', 'r2']) {
+      const E = await abrirEditor(id);
+      ok(!E.el.querySelector('.lb-ttl p'), `${id}: lleva una línea bajo el nombre: ${(E.el.querySelector('.lb-ttl p') || {}).textContent}`);
+      ok(!/lo que no toques|Editar foto|Editar portada|Editar diapositivas/.test(E.el.querySelector('.lb-ttl').textContent), `${id}: la cabecera: ` + E.el.querySelector('.lb-ttl').textContent);
+      igual(E.el.querySelector('.lb-ttl h3').textContent, slot(id).name, `${id}: el nombre`);
+      M.libre.cerrar();
+    }
+    await conKitPrueba(async () => {
+      await disenada('r3', [await foto('j2b.jpg', 1080, 1350), await foto('j2c.jpg', 1080, 1350)], textos('J2', 'Portada', 'Ficha'));
+      M._in.openDetail('r3', 0);
+      await pulsar('.detail [data-act="editar"]'); await abierto();
+      ok(ed().dz, 'no se abrió como diseñada');
+      igual((ed().el.querySelector('.lb-ttl p') || {}).textContent, 'Publicación diseñada: si aplicas cambios, queda fijada como imagen', 'el aviso de la diseñada');
+      await cerrarEd();
+    });
+    const h = M.hs.anadir(DIA(10), { note: 'Guion J2' });
+    const H = await abrirEditor(h);
+    igual(H.el.querySelector('.lb-ttl textarea.lb-guion').value, 'Guion J2', 'la historia perdió su nota');
+    M.libre.cerrar();
+  });
+
+  prueba('J3', 'Las secciones plegables solo llevan su título, de 21 px (Capas, su número; Girar, sus grados); también los títulos del panel de un elemento (D-141)', async () => {
+    const LS = 'mesa-lb-seccion', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.removeItem(LS);
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('j3a.jpg'), await foto('j3b.jpg')]);
+      await abrirEditor('r1', 0); ed().sel = null; ed().mas = []; accion('sl', { i: 0 });
+      const secs = () => qa('.lb-panel > .lb-acc[data-acc]');
+      await hasta(() => secs().length >= 7, 2000, 'las secciones');
+      for (const s of secs()) {
+        const h = s.querySelector('.lb-acc-h'), res = h.querySelector('.lb-acc-s');
+        igual(W.getComputedStyle(h).fontSize, '21px', `${s.dataset.acc}: el tamaño del título`);
+        if (s.dataset.acc === 'capas') ok(res && /^\d+$/.test(res.textContent), 'Capas no lleva su número: ' + (res && res.textContent));
+        else ok(!res, `${s.dataset.acc} lleva un resumen: ${res && res.textContent}`);
+      }
+      igual(q('.lb-panel > .lb-acc[data-acc="velo"] .lb-acc-h').textContent.trim(), 'Velo', 'el título de Velo');
+      ok(/^Diapositiva \d+$/.test(q('.lb-panel > .lb-acc[data-acc="diapositiva"] .lb-acc-h').textContent.trim()), 'el título de Diapositiva: ' + q('.lb-panel > .lb-acc[data-acc="diapositiva"] .lb-acc-h').textContent);
+      q('.lb-panel > .lb-acc[data-acc="fondo"] .lb-acc-h').click();
+      igual(W.localStorage.getItem(LS), 'fondo', 'abrir una sección ya no se recuerda');
+      accion('add-txt'); await dibujado();
+      igual(W.getComputedStyle(q('.lb-panel > .lb-sec > h4')).fontSize, '21px', 'el título del panel de un elemento');
+      const pl = k => q(`.lb-panel > .lb-acc[data-pl="${k}"]`);
+      ok(pl('medidas') && !pl('medidas').querySelector('.lb-acc-s'), 'Medidas exactas lleva resumen');
+      ok(pl('girar') && /°/.test((pl('girar').querySelector('.lb-acc-s') || {}).textContent || ''), 'Girar perdió sus grados');
+      igual(W.getComputedStyle(pl('medidas').querySelector('.lb-acc-h')).fontSize, '21px', 'el título de un plegable del elemento');
+      M.libre.cerrar();
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
+  prueba('J5', 'Ventana de una publicación: «Fijar» en la cabecera, a la izquierda de la ×, con su texto dentro; EDITAR a la derecha, del color de «Añadir fotos», tan alto como fecha y tipo y alineado con la ×; Ubicación sola en su fila; Tab: Fijar, ×, EDITAR (D-142)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Reel')]);
+    await poner('r1', [await foto('j5a.jpg'), await foto('j5b.jpg')]);
+    M._in.openDetail('r1', 0);
+    const d = await hasta(() => dialogo() && q('.detail .phead [data-act="editar"]') && dialogo(), 3000, 'la ventana con EDITAR en la cabecera');
+    const R = sel => q(sel).getBoundingClientRect();
+    const pin = q('.detail .phead .pinToggle');
+    ok(pin && !q('.detail .pright .pinToggle'), '«Fijar» no está en la cabecera');
+    igual([pin.getAttribute('role'), pin.getAttribute('aria-label')], ['switch', 'Fijar en el perfil'], 'el interruptor para el lector de pantalla');
+    const x = R('.detail .phead > .x'), pr = R('.detail .pe-fijar'), t = R('.detail .phead h3'), ebt = q('.detail .phead [data-act="editar"]'), e = ebt.getBoundingClientRect(), f = R('.detail .pe-fila p');
+    ok(pr.right <= x.left && Math.abs((pr.top + pr.bottom) / 2 - (x.top + x.bottom) / 2) < 3, '«Fijar» no va a la izquierda de la ×');
+    ok(t.right <= pr.left, 'el título pisa «Fijar»');
+    const vis = c => W.getComputedStyle(q('.detail .pe-fijar ' + c)).opacity;
+    igual([q('.detail .pe-f0').textContent, q('.detail .pe-f1').textContent, pin.checked], ['Fijar', 'Fijada', false], 'los textos del interruptor');
+    igual([vis('.pe-f0'), vis('.pe-f1')], ['1', '0'], 'apagado no dice «Fijar»');
+    pin.click(); await espera(450);
+    await hasta(() => q('.detail .pinToggle') && q('.detail .pinToggle').checked && (M._in.S.pins || []).includes('r1'), 2000, 'que se fije');
+    igual([vis('.pe-f0'), vis('.pe-f1')], ['0', '1'], 'encendido no dice «Fijada»');
+    q('.detail .pinToggle').click(); await hasta(() => !(M._in.S.pins || []).includes('r1'), 2000, 'que se quite la fijación');
+    // EDITAR
+    igual([ebt.textContent, W.getComputedStyle(ebt).textTransform, ebt.getAttribute('aria-label')], ['Editar', 'uppercase', 'Editar diapositivas'], 'el texto de EDITAR');
+    ok(Math.abs(e.right - x.right) < 1.5, `EDITAR no se alinea con la ×: ${e.right} frente a ${x.right}`);
+    const ancha = q('.detail .pe-fila').clientWidth > 338;   // estrecha: EDITAR debajo de los campos, a lo ancho
+    igual(q('.detail .phead > .x').offsetParent, q('.detail .card'), 'la × ya no se sitúa en la ventana: se iría con el scroll');
+    ok((ancha ? e.left >= f.right : e.top >= f.bottom) && e.top >= t.bottom, 'EDITAR pisa la fecha o el título: ' + json({ e: [e.left, e.top], f: [f.right, f.bottom], t: t.bottom, ancha }));
+    if (ancha) ok(Math.abs(e.height - f.height) < 2 && e.height > 60 && e.height > e.width * 0.6, `EDITAR no es tan alto como las dos filas: ${e.height} / ${f.height}`);
+    const add = q('.tray .btn[data-act="add"]'), cs = W.getComputedStyle(ebt), ca = W.getComputedStyle(add);
+    igual([cs.backgroundColor, cs.color], [ca.backgroundColor, ca.color], 'EDITAR no es del color de «Añadir fotos»');
+    // Ubicación, sola en su fila
+    const fila = q('.detail .pdz'); ok(fila && fila.querySelector('.ubsel') && !fila.querySelector('[data-act="editar"]'), 'la fila de Ubicación lleva EDITAR');
+    const ub = M.controles && M.controles.gemelo ? M.controles.gemelo(fila.querySelector('.ubsel')) : fila.querySelector('.ubsel');
+    const ur = ub.getBoundingClientRect();
+    ok([...fila.children].filter(c => c !== ub && c.offsetParent && !c.matches('.mx-nat, select')).every(c => c.getBoundingClientRect().top >= ur.bottom - 1), 'algo va al lado de Ubicación');
+    // Tab
+    const foco = [...q('.detail .phead').querySelectorAll('button, input, select, textarea, [tabindex]')].filter(c => c.tabIndex >= 0 && !c.disabled && c.offsetParent !== null);
+    igual(foco.slice(0, 3).map(c => c.matches('.pinToggle') ? 'fijar' : c.matches('.x') ? 'x' : c.dataset.act || c.className), ['fijar', 'x', 'editar'], 'el orden del Tab');
+    ok(D.querySelector('#mesa .detail .pbody').firstElementChild.matches('.phead'), 'la cabecera no va antes que la foto en el orden');
+    M._in.closeDetail();
+    // un reel sin foto: sin EDITAR y sin hueco
+    M._in.openDetail('r2', 0); await hasta(() => dialogo(), 2000, 'la ventana del reel');
+    ok(!q('.detail [data-act="editar"]') && !q('.detail .pe-fila.pe-con'), 'el reel sin portada tiene EDITAR');
+    M._in.closeDetail();
+  });
+
+  prueba('J6', 'El interruptor claro / oscuro, centrado en la línea de la cabecera y sin estrellas (D-143)', async () => {
+    const b = q('.appbar .ibtn.tema'), bar = q('.appbar').getBoundingClientRect(), r = b.getBoundingClientRect();
+    ok(!b.querySelector('.tg-s'), 'quedan las estrellas');
+    ok(b.querySelector('.tg-k'), 'falta el sol / la luna');
+    const c = (r.top + r.bottom) / 2, cb = (bar.top + bar.bottom) / 2, ca = (q('.appbar .xfer').getBoundingClientRect().top + q('.appbar .xfer').getBoundingClientRect().bottom) / 2;
+    ok(Math.abs(c - cb) < 1.5 && Math.abs(c - ca) < 1.5, `no va centrado: ${c} frente a ${cb} y ${ca}`);
+  });
+
+  prueba('J7', 'Un solo «N cambiadas» en la barra del mes: cada publicación con cualquier cambio una vez, el número de la lista; los renombres, en la nota de la ventana (D-144)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await hasta(() => M.calendario, 4000, 'calendario.js');
+    for (const id of ['r1', 'r3']) { await poner(id, [await foto(`j7-${id}.jpg`)]); M._test.setNote(id, 'Contexto ' + id); M.markUploaded([{ slotId: id, fileIds: [slot(id).photos[0]] }]); }
+    await espera(60);
+    M._test.setNote('r1', 'Otro contexto');
+    M._test.setDate('r2', '2026-11-20T18:00:00.000+01:00');
+    M._test.setDate('r3', '2026-11-10T18:00:00.000+01:00'); M._test.setNote('r3', 'Otro r3');
+    const bs = () => qa('.bar .stats button[data-act="cambios"]');
+    await hasta(() => bs().length === 1 && bs()[0].textContent.trim() === '3 cambiadas', 3000, 'un solo botón «3 cambiadas»: ' + json(bs().map(b => b.textContent.trim())));
+    ok(!q('.bar .stats .dates') && !/con fecha nueva/.test(q('.bar .stats').textContent), 'queda «con fecha nueva»');
+    ok(/fecha u hora/.test(bs()[0].title) && !/renombran/.test(bs()[0].title), 'el título: ' + bs()[0].title);
+    bs()[0].click();
+    const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista');
+    igual(qa('.detail[data-dlg="cambios"] .vlist li').length, 3, 'la lista no tiene las 3');
+    const nr = M._in.S.slots.filter(s => M._in.vivo(s) && M._in.nameChg(s)).length;
+    const nota = dl.querySelector('.cpnota').textContent;
+    if (nr) ok(/se renombra.*para que la numeración cuadre/.test(nota), 'la nota no dice los renombres: ' + nota);
+    M._in.closeDetail();
+    slot('r1').notionName = 'Nombre de antes'; M._test.setNote('r1', 'Otro contexto más');
+    await espera(60); bs()[0].click();
+    const dl2 = await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista otra vez');
+    ok(/se renombran? .*para que la numeración cuadre/.test(dl2.querySelector('.cpnota').textContent), 'la nota no dice los renombres: ' + dl2.querySelector('.cpnota').textContent);
+    M._in.closeDetail();
+  });
+
+  prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('j8a.jpg')]);
+    const E = await abrirEditor('r1');
+    ok(!E.el.querySelector('[data-lb="zfit"]') && !/Ajustar/.test(E.el.querySelector('.lb-head').textContent), 'queda «Ajustar»');
+    const zv = E.el.querySelector('.lb-zv');
+    ok(/doble clic/.test(zv.title), 'el porcentaje no lleva un título que lo explique: ' + zv.title);
+    igual(W.getComputedStyle(zv).userSelect, 'none', 'el doble clic selecciona el texto');
+    accion('zin'); accion('zin'); ok(ed().zoom > 1, 'no acercó');
+    zv.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    igual([ed().zoom, zv.textContent], [1, '100 %'], 'el doble clic no la deja entera');
+    accion('zin'); tecla('0', { meta: true, code: 'Digit0' }); igual(ed().zoom, 1, '⌘0 dejó de funcionar');
+    M.libre.cerrar();
+  });
+
+  prueba('J9', '«Libres» en el filtro de la bandeja, con «N libres» y su título «Libres para portada», en la mesa y en el editor; el valor guardado sigue siendo «portada» (D-146)', async () => {
+    const antes = W.localStorage.getItem(LS_FIL);
+    try {
+      await tablero([pub(1)]);
+      await poner('r1', [await foto('j9a.jpg')]);
+      await M.addFiles([await foto('j9b.jpg')]); await M.flush();
+      const b = q('.tray [data-act="tfil"][data-v="portada"]');
+      igual([b.textContent, b.title], ['Libres', 'Libres para portada'], 'el botón de la mesa');
+      await filtro('portada');
+      igual(W.localStorage.getItem(LS_FIL), 'portada', 'el valor guardado cambió');
+      await hasta(() => /^(\d+ libres?|ninguna libre)$/.test(q('.tray .tcount').textContent), 3000, 'el contador «N libres»: ' + q('.tray .tcount').textContent);
+      await editorConBandeja('r1');
+      const e = q('.lb-tray [data-lb="tr-fil"][data-v="portada"]');
+      igual([e.textContent, e.title], ['Libres', 'Libres para portada'], 'el botón del editor');
+      M.libre.cerrar();
+    } finally { if (antes == null) W.localStorage.removeItem(LS_FIL); else W.localStorage.setItem(LS_FIL, antes); }
   });
 
   // =====================================================================================================

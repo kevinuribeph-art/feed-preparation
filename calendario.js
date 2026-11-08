@@ -1,11 +1,12 @@
 // Calendario — Mesa de trabajo · v1.5
-// The open board's month under the tray (half of the right column), Monday to Sunday as in Notion: one chip per post —
+// The open board's month under the tray (its share of the right column, D-148), Monday to Sunday as in Notion: one chip per post —
 // its short name, time and the mark of its state (a dot, ✓, two ✓ or ✕: the mesa's estIco, D-081) — on a pastel of its
 // type, as Notion's tags. A cancelled post says why on hover, if it has a reason (D-082). Linked both ways with the grid:
 // a click opens the same post view as its cell, hovering one lights the other up. It reads the board only through the
 // mesa's bridge (M._in, mesa ≥ 3.32) and is drawn again on every redraw of the grid (renderFeed → M.calendario.render):
 // it keeps no copy of any post. If this file doesn't load, the mesa works as before (the tray takes the whole column).
-//   Folded: a thin bar with its title and the changes not yet in Notion; the weekly count column folds too. Both are
+//   Folded: a thin bar with its title and the changes not yet in Notion (1.16: with the tray folded too, a tab beside the
+//   tray's; pressing it opens it, D-148); the weekly count column folds too. Both are
 //   remembered per browser (localStorage; if it can't be read, open).
 //   Months: the board's cycles and, before them, the previous month (its published posts in grey, read only); the days
 //   outside the board's cycles are dimmed.
@@ -47,7 +48,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.16';   // 1.16: the look of the date's calendar, with its tokens (D-147)
+  const VERSION = '1.16';   // 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -157,6 +158,12 @@
     sec.addEventListener('transitionend', alFin); t = setTimeout(fin, 700); sec._plFin = fin;
   }
 
+  function plegar(X, sec) {
+    const cambiar = () => { lsSet(LS_FOLD, folded() ? '0' : '1'); render(); };
+    if (X.colPliegue) { X.colPliegue('cal', cambiar); return; }   // the mesa moves the column (D-148)
+    const h0 = sec.getBoundingClientRect().height; cambiar(); pliegue(sec, h0);
+  }
+
   // ---------- linked with the grid ----------
   function light() {
     const X = I(), root = X && X.root && X.root(); if (!root) return;
@@ -184,11 +191,12 @@
       const a = b.dataset.cal;
       if (a === 'paso') { if (!client) abrirPaso(b.dataset.paso, b.dataset.mes); return; }
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
-      if (a === 'fold') { const h0 = sec.getBoundingClientRect().height; lsSet(LS_FOLD, folded() ? '0' : '1'); render(); pliegue(sec, h0); return; }
+      if (a === 'fold') { plegar(X, sec); return; }
       if (a === 'cnt') lsSet(LS_CNT, cntFolded() ? '0' : '1');
       else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
+    if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
@@ -491,7 +499,7 @@
 
   // ---------- styles (inside #mesa, with its fonts, radii and greys) ----------
   const CSS = `
-#mesa .side>.cal{flex:1 1 0;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--panel)}
+#mesa .side>.cal{flex:var(--cal-g,1) 1 0;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--panel)}
 #mesa .side>.cal.fold{flex:none}
 #mesa .side>.cal.fold .cleg,#mesa .side>.cal.fold .calbody,#mesa .side>.cal.fold .cnav{display:none}
 #mesa .calhead{flex:none;display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:6px 10px 4px 6px;font-size:12px;color:var(--mute)}

@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.54';   // 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.55';   // 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -131,10 +131,11 @@
   const isKit = f => String(f || '').startsWith('kit-');   // a client's protected file (logo): never a tray photo
   // this viewer's choices, kept in the browser: the tray open or closed, «Seguidas» in «Ver todas», the panel's open sections, «Guías» open,
   // «Zona del grid» shown
-  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_PL = 'mesa-lb-secciones', LS_AC = 'mesa-lb-seccion', LS_RG = 'mesa-lb-guias', LS_ZG = 'mesa-lb-zona', LS_ZH = 'mesa-lb-zona-historia';
+  const LS_TR = 'mesa-lb-bandeja', LS_SEG = 'mesa-lb-seguidas', LS_AC = 'mesa-lb-seccion', LS_EL = 'mesa-lb-seccion-el', LS_RG = 'mesa-lb-guias', LS_ZG = 'mesa-lb-zona', LS_ZH = 'mesa-lb-zona-historia';
   const lsLeer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsPoner = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* a private window: not kept */ } };
-  const ABIERTAS = new Set((lsLeer(LS_PL) || '').split(',').filter(Boolean));
+  // an element's panel (D-149): the section last opened for each kind of element (foto, texto, logo, forma, hueco, varios), '-' none
+  const secEl = () => { try { const o = JSON.parse(lsLeer(LS_EL) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } };
 
   class LbError extends Error {}
   const need = (ok, msg) => { if (!ok) throw new LbError(msg); };
@@ -1058,7 +1059,7 @@
     const n = el.pan ? el.pan.n : 1, k = el.pan ? el.pan.k : 0, b = E.i - k;
     const op = [1, 2, 3, 4, 5].map(v => { const off = el.lock || (v > 1 && v <= k) || E.sl.length + Math.max(0, b + v - E.sl.length) > MAX_SLIDES; return `<button type="button" data-lb="cruzar" data-v="${v}" class="${v === n ? 'on' : ''}" aria-pressed="${v === n}"${off ? ' disabled' : ''}>${v === 1 ? 'Solo esta' : v}</button>`; }).join('');
     const txt = n > 1 ? `Va de la diapositiva ${b + 1} a la ${b + n}. Muévela, amplíala o reencuádrala en cualquiera: las otras la siguen. «Llenar» la reparte entre las ${n}.` : 'Elige en cuántas diapositivas sigue, contando esta. Si faltan, se añaden al final.';
-    return `<div class="lb-sec"><h4>Cruzar diapositivas <span>· la foto sigue en las de al lado</span></h4><div class="seg" role="group" aria-label="Diapositivas que cruza la foto">${op}</div><p class="lb-p">${txt}</p></div>`;
+    return plegable('cruzar', 'Cruzar diapositivas', '', `<div class="seg" role="group" aria-label="Diapositivas que cruza la foto">${op}</div><p class="lb-p">${txt}</p>`);
   }
 
   // ---------- the editor's window ----------
@@ -1099,14 +1100,14 @@
 #mesa .lb-trb{display:flex;align-items:center;gap:4px;height:28px;padding:0 8px 0 12px;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);font-size:12.5px;font-weight:500}
 #mesa .lb-trb:hover{background:var(--bg-2);color:var(--ink)}#mesa .lb-trb svg{transition:transform .18s}#mesa .lb-trb[aria-expanded="true"] svg{transform:rotate(180deg)}
 #mesa .lb-tray{flex:none;margin:6px 16px 2px;padding:10px 12px 8px;border:1px solid var(--line2);border-radius:var(--r-lg);background:var(--panel-2);box-shadow:var(--shadow-xs)}
-#mesa .lb-trh{margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh b{color:var(--ink);font-weight:600}#mesa .lb-trh .seg{display:inline-flex;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:0 10px;min-height:26px;font-size:12px}
+#mesa .lb-trh{display:flex;align-items:center;margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh .seg{display:inline-flex;flex:none;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:0 10px;min-height:26px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}
 #mesa .lb-tcarp{flex:none;width:72px;border-radius:var(--r-sm);background:var(--bg-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--ink)}#mesa .lb-tcarp span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
 #mesa .lb-tray.tam-on .lb-tph,#mesa .lb-tray.tam-on .lb-tcarp{width:var(--tw)}#mesa .lb-tray.tam-on .lb-tcarp svg{width:clamp(14px,calc(var(--tw) * .361),48px);height:auto}#mesa .lb-tray.tam-on .lb-tcarp span{font-size:clamp(8px,calc(var(--tw) * .146),13px)}
 #mesa .lb-foot .ttam{right:52px}
-#mesa .lb-trh .lb-trt{display:inline-flex;vertical-align:middle;max-width:50%;margin-right:8px}#mesa .lb-trh .lb-trt .cptab{height:22px}
-#mesa .lb-trv{width:26px;height:24px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);line-height:1}
-#mesa .lb-tph.elegida,#mesa .lb-tcarp.elegida{outline:3px solid var(--acc);outline-offset:-3px}#mesa .lb-tcarp.over,#mesa .lb-trv.over,#mesa .lb-tray .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}
+#mesa .lb-trh .lb-trt{display:inline-flex;flex:0 1 auto;min-width:0;vertical-align:middle;margin-right:8px}#mesa .lb-trh .lb-trt .cptab{height:22px}
+#mesa .lb-trv{flex:none;width:26px;height:24px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);line-height:1}
+#mesa .lb-tph.elegida,#mesa .lb-tcarp.elegida{outline:3px solid var(--acc);outline-offset:-3px}#mesa .lb-tcarp.over,#mesa .lb-trv.over,#mesa .lb-tray .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}#mesa .lb-tray .cptab.on.over{outline:1.5px dashed var(--on-acc);outline-offset:-3.5px}
 #mesa .lb-ghostc{display:flex;align-items:center;justify-content:center;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)}
 #mesa .lb-tph .hs{bottom:5px}
 #mesa .lb-ttl textarea.lb-guion{display:block;box-sizing:border-box;width:100%;max-width:min(60vw,720px);max-height:calc(3 * 1.3em + 4px);margin:2px 0 0 -5px;padding:1px 4px;border:1px solid transparent;border-radius:var(--r-xs);background:none;color:var(--mute);font:inherit;font-size:12.5px;line-height:1.3;resize:none;overflow-y:auto}
@@ -1772,10 +1773,10 @@
     const e0 = fotos.find(e => e.id === E.sel) || fotos[0], { W, H } = sizeAt(E.i), nom = e => e.rat || ratLista(e, W, H), r0 = nom(e0);
     const ori = E.tOri || (r0 ? (RATIOS.h.some(([n]) => n === r0) && r0 !== '1:1' ? 'h' : 'v') : e0.w * W > e0.h * H * 1.01 ? 'h' : 'v');
     const rat = fotos.every(e => nom(e) === r0) ? r0 : null, off = fotos.every(e => e.lock);
-    return `<div class="lb-sec"><h4>Proporción del marco${fotos.length > 1 ? ` <span>· de las ${fotos.length} fotos</span>` : ''}</h4>${seg('t-ori', [['v', 'Vertical'], ['h', 'Horizontal']], ori)}`
+    return plegable('proporcion', 'Proporción del marco', fotos.length > 1 ? `${fotos.length} fotos` : '', seg('t-ori', [['v', 'Vertical'], ['h', 'Horizontal']], ori)
       + `<div class="lb-btns">${RATIOS[ori].map(([n, r]) => `<button type="button" class="btn2${rat === n ? ' on' : ''}" data-lb="t-rat" data-v="${n}" data-r="${r}"${off ? ' disabled' : ''}>${n}</button>`).join('')}</div>`
       + (fotos.length === 1 && !RATIOS[ori].some(([n]) => n === rat) ? `<p class="lb-p lb-ratp">${esc(ratTxt(e0, W, H))}</p>` : '')
-      + (fotos.length > 1 ? '<p class="lb-p">Todas quedan con la misma proporción y tamaño.</p>' : '') + '</div>';
+      + (fotos.length > 1 ? '<p class="lb-p">Todas quedan con la misma proporción y tamaño.</p>' : ''));
   }
   // a grid of n cells (px) with gap g between them and around them
   function cells(name, W, H, g) {
@@ -1943,7 +1944,7 @@
   function onDbl(e) {
     if (!E.sl.length || E.busy) return;
     const el = hitEl(toSlide(e)); if (!el || el.lock) return;
-    if (el.t === 'texto') { seleccionar(el); E.pick = null; panel(); const ta = E.el.querySelector('.lb-panel textarea[data-lb="txt"]'); if (ta) { ta.focus(); ta.select(); } pedir(); return; }
+    if (el.t === 'texto') { seleccionar(el); E.pick = null; recordarSec('texto', 'el'); panel(); const ta = E.el.querySelector('.lb-panel textarea[data-lb="txt"]'); if (ta) { ta.focus(); ta.select(); } pedir(); return; }
     if (el.t !== 'foto' || !el.src) return;
     if (el.hueco && !el.pan) {   // a photo in a hole: covering it → whole inside it; with strips → covering it
       const { W, H } = sizeAt(E.i); E.crop = null; E.pick = null;
@@ -2127,8 +2128,10 @@
     if (e.t === 'logo') return `Logo <i>${esc((M.files[e.src] || {}).name || '')}</i>`;
     return `Foto <i>${esc(e.src ? (M.files[e.src] || {}).name || '' : 'hueco vacío')}</i>`;
   }
-  // a section folded under its title: open or closed as this viewer left it, for every element and every post
-  const plegable = (k, titulo, resumen, html, sec) => { const on = sec ? sec.on : ABIERTAS.has(k); return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
+  // a section folded under its title: a slide's (sec) open or closed as given; an element's open if it is the one last opened
+  // for its kind (abreEl, set by panel(), D-149)
+  let abreEl = null;
+  const plegable = (k, titulo, resumen, html, sec) => { const on = sec ? !!sec.on : k === abreEl; return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
   const accCuerpo = (k, html, cls = '') => `<div class="lb-acc-b" id="lb-accb-${k}" role="region" aria-labelledby="lb-acch-${k}"><div class="lb-acc-i"><div class="lb-acc-c${cls}">${html}</div></div></div>`;
   const accCab = (k, titulo, resumen, on) => `<h4 class="lb-acc-t"><button type="button" class="lb-acc-h" id="lb-acch-${k}" aria-expanded="${on}" aria-controls="lb-accb-${k}"><span class="lb-acc-n">${titulo}</span>${resumen ? `<span class="lb-acc-s">${resumen}</span>` : ''}</button></h4>`;
   // A slide's panel (nothing chosen): its sections fold under their titles, one open at a time, the last one opened
@@ -2163,19 +2166,17 @@
     const b = sec.querySelector(':scope > .lb-acc-b'), fin = e => { if (e && (e.target !== b || e.propertyName !== 'grid-template-rows')) return; b.removeEventListener('transitionend', fin); clearTimeout(t); const o = sec.classList.contains('on'); if (o === on) sec.classList.add(o ? 'fin' : 'zz'); };
     const t = setTimeout(fin, 700); b.addEventListener('transitionend', fin);
   }
-  function plegar(btn) {
+  const tipoSec = () => multi() ? 'varios' : (selEl() || {}).t || '';   // the kind whose open section is remembered
+  function recordarSec(t, k) { if (!t) return; const o = secEl(); if (o[t] === k) return; o[t] = k; lsPoner(LS_EL, JSON.stringify(o)); }
+  function plegar(btn) {                       // a slide's sections and an element's: one at a time (D-137, D-149)
     const sec = btn.closest('.lb-acc'); if (!sec || !E) return;
-    const on = !sec.classList.contains('on');
-    if (sec.dataset.acc) {                     // a slide's sections: one at a time
-      if (on) sec.parentNode.querySelectorAll(':scope > .lb-acc[data-acc].on').forEach(o => { if (o !== sec) abrirSec(o, false, true); });
-      abrirSec(sec, on, true); lsPoner(LS_AC, on ? sec.dataset.acc : '-');
-      if (on) {                                // its title stays in sight while the one above closes
-        const p = sec.closest('.lb-panel'), y0 = sec.getBoundingClientRect().top - p.getBoundingClientRect().top;
-        if (y0 < 0) p.scrollTo({ top: p.scrollTop + y0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-      }
-    } else {                                   // an element's: each one as it was left
-      const k = sec.dataset.pl; abrirSec(sec, on, true);
-      if (on) ABIERTAS.add(k); else ABIERTAS.delete(k); lsPoner(LS_PL, [...ABIERTAS].join(','));
+    const on = !sec.classList.contains('on'), de = sec.dataset.acc ? 'acc' : 'pl', k = sec.dataset[de];
+    if (on) sec.parentNode.querySelectorAll(`:scope > .lb-acc[data-${de}].on`).forEach(o => { if (o !== sec) abrirSec(o, false, true); });
+    abrirSec(sec, on, true);
+    if (de === 'acc') lsPoner(LS_AC, on ? k : '-'); else recordarSec(tipoSec(), on ? k : '-');
+    if (on) {                                  // its title stays in sight while the one above closes
+      const p = sec.closest('.lb-panel'), y0 = sec.getBoundingClientRect().top - p.getBoundingClientRect().top;
+      if (y0 < 0) p.scrollTo({ top: p.scrollTop + y0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
   }
   function capasHTML(c, sec) {
@@ -2224,12 +2225,12 @@
     if (hay('b')) h += rng('b', 'Borde', VAL.b(e0), 0, 0.06, 0.001, mix('b')) + seg('bo', [['', 'Dentro'], ['fuera', 'Fuera']], mix('bo') ? null : VAL.bo(e0)) + lbl('Color del borde', 'bc') + sws('bc', mix('bc') ? null : VAL.bc(e0), mix('bc'));
     if (hay('r')) h += rng('r', 'Esquinas', VAL.r(e0), 0, 1, 0.01, mix('r'));
     if (hay('sh')) h += rng('sh', 'Sombra', VAL.sh(e0), 0, 1, 0.01, mix('sh'));
-    return h ? `<div class="lb-sec"><h4>Lo que comparten <span>· cambia los ${ss.length} a la vez</span></h4>${h}${hay('fan') ? '<p class="lb-p">El ancho cambia cada foto sin deformarla, desde su esquina de arriba a la izquierda.</p>' : ''}</div>` : '';
+    return h ? plegable('comun', 'Lo que comparten', '', h + (hay('fan') ? '<p class="lb-p">El ancho cambia cada foto sin deformarla, desde su esquina de arriba a la izquierda.</p>' : '')) : '';
   }
   function panel() {
     if (!E || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), top = p.scrollTop, x = cur();
-    if (!x) { p.innerHTML = `<div class="lb-sec"><h4>Sin diapositivas</h4><p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2 lb-add lb-add1" data-lb="sl-add">+ Diapositiva</button>${clip() && clip().slide ? pegarHTML() : ''}</div></div>`; return; }
+    if (!x) { p.innerHTML = plegable('sin', 'Sin diapositivas', '', `<p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2 lb-add lb-add1" data-lb="sl-add">+ Diapositiva</button>${clip() && clip().slide ? pegarHTML() : ''}</div>`); abrirSec(p.firstChild, true, false); return; }
     if (E.pick) {
       const ls = fotosDisponibles(), pe = compAt(E.i).els.find(q => q.id === E.pick.id), t = E.pick.modo === 'add' ? 'Añadir una foto' : E.pick.modo === 'rep' && !(pe && pe.t === 'hueco') ? 'Reemplazar la foto' : 'Foto para el hueco';
       p.innerHTML = `<div class="lb-sec"><h4>${t} <span>· de esta publicación y de la bandeja</span></h4>`
@@ -2237,24 +2238,26 @@
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="pick-x">Cancelar</button></div></div>';
       return;
     }
-    const c = compAt(E.i), el = selEl();
+    const c = compAt(E.i), el = selEl(), tipo = el || multi() ? tipoSec() : '';
+    if (tipo && el && E.crop === el.id) recordarSec(tipo, 'el');   // while reframing, the main one (its «Zoom» and «Listo»)
+    abreEl = tipo ? secEl()[tipo] || 'el' : null;   // an element's panel: the section last opened for its kind; the first time, its main one
     let h = '';
     if (multi()) {
       const ss = selEls(), grp = ss[0] && ss[0].g && ss.every(e => e.g === ss[0].g);
-      h += `<div class="lb-sec"><h4>${ss.length} elementos <span>· ${grp ? 'agrupados' : 'elegidos'}</span></h4><div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌥⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌥⌘G">Agrupar</button>'}</div>`
+      h += plegable('el', grp ? 'Grupo' : 'Elementos', String(ss.length), `<div class="lb-btns">${grp ? '<button type="button" class="btn2" data-lb="ungroup" title="⇧⌥⌘G">Desagrupar</button>' : '<button type="button" class="btn" data-lb="group" title="⌥⌘G">Agrupar</button>'}</div>`
         + `<span class="lb-l">Alinear entre ellos</span><div class="lb-btns">${[['izq', '⇤ Izquierda'], ['cen', '↔ Centro'], ['der', '⇥ Derecha'], ['arr', '⤒ Arriba'], ['med', '↕ Medio'], ['aba', '⤓ Abajo']].map(([v, l]) => `<button type="button" class="btn2" data-lb="al" data-v="${v}">${l}</button>`).join('')}</div>`
-        + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01, ss.some(e => (e.op ?? 1) !== (ss[0].op ?? 1))) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p></div>';
+        + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01, ss.some(e => (e.op ?? 1) !== (ss[0].op ?? 1))) + '<p class="lb-p">Arrastra cualquiera para moverlos juntos.</p>');
       h += comunHTML(ss) + transformarHTML(ss) + capasHTML(c);
     } else if (el) {
       if (el.t === 'foto') {
         const crop = E.crop === el.id;
-        h += `<div class="lb-sec"><h4>Foto <span>· ${el.lock ? 'bloqueada' : crop ? 'encuadrando: arrastra la foto dentro del marco' : 'elegida'}</span></h4>`;
-        if (crop) h += rng('z', 'Zoom', el.z || 1, 1, 3, 0.01) + '<div class="lb-btns"><button type="button" class="btn2" data-lb="crop-c">Centrar</button><button type="button" class="btn" data-lb="crop">Listo</button></div>';
-        else h += `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${!el.src || el.lock ? ' disabled' : ''} title="Mover y ampliar la foto dentro de su marco${el.hueco && !el.pan ? '' : ' (o doble clic)'}">Encuadrar</button><button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`
+        let m = '';
+        if (crop) m += rng('z', 'Zoom', el.z || 1, 1, 3, 0.01) + '<div class="lb-btns"><button type="button" class="btn2" data-lb="crop-c">Centrar</button><button type="button" class="btn" data-lb="crop">Listo</button></div>';
+        else m += `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${!el.src || el.lock ? ' disabled' : ''} title="Mover y ampliar la foto dentro de su marco${el.hueco && !el.pan ? '' : ' (o doble clic)'}">Encuadrar</button><button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`
           + `<button type="button" class="btn2${el.fit != null ? ' on' : ''}" data-lb="encajar"${!el.src || el.lock ? ' disabled' : ''} title="La foto entera, centrada, con el fondo alrededor">Encajar</button><button type="button" class="btn2" data-lb="llenar"${el.lock ? ' disabled' : ''} title="${el.pan ? `La foto ocupa las ${el.pan.n} diapositivas` : 'La foto ocupa toda la diapositiva'}">Llenar</button></div>`
           + (el.fit != null ? rng('fit', 'Margen', el.fit, 0, 0.2, 0.005) : '');
-        if (el.hueco) h += '<p class="lb-p">Llena un hueco de la plantilla: doble clic para verla entera o llenando el hueco. Si la borras, el hueco vuelve como era.</p>';
-        h += '</div>' + cruzarHTML(el) + transformarHTML([el]);
+        if (el.hueco) m += '<p class="lb-p">Llena un hueco de la plantilla: doble clic para verla entera o llenando el hueco. Si la borras, el hueco vuelve como era.</p>';
+        h += plegable('el', 'Foto', el.lock ? 'bloqueada' : crop ? 'encuadrando' : '', m) + cruzarHTML(el) + transformarHTML([el]);
         h += plegable('estilo', 'Marco y estilo', '', `<div class="lb-sub"><h5>Marco</h5>${seg('marco', [['', 'Ninguno'], ['polaroid', 'Polaroid'], ['pelicula', 'Película'], ['cinta', 'Cinta']], el.marco || '')}</div>`
           + `<div class="lb-sub"><h5>Estilo</h5>${rng('b', 'Borde', el.b || 0, 0, 0.06, 0.001)}${seg('bo', [['', 'Dentro'], ['fuera', 'Fuera']], el.bo || '')}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#ffffff')}${rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01)}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`);
         h += girarHTML(el, true);
@@ -2262,31 +2265,30 @@
         const css = !(el.font && el.font.file);
         const est = E.estilos.length ? estiloDe(el) : null;
         const n = E.sl.length, k = Math.max(2, E.i + 1);   // the formats, with this slide's number (on the cover, the 2nd's)
-        h += `<div class="lb-sec"><h4>${el.num ? 'Numeración' : el.pil ? 'Píldora' : 'Texto'} <span>· ${el.num ? (E.i ? 'automática' : 'oculta en la portada') : 'doble clic en el texto para escribir'}</span></h4>`
-          + (el.num ? `${seg('num-f', Object.entries(NUMF).map(([f, fn]) => [f, fn(k, n)]), el.num.f)}<p class="lb-p">${E.i ? 'Es la posición de esta diapositiva y el total, portada incluida; se pone al día sola al añadir, borrar, mover o duplicar diapositivas.' : 'La portada nunca lleva número: aquí no se ve, y vuelve a verse si la diapositiva deja de ser la primera.'}</p><div class="lb-btns"><button type="button" class="btn2" data-lb="num" data-v="" title="Queda como un texto normal, con el número de ahora">Quitar numeración</button></div>`
+        h += plegable('el', el.num ? 'Numeración' : el.pil ? 'Píldora' : 'Texto', el.num && !E.i ? 'oculta en la portada' : '', (el.num ? `${seg('num-f', Object.entries(NUMF).map(([f, fn]) => [f, fn(k, n)]), el.num.f)}<p class="lb-p">${E.i ? 'Es la posición de esta diapositiva y el total, portada incluida; se pone al día sola al añadir, borrar, mover o duplicar diapositivas.' : 'La portada nunca lleva número: aquí no se ve, y vuelve a verse si la diapositiva deja de ser la primera.'}</p><div class="lb-btns"><button type="button" class="btn2" data-lb="num" data-v="" title="Queda como un texto normal, con el número de ahora">Quitar numeración</button></div>`
             : `<textarea class="lb-ta" data-lb="txt" rows="3" aria-label="Texto">${esc(el.txt || '')}</textarea>` + (E.i ? '<div class="lb-btns"><button type="button" class="btn2" data-lb="num" data-v="a" title="El texto pasa a ser el número de la diapositiva y el total (02 / 7) y se pone al día solo">Numeración</button></div>' : ''))
           + (E.estilos.length ? `<span class="lb-l">Estilo de la marca</span><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2${est && est.k === st.k ? ' on' : ''}" data-lb="est" data-v="${esc(st.k)}" title="Fuente, tamaño, interlineado y espaciado de «${esc(st.n)}» del kit">${esc(st.n)}</button>`).join('')}</div>` : '')
           + `<span class="lb-l">Fuente</span>${fuenteSel(el)}${rng('size', 'Tamaño', el.size || 0.06, 0.015, 0.25, 0.001)}`
           + (css ? `<span class="lb-l">Grosor</span>${seg('peso', [['300', 'Fina'], ['400', 'Normal'], ['600', 'Semi'], ['700', 'Negrita']], String(el.peso || 400))}` : '')
           + `<span class="lb-l">Alineación</span><div class="lb-btns" style="margin-top:0">${seg('tal', [['izq', 'Izquierda'], ['cen', 'Centro'], ['der', 'Derecha']], el.al || 'izq')}<button type="button" class="btn2${el.may ? ' on' : ''}" data-lb="may" title="Todo en mayúsculas">MAYÚS</button></div>`
           + `${rng('lh', 'Interlineado', el.lh || 1.2, 0.7, 2.2, 0.01)}${rng('ls', 'Espaciado', el.ls || 0, -0.1, 0.6, 0.005)}`
-          + `<span class="lb-l">Color</span>${sws('tc', el.color || '#ffffff')}<span class="lb-l">Píldora</span>${seg('pil', [['', 'Sin píldora'], ['1', 'Con píldora']], el.pil ? '1' : '')}${el.pil ? sws('pc', el.pil.c) : ''}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
+          + `<span class="lb-l">Color</span>${sws('tc', el.color || '#ffffff')}<span class="lb-l">Píldora</span>${seg('pil', [['', 'Sin píldora'], ['1', 'Con píldora']], el.pil ? '1' : '')}${el.pil ? sws('pc', el.pil.c) : ''}${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}`);
         h += girarHTML(el, false);
       } else if (el.t === 'logo') {
-        h += `<div class="lb-sec"><h4>Logo <span>· ${esc((M.files[el.src] || {}).name || '')}</span></h4><span class="lb-l" style="margin-top:0">Color</span>`
+        h += plegable('el', 'Logo', esc((M.files[el.src] || {}).name || ''), '<span class="lb-l" style="margin-top:0">Color</span>'
           + `<div class="lb-btns" style="margin-top:0"><button type="button" class="btn2${hexOk(el.tint) ? '' : ' on'}" data-lb="lc" data-c="" title="Sus colores, como se subió">Original</button></div>${sws('lc', el.tint, true)}`
-          + `${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}<p class="lb-p">Un color pasa todo el logo a ese color, con su forma. Las esquinas lo escalan sin deformarlo.</p></div>`;
+          + `${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}<p class="lb-p">Un color pasa todo el logo a ese color, con su forma. Las esquinas lo escalan sin deformarlo.</p>`);
         h += girarHTML(el, true);
       } else if (el.t === 'hueco') {
-        h += `<div class="lb-sec"><h4>Hueco de foto <span>· libre</span></h4><div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>`
-          + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa y, con su misma orientación, lo rellena; si no, te pregunta cómo. Si luego la borras, el hueco vuelve.</p></div>';
+        h += plegable('el', 'Hueco de foto', '', '<div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>'
+          + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa y, con su misma orientación, lo rellena; si no, te pregunta cómo. Si luego la borras, el hueco vuelve.</p>');
       } else {
         const tr = TRAZO[el.forma];
-        h += `<div class="lb-sec"><h4>${FORMAS[el.forma] || 'Forma'}</h4><span class="lb-l" style="margin-top:0">${tr ? 'Color' : 'Relleno'}</span>${sws('fc', el.color || '#ffffff')}`
+        h += plegable('el', FORMAS[el.forma] || 'Forma', '', `<span class="lb-l" style="margin-top:0">${tr ? 'Color' : 'Relleno'}</span>${sws('fc', el.color || '#ffffff')}`
           + (tr ? rng('gr', 'Grosor', grosor(el), 1, 60, 0.5) + `<span class="lb-l">Trazo</span>${seg('trazo', [['', 'Continuo'], ['disc', 'Discontinuo'], ['punt', 'Punteado']], el.trazo || '')}`
               + (el.forma === 'flecha' ? `<span class="lb-l">Puntas</span>${seg('puntas', [['der', 'Una →'], ['izq', 'Una ←'], ['dos', 'Las dos ↔']], el.puntas || 'der')}` : '')
             : `${rng('b', 'Borde', el.b || 0, 0, 0.03, 0.0005)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#000000')}`)
-          + (el.forma === 'rect' ? rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01) : '') + `${rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01)}</div>`;
+          + (el.forma === 'rect' ? rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01) : '') + rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01));
         h += girarHTML(el, false);
       }
       h += medidasHTML(el) + capasHTML(c);
@@ -2312,7 +2314,10 @@
       const ab = abiertaDiapo(c);
       h = seccionesDiapo(h, ab) + capasHTML(c, { on: ab === 'capas' });   // its sections, folded (D-137)
     }
-    p.innerHTML = h; p.scrollTop = top;
+    p.innerHTML = h;
+    if (abreEl && abreEl !== '-' && !h.includes(`data-pl="${abreEl}"`)) { const s = p.querySelector(':scope > .lb-acc[data-pl="el"]'); if (s) abrirSec(s, true, false); }   // not in this panel: the main one
+    abreEl = null;
+    p.scrollTop = top;
     p.querySelectorAll('canvas[data-lb="tpl"]').forEach(cv => { const t = E.plant.find(q => q.id === cv.dataset.id); if (t) dibujarPlantilla(cv, t); });
     const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing or choosing where to swap (the rest: «?»)
     pista.hidden = !enc && !E.cambio; pista.textContent = E.cambio ? 'Intercambiar: pulsa otro hueco de esta diapositiva · Esc o un clic fuera de un hueco para cancelar' : enc ? 'Encuadrando: arrastra la foto dentro del marco · rueda o «Zoom» para acercar · Esc o «Listo» para terminar' : '';
@@ -2766,7 +2771,7 @@
       }
       case 'group': { const ids = selIds(); if (ids.length < 2) return; const g = uid(); onEl(el => { el.g = g; }); return; }
       case 'ungroup': { const el = selEl(); if (!el) return; const ids = el.g && !multi() ? compAt(E.i).els.filter(e => e.g === el.g).map(e => e.id) : selIds(); mut(null, () => { ensure().els.forEach(e => { if (ids.includes(e.id)) delete e.g; }); E.mas = []; }); return; }
-      case 'cap': { const el = compAt(E.i).els.find(e => e.id === b.dataset.id); if (!el) return; seleccionar(el, b._shift); E.crop = null; E.pick = null; panel(); pedir(); return; }
+      case 'cap': { const el = compAt(E.i).els.find(e => e.id === b.dataset.id); if (!el) return; const capas = !!b.closest('.lb-acc[data-pl="capas"]'); seleccionar(el, b._shift); E.crop = null; E.pick = null; if (capas) recordarSec(tipoSec(), 'capas'); panel(); pedir(); return; }   // chosen from an element's «Capas»: «Capas» stays open (D-149)
       case 'cap-ver': case 'cap-lock': { const id = b.dataset.id; mut(null, () => { const e = ensure().els.find(q => q.id === id); if (!e) return; if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
       case 'cap-up': case 'cap-dn': { const id = b.dataset.id; mut(null, () => { const c = ensure(), k = c.els.findIndex(q => q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= c.els.length) return; [c.els[k], c.els[j]] = [c.els[j], c.els[k]]; }); return; }
     }
@@ -3184,7 +3189,7 @@
     E.trCar = (E.trCar || []).filter(id => I().carpetasDeVista().some(c => c.id === id));
     b.querySelector('.lb-trn').textContent = n ? `Bandeja · ${n}` : 'Bandeja';
     b.setAttribute('aria-expanded', String(E.trOpen)); b.title = E.trOpen ? 'Cerrar la bandeja' : `Bandeja: ${n === 1 ? '1 foto' : `${n} fotos`} ${fil === 'portada' ? (n === 1 ? 'libre' : 'libres') + ' para portada' : 'sin usar'}, para ponerlas en la diapositiva`;
-    const pest = I().pestLista ? I().pestLista() : [];   // its tabs, the same as the mesa's (D-076): shown once there is more than the fixed one
+    const pest = I().pestLista ? I().pestLista() : [];   // its tabs, the same as the mesa's (D-076): shown once there is more than the fixed one, or the one in use is in a folder (D-151)
     const carps = I().carpetasDeVista ? I().carpetasDeVista() : [], ruta = I().rutaCarpeta ? I().rutaCarpeta() : [], perez = fs.length > (I().MINIS_DE_UNA || 80);   // the tray's folders, the same as the mesa's (D-075)
     const key = E.trOpen ? fil + ':' + fs.map(x => x.f + (x.u ? '+' + x.c + (I().usoTexto ? I().usoTexto(x.uso) : '') : '') + (x.ult ? '-' : '') + (x.h ? '~' : '') + (E.trSel.includes(x.f) ? '*' : '') + (perez ? '' : M.files[x.f].thumbUrl || '')).join(',') + '|' + (I().trayCarpeta || '') + '|' + E.trCar.join(',') + '|' + JSON.stringify(pest) + '|' + carps.map(c => c.id + ':' + I().cuentaCarpeta(c)).join(',') : '';
     tamBandeja();
@@ -3195,8 +3200,9 @@
     if (tr0 && box._vista && box._vista !== vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr0, tr0, 'x', tr0.getBoundingClientRect().left);
     const sx = tr0 ? tr0.scrollLeft : 0;
     const tit = x => esc((M.files[x.f].name || '') + (I().marcaTitulo ? I().marcaTitulo(x) : x.u ? ' · ya usada en una publicación' : '') + (uso.has(x.f) ? ' · ya está en una diapositiva' : '') + (x.h ? ' · usada en una historia' : ''));
-    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['portada', 'Libres', 'Libres para portada'], ['todas', 'Todas']], fil)}${pest.length > 1 ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}<b>${ruta.length ? esc(ruta[ruta.length - 1].name) : 'Bandeja'}</b></div>`   // no help line: the tray says what it is (D-133)
+    box.innerHTML = !E.trOpen ? '' : `<div class="lb-trh">${seg('tr-fil', [['sin', 'Sin usar'], ['portada', 'Libres', 'Libres para portada'], ['todas', 'Todas']], fil)}${pest.length > 1 || ruta.length ? `<span class="cptabs lb-trt">${pest.map(p => `<span class="cptab${p.activa ? ' on' : ''}"><button type="button" data-lb="tr-pest" data-id="${esc(p.id)}" title="${esc(p.activa ? ['Bandeja', ...ruta.map(c => c.name)].join(' / ') : p.nombre)}">${esc(p.nombre)}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-lb="tr-pcerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(p.nombre)}">×</button>`}</span>`).join('')}</span>` : ''}${ruta.length ? `<button type="button" class="lb-trv" data-lb="tr-carp" data-id="${esc(ruta[ruta.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>` : ''}</div>`   // no help line: the tray says what it is (D-133)
       + (fs.length || carps.length ? `<div class="lb-trs">${carps.map(c => `<button type="button" class="lb-ph lb-tcarp${E.trCar.includes(c.id) ? ' elegida' : ''}" data-lb="tr-carp" data-id="${esc(c.id)}" title="Abrir «${esc(c.name)}»">${I().ICON_CARPETA}<span>${esc(c.name)}</span></button>`).join('')}${fs.map(x => `<button type="button" class="lb-ph lb-tph${x.u ? ' uso u-' + x.c : ''}${E.trSel.includes(x.f) ? ' elegida' : ''}" data-lb="tr-add" data-f="${esc(x.f)}" title="${tit(x)}"><img ${perez ? `data-mini="${esc(x.f)}"` : `src="${M.files[x.f].thumbUrl || ''}"`} alt="" draggable="false">${M.files[x.f].w > M.files[x.f].h ? '<span class="hb" title="Horizontal">H</span>' : ''}${x.h ? '<span class="hs" title="Usada en una historia"></span>' : ''}</button>`).join('')}</div>` : `<p class="lb-p" style="margin:0 0 4px">${todas ? 'La bandeja está vacía.' : fil === 'portada' ? 'No hay fotos libres para portada: mira «Todas».' : 'No hay fotos sin usar: mira «Todas».'}</p>`);
+    if (I().pestVisible) I().pestVisible(box.querySelector('.lb-trt'));   // the tab in use, in sight (D-151)
     const tr = box.querySelector('.lb-trs');
     if (tr && box._vista !== vista && I().dondeVolver) I().dondeVolver('e|' + vista, tr, tr, 'x', tr.getBoundingClientRect().left); else if (tr) tr.scrollLeft = sx;
     box._vista = vista;

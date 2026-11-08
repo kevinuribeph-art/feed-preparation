@@ -4756,7 +4756,7 @@
     ok(q('.tgrid').firstElementChild.classList.contains('tcarpeta'), 'las carpetas no van delante');
     await pulsar(`.tcarpeta[data-id="${n['Abre'].id}"]`);
     igual([tiles(), fotos()], [['Dentro'], ['c20-a.jpg']], 'dentro');
-    ok(q('.cpruta').textContent.includes('Abre') && q('.cpvolver'), 'sin ruta ni volver');
+    ok(q('.tray .cptab.on button').title === 'Bandeja / Abre' && q('.cpvolver') && !q('.cpruta'), 'sin la ruta en el title de la pestaña en uso, sin volver o con la ruta en texto (D-151)');
     // + Carpeta, dentro de lo abierto
     await pulsar('[data-act="cp-nueva"]');
     const input = await hasta(() => q('#cp-nombre'), 2000, 'el nombre');
@@ -4821,25 +4821,25 @@
     igual(tabsTxt(), ['*Bandeja'], 'de entrada');
     ok(!q('.cptab.fija .cpx'), 'la fija se puede cerrar');
     await pulsar(`.tcarpeta[data-id="${n['Uno'].id}"]`);
-    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], n['Uno'].id], 'entrar va en la fija');
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Uno'], n['Uno'].id], 'entrar va en la fija (que dice la carpeta, D-151)');
     M._in.pestNueva(n['Dos'].id);
-    igual(tabsTxt(), ['Bandeja', '*Dos'], 'una nueva');
+    igual(tabsTxt(), ['Uno', '*Dos'], 'una nueva');
     igual(qa('.tgrid .titem').map(x => M.files[x.dataset.file].name), ['c21-c.jpg'], 'lo de la pestaña nueva');
     const dup = M._in.pestLista().length; M._in.pestNueva(n['Dos'].id);
     igual(M._in.pestLista().length, dup, 'la misma carpeta abre otra pestaña');
     await pulsar('.cptab.fija [data-act="cp-pest"]');
     igual(M._in.trayCarpeta, n['Uno'].id, 'la fija conserva dónde estaba');
     await pulsar(`.tcarpeta[data-id="${n['Hija'].id}"]`);
-    igual(tabsTxt(), ['*Bandeja', 'Dos'], 'entrar en la fija no toca la otra');
+    igual(tabsTxt(), ['*Hija', 'Dos'], 'entrar en la fija no toca la otra');
     await pulsar('.cpvolver');
     igual(M._in.trayCarpeta, n['Uno'].id, 'volver');
     M._in.pestIr(M._in.pestLista()[1].id);
     M._in.trayAbrir(null);
-    igual(tabsTxt(), ['Bandeja', '*Bandeja'], 'una abierta que vuelve a la raíz');
+    igual(tabsTxt(), ['Uno', '*Bandeja'], 'una abierta que vuelve a la raíz');
     M._in.trayAbrir(n['Dos'].id);
     const antes = await medida(), bd = (await M._in.idbGet('bandejas', CLIENTE));
     await pulsar('.cptab:not(.fija) .cpx');
-    igual(tabsTxt(), ['*Bandeja'], 'cerrar pasa a la de la izquierda');
+    igual(tabsTxt(), ['*Uno'], 'cerrar pasa a la de la izquierda');
     igual(await medida(), antes, 'cerrar borró algo');
     await M.flush();
     igual((await M._in.idbGet('bandejas', CLIENTE)).carpetas.map(c => c.files.length), bd.carpetas.map(c => c.files.length), 'cerrar cambió las carpetas');
@@ -4848,14 +4848,14 @@
   prueba('C22', 'Las pestañas se recuerdan por cliente, también entre meses y al recargar; la de una carpeta que ya no está se cierra (D-076)', async () => {
     const clave = `${CLIENTE}-${MES}`, n = await arbolTabs();
     M._in.trayAbrir(n['Uno'].id); M._in.pestNueva(n['Dos'].id); M._in.pestNueva(n['Hija'].id);
-    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'las abiertas');
+    igual(tabsTxt(), ['Uno', 'Dos', '*Hija'], 'las abiertas (la fija dice la carpeta, D-151)');
     await M.flush();
     await M.init({ client: CLIENTE, month: '2026-12', slots: [pub(9, 'Foto', 9, '2026-12')], past: [], force: true });
-    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'en otro mes');
+    igual(tabsTxt(), ['Uno', 'Dos', '*Hija'], 'en otro mes');
     await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
     igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja'], null], 'otro cliente tiene las suyas');
     await M.open(clave);
-    igual(tabsTxt(), ['Bandeja', 'Dos', '*Hija'], 'al volver al cliente');
+    igual(tabsTxt(), ['Uno', 'Dos', '*Hija'], 'al volver al cliente');
     igual(M._in.pestLista()[0].carpeta, n['Uno'].id, 'la fija, donde estaba');
     // una carpeta que ya no está
     const k = 'mesa-pestanas:' + CLIENTE, d = JSON.parse(W.localStorage.getItem(k));
@@ -4881,7 +4881,7 @@
     await pulsar('.cptab.fija [data-act="cp-pest"]');
     clicDerecho(tile(n['Dos'].id));
     itemMenu('Abrir').click();
-    igual([tabsTxt(), M._in.trayCarpeta], [['*Bandeja', 'Uno'], n['Dos'].id], '«Abrir» va en la pestaña en uso');
+    igual([tabsTxt(), M._in.trayCarpeta], [['*Dos', 'Uno'], n['Dos'].id], '«Abrir» va en la pestaña en uso (la fija dice la carpeta, D-151)');
     await pulsar('.cpvolver');
     clicDerecho(tile(n['Dos'].id));
     D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -4898,14 +4898,14 @@
     const n = await arbolTabs();
     M._in.pestNueva(n['Uno'].id); M._in.pestNueva(n['Hija'].id); M._in.pestNueva(n['Dos'].id);
     M._in.pestIr('fija'); M._in.trayAbrir(n['Uno'].id); M._in.trayAbrir(n['Hija'].id);
-    igual(tabsTxt(), ['*Bandeja', 'Uno', 'Hija', 'Dos'], 'antes');
+    igual(tabsTxt(), ['*Hija', 'Uno', 'Hija', 'Dos'], 'antes (la fija dice la carpeta, D-151)');
     M._in.trayAbrir(n['Uno'].id);
     clicDerecho(q(`.tcarpeta[data-id="${n['Hija'].id}"]`));
     itemMenu('Borrar').click();
     await hasta(() => q('[data-act="carpeta-borrar"]'), 3000, 'el aviso');
     await pulsar('[data-act="carpeta-borrar"]');
     await hasta(() => !carp(n['Hija'].id), 4000, 'que se borre');
-    igual(tabsTxt(), ['*Bandeja', 'Uno', 'Dos'], 'la pestaña de la hija');
+    igual(tabsTxt(), ['*Uno', 'Uno', 'Dos'], 'la pestaña de la hija');
     // la fija dentro de la que se borra, y otra en su subcarpeta
     const hija2 = M.crearCarpeta('Nieta', n['Uno'].id).id;
     M._in.pestNueva(hija2); M._in.pestIr('fija'); M._in.trayAbrir(hija2);
@@ -6985,14 +6985,14 @@
       ok(t.scrollTop > 150, `${que}: la bandeja no se desliza (${t.scrollTop})`);
       cerca(h.top, t.getBoundingClientRect().top, 1, `${que}: la cabecera no sigue arriba`);
       cerca(n.top, h.bottom, 1, `${que}: las pestañas no están pegadas bajo la cabecera`);
-      ok(qa('.tray .cptab, .tray .cpvolver, .tray .cpruta').every(x => { const r = x.getBoundingClientRect(); return r.top >= h.bottom - 0.5 && r.bottom <= n.bottom + 0.5; }), `${que}: una pestaña o la ruta no se ve`);
+      ok(qa('.tray .cptab, .tray .cpvolver').every(x => { const r = x.getBoundingClientRect(); return r.top >= h.bottom - 0.5 && r.bottom <= n.bottom + 0.5; }), `${que}: una pestaña o ← no se ve`);
       const bg = W.getComputedStyle(navK()).backgroundColor; ok(bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent', `${que}: su fondo no es opaco (${bg})`);
       const e = D.elementFromPoint(n.left + n.width / 2, n.bottom - 2); ok(e && navK().contains(e), `${que}: una foto asoma por encima de las pestañas`);
     };
     try {
       q('.tray').scrollTop = 1e5; pegadas('en la raíz');
-      M._in.trayAbrir(k.uno.id); q('.tray').scrollTop = 1e5; pegadas('en «Uno», con ← y la ruta');
-      ok(navK().querySelector('.cpvolver') && navK().querySelector('.cpruta'), 'en «Uno» no están ← y la ruta');
+      M._in.trayAbrir(k.uno.id); q('.tray').scrollTop = 1e5; pegadas('en «Uno», con ←');
+      ok(navK().querySelector('.cpvolver') && !navK().querySelector('.cpruta'), 'en «Uno» no está ← o sigue la ruta en texto (D-151)');
       M.hs.ver(true); await espera(60); q('.tray').scrollTop = 1e5; pegadas('con «Historias»'); M.hs.ver(false); await espera(30);
       ok(visto(q('.side > .cal')), 'el calendario no sale');
       plegar(); await espera(60); q('.tray').scrollTop = 1e5; pegadas('con el calendario plegado o abierto');
@@ -7027,8 +7027,8 @@
     aFotoK(k.fh[15]); const h0 = idK(primeraK());
     q('.tray .cpvolver').click(); dondeK(u0, '«Uno» con ←');
     tile(k.hija.id).click(); dondeK(h0, '«Hija» al volver a entrar');
-    q(`.tray .cpruta button[data-id="${k.uno.id}"]`).click(); dondeK(u0, '«Uno» por la ruta');
-    tile(k.hija.id).click(); q('.tray .cpruta button[data-id=""]').click(); dondeK(r0, 'la raíz por la ruta');
+    q('.tray .cpvolver').click(); dondeK(u0, '«Uno» con ← desde «Hija»');   // sin la ruta en texto, ← (D-151)
+    q('.tray .cpvolver').click(); dondeK(r0, 'la raíz con ←');
     // la raíz otra vez arriba: vuelve arriba
     q('.tray').scrollTop = 0; pulsarPest('Uno'); pulsarPest('Bandeja'); igual(q('.tray').scrollTop, 0, 'la raíz, dejada arriba, no vuelve arriba');
   });
@@ -7186,13 +7186,13 @@
     // soltar en una pestaña con la bandeja deslizada
     await llevarFoto(k.raiz[85], tabK('Dos'), 'en la pestaña');
     await hasta(() => M.board().carpetas.find(c => c.id === k.dos.id).files.includes(k.raiz[85]), 3000, 'soltada en la pestaña no se mueve');
-    // en ← y en la ruta, dentro de «Hija», deslizada
+    // en ←, dentro de «Hija» y de «Uno» (a la raíz), deslizada; sin la ruta en texto (D-151)
     M._in.trayAbrir(k.hija.id); q('.tray').scrollTop = 1e5; ok(q('.tray').scrollTop > 100, '«Hija» no se desliza');
     await llevarFoto(k.fh[28], q('.tray .cpvolver'), 'en ←');
     await hasta(() => M.board().carpetas.find(c => c.id === k.uno.id).files.includes(k.fh[28]), 3000, 'soltada en ← no se mueve');
-    q('.tray').scrollTop = 1e5;
-    await llevarFoto(k.fh[27], q('.tray .cpruta button[data-id=""]'), 'en la ruta');
-    await hasta(() => !M.board().carpetas.some(c => c.files.includes(k.fh[27])), 3000, 'soltada en la ruta no se mueve');
+    M._in.trayAbrir(k.uno.id); q('.tray').scrollTop = 1e5;
+    await llevarFoto(k.fh[28], q('.tray .cpvolver'), 'en ←, a la raíz');
+    await hasta(() => !M.board().carpetas.some(c => c.files.includes(k.fh[28])), 3000, 'soltada en ← de «Uno» no va a la raíz');
     M._in.clearToasts();
   });
 
@@ -9240,7 +9240,7 @@
     await abrirEditor('r3', 0); if (!ed().trOpen) accion('bandeja');
     const c = await hasta(() => q('.lb-trh') && q('.lb-tray img') && q('.lb-trh'), 4000, 'la cabecera de la bandeja del editor');
     ok(!/clic: a esta diapositiva|arrástrala|suelta aquí fotos/.test(c.textContent), 'sigue la ayuda en la bandeja del editor: ' + c.textContent);
-    ok(/Bandeja/.test(c.textContent), 'la cabecera ya no dice dónde está');
+    ok(!q('.lb-trh b') && !/Bandeja/.test(c.textContent), 'en la raíz, con la fija sola, la cabecera lleva la ruta en texto (D-151: la dice la pestaña en uso)');
   });
 
   prueba('I3', 'El modo claro / oscuro es un interruptor que marca el modo en uso: sol a la derecha en claro, luna con cráteres a la izquierda en oscuro (sin estrellas, D-143), movido con transform (D-134)', async () => {
@@ -9421,7 +9421,7 @@
   // ---------- secciones plegables del editor y del calendario (D-137) ----------
   const altoDe = el => el.getBoundingClientRect().height;
   async function muestras(fn, ms = 500) { const v = [], t0 = Date.now(); while (Date.now() - t0 < ms) { v.push(fn()); await espera(12); } v.push(fn()); return v; }
-  prueba('I8', 'El panel de una diapositiva va en secciones plegables, una abierta a la vez y la última recordada en este navegador; se mueven con la altura y un segundo clic a mitad vuelve desde donde está; las de un elemento se abren cada una a su aire (D-137)', async () => {
+  prueba('I8', 'El panel de una diapositiva va en secciones plegables, una abierta a la vez y la última recordada en este navegador; se mueven con la altura y un segundo clic a mitad vuelve desde donde está; las de un elemento, también una a la vez (D-137, D-149)', async () => {
     const LS = 'mesa-lb-seccion', antes = W.localStorage.getItem(LS);
     try {
       W.localStorage.removeItem(LS);
@@ -9452,14 +9452,14 @@
       M.libre.cerrar(); await abrirEditor('r1', 0); ed().sel = null; accion('sl', { i: 0 });
       await hasta(() => secs().length, 2000, 'las secciones de nuevo'); igual(abiertas(), ['fondo'], 'al volver a abrir el editor');
       h('fondo').click(); igual([abiertas(), W.localStorage.getItem(LS)], [[], '-'], 'cerrarla');
-      // un elemento: su sección principal sigue abierta y sus plegables van cada uno a su aire
+      // un elemento: sus secciones, también una a la vez (D-149; hasta la 4.06, cada plegable a su aire)
+      W.localStorage.removeItem('mesa-lb-seccion-el');
       accion('add-txt'); await dibujado();
-      ok(q('.lb-panel > .lb-sec > h4') && !q('.lb-panel > .lb-sec[data-acc]'), 'el panel de un elemento se pliega como el de la diapositiva');
+      ok(!q('.lb-panel > .lb-sec[data-acc]'), 'el panel de un elemento usa las secciones de la diapositiva');
       const pl = qa('.lb-panel > .lb-acc[data-pl]'); ok(pl.length >= 2, 'sin plegables en el elemento');
       pl.forEach(x => { if (!x.classList.contains('on')) x.querySelector('.lb-acc-h').click(); });
-      ok(qa('.lb-panel > .lb-acc[data-pl]').every(x => x.classList.contains('on')), 'los plegables de un elemento no se abren a la vez');
-      qa('.lb-panel > .lb-acc[data-pl]').forEach(x => x.querySelector('.lb-acc-h').click());
-    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); W.localStorage.removeItem('mesa-lb-secciones'); }
+      igual(qa('.lb-panel > .lb-acc[data-pl].on').length, 1, 'las secciones de un elemento se abren a la vez');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); W.localStorage.removeItem('mesa-lb-secciones'); W.localStorage.removeItem('mesa-lb-seccion-el'); }
   });
 
   prueba('I9', 'El calendario se pliega y se despliega con la altura, la misma curva que el editor; un segundo clic a mitad vuelve desde donde está (D-137)', async () => {
@@ -9853,6 +9853,154 @@
         ok(!t.classList.contains('fold') && !visto(t.querySelector('.tfold')), 'sin calendario.js la bandeja sigue plegada o enseña el chevrón');
       } finally { W.MESA_CARGA.calendario = carga; M._in.trayFold(); }
     });
+  });
+
+  // ---------- los paneles de un elemento, plegables como el de una diapositiva (D-149) ----------
+  prueba('R1', 'El panel de un elemento va todo en secciones plegables, una abierta a la vez, sin explicaciones en gris; al elegir un elemento se abre la última abierta en su tipo (la primera vez, la principal) y sobrevive al redibujo; encuadrar abre la principal (D-149)', async () => {
+    const LS = 'mesa-lb-seccion-el', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.removeItem(LS);
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('r1a.jpg'), await foto('r1b.jpg')]);
+      await abrirEditor('r1', 0); await espera(200);
+      const secs = () => qa('.lb-panel > .lb-sec'), abiertas = () => qa('.lb-panel > .lb-acc[data-pl].on').map(s => s.dataset.pl);
+      const tit = k => q(`.lb-panel > .lb-acc[data-pl="${k}"] .lb-acc-h`), elige = (el, shift) => { const b = D.createElement('button'); b.type = 'button'; b.hidden = true; b.dataset.lb = 'cap'; b.dataset.id = el.id; ed().el.append(b); b.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: !!shift })); b.remove(); };
+      const f0 = compDe(0).els.find(e => e.t === 'foto'); ok(f0, 'sin foto en la diapositiva');
+      elige(f0); await espera(30);
+      ok(secs().length >= 5 && secs().every(s => s.matches('.lb-acc[data-pl]')), 'una sección del panel de una foto no se pliega: ' + json(secs().map(s => s.className)));
+      igual(abiertas(), ['el'], 'la primera vez no se abre la principal');
+      igual(tit('el').querySelector('.lb-acc-n').textContent, 'Foto', 'el título de la principal');
+      ok(!q('.lb-panel h4:not(.lb-acc-t)') && !qa('.lb-panel .lb-acc-h').some(h => /·/.test(h.textContent)), 'queda una explicación en gris en un título');
+      ok(tit('el').getAttribute('aria-expanded') === 'true' && tit('medidas').getAttribute('aria-expanded') === 'false', 'aria-expanded');
+      tit('medidas').click(); await espera(30);
+      igual(abiertas(), ['medidas'], 'abrir «Medidas exactas» no cierra la principal');
+      igual(JSON.parse(W.localStorage.getItem(LS) || '{}').foto, 'medidas', 'no se recuerda por tipo');
+      accion('add-txt'); await dibujado();
+      igual(abiertas(), ['el'], 'un texto, la primera vez, no abre su principal');
+      ok(/^(Texto|Numeración|Píldora)$/.test(tit('el').querySelector('.lb-acc-n').textContent), 'el título del texto');
+      const t0 = ed().sel;
+      elige(f0); await espera(30); igual(abiertas(), ['medidas'], 'la foto no vuelve a «Medidas exactas»');
+      const r = q('.lb-panel input[data-lb="op"]'); r.value = '0.5'; r.dispatchEvent(new W.Event('input', { bubbles: true })); r.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+      tecla('z', { meta: true, code: 'KeyZ' }); await espera(60);
+      igual([abiertas(), ed().sel], [['medidas'], f0.id], 'tras ⌘Z (redibuja el panel)');
+      accion('crop'); await espera(30);
+      igual(abiertas(), ['el'], 'encuadrar no abre la principal');
+      ok(/encuadrando/.test(tit('el').textContent) && !q('.lb-hint').hidden, 'encuadrando, a la derecha del título y en la línea de aviso');
+      accion('crop'); await espera(30); igual(abiertas(), ['el'], 'tras encuadrar');
+      const t = compDe(0).els.find(e => e.id === t0);
+      elige(t, true); await espera(30);
+      igual(abiertas(), ['el'], 'varios, la primera vez');
+      ok(/^(Elementos|Grupo)$/.test(tit('el').querySelector('.lb-acc-n').textContent) && tit('el').querySelector('.lb-acc-s').textContent === '2', 'varios: «Elementos» y su número');
+      tit('el').click(); await espera(30);
+      igual([abiertas(), JSON.parse(W.localStorage.getItem(LS)).varios], [[], '-'], 'cerrarla');
+      // elegido desde «Capas» de un elemento, «Capas» sigue abierta
+      elige(f0); await espera(30); tit('capas').click(); await espera(30);
+      q(`.lb-panel > .lb-acc[data-pl="capas"] .lb-cap[data-id="${t0}"]`).click(); await espera(30);
+      igual([ed().sel, abiertas()], [t0, ['capas']], 'elegir desde «Capas» la cierra');
+      M.libre.cerrar();
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
+  // ---------- los desplegables, con el texto alineado con el del campo y el ✓ a la derecha (D-150) ----------
+  prueba('R2', 'En todos los desplegables, el texto de la lista empieza donde el del campo cerrado (también los títulos de grupo y la lista de horas) y el ✓ de la elegida va a la derecha, con su sitio guardado: un nombre largo se corta con «…» y no lo pisa (D-150)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('r2.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')), 3000, 'la ventana con sus desplegables');
+    const txtX = el => { const r = D.createRange(); r.selectNodeContents(el); const rs = [...r.getClientRects()].filter(x => x.width > 0); return rs.length ? rs[0].left : NaN; };
+    const cerca = (a, b, que) => ok(Math.abs(a - b) <= 1.5, `${que}: el texto de la lista empieza en ${a.toFixed(1)} y el del campo en ${b.toFixed(1)}`);
+    // uno hecho por código, con grupos y un nombre largo elegido
+    const sel = D.createElement('select'); sel.setAttribute('aria-label', 'Prueba R2');
+    sel.innerHTML = `<optgroup label="Grupo uno"><option>Corta</option><option selected>${'Un nombre muy largo '.repeat(10)}</option></optgroup><optgroup label="Grupo dos"><option>Otra</option></optgroup>`;
+    q('.detail .card').append(sel);
+    try {
+      const g = await hasta(() => gem(sel), 2000, 'el desplegable hecho por código');
+      const x0 = txtX(g.querySelector('.mx-t'));
+      g.click(); const pop = await hasta(() => capa(), 1000, 'la lista');
+      const os = [...pop.querySelectorAll('.mx-o')], larga = os.find(o => o.getAttribute('aria-selected') === 'true');
+      cerca(txtX(os[0]), x0, 'una opción'); cerca(txtX(pop.querySelector('.mx-gl')), x0, 'un título de grupo');
+      const cs = W.getComputedStyle(larga), ck = W.getComputedStyle(larga, '::before');
+      ok(ck.right === '10px' && parseFloat(ck.left) > larga.clientWidth / 2, `el ✓ no va a la derecha: left ${ck.left}, right ${ck.right}`);
+      ok(larga.scrollWidth > larga.clientWidth && cs.textOverflow === 'ellipsis' && cs.display === 'block', 'el nombre largo no se corta con «…»');
+      ok(parseFloat(cs.paddingRight) >= 10 + parseFloat(ck.width) + 4, 'el texto largo pisa el ✓: ' + cs.paddingRight);
+      ok(os.every(o => W.getComputedStyle(o).paddingRight === cs.paddingRight), 'el sitio del ✓ no está guardado en todas las filas');
+      M.controles.cerrar();
+      // pegado al borde derecho, con nombres más largos que su sitio: la lista no se mueve a la izquierda, se estrecha con «…»
+      sel.style.cssText = 'position:fixed;right:8px;top:120px;width:160px'; await espera(30);
+      const gd = gem(sel); gd.style.cssText = 'position:fixed;right:8px;top:120px;width:160px'; await espera(30);
+      gd.click(); const pd = await hasta(() => capa(), 1000, 'la lista junto al borde');
+      cerca(txtX(pd.querySelector('.mx-o')), txtX(gd.querySelector('.mx-t')), 'junto al borde derecho');
+      ok(pd.getBoundingClientRect().right <= W.innerWidth - 7, 'la lista se sale de la página');
+      M.controles.cerrar(); gd.style.cssText = ''; sel.style.cssText = '';
+      // el de un campo de la ventana y la lista de horas
+      const gt = gem(q('.detail .tysel')); gt.click(); const pt = await hasta(() => capa(), 1000, 'la lista del tipo');
+      cerca(txtX(pt.querySelector('.mx-o')), txtX(gt.querySelector('.mx-t')), 'el tipo');
+      M.controles.cerrar();
+      const fh = q('.detail .mx-time'); ok(fh, 'sin hora en la ventana');
+      const inp = fh.querySelector('.mx-in'), xi = inp.getBoundingClientRect().left + parseFloat(W.getComputedStyle(inp).paddingLeft);
+      fh.querySelector('.mx-cal').click(); const ph = await hasta(() => capa() && capa().classList.contains('mx-tlist') && capa(), 1000, 'la lista de horas');
+      cerca(txtX(ph.querySelector('.mx-o')), xi, 'las horas');
+      M.controles.cerrar();
+    } finally { sel.remove(); M._in.closeDetail(); }
+  });
+
+  // ---------- la pestaña en uso de la bandeja, con color, y sin la ruta en texto (D-151) ----------
+  prueba('R3', 'La pestaña en uso de la bandeja lleva el color de «Añadir fotos», también la fija; sin la ruta en texto: la pestaña dice su carpeta (también la fija), «←» solo dentro de una carpeta y la ruta entera en su title; soltar sobre ella tiene su propia marca; en la mesa y en el editor (D-151)', async () => {
+    const I = M._in, LT = 'mesa-lb-bandeja', lt0 = W.localStorage.getItem(LT);
+    try {
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('r3a.jpg'), await foto('r3b.jpg')]);
+      const a = M.crearCarpeta('R3 Uno').id, b = M.crearCarpeta('R3 Dos', a).id; await espera(50);
+      I.pestLista().filter(p => p.id !== 'fija').forEach(p => I.pestCerrar(p.id)); I.pestIr('fija'); I.trayAbrir(null); await espera(50);
+      const btn = q('.tray .trayhead > .btn'), acc = W.getComputedStyle(btn).backgroundColor, onAcc = W.getComputedStyle(btn).color;
+      const on = () => q('.tray .cptab.on'), bg = el => W.getComputedStyle(el).backgroundColor, nom = t => t.querySelector('button').textContent, tit = t => t.querySelector('button').title;
+      igual([on() && on().dataset.pest, bg(on()), W.getComputedStyle(on()).color], ['fija', acc, onAcc], 'la fija en uso no lleva el color de «Añadir fotos»');
+      ok(!q('.tray .cpruta') && !q('.tray .cpvolver'), 'en la raíz, ruta o ←');
+      I.trayAbrir(a); await espera(50);
+      igual([on().dataset.pest, nom(on()), tit(on())], ['fija', 'R3 Uno', 'Bandeja / R3 Uno'], 'la fija dentro de una carpeta');
+      ok(q('.tray .cpvolver') && !q('.tray .cpruta'), 'dentro: sin ← o con la ruta en texto');
+      I.trayAbrir(b); await espera(50);
+      igual([nom(on()), tit(on())], ['R3 Dos', 'Bandeja / R3 Uno / R3 Dos'], 'en la subcarpeta');
+      q('.tray .cpvolver').click(); await espera(50);
+      igual(nom(on()), 'R3 Uno', '← no sube un nivel');
+      I.trayAbrir(null); const p2 = I.pestNueva(b); await espera(50);
+      igual([on().dataset.pest, bg(on()), nom(on())], [p2, acc, 'R3 Dos'], 'la abierta en uso');
+      const fija = q('.tray .cptab[data-pest="fija"]'); ok(bg(fija) !== acc && nom(fija) === 'Bandeja', 'la fija sin usar');
+      igual(W.getComputedStyle(on().querySelector('.cpx')).color, onAcc, 'la × de la pestaña en uso');
+      on().classList.add('over'); fija.classList.add('over');
+      const oo = W.getComputedStyle(on()), of = W.getComputedStyle(fija);
+      ok(oo.outlineStyle === 'dashed' && oo.outlineColor === onAcc && of.outlineStyle === 'dashed' && of.outlineColor === acc, `la marca de soltar: ${oo.outlineStyle} ${oo.outlineColor} / ${of.outlineColor}`);
+      on().classList.remove('over'); fija.classList.remove('over');
+      // el editor: con la fija sola dentro de una carpeta, su pestaña dice dónde está
+      I.pestCerrar(p2); I.pestIr('fija'); I.trayAbrir(a); await espera(50);
+      W.localStorage.setItem(LT, '1');
+      await abrirEditor('r1', 0);
+      const eon = await hasta(() => q('.lb-tray .lb-trt .cptab.on'), 2000, 'la pestaña en uso en el editor');
+      igual([nom(eon), tit(eon), bg(eon)], ['R3 Uno', 'Bandeja / R3 Uno', acc], 'en el editor');
+      ok(q('.lb-tray .lb-trv') && !q('.lb-trh b'), 'en el editor: sin ← o con la ruta en texto');
+      M.libre.cerrar();
+    } finally { I.trayAbrir(null); if (lt0 == null) W.localStorage.removeItem(LT); else W.localStorage.setItem(LT, lt0); }
+  });
+
+  prueba('R4', 'Con la columna estrecha (ventana de 800 px), «+ Carpeta» y «Subir carpeta» bajan de línea y las pestañas usan todo el ancho; una pestaña nunca es más ancha que su fila y la en uso se ve desde su principio (D-151)', async () => {
+    const I = M._in, fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('r4.jpg')]);
+      const a = M.crearCarpeta('R4 una carpeta con un nombre bastante largo').id; await espera(50);
+      I.pestLista().filter(p => p.id !== 'fija').forEach(p => I.pestCerrar(p.id)); I.pestIr('fija'); I.trayAbrir(null);
+      fr.style.width = '800px'; await hasta(() => W.innerWidth <= 800 && W.innerWidth > 720, 3000, 'la ventana de 800 px');
+      I.pestNueva(a); await espera(100);
+      const f = q('.tray .cptabs'), on = f.querySelector('.cptab.on'), acc = q('.tray .cpacc'), fr0 = f.getBoundingClientRect(), ra = acc.getBoundingClientRect();
+      ok(fr0.width >= 160, 'la fila de pestañas se queda estrecha: ' + Math.round(fr0.width));
+      ok(ra.top >= fr0.bottom - 1 || ra.left >= fr0.right - 1, 'los botones pisan la fila de pestañas');
+      const ro = on.getBoundingClientRect();
+      ok(ro.width <= fr0.width + 0.5 && ro.left >= fr0.left - 0.5, `la pestaña en uso no se ve desde su principio: ${Math.round(ro.left)}–${Math.round(ro.right)} en ${Math.round(fr0.left)}–${Math.round(fr0.right)}`);
+      fr.style.width = w0; await hasta(() => W.innerWidth > 1000, 3000, 'la ventana ancha');
+      await espera(60); const f2 = q('.tray .cptabs').getBoundingClientRect(), a2 = q('.tray .cpacc').getBoundingClientRect();
+      ok(Math.abs(a2.top - f2.top) < 6, 'con la ventana ancha, los botones dejan la fila de las pestañas');
+    } finally { fr.style.width = w0; I.trayAbrir(null); }
   });
 
   // =====================================================================================================

@@ -10003,6 +10003,55 @@
     } finally { fr.style.width = w0; I.trayAbrir(null); }
   });
 
+  // ---------- sin fila encima del feed (mesa 4.08) ----------
+  prueba('S1', 'Sin fila encima del feed: ni el mes ni «Debajo: …» ni el botón de bloqueo; la etiqueta del mes anterior es su único candado, con icono de línea y la cuenta en su título (D-152)', async () => {
+    const oct = (n, dia) => ({ id: `s1-p${n}`, name: `Foto 0.${n}`, type: 'Foto', date: `2026-10-${String(dia).padStart(2, '0')}T12:00:00.000+02:00` });
+    await limpiar();
+    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [oct(1, 5), oct(2, 9)], force: true });
+    ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero de prueba: ' + json(r));
+    await hasta(() => q('.feed .grid .cell.past'), 4000, 'el mes anterior en el feed');
+    ok(!q('.feed .legend') && q('.feed').firstElementChild === q('.feed .grid'), 'sigue la fila encima del feed');
+    ok(!q('.lockbtn') && !/Debajo:|a preparar|de tu mesa/.test(q('.feed').textContent), 'quedan textos o el botón de la fila');
+    const et = () => qa('.cell.past .pmonth');
+    igual(et().length, 1, 'etiquetas en el mes anterior');
+    const p = et()[0];
+    ok(p.tagName === 'BUTTON' && p.querySelector('svg') && !/[🔒🔓]/u.test(p.textContent), 'la etiqueta no es un botón con icono de línea: ' + p.outerHTML.slice(0, 120));
+    ok(/^Octubre 2026 · 2 publicadas · Bloqueado: /.test(p.title), 'el título de la etiqueta: ' + p.title);
+    ok(qa('.cell.past').every(c => c.classList.contains('locked')), 'el mes anterior no empieza bloqueado');
+    p.click(); await espera(30);
+    await pulsar('[data-act="unlock-always"]');
+    ok(qa('.cell.past').every(c => !c.classList.contains('locked')), 'no se desbloqueó desde la etiqueta');
+    ok(/ · Desbloqueado: pulsa para bloquearlo$/.test(et()[0].title), 'el título desbloqueado: ' + et()[0].title);
+    et()[0].click(); await espera(30);
+    ok(qa('.cell.past').every(c => c.classList.contains('locked')) && / · Bloqueado: /.test(et()[0].title), 'no se volvió a bloquear desde la etiqueta');
+  });
+
+  prueba('S2', '«Abrir notas» es un icono de la barra del mes, a la izquierda de «Revisar», solo con alguna Nota, marcado mientras están abiertas y nunca en «Vista cliente» (D-152)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const b = () => q('.bar .memobtn'), est = () => [b().getAttribute('aria-label'), b().getAttribute('aria-pressed')];
+    ok(b() && b().hidden, 'sale sin ninguna Nota');
+    ok(b().nextElementSibling === q('.bar .rvbtn'), 'no va a la izquierda de «Revisar»');
+    M._in.openDetail('r1', 0);
+    const memo = await hasta(() => q('.detail textarea.memo'), 2000, 'el campo Nota');
+    memo.focus(); memo.value = 'S2 nota'; memo.dispatchEvent(new W.Event('input', { bubbles: true }));
+    M._in.closeDetail();
+    await hasta(() => q('.cell[data-slot="r1"] .pit'), 2000, 'el post-it de la Nota');
+    ok(!b().hidden && b().offsetParent, 'no sale con una Nota');
+    ok(b().querySelector('svg') && !b().textContent.trim(), 'lleva texto o le falta el icono');
+    igual(est(), ['Abrir notas', 'false'], 'cerrado');
+    const borde0 = W.getComputedStyle(b()).borderTopColor;
+    b().click(); await espera(30);
+    ok(q('#mesa').classList.contains('memos'), 'no abrió las notas');
+    igual(est(), ['Cerrar notas', 'true'], 'abierto');
+    ok(W.getComputedStyle(b()).borderTopColor !== borde0, 'abierto no se distingue');
+    b().click(); await espera(30);
+    ok(!q('#mesa').classList.contains('memos'), 'no cerró las notas');
+    igual(est(), ['Abrir notas', 'false'], 'cerrado otra vez');
+    q('.clientToggle').click(); await espera(30);
+    try { ok(W.getComputedStyle(b()).display === 'none', 'sale en «Vista cliente»'); }
+    finally { q('.clientToggle').click(); await espera(30); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

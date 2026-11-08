@@ -9421,7 +9421,7 @@
   // ---------- secciones plegables del editor y del calendario (D-137) ----------
   const altoDe = el => el.getBoundingClientRect().height;
   async function muestras(fn, ms = 500) { const v = [], t0 = Date.now(); while (Date.now() - t0 < ms) { v.push(fn()); await espera(12); } v.push(fn()); return v; }
-  prueba('I8', 'El panel de una diapositiva va en secciones plegables, una abierta a la vez y la última recordada en este navegador; se mueven con la altura y un segundo clic a mitad vuelve desde donde está; las de un elemento se abren cada una a su aire (D-137)', async () => {
+  prueba('I8', 'El panel de una diapositiva va en secciones plegables, una abierta a la vez y la última recordada en este navegador; se mueven con la altura y un segundo clic a mitad vuelve desde donde está; las de un elemento, también una a la vez (D-137, D-149)', async () => {
     const LS = 'mesa-lb-seccion', antes = W.localStorage.getItem(LS);
     try {
       W.localStorage.removeItem(LS);
@@ -9452,14 +9452,14 @@
       M.libre.cerrar(); await abrirEditor('r1', 0); ed().sel = null; accion('sl', { i: 0 });
       await hasta(() => secs().length, 2000, 'las secciones de nuevo'); igual(abiertas(), ['fondo'], 'al volver a abrir el editor');
       h('fondo').click(); igual([abiertas(), W.localStorage.getItem(LS)], [[], '-'], 'cerrarla');
-      // un elemento: su sección principal sigue abierta y sus plegables van cada uno a su aire
+      // un elemento: sus secciones, también una a la vez (D-149; hasta la 4.06, cada plegable a su aire)
+      W.localStorage.removeItem('mesa-lb-seccion-el');
       accion('add-txt'); await dibujado();
-      ok(q('.lb-panel > .lb-sec > h4') && !q('.lb-panel > .lb-sec[data-acc]'), 'el panel de un elemento se pliega como el de la diapositiva');
+      ok(!q('.lb-panel > .lb-sec[data-acc]'), 'el panel de un elemento usa las secciones de la diapositiva');
       const pl = qa('.lb-panel > .lb-acc[data-pl]'); ok(pl.length >= 2, 'sin plegables en el elemento');
       pl.forEach(x => { if (!x.classList.contains('on')) x.querySelector('.lb-acc-h').click(); });
-      ok(qa('.lb-panel > .lb-acc[data-pl]').every(x => x.classList.contains('on')), 'los plegables de un elemento no se abren a la vez');
-      qa('.lb-panel > .lb-acc[data-pl]').forEach(x => x.querySelector('.lb-acc-h').click());
-    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); W.localStorage.removeItem('mesa-lb-secciones'); }
+      igual(qa('.lb-panel > .lb-acc[data-pl].on').length, 1, 'las secciones de un elemento se abren a la vez');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); W.localStorage.removeItem('mesa-lb-secciones'); W.localStorage.removeItem('mesa-lb-seccion-el'); }
   });
 
   prueba('I9', 'El calendario se pliega y se despliega con la altura, la misma curva que el editor; un segundo clic a mitad vuelve desde donde está (D-137)', async () => {
@@ -9853,6 +9853,52 @@
         ok(!t.classList.contains('fold') && !visto(t.querySelector('.tfold')), 'sin calendario.js la bandeja sigue plegada o enseña el chevrón');
       } finally { W.MESA_CARGA.calendario = carga; M._in.trayFold(); }
     });
+  });
+
+  // ---------- los paneles de un elemento, plegables como el de una diapositiva (D-149) ----------
+  prueba('R1', 'El panel de un elemento va todo en secciones plegables, una abierta a la vez, sin explicaciones en gris; al elegir un elemento se abre la última abierta en su tipo (la primera vez, la principal) y sobrevive al redibujo; encuadrar abre la principal (D-149)', async () => {
+    const LS = 'mesa-lb-seccion-el', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.removeItem(LS);
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('r1a.jpg'), await foto('r1b.jpg')]);
+      await abrirEditor('r1', 0); await espera(200);
+      const secs = () => qa('.lb-panel > .lb-sec'), abiertas = () => qa('.lb-panel > .lb-acc[data-pl].on').map(s => s.dataset.pl);
+      const tit = k => q(`.lb-panel > .lb-acc[data-pl="${k}"] .lb-acc-h`), elige = (el, shift) => { const b = D.createElement('button'); b.type = 'button'; b.hidden = true; b.dataset.lb = 'cap'; b.dataset.id = el.id; ed().el.append(b); b.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: !!shift })); b.remove(); };
+      const f0 = compDe(0).els.find(e => e.t === 'foto'); ok(f0, 'sin foto en la diapositiva');
+      elige(f0); await espera(30);
+      ok(secs().length >= 5 && secs().every(s => s.matches('.lb-acc[data-pl]')), 'una sección del panel de una foto no se pliega: ' + json(secs().map(s => s.className)));
+      igual(abiertas(), ['el'], 'la primera vez no se abre la principal');
+      igual(tit('el').querySelector('.lb-acc-n').textContent, 'Foto', 'el título de la principal');
+      ok(!q('.lb-panel h4:not(.lb-acc-t)') && !qa('.lb-panel .lb-acc-h').some(h => /·/.test(h.textContent)), 'queda una explicación en gris en un título');
+      ok(tit('el').getAttribute('aria-expanded') === 'true' && tit('medidas').getAttribute('aria-expanded') === 'false', 'aria-expanded');
+      tit('medidas').click(); await espera(30);
+      igual(abiertas(), ['medidas'], 'abrir «Medidas exactas» no cierra la principal');
+      igual(JSON.parse(W.localStorage.getItem(LS) || '{}').foto, 'medidas', 'no se recuerda por tipo');
+      accion('add-txt'); await dibujado();
+      igual(abiertas(), ['el'], 'un texto, la primera vez, no abre su principal');
+      ok(/^(Texto|Numeración|Píldora)$/.test(tit('el').querySelector('.lb-acc-n').textContent), 'el título del texto');
+      const t0 = ed().sel;
+      elige(f0); await espera(30); igual(abiertas(), ['medidas'], 'la foto no vuelve a «Medidas exactas»');
+      const r = q('.lb-panel input[data-lb="op"]'); r.value = '0.5'; r.dispatchEvent(new W.Event('input', { bubbles: true })); r.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+      tecla('z', { meta: true, code: 'KeyZ' }); await espera(60);
+      igual([abiertas(), ed().sel], [['medidas'], f0.id], 'tras ⌘Z (redibuja el panel)');
+      accion('crop'); await espera(30);
+      igual(abiertas(), ['el'], 'encuadrar no abre la principal');
+      ok(/encuadrando/.test(tit('el').textContent) && !q('.lb-hint').hidden, 'encuadrando, a la derecha del título y en la línea de aviso');
+      accion('crop'); await espera(30); igual(abiertas(), ['el'], 'tras encuadrar');
+      const t = compDe(0).els.find(e => e.id === t0);
+      elige(t, true); await espera(30);
+      igual(abiertas(), ['el'], 'varios, la primera vez');
+      ok(/^(Elementos|Grupo)$/.test(tit('el').querySelector('.lb-acc-n').textContent) && tit('el').querySelector('.lb-acc-s').textContent === '2', 'varios: «Elementos» y su número');
+      tit('el').click(); await espera(30);
+      igual([abiertas(), JSON.parse(W.localStorage.getItem(LS)).varios], [[], '-'], 'cerrarla');
+      // elegido desde «Capas» de un elemento, «Capas» sigue abierta
+      elige(f0); await espera(30); tit('capas').click(); await espera(30);
+      q(`.lb-panel > .lb-acc[data-pl="capas"] .lb-cap[data-id="${t0}"]`).click(); await espera(30);
+      igual([ed().sel, abiertas()], [t0, ['capas']], 'elegir desde «Capas» la cierra');
+      M.libre.cerrar();
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
   // =====================================================================================================

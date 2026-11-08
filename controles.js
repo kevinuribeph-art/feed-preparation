@@ -201,12 +201,16 @@
   }
   function colocar(pop, g) {                   // under its control, or above if there is more room there; always in the window
     const a = g.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, m = 8, sep = 6;
-    pop.style.maxHeight = ''; pop.style.left = '0px'; pop.style.top = '0px';
+    pop.style.maxHeight = ''; pop.style.maxWidth = ''; pop.style.left = '0px'; pop.style.top = '0px';
+    // its text where the field's starts (D-150): with no room beside the field for its longest name, narrower (at most to the
+    // window's margin), the long ones cut with «…», rather than moved to the left; moved only with almost no room at all
+    const libre = vw - m - Math.max(m, a.left);
+    if (libre >= 120) { pop.style.minWidth = Math.min(parseFloat(pop.style.minWidth) || 0, libre) + 'px'; pop.style.maxWidth = libre + 'px'; }
+    else pop.style.maxWidth = (vw - 2 * m) + 'px';
     const w = Math.min(pop.offsetWidth, vw - 2 * m), h = pop.offsetHeight;
     const abajo = vh - a.bottom - sep - m, arriba = a.top - sep - m, sube = h > abajo && arriba > abajo;
     const alto = Math.min(h, Math.max(120, sube ? arriba : abajo));
     if (alto < h) pop.style.maxHeight = alto + 'px';
-    pop.style.maxWidth = (vw - 2 * m) + 'px';
     pop.style.left = Math.round(Math.min(Math.max(m, a.left), vw - m - w)) + 'px';
     pop.style.top = Math.round(sube ? a.top - sep - alto : a.bottom + sep) + 'px';
     pop.classList.toggle('arriba', sube);

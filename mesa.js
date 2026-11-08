@@ -2355,9 +2355,9 @@
 #mesa .btn2.danger{color:var(--red);border-color:var(--red-soft)}#mesa .btn2.danger:hover{background:var(--red-soft);border-color:var(--red-soft)}
 #mesa .tbody{padding:0 16px 24px}
 #mesa .cpnav{position:sticky;top:var(--thh,51px);z-index:2;padding:0 16px 10px;font-size:12.5px;background:inherit}
-#mesa .cpfila{display:flex;align-items:center;gap:6px;min-height:30px}#mesa .cpfila+.cpfila{margin-top:6px}
-#mesa .cptabs{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none}#mesa .cptabs::-webkit-scrollbar{display:none}
-#mesa .cptab{display:inline-flex;flex:none;align-items:center;max-width:150px;height:28px;border:1px solid transparent;border-radius:var(--r-pill);background:transparent;color:var(--mute);font-size:12px;user-select:none;-webkit-user-select:none;transition:background var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .cpfila{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:30px}#mesa .cpfila+.cpfila{margin-top:6px}
+#mesa .cptabs{display:flex;flex:1 1 160px;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none}#mesa .cptabs::-webkit-scrollbar{display:none}
+#mesa .cptab{display:inline-flex;flex:none;align-items:center;max-width:min(150px,100%);height:28px;border:1px solid transparent;border-radius:var(--r-pill);background:transparent;color:var(--mute);font-size:12px;user-select:none;-webkit-user-select:none;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .cptabs.ordenando .cptab:not(.arrastrada){transition:transform .15s}#mesa .cptab.arrastrada{position:relative;z-index:1;box-shadow:var(--shadow-md);cursor:grabbing;background:var(--panel-2)}#mesa .cptab.arrastrada button{cursor:grabbing}
 #mesa .cptab.on{background:var(--acc);color:var(--on-acc);font-weight:600}#mesa .cptab:hover{background:var(--bg-2);color:var(--ink)}#mesa .cptab.on:hover{background:var(--acc-hover);color:var(--on-acc)}#mesa .cptab.over,#mesa .cpvolver.over{outline:2px dashed var(--acc);outline-offset:1px}#mesa .cptab.on.over{outline:1.5px dashed var(--on-acc);outline-offset:-4px}
 #mesa .cptab button{border:0;background:none;padding:0 11px;height:100%;font:inherit;color:inherit;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3227,7 +3227,7 @@
   function pestVisible(fila) {         // the tab in use, in sight in its row once drawn: it says where the tray is (D-151)
     const t = fila && fila.querySelector('.cptab.on'); if (!t) return;
     const a = fila.getBoundingClientRect(), b = t.getBoundingClientRect();
-    if (b.left < a.left) fila.scrollLeft += b.left - a.left - 8; else if (b.right > a.right) fila.scrollLeft += b.right - a.right + 8;
+    if (b.left < a.left || b.width > a.width) fila.scrollLeft += b.left - a.left - (b.width > a.width ? 0 : 8); else if (b.right > a.right) fila.scrollLeft += b.right - a.right + 8;   // wider than its row: from its start
   }
   // Tabs (D-076): a fixed one and the ones opened, each looking at one folder, remembered per client in this browser. Going
   // into a folder happens in the tab in use. Closing a tab never deletes anything. trayCarpeta is what the tab in use shows.

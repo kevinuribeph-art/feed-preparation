@@ -2128,9 +2128,10 @@
     if (e.t === 'logo') return `Logo <i>${esc((M.files[e.src] || {}).name || '')}</i>`;
     return `Foto <i>${esc(e.src ? (M.files[e.src] || {}).name || '' : 'hueco vacío')}</i>`;
   }
-  // a section folded under its title: a slide's (sec) open or closed as given; an element's drawn closed, and panel() opens the
-  // one last opened for its kind (D-149)
-  const plegable = (k, titulo, resumen, html, sec) => { const on = !!(sec && sec.on); return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
+  // a section folded under its title: a slide's (sec) open or closed as given; an element's open if it is the one last opened
+  // for its kind (abreEl, set by panel(), D-149)
+  let abreEl = null;
+  const plegable = (k, titulo, resumen, html, sec) => { const on = sec ? !!sec.on : k === abreEl; return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
   const accCuerpo = (k, html, cls = '') => `<div class="lb-acc-b" id="lb-accb-${k}" role="region" aria-labelledby="lb-acch-${k}"><div class="lb-acc-i"><div class="lb-acc-c${cls}">${html}</div></div></div>`;
   const accCab = (k, titulo, resumen, on) => `<h4 class="lb-acc-t"><button type="button" class="lb-acc-h" id="lb-acch-${k}" aria-expanded="${on}" aria-controls="lb-accb-${k}"><span class="lb-acc-n">${titulo}</span>${resumen ? `<span class="lb-acc-s">${resumen}</span>` : ''}</button></h4>`;
   // A slide's panel (nothing chosen): its sections fold under their titles, one open at a time, the last one opened
@@ -2237,7 +2238,9 @@
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="pick-x">Cancelar</button></div></div>';
       return;
     }
-    const c = compAt(E.i), el = selEl();
+    const c = compAt(E.i), el = selEl(), tipo = el || multi() ? tipoSec() : '';
+    if (tipo && el && E.crop === el.id) recordarSec(tipo, 'el');   // while reframing, the main one (its «Zoom» and «Listo»)
+    abreEl = tipo ? secEl()[tipo] || 'el' : null;   // an element's panel: the section last opened for its kind; the first time, its main one
     let h = '';
     if (multi()) {
       const ss = selEls(), grp = ss[0] && ss[0].g && ss.every(e => e.g === ss[0].g);
@@ -2312,12 +2315,8 @@
       h = seccionesDiapo(h, ab) + capasHTML(c, { on: ab === 'capas' });   // its sections, folded (D-137)
     }
     p.innerHTML = h;
-    if (el || multi()) {                       // an element's panel: the section last opened for its kind; the first time, its main one;
-      const t = tipoSec(), ss = p.querySelectorAll(':scope > .lb-acc[data-pl]');   // while reframing, the main one (its «Zoom» and «Listo»)
-      if (el && E.crop === el.id) recordarSec(t, 'el');
-      let k = secEl()[t]; if (k !== '-' && ![...ss].some(s => s.dataset.pl === k)) k = 'el';
-      ss.forEach(s => { if (s.dataset.pl === k) abrirSec(s, true, false); });
-    }
+    if (abreEl && abreEl !== '-' && !h.includes(`data-pl="${abreEl}"`)) { const s = p.querySelector(':scope > .lb-acc[data-pl="el"]'); if (s) abrirSec(s, true, false); }   // not in this panel: the main one
+    abreEl = null;
     p.scrollTop = top;
     p.querySelectorAll('canvas[data-lb="tpl"]').forEach(cv => { const t = E.plant.find(q => q.id === cv.dataset.id); if (t) dibujarPlantilla(cv, t); });
     const pista = E.el.querySelector('.lb-hint'), enc = !!(el && E.crop === el.id);   // a hint only while reframing or choosing where to swap (the rest: «?»)

@@ -9926,6 +9926,13 @@
       ok(parseFloat(cs.paddingRight) >= 10 + parseFloat(ck.width) + 4, 'el texto largo pisa el ✓: ' + cs.paddingRight);
       ok(os.every(o => W.getComputedStyle(o).paddingRight === cs.paddingRight), 'el sitio del ✓ no está guardado en todas las filas');
       M.controles.cerrar();
+      // pegado al borde derecho, con nombres más largos que su sitio: la lista no se mueve a la izquierda, se estrecha con «…»
+      sel.style.cssText = 'position:fixed;right:8px;top:120px;width:160px'; await espera(30);
+      const gd = gem(sel); gd.style.cssText = 'position:fixed;right:8px;top:120px;width:160px'; await espera(30);
+      gd.click(); const pd = await hasta(() => capa(), 1000, 'la lista junto al borde');
+      cerca(txtX(pd.querySelector('.mx-o')), txtX(gd.querySelector('.mx-t')), 'junto al borde derecho');
+      ok(pd.getBoundingClientRect().right <= W.innerWidth - 7, 'la lista se sale de la página');
+      M.controles.cerrar(); gd.style.cssText = ''; sel.style.cssText = '';
       // el de un campo de la ventana y la lista de horas
       const gt = gem(q('.detail .tysel')); gt.click(); const pt = await hasta(() => capa(), 1000, 'la lista del tipo');
       cerca(txtX(pt.querySelector('.mx-o')), txtX(gt.querySelector('.mx-t')), 'el tipo');
@@ -9974,6 +9981,26 @@
       ok(q('.lb-tray .lb-trv') && !q('.lb-trh b'), 'en el editor: sin ← o con la ruta en texto');
       M.libre.cerrar();
     } finally { I.trayAbrir(null); if (lt0 == null) W.localStorage.removeItem(LT); else W.localStorage.setItem(LT, lt0); }
+  });
+
+  prueba('R4', 'Con la columna estrecha (ventana de 800 px), «+ Carpeta» y «Subir carpeta» bajan de línea y las pestañas usan todo el ancho; una pestaña nunca es más ancha que su fila y la en uso se ve desde su principio (D-151)', async () => {
+    const I = M._in, fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('r4.jpg')]);
+      const a = M.crearCarpeta('R4 una carpeta con un nombre bastante largo').id; await espera(50);
+      I.pestLista().filter(p => p.id !== 'fija').forEach(p => I.pestCerrar(p.id)); I.pestIr('fija'); I.trayAbrir(null);
+      fr.style.width = '800px'; await hasta(() => W.innerWidth <= 800 && W.innerWidth > 720, 3000, 'la ventana de 800 px');
+      I.pestNueva(a); await espera(100);
+      const f = q('.tray .cptabs'), on = f.querySelector('.cptab.on'), acc = q('.tray .cpacc'), fr0 = f.getBoundingClientRect(), ra = acc.getBoundingClientRect();
+      ok(fr0.width >= 160, 'la fila de pestañas se queda estrecha: ' + Math.round(fr0.width));
+      ok(ra.top >= fr0.bottom - 1 || ra.left >= fr0.right - 1, 'los botones pisan la fila de pestañas');
+      const ro = on.getBoundingClientRect();
+      ok(ro.width <= fr0.width + 0.5 && ro.left >= fr0.left - 0.5, `la pestaña en uso no se ve desde su principio: ${Math.round(ro.left)}–${Math.round(ro.right)} en ${Math.round(fr0.left)}–${Math.round(fr0.right)}`);
+      fr.style.width = w0; await hasta(() => W.innerWidth > 1000, 3000, 'la ventana ancha');
+      await espera(60); const f2 = q('.tray .cptabs').getBoundingClientRect(), a2 = q('.tray .cpacc').getBoundingClientRect();
+      ok(Math.abs(a2.top - f2.top) < 6, 'con la ventana ancha, los botones dejan la fila de las pestañas');
+    } finally { fr.style.width = w0; I.trayAbrir(null); }
   });
 
   // =====================================================================================================

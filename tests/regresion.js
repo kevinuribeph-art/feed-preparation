@@ -9901,6 +9901,43 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  // ---------- los desplegables, con el texto alineado con el del campo y el ✓ a la derecha (D-150) ----------
+  prueba('R2', 'En todos los desplegables, el texto de la lista empieza donde el del campo cerrado (también los títulos de grupo y la lista de horas) y el ✓ de la elegida va a la derecha, con su sitio guardado: un nombre largo se corta con «…» y no lo pisa (D-150)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('r2.jpg')]);
+    await hasta(() => M.controles, 4000, 'controles.js');
+    M._in.openDetail('r1', 0);
+    await hasta(() => q('.detail .tysel') && gem(q('.detail .tysel')), 3000, 'la ventana con sus desplegables');
+    const txtX = el => { const r = D.createRange(); r.selectNodeContents(el); const rs = [...r.getClientRects()].filter(x => x.width > 0); return rs.length ? rs[0].left : NaN; };
+    const cerca = (a, b, que) => ok(Math.abs(a - b) <= 1.5, `${que}: el texto de la lista empieza en ${a.toFixed(1)} y el del campo en ${b.toFixed(1)}`);
+    // uno hecho por código, con grupos y un nombre largo elegido
+    const sel = D.createElement('select'); sel.setAttribute('aria-label', 'Prueba R2');
+    sel.innerHTML = `<optgroup label="Grupo uno"><option>Corta</option><option selected>${'Un nombre muy largo '.repeat(10)}</option></optgroup><optgroup label="Grupo dos"><option>Otra</option></optgroup>`;
+    q('.detail .card').append(sel);
+    try {
+      const g = await hasta(() => gem(sel), 2000, 'el desplegable hecho por código');
+      const x0 = txtX(g.querySelector('.mx-t'));
+      g.click(); const pop = await hasta(() => capa(), 1000, 'la lista');
+      const os = [...pop.querySelectorAll('.mx-o')], larga = os.find(o => o.getAttribute('aria-selected') === 'true');
+      cerca(txtX(os[0]), x0, 'una opción'); cerca(txtX(pop.querySelector('.mx-gl')), x0, 'un título de grupo');
+      const cs = W.getComputedStyle(larga), ck = W.getComputedStyle(larga, '::before');
+      ok(ck.right === '10px' && parseFloat(ck.left) > larga.clientWidth / 2, `el ✓ no va a la derecha: left ${ck.left}, right ${ck.right}`);
+      ok(larga.scrollWidth > larga.clientWidth && cs.textOverflow === 'ellipsis' && cs.display === 'block', 'el nombre largo no se corta con «…»');
+      ok(parseFloat(cs.paddingRight) >= 10 + parseFloat(ck.width) + 4, 'el texto largo pisa el ✓: ' + cs.paddingRight);
+      ok(os.every(o => W.getComputedStyle(o).paddingRight === cs.paddingRight), 'el sitio del ✓ no está guardado en todas las filas');
+      M.controles.cerrar();
+      // el de un campo de la ventana y la lista de horas
+      const gt = gem(q('.detail .tysel')); gt.click(); const pt = await hasta(() => capa(), 1000, 'la lista del tipo');
+      cerca(txtX(pt.querySelector('.mx-o')), txtX(gt.querySelector('.mx-t')), 'el tipo');
+      M.controles.cerrar();
+      const fh = q('.detail .mx-time'); ok(fh, 'sin hora en la ventana');
+      const inp = fh.querySelector('.mx-in'), xi = inp.getBoundingClientRect().left + parseFloat(W.getComputedStyle(inp).paddingLeft);
+      fh.querySelector('.mx-cal').click(); const ph = await hasta(() => capa() && capa().classList.contains('mx-tlist') && capa(), 1000, 'la lista de horas');
+      cerca(txtX(ph.querySelector('.mx-o')), xi, 'las horas');
+      M.controles.cerrar();
+    } finally { sel.remove(); M._in.closeDetail(); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

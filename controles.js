@@ -15,7 +15,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';   // 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
+  const VERSION = '1.2';   // 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
   if (M.controles && M.controles._off) { try { M.controles._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const QS = 'select, input[type="date"], input[type="time"]';
   const PV = { SELECT: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), INPUT: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') };
@@ -515,18 +515,18 @@
 #mesa .lb-sel+.mx-sel:not(#mx){display:flex;width:100%;min-height:34px;font-size:13px;padding:0 30px 0 10px}
 #mesa .hv-lin select+.mx-sel:not(#mx){flex:1;min-width:0;font-size:13px;font-weight:400}#mesa .hv-fh .mx-f{flex:1;min-width:0}#mesa .hv-fh .mx-in:not(#mx){font-size:13px;font-weight:400}
 #mesa .vform .mx-f{min-height:28px}#mesa .vform .mx-in:not(#mx){height:26px;font-size:12px}#mesa .vform .mx-cal:not(#mx){width:24px;height:24px}
-#mesa .mx-pop{position:fixed;z-index:80;box-sizing:border-box;margin:0;padding:6px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font:13px/1.35 var(--font);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity .18s ease-out,transform var(--d-m) var(--ease-m);pointer-events:none}
+#mesa .mx-pop{position:fixed;z-index:80;box-sizing:border-box;margin:0;padding:5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font:13px/1.35 var(--font);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity .18s ease-out,transform var(--d-m) var(--ease-m);pointer-events:none}
 #mesa .mx-pop.arriba{transform:translateY(6px) scale(.98);transform-origin:bottom left}
 #mesa .mx-pop.on{opacity:1;transform:none;pointer-events:auto}
 #mesa .mx-pop.fuera{opacity:0;transition:opacity .14s ease-in,transform .14s ease-in;pointer-events:none}
 #mesa .mx-list{max-height:360px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;max-width:min(440px,calc(100vw - 16px))}
-#mesa .mx-o{position:relative;display:flex;align-items:center;min-height:32px;padding:0 12px 0 32px;border-radius:var(--r-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink);transition:background-color 60ms linear}
+#mesa .mx-o{position:relative;display:block;min-height:32px;line-height:32px;padding:0 32px 0 5px;border-radius:var(--r-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink);transition:background-color 60ms linear}
 #mesa .mx-o.act{background:var(--bg-2)}
 #mesa .mx-o[aria-selected="true"]{font-weight:600}
-#mesa .mx-o[aria-selected="true"]::before{content:'';position:absolute;left:10px;top:50%;width:14px;height:14px;margin-top:-7px;background:var(--acc-ink);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
+#mesa .mx-o[aria-selected="true"]::before{content:'';position:absolute;right:10px;top:50%;width:14px;height:14px;margin-top:-7px;background:var(--acc-ink);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .mx-o[aria-disabled="true"]{color:var(--faint);cursor:default;background:none}
-#mesa .mx-gl{padding:8px 12px 4px 32px;font-size:11px;font-weight:600;color:var(--mute)}#mesa [role="group"]+[role="group"] .mx-gl{margin-top:4px;border-top:1px solid var(--line2);padding-top:10px}
-#mesa .mx-tlist{max-height:288px}#mesa .mx-tlist .mx-o{font-variant-numeric:tabular-nums;padding-right:16px}
+#mesa .mx-gl{padding:8px 12px 4px 5px;font-size:11px;font-weight:600;color:var(--mute)}#mesa [role="group"]+[role="group"] .mx-gl{margin-top:4px;border-top:1px solid var(--line2);padding-top:10px}
+#mesa .mx-tlist{max-height:288px}#mesa .mx-tlist .mx-o{font-variant-numeric:tabular-nums}
 #mesa .mx-calpop{width:280px;padding:12px 12px 8px}
 #mesa .mx-ch{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px}#mesa .mx-ch b{font-size:var(--cx-tit-fs,14px);font-weight:var(--cx-tit-fw,800);letter-spacing:var(--cx-tit-ls,-.015em)}
 #mesa .mx-nav{position:relative;width:var(--cx-nav,30px);height:var(--cx-nav,30px);padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background-color var(--d1) ease-out}

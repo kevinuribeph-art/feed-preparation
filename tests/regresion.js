@@ -914,7 +914,7 @@
     await tablero([pub(1, 'Reel')]);
     await poner('r1', [await foto('h2r.jpg', 1080, 1920)]);
     const R = await abrirEditor('r1');
-    ok(R.reel && !R.historia && /Editar portada/.test(R.el.querySelector('.lb-ttl p').textContent), 'la portada de un reel cambió');
+    ok(R.reel && !R.historia && /Portada del reel/.test(R.el.querySelector('.lb-fmtl').textContent), 'la portada de un reel cambió');   // sin línea bajo el nombre (D-140)
     M.libre.cerrar();
   });
 
@@ -1824,7 +1824,7 @@
     M.hs.ver(false);
     // el editor de una publicación no lleva nota
     await abrirEditor('r1');
-    ok(!ed().el.querySelector('textarea.lb-guion') && ed().el.querySelector('.lb-ttl p'), 'la cabecera de una publicación cambió');
+    ok(!ed().el.querySelector('textarea.lb-guion') && ed().el.querySelector('.lb-ttl h3'), 'la cabecera de una publicación cambió');   // solo su nombre (D-140)
     M.libre.cerrar();
   });
 
@@ -9504,6 +9504,101 @@
         M._in.closeDetail();
       }
     } finally { await M._test.perBorrar(); }
+  });
+
+  // ---------- 8 ajustes de interfaz (mesa 4.05, D-139 a D-146) ----------
+  const LS_FIL = 'mesa-bandeja-filtro';
+  prueba('J1', '«+ Diapositiva» en una línea y del tamaño de los botones pequeños, en la tira y en el panel sin diapositivas; conserva su título y lo que hace (D-139)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('j1a.jpg')]);
+    const E = await abrirEditor('r1');
+    const b = E.el.querySelector('.lb-list [data-lb="sl-add"]');
+    ok(b, 'sin el botón en la tira');
+    igual(b.textContent, '+ Diapositiva', 'el texto de la tira');
+    ok(/solo con color de fondo/.test(b.title), 'perdió su título: ' + b.title);
+    const r = b.getBoundingClientRect();
+    ok(r.height <= 30 && r.height >= 26, 'no es del alto de los botones pequeños: ' + r.height);
+    igual([W.getComputedStyle(b).whiteSpace, W.getComputedStyle(b).fontSize], ['nowrap', '12px'], 'una línea, 12 px');
+    ok(b.scrollWidth <= b.clientWidth + 1, `no cabe en una línea: ${b.scrollWidth} > ${b.clientWidth}`);
+    const n = E.sl.length; b.click(); await dibujado();
+    igual(ed().sl.length, n + 1, 'no añade una diapositiva');
+    M.libre.cerrar();
+    const E2 = await abrirEditor('r2');            // un carrusel sin fotos: el panel sin diapositivas
+    if (!E2.sl.length) {
+      const p2 = await hasta(() => q('.lb-panel [data-lb="sl-add"]'), 2000, 'el botón del panel sin diapositivas');
+      igual(p2.textContent, '+ Diapositiva', 'el texto del panel');
+      ok(p2.getBoundingClientRect().height <= 30 && W.getComputedStyle(p2).whiteSpace === 'nowrap', 'el del panel no es pequeño ni de una línea');
+    }
+    M.libre.cerrar();
+  });
+
+  prueba('J2', 'La cabecera del editor solo lleva el nombre; una publicación diseñada conserva su aviso en esa línea; una historia, su nota (D-140)', async () => {
+    await tablero([pub(1), pub(2, 'Reel'), pub(3, 'Carrusel')]);
+    await poner('r1', [await foto('j2a.jpg')]);
+    await poner('r2', [await foto('j2r.jpg', 1080, 1920)]);
+    for (const id of ['r1', 'r2']) {
+      const E = await abrirEditor(id);
+      ok(!E.el.querySelector('.lb-ttl p'), `${id}: lleva una línea bajo el nombre: ${(E.el.querySelector('.lb-ttl p') || {}).textContent}`);
+      ok(!/lo que no toques|Editar foto|Editar portada|Editar diapositivas/.test(E.el.querySelector('.lb-ttl').textContent), `${id}: la cabecera: ` + E.el.querySelector('.lb-ttl').textContent);
+      igual(E.el.querySelector('.lb-ttl h3').textContent, slot(id).name, `${id}: el nombre`);
+      M.libre.cerrar();
+    }
+    await conKitPrueba(async () => {
+      await disenada('r3', [await foto('j2b.jpg', 1080, 1350), await foto('j2c.jpg', 1080, 1350)], textos('J2', 'Portada', 'Ficha'));
+      M._in.openDetail('r3', 0);
+      await pulsar('.detail [data-act="editar"]'); await abierto();
+      ok(ed().dz, 'no se abrió como diseñada');
+      igual((ed().el.querySelector('.lb-ttl p') || {}).textContent, 'Publicación diseñada: si aplicas cambios, queda fijada como imagen', 'el aviso de la diseñada');
+      await cerrarEd();
+    });
+    const h = M.hs.anadir(DIA(10), { note: 'Guion J2' });
+    const H = await abrirEditor(h);
+    igual(H.el.querySelector('.lb-ttl textarea.lb-guion').value, 'Guion J2', 'la historia perdió su nota');
+    M.libre.cerrar();
+  });
+
+  prueba('J3', 'Las secciones plegables solo llevan su título, de 21 px (Capas, su número; Girar, sus grados); también los títulos del panel de un elemento (D-141)', async () => {
+    const LS = 'mesa-lb-seccion', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.removeItem(LS);
+      await tablero([pub(1, 'Carrusel')]);
+      await poner('r1', [await foto('j3a.jpg'), await foto('j3b.jpg')]);
+      await abrirEditor('r1', 0); ed().sel = null; ed().mas = []; accion('sl', { i: 0 });
+      const secs = () => qa('.lb-panel > .lb-acc[data-acc]');
+      await hasta(() => secs().length >= 7, 2000, 'las secciones');
+      for (const s of secs()) {
+        const h = s.querySelector('.lb-acc-h'), res = h.querySelector('.lb-acc-s');
+        igual(W.getComputedStyle(h).fontSize, '21px', `${s.dataset.acc}: el tamaño del título`);
+        if (s.dataset.acc === 'capas') ok(res && /^\d+$/.test(res.textContent), 'Capas no lleva su número: ' + (res && res.textContent));
+        else ok(!res, `${s.dataset.acc} lleva un resumen: ${res && res.textContent}`);
+      }
+      igual(q('.lb-panel > .lb-acc[data-acc="velo"] .lb-acc-h').textContent.trim(), 'Velo', 'el título de Velo');
+      ok(/^Diapositiva \d+$/.test(q('.lb-panel > .lb-acc[data-acc="diapositiva"] .lb-acc-h').textContent.trim()), 'el título de Diapositiva: ' + q('.lb-panel > .lb-acc[data-acc="diapositiva"] .lb-acc-h').textContent);
+      q('.lb-panel > .lb-acc[data-acc="fondo"] .lb-acc-h').click();
+      igual(W.localStorage.getItem(LS), 'fondo', 'abrir una sección ya no se recuerda');
+      accion('add-txt'); await dibujado();
+      igual(W.getComputedStyle(q('.lb-panel > .lb-sec > h4')).fontSize, '21px', 'el título del panel de un elemento');
+      const pl = k => q(`.lb-panel > .lb-acc[data-pl="${k}"]`);
+      ok(pl('medidas') && !pl('medidas').querySelector('.lb-acc-s'), 'Medidas exactas lleva resumen');
+      ok(pl('girar') && /°/.test((pl('girar').querySelector('.lb-acc-s') || {}).textContent || ''), 'Girar perdió sus grados');
+      igual(W.getComputedStyle(pl('medidas').querySelector('.lb-acc-h')).fontSize, '21px', 'el título de un plegable del elemento');
+      M.libre.cerrar();
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
+  prueba('J8', 'Sin «Ajustar»: un doble clic en el porcentaje deja la diapositiva entera, al 100 %, sin seleccionar su texto; ⌘0 sigue (D-145)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('j8a.jpg')]);
+    const E = await abrirEditor('r1');
+    ok(!E.el.querySelector('[data-lb="zfit"]') && !/Ajustar/.test(E.el.querySelector('.lb-head').textContent), 'queda «Ajustar»');
+    const zv = E.el.querySelector('.lb-zv');
+    ok(/doble clic/.test(zv.title), 'el porcentaje no lleva un título que lo explique: ' + zv.title);
+    igual(W.getComputedStyle(zv).userSelect, 'none', 'el doble clic selecciona el texto');
+    accion('zin'); accion('zin'); ok(ed().zoom > 1, 'no acercó');
+    zv.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    igual([ed().zoom, zv.textContent], [1, '100 %'], 'el doble clic no la deja entera');
+    accion('zin'); tecla('0', { meta: true, code: 'Digit0' }); igual(ed().zoom, 1, '⌘0 dejó de funcionar');
+    M.libre.cerrar();
   });
 
   // =====================================================================================================

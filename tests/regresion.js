@@ -9699,6 +9699,162 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS_FIL); else W.localStorage.setItem(LS_FIL, antes); }
   });
 
+  // ---------- el calendario de las publicaciones con el aspecto del de la fecha (D-147) ----------
+  prueba('Q1', 'El calendario de las publicaciones tiene el aspecto del de la fecha: días redondeados sin líneas de rejilla, hoy con su contorno, ‹ › redondos, con los mismos tokens que el de la fecha (D-147)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.setItem(LS, '0'); M._test.reloj(Date.parse('2026-11-04T10:00:00+01:00'));   // hoy, dentro del tablero
+      await tablero([pub(1), pub(2)]);
+      const cal = await hasta(() => { const c = q('.side > .cal'); return c && !c.hidden && c.querySelector('.cday.today') && c; }, 3000, 'el calendario con hoy');
+      const cs = e => W.getComputedStyle(e), m = cs(q('#mesa')), tok = k => m.getPropertyValue(k).trim();
+      ['--cx-r', '--cx-gap', '--cx-hoy', '--cx-nav', '--cx-otro', '--cx-wk-c', '--cx-tit-fs'].forEach(k => ok(tok(k), 'falta el token ' + k));
+      const dia = cal.querySelector('.cday:not(.out):not(.off):not(.prevc):not(.today)'), hoy = cal.querySelector('.cday.today');
+      igual([cs(dia).borderTopLeftRadius, cs(dia).borderRightWidth, cs(dia).borderBottomWidth], [cs(q('#mesa')).getPropertyValue('--r-sm').trim(), '0px', '0px'], 'un día: redondeado y sin líneas');
+      ok(cs(hoy).boxShadow !== 'none' && cs(hoy.querySelector('.dn')).backgroundColor === 'rgba(0, 0, 0, 0)', 'hoy no lleva su contorno (o sigue con la pastilla): ' + cs(hoy).boxShadow);
+      igual([cs(cal.querySelector('.cgrid')).borderTopWidth, cs(cal.querySelector('.cgrid')).rowGap], ['0px', tok('--cx-gap')], 'la rejilla');
+      const nav = cal.querySelector('.cnav [data-cal="prev"]');
+      igual([cs(nav).width, cs(nav).borderTopLeftRadius !== '0px'], [tok('--cx-nav'), true], 'el botón ‹');
+      // el de la fecha usa los mismos tokens: su hoja de estilos los nombra
+      const hoja = D.getElementById('mesa-mx-css');
+      ok(hoja && ['--cx-r', '--cx-hoy', '--cx-nav', '--cx-otro', '--cx-gap'].every(k => hoja.textContent.includes('var(' + k)), 'el calendario de la fecha no usa los tokens compartidos');
+      const hojaC = D.getElementById('mesa-cal-css');
+      ok(hojaC && ['--cx-r', '--cx-hoy', '--cx-nav', '--cx-otro', '--cx-gap', '--cx-casilla'].every(k => hojaC.textContent.includes('var(' + k)), 'el de las publicaciones no usa los tokens compartidos');
+    } finally { M._test.reloj(RELOJ_PRUEBAS); if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
+  });
+
+  // ---------- la columna: la bandeja y el calendario se la reparten (D-148) ----------
+  const LS_COL = ['mesa-cal-plegado', 'mesa-bandeja-plegada', 'mesa-columna-reparto'];
+  async function columna(fn) {                      // con los dos abiertos y el reparto de siempre; deja todo como estaba
+    const antes = LS_COL.map(k => W.localStorage.getItem(k));
+    try {
+      W.localStorage.setItem('mesa-cal-plegado', '0'); W.localStorage.removeItem('mesa-bandeja-plegada'); W.localStorage.removeItem('mesa-columna-reparto');
+      await tablero([pub(1), pub(2)]);
+      ok(!W.matchMedia('(max-width:720px)').matches, 'la mesa de prueba es estrecha');
+      const side = q('.main .side'), tray = q('.main .side > .tray');
+      const cal = await hasta(() => { const c = q('.main .side > .cal'); return c && !c.hidden && c.querySelector('.cgrid') && c; }, 3000, 'el calendario');
+      await espera(60);
+      await fn({ side, tray, cal });
+    } finally {
+      const c = q('.clientToggle'); if (c && c.checked) { c.checked = false; c.dispatchEvent(new W.Event('change', { bubbles: true })); }
+      LS_COL.forEach((k, i) => { if (antes[i] == null) W.localStorage.removeItem(k); else W.localStorage.setItem(k, antes[i]); });
+      M._in.render();
+    }
+  }
+  const ptrCol = (el, tipo, y, extra = {}) => { const r = el.getBoundingClientRect(); el.dispatchEvent(new W.PointerEvent(tipo, { bubbles: true, cancelable: true, pointerId: 7, button: 0, buttons: tipo === 'pointerup' ? 0 : 1, clientX: r.left + r.width / 2, clientY: y, ...extra })); };
+  const dblCol = el => el.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+
+  prueba('Q2', 'Un separador entre la bandeja y el calendario se arrastra: uno crece y el otro se comprime, sin bajar de sus mínimos; se recuerda en este navegador y un doble clic en «Bandeja» o en el separador vuelve a mitad y mitad (D-148)', async () => {
+    await columna(async ({ side, tray, cal }) => {
+      const sp = await hasta(() => { const e = q('.main .side > .csplit'); return e && visto(e) && e; }, 2000, 'el separador');
+      igual([sp.previousElementSibling, sp.nextElementSibling], [tray, cal], 'el separador va entre la bandeja y el calendario');
+      const t0 = altoDe(tray), c0 = altoDe(cal); ok(Math.abs(t0 - c0) < 2, `no empieza a mitad: ${t0} / ${c0}`);
+      const y = sp.getBoundingClientRect().top + 5;
+      ptrCol(sp, 'pointerdown', y); ptrCol(sp, 'pointermove', y + 80); ptrCol(sp, 'pointerup', y + 80); await espera(60);
+      ok(altoDe(tray) > t0 + 60 && altoDe(cal) < c0 - 60, `no se reparte: ${altoDe(tray)} / ${altoDe(cal)}`);
+      const r = +W.localStorage.getItem('mesa-columna-reparto'); ok(r > 0 && r < 0.5, 'no se guarda el reparto: ' + r);
+      M._in.render(); await espera(60);
+      ok(altoDe(q('.main .side > .cal')) < c0 - 60, 'al redibujar no se queda como se dejó');
+      // al mínimo: la bandeja no baja de su mínimo
+      const sp2 = q('.main .side > .csplit'), y2 = sp2.getBoundingClientRect().top + 5;
+      ptrCol(sp2, 'pointerdown', y2); ptrCol(sp2, 'pointermove', y2 - 2000); ptrCol(sp2, 'pointerup', y2 - 2000); await espera(60);
+      const tr = q('.main .side > .tray'), min = parseFloat(W.getComputedStyle(tr).minHeight);
+      ok(min > 100 && altoDe(tr) >= min - 1, `la bandeja baja de su mínimo: ${altoDe(tr)} < ${min}`);
+      dblCol(q('.main .side > .tray > .trayhead > b')); await espera(500);
+      ok(Math.abs(altoDe(q('.main .side > .tray')) - altoDe(q('.main .side > .cal'))) < 2, 'el doble clic en «Bandeja» no vuelve a mitad y mitad');
+      igual(W.localStorage.getItem('mesa-columna-reparto'), null, 'el reparto guardado tras el doble clic');
+      const sp3 = q('.main .side > .csplit'), y3 = sp3.getBoundingClientRect().top + 5;
+      ptrCol(sp3, 'pointerdown', y3); ptrCol(sp3, 'pointermove', y3 + 90); ptrCol(sp3, 'pointerup', y3 + 90); await espera(60);
+      dblCol(q('.main .side > .csplit')); await espera(500);
+      ok(Math.abs(altoDe(q('.main .side > .tray')) - altoDe(q('.main .side > .cal'))) < 2, 'el doble clic en el separador no vuelve a mitad y mitad');
+      const sp4 = q('.main .side > .csplit'), y4 = sp4.getBoundingClientRect().top + 5;
+      ptrCol(sp4, 'pointerdown', y4); ptrCol(sp4, 'pointermove', y4 + 70); ptrCol(sp4, 'pointerup', y4 + 70); await espera(60);
+      const r4 = W.localStorage.getItem('mesa-columna-reparto'); ok(r4, 'no se guarda el reparto');
+      const pt = q('.main .side > .tray .cpnav .cptab'); ok(pt, 'falta la pestaña fija de las carpetas');
+      dblCol(pt); await espera(100);
+      igual(W.localStorage.getItem('mesa-columna-reparto'), r4, 'el doble clic en la pestaña «Bandeja» de las carpetas cambia el reparto');
+    });
+  });
+
+  prueba('Q3', 'La bandeja se pliega y se despliega con su chevrón, con el movimiento del calendario: plegada, el calendario ocupa la columna; se recuerda en este navegador y plegarla no vacía lo elegido (D-148)', async () => {
+    await columna(async ({ side, tray, cal }) => {
+      const c0 = altoDe(cal), b = tray.querySelector('.trayhead > .tfold');
+      ok(b && b.getAttribute('aria-expanded') === 'true', 'falta el chevrón de la bandeja');
+      b.click();
+      ok(tray.classList.contains('fold') && tray.classList.contains('tray-anim'), 'no se pliega con movimiento');
+      await espera(700);
+      ok(!tray.classList.contains('tray-anim') && !tray.style.height, 'se queda a medias');
+      igual([W.localStorage.getItem('mesa-bandeja-plegada'), b.getAttribute('aria-expanded')], ['1', 'false'], 'lo guardado');
+      ok(altoDe(tray) < 80 && altoDe(cal) > c0 + 200 && !visto(q('.main .side > .csplit')), `el calendario no ocupa la columna: ${altoDe(tray)} / ${altoDe(cal)}`);
+      ok(!visto(tray.querySelector('.tbody')) && !visto(tray.querySelector('.tfil')) && visto(tray.querySelector('.trayhead > b')), 'plegada enseña algo más que su título');
+      M._in.render(); await espera(60);
+      ok(q('.main .side > .tray').classList.contains('fold'), 'al redibujar no sigue plegada');
+      q('.main .side > .tray .tfold').click(); await espera(700);
+      ok(!q('.main .side > .tray').classList.contains('fold') && visto(q('.main .side > .csplit')), 'no se despliega');
+      igual(W.localStorage.getItem('mesa-bandeja-plegada'), '0', 'lo guardado al desplegar');
+    });
+  });
+
+  prueba('Q4', 'Con la bandeja y el calendario plegados son dos pestañas en una fila, «Bandeja» a la izquierda y «Calendario» a la derecha; pulsar una la despliega; en «Vista cliente» solo está el calendario (D-148)', async () => {
+    await columna(async ({ side, tray, cal }) => {
+      cal.querySelector('.cfold').click(); await espera(700);
+      tray.querySelector('.tfold').click(); await espera(700);
+      const t = q('.main .side > .tray'), c = q('.main .side > .cal');
+      ok(t.classList.contains('fold') && c.classList.contains('fold'), 'no están los dos plegados');
+      const rt = t.getBoundingClientRect(), rc = c.getBoundingClientRect();
+      ok(Math.abs(rt.top - rc.top) < 1 && rt.right <= rc.left + 1 && rt.height < 50 && rc.height < 50, `no son dos pestañas en una fila: ${json([rt.top, rt.right, rt.height, rc.top, rc.left, rc.height])}`);
+      ok(!t.style.position && !c.style.position, 'el movimiento no termina');
+      c.querySelector('.csync, .calhead').click(); await espera(700);
+      ok(!q('.main .side > .cal').classList.contains('fold') && q('.main .side > .tray').classList.contains('fold'), 'pulsar la pestaña del calendario no lo despliega');
+      q('.main .side > .cal .cfold').click(); await espera(700);
+      q('.main .side > .tray .tcount').click(); await espera(700);
+      ok(!q('.main .side > .tray').classList.contains('fold') && q('.main .side > .cal').classList.contains('fold'), 'pulsar la pestaña de la bandeja no la despliega');
+      // «Vista cliente»: sin bandeja, separador ni pestañas
+      q('.main .side > .tray .tfold').click(); await espera(700);
+      const cli = q('.clientToggle'); cli.checked = true; cli.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(200);
+      const s2 = q('.main .side');
+      ok(!visto(q('.main .side > .tray')) && !visto(q('.main .side > .csplit')) && W.getComputedStyle(s2).flexDirection === 'column', 'en «Vista cliente» sale algo más que el calendario');
+    });
+  });
+
+  prueba('Q5', 'Arrastrar un archivo sobre la bandeja plegada la despliega al poco, como la pestaña de un navegador; sin quedarse encima, no (D-148)', async () => {
+    await columna(async ({ tray }) => {
+      tray.querySelector('.tfold').click(); await espera(700);
+      const t = q('.main .side > .tray'), h = t.querySelector('.trayhead');
+      const dt = new W.DataTransfer(); dt.items.add(new W.File(['x'], 'q5.jpg', { type: 'image/jpeg' }));
+      const sobre = el => el.dispatchEvent(new W.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      sobre(h); await espera(200); sobre(q('.feed')); await espera(700);
+      ok(t.classList.contains('fold'), 'se despliega sin quedarse encima');
+      for (let k = 0; k < 8; k++) { sobre(h); await espera(100); }
+      await espera(700);
+      ok(!t.classList.contains('fold'), 'no se despliega al quedarse encima');
+      h.dispatchEvent(new W.DragEvent('dragleave', { bubbles: true, dataTransfer: dt, relatedTarget: null }));
+    });
+  });
+
+  prueba('Q6', 'Al pasar a pestañas solo se anima el que se pliega; el doble clic en la pestaña de la bandeja no cambia el reparto; sin calendario.js, la bandeja ocupa la columna aunque se dejara plegada (D-148)', async () => {
+    await columna(async ({ side, tray, cal }) => {
+      const sp = q('.main .side > .csplit'), y = sp.getBoundingClientRect().top + 5;
+      ptrCol(sp, 'pointerdown', y); ptrCol(sp, 'pointermove', y + 70); ptrCol(sp, 'pointerup', y + 70); await espera(60);
+      const r0 = W.localStorage.getItem('mesa-columna-reparto'); ok(r0, 'no se guarda el reparto');
+      cal.querySelector('.cfold').click(); await espera(700);
+      tray.querySelector('.tfold').click();
+      ok(q('.main .side > .tray').classList.contains('tray-anim') && !q('.main .side > .cal').classList.contains('cal-anim'), 'el calendario ya plegado se anima otra vez');
+      await espera(700);
+      const b = q('.main .side > .tray > .trayhead > b');
+      b.click(); dblCol(b); await espera(600);
+      ok(!q('.main .side > .tray').classList.contains('fold'), 'pulsar la pestaña no despliega la bandeja');
+      igual(W.localStorage.getItem('mesa-columna-reparto'), r0, 'el doble clic en la pestaña cambia el reparto');
+      // sin calendario.js
+      tray.querySelector('.tfold').click(); await espera(700);
+      const carga = W.MESA_CARGA.calendario;
+      try {
+        W.MESA_CARGA.calendario = 'fallo'; M._in.trayFold();
+        const t = q('.main .side > .tray');
+        ok(!t.classList.contains('fold') && !visto(t.querySelector('.tfold')), 'sin calendario.js la bandeja sigue plegada o enseña el chevrón');
+      } finally { W.MESA_CARGA.calendario = carga; M._in.trayFold(); }
+    });
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

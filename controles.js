@@ -15,7 +15,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
   if (M.controles && M.controles._off) { try { M.controles._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const QS = 'select, input[type="date"], input[type="time"]';
   const PV = { SELECT: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), INPUT: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') };
@@ -528,17 +528,17 @@
 #mesa .mx-gl{padding:8px 12px 4px 32px;font-size:11px;font-weight:600;color:var(--mute)}#mesa [role="group"]+[role="group"] .mx-gl{margin-top:4px;border-top:1px solid var(--line2);padding-top:10px}
 #mesa .mx-tlist{max-height:288px}#mesa .mx-tlist .mx-o{font-variant-numeric:tabular-nums;padding-right:16px}
 #mesa .mx-calpop{width:280px;padding:12px 12px 8px}
-#mesa .mx-ch{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px}#mesa .mx-ch b{font-size:14px;font-weight:800;letter-spacing:-.015em}
-#mesa .mx-nav{position:relative;width:30px;height:30px;padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background-color var(--d1) ease-out}
+#mesa .mx-ch{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px}#mesa .mx-ch b{font-size:var(--cx-tit-fs,14px);font-weight:var(--cx-tit-fw,800);letter-spacing:var(--cx-tit-ls,-.015em)}
+#mesa .mx-nav{position:relative;width:var(--cx-nav,30px);height:var(--cx-nav,30px);padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background-color var(--d1) ease-out}
 #mesa .mx-nav::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transform:rotate(90deg)}#mesa .mx-nav.sig::before{transform:rotate(-90deg)}
-#mesa .mx-nav:hover:not(:disabled){background:var(--bg-2)}#mesa .mx-nav:disabled{color:var(--line-strong);cursor:default}
-#mesa .mx-wk,#mesa .mx-row{display:grid;grid-template-columns:repeat(7,1fr)}#mesa .mx-wk{margin:0 0 2px;font-size:11px;font-weight:600;color:var(--mute);text-align:center;line-height:24px}
-#mesa .mx-days{display:grid;gap:2px}
+#mesa .mx-nav:hover:not(:disabled){background:var(--cx-hov,var(--bg-2))}#mesa .mx-nav:disabled{color:var(--line-strong);cursor:default}
+#mesa .mx-wk,#mesa .mx-row{display:grid;grid-template-columns:repeat(7,1fr)}#mesa .mx-wk{margin:0 0 2px;font-size:11px;font-weight:600;color:var(--cx-wk-c,var(--mute));text-align:center;line-height:24px}
+#mesa .mx-days{display:grid;gap:var(--cx-gap,2px)}
 #mesa .mx-days.mx-de{animation:mx-de var(--d-m) var(--ease-m)}#mesa .mx-days.mx-iz{animation:mx-iz var(--d-m) var(--ease-m)}
 @keyframes mx-de{from{opacity:0;transform:translateX(14px)}}@keyframes mx-iz{from{opacity:0;transform:translateX(-14px)}}
-#mesa .mx-d{height:34px;margin:0;padding:0;border:0;border-radius:var(--r-sm);background:none;font:500 13px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
-#mesa .mx-d.otro{color:var(--faint)}#mesa .mx-d:hover:not(:disabled){background:var(--bg-2)}
-#mesa .mx-d.hoy{box-shadow:inset 0 0 0 1px var(--line-strong)}
+#mesa .mx-d{height:34px;margin:0;padding:0;border:0;border-radius:var(--cx-r,var(--r-sm));background:none;font:500 13px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .mx-d.otro{color:var(--cx-otro,var(--faint))}#mesa .mx-d:hover:not(:disabled){background:var(--cx-hov,var(--bg-2))}
+#mesa .mx-d.hoy{box-shadow:var(--cx-hoy,inset 0 0 0 1px var(--line-strong))}
 #mesa .mx-d.marca{box-shadow:inset 0 0 0 1.5px var(--acc)}
 #mesa .mx-d[aria-selected="true"]:not(#mx){background:var(--acc);color:var(--on-acc);font-weight:700}
 #mesa .mx-d:disabled{color:var(--line-strong);cursor:default}#mesa .mx-d.otro:disabled{color:var(--line)}

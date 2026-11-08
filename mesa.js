@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '4.05'; // 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '4.06'; // 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -2098,6 +2098,8 @@
 --font:"Mesa Grotesk",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
 --r-xs:6px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;--r-pill:999px;
 --ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;--ease-m:cubic-bezier(.32,.72,0,1);--d-m:.32s;
+/* los dos calendarios, el de las publicaciones (calendario.js) y el de la fecha (controles.js), con las mismas medidas (D-147) */
+--cx-r:var(--r-sm);--cx-gap:2px;--cx-wk-c:var(--mute);--cx-otro:var(--faint);--cx-hoy:inset 0 0 0 1px var(--line-strong);--cx-tit-fs:14px;--cx-tit-fw:800;--cx-tit-ls:-.015em;--cx-nav:30px;--cx-hov:var(--bg-2);--cx-casilla:var(--bg);
 --i-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
 --i-more:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/svg%3E");
 --i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 16l4 4l4-4m-4 4V4m14 4l-4-4l-4 4m4-4v16'/%3E%3C/svg%3E");
@@ -2294,9 +2296,36 @@
 #mesa.picking .cell:not(.past){cursor:copy}
 /* ===== Bandeja ===== */
 #mesa .tray{flex:1;min-width:0;overflow-y:auto;background:var(--panel)}
-#mesa .side{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);border-radius:var(--r-lg)}#mesa .side>.tray{flex:1 1 0;min-height:0;border-radius:var(--r-lg) var(--r-lg) 0 0}
+#mesa .side{position:relative;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);border-radius:var(--r-lg)}#mesa .side>.tray{flex:var(--tray-g,1) 1 0;min-height:0;border-radius:var(--r-lg) var(--r-lg) 0 0}
 #mesa .side:not(:has(>.cal:not([hidden])))>.tray{border-radius:var(--r-lg)}
 #mesa .side>.cal{border-radius:0 0 var(--r-lg) var(--r-lg)}
+#mesa .csplit{display:none;flex:none;position:relative;height:11px;cursor:row-resize;touch-action:none;background:var(--panel)}
+#mesa .csplit::before{content:'';position:absolute;left:0;right:0;top:5px;height:1px;background:var(--line);transition:background var(--d1) ease-out}
+#mesa .csplit::after{content:'';position:absolute;left:50%;top:3px;width:36px;height:5px;margin-left:-18px;border-radius:var(--r-pill);background:var(--line-strong);transition:background var(--d1) ease-out,width var(--d1) ease-out,margin var(--d1) ease-out}
+#mesa .csplit:hover::after,#mesa .side.col-arr>.csplit::after{background:var(--mute);width:44px;margin-left:-22px}#mesa .csplit:hover::before,#mesa .side.col-arr>.csplit::before{background:var(--line-strong)}
+#mesa .side.col-arr,#mesa .side.col-arr *{cursor:row-resize !important;user-select:none;-webkit-user-select:none}
+#mesa .side.col-vuelve>.tray,#mesa .side.col-vuelve>.cal{transition:flex-grow var(--d-m) var(--ease-m)}
+@media (min-width:721px){#mesa:not(.client) .side:has(>.tray:not(.fold)):has(>.cal:not([hidden]):not(.fold))>.csplit{display:block}
+#mesa:not(.client) .side:has(>.tray:not(.fold)):has(>.cal:not([hidden]):not(.fold))>.cal{border-top:0;min-height:var(--cal-min,220px)}
+#mesa:not(.client) .side:has(>.cal:not([hidden]):not(.fold))>.tray:not(.fold){min-height:var(--tray-min,calc(var(--thh,58px) + 240px))}}
+#mesa .tfold{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 -4px 0 -6px;padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
+#mesa .tfold[hidden]{display:none}#mesa .tfold:hover{background:var(--bg-2)}#mesa .tfold svg{width:16px;height:16px;transition:transform .15s}#mesa .tray.fold .tfold svg{transform:rotate(-90deg)}
+#mesa .trayhead>b{user-select:none;-webkit-user-select:none}
+#mesa .side>.tray.fold{flex:none;overflow:hidden}
+#mesa .tray.fold .tfil,#mesa .tray.fold .ttam,#mesa .tray.fold .trayhead>.btn,#mesa .tray.fold .cpnav,#mesa .tray.fold .tbody{display:none}
+#mesa .side>.tray.fold.tray-anim .tfil,#mesa .side>.tray.fold.tray-anim .trayhead>.btn{display:inline-flex}#mesa .side>.tray.fold.tray-anim .cpnav,#mesa .side>.tray.fold.tray-anim .tbody{display:block}
+#mesa .side>.tray.fold.tray-anim :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-fuera .2s ease-out forwards}#mesa .side>.tray.tray-anim:not(.fold) :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-dentro .28s ease-out}
+#mesa .side>.tray.fold.tray-anim .tfold svg{animation:col-ch-f var(--d-m) var(--ease-m)}#mesa .side>.tray.tray-anim:not(.fold) .tfold svg{animation:col-ch-a var(--d-m) var(--ease-m)}
+@keyframes col-fuera{to{opacity:0}}@keyframes col-dentro{from{opacity:0}}@keyframes col-ch-f{from{transform:none}}@keyframes col-ch-a{from{transform:rotate(-90deg)}}
+@media (prefers-reduced-motion:reduce){#mesa .side>.tray.tray-fade .trayhead,#mesa .side>.tray.tray-fade .tbody,#mesa .side>.cal.tray-fade{animation:col-dentro .15s linear !important}}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden])){flex-direction:row;align-items:flex-start;gap:4px;background:none;border-radius:0}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))::after{content:'';position:absolute;left:0;right:0;top:39px;height:1px;background:var(--line);pointer-events:none}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))>:is(.tray,.cal){flex:0 1 auto;min-width:0;max-width:calc(50% - 2px);height:40px;border:1px solid var(--line);border-bottom:0;border-radius:var(--r-md) var(--r-md) 0 0;background:var(--panel);cursor:pointer;transition:background var(--d1) ease-out}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))>:is(.tray,.cal):hover{background:var(--panel-2)}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))>.tray .trayhead{flex-wrap:nowrap;height:39px;min-height:0;padding:0 14px 0 12px;background:none}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))>.tray .trayhead>b{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))>.cal .calhead{flex-wrap:nowrap;height:39px;padding:0 14px 0 6px;overflow:hidden}
+#mesa:not(.client) .side:has(>.tray.fold):has(>.cal.fold:not([hidden]))>.cal .csync{min-width:0;overflow:hidden;text-overflow:ellipsis}
 #mesa.client .side:not(:has(>.cal:not([hidden]))){display:none}
 #mesa .tray.over{background:var(--acc-soft)}
 #mesa .trayhead{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:14px 16px 10px;background:inherit}
@@ -2564,7 +2593,7 @@
 #mesa .feed{width:100%;flex:1;border-radius:var(--r-md)}
 #mesa .tray{flex:none;overflow:hidden;display:flex;flex-direction:column}
 #mesa .side{flex:none;border-radius:var(--r-md)}#mesa .side>.tray{flex:none;border-radius:var(--r-md) var(--r-md) 0 0}#mesa .side:not(:has(>.cal:not([hidden])))>.tray{border-radius:var(--r-md)}#mesa .side>.cal{border-radius:0 0 var(--r-md) var(--r-md)}
-#mesa .trayhead{position:static;min-height:34px;padding:4px 10px 2px}
+#mesa .trayhead{position:static;min-height:34px;padding:4px 10px 2px}#mesa .tfold{width:22px;height:22px}#mesa .tfold svg{width:14px;height:14px}
 #mesa .trayhead b{font-size:14px}#mesa .trayhead span{font-size:11.5px}
 #mesa .trayhead .btn{min-height:28px;padding:0 11px;font-size:12px}#mesa .trayhead .btn svg{width:14px;height:14px}
 #mesa .tbody{flex:none;height:68px;padding:0 10px 4px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,var(--ink) 90%,transparent);mask-image:linear-gradient(to right,var(--ink) 90%,transparent)}
@@ -2690,10 +2719,11 @@
       if (!S) root.classList.remove('client');
       if (S) {
         main.innerHTML = '<section class="feed"><div class="legend"></div><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
-          + '<div class="side"><aside class="tray"><div class="trayhead"><b>Bandeja</b><span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
+          + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold"${sinCal() ? ' hidden' : ''} aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
+          + '<span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
-          + '<section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
+          + '<div class="csplit" aria-hidden="true" title="Arrastra para repartir la columna · doble clic: mitad y mitad"></div><section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
         watchFeed(); tamVigilar(); tamAplicar(); fijoAlto();
         { const t = main.querySelector('.tray'); t.addEventListener('scroll', dondeAlDeslizar, { passive: true }); t.querySelector('.tbody').addEventListener('scroll', dondeAlDeslizar, { passive: true }); }
       } else if (CL.length) {
@@ -3429,11 +3459,115 @@
   }
   let dondeT = 0;
   function dondeAlDeslizar() {         // also kept a moment after it scrolls: a tray hidden later («Vista cliente») can't tell
-    clearTimeout(dondeT); dondeT = setTimeout(() => { const t = root && root.querySelector('.tray'); if (t) trayDonde(t); }, 150);
+    clearTimeout(dondeT); dondeT = setTimeout(() => { const t = root && root.querySelector('.tray'); if (t && !t.classList.contains('fold')) trayDonde(t); }, 150);
   }
+  // ---------- the right column: the tray and the calendar share it (D-148) ----------
+  // A separator between them is dragged to give one more and the other less; double clic on it or on the tray's title goes
+  // back to half and half. The tray folds like the calendar; with both folded they are two tabs in a row. All remembered in
+  // this browser, nothing in the board.
+  const LS_REP = 'mesa-columna-reparto', LS_TPL = 'mesa-bandeja-plegada';
+  const repParte = () => { const v = parseFloat(lsGet(LS_REP)); return Number.isFinite(v) && v > 0 && v < 1 ? v : 0.5; };   // the calendar's share
+  const sinCal = () => (window.MESA_CARGA || {}).calendario === 'fallo';   // calendario.js didn't load: the tray takes the whole column, as before
+  const trayPlegada = () => lsGet(LS_TPL) === '1' && !sinCal();
+  const colVars = (r = repParte()) => `--cal-g:${(2 * r).toFixed(4)};--tray-g:${(2 - 2 * r).toFixed(4)}`;
+  const colSide = () => root && root.querySelector('.main .side');
+  const colPestanas = side => !!side && !root.classList.contains('client') && !!side.querySelector(':scope > .tray.fold') && !!side.querySelector(':scope > .cal.fold:not([hidden])');
+  function repAplicar(side, r) { if (!side) return; side.style.setProperty('--cal-g', (2 * r).toFixed(4)); side.style.setProperty('--tray-g', (2 - 2 * r).toFixed(4)); }
+  let rep = null;
+  function repEmpezar(e) {
+    const sp = e.target.closest('.side > .csplit'), side = sp && sp.parentNode; if (!sp || e.button !== 0) return;
+    const tray = side.querySelector(':scope > .tray'), cal = side.querySelector(':scope > .cal'); if (!tray || !cal) return;
+    colMin(); const t = tray.getBoundingClientRect().height, c = cal.getBoundingClientRect().height; if (!(t + c > 0)) return;
+    rep = { side, y0: e.clientY, c0: c, tot: t + c, minT: parseFloat(getComputedStyle(tray).minHeight) || 0, minC: parseFloat(getComputedStyle(cal).minHeight) || 0, r: null, raf: 0 };
+    try { sp.setPointerCapture(e.pointerId); } catch (x) { /* */ }
+    side.classList.remove('col-vuelve'); side.classList.add('col-arr'); e.preventDefault();
+  }
+  function repMover(e) {
+    if (!rep) return;
+    const c = Math.max(rep.minC, Math.min(rep.tot - rep.minT, rep.c0 - (e.clientY - rep.y0)));
+    rep.r = Math.max(0.02, Math.min(0.98, c / rep.tot));
+    if (!rep.raf) rep.raf = requestAnimationFrame(() => { if (!rep) return; rep.raf = 0; repAplicar(rep.side, rep.r); });
+  }
+  function repSoltar() {
+    if (!rep) return; const r = rep; rep = null; cancelAnimationFrame(r.raf);
+    if (r.r != null) { repAplicar(r.side, r.r); lsSet(LS_REP, r.r.toFixed(4)); }
+    r.side.classList.remove('col-arr');
+  }
+  function repMitad() {                // double clic: half and half, as always
+    const side = colSide(); try { localStorage.removeItem(LS_REP); } catch (x) { /* */ }
+    if (!side) return; side.classList.add('col-vuelve'); repAplicar(side, 0.5);
+    clearTimeout(side._vuelve); side._vuelve = setTimeout(() => side.classList.remove('col-vuelve'), 450);
+  }
+  function trayFold() {
+    const t = root && root.querySelector('.main .side > .tray'); if (!t) return;
+    const f = trayPlegada(), b = t.querySelector('.tfold');
+    if (f && !t.classList.contains('fold')) t._top = t.scrollTop;
+    t.classList.toggle('fold', f);
+    if (b) { b.setAttribute('aria-expanded', String(!f)); b.title = f ? 'Abrir la bandeja' : 'Plegar la bandeja'; b.hidden = sinCal(); }
+    if (!f && t._top != null) { t.scrollTop = t._top; t._top = null; }   // back where it was
+  }
+  let trayPlT = 0;                     // when it last folded or opened: the second click of a double click on its tab doesn't reset the column
+  function trayPlegar(v) { const f = v == null ? !trayPlegada() : !!v; if (f === trayPlegada() || sinCal()) return; trayPlT = Date.now(); colPliegue('tray', () => { lsSet(LS_TPL, f ? '1' : '0'); trayFold(); }); }
+  // folding and unfolding with the calendar's movement (D-137), from where it is: the one that changes, with its height; to
+  // and from the two tabs, both move to their place
+  function colParar(side) { [...side.children].forEach(e => { if (e._plFin) e._plFin(); }); if (side._colFin) side._colFin(); }
+  function colPliegue(cual, cambiar) {
+    const side = colSide(); if (!side) { cambiar(); return; }
+    const caja = e => e && !e.hidden && e.getClientRects().length ? e.getBoundingClientRect() : null;
+    const els = () => [side.querySelector(':scope > .tray'), side.querySelector(':scope > .cal')];
+    const [t0, c0] = els(), el = cual === 'tray' ? t0 : c0, r0 = [caja(t0), caja(c0)], s0 = side.getBoundingClientRect(), antes = colPestanas(side);
+    colParar(side); cambiar();
+    if (!el) return;
+    const fade = cual === 'tray' ? 'tray-fade' : 'cal-fade';
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { [t0, c0].forEach(e => { if (e) { e.classList.add(e === el ? fade : 'tray-fade'); setTimeout(() => e.classList.remove(fade, 'tray-fade'), 220); } }); return; }
+    if (!antes && !colPestanas(side)) { const r = r0[cual === 'tray' ? 0 : 1]; if (r) colAltura(el, r.height, cual === 'tray' ? 'tray-anim' : 'cal-anim'); return; }
+    colVolar(side, [t0, c0], r0, s0, el);
+  }
+  function colAltura(el, h0, cls) {    // its height, from h0 to as it is drawn now
+    const h1 = el.getBoundingClientRect().height; if (Math.abs(h1 - h0) < 1) return;
+    let t = 0;
+    const fin = () => { clearTimeout(t); el.removeEventListener('transitionend', alFin); el._plFin = null; el.classList.remove(cls); ['height', 'flex', 'overflow', 'transition'].forEach(k => { el.style[k] = ''; }); };
+    const alFin = e => { if (e.target === el && e.propertyName === 'height') fin(); };
+    el.classList.add(cls); el.style.transition = 'none'; el.style.flex = '0 0 auto'; el.style.overflow = 'hidden'; el.style.height = h0 + 'px';
+    void el.offsetHeight;
+    el.style.transition = 'height var(--d-m) var(--ease-m)'; el.style.height = h1 + 'px';
+    el.addEventListener('transitionend', alFin); t = setTimeout(fin, 700); el._plFin = fin;
+  }
+  function colVolar(side, els, r0, s0, el) {   // to or from the two tabs: each one from its box to its new one (only the one that folds fades and turns its chevron)
+    const s1 = side.getBoundingClientRect(), r1 = els.map(e => e && !e.hidden && e.getClientRects().length ? e.getBoundingClientRect() : null);
+    const K = ['position', 'left', 'top', 'width', 'height', 'margin', 'transition', 'overflow', 'zIndex', 'flex'];
+    let t = 0;
+    const fin = () => { clearTimeout(t); side._colFin = null; side.style.height = ''; side.style.transition = ''; side.classList.remove('col-anim');
+      els.forEach(e => { if (!e) return; K.forEach(k => { e.style[k] = ''; }); e.classList.remove('tray-anim', 'cal-anim'); }); };
+    side._colFin = fin;
+    const caja = (r, a) => ({ left: (r.left - s1.left) + 'px', top: (r.top - s1.top) + 'px', width: r.width + 'px', height: r.height + 'px' });
+    side.classList.add('col-anim'); side.style.transition = 'none'; side.style.height = s0.height + 'px';
+    els.forEach((e, i) => { if (!e || !r1[i]) return; const a = r0[i] || r1[i];
+      Object.assign(e.style, { position: 'absolute', margin: '0', flex: 'none', overflow: 'hidden', zIndex: '1', transition: 'none' }, caja(a));
+      if (e === el) e.classList.add(e.classList.contains('cal') ? 'cal-anim' : 'tray-anim'); });
+    void side.offsetHeight;
+    const tr = ['left', 'top', 'width', 'height'].map(k => `${k} var(--d-m) var(--ease-m)`).join(',');
+    side.style.transition = 'height var(--d-m) var(--ease-m)'; side.style.height = s1.height + 'px';
+    els.forEach((e, i) => { if (!e || !r1[i]) return; e.style.transition = tr; Object.assign(e.style, caja(r1[i])); });
+    t = setTimeout(fin, 520);
+  }
+  function colMin() {                  // the least each one keeps: the tray, its head, tabs and a whole row of photos; the
+    const side = colSide(), tray = side && side.querySelector(':scope > .tray'), cal = side && side.querySelector(':scope > .cal');   // calendar, its head and two weeks
+    if (!tray || NARROW.matches) return;
+    if (!tray.classList.contains('fold')) {
+      const tr = tray.getBoundingClientRect(), un = [tray.querySelector('.tgrid > *'), tray.querySelector('.drop')].filter(e => e && e.getClientRects().length);
+      const b = un.length ? Math.max(...un.map(e => e.getBoundingClientRect().bottom)) : 0;
+      if (b && tr.height) side.style.setProperty('--tray-min', Math.round(b - tr.top + tray.scrollTop + 12) + 'px');
+    }
+    const cb = cal && !cal.hidden && !cal.classList.contains('fold') && cal.querySelector('.calbody');
+    if (cb) side.style.setProperty('--cal-min', Math.round(cb.getBoundingClientRect().top - cal.getBoundingClientRect().top + 24 + 2 * 60 + 2 * 2 + 10) + 'px');
+  }
+  let sprT = 0;                        // a photo or a file held over the folded tray opens it, as a browser's tab
+  const sprParar = () => { clearTimeout(sprT); sprT = 0; };
   function fijoAlto() {                // the tabs and the route stay right under the tray's head (D-092)
     const tray = root && root.querySelector('.tray'), h = tray && tray.querySelector('.trayhead'), a = h ? h.getBoundingClientRect().height : 0;
     if (a && tray.style.getPropertyValue('--thh') !== a + 'px') tray.style.setProperty('--thh', a + 'px');
+    colMin();
   }
   // ---------- the size of the tray's photos (D-091) ----------
   // A slider like the Finder's, in the tray's head: its middle is the size of always (columns of 92 px at least), its left
@@ -4294,9 +4428,10 @@
       const img = drag.el.querySelector('img'); if (img) e.dataTransfer.setDragImage(img, img.clientWidth / 2, img.clientHeight / 2);
       drag.el.classList.add('dragging');
     });
-    root.addEventListener('dragend', () => { if (drag && drag.el) drag.el.classList.remove('dragging'); drag = null; clearOver(); flushRender(); });
+    root.addEventListener('dragend', () => { sprParar(); if (drag && drag.el) drag.el.classList.remove('dragging'); drag = null; clearOver(); flushRender(); });
     root.addEventListener('dragover', e => {
       if (!drag && !hasFiles(e)) return;
+      if (e.target.closest && e.target.closest('.main .side > .tray.fold')) { if (!sprT) sprT = setTimeout(() => { sprT = 0; trayPlegar(false); }, 600); } else if (sprT) sprParar();
       const cell = e.target.closest('.cell[data-slot], .cell.past[data-prev]');
       const tray = e.target.closest('.tray');
       clearOver();
@@ -4306,8 +4441,9 @@
       else if (tray) { e.preventDefault(); e.dataTransfer.dropEffect = hasFiles(e) ? 'copy' : 'move'; tray.classList.add('over'); const t = hasFiles(e) && e.target.closest('.tcarpeta'); if (t) t.classList.add('over'); }
       else if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
     });
-    root.addEventListener('dragleave', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) clearOver(); });
+    root.addEventListener('dragleave', e => { if (!e.relatedTarget || !root.contains(e.relatedTarget)) { sprParar(); clearOver(); } });
     root.addEventListener('drop', e => {
+      sprParar();
       const cell = e.target.closest('.cell[data-slot]');
       const pc = e.target.closest('.cell.past[data-prev]');
       const tray = e.target.closest('.tray');
@@ -4381,11 +4517,14 @@
     root.addEventListener('pointerout', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'); if (p && !(e.relatedTarget && p.contains(e.relatedTarget))) hov = { id: null, t: 0 }; });
     root.addEventListener('dblclick', e => {
       if (e.target.matches && e.target.matches('.trayhead .ttam input')) { tamCambiar(e.target, 50); e.target.blur(); return; }   // back to the middle (D-091)
+      if (e.target.matches && e.target.matches('.main .side > .csplit, .main .side > .tray:not(.fold) > .trayhead > b') && Date.now() - trayPlT > 500) { e.preventDefault(); repMitad(); return; }   // the column, half and half (D-148)
       const p = e.target.closest && e.target.closest('.feed .pit[data-memo]');
       if (!p || p.classList.contains('edit') || sel || !pitOpen(p.dataset.memo)) return;
       e.preventDefault(); editMemo(p.dataset.memo);
     });
     root.addEventListener('pointerdown', e => { downOnBackdrop = !!(e.target.classList && e.target.classList.contains('detail')); }, true);
+    root.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.main .side > .csplit')) repEmpezar(e); });   // the column's separator (D-148)
+    root.addEventListener('pointermove', repMover); root.addEventListener('pointerup', repSoltar); root.addEventListener('pointercancel', repSoltar); root.addEventListener('lostpointercapture', repSoltar);
     root.addEventListener('wheel', e => {
       if (e.ctrlKey && e.target.closest && e.target.closest('.side > .tray')) { tamRueda(e); return; }   // a pinch over the tray: its size (D-118)
       const tb = e.target.closest && e.target.closest('.tbody, .bar .months');   // narrow strips: the wheel scrolls them sideways
@@ -4397,7 +4536,8 @@
       if (e.target.matches && e.target.matches('.cappick')) { unsetCapPick(e.target.dataset.slot, +e.target.dataset.k); return; }   // before its change: a 2nd click on the chosen one
       const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
-      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab, .ttam')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
+      if (e.target.closest('.side > .tray.fold > .trayhead') && !e.target.closest('[data-act]') && colPestanas(colSide())) { trayPlegar(false); return; }   // the tray's tab (D-148)
+      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab, .ttam, .tfold')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
       const a = e.target.closest('[data-act]');
       if (a) { onAct(a, e).catch(fallo); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
@@ -4572,6 +4712,7 @@
   async function onAct(a, e) {
     const act = a.dataset.act;
     if (act === 'add') root.querySelector('.picker').click();
+    else if (act === 'tfold') trayPlegar();
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file, trayCarpeta); }
     else if (act === 'cp-entrar') trayAbrir(a.dataset.id || null);
     else if (act === 'cp-pest') pestIr(a.dataset.id);
@@ -6212,7 +6353,7 @@
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
-    root: () => root, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
+    root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)

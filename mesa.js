@@ -2400,11 +2400,12 @@
 #mesa .phead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}#mesa .phead p{margin:12px 0 0;color:var(--mute);font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #mesa .card.post>.x,#mesa .card.post .phead>.x{top:14px;right:14px}
 /* D-142: header row of a post — title, «Fijar» left of the ×; EDITAR right of date / time and type / state, as tall as both rows, its right edge on the ×'s */
-#mesa .card.post .phead{container:pe/inline-size}#mesa .pe-top{display:flex;align-items:flex-start;gap:12px;margin-top:-4px}#mesa .pe-top h3{flex:1;min-width:0;padding-top:1px;overflow-wrap:break-word}
+#mesa .pe-top{display:flex;align-items:flex-start;gap:12px;margin-top:-4px}#mesa .pe-top h3{flex:1;min-width:0;padding-top:1px;overflow-wrap:break-word}
 #mesa .pe-fila{margin-top:12px}#mesa .pe-fila>p{margin:0}
-#mesa .pe-fila.pe-con{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"campos ed";column-gap:12px;margin-right:-44px}#mesa .pe-con>p{grid-area:campos;min-width:0}
+#mesa .pe-fila.pe-con{container:pe/inline-size;margin-right:-44px}   /* the container is this row, not the header: the × keeps the card as its box (it doesn't scroll away) */
+#mesa .pe-in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"campos ed";column-gap:12px}#mesa .pe-in>p{grid-area:campos;min-width:0;margin:0}
 #mesa .pe-ed{grid-area:ed;align-self:start;height:72px;min-width:84px;padding:0 18px;border-radius:var(--r-lg);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}#mesa .pe-ed:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ring)}
-@container pe (max-width:300px){#mesa .pe-fila.pe-con{grid-template-columns:minmax(0,1fr);grid-template-areas:"campos" "ed";row-gap:12px}#mesa .pe-con>p{margin-right:44px}#mesa .pe-ed{height:44px;width:100%}}   /* a narrow header: the fields as before, EDITAR under them, wide */
+@container pe (max-width:338px){#mesa .pe-in{grid-template-columns:minmax(0,1fr);grid-template-areas:"campos" "ed";row-gap:12px}#mesa .pe-in>p{margin-right:44px}#mesa .pe-ed{height:44px;width:100%}}   /* a narrow header: the fields as before, EDITAR under them, wide */
 #mesa .pe-fijar{position:relative;flex:none;display:inline-flex;height:28px;cursor:pointer;-webkit-user-select:none;user-select:none}
 #mesa .pe-fijar input{-webkit-appearance:none;appearance:none;position:relative;width:76px;height:28px;margin:0;border-radius:var(--r-pill);background:var(--line-strong);cursor:pointer;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}
 #mesa .pe-fijar input::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:var(--r-pill);background:var(--knob);box-shadow:var(--shadow-xs);transition:transform var(--d-m) var(--ease-m),width var(--d-m) var(--ease-m)}
@@ -3607,7 +3608,7 @@
     // date / time and type / state, as tall as both rows (D-142)
     const pinB = `<label class="pinsw pe-fijar" title="Como en Instagram: arriba del todo, con la chincheta. Solo cambia cómo se ve el feed (no la fecha ni Notion)."><input type="checkbox" class="pinToggle" role="switch" aria-label="Fijar en el perfil" data-slot="${esc(id)}"${isPinned(s) ? ' checked' : ''}><span class="pe-f0" aria-hidden="true">Fijar</span><span class="pe-f1" aria-hidden="true">Fijada</span></label>`;
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}">
-      <div class="pbody"><div class="phead"><div class="pe-top"><h3>${esc(s.name)}</h3>${pinB}</div><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button><div class="pe-fila${edB ? ' pe-con' : ''}">${edB}<p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div>${pnotHTML(s)}${linkLine(s)}</div>
+      <div class="pbody"><div class="phead"><div class="pe-top"><h3>${esc(s.name)}</h3>${pinB}</div><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>${edB ? `<div class="pe-fila pe-con"><div class="pe-in">${edB}<p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div></div>` : `<div class="pe-fila"><p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div>`}${pnotHTML(s)}${linkLine(s)}</div>
         <div class="pleft">${left}</div>
         <div class="pright hascap">${dz}${peB}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption, se sube a Notion</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>

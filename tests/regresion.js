@@ -9597,7 +9597,7 @@
     const pin = q('.detail .phead .pinToggle');
     ok(pin && !q('.detail .pright .pinToggle'), '«Fijar» no está en la cabecera');
     igual([pin.getAttribute('role'), pin.getAttribute('aria-label')], ['switch', 'Fijar en el perfil'], 'el interruptor para el lector de pantalla');
-    const x = R('.detail .phead > .x'), pr = R('.detail .pe-fijar'), t = R('.detail .phead h3'), ebt = q('.detail .phead [data-act="editar"]'), e = ebt.getBoundingClientRect(), f = R('.detail .pe-fila > p');
+    const x = R('.detail .phead > .x'), pr = R('.detail .pe-fijar'), t = R('.detail .phead h3'), ebt = q('.detail .phead [data-act="editar"]'), e = ebt.getBoundingClientRect(), f = R('.detail .pe-fila p');
     ok(pr.right <= x.left && Math.abs((pr.top + pr.bottom) / 2 - (x.top + x.bottom) / 2) < 3, '«Fijar» no va a la izquierda de la ×');
     ok(t.right <= pr.left, 'el título pisa «Fijar»');
     const vis = c => W.getComputedStyle(q('.detail .pe-fijar ' + c)).opacity;
@@ -9610,7 +9610,8 @@
     // EDITAR
     igual([ebt.textContent, W.getComputedStyle(ebt).textTransform, ebt.getAttribute('aria-label')], ['Editar', 'uppercase', 'Editar diapositivas'], 'el texto de EDITAR');
     ok(Math.abs(e.right - x.right) < 1.5, `EDITAR no se alinea con la ×: ${e.right} frente a ${x.right}`);
-    const ph = q('.detail .phead'), pcs = W.getComputedStyle(ph), ancha = ph.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight) > 300;   // estrecha: EDITAR debajo de los campos, a lo ancho
+    const ancha = q('.detail .pe-fila').clientWidth > 338;   // estrecha: EDITAR debajo de los campos, a lo ancho
+    igual(q('.detail .phead > .x').offsetParent, q('.detail .card'), 'la × ya no se sitúa en la ventana: se iría con el scroll');
     ok((ancha ? e.left >= f.right : e.top >= f.bottom) && e.top >= t.bottom, 'EDITAR pisa la fecha o el título: ' + json({ e: [e.left, e.top], f: [f.right, f.bottom], t: t.bottom, ancha }));
     if (ancha) ok(Math.abs(e.height - f.height) < 2 && e.height > 60 && e.height > e.width * 0.6, `EDITAR no es tan alto como las dos filas: ${e.height} / ${f.height}`);
     const add = q('.tray .btn[data-act="add"]'), cs = W.getComputedStyle(ebt), ca = W.getComputedStyle(add);

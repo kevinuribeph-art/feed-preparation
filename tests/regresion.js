@@ -8490,10 +8490,10 @@
     await uEsperaMarcas({ 'u6-a.jpg': 'p0', 'u6-d.jpg': 'r', 'u6-e.jpg': '' }, 'las marcas');
     await filtro('todas');
     const tit = n => uTileMesa(n).title;
-    igual(tit('u6-a.jpg'), 'u6-a.jpg · portada · Foto 1.1 · 3 nov · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una portada');
-    igual(tit('u6-d.jpg'), 'u6-d.jpg · relleno · Carrusel 1.2 · diapositiva 3 · 4 nov · arrástrala a una casilla o púlsala y luego la casilla', 'el título de un relleno');
-    igual(tit('u6-e.jpg'), 'u6-e.jpg · usada hace 3 meses o más (portada · Foto 1.5 · 7 ago): ya no cuenta · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una que ya no cuenta');
-    igual(tit('u6-libre.jpg'), 'u6-libre.jpg · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una sin usar');
+    igual(tit('u6-a.jpg'), 'u6-a.jpg · portada · Foto 1.1 · 3 nov · arrástrala a una casilla o púlsala para verla en grande', 'el título de una portada');
+    igual(tit('u6-d.jpg'), 'u6-d.jpg · relleno · Carrusel 1.2 · diapositiva 3 · 4 nov · arrástrala a una casilla o púlsala para verla en grande', 'el título de un relleno');
+    igual(tit('u6-e.jpg'), 'u6-e.jpg · usada hace 3 meses o más (portada · Foto 1.5 · 7 ago): ya no cuenta · arrástrala a una casilla o púlsala para verla en grande', 'el título de una que ya no cuenta');
+    igual(tit('u6-libre.jpg'), 'u6-libre.jpg · arrástrala a una casilla o púlsala para verla en grande', 'el título de una sin usar');
     const x = n => !!uTileMesa(n).querySelector('[data-act="del"]');
     igual(['u6-a.jpg', 'u6-d.jpg', 'u6-e.jpg', 'u6-libre.jpg'].map(x), [false, false, false, true], 'la × en «Todas»');
     await filtro('sin');
@@ -11029,6 +11029,17 @@
       ok(q('.dz .dz-velor') && q('.dz .dz-zoomr') && q('.dz [data-dz="reset"]'), 'falta la barra del velo, la del zoom o «Restablecer ajustes»');
       ok(q('.dz [data-dz="color"][data-v=""]'), 'se fue el «Auto» del color (no se toca)');
     });
+  });
+
+  // ---------- cinco fallos de la 4.10 (D-166) ----------
+  prueba('FL1', 'Bandeja: el título de una foto dice lo que hace un clic (verla en grande) y un clic la abre en grande (D-166)', async () => {
+    await tablero([pub(1)]);
+    await M.addFiles([await foto('fl1.jpg')]); await M.flush();
+    const t = await hasta(() => uTileMesa('fl1.jpg'), 3000, 'la foto en la bandeja');
+    igual(t.title, 'fl1.jpg · arrástrala a una casilla o púlsala para verla en grande', 'el título de la foto');
+    t.click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'trayview', 2000, 'un clic la abre en grande');
+    M._in.closeDetail();
   });
 
   // ---------- las que cambian a propósito ----------

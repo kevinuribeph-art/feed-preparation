@@ -3672,7 +3672,7 @@
     navCarpetas(tray);
     const html = carpetasDeVista().map(tileCarpeta).join('') + vis.map(x => {
       const { f: id, u, h, pub } = x, f = M.files[id];
-      return `<div class="titem${!perez && sel === id ? ' sel' : ''}${u ? ' uso u-' + x.c : ''}" data-file="${esc(id)}" title="${esc(f.name + marcaTitulo(x))}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala y luego la casilla"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${pub || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
+      return `<div class="titem${!perez && sel === id ? ' sel' : ''}${u ? ' uso u-' + x.c : ''}" data-file="${esc(id)}" title="${esc(f.name + marcaTitulo(x))}${h ? ' · usada en una historia' : ''} · arrástrala a una casilla o púlsala para verla en grande"><img ${perez ? `data-mini="${esc(id)}"` : `src="${f.thumbUrl}"`} alt="">${f.w > f.h ? '<span class="hb" title="Horizontal">H</span>' : ''}${h ? '<span class="hs" title="Usada en una historia"></span>' : ''}<span class="tname">${esc(f.name)}</span>${pub || h || enHueco.has(id) ? '' : `<button class="x" data-act="del" data-file="${esc(id)}" title="Quitar de la mesa" aria-label="Quitar ${esc(f.name)} de la mesa">×</button>`}</div>`;
     }).join('');
     const grid = tray.querySelector('.tgrid');
     if (!perez || grid._html !== html) {   // a long view is drawn only when it changes: its scroll and its loaded thumbnails stay

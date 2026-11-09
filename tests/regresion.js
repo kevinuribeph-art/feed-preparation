@@ -11042,6 +11042,22 @@
     M._in.closeDetail();
   });
 
+  prueba('FL2', 'Ventana de un carrusel: «Arrastra las miniaturas…» solo donde se arrastran; en uno diseñado, no (D-166)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r2', [await foto('fl2c.jpg'), await foto('fl2d.jpg')]);
+    const pista = () => { const p = qa('.detail .card.post p.muted').find(x => /se suben todas en este orden/.test(x.textContent)); return p ? p.textContent : null; };
+    M._in.openDetail('r2', 0); await espera(100);
+    igual(pista(), 'Carrusel: se suben todas en este orden, con un solo formato. Arrastra las miniaturas para cambiar el orden.', 'la pista de un carrusel sin diseño');
+    M._in.closeDetail();
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('fl2a.jpg', 1600, 1350), await foto('fl2b.jpg', 1080, 1350)], textos('fl2', 'Portada', 'Ficha'));
+      M._in.openDetail('r1', 0); await espera(100);
+      igual(pista(), 'Carrusel: se suben todas en este orden, con un solo formato.', 'la pista de un carrusel diseñado');
+      ok(!/Arrastra las miniaturas/.test(textoVentana()), 'la ventana del diseñado dice «Arrastra las miniaturas…»');
+      M._in.closeDetail();
+    });
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

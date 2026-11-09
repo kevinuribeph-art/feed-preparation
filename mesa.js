@@ -3740,7 +3740,8 @@
         <div class="ptools">${tools}</div>
         ${strip}${acts}${pick}`;
     }
-    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato. Arrastra las miniaturas para cambiar el orden.` : '';
+    // «Arrastra las miniaturas…» only where they are dragged: never on a designed post (D-166)
+    const hint = car && n > 1 ? `${foto ? 'Foto de varias páginas' : 'Carrusel'}: se suben todas en este orden, con un solo formato.${designed(s) ? '' : ' Arrastra las miniaturas para cambiar el orden.'}` : '';
     const dst = car || reel ? dState(s) : null;
     const dav = (dst === 'ok' || dst === 'nc') && s.design.avisos && s.design.avisos.length ? s.design.avisos : [];   // what «Aplicar» warned about
     const nl = libN(s);

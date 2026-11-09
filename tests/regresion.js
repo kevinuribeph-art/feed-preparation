@@ -11070,6 +11070,31 @@
     });
   });
 
+  prueba('FL4', '«Girar»: doble clic en el número lo elige entero (teclear lo sustituye); el campo dice siempre el ángulo de la foto y el título lo sigue, también tras Esc (D-166)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('fl4a.jpg')]);
+    await abrirEditor('r1');
+    accion('cap', { id: 'r0' });
+    const f = () => lzeEl('r0'), campo = () => q('.lb-panel input[data-lb="rot"]'), titulo = () => q('.lb-panel [data-pl="girar"] .lb-acc-s').textContent;
+    const sec = q('.lb-panel [data-pl="girar"]'); ok(sec, 'sin la sección «Girar»');
+    if (!sec.classList.contains('on')) { q('.lb-panel [data-pl="girar"] .lb-acc-h').click(); await espera(500); }
+    accion('rotr');
+    igual([f().rot, campo().value, titulo()], [90, '90', '90°'], 'tras ⟳ 90°');
+    const c = campo(); c.focus(); lzeDbl(c);
+    ok(D.execCommand('insertText', false, '5'), 'no se pudo teclear en el campo');
+    igual([c.value, f().rot, titulo()], ['5', 5, '5°'], 'doble clic y teclear 5');
+    const pon = v => { c.value = v; c.dispatchEvent(new W.Event('input', { bubbles: true })); };
+    pon('905'); igual([c.value, f().rot, titulo()], ['180', 180, '180°'], 'teclear 905 (pasa del tope)');
+    pon('-12.34'); igual([c.value, f().rot, titulo()], ['-12.3', -12.3, '-12.3°'], 'teclear -12,34 (décimas)');
+    tecla('Escape', { en: c }); await espera(50);
+    igual([D.activeElement === c, campo().value, titulo()], [false, '-12.3', '-12.3°'], 'tras Esc');
+    // vacío: como siempre, 0°; el campo, a medio teclear, no se toca; al salir dice 0 (sin ventana, Chrome no avisa del
+    // blur: el aviso, a mano)
+    campo().focus(); pon(''); igual([c.value, f().rot, titulo()], ['', 0, '0°'], 'el campo vacío');
+    c.dispatchEvent(new W.FocusEvent('focusout', { bubbles: true }));
+    igual([campo().value, titulo()], ['0', '0°'], 'al salir del campo vacío');
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

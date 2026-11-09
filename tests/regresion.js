@@ -6490,7 +6490,7 @@
   prueba('D10', 'Todas las funciones de M.diseno siguen y responden: estado, ver, kit, estadoDe, aplicando, abierto, y abrir y cerrar el diseñador por la API (D-089)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await hasta(() => M.diseno && M.diseno.cargar, 6000, 'diseno.js');
-    const NOMBRES = ['cargar', 'estado', 'aplicar', 'ver', 'kit', 'ajustarKit', 'fijarFinal', 'abrir', 'cerrar', 'estadoDe', 'prepararKits', 'sync', 'volcar', 'aplicando', '_retipo', '_sustituir', '_portada', '_ponerPortada', 'reaplicar', 'vista', 'vistaEmpezar', 'vistaMover', 'vistaZoom', 'vistaCentrar', 'vistaSoltar', 'vistaLibre', 'formato', '_srcVista', '_tienePortada', 'abierto'];
+    const NOMBRES = ['cargar', 'estado', 'aplicar', 'ver', 'kit', 'ajustarKit', 'fijarFinal', 'abrir', 'cerrar', 'estadoDe', 'prepararKits', 'sync', 'volcar', 'aplicando', '_retipo', '_portada', '_ponerPortada', 'reaplicar', 'vista', 'vistaEmpezar', 'vistaMover', 'vistaZoom', 'vistaCentrar', 'vistaSoltar', 'vistaLibre', 'formato', '_srcVista', '_tienePortada', 'abierto'];
     igual(NOMBRES.filter(k => typeof M.diseno[k] !== 'function'), [], 'funciones de M.diseno que faltan');
     ok(typeof M.diseno.version === 'string', 'M.diseno sin versión');
     await conKitPrueba(async () => {

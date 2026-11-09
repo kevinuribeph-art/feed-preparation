@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.20';   // 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.21';   // 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -115,17 +115,6 @@
     s.design = { ...nd, kit: nd.kit || d.kit, out: null, sig: null, at, known: photos.slice(), stash: keep };
     s.photos = photos;
     return { tray: [...new Set(tray)].filter(f => !photos.includes(f)), dead: outs };
-  }
-  // «Sustituir» on a designed carousel: the photo of the cover slide (the one the post shows) changes; never a new slide
-  function sustituir(s, fid) {
-    const d = s.design, first = s.photos[0];
-    const sl = d.slides.find(x => x.tipo !== 'final' && x.src === first) || d.slides.find(x => x.tipo !== 'final');
-    if (!sl) { if (!s.photos.includes(fid)) s.photos.push(fid); return; }
-    const prev = sl.src; sl.src = fid;
-    if (first && !isOut(s, first)) s.photos[0] = fid; else if (!first) s.photos.push(fid);   // not applied yet: the post shows the new photo
-    s.photos = [...new Set(s.photos)];
-    d.at = nowISO();
-    release(s, [prev]); remember(s);
   }
 
   // ---------- the post's cover outside the editor (mesa: swaps, «Cambiar portada», a new photo on a designed reel) ----------
@@ -1692,7 +1681,7 @@
     version: VERSION,
     cargar: api(cargar), estado: api(estado), aplicar: api(aplicar), ver: api(ver),
     kit: api(kit), ajustarKit: api(ajustarKit), fijarFinal: api(fijarFinal),
-    abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
+    abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo,
     _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
     vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaSoltar, vistaLibre, formato, _srcVista: srcVista, _tienePortada: s => !!portadaDe(s),
     _hist: () => E && E.hist ? { undo: E.hist.undo.length, redo: E.hist.redo.length } : null,   // for the tests: the designer's ⌘Z steps

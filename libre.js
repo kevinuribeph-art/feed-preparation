@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.56';   // 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.57';   // 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -2272,8 +2272,9 @@
       + `<div class="lb-btns"><button type="button" class="btn2" data-lb="al1" data-v="h" title="Centrar a lo ancho de la diapositiva">Centrar ↔</button><button type="button" class="btn2" data-lb="al1" data-v="v" title="Centrar a lo alto de la diapositiva">Centrar ↕</button></div>`
       + '<p class="lb-p">En píxeles de una diapositiva de 1080 de ancho.</p>');
   }
+  const grados = el => Math.round((el.rot || 0) * 10) / 10, girarRes = el => `${grados(el)}°${el.fx || el.fy ? ' · volteada' : ''}`;   // «Girar»'s figure and its title's
   function girarHTML(el, voltear) {
-    return plegable('girar', `Girar${voltear ? ' y voltear' : ''}`, `${Math.round((el.rot || 0) * 10) / 10}°${el.fx || el.fy ? ' · volteada' : ''}`, `<div class="lb-btns" style="align-items:center;margin-top:0"><label style="font-size:12.5px;display:flex;align-items:center;gap:6px"><span class="lb-ang" title="Ángulo · doble clic: 0°">Ángulo</span> <input type="number" class="lb-num" data-lb="rot" step="1" min="-180" max="180" value="${Math.round((el.rot || 0) * 10) / 10}">°</label>`
+    return plegable('girar', `Girar${voltear ? ' y voltear' : ''}`, girarRes(el), `<div class="lb-btns" style="align-items:center;margin-top:0"><label style="font-size:12.5px;display:flex;align-items:center;gap:6px"><span class="lb-ang" title="Ángulo · doble clic: 0°">Ángulo</span> <input type="number" class="lb-num" data-lb="rot" step="1" min="-180" max="180" value="${grados(el)}">°</label>`
       + `<button type="button" class="btn2" data-lb="rotl" title="Girar 90° a la izquierda">⟲ 90°</button><button type="button" class="btn2" data-lb="rotr" title="Girar 90° a la derecha">⟳ 90°</button></div>`
       + (voltear ? `<div class="lb-btns"><button type="button" class="btn2${el.fx ? ' on' : ''}" data-lb="flipx">Voltear ↔</button><button type="button" class="btn2${el.fy ? ' on' : ''}" data-lb="flipy">Voltear ↕</button></div>` : ''));
   }
@@ -2430,7 +2431,8 @@
   function syncNums(el) {          // the panel's values follow a drag, without rebuilding it
     if (!el || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), z = p.querySelector('input[data-lb="z"]'); if (z) { z.value = el.z || 1; z.nextElementSibling.textContent = OUTF.z(el.z || 1); }
-    const r = p.querySelector('input[data-lb="rot"]'); if (r && document.activeElement !== r) r.value = Math.round((el.rot || 0) * 10) / 10;
+    const r = p.querySelector('input[data-lb="rot"]'); if (r && document.activeElement !== r) r.value = grados(el);
+    const gs = p.querySelector('[data-pl="girar"] .lb-acc-s'); if (gs) gs.textContent = girarRes(el);   // the title follows the angle typed (D-166)
     const { H } = sizeAt(E.i), put = (k, v) => { const i = p.querySelector(`input[data-lb="${k}"]`); if (i && document.activeElement !== i) i.value = Math.round(v); };
     put('mx', el.x * 1080); put('my', el.y * H * PX); put('man', el.w * 1080); put('mal', el.h * H * PX);
     const s = p.querySelector('input[data-lb="size"]'); if (s && el.t === 'texto') { s.value = el.size; s.nextElementSibling.textContent = OUTF.size(el.size); }
@@ -2864,7 +2866,12 @@
       case 'gr': { const Hs = sizeAt(E.i).H; onEl(el => { const f = el.t === 'forma' && TRAZO[el.forma]; if (!f) return; const h0 = el.h; el.h = r4(v * f / (Hs * PX)); el.y = r4(el.y + (h0 - el.h) / 2); }, 'gr', true); syncNums(selEl()); return; }   // around its centre
       case 'lh': onEl(el => { if (el.t === 'texto') { el.lh = v; ajustarTexto(el, W, H); } }, 'lh', true); return;
       case 'ls': onEl(el => { if (el.t === 'texto') { el.ls = v; ajustarTexto(el, W, H); } }, 'ls', true); return;
-      case 'rot': if (Number.isFinite(v)) onEl(el => { el.rot = clamp(Math.round(v * 10) / 10, -180, 180); delete el.fit; if (el.t !== 'foto') el.mano = true; }, 'rot', true); return;
+      case 'rot': if (Number.isFinite(v)) {
+        onEl(el => { el.rot = clamp(Math.round(v * 10) / 10, -180, 180); delete el.fit; if (el.t !== 'foto') el.mano = true; }, 'rot', true);
+        const el = selEl(); if (!el) return;
+        if (t.value !== '' && +t.value !== grados(el)) t.value = grados(el);   // past ±180° or tenths: the field says what the photo has (D-166)
+        syncNums(el);
+      } return;
       case 'mx': case 'my': case 'man': case 'mal': {
         if (!Number.isFinite(v)) return;
         onEl(el => {
@@ -3038,7 +3045,8 @@
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
-      pn.addEventListener('dblclick', e => { const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always
+      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches('input[data-lb="rot"]')) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; «Girar»'s figure is chosen whole, typing replaces it (D-166)
+      pn.addEventListener('focusout', e => { const el = E && e.target.matches && e.target.matches('input[data-lb="rot"]') && selEl(); if (el) e.target.value = grados(el); });   // left (Esc, Tab, a click) half typed: the angle it has
       pn.addEventListener('mousedown', e => { if (e.detail > 1 && fila(e.target) && e.target.tagName !== 'INPUT') e.preventDefault(); });   // its label and figure never get selected
       pn.addEventListener('scroll', () => { if (E && E.cmDe === 'formas') menuCtx(false); }); }
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
@@ -3691,11 +3699,12 @@
       const viejas = perdidas(S, before);   // the photo replaced goes back to the tray
       APL--; counted = false; I().setBusy('dz', null);
       I().changed();
+      const deshecho = !!(I().dibujoHecho && I().dibujoHecho());   // a ⌘Z pressed while drawing undoes it now, in one step: no message (D-166)
       const nl = llenas.length, nn = nuevas.length, partes = [];
       if (portada) partes.push(hp ? 'Hueco de la portada rellenado' : sl[0] && sl[0].mod ? 'Foto de la portada cambiada (los textos se quedan)' : 'Foto de la portada cambiada');
       if (nl) partes.push(nl === 1 ? `Hueco de la diapositiva ${llenas[0]} rellenado` : `Huecos de las diapositivas ${llenas.slice(0, -1).join(', ')} y ${llenas[nl - 1]} rellenados`);
       if (nn) partes.push(`${nn === 1 ? '1 diapositiva nueva' : nn + ' diapositivas nuevas'} al final (no quedan huecos)`);
-      I().toast(partes.join(' · ') + (made.length ? '. Se suben tal cual.' : '.'), { ms: 6000 });
+      if (!deshecho) I().toast(partes.join(' · ') + (made.length ? '. Se suben tal cual.' : '.'), { ms: 6000 });
       await borrarSueltas(viejas);
       return { ok: true, cambios: made.length, portada, rellenas: llenas, nuevas: nuevas.length };
     } catch (e) {

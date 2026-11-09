@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.19';   // 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.20';   // 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -718,7 +718,7 @@
 #mesa .dz-mv button{border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:10.5px;line-height:22px;padding:0;color:var(--mute)}
 #mesa .dz-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}
 #mesa .dz-mv button:disabled{opacity:.25;cursor:default}
-#mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px}
+#mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px;white-space:nowrap}
 #mesa .dz-mid{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;overflow:hidden}
 #mesa .dz-cv{display:block;flex:none;background:var(--cell-ph);box-shadow:var(--shadow-stage);touch-action:none}
 #mesa .dz-cvw{position:relative;flex:none;line-height:0}#mesa .dz-cvw.reframe .thirds{opacity:1}

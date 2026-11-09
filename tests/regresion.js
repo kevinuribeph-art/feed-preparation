@@ -8490,10 +8490,10 @@
     await uEsperaMarcas({ 'u6-a.jpg': 'p0', 'u6-d.jpg': 'r', 'u6-e.jpg': '' }, 'las marcas');
     await filtro('todas');
     const tit = n => uTileMesa(n).title;
-    igual(tit('u6-a.jpg'), 'u6-a.jpg · portada · Foto 1.1 · 3 nov · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una portada');
-    igual(tit('u6-d.jpg'), 'u6-d.jpg · relleno · Carrusel 1.2 · diapositiva 3 · 4 nov · arrástrala a una casilla o púlsala y luego la casilla', 'el título de un relleno');
-    igual(tit('u6-e.jpg'), 'u6-e.jpg · usada hace 3 meses o más (portada · Foto 1.5 · 7 ago): ya no cuenta · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una que ya no cuenta');
-    igual(tit('u6-libre.jpg'), 'u6-libre.jpg · arrástrala a una casilla o púlsala y luego la casilla', 'el título de una sin usar');
+    igual(tit('u6-a.jpg'), 'u6-a.jpg · portada · Foto 1.1 · 3 nov · arrástrala a una casilla o púlsala para verla en grande', 'el título de una portada');
+    igual(tit('u6-d.jpg'), 'u6-d.jpg · relleno · Carrusel 1.2 · diapositiva 3 · 4 nov · arrástrala a una casilla o púlsala para verla en grande', 'el título de un relleno');
+    igual(tit('u6-e.jpg'), 'u6-e.jpg · usada hace 3 meses o más (portada · Foto 1.5 · 7 ago): ya no cuenta · arrástrala a una casilla o púlsala para verla en grande', 'el título de una que ya no cuenta');
+    igual(tit('u6-libre.jpg'), 'u6-libre.jpg · arrástrala a una casilla o púlsala para verla en grande', 'el título de una sin usar');
     const x = n => !!uTileMesa(n).querySelector('[data-act="del"]');
     igual(['u6-a.jpg', 'u6-d.jpg', 'u6-e.jpg', 'u6-libre.jpg'].map(x), [false, false, false, true], 'la × en «Todas»');
     await filtro('sin');
@@ -11029,6 +11029,96 @@
       ok(q('.dz .dz-velor') && q('.dz .dz-zoomr') && q('.dz [data-dz="reset"]'), 'falta la barra del velo, la del zoom o «Restablecer ajustes»');
       ok(q('.dz [data-dz="color"][data-v=""]'), 'se fue el «Auto» del color (no se toca)');
     });
+  });
+
+  // ---------- cinco fallos de la 4.10 (D-166) ----------
+  prueba('FL1', 'Bandeja: el título de una foto dice lo que hace un clic (verla en grande) y un clic la abre en grande (D-166)', async () => {
+    await tablero([pub(1)]);
+    await M.addFiles([await foto('fl1.jpg')]); await M.flush();
+    const t = await hasta(() => uTileMesa('fl1.jpg'), 3000, 'la foto en la bandeja');
+    igual(t.title, 'fl1.jpg · arrástrala a una casilla o púlsala para verla en grande', 'el título de la foto');
+    t.click();
+    await hasta(() => dialogo() && dialogo().dataset.dlg === 'trayview', 2000, 'un clic la abre en grande');
+    M._in.closeDetail();
+  });
+
+  prueba('FL2', 'Ventana de un carrusel: «Arrastra las miniaturas…» solo donde se arrastran; en uno diseñado, no (D-166)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r2', [await foto('fl2c.jpg'), await foto('fl2d.jpg')]);
+    const pista = () => { const p = qa('.detail .card.post p.muted').find(x => /se suben todas en este orden/.test(x.textContent)); return p ? p.textContent : null; };
+    M._in.openDetail('r2', 0); await espera(100);
+    igual(pista(), 'Carrusel: se suben todas en este orden, con un solo formato. Arrastra las miniaturas para cambiar el orden.', 'la pista de un carrusel sin diseño');
+    M._in.closeDetail();
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('fl2a.jpg', 1600, 1350), await foto('fl2b.jpg', 1080, 1350)], textos('fl2', 'Portada', 'Ficha'));
+      M._in.openDetail('r1', 0); await espera(100);
+      igual(pista(), 'Carrusel: se suben todas en este orden, con un solo formato.', 'la pista de un carrusel diseñado');
+      ok(!/Arrastra las miniaturas/.test(textoVentana()), 'la ventana del diseñado dice «Arrastra las miniaturas…»');
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('FL3', 'Diseñador: «+ Diapositiva» en una sola línea, dentro de su botón, a más de 900 px (D-166, como D-139)', async () => {
+    ok(W.innerWidth > 900, 'la mesa de prueba no pasa de 900 px: ' + W.innerWidth);
+    await lzeDisenador('fl3', async () => {
+      const b = q('.dz .dz-add'); ok(b, 'sin «+ Diapositiva»');
+      igual(b.textContent.trim(), '+ Diapositiva', 'el texto del botón');
+      const r = D.createRange(); r.selectNodeContents(b);
+      const ls = [...r.getClientRects()], tb = r.getBoundingClientRect(), bb = b.getBoundingClientRect();
+      igual(new Set(ls.map(x => Math.round(x.top))).size, 1, 'líneas de «+ Diapositiva»');
+      ok(tb.left >= bb.left && tb.right <= bb.right, `el texto sale del botón: ${Math.round(tb.left)}–${Math.round(tb.right)} frente a ${Math.round(bb.left)}–${Math.round(bb.right)}`);
+    });
+  });
+
+  prueba('FL4', '«Girar»: doble clic en el número lo elige entero (teclear lo sustituye); el campo dice siempre el ángulo de la foto y el título lo sigue, también tras Esc (D-166)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('fl4a.jpg')]);
+    await abrirEditor('r1');
+    accion('cap', { id: 'r0' });
+    const f = () => lzeEl('r0'), campo = () => q('.lb-panel input[data-lb="rot"]'), titulo = () => q('.lb-panel [data-pl="girar"] .lb-acc-s').textContent;
+    const sec = q('.lb-panel [data-pl="girar"]'); ok(sec, 'sin la sección «Girar»');
+    if (!sec.classList.contains('on')) { q('.lb-panel [data-pl="girar"] .lb-acc-h').click(); await espera(500); }
+    accion('rotr');
+    igual([f().rot, campo().value, titulo()], [90, '90', '90°'], 'tras ⟳ 90°');
+    const c = campo(); c.focus(); lzeDbl(c);
+    ok(D.execCommand('insertText', false, '5'), 'no se pudo teclear en el campo');
+    igual([c.value, f().rot, titulo()], ['5', 5, '5°'], 'doble clic y teclear 5');
+    const pon = v => { c.value = v; c.dispatchEvent(new W.Event('input', { bubbles: true })); };
+    pon('905'); igual([c.value, f().rot, titulo()], ['180', 180, '180°'], 'teclear 905 (pasa del tope)');
+    pon('-12.34'); igual([c.value, f().rot, titulo()], ['-12.3', -12.3, '-12.3°'], 'teclear -12,34 (décimas)');
+    tecla('Escape', { en: c }); await espera(50);
+    igual([D.activeElement === c, campo().value, titulo()], [false, '-12.3', '-12.3°'], 'tras Esc');
+    // vacío: como siempre, 0°; el campo, a medio teclear, no se toca; al salir dice 0 (sin ventana, Chrome no avisa del
+    // blur: el aviso, a mano)
+    campo().focus(); pon(''); igual([c.value, f().rot, titulo()], ['', 0, '0°'], 'el campo vacío');
+    c.dispatchEvent(new W.FocusEvent('focusout', { bubbles: true }));
+    igual([campo().value, titulo()], ['0', '0°'], 'al salir del campo vacío');
+  });
+
+  prueba('FL5', 'Un ⌘Z pulsado mientras sale «Dibujando el carrusel…» («Sustituir» en un carrusel del editor) no se pierde: deshace la foto en cuanto entra, en un paso y sin aviso de la foto puesta; ⇧⌘Z la vuelve a poner (D-166)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('fl5a.jpg'), await foto('fl5b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const fotos0 = slot('r1').photos.slice(), h0 = M._test.hist().undo;
+    const [nueva] = await M.addFiles([await foto('fl5c.jpg')]); await M.flush();
+    M._test.setSel(nueva); celda('r1').click();
+    const b = await hasta(() => q('[data-act="addmode"][data-m="replace"]'), 4000, '«Sustituir»');
+    M._in.clearToasts();
+    b.click();
+    ok(/Dibujando el carrusel/.test(M.busyText || ''), 'no está dibujando al pulsar ⌘Z: ' + M.busyText);
+    tecla('z', { meta: true, code: 'KeyZ' });
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+    await espera(300);
+    igual(slot('r1').photos, fotos0, 'el ⌘Z se perdió: la foto nueva sigue en la casilla');
+    igual(M._test.hist().undo, h0, 'los pasos de ⌘Z tras deshacer');
+    ok(!qa('.toasts .toast').some(t => /cambiada|rellenado/.test(t.textContent)), 'sale el aviso de la foto puesta: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    tecla('z', { meta: true, shift: true, code: 'KeyZ' });
+    const s = slot('r1'), c = s.libre && s.libre.slides[s.photos[0]];
+    ok(c && c.els.some(e => e.src === nueva), '⇧⌘Z no volvió a poner la foto');
+    tecla('z', { meta: true, code: 'KeyZ' });
+    igual(slot('r1').photos, fotos0, 'un ⌘Z más no la quitó');
   });
 
   // ---------- las que cambian a propósito ----------

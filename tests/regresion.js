@@ -11058,6 +11058,18 @@
     });
   });
 
+  prueba('FL3', 'Diseñador: «+ Diapositiva» en una sola línea, dentro de su botón, a más de 900 px (D-166, como D-139)', async () => {
+    ok(W.innerWidth > 900, 'la mesa de prueba no pasa de 900 px: ' + W.innerWidth);
+    await lzeDisenador('fl3', async () => {
+      const b = q('.dz .dz-add'); ok(b, 'sin «+ Diapositiva»');
+      igual(b.textContent.trim(), '+ Diapositiva', 'el texto del botón');
+      const r = D.createRange(); r.selectNodeContents(b);
+      const ls = [...r.getClientRects()], tb = r.getBoundingClientRect(), bb = b.getBoundingClientRect();
+      igual(new Set(ls.map(x => Math.round(x.top))).size, 1, 'líneas de «+ Diapositiva»');
+      ok(tb.left >= bb.left && tb.right <= bb.right, `el texto sale del botón: ${Math.round(tb.left)}–${Math.round(tb.right)} frente a ${Math.round(bb.left)}–${Math.round(bb.right)}`);
+    });
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

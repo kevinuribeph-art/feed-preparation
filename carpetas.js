@@ -7,7 +7,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';
+  const VERSION = '1.4';   // 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
   const AVISO_DESDE = 20;                      // loose photos: fewer than this go in as always, without a warning
   const SISTEMA = /^(\.|__MACOSX$|Thumbs\.db$|desktop\.ini$)/i;   // .DS_Store, ._foto.jpg (the disk is exFAT), the system's folders
   const POR_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
@@ -74,7 +74,8 @@
       + (libre != null && bytes > libre - m ? `<p><b>No cabe todo:</b> la subida se para cuando queden ${pes(m)} libres, y lo subido se queda en su carpeta.</p>` : '')
       + (e.persistida ? '' : '<p>El navegador no garantiza conservar estas fotos si el disco se llena: deja espacio libre y guarda los originales en el disco.</p>')
       + (textoSaltados(c, fallan) ? `<p>${esc(textoSaltados(c, fallan))}.</p>` : '')
-      + '<div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="cp-ir">Subir</button></div></div>');
+      + '<div class="form"><div class="row"><button type="button" class="btn" data-act="cp-ir">Subir</button></div></div>');   // no «Cancelar»: the × (D-155)
+    const x = I().root().querySelector('.detail .card > .x'); if (x) x.focus();   // the safe one (it was on the page): Enter closes
     return pendiente;
   }
 
@@ -142,7 +143,8 @@
     const hechas = [r.subidas ? `${num(r.subidas)} ${r.subidas === 1 ? 'foto subida' : 'fotos subidas'} (${pes(r.bytes)})` : '', r.yaEstaban ? `${num(r.yaEstaban)} ya ${r.yaEstaban === 1 ? 'estaba' : 'estaban'}` : '', r.danadas ? `${num(r.danadas)} no se ${r.danadas === 1 ? 'pudo leer' : 'pudieron leer'}` : '', r.saltados].filter(Boolean).join(' · ') || 'Nada subido';
     if (r.parada === 'espacio' || r.parada === 'error' || r.parada === 'pestaña') {
       const por = r.parada === 'espacio' ? `No queda espacio: la subida se ha parado para dejar ${pes(margen())} libres.` : r.parada === 'pestaña' ? 'La Mesa se ha abierto en otra pestaña.' : `Ha fallado: ${r.error}.`;
-      I().showDialog('subidaparada', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Subida parada</h3><p>${esc(por)}</p><p>${esc(hechas)}, de ${num(r.total)}.</p><p>Lo subido se queda en su carpeta. Para seguir, vuelve a subir la misma carpeta: lo que ya está no se repite.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
+      I().showDialog('subidaparada', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Subida parada</h3><p>${esc(por)}</p><p>${esc(hechas)}, de ${num(r.total)}.</p><p>Lo subido se queda en su carpeta. Para seguir, vuelve a subir la misma carpeta: lo que ya está no se repite.</p>`);   // no «Entendido»: the × (D-155)
+      const x = I().root().querySelector('.detail .card > .x'); if (x) x.focus();
       return;
     }
     I().toast(`${r.parada === 'cancelada' ? 'Subida cancelada: ' : ''}${hechas}.`, { ms: 10000 });
@@ -188,8 +190,8 @@
   }
   function pedirNombre() {
     const padre = I().trayCarpeta, esc = I().esc, dentro = padre && (I().S.carpetas.find(x => x.id === padre) || {}).name;
-    I().showDialog('nuevacarpeta', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nueva carpeta</h3><p>${dentro ? `Dentro de «${esc(dentro)}».` : 'En la bandeja de este cliente.'}</p>`
-      + '<form class="form" data-form="cp-nueva" autocomplete="off"><label for="cp-nombre">Nombre</label><input id="cp-nombre" name="nombre" type="text" maxlength="80" required><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Crear</button></div></form>');
+    I().showDialog('nuevacarpeta', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nueva carpeta</h3>${dentro ? `<p>Dentro de «${esc(dentro)}».</p>` : ''}`   // D-156 and D-155
+      + '<form class="form" data-form="cp-nueva" autocomplete="off"><label for="cp-nombre">Nombre</label><input id="cp-nombre" name="nombre" type="text" maxlength="80" required><div class="row"><button type="submit" class="btn">Crear</button></div></form>');
     const form = I().root().querySelector('.detail form[data-form="cp-nueva"]');
     form.addEventListener('submit', e => {
       e.preventDefault(); e.stopPropagation();
@@ -227,10 +229,13 @@
     const it = (a, t, on = true, kb = '', tip = '') => `<button type="button" role="menuitem" data-a="${a}"${on ? '' : ' disabled'}${tip ? ` title="${I().esc(tip)}"` : ''}>${t}${kb ? `<span class="kb">${kb}</span>` : ''}</button>`;
     const el = document.createElement('div'); el.className = 'cpmenu'; el.setAttribute('role', 'menu');
     const copiable = !!(t.id || t.file), pegable = I().trayPuedePegar();
-    el.innerHTML = c ? it('abrir', 'Abrir') + it('pestana', 'Abrir en una pestaña nueva') + '<hr>'
+    // in the mesa's tray (not the editor's, D-075) the menu ends with what «+ Carpeta» and «Subir carpeta» did: they create or
+    // upload in what the tray has open (D-158)
+    const crear = t.mesa ? '<hr>' + it('nueva', 'Nueva carpeta…') + it('subir', 'Subir carpeta…') : '';
+    el.innerHTML = (c ? it('abrir', 'Abrir') + it('pestana', 'Abrir en una pestaña nueva') + '<hr>'
       + it('copiar', 'Copiar', true, '⌘C') + it('pegar', 'Pegar', pegable, '⌘V') + '<hr>'
       + it('borrar', 'Borrar carpeta…', !c.fija, '', c.fija ? `«${c.name}» no se puede borrar: sus fotos se quitan una a una` : '')
-      : (copiable ? it('copiar', 'Copiar', true, '⌘C') : '') + it('pegar', 'Pegar', pegable, '⌘V');
+      : (copiable ? it('copiar', 'Copiar', true, '⌘C') : '') + it('pegar', 'Pegar', pegable, '⌘V')) + crear;
     el.addEventListener('click', e => {
       const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return;
       cerrarMenu();
@@ -239,6 +244,8 @@
       else if (b.dataset.a === 'borrar') M.pedirBorrarCarpeta(id);
       else if (b.dataset.a === 'copiar') I().trayCopiar(loteDe(t));
       else if (b.dataset.a === 'pegar') { I().trayPegar(id || I().trayCarpeta); if (M.libre && M.libre.bandeja) M.libre.bandeja(); }
+      else if (b.dataset.a === 'nueva') pedirNombre();
+      else if (b.dataset.a === 'subir') elegirCarpeta(I().trayCarpeta);
     });
     root.append(el);
     const r = el.getBoundingClientRect();
@@ -247,15 +254,16 @@
     const m = menuAbierto = { el, fuera: e => { if (!el.contains(e.target)) cerrarMenu(); }, tecla: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrarMenu(); } } };
     document.addEventListener('pointerdown', m.fuera, true); document.addEventListener('keydown', m.tecla, true);
     window.addEventListener('blur', cerrarMenu); window.addEventListener('resize', cerrarMenu); document.addEventListener('scroll', cerrarMenu, true);
-    const b0 = el.querySelector('button'); if (b0) b0.focus();
+    const b0 = el.querySelector('button:not([disabled])'); if (b0) b0.focus();   // the first one that works: «Pegar» may be off in a hole (D-158)
   }
   document.addEventListener('contextmenu', e => {
     if (!I() || !I().root || !e.target.closest) return;
     const t = e.target.closest('.tcarpeta[data-id], .lb-tcarp[data-id]'), ph = !t && e.target.closest('.tray .titem[data-file], .lb-tray .lb-tph[data-f]'), hueco = !t && !ph && e.target.closest('.tray .tbody, .lb-tray');
-    if (!t && !ph && !(hueco && I().trayPuedePegar())) return;   // elsewhere, and with nothing to paste on an empty spot: the browser's own
+    const mesa = !e.target.closest('.lb-tray') && !!e.target.closest('.side > .tray');   // the mesa's tray: its menu also creates and uploads (D-158)
+    if (!t && !ph && !(hueco && (mesa || I().trayPuedePegar()))) return;   // elsewhere, and in the editor with nothing to paste on an empty spot: the browser's own
     e.preventDefault(); e.stopImmediatePropagation();
-    if (t) abrirMenu(e.clientX, e.clientY, t.dataset.id);
-    else abrirMenu(e.clientX, e.clientY, null, ph ? { file: ph.dataset.file || ph.dataset.f } : {});
+    if (t) abrirMenu(e.clientX, e.clientY, t.dataset.id, { id: t.dataset.id, mesa });
+    else abrirMenu(e.clientX, e.clientY, null, ph ? { file: ph.dataset.file || ph.dataset.f, mesa } : { mesa });
   }, true);
 
   M.carpetasUI = { version: VERSION, accion, soltar, elegidas, subir, desdeEntradas, clasificar, abrirMenu, cerrarMenu };

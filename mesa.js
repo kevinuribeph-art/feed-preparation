@@ -69,7 +69,7 @@
 (function mesaBoot() {
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
-  M.version = '4.09'; // 4.09: in the posts' calendar, the days of another month of the board that show in the month seen are dimmed as the previous month's, their chips muted in their type's colour and working as the others (calendario 1.17, D-153). 4.08: no row over the feed — the range and its count are in the month's chip, the previous month in its franja and its label, which is now its only lock, with a Lucide lock and its count in its title; «Abrir notas» is an icon in the month's bar (D-152). 4.07: an element's panel in the editor folds like a slide's, one section open at a time, the last one opened remembered by kind of element (libre 1.55, D-149); the dropdowns' lists with their text where the closed field's starts and the ✓ on the right (controles 1.2, D-150); the tray's tab in use in the colour of «Añadir fotos», saying its folder (the fixed one too), no path in text, the whole path in its title (D-151). 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '4.10'; // 4.10: «Mesa más limpia», 46 propuestas: fuera botones y textos que repetían algo a la vista, y dobles clics que vuelven al valor de siempre (D-154 a D-165). 4.09: in the posts' calendar, the days of another month of the board that show in the month seen are dimmed as the previous month's, their chips muted in their type's colour and working as the others (calendario 1.17, D-153). 4.08: no row over the feed — the range and its count are in the month's chip, the previous month in its franja and its label, which is now its only lock, with a Lucide lock and its count in its title; «Abrir notas» is an icon in the month's bar (D-152). 4.07: an element's panel in the editor folds like a slide's, one section open at a time, the last one opened remembered by kind of element (libre 1.55, D-149); the dropdowns' lists with their text where the closed field's starts and the ✓ on the right (controles 1.2, D-150); the tray's tab in use in the colour of «Añadir fotos», saying its folder (the fixed one too), no path in text, the whole path in its title (D-151). 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -1169,8 +1169,9 @@
     if (!rep.length || !S || !shellReady()) return van(items);
     const x = '<button class="x" data-act="close" aria-label="Cerrar">×</button>';
     showDialog('repe', items.length === 1
-      ? `${x}<h3>${esc(rep[0].u.txt)}</h3><p>${esc(rep[0].it.name)}</p><div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="repe" data-m="usar">Usar igualmente</button></div></div>`
+      ? `${x}<h3>${esc(rep[0].u.txt)}</h3><p>${esc(rep[0].it.name)}</p><div class="form"><div class="row"><button type="button" class="btn" data-act="repe" data-m="usar">Usar igualmente</button></div></div>`   // no «Cancelar»: the × (D-155)
       : `${x}<h3>${rep.length === 1 ? '1 foto ya usada' : `${rep.length} fotos ya usadas`} de ${items.length}</h3><ul class="repl">${rep.map(r => `<li><b>${esc(r.it.name)}</b><span>${esc(r.u.txt)}</span></li>`).join('')}</ul><div class="form"><div class="row"><button type="button" class="btn2" data-act="repe" data-m="saltar">Saltar repetidas</button><button type="button" class="btn" data-act="repe" data-m="usar">Usar todas</button></div></div>`);
+    if (items.length === 1) focoX();   // the safe one, now that «Cancelar» is gone: Enter closes (it was on the page)
     return new Promise(res => { repeAsk = v => res(van(v === 'usar' ? items : v === 'saltar' ? items.filter(it => !rep.some(r => r.it === it)) : null)); });
   }
   // tray photos onto a post: the warning first, then as always (Sustituir / Añadir when it has photos)
@@ -1862,6 +1863,8 @@
     }
     H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
   }
+  // a double click that puts back what its first click changed leaves no empty step of ⌘Z (D-159 and D-165)
+  function histSinVacio() { if (S && H.b === S && H.undo.length && JSON.stringify(H.undo[H.undo.length - 1]) === H.curJ) { H.undo.pop(); H.tag = null; } }
   // the designer (B6): an editing session becomes one step of the mesa's ⌘Z — from the state before it opened to the one
   // it leaves (none if it leaves everything as it was)
   function histMarca() { if (!S || H.b !== S || !H.cur) return null; track(S); return { b: S, n: H.undo.length, drop: H.drop || 0, st: H.cur, j: H.curJ, redo: H.redo.slice() }; }
@@ -2032,8 +2035,10 @@
     if (!prevLocked()) { fn(); if (kind === 'edit') endOnce(); return; }
     pendingUnlock = { fn, kind };
     const pm = S ? rangeLabel(prevMonth(S.month), 1, false, curCd()).toLowerCase() : 'el mes anterior';
-    showDialog('unlock', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(cap(pm))} está bloqueado</h3><p>Son publicaciones ya publicadas. Desbloquéalo para cambiar fotos, moverlas u ocultar las que se hayan borrado del perfil.</p><div class="form"><div class="row" style="flex-wrap:wrap"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn2" data-act="unlock-once">Solo esta vez</button><button type="button" class="btn" data-act="unlock-always">Hasta nuevo orden</button></div></div>`);
+    showDialog('unlock', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${esc(cap(pm))} está bloqueado</h3><p>Son publicaciones ya publicadas. Desbloquéalo para cambiar fotos, moverlas u ocultar las que se hayan borrado del perfil.</p><div class="form"><div class="row" style="flex-wrap:wrap"><button type="button" class="btn2" data-act="unlock-once">Solo esta vez</button><button type="button" class="btn" data-act="unlock-always">Hasta nuevo orden</button></div></div>`);
+    focoX();                             // no «Cancelar» (D-155): the × is the safe one
   }
+  function focoX() { const x = root && root.querySelector('.detail:not([hidden]) .card > .x'); if (x) x.focus(); }
   function endOnce() { if (prevOnce && !(root && root.querySelector('.detail').dataset.prev)) { prevOnce = false; renderFeed(); } }
   function prevSetFromTray(id, fid) {
     const it = prevItem(id); if (!it || !M.files[fid]) return;
@@ -2380,6 +2385,7 @@
 #mesa .cpprog .btn2{flex:none;font-size:12px;min-height:26px;padding:0 10px}
 #mesa .cpbar{height:4px;margin-top:7px;border-radius:2px;background:var(--line);overflow:hidden}#mesa .cpbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 #mesa .drop{border:1.5px dashed var(--line-strong);border-radius:var(--r-md);padding:14px;text-align:center;color:var(--mute);font-size:12.5px;margin-bottom:12px;background:transparent}
+#mesa .tray:not(.isempty) .drop{display:none}
 #mesa .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--tw,92px),1fr));gap:6px}
 #mesa .titem{position:relative;aspect-ratio:3/4;border-radius:var(--r-sm);overflow:hidden;background:var(--cell-ph);cursor:default;user-select:none;-webkit-user-select:none}
 #mesa .titem img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
@@ -2446,7 +2452,7 @@
 #mesa .pwhen .dtin:focus,#mesa .pwhen .tmin:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .tysel:disabled,#mesa .essel:disabled,#mesa .ubsel:disabled,#mesa .persel:disabled{opacity:.5;cursor:default}
 #mesa .pwhen .wd{color:var(--ink-2);font-weight:600}
-#mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .pnot>.pnotx{-webkit-user-select:none;user-select:none}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
 #mesa .pbody{display:grid;grid-template-columns:minmax(0,1fr) clamp(190px,32%,300px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"izq cab" "izq col";min-height:0;flex:1;overflow:auto}
 #mesa .pleft{grid-area:izq;padding:18px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;background:var(--bg);min-width:0}
@@ -2496,7 +2502,7 @@
 #mesa .ptools{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:12.5px}#mesa .phint:empty{display:none}
 #mesa .seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-pill);background:var(--bg-2)}
 #mesa .seg button{border:0;background:none;border-radius:var(--r-pill);padding:0 12px;min-height:28px;font-size:12.5px;color:var(--mute)}#mesa .seg button:hover{color:var(--ink)}#mesa .seg button.on{background:var(--panel-2);color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
-#mesa .zoom{display:flex;align-items:center;gap:6px;color:var(--mute)}#mesa .zoom input{width:100px;accent-color:var(--ink)}
+#mesa .zoom{display:flex;align-items:center;gap:6px;color:var(--mute);-webkit-user-select:none;user-select:none}#mesa .detail label.dcl{-webkit-user-select:none;user-select:none}#mesa .zoom input{width:100px;accent-color:var(--ink)}
 #mesa .lnk{border:0;background:none;color:var(--acc-ink) !important;font-size:12.5px;font-weight:600;padding:8px 4px}
 #mesa .lnk:hover{text-decoration:underline;text-underline-offset:3px}
 #mesa .strip{width:100%;display:flex;gap:6px;overflow-x:auto;padding:2px}
@@ -2558,6 +2564,7 @@
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
+#mesa.client .tab.add,#mesa.client .appbar .xfer,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}#mesa.client .tab.on.hasedit{padding-right:12px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
 @media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"cab" "izq" "col";min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible;min-height:auto}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
@@ -2566,7 +2573,7 @@
 #mesa .appbar{height:44px;padding:0 8px 0 12px;gap:2px}
 #mesa .brand{padding-right:8px}
 #mesa .brand span{display:none}
-#mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.add{padding:0 9px;font-size:12.5px;height:30px}
+#mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.add{padding:0 9px;font-size:12.5px;height:30px}#mesa.client .tab.on.hasedit{padding-right:10px}
 #mesa .save{font-size:11.5px}
 #mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
@@ -2619,7 +2626,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}<span>Mesa de trabajo</span></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}</div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo">+ Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -2653,10 +2660,11 @@
   }
   function flushRender() { if (pendingRender) render(); }
 
-  // narrow pane: the bar hides the client's name (the active tab already shows it), so «⋯ Editar cliente» moves into that tab
+  // the bar has no client's name at any width (the active tab already shows it), so «⋯ Editar cliente» goes into that tab
+  // (D-157: as at 720 px since the redesign)
   const NARROW = window.matchMedia ? window.matchMedia('(max-width:720px)') : { matches: false };
   function renderTabs() {
-    const nav = root.querySelector('.tabs'), ed = NARROW.matches;
+    const nav = root.querySelector('.tabs'), ed = true;
     nav.innerHTML = CL.map(c => c.id === curClient
       ? `<button class="tab on${ed ? ' hasedit' : ''}" data-act="client" data-id="${esc(c.id)}" aria-current="page">${esc(c.name)}</button>` + (ed ? '<button class="ibtn tedit" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button>' : '')
       : `<button class="tab" data-act="client" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join('');
@@ -2677,17 +2685,19 @@
     const months = MB.map(b => {
       const live = S && b.key === S.key ? counts() : null;
       const f = live ? live.filled : b.filled, n = live ? live.n : b.n;
-      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}">${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
+      const tt = `${f} de ${n} con foto`;   // the chip says what «8/11 con foto» said (D-157); not in «Vista cliente», like its number
+      return `<button class="mchip${S && b.key === S.key ? ' on' : ''}" data-act="month" data-key="${esc(b.key)}" data-tt="${tt}"${root.classList.contains('client') ? '' : ` title="${tt}"`}>${esc(rangeLabel(b.month, b.span, true, b.cycleDay))}<i>${f}/${n}</i></button>`;
     }).join('');
     let stats = '';
     if (S) {
       const k = counts();
       const pl = (n, a, b) => n === 1 ? a : b;
-      stats = `<div class="stats"><span title="Publicaciones con foto"><b>${k.filled}</b>/${k.n} <span class="lg">con </span>foto</span><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span>${k.cambios ? `<button type="button" class="c" data-act="cambios" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto, caption, fecha u hora): pide a Claude que las vuelva a subir. Pulsa para ver cuáles"><b class="c">${k.cambios}</b> ${pl(k.cambios, 'cambiada', 'cambiadas')}</button>` : ''}`   // one mark for any change, the list's number (D-144)
+      stats = `<div class="stats"><span title="Publicaciones con contexto para el caption (se sube a Notion)"><b>${k.notes}</b> <span class="lg">con </span>contexto</span>${k.cambios ? `<button type="button" class="c" data-act="cambios" title="Cambiadas después de subirlas a Notion (foto, encuadre, contexto, caption, fecha u hora): pide a Claude que las vuelva a subir. Pulsa para ver cuáles"><b class="c">${k.cambios}</b> ${pl(k.cambios, 'cambiada', 'cambiadas')}</button>` : ''}`   // one mark for any change, the list's number (D-144)
         + '</div>';
     }
-    bar.innerHTML = `<div class="ident"><div class="av" aria-hidden="true">${esc(initials(c.name))}</div><div class="who"><b>${esc(c.name)}</b><span>${esc(c.handle || 'sin @usuario')}</span></div><button class="ibtn" data-act="editclient" title="Editar cliente" aria-label="Editar cliente">⋯</button></div>`
-      + `<div class="mgrp"><div class="months">${months}</div><button class="mchip ghost" data-act="howmonth" title="Cómo cargar otro mes">+ Mes</button>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)">+ Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
+    // no avatar, name nor @ (D-157: the active tab names the client, «⋯» goes next to it) and no «+ Mes» (D-157:
+    // a client without months says how to ask Claude for one)
+    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)">+ Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
       + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S && M.descargar && M.descargar.barra ? M.descargar.barra() : '')   // «Descargar (n)» with posts chosen with ⌘+click (descargar.js, D-083)
       + (S ? memoBtnHTML() : '')
@@ -2931,8 +2941,8 @@
     const fuera = vencDe === S.key ? vencFuera.map(x => ({ x, s: conFuera(x.key, x.s) })).filter(({ s }) => vencida(s, t)).map(({ x, s }) => fila(x.key, s, false, { mes: cycleOf(s.date, x.cd) || x.month, month: x.month, span: x.span, cd: x.cd })) : [];
     return [...mias, ...fuera].sort((a, b) => ts(a.date) - ts(b.date));
   }
-  // on opening a board (abrir) and every minute: B, then the vencidas; once per board until a reload, «N vencidas · Ver»
-  const avisadas = new Set();
+  // on opening a board (abrir) and every minute: B, then the vencidas. No «N vencidas · Ver» notice on opening: «N vencidas» of
+  // the calendar's header opens the same window and is always in sight (D-160)
   let vencSig = '';
   let vencQ = Promise.resolve();
   const vencRevisar = abrir => (vencQ = vencQ.then(() => vencRevisarYa(abrir), () => vencRevisarYa(abrir)));   // one at a time
@@ -2943,11 +2953,6 @@
     if (B !== S) return;
     const sig = S.key + '|' + S.slots.filter(s => vencida(s)).map(s => s.id).join(',');
     if (sig !== vencSig) { vencSig = sig; renderFeed(); }   // a post that became vencida meanwhile: its mark
-    const n = vencidas().length;
-    if (abrir && n && !avisadas.has(S.key) && !locked && !root.classList.contains('client')) {
-      avisadas.add(S.key);
-      toast(`${n} vencida${n === 1 ? '' : 's'}`, { key: 'vencidas', ms: 12000, ...(M.calendario && M.calendario.vencidas ? { action: 'Ver', onAction: () => M.calendario.vencidas() } : {}) });
-    }
   }
   let vencTimer = null;
   function vencArrancar() {            // every minute, and when the tab comes back into view
@@ -3006,8 +3011,8 @@
       const val = !auto || (k === e && retenida(s)) ? k : k === a && !(PASO_DE[e] > ORD_AUTO[a]) ? '' : k;
       return `<option value="${val}"${k === e ? ' selected' : ''}${dis ? ' disabled' : ''}>${esc(l)}</option>`;
     }).join('');
-    const btn = e === 'aprobar' ? `<button type="button" class="btn2 esbtn" data-act="aprobar" data-slot="${id}" title="Has revisado el preview completo: fotos, reels y caption">Aprobar</button>`
-      : e === 'cancelado' ? `<button type="button" class="btn2 esbtn" data-act="reactivar" data-slot="${id}" title="Vuelve al feed con el estado que le toque">Reactivar</button>` : '';
+    // no «Aprobar» (D-161): «Aprobado» in the list beside it does the same, in the same step of ⌘Z
+    const btn = e === 'cancelado' ? `<button type="button" class="btn2 esbtn" data-act="reactivar" data-slot="${id}" title="Vuelve al feed con el estado que le toque">Reactivar</button>` : '';
     const mot = e === 'cancelado' ? `<input type="text" class="esmot" data-slot="${id}" maxlength="200" value="${esc((s.estado && s.estado.motivo) || '')}" placeholder="Motivo (opcional)" aria-label="Motivo de la cancelación" autocomplete="off">` : '';
     return `<span class="pest">${estIco(e, ' aria-hidden="true"')}<select class="essel" data-slot="${id}" aria-label="Estado" title="Por empezar, Captions y Por aprobar van solos; elegidos aquí, la retrasan y la barra del mes no la mueve">${opts}</select>${btn}${mot}`
       + (retenida(s) ? `<span class="esold" title="La pusiste a mano en ${esc((ESTADOS.find(x => x[0] === v0) || [])[1] || '')}: la barra del mes no la mueve hasta que cambies su estado aquí">retrasada a mano</span>` : '')
@@ -3222,7 +3227,8 @@
     const camino = ['Bandeja', ...r.map(c => c.name)].join(' / ');   // the whole path, in the title of the tab in use (D-151)
     const tabs = `<div class="cptabs" role="tablist" aria-label="Pestañas de la bandeja">${pestanas.map(p => `<span class="cptab${p.id === pestAct ? ' on' : ''}${p.id === 'fija' ? ' fija' : ''}" data-pest="${esc(p.id)}"><button type="button" role="tab" aria-selected="${p.id === pestAct}" data-act="cp-pest" data-id="${esc(p.id)}" title="${esc(p.id === pestAct ? camino : pestNombre(p))}">${esc(pestNombre(p))}</button>${p.id === 'fija' ? '' : `<button type="button" class="cpx" data-act="cp-cerrar" data-id="${esc(p.id)}" title="Cerrar esta pestaña (no borra nada)" aria-label="Cerrar la pestaña ${esc(pestNombre(p))}">×</button>`}</span>`).join('')}</div>`;
     const ruta = !r.length ? '' : `<button type="button" class="cpvolver" data-act="cp-entrar" data-id="${esc(r[r.length - 1].parent || '')}" title="Volver" aria-label="Volver">←</button>`;   // no path in text: the tab in use says where (D-151)
-    const html = `<div class="cpfila">${tabs}<span class="cpacc"><button type="button" class="btn2" data-act="cp-nueva">+ Carpeta</button><button type="button" class="btn2" data-act="cp-subir">Subir carpeta</button></span></div>${ruta ? `<div class="cpfila">${ruta}</div>` : ''}`;
+    // «+ Carpeta» and «Subir carpeta» are in the tray's right-click menu (D-158); a folder dragged from the Finder still goes up
+    const html = `<div class="cpfila">${tabs}</div>${ruta ? `<div class="cpfila">${ruta}</div>` : ''}`;
     if (nav._html !== html) { nav.innerHTML = html; nav._html = html; pestVisible(nav.querySelector('.cptabs')); }
   }
   function pestVisible(fila) {         // the tab in use, in sight in its row once drawn: it says where the tray is (D-151)
@@ -3714,16 +3720,17 @@
       const seg = `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       const dfmt = car && s.design ? s.design.fmt : null;   // a designed carousel: the design's format
       const segD = dfmt ? `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${dfmt === k ? 'on' : ''}" aria-pressed="${dfmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>` : '';
-      const fmtCtl = reel ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : dfmt ? `<span class="muted">${esc(s.type)}</span>${segD}` : car ? `<span class="muted">${esc(s.type)}</span>${seg}` : seg;
+      // no type before the format (D-156: the head's type says it) nor the reel's line under its photo (D-156)
+      const fmtCtl = reel ? '' : dfmt ? segD : seg;
       const dsrc = live && M.diseno && M.diseno._srcVista ? M.diseno._srcVista(s, idx) : null, zv = (dsrc ? baseCrop(dsrc, S) : c).z || 1;
       const lo = fd && !s.design && isLib(fid);   // an image drawn by the free editor: its format is changed here (drawn again there)
-      const tools = lo ? `${fmtCtl}<span class="muted">Editada: se sube tal cual · cámbiala en «Editar»</span>`
+      const tools = lo ? fmtCtl   // «N páginas editadas · se suben tal cual», under the location, says it (D-156)
         : fd && !live ? `<span class="muted">${designed(s) ? `Diseño con cambios sin aplicar: se aplica al pulsar «Editar»` : 'Imagen diseñada: se sube tal cual'}</span>`
-        : `${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${zv}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint"></span>`;
-      const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${s.photos.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
+        : `${fmtCtl}${ZOOM_CTL(zv)}<span class="muted phint"></span>`;
+      // no dots over the photo (D-156): the strip right below marks the same one
+      const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
       const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
-        + (car && n > 1 && !(fd && s.design) ? `<button data-act="left" data-slot="${esc(id)}" data-k="${idx}" ${idx === 0 ? 'disabled' : ''}>◀ Mover</button><button data-act="right" data-slot="${esc(id)}" data-k="${idx}" ${idx === n - 1 ? 'disabled' : ''}>Mover ▶</button>` : '')
         + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
         + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «Editar»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
@@ -3776,7 +3783,7 @@
     const body = !c ? `<p class="capempty">Sin captions todavía. Pídeselos a Claude: «genera los captions de ${esc(cn)}».</p>`
       : c.orig.map((_, k) => {
         const lab = `Caption ${k + 1} · ${c.tones[k] || ''}`, on = c.pick === k, ed = c.text[k] !== c.orig[k];
-        return `<div class="capbox${on ? ' on' : ''}${ed ? ' edited' : ''}" data-k="${k}"><div class="caprow"><label class="caplab" title="${on ? 'Elegido: otro clic lo desmarca' : 'Elegir este caption'}"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span></label><span class="ctags"><i class="capedit">Editado</i><em>Elegida</em></span></div>`
+        return `<div class="capbox${on ? ' on' : ''}${ed ? ' edited' : ''}" data-k="${k}"><div class="caprow"><label class="caplab" title="${on ? 'Elegido: otro clic lo desmarca' : 'Elegir este caption'}"><input type="radio" class="cappick" name="cap-${id}" data-slot="${id}" data-k="${k}"${on ? ' checked' : ''}><span>${esc(lab)}</span></label></div>`   // no «Editado» nor «Elegida» (D-156): «Volver al original», the radio and the border say it
           + `<textarea class="capt" data-slot="${id}" data-k="${k}" aria-label="${esc(lab)}">${esc(c.text[k])}</textarea>`
           + `<button type="button" class="lnk caprev" data-act="caporig" data-slot="${id}" data-k="${k}" title="Deja este caption tal como lo escribió Claude">Volver al original</button></div>`;
       }).join('');
@@ -3786,7 +3793,7 @@
     const c = capOf(s), st = capState(s), od = capOutdated(s), chg = capStatus(s) === 'chg';
     const txt = st === 'sin captions' ? 'Sin captions' : st === 'por elegir' ? (s.caption && s.caption.sent ? 'Por elegir · Notion sigue con el que subiste' : 'Por elegir') : st === 'subido' ? '✓ Subido a Notion' : `Elegido: Caption ${c.pick + 1}` + (chg ? ' · cambiado después de subirlo' : '');
     const why = od.length === 2 ? 'cambiaron la foto y el contexto' : od[0] === 'foto' ? 'cambió la foto' : 'cambió el contexto';
-    return `<span class="capst ${st === 'subido' ? 'ok' : st === 'elegido' ? 'on' : ''}${chg && st !== 'por elegir' ? ' chg' : ''}">${esc(txt)}</span>`
+    return (st === 'sin captions' ? '' : `<span class="capst ${st === 'subido' ? 'ok' : st === 'elegido' ? 'on' : ''}${chg && st !== 'por elegir' ? ' chg' : ''}">${esc(txt)}</span>`)   // without captions the body says it (D-156)
       + (od.length ? `<span class="capold" title="No se borran ni se rehacen solos: si quieres otros, pídeselo a Claude">Desactualizados: ${why} después de generarlos</span>` : '');
   }
   // after an edit, a new choice or a contexto change in the open post view: the boxes stay (no re-render), only what they show changes
@@ -3816,7 +3823,15 @@
     const dc = dateChg(s), nc = nameChg(s), tc = typeChg(s);
     if (!dc && !nc && !tc) return '<p class="pnot" hidden></p>';
     const txt = dc || tc ? 'En Notion: ' + [tc ? s.notionType : '', nc ? s.notionName : '', dc ? fmtDate(s.notionDate) : ''].filter(Boolean).join(' · ') : 'Se renombra al subir · en Notion: ' + s.notionName;
-    return `<p class="pnot"><span title="${esc(txt)}"><i class="dchg${dc ? '' : ' nm'}"></i>${esc(txt)}</span>${dc ? `<button class="lnk" data-act="datereset" data-slot="${esc(s.id)}">Volver a la fecha de Notion</button>` : ''}${tc ? `<button class="lnk" data-act="typereset" data-slot="${esc(s.id)}">Volver a ${esc(s.notionType)}</button>` : ''}</p>`;
+    // no «Volver a la fecha de Notion» / «Volver a {tipo}»: a double click on the line puts back both, one step of ⌘Z (D-159)
+    return `<p class="pnot"><span${dc || tc ? ` class="pnotx" data-slot="${esc(s.id)}"` : ''} title="${esc(txt)}${dc || tc ? ' · doble clic: volver a lo de Notion' : ''}"><i class="dchg${dc ? '' : ' nm'}"></i>${esc(txt)}</span></p>`;
+  }
+  function volverANotion(id) {               // the date and the type as in Notion, the ones the line shows (D-103: also a published one's date)
+    const s = slot(id); if (!s || isPrev(s) || (!dateChg(s) && !typeChg(s))) return;
+    const m = histMarca();
+    if (dateChg(s)) setDate(s.id, s.notionDate, true);
+    if (typeChg(s) && s.notionType) setType(s.id, s.notionType);
+    histJuntar(m);
   }
   // the post's type (3.26): Foto, Carrusel or its kind of reel (a collab's: Collab Reel); the change waits for «sube»
   function typeOpts(s) {
@@ -3876,9 +3891,9 @@
     let left;
     if (im && im.f && M.files[im.f]) {
       const c = cropOf(im.f, it, B);
-      const fmtCtl = isReel(it.type) ? '<span class="muted">Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil</span>' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
+      const fmtCtl = isReel(it.type) ? '' : `<div class="seg" role="group" aria-label="Formato">${['v45', 'v34', 'q11', 'h'].map(k => `<button data-act="fmt" data-fmt="${k}" class="${c.fmt === k ? 'on' : ''}" aria-pressed="${c.fmt === k}">${FMT_LABEL[k]}</button>`).join('')}</div>`;
       left = `<div class="stagewrap"><div class="stage" data-slot="${esc(id)}" data-file="${esc(im.f)}"><img class="big" alt="" src="${M.files[im.f].thumbUrl}"><div class="gguide" hidden><span>Así se ve en el perfil</span></div>${THIRDS}</div></div>
-        <div class="ptools">${fmtCtl}<label class="zoom">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button class="lnk" data-act="center">Centrar</button><span class="muted phint"></span></div>
+        <div class="ptools">${fmtCtl}${ZOOM_CTL(c.z || 1)}<span class="muted phint"></span></div>
         <div class="pacts"><span class="fname">${esc(M.files[im.f].name)}</span></div>`;
     } else if (im && im.t && M.pastThumbs[im.t]) left = `<img class="pthumb" src="${M.pastThumbs[im.t]}" alt=""><p class="muted" style="margin:0">Foto tal como está en Notion.</p>`;
     else left = '<div class="pempty">Sin foto.<br>Arrastra una foto de la bandeja sobre su casilla.</div>';
@@ -3897,6 +3912,36 @@
     if (fresh) focusClose(d);
     if (im && im.f && M.files[im.f]) { layoutStage(); loadBig(im.f); }
     markReframe();
+  }
+  // the zoom of a post's frame: a double click on its bar or on «Zoom» does what «Centrar» did, which is gone (D-159)
+  const ZOOM_CTL = z => `<label class="zoom" title="Zoom · doble clic: sin zoom y centrada">Zoom <input type="range" class="zoomr" min="1" max="3" step="0.01" value="${z}"></label>`;
+  let zoomDownT = 0, zoomDownX = 0, zoomDownY = 0;   // when and where a click started on the zoom: its double click may end beside it
+  const cercaDelZoom = e => Date.now() - zoomDownT < 700 && Math.abs(e.clientX - zoomDownX) < 24 && Math.abs(e.clientY - zoomDownY) < 24
+    && !!(e.target.closest && e.target.closest('.detail .card.post') && !e.target.closest('button:not(.zoomr), .seg, select, a, textarea, input:not(.zoomr)'));
+  function centrarFoto() {             // the default frame: zoom 1 and centred (on a designed slide, its design's), one step of ⌘Z with the click before
+    flashThirds(); const s = slot(cur.slot); touchPrev(s);
+    const st = root.querySelector('.detail .stage');
+    if (st && st.dataset.live) {
+      // a designed slide: its design's frame. Saved and applied again always (the click before may have applied the zoomed one);
+      // if in the end nothing changed, no step is left and the slide is applied as it was
+      if (!(M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar())) { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; return; }
+      if (!M.diseno.vistaSoltar()) { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
+      const src = M.diseno._srcVista ? M.diseno._srcVista(s, cur.idx) : null, z = root.querySelector('.detail .zoomr');
+      if (z) z.value = src ? (baseCrop(src, S).z || 1) : 1;
+      save(); histSinVacio(); renderFeed(); renderBar(); rerender(s);
+      return;
+    }
+    if (s && s.photos[cur.idx]) {
+      const fid = s.photos[cur.idx];
+      // the state before this gesture (with the click just before, if it is still being joined): a photo that had no saved frame
+      // is left without one, which is the same frame, so a double click that changes nothing leaves no step
+      const junto = H.b === S && H.tag === 'crop:' + fid && Date.now() - H.t < HMERGE && H.undo.length, antes = junto ? H.undo[H.undo.length - 1] : H.cur;
+      const tenia = !!(antes && antes.crops && antes.crops[fid]);
+      setCrop(fid, s, { cx: 0.5, cy: 0.5, z: 1 });
+      const d = dims(fid), c = S.crops[fid], cerca = (a, b) => Math.abs(a - b) < 1e-9;
+      if (!tenia && c && c.fmt === (d.w > d.h ? 'h' : 'v45') && cerca(c.cx, 0.5) && cerca(c.cy, 0.5) && cerca(c.z, 1)) delete S.crops[fid];
+      save(); histSinVacio(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx);
+    }
   }
   // rule-of-thirds lines over the post frame: shown only while reframing — panning, and for a moment after a zoom, format or
   // «Centrar» change (those re-render the stage, so the moment is kept in reframeUntil)
@@ -4098,11 +4143,13 @@
     const first = d.querySelector('input[type=text]'); if (first) first.focus();
   }
   function dlgNewClient() {
-    showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nuevo cliente</h3><p>Se crea su pestaña vacía. Después pídele a Claude que cargue el mes desde Notion.</p>
+    // no help text nor «Cancelar» (D-156 and D-155: the ×, Esc or a click outside close it); a double click on «Inicio de ciclo»
+    // puts back day 1 (D-159)
+    showDialog('newclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nuevo cliente</h3>
       <form class="form" data-form="newclient" autocomplete="off"><label for="nc-name">Nombre</label><input id="nc-name" name="name" type="text" maxlength="60" placeholder="Ej.: daGiorgio" required>
       <label for="nc-handle">Usuario de Instagram <span>(opcional)</span></label><input id="nc-handle" name="handle" type="text" maxlength="120" placeholder="@usuario">
-      <label for="nc-cycle">Inicio de ciclo <span>(día del mes, 1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required>
-      <p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Crear cliente</button></div></form>`);
+      <label for="nc-cycle" class="dcl" data-v="1" title="Inicio de ciclo · doble clic: día 1">Inicio de ciclo <span>(1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required>
+      <p class="ferr" hidden></p><div class="row"><button type="submit" class="btn">Crear cliente</button></div></form>`);
   }
   function dlgEditClient() {
     const c = CL.find(x => x.id === curClient); if (!c) return;
@@ -4110,10 +4157,10 @@
     showDialog('editclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Editar cliente</h3>
       <form class="form" data-form="editclient" autocomplete="off"><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
       <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
-      <label for="ec-cycle">Inicio de ciclo <span>(día del mes, 1-28; los meses ya cargados conservan el suyo)</span></label><input id="ec-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="${cdOf(c.cycleDay)}" required>
-      <label>Foto de perfil <span>(la de su Instagram, para la vista cliente)</span></label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
+      <label for="ec-cycle" class="dcl" data-v="${cdOf(c.cycleDay)}" title="Inicio de ciclo · doble clic: el guardado">Inicio de ciclo <span>(1-28; los meses ya cargados conservan el suyo)</span></label><input id="ec-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="${cdOf(c.cycleDay)}" required>
+      <label>Foto de perfil</label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
       <p class="ferr" hidden></p>
-      <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="button" class="btn2" data-act="close">Cancelar</button><button type="submit" class="btn">Guardar</button></div></form>`);
+      <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="submit" class="btn">Guardar</button></div></form>`);
   }
   function dlgHowMonth() {
     const c = CL.find(x => x.id === curClient), cn = esc(c ? c.name : 'este cliente');
@@ -4194,7 +4241,12 @@
     if (!shellReady()) return;
     const b = root.querySelector('.busy'); b.textContent = text; b.hidden = !text;
   }
-  function setSave(msg, err) { if (!shellReady()) return; const s = root.querySelector('.save'); s.textContent = msg; s.classList.toggle('err', !!err); }
+  // «Guardado» goes after 2 s; «Guardando…», «Cargando…» and «No se pudo guardar» stay while they last (D-157)
+  let saveT = 0;
+  function setSave(msg, err) {
+    if (!shellReady()) return; const s = root.querySelector('.save'); s.textContent = msg; s.classList.toggle('err', !!err);
+    clearTimeout(saveT); if (msg === 'Guardado' && !err) saveT = setTimeout(() => { const x = shellReady() && root.querySelector('.save'); if (x && x.textContent === 'Guardado') x.textContent = ''; }, 2000);
+  }
   function busyGuard() {
     if (uploadsBusy()) { toast('Espera a que termine la subida de fotos.'); return true; }
     if (importing) { toast('Espera a que terminen de prepararse las fotos.'); return true; }
@@ -4520,8 +4572,17 @@
     // the post-it under the mouse and since when (it opens after 0.5 s)
     root.addEventListener('pointerover', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'), id = p ? p.dataset.memo : null; if (id !== hov.id) hov = { id, t: Date.now() }; });
     root.addEventListener('pointerout', e => { const p = e.target.closest && e.target.closest('.pit[data-memo]'); if (p && !(e.relatedTarget && p.contains(e.relatedTarget))) hov = { id: null, t: 0 }; });
+    root.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.detail .ptools .zoom')) { zoomDownT = Date.now(); zoomDownX = e.clientX; zoomDownY = e.clientY; } }, true);
+    root.addEventListener('mousedown', e => { if (e.detail > 1 && cercaDelZoom(e)) e.preventDefault(); }, true);   // its double click selects no text where its second click lands
     root.addEventListener('dblclick', e => {
       if (e.target.matches && e.target.matches('.trayhead .ttam input')) { tamCambiar(e.target, 50); e.target.blur(); return; }   // back to the middle (D-091)
+      // the zoom of a post's frame: no zoom and centred, as «Centrar» did (D-159). From zoom 1 the first click hides «Se ve
+      // entera…» and the row moves under the pointer: a second click that falls where the first one was counts too, whatever is there now
+      if (e.target.closest && (e.target.closest('.detail .ptools .zoom') || cercaDelZoom(e))) { e.preventDefault(); centrarFoto(); return; }
+      const pn = e.target.closest && e.target.closest('.detail .pnot > .pnotx[data-slot]');   // «En Notion: …»: back to Notion's date and type (D-159)
+      if (pn) { e.preventDefault(); volverANotion(pn.dataset.slot); return; }
+      const dl = e.target.closest && e.target.closest('.detail label.dcl[for]');   // «Inicio de ciclo»: day 1, or the saved one when editing (D-159)
+      if (dl) { e.preventDefault(); const i = root.querySelector('#' + dl.htmlFor); if (i && i.value !== dl.dataset.v) { i.value = dl.dataset.v; i.dispatchEvent(new Event('input', { bubbles: true })); } return; }
       if (e.target.matches && e.target.matches('.main .side > .csplit, .main .side > .tray:not(.fold) > .trayhead > b') && Date.now() - trayPlT > 500) { e.preventDefault(); repMitad(); return; }   // the column, half and half (D-148)
       const p = e.target.closest && e.target.closest('.feed .pit[data-memo]');
       if (!p || p.classList.contains('edit') || sel || !pitOpen(p.dataset.memo)) return;
@@ -4605,7 +4666,12 @@
       else if (e.target.matches('.trayhead .ttam input')) { if (!kbd) e.target.blur(); }   // let go with the mouse: the keys go back where they went
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
-      else if (e.target.matches('.clientToggle')) root.classList.toggle('client', e.target.checked);
+      else if (e.target.matches('.clientToggle')) {
+        root.classList.toggle('client', e.target.checked); root.querySelectorAll('.mchip[data-tt]').forEach(b => { if (e.target.checked) b.removeAttribute('title'); else b.title = b.dataset.tt; });
+        // the calendar drawn again at once: without the notice on opening (D-160), «N vencidas» of its header must be there as
+        // soon as the view is left, and never in it
+        if (M.calendario && M.calendario.render) M.calendario.render();
+      }
       else if (e.target.matches('.pinToggle')) { if (!setPin(e.target.dataset.slot, e.target.checked)) e.target.checked = !e.target.checked; }
       else if (e.target.matches('.ubsel')) { if (!setUbicacion(e.target.dataset.slot, e.target.value || null)) refreshDetail(); }
       else if (e.target.matches('.persel')) { const u = e.target.value, c = e.target.dataset.campo; e.target.value = ''; if (u) setPersona(e.target.dataset.slot, c, u, true); perTras(c); }   // D-130
@@ -4740,16 +4806,7 @@
     else if (act === 'next') openDetail(cur.slot, cur.idx + 1);
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
     else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
-    else if (act === 'center') {
-      flashThirds(); const s = slot(cur.slot); touchPrev(s);
-      const st = root.querySelector('.detail .stage');
-      if (st && st.dataset.live) {
-        if (M.diseno && M.diseno.vistaCentrar && M.diseno.vistaCentrar() && M.diseno.vistaSoltar()) { const z = root.querySelector('.detail .zoomr'); if (z) z.value = 1; save(); renderFeed(); renderBar(); rerender(s); }
-        else { const cv = st.querySelector('canvas.dzv'); if (cv) cv.hidden = true; }
-        return;
-      }
-      if (s && s.photos[cur.idx]) { setCrop(s.photos[cur.idx], s, { cx: 0.5, cy: 0.5, z: 1 }); save(); renderFeed(); renderBar(); openDetail(cur.slot, cur.idx); }
-    }
+    else if (act === 'center') centrarFoto();
     else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
@@ -5961,7 +6018,7 @@
     const what = P.nothing ? 'Nada que importar: todo lo de este archivo ya está aquí, igual o más reciente.'
       : `Al importar: ${xferWhat(P)}${P.newFiles.length ? ` · ${nOf(P.newFiles.length, 'foto nueva', 'fotos nuevas')}` : ''}. No se borra nada de este Mac.`;
     return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Importar la mesa</h3><p>${info}</p><ul class="xsum">${rows || '<li>Sin meses</li>'}</ul><p class="xwhat">${esc(what)}</p>`
-      + `<div class="form"><div class="row">${P.nothing ? '<button type="button" class="btn" data-act="close">Cerrar</button>' : '<button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="xfer-go">Importar</button>'}</div></div>`;
+      + (P.nothing ? '' : '<div class="form"><div class="row"><button type="button" class="btn" data-act="xfer-go">Importar</button></div></div>');   // no «Cerrar» nor «Cancelar»: the × (D-155)
   }
   // resolves true on «Importar», false when the dialog goes away any other way (×, Cancelar, Esc, backdrop)
   function xferConfirm(html) {
@@ -5972,7 +6029,7 @@
       mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'xfer-confirm') done(false); });
       mo.observe(d, { attributes: true, attributeFilter: ['hidden', 'data-dlg'], childList: true });
       xferAsk = done;
-      const b = d.querySelector('[data-act="xfer-go"]') || d.querySelector('.row [data-act="close"]'); if (b) b.focus();
+      const b = d.querySelector('[data-act="xfer-go"]') || d.querySelector('.card > .x'); if (b) b.focus();   // nothing to import: the × (D-155)
     });
   }
   function xferErr(m) {
@@ -6095,13 +6152,12 @@
     const cn = id => (clients.find(c => c.id === id) || {}).name || id;
     showDialog('huecos', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${hs.length === 1 ? 'Hay un hueco de foto vacío' : `Hay huecos de foto vacíos en ${hs.length} publicaciones`}</h3>`
       + `<p>${esc(msg)}. La copia ${hs.length === 1 ? 'lo lleva tal cual: llénalo en el editor antes de subir o programar esa publicación' : 'los lleva tal cual: llénalos en el editor antes de subir o programar esas publicaciones'}.</p>`
-      + `<ul class="xsum">${hs.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(cn(h.client))}, ${esc(monthLabel(h.month))}</span></li>`).join('')}</ul>`
-      + '<div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>');
-    root.querySelector('.detail [data-act="close"].btn').focus();
+      + `<ul class="xsum">${hs.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(cn(h.client))}, ${esc(monthLabel(h.month))}</span></li>`).join('')}</ul>`);
+    focoX();                             // no «Entendido» (D-155): the ×
   }
   function dlgXfer() {
-    showDialog('xfer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar la mesa a otro Mac</h3><p>Se exportan todos los clientes y meses, con las fotos a 1080 px. En el otro Mac pulsa Importar: se combina con lo que haya allí; de cada mes gana la versión más reciente y nunca se cambia una foto a resolución completa por una de 1080.</p>`
-      + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2 left" data-act="close">Cancelar</button><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'
+    showDialog('xfer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar la mesa a otro Mac</h3><p>Se exportan todos los clientes y meses, con las fotos a 1080 px.</p>`   // D-156 and D-155
+      + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'
       + '<input type="file" class="xferin" accept=".json,application/json" hidden>');
     const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
     inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; inp.value = ''; if (f) M.importData(f); });
@@ -6289,8 +6345,8 @@
       + `<p>Tiene ${nOf(p.fotos, 'foto', 'fotos')}${p.subcarpetas ? ` y ${nOf(p.subcarpetas, 'subcarpeta', 'subcarpetas')}` : ''}.</p>`
       + `<p>${p.borran.length ? `Se ${p.borran.length === 1 ? 'borra una foto' : `borran ${p.borran.length} fotos`} y se liberan ${pesoTxt(p.bytes)}.` : 'No se borra ninguna foto.'}</p>`
       + (nq ? `<p>Se ${nq === 1 ? 'queda una' : `quedan ${nq}`}: ${esc(quedan)}.</p>` : '')
-      + `<p>Esto no se puede deshacer.</p><div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-act="carpeta-borrar" data-id="${esc(id)}">Borrar</button></div></div>`);
-    root.querySelector('.detail [data-act="close"].btn2').focus();
+      + `<p>Esto no se puede deshacer.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="carpeta-borrar" data-id="${esc(id)}">Borrar</button></div></div>`);
+    focoX();                             // no «Cancelar» (D-155): the focus on the ×, so Enter never deletes
     return p;
   };
   // Deleting a folder is not undone: the warning takes the place of ⌘Z. Its photos leave every step at once; a step that had
@@ -6380,7 +6436,7 @@
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
-    reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => avisadas, fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
+    reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim,
     perBorrar: async () => { for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)

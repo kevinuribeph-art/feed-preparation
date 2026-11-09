@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.18';
+  const VERSION = '1.19';   // 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -179,7 +179,7 @@
   // The post view shows the applied image; once the photo is dragged, zoomed or centred there, the slide is drawn live
   // (photo and texts, as «Aplicar» will draw it) on a canvas over it, and on letting go the mesa applies it again.
   const VI = { n: 0, cv: null, slotId: null, i: -1, src: null, sz: null, kit: null, fin: null, bmp: null, ready: false, raf: 0 };
-  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0, arrastre: false, dec: null }); }
+  function vistaLibre() { if (VI.raf) cancelAnimationFrame(VI.raf); if (VI.bmp) VI.bmp.close(); Object.assign(VI, { cv: null, slotId: null, i: -1, src: null, bmp: null, ready: false, raf: 0, arrastre: false, dec: null, gesto: false }); }
   // the photo slide i draws (synchronous: the client's final photo from the kit as known)
   function srcVista(s, i) {
     const sl = s && s.design && s.design.slides[i]; if (!sl) return null;
@@ -190,7 +190,13 @@
     if (VI.cv === cv && VI.slotId === slotId && VI.i === i && VI.ready) return true;
     if (VI.ready && VI.bmp && VI.slotId === slotId && VI.i === i) {   // the window drawn again: the same photo, a new canvas (E11)
       const S = I().S, s = S && S.slots.find(x => x.id === slotId), sl = s && s.design && s.design.slides[i];
-      if (sl && effSrc(sl, VI.fin) === VI.src) { VI.cv = cv; return true; }
+      if (sl && effSrc(sl, VI.fin) === VI.src) {
+        VI.cv = cv;
+        // drawn again after an apply: what is applied now is what a later reframe compares with (with the old one, centring after a
+        // zoom put back a frame that was no longer there, F7 of the clean-up analysis); never in the middle of a gesture
+        if (!VI.gesto) { VI.base = marcoVista(); const c0 = (S.crops || {})[VI.src]; VI.crop0 = c0 ? { ...c0 } : null; }
+        return true;
+      }
     }
     const n = ++VI.n; vistaLibre(); VI.n = n; Object.assign(VI, { cv, slotId, i });
     try {
@@ -234,14 +240,15 @@
     VI.arrastre = true; VI.dec = null;
     return { cx: (r0.x + r0.w / 2) / f.w, cy: (r0.y + r0.h / 2) / f.h, fw: r0.w / f.w, fh: r0.h / f.h };
   }
-  function vistaMover(g, fx, fy) { if (!VI.ready) return; recorte(VI.src, { cx: g.cx - fx * g.fw, cy: g.cy - fy * g.fh }, VI.sz); pedirVista(); }
-  function vistaZoom(z) { if (!VI.ready) return false; recorte(VI.src, { z }, VI.sz); pedirVista(); return true; }
+  function vistaMover(g, fx, fy) { if (!VI.ready) return; VI.gesto = true; recorte(VI.src, { cx: g.cx - fx * g.fw, cy: g.cy - fy * g.fh }, VI.sz); pedirVista(); }
+  function vistaZoom(z) { if (!VI.ready) return false; VI.gesto = true; recorte(VI.src, { z }, VI.sz); pedirVista(); return true; }
   function vistaCentrar() { if (!VI.ready) return false; recorte(VI.src, { cx: 0.5, cy: 0.5, z: 1 }, VI.sz); pedirVista(); return true; }
   // on letting go: true when the photo's frame really changed (then the mesa applies it again); otherwise its stored reframe
   // goes back exactly as it was, so a click, a drag with no room to move or «Centrar» on a centred photo leave the post as is
   function marcoVista() { const r = rectOf(VI.src, VI.sz.W, VI.sz.H); return [r.x, r.y, r.w, r.h].map(v => Math.round(v * 10) / 10).join(','); }
   function vistaSoltar() {
     if (VI.arrastre) { VI.arrastre = false; VI.dec = null; pedirVista(); }   // let go: decided again, as always (E4)
+    VI.gesto = false;
     if (!VI.ready) return false;
     if (marcoVista() !== VI.base) return true;
     const S = I().S; S.crops = S.crops || {};
@@ -741,6 +748,7 @@
 #mesa .dz-size{display:inline-flex;align-items:center;gap:8px}
 #mesa .dz-size .btn2{min-width:42px;font-weight:600}#mesa .dz-size .btn2:disabled{opacity:.35;cursor:default}
 #mesa .dz-size output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums;font-size:12.5px}
+#mesa .dz-dbl>span,#mesa output.dz-dbl,#mesa .dz-dbl>output{-webkit-user-select:none;user-select:none}
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 #mesa .dz-sw{width:26px;height:26px;border-radius:50%;border:1px solid var(--swatch-ring);padding:0;transition:box-shadow var(--d1) ease-out}
 #mesa .dz-sw:hover{box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line-strong)}
@@ -834,12 +842,12 @@
     const el = document.createElement('div');
     el.className = 'dz'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Diseñar ' + s.name);
-    el.innerHTML = `<header class="dz-head"><div class="dz-ttl"><h3>${esc(s.name)}</h3><p class="dz-sub"></p></div>`
+    el.innerHTML = `<header class="dz-head"><div class="dz-ttl"><h3>${esc(s.name)}</h3></div>`
       + (reel ? '' : `<div class="seg dz-fmt" role="group" aria-label="Formato del carrusel">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-dz="fmt" data-v="${k}">${l}</button>`).join('')}</div>`
         + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(d.serie)}"></label>`)
       + '<span class="dz-state" aria-live="polite"></span><button type="button" class="btn2" data-dz="cerrar">Cerrar</button><button type="button" class="btn" data-dz="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="dz-body"><nav class="dz-list" aria-label="Diapositivas"></nav>'
-      + '<section class="dz-mid"><div class="dz-cvw"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div><div class="dz-foot"><ul class="dz-av"></ul><p class="dz-hint">Arrastra el texto para moverlo · arrastra la foto para reencuadrarla</p></div></section>'
+      + '<section class="dz-mid"><div class="dz-cvw"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div><div class="dz-foot"><ul class="dz-av"></ul></div></section>'
       + '<aside class="dz-panel"></aside></div><input type="file" class="dz-file" accept="image/jpeg,image/png,image/webp" hidden><input type="file" class="dz-addin" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     root.append(el);
     // the mesa behind can't be reached with Tab while the editor is open (toasts stay usable: «Deshacer»)
@@ -884,8 +892,7 @@
 
   function edHead() {
     if (!E) return; const s = curSlot(); if (!s) return;
-    const d = s.design, reel = isReelS(s), n = d.slides.length;
-    E.el.querySelector('.dz-sub').textContent = reel ? `${s.type} · portada 9:16 · ${E.sz.W}×${E.sz.H}` : `${s.type === 'Foto' ? 'Foto' : 'Carrusel'} · ${n} diapositiva${n === 1 ? '' : 's'} · ${E.sz.W}×${E.sz.H}`;
+    const d = s.design;
     E.el.querySelectorAll('.dz-fmt button').forEach(b => { const on = b.dataset.v === d.fmt; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
     const st = E.el.querySelector('.dz-state'), ap = isApplied(s);
     const chg = ap && d.sig !== sigOf(s, E.raw);
@@ -943,7 +950,7 @@
   }
   function zoomHTML(src) {
     const c = I().baseCrop(src, I().S);
-    return `<div class="dz-row"><label class="zoom">Zoom <input type="range" class="dz-zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label><button type="button" class="lnk" data-dz="centrar">Centrar</button></div>`;
+    return `<div class="dz-row"><label class="zoom dz-dbl" data-dbl="centrar" title="Zoom · doble clic: centrada, al 1×"><span>Zoom</span> <input type="range" class="dz-zoomr" min="1" max="3" step="0.01" value="${c.z || 1}"></label></div>`;
   }
   function fotoHTML(s, sl) {
     if (sl.tipo === 'final') {
@@ -981,12 +988,12 @@
       sec('texto', `<h4>Texto</h4><label class="dz-l" for="dz-f-titulo">Título <span>· Intro = salto de línea</span></label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2"></textarea>`
         + (sl.tipo === 'ficha' ? '<label class="dz-l" for="dz-f-texto">Texto</label><textarea id="dz-f-texto" class="dz-in" data-f="texto" rows="3"></textarea>' : '')
         + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont">Contacto <span>· vacío = el del kit</span></label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" placeholder="${esc((E.raw.final || {}).contacto || '')}"></textarea>` : '')),
-      sec('tam', `<h4>Tamaño del texto</h4><div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output>${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
+      sec('tam', `<h4>Tamaño del texto</h4><div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output class="dz-dbl" data-dbl="esc1" title="Tamaño del texto · doble clic: 100 %">${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
       sec('pos', `<h4>Posición <span class="dz-dec" data-dec="lugar"></span></h4>${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
         + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
       sec('color', `<h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
         + coloresHTML(ov.color) + '</div>'),
-      sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo"><button type="button" class="dz-auto${va ? ' on' : ''}" data-dz="veloauto" aria-pressed="${va}">Auto</button><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
+      sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
       sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`),
       ...(etiquetasHTML(s) ? [sec('etiquetas', etiquetasHTML(s))] : [])
     ];
@@ -1217,6 +1224,7 @@
     const st = instantanea(s, E.fin), j = firma(st), H = E.hist;
     if (j === H.curJ) return;
     if (st.tray.some(f => !H.cur.tray.includes(f)) && firma({ ...st, tray: st.tray.filter(f => H.cur.tray.includes(f)) }) === H.curJ) { H.cur = st; H.curJ = j; H.tag = null; return; }   // photos only added to the tray: nothing to undo
+    H.k = (H.k || 0) + 1;         // a step pushed or a burst grown (a double click knows whether it touched the history)
     const now = Date.now(), tag = etiqueta(H.cur, st);
     if (!(tag && tag === H.tag && now - H.t < 2000)) { H.undo.push(H.cur); if (H.undo.length > 100) H.undo.shift(); H.redo = []; }
     H.cur = st; H.curJ = j; H.tag = tag; H.t = now;
@@ -1398,6 +1406,37 @@
     I().toast(msg, { ms: r.avisos.length ? 9000 : 4200 });
   }
 
+  // One step of ⌘Z with the click before it (it already moved the bar); none if nothing changed in the end. «Zoom»: centred at
+  // 1× (a photo with no reframe saved before stays without one: the same thing). The veil: «Auto», what the engine decides with
+  // the kit («· auto: N %» says it). The text's size: 100 %, the kit's.
+  const firmaSin = st => JSON.stringify(st, (k, v) => (k === 'at' || k === 'outAt' || k === 'known' || k === 'keys') ? undefined : k === 'ov' && v && typeof v === 'object' && !Object.keys(v).length ? undefined : v);
+  function volver(k) {
+    const a = document.activeElement; if (a && a.matches && a.matches('.dz-zoomr, .dz-velor')) a.blur();
+    volverYa(k);
+    // the bars show the value they have now, also when it was already there and the click before had moved the bar
+    const s = curSlot(), sl = s && s.design.slides[E.sel]; if (!sl) return;
+    const zr = E.el.querySelector('.dz-zoomr'), src = effSrc(sl, E.fin); if (zr && src && M.files[src]) zr.value = I().baseCrop(src, I().S).z || 1;
+    const vr = E.el.querySelector('.dz-velor'), vo = E.el.querySelector('.dz-velov'); if (vr && sl.ov && sl.ov.velo != null) { vr.value = sl.ov.velo; if (vo) vo.textContent = Math.round(sl.ov.velo * 100) + ' %'; }
+    edDecision();
+  }
+  function volverYa(k) {
+    const s = curSlot(), sl = s && s.design.slides[E.sel], H = E.hist; if (!sl || !H) return;
+    if (E.drag) endDrag();
+    registrar();
+    const k0 = H.k, n0 = H.undo.length, r0 = H.redo;
+    sl.ov = sl.ov || {};
+    if (k === 'veloauto') { if (sl.ov.velo == null) return; delete sl.ov.velo; touch(); edPanel(); dirty('sel'); }
+    else if (k === 'esc1') { if (sl.ov.escala == null) return; delete sl.ov.escala; touch(); edPanel(); dirty('sel'); }
+    else if (k === 'centrar') {
+      const src = effSrc(sl, E.fin); if (!src || !M.files[src]) return;
+      const ant = H.tag === 'crop:' + src && Date.now() - H.t < 2000 && H.undo.length ? H.undo[H.undo.length - 1] : H.cur;   // before the click that moved the bar
+      flashTercios(); setCropFor(src, { cx: 0.5, cy: 0.5, z: 1 });
+      if (ant && !(ant.crops && ant.crops[src]) && I().S.crops) delete I().S.crops[src];
+      touch(); edPanel();
+    } else return;
+    if (H.k !== k0 && H.undo.length && firmaSin(H.undo[H.undo.length - 1]) === firmaSin(H.cur)) { H.undo.pop(); if (H.undo.length === n0) H.redo = r0; }
+    H.tag = null;
+  }
   function wireEditor(el) {
     // the mesa's own handlers (on its root) never see what happens in the editor
     ['click', 'input', 'change', 'pointerdown', 'dblclick', 'dragstart', 'wheel'].forEach(t => el.addEventListener(t, e => e.stopPropagation()));
@@ -1451,6 +1490,9 @@
         touch(); edPanel(); dirty('sel');
       }
     });
+    // a double click on «Zoom», on the veil's bar or on «100 %» puts it back (what «Centrar» and «Auto» did; the kit's size)
+    el.addEventListener('dblclick', e => { const b = e.target.closest && e.target.closest('.dz-dbl'); if (b && E && curSlot() && !E.busy && !E.ask) volver(b.dataset.dbl); });
+    el.addEventListener('mousedown', e => { if (e.detail > 1 && e.target.closest && e.target.closest('.dz-dbl') && e.target.tagName !== 'INPUT') e.preventDefault(); });   // its words and figures never get selected
     el.addEventListener('input', e => {
       if (!E || !curSlot()) return;
       const t = e.target, d = D(), sl = d.slides[E.sel];
@@ -1469,7 +1511,6 @@
       else if (t.matches('.dz-velor')) {
         sl.ov = sl.ov || {}; sl.ov.velo = Math.round(+t.value * 100) / 100;
         const o = el.querySelector('.dz-velov'); if (o) o.textContent = Math.round(sl.ov.velo * 100) + ' %';
-        const b = el.querySelector('[data-dz="veloauto"]'); if (b) { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }
         const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false;
         touch(); dirty('sel');
       }
@@ -1654,6 +1695,7 @@
     abrir, cerrar, estadoDe, prepararKits, sync, volcar, aplicando: () => APL > 0, _retipo: retipo, _sustituir: sustituir,
     _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
     vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaSoltar, vistaLibre, formato, _srcVista: srcVista, _tienePortada: s => !!portadaDe(s),
+    _hist: () => E && E.hist ? { undo: E.hist.undo.length, redo: E.hist.redo.length } : null,   // for the tests: the designer's ⌘Z steps
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so

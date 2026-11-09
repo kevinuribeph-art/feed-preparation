@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.17';   // 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.18';   // 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -128,16 +128,20 @@
     }
     if (!cf) body += `<div class="ctot">Total de ${X.MONTHS[mo - 1]}</div><div class="ccnt ctotn" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">${total}</div>`;
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
-    const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : '<span class="csync">Igual que Notion</span>';
-    const nat = `<span class="cnat" title="La mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}</span>`;
+    // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
+    const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
+    const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
+    // a double click on the month's name goes back to the month the board opens with (D-121), as ‹ › without a step of ⌘Z (D-159)
+    const ini = mesInicial(X, sp), mesNom = `${cap(X.MONTHS[mo - 1])} ${y}`;
+    const mesTit = `${mesNom} · doble clic: ${ini === today.slice(0, 7) ? 'el mes de hoy' : 'el más cercano a hoy'}`;
     const leg = pasosHTML(X, mesBarra(X, m));
     const nv = !client && X.vencidas ? X.vencidas().length : 0;
     const vh = nv ? `<button type="button" class="cvenc" data-cal="venc" title="Ver las vencidas y resolverlas">${nv} vencida${nv === 1 ? '' : 's'}</button>` : '';
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
     sec.hidden = false;
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
-    sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nat}`
-      + `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button><span class="cmes">${esc(cap(X.MONTHS[mo - 1]))} ${y}</span><button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button></span></div>`
+    sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}`
+      + `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button><span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span><button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button></span></div>`
       + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${cf ? '' : ' 26px'}">${body}</div></div>`;
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
@@ -293,12 +297,12 @@
     const lista = tarde.length ? `<p>${nDe(tarde.length, 'se queda atrás', 'se quedan atrás')}:</p><ul class="xsum cplist">${tarde.map(s => `<li><b>${esc(X.shortLabel(s.name, s.type))}</b> <span>· ${esc(porQue(X, s))}</span></li>`).join('')}</ul>` : '';
     const tok = (paso && paso.tok || 0) + 1;
     paso = { key: S.key, to, m, tok };
+    // no «<cliente>, <mes>: el mes pasa de X a Y.» (the step bar and the title say it, D-156) nor «Cancelar» (D-155)
     X.showDialog('paso', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar a ${esc(P[j][1])}</h3>`
-      + `<p>${esc((cl && cl.name) || S.client)}, ${esc(mes)}: el mes pasa de ${esc(P[i][1])} a ${esc(P[j][1])}.</p>`
       + cuerpo + lista
       + (to === 'aprobar' ? `<div class="cprv">${revisarHTML(res)}</div>` : '')
       + (canc ? `<p class="cpnota">${nDe(canc, 'cancelada no cuenta', 'canceladas no cuentan')}.</p>` : '')
-      + `<div class="form"><div class="row"><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-cal="paso-ok" data-paso="${to}">Pasar a ${esc(P[j][1])}</button></div></div>`);
+      + `<div class="form"><div class="row"><button type="button" class="btn" data-cal="paso-ok" data-paso="${to}">Pasar a ${esc(P[j][1])}</button></div></div>`);
     const d = X.root().querySelector('.detail'), c = d && d.querySelector('[data-cal="paso-ok"]'); if (c) c.focus();
   }
   function enPaso(b) {
@@ -338,7 +342,7 @@
   function vencHTML(X) {
     const l = X.vencidas(), S = X.S, cd = X.curCd();
     const cab = `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${l.length ? `${l.length} vencida${l.length === 1 ? '' : 's'}` : 'Vencidas'}</h3>`;
-    if (!l.length) return cab + '<p>No queda ninguna vencida.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Cerrar</button></div></div>';
+    if (!l.length) return cab + '<p>No queda ninguna vencida.</p>';   // no «Cerrar»: the × (D-155)
     const hoy = X.hoy(), fin = X.cycleEnd(S.month && X.boardMonths()[X.boardMonths().length - 1], cd);
     const fila = v => {
       const k = vk(v), f = vabre && vabre.k === k ? vabre.que : null, s = v.aqui ? X.slot(v.id) : null;
@@ -353,7 +357,7 @@
         + ` <span class="vque">· ${esc(X.fmtDate(v.date))} · ${esc(EST_TXT[v.estado] || v.estado)}${v.movida ? ', movida después de programarla' : ''}${donde}</span>`
         + (f ? form : `<div class="vacc"><button type="button" class="btn2" data-cal="v-pub">Ya se publicó</button><button type="button" class="btn2" data-cal="v-rep"${no}>Reprogramar</button><button type="button" class="btn2" data-cal="v-can">Cancelar</button></div>`) + '</li>';
     };
-    return cab + '<p class="cpnota">Su fecha ya pasó y no están publicadas. Cada cambio se deshace con ⌘Z; no toca Zernio ni Notion.</p>'
+    return cab + '<p class="cpnota">Cada cambio se deshace con ⌘Z; no toca Zernio ni Notion.</p>'   // D-156
       + `<ul class="vlist">${l.map(fila).join('')}</ul>`;
   }
   function abrirVencidas() {
@@ -366,8 +370,10 @@
     if (desdeFuera && d.contains(document.activeElement) && document.activeElement.matches('input')) return;
     const c = d.querySelector('.card'); if (!c) return;
     const h = vencHTML(X); if (c._h === h) return;
+    const dentro = c.contains(document.activeElement);
     c.innerHTML = h; c._h = h;
     const i = c.querySelector('.vform input[data-v="motivo"], .vform input[data-v="dia"]'); if (i && !desdeFuera) i.focus();
+    else if (dentro && !c.contains(document.activeElement)) { const x = c.querySelector('.x'); if (x) x.focus(); }   // the focus stays in it: on the × (D-155)
   }
   async function enVenc(b) {
     const X = I(), S = X && X.S, li = b.closest('li[data-k]'), a = b.dataset.cal; if (!S) { if (X) X.closeDetail(); return; }
@@ -419,7 +425,7 @@
   function cambHTML(X) {
     const l = cambiadas(X), n = l.length, c = (X.CL || []).find(x => x.id === X.curClient);
     const cab = `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${n ? `${n} publicaci${n === 1 ? 'ón' : 'ones'} con cambios` : 'Con cambios'}</h3>`;
-    if (!n) return cab + '<p>No queda ninguna con cambios sin subir.</p><div class="form"><div class="row"><button type="button" class="btn" data-act="close">Cerrar</button></div></div>';
+    if (!n) return cab + '<p>No queda ninguna con cambios sin subir.</p>';   // no «Cerrar»: the × (D-155)
     const fila = s => `<li data-k="${esc(s.id)}"><button type="button" class="vnom" data-cal="c-abrir" title="Abrir la publicación"><b>${esc(X.shortLabel(s.name, s.type))}</b></button>`
       + ` <span class="vque">· ${esc(X.fmtDate(s.date))} · Cambió: ${esc(X.listaY(X.cambiosDe(s)))}</span></li>`;
     const nr = X.nameChg ? X.S.slots.filter(s => X.vivo(s) && X.nameChg(s)).length : 0;   // what the bar's «con fecha nueva» said in its title (D-144)
@@ -434,7 +440,9 @@
     const X = I(), d = X && X.root && X.root().querySelector('.detail[data-dlg="cambios"]'); if (!d || d.hidden || !X.S || !X.cambiosDe) return;
     const c = d.querySelector('.card'); if (!c) return;
     const h = cambHTML(X); if (c._h === h) return;
+    const dentro = c.contains(document.activeElement);
     c.innerHTML = h; c._h = h;
+    if (dentro && !c.contains(document.activeElement)) { const x = c.querySelector('.x'); if (x) x.focus(); }   // D-155
   }
   function enCamb(b) {
     const X = I(), li = b.closest('li[data-k]'); if (!X || !X.S) { if (X) X.closeDetail(); return; }
@@ -522,7 +530,7 @@
 #mesa .cnav button{position:relative;border:0;background:none;width:var(--cx-nav);height:var(--cx-nav);padding:0;border-radius:var(--r-pill);font-size:0;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
 #mesa .cnav button::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transform:rotate(90deg)}#mesa .cnav button[data-cal="next"]::before{transform:rotate(-90deg)}
 #mesa .cnav button:hover:not(:disabled){background:var(--cx-hov)}#mesa .cnav button:disabled{color:var(--line-strong);cursor:default}
-#mesa .cmes{min-width:124px;text-align:center;font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
+#mesa .cmes{min-width:124px;text-align:center;font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls);-webkit-user-select:none;user-select:none}
 #mesa .cleg{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:3px 2px;padding:0 10px 6px;font-size:10.5px;color:var(--mute)}
 #mesa .cleg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 #mesa .cpaso{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid transparent;border-radius:999px;padding:1px 7px;background:none;font:inherit;font-size:10.5px;line-height:15px;color:var(--ink)}
@@ -594,7 +602,11 @@
 @media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}}`;
   I().estilo('mesa-cal-css', CSS);
 
-  const ON = [['pointerover', onOver], ['click', onClick, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
+  function onDbl(e) {                            // the month's name: back to the month the board opens with (D-159)
+    const X = I(); if (!X || !e.target.closest || !e.target.closest('#mesa .side > .cal .cmes') || !X.S) return;
+    const ini = mesInicial(X, span(X)); if (view.m !== ini) { view.m = ini; render(); }
+  }
+  const ON = [['pointerover', onOver], ['click', onClick, false], ['dblclick', onDbl, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
   M.calendario = {
     version: VERSION, render, vencidas: abrirVencidas, cambios: abrirCambios,

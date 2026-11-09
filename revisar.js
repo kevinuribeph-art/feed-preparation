@@ -25,7 +25,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.7';
+  const VERSION = '1.8';   // 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -114,7 +114,7 @@
     if (opts.historias) puntos.push(...await puntosHistorias(B, opts.mes));   // after the feed's, by date
     if (!I().S || I().S.key !== B.key) return nada;   // another board opened meanwhile: this one is not the one in view
     const bloquean = puntos.filter(p => p.bloquea).length, res = { ok: !bloquean, bloquean, avisos: puntos.length - bloquean, puntos, key: B.key };
-    if (opts.ver) ver(res, 'revisar');
+    if (opts.ver) { if (puntos.length) ver(res, 'revisar'); else I().toast('Todo en orden: nada que revisar.', { key: 'revisar' }); }   // nothing: a light notice, no dialog (D-162)
     return res;
   }
 
@@ -123,11 +123,10 @@
   const cuenta = res => [res.bloquean ? nDe(res.bloquean, 'punto bloquea', 'puntos bloquean') : '', res.avisos ? nDe(res.avisos, 'aviso', 'avisos') : ''].filter(Boolean).join(' y ');
   function resumen(res) {
     if (!res.puntos.length) return 'Todo en orden: nada que revisar.';
-    return cuenta(res) + '.' + (res.bloquean ? ' Lo que bloquea no se sube ni se programa; los avisos, sí.' : ' Los avisos no impiden subir ni programar.') + ' Pulsa uno para abrirlo.';
+    return cuenta(res) + '.' + (res.bloquean ? ' Lo que bloquea no se sube ni se programa; los avisos, sí.' : ' Los avisos no impiden subir ni programar.');   // no «Pulsa uno para abrirlo»: they are buttons (D-156)
   }
   function ver(res, motivo, o = {}) {
     const X = I(), B = X.S, esc = X.esc;
-    const c = B && X.CL.find(x => x.id === B.client), donde = B ? `${(c && c.name) || B.client}, ${X.monthLabel(B.month)}` : '';
     const grupos = [];
     for (const p of res.puntos) { const g = grupos[grupos.length - 1], id = p.historiaId || p.slotId; if (g && g.id === id) g.ps.push(p); else grupos.push({ id, post: p.post, ps: [p] }); }
     const otros = o.otros || [];
@@ -136,9 +135,8 @@
       + `<ul class="xsum">${otros.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(h.cliente)}, ${esc(h.mes)}</span></li>`).join('')}</ul>` : '';
     const msg = o.msg ? `${esc(o.msg)}. ` : '';
     X.showDialog('revisar', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${TITULO[motivo] || TITULO.revisar}</h3>`
-      + `<p>${msg}${B ? `${esc(donde)}: ${esc(resumen(res))}` : ''}</p>${lista}${fuera}`
-      + '<div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>');
-    const b = X.root().querySelector('.detail .btn[data-act="close"]'); if (b) b.focus();
+      + `<p>${msg}${B ? esc(resumen(res)) : ''}</p>${lista}${fuera}`);   // no «<cliente>, <mes>:» (the bar behind says it, D-156) nor «Entendido» (D-155)
+    const b = X.root().querySelector('.detail .card > .x'); if (b) b.focus();   // the ×, never the first point (Enter would open it)
   }
 
   // ---------- by itself: «sube», «programa» and «⇅ Exportar» ----------

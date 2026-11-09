@@ -3699,11 +3699,12 @@
       const viejas = perdidas(S, before);   // the photo replaced goes back to the tray
       APL--; counted = false; I().setBusy('dz', null);
       I().changed();
+      const deshecho = !!(I().dibujoHecho && I().dibujoHecho());   // a ⌘Z pressed while drawing undoes it now, in one step: no message (D-166)
       const nl = llenas.length, nn = nuevas.length, partes = [];
       if (portada) partes.push(hp ? 'Hueco de la portada rellenado' : sl[0] && sl[0].mod ? 'Foto de la portada cambiada (los textos se quedan)' : 'Foto de la portada cambiada');
       if (nl) partes.push(nl === 1 ? `Hueco de la diapositiva ${llenas[0]} rellenado` : `Huecos de las diapositivas ${llenas.slice(0, -1).join(', ')} y ${llenas[nl - 1]} rellenados`);
       if (nn) partes.push(`${nn === 1 ? '1 diapositiva nueva' : nn + ' diapositivas nuevas'} al final (no quedan huecos)`);
-      I().toast(partes.join(' · ') + (made.length ? '. Se suben tal cual.' : '.'), { ms: 6000 });
+      if (!deshecho) I().toast(partes.join(' · ') + (made.length ? '. Se suben tal cual.' : '.'), { ms: 6000 });
       await borrarSueltas(viejas);
       return { ok: true, cambios: made.length, portada, rellenas: llenas, nuevas: nuevas.length };
     } catch (e) {

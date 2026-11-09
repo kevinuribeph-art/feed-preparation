@@ -11095,6 +11095,32 @@
     igual([campo().value, titulo()], ['0', '0°'], 'al salir del campo vacío');
   });
 
+  prueba('FL5', 'Un ⌘Z pulsado mientras sale «Dibujando el carrusel…» («Sustituir» en un carrusel del editor) no se pierde: deshace la foto en cuanto entra, en un paso y sin aviso de la foto puesta; ⇧⌘Z la vuelve a poner (D-166)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('fl5a.jpg'), await foto('fl5b.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const fotos0 = slot('r1').photos.slice(), h0 = M._test.hist().undo;
+    const [nueva] = await M.addFiles([await foto('fl5c.jpg')]); await M.flush();
+    M._test.setSel(nueva); celda('r1').click();
+    const b = await hasta(() => q('[data-act="addmode"][data-m="replace"]'), 4000, '«Sustituir»');
+    M._in.clearToasts();
+    b.click();
+    ok(/Dibujando el carrusel/.test(M.busyText || ''), 'no está dibujando al pulsar ⌘Z: ' + M.busyText);
+    tecla('z', { meta: true, code: 'KeyZ' });
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+    await espera(300);
+    igual(slot('r1').photos, fotos0, 'el ⌘Z se perdió: la foto nueva sigue en la casilla');
+    igual(M._test.hist().undo, h0, 'los pasos de ⌘Z tras deshacer');
+    ok(!qa('.toasts .toast').some(t => /cambiada|rellenado/.test(t.textContent)), 'sale el aviso de la foto puesta: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    tecla('z', { meta: true, shift: true, code: 'KeyZ' });
+    const s = slot('r1'), c = s.libre && s.libre.slides[s.photos[0]];
+    ok(c && c.els.some(e => e.src === nueva), '⇧⌘Z no volvió a poner la foto');
+    tecla('z', { meta: true, code: 'KeyZ' });
+    igual(slot('r1').photos, fotos0, 'un ⌘Z más no la quitó');
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

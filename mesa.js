@@ -1687,6 +1687,14 @@
     if (k >= 0 && list[k + dir]) openTrayView(list[k + dir]);
   }
   let pendingAdd = null;
+  // ⌘Z / ⇧⌘Z pressed while a photo dropped on a carousel drawn in the editor is being drawn: they are not lost; they act, in
+  // order, once the photo is in (a ⌘Z undoes the whole drop, one step). If the drop fails, nothing was done and they go (D-166).
+  let dibujoZ = null;
+  function dibujoHecho() {   // libre.js, right after the drop is in: true when it was undone
+    const q = dibujoZ || []; dibujoZ = null;
+    q.forEach(atras => histStep(atras));
+    return q.filter(Boolean).length > q.filter(x => !x).length;
+  }
   function askAddMode(slotId, ids) {
     const s = S && S.slots.find(x => x.id === slotId); ids = (ids || []).filter(id => M.files[id]);
     if (!s || !ids.length) return;
@@ -1710,8 +1718,10 @@
     const s = S.slots.find(x => x.id === P.slotId), ids = P.ids.filter(id => M.files[id]); if (!s || !ids.length) return;
     if (m !== 'add' && designed(s) && sinPortada(s)) return;
     if (isCarousel(s.type) && s.libre && !s.design) {   // drawn in the free editor: its texts stay and the photos go to its holes (libre.js)
-      if (M.libre && M.libre.casilla) M.libre.casilla(s.id, ids, m);
-      else toast('El editor no está cargado: recarga la página para poner fotos en este carrusel.', { ms: 6000 });
+      if (M.libre && M.libre.casilla) {
+        const z = dibujoZ ? null : (dibujoZ = []), fin = r => { if (z && dibujoZ === z) { if (r && r.ok) dibujoHecho(); else dibujoZ = null; } };   // an editor without dibujoHecho: its ⌘Z act here
+        Promise.resolve(M.libre.casilla(s.id, ids, m)).then(fin, () => fin(null));
+      } else toast('El editor no está cargado: recarga la página para poner fotos en este carrusel.', { ms: 6000 });
       return;
     }
     if (m === 'add') { ids.forEach(id => place(P.slotId, id, true)); changed(); return; }
@@ -4759,7 +4769,9 @@
         const writing = e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && /^(text|search|email|url|tel|password|)$/.test(e.target.type || '')));
         const dlg = open && root.querySelector('.detail').dataset.dlg;
         if (writing || e.target.isContentEditable || (dlg && dlg !== 'venc') || drag || root.classList.contains('client')) return;   // not in «Vista cliente» (D-095); in the vencidas' window it does: its actions are steps (D-120)
-        e.preventDefault(); if (e.shiftKey) redo(); else undo();
+        e.preventDefault();
+        if (dibujoZ) { dibujoZ.push(!e.shiftKey); return; }   // a drop being drawn in a carousel of the editor: it acts once the photo is in (D-166)
+        if (e.shiftKey) redo(); else undo();
       }
     };
     document.addEventListener('keydown', M._onKey);
@@ -6422,7 +6434,7 @@
     trayFiltroV, marcaDe, usoTexto, marcaTitulo,   // its filter and the marks of the used photos (D-122, mesa ≥ 3.93)
     toast, esc, isReel, isCarousel, publishList, same, refsOf, uploadsBusy, rectFor, baseCrop, cropOf, postRect, gridRect, dims, fmtRatio,
     getBlob, makeThumb, loadThumbs, idbGet, idbPut, idbDel, idbAll, editarCliente, esperar, estilo, soltarArchivo, aBandeja, thumbFromBitmap, refsTodo, cssq, lsGet, lsSet, addMonths, utc, newId, deleteIfUnused, loadClients, FONT, FMT_LABEL,
-    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces,
+    dName, delList, sweepDesigns, switching: () => switching > 0, setBusy, histAmend, histMarca, histJuntar, clearToasts, igPieces, dibujoHecho,
     // for the calendar (calendario.js, mesa ≥ 3.32)
     ESTADOS, estadoDe, pastList, boardMonths, curCd, cycleStart, cycleEnd, cycleOfDay, localDay, localTime, dOnly, fmtDate, shortLabel,
     dateChg, nameChg, typeChg, slotStatus, cambiosDe, listaY, sharedWith, MONTHS, hoy: () => madParts(ahora()).day, openIG, openPast, withPrev, setDate, madridISO, estIco, cambiosIco, motivoDe,   // the marks (D-081, mesa ≥ 3.66)

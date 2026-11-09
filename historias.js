@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.13';
+  const VERSION = '1.14';   // 1.14: no «N historias en este mes» when there are some (D-156)
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -400,7 +400,8 @@
     if (box.hidden) { if (abierta) cerrarDlg(); return; }
     const top = box.scrollTop, S = X.S, cl = cliente(), todas = lista().filter(cl ? paraCliente : h => !h.cancelada), vivas = todas.length;
     const ds = cl ? [...new Set(todas.map(h => X.localDay(h.date)))].sort() : dias(), canc = cl ? [] : lista().filter(h => h.cancelada), hoy = X.hoy();
-    box.innerHTML = `<p class="hv-res">${vivas ? `${vivas} ${vivas === 1 ? 'historia' : 'historias'} en este mes` : cl ? 'Aún no hay historias en este mes.' : 'Aún no hay historias en este mes: pulsa + en un día.'}</p>`
+    // with some, no «N historias en este mes»: the switch «Historias N» of the month bar has the same count (D-156)
+    box.innerHTML = (vivas ? '' : `<p class="hv-res">${cl ? 'Aún no hay historias en este mes.' : 'Aún no hay historias en este mes: pulsa + en un día.'}</p>`)
       + ds.map(d => {
         const posts = cl ? [] : S.slots.filter(s => X.vivo(s) && X.localDay(s.date) === d), hs = delDia(d).filter(cl ? paraCliente : () => true);
         return `<div class="hv-rail${d === hoy ? ' hoy' : ''}${posts.length || hs.length ? '' : ' vacio'}" data-day="${d}"><div class="hv-dia">${diaTxt(d)}</div><div class="hv-posts">${posts.map(postHTML).join('')}</div>`

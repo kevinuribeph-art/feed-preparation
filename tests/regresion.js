@@ -562,7 +562,7 @@
     ok(!r.ok && r.bloquean === 1 && r.avisos === 0, 'el resumen: ' + json(r));
     const d = await revisarUI(), txt = d.textContent;
     ok(txt.includes('Carrusel 1.1') && txt.includes(`Diapositiva ${p + 1}: hueco de foto vacío`) && /\(bloquea\)/.test(txt) && !txt.includes('Carrusel 1.2'), 'la lista: ' + txt);
-    ok(txt.includes(NOMBRE) && /noviembre 2026/i.test(txt), 'no dice de qué cliente y mes es: ' + txt);
+    ok(!txt.includes(NOMBRE + ',') && !/Pulsa uno para abrirlo/.test(txt), 'repite el cliente y el mes o «Pulsa uno»: ' + txt);   // D-156: la barra de detrás los dice
     d.querySelector('[data-act="rv-ir"]').click();
     await hasta(() => M.libre.abierto() && ed() && ed().i === p, 6000, 'el editor abierto en esa diapositiva');
     ok(!q('.detail:not([hidden])[data-dlg="revisar"]'), 'el diálogo sigue abierto');
@@ -3318,14 +3318,14 @@
       const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`), s1 = b && b.slots.find(x => x.id === 'r1');
       ok(s1 && s1.photos.length === 3 && Object.values(s1.libre.slides).some(c => c.els.some(e => e.t === 'hueco')), 'el archivo no lleva la publicación con su hueco tal cual');
       const txt = dl.textContent;
-      ok(txt.includes('Carrusel 1.1') && new RegExp(`diapositiva ${p + 1}: hueco de foto vacío`, 'i').test(txt) && txt.includes(NOMBRE) && /noviembre 2026/i.test(txt), 'el aviso no dice dónde está el hueco: ' + txt);
+      ok(txt.includes('Carrusel 1.1') && new RegExp(`diapositiva ${p + 1}: hueco de foto vacío`, 'i').test(txt), 'el aviso no dice dónde está el hueco: ' + txt);   // D-156: sin «<cliente>, <mes>:»
       ok(!txt.includes('Carrusel 1.2'), 'el aviso nombra una publicación sin hueco vacío');
       ok(/Exportada: 1 mes/.test(txt), 'el aviso no dice que se exportó: ' + txt);
-      await pulsar('.detail[data-dlg="revisar"] .btn[data-act="close"]');
+      await pulsar('.detail[data-dlg="revisar"] .card > .x');   // sin «Entendido»: la × (D-155)
       ok(!dialogo(), '«Entendido» no cerró el aviso');
       const r = await M.exportAll();               // también por la API: dónde está, y sin huecos no hay aviso
       igual(json(r.huecos), json([{ client: CLIENTE, month: MES, slotId: 'r1', post: 'Carrusel 1.1', diapositivas: [p + 1] }]), 'exportAll() no dice dónde está el hueco');
-      await pulsar('.detail[data-dlg="revisar"] .btn[data-act="close"]');
+      await pulsar('.detail[data-dlg="revisar"] .card > .x');   // sin «Entendido»: la × (D-155)
       await abrirEditor('r1'); accion('sl-del', { i: p });          // quitar la diapositiva del hueco: sin huecos, sin aviso
       if (ed().ask) ed().ask.querySelector('[data-ask="borrar"]').click();
       await aplicarEditor();
@@ -4327,8 +4327,8 @@
     await M.pedirBorrarCarpeta(c);
     const t = dialogo().textContent;
     for (const x of ['«Sesión»', '7 fotos', '2 subcarpetas', 'borran 2 fotos', 'quedan 5', 'en una publicación', 'en una publicación cancelada', 'en una historia', 'portada de un hueco', 'también en otra carpeta', 'no se puede deshacer']) ok(t.includes(x), `el aviso no dice «${x}»: ${t}`);
-    ok(q('.detail .btn2[data-act="close"]').textContent === 'Cancelar' && q('[data-act="carpeta-borrar"]').textContent === 'Borrar', 'los botones');
-    await pulsar('.detail .btn2[data-act="close"]');
+    ok(!q('.detail .btn2[data-act="close"]') && q('[data-act="carpeta-borrar"]').textContent === 'Borrar' && D.activeElement === q('.detail .card > .x'), 'los botones (sin «Cancelar» y el foco en la ×, D-155)');
+    await pulsar('.detail .card > .x');
     ok(carp(c), 'cancelar borró la carpeta');
     await M.pedirBorrarCarpeta(c);
     await pulsar('[data-act="carpeta-borrar"]');
@@ -4634,7 +4634,7 @@
     const t = dialogo().textContent;
     for (const x of ['Subir «Aviso»', '2 fotos', 'en 2 carpetas', 'a la bandeja', 'Una ya está', 'libres para la Mesa', '1 archivo saltado', '.CR3']) ok(t.includes(x), `el aviso no dice «${x}»: ${t}`);
     ok(!q('.detail [data-act="cp-ir"]').disabled, 'sin botón Subir');
-    await pulsar('.detail .btn2[data-act="close"]');
+    await pulsar('.detail .card > .x');   // sin «Cancelar»: la × (D-155)
     igual(await medida(), antes, 'cancelar escribió');
     igual(M.carpetas().map(c => c.name), ['Historias'], 'cancelar creó carpetas');
     await ui().subir(lista, null);
@@ -4646,7 +4646,7 @@
     try {
       await ui().subir([{ path: ['Grande'], file: await foto('c16-3.jpg') }], null);
       ok(dialogo().textContent.includes('No cabe todo'), 'no avisa de que no cabe');
-      await pulsar('.detail .btn2[data-act="close"]');
+      await pulsar('.detail .card > .x');
     } finally { M.cfg.margenSubida = m0; }
   });
 
@@ -4740,7 +4740,7 @@
     const muchas = await Promise.all(Array.from({ length: 20 }, (_, i) => foto(`c19-m${i}.jpg`, 200, 300)));
     await ui().elegidas(muchas, M._in.trayCarpeta);
     ok(dialogo() && dialogo().textContent.includes('Subir 20 fotos') && dialogo().textContent.includes('«Parte»'), 'veinte sueltas no avisan');
-    await pulsar('.detail .btn2[data-act="close"]');
+    await pulsar('.detail .card > .x');
     M._in.trayAbrir(null);
   });
 
@@ -4758,7 +4758,7 @@
     igual([tiles(), fotos()], [['Dentro'], ['c20-a.jpg']], 'dentro');
     ok(q('.tray .cptab.on button').title === 'Bandeja / Abre' && q('.cpvolver') && !q('.cpruta'), 'sin la ruta en el title de la pestaña en uso, sin volver o con la ruta en texto (D-151)');
     // + Carpeta, dentro de lo abierto
-    await pulsar('[data-act="cp-nueva"]');
+    M.carpetasUI.accion('cp-nueva');   // «Nueva carpeta…» del clic derecho de la bandeja (D-158)
     const input = await hasta(() => q('#cp-nombre'), 2000, 'el nombre');
     input.value = 'Nueva';
     q('form[data-form="cp-nueva"]').requestSubmit();
@@ -4874,7 +4874,7 @@
     const tile = id => q(`.tcarpeta[data-id="${id}"]`);
     let m = clicDerecho(tile(n['Uno'].id));
     ok(m, 'no sale el menú');
-    igual([...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Abrir', 'Abrir en una pestaña nueva', 'Copiar', 'Pegar', 'Borrar carpeta…'], 'las opciones');
+    igual([...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Abrir', 'Abrir en una pestaña nueva', 'Copiar', 'Pegar', 'Borrar carpeta…', 'Nueva carpeta…', 'Subir carpeta…'], 'las opciones');   // D-158
     itemMenu('Abrir en').click();
     ok(!q('.cpmenu'), 'el menú sigue');
     igual(tabsTxt(), ['Bandeja', '*Uno'], 'en una pestaña nueva');
@@ -5131,7 +5131,7 @@
     igual(carp(n['B'].id).files.includes(f1), true, '⌘V');
     // escribiendo no actúa
     await M.flush();
-    await pulsar('[data-act="cp-nueva"]');
+    M.carpetasUI.accion('cp-nueva');   // «Nueva carpeta…» del clic derecho de la bandeja (D-158)
     const inp = await hasta(() => q('#cp-nombre'), 2000, 'el campo');
     const antes = carp(n['B'].id).files.length;
     inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'v', metaKey: true, bubbles: true, cancelable: true }));
@@ -5168,7 +5168,7 @@
     const n = await arbolMover(), [f1, f2] = n['A'].files;
     await pulsar(`.tcarpeta[data-id="${n['A'].id}"]`);
     let m = clicDerecho(titem(f1));
-    igual([...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Copiar', 'Pegar'], 'el menú de una foto');
+    igual([...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Copiar', 'Pegar', 'Nueva carpeta…', 'Subir carpeta…'], 'el menú de una foto');   // D-158
     ok(itemMenu('Pegar').disabled, 'pegar sin nada copiado');
     itemMenu('Copiar').click();
     igual(M._in.trayClip.files, [f1], 'copiar una foto');
@@ -5188,15 +5188,16 @@
     await pulsar(`.tcarpeta[data-id="${n['B'].id}"]`);
     const hueco = q('.tray .tbody .drop');
     clicDerecho(hueco);
-    igual([...q('.cpmenu').querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Pegar'], 'el menú de un hueco');
+    igual([...q('.cpmenu').querySelectorAll('button')].map(b => b.childNodes[0].textContent), ['Pegar', 'Nueva carpeta…', 'Subir carpeta…'], 'el menú de un hueco');   // D-158
     itemMenu('Pegar').click();
     ok(M.board().carpetas.find(c => c.name === 'A' && c.parent === n['B'].id), 'pegar en un hueco');
-    // sin nada copiado, en un hueco sigue el del navegador
+    // sin nada copiado, en un hueco de la bandeja de la mesa sale el menú, con «Pegar» apagado (D-158)
     await M.flush();
     M._in.trayAbrir(null);
     await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1)], past: [], force: true });
     clicDerecho(q('.tray .tbody .drop'));
-    ok(!q('.cpmenu'), 'en otro cliente saca el menú de pegar');
+    ok(q('.cpmenu') && [...q('.cpmenu').querySelectorAll('button')].find(b => b.childNodes[0].textContent === 'Pegar').disabled, 'en otro cliente se puede pegar');
+    M.carpetasUI.cerrarMenu();
   });
 
   prueba('C31', 'Las fotos de carpeta van a publicaciones como las de la raíz: D-022 avisa, varias soltadas entran, una historia la usa con anillo y una colab la devuelve a su cliente y a su carpeta (D-069, D-077)', async () => {
@@ -5366,8 +5367,8 @@
     igual(qa('.dl-post[data-slot="r1"] .dl-pz input').map(i => i.checked), [true, true, true], 'las piezas del carrusel');
     igual(qa('.dl-post[data-slot="r2"] .dl-pz').map(x => x.textContent.trim()), ['Portada'], 'la pieza del reel');
     ok(qa('.dl-pz img').every(i => i.getAttribute('src')), 'una miniatura sin imagen');
-    igual([d.querySelector('input[name="dl-txt"]:checked').value, d.querySelector('input[name="dl-res"]:checked').value], ['con', 'orig'], 'las opciones de partida');
-    igual(qa('.dl-op .dl-ch span').map(x => x.textContent), ['Con textos', 'Solo la foto', 'Original', '1440', '1080'], 'las opciones');
+    igual([!!d.querySelector('input[name="dl-txt"]'), d.querySelector('input[name="dl-res"]:checked').value], [false, 'orig'], 'las opciones de partida');   // sin piezas con textos, sin «Con textos / Solo la foto» (D-162)
+    igual(qa('.dl-op .dl-ch span').map(x => x.textContent), ['Original', '1440', '1080'], 'las opciones');
     igual(q('.dl-res').textContent, '5 piezas · cliente-de-prueba-2026-11.zip', 'la cuenta');
     ok(q('.dl-prog').offsetParent === null, 'la barra de progreso se ve antes de descargar');
     q('.dl-post[data-slot="r1"] [data-dl="todas"]').click();
@@ -5464,7 +5465,7 @@
     const r = await conDescarga(async cap => {
       d.querySelector('[data-dl="ir"]').click();
       await hasta(() => /Pieza 2 de 4/.test(q('.dl-pt') ? q('.dl-pt').textContent : ''), 20000, 'la segunda pieza');
-      d.querySelector('.form [data-act="close"]').click();
+      d.querySelector('.card > .x').click();   // sin «Cancelar»: la × (D-155)
       await espera(2500);
       ok(!cap(), 'se descargó tras cancelar');
     }).finally(() => { C.toBlob = toBlob; });
@@ -5553,7 +5554,8 @@
     await M.flush();
     const ids = ['r1', 'r2', 'r3', 'r4'], antes = est(ids), h0 = M._test.hist().undo;
     igual(antes, ['captions', 'captions', 'empezar', 'empezar'], 'los estados de partida');
-    const cierres = [d => d.querySelector('.form [data-act="close"]').click(), d => d.querySelector('.x[data-act="close"]').click(), () => tecla('Escape')];
+    const fuera = () => { const b = q('.detail'); b.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true })); b.dispatchEvent(new W.MouseEvent('click', { bubbles: true })); };
+    const cierres = [() => fuera(), d => d.querySelector('.x[data-act="close"]').click(), () => tecla('Escape')];   // sin «Cancelar»: un clic fuera, la × y Esc (D-155)
     for (const cierra of cierres) {
       const d = await pulsarPaso('captions');
       igual(d.querySelector('h3').textContent, 'Pasar a Captions', 'el título');
@@ -6127,18 +6129,17 @@
     } finally { volverReloj(); }
   });
 
-  prueba('V5', 'Al abrir un tablero con vencidas, un aviso «N vencidas · Ver» que abre la ventana, una vez por tablero hasta recargar; en «Vista cliente» no sale nada ni pasa nada solo (D-120, D-095)', async () => {
+  prueba('V5', 'Al abrir un tablero con vencidas no sale aviso: «N vencidas» del calendario abre la ventana (D-160); en «Vista cliente» no sale nada ni pasa nada solo (D-120, D-095)', async () => {
     try {
-      reloj('2026-11-10', '12:00'); if (M._test.avisadas) M._test.avisadas().clear();   // otra prueba ya abrió este tablero con vencidas
+      reloj('2026-11-10', '12:00');
       const r = await tablero([pub(1, 'Foto', 2), pub(2, 'Foto', 20)]);
-      await hasta(() => toastCon(/^1 vencida/), 3000, 'el aviso al abrir');
-      const t = qa('.toasts .toast').find(x => /vencida/.test(x.textContent)), b = t.querySelector('button');
-      igual(b && b.textContent, 'Ver', 'el aviso no lleva «Ver»');
-      b.click();
-      await hasta(() => ventanaV(), 3000, '«Ver» no abrió la ventana');
+      await revisarV(true); await espera(200);
+      ok(!toastCon(/vencida/), 'sale el aviso al abrir');
+      (await hasta(() => q('.side > .cal .cvenc'), 3000, '«1 vencida» del calendario')).click();
+      await hasta(() => ventanaV(), 3000, '«1 vencida» no abrió la ventana');
       M._in.closeDetail(); M._in.clearToasts();
       await M.open(r.key); await revisarV(true);
-      ok(!toastCon(/vencida/), 'el aviso salió dos veces');
+      ok(!toastCon(/vencida/), 'sale el aviso al volver a abrirlo');
       // «Vista cliente»: ni marcas, ni cabecera, ni aviso, ni nada que pase solo
       await porAprobar(['r2'], 'v5'); M.setEstado('r2', 'programado'); await M.flush();
       M._in.root().classList.add('client'); M._in.render();
@@ -8532,8 +8533,8 @@
     M._test.addToSlot('r3', [id('a-portada')]);
     let d = await hasta(repeVentana, 3000, 'la ventana con la azul');
     ok(/Ya usada este mes/.test(d.textContent), 'la ventana de la azul: ' + d.textContent);
-    d.querySelector('[data-act="close"].btn2, .btn2[data-act="close"]').click(); await espera(30);
-    igual(slot('r3').photos.length, 0, 'Cancelar dejó entrar la azul');
+    d.querySelector('.card > .x').click(); await espera(30);   // sin «Cancelar»: la × (D-155)
+    igual(slot('r3').photos.length, 0, 'la × dejó entrar la azul');
     // naranja que ya va en esta misma publicación: la ventana
     M._test.addToSlot('r1', [id('e-relleno')]);
     d = await hasta(repeVentana, 3000, 'la ventana en la misma publicación');
@@ -10114,7 +10115,7 @@
     } finally { I.trayAbrir(null); if (lt0 == null) W.localStorage.removeItem(LT); else W.localStorage.setItem(LT, lt0); }
   });
 
-  prueba('R4', 'Con la columna estrecha (ventana de 800 px), «+ Carpeta» y «Subir carpeta» bajan de línea y las pestañas usan todo el ancho; una pestaña nunca es más ancha que su fila y la en uso se ve desde su principio (D-151)', async () => {
+  prueba('R4', 'Con la columna estrecha (ventana de 800 px) las pestañas usan todo el ancho de su fila, sin botones al lado (D-158); una pestaña nunca es más ancha que su fila y la en uso se ve desde su principio (D-151)', async () => {
     const I = M._in, fr = $('mesa'), w0 = fr.style.width;
     try {
       await tablero([pub(1, 'Carrusel')]);
@@ -10123,18 +10124,13 @@
       I.pestLista().filter(p => p.id !== 'fija').forEach(p => I.pestCerrar(p.id)); I.pestIr('fija'); I.trayAbrir(null);
       fr.style.width = '800px'; await hasta(() => W.innerWidth <= 800 && W.innerWidth > 720, 3000, 'la ventana de 800 px');
       I.pestNueva(a); await espera(100);
-      const f = q('.tray .cptabs'), on = f.querySelector('.cptab.on'), acc = q('.tray .cpacc'), fr0 = f.getBoundingClientRect(), ra = acc.getBoundingClientRect();
-      ok(fr0.width >= 160, 'la fila de pestañas se queda estrecha: ' + Math.round(fr0.width));
-      ok(ra.top >= fr0.bottom - 1 || ra.left >= fr0.right - 1, 'los botones pisan la fila de pestañas');
+      const f = q('.tray .cptabs'), on = f.querySelector('.cptab.on'), fr0 = f.getBoundingClientRect(), fila = f.parentElement.getBoundingClientRect();
+      ok(!q('.tray .cpacc') && !q('.tray [data-act="cp-nueva"], .tray [data-act="cp-subir"]'), 'siguen los botones junto a las pestañas');
+      ok(fr0.width >= fila.width - 1, 'la fila de pestañas no usa todo el ancho: ' + Math.round(fr0.width) + ' de ' + Math.round(fila.width));
       const ro = on.getBoundingClientRect();
       ok(ro.width <= fr0.width + 0.5 && ro.left >= fr0.left - 0.5, `la pestaña en uso no se ve desde su principio: ${Math.round(ro.left)}–${Math.round(ro.right)} en ${Math.round(fr0.left)}–${Math.round(fr0.right)}`);
-      fr.style.width = w0; await hasta(() => W.innerWidth > 1000, 3000, 'la ventana ancha');
-      await espera(60); const f2 = q('.tray .cptabs').getBoundingClientRect(), a2 = q('.tray .cpacc').getBoundingClientRect();
-      ok(Math.abs(a2.top - f2.top) < 6, 'con la ventana ancha, los botones dejan la fila de las pestañas');
     } finally { fr.style.width = w0; I.trayAbrir(null); }
   });
-
-  // ---------- sin fila encima del feed (mesa 4.08) ----------
   prueba('S1', 'Sin fila encima del feed: ni el mes ni «Debajo: …» ni el botón de bloqueo; la etiqueta del mes anterior es su único candado, con icono de línea y la cuenta en su título (D-152)', async () => {
     const oct = (n, dia) => ({ id: `s1-p${n}`, name: `Foto 0.${n}`, type: 'Foto', date: `2026-10-${String(dia).padStart(2, '0')}T12:00:00.000+02:00` });
     await limpiar();
@@ -10182,6 +10178,1030 @@
     try { ok(W.getComputedStyle(b()).display === 'none', 'sale en «Vista cliente»'); }
     finally { q('.clientToggle').click(); await espera(30); }
   });
+
+  // =====================================================================================================
+  // Mesa más limpia (D-154 y siguientes): una prueba por propuesta, LZ<número de la propuesta>
+  // =====================================================================================================
+  // rehacer: pone al día una prueba que cambia a propósito (misma id, otra comprobación)
+  const rehacer = (id, titulo, fn) => { const t = T.find(x => x.id === id); if (t) { t.titulo = titulo; t.fn = fn; } else prueba(id, titulo, fn); };
+  // ----- las propuestas de la mesa (todo menos el editor y el diseñador): LZ<número> -----
+  const dbl = el => { ok(el, 'no está la pieza del doble clic'); el.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, view: W })); };
+  const seVe = s => { const e = typeof s === 'string' ? q(s) : s; return !!e && W.getComputedStyle(e).display !== 'none' && !!e.getClientRects().length; };
+  const conCliente = async fn => { q('.clientToggle').click(); await espera(40); try { await fn(); } finally { if (q('.clientToggle').checked) { q('.clientToggle').click(); await espera(40); } } };
+  const sinBoton = (que, re = /^(Cancelar|Cerrar|Entendido)$/) => { const d = dialogo(); ok(d, 'no se abrió ' + que); ok(!qa('.detail .row button, .detail .form button').some(b => re.test(b.textContent.trim())), `sigue «${re.source}» en ${que}`); ok(d.querySelector('.card > .x'), 'falta la × en ' + que); };
+  const focoEnX = que => ok(D.activeElement === q('.detail .card > .x'), `${que}: el foco no está en la × (${D.activeElement && D.activeElement.outerHTML.slice(0, 80)})`);
+  async function conHueco(id) {   // un carrusel con una diapositiva con un hueco vacío: «Revisar» tiene algo que decir
+    await abrirEditor(id); accion('sl-add'); compDe(ed().i).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
+  }
+
+  prueba('LZ1', '«Vista cliente» no enseña «+ Cliente», «⇅», «⋯», «+ Hueco» ni «Guardado»; «No se pudo guardar» sí; al quitarla vuelven (D-154)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const P = ['.appbar .tab.add', '.appbar .xfer', '.tabs .tedit', '.bar [data-act="addfiller"]'];
+    P.forEach(s => ok(seVe(s), 'no sale sin la vista cliente: ' + s));
+    q('.save').classList.remove('err'); q('.save').textContent = 'Guardado';
+    await conCliente(async () => {
+      P.forEach(s => ok(!seVe(s), 'sale en «Vista cliente»: ' + s));
+      ok(!seVe('.save'), '«Guardado» sale en «Vista cliente»');
+      q('.save').classList.add('err'); q('.save').textContent = 'No se pudo guardar';
+      try { ok(seVe('.save'), '«No se pudo guardar» no sale en «Vista cliente»'); } finally { q('.save').classList.remove('err'); q('.save').textContent = ''; }
+      ok(seVe('.bar .sw'), 'el interruptor de la vista no se ve');
+      igual(qa('.feed .cell.filler').length, 0, 'hay huecos negros');
+    });
+    P.forEach(s => ok(seVe(s), 'no vuelve al quitar la vista: ' + s));
+  });
+
+  prueba('LZ2', 'Los diálogos que solo informan se cierran con la ×, Esc o un clic fuera: «Revisar» sin «Entendido» y con el foco en la ×; las listas de vencidas y de cambiadas, vacías, sin «Cerrar» (D-155)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz2-a.jpg'), await foto('lz2-b.jpg')]);
+    await conHueco('r1');
+    await revisarUI();
+    sinBoton('«Revisar»'); focoEnX('«Revisar»');
+    tecla('Escape'); await hasta(() => !dialogo(), 2000, 'cerrar con Esc');
+    M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas');
+    ok(/No queda ninguna vencida/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de vencidas vacía'); M._in.closeDetail();
+    M.calendario.cambios(); await hasta(() => q('.detail:not([hidden])[data-dlg="cambios"]'), 2000, 'la lista de cambiadas');
+    ok(/No queda ninguna/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de cambiadas vacía'); M._in.closeDetail();
+  });
+
+  prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», «⇅», «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2)]);
+    await poner('r1', [await foto('lz3-a.jpg'), await foto('lz3-b.jpg')]);
+    await pulsar('[data-act="newclient"]'); let t = dialogo().textContent;
+    ok(!/pestaña vacía|día del mes,/.test(t) && /\(1-28\)/.test(t), 'Nuevo cliente: ' + t); M._in.closeDetail();
+    q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); t = dialogo().textContent;
+    ok(!/la de su Instagram|día del mes/.test(t) && /Foto de perfil/.test(t) && /\(1-28; los meses ya cargados conservan el suyo\)/.test(t), 'Editar cliente: ' + t); M._in.closeDetail();
+    await pulsar('.appbar .xfer'); t = dialogo().textContent;
+    ok(!/En el otro Mac/.test(t) && /fotos a 1080 px/.test(t), '⇅: ' + t); M._in.closeDetail();
+    M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); t = dialogo().textContent;
+    ok(!/En la bandeja de este cliente/.test(t), 'Nueva carpeta: ' + t); M._in.closeDetail();
+    M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas'); M._in.closeDetail();
+    M.descargar.elegir('r1'); M.descargar.abrir(); await hasta(() => ventanaDl(), 3000, 'Descargar fotos'); t = ventanaDl().textContent;
+    ok(!/de la más cercana|Desmarca lo que no quieras/.test(t) && !t.includes(NOMBRE) && !qa('.dl-ph span').some(x => /pieza|portada/.test(x.textContent)), 'Descargar fotos: ' + t); M._in.closeDetail();
+    M.descargar.vaciar();
+    await conHueco('r1');
+    const d = await revisarUI(); t = d.textContent;
+    ok(!/Pulsa uno para abrirlo/.test(t) && !t.includes(NOMBRE + ','), '«Revisar»: ' + t); M._in.closeDetail();
+  });
+
+  prueba('LZ4', 'La línea de cifras ya no dice «N/M con foto»: lo dice el chip del mes, con el título «N de M con foto» (no en «Vista cliente») (D-157)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    await poner('r1', [await foto('lz4.jpg')]);
+    await hasta(() => q('.bar .mchip.on i') && q('.bar .mchip.on i').textContent === '1/3', 3000, 'el chip con 1/3');
+    ok(!/con foto/.test(q('.bar .stats').textContent), 'sigue «con foto»: ' + q('.bar .stats').textContent);
+    igual(q('.bar .mchip.on').title, '1 de 3 con foto', 'el título del chip');
+    await conCliente(async () => { ok(!q('.bar .mchip.on').title, 'el título sale en «Vista cliente»'); });
+    igual(q('.bar .mchip.on').title, '1 de 3 con foto', 'el título al quitar la vista');
+  });
+
+  prueba('LZ5', 'El recuadro «Arrastra aquí…» de la bandeja solo sale con la vista vacía: en una carpeta vacía sí; con fotos o carpetas (la raíz lleva «Historias»), no (D-158)', async () => {
+    W.localStorage.setItem('mesa-bandeja-plegada', '0');
+    await tablero([pub(1)]);
+    const drop = () => q('.side > .tray .drop');
+    await hasta(() => drop(), 3000, 'la bandeja');
+    ok(!seVe(drop()), 'sale en la raíz, que tiene la carpeta «Historias»');
+    const c = M.crearCarpeta('LZ5').id; M._in.trayAbrir(c);
+    await hasta(() => M._in.trayCarpeta === c, 2000, 'la carpeta abierta');
+    await hasta(() => seVe(drop()), 2000, 'el recuadro en la carpeta vacía');
+    await M.addFiles([await foto('lz5.jpg')], null, { carpeta: c });
+    await hasta(() => q('.side > .tray .titem'), 3000, 'la foto en la carpeta');
+    ok(!seVe(drop()), 'sale con fotos en la carpeta');
+    M._in.trayAbrir(null);
+  });
+
+  prueba('LZ7', 'Doble clic en la barra de zoom de la ventana (o en «Zoom», o donde caiga el segundo clic justo tras un clic en ella): sin zoom y centrada, un paso de ⌘Z; desde centrada o sin recorte guardado, ninguno (D-159)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const [f] = await poner('r1', [await foto('lz7.jpg', 1600, 1600)]);
+    M._test.setCrop(f, 'r1', { cx: 0.3, cy: 0.4, z: 1.8 }); await M.flush(); await espera(2100);   // pasados los 2 s que juntan los cambios de un encuadre
+    const crop = () => { const c = M._in.cropOf(f, slot('r1')); return [+c.cx.toFixed(3), +c.cy.toFixed(3), +c.z.toFixed(3)]; };
+    M._in.openDetail('r1', 0);
+    const z = await hasta(() => q('.detail .ptools .zoom'), 3000, 'la barra de zoom');
+    ok(/^Zoom · doble clic: sin zoom y centrada$/.test(z.title), 'el título: ' + z.title);
+    const u0 = M._test.hist().undo;
+    dbl(z); await espera(60);
+    igual(crop(), [0.5, 0.5, 1], 'el encuadre tras el doble clic');
+    igual(M._test.hist().undo, u0 + 1, 'pasos de ⌘Z');
+    await M._test.undo(); await espera(60);
+    igual(crop(), [0.3, 0.4, 1.8], '⌘Z no lo devuelve');
+    if (!q('.detail .zoomr')) { M._in.openDetail('r1', 0); await hasta(() => q('.detail .zoomr'), 2000, 'la ventana'); }
+    q('.detail .zoomr').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+    dbl(q('.detail .ptools')); await espera(60);
+    igual(crop(), [0.5, 0.5, 1], 'el segundo clic a su lado, en la fila');
+    const u1 = M._test.hist().undo;
+    const zr = await hasta(() => q('.detail .zoomr'), 2000, 'la barra');
+    zr.value = '1.4'; zr.dispatchEvent(new W.Event('input', { bubbles: true })); zr.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(40);
+    dbl(q('.detail .ptools .zoom')); await espera(60);
+    igual(crop(), [0.5, 0.5, 1], 'desde centrada');
+    igual(M._test.hist().undo, u1, 'desde centrada, el clic y el doble clic dejan un paso');
+    M._in.closeDetail();
+    // una foto sin recorte guardado: el doble clic no deja paso ni recorte
+    const [g] = await poner('r2', [await foto('lz7-b.jpg', 1600, 1600)]); await M.flush(); await espera(2100);
+    M._in.openDetail('r2', 0); await hasta(() => q('.detail .ptools .zoom'), 3000, 'la ventana de r2');
+    const u2 = M._test.hist().undo;
+    dbl(q('.detail .ptools .zoom')); await espera(60);
+    igual([M._test.hist().undo, !!(M.board().crops || {})[g]], [u2, false], 'sin recorte guardado: pasos y recorte');
+    // el segundo clic cae fuera de la fila, cerca del primero (la fila bajó): cuenta
+    M._test.setCrop(g, 'r2', { cx: 0.3, z: 1.5 }); await M.flush(); await espera(2100);
+    M._in.openDetail('r2', 0); const zr2 = await hasta(() => q('.detail .zoomr'), 2000, 'la barra'), rz = zr2.getBoundingClientRect();
+    zr2.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: rz.left + 20, clientY: rz.top + 5 }));
+    q('.detail .pleft').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, view: W, clientX: rz.left + 22, clientY: rz.top + 17 }));
+    await espera(60);
+    const cg = M._in.cropOf(g, slot('r2')); igual([+cg.cx.toFixed(3), +cg.z.toFixed(3)], [0.5, 1], 'el segundo clic fuera de la fila');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ8', 'Sin «Centrar» en la ventana de una foto ni en la de un reel: lo hace el doble clic del zoom (D-159)', async () => {
+    await tablero([pub(1), pub(2, 'Reel')]);
+    await poner('r1', [await foto('lz8-a.jpg')]); await poner('r2', [await foto('lz8-b.jpg', 1080, 1920)]);
+    for (const id of ['r1', 'r2']) {
+      M._in.openDetail(id, 0); await hasta(() => q('.detail .ptools .zoom'), 3000, 'la barra de zoom de ' + id);
+      ok(!q('.detail [data-act="center"]') && !/Centrar/.test(q('.detail .ptools').textContent), 'sigue «Centrar» en ' + id); M._in.closeDetail();
+    }
+  });
+
+  prueba('LZ11', 'Sin «Cancelar» junto al botón principal: Nuevo cliente, Editar cliente, ⇅, Nueva carpeta, Borrar la carpeta, el bloqueo del mes anterior, «Ya usada» y Descargar fotos; el foco, en la × donde estaba en «Cancelar» o en la página (D-155)', async () => {
+    await limpiar();
+    const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [{ id: 'lz11-p', name: 'Foto 0.1', type: 'Foto', date: '2026-10-05T12:00:00.000+02:00' }], force: true });
+    ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero: ' + json(r));
+    await pulsar('[data-act="newclient"]'); sinBoton('Nuevo cliente'); M._in.closeDetail();
+    q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); sinBoton('Editar cliente'); M._in.closeDetail();
+    await pulsar('.appbar .xfer'); sinBoton('⇅'); M._in.closeDetail();
+    M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); sinBoton('Nueva carpeta'); M._in.closeDetail();
+    const c = M.crearCarpeta('LZ11'); M.pedirBorrarCarpeta(c.id);
+    await hasta(() => q('.detail [data-act="carpeta-borrar"]'), 2000, 'Borrar la carpeta'); sinBoton('Borrar la carpeta'); focoEnX('Borrar la carpeta'); M._in.closeDetail();
+    (await hasta(() => q('.cell.past .pmonth'), 3000, 'la etiqueta del mes anterior')).click();
+    await hasta(() => q('.detail [data-act="unlock-always"]'), 2000, 'el bloqueo'); sinBoton('el bloqueo'); focoEnX('el bloqueo'); M._in.closeDetail();
+    const [f] = await poner('r1', [await foto('lz11.jpg')]);
+    M._test.addToSlot('r2', [f]);
+    await hasta(() => q('.detail [data-act="repe"]'), 3000, '«Ya usada»'); sinBoton('«Ya usada»'); focoEnX('«Ya usada»'); M._in.closeDetail();
+    M.descargar.elegir('r1'); M.descargar.abrir(); await hasta(() => ventanaDl(), 3000, 'Descargar fotos'); sinBoton('Descargar fotos'); M._in.closeDetail(); M.descargar.vaciar();
+  });
+
+  prueba('LZ12', 'Al abrir un tablero con vencidas no sale el aviso «N vencidas · Ver»: «N vencidas» de la cabecera del calendario abre la lista (D-160)', async () => {
+    try {
+      reloj('2026-11-10', '12:00');
+      await tablero([pub(1, 'Foto', 2), pub(2, 'Foto', 20)]);
+      await revisarV(true); await espera(300);
+      ok(!toastCon(/vencida/), 'sale el aviso al abrir');
+      const v = await hasta(() => q('.side > .cal .cvenc'), 3000, '«1 vencida» en el calendario');
+      v.click(); await hasta(() => ventanaV(), 2000, 'la lista desde el calendario'); M._in.closeDetail();
+      // tras «Vista cliente» y un redibujo dentro de ella, «1 vencida» vuelve en cuanto se quita la vista
+      q('.clientToggle').click(); await espera(40);
+      ok(!q('.side > .cal .cvenc'), 'sale «1 vencida» en «Vista cliente»');
+      q('.side > .cal [data-cal="next"]:not([disabled]), .side > .cal [data-cal="prev"]:not([disabled])') && q('.side > .cal [data-cal="next"]:not([disabled]), .side > .cal [data-cal="prev"]:not([disabled])').click(); await espera(40);
+      q('.clientToggle').click(); await espera(40);
+      ok(q('.side > .cal .cvenc'), 'al quitar «Vista cliente» no vuelve «1 vencida»');
+      // la lista que se vacía deja el foco en la × (D-155)
+      M.calendario.vencidas(); await hasta(() => filaV('r1'), 2000, 'r1 en la lista');
+      filaV('r1').querySelector('[data-cal="v-pub"]').focus(); enFilaV('r1', 'v-pub'); await hasta(() => /No queda ninguna vencida/.test(ventanaV().textContent), 2000, 'la lista vacía');
+      ok(D.activeElement === q('.detail .card > .x'), 'vaciada, el foco no está en la ×: ' + (D.activeElement && D.activeElement.outerHTML.slice(0, 60)));
+      M._in.closeDetail();
+    } finally { if (q('.clientToggle') && q('.clientToggle').checked) q('.clientToggle').click(); volverReloj(); }
+  });
+
+  prueba('LZ13', 'El calendario no enseña «Notion a fecha de: …»: va en el título de «Igual que Notion» y de «N cambios sin subir» (D-160)', async () => {
+    await tablero([pub(1), pub(2)]);
+    const cal = await hasta(() => q('.side > .cal .calhead'), 3000, 'el calendario');
+    ok(!q('.side > .cal .cnat') && !/Notion a fecha de/.test(cal.textContent), 'sigue el texto');
+    ok(/^Notion a fecha de: /.test(q('.side > .cal .csync').title), 'el título de «Igual que Notion»: ' + q('.side > .cal .csync').title);
+    M._test.setDate('r1', '2026-11-20T12:00:00.000+01:00');
+    await hasta(() => q('.side > .cal .csync.c'), 3000, '«1 cambio sin subir»');
+    ok(/ · Notion a fecha de: /.test(q('.side > .cal .csync.c').title), 'el título de «N cambios sin subir»: ' + q('.side > .cal .csync.c').title);
+  });
+
+  prueba('LZ14', 'Sin «+ Mes» en la barra del mes (D-157)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => q('.bar .months .mchip'), 3000, 'la barra del mes');
+    ok(!q('.bar [data-act="howmonth"]') && !qa('.bar button').some(b => b.textContent.trim() === '+ Mes'), 'sigue «+ Mes»');
+  });
+
+  prueba('LZ17', 'La ventana de un carrusel no repite su tipo delante del formato (D-156)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz17-a.jpg'), await foto('lz17-b.jpg')]);
+    M._in.openDetail('r1', 0); const t = await hasta(() => q('.detail .ptools .seg'), 3000, 'el formato');
+    ok(!qa('.detail .ptools .muted').some(x => x.textContent.trim() === 'Carrusel'), 'sigue «Carrusel» delante del formato');
+    ok(t.parentElement.firstElementChild === t, 'el formato no va primero');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ18', 'La ventana de un reel no lleva «Portada del reel · 9:16 · las líneas marcan el 3:4 del perfil» (D-156)', async () => {
+    await tablero([pub(1, 'Reel')]);
+    await poner('r1', [await foto('lz18.jpg', 1080, 1920)]);
+    M._in.openDetail('r1', 0); await hasta(() => q('.detail .ptools .zoom'), 3000, 'la ventana del reel');
+    ok(!/Portada del reel|las líneas marcan/.test(q('.detail .pleft').textContent), 'sigue el texto: ' + q('.detail .pleft').textContent);
+    ok(q('.detail .gguide span') && /Así se ve en el perfil/.test(q('.detail .gguide span').textContent), 'falta «Así se ve en el perfil»');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ19', 'Una foto con imagen del editor no lleva «Editada: se sube tal cual · cámbiala en «Editar»» bajo la foto: lo dice la línea de la columna (D-156)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('lz19.jpg')]);
+    await abrirEditor('r1'); accion('add-txt'); await aplicarEditor();
+    M._in.openDetail('r1', 0); await hasta(() => q('.detail .ptools'), 3000, 'la ventana');
+    ok(!/Editada: se sube tal cual/.test(q('.detail .pleft').textContent), 'sigue el texto bajo la foto');
+    ok(/1 página editada · se sube tal cual/.test(q('.detail').textContent), 'falta la línea de la columna');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ20', 'La vista de historias no dice «N historias en este mes» cuando hay alguna; sin ninguna, sí lo dice (D-156)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.hs, 4000, 'historias.js');
+    M.hs.ver(true);
+    try {
+      const r0 = await hasta(() => q('.hv-res'), 3000, 'la línea de vacío');
+      ok(/Aún no hay historias en este mes/.test(r0.textContent), 'vacío: ' + r0.textContent);
+      await M.cargarHistorias([{ date: `${MES}-05T10:00:00.000Z`, order: 1, note: 'LZ20' }]);
+      await hasta(() => q('.hv-card'), 3000, 'la historia');
+      ok(!q('.hv-res'), 'sigue «N historias en este mes»: ' + (q('.hv-res') || {}).textContent);
+    } finally { M.hs.ver(false); }
+  });
+
+  prueba('LZ21', 'Sin puntos de posición sobre la foto de un carrusel: la tira de debajo marca la misma (D-156)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz21-a.jpg'), await foto('lz21-b.jpg'), await foto('lz21-c.jpg')]);
+    M._in.openDetail('r1', 1); await hasta(() => q('.detail .strip'), 3000, 'la tira');
+    ok(!q('.detail .stage .dots'), 'siguen los puntos');
+    ok(q('.detail .strip .th.on[data-k="1"]') && q('.detail .stage .nav.next'), 'la tira o las flechas');
+    M._in.closeDetail();
+  });
+
+  const tresCaptions = id => M.loadCaptions([{ slotId: id, options: [{ tone: 'Cercano', text: 'Uno' }, { tone: 'Directo', text: 'Dos' }, { tone: 'Poético', text: 'Tres' }] }]);
+  prueba('LZ22', 'La caja del caption elegido no lleva la etiqueta «Elegida»: lo dicen el radio, el borde y «Elegido: Caption N» (D-156)', async () => {
+    await tablero([pub(1)]);
+    tresCaptions('r1'); M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } });
+    M._in.openDetail('r1', 0); await hasta(() => q('.detail .capbox.on'), 3000, 'el caption elegido');
+    ok(!/Elegida/.test(q('.detail .capbox.on').textContent) && !q('.detail .capbox em'), 'sigue «Elegida»');
+    ok(q('.detail .capbox.on .cappick').checked && /Elegido: Caption 2/.test(q('.detail .caphead').textContent), 'el radio o la píldora');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ23', '«Con textos / Solo la foto» solo sale si alguna pieza lleva textos (D-162)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('lz23-a.jpg')]); await poner('r2', [await foto('lz23-b.jpg')]);
+    M.descargar.elegir('r1'); M.descargar.abrir(); await hasta(() => ventanaDl(), 3000, 'Descargar fotos');
+    ok(!q('.detail input[name="dl-txt"]') && !/Con textos|Solo la foto/.test(ventanaDl().textContent), 'sale sin piezas con textos');
+    ok(q('.detail input[name="dl-res"]'), 'falta la resolución'); M._in.closeDetail(); M.descargar.vaciar();
+    await abrirEditor('r2'); accion('add-txt'); await aplicarEditor();
+    M.descargar.elegir('r1'); M.descargar.elegir('r2'); M.descargar.abrir(); await hasta(() => ventanaDl(), 3000, 'Descargar fotos');
+    ok(q('.detail input[name="dl-txt"][value="sin"]'), 'no sale con una pieza con textos');
+    // desmarcada la única pieza con textos, se va; marcada otra vez, vuelve
+    const grupo = () => q('.detail .dl-op[aria-label="Textos"]'), pz2 = q('.detail .dl-pz input[data-slot="r2"]');
+    ok(seVe(grupo()), 'con la pieza con textos marcada no se ve');
+    pz2.click(); await espera(30); ok(!seVe(grupo()), 'desmarcada la pieza con textos, sigue «Con textos / Solo la foto»');
+    pz2.click(); await espera(30); ok(seVe(grupo()), 'marcada otra vez, no vuelve');
+    M._in.closeDetail(); M.descargar.vaciar();
+  });
+
+  prueba('LZ24', '«Revisar» sin nada que revisar da un aviso ligero «Todo en orden: nada que revisar» y no abre ventana (D-162)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('lz24.jpg', 1440, 1800)]);
+    M._in.clearToasts();
+    q('.bar [data-act="revisar"]').click();
+    await hasta(() => toastCon(/^Todo en orden: nada que revisar/), 4000, 'el aviso');
+    ok(!dialogo(), 'abre una ventana');
+  });
+
+  prueba('LZ28', 'La barra del mes no lleva el avatar, el nombre grande ni el @: «⋯ Editar cliente» va junto a la pestaña del cliente (D-157)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => q('.bar .months'), 3000, 'la barra del mes');
+    ok(!q('.bar .ident') && !q('.bar .av') && !q('.bar .who'), 'sigue la identificación');
+    const t = q('.tabs .tab.on + .tedit'); ok(t && seVe(t), '«⋯» no está junto a la pestaña');
+    t.click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, '«⋯» no abre Editar cliente'); M._in.closeDetail();
+  });
+
+  prueba('LZ29', '«+ Carpeta» y «Subir carpeta» salen de la fila de pestañas y van al clic derecho de la bandeja, en un hueco, una foto o una carpeta (D-158)', async () => {
+    W.localStorage.setItem('mesa-bandeja-plegada', '0');
+    await tablero([pub(1)]);
+    const tb = await hasta(() => q('.side > .tray .tbody'), 3000, 'la bandeja');
+    ok(!q('.tray [data-act="cp-nueva"], .tray [data-act="cp-subir"]'), 'siguen los botones');
+    const menu = async el => { el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 200, view: W })); const m = await hasta(() => q('.cpmenu'), 2000, 'el menú'); return [...m.querySelectorAll('button')].map(b => b.childNodes[0].textContent); };
+    let its = await menu(tb);
+    ok(its.includes('Nueva carpeta…') && its.includes('Subir carpeta…'), 'en un hueco: ' + its);
+    ok(D.activeElement && D.activeElement.childNodes[0] && D.activeElement.childNodes[0].textContent === 'Nueva carpeta…', 'el foco no está en el primero que funciona: ' + (D.activeElement && D.activeElement.textContent));
+    [...q('.cpmenu').querySelectorAll('button')].find(b => b.textContent === 'Nueva carpeta…').click();
+    const inp = await hasta(() => q('.detail [data-form="cp-nueva"] input'), 2000, 'Nueva carpeta');
+    inp.value = 'LZ29'; q('.detail [data-form="cp-nueva"]').requestSubmit(); await espera(60);
+    const c = await hasta(() => M.carpetas().find(x => x.name === 'LZ29'), 2000, 'la carpeta creada');
+    await M.addFiles([await foto('lz29.jpg')]);
+    its = await menu(await hasta(() => q('.side > .tray .titem'), 2000, 'la foto')); ok(its.includes('Nueva carpeta…') && its.includes('Copiar'), 'en una foto: ' + its); M.carpetasUI.cerrarMenu();
+    its = await menu(await hasta(() => q(`.side > .tray .tcarpeta[data-id="${c.id}"]`), 2000, 'la carpeta')); ok(its.includes('Subir carpeta…') && its.includes('Borrar carpeta…'), 'en una carpeta: ' + its); M.carpetasUI.cerrarMenu();
+  });
+
+  prueba('LZ30', 'Doble clic en el nombre del mes del calendario: vuelve al mes con el que abre el tablero, sin paso de ⌘Z (D-159)', async () => {
+    await tableroDos();
+    await hasta(() => calMes(), 3000, 'el calendario');
+    // el reloj de la batería está el 1 oct 2026, antes del tablero (nov y dic): abre en su mes más cercano a hoy, noviembre
+    const ini = 'Noviembre 2026', otro = 'Diciembre 2026';
+    await irMes(otro);
+    ok(/ · doble clic: el más cercano a hoy$/.test(q('.side > .cal .cmes').title), 'el título: ' + q('.side > .cal .cmes').title);
+    const u = M._test.hist().undo;
+    dbl(q('.side > .cal .cmes')); await espera(40);
+    igual(calMes(), ini, 'el mes tras el doble clic');
+    igual(M._test.hist().undo, u, 'dejó un paso de ⌘Z');
+  });
+
+  prueba('LZ34', 'Doble clic en «En Notion: …» devuelve la fecha y el tipo a los de Notion en un paso de ⌘Z (D-159)', async () => {
+    await tablero([pub(1), pub(2)]);
+    M._test.setDate('r1', '2026-11-20T12:00:00.000+01:00'); M._test.setType('r1', 'Carrusel');
+    M._in.openDetail('r1', 0);
+    const l = await hasta(() => q('.detail .pnot > .pnotx'), 3000, 'la línea «En Notion»');
+    ok(/ · doble clic: volver a lo de Notion$/.test(l.title), 'el título: ' + l.title);
+    const u0 = M._test.hist().undo, cambiado = () => [M._in.dateChg(slot('r1')), M._in.typeChg(slot('r1'))];
+    dbl(l); await espera(80);
+    igual(cambiado(), [false, false], 'no volvió a lo de Notion');
+    igual(M._test.hist().undo, u0 + 1, 'pasos de ⌘Z');
+    await M._test.undo(); await espera(80);
+    igual(cambiado(), [true, true], '⌘Z no lo devuelve todo');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ35', 'Sin «Volver a la fecha de Notion» ni «Volver a {tipo}»: con solo la fecha cambiada, el doble clic devuelve solo la fecha (D-159)', async () => {
+    await tablero([pub(1)]);
+    M._test.setDate('r1', '2026-11-21T12:00:00.000+01:00');
+    M._in.openDetail('r1', 0);
+    const l = await hasta(() => q('.detail .pnot > .pnotx'), 3000, 'la línea «En Notion»');
+    ok(!q('.detail [data-act="datereset"], .detail [data-act="typereset"]') && !/Volver a/.test(q('.detail .pnot').textContent), 'siguen los enlaces');
+    dbl(l); await espera(80);
+    igual([M._in.dateChg(slot('r1')), slot('r1').type], [false, 'Foto'], 'la fecha o el tipo');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ36', 'Una publicación Por aprobar no lleva «Aprobar»: se aprueba con «Aprobado» en su desplegable (D-161)', async () => {
+    await tablero([pub(1)]);
+    await porAprobar(['r1'], 'lz36');
+    M._in.openDetail('r1', 0); const s = await hasta(() => q('.detail .essel'), 3000, 'el estado');
+    ok(!q('.detail [data-act="aprobar"]') && !qa('.detail button').some(b => b.textContent.trim() === 'Aprobar'), 'sigue «Aprobar»');
+    const u = M._test.hist().undo;
+    s.value = 'aprobado'; s.dispatchEvent(new W.Event('change', { bubbles: true }));
+    await hasta(() => M._in.estadoDe(slot('r1')) === 'aprobado', 2000, 'Aprobado desde el desplegable');
+    igual(M._test.hist().undo, u + 1, 'pasos de ⌘Z');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ37', 'Un carrusel no lleva «◀ Mover» ni «Mover ▶»: se ordena arrastrando la tira (D-161)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz37-a.jpg'), await foto('lz37-b.jpg')]);
+    M._in.openDetail('r1', 0); await hasta(() => q('.detail .strip'), 3000, 'la tira');
+    ok(!q('.detail [data-act="left"], .detail [data-act="right"]') && !/Mover/.test(q('.detail .pacts').textContent), 'siguen los botones');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ38', '«Guardado» se va a los 2 s; «No se pudo guardar» se queda (D-157)', async () => {
+    await tablero([pub(1)]);
+    M._test.setNote('r1', 'LZ38');
+    await hasta(() => q('.save').textContent === 'Guardado', 3000, '«Guardado»');
+    await hasta(() => q('.save').textContent === '', 3500, 'que «Guardado» se vaya');
+  });
+
+  prueba('LZ39', 'Un caption cambiado no lleva «Editado»: «Volver al original» ya lo dice (D-156)', async () => {
+    await tablero([pub(1)]);
+    tresCaptions('r1');
+    M._in.openDetail('r1', 0); const t = await hasta(() => q('.detail .capbox[data-k="0"] textarea.capt'), 3000, 'el caption');
+    t.value = 'Uno cambiado'; t.dispatchEvent(new W.Event('input', { bubbles: true })); await espera(40);
+    const b = q('.detail .capbox[data-k="0"]');
+    ok(b.classList.contains('edited') && seVe(b.querySelector('.caprev')), 'falta «Volver al original»');
+    ok(!/Editado/.test(b.querySelector('.caprow').textContent), 'sigue «Editado»');
+    M._in.closeDetail();
+  });
+
+  prueba('LZ40', 'Sin captions, la cabecera de Captions no lleva la píldora «Sin captions»; con captions, la suya (D-156)', async () => {
+    await tablero([pub(1)]);
+    M._in.openDetail('r1', 0); await hasta(() => q('.detail .caphead'), 3000, 'Captions');
+    ok(!q('.detail .caphead .capst') && /Sin captions todavía/.test(q('.detail .capbody').textContent), 'sigue la píldora o falta el texto');
+    M._in.closeDetail();
+    tresCaptions('r1');
+    M._in.openDetail('r1', 0); await hasta(() => q('.detail .caphead .capst'), 3000, 'la píldora con captions');
+    ok(/Por elegir/.test(q('.detail .caphead .capst').textContent), 'la píldora: ' + q('.detail .caphead .capst').textContent);
+    M._in.closeDetail();
+  });
+
+  prueba('LZ41', 'La marca de la barra superior es solo el icono, sin «Mesa de trabajo» (D-157)', async () => {
+    await tablero([pub(1)]);
+    ok(q('.appbar .brand svg') && !q('.appbar .brand').textContent.trim(), 'sigue el texto: ' + q('.appbar .brand').textContent);
+    igual(D.title, 'Mesa de trabajo', 'el nombre de la pestaña');
+  });
+
+  prueba('LZ45', 'Doble clic en «Inicio de ciclo»: día 1 en «Nuevo cliente»; el guardado en «Editar cliente» (D-159)', async () => {
+    await tablero([pub(1)]);
+    await pulsar('[data-act="newclient"]');
+    const l = await hasta(() => q('.detail label.dcl[for="nc-cycle"]'), 2000, 'la etiqueta');
+    ok(/^Inicio de ciclo · doble clic: día 1$/.test(l.title), 'el título: ' + l.title);
+    q('#nc-cycle').value = '12'; dbl(l); igual(q('#nc-cycle').value, '1', 'Nuevo cliente');
+    M._in.closeDetail();
+    q('.tabs .tedit').click();
+    const l2 = await hasta(() => q('.detail label.dcl[for="ec-cycle"]'), 3000, 'Editar cliente'), i2 = q('#ec-cycle'), v0 = i2.value;
+    ok(/^Inicio de ciclo · doble clic: el guardado$/.test(l2.title), 'el título: ' + l2.title);
+    i2.value = v0 === '9' ? '10' : '9'; dbl(l2); igual(i2.value, v0, 'Editar cliente');
+    M._in.closeDetail();
+  });
+
+  // ----- las propuestas del editor y del diseñador (subagente «editor»): LZ<número> y las rehechas -----
+  // ---------- Mesa más limpia: el editor (libre.js) y el diseñador (diseno.js) ----------
+  // un doble clic de verdad (el evento, con detail 2) en una pieza; la fila de una barra del panel por su data-lb
+  const lzeDbl = el => { ok(el, 'no está la pieza del doble clic'); el.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 })); };
+  const lzeFila = lb => { const i = q(`.lb-panel input[data-lb="${lb}"]`); ok(i, 'no está la barra ' + lb); return i.closest('.lb-rng'); };
+  const lzePasos = () => ed().hist.undo.length;
+  const lzeZ = (shift = false) => tecla('z', { meta: true, shift, code: 'KeyZ' });
+  const lzeSuelto = () => { ed().hist.tag = null; };   // lo siguiente, un paso aparte (como tras 1,5 s)
+  const lzeEl = id => compDe(ed().i).els.find(e => e.id === id);
+  // el clic derecho sobre un elemento (en su centro, sobre el lienzo): el evento y el menú abierto
+  function lzeDerecho(el) {
+    const { W: sw, H: sh } = tam(), [x, y] = aVentana((el.x + el.w / 2) * sw, (el.y + el.h / 2) * sh);
+    const e = raton('contextmenu', ed().cv, x, y, { button: 2 });
+    return { e, m: q('.lb-cm:not([hidden])') };
+  }
+  const lzeItems = () => qa('.lb-cm button').map(b => [b.firstChild.textContent, b.querySelector('.lb-kb').textContent, b.disabled]);
+  const lzeItem = t => qa('.lb-cm button').find(b => b.firstChild.textContent === t);
+
+  prueba('LZ6', 'Sin ↶ ↷ en la cabecera del editor: ⌘Z y ⇧⌘Z siguen, y salen en «?»', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    const h = ed().el.querySelector('.lb-head');
+    ok(!h.querySelector('[data-lb="undo"], [data-lb="redo"]') && !/[↶↷]/.test(h.textContent), 'siguen ↶ ↷ en la cabecera');
+    accion('sl-add'); accion('add-txt'); igual(compDe(0).els.length, 1, 'no añadió el texto');
+    lzeZ(); igual(compDe(0).els.length, 0, '⌘Z no deshizo');
+    lzeZ(true); igual(compDe(0).els.length, 1, '⇧⌘Z no rehízo');
+    const at = q('.lb-atajos').textContent; ok(/⌘Z/.test(at) && /⇧⌘Z/.test(at), '«?» no dice ⌘Z ni ⇧⌘Z');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ9', 'Doble clic en la fila de una barra (etiqueta, barra o cifra): Opacidad 100 %, Sombra, Borde, Esquinas y Margen 0, Grosor 4,5 px, velo 35 % y 60 %, textura 35 %, Separación 2 %; «Ángulo» 0°; un paso de ⌘Z con el clic de antes y ninguno si no cambia; con «Varios», todos; título «· doble clic: …» y sin selección', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz9a.jpg')]);
+    await abrirEditor('r1');
+    accion('cap', { id: 'r0' });
+    const f = () => lzeEl('r0');
+    // Sombra: título, sin selección, un paso; ⌘Z y ⇧⌘Z
+    const r = lzeFila('sh');
+    igual(r.title, 'Sombra · doble clic: sin sombra', 'el título de Sombra');
+    igual([W.getComputedStyle(r.querySelector('span')).userSelect, W.getComputedStyle(r.querySelector('output')).userSelect], ['none', 'none'], 'la etiqueta o la cifra se seleccionan');
+    deslizar('sh', 0.39); lzeSuelto();
+    let n = lzePasos();
+    lzeDbl(lzeFila('sh').querySelector('span'));
+    igual([f().sh, lzePasos()], [0, n + 1], 'doble clic en la etiqueta de Sombra');
+    igual(lzeFila('sh').querySelector('output').textContent, '0 %', 'la cifra no se puso al día');
+    lzeZ(); igual(f().sh, 0.39, '⌘Z no la devolvió');
+    lzeZ(true); igual(f().sh, 0, '⇧⌘Z');
+    // el primer clic del doble clic movió la barra: el mismo paso, y como no cambia nada, ninguno
+    lzeSuelto(); n = lzePasos();
+    deslizar('sh', 0.6); lzeDbl(lzeFila('sh').querySelector('input'));
+    igual([f().sh, lzePasos()], [0, n], 'doble clic en la barra ya en su valor: dejó un paso');
+    lzeDbl(lzeFila('sh').querySelector('output'));
+    igual(lzePasos(), n, 'doble clic en la cifra ya en su valor: dejó un paso');
+    // con un clic que sí cambia algo: un solo paso con él
+    deslizar('sh', 0.3); lzeSuelto(); n = lzePasos();
+    deslizar('sh', 0.8); lzeDbl(lzeFila('sh').querySelector('input'));
+    igual([f().sh, lzePasos()], [0, n + 1], 'el clic y el doble clic, un paso');
+    lzeZ(); igual(f().sh, 0.3, '⌘Z no volvió a lo de antes del clic');
+    lzeZ(true);
+    // Opacidad, Borde, Esquinas
+    for (const [lb, v, d, tit] of [['op', 0.4, 1, 'Opacidad · doble clic: 100 %'], ['b', 0.03, 0, 'Borde · doble clic: sin borde'], ['r', 0.5, 0, 'Esquinas · doble clic: sin redondear']]) {
+      deslizar(lb, v); lzeSuelto(); n = lzePasos();
+      igual(lzeFila(lb).title, tit, 'el título de ' + lb);
+      lzeDbl(lzeFila(lb).querySelector('span'));
+      igual([f()[lb], lzePasos()], [d, n + 1], 'doble clic en ' + lb);
+    }
+    // Margen (con «Encajar»): 0, la foto entera
+    accion('encajar'); deslizar('fit', 0.1); lzeSuelto(); n = lzePasos();
+    igual(lzeFila('fit').title, 'Margen · doble clic: 0 %, la foto entera', 'el título de Margen');
+    lzeDbl(lzeFila('fit').querySelector('output'));
+    igual([f().fit, lzePasos()], [0, n + 1], 'doble clic en Margen');
+    // «Ángulo»: 0°
+    accion('rotr'); lzeSuelto(); n = lzePasos();
+    const ang = q('.lb-panel .lb-ang'); ok(ang, 'sin la palabra «Ángulo»');
+    igual([ang.title, W.getComputedStyle(ang).userSelect], ['Ángulo · doble clic: 0°', 'none'], 'el título o la selección de «Ángulo»');
+    lzeDbl(ang); igual([f().rot, lzePasos()], [0, n + 1], 'doble clic en «Ángulo»');
+    ok(/^0°/.test(q('.lb-panel [data-pl="girar"] .lb-acc-s').textContent), 'el resumen de «Girar» no dice 0°');
+    lzeZ(); igual(f().rot, 90, '⌘Z no devolvió el ángulo');
+    // ya a 0° y con «Encajar»: el doble clic no deja paso ni quita el encaje
+    lzeDbl(q('.lb-panel .lb-ang')); accion('encajar'); lzeSuelto(); n = lzePasos();
+    ok(f().fit != null && !f().rot, 'sin encaje o sin 0° antes de probar');
+    lzeDbl(q('.lb-panel .lb-ang')); igual([f().rot || 0, f().fit != null, lzePasos()], [0, true, n], 'doble clic en «Ángulo» ya a 0°');
+    // la diapositiva: velo, textura y separación
+    ed().sel = null; ed().mas = []; accion('velo', { v: 'grad' });
+    const c = () => compDe(0);
+    deslizar('velo-op', 0.81); lzeSuelto(); n = lzePasos();
+    igual(lzeFila('velo-op').title, 'Intensidad · doble clic: 35 %', 'el título de la intensidad del velo');
+    lzeDbl(lzeFila('velo-op').querySelector('span')); igual([c().velo.op, lzePasos()], [0.35, n + 1], 'intensidad del velo');
+    deslizar('velo-alc', 0.9); lzeSuelto(); n = lzePasos();
+    lzeDbl(lzeFila('velo-alc').querySelector('span')); igual([c().velo.alc, lzePasos()], [0.6, n + 1], 'alcance del velo');
+    accion('tex', { v: 'grano' }); deslizar('tex-op', 0.7); lzeSuelto(); n = lzePasos();
+    lzeDbl(lzeFila('tex-op').querySelector('span')); igual([c().tex.op, lzePasos()], [0.35, n + 1], 'intensidad de la textura');
+    deslizar('gap', 0.05); n = lzePasos();
+    igual(lzeFila('gap').title, 'Separación · doble clic: 2 %', 'el título de Separación');
+    lzeDbl(lzeFila('gap').querySelector('span')); igual([ed().gap, lzePasos()], [0.02, n], 'Separación sin rejilla: la preferencia, sin paso (como hoy)');
+    // Grosor de una línea: 4,5 px
+    accion('add-forma', { v: 'linea' }); deslizar('gr', 20); lzeSuelto(); n = lzePasos();
+    igual(lzeFila('gr').title, 'Grosor · doble clic: 4,5 px', 'el título del grosor');
+    lzeDbl(lzeFila('gr').querySelector('span'));
+    igual([lzeFila('gr').querySelector('input').value, lzePasos()], ['4.5', n + 1], 'grosor de la línea');
+    // recién puesta (4,5 px): el clic y el doble clic no dejan paso ni la mueven
+    accion('add-forma', { v: 'linea' }); lzeSuelto(); n = lzePasos(); const lid = ed().sel, l0 = json(lzeEl(lid));
+    deslizar('gr', 8); lzeDbl(lzeFila('gr').querySelector('span'));
+    igual([lzePasos(), json(lzeEl(lid))], [n, l0], 'el doble clic en Grosor ya a 4,5 px');
+    // «Varios» (D-048): dos rectángulos con sombras distintas, a 0 los dos en un paso
+    accion('add-forma', { v: 'rect' }); const a = ed().sel; accion('add-forma', { v: 'rect' }); const b = ed().sel;
+    lzeEl(a).sh = 0.2; lzeEl(b).sh = 0.6;
+    ed().sel = a; ed().mas = [b]; accion('pick-x'); lzeSuelto(); n = lzePasos();
+    ok(lzeFila('sh').classList.contains('lb-mix'), 'la sombra no dice «Varios»');
+    lzeDbl(lzeFila('sh').querySelector('span'));
+    igual([lzeEl(a).sh, lzeEl(b).sh, lzePasos()], [0, 0, n + 1], 'con «Varios», a los dos en un paso');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ10', 'Sin barra flotante sobre lo elegido: Copiar, Duplicar y Delante / detrás siguen con ⌘C, ⌘D y ⌘] ⌘[ (en «?») y con ▲ ▼ de «Capas»', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-forma', { v: 'rect' }); accion('add-txt'); await dibujado();
+    const [ra] = compDe(0).els;
+    accion('cap', { id: ra.id }); await dibujado();
+    ok(!q('.lb-fl, .lb-flm') && !qa('.lb-mid button').some(b => /^(Copiar|Duplicar|Delante \/ detrás)$/.test(b.textContent)), 'sigue la barra sobre lo elegido');
+    tecla('d', { meta: true }); igual(compDe(0).els.length, 3, '⌘D no duplicó');
+    accion('cap', { id: ra.id }); tecla(']', { meta: true, code: 'BracketRight' });
+    igual(compDe(0).els.indexOf(lzeEl(ra.id)), 1, '⌘] no lo puso delante');
+    tecla('c', { meta: true }); tecla('v', { meta: true }); igual(compDe(0).els.length, 4, '⌘C ⌘V no pegaron');
+    ok(q('.lb-panel [data-pl="capas"] [data-lb="cap-up"]'), 'sin ▲ ▼ en «Capas»');
+    const at = q('.lb-atajos').textContent; ok(/⌘C · ⌘V/.test(at) && /⌘D · ⌫/.test(at) && /⌘\] · ⌘\[/.test(at), '«?» no los dice');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ15', 'Sin ayudas que no dicen nada nuevo: «Clic en un elemento…» y «Arrastra cualquiera…» en el editor; la línea de datos bajo el nombre y «Arrastra el texto…» en el diseñador', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-forma', { v: 'rect' }); accion('add-txt');
+    ed().sel = null; ed().mas = []; accion('pick-x');
+    ok(!/Clic en un elemento/.test(q('.lb-panel').textContent), 'sigue «Clic en un elemento…»');
+    const [x, y] = compDe(0).els; ed().sel = x.id; ed().mas = [y.id]; accion('pick-x');
+    ok(!/Arrastra cualquiera/.test(q('.lb-panel').textContent), 'sigue «Arrastra cualquiera…»');
+    M.libre.cerrar();
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('lz15a.jpg', 1080, 1350), await foto('lz15b.jpg', 1080, 1350)], textos('LZ15', 'Portada', 'Ficha'), false);
+      const r = await M.diseno.abrir('r1'); ok(!r || !r.error, 'no abrió el diseñador: ' + json(r));
+      await dzAbierto();
+      ok(!q('.dz .dz-sub') && !/diapositivas? · \d+×\d+/.test(q('.dz .dz-head').textContent), 'sigue la línea de datos bajo el nombre');
+      ok(!/Arrastra el texto/.test(q('.dz').textContent), 'sigue «Arrastra el texto…»');
+      ok(q('.dz .dz-head h3') && q('.dz .dz-fmt button.on'), 'falta el nombre o el formato marcado');
+      await dzCerrar();
+    });
+  });
+
+  prueba('LZ16', 'Sin «Sin cambios»: la pastilla solo sale con «Cambios sin aplicar» (o «Aplicando…»)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz16.jpg')]);
+    await abrirEditor('r1');
+    const st = () => ed().el.querySelector('.lb-state');
+    ok(st().hidden && st().textContent === '' && W.getComputedStyle(st()).display === 'none', 'sin cambios sale la pastilla o deja su hueco: ' + st().textContent);   // sin hueco, como dice la propuesta
+    const sitio = () => ['cerrar', 'aplicar', 'mas'].map(k => { const r = ed().el.querySelector(`[data-lb="${k}"]`).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }), s0 = json(sitio());
+    accion('add-txt');
+    ok(!st().hidden && st().textContent === 'Cambios sin aplicar', 'con cambios no sale la pastilla');
+    igual(json(sitio()), s0, '«Cerrar», «Aplicar» o «⋯» se movieron al salir la pastilla');
+    ok(st().parentElement.classList.contains('lb-foot'), 'la pastilla no va en el pie del área gris');
+    { const a = st().getBoundingClientRect(), c = ed().cv.getBoundingClientRect(); ok(a.top >= c.bottom - 0.5 || a.right <= c.left + 0.5, 'la pastilla tapa la diapositiva'); }
+    lzeZ();
+    ok(st().hidden && st().textContent === '', 'deshecho, sigue la pastilla: ' + st().textContent);
+    M.libre.cerrar();
+  });
+
+  prueba('LZ25', '«+ Forma» con su menú (Rectángulo R · Círculo · Línea · Flecha) en lugar de cuatro botones; R y «Añadir forma» del gris siguen', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); await dibujado();
+    ok(!qa('.lb-panel button').some(b => /^\+ (Rectángulo|Círculo|Línea|Flecha)$/.test(b.textContent)), 'siguen los cuatro botones');
+    const fb = () => q('.lb-panel [data-lb="formas"]'), m = q('.lb-cm');
+    ok(fb() && fb().textContent === '+ Forma' && fb().getAttribute('aria-haspopup') === 'menu', 'sin «+ Forma»');
+    fb().click();
+    ok(!m.hidden && fb().getAttribute('aria-expanded') === 'true', '«+ Forma» no abrió su menú');
+    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false]], 'las formas del menú');
+    igual(D.activeElement, qa('.lb-cm button')[0], 'el foco no va a la primera');
+    tecla('ArrowDown'); igual(D.activeElement, qa('.lb-cm button')[1], '↓ no pasa a la siguiente');
+    fb().click(); ok(m.hidden && fb().getAttribute('aria-expanded') === 'false', 'pulsado otra vez no se cierra');
+    fb().click(); lzeItem('Línea').click();
+    ok(m.hidden, 'no se cerró al elegir');
+    const e = compDe(0).els[0]; ok(e && e.t === 'forma' && e.forma === 'linea' && ed().sel === e.id, '«Línea» no añadió una línea elegida');
+    ed().sel = null; ed().mas = []; accion('pick-x');
+    fb().click(); tecla('Escape'); ok(m.hidden, 'Esc no cierra el menú');
+    tecla('r'); igual(compDe(0).els.map(x => x.forma), ['linea', 'rect'], 'R no añadió un rectángulo');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ26', 'Sin «Copiar diapositiva» ni «Pegar» en el panel: «Copiar diapositiva ⌘C» en el clic derecho del gris, junto a «Pegar ⌘V»; ⌘C y ⌘V sin nada elegido siguen', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-forma', { v: 'rect' }); ed().sel = null; ed().mas = []; accion('pick-x'); await dibujado();
+    ok(!q('.lb-panel [data-lb="sl-copy"]') && !q('.lb-panel [data-lb="paste"]'), 'siguen en el panel');
+    const [gx, gy] = enGris(), m = q('.lb-cm');
+    raton('contextmenu', gris(), gx, gy, { button: 2 });
+    ok(!m.hidden, 'no abrió el menú del gris');
+    const it = lzeItem('Copiar diapositiva'); ok(it && !it.disabled && it.querySelector('.lb-kb').textContent === '⌘C', 'sin «Copiar diapositiva ⌘C»');
+    ok(lzeItem('Pegar'), 'sin «Pegar»');
+    const n = lzePasos();
+    it.click(); ok(m.hidden, 'no se cerró');
+    ok(/Diapositiva copiada/.test(aviso()), 'no copió la diapositiva: ' + aviso());
+    ok(!q('.lb-panel [data-lb="paste"]'), 'sale «Pegar» en el panel');
+    igual(lzePasos(), n, 'copiar sumó un paso');
+    raton('contextmenu', gris(), gx, gy, { button: 2 }); lzeItem('Pegar').click();
+    igual(ed().sl.length, 2, '«Pegar» no pegó la diapositiva');
+    ed().i = 0; tecla('c', { meta: true }); tecla('v', { meta: true }); igual(ed().sl.length, 3, '⌘C ⌘V sin nada elegido no copiaron la diapositiva');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ27', '«Guías ⌘G» (casilla) y «Vista previa» en «⋯»; fuera de la barra; ⌘G sigue y marca la casilla', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz27.jpg')]);
+    await abrirEditor('r1');
+    const reglas0 = ed().reglas;
+    try {
+      const h = ed().el.querySelector('.lb-head'), menu = h.querySelector('.lb-menu');
+      ok(![...h.querySelectorAll('[data-lb="guias"], [data-lb="preview"]')].some(b => !menu.contains(b)), 'siguen en la barra');
+      const g = menu.querySelector('[data-lb="guias"]'), pv = menu.querySelector('[data-lb="preview"]');
+      ok(g && g.getAttribute('role') === 'menuitemcheckbox' && /Guías/.test(g.textContent) && g.querySelector('.lb-kb').textContent === '⌘G', 'sin «Guías ⌘G» en «⋯»');
+      ok(pv && pv.textContent === 'Vista previa', 'sin «Vista previa» en «⋯»');
+      const orden = [...menu.querySelectorAll('button')].map(b => b.dataset.lb);
+      igual(orden.indexOf('preview'), orden.indexOf('todas') + 1, '«Vista previa» no va junto a «Ver todas»');
+      igual(g.getAttribute('aria-checked'), String(ed().reglas), 'la casilla no dice si están');
+      h.querySelector('[data-lb="mas"]').click(); ok(!menu.hidden, '«⋯» no se abrió');
+      g.click(); ok(menu.hidden, 'el menú no se cerró');
+      igual([ed().reglas, g.getAttribute('aria-checked')], [!reglas0, String(!reglas0)], '«Guías» no las cambió');
+      tecla('g', { meta: true, code: 'KeyG' });
+      igual([ed().reglas, g.getAttribute('aria-checked')], [reglas0, String(reglas0)], '⌘G no las cambió');
+      h.querySelector('[data-lb="mas"]').click(); pv.click();
+      ok(menu.hidden && ed().pv && ed().pv.isConnected, '«Vista previa» no se abrió');
+      tecla('Escape'); ok(!ed().pv, 'Esc no cierra la vista previa');
+      // en una ventana estrecha (560 px) «⋯» va al principio de la segunda fila: su menú se abre dentro de la ventana
+      const fr = $('mesa'), w0 = fr.style.width;
+      try {
+        fr.style.width = '560px'; await hasta(() => W.innerWidth <= 560, 3000, 'la ventana de 560 px'); await espera(150);
+        h.querySelector('[data-lb="mas"]').click(); await espera(30);
+        const b = menu.getBoundingClientRect();
+        ok(!menu.hidden && b.left >= 0 && b.right <= W.innerWidth, `el menú «⋯» sale de la ventana: ${Math.round(b.left)}–${Math.round(b.right)} de ${W.innerWidth}`);
+        if (!menu.hidden) h.querySelector('[data-lb="mas"]').click();
+      } finally { fr.style.width = w0; await hasta(() => W.innerWidth > 1000, 3000, 'la ventana ancha'); }
+    } finally { if (ed() && ed().reglas !== reglas0) tecla('g', { meta: true, code: 'KeyG' }); }
+    M.libre.cerrar();
+  });
+
+  prueba('LZ31', 'Doble clic en Tamaño, Interlineado o Espaciado: el valor del texto al abrir el editor (uno creado después, el de al crearlo: 81 px, 1,15, 0,00); un paso de ⌘Z', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-txt');
+    const id = ed().sel, t = () => lzeEl(id);
+    igual(lzeFila('size').title, 'Tamaño · doble clic: 81 px (al crearlo)', 'el título de Tamaño');
+    igual(lzeFila('lh').title, 'Interlineado · doble clic: 1.15 (al crearlo)', 'el título de Interlineado');
+    for (const [lb, v, d] of [['size', 0.12, 0.075], ['lh', 1.6, 1.15], ['ls', 0.2, 0]]) {
+      deslizar(lb, v); lzeSuelto(); const n = lzePasos();
+      lzeDbl(lzeFila(lb).querySelector('span'));
+      igual([t()[lb], lzePasos()], [d, n + 1], 'doble clic en ' + lb);
+      lzeZ(); igual(t()[lb], v, '⌘Z en ' + lb); lzeZ(true);
+    }
+    deslizar('size', 0.11); deslizar('lh', 1.4);
+    await aplicarEditor();
+    await abrirEditor('r1');
+    const id2 = compDe(0).els.find(e => e.t === 'texto').id; accion('cap', { id: id2 });
+    igual(lzeFila('size').title, 'Tamaño · doble clic: 119 px (al abrir el editor)', 'el título al abrir');
+    deslizar('size', 0.05); lzeSuelto(); const n = lzePasos();
+    lzeDbl(lzeFila('size').querySelector('output'));
+    igual([lzeEl(id2).size, lzePasos()], [0.11, n + 1], 'el tamaño de al abrir el editor');
+    lzeDbl(lzeFila('lh').querySelector('span')); igual([lzeEl(id2).lh, lzePasos()], [1.4, n + 1], 'ya en su valor: dejó un paso');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ32', 'Encuadrando, doble clic en «Zoom»: la foto centrada, al 1×, en un paso de ⌘Z (con el clic de antes); ya centrada, ninguno', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz32.jpg', 2000, 1500)]);
+    await abrirEditor('r1');
+    accion('cap', { id: 'r0' }); accion('crop');
+    igual(lzeFila('z').title, 'Zoom · doble clic: centrada, al 1×', 'el título de Zoom');
+    const f = () => lzeEl('r0');
+    let n = lzePasos();
+    lzeDbl(lzeFila('z').querySelector('span'));
+    igual(lzePasos(), n, 'ya centrada al 1×: dejó un paso');
+    deslizar('z', 2); f().cx = 0.3; lzeSuelto(); n = lzePasos();
+    deslizar('z', 2.5); lzeDbl(lzeFila('z').querySelector('input'));
+    igual([f().z, f().cx, f().cy, lzePasos()], [1, 0.5, 0.5, n + 1], 'doble clic en Zoom');
+    ok(ed().crop === 'r0', 'dejó de encuadrar');
+    lzeZ(); igual([f().z, f().cx], [2, 0.3], '⌘Z no volvió a lo de antes del clic');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ33', 'Encuadrando: sin «Centrar»; quedan «Zoom» y «Listo»', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('lz33.jpg', 2000, 1500)]);
+    await abrirEditor('r1');
+    accion('cap', { id: 'r0' }); accion('crop');
+    ok(!q('.lb-panel [data-lb="crop-c"]') && !qa('.lb-panel button').some(b => b.textContent === 'Centrar'), 'sigue «Centrar»');
+    ok(q('.lb-panel input[data-lb="z"]') && q('.lb-panel [data-lb="crop"]').textContent === 'Listo', 'faltan «Zoom» o «Listo»');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ42', 'Sin − ni + del zoom: queda el porcentaje con su doble clic; ⌘+ ⌘− ⌘0 siguen', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add');
+    const h = ed().el.querySelector('.lb-head');
+    ok(!h.querySelector('[data-lb="zin"], [data-lb="zout"]'), 'siguen − y +');
+    const zv = h.querySelector('.lb-zv'); ok(zv && /doble clic/.test(zv.title), 'sin el porcentaje');
+    tecla('=', { meta: true }); ok(ed().zoom > 1, '⌘+ no acercó');
+    lzeDbl(zv); igual([ed().zoom, zv.textContent], [1, '100 %'], 'el doble clic en el porcentaje');
+    tecla('-', { meta: true }); ok(ed().zoom < 1, '⌘− no alejó');
+    tecla('0', { meta: true, code: 'Digit0' }); igual(ed().zoom, 1, '⌘0');
+    ok(/⌘\+ · ⌘−/.test(q('.lb-atajos').textContent), '«?» no dice ⌘+ ⌘−');
+    M.libre.cerrar();
+  });
+
+  prueba('LZ46', 'Clic derecho sobre un elemento: el menú del gris con Copiar ⌘C, Duplicar ⌘D, Bloquear, Al frente / Adelante / Atrás / Al fondo, Desagrupar (con un grupo) y Borrar ⌫; lo elige o conserva la selección; ↓, Esc; en un sitio vacío de la diapositiva, el del navegador; «?» lo dice', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); accion('add-forma', { v: 'rect' }); accion('add-txt');
+    const [ra0, tx0] = compDe(0).els; Object.assign(ra0, { x: 0.05, y: 0.05 }); Object.assign(tx0, { y: 0.8 });
+    ed().sel = null; ed().mas = []; accion('pick-x'); await dibujado();
+    const ra = () => lzeEl(ra0.id), tx = () => lzeEl(tx0.id), m = q('.lb-cm');
+    let { e } = lzeDerecho(ra());
+    ok(e.defaultPrevented && !m.hidden, 'el clic derecho sobre el rectángulo no abrió el menú');
+    igual(elegidos(), [ra0.id], 'no eligió el rectángulo');
+    igual(lzeItems(), [['Copiar', '⌘C', false], ['Duplicar', '⌘D', false], ['Bloquear', '', false], ['Al frente', '⇧⌘]', false], ['Adelante', '⌘]', false], ['Atrás', '⌘[', true], ['Al fondo', '⇧⌘[', true], ['Borrar', '⌫', false]], 'las opciones del menú');
+    ok(m.classList.contains('lb-menu') && m.getAttribute('role') === 'menu', 'no es el menú del gris');
+    igual(D.activeElement, qa('.lb-cm button')[0], 'el foco no va a la primera');
+    tecla('ArrowDown'); igual(D.activeElement, qa('.lb-cm button')[1], '↓ no pasa a la siguiente');
+    tecla('Escape'); ok(m.hidden, 'Esc no lo cierra');
+    // escribiendo en un texto: el clic derecho sobre la diapositiva solo termina de escribir, sin menú
+    elegir(tx()); await dibujado();
+    const campo = await hasta(() => q('.lb-panel textarea'), 2000, 'el campo del texto'); campo.focus();
+    { const { W: sw, H: sh } = tam(), [x, y] = aVentana((ra().x + ra().w / 2) * sw, (ra().y + ra().h / 2) * sh); raton('pointerdown', ed().cv, x, y, { button: 2 }); }
+    campo.blur();
+    ({ e } = lzeDerecho(ra()));
+    ok(e.defaultPrevented && m.hidden, 'escribiendo, el clic derecho abrió el menú');
+    // Duplicar, Bloquear, Al frente, Borrar
+    lzeDerecho(ra()); lzeItem('Duplicar').click();
+    ok(m.hidden && compDe(0).els.length === 3, '«Duplicar» no duplicó o no cerró el menú');
+    lzeZ(); igual(compDe(0).els.length, 2, '⌘Z tras «Duplicar»');
+    lzeDerecho(ra()); lzeItem('Bloquear').click(); ok(ra().lock, '«Bloquear» no lo bloqueó');
+    lzeDerecho(ra()); ok(lzeItem('Desbloquear') && lzeItem('Borrar').disabled, 'bloqueado: sin «Desbloquear» o con «Borrar»');
+    lzeItem('Desbloquear').click(); ok(!ra().lock, '«Desbloquear»');
+    lzeDerecho(ra()); lzeItem('Al frente').click(); igual(compDe(0).els[1].id, ra0.id, '«Al frente»');
+    lzeDerecho(ra()); igual([lzeItem('Al frente').disabled, lzeItem('Al fondo').disabled], [true, false], 'delante del todo');
+    lzeItem('Al fondo').click(); igual(compDe(0).els[0].id, ra0.id, '«Al fondo»');
+    // varios elegidos: el clic derecho sobre uno de ellos los conserva y actúa en todos
+    ed().sel = ra0.id; ed().mas = [tx0.id]; accion('pick-x');
+    lzeDerecho(tx()); igual(elegidos(), [ra0.id, tx0.id].sort(), 'el clic derecho soltó la selección');
+    ok(!lzeItem('Desagrupar'), '«Desagrupar» sin grupo');
+    tecla('Escape'); accion('group');
+    lzeDerecho(tx()); ok(lzeItem('Desagrupar'), 'con un grupo, sin «Desagrupar»');
+    lzeItem('Borrar').click(); igual(compDe(0).els.length, 0, '«Borrar» no borró los dos');
+    lzeZ(); igual(compDe(0).els.length, 2, '⌘Z tras «Borrar»');
+    // un elemento no elegido: lo elige primero
+    ed().sel = ra0.id; ed().mas = []; accion('pick-x');
+    lzeDerecho(tx()); ok(elegidos().includes(tx0.id), 'no eligió el texto');
+    lzeItem('Copiar').click(); ok(q('.lb-cm').hidden, '«Copiar» no cerró el menú');
+    tecla('v', { meta: true }); igual(compDe(0).els.length, 4, '«Copiar» y ⌘V no pegaron el grupo');
+    // en un sitio vacío de la diapositiva: el menú del navegador, como antes; en el gris, el suyo
+    e = raton('contextmenu', ed().cv, ...aVentana(1420, 900), { button: 2 });
+    ok(!e.defaultPrevented && m.hidden, 'en un sitio vacío abrió un menú');
+    const [gx, gy] = enGris(); raton('contextmenu', gris(), gx, gy, { button: 2 });
+    ok(!m.hidden && lzeItem('Añadir texto'), 'el clic derecho del gris no da su menú');
+    tecla('Escape');
+    ok(!q('.lb-fl'), 'sigue la barra flotante');
+    ok(/Clic derecho/.test(q('.lb-atajos').textContent) && /intercambiar/.test(q('.lb-atajos').textContent), '«?» no dice el clic derecho');
+    M.libre.cerrar();
+  });
+
+  // ---------- el diseñador: dobles clics (43) y sin «Auto» del velo ni «Centrar» (44) ----------
+  async function lzeDisenador(nombre, fn) {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto(nombre + 'a.jpg', 1600, 1350), await foto(nombre + 'b.jpg', 1080, 1350)], textos(nombre, 'Portada', 'Ficha'), false);
+      const r = await M.diseno.abrir('r1'); ok(!r || !r.error, 'no abrió el diseñador: ' + json(r));
+      await dzAbierto();
+      await hasta(() => M.diseno.abierto().decision, 8000, 'la decisión del motor');
+      try { await fn(); } finally { await dzCerrar(); }
+    });
+  }
+  const lzeSl = () => slot('r1').design.slides[M.diseno.abierto().diapositiva - 1];
+  const lzePasosDz = () => M.diseno._hist().undo;
+
+  prueba('LZ43', 'Diseñador: doble clic en la barra del velo = «Auto», en «Zoom» = centrada al 1×, en «100 %» = 100 %; un paso de ⌘Z con el clic de antes y ninguno si no cambia; títulos «· doble clic: …»', async () => {
+    await lzeDisenador('lz43', async () => {
+      const velo = () => q('.dz .dz-velo'), zoom = () => q('.dz label.zoom'), tam100 = () => q('.dz .dz-size output');
+      igual([velo().title, zoom().title, tam100().title], ['Velo · doble clic: Auto, el que decide el kit', 'Zoom · doble clic: centrada, al 1×', 'Tamaño del texto · doble clic: 100 %'], 'los títulos');
+      igual([W.getComputedStyle(velo().querySelector('output')).userSelect, W.getComputedStyle(tam100()).userSelect], ['none', 'none'], 'las cifras se seleccionan');
+      const vr = () => q('.dz .dz-velor'), mover = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      // el velo: en «Auto»; un clic lo fija y el doble clic lo devuelve: ningún paso
+      ok(lzeSl().ov == null || lzeSl().ov.velo == null, 'no empieza en «Auto»');
+      let n = lzePasosDz();
+      mover(vr(), 0.75); igual(lzeSl().ov.velo, 0.75, 'la barra no fijó el velo');
+      lzeDbl(vr());
+      ok(lzeSl().ov.velo == null, 'el doble clic no lo dejó en «Auto»');
+      igual(lzePasosDz(), n, 'dejó un paso que no cambia nada');
+      await hasta(() => /· auto: \d+ %/.test(q('.dz .dz-dec[data-dec="velo"]').textContent), 4000, '«· auto: N %» junto al título');
+      // la barra enseña el valor que tiene, también si tenía el foco
+      vr().focus(); mover(vr(), 0.8); lzeDbl(vr());
+      const pa = +q('.dz .dz-dec[data-dec="velo"]').textContent.match(/(\d+) %/)[1];
+      ok(lzeSl().ov.velo == null && Math.abs(+vr().value * 100 - pa) < 1.5, `la barra del velo se quedó en ${vr().value} con el velo en «Auto» (${pa} %)`);
+      // fijado antes: el doble clic es un paso
+      mover(vr(), 0.6); await espera(2100); n = lzePasosDz();
+      mover(vr(), 0.3); lzeDbl(velo().querySelector('output'));
+      ok(lzeSl().ov.velo == null && lzePasosDz() === n + 1, 'el clic y el doble clic no son un paso: ' + lzePasosDz() + ' / ' + n);
+      tecla('z', { meta: true, code: 'KeyZ' }); igual(lzeSl().ov.velo, 0.6, '⌘Z no volvió a lo de antes del clic');
+      // «100 %»
+      q('.dz [data-dz="esc"][data-v="1"]').click(); await espera(30);
+      ok(lzeSl().ov.escala > 1, 'A+ no agrandó'); await espera(2100); n = lzePasosDz();   // A+ y el doble clic en 2 s serían un paso (y ninguno, sin cambio)
+      lzeDbl(tam100()); ok(lzeSl().ov.escala == null && tam100().textContent === '100 %', 'el doble clic no lo dejó al 100 %');
+      igual(lzePasosDz(), n + 1, '«100 %» no es un paso');
+      lzeDbl(tam100()); igual(lzePasosDz(), n + 1, 'ya al 100 %: sumó un paso');
+      // «Zoom»: centrada, al 1×
+      const src = lzeSl().src, crop = () => (M.board().crops || {})[src];
+      ok(!crop(), 'la foto ya tenía encuadre');
+      n = lzePasosDz();
+      lzeDbl(zoom().querySelector('span')); igual([crop(), lzePasosDz()], [undefined, n], 'sin encuadre: el doble clic dejó uno o un paso');
+      mover(q('.dz .dz-zoomr'), 2); lzeDbl(q('.dz .dz-zoomr'));
+      igual([crop(), lzePasosDz()], [undefined, n], 'el clic y el doble clic en una foto sin encuadre: no vuelve a «sin encuadre» o deja un paso');
+      q('.dz .dz-zoomr').focus(); mover(q('.dz .dz-zoomr'), 2.6); lzeDbl(q('.dz .dz-zoomr'));
+      igual([+q('.dz .dz-zoomr').value, crop()], [1, undefined], 'la barra Zoom no enseña 1× tras el doble clic');
+      mover(q('.dz .dz-zoomr'), 2); await espera(2100); n = lzePasosDz();
+      lzeDbl(zoom().querySelector('span'));
+      igual([crop().z, crop().cx, crop().cy, lzePasosDz()], [1, 0.5, 0.5, n + 1], 'el doble clic en «Zoom»');
+      tecla('z', { meta: true, code: 'KeyZ' }); igual(crop().z, 2, '⌘Z no devolvió el zoom');
+    });
+  });
+
+  prueba('LZ44', 'Diseñador: sin «Auto» del velo ni «Centrar» (sus dobles clics); «Restablecer ajustes» sigue', async () => {
+    await lzeDisenador('lz44', async () => {
+      ok(!q('.dz [data-dz="veloauto"]') && !q('.dz .dz-velo button'), 'sigue «Auto» en el velo');
+      ok(!q('.dz [data-dz="centrar"]') && !qa('.dz button').some(b => b.textContent === 'Centrar'), 'sigue «Centrar»');
+      ok(q('.dz .dz-velor') && q('.dz .dz-zoomr') && q('.dz [data-dz="reset"]'), 'falta la barra del velo, la del zoom o «Restablecer ajustes»');
+      ok(q('.dz [data-dz="color"][data-v=""]'), 'se fue el «Auto» del color (no se toca)');
+    });
+  });
+
+  // ---------- las que cambian a propósito ----------
+  rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
+    await tablero([pub(1, 'Foto', 5)]);
+    await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
+    M.hs.ver(true);
+    const id = M.hs.anadir(DIA(10), { note: 'Antes' });
+    await M.flush();
+    await abrirEditor(id);
+    const t = ed().el.querySelector('textarea.lb-guion');
+    igual(t.value, 'Antes', 'la nota en la cabecera');
+    t.value = 'Después'; t.dispatchEvent(new W.Event('change', { bubbles: true }));
+    igual(hDe(id).note, 'Después', 'la nota al salir del campo');
+    const st = ed().el.querySelector('.lb-state');
+    ok(st.hidden && st.textContent === '', 'la nota pide «Aplicar»: ' + st.textContent);
+    t.value = 'Sin salir del campo';
+    M.libre.cerrar();
+    await hasta(() => !ed(), 2000, 'cerrar el editor');
+    igual(hDe(id).note, 'Sin salir del campo', 'al cerrar el editor se pierde la nota');
+    igual(q(`.hv-card[data-h="${id}"] .hv-img p`).textContent, 'Sin salir del campo', 'la tarjeta');
+    q('#mesa').focus && D.body.focus();
+    cmd('z');
+    await hasta(() => hDe(id) && hDe(id).note === 'Antes', 2000, '⌘Z devuelve la nota de antes del editor');
+    M.hs.ver(false);
+    await abrirEditor('r1');
+    ok(!ed().el.querySelector('textarea.lb-guion') && ed().el.querySelector('.lb-ttl h3'), 'la cabecera de una publicación cambió');
+    M.libre.cerrar();
+  });
+
+  rehacer('E24', 'Clic derecho en el área gris: Copiar diapositiva, Pegar, Pegar estilo, Añadir texto y Añadir forma con su atajo; T y R añaden; nada escribiendo (D-032)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await abrirEditor('r1');
+    accion('sl-add'); await dibujado();
+    const [gx, gy] = enGris(), m = q('.lb-cm');
+    const menu = () => raton('contextmenu', gris(), gx, gy, { button: 2 });
+    const item = n => qa('.lb-cm button')[n];
+    let e = menu();
+    ok(e.defaultPrevented && !m.hidden, 'el clic derecho en el área gris no abrió el menú');
+    igual(qa('.lb-cm button').map(b => [b.firstChild.textContent, b.querySelector('.lb-kb').textContent]),
+      [['Copiar diapositiva', '⌘C'], ['Pegar', '⌘V'], ['Pegar estilo', '⌥⌘V'], ['Añadir texto', 'T'], ['Añadir forma', 'R']], 'las opciones del menú');
+    igual([item(0).disabled, ...qa('.lb-cm button').slice(2).map(b => b.disabled)], [false, true, false, false], 'sin texto elegido, «Pegar estilo» encendido o copiar y añadir apagados');
+    item(3).click();
+    ok(m.hidden, 'el menú no se cerró al elegir');
+    const els = () => compDe(0).els, ia = els()[0] && els()[0].id, A = () => els().find(x => x.id === ia);
+    ok(els().length === 1 && A().t === 'texto', '«Añadir texto» no añadió un texto');
+    elegir(A()); tecla('c', { meta: true });
+    menu(); ok(!item(1).disabled, '«Pegar» sigue apagado con algo copiado');
+    item(1).click();
+    igual(els().length, 2, '«Pegar» no pegó');
+    const ib = els()[1].id, B = () => els().find(x => x.id === ib);
+    Object.assign(A(), { color: '#ff0000', size: 0.09 }); Object.assign(B(), { color: '#000000', size: 0.03 });
+    elegir(A()); tecla('c', { meta: true, alt: true }); elegir(B());
+    menu(); ok(!item(2).disabled, '«Pegar estilo» sigue apagado con un estilo copiado y un texto elegido');
+    item(2).click();
+    igual([B().color, B().size], ['#ff0000', 0.09], '«Pegar estilo» no pegó el estilo');
+    elegir(B()); puntero('pointerdown', gris(), gx, gy, { ctrl: true }); menu(); puntero('pointerup', gris(), gx, gy);
+    ok(!m.hidden && ed().sel === ib && !item(2).disabled, 'ctrl + clic (el clic derecho del Mac) soltó la selección o no abrió el menú');
+    rueda(gris(), gx, gy, 20); ok(m.hidden, 'la rueda no cerró el menú');
+    menu(); gris().dispatchEvent(new W.Event('scroll')); ok(m.hidden, 'desplazar la vista no cerró el menú');
+    menu(); item(4).click();
+    ok(els().some(x => x.t === 'forma' && x.forma === 'rect'), '«Añadir forma» no añadió un rectángulo');
+    menu(); tecla('Escape');
+    ok(m.hidden, 'Esc no cerró el menú');
+    menu(); clicGris();
+    ok(m.hidden, 'un clic fuera no cerró el menú');
+    e = raton('contextmenu', ed().cv, ...aVentana(10, 10), { button: 2 });
+    ok(!e.defaultPrevented && m.hidden, 'el clic derecho en un sitio vacío de la diapositiva abrió el menú del área gris');
+    const n0 = els().length;
+    tecla('t'); igual(els().length, n0 + 1, 'T no añadió un texto'); ok(els()[n0].t === 'texto', 'T no añadió un texto');
+    tecla('r'); ok(els().length === n0 + 2 && els()[n0 + 1].forma === 'rect', 'R no añadió un rectángulo');
+    tecla('t', { meta: true }); igual(els().length, n0 + 2, '⌘T añadió un texto');
+    const ta = escribir();
+    tecla('t', { en: ta }); tecla('r', { en: ta });
+    e = menu();
+    ok(e.defaultPrevented && m.hidden, 'el clic derecho abrió el menú mientras se escribía');
+    ta.remove();
+    const tb = escribir();                                       // como de verdad: pointerdown con el botón derecho y luego contextmenu
+    puntero('pointerdown', gris(), gx, gy, { button: 2 }); e = menu(); puntero('pointerup', gris(), gx, gy, { button: 2 });
+    ok(e.defaultPrevented && m.hidden && D.activeElement !== tb, 'el clic derecho mientras se escribía abrió el menú o no terminó de escribir');
+    tb.remove();
+    igual(els().length, n0 + 2, 'T o R añadieron algo mientras se escribía');
+  });
+
+  rehacer('E54', '«Intercambiar» (en el clic derecho de la foto): solo en una foto de un hueco; entre llenos y hacia uno vacío, con la regla de siempre y la pregunta; Esc y un clic fuera cancelan; un paso de ⌘Z; nada en lo que se dibuja (D-053)', async () => {
+    const [p1, p2, p3] = await conHuecos([HV('v1'), HV('v2', 0.5), HH('h1', 0.9), { id: 'tx', t: 'texto', txt: 'Hola', x: 0.1, y: 0.92, w: 0.3, h: 0.04, size: 0.03, color: '#000000', al: 'izq', rot: 0, op: 1 }], [V('e54a.jpg'), V('e54b.jpg'), A('e54c.jpg')]);
+    const hv1 = HV('v1'), hv2 = HV('v2', 0.5), { W: SW, H: SH } = tam();
+    arrastrarDeBandeja(p1, 0.2, 0.5);
+    await hasta(() => enCapa('v1', p1), 4000, 'p1');
+    arrastrarDeBandeja(p2, 0.7, 0.5);
+    await hasta(() => enCapa('v2', p2), 4000, 'p2');
+    await dibujado();
+    const a = () => compDe(1).els.find(e => e.hueco && e.hueco.id === 'v1'), b = () => compDe(1).els.find(e => e.hueco && e.hueco.id === 'v2');
+    // «Intercambiar» del menú del clic derecho sobre el elemento (null si no sale); el menú se cierra
+    const boton = el => { const { m } = lzeDerecho(el), it = m && m.querySelector('[data-lb="cambio"]'); if (!it) tecla('Escape'); return it; };
+    // solo sale con una foto de un hueco
+    ok(!boton(compDe(1).els.find(e => e.id === 'tx')), 'sale en un texto');
+    ok(boton(a()), 'no sale en la foto de un hueco'); tecla('Escape');
+    accion('lock'); ok(!boton(a()), 'sale en una foto bloqueada'); accion('lock');
+    const clic = (fx, fy) => { const [x, y] = enLienzo(fx, fy); puntero('pointerdown', ed().cv, x, y); puntero('pointerup', ed().cv, x, y); };
+    const elegirA = () => { const it = boton(a()); ok(it && !it.disabled, 'sin «Intercambiar»'); it.click(); ok(ed().cambio, 'no entró en «Intercambiar»'); };
+    // el rótulo, el resaltado (solo en el lienzo) y sin menú
+    await dibujado();
+    const fuera = pixel(0.7 * SW, 0.5 * SH), c0 = json(compDe(1));
+    elegirA();
+    ok(!q('.lb-hint').hidden && /Intercambiar/.test(q('.lb-hint').textContent), 'sin rótulo');
+    ok(q('.lb-cm').hidden && !q('.lb-fl'), 'el menú sigue ahí');
+    await dibujado();
+    ok(json(pixel(0.7 * SW, 0.5 * SH)) !== json(fuera), 'el otro hueco no se resalta');
+    igual(json(compDe(1)), c0, 'el resaltado cambió la diapositiva');
+    // Esc cancela; ningún otro atajo actúa
+    tecla('Backspace'); tecla('t'); ok(ed().cambio && json(compDe(1)) === c0, 'un atajo actuó');
+    tecla('Escape'); ok(!ed().cambio && M.libre.abierto(), 'Esc no cancela');
+    await dibujado();
+    igual(json(pixel(0.7 * SW, 0.5 * SH)), json(fuera), 'quedó el resaltado');
+    // un clic fuera de un hueco, o fuera de la diapositiva, cancela
+    elegirA(); clic(0.97, 0.05); ok(!ed().cambio && json(compDe(1)) === c0, 'un clic en la diapositiva no cancela');
+    elegirA(); puntero('pointerdown', ed().scroll, 2, 2); ok(!ed().cambio && json(compDe(1)) === c0, 'un clic en el área gris no cancela');
+    elegirA(); puntero('pointerdown', q('.lb-panel'), 2, 2); ok(!ed().cambio, 'un clic en el panel no cancela');
+    // entre dos llenos de la misma orientación: sin preguntar, el encuadre manual se pierde, un paso de ⌘Z
+    a().z = 2; a().cx = 0.1;
+    let n = pasos();
+    elegirA(); await dibujado(); clic(0.7, 0.5);
+    await hasta(() => a().src === p2 && b().src === p1, 4000, 'el intercambio');
+    ok(!ed().ask, 'preguntó');
+    igual([a().z, a().cx, b().z, b().cx], [1, 0.5, 1, 0.5], 'el encuadre no se perdió');
+    cubre(a(), hv1); cubre(b(), hv2);
+    igual(pasos(), n + 1, 'no es un paso de ⌘Z');
+    tecla('z', { meta: true });
+    igual([a().src, b().src, a().z], [p1, p2, 2], '⌘Z no lo deshizo');
+    a().z = 1; a().cx = 0.5;
+    // hacia uno vacío de otra orientación: pregunta, y el suyo queda libre
+    n = pasos();
+    elegirA(); clic(0.7, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta hacia el vacío');
+    igual(ed().ojo, 'h1', 'no resalta el destino');
+    tecla('1');
+    await hasta(() => enCapa('h1', p1), 4000, 'la foto en el vacío');
+    const v1 = compDe(1).els.find(e => e.id === 'v1');
+    ok(v1 && v1.t === 'hueco', 'su hueco no quedó libre: ' + json(compDe(1).els.map(e => e.id)));
+    igual(compDe(1).els.map(e => e.hueco ? e.hueco.id : e.id), ['v1', 'v2', 'h1', 'tx'], 'las capas');
+    igual(pasos(), n + 1, 'no es un paso de ⌘Z');
+    tecla('z', { meta: true });
+    ok(a() && a().src === p1 && enCapa('h1'), '⌘Z no lo devolvió');
+    // Esc en la pregunta: todo como estaba
+    const c1 = json(compDe(1)); n = pasos();
+    elegirA(); clic(0.7, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la pregunta');
+    tecla('Escape');
+    await hasta(() => !ed().ask, 4000, 'que Esc cierre');
+    await espera(30);
+    igual(json(compDe(1)), c1, 'Esc cambió algo'); igual(pasos(), n, 'Esc sumó un paso');
+    // entre llenos de distinta orientación: una pregunta por cada foto
+    arrastrarDeBandeja(p3, 0.7, 0.95);
+    await hasta(() => enCapa('h1', p3), 4000, 'p3');
+    n = pasos();
+    elegirA(); clic(0.7, 0.95);
+    await hasta(() => preguntaHueco(), 4000, 'la 1.ª pregunta');
+    igual(preguntaHueco().querySelector('img').src, M.files[p1].thumbUrl, 'la 1.ª es la foto elegida');
+    tecla('2');
+    await hasta(() => preguntaHueco() && preguntaHueco().querySelector('img').src === M.files[p3].thumbUrl, 4000, 'la 2.ª pregunta');
+    tecla('2');
+    await hasta(() => enCapa('h1', p1) && enCapa('v1', p3), 4000, 'el intercambio con preguntas');
+    const ph = compDe(1).els.find(e => e.src === p1);
+    cerca((ph.w * SW) / (ph.h * SH), 0.8, 0.01, 'la vertical deformada');
+    igual(pasos(), n + 1, 'con preguntas no es un paso de ⌘Z');
+    // una foto que cruza diapositivas no lo tiene
+    ph.pan = { id: 'x', n: 2, k: 0 };
+    ok(!boton(ph), 'sale en una foto que cruza diapositivas');
+    delete ph.pan;
+    M.libre.cerrar();
+  });
+
 
   // =====================================================================================================
   // ejecución

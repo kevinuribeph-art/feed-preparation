@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.4';
+  const VERSION = '1.5';   // 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -72,18 +72,19 @@
     const posts = ids.map(id => B.slots.find(x => x.id === id)).sort((a, b) => lejania(a) - lejania(b) || String(a.date).localeCompare(String(b.date)));
     const lista = posts.map(s => {
       const reel = X.isReel(s.type), pz = piezas(s), tipo = X.tipoPost(s).txt;
-      return `<section class="dl-post" data-slot="${esc(s.id)}"><div class="dl-ph"><b>${esc(s.name)}</b><span>${esc(X.fmtDate(s.date))} · ${esc(tipo)}${reel ? ' · su portada' : pz.length > 1 ? ' · ' + nOf(pz.length, 'pieza', 'piezas') : ''}</span>`
+      return `<section class="dl-post" data-slot="${esc(s.id)}"><div class="dl-ph"><b>${esc(s.name)}</b><span>${esc(X.fmtDate(s.date))} · ${esc(tipo)}</span>`   // no «· N piezas» / «· su portada»: its thumbnails say it (D-156)
         + (pz.length > 1 ? `<button type="button" class="lnk" data-dl="todas" data-slot="${esc(s.id)}">Ninguna</button>` : '') + '</div><div class="dl-pzs">'
         + pz.map((f, i) => `<label class="dl-pz" title="${esc(nombre(s, i))}"><input type="checkbox" data-slot="${esc(s.id)}" data-f="${esc(f)}" data-i="${i}" checked>${mini(s, f)}<span class="dl-n">${reel ? 'Portada' : String(i + 1).padStart(2, '0')}</span></label>`).join('')
         + '</div></section>';
     }).join('');
+    // no «<cliente> · N publicaciones, de la más cercana…»: the client is the tab behind; the order, the list itself (D-156)
     X.showDialog('descargar', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Descargar fotos</h3>`
-      + `<p>${esc((X.CL.find(c => c.id === X.curClient) || {}).name || '')} · ${nOf(posts.length, 'publicación', 'publicaciones')}, de la más cercana a hoy a la más lejana. Desmarca lo que no quieras.</p>`
-      + '<div class="dl-ops"><div class="dl-op" role="radiogroup" aria-label="Textos"><label class="dl-ch"><input type="radio" name="dl-txt" value="con" checked><span>Con textos</span></label><label class="dl-ch"><input type="radio" name="dl-txt" value="sin"><span>Solo la foto</span></label></div>'
+      // «Con textos / Solo la foto» only when a piece has texts (a design of the editor or of «Diseñar»): otherwise both are the same (D-162)
+      + '<div class="dl-ops">' + (posts.some(s => piezas(s).some(f => conTextos(s, f))) ? '<div class="dl-op" role="radiogroup" aria-label="Textos"><label class="dl-ch"><input type="radio" name="dl-txt" value="con" checked><span>Con textos</span></label><label class="dl-ch"><input type="radio" name="dl-txt" value="sin"><span>Solo la foto</span></label></div>' : '')
       + '<div class="dl-op" role="radiogroup" aria-label="Resolución"><label class="dl-ch"><input type="radio" name="dl-res" value="orig" checked><span>Original</span></label><label class="dl-ch"><input type="radio" name="dl-res" value="1440"><span>1440</span></label><label class="dl-ch"><input type="radio" name="dl-res" value="1080"><span>1080</span></label><span class="dl-u">px de ancho · JPEG</span></div></div>'
       + `<div class="dl-list">${lista}</div>`
       + '<div class="dl-prog" hidden><div class="dl-barra"><i></i></div><span class="dl-pt"></span></div><p class="ferr dl-err" hidden></p>'
-      + '<div class="form"><div class="row"><span class="left muted dl-res"></span><button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-dl="ir">Descargar</button></div></div>');
+      + '<div class="form"><div class="row"><span class="left muted dl-res"></span><button type="button" class="btn" data-dl="ir">Descargar</button></div></div>');   // no «Cancelar»: the ×, Esc or a click outside (D-155)
     const d = X.root().querySelector('.detail .card.dlg'); if (d) resumen(d);
   }
   function resumen(d) {                        // how many pieces and where they go, on every change
@@ -91,6 +92,9 @@
     if (b) b.disabled = !n || !!job;
     if (r) r.textContent = !n ? 'Nada marcado' : n === 1 ? '1 pieza · un JPG' : `${n} piezas · ${zipNombre()}.zip`;
     d.querySelectorAll('[data-dl="todas"]').forEach(t => { const any = d.querySelector(`.dl-pz input[data-slot="${cssq(t.dataset.slot)}"]:checked`); t.textContent = any ? 'Ninguna' : 'Todas'; });
+    // «Con textos / Solo la foto» only while a ticked piece has texts: unticked, both would give the same (D-162)
+    const tx = d.querySelector('.dl-op[aria-label="Textos"]');
+    if (tx) { const B = I().S; tx.hidden = ![...d.querySelectorAll('.dl-pz input:checked')].some(i => { const s = B && B.slots.find(x => x.id === i.dataset.slot); return s && conTextos(s, i.dataset.f); }); }
   }
 
   // ---------- one piece as a JPEG ----------
@@ -110,6 +114,11 @@
     } finally { bmp.close(); }
   }
   const sinTextos = c => ({ ...c, els: (c.els || []).filter(e => e && e.t !== 'texto' && e.t !== 'logo') });   // «Solo la foto»
+  function conTextos(s, fid) {                 // «Solo la foto» would change it: texts or logos of the editor, or a «Diseñar» image
+    const comp = I().lComp(s, fid);
+    if (comp) return (comp.els || []).some(e => e && (e.t === 'texto' || e.t === 'logo'));
+    return !!(M.files[fid] || {}).design;
+  }
   const libreLista = () => I().esperar(() => M.libre && M.libre.pieza, 'libre');
   // o: {textos, ancho: 'orig' | '1440' | '1080'} → {blob, w, h}
   async function pieza(s, fid, o) {
@@ -177,7 +186,7 @@
     const X = I(), B = X.S; if (job || !B) return;
     const sel = [...card.querySelectorAll('.dl-pz input:checked')].map(i => ({ s: B.slots.find(x => x.id === i.dataset.slot), f: i.dataset.f, i: +i.dataset.i })).filter(x => x.s);
     if (!sel.length) return;
-    const o = { textos: val(card, 'dl-txt') !== 'sin', ancho: val(card, 'dl-res') || 'orig' };
+    const tg = card.querySelector('.dl-op[aria-label="Textos"]'), o = { textos: !tg || tg.hidden || val(card, 'dl-txt') !== 'sin', ancho: val(card, 'dl-res') || 'orig' };
     const det = X.root().querySelector('.detail'), mio = job = { card };
     const parar = () => job !== mio || !card.isConnected || det.hidden || det.dataset.dlg !== 'descargar';
     const prog = card.querySelector('.dl-prog'), bar = prog.querySelector('i'), pt = prog.querySelector('.dl-pt'), err = card.querySelector('.dl-err');
@@ -246,7 +255,7 @@
 #mesa .mchip.dlbtn{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}#mesa .mchip.dlbtn:hover{background:var(--acc-hover);border-color:var(--acc-hover)}
 #mesa .detail[data-dlg="descargar"] .card.dlg{max-width:min(94vw,760px);width:min(94vw,760px)}
 #mesa .dl-ops{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:10px 0 12px}
-#mesa .dl-op{display:inline-flex;align-items:center;gap:0;flex-wrap:wrap}
+#mesa .dl-op{display:inline-flex;align-items:center;gap:0;flex-wrap:wrap}#mesa .dl-op[hidden]{display:none}
 #mesa .dl-ch{position:relative;display:inline-flex}
 #mesa .dl-ch input{position:absolute;opacity:0;pointer-events:none}
 #mesa .dl-ch span{display:inline-flex;align-items:center;min-height:30px;padding:0 13px;border:1px solid var(--line);margin-left:-1px;background:var(--panel-2);color:var(--ink);font-size:12.5px;font-weight:500;cursor:pointer;user-select:none;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}

@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -566,8 +566,8 @@
         return;
       }
       case 'pointerup': if (!tragando) return; break;
-      case 'mouseup': if (!tragando) return; setTimeout(() => { tragando = false; }, 0); break;   // its click, if any, comes right after
-      case 'click': if (!tragando) return; tragando = false; break;   // a click from the keyboard (detail 0) is never one of these
+      case 'mouseup': if (!tragando) return; setTimeout(() => { tragando = false; }, 0); break;   // its click and dblclick, if any, come right after
+      default: if (!tragando) return;                        // click, dblclick: only those of that press (one from the keyboard never is)
     }
     e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
   }
@@ -2465,13 +2465,14 @@
     const x = cv.getContext('2d'), k = w / W; x.setTransform(k, 0, 0, k, 0, 0);
     drawComp(x, t.comp, W, H, viewImg, k, false);
   }
+  const medidaPx = (el, k) => { const { H } = sizeAt(E.i); return k === 'mx' ? el.x * 1080 : k === 'my' ? el.y * H * PX : k === 'man' ? el.w * 1080 : el.h * H * PX; };   // «Medidas exactas», in px of 1080
   function syncNums(el) {          // the panel's values follow a drag, without rebuilding it
     if (!el || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), z = p.querySelector('input[data-lb="z"]'); if (z) { z.value = el.z || 1; z.nextElementSibling.textContent = OUTF.z(el.z || 1); }
     const r = p.querySelector('input[data-lb="rot"]'); if (r && document.activeElement !== r) r.value = grados(el);
     const gs = p.querySelector('[data-pl="girar"] .lb-acc-s'); if (gs) gs.textContent = girarRes(el);   // the title follows the angle typed (D-166)
-    const { H } = sizeAt(E.i), put = (k, v) => { const i = p.querySelector(`input[data-lb="${k}"]`); if (i && document.activeElement !== i) i.value = Math.round(v); };
-    put('mx', el.x * 1080); put('my', el.y * H * PX); put('man', el.w * 1080); put('mal', el.h * H * PX);
+    const put = k => { const i = p.querySelector(`input[data-lb="${k}"]`); if (i && document.activeElement !== i) i.value = Math.round(medidaPx(el, k)); };
+    ['mx', 'my', 'man', 'mal'].forEach(put);
     const s = p.querySelector('input[data-lb="size"]'); if (s && el.t === 'texto') { s.value = el.size; s.nextElementSibling.textContent = OUTF.size(el.size); }
   }
 
@@ -3082,8 +3083,9 @@
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
-      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches('input[data-lb="rot"]')) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; «Girar»'s figure is chosen whole, typing replaces it (D-166)
-      pn.addEventListener('focusout', e => { const el = E && e.target.matches && e.target.matches('input[data-lb="rot"]') && selEl(); if (el) e.target.value = grados(el); });   // left (Esc, Tab, a click) half typed: the angle it has
+      const NUMS = 'input[data-lb="rot"], input[data-lb="mx"], input[data-lb="my"], input[data-lb="man"], input[data-lb="mal"]';   // «Girar» and «Medidas exactas»
+      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches(NUMS)) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; a figure is chosen whole, typing replaces it (D-166, D-176)
+      pn.addEventListener('focusout', e => { const t = e.target, el = E && t.matches && t.matches(NUMS) && selEl(); if (el) t.value = t.dataset.lb === 'rot' ? grados(el) : Math.round(medidaPx(el, t.dataset.lb)); });   // left (Esc, Tab, a click) half typed or out of range: what it has
       pn.addEventListener('mousedown', e => { if (e.detail > 1 && fila(e.target) && e.target.tagName !== 'INPUT') e.preventDefault(); });   // its label and figure never get selected
       pn.addEventListener('scroll', () => { if (E && E.cmDe === 'formas') menuCtx(false); }); }
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
@@ -3810,7 +3812,8 @@
       APL--; counted = false; I().setBusy('dz', null);
       if (I().histAmend) { I().histAmend(s.id); sl.forEach(x => { if (x && x.from) I().histAmend(x.from.id); }); }   // with the type change: ⌘Z undoes both
       I().changed(); I().refreshDetail();
-      I().toast(solo ? `${s.name}: numeración al día (${made.length === 1 ? 'una diapositiva redibujada' : `${made.length} diapositivas redibujadas`}).` : `${s.name}: ${made.length === 1 ? 'la imagen editada se ha redibujado' : `${made.length} imágenes editadas se han redibujado`} en su formato nuevo.`, { ms: 5000 });
+      const deshecho = !soloNum && !!(I().dibujoHecho && I().dibujoHecho(slotId));   // a ⌘Z pressed while drawing undoes the type change now, with its images: no message (D-176)
+      if (!deshecho) I().toast(solo ? `${s.name}: numeración al día (${made.length === 1 ? 'una diapositiva redibujada' : `${made.length} diapositivas redibujadas`}).` : `${s.name}: ${made.length === 1 ? 'la imagen editada se ha redibujado' : `${made.length} imágenes editadas se han redibujado`} en su formato nuevo.`, { ms: 5000 });
       for (const x of sl) if (x) { try { await I().deleteIfUnused(x.key); } catch (e) { /* kept */ } }
       return { ok: true, cambios: made.length };
     } catch (e) {

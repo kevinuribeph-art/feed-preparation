@@ -704,7 +704,7 @@
 #mesa .dz-n{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11.5px;color:var(--mute);white-space:nowrap}
 #mesa .dz-n b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 #mesa .dz-mv{margin-left:auto;display:flex}
-#mesa .dz-mv button{position:relative;border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:0;line-height:22px;padding:0;color:var(--mute)}#mesa .dz-mv button::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .dz-mv [data-dz="down"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa .dz-mv [data-dz="del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
+#mesa .dz-mv button{position:relative;border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:0;line-height:22px;padding:0;color:var(--mute)}#mesa .dz-mv button::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .dz-mv button[data-dz="down"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa .dz-mv button[data-dz="del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
 #mesa .dz-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}
 #mesa .dz-mv button:disabled{color:var(--faint);cursor:default}
 #mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px;white-space:nowrap}

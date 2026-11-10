@@ -1102,7 +1102,7 @@
 #mesa .lb-hint{flex:none;margin:0;padding:4px 12px 2px;text-align:center;color:var(--mute);font-size:12.5px}
 #mesa .lb-foot{flex:none;position:relative;display:flex;justify-content:center;align-items:center;min-height:32px;margin:2px 0 4px}
 #mesa .lb-trb{display:flex;align-items:center;gap:4px;height:28px;padding:0 8px 0 12px;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);font-size:12.5px;font-weight:400}
-#mesa .lb-trb:hover{background:var(--bg-2);color:var(--ink)}#mesa .lb-trb svg{transition:transform .18s}#mesa .lb-trb[aria-expanded="true"] svg{transform:rotate(180deg)}
+#mesa .lb-trb:hover{background:var(--bg-2);color:var(--ink)}#mesa .lb-trb svg{transition:transform var(--d-m) var(--ease-m)}#mesa .lb-trb[aria-expanded="true"] svg{transform:rotate(180deg)}
 #mesa .lb-tray{flex:none;margin:6px 16px 2px;padding:10px 12px 8px;border:1px solid var(--line2);border-radius:var(--r-lg);background:var(--panel-2);box-shadow:var(--shadow-xs)}
 #mesa .lb-trh{display:flex;align-items:center;margin-bottom:6px;font-size:12.5px;color:var(--mute)}#mesa .lb-trh .seg{display:inline-flex;flex:none;vertical-align:middle;margin-right:8px}#mesa .lb-trh .seg button{padding:0 10px;min-height:26px;font-size:12px}
 #mesa .lb-trs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}#mesa .lb-tph{flex:none;width:72px;cursor:grab}

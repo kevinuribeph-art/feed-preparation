@@ -2335,12 +2335,12 @@
 #mesa:not(.client) .side:has(>.tray:not(.fold)):has(>.cal:not([hidden]):not(.fold))>.cal{border-top:0;min-height:var(--cal-min,220px)}
 #mesa:not(.client) .side:has(>.cal:not([hidden]):not(.fold))>.tray:not(.fold){min-height:var(--tray-min,calc(var(--thh,58px) + 240px))}}
 #mesa .tfold{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 -4px 0 -6px;padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
-#mesa .tfold[hidden]{display:none}#mesa .tfold:hover{background:var(--bg-2)}#mesa .tfold svg{width:16px;height:16px;transition:transform .15s}#mesa .tray.fold .tfold svg{transform:rotate(-90deg)}
+#mesa .tfold[hidden]{display:none}#mesa .tfold:hover{background:var(--bg-2)}#mesa .tfold svg{width:16px;height:16px;transition:transform var(--d-m) var(--ease-m)}#mesa .tray.fold .tfold svg{transform:rotate(-90deg)}
 #mesa .trayhead>b{user-select:none;-webkit-user-select:none}
 #mesa .side>.tray.fold{flex:none;overflow:hidden}
 #mesa .tray.fold .tfil,#mesa .tray.fold .ttam,#mesa .tray.fold .trayhead>.btn,#mesa .tray.fold .cpnav,#mesa .tray.fold .tbody{display:none}
 #mesa .side>.tray.fold.tray-anim .tfil,#mesa .side>.tray.fold.tray-anim .trayhead>.btn{display:inline-flex}#mesa .side>.tray.fold.tray-anim .cpnav,#mesa .side>.tray.fold.tray-anim .tbody{display:block}
-#mesa .side>.tray.fold.tray-anim :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-fuera .2s ease-out forwards}#mesa .side>.tray.tray-anim:not(.fold) :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-dentro .28s ease-out}
+#mesa .side>.tray.fold.tray-anim :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-fuera var(--d-m) var(--ease-m) forwards}#mesa .side>.tray.tray-anim:not(.fold) :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-dentro var(--d-m) var(--ease-m)}
 #mesa .side>.tray.fold.tray-anim .tfold svg{animation:col-ch-f var(--d-m) var(--ease-m)}#mesa .side>.tray.tray-anim:not(.fold) .tfold svg{animation:col-ch-a var(--d-m) var(--ease-m)}
 @keyframes col-fuera{to{opacity:0}}@keyframes col-dentro{from{opacity:0}}@keyframes col-ch-f{from{transform:none}}@keyframes col-ch-a{from{transform:rotate(-90deg)}}
 @media (prefers-reduced-motion:reduce){#mesa .side>.tray.tray-fade .trayhead,#mesa .side>.tray.tray-fade .tbody,#mesa .side>.cal.tray-fade{animation:col-dentro .15s linear !important}}

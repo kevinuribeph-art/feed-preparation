@@ -11235,6 +11235,16 @@
     ok(/@font-face\{font-family:"Mesa Grotesk"/.test(html) && /body>p\{font:13px/.test(html), 'la pantalla de carga sin Mesa Grotesk');
   });
 
+  prueba('ES6', 'Movimiento: plegar la bandeja y el calendario (contenido y flecha) y los desplegables con los tokens de movimiento (D-173)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
+    const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText && !m) reglas.push(r); } }; ir(rs, false); }
+    const de = (re, prop) => reglas.filter(r => re.test(r.selectorText) && r.style.getPropertyValue(prop)).map(r => r.style.getPropertyValue(prop));
+    for (const v of [...de(/tray-anim|cal-anim/, 'animation-duration'), ...de(/\.(t|c)fold svg|\.lb-trb svg/, 'transition-duration')]) igual(v, 'var(--d-m)', 'una duración de plegar fuera de --d-m');
+    for (const v of [...de(/tray-anim|cal-anim/, 'animation-timing-function'), ...de(/\.(t|c)fold svg|\.lb-trb svg/, 'transition-timing-function')]) igual(v, 'var(--ease-m)', 'una curva de plegar fuera de --ease-m');
+    ok(de(/^#mesa \.mx-pop\.fuera$/, 'transition').every(v => !/ease-in|\.14s/.test(v)) && de(/^#mesa \.mx-pop$/, 'transition').every(v => !/\.18s/.test(v)), 'los desplegables con duraciones propias');
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

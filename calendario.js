@@ -517,12 +517,12 @@
 #mesa .side>.cal.fold .calhead{padding:4px 10px 4px 6px}
 #mesa .cfold{display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:3px 8px 3px 6px;border-radius:var(--r-pill);color:var(--ink);font:inherit;transition:background var(--d1) ease-out}
 #mesa .cfold:hover{background:var(--bg-2)}#mesa .cfold b{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
-#mesa .cfold svg{width:14px;height:14px;transition:transform .15s}#mesa .cal.fold .cfold svg{transform:rotate(-90deg)}
+#mesa .cfold svg{width:14px;height:14px;transition:transform var(--d-m) var(--ease-m)}#mesa .cal.fold .cfold svg{transform:rotate(-90deg)}
 #mesa .csync,#mesa .cnat{white-space:nowrap}#mesa .csync.c{color:var(--chg)}#mesa .cnat{font-size:11px;color:var(--faint)}
 #mesa .side>.cal.fold .cnat{display:none}
 #mesa .side>.cal.fold.cal-anim .cleg{display:flex}#mesa .side>.cal.fold.cal-anim .calbody{display:block}#mesa .side>.cal.fold.cal-anim .cnav{display:inline-flex}
-#mesa .side>.cal.fold.cal-anim .cleg,#mesa .side>.cal.fold.cal-anim .calbody,#mesa .side>.cal.fold.cal-anim .cnav{animation:cal-fuera .2s ease-out forwards}
-#mesa .side>.cal.cal-anim:not(.fold) .cleg,#mesa .side>.cal.cal-anim:not(.fold) .calbody,#mesa .side>.cal.cal-anim:not(.fold) .cnav{animation:cal-dentro .28s ease-out}
+#mesa .side>.cal.fold.cal-anim .cleg,#mesa .side>.cal.fold.cal-anim .calbody,#mesa .side>.cal.fold.cal-anim .cnav{animation:cal-fuera var(--d-m) var(--ease-m) forwards}
+#mesa .side>.cal.cal-anim:not(.fold) .cleg,#mesa .side>.cal.cal-anim:not(.fold) .calbody,#mesa .side>.cal.cal-anim:not(.fold) .cnav{animation:cal-dentro var(--d-m) var(--ease-m)}
 #mesa .side>.cal.fold.cal-anim .cfold svg{animation:cal-ch-f var(--d-m) var(--ease-m)}#mesa .side>.cal.cal-anim:not(.fold) .cfold svg{animation:cal-ch-a var(--d-m) var(--ease-m)}
 @keyframes cal-fuera{to{opacity:0}}@keyframes cal-dentro{from{opacity:0}}@keyframes cal-ch-f{from{transform:none}}@keyframes cal-ch-a{from{transform:rotate(-90deg)}}
 @media (prefers-reduced-motion:reduce){#mesa .side>.cal.cal-fade .cleg,#mesa .side>.cal.cal-fade .calbody{animation:cal-dentro .15s linear !important}}

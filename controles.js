@@ -519,10 +519,10 @@
 #mesa .lb-sel+.mx-sel:not(#mx){display:flex;width:100%;min-height:32px;font-size:13px;padding:0 30px 0 10px}
 #mesa .hv-lin select+.mx-sel:not(#mx){flex:1;min-width:0;font-size:13px;font-weight:400}#mesa .hv-fh .mx-f{flex:1;min-width:0}#mesa .hv-fh .mx-in:not(#mx){font-size:13px;font-weight:400}
 #mesa .vform .mx-f{min-height:28px}#mesa .vform .mx-in:not(#mx){height:26px;font-size:12px}#mesa .vform .mx-cal:not(#mx){width:24px;height:24px}
-#mesa .mx-pop{position:fixed;z-index:80;box-sizing:border-box;margin:0;padding:5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font:13px/1.35 var(--font);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity .18s ease-out,transform var(--d-m) var(--ease-m);pointer-events:none}
+#mesa .mx-pop{position:fixed;z-index:80;box-sizing:border-box;margin:0;padding:5px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font:13px/1.35 var(--font);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity var(--d2) var(--ease),transform var(--d-m) var(--ease-m);pointer-events:none}
 #mesa .mx-pop.arriba{transform:translateY(6px) scale(.98);transform-origin:bottom left}
 #mesa .mx-pop.on{opacity:1;transform:none;pointer-events:auto}
-#mesa .mx-pop.fuera{opacity:0;transition:opacity .14s ease-in,transform .14s ease-in;pointer-events:none}
+#mesa .mx-pop.fuera{opacity:0;transition:opacity var(--d1) var(--ease),transform var(--d1) var(--ease);pointer-events:none}
 #mesa .mx-list{max-height:360px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;max-width:min(440px,calc(100vw - 16px))}
 #mesa .mx-o{position:relative;display:block;min-height:32px;line-height:32px;padding:0 32px 0 5px;border-radius:var(--r-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink);transition:background-color 60ms linear}
 #mesa .mx-o.act{background:var(--bg-2)}

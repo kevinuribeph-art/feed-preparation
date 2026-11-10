@@ -498,7 +498,7 @@
   // ---------- styles (inside #mesa: its tokens, light and dark) ----------
   const CSS = `
 #mesa .mx-nat{position:absolute !important;width:1px !important;height:1px !important;min-width:0 !important;min-height:0 !important;margin:0 !important;padding:0 !important;border:0 !important;opacity:0 !important;pointer-events:none !important;overflow:hidden !important;clip-path:inset(50%) !important;flex:none !important}
-#mesa .mx-sel{position:relative;display:inline-flex;align-items:center;max-width:100%;min-width:0;box-sizing:border-box;margin:0;font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 30px 0 10px;min-height:32px;cursor:pointer;text-align:left;letter-spacing:normal;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out,background-color var(--d1) ease-out}
+#mesa .mx-sel{position:relative;display:inline-flex;align-items:center;max-width:100%;min-width:0;box-sizing:border-box;margin:0;font:400 12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 30px 0 10px;min-height:32px;cursor:pointer;text-align:left;letter-spacing:normal;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out,background-color var(--d1) ease-out}
 #mesa .mx-sel::after{content:'';position:absolute;right:9px;top:50%;width:14px;height:14px;margin-top:-7px;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m)}
 #mesa .mx-sel.mx-abierto::after{transform:rotate(180deg)}
 #mesa .mx-v{display:grid;min-width:0;flex:1}#mesa .mx-t,#mesa .mx-z>span{grid-area:1/1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .mx-z{display:contents}#mesa .mx-z>span{visibility:hidden;height:0}
@@ -507,7 +507,7 @@
 #mesa .mx-sel:disabled{opacity:.4;cursor:default}
 #mesa .mx-f{display:inline-flex;align-items:center;box-sizing:border-box;min-height:32px;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);vertical-align:middle;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .mx-f.mx-dis{opacity:.5}
-#mesa .mx-f .mx-in:not(#mx){flex:1 1 auto;box-sizing:content-box;width:10.2ch;min-width:0;height:30px;min-height:0;margin:0;padding:0 2px 0 10px;border:0;border-radius:0;background:none;box-shadow:none;outline:0;font:500 12.5px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:text}
+#mesa .mx-f .mx-in:not(#mx){flex:1 1 auto;box-sizing:content-box;width:10.2ch;min-width:0;height:30px;min-height:0;margin:0;padding:0 2px 0 10px;border:0;border-radius:0;background:none;box-shadow:none;outline:0;font:400 12.5px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:text}
 #mesa .mx-time .mx-in:not(#mx){width:5.2ch}
 #mesa .mx-f .mx-in::placeholder{color:var(--faint)}
 #mesa .mx-f .mx-cal:not(#mx){position:relative;flex:none;width:28px;height:28px;min-height:0;margin:0 1px 0 0;padding:0;border:0;border-radius:6px;background:none;color:var(--mute);cursor:pointer;transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
@@ -540,11 +540,11 @@
 #mesa .mx-days{display:grid;gap:var(--cx-gap,2px)}
 #mesa .mx-days.mx-de{animation:mx-de var(--d-m) var(--ease-m)}#mesa .mx-days.mx-iz{animation:mx-iz var(--d-m) var(--ease-m)}
 @keyframes mx-de{from{opacity:0;transform:translateX(14px)}}@keyframes mx-iz{from{opacity:0;transform:translateX(-14px)}}
-#mesa .mx-d{height:34px;margin:0;padding:0;border:0;border-radius:var(--cx-r,var(--r-sm));background:none;font:500 13px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .mx-d{height:34px;margin:0;padding:0;border:0;border-radius:var(--cx-r,var(--r-sm));background:none;font:400 13px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .mx-d.otro{color:var(--cx-otro,var(--faint))}#mesa .mx-d:hover:not(:disabled){background:var(--cx-hov,var(--bg-2))}
 #mesa .mx-d.hoy{box-shadow:var(--cx-hoy,inset 0 0 0 1px var(--line-strong))}
 #mesa .mx-d.marca{box-shadow:inset 0 0 0 1.5px var(--acc)}
-#mesa .mx-d[aria-selected="true"]:not(#mx){background:var(--acc);color:var(--on-acc);font-weight:700}
+#mesa .mx-d[aria-selected="true"]:not(#mx){background:var(--acc);color:var(--on-acc);font-weight:600}
 #mesa .mx-d:disabled{color:var(--line-strong);cursor:default}#mesa .mx-d.otro:disabled{color:var(--line)}
 #mesa .mx-d:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
 #mesa .mx-cf{display:flex;justify-content:flex-end;margin:8px -4px 0;padding:6px 0 0;border-top:1px solid var(--line2)}

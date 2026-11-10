@@ -542,7 +542,7 @@
 #mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
 #mesa .cpaso.ro{color:var(--mute)}
 #mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
-#mesa .chip.venc{box-shadow:inset 0 0 0 1.5px var(--red)}#mesa .chip.venc .ct{color:var(--red);font-weight:700}
+#mesa .chip.venc{box-shadow:inset 0 0 0 1.5px var(--red)}#mesa .chip.venc .ct{color:var(--red);font-weight:600}
 #mesa .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}
 #mesa .vlist li{padding:10px 0;border-top:1px solid var(--line2)}
 #mesa .vlist .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .vlist .vnom:hover b{text-decoration:underline}
@@ -568,13 +568,13 @@
 #mesa .cday.out .dn,#mesa .cday.off .dn,#mesa .cday.prevc .dn,#mesa .cday.otromes .dn{color:var(--cx-otro)}
 #mesa .cday.today{box-shadow:var(--cx-hoy)}
 #mesa .dh{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:18px;padding:0 1px}
-#mesa .dn{font-size:11px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink);line-height:18px;padding:0 4px;white-space:nowrap}
-#mesa .cday.today .dn{font-weight:700}
-#mesa .dmany{font-size:10px;line-height:15px;padding:0 6px;border-radius:var(--r-pill);background:var(--chg-soft);color:var(--chg)}
+#mesa .dn{font-size:11px;font-weight:400;font-variant-numeric:tabular-nums;color:var(--ink);line-height:18px;padding:0 4px;white-space:nowrap}
+#mesa .cday.today .dn{font-weight:600}
+#mesa .dmany{font-size:10.5px;line-height:15px;padding:0 6px;border-radius:var(--r-pill);background:var(--chg-soft);color:var(--chg)}
 #mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:var(--r-xs);padding:2px 6px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;--cb:var(--ty-trial);--ci:var(--ty-trial-ink);color:var(--ci);background:var(--cb);transition:filter var(--d1) ease-out,background-color var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}
-#mesa .chip .cn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
-#mesa .chip .ct{flex:none;font-size:10px;opacity:.75}
+#mesa .chip .cn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
+#mesa .chip .ct{flex:none;font-size:10.5px;opacity:.75;font-variant-numeric:tabular-nums}
 #mesa .chip.ty-reel{--cb:var(--ty-reel);--ci:var(--ty-reel-ink)}
 #mesa .chip.ty-collab{--cb:var(--ty-collab);--ci:var(--ty-collab-ink)}
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}

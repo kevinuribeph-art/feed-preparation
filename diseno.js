@@ -683,7 +683,7 @@
 #mesa .dz{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;background:var(--bg);outline:0}
 #mesa .dz-head{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line2)}
 #mesa .dz-ttl{flex:1 1 170px;min-width:0}
-#mesa .dz-ttl h3{margin:0;font-size:18px;font-weight:800;letter-spacing:-.025em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .dz-ttl h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.025em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .dz-ttl p{margin:2px 0 0;color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .dz-serie{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mute);white-space:nowrap}
 #mesa .dz-in{display:block;width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 10px;min-height:34px;font-family:inherit;font-size:13px;line-height:1.4;color:var(--ink);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
@@ -702,7 +702,7 @@
 #mesa .dz-it.on canvas{outline-color:var(--acc)}
 #mesa .dz-it:hover:not(.on) canvas{outline-color:var(--line-strong)}
 #mesa .dz-n{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11.5px;color:var(--mute);white-space:nowrap}
-#mesa .dz-n b{color:var(--ink);font-weight:600}
+#mesa .dz-n b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 #mesa .dz-mv{margin-left:auto;display:flex}
 #mesa .dz-mv button{position:relative;border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:0;line-height:22px;padding:0;color:var(--mute)}#mesa .dz-mv button::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .dz-mv [data-dz="down"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa .dz-mv [data-dz="del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
 #mesa .dz-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}
@@ -717,7 +717,7 @@
 #mesa .dz-hint{margin:0;color:var(--mute);font-size:12px}
 #mesa .dz-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .dz-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .dz-sec:last-child{border-bottom:0}
-#mesa .dz-sec h4{margin:0 0 10px;font-size:13.5px;font-weight:700;letter-spacing:-.005em}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
+#mesa .dz-sec h4{margin:0 0 10px;font-size:13px;font-weight:600;letter-spacing:-.005em}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
 #mesa .dz-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .dz-sec h4+.dz-l{margin-top:0}
 #mesa .dz-p{margin:0;font-size:13px}
 #mesa .dz-row{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-top:8px}
@@ -727,7 +727,7 @@
 #mesa .dz-ph:hover::before{box-shadow:inset 0 0 0 2px var(--line-strong)}
 #mesa .dz-ph.on::before{box-shadow:inset 0 0 0 2px var(--acc),inset 0 0 0 4px var(--panel)}
 #mesa .dz-ph img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
-#mesa .dz-ph i{position:absolute;z-index:2;top:5px;left:5px;font-style:normal;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
+#mesa .dz-ph i{font-variant-numeric:tabular-nums;position:absolute;z-index:2;top:5px;left:5px;font-style:normal;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
 #mesa .dz-fin{display:flex;gap:10px;align-items:center;margin-bottom:6px}
 #mesa .dz-fin img{flex:none;width:54px;height:68px;object-fit:cover;border-radius:var(--r-sm);display:block;background:var(--cell-ph)}
 #mesa .dz-fin b{display:block;font-size:12.5px}#mesa .dz-fin span{display:block;font-size:11.5px;color:var(--mute);overflow-wrap:anywhere}
@@ -747,7 +747,7 @@
 #mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:var(--acc-soft)}
 #mesa .dz-ask{position:absolute;inset:0;z-index:30;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .dz-more{position:relative;width:26px;height:26px;border-radius:50%;border:1px dashed var(--line-strong);background:var(--panel-2);color:var(--mute);font-size:0;line-height:1;padding:0}#mesa .dz-more::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}#mesa .dz-more[aria-expanded="true"]::before{-webkit-mask-image:var(--i-minus);mask-image:var(--i-minus)}#mesa .dz-more:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}
-#mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:500;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:400;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .dz-auto:hover{border-color:var(--line-strong);background:var(--bg)}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 #mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0}#mesa .dz-in.dz-serin{height:32px;min-height:0;padding-top:0;padding-bottom:0;box-sizing:border-box}

@@ -11218,6 +11218,23 @@
     for (const s of ['#mesa .mx-nav:focus-visible', '#mesa .lb-acc-h:focus-visible', '#mesa .pe-ed:focus-visible', '#mesa button.cpaso:focus-visible']) igual([regla(s, 'outline-offset'), regla(s, 'box-shadow')], ['2px', ''], 'el foco de ' + s);
   });
 
+  prueba('ES5', 'Tipo: tamaños en la escala (pestañas 13, títulos del editor 20, horas de los chips 10,5), solo pesos que la letra tiene (400, 600, 800), cifras tabulares en horas y números y la pantalla de carga en Mesa Grotesk (D-172)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<button class="tab">a</button><div class="lb-ttl"><h3>b</h3></div><div class="chip"><span class="ct">13:00</span></div><div class="cday today"><span class="dn">20</span></div><div class="seg"><button>4:5</button></div>';
+      const cs = s => W.getComputedStyle(caja.querySelector(s));
+      igual([cs('.tab').fontSize, cs('.lb-ttl h3').fontSize, cs('.chip .ct').fontSize], ['13px', '20px', '10.5px'], 'los tamaños');
+      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['tabular-nums', 'tabular-nums'], 'las cifras');
+      igual(cs('.cday.today .dn').fontWeight, '600', 'el peso de hoy');
+    } finally { caja.remove(); }
+    const malos = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.style && /#mesa/.test(r.selectorText) && /^(500|700)$/.test(r.style.getPropertyValue('font-weight')) && !/\.ig|\.hb\b|\.dz-ph i|\.uso::after/.test(r.selectorText)) malos.push(r.selectorText); } }; ir(rs); }
+    igual(malos, [], 'reglas con pesos que la letra no tiene');
+    const html = await (await W.fetch('index.html', { cache: 'no-store' })).text();
+    ok(/@font-face\{font-family:"Mesa Grotesk"/.test(html) && /body>p\{font:13px/.test(html), 'la pantalla de carga sin Mesa Grotesk');
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

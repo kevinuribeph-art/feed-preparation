@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 11, V_IDB = 13;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130)
+  const V_ARCHIVO = 12, V_IDB = 14;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -9129,8 +9129,8 @@
     v10.clients.forEach(c => { delete c.personas; delete c.personasAt; }); v10.boards.forEach(b => b.slots.forEach(s => { delete s.etiquetas; delete s.colaboradores; }));
     await sinMes(key);
     r = await M.importData(v10, { confirm: false }); ok(r && !r.error, 'el archivo v10 no se importó: ' + json(r));
-    const v12 = JSON.parse(json(d)); v12.v = 12;
-    r = await M.importData(v12, { confirm: false }); ok(r && r.error && /más nueva/.test(r.error), 'un archivo v12 entra: ' + json(r));
+    const otro = JSON.parse(json(d)); otro.v = V_ARCHIVO + 1;   // uno de una mesa más nueva que esta (v12 desde la 4.15, D-179)
+    r = await M.importData(otro, { confirm: false }); ok(r && r.error && /más nueva/.test(r.error), `un archivo v${V_ARCHIVO + 1} entra: ` + json(r));
     const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
     if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
   });
@@ -10770,7 +10770,7 @@
     ok(fb() && fb().textContent === '+ Forma' && fb().getAttribute('aria-haspopup') === 'menu', 'sin «+ Forma»');
     fb().click();
     ok(!m.hidden && fb().getAttribute('aria-expanded') === 'true', '«+ Forma» no abrió su menú');
-    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false], ['Desliza →', '', false], ['Comillas', '', false], ['Número en círculo', '', false]], 'las formas del menú (y las de D-178)');
+    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false], ['Desliza →', '', false], ['Barra de progreso', '', true], ['Comillas', '', false], ['Visto', '', false], ['Aspa', '', false], ['Número en círculo', '', false]], 'las formas del menú (y las de D-178 y D-179; la barra, apagada en la portada)');
     igual(D.activeElement, qa('.lb-cm button')[0], 'el foco no va a la primera');
     tecla('ArrowDown'); igual(D.activeElement, qa('.lb-cm button')[1], '↓ no pasa a la siguiente');
     fb().click(); ok(m.hidden && fb().getAttribute('aria-expanded') === 'false', 'pulsado otra vez no se cierra');
@@ -11647,14 +11647,14 @@
     } finally { M.libre.cerrar(); }
   });
 
-  prueba('AJ18', '«+ Forma» del editor trae, tras Rectángulo, Círculo, Línea y Flecha, «Desliza →», «Comillas» y «Número en círculo» (D-178)', async () => {
+  prueba('AJ18', '«+ Forma» del editor trae, tras Rectángulo, Círculo, Línea y Flecha, «Desliza →», «Barra de progreso», «Comillas», «Visto», «Aspa» y «Número en círculo» (D-178, D-179)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('aj18.jpg')]);
     await abrirEditor('r1');
     try {
       accion('formas');
       const m = await hasta(() => q('.lb .lb-cm:not([hidden]) [data-lb="add-forma"]') && q('.lb .lb-cm:not([hidden])'), 2000, 'el menú «+ Forma»');
-      igual([...m.querySelectorAll('[role=menuitem]')].map(b => b.firstChild.textContent.trim()), ['Rectángulo', 'Círculo', 'Línea', 'Flecha', 'Desliza →', 'Comillas', 'Número en círculo'], 'las entradas del menú');
+      igual([...m.querySelectorAll('[role=menuitem]')].map(b => b.firstChild.textContent.trim()), ['Rectángulo', 'Círculo', 'Línea', 'Flecha', 'Desliza →', 'Barra de progreso', 'Comillas', 'Visto', 'Aspa', 'Número en círculo'], 'las entradas del menú');
       tecla('Escape');
     } finally { M.libre.cerrar(); }
   });
@@ -11735,6 +11735,153 @@
     const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar falló: ' + json(r));
     await M.open(`${CLIENTE}-${MES}`);
     igual(enCasilla(), [f0, f0], 'no volvieron igual al importar');
+  });
+
+  // ---------- D-179: «Barra de progreso», Visto y Aspa ----------
+  const barraDe = c => { const e = c && c.els.find(q => q.forma === 'progreso'); return e ? e.pa.join('/') : null; };
+  const barras = () => ed().sl.map((x, i) => barraDe(compDe(i)));   // la barra de cada diapositiva: «su sitio/las diapositivas»
+  const barrasDe = s => s.photos.map(f => barraDe(s.libre && s.libre.slides[f]));
+  async function rgb(blob) {   // una imagen para leer sus colores: px(x, y) = [r, g, b]
+    const bm = await W.createImageBitmap(blob), c = D.createElement('canvas'); c.width = bm.width; c.height = bm.height;
+    const x = c.getContext('2d'); x.drawImage(bm, 0, 0); const d = x.getImageData(0, 0, c.width, c.height).data;
+    return { w: c.width, h: c.height, px: (a, b) => { const k = (Math.round(b) * c.width + Math.round(a)) * 4; return [d[k], d[k + 1], d[k + 2]]; } };
+  }
+  const color = (p, c, que, tol = 28) => ok(p.every((v, k) => Math.abs(v - c[k]) <= tol), `${que}: ${json(p)} en vez de ${json(c)}`);
+
+  prueba('AJ23', '«Barra de progreso» del menú «+ Forma», apagada en la portada y en un reel (solo tiene portada); «Visto» y «Aspa», siempre (D-179)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Reel')]);
+    await poner('r1', [await foto('aj23a.jpg'), await foto('aj23b.jpg')]);
+    await poner('r2', [await foto('aj23c.jpg')]);
+    const menu = async () => { accion('formas'); const m = await hasta(() => q('.lb .lb-cm:not([hidden]) [data-lb="add-forma"]') && q('.lb .lb-cm:not([hidden])'), 2000, 'el menú «+ Forma»');
+      const r = Object.fromEntries([...m.querySelectorAll('[role=menuitem]')].map(b => [b.firstChild.textContent.trim(), !b.disabled])); tecla('Escape'); return r; };
+    await abrirEditor('r1');
+    try {
+      let m = await menu();
+      igual([m['Barra de progreso'], m.Visto, m.Aspa], [false, true, true], 'en la portada');
+      accion('sl', { i: 1 }); await hasta(() => ed().i === 1, 3000, 'la diapositiva 2');
+      m = await menu();
+      igual([m['Barra de progreso'], m.Visto, m.Aspa], [true, true, true], 'en la diapositiva 2');
+    } finally { M.libre.cerrar(); }
+    await abrirEditor('r2');
+    try {
+      const m = await menu();
+      igual([m['Barra de progreso'], m.Visto, m.Aspa], [false, true, true], 'en un reel');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ24', '«Barra de progreso»: en el acento del kit, 8 px de 1080 de alto, entre los márgenes y abajo; avanza con su diapositiva como la numeración (añadir, mover, ⌘Z, desde la mesa); en la portada solo su pista en el editor y nada en la imagen (D-179)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    const fs = []; for (let k = 0; k < 4; k++) fs.push(await foto(`aj24-${k}.jpg`));
+    await poner('r1', fs);
+    let m, acento;
+    await conKitPrueba(async () => { try {
+      await abrirEditor('r1', 1); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      const E = ed(), { W, H } = tam(); m = E.margen; ok(m > 0, 'sin el margen del kit');
+      accion('add-forma', { v: 'progreso' });
+      const b = lzeEl(E.sel); acento = b.color;
+      igual([b.t, b.forma, b.color, b.r, b.pa], ['forma', 'progreso', '#b2503a', 1, [2, 4]], 'la barra');
+      cerca(b.x, m, 0.0002, 'su izquierda, en el margen'); cerca(b.x + b.w, 1 - m, 0.0002, 'su derecha, en el margen');
+      cerca(b.h * H, 8 * W / 1080, 0.2, 'su alto, 8 px de 1080'); cerca(b.y + b.h, 1 - m * W / H, 0.0002, 'abajo, en el margen');
+      ok(q('.lb-panel [data-lb="fc"]') && q('.lb-panel input[data-lb="r"]') && q('.lb-panel input[data-lb="sh"]'), 'el panel no trae Color, Esquinas y Sombra');
+      ok(!q('.lb-panel input[data-lb="b"]') && !q('.lb-panel input[data-lb="gr"]') && !q('.lb-panel input[data-lb="gt"]'), 'el panel trae Borde o Grosor');
+      ok(/Barra de progreso/.test(q('.lb-panel .lb-cap.on .lb-capn').textContent), '«Capas» no la llama «Barra de progreso»');
+      accion('copy'); accion('sl', { i: 0 }); accion('paste'); accion('sl', { i: 3 }); accion('paste');
+      igual(barras(), ['0/4', '2/4', null, '4/4'], 'pegada en la portada y en la última');
+      accion('sl', { i: 0 }); await hasta(() => ed().i === 0, 3000, 'la portada');
+      { ed().sel = null; ed().mas = []; await dibujado(); const c = compDe(0).els.find(e => e.forma === 'progreso'), mid = x => 72 + 144 * Math.round((x - 72) / 144);   // en el editor, su pista
+        const pf = pixel(mid((c.x + c.w * 0.2) * W), (c.y + c.h / 2) * H), pp = pixel(mid((c.x + c.w * 0.2) * W), (c.y - 0.02) * H);
+        ok(Math.abs(pf[0] - (0.3 * 178 + 0.7 * pp[0])) <= 20 && Math.abs(pf[2] - (0.3 * 58 + 0.7 * pp[2])) <= 20, `la portada no enseña su pista en el editor: ${json(pf)} sobre ${json(pp)}`); }
+      accion('cap', { id: compDe(0).els.find(e => e.forma === 'progreso').id });
+      ok(/oculta en la portada/.test(q('.lb-panel .lb-acc[data-pl="el"]').textContent), 'el panel no dice «oculta en la portada»');
+      ok(/Barra de progreso\s*oculta en la portada/.test(q('.lb-panel .lb-cap.on .lb-capn').textContent), '«Capas» no dice «oculta en la portada»');
+      accion('sl', { i: 3 }); accion('sl-add');
+      igual(barras(), ['0/4', '2/5', null, '4/5', null], 'tras añadir una diapositiva (la de la portada no cambia: no se dibuja)');
+      accion('sl-dn', { i: 1 });
+      igual(barras(), ['0/4', null, '3/5', '4/5', null], 'tras bajar la 2.ª');
+      accion('undo');
+      igual(barras(), ['0/4', '2/5', null, '4/5', null], '⌘Z');
+      await aplicarEditor();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); } });
+    const s = slot('r1');
+    igual(barrasDe(s), ['0/4', '2/5', null, '4/5', null], 'lo aplicado');
+    // las imágenes: la parte hecha en el acento, el resto al 30 %, y en la portada nada (la foto)
+    const [p0, p1, p3] = await Promise.all([0, 1, 3].map(async i => rgb(await M._in.getBlob(s.photos[i]))));
+    const w = p1.w, h = p1.h, y = h - m * w - 4 * w / 1080, x0 = m * w, L = (1 - 2 * m) * w;
+    const entre = x => 72 * w / 1440 + 144 * w / 1440 * Math.round((x - 72 * w / 1440) / (144 * w / 1440));   // entre dos líneas de la foto de prueba
+    const xa = entre(x0 + L * 0.2), xb = entre(x0 + L * 0.75), foto0 = [74, 122, 156], A = [178, 80, 58], pista = A.map((v, k) => 0.3 * v + 0.7 * foto0[k]);
+    ok(xa > x0 + 12 && xa < x0 + L * 0.4 - 12 && xb > x0 + L * 0.4 + 12 && xb < x0 + L - 12, 'los puntos de muestra no caen donde toca: ' + json([xa, xb, x0, L]));
+    color(p1.px(xa, y), A, 'la 2.ª de 5: la parte hecha'); color(p1.px(xb, y), pista, 'la 2.ª de 5: la pista');
+    color(p3.px(entre(x0 + L * 0.6), y), A, 'la 4.ª de 5: la parte hecha');
+    color(p0.px(xa, y), foto0, 'la portada: la barra se dibujó'); color(p0.px(xb, y), foto0, 'la portada: la pista se dibujó');
+    // desde la mesa: mover una diapositiva pone al día sus barras, como sus números
+    const portada = s.photos[0]; M._test.movePhoto('r1', 1, 3);
+    await hasta(() => json(barrasDe(slot('r1'))) === json(['0/4', null, '3/5', '4/5', null]), 8000, 'las barras al mover en la mesa');
+    igual(slot('r1').photos[0], portada, 'la portada se redibujó sin cambiar nada');
+    igual(acento, '#b2503a', 'el color');
+  });
+
+  prueba('AJ25', '«Visto» y «Aspa»: el check y la x de Lucide con trazo redondo, del color que se lee sobre la diapositiva; Grosor (11 px de 1080, doble clic lo devuelve) y «Visto · Aspa» en su panel, cada cambio un paso de ⌘Z (D-179)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj25.jpg')]);
+    await abrirEditor('r1');
+    try {
+      accion('sl-add'); await hasta(() => ed().i === 1, 3000, 'la diapositiva nueva');   // en blanco: el negro se lee
+      accion('add-forma', { v: 'si' });
+      const E = ed(), v = lzeEl(E.sel), t = tam();
+      igual([v.t, v.forma, v.color, v.gt], ['forma', 'si', '#000000', 11], 'el visto');
+      cerca(v.w * t.W, v.h * t.H, 0.6, 'no es cuadrado');
+      const gt = q('.lb-panel input[data-lb="gt"]'); ok(gt && gt.value === '11' && gt.nextElementSibling.textContent === '11 px', 'sin Grosor a 11 px');
+      igual(qa('.lb-panel [data-lb="visto"]').map(b => [b.textContent, b.classList.contains('on')]), [['Visto', true], ['Aspa', false]], '«Visto · Aspa»');
+      ok(!q('.lb-panel input[data-lb="b"]') && !q('.lb-panel input[data-lb="r"]'), 'el panel trae Borde o Esquinas');
+      igual(q('.lb-panel .lb-cap.on .lb-capn').textContent.trim(), 'Visto', '«Capas»');
+      const dibujo = async () => { const p = await rgb(await M.libre.pieza(compDe(1), 1080, 1350)), e = lzeEl(E.sel), cx = (e.x + e.w / 2) * 1080, cy = (e.y + e.h / 2) * 1350, u = Math.min(e.w * 1080, e.h * 1350) / 24;
+        return (a, b) => p.px(cx + a * u, cy + b * u).reduce((s, x) => s + x, 0) / 3; };
+      let d = await dibujo();
+      ok(d(2.5, -0.5) < 90 && d(-5.5, 2.5) < 90, 'el visto no tiene sus dos trazos'); ok(d(0, 0) > 180 && d(-11, -11) > 180 && d(11, 11) > 180, 'el visto pinta fuera de su trazo');
+      accion('visto', { v: 'no' }); igual(lzeEl(E.sel).forma, 'no', '«Aspa»');
+      d = await dibujo();
+      ok(d(0, 0) < 90 && d(4, 4) < 90 && d(-4, 4) < 90, 'la aspa no tiene sus dos trazos'); ok(d(0, -6) > 180 && d(-11, -11) > 180, 'la aspa pinta fuera de su trazo');
+      tecla('z', { meta: true, code: 'KeyZ' }); igual(lzeEl(E.sel).forma, 'si', '⌘Z no vuelve al visto');
+      deslizar('gt', 24); igual(lzeEl(E.sel).gt, 24, 'Grosor');
+      tecla('z', { meta: true, code: 'KeyZ' }); igual(lzeEl(E.sel).gt, 11, '⌘Z del Grosor'); tecla('z', { meta: true, shift: true, code: 'KeyZ' }); igual(lzeEl(E.sel).gt, 24, '⇧⌘Z del Grosor');
+      d = await dibujo(); ok(d(0, 0) < 90, 'con 24 px el trazo no engorda');
+      q('.lb-panel input[data-lb="gt"]').closest('label').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      igual(lzeEl(E.sel).gt, 11, 'el doble clic no devuelve 11 px');
+      // en otro formato el trazo se escala con el símbolo, como un borde; de vuelta, el de antes
+      const id = E.sel, px = () => { const e = compDe(1).els.find(q => q.id === id), t = ed().sz; return Math.min(e.w * t.W, e.h * t.H); }, l0 = px();
+      accion('fmt', { v: 'h' }); await espera(50); const g1 = compDe(1).els.find(q => q.id === id).gt, l1 = px();
+      ok(l1 < l0 * 0.9, 'en horizontal el símbolo no se reduce: ' + json([l0, l1])); cerca(g1 / 11, l1 / l0, 0.02, 'el trazo no se escala con el símbolo');
+      accion('fmt', { v: 'v45' }); await espera(50); igual(compDe(1).els.find(q => q.id === id).gt, 11, 'de vuelta a 4:5, el trazo de antes');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ26', 'La barra, Visto y Aspa viajan: plantilla «Todo» a otra diapositiva (la barra con el sitio de la nueva), ⌘C / ⌘V, «Aplicar» a la casilla y exportar / importar, con su color, grosor y forma (D-179)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj26a.jpg'), await foto('aj26b.jpg'), await foto('aj26c.jpg')]);
+    const firma = els => els.filter(e => ['progreso', 'si', 'no'].includes(e.forma)).map(e => [e.forma, e.color, e.gt || null, e.r]).sort((a, b) => json(a) < json(b) ? -1 : 1);
+    let f0;
+    await abrirEditor('r1', 1);
+    try {
+      accion('add-forma', { v: 'progreso' }); accion('add-forma', { v: 'si' }); deslizar('gt', 15); accion('add-forma', { v: 'no' });
+      f0 = firma(compDe(1).els); igual(f0.length, 3, 'las tres');
+      const tp = await guardarPlant();
+      accion('sl', { i: 2 }); await hasta(() => ed().i === 2, 3000, 'la diapositiva 3');
+      aplicarPlant(tp, 'todo'); await hasta(() => firma(compDe(2).els).length, 4000, 'la plantilla en la diapositiva 3');
+      igual(firma(compDe(2).els), f0, 'la plantilla «Todo» no las lleva'); igual(barras(), [null, '2/3', '3/3'], 'la barra de la plantilla, con su sitio');
+      const x = compDe(2).els.find(e => e.forma === 'no'); ed().sel = x.id; ed().mas = [];
+      tecla('c', { meta: true, code: 'KeyC' }); tecla('v', { meta: true, code: 'KeyV' }); await espera(80);
+      igual(compDe(2).els.filter(e => e.forma === 'no').length, 2, '⌘C / ⌘V');
+      tecla('z', { meta: true, code: 'KeyZ' }); igual(compDe(2).els.filter(e => e.forma === 'no').length, 1, '⌘Z del pegado');
+      await aplicarEditor();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); }
+    const enCasilla = () => { const s = slot('r1'); return s.photos.map(f => firma(((s.libre || {}).slides || {})[f] ? s.libre.slides[f].els : [])); };
+    igual(enCasilla(), [[], f0, f0], 'no llegaron a la casilla con «Aplicar»'); igual(barrasDe(slot('r1')), [null, '2/3', '3/3'], 'las barras en la casilla');
+    await M.flush();
+    const blob = await M.exportAll({ returnBlob: true });
+    await sinMes(`${CLIENTE}-${MES}`);
+    const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(enCasilla(), [[], f0, f0], 'no volvieron igual al importar'); igual(barrasDe(slot('r1')), [null, '2/3', '3/3'], 'las barras al importar');
   });
 
   // ---------- las que cambian a propósito ----------

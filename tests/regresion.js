@@ -11226,7 +11226,7 @@
       caja.innerHTML = '<button class="tab">a</button><div class="lb-ttl"><h3>b</h3></div><div class="chip"><span class="ct">13:00</span></div><div class="cday today"><span class="dn">20</span></div><div class="seg"><button>4:5</button></div>';
       const cs = s => W.getComputedStyle(caja.querySelector(s));
       igual([cs('.tab').fontSize, cs('.lb-ttl h3').fontSize, cs('.chip .ct').fontSize], ['13px', '20px', '10.5px'], 'los tamaños');
-      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['tabular-nums', 'tabular-nums'], 'las cifras');
+      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['tabular-nums', 'normal'], 'las cifras (los formatos sin tabulares: ensanchaban la fila)');
       igual(cs('.cday.today .dn').fontWeight, '600', 'el peso de hoy');
     } finally { caja.remove(); }
     const malos = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.style && /#mesa/.test(r.selectorText) && /^(500|700)$/.test(r.style.getPropertyValue('font-weight')) && !/\.ig|\.hb\b|\.dz-ph i|\.uso::after/.test(r.selectorText)) malos.push(r.selectorText); } }; ir(rs); }

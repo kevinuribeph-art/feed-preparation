@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.58';   // 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -540,6 +540,37 @@
   // slide: {key: the file in the post (photo or rendered image) | null (new), out: key is a rendered image with its composition,
   //         from: id of the post that composition was on (moved here), comp: null (untouched photo) | comp, raw: the photo as
   //         the mesa shows it (comp of an untouched photo), base: signature of the slide as opened, fmt, fmt0 (photo posts)}
+  // The double click that opened the editor (D-175): «Editar» opens it with the first click and the second one landed on what
+  // the editor had under the pointer («+ Foto», the slide…). Right after opening, a press near that click waits for its
+  // mousedown: the rest of that double click (detail 2 or more) is not the editor's; a click of its own goes on, with its
+  // pointerdown given back. The editor's own double clicks start with a click of their own, so they are not touched.
+  let pulsado = null, retenida = null, tragando = false;
+  const DEVUELTAS = new WeakSet(), TRAGO = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick'];
+  window.addEventListener('pointerdown', e => { if (!E) pulsado = { t: performance.now(), x: e.clientX, y: e.clientY }; }, true);
+  const tragoAl = () => pulsado && performance.now() - pulsado.t < 2000 ? { x: pulsado.x, y: pulsado.y } : null;   // the press that opened it
+  function tragar(e) {
+    const g = E && E.trago; if (!g || DEVUELTAS.has(e)) return;
+    switch (e.type) {
+      case 'pointerdown':
+        if (e.pointerType !== 'mouse' || e.button !== 0 || Math.hypot(e.clientX - g.x, e.clientY - g.y) > 12) { E.trago = null; retenida = null; tragando = false; return; }   // elsewhere: a click of its own
+        e.stopImmediatePropagation(); retenida = e; return;   // its mousedown says which click it is
+      case 'mousedown': {
+        const p = retenida; retenida = null;
+        if (e.detail >= 2) { tragando = true; break; }       // the second click of the double click that opened the editor
+        E.trago = null; tragando = false;                    // a click of its own: it goes on, with its pointerdown
+        if (p && p.target && p.target.isConnected) {
+          const n = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true, view: window, detail: 0, pointerId: p.pointerId, pointerType: p.pointerType, isPrimary: p.isPrimary, width: p.width, height: p.height, pressure: p.pressure,
+            button: p.button, buttons: p.buttons, clientX: p.clientX, clientY: p.clientY, screenX: p.screenX, screenY: p.screenY, altKey: p.altKey, ctrlKey: p.ctrlKey, metaKey: p.metaKey, shiftKey: p.shiftKey });
+          DEVUELTAS.add(n); p.target.dispatchEvent(n);
+        }
+        return;
+      }
+      case 'pointerup': if (!tragando) return; break;
+      case 'mouseup': if (!tragando) return; setTimeout(() => { tragando = false; }, 0); break;   // its click, if any, comes right after
+      case 'click': if (!tragando) return; tragando = false; break;   // a click from the keyboard (detail 0) is never one of these
+    }
+    e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
+  }
   let APL = 0, CLIP = null, ESTILO = null;   // «Aplicar» running; what was copied {els | slide (a whole comp), rat (W/H of its slide), client} (kept between posts of the same client); a text's style {st, client} (⌥⌘C)
   const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? conHist(S).find(x => x.id === E.slotId) : null; return s && (s.design || null) === E.dz && isLibSlot(s) ? s : null; };   // a designed post: the very design it opened with
   const cur = () => E.sl[E.i];
@@ -716,7 +747,7 @@
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
         bm: new Map(), bmMini: new Map(), cola: [], decoding: 0, bmI: -1, previas: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: esHist(s) ? lsLeer(LS_ZH) !== '0' : lsLeer(LS_ZG) === '1', margen: 0 };
-      E.guias0 = firmaG();
+      E.guias0 = firmaG(); E.trago = tragoAl();   // the rest of the double click that opened it is not the editor's (D-175)
       E.sl = s.photos.map(key => {
         const f = esHist(s) && entries(s)[key] ? { s, comp: entries(s)[key] } : compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;   // a story's own: a duplicate shares its image until it is applied
         if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: hfirma(comp), fmt, fmt0: fmt }; }
@@ -787,6 +818,7 @@
     if (!E) return { ok: true };
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', sinEspacio, true); window.removeEventListener('blur', sinEspacio);
+    TRAGO.forEach(t => window.removeEventListener(t, tragar, true)); retenida = null; tragando = false;
     window.removeEventListener('resize', fvDibujar); if (e.fvUrl) URL.revokeObjectURL(e.fvUrl);
     if (e.historia) guardarGuion(e);
     { const box = e.el && e.el.querySelector('.lb-tray'), tr = box && box.querySelector('.lb-trs'); if (tr && box._vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr, tr, 'x', tr.getBoundingClientRect().left); }   // where its strip was (D-092)
@@ -1176,12 +1208,13 @@
 #mesa .lb-tp{position:relative;min-width:0}#mesa .lb-tp canvas{width:100%;height:auto;display:block;border-radius:var(--r-xs);cursor:pointer;outline:1px solid var(--line2)}
 #mesa .lb-tp canvas:hover{outline:2px solid var(--acc)}
 #mesa .lb-tp span{display:block;font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
-#mesa .lb-tp button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:var(--photo-btn);color:var(--on-photo);font-size:12.5px;line-height:24px;padding:0}
+#mesa .lb-tp button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:var(--photo-btn);color:var(--on-photo);font-size:0;line-height:24px;padding:0}#mesa .lb-tp button::before{content:'';position:absolute;inset:0;margin:auto;width:13px;height:13px;background:currentColor;-webkit-mask:var(--i-x) center/contain no-repeat;mask:var(--i-x) center/contain no-repeat}
 #mesa .lb-caps{border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;background:var(--panel-2)}
 #mesa .lb-cap{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 9px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
 #mesa .lb-cap button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);padding:0;font-size:11.5px;color:var(--mute)}
+#mesa .lb-cap button[data-lb="cap-up"],#mesa .lb-cap button[data-lb="cap-dn"]{position:relative;font-size:0}#mesa .lb-cap button[data-lb="cap-up"]::before,#mesa .lb-cap button[data-lb="cap-dn"]::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .lb-cap button[data-lb="cap-dn"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}
 #mesa .lb-cap button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-cap button:disabled{color:var(--faint)}
 #mesa .lb-cap.off .lb-capn{opacity:.45}
 #mesa .lb-all{position:absolute;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:16px 20px}
@@ -1269,6 +1302,7 @@
     const gn = el.querySelector('textarea.lb-guion');
     if (gn) { altoGuion(gn); gn.addEventListener('input', () => altoGuion(gn)); gn.addEventListener('change', () => { if (E) guardarGuion(E); }); }
     window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', sinEspacio, true); window.addEventListener('blur', sinEspacio);
+    TRAGO.forEach(t => window.addEventListener(t, tragar, true));
     E.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { pedir(); if (E) { cancelAnimationFrame(E.tamRaf); E.tamRaf = requestAnimationFrame(tamBandeja); } }) : null;   // the slider's room and the narrow window (D-091)
     if (E.ro) E.ro.observe(E.scroll);
     todo();

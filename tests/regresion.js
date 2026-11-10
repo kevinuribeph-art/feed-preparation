@@ -11218,7 +11218,7 @@
     for (const s of ['#mesa .mx-nav:focus-visible', '#mesa .lb-acc-h:focus-visible', '#mesa .pe-ed:focus-visible', '#mesa button.cpaso:focus-visible']) igual([regla(s, 'outline-offset'), regla(s, 'box-shadow')], ['2px', ''], 'el foco de ' + s);
   });
 
-  prueba('ES5', 'Tipo: tamaños en la escala (pestañas 13, títulos del editor 20, horas de los chips 10,5), solo pesos que la letra tiene (400, 600, 800), cifras tabulares en horas y números y la pantalla de carga en Mesa Grotesk (D-172)', async () => {
+  prueba('ES5', 'Tipo: tamaños en la escala (pestañas 13, títulos del editor 20, horas de los chips 10,5), solo pesos que la letra tiene (400, 600, 800), cifras tabulares en los números (en las horas no, desde D-175) y la pantalla de carga en Mesa Grotesk (D-172)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
     const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
@@ -11226,7 +11226,7 @@
       caja.innerHTML = '<button class="tab">a</button><div class="lb-ttl"><h3>b</h3></div><div class="chip"><span class="ct">13:00</span></div><div class="cday today"><span class="dn">20</span></div><div class="seg"><button>4:5</button></div>';
       const cs = s => W.getComputedStyle(caja.querySelector(s));
       igual([cs('.tab').fontSize, cs('.lb-ttl h3').fontSize, cs('.chip .ct').fontSize], ['13px', '20px', '10.5px'], 'los tamaños');
-      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['tabular-nums', 'normal'], 'las cifras (los formatos sin tabulares: ensanchaban la fila)');
+      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['normal', 'normal'], 'las cifras (las horas y los formatos sin tabulares, D-175)');
       igual(cs('.cday.today .dn').fontWeight, '600', 'el peso de hoy');
     } finally { caja.remove(); }
     const malos = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.style && /#mesa/.test(r.selectorText) && /^(500|700)$/.test(r.style.getPropertyValue('font-weight')) && !/\.ig|\.hb\b|\.dz-ph i|\.uso::after/.test(r.selectorText)) malos.push(r.selectorText); } }; ir(rs); }
@@ -11286,6 +11286,86 @@
     ok(reglas.some(([r, m]) => m && /\.mchip/.test(r.selectorText) && /\.lb-ib/.test(r.selectorText) && /\.pacts button/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && r.style.transform === 'none'), 'con «reducir movimiento» los botones siguen encogiendo');
     raiz.dataset.theme = 'dark';
     try { const c = W.getComputedStyle(raiz).getPropertyValue('--chev'); ok(/non-scaling-stroke/.test(c) && /A89C8F/i.test(c), 'el --chev oscuro sin la regla de trazo'); } finally { delete raiz.dataset.theme; }
+  });
+
+  // ---------- ajustes de la 4.13 (D-175, D-176) ----------
+  prueba('AJ1', 'Pestañas de cliente: un píxel más de relleno a cada lado, para medir lo que medían con la letra de 13,5 px (D-175)', async () => {
+    await tablero([pub(1)]);
+    const nav = q('header.appbar nav.tabs'); ok(nav, 'sin las pestañas');
+    const mide = (txt, cls, st) => { const b = D.createElement('button'); b.className = cls; b.textContent = txt; if (st) b.style.cssText = st; nav.append(b); const w = b.getBoundingClientRect().width; b.remove(); return w; };
+    const fuera = [];
+    for (const n of ['Marca', 'Café Sur', 'Estudio Norte']) for (const cls of ['tab', 'tab on']) {
+      const ahora = mide(n, cls), antes = mide(n, cls, 'font-size:13.5px;padding:0 12px');   // como en la 4.12
+      if (Math.abs(ahora - antes) > 1.5) fuera.push(`${n} (${cls}): ${ahora.toFixed(1)} frente a ${antes.toFixed(1)}`);
+    }
+    igual(fuera, [], 'pestañas que no miden lo de la 4.12');
+  });
+
+  prueba('AJ2', 'Doble clic en EDITAR: el segundo clic no es del editor (ni «+ Foto» ni nada de lo que haya debajo); un clic nuevo, uno de teclado y los dobles clics del editor sí (D-175)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj2a.jpg'), await foto('aj2b.jpg')]);
+    await abrirEditor('r1');
+    const r = q('.lb [data-lb="add"]').getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    M.libre.cerrar(); await espera(50);
+    const pulsa = (el, n) => {   // una pulsación del ratón entera, como la da el navegador (detail: el recuento de clics)
+      const o = { bubbles: true, cancelable: true, composed: true, view: W, clientX: x, clientY: y, button: 0 }, pt = { pointerId: 1, pointerType: 'mouse', isPrimary: true };
+      el.dispatchEvent(new W.PointerEvent('pointerdown', { ...o, ...pt, buttons: 1 })); el.dispatchEvent(new W.MouseEvent('mousedown', { ...o, buttons: 1, detail: n }));
+      el.dispatchEvent(new W.PointerEvent('pointerup', { ...o, ...pt, buttons: 0 })); el.dispatchEvent(new W.MouseEvent('mouseup', { ...o, detail: n })); el.dispatchEvent(new W.MouseEvent('click', { ...o, detail: n }));
+    };
+    const add = () => q('.lb [data-lb="add"]');
+    pulsa(D.body, 1);   // el clic que abre (en EDITAR), justo donde el editor tendrá «+ Foto»
+    await abrirEditor('r1');
+    try {
+      pulsa(add(), 2);
+      igual([ed().pick, ed().sel], [null, null], 'el segundo clic del doble clic llegó al editor');
+      pulsa(add(), 1);
+      igual(ed().pick && ed().pick.modo, 'add', 'un clic nuevo en «+ Foto» no lo abre');
+    } finally { M.libre.cerrar(); }
+    pulsa(D.body, 1); await abrirEditor('r1');
+    try {
+      add().dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 0 }));   // Intro o espacio en el botón
+      igual(ed().pick && ed().pick.modo, 'add', 'un clic de teclado tras abrir con el ratón no llega');
+    } finally { M.libre.cerrar(); }
+    pulsa(D.body, 1); await abrirEditor('r1');
+    try {
+      ed().zoom = 1.5; const zv = q('.lb .lb-zv'); const rz = zv.getBoundingClientRect();
+      const o = { bubbles: true, cancelable: true, view: W, clientX: rz.left + 4, clientY: rz.top + 4, button: 0 };
+      for (const n of [1, 2]) { zv.dispatchEvent(new W.PointerEvent('pointerdown', { ...o, pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: 1 })); zv.dispatchEvent(new W.MouseEvent('mousedown', { ...o, detail: n })); zv.dispatchEvent(new W.MouseEvent('mouseup', { ...o, detail: n })); zv.dispatchEvent(new W.MouseEvent('click', { ...o, detail: n })); }
+      zv.dispatchEvent(new W.MouseEvent('dblclick', { ...o, detail: 2 }));
+      igual(ed().zoom, 1, 'el doble clic en el porcentaje del zoom (D-145) no vuelve al 100 %');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ3', 'Horas sin cifras tabulares (chips del calendario y publicaciones de Historias); siguen en los números de diapositiva y en los días de Historias (D-175)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('aj3.jpg')]);
+    await hasta(() => M.calendario && M.hs && M.libre, 4000, 'los módulos');
+    await abrirEditor('r1');   // la hoja de libre.js entra al abrirlo
+    const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; q('#mesa').append(caja);
+    try {
+      caja.innerHTML = '<div class="chip"><span class="ct">13:00</span></div><button class="hv-post">13:00</button><div class="hv-dia"><b>20</b></div><div class="lb-n"><b>02</b></div>';
+      const nv = s => W.getComputedStyle(caja.querySelector(s)).fontVariantNumeric;
+      igual([nv('.chip .ct'), nv('.hv-post')], ['normal', 'normal'], 'las horas');
+      igual([nv('.hv-dia b'), nv('.lb-n b')], ['tabular-nums', 'tabular-nums'], 'los días de Historias y los números de diapositiva');
+    } finally { caja.remove(); M.libre.cerrar(); }
+  });
+
+  prueba('AJ4', '▲ ▼ de «Capas» y × de «Plantillas» del editor: iconos de Lucide (chevron-up, chevron-down, x) con el carácter de texto; misma área pulsable (D-175)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj4.jpg')]);
+    await abrirEditor('r1');
+    const masc = el => decodeURIComponent(W.getComputedStyle(el, '::before').webkitMaskImage || '');
+    const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; q('#mesa').append(caja);
+    try {
+      caja.innerHTML = '<div class="lb-cap"><span class="lb-capn">Texto</span><button type="button" data-lb="cap-up">▲</button><button type="button" data-lb="cap-dn" disabled>▼</button></div><div class="lb-tp" style="width:120px;height:90px"><button type="button" data-lb="tpl-del">×</button></div>';
+      const [up, dn] = caja.querySelectorAll('.lb-cap button'), x = caja.querySelector('.lb-tp button');
+      for (const [b, d, txt] of [[up, 'm18 15-6-6-6 6', '▲'], [dn, 'm6 9 6 6 6-6', '▼'], [x, 'M18 6 6 18', '×']]) {
+        const c = W.getComputedStyle(b), r = b.getBoundingClientRect();
+        ok(c.fontSize === '0px' && masc(b).includes(d) && b.textContent === txt, txt + ' sin su icono o sin su texto');
+        igual([r.width, r.height], [24, 24], 'el área pulsable de ' + txt);
+      }
+      igual(W.getComputedStyle(dn, '::before').backgroundColor, W.getComputedStyle(dn).color, '▼ desactivado no sigue su color');
+    } finally { caja.remove(); M.libre.cerrar(); }
   });
 
   // ---------- las que cambian a propósito ----------

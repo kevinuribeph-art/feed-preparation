@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.15';   // 1.14: no «N historias en este mes» when there are some (D-156)
+  const VERSION = '1.16';   // 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -583,7 +583,7 @@
 #mesa .hv-rail.vacio{padding:4px 0;align-items:center}#mesa .hv-rail.hoy .hv-dia b{color:var(--acc)}
 #mesa .hv-dia{font-size:12px;color:var(--mute);line-height:1.25}#mesa .hv-dia b{font-variant-numeric:tabular-nums;font-size:20px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}#mesa .hv-dia span{display:block}
 #mesa .hv-rail.vacio .hv-dia span{display:none}
-#mesa .hv-posts{display:flex;gap:6px}#mesa .hv-post{font-variant-numeric:tabular-nums;display:block;width:60px;padding:0;border:0;background:none;font:inherit;font-size:11.5px;color:var(--mute);text-align:center;cursor:pointer;border-radius:var(--r-xs)}
+#mesa .hv-posts{display:flex;gap:6px}#mesa .hv-post{display:block;width:60px;padding:0;border:0;background:none;font:inherit;font-size:11.5px;color:var(--mute);text-align:center;cursor:pointer;border-radius:var(--r-xs)}
 #mesa .hv-post:focus-visible{outline:2px solid var(--focus);outline-offset:2px}#mesa .hv-pim{position:relative;display:block;margin-bottom:3px}
 #mesa .hv-post img,#mesa .hv-nof{display:block;width:60px;height:75px;object-fit:cover;border-radius:var(--r-xs);background:var(--cell-ph)}
 #mesa .hv-pt{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:var(--photo-btn);color:var(--on-photo);display:flex;align-items:center;justify-content:center}#mesa .hv-pt svg{width:11px;height:11px}

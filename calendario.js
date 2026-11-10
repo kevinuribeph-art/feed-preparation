@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.19';   // 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.20';   // 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -574,7 +574,7 @@
 #mesa .chip{display:flex;align-items:center;flex-wrap:wrap;column-gap:4px;width:100%;min-width:0;border:0;border-radius:var(--r-xs);padding:2px 6px;text-align:left;font:inherit;font-size:11px;line-height:15px;cursor:pointer;--cb:var(--ty-trial);--ci:var(--ty-trial-ink);color:var(--ci);background:var(--cb);transition:filter var(--d1) ease-out,background-color var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .chip .cl{flex:1 1 auto;min-width:0;max-width:100%;display:flex;align-items:center;gap:4px}
 #mesa .chip .cn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
-#mesa .chip .ct{flex:none;font-size:10.5px;opacity:.75;font-variant-numeric:tabular-nums}
+#mesa .chip .ct{flex:none;font-size:10.5px;opacity:.75}
 #mesa .chip.ty-reel{--cb:var(--ty-reel);--ci:var(--ty-reel-ink)}
 #mesa .chip.ty-collab{--cb:var(--ty-collab);--ci:var(--ty-collab-ink)}
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}

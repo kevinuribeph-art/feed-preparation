@@ -25,7 +25,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.8';   // 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
+  const VERSION = '1.9';   // 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };
@@ -179,7 +179,7 @@
   }
 
   const CSS = `#mesa .rv{list-style:none;margin:10px 0 0;padding:0;max-height:min(52vh,460px);overflow:auto}
-#mesa .rv>li{margin:0 0 14px}#mesa .rv>li>b{font-size:14px;font-weight:700;letter-spacing:-.005em}#mesa .rv ul{list-style:none;margin:5px 0 0;padding:0}
+#mesa .rv>li{margin:0 0 14px}#mesa .rv>li>b{font-size:14px;font-weight:600;letter-spacing:-.005em}#mesa .rv ul{list-style:none;margin:5px 0 0;padding:0}
 #mesa .rv-i{display:block;width:100%;box-sizing:border-box;padding:6px 10px;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:inherit;font-size:13px;line-height:1.4;text-align:left;cursor:pointer;transition:background var(--d1) ease-out}
 #mesa .rv-i:hover{background:var(--bg-2)}#mesa .rv-i:focus-visible{background:var(--bg-2);outline:2px solid var(--focus);outline-offset:-2px}#mesa .rv-i.rv-b{color:var(--red)}#mesa .rv-i i{font-style:normal;font-weight:600}`;
   I().estilo('mesa-rv-css', CSS);

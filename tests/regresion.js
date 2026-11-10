@@ -6654,7 +6654,7 @@
       ok(!visto(q('.tray .titem .tname')) && !visto(q(`.tcarpeta[data-id="${c.id}"] .cf`)), 'siguen el nombre o el «N fotos»');
       const t = tile(c.id); ok(t.scrollHeight <= t.clientHeight + 1 && visto(t.querySelector('svg')) && visto(t.querySelector('.cn')), 'la carpeta no cabe en su casilla');
       ok(visto(q('.tray .titem .hb')), 'falta la H');
-      ok(W.getComputedStyle(q('.tray .titem.uso'), '::after').content.includes('✓'), 'falta el ✓');
+      { const u = q('.tray .titem.uso'); ok(/M20 6 9 17l-5-5/.test(decodeURIComponent(W.getComputedStyle(u, '::before').webkitMaskImage)) && W.getComputedStyle(u, '::after').content === '""', 'falta el ✓'); }   // desde la 4.13 el ✓ es el icono check en ::before y el círculo sigue en ::after (D-169)
       conCmd(titem(ids[3]));
       ok(titem(ids[3]).classList.contains('elegida') && W.getComputedStyle(titem(ids[3])).outlineStyle === 'solid', 'no se marca lo elegido');
       M._in.traySoltar();
@@ -9520,7 +9520,7 @@
     igual(b.textContent, '+ Diapositiva', 'el texto de la tira');
     ok(/solo con color de fondo/.test(b.title), 'perdió su título: ' + b.title);
     const r = b.getBoundingClientRect();
-    ok(r.height <= 30 && r.height >= 26, 'no es del alto de los botones pequeños: ' + r.height);
+    ok(Math.abs(r.height - 32) < 0.6, 'no mide 32 px, como «+ Diapositiva» del diseñador: ' + r.height);   // desde la 4.13, 32 px (D-170; antes, el alto de los botones pequeños)
     igual([W.getComputedStyle(b).whiteSpace, W.getComputedStyle(b).fontSize], ['nowrap', '12px'], 'una línea, 12 px');
     ok(b.scrollWidth <= b.clientWidth + 1, `no cabe en una línea: ${b.scrollWidth} > ${b.clientWidth}`);
     const n = E.sl.length; b.click(); await dibujado();
@@ -9530,7 +9530,7 @@
     if (!E2.sl.length) {
       const p2 = await hasta(() => q('.lb-panel [data-lb="sl-add"]'), 2000, 'el botón del panel sin diapositivas');
       igual(p2.textContent, '+ Diapositiva', 'el texto del panel');
-      ok(p2.getBoundingClientRect().height <= 30 && W.getComputedStyle(p2).whiteSpace === 'nowrap', 'el del panel no es pequeño ni de una línea');
+      ok(Math.abs(p2.getBoundingClientRect().height - 32) < 0.6 && W.getComputedStyle(p2).whiteSpace === 'nowrap', 'el del panel no mide 32 px o no va en una línea');   // desde la 4.13, 32 px (D-170)
     }
     M.libre.cerrar();
   });
@@ -11063,10 +11063,14 @@
     await lzeDisenador('fl3', async () => {
       const b = q('.dz .dz-add'); ok(b, 'sin «+ Diapositiva»');
       igual(b.textContent.trim(), '+ Diapositiva', 'el texto del botón');
-      const r = D.createRange(); r.selectNodeContents(b);
-      const ls = [...r.getClientRects()], tb = r.getBoundingClientRect(), bb = b.getBoundingClientRect();
+      // desde la 4.13 el «+» es un icono (D-169): las líneas se cuentan con el texto, y el icono va en la misma línea
+      const txt = [...b.childNodes].filter(n => n.nodeType === 3 && n.nodeValue.trim()), r = D.createRange(); r.setStartBefore(txt[0]); r.setEndAfter(txt[txt.length - 1]);
+      const ls = [...r.getClientRects()], tb = r.getBoundingClientRect(), bb = b.getBoundingClientRect(), ic = b.querySelector('.i-mas');
       igual(new Set(ls.map(x => Math.round(x.top))).size, 1, 'líneas de «+ Diapositiva»');
-      ok(tb.left >= bb.left && tb.right <= bb.right, `el texto sale del botón: ${Math.round(tb.left)}–${Math.round(tb.right)} frente a ${Math.round(bb.left)}–${Math.round(bb.right)}`);
+      const ir = ic ? ic.getBoundingClientRect() : tb;
+      ok(Math.abs((ir.top + ir.bottom) / 2 - (tb.top + tb.bottom) / 2) < 6, 'el «+» va en otra línea');
+      const izq = Math.min(tb.left, ir.left), der = Math.max(tb.right, ir.right);
+      ok(izq >= bb.left && der <= bb.right, `el texto sale del botón: ${Math.round(izq)}–${Math.round(der)} frente a ${Math.round(bb.left)}–${Math.round(bb.right)}`);
     });
   });
 
@@ -11119,6 +11123,169 @@
     ok(c && c.els.some(e => e.src === nueva), '⇧⌘Z no volvió a poner la foto');
     tecla('z', { meta: true, code: 'KeyZ' });
     igual(slot('r1').photos, fotos0, 'un ⌘Z más no la quitó');
+  });
+
+  // ---------- revisión estética (D-168 a D-174) ----------
+  prueba('ES1', 'Iconos: un solo trazo visible (non-scaling, 1,33 px) en máscaras y SVG; Programado, Publicado y Cancelado con Lucide; separadores de la barra de pasos con icono; Por empezar, punto lleno sin aro (D-168)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await hasta(() => M.calendario && q('.side > .cal .cleg .csep'), 4000, 'calendario.js');
+    await porAprobar(['r1', 'r2'], 'es1');
+    M.setEstado('r1', 'programado'); M.setEstado('r2', 'publicado'); M.setEstado('r3', 'cancelado');
+    await espera(80);
+    const raiz = W.getComputedStyle(q('#mesa'));
+    for (const k of ['x', 'updown', 'chev', 'check', 'cal', 'clock', 'back', 'chev-r']) ok(/non-scaling-stroke/.test(raiz.getPropertyValue('--i-' + k)) && /stroke-width='1\.33'/.test(raiz.getPropertyValue('--i-' + k)), '--i-' + k + ' sin la regla de trazo');
+    igual(raiz.getPropertyValue('--i-trazo').trim(), '1.33px', 'el trazo');
+    const ico = id => q(`.side > .cal .chip[data-slot="${id}"] .cl > i:first-child`);
+    const ds = id => [...ico(id).querySelectorAll('path:not(.h)')].map(p => p.getAttribute('d'));
+    igual([ds('r1'), ds('r2'), ds('r3')], [['M20 6 9 17l-5-5'], ['M18 6 7 17l-5-5', 'm22 10-7.5 7.5L13 16'], ['M18 6 6 18', 'm6 6 12 12']], 'los trazados de Lucide');
+    const p = W.getComputedStyle(ico('r1').querySelector('path:not(.h)'));
+    igual([p.vectorEffect, p.strokeWidth], ['non-scaling-stroke', '1.33px'], 'el trazo de la marca');
+    const sep = q('.side > .cal .cleg .csep');
+    igual([sep.textContent, W.getComputedStyle(sep).fontSize], ['›', '0px'], 'el separador sigue siendo «›» oculto');
+    ok(/url/.test(W.getComputedStyle(sep, '::before').webkitMaskImage), 'el separador no lleva el icono');
+    const e = W.getComputedStyle(q('.side > .cal .cleg .e-empezar'));
+    igual([e.boxShadow, e.backgroundColor], ['none', raiz.getPropertyValue('--st-empezar-aro').trim() === '#A39A90' ? 'rgb(163, 154, 144)' : e.backgroundColor], 'Por empezar con aro');
+  });
+
+  prueba('ES2', 'Glifos que pasan a icono: «+», ✓ de uso y su recuento, Σ, barra de tamaño, ⋯ y ? del editor, × de la tira, ✓ y atajo de sus menús; el texto se queda (D-169)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.calendario && q('.side > .cal button.ccnt'), 4000, 'calendario.js');
+    const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
+    const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
+    for (const [sel, txt] of [['[data-act="addfiller"]', '+ Hueco'], ['[data-act="newclient"]', '+ Cliente']]) {
+      const b = q(sel), i = b && b.querySelector('.i-mas');
+      ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
+    }
+    const cc = q('.side > .cal button.ccnt'); ok(cc.textContent === 'Σ' && tam0(cc) && /M18 7V5/.test(masc(cc)), 'Σ sin el icono sigma');
+    const ti = qa('.tray .trayhead .ttam i'); ok(ti.length === 2 && ti.every(i => W.getComputedStyle(i).borderTopWidth === '0px' && /rect/.test(masc(i, null))), 'la barra de tamaño sigue con bordes');
+    await poner('r1', [await foto('es2.jpg')]); await espera(80);
+    await pulsar('.tray .tfil button[data-v="todas"]'); await espera(120);
+    try {
+      const tc = q('.tray .trayhead .tcount'); ok(/sin usar · \d+ ✓$/.test(tc.textContent.trim()) && tc.querySelector('.i-ck') && tam0(tc.querySelector('.i-ck')), 'el recuento sin el icono: ' + tc.innerHTML);
+      const u = await hasta(() => q('.tray .titem.uso'), 2000, 'la foto usada en «Todas»');
+      ok(/M20 6 9 17l-5-5/.test(masc(u)) && W.getComputedStyle(u, '::after').content === '""', 'el ✓ de uso no es el icono');
+    } finally { await pulsar('.tray .tfil button[data-v="sin"]'); }
+    await abrirEditor('r1');
+    try {
+      const mas = q('.lb .lb-mas > .lb-ib'), ayuda = q('.lb .lb-help'), add = q('.lb .lb-add');
+      ok(mas.textContent === '⋯' && tam0(mas) && /cx='5'/.test(masc(mas)), '«⋯» del editor sin el icono');
+      ok(ayuda.textContent === '?' && tam0(ayuda) && /M10 8h\.01/.test(masc(ayuda)), '«?» sin el icono keyboard');
+      ok(add && add.textContent.trim() === '+ Diapositiva' && add.querySelector('.i-mas'), '«+ Diapositiva» sin el icono');
+      igual(qa('.lb .lb-btns .btn2 .i-mas').length, 4, 'los cuatro «+» del panel');
+      const del = q('.lb .lb-mv [data-lb="sl-del"]'); ok(del && tam0(del) && /M18 6 6 18/.test(masc(del)), 'el × de la tira');
+      mas.click(); await espera(80);
+      const marcada = q('.lb .lb-menu [aria-checked="true"]'), kb = q('.lb .lb-menu .lb-kb');
+      ok(marcada && /M20 6 9 17l-5-5/.test(masc(marcada)), 'la opción marcada sin el icono check');
+      ok(kb && kb.closest('button').getBoundingClientRect().right - kb.getBoundingClientRect().right <= 11, 'el atajo no va a la derecha');
+      tecla('Escape');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('ES3', 'Controles: todos los deslizadores como el de la bandeja; radio propio en los captions; desplegables, «+ Diapositiva» y campos de los diálogos a 32 px; los menús flotantes con el borde --line2 (D-170)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre && M.diseno, 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<label class="zoom"><input type="range"></label><label class="lb-rng"><input type="range"></label><div class="dz-velo"><input type="range"></div>'
+        + '<div class="form"><input type="text"><input type="number"></div><div class="lb-list"><button class="btn2 lb-add">x</button></div><select class="lb-sel"></select><button class="mx-sel">x</button>'
+        + '<input class="dz-in dz-serin"><input class="lb-askin"><div class="mx-pop"></div><div class="cpmenu"></div>';
+      for (const i of caja.querySelectorAll('input[type=range]')) { const c = W.getComputedStyle(i); igual([c.appearance, c.height], ['none', '16px'], 'un deslizador del navegador en ' + i.parentElement.className); }
+      for (const s of ['.form input[type=text]', '.form input[type=number]', '.lb-add', '.mx-sel', '.lb-askin']) igual(caja.querySelector(s).getBoundingClientRect().height, 32, 'el alto de ' + s);
+      igual(W.getComputedStyle(caja.querySelector('.mx-pop')).borderTopColor, W.getComputedStyle(caja.querySelector('.cpmenu')).borderTopColor, 'los menús con bordes distintos');
+    } finally { caja.remove(); }
+    M._in.openDetail('r1', 0); await hasta(() => dialogo(), 2000, 'la ventana');
+    const r = q('.detail .caplab input[type=radio]');
+    if (r) { const c = W.getComputedStyle(r); igual([c.appearance, c.width], ['none', '15px'], 'el radio de los captions'); }
+    M._in.closeDetail();
+  });
+
+  prueba('ES4', 'Estados: desactivado en dos reglas (texto e iconos sueltos en --faint; con fondo o borde a .4); al pasar como «.btn2» y al pulsar todos encogen; foco con contorno de 2 px a 2 px (D-171)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre && q('.side > .cal .cnav button'), 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
+    const faint = (() => { const x = D.createElement('i'); x.style.color = 'var(--faint)'; raiz.append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; })();
+    try {
+      caja.innerHTML = '<button class="btn" disabled>a</button><button class="btn2" disabled>b</button><button class="mx-sel" disabled>c</button><span class="pacts"><button disabled>d</button></span>';
+      const nav = q('.side > .cal .cnav button[data-cal="next"]'), antes = nav.disabled; nav.disabled = true;
+      try { const c = W.getComputedStyle(nav); igual([c.color, c.opacity], [faint, '1'], 'desactivado de las flechas del calendario'); } finally { nav.disabled = antes; }
+      for (const s of ['.btn', '.btn2', '.mx-sel', '.pacts button']) igual(W.getComputedStyle(caja.querySelector(s)).opacity, '0.4', 'desactivado de ' + s);
+    } finally { caja.remove(); }
+    const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.selectorText) reglas.push(r); } }; ir(rs); }
+    const regla = (sel, prop) => { const r = reglas.find(x => x.selectorText.split(/,(?![^(]*\))/).map(z => z.trim()).includes(sel) && x.style.getPropertyValue(prop)); return r ? r.style.getPropertyValue(prop) : ''; };
+    igual([regla('#mesa .lb-mv button:disabled', 'color'), regla('#mesa .lb-mv button:disabled', 'opacity')], ['var(--faint)', ''], 'desactivado de la tira del editor');
+    for (const s of ['#mesa .lb-help:hover', '#mesa .cpaso.sig:hover']) igual([regla(s, 'background'), regla(s, 'border-color')], ['var(--bg)', 'var(--line-strong)'], 'al pasar por ' + s);   // el «+» de Historias y de los colores, sin borde desde D-174 (ES7)
+    ok(reglas.some(r => /\.mchip/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && /\.lb-help/.test(r.selectorText) && r.style.transform === 'scale(0.97)'), 'al pulsar no encogen todos');
+    for (const s of ['#mesa .mx-nav:focus-visible', '#mesa .lb-acc-h:focus-visible', '#mesa .pe-ed:focus-visible', '#mesa button.cpaso:focus-visible']) igual([regla(s, 'outline-offset'), regla(s, 'box-shadow')], ['2px', ''], 'el foco de ' + s);
+  });
+
+  prueba('ES5', 'Tipo: tamaños en la escala (pestañas 13, títulos del editor 20, horas de los chips 10,5), solo pesos que la letra tiene (400, 600, 800), cifras tabulares en horas y números y la pantalla de carga en Mesa Grotesk (D-172)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<button class="tab">a</button><div class="lb-ttl"><h3>b</h3></div><div class="chip"><span class="ct">13:00</span></div><div class="cday today"><span class="dn">20</span></div><div class="seg"><button>4:5</button></div>';
+      const cs = s => W.getComputedStyle(caja.querySelector(s));
+      igual([cs('.tab').fontSize, cs('.lb-ttl h3').fontSize, cs('.chip .ct').fontSize], ['13px', '20px', '10.5px'], 'los tamaños');
+      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['tabular-nums', 'normal'], 'las cifras (los formatos sin tabulares: ensanchaban la fila)');
+      igual(cs('.cday.today .dn').fontWeight, '600', 'el peso de hoy');
+    } finally { caja.remove(); }
+    const malos = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.style && /#mesa/.test(r.selectorText) && /^(500|700)$/.test(r.style.getPropertyValue('font-weight')) && !/\.ig|\.hb\b|\.dz-ph i|\.uso::after/.test(r.selectorText)) malos.push(r.selectorText); } }; ir(rs); }
+    igual(malos, [], 'reglas con pesos que la letra no tiene');
+    const html = await (await W.fetch('index.html', { cache: 'no-store' })).text();
+    ok(/@font-face\{font-family:"Mesa Grotesk"/.test(html) && /body>p\{font:13px/.test(html), 'la pantalla de carga sin Mesa Grotesk');
+  });
+
+  prueba('ES6', 'Movimiento: plegar la bandeja y el calendario (contenido y flecha) y los desplegables con los tokens de movimiento (D-173)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
+    await abrirEditor('r1'); M.libre.cerrar(); await espera(60);   // el CSS del editor se pone al abrirlo la primera vez
+    const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText && !m) reglas.push(r); } }; ir(rs, false); }
+    const de = (re, prop) => reglas.filter(r => re.test(r.selectorText) && r.style.getPropertyValue(prop)).map(r => r.style.getPropertyValue(prop));
+    // con elementos de prueba: los atajos con var() no se leen por CSSOM (la ronda 1 de la revisión lo vio)
+    if (W.matchMedia('(prefers-reduced-motion: reduce)').matches) throw new Error('con «Reducir movimiento» del sistema activado no se pueden medir las duraciones: desactívalo y vuelve a pasar ES6');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:-2000px;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<div class="side"><aside class="tray fold tray-anim"><div class="tfil"></div></aside><section class="cal fold cal-anim"><div class="cleg"></div></section></div><button class="tfold"><svg></svg></button><button class="cfold"><svg></svg></button><button class="lb-trb"><svg></svg></button>';
+      const dm = W.getComputedStyle(raiz).getPropertyValue('--d-m').trim().replace(/^\./, '0.');
+      for (const s of ['.tray .tfil', '.cal .cleg']) { const c = W.getComputedStyle(caja.querySelector(s)); igual([c.animationDuration, c.animationTimingFunction], [dm, 'cubic-bezier(0.32, 0.72, 0, 1)'], 'plegar: ' + s); }
+      for (const s of ['.tfold svg', '.cfold svg', '.lb-trb svg']) { const c = W.getComputedStyle(caja.querySelector(s)); igual([c.transitionDuration, c.transitionTimingFunction], [dm, 'cubic-bezier(0.32, 0.72, 0, 1)'], 'la flecha: ' + s); }
+    } finally { caja.remove(); }
+    ok(de(/^#mesa \.mx-pop\.fuera$/, 'transition').every(v => !/ease-in|\.14s/.test(v)) && de(/^#mesa \.mx-pop$/, 'transition').every(v => !/\.18s/.test(v)), 'los desplegables con duraciones propias');
+  });
+
+  prueba('ES7', '«N vencidas» subrayado solo al pasar; los «+» redondos de Historias y de los colores sin borde discontinuo; títulos equilibrados y textos sin palabras sueltas en las ventanas (D-174)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.hs, 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<button class="cvenc">2 vencidas</button><button class="hv-add">+</button><div class="card"><h3>t</h3><p>p</p></div>';
+      const cs = s => W.getComputedStyle(caja.querySelector(s));
+      igual(cs('.cvenc').textDecorationLine, 'none', 'el subrayado fijo');
+      igual(cs('.hv-add').borderTopColor, 'rgba(0, 0, 0, 0)', 'el borde discontinuo del «+»');
+      const r = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }).find(x => x.selectorText === '#mesa .hv-add:hover');
+      ok(r && r.style.getPropertyValue('background') === 'var(--bg-3)' && !r.style.getPropertyValue('border-color'), 'al pasar por el «+», un fondo de un tono y sin borde');
+      igual([cs('.card h3').textWrapStyle || cs('.card h3').textWrap, cs('.card p').textWrapStyle || cs('.card p').textWrap].map(v => String(v).replace('wrap ', '')), ['balance', 'pretty'], 'text-wrap');
+    } finally { caja.remove(); }
+  });
+
+  prueba('ES8', 'Revisión independiente, ronda 1: el ✓ de uso no pasa por encima de la cabecera; «reducir movimiento» no encoge al pulsar; el título del editor no se parte; radio con contraste; «⋯» del editor y EDITAR no estrechan; --chev oscuro con la regla de trazo (D-168 a D-174)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.libre, 4000, 'libre.js');
+    await abrirEditor('r1'); M.libre.cerrar(); await espera(60);   // el CSS del editor se pone al abrirlo la primera vez
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:-2000px;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<div class="titem uso"></div><div class="lb-ttl"><h3>Un nombre de publicación largo, larguísimo, que no cabe en la cabecera del editor ni a lo ancho</h3></div><span class="lb-mas"><button class="lb-ib">⋯</button></span><button class="btn pe-ed">Editar</button><label class="caplab"><input type="radio"></label>';
+      igual(W.getComputedStyle(caja.querySelector('.titem'), '::before').zIndex, '1', 'el ✓ de uso por encima de la cabecera fija');
+      const h = W.getComputedStyle(caja.querySelector('.lb-ttl h3')); ok(h.whiteSpace === 'nowrap' || h.textWrapMode === 'nowrap', 'el título del editor se parte en líneas');
+      ok(caja.querySelector('.lb-ib').getBoundingClientRect().width >= 37, '«⋯» del editor estrecha');
+      igual(W.getComputedStyle(caja.querySelector('.pe-ed')).paddingLeft, '19.5px', 'EDITAR sin el relleno que lo deja a su ancho de la 4.12');
+      const mute = (() => { const x = D.createElement('i'); x.style.color = 'var(--mute)'; raiz.append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; })();
+      igual(W.getComputedStyle(caja.querySelector('.caplab input')).borderTopColor, mute, 'el aro del radio sin el contraste de --mute');
+    } finally { caja.remove(); }
+    const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText) reglas.push([r, m]); } }; ir(rs, false); }
+    ok(reglas.some(([r, m]) => m && /\.mchip/.test(r.selectorText) && /\.lb-ib/.test(r.selectorText) && /\.pacts button/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && r.style.transform === 'none'), 'con «reducir movimiento» los botones siguen encogiendo');
+    raiz.dataset.theme = 'dark';
+    try { const c = W.getComputedStyle(raiz).getPropertyValue('--chev'); ok(/non-scaling-stroke/.test(c) && /A89C8F/i.test(c), 'el --chev oscuro sin la regla de trazo'); } finally { delete raiz.dataset.theme; }
   });
 
   // ---------- las que cambian a propósito ----------

@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.21';   // 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.22';   // 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -683,7 +683,7 @@
 #mesa .dz{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;background:var(--bg);outline:0}
 #mesa .dz-head{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line2)}
 #mesa .dz-ttl{flex:1 1 170px;min-width:0}
-#mesa .dz-ttl h3{margin:0;font-size:18px;font-weight:800;letter-spacing:-.025em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .dz-ttl h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.025em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .dz-ttl p{margin:2px 0 0;color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .dz-serie{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mute);white-space:nowrap}
 #mesa .dz-in{display:block;width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 10px;min-height:34px;font-family:inherit;font-size:13px;line-height:1.4;color:var(--ink);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
@@ -693,7 +693,7 @@
 #mesa textarea.dz-in{resize:vertical;min-height:60px}
 #mesa .dz-state{font-size:11.5px;font-weight:600;border-radius:var(--r-pill);padding:3px 10px;background:var(--bg-2);color:var(--mute);white-space:nowrap}
 #mesa .dz-state.chg{background:var(--chg-soft);color:var(--chg)}#mesa .dz-state.ok{background:var(--ok-soft);color:var(--ok)}
-#mesa .dz-head .btn:disabled{opacity:.6;cursor:default}
+#mesa .dz-head .btn:disabled{opacity:.4;cursor:default}
 #mesa .dz .seg button{padding:0 10px}
 #mesa .dz-body{flex:1;min-height:0;display:grid;grid-template-columns:136px minmax(0,1fr) 316px}
 #mesa .dz-list{overflow-y:auto;padding:14px 12px 16px;background:var(--panel);border-right:1px solid var(--line2)}
@@ -702,11 +702,11 @@
 #mesa .dz-it.on canvas{outline-color:var(--acc)}
 #mesa .dz-it:hover:not(.on) canvas{outline-color:var(--line-strong)}
 #mesa .dz-n{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11.5px;color:var(--mute);white-space:nowrap}
-#mesa .dz-n b{color:var(--ink);font-weight:600}
+#mesa .dz-n b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 #mesa .dz-mv{margin-left:auto;display:flex}
-#mesa .dz-mv button{border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:10.5px;line-height:22px;padding:0;color:var(--mute)}
+#mesa .dz-mv button{position:relative;border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:0;line-height:22px;padding:0;color:var(--mute)}#mesa .dz-mv button::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .dz-mv button[data-dz="down"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa .dz-mv button[data-dz="del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
 #mesa .dz-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}
-#mesa .dz-mv button:disabled{opacity:.25;cursor:default}
+#mesa .dz-mv button:disabled{color:var(--faint);cursor:default}
 #mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px;white-space:nowrap}
 #mesa .dz-mid{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;overflow:hidden}
 #mesa .dz-cv{display:block;flex:none;background:var(--cell-ph);box-shadow:var(--shadow-stage);touch-action:none}
@@ -717,7 +717,7 @@
 #mesa .dz-hint{margin:0;color:var(--mute);font-size:12px}
 #mesa .dz-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .dz-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .dz-sec:last-child{border-bottom:0}
-#mesa .dz-sec h4{margin:0 0 10px;font-size:13.5px;font-weight:700;letter-spacing:-.005em}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
+#mesa .dz-sec h4{margin:0 0 10px;font-size:13px;font-weight:600;letter-spacing:-.005em}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
 #mesa .dz-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .dz-sec h4+.dz-l{margin-top:0}
 #mesa .dz-p{margin:0;font-size:13px}
 #mesa .dz-row{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-top:8px}
@@ -735,7 +735,7 @@
 #mesa .dz-drop:hover{border-color:var(--mute)}
 #mesa .dz-drop.over{border-color:var(--acc);background:var(--acc-soft);color:var(--ink)}
 #mesa .dz-size{display:inline-flex;align-items:center;gap:8px}
-#mesa .dz-size .btn2{min-width:42px;font-weight:600}#mesa .dz-size .btn2:disabled{opacity:.35;cursor:default}
+#mesa .dz-size .btn2{position:relative;min-width:47px;font-weight:600;font-size:0}#mesa .dz-size .btn2::before{content:'';position:absolute;inset:0;margin:auto;width:17px;height:17px;background:currentColor;-webkit-mask:var(--i-a-down) center/contain no-repeat;mask:var(--i-a-down) center/contain no-repeat}#mesa .dz-size .btn2[data-v="1"]::before{-webkit-mask-image:var(--i-a-up);mask-image:var(--i-a-up)}#mesa .dz-size .btn2:disabled{opacity:.4;cursor:default}
 #mesa .dz-size output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums;font-size:12.5px}
 #mesa .dz-dbl>span,#mesa output.dz-dbl,#mesa .dz-dbl>output{-webkit-user-select:none;user-select:none}
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
@@ -746,11 +746,11 @@
 #mesa .dz-posr label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mute)}#mesa .dz-posr .dz-pos{width:66px;padding:5px 6px;min-height:30px}
 #mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:var(--acc-soft)}
 #mesa .dz-ask{position:absolute;inset:0;z-index:30;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
-#mesa .dz-more{width:26px;height:26px;border-radius:50%;border:1px dashed var(--line-strong);background:var(--panel-2);color:var(--mute);font-size:15px;line-height:1;padding:0}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
-#mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:500;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .dz-more{position:relative;width:26px;height:26px;border-radius:50%;border:1px dashed transparent;background:var(--panel-2);color:var(--mute);font-size:0;line-height:1;padding:0}#mesa .dz-more::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}#mesa .dz-more[aria-expanded="true"]::before{-webkit-mask-image:var(--i-minus);mask-image:var(--i-minus)}#mesa .dz-more:hover{background:var(--bg-3);color:var(--ink)}
+#mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:400;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .dz-auto:hover{border-color:var(--line-strong);background:var(--bg)}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
-#mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0;accent-color:var(--ink)}
+#mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0}#mesa .dz-in.dz-serin{height:32px;min-height:0;padding-top:0;padding-bottom:0;box-sizing:border-box}
 #mesa .dz-velo output{min-width:2.6em;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--mute)}
 #mesa .dz-dec{font-weight:400;color:var(--mute);font-size:12px}
 #mesa .dz-max{margin:6px 2px 0;font-size:11px;line-height:1.35}
@@ -916,7 +916,7 @@
     const ae = document.activeElement, key = focusSel || (ae && list.contains(ae) ? focusKey(ae) : null);
     list.innerHTML = d.slides.map((sl, i) => `<div class="dz-it${i === E.sel ? ' on' : ''}" data-dz="sel" data-i="${i}" role="button" tabindex="0" aria-label="Diapositiva ${i + 1}: ${TIPO_LABEL[sl.tipo] || sl.tipo}"><span class="dz-cvs"></span>`
       + `<div class="dz-n"><b>${pad2(i + 1)}</b>${esc(TIPO_LABEL[sl.tipo] || sl.tipo)}${reel ? '' : `<span class="dz-mv"><button type="button" data-dz="up" data-i="${i}" title="Subir" aria-label="Subir la diapositiva ${i + 1}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" data-dz="down" data-i="${i}" title="Bajar" aria-label="Bajar la diapositiva ${i + 1}" ${i === n - 1 ? 'disabled' : ''}>▼</button><button type="button" data-dz="del" data-i="${i}" title="Quitar" aria-label="Quitar la diapositiva ${i + 1}" ${n < 2 ? 'disabled' : ''}>×</button></span>`}</div></div>`).join('')
-      + (reel ? '' : `<button type="button" class="btn2 dz-add" data-dz="add" ${n >= MAX_SLIDES ? `disabled title="${esc(MAX_MSG)}"` : ''}>+ Diapositiva</button>${n >= MAX_SLIDES ? '<p class="dz-hint dz-max">Máximo 20 diapositivas (límite de Instagram).</p>' : ''}`);
+      + (reel ? '' : `<button type="button" class="btn2 dz-add" data-dz="add" ${n >= MAX_SLIDES ? `disabled title="${esc(MAX_MSG)}"` : ''}><span class="i-mas">+</span> Diapositiva</button>${n >= MAX_SLIDES ? '<p class="dz-hint dz-max">Máximo 20 diapositivas (límite de Instagram).</p>' : ''}`);
     list.querySelectorAll('.dz-cvs').forEach((sp, i) => sp.replaceWith(thumbOf(d.slides[i])));
     refocus(list, key);
   }

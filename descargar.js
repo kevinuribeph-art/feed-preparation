@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.5';   // 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
+  const VERSION = '1.6';   // 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -258,7 +258,7 @@
 #mesa .dl-op{display:inline-flex;align-items:center;gap:0;flex-wrap:wrap}#mesa .dl-op[hidden]{display:none}
 #mesa .dl-ch{position:relative;display:inline-flex}
 #mesa .dl-ch input{position:absolute;opacity:0;pointer-events:none}
-#mesa .dl-ch span{display:inline-flex;align-items:center;min-height:30px;padding:0 13px;border:1px solid var(--line);margin-left:-1px;background:var(--panel-2);color:var(--ink);font-size:12.5px;font-weight:500;cursor:pointer;user-select:none;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .dl-ch span{display:inline-flex;align-items:center;min-height:30px;padding:0 13px;border:1px solid var(--line);margin-left:-1px;background:var(--panel-2);color:var(--ink);font-size:12.5px;font-weight:400;cursor:pointer;user-select:none;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .dl-ch span:hover{background:var(--bg)}
 #mesa .dl-ch:first-of-type span{border-radius:var(--r-pill) 0 0 var(--r-pill);margin-left:0;padding-left:15px}#mesa .dl-ch:last-of-type span{border-radius:0 var(--r-pill) var(--r-pill) 0;padding-right:15px}
 #mesa .dl-ch input:checked+span{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600;position:relative;z-index:1}

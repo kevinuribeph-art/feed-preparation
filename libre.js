@@ -1088,6 +1088,8 @@
 #mesa .lb-n b{color:var(--ink);font-weight:600}#mesa .lb-n em{font-style:normal;color:var(--chg);font-weight:700}
 #mesa .lb-mv{margin-left:auto;display:flex}
 #mesa .lb-mv button,#mesa .lb-ord button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);font-size:11.5px;line-height:24px;padding:0;color:var(--mute)}
+#mesa :is(.lb-mv,.lb-ord) :is([data-lb="sl-up"],[data-lb="sl-dn"],[data-lb="sl-del"]){position:relative;font-size:0}#mesa :is(.lb-mv,.lb-ord) :is([data-lb="sl-up"],[data-lb="sl-dn"],[data-lb="sl-del"])::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa :is(.lb-mv,.lb-ord) [data-lb="sl-dn"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa :is(.lb-mv,.lb-ord) [data-lb="sl-del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
+#mesa .lb-mas>.lb-ib{position:relative;font-size:0}#mesa .lb-mas>.lb-ib::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-more) center/contain no-repeat;mask:var(--i-more) center/contain no-repeat}
 #mesa .lb-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-mv button:disabled,#mesa .lb-ord button:disabled{opacity:.3;cursor:default}
 #mesa .lb-ord{position:absolute;top:4px;right:4px;display:flex;flex-direction:column;background:var(--photo-light);border-radius:var(--r-sm);box-shadow:var(--shadow-md)}
 #mesa .lb-ord button{color:var(--photo-ink)}#mesa .lb-ord button:hover:not(:disabled){background:var(--photo-hover)}
@@ -1108,14 +1110,15 @@
 #mesa .lb-tray.tam-on .lb-tph,#mesa .lb-tray.tam-on .lb-tcarp{width:var(--tw)}#mesa .lb-tray.tam-on .lb-tcarp svg{width:clamp(14px,calc(var(--tw) * .361),48px);height:auto}#mesa .lb-tray.tam-on .lb-tcarp span{font-size:clamp(8px,calc(var(--tw) * .146),13px)}
 #mesa .lb-foot .ttam{right:52px}
 #mesa .lb-trh .lb-trt{display:inline-flex;flex:0 1 auto;min-width:0;vertical-align:middle;margin-right:8px}#mesa .lb-trh .lb-trt .cptab{height:22px}
-#mesa .lb-trv{flex:none;width:26px;height:24px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);line-height:1}
+#mesa .lb-trv{position:relative;flex:none;width:28px;height:28px;margin-right:6px;padding:0;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);line-height:1;font-size:0}#mesa .lb-trv::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-back) center/contain no-repeat;mask:var(--i-back) center/contain no-repeat}
 #mesa .lb-tph.elegida,#mesa .lb-tcarp.elegida{outline:3px solid var(--acc);outline-offset:-3px}#mesa .lb-tcarp.over,#mesa .lb-trv.over,#mesa .lb-tray .cptab.over{outline:2px dashed var(--acc);outline-offset:-2px}#mesa .lb-tray .cptab.on.over{outline:1.5px dashed var(--on-acc);outline-offset:-3.5px}
 #mesa .lb-ghostc{display:flex;align-items:center;justify-content:center;background:var(--panel-2);border:1px solid var(--line);color:var(--ink)}
 #mesa .lb-tph .hs{bottom:5px}
 #mesa .lb-ttl textarea.lb-guion{display:block;box-sizing:border-box;width:100%;max-width:min(60vw,720px);max-height:calc(3 * 1.3em + 4px);margin:2px 0 0 -5px;padding:1px 4px;border:1px solid transparent;border-radius:var(--r-xs);background:none;color:var(--mute);font:inherit;font-size:12.5px;line-height:1.3;resize:none;overflow-y:auto}
 #mesa .lb-ttl textarea.lb-guion:hover{border-color:var(--line)}#mesa .lb-ttl textarea.lb-guion:focus{border-color:var(--ink);color:var(--ink);outline:0}
 #mesa .lb-tph .hb{position:absolute;top:5px;left:5px;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
-#mesa .lb-tph.uso::after{content:'✓';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--uso-p0);color:var(--uso-ck);font-size:11px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 1.5px var(--on-photo),0 0 0 2.5px var(--photo-ring)}
+#mesa .lb-tph.uso::before{content:'';position:absolute;right:3px;bottom:3px;width:16px;height:16px;z-index:2;pointer-events:none;background:var(--uso-ck);-webkit-mask:var(--i-check) center/10px no-repeat;mask:var(--i-check) center/10px no-repeat}#mesa .lb-tph.u-p2::before{background:var(--uso-ck2)}
+#mesa .lb-tph.uso::after{content:'';position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:var(--uso-p0);color:var(--uso-ck);font-size:11px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 1.5px var(--on-photo),0 0 0 2.5px var(--photo-ring)}
 #mesa .lb-tph.u-p1::after{background:var(--uso-p1)}#mesa .lb-tph.u-p2::after{background:var(--uso-p2);color:var(--uso-ck2)}#mesa .lb-tph.u-r::after{background:var(--uso-r)}
 #mesa .lb-tray.over,#mesa .lb-scroll.over{outline:2px dashed var(--acc);outline-offset:-4px}#mesa .lb-it.over canvas{outline-color:var(--acc)}
 #mesa .lb-marq{position:fixed;z-index:6;border:1px solid var(--sel);background:var(--sel-wash);pointer-events:none}
@@ -1205,10 +1208,10 @@
 #mesa .lb-mas{position:relative;display:inline-flex}
 #mesa .lb-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:12;display:flex;flex-direction:column;min-width:220px;padding:6px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg)}
 #mesa .lb-menu[hidden],#mesa .lb-atajos[hidden]{display:none}
-#mesa .lb-menu button{border:0;background:none;border-radius:var(--r-sm);padding:8px 10px;text-align:left;font-size:13px;color:var(--ink)}
-#mesa .lb-menu button:hover{background:var(--bg-2)}#mesa .lb-menu .lb-kb{margin-left:12px;color:var(--mute)}
-#mesa .lb-menu [aria-checked]::before{content:'';display:inline-block;width:18px}#mesa .lb-menu [aria-checked="true"]::before{content:'✓'}
-#mesa .lb-help{position:absolute;right:12px;top:2px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:var(--mute);font-size:13px;font-weight:600;padding:0}
+#mesa .lb-menu button{display:flex;align-items:center;border:0;background:none;border-radius:var(--r-sm);padding:8px 10px;text-align:left;font-size:13px;color:var(--ink)}
+#mesa .lb-menu button:hover{background:var(--bg-2)}#mesa .lb-menu .lb-kb{margin-left:auto;padding-left:14px;color:var(--mute)}
+#mesa .lb-menu [aria-checked]::before{content:'';display:inline-block;width:18px}#mesa .lb-menu [aria-checked="true"]::before{content:'';width:14px;height:14px;margin-right:4px;vertical-align:-2px;background:currentColor;-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
+#mesa .lb-help{position:absolute;right:12px;top:2px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:var(--mute);font-size:0;font-weight:600;padding:0}#mesa .lb-help::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-keyboard) center/contain no-repeat;mask:var(--i-keyboard) center/contain no-repeat}
 #mesa .lb-help:hover,#mesa .lb-help[aria-expanded="true"]{color:var(--ink);border-color:var(--ink)}
 #mesa .lb-atajos{position:absolute;right:12px;bottom:calc(100% + 6px);z-index:12;width:min(400px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;padding:14px 16px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font-size:12.5px}
 #mesa .lb-atajos h4{margin:0 0 10px;font-size:14px;font-weight:700}#mesa .lb-atajos dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0}
@@ -1291,7 +1294,7 @@
         + `<button type="button" data-lb="sl-dn" data-i="${i}" title="Mover después" aria-label="Mover después"${i === n - 1 ? ' disabled' : ''}>▼</button></span>` : '')
         + `<div class="lb-n"><b>${i + 1}</b> ${tag}${changedSl(x) || (!E.car && x.fmt !== x.fmt0) ? ' <em title="Cambios sin aplicar">•</em>' : ''}<span class="lb-mv">`
         + (E.reel ? '' : `<button type="button" data-lb="sl-del" data-i="${i}" title="Quitar la diapositiva (su foto vuelve a la bandeja al aplicar)" aria-label="Quitar la diapositiva">×</button>`) + '</span></div></div>';
-    }).join('') + (E.reel ? '' : `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida">+ Diapositiva</button>`);
+    }).join('') + (E.reel ? '' : `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida"><span class="i-mas">+</span> Diapositiva</button>`);
     nav.scrollTop = top;
     minis();
   }
@@ -2308,7 +2311,7 @@
   function panel() {
     if (!E || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), top = p.scrollTop, x = cur();
-    if (!x) { p.innerHTML = plegable('sin', 'Sin diapositivas', '', `<p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2 lb-add lb-add1" data-lb="sl-add">+ Diapositiva</button></div>`); abrirSec(p.firstChild, true, false); return; }
+    if (!x) { p.innerHTML = plegable('sin', 'Sin diapositivas', '', `<p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2 lb-add lb-add1" data-lb="sl-add"><span class="i-mas">+</span> Diapositiva</button></div>`); abrirSec(p.firstChild, true, false); return; }
     if (E.pick) {
       const ls = fotosDisponibles(), pe = compAt(E.i).els.find(q => q.id === E.pick.id), t = E.pick.modo === 'add' ? 'Añadir una foto' : E.pick.modo === 'rep' && !(pe && pe.t === 'hueco') ? 'Reemplazar la foto' : 'Foto para el hueco';
       p.innerHTML = `<div class="lb-sec"><h4>${t} <span>· de esta publicación y de la bandeja</span></h4>`
@@ -2373,7 +2376,7 @@
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
-      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add">+ Foto</button><button type="button" class="btn2" data-lb="add-txt">+ Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea o flecha">+ Forma</button><button type="button" class="btn2" data-lb="add-pil">+ Píldora</button>`
+      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add"><span class="i-mas">+</span> Foto</button><button type="button" class="btn2" data-lb="add-txt"><span class="i-mas">+</span> Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea o flecha"><span class="i-mas">+</span> Forma</button><button type="button" class="btn2" data-lb="add-pil"><span class="i-mas">+</span> Píldora</button>`
         + (!isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
         + '</div>';
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;

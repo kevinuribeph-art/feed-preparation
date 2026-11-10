@@ -6654,7 +6654,7 @@
       ok(!visto(q('.tray .titem .tname')) && !visto(q(`.tcarpeta[data-id="${c.id}"] .cf`)), 'siguen el nombre o el «N fotos»');
       const t = tile(c.id); ok(t.scrollHeight <= t.clientHeight + 1 && visto(t.querySelector('svg')) && visto(t.querySelector('.cn')), 'la carpeta no cabe en su casilla');
       ok(visto(q('.tray .titem .hb')), 'falta la H');
-      ok(W.getComputedStyle(q('.tray .titem.uso'), '::after').content.includes('✓'), 'falta el ✓');
+      { const u = q('.tray .titem.uso'); ok(/M20 6 9 17l-5-5/.test(decodeURIComponent(W.getComputedStyle(u, '::before').webkitMaskImage)) && W.getComputedStyle(u, '::after').content === '""', 'falta el ✓'); }   // desde la 4.13 el ✓ es el icono check en ::before y el círculo sigue en ::after (D-169)
       conCmd(titem(ids[3]));
       ok(titem(ids[3]).classList.contains('elegida') && W.getComputedStyle(titem(ids[3])).outlineStyle === 'solid', 'no se marca lo elegido');
       M._in.traySoltar();
@@ -11063,10 +11063,14 @@
     await lzeDisenador('fl3', async () => {
       const b = q('.dz .dz-add'); ok(b, 'sin «+ Diapositiva»');
       igual(b.textContent.trim(), '+ Diapositiva', 'el texto del botón');
-      const r = D.createRange(); r.selectNodeContents(b);
-      const ls = [...r.getClientRects()], tb = r.getBoundingClientRect(), bb = b.getBoundingClientRect();
+      // desde la 4.13 el «+» es un icono (D-169): las líneas se cuentan con el texto, y el icono va en la misma línea
+      const txt = [...b.childNodes].filter(n => n.nodeType === 3 && n.nodeValue.trim()), r = D.createRange(); r.setStartBefore(txt[0]); r.setEndAfter(txt[txt.length - 1]);
+      const ls = [...r.getClientRects()], tb = r.getBoundingClientRect(), bb = b.getBoundingClientRect(), ic = b.querySelector('.i-mas');
       igual(new Set(ls.map(x => Math.round(x.top))).size, 1, 'líneas de «+ Diapositiva»');
-      ok(tb.left >= bb.left && tb.right <= bb.right, `el texto sale del botón: ${Math.round(tb.left)}–${Math.round(tb.right)} frente a ${Math.round(bb.left)}–${Math.round(bb.right)}`);
+      const ir = ic ? ic.getBoundingClientRect() : tb;
+      ok(Math.abs((ir.top + ir.bottom) / 2 - (tb.top + tb.bottom) / 2) < 6, 'el «+» va en otra línea');
+      const izq = Math.min(tb.left, ir.left), der = Math.max(tb.right, ir.right);
+      ok(izq >= bb.left && der <= bb.right, `el texto sale del botón: ${Math.round(izq)}–${Math.round(der)} frente a ${Math.round(bb.left)}–${Math.round(bb.right)}`);
     });
   });
 
@@ -11141,6 +11145,40 @@
     ok(/url/.test(W.getComputedStyle(sep, '::before').webkitMaskImage), 'el separador no lleva el icono');
     const e = W.getComputedStyle(q('.side > .cal .cleg .e-empezar'));
     igual([e.boxShadow, e.backgroundColor], ['none', raiz.getPropertyValue('--st-empezar-aro').trim() === '#A39A90' ? 'rgb(163, 154, 144)' : e.backgroundColor], 'Por empezar con aro');
+  });
+
+  prueba('ES2', 'Glifos que pasan a icono: «+», ✓ de uso y su recuento, Σ, barra de tamaño, ⋯ y ? del editor, × de la tira, ✓ y atajo de sus menús; el texto se queda (D-169)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.calendario && q('.side > .cal button.ccnt'), 4000, 'calendario.js');
+    const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
+    const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
+    for (const [sel, txt] of [['[data-act="addfiller"]', '+ Hueco'], ['[data-act="newclient"]', '+ Cliente']]) {
+      const b = q(sel), i = b && b.querySelector('.i-mas');
+      ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
+    }
+    const cc = q('.side > .cal button.ccnt'); ok(cc.textContent === 'Σ' && tam0(cc) && /M18 7V5/.test(masc(cc)), 'Σ sin el icono sigma');
+    const ti = qa('.tray .trayhead .ttam i'); ok(ti.length === 2 && ti.every(i => W.getComputedStyle(i).borderTopWidth === '0px' && /rect/.test(masc(i, null))), 'la barra de tamaño sigue con bordes');
+    await poner('r1', [await foto('es2.jpg')]); await espera(80);
+    await pulsar('.tray .tfil button[data-v="todas"]'); await espera(120);
+    try {
+      const tc = q('.tray .trayhead .tcount'); ok(/sin usar · \d+ ✓$/.test(tc.textContent.trim()) && tc.querySelector('.i-ck') && tam0(tc.querySelector('.i-ck')), 'el recuento sin el icono: ' + tc.innerHTML);
+      const u = await hasta(() => q('.tray .titem.uso'), 2000, 'la foto usada en «Todas»');
+      ok(/M20 6 9 17l-5-5/.test(masc(u)) && W.getComputedStyle(u, '::after').content === '""', 'el ✓ de uso no es el icono');
+    } finally { await pulsar('.tray .tfil button[data-v="sin"]'); }
+    await abrirEditor('r1');
+    try {
+      const mas = q('.lb .lb-mas > .lb-ib'), ayuda = q('.lb .lb-help'), add = q('.lb .lb-add');
+      ok(mas.textContent === '⋯' && tam0(mas) && /cx='5'/.test(masc(mas)), '«⋯» del editor sin el icono');
+      ok(ayuda.textContent === '?' && tam0(ayuda) && /M10 8h\.01/.test(masc(ayuda)), '«?» sin el icono keyboard');
+      ok(add && add.textContent.trim() === '+ Diapositiva' && add.querySelector('.i-mas'), '«+ Diapositiva» sin el icono');
+      igual(qa('.lb .lb-btns .btn2 .i-mas').length, 4, 'los cuatro «+» del panel');
+      const del = q('.lb .lb-mv [data-lb="sl-del"]'); ok(del && tam0(del) && /M18 6 6 18/.test(masc(del)), 'el × de la tira');
+      mas.click(); await espera(80);
+      const marcada = q('.lb .lb-menu [aria-checked="true"]'), kb = q('.lb .lb-menu .lb-kb');
+      ok(marcada && /M20 6 9 17l-5-5/.test(masc(marcada)), 'la opción marcada sin el icono check');
+      ok(kb && kb.closest('button').getBoundingClientRect().right - kb.getBoundingClientRect().right <= 11, 'el atajo no va a la derecha');
+      tecla('Escape');
+    } finally { M.libre.cerrar(); }
   });
 
   // ---------- las que cambian a propósito ----------

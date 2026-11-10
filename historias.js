@@ -599,9 +599,10 @@
 #mesa .hv-card.e-cancelada{opacity:.55}#mesa .hv-src{opacity:.35}
 #mesa .hv-ghost{position:fixed;left:0;top:0;z-index:40;pointer-events:none;opacity:.9;box-shadow:var(--shadow-ghost)}
 #mesa .hv-mark{box-shadow:-5px 0 0 -2px var(--acc)}
-#mesa .hv-add{width:34px;height:34px;border:1px dashed var(--line-strong);border-radius:50%;background:none;color:var(--mute);font:inherit;font-size:17px;line-height:1;cursor:pointer;align-self:center;transition:border-color var(--d1) ease-out,color var(--d1) ease-out,background var(--d1) ease-out}
+#mesa .hv-add{position:relative;width:34px;height:34px;border:1px dashed var(--line-strong);border-radius:50%;background:none;color:var(--mute);font:inherit;font-size:0;line-height:1;cursor:pointer;align-self:center;transition:border-color var(--d1) ease-out,color var(--d1) ease-out,background var(--d1) ease-out}
 #mesa .hv-add:hover,#mesa .hv-add:focus-visible{border-color:var(--ink);color:var(--ink);background:var(--panel-2);outline:0}
-#mesa .hv-rail.vacio .hv-add{width:26px;height:26px;font-size:14px}
+#mesa .hv-add::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}
+#mesa .hv-rail.vacio .hv-add{width:26px;height:26px}#mesa .hv-rail.vacio .hv-add::before{width:13px;height:13px}
 #mesa .detail[data-dlg="historia"]{container-type:size}
 #mesa .detail[data-dlg="historia"] .card{display:flex;flex-direction:column;box-sizing:border-box;height:100%;max-width:none;width:min(100%,max(440px,calc((100cqh - 150px) * 9 / 16 + 112px)));overflow:hidden;padding:16px 18px}
 #mesa.client .detail[data-dlg="historia"] .card{width:min(100%,max(440px,calc((100cqh - 60px) * 9 / 16 + 112px)))}

@@ -560,7 +560,8 @@
 #mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 28px;gap:var(--cx-gap);min-height:100%}
 #mesa .cal.nocnt .cgrid{grid-template-columns:repeat(7,minmax(0,1fr)) 16px}
 #mesa .cdow{padding:3px 6px;font-size:10.5px;font-weight:600;color:var(--cx-wk-c)}
-#mesa button.cdow.ccnt{border:0;padding:0;border-radius:var(--cx-r);background:none;font:inherit;font-size:10.5px;font-weight:600;color:var(--cx-wk-c);text-align:center;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
+#mesa button.cdow.ccnt::before{content:'';position:absolute;inset:0;margin:auto;width:12px;height:12px;background:currentColor;-webkit-mask:var(--i-sigma) center/contain no-repeat;mask:var(--i-sigma) center/contain no-repeat}
+#mesa button.cdow.ccnt{position:relative;border:0;padding:0;border-radius:var(--cx-r);background:none;font:inherit;font-size:0;font-weight:600;color:var(--cx-wk-c);text-align:center;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--cx-hov)}
 #mesa .cday{position:relative;min-width:0;display:flex;flex-direction:column;gap:2px;padding:2px 3px 4px;border-radius:var(--cx-r);background:var(--cx-casilla)}
 #mesa .cday.off,#mesa .cday.prevc,#mesa .cday.otromes{background:none}

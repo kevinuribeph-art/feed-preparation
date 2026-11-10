@@ -11199,6 +11199,25 @@
     M._in.closeDetail();
   });
 
+  prueba('ES4', 'Estados: desactivado en dos reglas (texto e iconos sueltos en --faint; con fondo o borde a .4); al pasar como «.btn2» y al pulsar todos encogen; foco con contorno de 2 px a 2 px (D-171)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre && q('.side > .cal .cnav button'), 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
+    const faint = (() => { const x = D.createElement('i'); x.style.color = 'var(--faint)'; raiz.append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; })();
+    try {
+      caja.innerHTML = '<button class="btn" disabled>a</button><button class="btn2" disabled>b</button><button class="mx-sel" disabled>c</button><span class="pacts"><button disabled>d</button></span>';
+      const nav = q('.side > .cal .cnav button[data-cal="next"]'), antes = nav.disabled; nav.disabled = true;
+      try { const c = W.getComputedStyle(nav); igual([c.color, c.opacity], [faint, '1'], 'desactivado de las flechas del calendario'); } finally { nav.disabled = antes; }
+      for (const s of ['.btn', '.btn2', '.mx-sel', '.pacts button']) igual(W.getComputedStyle(caja.querySelector(s)).opacity, '0.4', 'desactivado de ' + s);
+    } finally { caja.remove(); }
+    const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.selectorText) reglas.push(r); } }; ir(rs); }
+    const regla = (sel, prop) => { const r = reglas.find(x => x.selectorText.split(/,(?![^(]*\))/).map(z => z.trim()).includes(sel) && x.style.getPropertyValue(prop)); return r ? r.style.getPropertyValue(prop) : ''; };
+    igual([regla('#mesa .lb-mv button:disabled', 'color'), regla('#mesa .lb-mv button:disabled', 'opacity')], ['var(--faint)', ''], 'desactivado de la tira del editor');
+    for (const s of ['#mesa .lb-help:hover', '#mesa .hv-add:hover', '#mesa .cpaso.sig:hover']) igual([regla(s, 'background'), regla(s, 'border-color')], ['var(--bg)', 'var(--line-strong)'], 'al pasar por ' + s);
+    ok(reglas.some(r => /\.mchip/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && /\.lb-help/.test(r.selectorText) && r.style.transform === 'scale(0.97)'), 'al pulsar no encogen todos');
+    for (const s of ['#mesa .mx-nav:focus-visible', '#mesa .lb-acc-h:focus-visible', '#mesa .pe-ed:focus-visible', '#mesa button.cpaso:focus-visible']) igual([regla(s, 'outline-offset'), regla(s, 'box-shadow')], ['2px', ''], 'el foco de ' + s);
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

@@ -693,7 +693,7 @@
 #mesa textarea.dz-in{resize:vertical;min-height:60px}
 #mesa .dz-state{font-size:11.5px;font-weight:600;border-radius:var(--r-pill);padding:3px 10px;background:var(--bg-2);color:var(--mute);white-space:nowrap}
 #mesa .dz-state.chg{background:var(--chg-soft);color:var(--chg)}#mesa .dz-state.ok{background:var(--ok-soft);color:var(--ok)}
-#mesa .dz-head .btn:disabled{opacity:.6;cursor:default}
+#mesa .dz-head .btn:disabled{opacity:.4;cursor:default}
 #mesa .dz .seg button{padding:0 10px}
 #mesa .dz-body{flex:1;min-height:0;display:grid;grid-template-columns:136px minmax(0,1fr) 316px}
 #mesa .dz-list{overflow-y:auto;padding:14px 12px 16px;background:var(--panel);border-right:1px solid var(--line2)}
@@ -706,7 +706,7 @@
 #mesa .dz-mv{margin-left:auto;display:flex}
 #mesa .dz-mv button{position:relative;border:0;background:none;width:20px;height:22px;border-radius:var(--r-xs);font-size:0;line-height:22px;padding:0;color:var(--mute)}#mesa .dz-mv button::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .dz-mv [data-dz="down"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa .dz-mv [data-dz="del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
 #mesa .dz-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}
-#mesa .dz-mv button:disabled{opacity:.25;cursor:default}
+#mesa .dz-mv button:disabled{color:var(--faint);cursor:default}
 #mesa .dz-add{width:100%;font-size:12.5px;padding:6px 4px;white-space:nowrap}
 #mesa .dz-mid{min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;overflow:hidden}
 #mesa .dz-cv{display:block;flex:none;background:var(--cell-ph);box-shadow:var(--shadow-stage);touch-action:none}
@@ -735,7 +735,7 @@
 #mesa .dz-drop:hover{border-color:var(--mute)}
 #mesa .dz-drop.over{border-color:var(--acc);background:var(--acc-soft);color:var(--ink)}
 #mesa .dz-size{display:inline-flex;align-items:center;gap:8px}
-#mesa .dz-size .btn2{position:relative;min-width:42px;font-weight:600;font-size:0}#mesa .dz-size .btn2::before{content:'';position:absolute;inset:0;margin:auto;width:17px;height:17px;background:currentColor;-webkit-mask:var(--i-a-down) center/contain no-repeat;mask:var(--i-a-down) center/contain no-repeat}#mesa .dz-size .btn2[data-v="1"]::before{-webkit-mask-image:var(--i-a-up);mask-image:var(--i-a-up)}#mesa .dz-size .btn2:disabled{opacity:.35;cursor:default}
+#mesa .dz-size .btn2{position:relative;min-width:42px;font-weight:600;font-size:0}#mesa .dz-size .btn2::before{content:'';position:absolute;inset:0;margin:auto;width:17px;height:17px;background:currentColor;-webkit-mask:var(--i-a-down) center/contain no-repeat;mask:var(--i-a-down) center/contain no-repeat}#mesa .dz-size .btn2[data-v="1"]::before{-webkit-mask-image:var(--i-a-up);mask-image:var(--i-a-up)}#mesa .dz-size .btn2:disabled{opacity:.4;cursor:default}
 #mesa .dz-size output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums;font-size:12.5px}
 #mesa .dz-dbl>span,#mesa output.dz-dbl,#mesa .dz-dbl>output{-webkit-user-select:none;user-select:none}
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
@@ -746,7 +746,7 @@
 #mesa .dz-posr label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--mute)}#mesa .dz-posr .dz-pos{width:66px;padding:5px 6px;min-height:30px}
 #mesa .dz-it.over canvas{outline-color:var(--acc)}#mesa .dz-cvw.over{outline:3px solid var(--acc);outline-offset:2px}#mesa .dz-sec.over{background:var(--acc-soft)}
 #mesa .dz-ask{position:absolute;inset:0;z-index:30;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
-#mesa .dz-more{position:relative;width:26px;height:26px;border-radius:50%;border:1px dashed var(--line-strong);background:var(--panel-2);color:var(--mute);font-size:0;line-height:1;padding:0}#mesa .dz-more::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}#mesa .dz-more[aria-expanded="true"]::before{-webkit-mask-image:var(--i-minus);mask-image:var(--i-minus)}#mesa .dz-more:hover{border-color:var(--ink);color:var(--ink)}
+#mesa .dz-more{position:relative;width:26px;height:26px;border-radius:50%;border:1px dashed var(--line-strong);background:var(--panel-2);color:var(--mute);font-size:0;line-height:1;padding:0}#mesa .dz-more::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}#mesa .dz-more[aria-expanded="true"]::before{-webkit-mask-image:var(--i-minus);mask-image:var(--i-minus)}#mesa .dz-more:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}
 #mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:500;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .dz-auto:hover{border-color:var(--line-strong);background:var(--bg)}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}

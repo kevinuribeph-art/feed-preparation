@@ -529,16 +529,16 @@
 #mesa .cnav{margin-left:auto;display:inline-flex;align-items:center;gap:2px;color:var(--ink)}
 #mesa .cnav button{position:relative;border:0;background:none;width:var(--cx-nav);height:var(--cx-nav);padding:0;border-radius:var(--r-pill);font-size:0;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}
 #mesa .cnav button::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transform:rotate(90deg)}#mesa .cnav button[data-cal="next"]::before{transform:rotate(-90deg)}
-#mesa .cnav button:hover:not(:disabled){background:var(--cx-hov)}#mesa .cnav button:disabled{color:var(--line-strong);cursor:default}
+#mesa .cnav button:hover:not(:disabled){background:var(--cx-hov)}#mesa .cnav button:disabled{color:var(--faint);cursor:default}
 #mesa .cmes{min-width:124px;text-align:center;font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls);-webkit-user-select:none;user-select:none}
 #mesa .cleg{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:3px 2px;padding:0 10px 6px;font-size:10.5px;color:var(--mute)}
 #mesa .cleg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 #mesa .cpaso{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border:1px solid transparent;border-radius:999px;padding:1px 7px;background:none;font:inherit;font-size:10.5px;line-height:15px;color:var(--ink)}
 #mesa button.cpaso{cursor:pointer;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}#mesa button.cpaso:hover{background:var(--bg-2)}
-#mesa button.cpaso:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#mesa button.cpaso:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .cpaso.act{background:var(--ink);border-color:var(--ink);color:var(--on-ink);font-weight:600}
 #mesa .cpaso.act .e-programado,#mesa .cpaso.act .e-publicado{color:var(--ok-on-ink)}
-#mesa .cpaso.sig{border-color:var(--faint)}#mesa .cpaso.sig:hover{border-color:var(--ink)}
+#mesa .cpaso.sig{border-color:var(--faint)}#mesa .cpaso.sig:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}
 #mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
 #mesa .cpaso.ro{color:var(--mute)}
 #mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
@@ -548,7 +548,7 @@
 #mesa .vlist .vnom{border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}#mesa .vlist .vnom:hover b{text-decoration:underline}
 #mesa .vlist .vque{font-size:12px;color:var(--mute)}#mesa .vlist .votro{color:var(--ink)}
 #mesa .vacc,#mesa .vform{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}#mesa .vacc button,#mesa .vform button{font-size:12px;min-height:28px;padding:0 12px}
-#mesa .vacc button[disabled]{opacity:.45;cursor:default}
+#mesa .vacc button[disabled]{opacity:.4;cursor:default}
 #mesa .vform input{font:inherit;font-size:12px;min-height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}#mesa .vform input[type=text]{flex:1;min-width:160px}
 #mesa .cleg .csep{position:relative;display:inline-block;width:10px;height:10px;vertical-align:middle;color:var(--faint);font-size:0}#mesa .cleg .csep::before{content:'';position:absolute;inset:0;background:currentColor;-webkit-mask:var(--i-chev-r) center/contain no-repeat;mask:var(--i-chev-r) center/contain no-repeat}
 #mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--faint)}

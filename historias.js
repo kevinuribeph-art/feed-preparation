@@ -600,7 +600,7 @@
 #mesa .hv-ghost{position:fixed;left:0;top:0;z-index:40;pointer-events:none;opacity:.9;box-shadow:var(--shadow-ghost)}
 #mesa .hv-mark{box-shadow:-5px 0 0 -2px var(--acc)}
 #mesa .hv-add{position:relative;width:34px;height:34px;border:1px dashed var(--line-strong);border-radius:50%;background:none;color:var(--mute);font:inherit;font-size:0;line-height:1;cursor:pointer;align-self:center;transition:border-color var(--d1) ease-out,color var(--d1) ease-out,background var(--d1) ease-out}
-#mesa .hv-add:hover,#mesa .hv-add:focus-visible{border-color:var(--ink);color:var(--ink);background:var(--panel-2);outline:0}
+#mesa .hv-add:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}#mesa .hv-add:focus-visible{border-color:var(--ink);color:var(--ink);background:var(--panel-2);outline:0}
 #mesa .hv-add::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-plus) center/contain no-repeat;mask:var(--i-plus) center/contain no-repeat}
 #mesa .hv-rail.vacio .hv-add{width:26px;height:26px}#mesa .hv-rail.vacio .hv-add::before{width:13px;height:13px}
 #mesa .detail[data-dlg="historia"]{container-type:size}
@@ -613,7 +613,7 @@
 #mesa .hv-big img{object-fit:contain}#mesa .hv-big p{display:flex;align-items:center;justify-content:center;font-size:13px}
 #mesa .hv-vis .nav{width:34px;height:34px;display:flex;align-items:center;justify-content:center;line-height:0;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow-xs);cursor:pointer;transition:border-color var(--d1) ease-out,background var(--d1) ease-out}
 #mesa .hv-vis .nav:hover:not(:disabled):not(.otro){border-color:var(--line-strong);background:var(--bg)}
-#mesa .hv-vis .nav.prev{left:0}#mesa .hv-vis .nav.next{right:0}#mesa .hv-vis .nav svg{width:16px;height:16px}#mesa .hv-vis .nav:disabled{opacity:.35;cursor:default}
+#mesa .hv-vis .nav.prev{left:0}#mesa .hv-vis .nav.next{right:0}#mesa .hv-vis .nav svg{width:16px;height:16px}#mesa .hv-vis .nav:disabled{opacity:.4;cursor:default}
 #mesa .hv-form label.hv-lin{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap}
 #mesa .hv-lin select,#mesa .hv-lin .hv-fh{flex:1;min-width:0}
 #mesa .hv-form input,#mesa .hv-form select{display:block;width:100%;box-sizing:border-box;margin:0;font:inherit;font-size:13px;color:var(--ink);min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}

@@ -2211,7 +2211,7 @@
 #mesa .mchip.ghost:hover{background:var(--bg-2);color:var(--ink)}
 #mesa .mchip.rvbtn{border-color:var(--line);color:var(--ink);font-weight:600}
 #mesa .spacer{flex:1}
-#mesa .stats{display:flex;gap:4px 14px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}#mesa .stats .c{color:var(--chg)}#mesa .stats>button{border:0;background:none;padding:0;margin:0;font:inherit;text-align:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}#mesa .stats>button:hover{text-decoration:underline;text-underline-offset:3px}#mesa .stats>button:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:2px}
+#mesa .stats{display:flex;gap:4px 14px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}#mesa .stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}#mesa .stats .c{color:var(--chg)}#mesa .stats>button{border:0;background:none;padding:0;margin:0;font:inherit;text-align:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}#mesa .stats>button:hover{text-decoration:underline;text-underline-offset:3px}#mesa .stats>button:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
 #mesa .sw{display:flex;align-items:center;gap:8px;min-height:32px;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;color:var(--ink-2)}
 #mesa .sw input{appearance:none;-webkit-appearance:none;width:32px;height:19px;border-radius:var(--r-pill);background:var(--line-strong);position:relative;cursor:pointer;margin:0;transition:background var(--d2) var(--ease)}
 #mesa .sw input::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--knob);box-shadow:var(--shadow-xs);transition:transform var(--d2) var(--ease)}
@@ -2360,7 +2360,7 @@
 #mesa .btn svg{width:16px;height:16px}
 #mesa .btn:hover:not(:disabled){background:var(--acc-hover)}
 #mesa .btn:active{transform:scale(.97)}
-#mesa .btn:disabled{opacity:.45;transform:none}
+#mesa .btn:disabled{opacity:.4;transform:none}
 #mesa .trayhead .btn{margin-left:auto}
 #mesa .trayhead .tcount{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .trayhead .btn{white-space:nowrap}
 #mesa .tfil{display:inline-flex;flex:none;gap:2px;padding:2px;border-radius:var(--r-pill);background:var(--bg-2)}
@@ -2378,7 +2378,7 @@
 #mesa .btn2{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:13px;font-weight:600;min-height:32px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
 #mesa .btn2:hover:not(:disabled):not(.on){border-color:var(--line-strong);background:var(--bg)}
 #mesa .btn2:active{transform:scale(.97)}
-#mesa .btn2:disabled{opacity:.45;transform:none}
+#mesa .btn2:disabled{opacity:.4;transform:none}
 #mesa .btn2.danger{color:var(--red);border-color:var(--red-soft)}#mesa .btn2.danger:hover{background:var(--red-soft);border-color:var(--red-soft)}
 #mesa .tbody{padding:0 16px 24px}
 #mesa .cpnav{position:sticky;top:var(--thh,51px);z-index:2;padding:0 16px 10px;font-size:12.5px;background:inherit}
@@ -2459,7 +2459,7 @@
 #mesa .pe-fila{margin-top:12px}#mesa .pe-fila>p{margin:0}
 #mesa .pe-fila.pe-con{container:pe/inline-size;margin-right:-44px}   /* the container is this row, not the header: the × keeps the card as its box (it doesn't scroll away) */
 #mesa .pe-in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"campos ed";column-gap:12px}#mesa .pe-in>p{grid-area:campos;min-width:0;margin:0}
-#mesa .pe-ed{grid-area:ed;align-self:start;height:72px;min-width:84px;padding:0 18px;border-radius:var(--r-lg);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}#mesa .pe-ed:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ring)}
+#mesa .pe-ed{grid-area:ed;align-self:start;height:72px;min-width:84px;padding:0 18px;border-radius:var(--r-lg);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}#mesa .pe-ed:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 @container pe (max-width:338px){#mesa .pe-in{grid-template-columns:minmax(0,1fr);grid-template-areas:"campos" "ed";row-gap:12px}#mesa .pe-in>p{margin-right:44px}#mesa .pe-ed{height:44px;width:100%}}   /* a narrow header: the fields as before, EDITAR under them, wide */
 #mesa .pe-fijar{position:relative;flex:none;display:inline-flex;height:28px;cursor:pointer;-webkit-user-select:none;user-select:none}
 #mesa .pe-fijar input{-webkit-appearance:none;appearance:none;position:relative;width:76px;height:28px;margin:0;border-radius:var(--r-pill);background:var(--line-strong);cursor:pointer;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}
@@ -2476,7 +2476,7 @@
 #mesa .tysel,#mesa .essel,#mesa .ubsel,#mesa .persel{-webkit-appearance:none;appearance:none;font:500 12.5px var(--font);color:var(--ink);background:var(--panel-2) var(--chev) no-repeat right 8px center/14px 14px;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 28px 0 10px;min-height:32px;cursor:pointer;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
 #mesa .pwhen .dtin:hover,#mesa .pwhen .tmin:hover,#mesa .tysel:hover,#mesa .essel:hover,#mesa .ubsel:hover,#mesa .persel:hover,#mesa .esmot:hover{border-color:var(--line-strong)}
 #mesa .pwhen .dtin:focus,#mesa .pwhen .tmin:focus,#mesa .tysel:focus-visible,#mesa .essel:focus-visible,#mesa .ubsel:focus-visible,#mesa .persel:focus-visible,#mesa .esmot:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
-#mesa .tysel:disabled,#mesa .essel:disabled,#mesa .ubsel:disabled,#mesa .persel:disabled{opacity:.5;cursor:default}
+#mesa .tysel:disabled,#mesa .essel:disabled,#mesa .ubsel:disabled,#mesa .persel:disabled{opacity:.4;cursor:default}
 #mesa .pwhen .wd{color:var(--ink-2);font-weight:600}
 #mesa .phead .pnot{flex-wrap:nowrap}#mesa .phead .pnot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .pnot>.pnotx{-webkit-user-select:none;user-select:none}
 #mesa .phead .pnot .lnk{flex:none;white-space:nowrap;padding:6px 2px}
@@ -2548,7 +2548,9 @@
 #mesa .pacts{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #mesa .pacts{margin-top:2px}#mesa .pacts button{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:var(--r-pill);font-size:12.5px;font-weight:600;padding:0 13px;min-height:32px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
 #mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}#mesa .pacts button:active:not(:disabled){transform:scale(.97)}
-#mesa .pacts button:disabled{opacity:.35;cursor:default}
+/* every button shrinks a little when pressed, like .btn (D-171) */
+#mesa :is(.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,.cpaso,.x,.hx,.cpx):active:not(:disabled){transform:scale(.97)}
+#mesa .pacts button:disabled{opacity:.4;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
 #mesa .avrow{display:flex;align-items:center;gap:10px}#mesa .avprev{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--on-ink);font-weight:800;font-size:13px}#mesa .avprev img{width:100%;height:100%;object-fit:cover}
@@ -2647,7 +2649,7 @@
 #mesa .perchip.raro{background:var(--panel-2);border:1px dashed var(--chg);color:var(--chg)}
 #mesa .pdz>.muted{flex-basis:100%}#mesa .pdzav{flex-basis:100%;margin:0;padding:0 0 0 16px;color:var(--chg);font-size:12px;max-height:7.5em;overflow:auto}
 /* movimiento reducido: sin desplazamientos ni escalas, sí los cambios de color */
-@media (prefers-reduced-motion:reduce){#mesa *,#mesa *::before,#mesa *::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}#mesa .btn:active,#mesa .btn2:active{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa *,#mesa *::before,#mesa *::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}#mesa .btn:active,#mesa .btn2:active,#mesa .lb-ib:active,#mesa .pacts button:active,#mesa :is(.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,.cpaso,.x,.hx,.cpx):active{transform:none}}
 `;
 
   function buildShell() {

@@ -1072,12 +1072,12 @@
 #mesa .lb-ttl p{margin:2px 0 0;color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .lb-state{font-size:11.5px;font-weight:600;border-radius:var(--r-pill);padding:3px 10px;background:var(--bg-2);color:var(--mute);white-space:nowrap}
 #mesa .lb-state.chg{background:var(--chg-soft);color:var(--chg)}
-#mesa .lb-head .btn:disabled,#mesa .lb-head .btn2:disabled{opacity:.6;cursor:default}
+#mesa .lb-head .btn:disabled,#mesa .lb-head .btn2:disabled{opacity:.4;cursor:default}
 #mesa .lb .seg button{padding:0 10px}
 #mesa .lb-tools{display:inline-flex;align-items:center;gap:4px}
 #mesa .lb-ib{border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r-pill);min-width:32px;height:32px;padding:0 11px;font-size:13px;font-weight:500;color:var(--ink);transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
 #mesa .lb-ib:hover:not(:disabled):not(.on){border-color:var(--line-strong);background:var(--bg)}#mesa .lb-ib:active:not(:disabled){transform:scale(.97)}
-#mesa .lb-ib:disabled{opacity:.35;cursor:default}#mesa .lb-ib.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+#mesa .lb-ib:disabled{opacity:.4;cursor:default}#mesa .lb-ib.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 #mesa .lb-zv{min-width:3.6em;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums;cursor:default;-webkit-user-select:none;user-select:none}
 #mesa .lb-body{flex:1;min-height:0;display:grid;grid-template-columns:132px minmax(0,1fr) 316px}
 #mesa .lb-list{overflow-y:auto;padding:14px 12px 16px;background:var(--panel);border-right:1px solid var(--line2)}
@@ -1090,7 +1090,7 @@
 #mesa .lb-mv button,#mesa .lb-ord button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);font-size:11.5px;line-height:24px;padding:0;color:var(--mute)}
 #mesa :is(.lb-mv,.lb-ord) :is([data-lb="sl-up"],[data-lb="sl-dn"],[data-lb="sl-del"]){position:relative;font-size:0}#mesa :is(.lb-mv,.lb-ord) :is([data-lb="sl-up"],[data-lb="sl-dn"],[data-lb="sl-del"])::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa :is(.lb-mv,.lb-ord) [data-lb="sl-dn"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}#mesa :is(.lb-mv,.lb-ord) [data-lb="sl-del"]::before{width:13px;height:13px;-webkit-mask-image:var(--i-x);mask-image:var(--i-x)}
 #mesa .lb-mas>.lb-ib{position:relative;font-size:0}#mesa .lb-mas>.lb-ib::before{content:'';position:absolute;inset:0;margin:auto;width:18px;height:18px;background:currentColor;-webkit-mask:var(--i-more) center/contain no-repeat;mask:var(--i-more) center/contain no-repeat}
-#mesa .lb-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-mv button:disabled,#mesa .lb-ord button:disabled{opacity:.3;cursor:default}
+#mesa .lb-mv button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-mv button:disabled,#mesa .lb-ord button:disabled{color:var(--faint);cursor:default}
 #mesa .lb-ord{position:absolute;top:4px;right:4px;display:flex;flex-direction:column;background:var(--photo-light);border-radius:var(--r-sm);box-shadow:var(--shadow-md)}
 #mesa .lb-ord button{color:var(--photo-ink)}#mesa .lb-ord button:hover:not(:disabled){background:var(--photo-hover)}
 @media (hover:hover) and (min-width:901px){#mesa .lb-it:not(:hover):not(:focus-within) .lb-ord{display:none}}
@@ -1134,7 +1134,7 @@
 #mesa .lb-acc-h .lb-acc-s{flex:1;min-width:0;font-weight:400;font-size:12.5px;letter-spacing:0;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .lb-acc-h::after{content:'';flex:none;width:16px;height:16px;margin-left:auto;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m),background-color var(--d1) ease-out}
 #mesa .lb-acc.on>.lb-acc-t>.lb-acc-h::after{transform:rotate(180deg)}
-#mesa .lb-acc-h:hover::after{background:var(--ink)}#mesa .lb-acc-h:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ring)}
+#mesa .lb-acc-h:hover::after{background:var(--ink)}#mesa .lb-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .lb-acc-b{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s linear var(--d-m)}
 #mesa .lb-acc.on>.lb-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
 #mesa .lb-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
@@ -1182,7 +1182,7 @@
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
 #mesa .lb-cap button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);padding:0;font-size:11.5px;color:var(--mute)}
-#mesa .lb-cap button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-cap button:disabled{opacity:.25}
+#mesa .lb-cap button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-cap button:disabled{color:var(--faint)}
 #mesa .lb-cap.off .lb-capn{opacity:.45}
 #mesa .lb-all{position:absolute;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:16px 20px}
 #mesa .lb-allh{display:flex;align-items:center;gap:12px;margin-bottom:16px}#mesa .lb-allh h4{margin:0;font-size:18px;font-weight:800;letter-spacing:-.025em;flex:1}
@@ -1212,7 +1212,7 @@
 #mesa .lb-menu button:hover{background:var(--bg-2)}#mesa .lb-menu .lb-kb{margin-left:auto;padding-left:14px;color:var(--mute)}
 #mesa .lb-menu [aria-checked]::before{content:'';display:inline-block;width:18px}#mesa .lb-menu [aria-checked="true"]::before{content:'';width:14px;height:14px;margin-right:4px;vertical-align:-2px;background:currentColor;-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .lb-help{position:absolute;right:12px;top:2px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:var(--mute);font-size:0;font-weight:600;padding:0}#mesa .lb-help::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-keyboard) center/contain no-repeat;mask:var(--i-keyboard) center/contain no-repeat}
-#mesa .lb-help:hover,#mesa .lb-help[aria-expanded="true"]{color:var(--ink);border-color:var(--ink)}
+#mesa .lb-help:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}#mesa .lb-help[aria-expanded="true"]{color:var(--ink);border-color:var(--ink)}
 #mesa .lb-atajos{position:absolute;right:12px;bottom:calc(100% + 6px);z-index:12;width:min(400px,calc(100vw - 32px));max-height:min(70vh,520px);overflow:auto;padding:14px 16px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font-size:12.5px}
 #mesa .lb-atajos h4{margin:0 0 10px;font-size:14px;font-weight:700}#mesa .lb-atajos dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0}
 #mesa .lb-atajos dt{font-weight:600;white-space:nowrap}#mesa .lb-atajos dd{margin:0;color:var(--mute)}#mesa .lb-atajos p{margin:10px 0 0;color:var(--mute)}

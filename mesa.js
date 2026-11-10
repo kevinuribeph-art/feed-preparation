@@ -2257,8 +2257,8 @@
 #mesa .eico{display:inline-flex;flex:none;width:10px;height:9px}#mesa .eico.e-cancelado{width:9px}
 #mesa .eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;overflow:visible}#mesa .eico .h{display:none}
 /* one visible stroke for every line icon (D-168): the strokes don't scale with the icon, so 1.33 px at 10 px and at 26 px (the masks carry the same in their SVG) */
-#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) svg :is(path,circle,rect,line,polyline,polygon,ellipse){vector-effect:non-scaling-stroke}
-#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) :is(svg,svg *){stroke-width:var(--i-trazo)}
+#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.eico) svg :is(path,circle,rect,line,polyline,polygon,ellipse){vector-effect:non-scaling-stroke}
+#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.eico) :is(svg,svg *){stroke-width:var(--i-trazo)}
 #mesa .e-programado,#mesa .e-publicado{color:var(--ok)}#mesa .e-cancelado{color:var(--red)}
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
 #mesa .esmot{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 10px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out;box-sizing:border-box;width:210px;max-width:100%}

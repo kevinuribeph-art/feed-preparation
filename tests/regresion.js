@@ -11238,9 +11238,11 @@
   prueba('ES6', 'Movimiento: plegar la bandeja y el calendario (contenido y flecha) y los desplegables con los tokens de movimiento (D-173)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
+    await abrirEditor('r1'); M.libre.cerrar(); await espera(60);   // el CSS del editor se pone al abrirlo la primera vez
     const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText && !m) reglas.push(r); } }; ir(rs, false); }
     const de = (re, prop) => reglas.filter(r => re.test(r.selectorText) && r.style.getPropertyValue(prop)).map(r => r.style.getPropertyValue(prop));
     // con elementos de prueba: los atajos con var() no se leen por CSSOM (la ronda 1 de la revisión lo vio)
+    if (W.matchMedia('(prefers-reduced-motion: reduce)').matches) throw new Error('con «Reducir movimiento» del sistema activado no se pueden medir las duraciones: desactívalo y vuelve a pasar ES6');
     const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:-2000px;top:0'; raiz.append(caja);
     try {
       caja.innerHTML = '<div class="side"><aside class="tray fold tray-anim"><div class="tfil"></div></aside><section class="cal fold cal-anim"><div class="cleg"></div></section></div><button class="tfold"><svg></svg></button><button class="cfold"><svg></svg></button><button class="lb-trb"><svg></svg></button>';
@@ -11269,17 +11271,19 @@
   prueba('ES8', 'Revisión independiente, ronda 1: el ✓ de uso no pasa por encima de la cabecera; «reducir movimiento» no encoge al pulsar; el título del editor no se parte; radio con contraste; «⋯» del editor y EDITAR no estrechan; --chev oscuro con la regla de trazo (D-168 a D-174)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.libre, 4000, 'libre.js');
+    await abrirEditor('r1'); M.libre.cerrar(); await espera(60);   // el CSS del editor se pone al abrirlo la primera vez
     const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:-2000px;top:0'; raiz.append(caja);
     try {
       caja.innerHTML = '<div class="titem uso"></div><div class="lb-ttl"><h3>Un nombre de publicación largo, larguísimo, que no cabe en la cabecera del editor ni a lo ancho</h3></div><span class="lb-mas"><button class="lb-ib">⋯</button></span><button class="btn pe-ed">Editar</button><label class="caplab"><input type="radio"></label>';
       igual(W.getComputedStyle(caja.querySelector('.titem'), '::before').zIndex, '1', 'el ✓ de uso por encima de la cabecera fija');
       const h = W.getComputedStyle(caja.querySelector('.lb-ttl h3')); ok(h.whiteSpace === 'nowrap' || h.textWrapMode === 'nowrap', 'el título del editor se parte en líneas');
       ok(caja.querySelector('.lb-ib').getBoundingClientRect().width >= 37, '«⋯» del editor estrecha');
+      igual(W.getComputedStyle(caja.querySelector('.pe-ed')).paddingLeft, '19.5px', 'EDITAR sin el relleno que lo deja a su ancho de la 4.12');
       const mute = (() => { const x = D.createElement('i'); x.style.color = 'var(--mute)'; raiz.append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; })();
       igual(W.getComputedStyle(caja.querySelector('.caplab input')).borderTopColor, mute, 'el aro del radio sin el contraste de --mute');
     } finally { caja.remove(); }
     const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText) reglas.push([r, m]); } }; ir(rs, false); }
-    ok(reglas.some(([r, m]) => m && /\.mchip/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && r.style.transform === 'none'), 'con «reducir movimiento» los botones siguen encogiendo');
+    ok(reglas.some(([r, m]) => m && /\.mchip/.test(r.selectorText) && /\.lb-ib/.test(r.selectorText) && /\.pacts button/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && r.style.transform === 'none'), 'con «reducir movimiento» los botones siguen encogiendo');
     raiz.dataset.theme = 'dark';
     try { const c = W.getComputedStyle(raiz).getPropertyValue('--chev'); ok(/non-scaling-stroke/.test(c) && /A89C8F/i.test(c), 'el --chev oscuro sin la regla de trazo'); } finally { delete raiz.dataset.theme; }
   });

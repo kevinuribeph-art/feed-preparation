@@ -9520,7 +9520,7 @@
     igual(b.textContent, '+ Diapositiva', 'el texto de la tira');
     ok(/solo con color de fondo/.test(b.title), 'perdió su título: ' + b.title);
     const r = b.getBoundingClientRect();
-    ok(r.height <= 30 && r.height >= 26, 'no es del alto de los botones pequeños: ' + r.height);
+    ok(Math.abs(r.height - 32) < 0.6, 'no mide 32 px, como «+ Diapositiva» del diseñador: ' + r.height);   // desde la 4.13, 32 px (D-170; antes, el alto de los botones pequeños)
     igual([W.getComputedStyle(b).whiteSpace, W.getComputedStyle(b).fontSize], ['nowrap', '12px'], 'una línea, 12 px');
     ok(b.scrollWidth <= b.clientWidth + 1, `no cabe en una línea: ${b.scrollWidth} > ${b.clientWidth}`);
     const n = E.sl.length; b.click(); await dibujado();
@@ -9530,7 +9530,7 @@
     if (!E2.sl.length) {
       const p2 = await hasta(() => q('.lb-panel [data-lb="sl-add"]'), 2000, 'el botón del panel sin diapositivas');
       igual(p2.textContent, '+ Diapositiva', 'el texto del panel');
-      ok(p2.getBoundingClientRect().height <= 30 && W.getComputedStyle(p2).whiteSpace === 'nowrap', 'el del panel no es pequeño ni de una línea');
+      ok(Math.abs(p2.getBoundingClientRect().height - 32) < 0.6 && W.getComputedStyle(p2).whiteSpace === 'nowrap', 'el del panel no mide 32 px o no va en una línea');   // desde la 4.13, 32 px (D-170)
     }
     M.libre.cerrar();
   });
@@ -11179,6 +11179,24 @@
       ok(kb && kb.closest('button').getBoundingClientRect().right - kb.getBoundingClientRect().right <= 11, 'el atajo no va a la derecha');
       tecla('Escape');
     } finally { M.libre.cerrar(); }
+  });
+
+  prueba('ES3', 'Controles: todos los deslizadores como el de la bandeja; radio propio en los captions; desplegables, «+ Diapositiva» y campos de los diálogos a 32 px; los menús flotantes con el borde --line2 (D-170)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.libre && M.diseno, 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<label class="zoom"><input type="range"></label><label class="lb-rng"><input type="range"></label><div class="dz-velo"><input type="range"></div>'
+        + '<div class="form"><input type="text"><input type="number"></div><div class="lb-list"><button class="btn2 lb-add">x</button></div><select class="lb-sel"></select><button class="mx-sel">x</button>'
+        + '<input class="dz-in dz-serin"><input class="lb-askin"><div class="mx-pop"></div><div class="cpmenu"></div>';
+      for (const i of caja.querySelectorAll('input[type=range]')) { const c = W.getComputedStyle(i); igual([c.appearance, c.height], ['none', '16px'], 'un deslizador del navegador en ' + i.parentElement.className); }
+      for (const s of ['.form input[type=text]', '.form input[type=number]', '.lb-add', '.mx-sel', '.lb-askin']) igual(caja.querySelector(s).getBoundingClientRect().height, 32, 'el alto de ' + s);
+      igual(W.getComputedStyle(caja.querySelector('.mx-pop')).borderTopColor, W.getComputedStyle(caja.querySelector('.cpmenu')).borderTopColor, 'los menús con bordes distintos');
+    } finally { caja.remove(); }
+    M._in.openDetail('r1', 0); await hasta(() => dialogo(), 2000, 'la ventana');
+    const r = q('.detail .caplab input[type=radio]');
+    if (r) { const c = W.getComputedStyle(r); igual([c.appearance, c.width], ['none', '15px'], 'el radio de los captions'); }
+    M._in.closeDetail();
   });
 
   // ---------- las que cambian a propósito ----------

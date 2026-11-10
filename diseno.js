@@ -750,7 +750,7 @@
 #mesa .dz-auto{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:12px;font-weight:500;padding:4px 12px;min-height:28px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .dz-auto:hover{border-color:var(--line-strong);background:var(--bg)}
 #mesa .dz-auto.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
-#mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0;accent-color:var(--ink)}
+#mesa .dz-velo{display:flex;align-items:center;gap:10px}#mesa .dz-velo input{flex:1;min-width:0}#mesa .dz-in.dz-serin{height:32px;min-height:0;padding-top:0;padding-bottom:0;box-sizing:border-box}
 #mesa .dz-velo output{min-width:2.6em;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--mute)}
 #mesa .dz-dec{font-weight:400;color:var(--mute);font-size:12px}
 #mesa .dz-max{margin:6px 2px 0;font-size:11px;line-height:1.35}

@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.58';   // 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -540,6 +540,37 @@
   // slide: {key: the file in the post (photo or rendered image) | null (new), out: key is a rendered image with its composition,
   //         from: id of the post that composition was on (moved here), comp: null (untouched photo) | comp, raw: the photo as
   //         the mesa shows it (comp of an untouched photo), base: signature of the slide as opened, fmt, fmt0 (photo posts)}
+  // The double click that opened the editor (D-175): «Editar» opens it with the first click and the second one landed on what
+  // the editor had under the pointer («+ Foto», the slide…). Right after opening, a press near that click waits for its
+  // mousedown: the rest of that double click (detail 2 or more) is not the editor's; a click of its own goes on, with its
+  // pointerdown given back. The editor's own double clicks start with a click of their own, so they are not touched.
+  let pulsado = null, retenida = null, tragando = false;
+  const DEVUELTAS = new WeakSet(), TRAGO = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick'];
+  window.addEventListener('pointerdown', e => { if (!E) pulsado = { t: performance.now(), x: e.clientX, y: e.clientY }; }, true);
+  const tragoAl = () => pulsado && performance.now() - pulsado.t < 2000 ? { x: pulsado.x, y: pulsado.y } : null;   // the press that opened it
+  function tragar(e) {
+    const g = E && E.trago; if (!g || DEVUELTAS.has(e)) return;
+    switch (e.type) {
+      case 'pointerdown':
+        if (e.pointerType !== 'mouse' || e.button !== 0 || Math.hypot(e.clientX - g.x, e.clientY - g.y) > 12) { E.trago = null; retenida = null; tragando = false; return; }   // elsewhere: a click of its own
+        e.stopImmediatePropagation(); retenida = e; return;   // its mousedown says which click it is
+      case 'mousedown': {
+        const p = retenida; retenida = null;
+        if (e.detail >= 2) { tragando = true; break; }       // the second click of the double click that opened the editor
+        E.trago = null; tragando = false;                    // a click of its own: it goes on, with its pointerdown
+        if (p && p.target && p.target.isConnected) {
+          const n = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true, view: window, detail: 0, pointerId: p.pointerId, pointerType: p.pointerType, isPrimary: p.isPrimary, width: p.width, height: p.height, pressure: p.pressure,
+            button: p.button, buttons: p.buttons, clientX: p.clientX, clientY: p.clientY, screenX: p.screenX, screenY: p.screenY, altKey: p.altKey, ctrlKey: p.ctrlKey, metaKey: p.metaKey, shiftKey: p.shiftKey });
+          DEVUELTAS.add(n); p.target.dispatchEvent(n);
+        }
+        return;
+      }
+      case 'pointerup': if (!tragando) return; break;
+      case 'mouseup': if (!tragando) return; setTimeout(() => { tragando = false; }, 0); break;   // its click and dblclick, if any, come right after
+      default: if (!tragando) return;                        // click, dblclick: only those of that press (one from the keyboard never is)
+    }
+    e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
+  }
   let APL = 0, CLIP = null, ESTILO = null;   // «Aplicar» running; what was copied {els | slide (a whole comp), rat (W/H of its slide), client} (kept between posts of the same client); a text's style {st, client} (⌥⌘C)
   const curSlot = () => { if (!E) return null; const S = I() && I().S, s = S && S === E.board ? conHist(S).find(x => x.id === E.slotId) : null; return s && (s.design || null) === E.dz && isLibSlot(s) ? s : null; };   // a designed post: the very design it opened with
   const cur = () => E.sl[E.i];
@@ -574,6 +605,27 @@
     const c = compAt(E.i), { W, H } = sizeAt(E.i), claro = fotosDe(c).length > 0 || lum(hexOk(c.bg) ? c.bg : '#ffffff') < 0.4;
     const el = Object.assign(textoEl(claro ? '#000000' : '#ffffff'), { txt: 'Etiqueta', size: 0.035, x: 0.3, w: 0.4, pil: { c: claro ? '#ffffff' : '#000000' } });
     ajustarTexto(el, W, H); el.y = r4(0.5 - el.h / 2); return el;
+  }
+  // D-178: three pieces made of what the editor already draws (texts, the pill, a circle, a group): nothing new is saved.
+  // Colours only the kit's (D-016): its «Acentos» group's first, or white or black, whichever reads on the slide.
+  const acento = () => { const g = (E.kit ? E.kit.grupos : []).find(q => /acento/i.test(q.n)); return g && g.cols[0] ? g.cols[0].c : null; };
+  const contraste = () => { const c = compAt(E.i); return fotosDe(c).length > 0 || lum(hexOk(c.bg) ? c.bg : '#ffffff') < 0.4 ? '#ffffff' : '#000000'; };
+  const margen = () => E.margen || 72 / 1080;   // the kit's margin, a fraction of the width
+  function deslizaEl() {   // «Desliza →» for a cover: a text with its pill, at the bottom right inside the margin (it can say «Swipe →»)
+    const { W, H } = sizeAt(E.i), m = margen(), el = pildoraEl(); Object.assign(el, { txt: 'Desliza →', size: 0.03, w: 0.32, al: 'der' }); ajustarTexto(el, W, H);
+    el.x = r4(1 - m - el.w); el.y = r4(1 - m * W / H - el.h); return el;
+  }
+  function comillasEl() {   // big quotes for a quote or a review: the kit's headline font, in its accent, at the top left
+    const { W, H } = sizeAt(E.i), m = margen(), st = E.estilos.find(q => q.k === 'titular') || E.estilos[0], el = st ? textoMarca(st.k) : textoEl(contraste());
+    Object.assign(el, { txt: '\u201c', size: 0.3, lh: 1, w: 0.3, al: 'izq', color: acento() || el.color }); ajustarTexto(el, W, H); el.x = r4(m); el.y = r4(m * W / H); return el;
+  }
+  function numCirculoEls() {   // a step: a circle in the accent and its number on it, grouped; the number is a text, typed as any other
+    const { W, H } = sizeAt(E.i), fondo = acento() || contraste(), g = uid(), st = E.estilos.find(q => q.k === 'titular') || E.estilos[0];
+    const t = textoEl(lum(fondo) < 0.4 ? '#ffffff' : '#000000'); if (st) conEstilo(t, st);
+    const d = 0.12 * W, c = Object.assign(formaEl('elipse', W, H), { color: fondo, w: r4(d / W), h: r4(d / H), g });
+    c.x = r4(0.5 - c.w / 2); c.y = r4(0.5 - c.h / 2);
+    Object.assign(t, { txt: '1', size: 0.06, al: 'cen', may: false, x: c.x, w: c.w, g }); ajustarTexto(t, W, H); t.y = r4(c.y + c.h / 2 - t.h / 2);
+    return [c, t];
   }
   function logoEl(src, W, H) { const f = M.files[src] || { w: 1, h: 1 }, w = 0.25 * W, h = w * f.h / f.w; return { id: uid(), t: 'logo', src, x: r4((W - w) / 2 / W), y: r4((H - h) / 2 / H), w: 0.25, h: r4(h / H), ...base, fx: false, fy: false }; }
   // the photo as the mesa shows it now (a new format centres it, as the mesa does)
@@ -716,7 +768,7 @@
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
         bm: new Map(), bmMini: new Map(), cola: [], decoding: 0, bmI: -1, previas: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: esHist(s) ? lsLeer(LS_ZH) !== '0' : lsLeer(LS_ZG) === '1', margen: 0 };
-      E.guias0 = firmaG();
+      E.guias0 = firmaG(); E.trago = tragoAl();   // the rest of the double click that opened it is not the editor's (D-175)
       E.sl = s.photos.map(key => {
         const f = esHist(s) && entries(s)[key] ? { s, comp: entries(s)[key] } : compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;   // a story's own: a duplicate shares its image until it is applied
         if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: hfirma(comp), fmt, fmt0: fmt }; }
@@ -787,6 +839,7 @@
     if (!E) return { ok: true };
     const e = E; E = null;
     window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', sinEspacio, true); window.removeEventListener('blur', sinEspacio);
+    TRAGO.forEach(t => window.removeEventListener(t, tragar, true)); retenida = null; tragando = false;
     window.removeEventListener('resize', fvDibujar); if (e.fvUrl) URL.revokeObjectURL(e.fvUrl);
     if (e.historia) guardarGuion(e);
     { const box = e.el && e.el.querySelector('.lb-tray'), tr = box && box.querySelector('.lb-trs'); if (tr && box._vista && I().dondeGuardar) I().dondeGuardar('e|' + box._vista, tr, tr, 'x', tr.getBoundingClientRect().left); }   // where its strip was (D-092)
@@ -1176,12 +1229,13 @@
 #mesa .lb-tp{position:relative;min-width:0}#mesa .lb-tp canvas{width:100%;height:auto;display:block;border-radius:var(--r-xs);cursor:pointer;outline:1px solid var(--line2)}
 #mesa .lb-tp canvas:hover{outline:2px solid var(--acc)}
 #mesa .lb-tp span{display:block;font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
-#mesa .lb-tp button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:var(--photo-btn);color:var(--on-photo);font-size:12.5px;line-height:24px;padding:0}
+#mesa .lb-tp button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:var(--photo-btn);color:var(--on-photo);font-size:0;line-height:24px;padding:0}#mesa .lb-tp button::before{content:'';position:absolute;inset:0;margin:auto;width:13px;height:13px;background:currentColor;-webkit-mask:var(--i-x) center/contain no-repeat;mask:var(--i-x) center/contain no-repeat}
 #mesa .lb-caps{border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;background:var(--panel-2)}
 #mesa .lb-cap{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 9px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
 #mesa .lb-cap button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);padding:0;font-size:11.5px;color:var(--mute)}
+#mesa .lb-cap button[data-lb="cap-up"],#mesa .lb-cap button[data-lb="cap-dn"]{position:relative;font-size:0}#mesa .lb-cap button[data-lb="cap-up"]::before,#mesa .lb-cap button[data-lb="cap-dn"]::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .lb-cap button[data-lb="cap-dn"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}
 #mesa .lb-cap button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-cap button:disabled{color:var(--faint)}
 #mesa .lb-cap.off .lb-capn{opacity:.45}
 #mesa .lb-all{position:absolute;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:16px 20px}
@@ -1269,6 +1323,7 @@
     const gn = el.querySelector('textarea.lb-guion');
     if (gn) { altoGuion(gn); gn.addEventListener('input', () => altoGuion(gn)); gn.addEventListener('change', () => { if (E) guardarGuion(E); }); }
     window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', sinEspacio, true); window.addEventListener('blur', sinEspacio);
+    TRAGO.forEach(t => window.addEventListener(t, tragar, true));
     E.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { pedir(); if (E) { cancelAnimationFrame(E.tamRaf); E.tamRaf = requestAnimationFrame(tamBandeja); } }) : null;   // the slider's room and the narrow window (D-091)
     if (E.ro) E.ro.observe(E.scroll);
     todo();
@@ -1944,7 +1999,8 @@
   function onDbl(e) {
     if (!E.sl.length || E.busy) return;
     const el = hitEl(toSlide(e)); if (!el || el.lock) return;
-    if (el.t === 'texto') { seleccionar(el); E.pick = null; recordarSec('texto', 'el'); panel(); const ta = E.el.querySelector('.lb-panel textarea[data-lb="txt"]'); if (ta) { ta.focus(); ta.select(); } pedir(); return; }
+    if (el.t === 'texto') { seleccionar(el); if (el.g) E.mas = []; E.pick = null;   // a text in a group: only it, to write it (as in Canva; a click still takes the group, D-178)
+      recordarSec('texto', 'el'); panel(); const ta = E.el.querySelector('.lb-panel textarea[data-lb="txt"]'); if (ta) { ta.focus(); ta.select(); } pedir(); return; }
     if (el.t !== 'foto' || !el.src) return;
     if (el.hueco && !el.pan) {   // a photo in a hole: covering it → whole inside it; with strips → covering it
       const { W, H } = sizeAt(E.i); E.crop = null; E.pick = null;
@@ -2112,9 +2168,10 @@
     abrirCm(itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
       + itCm('add-txt', 'Añadir texto', 'T', hay) + itCm('add-forma', 'Añadir forma', 'R', hay, 'rect'), 'gris', 'Fuera de la diapositiva', e.clientX, e.clientY);
   }
-  function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, under the button
+  function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, and «Desliza →», Comillas and «Número en círculo» (D-178), under the button
     const r = b.getBoundingClientRect();
-    abrirCm(Object.entries(FORMAS).map(([v, l]) => itCm('add-forma', l, v === 'rect' ? 'R' : '', true, v)).join(''), 'formas', 'Formas', r.left, r.bottom + 4);
+    abrirCm(Object.entries(FORMAS).map(([v, l]) => itCm('add-forma', l, v === 'rect' ? 'R' : '', true, v)).join('')
+      + itCm('add-desliza', 'Desliza →', '', true) + itCm('add-comillas', 'Comillas', '', true) + itCm('add-numc', 'Número en círculo', '', true), 'formas', 'Formas', r.left, r.bottom + 4);
     b.setAttribute('aria-expanded', 'true');
   }
   function menuCtx(on) {
@@ -2314,7 +2371,7 @@
     if (!x) { p.innerHTML = plegable('sin', 'Sin diapositivas', '', `<p class="lb-p">Añade una y, dentro, sus fotos.</p><div class="lb-btns"><button type="button" class="btn2 lb-add lb-add1" data-lb="sl-add"><span class="i-mas">+</span> Diapositiva</button></div>`); abrirSec(p.firstChild, true, false); return; }
     if (E.pick) {
       const ls = fotosDisponibles(), pe = compAt(E.i).els.find(q => q.id === E.pick.id), t = E.pick.modo === 'add' ? 'Añadir una foto' : E.pick.modo === 'rep' && !(pe && pe.t === 'hueco') ? 'Reemplazar la foto' : 'Foto para el hueco';
-      p.innerHTML = `<div class="lb-sec"><h4>${t} <span>· de esta publicación y de la bandeja</span></h4>`
+      p.innerHTML = `<div class="lb-sec"><h4>${t}</h4>`
         + (ls.length ? `<div class="lb-photos">${ls.map(f => `<button type="button" class="lb-ph" data-lb="pickf" data-f="${esc(f)}" title="${esc(M.files[f].name || '')}"><img src="${M.files[f].thumbUrl || ''}" alt=""></button>`).join('')}</div>` : '<p class="lb-p">No hay fotos: añádelas a la bandeja de la mesa.</p>')
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="pick-x">Cancelar</button></div></div>';
       return;
@@ -2376,7 +2433,7 @@
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
-      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add"><span class="i-mas">+</span> Foto</button><button type="button" class="btn2" data-lb="add-txt"><span class="i-mas">+</span> Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea o flecha"><span class="i-mas">+</span> Forma</button><button type="button" class="btn2" data-lb="add-pil"><span class="i-mas">+</span> Píldora</button>`
+      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add"><span class="i-mas">+</span> Foto</button><button type="button" class="btn2" data-lb="add-txt"><span class="i-mas">+</span> Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea, flecha, «Desliza →», comillas o número en círculo"><span class="i-mas">+</span> Forma</button><button type="button" class="btn2" data-lb="add-pil"><span class="i-mas">+</span> Píldora</button>`
         + (!isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
         + '</div>';
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
@@ -2431,13 +2488,14 @@
     const x = cv.getContext('2d'), k = w / W; x.setTransform(k, 0, 0, k, 0, 0);
     drawComp(x, t.comp, W, H, viewImg, k, false);
   }
+  const medidaPx = (el, k) => { const { H } = sizeAt(E.i); return k === 'mx' ? el.x * 1080 : k === 'my' ? el.y * H * PX : k === 'man' ? el.w * 1080 : el.h * H * PX; };   // «Medidas exactas», in px of 1080
   function syncNums(el) {          // the panel's values follow a drag, without rebuilding it
     if (!el || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), z = p.querySelector('input[data-lb="z"]'); if (z) { z.value = el.z || 1; z.nextElementSibling.textContent = OUTF.z(el.z || 1); }
     const r = p.querySelector('input[data-lb="rot"]'); if (r && document.activeElement !== r) r.value = grados(el);
     const gs = p.querySelector('[data-pl="girar"] .lb-acc-s'); if (gs) gs.textContent = girarRes(el);   // the title follows the angle typed (D-166)
-    const { H } = sizeAt(E.i), put = (k, v) => { const i = p.querySelector(`input[data-lb="${k}"]`); if (i && document.activeElement !== i) i.value = Math.round(v); };
-    put('mx', el.x * 1080); put('my', el.y * H * PX); put('man', el.w * 1080); put('mal', el.h * H * PX);
+    const put = k => { const i = p.querySelector(`input[data-lb="${k}"]`); if (i && document.activeElement !== i) i.value = Math.round(medidaPx(el, k)); };
+    ['mx', 'my', 'man', 'mal'].forEach(put);
     const s = p.querySelector('input[data-lb="size"]'); if (s && el.t === 'texto') { s.value = el.size; s.nextElementSibling.textContent = OUTF.size(el.size); }
   }
 
@@ -2744,6 +2802,9 @@
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
       case 'formas': if (cm !== 'formas' && b.isConnected) menuFormas(b); return;   // «+ Forma»: its menu (pressed again, it closes)
       case 'add-pil': nuevo(pildoraEl()); return;
+      case 'add-desliza': nuevo(deslizaEl()); return;
+      case 'add-comillas': nuevo(comillasEl()); return;
+      case 'add-numc': { const [c, t] = numCirculoEls(); mut(null, () => { ensure().els.push(c, t); E.sel = t.id; E.mas = [c.id]; E.crop = null; E.pick = null; }); return; }   // the circle and its number, grouped
       case 'num': { const f = b.dataset.v; if (f && !E.i) return; onEl(el => { if (el.t !== 'texto') return; if (f) el.num = { f }; else delete el.num; }); return; }   // never on the cover; taken off, the text keeps its number as it is
       case 'num-f': onEl(el => { if (el.t === 'texto' && el.num && NUMF[b.dataset.v]) el.num.f = b.dataset.v; }); return;
       case 'pil': { const { W, H } = sizeAt(E.i); onEl(el => { if (el.t !== 'texto') return; if (b.dataset.v) el.pil = { c: (el.pil && el.pil.c) || (lum(hexOk(el.color) ? el.color : '#ffffff') > 0.4 ? '#000000' : '#ffffff') }; else delete el.pil; ajustarTexto(el, W, H); }); return; }
@@ -3048,8 +3109,9 @@
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
-      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches('input[data-lb="rot"]')) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; «Girar»'s figure is chosen whole, typing replaces it (D-166)
-      pn.addEventListener('focusout', e => { const el = E && e.target.matches && e.target.matches('input[data-lb="rot"]') && selEl(); if (el) e.target.value = grados(el); });   // left (Esc, Tab, a click) half typed: the angle it has
+      const NUMS = 'input[data-lb="rot"], input[data-lb="mx"], input[data-lb="my"], input[data-lb="man"], input[data-lb="mal"]';   // «Girar» and «Medidas exactas»
+      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches(NUMS)) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; a figure is chosen whole, typing replaces it (D-166, D-176)
+      pn.addEventListener('focusout', e => { const t = e.target, el = E && t.matches && t.matches(NUMS) && selEl(); if (el) t.value = t.dataset.lb === 'rot' ? grados(el) : Math.round(medidaPx(el, t.dataset.lb)); });   // left (Esc, Tab, a click) half typed or out of range: what it has
       pn.addEventListener('mousedown', e => { if (e.detail > 1 && fila(e.target) && e.target.tagName !== 'INPUT') e.preventDefault(); });   // its label and figure never get selected
       pn.addEventListener('scroll', () => { if (E && E.cmDe === 'formas') menuCtx(false); }); }
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
@@ -3776,7 +3838,8 @@
       APL--; counted = false; I().setBusy('dz', null);
       if (I().histAmend) { I().histAmend(s.id); sl.forEach(x => { if (x && x.from) I().histAmend(x.from.id); }); }   // with the type change: ⌘Z undoes both
       I().changed(); I().refreshDetail();
-      I().toast(solo ? `${s.name}: numeración al día (${made.length === 1 ? 'una diapositiva redibujada' : `${made.length} diapositivas redibujadas`}).` : `${s.name}: ${made.length === 1 ? 'la imagen editada se ha redibujado' : `${made.length} imágenes editadas se han redibujado`} en su formato nuevo.`, { ms: 5000 });
+      const deshecho = !soloNum && !!(I().dibujoHecho && I().dibujoHecho(slotId));   // a ⌘Z pressed while drawing undoes the type change now, with its images: no message (D-176)
+      if (!deshecho) I().toast(solo ? `${s.name}: numeración al día (${made.length === 1 ? 'una diapositiva redibujada' : `${made.length} diapositivas redibujadas`}).` : `${s.name}: ${made.length === 1 ? 'la imagen editada se ha redibujado' : `${made.length} imágenes editadas se han redibujado`} en su formato nuevo.`, { ms: 5000 });
       for (const x of sl) if (x) { try { await I().deleteIfUnused(x.key); } catch (e) { /* kept */ } }
       return { ok: true, cambios: made.length };
     } catch (e) {

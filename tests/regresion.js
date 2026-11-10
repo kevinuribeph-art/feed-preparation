@@ -10770,7 +10770,7 @@
     ok(fb() && fb().textContent === '+ Forma' && fb().getAttribute('aria-haspopup') === 'menu', 'sin «+ Forma»');
     fb().click();
     ok(!m.hidden && fb().getAttribute('aria-expanded') === 'true', '«+ Forma» no abrió su menú');
-    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false]], 'las formas del menú');
+    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false], ['Desliza →', '', false], ['Comillas', '', false], ['Número en círculo', '', false]], 'las formas del menú (y las de D-178)');
     igual(D.activeElement, qa('.lb-cm button')[0], 'el foco no va a la primera');
     tecla('ArrowDown'); igual(D.activeElement, qa('.lb-cm button')[1], '↓ no pasa a la siguiente');
     fb().click(); ok(m.hidden && fb().getAttribute('aria-expanded') === 'false', 'pulsado otra vez no se cierra');
@@ -10990,7 +10990,7 @@
       lzeDbl(vr());
       ok(lzeSl().ov.velo == null, 'el doble clic no lo dejó en «Auto»');
       igual(lzePasosDz(), n, 'dejó un paso que no cambia nada');
-      await hasta(() => /· auto: \d+ %/.test(q('.dz .dz-dec[data-dec="velo"]').textContent), 4000, '«· auto: N %» junto al título');
+      await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-dec[data-dec="velo"]').textContent), 4000, '«auto: N %» a la derecha del título (D-177)');
       // la barra enseña el valor que tiene, también si tenía el foco
       vr().focus(); mover(vr(), 0.8); lzeDbl(vr());
       const pa = +q('.dz .dz-dec[data-dec="velo"]').textContent.match(/(\d+) %/)[1];
@@ -11218,7 +11218,7 @@
     for (const s of ['#mesa .mx-nav:focus-visible', '#mesa .lb-acc-h:focus-visible', '#mesa .pe-ed:focus-visible', '#mesa button.cpaso:focus-visible']) igual([regla(s, 'outline-offset'), regla(s, 'box-shadow')], ['2px', ''], 'el foco de ' + s);
   });
 
-  prueba('ES5', 'Tipo: tamaños en la escala (pestañas 13, títulos del editor 20, horas de los chips 10,5), solo pesos que la letra tiene (400, 600, 800), cifras tabulares en horas y números y la pantalla de carga en Mesa Grotesk (D-172)', async () => {
+  prueba('ES5', 'Tipo: tamaños en la escala (pestañas 13, títulos del editor 20, horas de los chips 10,5), solo pesos que la letra tiene (400, 600, 800), cifras tabulares en los números (en las horas no, desde D-175) y la pantalla de carga en Mesa Grotesk (D-172)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
     const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
@@ -11226,7 +11226,7 @@
       caja.innerHTML = '<button class="tab">a</button><div class="lb-ttl"><h3>b</h3></div><div class="chip"><span class="ct">13:00</span></div><div class="cday today"><span class="dn">20</span></div><div class="seg"><button>4:5</button></div>';
       const cs = s => W.getComputedStyle(caja.querySelector(s));
       igual([cs('.tab').fontSize, cs('.lb-ttl h3').fontSize, cs('.chip .ct').fontSize], ['13px', '20px', '10.5px'], 'los tamaños');
-      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['tabular-nums', 'normal'], 'las cifras (los formatos sin tabulares: ensanchaban la fila)');
+      igual([cs('.chip .ct').fontVariantNumeric, cs('.seg button').fontVariantNumeric], ['normal', 'normal'], 'las cifras (las horas y los formatos sin tabulares, D-175)');
       igual(cs('.cday.today .dn').fontWeight, '600', 'el peso de hoy');
     } finally { caja.remove(); }
     const malos = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.style && /#mesa/.test(r.selectorText) && /^(500|700)$/.test(r.style.getPropertyValue('font-weight')) && !/\.ig|\.hb\b|\.dz-ph i|\.uso::after/.test(r.selectorText)) malos.push(r.selectorText); } }; ir(rs); }
@@ -11286,6 +11286,455 @@
     ok(reglas.some(([r, m]) => m && /\.mchip/.test(r.selectorText) && /\.lb-ib/.test(r.selectorText) && /\.pacts button/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && r.style.transform === 'none'), 'con «reducir movimiento» los botones siguen encogiendo');
     raiz.dataset.theme = 'dark';
     try { const c = W.getComputedStyle(raiz).getPropertyValue('--chev'); ok(/non-scaling-stroke/.test(c) && /A89C8F/i.test(c), 'el --chev oscuro sin la regla de trazo'); } finally { delete raiz.dataset.theme; }
+  });
+
+  // ---------- ajustes de la 4.13 (D-175, D-176) ----------
+  prueba('AJ1', 'Pestañas de cliente: un píxel más de relleno a cada lado, para medir lo que medían con la letra de 13,5 px (D-175)', async () => {
+    await tablero([pub(1)]);
+    const nav = q('header.appbar nav.tabs'); ok(nav, 'sin las pestañas');
+    const mide = (txt, cls, st) => { const b = D.createElement('button'); b.className = cls; b.textContent = txt; if (st) b.style.cssText = st; nav.append(b); const w = b.getBoundingClientRect().width; b.remove(); return w; };
+    const fuera = [];
+    for (const n of ['Marca', 'Café Sur', 'Estudio Norte']) for (const cls of ['tab', 'tab on']) {
+      const ahora = mide(n, cls), antes = mide(n, cls, 'font-size:13.5px;padding:0 12px');   // como en la 4.12
+      if (Math.abs(ahora - antes) > 1.5) fuera.push(`${n} (${cls}): ${ahora.toFixed(1)} frente a ${antes.toFixed(1)}`);
+    }
+    igual(fuera, [], 'pestañas que no miden lo de la 4.12');
+  });
+
+  prueba('AJ2', 'Doble clic en EDITAR: el segundo clic no es del editor (ni «+ Foto» ni nada de lo que haya debajo); un clic nuevo, uno de teclado y los dobles clics del editor sí (D-175)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj2a.jpg'), await foto('aj2b.jpg')]);
+    await abrirEditor('r1');
+    const r = q('.lb [data-lb="add"]').getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    M.libre.cerrar(); await espera(50);
+    const pulsa = (el, n) => {   // una pulsación del ratón entera, como la da el navegador (detail: el recuento de clics)
+      const o = { bubbles: true, cancelable: true, composed: true, view: W, clientX: x, clientY: y, button: 0 }, pt = { pointerId: 1, pointerType: 'mouse', isPrimary: true };
+      el.dispatchEvent(new W.PointerEvent('pointerdown', { ...o, ...pt, buttons: 1 })); el.dispatchEvent(new W.MouseEvent('mousedown', { ...o, buttons: 1, detail: n }));
+      el.dispatchEvent(new W.PointerEvent('pointerup', { ...o, ...pt, buttons: 0 })); el.dispatchEvent(new W.MouseEvent('mouseup', { ...o, detail: n })); el.dispatchEvent(new W.MouseEvent('click', { ...o, detail: n }));
+    };
+    const add = () => q('.lb [data-lb="add"]');
+    pulsa(D.body, 1);   // el clic que abre (en EDITAR), justo donde el editor tendrá «+ Foto»
+    await abrirEditor('r1');
+    try {
+      pulsa(add(), 2);
+      igual([ed().pick, ed().sel], [null, null], 'el segundo clic del doble clic llegó al editor');
+      pulsa(add(), 1);
+      igual(ed().pick && ed().pick.modo, 'add', 'un clic nuevo en «+ Foto» no lo abre');
+    } finally { M.libre.cerrar(); }
+    pulsa(D.body, 1); await abrirEditor('r1');
+    try {
+      add().dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 0 }));   // Intro o espacio en el botón
+      igual(ed().pick && ed().pick.modo, 'add', 'un clic de teclado tras abrir con el ratón no llega');
+    } finally { M.libre.cerrar(); }
+    await abrirEditor('r1'); const rz = q('.lb .lb-zv').getBoundingClientRect(); M.libre.cerrar(); await espera(50);
+    const o = { bubbles: true, cancelable: true, view: W, clientX: rz.left + 4, clientY: rz.top + 4, button: 0 };
+    D.body.dispatchEvent(new W.PointerEvent('pointerdown', { ...o, pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: 1 }));   // abre con un clic justo donde estará el porcentaje
+    await abrirEditor('r1');
+    try {
+      ed().zoom = 1.5; const zv = q('.lb .lb-zv');
+      for (const n of [1, 2]) { zv.dispatchEvent(new W.PointerEvent('pointerdown', { ...o, pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: 1 })); zv.dispatchEvent(new W.MouseEvent('mousedown', { ...o, detail: n })); zv.dispatchEvent(new W.MouseEvent('mouseup', { ...o, detail: n })); zv.dispatchEvent(new W.MouseEvent('click', { ...o, detail: n })); }
+      zv.dispatchEvent(new W.MouseEvent('dblclick', { ...o, detail: 2 }));
+      igual(ed().zoom, 1, 'el doble clic en el porcentaje del zoom (D-145) no vuelve al 100 %');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ3', 'Horas sin cifras tabulares (chips del calendario y publicaciones de Historias); siguen en los números de diapositiva y en los días de Historias (D-175)', async () => {
+    await tablero([pub(1)]);
+    await poner('r1', [await foto('aj3.jpg')]);
+    await hasta(() => M.calendario && M.hs && M.libre, 4000, 'los módulos');
+    await abrirEditor('r1');   // la hoja de libre.js entra al abrirlo
+    const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; q('#mesa').append(caja);
+    try {
+      caja.innerHTML = '<div class="chip"><span class="ct">13:00</span></div><button class="hv-post">13:00</button><div class="hv-dia"><b>20</b></div><div class="lb-n"><b>02</b></div>';
+      const nv = s => W.getComputedStyle(caja.querySelector(s)).fontVariantNumeric;
+      igual([nv('.chip .ct'), nv('.hv-post')], ['normal', 'normal'], 'las horas');
+      igual([nv('.hv-dia b'), nv('.lb-n b')], ['tabular-nums', 'tabular-nums'], 'los días de Historias y los números de diapositiva');
+    } finally { caja.remove(); M.libre.cerrar(); }
+  });
+
+  prueba('AJ4', '▲ ▼ de «Capas» y × de «Plantillas» del editor: iconos de Lucide (chevron-up, chevron-down, x) con el carácter de texto; misma área pulsable (D-175)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj4.jpg')]);
+    await abrirEditor('r1');
+    const masc = el => decodeURIComponent(W.getComputedStyle(el, '::before').webkitMaskImage || '');
+    const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; q('#mesa').append(caja);
+    try {
+      caja.innerHTML = '<div class="lb-cap"><span class="lb-capn">Texto</span><button type="button" data-lb="cap-up">▲</button><button type="button" data-lb="cap-dn" disabled>▼</button></div><div class="lb-tp" style="width:120px;height:90px"><button type="button" data-lb="tpl-del">×</button></div>';
+      const [up, dn] = caja.querySelectorAll('.lb-cap button'), x = caja.querySelector('.lb-tp button');
+      for (const [b, d, txt] of [[up, 'm18 15-6-6-6 6', '▲'], [dn, 'm6 9 6 6 6-6', '▼'], [x, 'M18 6 6 18', '×']]) {
+        const c = W.getComputedStyle(b), r = b.getBoundingClientRect();
+        ok(c.fontSize === '0px' && masc(b).includes(d) && b.textContent === txt, txt + ' sin su icono o sin su texto');
+        igual([r.width, r.height], [24, 24], 'el área pulsable de ' + txt);
+      }
+      igual(W.getComputedStyle(dn, '::before').backgroundColor, W.getComputedStyle(dn).color, '▼ desactivado no sigue su color');
+    } finally { caja.remove(); M.libre.cerrar(); }
+  });
+
+  prueba('AJ5', 'Sin petición de /favicon.ico en cada carga: un icono vacío en la página, sin icono visible (D-176)', async () => {
+    const html = await (await W.fetch('index.html', { cache: 'no-store' })).text();
+    ok(/<link rel="icon" href="data:,">/.test(html), 'index.html sin el icono vacío');
+  });
+
+  prueba('AJ6', 'Campos de los diálogos con letra de 13 px, como el resto (D-176)', async () => {
+    await tablero([pub(1)]);
+    const caja = D.createElement('div'); caja.className = 'form'; caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; q('#mesa').append(caja);
+    try {
+      caja.innerHTML = '<input type="text" value="Nombre"><input type="number" value="12">';
+      igual([...caja.querySelectorAll('input')].map(i => W.getComputedStyle(i).fontSize), ['13px', '13px'], 'la letra de los campos');
+      igual([...caja.querySelectorAll('input')].map(i => i.getBoundingClientRect().height), [32, 32], 'el alto de los campos (D-170)');
+    } finally { caja.remove(); }
+  });
+
+  prueba('AJ7', 'Foco de «N cambiadas», × de las pestañas de la bandeja, ▲▼× del diseñador y «?» del editor: el contorno de 2 px --focus a 2 px de D-171, sin ninguna regla que lo cambie (vigila; con Tab real ya era así en la 4.13) (D-176)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    await poner('r1', [await foto('aj7.jpg')]);
+    await abrirEditor('r1'); M.libre.cerrar();   // la hoja de libre.js
+    await conKitPrueba(async () => {   // y la de diseno.js, que entra al abrir el diseñador
+      await disenada('r2', [await foto('aj7b.jpg', 1080, 1350)], textos('AJ7', 'Portada'));
+      M.diseno.abrir('r2'); await hasta(() => M.diseno.abierto(), 6000, 'el diseñador abierto');
+      M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador');
+    });
+    const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; q('#mesa').append(caja);
+    try {
+      caja.innerHTML = '<div class="stats"><button type="button" class="c" data-act="cambios">2 cambiadas</button></div><span class="cptab"><button type="button" class="cpx">×</button></span><span class="dz-mv"><button type="button" data-dz="up">▲</button><button type="button" data-dz="down">▼</button><button type="button" data-dz="del">×</button></span><button type="button" class="lb-help">?</button>';
+      const els = [...caja.querySelectorAll('button')], reglas = [];
+      for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.selectorText && /:focus/.test(r.selectorText)) reglas.push(r); } }; ir(rs); }
+      const malas = [];
+      for (const r of reglas) for (const sel of r.selectorText.split(/,(?![^(]*\))/).map(x => x.trim())) {
+        if (!/:focus(-visible)?(?![-\w])/.test(sel) || /::/.test(sel)) continue;
+        const base = sel.replace(/:focus-visible|:focus(?![-\w])/g, ''); let m; try { m = els.filter(e => e.matches(base)); } catch (e) { continue; }
+        const o = ['outline', 'outline-width', 'outline-color', 'outline-style', 'outline-offset', 'box-shadow'].map(k => r.style.getPropertyValue(k)).join('|');
+        if (m.length && o !== '|||||' && !/^2px solid var\(--focus\)\|\|\|\|2px\|$/.test(o)) malas.push(sel + ' → ' + o);
+      }
+      igual(malas, [], 'reglas de foco que cambian el contorno de D-171');
+      const g = reglas.find(r => r.selectorText === '#mesa :focus-visible'); ok(g && g.style.outline === '2px solid var(--focus)' && g.style.outlineOffset === '2px', 'sin la regla general del foco');
+    } finally { caja.remove(); }
+  });
+
+  prueba('AJ8', '«Medidas exactas», como «Girar» (D-166): un doble clic en el campo elige el número entero y, al salir, el campo dice lo que tiene el elemento (un ancho por debajo del mínimo, décimas, vacío) (D-176)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj8.jpg')]);
+    await abrirEditor('r1');
+    try {
+      accion('cap', { id: 'r0' });
+      const sec = q('.lb-panel [data-pl="medidas"]'); ok(sec, 'sin la sección «Medidas exactas»');
+      if (!sec.classList.contains('on')) { q('.lb-panel [data-pl="medidas"] .lb-acc-h').click(); await espera(500); }
+      const campo = k => q(`.lb-panel input[data-lb="${k}"]`), f = () => lzeEl('r0');
+      const pon = (c, v) => { c.value = v; c.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      const sale = c => c.dispatchEvent(new W.FocusEvent('focusout', { bubbles: true }));   // sin ventana, Chrome no avisa del blur
+      for (const k of ['mx', 'man']) {
+        const c = campo(k); c.focus(); lzeDbl(c);
+        ok(D.execCommand('insertText', false, '7'), 'no se pudo teclear en ' + k);
+        igual(c.value, '7', 'doble clic y teclear 7 en ' + k);
+        sale(c);
+      }
+      const an = campo('man'); an.focus(); pon(an, '1');
+      igual(Math.round(f().w * 1080), 4, 'el ancho mínimo del elemento');
+      sale(an); igual(campo('man').value, '4', 'al salir, el campo dice el ancho que tiene');
+      const x = campo('mx'); x.focus(); pon(x, '12.7'); sale(x);
+      igual(campo('mx').value, '13', 'al salir, X en px enteros');
+      const an1 = campo('man'); an1.focus(); pon(an1, '100'); sale(an1); igual(campo('man').value, '100', 'un ancho de 100');
+      const an2 = campo('man'); an2.focus(); pon(an2, ''); sale(an2);   // vacío cuenta como 0, como en «Girar» (D-166)
+      igual([campo('man').value, Math.round(f().w * 1080)], ['4', 4], 'al salir del ancho vacío');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ9', 'Un ⌘Z pulsado mientras sale «Dibujando en el formato nuevo…» (cambio de tipo de una publicación hecha en el editor) espera y deshace el cambio entero; ⇧⌘Z lo rehace con la imagen en el formato nuevo (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    await poner('r1', [await foto('aj9.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const viva = M._in.S.slots.find(x => x.id === 'r1'); viva.ubicacion = '100000000000001'; viva.etiquetas = ['aj9.prueba']; M._in.changed();   // con ubicación y etiquetas (D-124, D-130): no se pierden
+    const fotos0 = slot('r1').photos.slice(), h0 = M._test.hist().undo, pers = () => [slot('r1').ubicacion, slot('r1').etiquetas];
+    ok(slot('r1').libre, 'sin la imagen del editor');
+    M._in.clearToasts();
+    M._test.setType('r1', 'Reel');
+    ok(/formato nuevo/.test(M.busyText || ''), 'no está dibujando al pulsar ⌘Z: ' + M.busyText);
+    tecla('z', { meta: true, code: 'KeyZ' });
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+    await espera(300);
+    igual([slot('r1').type, slot('r1').photos], ['Foto', fotos0], 'tras el ⌘Z: el tipo y la imagen de antes');
+    igual(M._test.hist().undo, h0, 'los pasos de ⌘Z tras deshacer');
+    igual(pers(), ['100000000000001', ['aj9.prueba']], 'la ubicación y las etiquetas tras el ⌘Z');
+    ok(!qa('.toasts .toast').some(t => /redibujad/.test(t.textContent)), 'sale el aviso del redibujo: ' + qa('.toasts .toast').map(t => t.textContent).join(' | '));
+    tecla('z', { meta: true, shift: true, code: 'KeyZ' }); await espera(150);
+    const s = slot('r1'), d = M.files[s.photos[0]];
+    igual([s.type, d && Math.round(d.h / d.w * 100)], ['Reel', 178], 'tras ⇧⌘Z: Reel con la imagen en 9:16');
+    igual(pers(), ['100000000000001', ['aj9.prueba']], 'la ubicación y las etiquetas tras ⇧⌘Z');
+    tecla('z', { meta: true, code: 'KeyZ' }); await espera(150);
+    igual([slot('r1').type, slot('r1').photos], ['Foto', fotos0], 'un ⌘Z más lo deshace otra vez');
+  });
+
+  prueba('AJ10', 'Un cambio hecho mientras sale «Dibujando en el formato nuevo…» y un ⌘Z: al terminar, ningún paso deja el tipo nuevo con la imagen en el formato viejo (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    await poner('r1', [await foto('aj10.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const fotos0 = slot('r1').photos.slice(), nota0 = slot('r1').note;
+    M._test.setType('r1', 'Reel');
+    ok(/formato nuevo/.test(M.busyText || ''), 'no está dibujando: ' + M.busyText);
+    M._test.setNote('r1', 'Cambiada mientras se dibuja'); M._in.changed();   // otro paso, a mitad del dibujo (setNote guarda con retraso)
+    tecla('z', { meta: true, code: 'KeyZ' });
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+    await espera(300);
+    const s = slot('r1'), d = M.files[s.photos[0]];
+    igual([s.type, s.note, d && Math.round(d.h / d.w * 100)], ['Reel', nota0, 178], 'el ⌘Z deshace la nota; el reel sigue con su imagen en 9:16');
+    tecla('z', { meta: true, code: 'KeyZ' }); await espera(150);
+    igual([slot('r1').type, slot('r1').photos], ['Foto', fotos0], 'otro ⌘Z deshace el cambio de tipo con su imagen');
+  });
+
+  prueba('AJ12', 'Un ⌘Z tras un redibujo en el formato nuevo no borra la ubicación ni las etiquetas de la publicación (pasaba desde D-124 y D-130) (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    await poner('r1', [await foto('aj12.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const viva = M._in.S.slots.find(x => x.id === 'r1'); viva.ubicacion = '100000000000002'; viva.etiquetas = ['aj12.prueba']; viva.colaboradores = ['aj12.colab']; M._in.changed();
+    const fotos0 = slot('r1').photos.slice(), pers = () => [slot('r1').ubicacion, slot('r1').etiquetas, slot('r1').colaboradores];
+    M._test.setType('r1', 'Reel');
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+    await espera(300);
+    tecla('z', { meta: true, code: 'KeyZ' }); await espera(150);
+    igual([slot('r1').type, slot('r1').photos], ['Foto', fotos0], 'un solo ⌘Z deshace el cambio de tipo con su imagen');
+    igual(pers(), ['100000000000002', ['aj12.prueba'], ['aj12.colab']], 'la ubicación, las etiquetas y los colaboradores tras el ⌘Z');
+  });
+
+  prueba('AJ13', '«En Notion: …» (fecha y tipo a la vez, un solo paso) con otro paso y un ⌘Z mientras se dibuja: el ⌘Z deja la publicación con su imagen en su formato (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    await poner('r1', [await foto('aj13.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    M._test.setType('r1', 'Reel');
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'el primer dibujo'); await espera(300);
+    M._in.setDate('r1', MES + '-05T12:00:00.000+01:00');
+    const nota0 = slot('r1').note;
+    M._in.openDetail('r1', 0);
+    try {
+      const pn = await hasta(() => q('.detail .pnot > .pnotx[data-slot]'), 4000, '«En Notion: …» en la ventana');
+      pn.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));   // vuelve a la fecha y al tipo de Notion (D-159)
+      ok(/formato nuevo/.test(M.busyText || '') && slot('r1').type === 'Foto', 'no está dibujando la Foto: ' + M.busyText + ' · ' + slot('r1').type);
+      M._test.setNote('r1', 'Cambiada mientras se dibuja'); M._in.changed();
+      tecla('z', { meta: true, code: 'KeyZ' });
+      await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+      await espera(300);
+      const s = slot('r1'), d = M.files[s.photos[0]];
+      igual([s.type, s.note, d && Math.round(d.h / d.w * 100)], ['Foto', nota0, 125], 'tras el ⌘Z: la Foto con su imagen en 4:5');
+    } finally { M._in.closeDetail(); }
+  });
+
+  prueba('AJ14', 'Una carpeta creada (o fotos que llegan) mientras sale «Dibujando en el formato nuevo…», luego otro paso y un ⌘Z: el reel sigue con su imagen en 9:16 (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    await poner('r1', [await foto('aj14.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const nota0 = slot('r1').note;
+    M._test.setType('r1', 'Reel');
+    ok(/formato nuevo/.test(M.busyText || ''), 'no está dibujando: ' + M.busyText);
+    const c = M.crearCarpeta('AJ14 carpeta'); ok(c && c.id, 'sin la carpeta: ' + json(c));   // no es un paso: entra en todos (D-069)
+    M._test.setNote('r1', 'Cambiada mientras se dibuja'); M._in.changed();
+    tecla('z', { meta: true, code: 'KeyZ' });
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
+    await espera(300);
+    const s = slot('r1'), d = M.files[s.photos[0]];
+    igual([s.type, s.note, d && Math.round(d.h / d.w * 100)], ['Reel', nota0, 178], 'tras el ⌘Z: la nota deshecha, el reel con su imagen en 9:16');
+  });
+
+  prueba('AJ15', 'Los pasos de antes del cambio de tipo no se tocan aunque tengan el mismo tipo y las mismas fotos (un reel que entonces no se redibujó) (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    await poner('r1', [await foto('aj15.jpg')]);
+    await abrirEditor('r1');
+    accion('add-txt');
+    await aplicarEditor();
+    const p0 = slot('r1').photos.slice(), rd = M.libre.redibujar;
+    M.libre.redibujar = null;   // sin redibujo, como con la subida a Notion o el diseñador en marcha
+    try { M._test.setType('r1', 'Reel'); } finally { M.libre.redibujar = rd; }
+    await espera(400);
+    igual([slot('r1').type, slot('r1').photos], ['Reel', p0], 'el reel sin redibujar');
+    M._test.setType('r1', 'Foto');
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'el segundo cambio'); await espera(400);
+    M._test.setType('r1', 'Reel');
+    await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'el dibujo'); await espera(400);
+    ok(slot('r1').photos[0] !== p0[0], 'no se redibujó en el formato nuevo');
+    tecla('z', { meta: true, code: 'KeyZ' }); await espera(200);
+    igual([slot('r1').type, slot('r1').photos], ['Foto', p0], 'el primer ⌘Z');
+    tecla('z', { meta: true, code: 'KeyZ' }); await espera(200);
+    igual([slot('r1').type, slot('r1').photos], ['Reel', p0], 'el segundo ⌘Z: el paso de antes, como era');
+  });
+
+  prueba('AJ11', 'Los ⌘Z que esperan a un dibujo no actúan sobre otro tablero: si se abre otro mientras tanto, se descartan (D-176)', async () => {
+    await tablero([pub(1, 'Foto')]);
+    let fin; const dibujo = new Promise(r => { fin = r; });
+    M._in.dibujoEspera('r1', dibujo, false);   // un dibujo de r1 que aún no ha terminado
+    try {
+      tecla('z', { meta: true, code: 'KeyZ' });   // espera a que termine
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(1, 'Foto')], past: [], force: true });
+      M._test.setNote('r1', 'Nota del otro tablero'); M._in.changed();
+      const h0 = M._test.hist().undo;
+      fin({ error: 'cambió mientras se dibujaba' }); await espera(50);
+      igual([slot('r1').note, M._test.hist().undo], ['Nota del otro tablero', h0], 'el ⌘Z que esperaba actuó en el otro tablero');
+      await M.open(`${CLIENTE}-${MES}`);
+      let fin2; M._in.dibujoEspera('r1', new Promise(r => { fin2 = r; }), false);   // otro dibujo del primer tablero que aún no termina…
+      await M.open(`${CLIENTE2}-${MES}`);
+      M._test.setNote('r1', 'Otra nota'); M._in.changed();
+      tecla('z', { meta: true, code: 'KeyZ' }); await espera(50);   // …y un ⌘Z en el otro: actúa allí, no se queda esperando
+      fin2({ error: 'fin' }); await espera(50);
+      igual(slot('r1').note, 'Nota del otro tablero', 'el ⌘Z en el tablero nuevo se quedó esperando al dibujo del otro');
+    } finally { fin({ error: 'fin' }); }
+  });
+
+  // ---------- parte B de los ajustes (D-177, D-178) ----------
+  prueba('AJ16', 'Panel del diseñador plegable como el del editor: una sección abierta a la vez (la primera vez «Texto», después la última, recordada), títulos de 21 px con su dato a la derecha, sin explicaciones a la vista (pasan al title) y «Restablecer ajustes» fuera, al final (D-177)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    W.localStorage.removeItem('mesa-dz-seccion');
+    const abiertas = () => qa('.dz .dz-panel > .dz-acc.on').map(s => s.dataset.sec), h = k => q(`.dz .dz-acc[data-sec="${k}"] .dz-acc-h`);
+    try {
+      await conKitPrueba(async () => {
+        await disenada('r1', [await foto('aj16a.jpg', 1080, 1350), await foto('aj16b.jpg', 1080, 1350)], textos('AJ16', 'Portada', 'Ficha'));
+        M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador con secciones plegables');
+        try {
+          igual(abiertas(), ['texto'], 'la abierta la primera vez');
+          const secs = qa('.dz .dz-panel > .dz-sec');
+          ok(secs.at(-1).dataset.sec === 'reset' && !secs.at(-1).classList.contains('dz-acc') && secs.slice(0, -1).every(x => x.classList.contains('dz-acc')), '«Restablecer ajustes» no queda fuera y al final: ' + secs.map(x => x.dataset.sec).join(','));
+          igual(W.getComputedStyle(h('texto')).fontSize, '21px', 'el tamaño del título');
+          h('pos').click(); igual([abiertas(), W.localStorage.getItem('mesa-dz-seccion')], [['pos'], 'pos'], 'abrir «Posición» cierra «Texto» y se recuerda');
+          h('pos').click(); igual([abiertas(), W.localStorage.getItem('mesa-dz-seccion')], [[], '-'], 'un clic en la abierta la cierra');
+          h('velo').click();
+          igual([q('.dz .dz-acc[data-sec="diseno"] .dz-acc-s').textContent, q('.dz .dz-acc[data-sec="tam"] .dz-acc-s').textContent], ['01 · portada', '100 %'], 'los datos de «Diseño» y del tamaño');
+          await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-acc[data-sec="velo"] .dz-acc-s').textContent), 4000, '«auto: N %» a la derecha de «Velo»');
+          ok(!/Intro = salto|vacío = el del kit|px, en todo el carrusel|desde la izquierda|desde la derecha|o suéltalas aquí|Elige la foto de esta diapositiva|9:16; en el perfil/.test(q('.dz .dz-panel').textContent), 'quedan explicaciones a la vista');
+          ok(/Intro = salto de línea/.test(q('.dz #dz-f-titulo').title) && /suéltalas/.test(q('.dz [data-dz="addfotos"]').title), 'las explicaciones no pasaron al title');
+        } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+        M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador otra vez');
+        try { igual(abiertas(), ['velo'], 'al volver a abrirlo, la última abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+      });
+    } finally { W.localStorage.removeItem('mesa-dz-seccion'); }
+  });
+
+  prueba('AJ22', 'El diseñador abre «Foto» cuando falta la foto de una diapositiva, también la de la portada (D-123), y «Texto» si la sección recordada no está en esa publicación (D-177)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    const abiertas = () => qa('.dz .dz-panel > .dz-acc.on').map(s => s.dataset.sec);
+    try {
+      await conKitPrueba(async () => {
+        await disenada('r1', [await foto('aj22a.jpg', 1080, 1350)], textos('AJ22', 'Portada', 'Ficha'), false);   // la ficha, sin foto
+        W.localStorage.setItem('mesa-dz-seccion', 'pos');
+        const r = await M.libre.abrir('r1', 0); ok(r && r.disenador, 'no abrió el diseñador: ' + json(r));
+        await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador');
+        try { igual(abiertas(), ['foto'], 'falta una foto: la sección abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
+        W.localStorage.setItem('mesa-dz-seccion', 'una-que-no-esta');
+        M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador otra vez');
+        try { igual(abiertas(), ['texto'], 'la recordada no está: «Texto»'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
+        await disenada('r2', [], textos('AJ22b', 'Portada'), false);   // la portada, sin foto: el diseñador ya está en ella
+        W.localStorage.setItem('mesa-dz-seccion', 'texto');
+        const r2 = await M.libre.abrir('r2', 0); ok(r2 && r2.disenador, 'no abrió el diseñador en la portada sin foto: ' + json(r2));
+        await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador en la portada');
+        try { igual(abiertas(), ['foto'], 'falta la foto de la portada: la sección abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
+      });
+    } finally { W.localStorage.removeItem('mesa-dz-seccion'); }
+  });
+
+  prueba('AJ17', '«Elegir foto» del editor: sin «· de esta publicación y de la bandeja» y sin plegar (D-177)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj17.jpg')]);
+    await abrirEditor('r1');
+    try {
+      accion('add'); await espera(50);
+      const h = q('.lb .lb-panel h4'); ok(h, 'sin el título de «Elegir foto»');
+      igual([h.textContent, !!q('.lb .lb-panel .lb-acc')], ['Añadir una foto', false], 'su título, sin plegar');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ18', '«+ Forma» del editor trae, tras Rectángulo, Círculo, Línea y Flecha, «Desliza →», «Comillas» y «Número en círculo» (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj18.jpg')]);
+    await abrirEditor('r1');
+    try {
+      accion('formas');
+      const m = await hasta(() => q('.lb .lb-cm:not([hidden]) [data-lb="add-forma"]') && q('.lb .lb-cm:not([hidden])'), 2000, 'el menú «+ Forma»');
+      igual([...m.querySelectorAll('[role=menuitem]')].map(b => b.firstChild.textContent.trim()), ['Rectángulo', 'Círculo', 'Línea', 'Flecha', 'Desliza →', 'Comillas', 'Número en círculo'], 'las entradas del menú');
+      tecla('Escape');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ19', '«Desliza →» (texto con píldora, abajo a la derecha dentro del margen) y «Comillas» («“» con la fuente del titular y el acento del kit, arriba a la izquierda): textos de siempre, con colores del kit (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj19.jpg')]);
+    await conKitPrueba(async () => {
+      await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      try {
+        const E = ed(), m = E.margen, { W, H } = tam(), cerca = (a, b) => Math.abs(a - b) < 0.003;
+        ok(m > 0 && E.kit, 'sin el kit de prueba');
+        accion('add-desliza');
+        const d = lzeEl(E.sel);
+        igual([d.t, d.txt, !!d.pil, d.al], ['texto', 'Desliza →', true, 'der'], '«Desliza →»');
+        ok(cerca(d.x + d.w, 1 - m) && cerca(d.y + d.h, 1 - m * W / H), `«Desliza →» no está abajo a la derecha, en el margen: ${json([d.x + d.w, d.y + d.h, 1 - m, 1 - m * W / H])}`);
+        ok(['#ffffff', '#000000'].includes(d.color) && ['#ffffff', '#000000'].includes(d.pil.c), 'colores de «Desliza →» fuera de los básicos: ' + json([d.color, d.pil]));
+        accion('add-comillas');
+        const c = lzeEl(E.sel), st = E.estilos.find(x => x.k === 'titular');
+        igual([c.t, c.txt, c.font && c.font.file, c.color, c.al], ['texto', '“', st && st.font.file, '#b2503a', 'izq'], 'las comillas: fuente del titular y acento del kit');
+        ok(cerca(c.x, m) && cerca(c.y, m * W / H), 'las comillas no están arriba a la izquierda, en el margen');
+      } finally { M.libre.cerrar(); }
+    });
+  });
+
+  prueba('AJ20', '«Número en círculo»: un círculo en el acento del kit y su número centrado encima, agrupados y elegidos juntos; ⌘Z los quita en un paso y ⌘C / ⌘V hace otra pareja con su propio grupo (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj20.jpg')]);
+    await conKitPrueba(async () => {
+      await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      try {
+        const els = () => compDe(ed().i).els, n0 = els().length;
+        accion('add-numc');
+        const [c, t] = els().slice(-2);
+        igual([c.t, c.forma, c.color, t.t, t.txt, !!c.g && c.g === t.g], ['forma', 'elipse', '#b2503a', 'texto', '1', true], 'el círculo y su número');
+        ok(Math.abs(t.y + t.h / 2 - (c.y + c.h / 2)) < 0.002 && Math.abs(t.x + t.w / 2 - (c.x + c.w / 2)) < 0.002, 'el número no está centrado en el círculo');
+        igual([ed().sel, ed().mas], [t.id, [c.id]], 'no quedan elegidos juntos');
+        tecla('z', { meta: true, code: 'KeyZ' }); igual(els().length, n0, '⌘Z no los quita juntos');
+        tecla('z', { meta: true, shift: true, code: 'KeyZ' }); igual(els().length, n0 + 2, '⇧⌘Z no los vuelve a poner');
+        const [c2, t2] = els().slice(-2); ed().sel = t2.id; ed().mas = [c2.id];
+        tecla('c', { meta: true, code: 'KeyC' }); tecla('v', { meta: true, code: 'KeyV' }); await espera(80);
+        const gs = [...new Set(els().filter(e => e.g).map(e => e.g))];
+        igual([els().length, gs.length, els().filter(e => e.g === gs[1]).map(e => e.t).sort()], [n0 + 4, 2, ['forma', 'texto']], 'pegar no hizo otra pareja con su grupo');
+        // el número se escribe como cualquier texto: un doble clic lo elige solo a él (un clic sigue eligiendo el grupo)
+        const tn = els().filter(e => e.t === 'texto' && e.g).at(-1), [x, y] = enLienzo(tn.x + tn.w / 2, tn.y + tn.h / 2);
+        ed().cv.dispatchEvent(new W.MouseEvent('dblclick', { clientX: x, clientY: y, bubbles: true, cancelable: true })); await espera(80);
+        igual([ed().sel, ed().mas], [tn.id, []], 'el doble clic en el número no lo deja solo a él');
+        const ta = q('.lb .lb-panel textarea[data-lb="txt"]'); ok(ta && D.activeElement === ta, 'sin el campo para escribir el número');
+        ta.value = '2'; ta.dispatchEvent(new W.Event('input', { bubbles: true }));
+        igual([lzeEl(tn.id).txt, els().filter(e => e.g && e.g === lzeEl(tn.id).g).length], ['2', 2], 'el número escrito, sin salir de su grupo');
+      } finally { M.libre.cerrar(); }
+    });
+  });
+
+  prueba('AJ21', 'Las tres piezas viajan: plantilla («Todo») a otra diapositiva, «Aplicar» a la casilla y exportar / importar, con sus textos, colores, píldora y grupo (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj21a.jpg'), await foto('aj21b.jpg')]);
+    const firma = els => { const gs = els.filter(e => e.g), par = gs.length === 2 && gs[0].g === gs[1].g;   // el círculo y su número, en el mismo grupo
+      return els.filter(e => e.txt === 'Desliza →' || e.txt === '“' || e.g).map(e => [e.t, e.forma || e.txt, e.color, e.pil ? e.pil.c : null, e.g ? (par ? 'g' : 'g suelto') : '']).sort((a, b) => json(a) < json(b) ? -1 : 1); };
+    let f0;
+    await conKitPrueba(async () => { try {
+      await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      accion('add-desliza'); accion('add-comillas'); accion('add-numc');
+      f0 = firma(compDe(0).els); igual(f0.length, 4, 'las cuatro piezas');
+      ed().sel = null; ed().mas = [];
+      const tp = await guardarPlant();
+      accion('sl', { i: 1 }); await hasta(() => ed().i === 1, 3000, 'la diapositiva 2');
+      aplicarPlant(tp, 'todo'); await hasta(() => firma(compDe(1).els).length, 4000, 'la plantilla en la diapositiva 2');
+      igual(firma(compDe(1).els), f0, 'la plantilla «Todo» no las lleva a la diapositiva 2');
+      const g1 = compDe(1).els.find(e => e.g), g0 = compDe(0).els.find(e => e.g); ok(g1.g !== g0.g, 'la plantilla comparte el grupo con la diapositiva 1');
+      await aplicarEditor();
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); } });
+    const enCasilla = () => { const s = slot('r1'); return Object.values((s.libre || {}).slides || {}).map(c => firma(c.els)); };
+    igual(enCasilla(), [f0, f0], 'no llegaron a la casilla con «Aplicar»');
+    await M.flush();
+    const blob = await M.exportAll({ returnBlob: true });
+    await sinMes(`${CLIENTE}-${MES}`);
+    const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(enCasilla(), [f0, f0], 'no volvieron igual al importar');
   });
 
   // ---------- las que cambian a propósito ----------

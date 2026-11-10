@@ -11121,6 +11121,28 @@
     igual(slot('r1').photos, fotos0, 'un ⌘Z más no la quitó');
   });
 
+  // ---------- revisión estética (D-168 a D-174) ----------
+  prueba('ES1', 'Iconos: un solo trazo visible (non-scaling, 1,33 px) en máscaras y SVG; Programado, Publicado y Cancelado con Lucide; separadores de la barra de pasos con icono; Por empezar, punto lleno sin aro (D-168)', async () => {
+    await tablero([pub(1), pub(2), pub(3), pub(4)]);
+    await hasta(() => M.calendario && q('.side > .cal .cleg .csep'), 4000, 'calendario.js');
+    await porAprobar(['r1', 'r2'], 'es1');
+    M.setEstado('r1', 'programado'); M.setEstado('r2', 'publicado'); M.setEstado('r3', 'cancelado');
+    await espera(80);
+    const raiz = W.getComputedStyle(q('#mesa'));
+    for (const k of ['x', 'updown', 'chev', 'check', 'cal', 'clock', 'back', 'chev-r']) ok(/non-scaling-stroke/.test(raiz.getPropertyValue('--i-' + k)) && /stroke-width='1\.33'/.test(raiz.getPropertyValue('--i-' + k)), '--i-' + k + ' sin la regla de trazo');
+    igual(raiz.getPropertyValue('--i-trazo').trim(), '1.33px', 'el trazo');
+    const ico = id => q(`.side > .cal .chip[data-slot="${id}"] .cl > i:first-child`);
+    const ds = id => [...ico(id).querySelectorAll('path:not(.h)')].map(p => p.getAttribute('d'));
+    igual([ds('r1'), ds('r2'), ds('r3')], [['M20 6 9 17l-5-5'], ['M18 6 7 17l-5-5', 'm22 10-7.5 7.5L13 16'], ['M18 6 6 18', 'm6 6 12 12']], 'los trazados de Lucide');
+    const p = W.getComputedStyle(ico('r1').querySelector('path:not(.h)'));
+    igual([p.vectorEffect, p.strokeWidth], ['non-scaling-stroke', '1.33px'], 'el trazo de la marca');
+    const sep = q('.side > .cal .cleg .csep');
+    igual([sep.textContent, W.getComputedStyle(sep).fontSize], ['›', '0px'], 'el separador sigue siendo «›» oculto');
+    ok(/url/.test(W.getComputedStyle(sep, '::before').webkitMaskImage), 'el separador no lleva el icono');
+    const e = W.getComputedStyle(q('.side > .cal .cleg .e-empezar'));
+    igual([e.boxShadow, e.backgroundColor], ['none', raiz.getPropertyValue('--st-empezar-aro').trim() === '#A39A90' ? 'rgb(163, 154, 144)' : e.backgroundColor], 'Por empezar con aro');
+  });
+
   // ---------- las que cambian a propósito ----------
   rehacer('H23', 'La nota se edita en la cabecera del editor, sin «Aplicar» y sin cambios por aplicar (sin pastilla); un paso de ⌘Z; la tarjeta sin diseño la enseña (D-066)', async () => {
     await tablero([pub(1, 'Foto', 5)]);

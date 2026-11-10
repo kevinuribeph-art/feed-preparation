@@ -2118,15 +2118,17 @@
 --ease:cubic-bezier(.22,1,.36,1);--d1:.12s;--d2:.2s;--ease-m:cubic-bezier(.32,.72,0,1);--d-m:.32s;
 /* los dos calendarios, el de las publicaciones (calendario.js) y el de la fecha (controles.js), con las mismas medidas (D-147) */
 --cx-r:var(--r-sm);--cx-gap:2px;--cx-wk-c:var(--mute);--cx-otro:var(--faint);--cx-hoy:inset 0 0 0 1px var(--line-strong);--cx-tit-fs:14px;--cx-tit-fw:800;--cx-tit-ls:-.015em;--cx-nav:30px;--cx-hov:var(--bg-2);--cx-casilla:var(--bg);
---i-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
+--i-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M18 6 6 18'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 6 12 12'/%3E%3C/svg%3E");
 --i-more:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='12' r='1.7'/%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3Ccircle cx='19' cy='12' r='1.7'/%3E%3C/svg%3E");
---i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 16l4 4l4-4m-4 4V4m14 4l-4-4l-4 4m4-4v16'/%3E%3C/svg%3E");
---chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E635A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
---i-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E");
---i-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
---i-cal:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
---i-clock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
---i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19l-7-7l7-7m7 7H5'/%3E%3C/svg%3E")}
+--i-updown:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m3 16 4 4 4-4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M7 20V4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m21 8-4-4-4 4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M17 4v16'/%3E%3C/svg%3E");
+--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E635A' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+--i-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+--i-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+--i-cal:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M8 2v4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M16 2v4'/%3E%3Crect vector-effect='non-scaling-stroke' width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M3 10h18'/%3E%3C/svg%3E");
+--i-clock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle vector-effect='non-scaling-stroke' cx='12' cy='12' r='10'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M12 6v6l4 2'/%3E%3C/svg%3E");
+--i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m12 19-7-7 7-7'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M19 12H5'/%3E%3C/svg%3E");
+--i-chev-r:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
+--i-trazo:1.33px}
 /* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
 :root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{color-scheme:dark;
 --bg:#15110E;--bg-2:#29221D;--bg-3:#352D26;--panel:#1E1915;--panel-2:#2F2822;
@@ -2137,6 +2139,7 @@
 --ok-on-ink:#2F7440;--cal-off:#1A1511;
 --ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--ty-past:#241E19;
 --st-empezar:#2A231E;--st-empezar-aro:#7A6F64;
+--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A89C8F' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 --franja:#EDE6DC;--cell-ph:#2E2620;--cell-past:#5E5650;
 --checker-a:#2E2722;--checker-b:#3A322B;--swatch-ring:rgba(255,255,255,.24);
 --knob:#EDE6DC;--sw-on:#B2503A;
@@ -2234,17 +2237,20 @@
 #mesa .mks .mk{position:relative;display:inline-flex;flex:none;width:10px;height:10px;pointer-events:auto;cursor:default}
 #mesa .mks .mk svg{width:100%;height:100%;overflow:visible}
 #mesa .mks .mk.edot{width:7px;height:7px;margin:0 1.5px;box-shadow:0 0 0 1.5px var(--on-photo)}
-#mesa .mks .eico .h{display:inline;stroke:var(--on-photo);stroke-width:4.4}
+#mesa .mks .eico .h{display:inline;stroke:var(--on-photo);stroke-width:calc(var(--i-trazo) + 2.27px)}
 #mesa .mk-cambios circle:nth-child(1){fill:var(--mk-aro)}#mesa .mk-cambios circle:nth-child(2){fill:var(--mk-disco)}#mesa .mk-cambios circle:nth-child(3){fill:var(--mk-punto)}
 #mesa .mks .mk[data-tip]::after{content:attr(data-tip);position:absolute;left:-3px;bottom:calc(100% + 6px);width:max-content;max-width:140px;padding:4px 7px;border-radius:var(--r-xs);background:var(--tip);color:var(--on-ink);font-size:10.5px;font-weight:500;line-height:1.3;font-style:normal;white-space:normal;opacity:0;visibility:hidden;pointer-events:none;z-index:4;transition:opacity .1s ease,visibility 0s linear .1s}
 #mesa .mks .mk[data-tip]:hover::after{opacity:1;visibility:visible;transition-delay:.3s,.3s}
 #mesa .phead p.lk{margin-top:4px;color:var(--acc-ink);font-size:12px}
 #mesa .badges{position:absolute;top:6px;left:6px;right:30px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:3;pointer-events:none}
 #mesa .edot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%}
-#mesa .e-empezar{background:var(--st-empezar);box-shadow:inset 0 0 0 1.5px var(--st-empezar-aro)}#mesa .e-captions{background:var(--st-captions)}#mesa .e-aprobar{background:var(--st-aprobar)}
+#mesa .e-empezar{background:var(--st-empezar-aro)}#mesa .e-captions{background:var(--st-captions)}#mesa .e-aprobar{background:var(--st-aprobar)}
 #mesa .e-noaprobado{background:var(--red)}#mesa .e-aprobado{background:var(--ok)}
 #mesa .eico{display:inline-flex;flex:none;width:10px;height:9px}#mesa .eico.e-cancelado{width:9px}
-#mesa .eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;overflow:visible}#mesa .eico .h{display:none}
+#mesa .eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;overflow:visible}#mesa .eico .h{display:none}
+/* one visible stroke for every line icon (D-168): the strokes don't scale with the icon, so 1.33 px at 10 px and at 26 px (the masks carry the same in their SVG) */
+#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.pmonth,.hv-pt,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) svg :is(path,circle,rect,line,polyline,polygon,ellipse){vector-effect:non-scaling-stroke}
+#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.pmonth,.hv-pt,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) :is(svg,svg *){stroke-width:var(--i-trazo)}
 #mesa .e-programado,#mesa .e-publicado{color:var(--ok)}#mesa .e-cancelado{color:var(--red)}
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
 #mesa .esmot{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 10px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out;box-sizing:border-box;width:210px;max-width:100%}
@@ -2979,11 +2985,12 @@
   }
   // the marks of the states (D-081): a dot, or a ✓ (Programado), two (Publicado) or ✕ (Cancelado); the same drawing in the
   // calendar, the post view and, for some, the grid. The white stroke (.h) is drawn only in the grid, over the photo.
-  const trazo = d => `<path class="h" d="${d}"/><path d="${d}"/>`;
+  // Lucide check, check-check and x (D-168), cut to their drawing; the white strokes (.h) go first so they never cover a stroke
+  const trazo = (...ds) => ds.map(d => `<path class="h" d="${d}"/>`).join('') + ds.map(d => `<path d="${d}"/>`).join('');
   const SVG_EST = {
-    programado: `<svg viewBox="0 0 12 10" aria-hidden="true">${trazo('M1.6 5.3l2.9 2.9 6-6.4')}</svg>`,
-    publicado: `<svg viewBox="0 0 12 10" aria-hidden="true">${trazo('M.9 5.4l2.6 2.6 5-5.8')}${trazo('M4.9 6.6l1.4 1.4 5-5.8')}</svg>`,
-    cancelado: `<svg viewBox="0 0 10 10" aria-hidden="true">${trazo('M2.2 2.2l5.6 5.6M7.8 2.2L2.2 7.8')}</svg>`
+    programado: `<svg viewBox="3 5 18 13" aria-hidden="true">${trazo('M20 6 9 17l-5-5')}</svg>`,
+    publicado: `<svg viewBox="1 5 22 13.5" aria-hidden="true">${trazo('M18 6 7 17l-5-5', 'm22 10-7.5 7.5L13 16')}</svg>`,
+    cancelado: `<svg viewBox="3 3 18 18" aria-hidden="true">${trazo('M18 6 6 18', 'm6 6 12 12')}</svg>`
   };
   const estIco = (e, at = '') => SVG_EST[e] ? `<i class="eico e-${e}"${at}>${SVG_EST[e]}</i>` : `<i class="edot e-${e}"${at}></i>`;
   // the mark of changes since the last upload: a yellow ring, a blue disc and a red dot, the size of the old date dot

@@ -18,8 +18,10 @@
 //            may (capitals); h follows the text; num ({f: 'a'|'b'|'c'}: automatic numbering, txt is its number for the slide's
 //            place, NUMF; never on the cover), pil ({c}: a pill behind the text, padded, its box's height)
 //   'logo':  src (a client's logo or sticker: protected file 'kit-<cliente>-logo-…'), fx, fy
-//   'forma': forma ('rect'|'elipse'|'linea'|'flecha'), color, r, b, bc; a line or an arrow: trazo (null: continuous|'disc'|
-//            'punt'), puntas (an arrow: 'der'|'izq'|'dos'), its stroke h·H / TRAZO[forma] (an arrow's box is its heads' width)
+//   'forma': forma ('rect'|'elipse'|'linea'|'flecha'|'progreso'|'si'|'no'), color, r, b, bc; a line or an arrow: trazo (null:
+//            continuous|'disc'|'punt'), puntas (an arrow: 'der'|'izq'|'dos'), its stroke h·H / TRAZO[forma] (an arrow's box is its
+//            heads' width); a progress bar (1.60): pa ([its place, the slides]: the part done, as the numbering; [0, n] on the
+//            cover, where it is not drawn); a check or an x ('si' / 'no', 1.60): gt (its stroke, px of 1080)
 //   'hueco': a free photo hole (v1.9): color (its fill, null: none, the background shows), b, bc, r (as 'forma'), textos
 //            ([texto el]: its label and guide text, x, y, w, h fractions of the hole's area, size of the slide's width)
 //   a 'foto' that filled a hole carries it: hueco (the 'hueco' element or the empty frame as it was; deleting the photo gives it back)
@@ -104,7 +106,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.60';   // 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -166,10 +168,16 @@
   const numTxt = (e, i, n) => i ? (NUMF[e.num.f] || NUMF.a)(i + 1, n) : '';
   const NUM_RE = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;   // a text written by hand like «02 / 11»: offered to become one (not a date like «28/10»)
   const numAMano = t => { const m = NUM_RE.exec(String(t || '')); return !!m && +m[1] >= 1 && +m[1] <= +m[2] && +m[2] >= 2 && +m[2] <= 20; };
-  const numViejo = (comp, i, n) => !!comp && comp.els.some(e => e.t === 'texto' && e.num && e.txt !== numTxt(e, i, n));
-  function numerar(comp, i, n, W, H) {   // slide i of n: its numbered texts to its place; true if one changed
+  // a progress bar (D-179) is that place too: pa = [its place, the slides], [0, n] on the cover (not drawn there)
+  const esBarra = e => e.t === 'forma' && e.forma === 'progreso';
+  const paVieja = (e, i, n) => !Array.isArray(e.pa) || (i ? e.pa[0] !== i + 1 || e.pa[1] !== n : e.pa[0] !== 0);   // on the cover only its place counts: nothing is drawn
+  const numViejo = (comp, i, n) => !!comp && comp.els.some(e => (e.t === 'texto' && e.num && e.txt !== numTxt(e, i, n)) || (esBarra(e) && paVieja(e, i, n)));
+  function numerar(comp, i, n, W, H) {   // slide i of n: its numbered texts and progress bars to its place; true if one changed
     let c = false;
-    for (const e of comp.els) if (e.t === 'texto' && e.num) { const t = numTxt(e, i, n); if (e.txt !== t) { e.txt = t; ajustarTexto(e, W, H); c = true; } }
+    for (const e of comp.els) {
+      if (e.t === 'texto' && e.num) { const t = numTxt(e, i, n); if (e.txt !== t) { e.txt = t; ajustarTexto(e, W, H); c = true; } }
+      else if (esBarra(e) && paVieja(e, i, n)) { e.pa = [i ? i + 1 : 0, n]; c = true; }
+    }
     return c;
   }
 
@@ -488,6 +496,21 @@
     if (el.rot) ctx.rotate(el.rot * Math.PI / 180);
     ctx.globalAlpha *= el.op ?? 1;
     if (TRAZO[el.forma]) { if (el.sh > 0) sombra(ctx, el, W, k); trazo(ctx, el, fw, fh); ctx.fillStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.fill(); ctx.restore(); return; }
+    if (el.forma === 'progreso') {   // its track, its colour at 30 %, and the part done, its place among the slides (D-179)
+      const p = Array.isArray(el.pa) ? el.pa : [0, 1], f = p[0] && p[1] ? Math.max(0, Math.min(1, p[0] / p[1])) : 0, c = hexOk(el.color) ? el.color : '#ffffff';
+      if (!f && FUERA) { ctx.restore(); return; }   // the cover never shows it; in the editor, only its track
+      const rr = Math.max(0, Math.min(1, el.r ?? 1)) * Math.min(fw, fh) / 2, pista = () => pathRR(ctx, -fw / 2, -fh / 2, fw, fh, rr);
+      ctx.save(); if (el.sh > 0) sombra(ctx, el, W, k); ctx.globalAlpha *= 0.3; pista(); ctx.fillStyle = c; ctx.fill(); ctx.restore();
+      if (f) { ctx.save(); pista(); ctx.clip(); pathRR(ctx, -fw / 2, -fh / 2, fw * f, fh, rr); ctx.fillStyle = c; ctx.fill(); ctx.restore(); }
+      ctx.restore(); return;
+    }
+    if (el.forma === 'si' || el.forma === 'no') {   // Lucide's check and x, of the box's short side, with its stroke (px of 1080) and round ends (D-179)
+      const u = Math.min(fw, fh) / 24; ctx.beginPath();
+      if (el.forma === 'si') { ctx.moveTo(8 * u, -6 * u); ctx.lineTo(-3 * u, 5 * u); ctx.lineTo(-8 * u, 0); }
+      else { ctx.moveTo(6 * u, -6 * u); ctx.lineTo(-6 * u, 6 * u); ctx.moveTo(-6 * u, -6 * u); ctx.lineTo(6 * u, 6 * u); }
+      if (el.sh > 0) sombra(ctx, el, W, k); ctx.lineWidth = (el.gt > 0 ? el.gt : 11) * W / 1080; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.stroke(); ctx.restore(); return;
+    }
     const path = () => { if (el.forma === 'elipse') { ctx.beginPath(); ctx.ellipse(0, 0, fw / 2, fh / 2, 0, 0, Math.PI * 2); } else pathRR(ctx, -fw / 2, -fh / 2, fw, fh, el.forma === 'linea' ? 0 : (el.r || 0) * Math.min(fw, fh) / 2); };
     ctx.save(); if (el.sh > 0) sombra(ctx, el, W, k); path(); ctx.fillStyle = hexOk(el.color) ? el.color : '#ffffff'; ctx.fill(); ctx.restore();
     if (el.b > 0 && el.forma !== 'linea') { path(); ctx.save(); ctx.clip(); ctx.lineWidth = el.b * W * 2; ctx.strokeStyle = hexOk(el.bc) ? el.bc : '#000000'; ctx.stroke(); ctx.restore(); }
@@ -597,6 +620,11 @@
   function fotoEl(src, c) { return { id: uid(), t: 'foto', src, x: 0, y: 0, w: 1, h: 1, cx: c ? c.cx ?? 0.5 : 0.5, cy: c ? c.cy ?? 0.5 : 0.5, z: c ? c.z || 1 : 1, ...base, fx: false, fy: false, b: 0, bc: '#ffffff', r: 0 }; }
   function textoEl(color) { const f = (E.fuentes && E.fuentes[0]) || FUENTES_MAC[0]; return { id: uid(), t: 'texto', txt: 'Escribe aquí', x: 0.1, y: 0.42, w: 0.8, h: 0.1, ...base, font: { n: f.n, ...(f.file ? { file: f.file, w: f.w } : { css: f.css }) }, peso: 400, size: 0.075, color, al: 'cen', lh: 1.15, ls: 0, may: false }; }
   function formaEl(forma, W, H) {
+    if (forma === 'progreso') {   // 8 px of 1080 high, between the kit's margins, at the bottom, in its accent (D-179)
+      const m = margen(), h = 8 * W / 1080 / H;
+      return { id: uid(), t: 'forma', forma, x: r4(m), y: r4(1 - m * W / H - h), w: r4(1 - 2 * m), h: r4(h), ...base, color: acento() || contraste(), r: 1, b: 0, bc: '#000000', pa: [E.i ? E.i + 1 : 0, E.sl.length] };
+    }
+    if (forma === 'si' || forma === 'no') { const s = 0.12 * W; return { id: uid(), t: 'forma', forma, x: r4((W - s) / 2 / W), y: r4((H - s) / 2 / H), w: 0.12, h: r4(s / H), ...base, color: contraste(), r: 0, b: 0, bc: '#000000', gt: 11 }; }
     const s = 0.4 * W;
     if (TRAZO[forma]) { const h = 6 * TRAZO[forma] / H; return { id: uid(), t: 'forma', forma, x: 0.15, y: r4(0.5 - h / 2), w: 0.7, h: r4(h), ...base, color: '#ffffff', r: 0, b: 0, bc: '#000000', ...(forma === 'flecha' ? { puntas: 'der' } : {}) }; }   // a stroke of 6 px (of 1440)
     return { id: uid(), t: 'forma', forma, x: r4((W - s) / 2 / W), y: r4((H - s * (forma === 'rect' ? 0.6 : 1)) / 2 / H), w: 0.4, h: r4(s * (forma === 'rect' ? 0.6 : 1) / H), ...base, color: '#ffffff', r: 0, b: 0, bc: '#000000' };
@@ -1458,7 +1486,8 @@
   // ---------- geometry (slide units: OUT_W wide) ----------
   const HANDLES = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
   function asas(el, g) {           // a logo only scales; a text scales from the corners and changes its width from the sides; a line only stretches
-    if (el.t === 'forma' && TRAZO[el.forma]) return HANDLES.filter(([a, b]) => a && !b);
+    if (el.t === 'forma' && (TRAZO[el.forma] || el.forma === 'progreso')) return HANDLES.filter(([a, b]) => a && !b);   // a bar: its height in «Medidas exactas»
+    if (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) return HANDLES.filter(([a, b]) => a && b);
     const big = Math.min(g.w, g.h) * E.k >= 46;
     return HANDLES.filter(([a, b]) => el.t === 'logo' ? a && b : el.t === 'texto' ? a && (b || g.w * E.k >= 46) : (a && b) || big);
   }
@@ -1743,7 +1772,7 @@
   // change does not undo another): back in that proportion each one is exactly as it was, and a round trip through any
   // other changes nothing. One resized or restyled since (p no longer matches) gets its origin from where it is now, that
   // change undone (alOrigen); one added since takes its place now as its origin. The others are not touched.
-  const SITIO = ['x', 'y', 'w', 'h', 'size', 'b'];
+  const SITIO = ['x', 'y', 'w', 'h', 'size', 'b', 'gt'];
   function sitio(e) { const o = {}; SITIO.forEach(k => { if (e[k] != null) o[k] = e[k]; }); if (e.t === 'hueco') o.ts = (e.textos || []).map(t => t.size); return o; }
   function ponerSitio(e, o) { SITIO.forEach(k => { if (o[k] != null) e[k] = o[k]; }); if (o.ts) (e.textos || []).forEach((t, n) => { if (o.ts[n] != null) t.size = o.ts[n]; }); return e; }
   const puesto = e => { const o = sitio(e); if (e.t === 'texto') delete o.h; return JSON.stringify(o); };   // a text's height follows its font
@@ -1767,6 +1796,7 @@
     Object.assign(g, { x: r4((e.x * W - bx) / ax / W), w: r4(e.w / ax), y: r4((e.y * H - cy) / k / Ho), h: r4(e.h * H / k / Ho) });
     if (g.size != null) g.size = r4(g.size / k);
     if (g.b) g.b = r4(g.b / k);
+    if (g.gt) g.gt = r4(g.gt / k);
     if (g.ts) g.ts = g.ts.map(v => r4((v || 0.06) / k));
     return g;
   }
@@ -1819,6 +1849,7 @@
       Object.assign(e, { y: r4(Y[q.zy](e.y * H0) / H1), h: r4(e.h * H0 * k / H1) });
       if (e.t === 'texto') e.size = r4((e.size || 0.06) * k);
       if ((e.t === 'forma' || e.t === 'hueco') && e.b) e.b = r4(e.b * k);
+      if (e.t === 'forma' && e.gt > 0) e.gt = r4(e.gt * k);   // a check's or an x's stroke, as a border
       if (e.t === 'hueco') (e.textos || []).forEach(t => { t.size = r4((t.size || 0.06) * k); });
     }
     return hecho;
@@ -1913,7 +1944,7 @@
       const g0 = geo(d.el0, W, H), cen = e.altKey, f = cen ? 2 : 1;   // ⌥: from the centre, the opposite side (or the four) moving too
       const A = cen ? { x: g0.cx, y: g0.cy } : world(g0, { x: -d.hx * g0.w / 2, y: -d.hy * g0.h / 2 }), ga = { ...g0, cx: A.x, cy: A.y }, l = local(ga, p), MIN = 0.03 * W;
       let w = g0.w, h = g0.h, eje = 'x';
-      const prop = el.t === 'logo' || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
+      const prop = el.t === 'logo' || (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
       if (prop) { const s = f * (l.x * d.hx * g0.w + l.y * d.hy * g0.h) / (g0.w * g0.w + g0.h * g0.h); w = g0.w * s; h = g0.h * s; if (w < MIN || h < MIN) { const k = MIN / Math.min(g0.w, g0.h); w = g0.w * k; h = g0.h * k; } }
       else { if (d.hx) w = Math.max(MIN, f * l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, f * l.y * d.hy); delete el.rat; }   // a side: the frame is cropped, its format is no longer the one chosen
       if (mag && !el.rot) {           // the edges being dragged stick to the lines (slide, margin, guides, elements) or take another element's width or height
@@ -2168,10 +2199,11 @@
     abrirCm(itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
       + itCm('add-txt', 'Añadir texto', 'T', hay) + itCm('add-forma', 'Añadir forma', 'R', hay, 'rect'), 'gris', 'Fuera de la diapositiva', e.clientX, e.clientY);
   }
-  function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, and «Desliza →», Comillas and «Número en círculo» (D-178), under the button
-    const r = b.getBoundingClientRect();
+  function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, «Desliza →» (D-178), «Barra de progreso» (D-179, off on the cover and
+    const r = b.getBoundingClientRect();   // outside a carousel), Comillas (D-178), Visto and Aspa (D-179), «Número en círculo» (D-178), under the button
     abrirCm(Object.entries(FORMAS).map(([v, l]) => itCm('add-forma', l, v === 'rect' ? 'R' : '', true, v)).join('')
-      + itCm('add-desliza', 'Desliza →', '', true) + itCm('add-comillas', 'Comillas', '', true) + itCm('add-numc', 'Número en círculo', '', true), 'formas', 'Formas', r.left, r.bottom + 4);
+      + itCm('add-desliza', 'Desliza →', '', true) + itCm('add-forma', 'Barra de progreso', '', E.car && E.i > 0, 'progreso') + itCm('add-comillas', 'Comillas', '', true)
+      + itCm('add-forma', 'Visto', '', true, 'si') + itCm('add-forma', 'Aspa', '', true, 'no') + itCm('add-numc', 'Número en círculo', '', true), 'formas', 'Formas', r.left, r.bottom + 4);
     b.setAttribute('aria-expanded', 'true');
   }
   function menuCtx(on) {
@@ -2182,11 +2214,11 @@
   }
 
   // ---------- a double click on a bar's row puts it back (Mesa más limpia) ----------
-  // Opacidad 100 %, Sombra, Borde, Esquinas and Margen 0, Grosor 4,5 px (a new line's), the veil's 35 % and 60 %, the
+  // Opacidad 100 %, Sombra, Borde, Esquinas and Margen 0, Grosor 4,5 px (a new line's) or 11 px (a check's or an x's), the veil's 35 % and 60 %, the
   // texture's 35 %, Separación 2 % (a new veil's, texture's, grid's); «Ángulo» 0°; reframing, «Zoom»: centred at 1×; a text's
   // Tamaño, Interlineado and Espaciado: what it had when the editor opened (a text made since: when it was made). One step of
   // ⌘Z with the click before it (it already moved the bar); none if nothing changed.
-  const DEF = { op: 1, sh: 0, b: 0, r: 0, fit: 0, gr: 4.5, 'velo-op': 0.35, 'velo-alc': 0.6, 'tex-op': 0.35, gap: 0.02 };
+  const DEF = { op: 1, sh: 0, b: 0, r: 0, fit: 0, gr: 4.5, gt: 11, 'velo-op': 0.35, 'velo-alc': 0.6, 'tex-op': 0.35, gap: 0.02 };
   function recordarTextos(nuevo) {  // each text's size, line height and spacing the first time it is seen: at opening, or once made
     if (!E) return; if (!E.orig) E.orig = new Map();
     E.sl.forEach(x => { const c = x.comp || x.raw; if (c) c.els.forEach(e => { if (e.t === 'texto' && !E.orig.has(e.id)) E.orig.set(e.id, { size: e.size, lh: e.lh, ls: e.ls, nuevo: !!nuevo }); }); });
@@ -2230,9 +2262,9 @@
 
   // ---------- the panel ----------
   const pxf = v => Math.round(v) + ' px';
-  const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2), gr: v => String(Math.round(v * 2) / 2).replace('.', ',') + ' px' };
+  const OUTF = { 'velo-op': pct, 'velo-alc': pct, 'tex-op': pct, b: v => (v * 100).toFixed(1) + ' %', r: pct, sh: pct, op: pct, z: v => (+v).toFixed(2) + '×', fit: pct, gap: v => (v * 100).toFixed(1) + ' %', size: v => pxf(v * 1080), lh: v => (+v).toFixed(2), ls: v => (+v).toFixed(2), gr: v => String(Math.round(v * 2) / 2).replace('.', ',') + ' px', gt: v => String(Math.round(v * 2) / 2).replace('.', ',') + ' px' };
   // a double click on a bar's row (its label, the bar or the figure) puts it back: what it goes back to, in its title
-  const DBL = { op: '100 %', sh: 'sin sombra', b: 'sin borde', r: 'sin redondear', fit: '0 %, la foto entera', gr: '4,5 px', 'velo-op': '35 %', 'velo-alc': '60 %', 'tex-op': '35 %', gap: '2 %', z: 'centrada, al 1×' };
+  const DBL = { op: '100 %', sh: 'sin sombra', b: 'sin borde', r: 'sin redondear', fit: '0 %, la foto entera', gr: '4,5 px', gt: '11 px', 'velo-op': '35 %', 'velo-alc': '60 %', 'tex-op': '35 %', gap: '2 %', z: 'centrada, al 1×' };
   const rng = (act, label, v, min, max, step, mix, dbl = DBL[act]) => `<label class="lb-rng${mix ? ' lb-mix' : ''}"${dbl ? ` title="${label} · doble clic: ${dbl}"` : ''}><span>${label}</span><input type="range" data-lb="${act}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${mix ? 'Varios' : OUTF[act](v)}</output></label>`;
   const USO = { bg: 'fondo', tc: 'texto', fc: 'relleno', pc: 'relleno', bc: 'borde', 'velo-c': 'velo', lc: 'texto' };
   function sws(act, curC, orig) {  // «Kit <marca>» (its groups for this picker) and «Básicos»; a colour shows once, where it first appears; orig: no colour is a choice («Original»)
@@ -2257,10 +2289,11 @@
     return out;
   }
   const NOMBRE = { foto: 'Foto', texto: 'Texto', logo: 'Logo', forma: 'Forma' };
-  const FORMAS = { rect: 'Rectángulo', elipse: 'Círculo', linea: 'Línea', flecha: 'Flecha' };
+  const FORMAS = { rect: 'Rectángulo', elipse: 'Círculo', linea: 'Línea', flecha: 'Flecha' }, FORMAS2 = { progreso: 'Barra de progreso', si: 'Visto', no: 'Aspa' };
+  const nombreForma = e => FORMAS[e.forma] || FORMAS2[e.forma] || 'Forma', enPortada = e => e.forma === 'progreso' && !(Array.isArray(e.pa) && e.pa[0]);
   function nombreEl(e) {
     if (e.t === 'texto') { const t = String(e.txt || '').replace(/\s+/g, ' ').trim(); return `${e.num ? 'Numeración' : e.pil ? 'Píldora' : 'Texto'} <i>${e.num && !t ? 'oculta en la portada' : `«${esc(t.length > 24 ? t.slice(0, 23) + '…' : t || 'vacío')}»`}</i>`; }
-    if (e.t === 'forma') return FORMAS[e.forma] || 'Forma';
+    if (e.t === 'forma') return nombreForma(e) + (enPortada(e) ? ' <i>oculta en la portada</i>' : '');
     if (e.t === 'hueco') return 'Hueco de foto';
     if (e.t === 'logo') return `Logo <i>${esc((M.files[e.src] || {}).name || '')}</i>`;
     return `Foto <i>${esc(e.src ? (M.files[e.src] || {}).name || '' : 'hueco vacío')}</i>`;
@@ -2421,8 +2454,12 @@
         h += plegable('el', 'Hueco de foto', '', '<div class="lb-btns"><button type="button" class="btn" data-lb="rep">Elegir foto</button></div>'
           + '<p class="lb-p">Suelta aquí una foto (de la bandeja o del ordenador) o elígela: entra en su capa y, con su misma orientación, lo rellena; si no, te pregunta cómo. Si luego la borras, el hueco vuelve.</p>');
       } else {
-        const tr = TRAZO[el.forma];
-        h += plegable('el', FORMAS[el.forma] || 'Forma', '', `<span class="lb-l" style="margin-top:0">${tr ? 'Color' : 'Relleno'}</span>${sws('fc', el.color || '#ffffff')}`
+        const tr = TRAZO[el.forma], sn = el.forma === 'si' || el.forma === 'no';
+        if (el.forma === 'progreso') h += plegable('el', 'Barra de progreso', enPortada(el) ? 'oculta en la portada' : '', `<span class="lb-l" style="margin-top:0">Color</span>${sws('fc', el.color || '#ffffff')}`
+          + rng('r', 'Esquinas', el.r ?? 1, 0, 1, 0.01) + rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01));
+        else if (sn) h += plegable('el', nombreForma(el), '', `<span class="lb-l" style="margin-top:0">Color</span>${sws('fc', el.color || '#ffffff')}`
+          + rng('gt', 'Grosor', el.gt > 0 ? el.gt : 11, 2, 40, 0.5) + `<span class="lb-l">Símbolo</span>${seg('visto', [['si', 'Visto'], ['no', 'Aspa']], el.forma)}` + rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01));
+        else h += plegable('el', nombreForma(el), '', `<span class="lb-l" style="margin-top:0">${tr ? 'Color' : 'Relleno'}</span>${sws('fc', el.color || '#ffffff')}`
           + (tr ? rng('gr', 'Grosor', grosor(el), 1, 60, 0.5) + `<span class="lb-l">Trazo</span>${seg('trazo', [['', 'Continuo'], ['disc', 'Discontinuo'], ['punt', 'Punteado']], el.trazo || '')}`
               + (el.forma === 'flecha' ? `<span class="lb-l">Puntas</span>${seg('puntas', [['der', 'Una →'], ['izq', 'Una ←'], ['dos', 'Las dos ↔']], el.puntas || 'der')}` : '')
             : `${rng('b', 'Borde', el.b || 0, 0, 0.03, 0.0005)}<span class="lb-l">Color del borde</span>${sws('bc', el.bc || '#000000')}`)
@@ -2433,7 +2470,7 @@
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
-      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add"><span class="i-mas">+</span> Foto</button><button type="button" class="btn2" data-lb="add-txt"><span class="i-mas">+</span> Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea, flecha, «Desliza →», comillas o número en círculo"><span class="i-mas">+</span> Forma</button><button type="button" class="btn2" data-lb="add-pil"><span class="i-mas">+</span> Píldora</button>`
+      h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add"><span class="i-mas">+</span> Foto</button><button type="button" class="btn2" data-lb="add-txt"><span class="i-mas">+</span> Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea, flecha, «Desliza →», barra de progreso, comillas, visto, aspa o número en círculo"><span class="i-mas">+</span> Forma</button><button type="button" class="btn2" data-lb="add-pil"><span class="i-mas">+</span> Píldora</button>`
         + (!isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
         + '</div>';
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
@@ -2811,6 +2848,7 @@
       case 'pc': onEl(el => { if (el.t === 'texto' && el.pil) el.pil.c = col(); }, 'pc'); return;
       case 'trazo': onEl(el => { if (el.t !== 'forma' || !TRAZO[el.forma]) return; if (b.dataset.v) el.trazo = b.dataset.v; else delete el.trazo; }); return;
       case 'puntas': onEl(el => { if (el.t === 'forma' && el.forma === 'flecha') el.puntas = b.dataset.v; }); return;
+      case 'visto': onEl(el => { if (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) el.forma = b.dataset.v; }); return;
       case 'add-est': { const el = textoMarca(b.dataset.v); if (el) nuevo(el); return; }
       case 'est': { const st = E.estilos.find(q => q.k === b.dataset.v); if (st) onEl(el => { if (el.t === 'texto') conEstilo(el, st); }); return; }
       case 'logo': if (M.files[b.dataset.f]) nuevo(logoEl(b.dataset.f, E.sz.W, E.sz.H)); return;
@@ -2921,6 +2959,7 @@
       case 'gap': if (!c0.rej || fotosDe(c0).length !== cells(c0.rej.n, 1, 1, 0).length) { E.gap = v; if (c0.rej) mut('gap', () => { ensure().rej.g = v; }, true); return; } mut('gap', () => separar(ensure(), v), true); return;
       case 'b': onEl(el => { el.b = v; }, 'b', true); return;
       case 'r': onEl(el => { el.r = v; }, 'r', true); return;
+      case 'gt': onEl(el => { if (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) el.gt = v; }, 'gt', true); return;
       case 'sh': onEl(el => { el.sh = v; }, 'sh', true); return;
       case 'op': onEl(el => { el.op = v; }, 'op', true); return;
       case 'fan': if (v >= 4) onEl(el => { if (el.t !== 'foto' || el.lock) return; const k = v / 1080 / el.w; el.w = r4(v / 1080); el.h = r4(el.h * k); delete el.fit; if (el.src) setPhoto(el, {}); }, 'fan', true); return;

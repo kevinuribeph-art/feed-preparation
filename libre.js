@@ -104,7 +104,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.59';   // 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -605,6 +605,27 @@
     const c = compAt(E.i), { W, H } = sizeAt(E.i), claro = fotosDe(c).length > 0 || lum(hexOk(c.bg) ? c.bg : '#ffffff') < 0.4;
     const el = Object.assign(textoEl(claro ? '#000000' : '#ffffff'), { txt: 'Etiqueta', size: 0.035, x: 0.3, w: 0.4, pil: { c: claro ? '#ffffff' : '#000000' } });
     ajustarTexto(el, W, H); el.y = r4(0.5 - el.h / 2); return el;
+  }
+  // D-178: three pieces made of what the editor already draws (texts, the pill, a circle, a group): nothing new is saved.
+  // Colours only the kit's (D-016): its «Acentos» group's first, or white or black, whichever reads on the slide.
+  const acento = () => { const g = (E.kit ? E.kit.grupos : []).find(q => /acento/i.test(q.n)); return g && g.cols[0] ? g.cols[0].c : null; };
+  const contraste = () => { const c = compAt(E.i); return fotosDe(c).length > 0 || lum(hexOk(c.bg) ? c.bg : '#ffffff') < 0.4 ? '#ffffff' : '#000000'; };
+  const margen = () => E.margen || 72 / 1080;   // the kit's margin, a fraction of the width
+  function deslizaEl() {   // «Desliza →» for a cover: a text with its pill, at the bottom right inside the margin (it can say «Swipe →»)
+    const { W, H } = sizeAt(E.i), m = margen(), el = pildoraEl(); Object.assign(el, { txt: 'Desliza →', size: 0.03, w: 0.32, al: 'der' }); ajustarTexto(el, W, H);
+    el.x = r4(1 - m - el.w); el.y = r4(1 - m * W / H - el.h); return el;
+  }
+  function comillasEl() {   // big quotes for a quote or a review: the kit's headline font, in its accent, at the top left
+    const { W, H } = sizeAt(E.i), m = margen(), st = E.estilos.find(q => q.k === 'titular') || E.estilos[0], el = st ? textoMarca(st.k) : textoEl(contraste());
+    Object.assign(el, { txt: '\u201c', size: 0.3, lh: 1, w: 0.3, al: 'izq', color: acento() || el.color }); ajustarTexto(el, W, H); el.x = r4(m); el.y = r4(m * W / H); return el;
+  }
+  function numCirculoEls() {   // a step: a circle in the accent and its number on it, grouped; the number is a text, typed as any other
+    const { W, H } = sizeAt(E.i), fondo = acento() || contraste(), g = uid(), st = E.estilos.find(q => q.k === 'titular') || E.estilos[0];
+    const t = textoEl(lum(fondo) < 0.4 ? '#ffffff' : '#000000'); if (st) conEstilo(t, st);
+    const d = 0.12 * W, c = Object.assign(formaEl('elipse', W, H), { color: fondo, w: r4(d / W), h: r4(d / H), g });
+    c.x = r4(0.5 - c.w / 2); c.y = r4(0.5 - c.h / 2);
+    Object.assign(t, { txt: '1', size: 0.06, al: 'cen', may: false, x: c.x, w: c.w, g }); ajustarTexto(t, W, H); t.y = r4(c.y + c.h / 2 - t.h / 2);
+    return [c, t];
   }
   function logoEl(src, W, H) { const f = M.files[src] || { w: 1, h: 1 }, w = 0.25 * W, h = w * f.h / f.w; return { id: uid(), t: 'logo', src, x: r4((W - w) / 2 / W), y: r4((H - h) / 2 / H), w: 0.25, h: r4(h / H), ...base, fx: false, fy: false }; }
   // the photo as the mesa shows it now (a new format centres it, as the mesa does)
@@ -2146,9 +2167,10 @@
     abrirCm(itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
       + itCm('add-txt', 'Añadir texto', 'T', hay) + itCm('add-forma', 'Añadir forma', 'R', hay, 'rect'), 'gris', 'Fuera de la diapositiva', e.clientX, e.clientY);
   }
-  function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, under the button
+  function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, and «Desliza →», Comillas and «Número en círculo» (D-178), under the button
     const r = b.getBoundingClientRect();
-    abrirCm(Object.entries(FORMAS).map(([v, l]) => itCm('add-forma', l, v === 'rect' ? 'R' : '', true, v)).join(''), 'formas', 'Formas', r.left, r.bottom + 4);
+    abrirCm(Object.entries(FORMAS).map(([v, l]) => itCm('add-forma', l, v === 'rect' ? 'R' : '', true, v)).join('')
+      + itCm('add-desliza', 'Desliza →', '', true) + itCm('add-comillas', 'Comillas', '', true) + itCm('add-numc', 'Número en círculo', '', true), 'formas', 'Formas', r.left, r.bottom + 4);
     b.setAttribute('aria-expanded', 'true');
   }
   function menuCtx(on) {
@@ -2779,6 +2801,9 @@
       case 'add-forma': nuevo(formaEl(b.dataset.v, E.sz.W, E.sz.H)); return;
       case 'formas': if (cm !== 'formas' && b.isConnected) menuFormas(b); return;   // «+ Forma»: its menu (pressed again, it closes)
       case 'add-pil': nuevo(pildoraEl()); return;
+      case 'add-desliza': nuevo(deslizaEl()); return;
+      case 'add-comillas': nuevo(comillasEl()); return;
+      case 'add-numc': { const [c, t] = numCirculoEls(); mut(null, () => { ensure().els.push(c, t); E.sel = t.id; E.mas = [c.id]; E.crop = null; E.pick = null; }); return; }   // the circle and its number, grouped
       case 'num': { const f = b.dataset.v; if (f && !E.i) return; onEl(el => { if (el.t !== 'texto') return; if (f) el.num = { f }; else delete el.num; }); return; }   // never on the cover; taken off, the text keeps its number as it is
       case 'num-f': onEl(el => { if (el.t === 'texto' && el.num && NUMF[b.dataset.v]) el.num.f = b.dataset.v; }); return;
       case 'pil': { const { W, H } = sizeAt(E.i); onEl(el => { if (el.t !== 'texto') return; if (b.dataset.v) el.pil = { c: (el.pil && el.pil.c) || (lum(hexOk(el.color) ? el.color : '#ffffff') > 0.4 ? '#000000' : '#ffffff') }; else delete el.pil; ajustarTexto(el, W, H); }); return; }

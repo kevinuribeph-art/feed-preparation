@@ -10770,7 +10770,7 @@
     ok(fb() && fb().textContent === '+ Forma' && fb().getAttribute('aria-haspopup') === 'menu', 'sin «+ Forma»');
     fb().click();
     ok(!m.hidden && fb().getAttribute('aria-expanded') === 'true', '«+ Forma» no abrió su menú');
-    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false]], 'las formas del menú');
+    igual(lzeItems(), [['Rectángulo', 'R', false], ['Círculo', '', false], ['Línea', '', false], ['Flecha', '', false], ['Desliza →', '', false], ['Comillas', '', false], ['Número en círculo', '', false]], 'las formas del menú (y las de D-178)');
     igual(D.activeElement, qa('.lb-cm button')[0], 'el foco no va a la primera');
     tecla('ArrowDown'); igual(D.activeElement, qa('.lb-cm button')[1], '↓ no pasa a la siguiente');
     fb().click(); ok(m.hidden && fb().getAttribute('aria-expanded') === 'false', 'pulsado otra vez no se cierra');
@@ -11623,6 +11623,88 @@
       const h = q('.lb .lb-panel h4'); ok(h, 'sin el título de «Elegir foto»');
       igual([h.textContent, !!q('.lb .lb-panel .lb-acc')], ['Añadir una foto', false], 'su título, sin plegar');
     } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ18', '«+ Forma» del editor trae, tras Rectángulo, Círculo, Línea y Flecha, «Desliza →», «Comillas» y «Número en círculo» (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj18.jpg')]);
+    await abrirEditor('r1');
+    try {
+      accion('formas');
+      const m = await hasta(() => q('.lb .lb-cm:not([hidden]) [data-lb="add-forma"]') && q('.lb .lb-cm:not([hidden])'), 2000, 'el menú «+ Forma»');
+      igual([...m.querySelectorAll('[role=menuitem]')].map(b => b.firstChild.textContent.trim()), ['Rectángulo', 'Círculo', 'Línea', 'Flecha', 'Desliza →', 'Comillas', 'Número en círculo'], 'las entradas del menú');
+      tecla('Escape');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('AJ19', '«Desliza →» (texto con píldora, abajo a la derecha dentro del margen) y «Comillas» («“» con la fuente del titular y el acento del kit, arriba a la izquierda): textos de siempre, con colores del kit (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj19.jpg')]);
+    await conKitPrueba(async () => {
+      await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      try {
+        const E = ed(), m = E.margen, { W, H } = tam(), cerca = (a, b) => Math.abs(a - b) < 0.003;
+        ok(m > 0 && E.kit, 'sin el kit de prueba');
+        accion('add-desliza');
+        const d = lzeEl(E.sel);
+        igual([d.t, d.txt, !!d.pil, d.al], ['texto', 'Desliza →', true, 'der'], '«Desliza →»');
+        ok(cerca(d.x + d.w, 1 - m) && cerca(d.y + d.h, 1 - m * W / H), `«Desliza →» no está abajo a la derecha, en el margen: ${json([d.x + d.w, d.y + d.h, 1 - m, 1 - m * W / H])}`);
+        ok(['#ffffff', '#000000'].includes(d.color) && ['#ffffff', '#000000'].includes(d.pil.c), 'colores de «Desliza →» fuera de los básicos: ' + json([d.color, d.pil]));
+        accion('add-comillas');
+        const c = lzeEl(E.sel), st = E.estilos.find(x => x.k === 'titular');
+        igual([c.t, c.txt, c.font && c.font.file, c.color, c.al], ['texto', '“', st && st.font.file, '#b2503a', 'izq'], 'las comillas: fuente del titular y acento del kit');
+        ok(cerca(c.x, m) && cerca(c.y, m * W / H), 'las comillas no están arriba a la izquierda, en el margen');
+      } finally { M.libre.cerrar(); }
+    });
+  });
+
+  prueba('AJ20', '«Número en círculo»: un círculo en el acento del kit y su número centrado encima, agrupados y elegidos juntos; ⌘Z los quita en un paso y ⌘C / ⌘V hace otra pareja con su propio grupo (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj20.jpg')]);
+    await conKitPrueba(async () => {
+      await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      try {
+        const els = () => compDe(ed().i).els, n0 = els().length;
+        accion('add-numc');
+        const [c, t] = els().slice(-2);
+        igual([c.t, c.forma, c.color, t.t, t.txt, !!c.g && c.g === t.g], ['forma', 'elipse', '#b2503a', 'texto', '1', true], 'el círculo y su número');
+        ok(Math.abs(t.y + t.h / 2 - (c.y + c.h / 2)) < 0.002 && Math.abs(t.x + t.w / 2 - (c.x + c.w / 2)) < 0.002, 'el número no está centrado en el círculo');
+        igual([ed().sel, ed().mas], [t.id, [c.id]], 'no quedan elegidos juntos');
+        tecla('z', { meta: true, code: 'KeyZ' }); igual(els().length, n0, '⌘Z no los quita juntos');
+        tecla('z', { meta: true, shift: true, code: 'KeyZ' }); igual(els().length, n0 + 2, '⇧⌘Z no los vuelve a poner');
+        const [c2, t2] = els().slice(-2); ed().sel = t2.id; ed().mas = [c2.id];
+        tecla('c', { meta: true, code: 'KeyC' }); tecla('v', { meta: true, code: 'KeyV' }); await espera(80);
+        const gs = [...new Set(els().filter(e => e.g).map(e => e.g))];
+        igual([els().length, gs.length, els().filter(e => e.g === gs[1]).map(e => e.t).sort()], [n0 + 4, 2, ['forma', 'texto']], 'pegar no hizo otra pareja con su grupo');
+      } finally { M.libre.cerrar(); }
+    });
+  });
+
+  prueba('AJ21', 'Las tres piezas viajan: plantilla («Todo») a otra diapositiva, «Aplicar» a la casilla y exportar / importar, con sus textos, colores, píldora y grupo (D-178)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj21a.jpg'), await foto('aj21b.jpg')]);
+    const firma = els => els.filter(e => e.txt === 'Desliza →' || e.txt === '“' || e.g).map(e => [e.t, e.forma || e.txt, e.color, e.pil ? e.pil.c : null, e.g ? 'g' : '']).sort((a, b) => json(a) < json(b) ? -1 : 1);
+    let f0;
+    await conKitPrueba(async () => {
+      await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
+      accion('add-desliza'); accion('add-comillas'); accion('add-numc');
+      f0 = firma(compDe(0).els); igual(f0.length, 4, 'las cuatro piezas');
+      ed().sel = null; ed().mas = [];
+      const tp = await guardarPlant();
+      accion('sl', { i: 1 }); await hasta(() => ed().i === 1, 3000, 'la diapositiva 2');
+      aplicarPlant(tp, 'todo'); await hasta(() => firma(compDe(1).els).length, 4000, 'la plantilla en la diapositiva 2');
+      igual(firma(compDe(1).els), f0, 'la plantilla «Todo» no las lleva a la diapositiva 2');
+      const g1 = compDe(1).els.find(e => e.g), g0 = compDe(0).els.find(e => e.g); ok(g1.g !== g0.g, 'la plantilla comparte el grupo con la diapositiva 1');
+      await aplicarEditor();
+    });
+    const enCasilla = () => { const s = slot('r1'); return Object.values((s.libre || {}).slides || {}).map(c => firma(c.els)); };
+    igual(enCasilla(), [f0, f0], 'no llegaron a la casilla con «Aplicar»');
+    await M.flush();
+    const blob = await M.exportAll({ returnBlob: true });
+    await sinMes(`${CLIENTE}-${MES}`);
+    const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar falló: ' + json(r));
+    await M.open(`${CLIENTE}-${MES}`);
+    igual(enCasilla(), [f0, f0], 'no volvieron igual al importar');
   });
 
   // ---------- las que cambian a propósito ----------

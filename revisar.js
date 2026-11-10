@@ -25,7 +25,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.8';   // 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
+  const VERSION = '1.9';   // 1.8: nothing to review, a light notice; no «Entendido» nor «<cliente>, <mes>:» (D-155, D-156, D-162)
   const MIN_PX = 1080, IG_MIN = 4 / 5, IG_MAX = 1.91, TOL = 0.005;
   const ORDEN = { hueco: 0, numeración: 1, resolución: 2, margen: 3, formato: 4 };
   const corto = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 28 ? t.slice(0, 27) + '…' : t; };

@@ -15,7 +15,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.22';   // 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.23';   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -717,8 +717,22 @@
 #mesa .dz-hint{margin:0;color:var(--mute);font-size:12px}
 #mesa .dz-panel{overflow-y:auto;padding:0 18px 24px;background:var(--panel);border-left:1px solid var(--line2)}
 #mesa .dz-sec{padding:14px 0 16px;border-bottom:1px solid var(--line2)}#mesa .dz-sec:last-child{border-bottom:0}
-#mesa .dz-sec h4{margin:0 0 10px;font-size:13px;font-weight:600;letter-spacing:-.005em}#mesa .dz-sec h4 span,#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
-#mesa .dz-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .dz-sec h4+.dz-l{margin-top:0}
+#mesa .dz-l span{font-weight:400;color:var(--mute);font-size:12px}
+#mesa .dz-l{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px}#mesa .dz-acc-c>.dz-l:first-child{margin-top:0}
+#mesa .dz-sec.dz-acc{padding:0}#mesa .dz-acc-t{margin:0}
+#mesa .dz-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 21px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
+#mesa .dz-acc-n{flex:none;transition:color var(--d1) ease-out}
+#mesa .dz-acc-h .dz-acc-s{flex:1;min-width:0;font-weight:400;font-size:12.5px;letter-spacing:0;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .dz-acc-h::after{content:'';flex:none;width:16px;height:16px;margin-left:auto;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m),background-color var(--d1) ease-out}
+#mesa .dz-acc.on>.dz-acc-t>.dz-acc-h::after{transform:rotate(180deg)}
+#mesa .dz-acc-h:hover::after{background:var(--ink)}#mesa .dz-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .dz-acc-b{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s linear var(--d-m)}
+#mesa .dz-acc.on>.dz-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
+#mesa .dz-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
+#mesa .dz-acc.on>.dz-acc-b>.dz-acc-i{opacity:1;transform:none;transition:opacity .24s ease-out .05s,transform var(--d-m) var(--ease-m)}
+#mesa .dz-acc.on.fin>.dz-acc-b>.dz-acc-i{overflow:visible}#mesa .dz-acc.zz>.dz-acc-b>.dz-acc-i{content-visibility:hidden}
+#mesa .dz-acc-c{padding:0 0 18px}#mesa .dz-sec.dz-reset{padding:16px 0 0}
+@media (prefers-reduced-motion:reduce){#mesa .dz-acc-b:not(#mx),#mesa .dz-acc.on>.dz-acc-b:not(#mx){transition:none !important}#mesa .dz-acc-i:not(#mx){transform:none !important;transition:opacity .15s linear !important}#mesa .dz-acc-h::after{transition:none !important}}
 #mesa .dz-p{margin:0;font-size:13px}
 #mesa .dz-row{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-top:8px}
 #mesa .dz-photos{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -806,7 +820,7 @@
       else if ((msg = absorb(s))) { remember(s); changedNow = true; }
       const f0 = s.fmt; syncFmt(s); if (s.fmt !== f0) changedNow = true;
       injectCSS();
-      E = { slotId, board: S, cid, kit, raw, rawHash: kitHash(raw), fin, sel: 0, need: new Set(), last: [], thumbs: new WeakMap(), bm: new Map(), q: [], dec: 0, tick: 0, capas: new Map(), raf: 0, saveT: 0, pickFinal: false, busy: false, drag: null };
+      E = { slotId, board: S, cid, kit, raw, rawHash: kitHash(raw), fin, sel: 0, need: new Set(), last: [], thumbs: new WeakMap(), bm: new Map(), q: [], dec: 0, tick: 0, capas: new Map(), raf: 0, saveT: 0, pickFinal: false, busy: false, drag: null, secAb: secLeer() };
       E.sz = sizeOf(kit, s.design, fin);
       build(s);
       if (changedNow) { s.design.at = nowISO(); I().save(); }
@@ -944,14 +958,14 @@
   function fotoHTML(s, sl) {
     if (sl.tipo === 'final') {
       const f = E.fin && M.files[E.fin];
-      let h = f ? `<div class="dz-fin"><img src="${f.thumbUrl}" alt="" draggable="false"><div><b>Foto final del cliente</b><span>${esc(f.name.replace(/^Foto final · /, ''))} · la misma en todos sus carruseles</span></div></div>${zoomHTML(E.fin)}`
+      let h = f ? `<div class="dz-fin" title="La misma en todos sus carruseles"><img src="${f.thumbUrl}" alt="" draggable="false"><div><b>Foto final del cliente</b><span>${esc(f.name.replace(/^Foto final · /, ''))}</span></div></div>${zoomHTML(E.fin)}`
         : '<p class="dz-p">Este cliente aún no tiene foto final.</p>';
       if (f) h += `<button type="button" class="lnk" data-dz="otrafinal" style="padding-left:0">Usar otra foto como final del cliente</button>`;
       if (!f || E.pickFinal) h += `<div style="margin-top:8px">${photosHTML(s, null, 'setfinal')}</div><div class="dz-drop" data-dz="pickfile">Suelta aquí la foto final (JPG o PNG) o pulsa para elegirla</div>`;
       return h;
     }
-    return photosHTML(s, sl.src, 'src') + (sl.src && M.files[sl.src] ? zoomHTML(sl.src) : availPhotos(s).length ? '<p class="dz-hint" style="margin-top:8px">Elige la foto de esta diapositiva.</p>' : '')
-      + '<div class="dz-row"><button type="button" class="btn2" data-dz="addfotos">Añadir fotos…</button><span class="dz-hint">o suéltalas aquí (van a la bandeja) o sobre una diapositiva</span></div>';
+    return photosHTML(s, sl.src, 'src') + (sl.src && M.files[sl.src] ? zoomHTML(sl.src) : '')
+      + '<div class="dz-row"><button type="button" class="btn2" data-dz="addfotos" title="O suéltalas aquí (van a la bandeja) o sobre una diapositiva">Añadir fotos…</button></div>';
   }
   const hasCrop = src => !!(src && I().S.crops && I().S.crops[src]);
   // text colours: the kit's 2 main and 2 accent colours (colores_texto) and «+» for the rest of the palette (a kit without
@@ -967,26 +981,50 @@
     const extra = E.masCol ? mas : mas.filter(k => k === cur);
     return [...pri, ...extra].map(sw).join('') + (mas.length ? `<button type="button" class="dz-more" data-dz="mascolores" aria-expanded="${!!E.masCol}" title="${E.masCol ? 'Ver solo los colores principales' : 'Elegir otro color de la paleta'}" aria-label="${E.masCol ? 'Menos colores' : 'Más colores de la paleta'}">${E.masCol ? '−' : '+'}</button>` : '');
   }
+  const LS_SEC = 'mesa-dz-seccion';
+  const secLeer = () => { try { const v = localStorage.getItem(LS_SEC); return v == null ? 'texto' : v; } catch (e) { return 'texto'; } };
+  // a section of the panel, folding as the editor's (D-137, D-141, D-149): its title, what it has on the right, its inside
+  const accSec = (k, titulo, resumen, html, tt) => { const on = E.secAb === k; return `<div class="dz-sec dz-acc${on ? ' on fin' : ' zz'}" data-sec="${k}"><h4 class="dz-acc-t"><button type="button" class="dz-acc-h" id="dz-acch-${k}" aria-expanded="${on}" aria-controls="dz-accb-${k}"${tt ? ` title="${esc(tt)}"` : ''}><span class="dz-acc-n">${titulo}</span><span class="dz-acc-s">${resumen || ''}</span></button></h4><div class="dz-acc-b" id="dz-accb-${k}" role="region" aria-labelledby="dz-acch-${k}"><div class="dz-acc-i"><div class="dz-acc-c">${html}</div></div></div></div>`; };
+  function abrirAcc(sec, on, anim) {   // as the editor's abrirSec: animated only by a click; closed, its inside isn't laid out
+    if (on) sec.classList.remove('zz');
+    sec.classList.toggle('on', on); if (!on || anim) sec.classList.remove('fin'); else sec.classList.add('fin');
+    const h = sec.querySelector(':scope > .dz-acc-t > .dz-acc-h'); if (h) h.setAttribute('aria-expanded', String(on));
+    if (!anim) { if (!on) sec.classList.add('zz'); return; }
+    const b = sec.querySelector(':scope > .dz-acc-b'), fin = e => { if (e && (e.target !== b || e.propertyName !== 'grid-template-rows')) return; b.removeEventListener('transitionend', fin); clearTimeout(t); const o = sec.classList.contains('on'); if (o === on) sec.classList.add(o ? 'fin' : 'zz'); };
+    const t = setTimeout(fin, 700); b.addEventListener('transitionend', fin);
+  }
+  function plegar(btn) {   // one open at a time; a click on the open one closes it
+    const sec = btn.closest('.dz-acc'); if (!sec || !E) return;
+    const on = !sec.classList.contains('on');
+    if (on) sec.parentNode.querySelectorAll(':scope > .dz-acc.on').forEach(o => { if (o !== sec) abrirAcc(o, false, true); });
+    abrirAcc(sec, on, true); E.secAb = on ? sec.dataset.sec : '-';
+    try { localStorage.setItem(LS_SEC, E.secAb); } catch (e) { /* private window: it is not remembered */ }
+    if (on) {   // its title stays in sight while the one above closes
+      const p = sec.closest('.dz-panel'), y0 = sec.getBoundingClientRect().top - p.getBoundingClientRect().top;
+      if (y0 < 0) p.scrollTo({ top: p.scrollTop + y0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+  }
   function panelSecs(s, sl) {
     const d = s.design, i = E.sel, ov = sl.ov || {}, reel = isReelS(s), e = ov.escala || 1, va = ov.velo == null, last = E.last[i];
-    const sec = (k, h) => [k, `<div class="dz-sec" data-sec="${k}">${h}</div>`];
+    const sec = (k, t, r, h, tt) => [k, accSec(k, t, r, h, tt)], dec = k => `<span class="dz-dec" data-dec="${k}"></span>`;   // dec: what «Auto» decided, set after each render
     const vv = va ? (last && last.decision ? +last.decision.velo || 0 : 0) : ov.velo;
     return [
-      sec('diseno', `<h4>Diseño <span>· diapositiva ${pad2(i + 1)}</span></h4>` + (reel ? '<p class="dz-p">Portada de reel <span class="muted">· 9:16; en el perfil se ve el centro 3:4</span></p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva'))),
-      sec('foto', `<h4>Foto</h4>${fotoHTML(s, sl)}`),
-      sec('texto', `<h4>Texto</h4><label class="dz-l" for="dz-f-titulo">Título <span>· Intro = salto de línea</span></label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2"></textarea>`
+      sec('diseno', 'Diseño', `${pad2(i + 1)} · ${(TIPO_LABEL[reel ? 'reel' : sl.tipo] || '').toLowerCase()}`, reel ? '<p class="dz-p" title="9:16; en el perfil se ve el centro 3:4">Portada de reel</p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva')),
+      sec('foto', 'Foto', sl.tipo !== 'final' && !(sl.src && M.files[sl.src]) ? 'sin foto' : '', fotoHTML(s, sl)),
+      sec('texto', 'Texto', '', `<label class="dz-l" for="dz-f-titulo" title="Intro = salto de línea">Título</label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2" title="Intro = salto de línea"></textarea>`
         + (sl.tipo === 'ficha' ? '<label class="dz-l" for="dz-f-texto">Texto</label><textarea id="dz-f-texto" class="dz-in" data-f="texto" rows="3"></textarea>' : '')
-        + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont">Contacto <span>· vacío = el del kit</span></label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" placeholder="${esc((E.raw.final || {}).contacto || '')}"></textarea>` : '')),
-      sec('tam', `<h4>Tamaño del texto</h4><div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output class="dz-dbl" data-dbl="esc1" title="Tamaño del texto · doble clic: 100 %">${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
-      sec('pos', `<h4>Posición <span class="dz-dec" data-dec="lugar"></span></h4>${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
+        + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont" title="Vacío = el del kit">Contacto</label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" title="Vacío = el del kit" placeholder="${esc((E.raw.final || {}).contacto || '')}"></textarea>` : '')),
+      sec('tam', 'Tamaño del texto', Math.round(e * 100) + ' %', `<div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output class="dz-dbl" data-dbl="esc1" title="Tamaño del texto · doble clic: 100 %">${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
+      sec('pos', 'Posición', dec('lugar'), `${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
         + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
-      sec('color', `<h4>Color del texto <span class="dz-dec" data-dec="color"></span></h4><div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
+      sec('color', 'Color del texto', dec('color'), `<div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
         + coloresHTML(ov.color) + '</div>'),
-      sec('velo', `<h4>Velo <span class="dz-dec" data-dec="velo"></span></h4><div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
-      sec('reset', `<button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button>`),
-      ...(etiquetasHTML(s) ? [sec('etiquetas', etiquetasHTML(s))] : [])
+      sec('velo', 'Velo', dec('velo'), `<div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
+      ...(etiquetasHTML(s) ? [['etiquetas', etiquetasSec(s)]] : []),
+      ['reset', `<div class="dz-sec dz-reset" data-sec="reset"><button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button></div>`]   // the slide's settings, under the sections
     ];
   }
+  const etiquetasSec = s => accSec('etiquetas', 'Marca, número y pie', '', etiquetasHTML(s), 'En px, en todo el carrusel');
   // marca, número and pie of this post (all its slides): exact positions in px, the kit's by default
   function etiquetasHTML(s) {
     const d = s.design; if (isReelS(s) || !ENG() || !ENG().posiciones) return null;
@@ -996,8 +1034,7 @@
     const kit = ENG().posiciones(E.raw), cur = ENG().posiciones(E.raw, posOf(d));
     const NOM = { marca: 'Marca', pagina: 'Número', pie: 'Pie' }, LADO = { izquierda: 'desde la izquierda', derecha: 'desde la derecha', centro: 'desde el centro' };
     const inp = (k, c, t) => `<input type="number" id="dz-pos-${k}-${c}" class="dz-in dz-pos" data-e="${k}" data-c="${c}" step="1" value="${cur[k][c]}" title="${esc(t)} · kit: ${kit[k][c]} px" aria-label="${NOM[k]}: ${c.toUpperCase()} en px, ${esc(t)}">`;
-    return `<h4>Marca, número y pie <span>· px, en todo el carrusel</span></h4>`
-      + ks.map(k => `<div class="dz-posr"><span class="dz-posn">${NOM[k]}<i>${LADO[kit[k].ancla]} · desde ${kit[k].desde === 'abajo' ? 'abajo' : 'arriba'}</i></span><label>X ${inp(k, 'x', LADO[kit[k].ancla])}</label><label>Y ${inp(k, 'y', 'desde ' + (kit[k].desde === 'abajo' ? 'abajo' : 'arriba'))}</label></div>`).join('')
+    return ks.map(k => `<div class="dz-posr"><span class="dz-posn" title="${LADO[kit[k].ancla]} · desde ${kit[k].desde === 'abajo' ? 'abajo' : 'arriba'}">${NOM[k]}</span><label>X ${inp(k, 'x', LADO[kit[k].ancla])}</label><label>Y ${inp(k, 'y', 'desde ' + (kit[k].desde === 'abajo' ? 'abajo' : 'arriba'))}</label></div>`).join('')
       + `<div class="dz-row"><button type="button" class="btn2" data-dz="posreset" ${posOf(d) ? '' : 'disabled'}>Volver a las del kit</button></div>`;
   }
   function edPanel(force) {
@@ -1022,11 +1059,12 @@
   // what «Auto» decided for the selected slide (after each render)
   function edDecision() {
     if (!E) return; const sl = D().slides[E.sel], ov = sl.ov || {}, r = E.last[E.sel], dec = r && r.decision;
-    const set = (k, t) => { const x = E.el.querySelector(`.dz-dec[data-dec="${k}"]`); if (x) x.textContent = t; };
-    set('lugar', !ov.lugar && dec && dec.lugar ? '· auto: ' + dec.lugar : '');
+    const set = (k, t) => { const x = E.el.querySelector(`.dz-dec[data-dec="${k}"]`); if (x) x.textContent = x.closest('.dz-acc-s') ? t.replace(/^· /, '') : t; };
+    const LUG = { arriba: 'Arriba', abajo: 'Abajo', centro: 'Centro' };   // on a title's right (D-177): what «Auto» decided, or what was chosen
+    set('lugar', ov.lugar ? LUG[ov.lugar] || ov.lugar : dec && dec.lugar ? '· auto: ' + dec.lugar : '');
     set('alinear', !ov.alinear && dec && dec.alinear ? '· auto: ' + dec.alinear : '');
-    set('color', !ov.color && dec && dec.color ? '· auto: ' + String(dec.color).replace(/_/g, ' ') : '');
-    set('velo', ov.velo == null && dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '');
+    set('color', ov.color ? String(ov.color).replace(/_/g, ' ') : dec && dec.color ? '· auto: ' + String(dec.color).replace(/_/g, ' ') : '');
+    set('velo', ov.velo != null ? Math.round(ov.velo * 100) + ' %' : dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '');
     if (ov.velo == null && dec) { const rg = E.el.querySelector('.dz-velor'), o = E.el.querySelector('.dz-velov'); if (rg && document.activeElement !== rg) rg.value = +dec.velo || 0; if (o) o.textContent = Math.round((+dec.velo || 0) * 100) + ' %'; }
     const ul = E.el.querySelector('.dz-av'), src = effSrc(sl, E.fin);
     const off = avGet(curSlot(), E.sel, avKey(curSlot(), E.sel, E.rawHash, E.sz, E.fin));   // the ones estado()/aplicar() give
@@ -1432,6 +1470,7 @@
     el.addEventListener('click', e => {
       if (E && !curSlot()) { cerrar(); return; }
       if (e.target.classList && e.target.classList.contains('dz-ask')) { cerrarPregunta(); return; }   // outside the question: keep editing
+      const ah = e.target.closest('.dz-acc-h'); if (ah && E) { plegar(ah); return; }
       const a = e.target.closest('[data-dz]'); if (!a || !E || a.disabled) return;
       if (E.drag) endDrag();
       const act = a.dataset.dz, s = curSlot(), d = s.design, i = E.sel, sl = d.slides[i];
@@ -1494,7 +1533,7 @@
         d.pos = { ...(d.pos || {}) }; if (Object.keys(o).length) d.pos[k] = o; else delete d.pos[k];
         if (!Object.keys(d.pos).length) delete d.pos;
         touch(true); const rs = el.querySelector('[data-dz="posreset"]'); if (rs) rs.disabled = !posOf(d);
-        if (E.pHtml) E.pHtml.etiquetas = `<div class="dz-sec" data-sec="etiquetas">${etiquetasHTML(curSlot())}</div>`;   // what the field shows now (a later redraw of the section compares with it)
+        if (E.pHtml) E.pHtml.etiquetas = etiquetasSec(curSlot());   // what the field shows now (a later redraw of the section compares with it)
       }
       else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { flashTercios(); setCropFor(src, { z: +t.value }); touch(); const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false; } }
       else if (t.matches('.dz-velor')) {

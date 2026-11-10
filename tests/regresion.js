@@ -10990,7 +10990,7 @@
       lzeDbl(vr());
       ok(lzeSl().ov.velo == null, 'el doble clic no lo dejó en «Auto»');
       igual(lzePasosDz(), n, 'dejó un paso que no cambia nada');
-      await hasta(() => /· auto: \d+ %/.test(q('.dz .dz-dec[data-dec="velo"]').textContent), 4000, '«· auto: N %» junto al título');
+      await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-dec[data-dec="velo"]').textContent), 4000, '«auto: N %» a la derecha del título (D-177)');
       // la barra enseña el valor que tiene, también si tenía el foco
       vr().focus(); mover(vr(), 0.8); lzeDbl(vr());
       const pa = +q('.dz .dz-dec[data-dec="velo"]').textContent.match(/(\d+) %/)[1];
@@ -11584,6 +11584,45 @@
       fin2({ error: 'fin' }); await espera(50);
       igual(slot('r1').note, 'Nota del otro tablero', 'el ⌘Z en el tablero nuevo se quedó esperando al dibujo del otro');
     } finally { fin({ error: 'fin' }); }
+  });
+
+  // ---------- parte B de los ajustes (D-177, D-178) ----------
+  prueba('AJ16', 'Panel del diseñador plegable como el del editor: una sección abierta a la vez (la primera vez «Texto», después la última, recordada), títulos de 21 px con su dato a la derecha, sin explicaciones a la vista (pasan al title) y «Restablecer ajustes» fuera, al final (D-177)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    W.localStorage.removeItem('mesa-dz-seccion');
+    const abiertas = () => qa('.dz .dz-panel > .dz-acc.on').map(s => s.dataset.sec), h = k => q(`.dz .dz-acc[data-sec="${k}"] .dz-acc-h`);
+    try {
+      await conKitPrueba(async () => {
+        await disenada('r1', [await foto('aj16a.jpg', 1080, 1350), await foto('aj16b.jpg', 1080, 1350)], textos('AJ16', 'Portada', 'Ficha'));
+        M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador con secciones plegables');
+        try {
+          igual(abiertas(), ['texto'], 'la abierta la primera vez');
+          const secs = qa('.dz .dz-panel > .dz-sec');
+          ok(secs.at(-1).dataset.sec === 'reset' && !secs.at(-1).classList.contains('dz-acc') && secs.slice(0, -1).every(x => x.classList.contains('dz-acc')), '«Restablecer ajustes» no queda fuera y al final: ' + secs.map(x => x.dataset.sec).join(','));
+          igual(W.getComputedStyle(h('texto')).fontSize, '21px', 'el tamaño del título');
+          h('pos').click(); igual([abiertas(), W.localStorage.getItem('mesa-dz-seccion')], [['pos'], 'pos'], 'abrir «Posición» cierra «Texto» y se recuerda');
+          h('pos').click(); igual([abiertas(), W.localStorage.getItem('mesa-dz-seccion')], [[], '-'], 'un clic en la abierta la cierra');
+          h('velo').click();
+          igual([q('.dz .dz-acc[data-sec="diseno"] .dz-acc-s').textContent, q('.dz .dz-acc[data-sec="tam"] .dz-acc-s').textContent], ['01 · portada', '100 %'], 'los datos de «Diseño» y del tamaño');
+          await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-acc[data-sec="velo"] .dz-acc-s').textContent), 4000, '«auto: N %» a la derecha de «Velo»');
+          ok(!/Intro = salto|vacío = el del kit|px, en todo el carrusel|o suéltalas aquí|Elige la foto de esta diapositiva|9:16; en el perfil/.test(q('.dz .dz-panel').textContent), 'quedan explicaciones a la vista');
+          ok(/Intro = salto de línea/.test(q('.dz #dz-f-titulo').title) && /suéltalas/.test(q('.dz [data-dz="addfotos"]').title), 'las explicaciones no pasaron al title');
+        } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+        M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador otra vez');
+        try { igual(abiertas(), ['velo'], 'al volver a abrirlo, la última abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+      });
+    } finally { W.localStorage.removeItem('mesa-dz-seccion'); }
+  });
+
+  prueba('AJ17', '«Elegir foto» del editor: sin «· de esta publicación y de la bandeja» y sin plegar (D-177)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('aj17.jpg')]);
+    await abrirEditor('r1');
+    try {
+      accion('add'); await espera(50);
+      const h = q('.lb .lb-panel h4'); ok(h, 'sin el título de «Elegir foto»');
+      igual([h.textContent, !!q('.lb .lb-panel .lb-acc')], ['Añadir una foto', false], 'su título, sin plegar');
+    } finally { M.libre.cerrar(); }
   });
 
   // ---------- las que cambian a propósito ----------

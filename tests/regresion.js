@@ -11213,7 +11213,7 @@
     const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = l => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules); else if (r.selectorText) reglas.push(r); } }; ir(rs); }
     const regla = (sel, prop) => { const r = reglas.find(x => x.selectorText.split(/,(?![^(]*\))/).map(z => z.trim()).includes(sel) && x.style.getPropertyValue(prop)); return r ? r.style.getPropertyValue(prop) : ''; };
     igual([regla('#mesa .lb-mv button:disabled', 'color'), regla('#mesa .lb-mv button:disabled', 'opacity')], ['var(--faint)', ''], 'desactivado de la tira del editor');
-    for (const s of ['#mesa .lb-help:hover', '#mesa .hv-add:hover', '#mesa .cpaso.sig:hover']) igual([regla(s, 'background'), regla(s, 'border-color')], ['var(--bg)', 'var(--line-strong)'], 'al pasar por ' + s);
+    for (const s of ['#mesa .lb-help:hover', '#mesa .cpaso.sig:hover']) igual([regla(s, 'background'), regla(s, 'border-color')], ['var(--bg)', 'var(--line-strong)'], 'al pasar por ' + s);   // el «+» de Historias y de los colores, sin borde desde D-174 (ES7)
     ok(reglas.some(r => /\.mchip/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && /\.lb-help/.test(r.selectorText) && r.style.transform === 'scale(0.97)'), 'al pulsar no encogen todos');
     for (const s of ['#mesa .mx-nav:focus-visible', '#mesa .lb-acc-h:focus-visible', '#mesa .pe-ed:focus-visible', '#mesa button.cpaso:focus-visible']) igual([regla(s, 'outline-offset'), regla(s, 'box-shadow')], ['2px', ''], 'el foco de ' + s);
   });
@@ -11243,6 +11243,21 @@
     for (const v of [...de(/tray-anim|cal-anim/, 'animation-duration'), ...de(/\.(t|c)fold svg|\.lb-trb svg/, 'transition-duration')]) igual(v, 'var(--d-m)', 'una duración de plegar fuera de --d-m');
     for (const v of [...de(/tray-anim|cal-anim/, 'animation-timing-function'), ...de(/\.(t|c)fold svg|\.lb-trb svg/, 'transition-timing-function')]) igual(v, 'var(--ease-m)', 'una curva de plegar fuera de --ease-m');
     ok(de(/^#mesa \.mx-pop\.fuera$/, 'transition').every(v => !/ease-in|\.14s/.test(v)) && de(/^#mesa \.mx-pop$/, 'transition').every(v => !/\.18s/.test(v)), 'los desplegables con duraciones propias');
+  });
+
+  prueba('ES7', '«N vencidas» subrayado solo al pasar; los «+» redondos de Historias y de los colores sin borde discontinuo; títulos equilibrados y textos sin palabras sueltas en las ventanas (D-174)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.calendario && M.hs, 4000, 'los módulos');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<button class="cvenc">2 vencidas</button><button class="hv-add">+</button><div class="card"><h3>t</h3><p>p</p></div>';
+      const cs = s => W.getComputedStyle(caja.querySelector(s));
+      igual(cs('.cvenc').textDecorationLine, 'none', 'el subrayado fijo');
+      igual(cs('.hv-add').borderTopColor, 'rgba(0, 0, 0, 0)', 'el borde discontinuo del «+»');
+      const r = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }).find(x => x.selectorText === '#mesa .hv-add:hover');
+      ok(r && r.style.getPropertyValue('background') === 'var(--bg-3)' && !r.style.getPropertyValue('border-color'), 'al pasar por el «+», un fondo de un tono y sin borde');
+      igual([cs('.card h3').textWrapStyle || cs('.card h3').textWrap, cs('.card p').textWrapStyle || cs('.card p').textWrap].map(v => String(v).replace('wrap ', '')), ['balance', 'pretty'], 'text-wrap');
+    } finally { caja.remove(); }
   });
 
   // ---------- las que cambian a propósito ----------

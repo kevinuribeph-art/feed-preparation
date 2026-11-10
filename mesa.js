@@ -2548,6 +2548,8 @@
 #mesa .pacts{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #mesa .pacts{margin-top:2px}#mesa .pacts button{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:var(--r-pill);font-size:12.5px;font-weight:600;padding:0 13px;min-height:32px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
 #mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}#mesa .pacts button:active:not(:disabled){transform:scale(.97)}
+/* titles and texts of the windows without a lone word (D-174) */
+#mesa :is(.card h3,.phead h3,.ecard h3,.lb-ttl h3){text-wrap:balance}#mesa :is(.card p,.cpnota,.toast){text-wrap:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
 #mesa :is(.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,.cpaso,.x,.hx,.cpx):active:not(:disabled){transform:scale(.97)}
 #mesa .pacts button:disabled{opacity:.4;cursor:default}

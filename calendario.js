@@ -541,7 +541,7 @@
 #mesa .cpaso.sig{border-color:var(--faint)}#mesa .cpaso.sig:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}
 #mesa .cpaso.fut{color:var(--faint)}#mesa .cpaso.fut .edot,#mesa .cpaso.fut .eico{opacity:.5}
 #mesa .cpaso.ro{color:var(--mute)}
-#mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
+#mesa .cvenc{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--red);cursor:pointer;white-space:nowrap;text-decoration:none;text-underline-offset:2px}#mesa .cvenc:hover{text-decoration:underline}
 #mesa .chip.venc{box-shadow:inset 0 0 0 1.5px var(--red)}#mesa .chip.venc .ct{color:var(--red);font-weight:600}
 #mesa .vlist{list-style:none;margin:8px 0 0;padding:0;max-height:min(60vh,520px);overflow:auto}
 #mesa .vlist li{padding:10px 0;border-top:1px solid var(--line2)}

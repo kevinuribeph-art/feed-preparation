@@ -727,7 +727,7 @@
 #mesa .dz-ph:hover::before{box-shadow:inset 0 0 0 2px var(--line-strong)}
 #mesa .dz-ph.on::before{box-shadow:inset 0 0 0 2px var(--acc),inset 0 0 0 4px var(--panel)}
 #mesa .dz-ph img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
-#mesa .dz-ph i{font-variant-numeric:tabular-nums;position:absolute;z-index:2;top:5px;left:5px;font-style:normal;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
+#mesa .dz-ph i{position:absolute;z-index:2;top:5px;left:5px;font-style:normal;font-size:9.5px;font-weight:700;color:var(--on-photo);background:var(--photo-chip);border-radius:var(--r-xs);padding:0 5px;line-height:15px;pointer-events:none}
 #mesa .dz-fin{display:flex;gap:10px;align-items:center;margin-bottom:6px}
 #mesa .dz-fin img{flex:none;width:54px;height:68px;object-fit:cover;border-radius:var(--r-sm);display:block;background:var(--cell-ph)}
 #mesa .dz-fin b{display:block;font-size:12.5px}#mesa .dz-fin span{display:block;font-size:11.5px;color:var(--mute);overflow-wrap:anywhere}
@@ -735,7 +735,7 @@
 #mesa .dz-drop:hover{border-color:var(--mute)}
 #mesa .dz-drop.over{border-color:var(--acc);background:var(--acc-soft);color:var(--ink)}
 #mesa .dz-size{display:inline-flex;align-items:center;gap:8px}
-#mesa .dz-size .btn2{position:relative;min-width:42px;font-weight:600;font-size:0}#mesa .dz-size .btn2::before{content:'';position:absolute;inset:0;margin:auto;width:17px;height:17px;background:currentColor;-webkit-mask:var(--i-a-down) center/contain no-repeat;mask:var(--i-a-down) center/contain no-repeat}#mesa .dz-size .btn2[data-v="1"]::before{-webkit-mask-image:var(--i-a-up);mask-image:var(--i-a-up)}#mesa .dz-size .btn2:disabled{opacity:.4;cursor:default}
+#mesa .dz-size .btn2{position:relative;min-width:47px;font-weight:600;font-size:0}#mesa .dz-size .btn2::before{content:'';position:absolute;inset:0;margin:auto;width:17px;height:17px;background:currentColor;-webkit-mask:var(--i-a-down) center/contain no-repeat;mask:var(--i-a-down) center/contain no-repeat}#mesa .dz-size .btn2[data-v="1"]::before{-webkit-mask-image:var(--i-a-up);mask-image:var(--i-a-up)}#mesa .dz-size .btn2:disabled{opacity:.4;cursor:default}
 #mesa .dz-size output{min-width:3.6em;text-align:center;font-variant-numeric:tabular-nums;font-size:12.5px}
 #mesa .dz-dbl>span,#mesa output.dz-dbl,#mesa .dz-dbl>output{-webkit-user-select:none;user-select:none}
 #mesa .dz-sws{display:flex;flex-wrap:wrap;gap:9px;align-items:center}

@@ -11240,8 +11240,14 @@
     await hasta(() => M.calendario && M.libre, 4000, 'los módulos');
     const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText && !m) reglas.push(r); } }; ir(rs, false); }
     const de = (re, prop) => reglas.filter(r => re.test(r.selectorText) && r.style.getPropertyValue(prop)).map(r => r.style.getPropertyValue(prop));
-    for (const v of [...de(/tray-anim|cal-anim/, 'animation-duration'), ...de(/\.(t|c)fold svg|\.lb-trb svg/, 'transition-duration')]) igual(v, 'var(--d-m)', 'una duración de plegar fuera de --d-m');
-    for (const v of [...de(/tray-anim|cal-anim/, 'animation-timing-function'), ...de(/\.(t|c)fold svg|\.lb-trb svg/, 'transition-timing-function')]) igual(v, 'var(--ease-m)', 'una curva de plegar fuera de --ease-m');
+    // con elementos de prueba: los atajos con var() no se leen por CSSOM (la ronda 1 de la revisión lo vio)
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:-2000px;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<div class="side"><aside class="tray fold tray-anim"><div class="tfil"></div></aside><section class="cal fold cal-anim"><div class="cleg"></div></section></div><button class="tfold"><svg></svg></button><button class="cfold"><svg></svg></button><button class="lb-trb"><svg></svg></button>';
+      const dm = W.getComputedStyle(raiz).getPropertyValue('--d-m').trim().replace(/^\./, '0.');
+      for (const s of ['.tray .tfil', '.cal .cleg']) { const c = W.getComputedStyle(caja.querySelector(s)); igual([c.animationDuration, c.animationTimingFunction], [dm, 'cubic-bezier(0.32, 0.72, 0, 1)'], 'plegar: ' + s); }
+      for (const s of ['.tfold svg', '.cfold svg', '.lb-trb svg']) { const c = W.getComputedStyle(caja.querySelector(s)); igual([c.transitionDuration, c.transitionTimingFunction], [dm, 'cubic-bezier(0.32, 0.72, 0, 1)'], 'la flecha: ' + s); }
+    } finally { caja.remove(); }
     ok(de(/^#mesa \.mx-pop\.fuera$/, 'transition').every(v => !/ease-in|\.14s/.test(v)) && de(/^#mesa \.mx-pop$/, 'transition').every(v => !/\.18s/.test(v)), 'los desplegables con duraciones propias');
   });
 
@@ -11258,6 +11264,24 @@
       ok(r && r.style.getPropertyValue('background') === 'var(--bg-3)' && !r.style.getPropertyValue('border-color'), 'al pasar por el «+», un fondo de un tono y sin borde');
       igual([cs('.card h3').textWrapStyle || cs('.card h3').textWrap, cs('.card p').textWrapStyle || cs('.card p').textWrap].map(v => String(v).replace('wrap ', '')), ['balance', 'pretty'], 'text-wrap');
     } finally { caja.remove(); }
+  });
+
+  prueba('ES8', 'Revisión independiente, ronda 1: el ✓ de uso no pasa por encima de la cabecera; «reducir movimiento» no encoge al pulsar; el título del editor no se parte; radio con contraste; «⋯» del editor y EDITAR no estrechan; --chev oscuro con la regla de trazo (D-168 a D-174)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.libre, 4000, 'libre.js');
+    const raiz = q('#mesa'), caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:-2000px;top:0'; raiz.append(caja);
+    try {
+      caja.innerHTML = '<div class="titem uso"></div><div class="lb-ttl"><h3>Un nombre de publicación largo, larguísimo, que no cabe en la cabecera del editor ni a lo ancho</h3></div><span class="lb-mas"><button class="lb-ib">⋯</button></span><button class="btn pe-ed">Editar</button><label class="caplab"><input type="radio"></label>';
+      igual(W.getComputedStyle(caja.querySelector('.titem'), '::before').zIndex, '1', 'el ✓ de uso por encima de la cabecera fija');
+      const h = W.getComputedStyle(caja.querySelector('.lb-ttl h3')); ok(h.whiteSpace === 'nowrap' || h.textWrapMode === 'nowrap', 'el título del editor se parte en líneas');
+      ok(caja.querySelector('.lb-ib').getBoundingClientRect().width >= 37, '«⋯» del editor estrecha');
+      const mute = (() => { const x = D.createElement('i'); x.style.color = 'var(--mute)'; raiz.append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; })();
+      igual(W.getComputedStyle(caja.querySelector('.caplab input')).borderTopColor, mute, 'el aro del radio sin el contraste de --mute');
+    } finally { caja.remove(); }
+    const reglas = []; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } const ir = (l, m) => { for (const r of l) { if (r.cssRules && !r.selectorText) ir(r.cssRules, m || /reduce/.test(r.conditionText || '')); else if (r.selectorText) reglas.push([r, m]); } }; ir(rs, false); }
+    ok(reglas.some(([r, m]) => m && /\.mchip/.test(r.selectorText) && /:active:not\(:disabled\)/.test(r.selectorText) && r.style.transform === 'none'), 'con «reducir movimiento» los botones siguen encogiendo');
+    raiz.dataset.theme = 'dark';
+    try { const c = W.getComputedStyle(raiz).getPropertyValue('--chev'); ok(/non-scaling-stroke/.test(c) && /A89C8F/i.test(c), 'el --chev oscuro sin la regla de trazo'); } finally { delete raiz.dataset.theme; }
   });
 
   // ---------- las que cambian a propósito ----------

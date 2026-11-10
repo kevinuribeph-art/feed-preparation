@@ -2148,7 +2148,6 @@
 --ok-on-ink:#2F7440;--cal-off:#1A1511;
 --ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--ty-past:#241E19;
 --st-empezar:#2A231E;--st-empezar-aro:#7A6F64;
---chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A89C8F' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 --franja:#EDE6DC;--cell-ph:#2E2620;--cell-past:#5E5650;
 --checker-a:#2E2722;--checker-b:#3A322B;--swatch-ring:rgba(255,255,255,.24);
 --knob:#EDE6DC;--sw-on:#B2503A;
@@ -2157,7 +2156,7 @@
 --shadow-xs:0 1px 2px rgba(0,0,0,.4);--shadow-sm:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
 --shadow-md:0 6px 18px -6px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4);--shadow-lg:0 24px 60px -18px rgba(0,0,0,.75),0 8px 20px -10px rgba(0,0,0,.55);
 --shadow-stage:0 4px 22px rgba(0,0,0,.55);
---chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A89C8F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9l6 6l6-6'/%3E%3C/svg%3E")}
+--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A89C8F' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-SemiBold.woff2") format("woff2");font-weight:600;font-display:swap}
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-ExtraBold.woff2") format("woff2");font-weight:800;font-display:swap}
@@ -2258,8 +2257,8 @@
 #mesa .eico{display:inline-flex;flex:none;width:10px;height:9px}#mesa .eico.e-cancelado{width:9px}
 #mesa .eico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;overflow:visible}#mesa .eico .h{display:none}
 /* one visible stroke for every line icon (D-168): the strokes don't scale with the icon, so 1.33 px at 10 px and at 26 px (the masks carry the same in their SVG) */
-#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.pmonth,.hv-pt,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) svg :is(path,circle,rect,line,polyline,polygon,ellipse){vector-effect:non-scaling-stroke}
-#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.pmonth,.hv-pt,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) :is(svg,svg *){stroke-width:var(--i-trazo)}
+#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) svg :is(path,circle,rect,line,polyline,polygon,ellipse){vector-effect:non-scaling-stroke}
+#mesa :is(.pico,.tcarpeta,.lb-tcarp,.cfold,.tfold,.mchip,.brand,.trayhead .btn,.hv-tr,.lb-trb,.hv-vis .nav,.hv-acc,.lb-ph,.stage .nav,.eico) :is(svg,svg *){stroke-width:var(--i-trazo)}
 #mesa .e-programado,#mesa .e-publicado{color:var(--ok)}#mesa .e-cancelado{color:var(--red)}
 #mesa .pest{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}#mesa .esbtn{padding:4px 10px;font-size:12.5px;min-height:30px}#mesa .esold{font-size:11.5px;color:var(--chg)}
 #mesa .esmot{font:12.5px var(--font);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 10px;min-height:32px;transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out;box-sizing:border-box;width:210px;max-width:100%}
@@ -2372,7 +2371,7 @@
 #mesa .ttam input::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:13px;height:13px;margin-top:-5.5px;border:1px solid var(--line-strong);border-radius:50%;background:var(--panel-2);box-shadow:var(--shadow-sm)}#mesa .ttam input::-moz-range-thumb{box-sizing:border-box;width:13px;height:13px;border:1px solid var(--line-strong);border-radius:50%;background:var(--panel-2)}
 #mesa .ttam input:hover::-webkit-slider-thumb{border-color:var(--ink)}#mesa .ttam input:hover::-moz-range-thumb{border-color:var(--ink)}#mesa .ttam input:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
 #mesa .hs{position:absolute;bottom:22px;left:5px;width:14px;height:14px;border-radius:50%;border:2.5px solid var(--story);background:var(--photo-ring);box-sizing:border-box;pointer-events:none}
-#mesa .titem.uso::before{content:'';position:absolute;top:5px;right:5px;width:18px;height:18px;z-index:2;pointer-events:none;background:var(--uso-ck);-webkit-mask:var(--i-check) center/11px no-repeat;mask:var(--i-check) center/11px no-repeat}#mesa .titem.u-p2::before{background:var(--uso-ck2)}
+#mesa .titem.uso::before{content:'';position:absolute;top:5px;right:5px;width:18px;height:18px;z-index:1;pointer-events:none;background:var(--uso-ck);-webkit-mask:var(--i-check) center/11px no-repeat;mask:var(--i-check) center/11px no-repeat}#mesa .titem.u-p2::before{background:var(--uso-ck2)}
 #mesa .titem.uso::after{content:'';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--uso-p0);color:var(--uso-ck);font-size:11px;font-weight:700;line-height:18px;text-align:center;pointer-events:none;box-shadow:0 0 0 1.5px var(--on-photo),0 0 0 2.5px var(--photo-ring)}
 #mesa .titem.u-p1::after{background:var(--uso-p1)}#mesa .titem.u-p2::after{background:var(--uso-p2);color:var(--uso-ck2)}#mesa .titem.u-r::after{background:var(--uso-r)}
 #mesa .btn2{border:1px solid var(--line);border-radius:var(--r-pill);background:var(--panel-2);color:var(--ink);font-size:13px;font-weight:600;min-height:32px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
@@ -2459,7 +2458,7 @@
 #mesa .pe-fila{margin-top:12px}#mesa .pe-fila>p{margin:0}
 #mesa .pe-fila.pe-con{container:pe/inline-size;margin-right:-44px}   /* the container is this row, not the header: the × keeps the card as its box (it doesn't scroll away) */
 #mesa .pe-in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"campos ed";column-gap:12px}#mesa .pe-in>p{grid-area:campos;min-width:0;margin:0}
-#mesa .pe-ed{grid-area:ed;align-self:start;height:72px;min-width:84px;padding:0 18px;border-radius:var(--r-lg);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}#mesa .pe-ed:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .pe-ed{grid-area:ed;align-self:start;height:72px;min-width:84px;padding:0 19.5px;border-radius:var(--r-lg);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}#mesa .pe-ed:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 @container pe (max-width:338px){#mesa .pe-in{grid-template-columns:minmax(0,1fr);grid-template-areas:"campos" "ed";row-gap:12px}#mesa .pe-in>p{margin-right:44px}#mesa .pe-ed{height:44px;width:100%}}   /* a narrow header: the fields as before, EDITAR under them, wide */
 #mesa .pe-fijar{position:relative;flex:none;display:inline-flex;height:28px;cursor:pointer;-webkit-user-select:none;user-select:none}
 #mesa .pe-fijar input{-webkit-appearance:none;appearance:none;position:relative;width:76px;height:28px;margin:0;border-radius:var(--r-pill);background:var(--line-strong);cursor:pointer;transition:background-color var(--d-m) var(--ease-m),box-shadow var(--d1) ease-out}
@@ -2549,9 +2548,9 @@
 #mesa .pacts{margin-top:2px}#mesa .pacts button{border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:var(--r-pill);font-size:12.5px;font-weight:600;padding:0 13px;min-height:32px;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
 #mesa .pacts button:hover{border-color:var(--line-strong);background:var(--bg)}#mesa .pacts button:active:not(:disabled){transform:scale(.97)}
 /* titles and texts of the windows without a lone word (D-174) */
-#mesa :is(.card h3,.phead h3,.ecard h3,.lb-ttl h3){text-wrap:balance}#mesa :is(.card p,.cpnota,.toast){text-wrap:pretty}
+#mesa :is(.card h3,.phead h3,.ecard h3,.lb-ttl h3){text-wrap-style:balance}#mesa :is(.card p,.cpnota,.toast){text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
-#mesa :is(.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,.cpaso,.x,.hx,.cpx):active:not(:disabled){transform:scale(.97)}
+#mesa :is(.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,button.cpaso,.x,.hx,.cpx):active:not(:disabled){transform:scale(.97)}
 #mesa .pacts button:disabled{opacity:.4;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
@@ -2573,7 +2572,7 @@
 #mesa .capold{flex-basis:100%;color:var(--chg);font-size:12px}
 #mesa .capbox{display:flex;flex-direction:column;gap:5px}
 #mesa .caplab{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:24px}
-#mesa .caplab input{margin:0;width:15px;height:15px;flex:none;cursor:pointer}#mesa .caplab input[type=radio]{-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--line-strong);border-radius:50%;background:var(--panel-2)}#mesa .caplab input[type=radio]:checked{border:4.5px solid var(--acc)}
+#mesa .caplab input{margin:0;width:15px;height:15px;flex:none;cursor:pointer}#mesa .caplab input[type=radio]{-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--mute);border-radius:50%;background:var(--panel-2)}#mesa .caplab input[type=radio]:checked{border:4.5px solid var(--acc)}
 #mesa .caprow{display:flex;align-items:center;gap:7px}
 #mesa .ctags{margin-left:auto;display:flex;align-items:center;gap:5px}
 #mesa .ctags em{display:none;font-style:normal;font-weight:600;font-size:10.5px;color:var(--on-acc);background:var(--acc);border-radius:var(--r-pill);padding:1px 7px}
@@ -2651,7 +2650,7 @@
 #mesa .perchip.raro{background:var(--panel-2);border:1px dashed var(--chg);color:var(--chg)}
 #mesa .pdz>.muted{flex-basis:100%}#mesa .pdzav{flex-basis:100%;margin:0;padding:0 0 0 16px;color:var(--chg);font-size:12px;max-height:7.5em;overflow:auto}
 /* movimiento reducido: sin desplazamientos ni escalas, sí los cambios de color */
-@media (prefers-reduced-motion:reduce){#mesa *,#mesa *::before,#mesa *::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}#mesa .btn:active,#mesa .btn2:active,#mesa .lb-ib:active,#mesa .pacts button:active,#mesa :is(.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,.cpaso,.x,.hx,.cpx):active{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa *,#mesa *::before,#mesa *::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}#mesa .btn:active,#mesa .btn2:active{transform:none}#mesa :is(.lb-ib,.pacts button,.mchip,.ibtn:not(.tema),.lb-help,.hv-add,.dz-more,.tab.add,.cpvolver,.lb-trv,.lb-trb,.seg button,button.cpaso,.x,.hx,.cpx):active:not(:disabled){transform:none}}
 `;
 
   function buildShell() {

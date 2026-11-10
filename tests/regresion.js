@@ -11605,11 +11605,33 @@
           h('velo').click();
           igual([q('.dz .dz-acc[data-sec="diseno"] .dz-acc-s').textContent, q('.dz .dz-acc[data-sec="tam"] .dz-acc-s').textContent], ['01 · portada', '100 %'], 'los datos de «Diseño» y del tamaño');
           await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-acc[data-sec="velo"] .dz-acc-s').textContent), 4000, '«auto: N %» a la derecha de «Velo»');
-          ok(!/Intro = salto|vacío = el del kit|px, en todo el carrusel|o suéltalas aquí|Elige la foto de esta diapositiva|9:16; en el perfil/.test(q('.dz .dz-panel').textContent), 'quedan explicaciones a la vista');
+          ok(!/Intro = salto|vacío = el del kit|px, en todo el carrusel|desde la izquierda|desde la derecha|o suéltalas aquí|Elige la foto de esta diapositiva|9:16; en el perfil/.test(q('.dz .dz-panel').textContent), 'quedan explicaciones a la vista');
           ok(/Intro = salto de línea/.test(q('.dz #dz-f-titulo').title) && /suéltalas/.test(q('.dz [data-dz="addfotos"]').title), 'las explicaciones no pasaron al title');
         } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
         M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador otra vez');
         try { igual(abiertas(), ['velo'], 'al volver a abrirlo, la última abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+      });
+    } finally { W.localStorage.removeItem('mesa-dz-seccion'); }
+  });
+
+  prueba('AJ22', 'El diseñador abre «Foto» cuando falta la foto de una diapositiva, también la de la portada (D-123), y «Texto» si la sección recordada no está en esa publicación (D-177)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
+    const abiertas = () => qa('.dz .dz-panel > .dz-acc.on').map(s => s.dataset.sec);
+    try {
+      await conKitPrueba(async () => {
+        await disenada('r1', [await foto('aj22a.jpg', 1080, 1350)], textos('AJ22', 'Portada', 'Ficha'), false);   // la ficha, sin foto
+        W.localStorage.setItem('mesa-dz-seccion', 'pos');
+        const r = await M.libre.abrir('r1', 0); ok(r && r.disenador, 'no abrió el diseñador: ' + json(r));
+        await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador');
+        try { igual(abiertas(), ['foto'], 'falta una foto: la sección abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
+        W.localStorage.setItem('mesa-dz-seccion', 'una-que-no-esta');
+        M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador otra vez');
+        try { igual(abiertas(), ['texto'], 'la recordada no está: «Texto»'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
+        await disenada('r2', [], textos('AJ22b', 'Portada'), false);   // la portada, sin foto: el diseñador ya está en ella
+        W.localStorage.setItem('mesa-dz-seccion', 'texto');
+        const r2 = await M.libre.abrir('r2', 0); ok(r2 && r2.disenador, 'no abrió el diseñador en la portada sin foto: ' + json(r2));
+        await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador en la portada');
+        try { igual(abiertas(), ['foto'], 'falta la foto de la portada: la sección abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
       });
     } finally { W.localStorage.removeItem('mesa-dz-seccion'); }
   });
@@ -11676,6 +11698,13 @@
         tecla('c', { meta: true, code: 'KeyC' }); tecla('v', { meta: true, code: 'KeyV' }); await espera(80);
         const gs = [...new Set(els().filter(e => e.g).map(e => e.g))];
         igual([els().length, gs.length, els().filter(e => e.g === gs[1]).map(e => e.t).sort()], [n0 + 4, 2, ['forma', 'texto']], 'pegar no hizo otra pareja con su grupo');
+        // el número se escribe como cualquier texto: un doble clic lo elige solo a él (un clic sigue eligiendo el grupo)
+        const tn = els().filter(e => e.t === 'texto' && e.g).at(-1), [x, y] = enLienzo(tn.x + tn.w / 2, tn.y + tn.h / 2);
+        ed().cv.dispatchEvent(new W.MouseEvent('dblclick', { clientX: x, clientY: y, bubbles: true, cancelable: true })); await espera(80);
+        igual([ed().sel, ed().mas], [tn.id, []], 'el doble clic en el número no lo deja solo a él');
+        const ta = q('.lb .lb-panel textarea[data-lb="txt"]'); ok(ta && D.activeElement === ta, 'sin el campo para escribir el número');
+        ta.value = '2'; ta.dispatchEvent(new W.Event('input', { bubbles: true }));
+        igual([lzeEl(tn.id).txt, els().filter(e => e.g && e.g === lzeEl(tn.id).g).length], ['2', 2], 'el número escrito, sin salir de su grupo');
       } finally { M.libre.cerrar(); }
     });
   });
@@ -11683,9 +11712,10 @@
   prueba('AJ21', 'Las tres piezas viajan: plantilla («Todo») a otra diapositiva, «Aplicar» a la casilla y exportar / importar, con sus textos, colores, píldora y grupo (D-178)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('aj21a.jpg'), await foto('aj21b.jpg')]);
-    const firma = els => els.filter(e => e.txt === 'Desliza →' || e.txt === '“' || e.g).map(e => [e.t, e.forma || e.txt, e.color, e.pil ? e.pil.c : null, e.g ? 'g' : '']).sort((a, b) => json(a) < json(b) ? -1 : 1);
+    const firma = els => { const gs = els.filter(e => e.g), par = gs.length === 2 && gs[0].g === gs[1].g;   // el círculo y su número, en el mismo grupo
+      return els.filter(e => e.txt === 'Desliza →' || e.txt === '“' || e.g).map(e => [e.t, e.forma || e.txt, e.color, e.pil ? e.pil.c : null, e.g ? (par ? 'g' : 'g suelto') : '']).sort((a, b) => json(a) < json(b) ? -1 : 1); };
     let f0;
-    await conKitPrueba(async () => {
+    await conKitPrueba(async () => { try {
       await abrirEditor('r1'); await hasta(() => ed().kit && ed().estilos.length, 4000, 'el kit en el editor');
       accion('add-desliza'); accion('add-comillas'); accion('add-numc');
       f0 = firma(compDe(0).els); igual(f0.length, 4, 'las cuatro piezas');
@@ -11696,7 +11726,7 @@
       igual(firma(compDe(1).els), f0, 'la plantilla «Todo» no las lleva a la diapositiva 2');
       const g1 = compDe(1).els.find(e => e.g), g0 = compDe(0).els.find(e => e.g); ok(g1.g !== g0.g, 'la plantilla comparte el grupo con la diapositiva 1');
       await aplicarEditor();
-    });
+    } finally { if (M.libre.abierto()) M.libre.cerrar(); } });
     const enCasilla = () => { const s = slot('r1'); return Object.values((s.libre || {}).slides || {}).map(c => firma(c.els)); };
     igual(enCasilla(), [f0, f0], 'no llegaron a la casilla con «Aplicar»');
     await M.flush();

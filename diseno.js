@@ -828,7 +828,7 @@
       const st0 = instantanea(s, fin); E.hist = { undo: [], redo: [], cur: st0, curJ: firma(st0), tag: null, t: 0 }; E.abiertoJ = E.hist.curJ;
       let faltan = null;
       if (opts && opts.faltaFoto) {                         // the photos new in the cell may have filled them (absorb)
-        const f = sinFoto(s); if (f.length) { faltan = f.map(i => i + 1); select(f[0]); }
+        const f = sinFoto(s); if (f.length) { faltan = f.map(i => i + 1); E.secAb = 'foto'; if (f[0] === E.sel) edPanel(true); else select(f[0]); }   // with «Foto» open, where it goes (D-177); on the slide already chosen, its panel is drawn again
         I().toast([msg, f.length ? faltaMsg(s, f) : 'Pulsa «Aplicar a la casilla» para aplicar el diseño.'].filter(Boolean).join(' '), { ms: 15000 });
       } else if (msg) I().toast(msg);
       return { ok: true, slot: s.id, diapositivas: s.design.slides.length, ...(faltan ? { faltan } : {}), ...(msg ? { aviso: msg } : {}) };
@@ -1005,6 +1005,8 @@
     }
   }
   function panelSecs(s, sl) {
+    const et = etiquetasHTML(s);
+    if (E.secAb !== '-' && !['diseno', 'foto', 'texto', 'tam', 'pos', 'color', 'velo', ...(et ? ['etiquetas'] : [])].includes(E.secAb)) E.secAb = 'texto';   // the remembered one is not in this post: «Texto», as the first time
     const d = s.design, i = E.sel, ov = sl.ov || {}, reel = isReelS(s), e = ov.escala || 1, va = ov.velo == null, last = E.last[i];
     const sec = (k, t, r, h, tt) => [k, accSec(k, t, r, h, tt)], dec = k => `<span class="dz-dec" data-dec="${k}"></span>`;   // dec: what «Auto» decided, set after each render
     const vv = va ? (last && last.decision ? +last.decision.velo || 0 : 0) : ov.velo;
@@ -1020,7 +1022,7 @@
       sec('color', 'Color del texto', dec('color'), `<div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
         + coloresHTML(ov.color) + '</div>'),
       sec('velo', 'Velo', dec('velo'), `<div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
-      ...(etiquetasHTML(s) ? [['etiquetas', etiquetasSec(s)]] : []),
+      ...(et ? [['etiquetas', etiquetasSec(s)]] : []),
       ['reset', `<div class="dz-sec dz-reset" data-sec="reset"><button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button></div>`]   // the slide's settings, under the sections
     ];
   }
@@ -1624,6 +1626,7 @@
     if (toSlide && got[0] !== sl.src) { E.sel = i; setSrc(i, got[0]); edList(); }
     const rest = got.length - (toSlide ? 1 : 0);
     if (!toSlide || rest) I().toast(toSlide ? `La foto va en la diapositiva ${i + 1}; ${rest === 1 ? 'la otra está' : `las otras ${rest} están`} en la bandeja.` : sl && sl.tipo === 'final' ? 'La diapositiva final usa la foto final del cliente: las fotos están en la bandeja.' : `${got.length === 1 ? 'Foto añadida' : `${got.length} fotos añadidas`} a la bandeja: elígela${got.length === 1 ? '' : 's'} en «Foto».`);
+    if (!toSlide && got.length && !(sl && sl.tipo === 'final')) { const h = E.el.querySelector('.dz-panel > .dz-acc[data-sec="foto"]:not(.on) > .dz-acc-t > .dz-acc-h'); if (h) plegar(h); }   // «elígela en «Foto»»: open (D-177)
     edPanel(); dirty('sel');
   }
   async function setFinalFile(f) {

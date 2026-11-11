@@ -76,13 +76,15 @@
   const esCarrusel = s => s.type === 'Carrusel' || (s.type === 'Foto' && (s.photos || []).length > 1);
   const tipoTxt = s => I().isReel(s.type) ? s.type : esCarrusel(s) ? 'Carrusel' : 'Foto';
 
-  let leidas = 0;                              // readings so far (a drawing says which one it showed)
+  let gen = 0;                                 // writes so far: a reading keeps what was written while it read
+  const TOCADA = new Map();                    // id -> the write (gen) that last touched it
   async function leer() {
-    leidas++;
-    const X = I(), B0 = X.S;
+    const X = I(), B0 = X.S, g0 = gen;
     const boards = ((await X.idbAll('boards')) || []).filter(b => b && b.month && Array.isArray(b.slots)).map(b => (B0 && b.key === B0.key ? B0 : b));
     const ts = (await X.idbAll('tareas').catch(() => [])) || [];
+    const antes = new Map(TK);
     TK.clear(); for (const t of ts) if (t && t.id) TK.set(t.id, t);
+    for (const [id, g] of TOCADA) if (g > g0) { const r = antes.get(id); if (r) TK.set(id, r); else TK.delete(id); }   // written while this read
     for (const [id, r] of PEND) { if (r) TK.set(id, r); else TK.delete(id); }   // a write still on its way wins over what was read
     return { CL: X.CL.slice(), boards };
   }
@@ -224,7 +226,7 @@
   const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy y mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   function cifras(R) {
     return `<div class="pp-cifras" role="group" aria-label="Avisos">${GRUPOS.map(([k, l]) => { const n = R.cifras[k];
-      return `<button type="button" class="pp-cifra${k === 'pasado' && n ? ' rojo' : ''}${st.filtro === k ? ' on' : ''}" data-pp="filtro" data-k="${k}" aria-pressed="${st.filtro === k}"${n ? '' : ' disabled'}><b>${n}</b><span>${l}</span></button>`; }).join('')}</div>`;
+      return `<button type="button" class="pp-cifra${k === 'pasado' && n ? ' rojo' : ''}${st.filtro === k ? ' on' : ''}" data-pp="filtro" data-k="${k}" aria-pressed="${st.filtro === k}"${n || st.filtro === k ? '' : ' disabled'}><b>${n}</b><span>${l}</span></button>`; }).join('')}</div>`;
   }
   function periodo(R) {
     const s = st.modo === 'semana', t = rangoTxt(R.V);
@@ -384,16 +386,19 @@
   }
 
   // ---------- drawing: from what was read (sync), and reading again (async) ----------
-  let R = null;
+  let R = null, ultimo = '';
   function pintar(R0) {
     if (!st.on || !page || !D) return;
-    R = R0 || calcular(D); page.dataset.ppD = String(leidas);
+    R = R0 || calcular(D);
+    const html = pagina(R);
+    if (html === ultimo && page.firstChild) return;   // nothing changed: what is open (a dropdown, a caret, a composition) stays
+    ultimo = html;
     // what is being typed survives the drawing: the new task's text, the caret, the focus
     const a = document.activeElement, enPag = a && page.contains(a);
     const clave = enPag ? (a.dataset.pp ? `[data-pp="${a.dataset.pp}"]${a.dataset.id ? `[data-id="${CSS.escape(a.dataset.id)}"]` : ''}${a.dataset.k ? `[data-k="${CSS.escape(a.dataset.k)}"]` : ''}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ''}${a.dataset.v ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ''}${a.dataset.r ? `[data-r="${CSS.escape(a.dataset.r)}"]` : ''}${a.dataset.n ? `[data-n="${CSS.escape(a.dataset.n)}"]` : ''}${a.dataset.p ? `[data-p="${CSS.escape(a.dataset.p)}"]` : ''}` : null) : null;
     const inp = page.querySelector('[data-pp="nueva"]'), txt = inp ? inp.value : '', sel = inp && a === inp ? [inp.selectionStart, inp.selectionEnd] : null;
     const y = page.scrollTop;
-    page.innerHTML = pagina(R);
+    page.innerHTML = html;
     if (M.controles && M.controles.mejorar) M.controles.mejorar(page);
     const n = page.querySelector('[data-pp="nueva"]'); if (n && txt) n.value = txt;
     if (clave) { const b = page.querySelector(clave); if (b) { b.focus({ preventScroll: true }); if (sel && b === n) b.setSelectionRange(sel[0], sel[1]); } }
@@ -404,7 +409,6 @@
     if (leyendo) { leyendo.otra = true; return leyendo.p; }
     const yo = leyendo = { otra: false, p: null };
     yo.p = (async () => {
-      let nuevo = false;
       try {
         do {
           yo.otra = false;
@@ -412,20 +416,19 @@
           D = d;
           // the first time, what is known at once; the thumbnails and the kits' colours follow (a second drawing, only if they change)
           if (!page.firstChild && !notaEnCurso()) pintar();
-          const r0 = calcular(D), quiero = d.CL.map(c => c.foto).filter(Boolean), sinKit = d.CL.filter(c => !(c.id in kits)).length;
+          const r0 = calcular(D), quiero = d.CL.map(c => c.foto).filter(Boolean);
           for (const x of r0.items) if (x.tipo === 'post' && x.s.photos && x.s.photos[0]) quiero.push(x.s.photos[0]);   // the thumbnails in sight, never their photos
           const falta = [...new Set(quiero)].filter(id => !(M.files[id] && M.files[id].thumbUrl));
           await Promise.all([Promise.all(d.CL.map(c => kitColor(c.id, d))), falta.length ? X.loadThumbs(falta).catch(() => {}) : null]);
-          if (falta.length || (sinKit && d.CL.some(c => typeof kits[c.id] === 'string'))) nuevo = true;
         } while (yo.otra);
-        if (notaEnCurso()) pendiente = true; else if (nuevo || page.dataset.ppD !== String(leidas)) pintar();   // computed again: a click meanwhile may have changed what is seen (the reading is cached)
-        page.dataset.ppD = String(leidas);
+        if (ocupada()) pendiente = true; else pintar();   // computed again (a click meanwhile may have changed what is seen); the same page isn't drawn again
       } finally { if (leyendo === yo) leyendo = null; }
     })();
     return yo.p;
   }
-  let pendiente = false;                       // a drawing put off while a note is being written
+  let pendiente = false, componiendo = false;  // a drawing put off while something is being written or chosen
   const notaEnCurso = () => { const a = document.activeElement; return !!(a && page && page.contains(a) && a.matches('[data-pp="nota-txt"]')); };
+  const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
 
   // ---------- opening and closing ----------
   function colocar() {                         // the page after the header; the logo is its button (not in «Vista cliente»)
@@ -460,15 +463,23 @@
     if (X && X.renderBar && X.S) { try { X.render(); } catch (e) { /* */ } }   // the board, as it is now
     if (X && X.vencRevisar) X.vencRevisar(false).catch(() => {});
   }
+  // a board opened from the page: if it can't open (a photo upload running, a board gone), the page comes back as it was
+  const falloDe = r => typeof r === 'string' ? r : r && r.error ? String(r.error) : null;
+  function volver(f) {
+    const X = I(), root = X.root(); st.on = true; ssSet(SS_CLI, null);
+    root.classList.add('pp-on'); page.hidden = false; ultimo = ''; colocar(); pintar();
+    X.toast('No se pudo abrir: ' + f);
+  }
+  async function abrirTablero(f) { let r; cerrar(); try { r = await f(); } catch (e) { r = String((e && e.message) || e); } const x = falloDe(r); if (x) volver(x); return !x; }
   async function abrirPost(key, slotId) {      // a notice: its board, with its post's window open
-    const X = I(); cerrar();
-    if (!(X.S && X.S.key === key)) { const r = await M.open(key); if (typeof r === 'string') { X.toast('No se pudo abrir: ' + r); return; } }
+    const X = I();
+    if (X.S && X.S.key === key) cerrar(); else if (!(await abrirTablero(() => M.open(key)))) return;
     if (slotId && I().S && I().S.slots.some(s => s.id === slotId)) I().openDetail(slotId, 0);
   }
   async function abrirCliente(cid, key) {      // a client's block: its board in the month seen (if it has one), else as a tab does
-    const X = I(); cerrar();
-    if (key) { if (!(X.S && X.S.key === key)) await M.open(key); return; }
-    if (X.curClient !== cid || !X.S) await M.openClient(cid);
+    const X = I();
+    if (key) { if (X.S && X.S.key === key) cerrar(); else await abrirTablero(() => M.open(key)); return; }
+    if (X.curClient === cid && X.S) cerrar(); else await abrirTablero(() => M.openClient(cid));
   }
 
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
@@ -476,7 +487,8 @@
   const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}) } : null;
   async function escribir(cambios) {           // [{id, despues|null}]
     const X = I();
-    for (const c of cambios) { PEND.set(c.id, c.despues || null); if (c.despues) TK.set(c.id, c.despues); else { soltarFotos(TK.get(c.id)); TK.delete(c.id); } }
+    gen++;
+    for (const c of cambios) { TOCADA.set(c.id, gen); PEND.set(c.id, c.despues || null); if (c.despues) TK.set(c.id, c.despues); else { soltarFotos(TK.get(c.id)); TK.delete(c.id); } }
     try { for (const c of cambios) { if (c.despues) await X.idbPut('tareas', c.id, c.despues); else await X.idbDel('tareas', c.id); } }
     catch (e) { X.toast('No se pudo guardar la tarea: ' + ((e && e.message) || e)); }
     finally { for (const c of cambios) if (PEND.get(c.id) === (c.despues || null)) PEND.delete(c.id); }
@@ -538,7 +550,7 @@
 
   // ---------- the right-click menu of a task or a note (the mesa's menu, .cpmenu) ----------
   let menu = null;
-  function cerrarMenu() { if (!menu) return; const m = menu; menu = null; m.el.remove(); document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true); window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); }
+  function cerrarMenu() { if (!menu) return; const m = menu; menu = null; m.el.remove(); if (pendiente && st.on) setTimeout(() => { if (pendiente && !ocupada()) { pendiente = false; pintar(); } }, 0); document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true); window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); }
   function abrirMenu(x, y, items) {
     cerrarMenu();
     const root = I().root(), el = document.createElement('div'); el.className = 'cpmenu pp-menu'; el.setAttribute('role', 'menu');
@@ -612,7 +624,7 @@
     if (k === 'foto') { verFoto(a.dataset.id); return; }
     if (k === 'cliente') { abrirCliente(a.dataset.c, a.dataset.key); return; }
     if (k === 'abrir') { abrirPost(a.dataset.key, a.dataset.slot); return; }
-    if (k === 'hs') { (async () => { const key = a.dataset.key; cerrar(); if (!(X.S && X.S.key === key)) await M.open(key); if (M.hs && M.hs.ver) M.hs.ver(true); })(); return; }
+    if (k === 'hs') { (async () => { const key = a.dataset.key; if (X.S && X.S.key === key) cerrar(); else if (!(await abrirTablero(() => M.open(key)))) return; if (M.hs && M.hs.ver) M.hs.ver(true); })(); return; }
   }
   function alDobleClic(e) {
     if (!st.on || !page || !page.contains(e.target)) return;
@@ -710,6 +722,8 @@
     on(document, 'change', alCambiar);
     on(window, 'keydown', alTeclear, true);
     on(document, 'input', alEscribir);
+    on(document, 'compositionstart', e => { if (page && page.contains(e.target)) componiendo = true; });
+    on(document, 'compositionend', () => { componiendo = false; });
     on(document, 'focusout', alSalir);
     on(document, 'contextmenu', alMenu, true);
     for (const ty of ['dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, alArrastrar, true);
@@ -722,17 +736,18 @@
     on(document, 'visibilitychange', () => { if (st.on && document.visibilityState === 'visible') refrescar(); });
     try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (e.data && e.data.t === 'tareas' && st.on) refrescar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
-    on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = true; }, true);
+    on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);
     // opening a board (a tab, the skill through window.MESA, the battery) leaves the page; an import or «Usar aquí» don't
     for (const k of ['open', 'openClient', 'init']) {
       const f = M[k]; if (typeof f !== 'function' || f._pp) continue;
       const g = function (...a) {
-        if (retomando) { retomando = false; quedarse++; const p = f.apply(this, a); Promise.resolve(p).catch(() => {}).finally(() => { quedarse--; if (st.on) refrescar(); }); return p; }
+        if (retomando && Date.now() - retomando < 10000) { retomando = false; quedarse++; const p = f.apply(this, a); Promise.resolve(p).catch(() => {}).finally(() => { quedarse--; if (st.on) refrescar(); }); return p; }
         if (st.on && !quedarse) cerrar();
         return f.apply(this, a);
       };
       g._pp = f; M[k] = g;
     }
+    retomando = false;
     if (typeof M.importData === 'function' && !M.importData._pp) {
       const f = M.importData, g = async function (...a) { quedarse++; try { return await f.apply(this, a); } finally { quedarse--; if (st.on) refrescar(); } };
       g._pp = f; M.importData = g;
@@ -767,7 +782,7 @@
 #mesa.pp-on .tabs .tab.on{color:var(--mute);font-weight:400;border-bottom-color:transparent}
 #mesa.pp-on .tabs .tedit{display:none}
 #mesa:not(.pp-on) .appbar .tema{display:none}
-#mesa.pp-on > :is(.bar,.main,.busy){display:none}
+#mesa.pp-on > :is(.bar,.main){display:none}
 #mesa .pp{flex:1;min-height:0;overflow:auto;background:var(--bg);padding:6px 20px 32px;scrollbar-gutter:stable;
   --pp-f:color-mix(in oklab,var(--ty-foto-ink) 58%,var(--ty-foto));--pp-c:color-mix(in oklab,var(--ty-carr-ink) 58%,var(--ty-carr));--pp-r:color-mix(in oklab,var(--ty-reel-ink) 58%,var(--ty-reel));--pp-st:var(--ink);--pp-tx:var(--ink)}
 #mesa .pp[hidden]{display:none}
@@ -777,7 +792,8 @@
 #mesa .pp :is(.pp-ant,.pp-sig){font-size:0;position:relative}
 #mesa .pp :is(.pp-ant,.pp-sig)::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-chev-l) center/100% no-repeat;mask:var(--i-chev-l) center/100% no-repeat}
 #mesa .pp .pp-sig::before{-webkit-mask-image:var(--i-chev-r);mask-image:var(--i-chev-r)}
-#mesa .pp .ibtn:active:not(:disabled){transform:scale(.97)}
+#mesa .pp .ibtn:active:not(:disabled),#mesa .pp :is(button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active{transform:scale(.97)}   /* D-171: every button shrinks when pressed */
+#mesa .pp :is(button.pp-av,.pp-blq,.pp-mas,button.pp-tfo){transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp .ibtn:disabled{color:var(--faint);background:none;cursor:default}
 #mesa .pp-in{display:grid;grid-template-columns:minmax(0,1fr) 420px;grid-template-areas:"top top" "izq rail";gap:16px;max-width:1480px;margin:0 auto}
 #mesa .pp-in.sin-rail{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "izq"}
@@ -967,7 +983,7 @@
 #mesa .pp-pt:focus-within{box-shadow:var(--shadow-xs),0 0 0 2px var(--postit-3)}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
-@media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc):active,#mesa .brand.pp-logo:active svg{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
 @media (max-width:720px){
   #mesa .pp{padding:4px 12px 24px}
   #mesa .pp-cifra{padding:10px 10px 11px}#mesa .pp-cifra span{font-size:12px}

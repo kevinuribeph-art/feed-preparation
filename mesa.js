@@ -5274,6 +5274,7 @@
       if (o.ubicacion) r.ubicacion = o.ubicacion;   // the location chosen here (D-124): Notion doesn't have it
       if (o.etiquetas) r.etiquetas = o.etiquetas;   // nor the tags and collaborators (D-130)
       if (o.colaboradores) r.colaboradores = o.colaboradores;
+      if (o.esperaCliente) r.esperaCliente = o.esperaCliente;   // since when it waits for the client (D-180)
       if (r.design && o.type && o.type !== r.type && M.diseno && M.diseno._retipo) {   // its type changed in Notion: the design converts
         const x = M.diseno._retipo(r, r.type);
         if (x) { orphans.push(...x.tray); deadRenders.push(...x.dead); retyped.push(n.name); }
@@ -5298,6 +5299,7 @@
       ...(old.fillers > 0 && previewsOf(old).length ? { previews: old.previews } : {}),
       ...(hsDe(old).length ? { historias: old.historias } : {}),
       ...pasosIniciales(saved, old, month, span),   // each month's step (D-084, D-119)
+      ...(old.esperaDesde ? { esperaDesde: old.esperaDesde } : {}),   // since when its posts' waits are known (D-180)
       // when the board last had Notion's data (loaded from Notion here, or an upload confirmed by markSynced): the calendar's «Notion a fecha de»
       ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null

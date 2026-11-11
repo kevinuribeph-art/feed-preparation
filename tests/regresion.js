@@ -12210,6 +12210,10 @@
       igual(slot('r1').esperaCliente, { v: 'noaprobado', desde: '2026-11-04T09:00:00.000Z' }, 'No aprobado');
       M.setEstado('r2', 'aprobado'); await M.flush();
       ok(!('esperaCliente' in slot('r2')), 'Aprobado lo conserva');
+      // reabrir el tablero (otro mes, recargar, un aviso) lo conserva
+      relojEn('2026-11-09T10:00:00+01:00');
+      await M.open(`${CLIENTE}-${MES}`); await M.flush();
+      igual([slot('r1').esperaCliente, !!M._in.S.esperaDesde], [{ v: 'noaprobado', desde: '2026-11-04T09:00:00.000Z' }, true], 'reabrir el tablero lo pierde');
       // un tablero de antes: lo que ya esperaba, sin día
       const S = M._in.S, de = id => S.slots.find(x => x.id === id);   // el tablero abierto (M.board() da una copia)
       delete de('r2').estado; delete de('r2').esperaCliente; delete S.esperaDesde; delete de('r1').esperaCliente;
@@ -12451,6 +12455,54 @@
       const b = M.personal.borrar(x.id), l2 = await M.personal.tareas(); await b;
       ok(!l2.some(t => t.id === x.id), 'una borrada que se está borrando vuelve en la lectura');
     } finally { await sinTareas(); }
+  });
+
+  prueba('PP15', 'El repaso de cada minuto no redibuja la página si nada cambió, ni cierra un desplegable abierto de «Nueva tarea» (D-180)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
+      await hasta(() => M.controles, 4000, 'controles.js');
+      const marca = q('.pp-cifras'); marca.dataset.prueba = '1';
+      await M.personal.render();
+      ok(q('.pp-cifras') === marca, 'el repaso redibujó la página sin cambios');
+      q('[data-pp="ncli"]').click(); await espera(60);
+      ok(M.controles.abierto(), 'no se abrió el desplegable');
+      await M.personal.tarea({ txt: 'Llega mientras se elige' });   // algo cambia
+      await M.personal.render();
+      ok(M.controles.abierto() && M.controles.abierto().tipo === 'sel', 'el repaso cerró el desplegable');
+      M.controles.cerrar(); await espera(60); await M.personal.render();
+      ok(qa('.pp-tk .pp-tt').some(t => t.textContent === 'Llega mientras se elige'), 'lo dejado para después no se dibujó');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('PP16', 'Un aviso cuyo tablero no se puede abrir deja la página como estaba y lo dice (D-180)', async () => {
+    await tablero([pub(1)]);
+    try {
+      await paginaAbierta();
+      await ppClic('.pp-tabs [data-p="tareas"]');
+      const b = D.createElement('button'); b.type = 'button'; b.className = 'pp-av'; b.dataset.pp = 'abrir'; b.dataset.key = 'no-existe-2026-11'; b.dataset.slot = 'x';
+      q('.pp-grupos, .pp-izq').append(b); M._in.clearToasts();
+      b.click();
+      await hasta(() => q('.toasts .toast') && /No se pudo abrir/.test(q('.toasts .toast').textContent), 4000, 'el aviso de que no se pudo abrir');
+      ok(M.personal.abierta() && !M.personal.estado().plg.tareas, 'la página no volvió como estaba');
+    } finally { paginaCerrada(); }
+  });
+
+  prueba('PP17', 'Una cifra elegida que baja a 0 sigue pulsándose para quitar el filtro (D-180)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      const t = await M.personal.tarea({ txt: 'Vencida sola', fecha: '2026-09-20' });
+      await paginaAbierta();
+      q('.pp-avisos [data-pp="avtareas"]').click(); await M.personal.render();
+      await ppClic('.pp-cifra[data-k="pasado"]');
+      igual(M.personal.estado().filtro, 'pasado', 'no se eligió la cifra');
+      await M.personal.hecha(t.id); await M.personal.render();
+      const c = q('.pp-cifra[data-k="pasado"]');
+      ok(c.querySelector('b').textContent === '0' && !c.disabled, 'la cifra elegida en 0 no se puede pulsar');
+      await ppClic('.pp-cifra[data-k="pasado"]');
+      igual(M.personal.estado().filtro, null, 'el filtro no se quita');
+      ok(q('.pp-cifra[data-k="pasado"]').disabled, 'en 0 y sin elegir se pulsa');
+    } finally { paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

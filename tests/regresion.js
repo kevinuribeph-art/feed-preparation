@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 13, V_IDB = 15;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180)
+  const V_ARCHIVO = 14, V_IDB = 16;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -6199,12 +6199,12 @@
       await porAprobar(['r1', 'r2'], 'v7'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
       const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
       igual(d.v, V_ARCHIVO, 'la versión del archivo');
-      igual(d.boards.find(b => b.key === r.key).slots.find(s => s.id === 'r1').estado, { v: 'programado', fecha: slot('r1').date }, 'la fecha en el archivo');
+      { const e = d.boards.find(b => b.key === r.key).slots.find(s => s.id === 'r1').estado; igual({ v: e.v, fecha: e.fecha }, { v: 'programado', fecha: slot('r1').date }, 'la fecha en el archivo'); ok(e.firma, 'no viaja lo programado (D-184)'); }   // desde la 4.17 lleva también su firma (D-184)
       const v8 = JSON.parse(JSON.stringify(d)); v8.v = 8; v8.boards.forEach(b => (b.slots || []).forEach(s => { if (s.estado) delete s.estado.fecha; }));
       await sinMes(r.key);
       const ri = await M.importData(v8, { confirm: false }); ok(ri && !ri.error, 'el archivo v8 no entró: ' + json(ri));
       await M.open(r.key);
-      igual(slot('r2').estado, { v: 'programado', fecha: slot('r2').date }, 'una Programada de antes no tomó su fecha al abrir');
+      { const e = slot('r2').estado; igual({ v: e.v, fecha: e.fecha }, { v: 'programado', fecha: slot('r2').date }, 'una Programada de antes no tomó su fecha al abrir'); }
       const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
       if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
     } finally { volverReloj(); }
@@ -12125,7 +12125,7 @@
     } finally { await preparar(); }                 // la mesa de las pruebas, como al empezar
   });
 
-  prueba('PP2', 'Avisos de la página: Se ha pasado (también un reel en Aprobado, «publicar a mano»; una Programada que pasa sola no), Hoy y mañana con su hora y «Mañana», Esperando al cliente si sale en el periodo o lleva más de 3 días, Falta programar sin reels ni programadas; 8 líneas y «N más»; las cifras solo filtran Avisos; Semana / Mes y ‹ › cambian el periodo, Se ha pasado no (D-180)', async () => {
+  prueba('PP2', 'Avisos de la página: Se ha pasado (también un reel en Aprobado, «publicar a mano»; una Programada que pasa sola no), Hoy y mañana con su hora y «Mañana», Esperando al cliente si sale en el periodo o lleva más de 3 días, Falta programar sin programadas, con los reels (D-181); 8 líneas y «N más»; las cifras solo filtran Avisos; Semana / Mes y ‹ › cambian el periodo, Se ha pasado no (D-180)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
     try {
       const extra = Array.from({ length: 9 }, (_, i) => pub(13 + i, 'Foto', i < 5 ? 15 : 16));
@@ -12140,7 +12140,7 @@
       await M.flush();
       relojEn('2026-11-10T10:00:00+01:00');
       await paginaAbierta();
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 10 }, 'las cifras de la semana');
+      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 11 }, 'las cifras de la semana');   // 11 con el reel r10 desde la 4.17 (D-181)
       igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
       ok(/publicar a mano/.test(q('.pp-av[data-slot="r2"]').textContent), 'el reel en Aprobado pasado no dice «publicar a mano»');
       ok(q('.pp-grupo[data-cat="pasado"] .pp-cu.rojo'), 'la fecha pasada no va en rojo');
@@ -12150,10 +12150,11 @@
       igual(ppLineas('espera'), ['r6', 'r7'], 'Esperando al cliente');
       ok(/sale en 4 días · lleva 9 días/.test(q('.pp-av[data-slot="r6"]').textContent) && /lleva 5 días/.test(q('.pp-av[data-slot="r7"]').textContent) && !/sale en/.test(q('.pp-av[data-slot="r7"]').textContent), 'las razones de la espera');
       igual(ppLineas('falta').length, 8, '8 líneas en Falta programar');
-      igual(q('.pp-grupo[data-cat="falta"] .pp-mas').textContent, '2 más', '«N más»');
-      ok(!ppLineas('falta').includes('r10') && !q('.pp-av[data-slot="r3"]') && !q('.pp-av[data-slot="r11"]'), 'un reel, una que pasó sola o una cancelada');
+      igual(q('.pp-grupo[data-cat="falta"] .pp-mas').textContent, '3 más', '«N más»');
+      ok(!q('.pp-av[data-slot="r3"]') && !q('.pp-av[data-slot="r11"]'), 'una que pasó sola o una cancelada');
       await ppClic('.pp-grupo[data-cat="falta"] .pp-mas');
-      igual(ppLineas('falta').length, 10, '«N más» no las enseña todas');
+      igual(ppLineas('falta').length, 11, '«N más» no las enseña todas');
+      ok(ppLineas('falta').includes('r10') && /se programa a mano/.test(q('.pp-av[data-slot="r10"]').textContent), 'el reel sin programar no está en Falta programar (D-181)');
       // una cifra filtra solo Avisos
       await ppClic('.pp-cifra[data-k="espera"]');
       igual(qa('.pp-grupo').map(g => g.dataset.cat), ['espera'], 'la cifra no filtra Avisos');
@@ -12162,7 +12163,7 @@
       igual(qa('.pp-grupo').length, 4, 'pulsarla otra vez no lo enseña todo');
       // Mes y la semana siguiente; Se ha pasado no cambia
       await ppClic('.pp-periodo [data-m="mes"]');
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 3, falta: 11 }, 'las cifras del mes');
+      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 3, falta: 12 }, 'las cifras del mes');
       await ppClic('.pp-periodo [data-m="semana"]'); await ppClic('.pp-periodo .pp-sig');
       igual(q('.pp-rango').textContent, '17 – 23 nov', 'la semana siguiente');
       igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 1 }, 'las cifras de la semana siguiente');
@@ -12303,7 +12304,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('PP7', 'Notas: post-its arriba de la Lista; el icono de nota guarda lo escrito como nota o, vacío, abre un post-it en blanco con el foco; se guardan donde se crean (Todos, generales; un cliente, suyas); sin notas no hay fila; una vacía que se deja se va sin paso de ⌘Z (D-180)', async () => {
+  prueba('PP7', 'Notas: post-its arriba de la Lista; el icono de nota guarda lo escrito como nota o, vacío, abre la nota en grande y en edición (D-182); se guardan donde se crean (Todos, generales; un cliente, suyas); sin notas no hay fila; una vacía que se deja se va sin paso de ⌘Z (D-180)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
@@ -12317,10 +12318,11 @@
       ok(!q('.pp-pn'), 'con un cliente salen las generales');
       const u0 = M.personal._test.H().u;
       await ppClic('[data-pp="nota-campo"]');
-      const p = await hasta(() => { const a = D.activeElement; return a && a.matches && a.matches('[data-pp="nota-txt"]') && a; }, 3000, 'el post-it en blanco con el foco');
+      await hasta(() => { const a = D.activeElement; return a && a.matches && a.matches('.pp-card.nota.ed [data-pp="cn"]') && a; }, 3000, 'la nota en blanco en grande, en edición y con el foco');
       const n = (await M.personal.tareas()).find(x => x.tipo === 'nota' && x.cliente === CLIENTE);
       ok(n && n.txt === '', 'la nota en blanco no es del cliente');
-      p.dispatchEvent(new W.FocusEvent('focusout', { bubbles: true })); p.blur(); await espera(200);   // Chrome sin ventana no lanza focusout con blur() (FL4)
+      W.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await espera(250);
+      ok(!q('.pp-ov:not(.sale)'), 'la nota vacía sigue abierta');
       ok(!(await M.personal.tareas()).some(x => x.tipo === 'nota' && x.cliente === CLIENTE), 'la nota vacía se queda');
       igual(M.personal._test.H().u, u0, 'la nota vacía dejó un paso de ⌘Z');
     } finally { paginaCerrada(); await sinTareas(); }
@@ -12352,7 +12354,7 @@
     } finally { paginaCerrada(); relojVuelve(); }
   });
 
-  prueba('PP9', '«⇅ Exportar» (archivo v13) lleva las tareas y las notas con sus fotos, e «Importar» las devuelve: la más reciente gana y nunca se borra ninguna; un archivo v12 entra sin tocarlas; IndexedDB 15 (D-180, D-060)', async () => {
+  prueba('PP9', '«⇅ Exportar» (archivo v13; v14 desde la 4.17, D-183) lleva las tareas y las notas con sus fotos, e «Importar» las devuelve: la más reciente gana y nunca se borra ninguna; un archivo v12 entra sin tocarlas; IndexedDB 15 (16 desde la 4.17) (D-180, D-060)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       const t = await M.personal.tarea({ txt: 'Viaja', fecha: '2026-11-20', cliente: CLIENTE });
@@ -12523,6 +12525,336 @@
       ok(qa('.pp-blq .pp-bar').every(e => e.getBoundingClientRect().right <= blq.right + 0.5), 'la línea de un mes se sale del bloque');
       igual(M.personal.estado().fila, 5, 'se olvida lo elegido');
     } finally { fr.style.width = w0; W.dispatchEvent(new W.Event('resize')); paginaCerrada(); relojVuelve(); W.localStorage.removeItem('mesa-pp-fila'); }
+  });
+
+  // =====================================================================================================
+  // ajustes de la 4.16 (D-181 en adelante)
+  // =====================================================================================================
+  prueba('PP19', 'Los reels sin programar del periodo cuentan en «Falta programar» (cifra, grupo y «N sin programar» del cliente) y su línea dice «se programa a mano» con su estado; marcados Programado salen (D-181)', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Reel', 13), pub(2, 'Foto', 14), { ...pub(3, 'Reel', 15), type: 'Trial Reel' }, pub(4, 'Reel', 16)]);
+      M.setEstado('r4', 'programado'); await M.flush();
+      await paginaAbierta();
+      igual(ppCifras().falta, 3, 'la cifra de Falta programar no cuenta los reels');
+      igual(ppLineas('falta'), ['r1', 'r2', 'r3'], 'el grupo de Falta programar');
+      const l = q('.pp-av[data-slot="r1"]').textContent;
+      ok(/se programa a mano/.test(l) && /Por empezar|Captions/.test(l), 'la línea del reel: ' + l);
+      ok(!/se programa a mano/.test(q('.pp-av[data-slot="r2"]').textContent), 'una foto dice «se programa a mano»');
+      ok(/4 publicaciones · 3 sin programar/.test(q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent), 'el cliente no cuenta sus reels sin programar: ' + q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent);
+      M.personal.cerrar();
+      M.setEstado(['r1', 'r3'], 'programado'); await M.flush();
+      await paginaAbierta();
+      igual(ppLineas('falta'), ['r2'], 'un reel Programado sigue en Falta programar');
+      ok(/4 publicaciones · 1 sin programar/.test(q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent), 'el cliente cuenta un reel Programado');
+    } finally { paginaCerrada(); relojVuelve(); }
+  });
+
+
+  const ppCard = () => q('.pp-ov:not(.sale) .pp-card');
+  const ppTecla = (key, o = {}) => W.dispatchEvent(new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o }));
+  const ppRaton = (el, ty, detail, o = {}) => { const r = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent(ty, { bubbles: true, cancelable: true, detail, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, ...o })); };
+  prueba('PP20', 'Una tarea o una nota: un clic la abre en grande para leer, otro clic (pasado lo que dura un doble clic) o Esc la cierra, un clic fuera la cierra al momento; doble clic la pone en edición, también desde pequeño sin cerrarse en medio; clic fuera o Esc vuelve a leer; lo escrito se guarda; la casilla marca sin abrir; fecha y cliente se cambian; un paso de ⌘Z cada uno (D-182)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
+      const t = await M.personal.tarea({ txt: 'Llamar', fecha: '2026-09-28', cliente: CLIENTE }); await M.personal.render();
+      const peq = () => q(`.pp-tk[data-tid="${t.id}"] .pp-tt`);
+      // un clic: en grande, para leer
+      ppRaton(peq(), 'click', 1); await espera(30);
+      ok(ppCard() && !ppCard().classList.contains('ed') && ppCard().querySelector('[data-pp="ct"]').textContent === 'Llamar', 'un clic no la abre en grande para leer');
+      ok(!ppCard().querySelector('[contenteditable]'), 'leyendo, se puede escribir');
+      ok(/Cliente de prueba/.test(ppCard().textContent) && ppCard().querySelector('.pp-cm .rojo'), 'no dice su cliente ni que está vencida');
+      // otro clic la cierra pasado un doble clic; antes, no
+      ppRaton(ppCard().querySelector('[data-pp="ct"]'), 'click', 1); await espera(120);
+      ok(ppCard(), 'un clic sobre ella la cierra sin esperar al doble clic');
+      await espera(300); ok(!ppCard(), 'otro clic no la cierra');
+      // Esc y un clic fuera la cierran al momento
+      ppRaton(peq(), 'click', 1); await espera(30); ppTecla('Escape'); await espera(30);
+      ok(!ppCard(), 'Esc no la cierra');
+      ppRaton(peq(), 'click', 1); await espera(30); ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(10);
+      ok(!ppCard(), 'un clic fuera no la cierra al momento');
+      await espera(200);
+      // doble clic desde pequeño: el primer clic la abre y no se cierra; queda en edición, con el foco en el título
+      ppRaton(peq(), 'click', 1); const o = q('.pp-ov:not(.sale)'); await espera(60);
+      ppRaton(o, 'click', 2, { clientX: 5, clientY: 5 }); ppRaton(o, 'dblclick', 2, { clientX: 5, clientY: 5 }); await espera(30);
+      ok(q('.pp-ov:not(.sale)') === o && !o.classList.contains('sale') && ppCard().classList.contains('ed'), 'el doble clic desde pequeño no la deja en edición');
+      const ct = ppCard().querySelector('[data-pp="ct"]');
+      ok(ct.isContentEditable && D.activeElement === ct, 'el título no se edita o no tiene el foco');
+      ct.textContent = 'Llamar al cliente'; ct.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      await hasta(async () => (await M.personal.tareas()).find(k => k.id === t.id).txt === 'Llamar al cliente', 3000, 'que se guarde lo escrito');
+      // Esc vuelve a leer, sin cerrarla; otro Esc la cierra
+      ppTecla('Escape'); await espera(30);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
+      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'el segundo Esc no la cierra');
+      igual(peq().textContent, 'Llamar al cliente', 'la línea no dice lo escrito');
+      // doble clic en grande; un clic fuera vuelve a leer
+      ppRaton(peq(), 'click', 1); await espera(400);
+      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 1); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(350);
+      ok(ppCard() && ppCard().classList.contains('ed'), 'el doble clic en grande no la pone en edición');
+      // fecha y cliente
+      const f = ppCard().querySelector('.pp-cfecha'), c = ppCard().querySelector('.pp-ccli');
+      ok(f && c, 'en edición no se cambian la fecha ni el cliente');
+      f.value = '2026-10-08'; f.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(80);
+      c.value = ''; c.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(80);
+      let k = (await M.personal.tareas()).find(x => x.id === t.id);
+      igual([k.fecha, k.cliente || null], ['2026-10-08', null], 'la fecha o el cliente no se guardan');
+      ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(30);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'un clic fuera escribiendo no vuelve a leer');
+      ppTecla('Escape'); await espera(200);
+      // ⌘Z: un paso cada cambio
+      ppTecla('z', { metaKey: true }); await espera(80);
+      k = (await M.personal.tareas()).find(x => x.id === t.id); igual([k.fecha, k.cliente], ['2026-10-08', CLIENTE], '⌘Z no devuelve el cliente');
+      ppTecla('z', { metaKey: true }); await espera(80);
+      k = (await M.personal.tareas()).find(x => x.id === t.id); igual(k.fecha, '2026-09-28', '⌘Z no devuelve la fecha');
+      // la casilla marca sin abrir
+      q(`.pp-tk[data-tid="${t.id}"] .pp-ck`).click(); await espera(80);
+      ok(!ppCard() && (await M.personal.tareas()).find(x => x.id === t.id).hecha, 'la casilla abre la tarea o no la marca');
+      // una nota: un clic la lee, doble clic la escribe
+      const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().classList.contains('nota') && !ppCard().querySelector('[contenteditable]'), 'la nota no se abre para leer');
+      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 2); ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'dblclick', 2); await espera(30);
+      ok(ppCard() && ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'la nota no se escribe con doble clic');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      ok(!q(`.pp-pt[data-nid="${n.id}"] [contenteditable]`), 'la nota en pequeño se puede escribir');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+
+  prueba('PP21', 'Detalles y subtareas de una tarea: en pequeño, un icono si tiene detalles y la barra «h/n» (Lista y Semana; en Mes « · h/n»), sin ellos la línea no cambia; en grande, «Detalles» y «+ Subtarea», Intro crea otra debajo y una vacía se quita al salir; la casilla de una subtarea marca también leyendo; todas hechas no marcan la tarea; ⌘Z las cubre; viajan en «⇅ Exportar» (v14); una pestaña con la 4.16 (IndexedDB 15) se para (D-183, D-060)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
+      const t = await M.personal.tarea({ txt: 'Preparar la sesión', fecha: '2026-10-03' }), t2 = await M.personal.tarea({ txt: 'Sin nada', fecha: '2026-10-03' }); await M.personal.render();
+      const rec = async () => (await M.personal.tareas()).find(k => k.id === t.id);
+      ok(!q(`.pp-tk[data-tid="${t.id}"] .pp-col`) && !q(`.pp-tk[data-tid="${t2.id}"] .pp-col`), 'sin detalles ni subtareas la línea cambia');
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(30);
+      ok(ppCard().querySelector('.pp-cd.vacio') && /Detalles/.test(ppCard().querySelector('.pp-cd').textContent) && ppCard().querySelector('[data-pp="cmas"]'), 'en grande no salen «Detalles» ni «+ Subtarea»');
+      // «+ Subtarea» leyendo pasa a edición con la nueva escribiéndose
+      ppRaton(ppCard().querySelector('[data-pp="cmas"]'), 'click', 1); await espera(30);
+      ok(ppCard().classList.contains('ed') && D.activeElement.matches('.pp-cst') && D.activeElement.closest('.pp-csub').dataset.nueva, '«+ Subtarea» no deja la nueva escribiéndose');
+      const escribe = (el, v) => { el.value = v; el.dispatchEvent(new W.InputEvent('input', { bubbles: true })); };
+      escribe(D.activeElement, 'Uno');
+      D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await espera(20);
+      ok(D.activeElement.matches('.pp-cst') && !D.activeElement.value, 'Intro no crea otra debajo');
+      escribe(D.activeElement, 'Dos');
+      D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await espera(20);
+      const cd = ppCard().querySelector('[data-pp="cd"]'); cd.textContent = 'Carpeta del SSD.\nDoce fotos.'; cd.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      await espera(500);
+      igual(((await rec()).subtareas || []).map(x => x.txt), ['Uno', 'Dos'], 'las subtareas no se guardan al escribir');
+      igual(qa('.pp-card .pp-csub').length, 3, 'la vacía no sigue mientras se escribe');
+      ppTecla('Escape'); await espera(40);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
+      let k = await rec();
+      igual([k.detalles, k.subtareas.map(x => x.txt), qa('.pp-card .pp-csub').length], ['Carpeta del SSD.\nDoce fotos.', ['Uno', 'Dos'], 2], 'al salir: los detalles o la subtarea vacía');
+      // la casilla de una subtarea marca leyendo; todas hechas no marcan la tarea
+      qa('.pp-card .pp-csub .pp-ck')[0].click(); await espera(30);
+      ok(ppCard() && !ppCard().classList.contains('ed') && /1\/2/.test(ppCard().querySelector('.pp-csh').textContent), 'la casilla de la subtarea no marca leyendo o cierra la tarjeta: ' + json([!!ppCard(), ppCard() && ppCard().className, ppCard() && (ppCard().querySelector('.pp-csh') || {}).textContent, (await rec()).subtareas]));
+      qa('.pp-card .pp-csub .pp-ck')[1].click(); await espera(80);
+      k = await rec(); ok(k.subtareas.every(x => x.hecha) && !k.hecha, 'todas hechas marcan la tarea o no se marcan');
+      ppTecla('Escape'); await espera(200);
+      // en pequeño
+      const l = q(`.pp-tk[data-tid="${t.id}"]`);
+      ok(l.querySelector('.pp-tdet') && l.querySelector('.pp-pg.todo') && /2\/2/.test(l.querySelector('.pp-pg').textContent), 'en pequeño no salen el icono ni la barra');
+      ppTecla('z', { metaKey: true }); await espera(80);
+      k = await rec(); ok(!k.subtareas[1].hecha && /1\/2/.test(q(`.pp-tk[data-tid="${t.id}"] .pp-pg`).textContent), '⌘Z no deshace la subtarea');
+      await M.personal.set({ vista: 'semana', tsem: 0 }); await M.personal.render();
+      ok(q(`.pp-fi[data-tid="${t.id}"] .pp-pg`), 'en Semana no sale la barra');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render();
+      ok(/· 1\/2$/.test(q(`.pp-mt[data-tid="${t.id}"]`).textContent), 'en Mes no sale « · 1/2»');
+      await M.personal.set({ vista: 'lista' });
+      // ⇅ Exportar e Importar
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      igual(d.v, 14, 'la versión del archivo');
+      const e = d.tareas.find(x => x.id === t.id); ok(e && e.detalles === k.detalles && e.subtareas.length === 2, 'no viajan los detalles y las subtareas');
+      await M._in.idbDel('tareas', t.id);
+      ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
+      k = await rec(); ok(k && k.detalles === e.detalles && k.subtareas.map(x => x.txt).join() === 'Uno,Dos', 'no vuelven');
+      const malo = JSON.parse(json(d)); malo.tareas.find(x => x.id === t.id).subtareas = 'no'; ok((await M.importData(malo, { confirm: false })).error, 'entran subtareas dañadas');
+      // una pestaña con la 4.16 no abre la base de datos
+      const r = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', 15); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
+      igual(r, 'VersionError', 'una pestaña con la 4.16 abre la base de datos');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+
+  // =====================================================================================================
+  // «Usa Notion» (D-184)
+  // =====================================================================================================
+  const notionCliente = async on => { await M.updateClient(CLIENTE, { name: NOMBRE, cycleDay: 1, notion: on }); await espera(40); };
+  prueba('UN1', '«Usa Notion» en «Editar cliente», encendida por defecto: apagada, el tablero no compara con Notion ni invita a subir (marca de cambios por subir, «N cambiadas», «✓ en Notion» / «cambiada», «En Notion: …», «se sube a Notion», «… sin subir» del calendario); encendida, todo vuelve; viaja en «⇅ Exportar» (D-184)', async () => {
+    await tablero([pub(1), pub(2)]);
+    try {
+      for (const id of ['r1', 'r2']) await poner(id, [await foto(`un1-${id}.jpg`)]);
+      M.markUploaded(['r1', 'r2'].map(id => ({ slotId: id, fileIds: slot(id).photos.slice(), note: '' })));
+      M._test.setNote('r1', 'Otro contexto'); M._test.setSlot('r2', { date: '2026-11-09T18:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(60);
+      const marca = () => !!q('.cell[data-slot="r1"] .mk-cambios'), barra = () => !!q('.bar .stats [data-act="cambios"]'), cal = () => !!q('.csync');
+      ok(marca() && barra(), 'con Notion no salen la marca de cambios o «N cambiadas»');
+      // el interruptor, encendido por defecto, se apaga con «Guardar»
+      await pulsar('[data-act="editclient"]');
+      const sw = await hasta(() => q('.detail[data-dlg="editclient"] input[name="notion"]'), 3000, '«Usa Notion»');
+      ok(sw.checked && /Usa Notion/.test(sw.closest('.ecnot').textContent), '«Usa Notion» no está encendida por defecto');
+      sw.checked = false; q('.detail[data-dlg="editclient"] button[type="submit"]').click();
+      await hasta(() => !dialogo(), 3000, 'que se cierre «Editar cliente»');
+      igual(((await M.clients()).find(c => c.id === CLIENTE) || {}).notion, false, 'el cliente no guarda «Usa Notion» apagada');
+      M._in.render(); await espera(60);
+      ok(!marca() && !barra() && !cal(), 'sin Notion siguen la marca, «N cambiadas» o la línea de Notion del calendario');
+      M._in.openDetail('r1'); await hasta(() => dialogo(), 3000, 'la ventana');
+      ok(!q('.detail .phead .st') && !/Notion/.test(q('.detail .nlab').textContent), 'la ventana sin Notion sigue diciendo «en Notion» o «se sube a Notion»');
+      M._in.closeDetail(); M._in.openDetail('r2'); await hasta(() => dialogo(), 3000, 'la ventana');
+      ok(q('.detail .phead .pnot') && q('.detail .phead .pnot').hidden, 'sin Notion sale «En Notion: …»');
+      ok(!/Notion/.test(q('.detail .dtin').title), 'el título de la fecha nombra Notion');
+      M._in.closeDetail();
+      ok(M.notionChanges().length >= 1 && M.plan().length >= 1, 'window.MESA dejó de ver lo de Notion');
+      // otra vez encendida, vuelve todo
+      await notionCliente(true); M._in.render(); await espera(60);
+      ok(marca() && barra() && cal(), 'encendida no vuelven la marca, «N cambiadas» o la línea del calendario');
+      // viaja en el archivo: la elección más reciente gana
+      await notionCliente(false);
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      const c = d.clients.find(x => x.id === CLIENTE); ok(c && c.notion === false && c.notionAt, 'no viaja «Usa Notion»');
+      await notionCliente(true);
+      await M.importData(d, { confirm: false });
+      ok(((await M.clients()).find(x => x.id === CLIENTE) || {}).notion !== false, 'una elección más vieja pisó la de aquí');
+      c.notionAt = '2099-01-01T00:00:00.000Z';
+      ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
+      igual(((await M.clients()).find(x => x.id === CLIENTE) || {}).notion, false, 'la elección más nueva del archivo no llega');
+    } finally { M._in.closeDetail(); await notionCliente(true); }
+  });
+
+  prueba('UN2', 'Sin Notion, una Programada guarda sus fotos con su recorte y su caption: si cambian, o su fecha, la marca de cambios de la casilla y del calendario dice «Cambió después de programarla»; marcada Programado otra vez se quita; con Notion, la marca de siempre (D-184)', async () => {
+    await tablero([pub(1), pub(2)]);
+    try {
+      await porAprobar(['r1', 'r2'], 'un2');
+      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
+      ok(slot('r1').estado.firma && slot('r1').estado.firma.foto && slot('r1').estado.firma.cap === '1', 'al programarla no guarda sus fotos y su caption');
+      await notionCliente(false); M._in.render(); await espera(40);
+      ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'recién programada lleva la marca');
+      // cambia el caption de r1 y la foto de r2
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, text: ['1 bis', '2', '3'] } });
+      await poner('r2', [await foto('un2-otra.jpg', 1200, 1500, '#9c4a4a')]);
+      await M.flush(); M._in.render(); await espera(60);
+      const tip = id => { const m = q(`.cell[data-slot="${id}"] .mk-cambios`); return m ? m.dataset.tip : ''; };
+      ok(/Cambió después de programarla: caption/.test(tip('r1')), 'el caption cambiado no se marca: ' + tip('r1'));
+      ok(/después de programarla: .*foto o encuadre/.test(tip('r2')), 'la foto cambiada no se marca: ' + tip('r2') + ' · ' + M._in.estadoDe(slot('r2')));
+      ok(q('.chip[data-slot="r1"] .cmk') && /programarla/.test(q('.chip[data-slot="r1"] .cmk').title), 'el calendario no lleva la marca');
+      // la fecha
+      M.setEstado('r1', 'programado'); await M.flush(); M._in.render(); await espera(40);
+      ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'marcada Programado otra vez no se quita la marca');
+      M._test.setSlot('r1', { date: '2026-11-04T19:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(40);
+      ok(/fecha u hora/.test(tip('r1')), 'la fecha cambiada no se marca: ' + tip('r1'));
+      // con Notion, la de siempre
+      await notionCliente(true); M._in.render(); await espera(40);
+      ok(!/programarla/.test(tip('r1')), 'con Notion la marca habla de programarla');
+    } finally { await notionCliente(true); }
+  });
+
+
+  // =====================================================================================================
+  // velo y textura como capas del editor (D-185)
+  // =====================================================================================================
+  const capasFilas = () => qa('.lb-panel .lb-caps > .lb-cap').map(r => r.dataset.capa || compDe(ed().i).els.find(e => e.id === r.dataset.id).t);
+  const sinPanel = () => { const E = ed(); E.sel = null; E.mas = []; E.capa = null; };
+  async function editorConVelo() {
+    await tablero([pub(1)]); await poner('r1', [await foto('vt-1.jpg')]);
+    await abrirEditor('r1'); await espera(150);
+    accion('add-txt'); await espera(30); sinPanel(); accion('velo', { v: 'grad' }); accion('tex', { v: 'grano' }); await espera(60);
+    const L = q('.lb-panel .lb-acc[data-acc="capas"] .lb-acc-h'); if (L && L.getAttribute('aria-expanded') !== 'true') L.click(); await espera(250);
+  }
+  prueba('VT1', 'Velo y textura en «Capas»: una fila cada uno donde se dibujan (el velo justo encima de la foto más alta, la textura arriba del todo), sin guardar sitio mientras no se muevan; ▲ ▼ y ⌘] ⌘[ los mueven entre las demás capas y la imagen cambia; elegido, su panel es su sección y «Capas»; ocultar no los dibuja; ⌫ los quita; uno de cada uno (D-185)', async () => {
+    await editorConVelo();
+    try {
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'las filas de «Capas»');
+      const c = () => compDe(ed().i);
+      ok(c().velo.z == null && c().tex.z == null, 'sin moverlos guardan sitio');
+      const img0 = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
+      // ▲ en el velo: pasa encima del texto
+      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      igual(capasFilas(), ['tex', 'velo', 'texto', 'foto'], '▲ no sube el velo');
+      igual(c().velo.z, 2, 'el velo no guarda su sitio');
+      ok(!(await bytesIguales(img0, await M.libre.pieza(JSON.parse(json(c())), 540, 675))), 'la imagen no cambia con el velo encima del texto');
+      // elegido: su sección y «Capas»
+      q('.lb-panel .lb-cap[data-capa="tex"]').click(); await espera(60);
+      ok(ed().capa === 'tex' && q('.lb-panel .lb-acc[data-acc="textura"]') && q('.lb-panel .lb-acc[data-acc="capas"].on') && !q('.lb-panel .lb-acc[data-acc="fondo"]'), 'elegida, la textura no tiene su panel');
+      // ⌘[ la baja debajo del velo
+      tecla('[', { meta: true, code: 'BracketLeft' }); await espera(60);
+      igual(capasFilas(), ['velo', 'tex', 'texto', 'foto'], '⌘[ no baja la textura');
+      ok(c().tex.z === 2 && c().tex.bajoVelo, 'la textura bajo el velo no guarda su sitio: ' + json(c().tex));
+      // ocultar
+      const dib = async () => M.libre.pieza(JSON.parse(json(c())), 540, 675);
+      const a = await dib(); q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-ver"]').click(); await espera(60);
+      ok(c().velo.oculto && !(await bytesIguales(a, await dib())), 'ocultar el velo no lo quita de la imagen');
+      // ⌫ con la textura elegida
+      q('.lb-panel .lb-cap[data-capa="tex"]').click(); await espera(40); tecla('Backspace'); await espera(60);
+      ok(!c().tex && !q('.lb-panel .lb-cap[data-capa="tex"]'), '⌫ no quita la textura');
+      tecla('z', { meta: true }); await espera(80);
+      ok(c().tex && c().tex.z === 2, '⌘Z no devuelve la textura en su sitio');
+      // uno de cada uno: Plano en su sección cambia el mismo velo, en su sitio
+      sinPanel(); accion('velo', { v: 'plano' }); await espera(40);
+      ok(c().velo.tipo === 'plano' && c().velo.z === 2 && qa('.lb-panel .lb-cap[data-capa="velo"]').length === 1, 'cambiar el velo crea otro o lo mueve');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('VT2', 'Arrastrar una capa en «Capas» la deja donde se suelta, también el velo y la textura; un paso de ⌘Z; un clic sin mover la elige (D-185)', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i), fila = k => q(`.lb-panel .lb-caps > .lb-cap${k === 'velo' || k === 'tex' ? `[data-capa="${k}"]` : `[data-id="${c().els.find(e => e.t === k).id}"]`}`);
+      const arrastra = (de, a, abajo) => {
+        const r0 = fila(de).getBoundingClientRect(), r1 = fila(a).getBoundingClientRect(), y1 = abajo ? r1.bottom - 2 : r1.top + 2;
+        const ev = (t, y, el) => (el || W).dispatchEvent(new W.PointerEvent(t, { bubbles: true, cancelable: true, button: 0, buttons: 1, pointerId: 1, clientX: r0.left + 30, clientY: y }));
+        ev('pointerdown', r0.top + r0.height / 2, fila(de)); ev('pointermove', r0.top + r0.height / 2 + 8); ev('pointermove', y1); ev('pointerup', y1);
+      };
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'al empezar');
+      arrastra('velo', 'tex', false); await espera(80);
+      igual(capasFilas(), ['velo', 'tex', 'texto', 'foto'], 'el velo arrastrado arriba del todo');
+      arrastra('texto', 'foto', true); await espera(80);
+      igual(capasFilas(), ['velo', 'tex', 'foto', 'texto'], 'el texto arrastrado al fondo');
+      tecla('z', { meta: true }); await espera(80);
+      igual(capasFilas(), ['velo', 'tex', 'texto', 'foto'], '⌘Z no deshace un arrastre');
+      fila('foto').click(); await espera(60);
+      ok(ed().sel === c().els.find(e => e.t === 'foto').id, 'un clic sin mover no elige la capa');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('VT3', 'Con sitio propio, el velo se queda bajo el mismo elemento al añadir o borrar otros; «Aplicar», exportar e importar lo llevan; la imagen aplicada lo respeta (D-185)', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i);
+      accion('add-txt'); await espera(30);   // dos textos sobre la foto: foto, texto, texto2
+      sinPanel(); await espera(30);
+      const t1 = c().els.filter(e => e.t === 'texto')[0];
+      // el velo entre los dos textos: ▲ una vez
+      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'texto', 'foto'], 'el velo entre los textos');
+      const sobre = () => { const L = capasFilas(), i = L.indexOf('velo'); return qa('.lb-panel .lb-caps > .lb-cap')[i - 1].dataset.id; };
+      const arriba = sobre();
+      // borrar el texto de abajo: el velo sigue bajo el de arriba
+      elegir(t1); tecla('Backspace'); await espera(60);
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'al borrar el de abajo');
+      igual(sobre(), arriba, 'el velo no sigue bajo el mismo texto');
+      // una forma nueva va arriba, encima de la textura sin sitio propio no: la textura sigue arriba del todo
+      sinPanel(); accion('add-forma', { v: 'rect' }); await espera(60);
+      igual(capasFilas()[0], 'tex', 'la textura sin sitio propio no sigue arriba');
+      await aplicarEditor();
+      const r = M.board().slots.find(x => x.id === 'r1'), d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      const lc = (d.boards.find(b => b.slots.some(x => x.id === 'r1')).slots.find(x => x.id === 'r1').libre || {});
+      ok(json(lc).includes('"z":') || json(r.libre || {}).includes('"z":'), 'el sitio del velo no se guarda al aplicar ni viaja');
+    } finally { if (ed()) M.libre.cerrar(); }
+  });
+
+
+  prueba('VT4', 'Una plantilla aplicada con «Todo» trae su velo y su textura donde estaban en ella, aunque la diapositiva tuviera el velo movido (D-185, revisión)', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i);
+      const t = await guardarPlant();                 // velo y textura sin sitio propio
+      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      igual(c().velo.z, 2, 'el velo no se movió');
+      sinPanel(); aplicarPlant(t, 'todo'); await espera(120);
+      ok(c().velo && c().velo.z == null && c().tex && c().tex.z == null, 'la plantilla no trae su velo donde estaba: ' + json([c().velo, c().tex]));
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'las capas tras la plantilla');
+    } finally { M.libre.cerrar(); }
   });
 
   // =====================================================================================================

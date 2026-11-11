@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.22';   // 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.22';   // 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -220,10 +220,10 @@
     const pasos = P.map(([k, l], j) => {
       const ico = X.estIco(k, ' aria-hidden="true"'), t = `${ico}${esc(l)}`;
       if (!mb) return `<span class="cpaso ro" title="Mes anterior: solo lectura">${t}</span>`;
-      if (j === i) return `<span class="cpaso act" aria-current="step" title="El mes va en ${esc(l)}">${t}</span>`;
-      if (j === i + 1) return `<button type="button" class="cpaso sig" data-cal="paso" data-paso="${k}" data-mes="${mb}" title="Pasar el mes a ${esc(l)}">${t}</button>`;
-      if (j < i) return `<button type="button" class="cpaso hecho" data-cal="paso" data-paso="${k}" data-mes="${mb}" title="Volver a ${esc(l)}">${t}</button>`;
-      return `<span class="cpaso fut" title="Antes, el mes pasa a ${esc(P[i + 1][1])}">${t}</span>`;
+      if (j === i) return `<span class="cpaso act" aria-current="step" title="El mes va en «${esc(l)}»">${t}</span>`;
+      if (j === i + 1) return `<button type="button" class="cpaso sig" data-cal="paso" data-paso="${k}" data-mes="${mb}" title="Pasar el mes a «${esc(l)}»">${t}</button>`;
+      if (j < i) return `<button type="button" class="cpaso hecho" data-cal="paso" data-paso="${k}" data-mes="${mb}" title="Volver a «${esc(l)}»">${t}</button>`;
+      return `<span class="cpaso fut" title="Antes, el mes pasa a «${esc(P[i + 1][1])}»">${t}</span>`;
     }).join('<span class="csep" aria-hidden="true">›</span>');
     // No aprobado and Cancelado, only if the month of this bar has one (D-189); the previous cycle has none
     const L = mb ? delMes(X, X.S, mb) : [], hay = k => L.some(s => X.estadoDe(s) === k);
@@ -249,14 +249,14 @@
     if (e === 'empezar') return 'sin foto';    // the contexto doesn't count (D-086)
     if (e === 'captions') return 'sin caption elegido';
     if (e === 'noaprobado') return 'No aprobado';
-    if (e === 'aprobar') return v === 'aprobado' ? 'cambió tras aprobarla' : v === 'noaprobado' ? 'cambió tras no aprobarla' : 'sin aprobar';
+    if (e === 'aprobar') return v === 'aprobado' ? 'cambió tras aprobarla' : v === 'noaprobado' ? 'cambió tras no aprobarla' : 'en revisión';
     return e === 'aprobado' ? 'sin programar' : 'sin publicar';
   }
   // behind: not cancelled and, after the change, in a state before the month's step (j); an approved reel at Programado is not
   const atrasadas = (X, L, j, van, to) => L.filter(s => X.vivo(s) && !van.includes(s) && !reelAMano(X, s, to) && nivel(X, X.estadoDe(s)) < j).sort(porFecha);
   const nombres = (X, l) => l.map(s => esc(X.shortLabel(s.name, s.type))).join(', ');
-  const lleva = (to, k) => `${PUB(k)} ${k === 1 ? 'pasa' : 'pasan'} a ${{ aprobado: 'Aprobado', programado: 'Programado', publicado: 'Publicado' }[to]}`;
-  const quedanReels = n => `${nDe(n, 'reel se queda', 'reels se quedan')} en Aprobado, para marcar${n === 1 ? 'lo' : 'los'} a mano`;
+  const lleva = (to, k) => `${PUB(k)} ${k === 1 ? 'pasa' : 'pasan'} a ${{ aprobado: 'Por programar', programado: 'Programado', publicado: 'Publicado' }[to]}`;
+  const quedanReels = n => `${nDe(n, 'reel se queda', 'reels se quedan')} en Por programar, para marcar${n === 1 ? 'lo' : 'los'} a mano`;
   function revisarHTML(res) {                  // «Revisar» (D-040, D-058): its points; never a reason not to go on
     if (!res) return `<p>${M.revisar ? 'No se pudo pasar «Revisar».' : 'La revisión (revisar.js) no está cargada: no se ha pasado «Revisar».'} El mes puede pasar igualmente.</p>`;
     if (!res.puntos.length) return '<p class="xwhat">Revisar: todo en orden.</p>';
@@ -281,7 +281,7 @@
     if (to === 'aprobar') {                      // «Revisar» first: what it says decides whether to ask
       if (revisando) return;
       const key = S.key; revisando = key;
-      const aviso = setTimeout(() => X.toast('Revisando el mes antes de pasar a Por aprobar…', { key: 'paso-revisar', ms: 60000 }), 400);
+      const aviso = setTimeout(() => X.toast('Revisando el mes antes de pasar a En revisión…', { key: 'paso-revisar', ms: 60000 }), 400);
       try { if (M.revisar) res = await M.revisar({ historias: true, mes: m }); } catch (e) { console.warn('revisión del paso:', e); }
       clearTimeout(aviso); revisando = null;
       X = I(); S = X && X.S;
@@ -338,7 +338,7 @@
   // board. «Ya se publicó» → Publicado. «Reprogramar» → a day and time ahead inside its board (a Programada warns that
   // Zernio keeps the old one, D-103; its stories go with it, D-057); one of another board opens there, and one whose board
   // has no day ahead can't. «Cancelar» → with its reason (D-082). Each one a step of ⌘Z; nothing of Zernio or Notion.
-  const EST_TXT = { empezar: 'Por empezar', captions: 'Captions', aprobar: 'Por aprobar', noaprobado: 'No aprobado', aprobado: 'Aprobado', programado: 'Programada' };
+  const EST_TXT = { empezar: 'Por empezar', captions: 'Captions', aprobar: 'En revisión', noaprobado: 'No aprobado', aprobado: 'Por programar', programado: 'Programada' };
   let vabre = null;                            // the row with its form open: {k, que: 'rep' | 'can'}
   const vk = v => v.key + '|' + v.id;
   function vencHTML(X) {

@@ -15,9 +15,10 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.4';   // 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
+  const VERSION = '1.4';   // 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188); an option's data-dest in grey after it (D-191). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
   if (M.controles && M.controles._off) { try { M.controles._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const QS = 'select, input[type="date"], input[type="time"]';
+  const FLECHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';   // Lucide arrow-right (ISC)
   const PV = { SELECT: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), INPUT: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') };
   const PSI = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
   const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -245,7 +246,7 @@
     cerrar(false);
     const pop = crearPop('mx-list', 'listbox'), lab = b.getAttribute('aria-label');
     if (lab) pop.setAttribute('aria-label', lab);
-    const fila = o => o.hidden ? '' : `<div class="mx-o" role="option" id="${pop.id}-${o.index}" data-i="${o.index}" aria-selected="${o.selected}"${o.disabled ? ' aria-disabled="true"' : ''}>${esc(o.label || o.textContent)}</div>`;
+    const fila = o => o.hidden ? '' : `<div class="mx-o" role="option" id="${pop.id}-${o.index}" data-i="${o.index}" aria-selected="${o.selected}"${o.disabled ? ' aria-disabled="true"' : ''}>${esc(o.label || o.textContent)}${o.dataset.dest ? `<span class="mx-dest">${FLECHA}${esc(o.dataset.dest)}</span>` : ''}</div>`;   // data-dest: where it takes it, in grey (D-191)
     pop.innerHTML = [...n.children].map(c => c.tagName === 'OPTGROUP' ? `<div role="group" aria-label="${esc(c.label)}"><div class="mx-gl" aria-hidden="true">${esc(c.label)}</div>${[...c.children].map(fila).join('')}</div>` : c.tagName === 'OPTION' ? fila(c) : '').join('');
     pop.style.minWidth = b.offsetWidth + 'px';
     abierto = { g: b, pop, tipo: 'sel', act: -1 };
@@ -531,6 +532,7 @@
 #mesa .mx-o[aria-selected="true"]{font-weight:600}
 #mesa .mx-o[aria-selected="true"]::before{content:'';position:absolute;right:10px;top:50%;width:14px;height:14px;margin-top:-7px;background:var(--acc-ink);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .mx-o[aria-disabled="true"]{color:var(--faint);cursor:default;background:none}
+#mesa .mx-dest{margin-left:8px;font-weight:400;color:var(--mute)}#mesa .mx-dest svg{width:12px;height:12px;margin-right:3px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #mesa .mx-gl{padding:8px 12px 4px 5px;font-size:11px;font-weight:600;color:var(--mute)}#mesa [role="group"]+[role="group"] .mx-gl{margin-top:4px;border-top:1px solid var(--line2);padding-top:10px}
 #mesa .mx-tlist{max-height:288px}#mesa .mx-tlist .mx-o{font-variant-numeric:tabular-nums}
 #mesa .mx-calpop{width:280px;padding:12px 12px 8px}

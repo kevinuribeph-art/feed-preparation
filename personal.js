@@ -1,4 +1,4 @@
-// Página personal — Mesa de trabajo · v1.0 (D-180)
+// Página personal — Mesa de trabajo · v1.1 (D-180, D-181)
 // The page the logo opens: every client at a glance. Four figures (what went past, what goes out today and tomorrow, what waits
 // for the client, what is left to schedule), the notices behind them, a block per client (its two months as a line of steps
 // and its week) and the tasks and notes, which live only here (IndexedDB 'tareas', with their photos, mesa ≥ 4.16). It reads
@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -165,7 +165,7 @@
         const d0 = desde(o, e), lleva = d0 ? difD(X.localDay(d0), hoy) : 0, pronto = enV(dia);
         if (pronto || lleva > 3) { items.push({ ...base, cat: 'espera', pronto, lleva: lleva > 3 ? lleva : 0 }); continue; }
       }
-      if (enV(dia) && e !== 'programado' && !reel) items.push({ ...base, cat: 'falta' });
+      if (enV(dia) && e !== 'programado') items.push({ ...base, cat: 'falta', aMano: reel });   // a reel too: it is scheduled by hand (D-181)
     }
     const hist = new Map();                    // the stories: one line per client and day, only those not scheduled
     for (const h of Q.hs) {
@@ -203,7 +203,7 @@
       const e = o.e0; if (e === 'cancelado' || !o.s.date) continue;
       const d = o.dia, x = at[d];
       if (x) { x[o.k]++; x.nombres.push(o.s.name); }
-      if (enV(d)) { pubs++; if (!['programado', 'publicado'].includes(e) && !o.reel) pubSin++; }
+      if (enV(d)) { pubs++; if (!['programado', 'publicado'].includes(e)) pubSin++; }   // reels too (D-181)
     }
     for (const h of Q.hsCli.get(c.id) || []) { const x = at[h.dia]; if (x) x.h++; if (enV(h.dia)) { hs++; if (!h.prog) hsSin++; } }
     const tk = [...TK.values()].filter(k => k.tipo === 'tarea' && k.cliente === c.id && !k.hecha);
@@ -253,6 +253,7 @@
     }
     let est = `${I().estIco(x.e, ' aria-hidden="true"')}${esc(estLbl(x.e))}`;
     if (x.mano) est = `<span class="pp-mano">publicar a mano</span>`;
+    if (x.aMano) est += ` <span class="pp-por">· se programa a mano</span>`;   // D-181: its state stays, as the reasons of a wait
     if (x.cat === 'espera') { const r = []; if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
     return `<button type="button" class="pp-av" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }

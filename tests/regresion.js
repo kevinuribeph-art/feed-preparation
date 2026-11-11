@@ -12125,7 +12125,7 @@
     } finally { await preparar(); }                 // la mesa de las pruebas, como al empezar
   });
 
-  prueba('PP2', 'Avisos de la página: Se ha pasado (también un reel en Aprobado, «publicar a mano»; una Programada que pasa sola no), Hoy y mañana con su hora y «Mañana», Esperando al cliente si sale en el periodo o lleva más de 3 días, Falta programar sin reels ni programadas; 8 líneas y «N más»; las cifras solo filtran Avisos; Semana / Mes y ‹ › cambian el periodo, Se ha pasado no (D-180)', async () => {
+  prueba('PP2', 'Avisos de la página: Se ha pasado (también un reel en Aprobado, «publicar a mano»; una Programada que pasa sola no), Hoy y mañana con su hora y «Mañana», Esperando al cliente si sale en el periodo o lleva más de 3 días, Falta programar sin programadas, con los reels (D-181); 8 líneas y «N más»; las cifras solo filtran Avisos; Semana / Mes y ‹ › cambian el periodo, Se ha pasado no (D-180)', async () => {
     relojEn('2026-11-01T10:00:00+01:00');
     try {
       const extra = Array.from({ length: 9 }, (_, i) => pub(13 + i, 'Foto', i < 5 ? 15 : 16));
@@ -12140,7 +12140,7 @@
       await M.flush();
       relojEn('2026-11-10T10:00:00+01:00');
       await paginaAbierta();
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 10 }, 'las cifras de la semana');
+      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 11 }, 'las cifras de la semana');   // 11 con el reel r10 desde la 4.17 (D-181)
       igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
       ok(/publicar a mano/.test(q('.pp-av[data-slot="r2"]').textContent), 'el reel en Aprobado pasado no dice «publicar a mano»');
       ok(q('.pp-grupo[data-cat="pasado"] .pp-cu.rojo'), 'la fecha pasada no va en rojo');
@@ -12150,10 +12150,11 @@
       igual(ppLineas('espera'), ['r6', 'r7'], 'Esperando al cliente');
       ok(/sale en 4 días · lleva 9 días/.test(q('.pp-av[data-slot="r6"]').textContent) && /lleva 5 días/.test(q('.pp-av[data-slot="r7"]').textContent) && !/sale en/.test(q('.pp-av[data-slot="r7"]').textContent), 'las razones de la espera');
       igual(ppLineas('falta').length, 8, '8 líneas en Falta programar');
-      igual(q('.pp-grupo[data-cat="falta"] .pp-mas').textContent, '2 más', '«N más»');
-      ok(!ppLineas('falta').includes('r10') && !q('.pp-av[data-slot="r3"]') && !q('.pp-av[data-slot="r11"]'), 'un reel, una que pasó sola o una cancelada');
+      igual(q('.pp-grupo[data-cat="falta"] .pp-mas').textContent, '3 más', '«N más»');
+      ok(!q('.pp-av[data-slot="r3"]') && !q('.pp-av[data-slot="r11"]'), 'una que pasó sola o una cancelada');
       await ppClic('.pp-grupo[data-cat="falta"] .pp-mas');
-      igual(ppLineas('falta').length, 10, '«N más» no las enseña todas');
+      igual(ppLineas('falta').length, 11, '«N más» no las enseña todas');
+      ok(ppLineas('falta').includes('r10') && /se programa a mano/.test(q('.pp-av[data-slot="r10"]').textContent), 'el reel sin programar no está en Falta programar (D-181)');
       // una cifra filtra solo Avisos
       await ppClic('.pp-cifra[data-k="espera"]');
       igual(qa('.pp-grupo').map(g => g.dataset.cat), ['espera'], 'la cifra no filtra Avisos');
@@ -12162,7 +12163,7 @@
       igual(qa('.pp-grupo').length, 4, 'pulsarla otra vez no lo enseña todo');
       // Mes y la semana siguiente; Se ha pasado no cambia
       await ppClic('.pp-periodo [data-m="mes"]');
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 3, falta: 11 }, 'las cifras del mes');
+      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 3, falta: 12 }, 'las cifras del mes');
       await ppClic('.pp-periodo [data-m="semana"]'); await ppClic('.pp-periodo .pp-sig');
       igual(q('.pp-rango').textContent, '17 – 23 nov', 'la semana siguiente');
       igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 1 }, 'las cifras de la semana siguiente');
@@ -12523,6 +12524,29 @@
       ok(qa('.pp-blq .pp-bar').every(e => e.getBoundingClientRect().right <= blq.right + 0.5), 'la línea de un mes se sale del bloque');
       igual(M.personal.estado().fila, 5, 'se olvida lo elegido');
     } finally { fr.style.width = w0; W.dispatchEvent(new W.Event('resize')); paginaCerrada(); relojVuelve(); W.localStorage.removeItem('mesa-pp-fila'); }
+  });
+
+  // =====================================================================================================
+  // ajustes de la 4.16 (D-181 en adelante)
+  // =====================================================================================================
+  prueba('PP19', 'Los reels sin programar del periodo cuentan en «Falta programar» (cifra, grupo y «N sin programar» del cliente) y su línea dice «se programa a mano» con su estado; marcados Programado salen (D-181)', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Reel', 13), pub(2, 'Foto', 14), { ...pub(3, 'Reel', 15), type: 'Trial Reel' }, pub(4, 'Reel', 16)]);
+      M.setEstado('r4', 'programado'); await M.flush();
+      await paginaAbierta();
+      igual(ppCifras().falta, 3, 'la cifra de Falta programar no cuenta los reels');
+      igual(ppLineas('falta'), ['r1', 'r2', 'r3'], 'el grupo de Falta programar');
+      const l = q('.pp-av[data-slot="r1"]').textContent;
+      ok(/se programa a mano/.test(l) && /Por empezar|Captions/.test(l), 'la línea del reel: ' + l);
+      ok(!/se programa a mano/.test(q('.pp-av[data-slot="r2"]').textContent), 'una foto dice «se programa a mano»');
+      ok(/4 publicaciones · 3 sin programar/.test(q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent), 'el cliente no cuenta sus reels sin programar: ' + q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent);
+      M.personal.cerrar();
+      M.setEstado(['r1', 'r3'], 'programado'); await M.flush();
+      await paginaAbierta();
+      igual(ppLineas('falta'), ['r2'], 'un reel Programado sigue en Falta programar');
+      ok(/4 publicaciones · 1 sin programar/.test(q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent), 'el cliente cuenta un reel Programado');
+    } finally { paginaCerrada(); relojVuelve(); }
   });
 
   // =====================================================================================================

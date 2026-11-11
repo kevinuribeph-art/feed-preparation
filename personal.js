@@ -67,7 +67,15 @@
   // ---------- what the mesa knows ----------
   const MANUAL = ['noaprobado', 'aprobado', 'programado', 'publicado', 'cancelado', 'empezar', 'captions', 'aprobar'];
   // another board's state as it was saved (as the vencidas of the client's other boards, D-120); the open board's, the mesa's own
-  const estadoDe = (s, B) => { const X = I(); if (B && X.S && B === X.S) return X.estadoDe(s); const v = s.estado && s.estado.v; return v && MANUAL.includes(v) ? v : X.estadoAuto(s); };
+  // its data still decides what can't hold (as the mesa's estadoDe, D-085, D-192): one put back by hand never past its data, an
+  // approved or turned down one without a chosen caption falls back; whether it changed after approval isn't known here (D-180)
+  const ATRAS = { empezar: 0, captions: 1, aprobar: 2 };
+  const estadoDe = (s, B) => {
+    const X = I(); if (B && X.S && B === X.S) return X.estadoDe(s);
+    const v = s.estado && s.estado.v, a = X.estadoAuto(s); if (!v || !MANUAL.includes(v)) return a;
+    if (v in ATRAS) return ATRAS[v] < ATRAS[a] ? v : a;
+    return (v === 'aprobado' || v === 'noaprobado') && a !== 'aprobar' ? a : v;
+  };
   const mesesDe = B => Array.from({ length: B.span || 1 }, (_, i) => I().addMonths(B.month, i));
   function pasoDe(B, m) {                      // the month's step, its most delayed post's (D-119, D-192); another board's with its saved states
     const X = I(); if (X.S && B === X.S) return X.pasoDe(B, m);

@@ -211,10 +211,12 @@
   const ACCION = { aprobado: 'Aprobar las que están en revisión', programado: 'Pasar a Programado las fotos y carruseles por programar' };
   function pasosHTML(X, mb) {
     const P = X.PASOS, i = mb ? P.findIndex(p => p[0] === X.pasoDe(X.S, mb)) : -9;
+    const hayVivas = mb && delMes(X, X.S, mb).some(X.vivo);   // a month without posts has nothing to show: the next step isn't pressed
     const pasos = P.map(([k, l], j) => {
       const ico = X.estIco(k, ' aria-hidden="true"'), t = `${ico}${esc(l)}`;
       if (!mb) return `<span class="cpaso ro" title="Mes anterior: solo lectura">${t}</span>`;
       if (j === i) return `<span class="cpaso act" aria-current="step" title="El mes está en «${esc(l)}»">${t}</span>`;
+      if (j === i + 1 && !hayVivas) return `<span class="cpaso fut" title="El mes no tiene publicaciones">${t}</span>`;
       if (j === i + 1) return `<button type="button" class="cpaso sig" data-cal="paso" data-paso="${k}" data-mes="${mb}" title="${ACCION[k] || `Ver qué frena «${esc(l)}»`}">${t}</button>`;
       if (j < i) return `<span class="cpaso hecho" title="Hecho">${t}</span>`;
       return `<span class="cpaso fut" title="Antes, el mes pasa a «${esc(P[i + 1][1])}»">${t}</span>`;
@@ -230,7 +232,7 @@
   // on their own. Then, if nothing holds the month back, it has gone on and a toast says so; otherwise a window says what
   // changed and, by date, what holds it back and why. «Revisar» no longer runs here.
   const LLEVA = { aprobado: 'aprobar', programado: 'aprobado' };   // the step: the state it takes on
-  const LLEGA = { captions: 'Llega solo cuando todas tengan foto.', aprobar: 'Llega solo cuando todas tengan su caption elegido.', publicado: 'Llega solo cuando cada Programada pasa a su hora.', aprobado: 'Ninguna publicación está en revisión.', programado: 'Ninguna foto ni carrusel por programar.' };
+  const LLEGA = { captions: 'Llega solo cuando todas tengan foto.', aprobar: 'Llega solo cuando todas tengan su caption elegido.', publicado: 'Llega solo cuando cada Programada pasa a su hora.', aprobado: 'Ninguna publicación cambia de estado.', programado: 'Ninguna publicación cambia de estado.' };
   const retr = (X, s) => !!(X.retrasada && X.retrasada(s));
   const nivel = (X, e) => X.PASO_DE[e] ?? 0;
   const porFecha = (a, b) => { const t = x => { const v = Date.parse(x.date); return isNaN(v) ? Infinity : v; }; return t(a) - t(b); };   // listed by date, as the calendar
@@ -255,15 +257,18 @@
     if (!X.boardMonths().includes(m)) m = X.boardMonths()[0];
     const P = X.PASOS, idx = k => P.findIndex(p => p[0] === k), i = idx(X.pasoDe(S, m)), j = idx(to);
     if (j < 0 || j !== i + 1) return;            // only the next step
+    if (!delMes(X, S, m).some(X.vivo)) { X.toast('Este mes no tiene publicaciones.'); return; }
     const van = mueven(X, delMes(X, S, m), to);
     if (van.length && X.locked) { X.toast('La mesa está abierta en otra pestaña: aquí no se cambian las publicaciones.'); return; }
     const r = van.length ? M.setEstado(van.map(s => s.id), to) : null, hechas = Array.isArray(r) ? r.filter(x => !x.error) : [];
     const ok = van.filter(s => hechas.some(x => x.slotId === s.id)), dice = ok.length ? lleva(to, ok.length) : '';
+    const fallos = Array.isArray(r) ? r.filter(x => x.error) : [];   // one it couldn't change says why, in the window
     const ahora = idx(X.pasoDe(S, m)), tarde = ahora >= j ? [] : frenan(X, delMes(X, S, m), j);
     if (!tarde.length) { X.toast(`El mes pasa a ${P[ahora][1]}${dice ? ': ' + dice : ''}. ⌘Z lo deshace.`, { ms: 6000 }); return; }
     // no «Cancelar» nor a button to confirm: it is done, or there was nothing to do (D-155)
     X.showDialog('paso', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Aún no pasa a ${esc(P[j][1])}</h3>`
       + (ok.length ? `<p class="xwhat"><b>${dice}</b>: <span class="cpn">${nombres(X, ok)}</span>. ⌘Z lo deshace.</p>` : `<p class="xwhat">${esc(LLEGA[to] || '')}</p>`)
+      + fallos.map(x => `<p class="cpnota">No se pudo cambiar ${esc(x.name || '')}: ${esc(x.error)}.</p>`).join('')
       + `<p>${tarde.length === 1 ? 'Lo frena' : 'Lo frenan'}:</p><ul class="xsum cplist">${tarde.map(s => `<li><b>${esc(X.shortLabel(s.name, s.type))}</b> <span>· ${esc(X.fmtDate(s.date))} · ${esc(porQue(X, s))}</span></li>`).join('')}</ul>`);
   }
 

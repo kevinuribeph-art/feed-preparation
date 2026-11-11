@@ -12959,6 +12959,36 @@
     } finally { paginaCerrada(); if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  prueba('PA8', 'Arreglos de la revisión: un mes sin publicaciones no tiene paso que pulsar; con solo una retrasada a mano en revisión, «Por programar» dice que nada cambia; la página personal, con un tablero que no está abierto, no cuenta como aprobada una que ya no tiene caption (D-192)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.setItem(LS, '0');
+      await tablero([pub(1), pub(2)]);
+      await hasta(() => M.calendario && q('.side > .cal .cleg'), 4000, 'la barra del calendario');
+      for (let i = 0; i < 3 && q('.side > .cal .cleg.ro'); i++) { q('.side > .cal [data-cal="next"]').click(); await espera(60); }
+      M.setEstado(['r1', 'r2'], 'cancelado'); await espera(80);
+      ok(!q('.side > .cal .cleg button.cpaso'), 'un mes sin publicaciones tiene un paso que pulsar');
+      M.setEstado(['r1', 'r2'], null); await espera(60);
+      await porAprobar(['r1', 'r2'], 'pa8');
+      M.setEstado('r2', 'cancelado'); M.setEstado('r1', 'aprobado'); M.setEstado('r1', 'aprobar');
+      ok(M._in.retenida(slot('r1')), 'r1 no está retrasada a mano');
+      const d = await pulsarPaso('aprobado');
+      ok(d && /Ninguna publicación cambia de estado/.test(d.querySelector('.xwhat').textContent) && /retrasada a mano$/.test(lis(d)[0]), 'la ventana: ' + (d && d.textContent));
+      await cerrarPaso();
+      M.setEstado('r1', 'aprobado');
+      const c = slot('r1').caption; M._test.setSlot('r1', { caption: { ...c, text: c.text.map((t, i) => i === c.pick ? '' : t) } }); M._in.changed();
+      igual(M._in.pasoDe(M._in.S, MES), 'captions', 'en la Mesa');
+      await M.flush();
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [], past: [], force: true });   // el del cliente de prueba ya no es el abierto
+      await paginaAbierta();
+      const nov = qa(`.pp-blq[data-c="${CLIENTE}"] .pp-pasos`).find(e => /noviembre/i.test(e.title));
+      ok(nov && /: Captions/.test(nov.title), 'la página no enseña el mismo paso: ' + (nov && nov.title));
+    } finally {
+      paginaCerrada(); if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar();
+    }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

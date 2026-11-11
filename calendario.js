@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.20';   // 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.21';   // 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -130,7 +130,7 @@
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
     const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
-    const sync = pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
+    const sync = X.sinNotion && X.sinNotion() ? '' : pend ? `<span class="csync c" title="Fecha, hora, tipo o nombre cambiados aquí: se pasan a Notion al subir · ${nat}"><i class="dchg"></i>${pend} cambio${pend === 1 ? '' : 's'} sin subir</span>` : `<span class="csync" title="${nat} · la mesa no lee Notion en directo: es la última vez que este mes se cargó desde Notion o se confirmó una subida">Igual que Notion</span>`;
     // a double click on the month's name goes back to the month the board opens with (D-121), as ‹ › without a step of ⌘Z (D-159)
     const ini = mesInicial(X, sp), mesNom = `${cap(X.MONTHS[mo - 1])} ${y}`;
     const mesTit = `${mesNom} · doble clic: ${ini === today.slice(0, 7) ? 'el mes de hoy' : 'el más cercano a hoy'}`;
@@ -347,7 +347,7 @@
     const fila = v => {
       const k = vk(v), f = vabre && vabre.k === k ? vabre.que : null, s = v.aqui ? X.slot(v.id) : null;
       const donde = v.aqui ? '' : ` · <span class="votro">${esc(X.rangeLabel ? X.rangeLabel(v.mes, 1, false, X.curCd()) : v.mes)}, otro tablero</span>`;
-      const no = !v.futuro ? ` disabled title="${v.aqui ? 'Su mes ya no tiene días por delante' : 'Su tablero ya no tiene días por delante'}: muévela en Notion o cancélala."` : v.aqui ? '' : ' title="Se abre en su tablero"';
+      const no = !v.futuro ? ` disabled title="${v.aqui ? 'Su mes ya no tiene días por delante' : 'Su tablero ya no tiene días por delante'}: ${X.sinNotion && X.sinNotion() ? 'cancélala' : 'muévela en Notion o cancélala'}."` : v.aqui ? '' : ' title="Se abre en su tablero"';
       let form = '';
       if (f === 'rep' && s) {
         const hora = X.dOnly(s.date) ? '' : X.localTime(s.date), dia = hora ? hoy : addDays(hoy, 1);
@@ -357,7 +357,7 @@
         + ` <span class="vque">· ${esc(X.fmtDate(v.date))} · ${esc(EST_TXT[v.estado] || v.estado)}${v.movida ? ', movida después de programarla' : ''}${donde}</span>`
         + (f ? form : `<div class="vacc"><button type="button" class="btn2" data-cal="v-pub">Ya se publicó</button><button type="button" class="btn2" data-cal="v-rep"${no}>Reprogramar</button><button type="button" class="btn2" data-cal="v-can">Cancelar</button></div>`) + '</li>';
     };
-    return cab + '<p class="cpnota">Cada cambio se deshace con ⌘Z; no toca Zernio ni Notion.</p>'   // D-156
+    return cab + `<p class="cpnota">Cada cambio se deshace con ⌘Z; no toca Zernio${X.sinNotion && X.sinNotion() ? '' : ' ni Notion'}.</p>`   // D-156
       + `<ul class="vlist">${l.map(fila).join('')}</ul>`;
   }
   function abrirVencidas() {

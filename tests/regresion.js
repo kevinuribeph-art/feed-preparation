@@ -6199,12 +6199,12 @@
       await porAprobar(['r1', 'r2'], 'v7'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
       const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
       igual(d.v, V_ARCHIVO, 'la versión del archivo');
-      igual(d.boards.find(b => b.key === r.key).slots.find(s => s.id === 'r1').estado, { v: 'programado', fecha: slot('r1').date }, 'la fecha en el archivo');
+      { const e = d.boards.find(b => b.key === r.key).slots.find(s => s.id === 'r1').estado; igual({ v: e.v, fecha: e.fecha }, { v: 'programado', fecha: slot('r1').date }, 'la fecha en el archivo'); ok(e.firma, 'no viaja lo programado (D-184)'); }   // desde la 4.17 lleva también su firma (D-184)
       const v8 = JSON.parse(JSON.stringify(d)); v8.v = 8; v8.boards.forEach(b => (b.slots || []).forEach(s => { if (s.estado) delete s.estado.fecha; }));
       await sinMes(r.key);
       const ri = await M.importData(v8, { confirm: false }); ok(ri && !ri.error, 'el archivo v8 no entró: ' + json(ri));
       await M.open(r.key);
-      igual(slot('r2').estado, { v: 'programado', fecha: slot('r2').date }, 'una Programada de antes no tomó su fecha al abrir');
+      { const e = slot('r2').estado; igual({ v: e.v, fecha: e.fecha }, { v: 'programado', fecha: slot('r2').date }, 'una Programada de antes no tomó su fecha al abrir'); }
       const dbs = W.indexedDB.databases ? await W.indexedDB.databases() : [];
       if (dbs.length) igual((dbs.find(x => x.name === 'mesa-feed') || {}).version, V_IDB, 'la versión de IndexedDB');
     } finally { volverReloj(); }
@@ -12675,6 +12675,78 @@
       const r = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', 15); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
       igual(r, 'VersionError', 'una pestaña con la 4.16 abre la base de datos');
     } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+
+  // =====================================================================================================
+  // «Usa Notion» (D-184)
+  // =====================================================================================================
+  const notionCliente = async on => { await M.updateClient(CLIENTE, { name: NOMBRE, cycleDay: 1, notion: on }); await espera(40); };
+  prueba('UN1', '«Usa Notion» en «Editar cliente», encendida por defecto: apagada, el tablero no compara con Notion ni invita a subir (marca de cambios por subir, «N cambiadas», «✓ en Notion» / «cambiada», «En Notion: …», «se sube a Notion», «… sin subir» del calendario); encendida, todo vuelve; viaja en «⇅ Exportar» (D-184)', async () => {
+    await tablero([pub(1), pub(2)]);
+    try {
+      for (const id of ['r1', 'r2']) await poner(id, [await foto(`un1-${id}.jpg`)]);
+      M.markUploaded(['r1', 'r2'].map(id => ({ slotId: id, fileIds: slot(id).photos.slice(), note: '' })));
+      M._test.setNote('r1', 'Otro contexto'); M._test.setSlot('r2', { date: '2026-11-09T18:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(60);
+      const marca = () => !!q('.cell[data-slot="r1"] .mk-cambios'), barra = () => !!q('.bar .stats [data-act="cambios"]'), cal = () => !!q('.csync');
+      ok(marca() && barra(), 'con Notion no salen la marca de cambios o «N cambiadas»');
+      // el interruptor, encendido por defecto, se apaga con «Guardar»
+      await pulsar('[data-act="editclient"]');
+      const sw = await hasta(() => q('.detail[data-dlg="editclient"] input[name="notion"]'), 3000, '«Usa Notion»');
+      ok(sw.checked && /Usa Notion/.test(sw.closest('.ecnot').textContent), '«Usa Notion» no está encendida por defecto');
+      sw.checked = false; q('.detail[data-dlg="editclient"] button[type="submit"]').click();
+      await hasta(() => !dialogo(), 3000, 'que se cierre «Editar cliente»');
+      igual(((await M.clients()).find(c => c.id === CLIENTE) || {}).notion, false, 'el cliente no guarda «Usa Notion» apagada');
+      M._in.render(); await espera(60);
+      ok(!marca() && !barra() && !cal(), 'sin Notion siguen la marca, «N cambiadas» o la línea de Notion del calendario');
+      M._in.openDetail('r1'); await hasta(() => dialogo(), 3000, 'la ventana');
+      ok(!q('.detail .phead .st') && !/Notion/.test(q('.detail .nlab').textContent), 'la ventana sin Notion sigue diciendo «en Notion» o «se sube a Notion»');
+      M._in.closeDetail(); M._in.openDetail('r2'); await hasta(() => dialogo(), 3000, 'la ventana');
+      ok(q('.detail .phead .pnot') && q('.detail .phead .pnot').hidden, 'sin Notion sale «En Notion: …»');
+      ok(!/Notion/.test(q('.detail .dtin').title), 'el título de la fecha nombra Notion');
+      M._in.closeDetail();
+      ok(M.notionChanges().length >= 1 && M.plan().length >= 1, 'window.MESA dejó de ver lo de Notion');
+      // otra vez encendida, vuelve todo
+      await notionCliente(true); M._in.render(); await espera(60);
+      ok(marca() && barra() && cal(), 'encendida no vuelven la marca, «N cambiadas» o la línea del calendario');
+      // viaja en el archivo: la elección más reciente gana
+      await notionCliente(false);
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      const c = d.clients.find(x => x.id === CLIENTE); ok(c && c.notion === false && c.notionAt, 'no viaja «Usa Notion»');
+      await notionCliente(true);
+      await M.importData(d, { confirm: false });
+      ok(((await M.clients()).find(x => x.id === CLIENTE) || {}).notion !== false, 'una elección más vieja pisó la de aquí');
+      c.notionAt = '2099-01-01T00:00:00.000Z';
+      ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
+      igual(((await M.clients()).find(x => x.id === CLIENTE) || {}).notion, false, 'la elección más nueva del archivo no llega');
+    } finally { M._in.closeDetail(); await notionCliente(true); }
+  });
+
+  prueba('UN2', 'Sin Notion, una Programada guarda sus fotos con su recorte y su caption: si cambian, o su fecha, la marca de cambios de la casilla y del calendario dice «Cambió después de programarla»; marcada Programado otra vez se quita; con Notion, la marca de siempre (D-184)', async () => {
+    await tablero([pub(1), pub(2)]);
+    try {
+      await porAprobar(['r1', 'r2'], 'un2');
+      M.setEstado(['r1', 'r2'], 'aprobado'); M.setEstado(['r1', 'r2'], 'programado'); await M.flush();
+      ok(slot('r1').estado.firma && slot('r1').estado.firma.foto && slot('r1').estado.firma.cap === '1', 'al programarla no guarda sus fotos y su caption');
+      await notionCliente(false); M._in.render(); await espera(40);
+      ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'recién programada lleva la marca');
+      // cambia el caption de r1 y la foto de r2
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, text: ['1 bis', '2', '3'] } });
+      await poner('r2', [await foto('un2-otra.jpg', 1200, 1500, '#9c4a4a')]);
+      await M.flush(); M._in.render(); await espera(60);
+      const tip = id => { const m = q(`.cell[data-slot="${id}"] .mk-cambios`); return m ? m.dataset.tip : ''; };
+      ok(/Cambió después de programarla: caption/.test(tip('r1')), 'el caption cambiado no se marca: ' + tip('r1'));
+      ok(/después de programarla: .*foto o encuadre/.test(tip('r2')), 'la foto cambiada no se marca: ' + tip('r2') + ' · ' + M._in.estadoDe(slot('r2')));
+      ok(q('.chip[data-slot="r1"] .cmk') && /programarla/.test(q('.chip[data-slot="r1"] .cmk').title), 'el calendario no lleva la marca');
+      // la fecha
+      M.setEstado('r1', 'programado'); await M.flush(); M._in.render(); await espera(40);
+      ok(!q('.cell[data-slot="r1"] .mk-cambios'), 'marcada Programado otra vez no se quita la marca');
+      M._test.setSlot('r1', { date: '2026-11-04T19:00:00.000+01:00' }); await M.flush(); M._in.render(); await espera(40);
+      ok(/fecha u hora/.test(tip('r1')), 'la fecha cambiada no se marca: ' + tip('r1'));
+      // con Notion, la de siempre
+      await notionCliente(true); M._in.render(); await espera(40);
+      ok(!/programarla/.test(tip('r1')), 'con Notion la marca habla de programarla');
+    } finally { await notionCliente(true); }
   });
 
   // =====================================================================================================

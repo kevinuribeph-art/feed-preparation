@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188)
+  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -258,7 +258,9 @@
     if (x.mano) est = `<span class="pp-mano">publicar a mano</span>`;
     if (x.aMano) est += ` <span class="pp-por">· se programa a mano</span>`;   // D-181: its state stays, as the reasons of a wait
     if (x.cat === 'espera') { const r = []; if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
-    return `<button type="button" class="pp-av" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
+    // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too
+    const sin = (x.cat === 'hoy' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
+    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
   function avisos(R) {
     const html = GRUPOS.filter(([c]) => !st.filtro || st.filtro === c).map(([c, t]) => {
@@ -1045,6 +1047,9 @@
 #mesa .pp-av .pp-est:empty{display:none}
 #mesa .pp-av.tarea{cursor:default}
 #mesa button.pp-av:hover{background:var(--bg-2)}
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog{box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog .pp-cu{color:var(--chg);font-weight:600}
+#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:color-mix(in oklab,var(--red-soft) 88%,var(--red))}
+#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-est,#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-mano{color:var(--red);font-weight:600}
 #mesa .pp-avs{display:inline-flex;align-items:center}
 #mesa .pp-avs .pp-ava:first-child{position:relative;z-index:1;box-shadow:0 0 0 2px var(--panel)}#mesa .pp-avs .pp-ava + .pp-ava{margin-left:-7px}
 #mesa .pp-av .pp-avs:has(.pp-ck){justify-content:center}

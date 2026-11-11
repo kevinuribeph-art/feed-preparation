@@ -13014,6 +13014,38 @@
     } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
+  prueba('PA5', 'Avisos: en «Hoy y mañana» lo que no está Programado ni Publicado lleva franja y hora en color; en «Se ha pasado», fila tintada de rojo y estado en rojo; los reels también; las cifras y los grupos no cambian (D-190)', async () => {
+    relojEn('2026-11-01T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 5), pub(2, 'Reel', 8), pub(3, 'Foto', 9), { ...pub(4, 'Foto', 10), date: '2026-11-10T18:00:00.000+01:00' }, pub(5, 'Reel', 11), { ...pub(6, 'Foto', 10), date: '2026-11-10T19:00:00.000+01:00' }]);
+      await porAprobar(['r2', 'r3', 'r4', 'r5', 'r6'], 'pa5');
+      M.setEstado(['r2', 'r3', 'r4', 'r5'], 'aprobado'); M.setEstado(['r3', 'r4'], 'programado');
+      await M.flush();
+      relojEn('2026-11-10T10:00:00+01:00');
+      await paginaAbierta();
+      const c = ppCifras(); igual([c.pasado, c.hoy], [2, 3], 'las cifras');
+      igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
+      igual(ppLineas('hoy'), ['r4', 'r6', 'r5'], 'Hoy y mañana');
+      const av = id => q(`.pp-av[data-slot="${id}"]`), cs = e => W.getComputedStyle(e), tok = k => cs(q('#mesa')).getPropertyValue(k).trim();
+      const rgb = c => { const d = D.createElement('i'); d.style.color = c; q('#mesa').append(d); const v = cs(d).color; d.remove(); return v; };
+      // Hoy y mañana: franja y hora en color en las que faltan (r6 en revisión, r5 reel), no en la Programada (r4)
+      for (const id of ['r6', 'r5']) {
+        ok(av(id).classList.contains('sinprog') && /inset/.test(cs(av(id)).boxShadow), `${id}: sin franja`);
+        igual(cs(av(id).querySelector('.pp-cu')).color, rgb(tok('--chg')), `${id}: la hora no va en color`);
+      }
+      ok(!av('r4').classList.contains('sinprog') && cs(av('r4')).boxShadow === 'none', 'la Programada lleva marca');
+      // Se ha pasado: fila tintada y estado en rojo (r1 sin foto, r2 reel «publicar a mano»)
+      for (const id of ['r1', 'r2']) {
+        ok(av(id).classList.contains('sinprog'), `${id}: sin marca`);
+        igual(cs(av(id)).backgroundColor, rgb(tok('--red-soft')), `${id}: la fila no va tintada`);
+        igual(cs(av(id).querySelector('.pp-est')).color, rgb(tok('--red')), `${id}: el estado no va en rojo`);
+      }
+      ok(/publicar a mano/.test(av('r2').textContent), 'el reel pasado ya no dice «publicar a mano»');
+      // en Esperando al cliente y Falta programar, nada
+      ok(!q('.pp-grupo[data-cat="espera"] .sinprog, .pp-grupo[data-cat="falta"] .sinprog'), 'la marca sale en otro grupo');
+    } finally { paginaCerrada(); relojVuelve(); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

@@ -368,13 +368,20 @@
   const segFila = () => `<div class="seg pp-tvs pp-pfn" role="group" aria-label="Clientes por fila">${[1, 2, 5].map(n => `<button type="button" class="${st.fila === n ? 'on' : ''}" data-pp="fila" data-n="${n}" aria-pressed="${st.fila === n}" title="${n} por fila" aria-label="${n} por fila">${n}</button>`).join('')}</div>`;
 
   // ---------- the page ----------
+  // the clients that fit in a row at this width (a block needs 180 px): «1 · 2 · 5» is the most, never squeezed
+  function anchoClientes() {                   // the width the clients' grid gets, from the page's
+    if (!page || !page.clientWidth) return 1000;
+    const movil = innerWidth <= 720, rail = !movil && !st.plg.avisos;
+    return Math.min(page.clientWidth - (movil ? 24 : 40), 1480) - (rail ? 436 : 0) - 16;
+  }
+  const caben = () => Math.max(1, Math.floor((anchoClientes() + 8) / 188));
   function pagina(R) {
-    const pl = st.plg, cols = Math.max(1, Math.min(st.fila, R.filas.length || 1));
+    const pl = st.plg, cols = Math.max(1, Math.min(st.fila, R.filas.length || 1, caben()));
     const nTar = tareas().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.espera + R.cifras.falta;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
       { k: 'clientes', t: 'Clientes', n: R.filas.length, cls: 'pp-clientes', extra: segFila,
-        html: () => R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
+        html: () => R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
       { k: 'avisos', t: 'Avisos', n: nAv }
     ];
     const arriba = P.filter(x => pl[x.k]), izq = P.filter(x => !pl[x.k] && x.k !== 'avisos'), rail = !pl.avisos;
@@ -737,6 +744,7 @@
     // up to date on its own: every minute (D-120's sweep), on coming back to the tab and with another tab's tasks
     tic = setInterval(() => { if (st.on && document.visibilityState === 'visible') refrescar(); }, 60000);
     on(document, 'visibilitychange', () => { if (st.on && document.visibilityState === 'visible') refrescar(); });
+    let rT = 0; on(window, 'resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
     try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (e.data && e.data.t === 'tareas' && st.on) refrescar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
     on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);

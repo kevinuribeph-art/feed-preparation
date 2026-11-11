@@ -12505,6 +12505,26 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
+  prueba('PP18', '«1 · 2 · 5» es lo más por fila: si no caben (180 px por bloque), van menos y apilados, sin que nada se corte ni se salga (D-180)', async () => {
+    relojEn('2026-11-10T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await tablero([pub(1, 'Foto', 12)]);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(2, 'Foto', 13)], past: [], force: true });
+      W.localStorage.setItem('mesa-pp-fila', '5');
+      await paginaAbierta(); M.personal.set({ fila: 5 }); await M.personal.render();
+      const cols = () => W.getComputedStyle(q('.pp-bgrid')).gridTemplateColumns.split(' ').length;
+      igual(cols(), 2, 'con sitio, no van los dos clientes en una fila');
+      fr.style.width = '800px'; W.dispatchEvent(new W.Event('resize')); await espera(300);
+      igual(cols(), 1, 'a 800 px no baja a uno por fila');
+      ok(q('.pp-bgrid').classList.contains('estrecha'), 'a 800 px el bloque no va apilado');
+      const blq = q('.pp-blq').getBoundingClientRect();
+      ok(qa('.pp-blq .pp-cn').every(e => e.scrollWidth <= e.clientWidth + 1), 'el nombre del cliente se corta');
+      ok(qa('.pp-blq .pp-bar').every(e => e.getBoundingClientRect().right <= blq.right + 0.5), 'la línea de un mes se sale del bloque');
+      igual(M.personal.estado().fila, 5, 'se olvida lo elegido');
+    } finally { fr.style.width = w0; W.dispatchEvent(new W.Event('resize')); paginaCerrada(); relojVuelve(); W.localStorage.removeItem('mesa-pp-fila'); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

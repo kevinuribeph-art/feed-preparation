@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.21';   // 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.22';   // 1.22: «Calendario» at 17 px, as «Bandeja» (D-186). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -516,7 +516,7 @@
 #mesa .calhead{flex:none;display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:6px 10px 4px 6px;font-size:12px;color:var(--mute)}
 #mesa .side>.cal.fold .calhead{padding:4px 10px 4px 6px}
 #mesa .cfold{display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:3px 8px 3px 6px;border-radius:var(--r-pill);color:var(--ink);font:inherit;transition:background var(--d1) ease-out}
-#mesa .cfold:hover{background:var(--bg-2)}#mesa .cfold b{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
+#mesa .cfold:hover{background:var(--bg-2)}#mesa .cfold b{font-size:17px;font-weight:800;letter-spacing:-.025em}
 #mesa .cfold svg{width:14px;height:14px;transition:transform var(--d-m) var(--ease-m)}#mesa .cal.fold .cfold svg{transform:rotate(-90deg)}
 #mesa .csync,#mesa .cnat{white-space:nowrap}#mesa .csync.c{color:var(--chg)}#mesa .cnat{font-size:11px;color:var(--faint)}
 #mesa .side>.cal.fold .cnat{display:none}
@@ -600,7 +600,7 @@
 #mesa .ctotn{min-height:22px}
 #mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
 #mesa.client .chip{cursor:pointer}
-@media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}}`;
+@media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}#mesa .cfold b{font-size:14px}}`;
   I().estilo('mesa-cal-css', CSS);
 
   function onDbl(e) {                            // the month's name: back to the month the board opens with (D-159)

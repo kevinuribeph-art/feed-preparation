@@ -12902,6 +12902,28 @@
   });
 
   // =====================================================================================================
+  // pasos automáticos y ajustes de la 4.18 (D-186 a D-192)
+  // =====================================================================================================
+  prueba('PA1', '«Calendario» va al tamaño de «Bandeja», con los dos abiertos y con los dos plegados; a 720 px los dos a 14 px (D-186)', async () => {
+    await columna(async ({ tray, cal }) => {
+      const f = e => { const s = W.getComputedStyle(e); return [s.fontSize, s.fontWeight, s.letterSpacing]; };
+      const tb = () => q('.main .side > .tray .trayhead > b'), cb = () => q('.main .side > .cal .cfold b');
+      igual(f(cb())[0], '17px', 'el título del calendario abierto');
+      igual(f(cb()), f(tb()), 'abiertos, «Calendario» y «Bandeja» no van igual');
+      q('.main .side > .tray .tfold').click(); await espera(500);
+      q('.main .side > .cal .cfold').click(); await espera(600);
+      ok(tray.classList.contains('fold') && cal.classList.contains('fold'), 'no se plegaron los dos');
+      igual(f(tb())[0], '17px', 'plegada, «Bandeja» cambia de tamaño');
+      igual(f(cb()), f(tb()), 'plegados, las dos pestañas no van igual');
+      const fr = $('mesa'), w0 = fr.style.width;
+      try {
+        fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha');
+        igual([f(cb())[0], f(tb())[0]], ['14px', '14px'], 'a 720 px');
+      } finally { fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); }
+    });
+  });
+
+  // =====================================================================================================
   // ejecución
   // =====================================================================================================
   const filas = $('filas');

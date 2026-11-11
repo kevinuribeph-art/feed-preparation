@@ -12671,6 +12671,7 @@
       await M._in.idbDel('tareas', t.id);
       ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
       k = await rec(); ok(k && k.detalles === e.detalles && k.subtareas.map(x => x.txt).join() === 'Uno,Dos', 'no vuelven');
+      const malo = JSON.parse(json(d)); malo.tareas.find(x => x.id === t.id).subtareas = 'no'; ok((await M.importData(malo, { confirm: false })).error, 'entran subtareas dañadas');
       // una pestaña con la 4.16 no abre la base de datos
       const r = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', 15); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
       igual(r, 'VersionError', 'una pestaña con la 4.16 abre la base de datos');
@@ -12840,6 +12841,20 @@
       const lc = (d.boards.find(b => b.slots.some(x => x.id === 'r1')).slots.find(x => x.id === 'r1').libre || {});
       ok(json(lc).includes('"z":') || json(r.libre || {}).includes('"z":'), 'el sitio del velo no se guarda al aplicar ni viaja');
     } finally { if (ed()) M.libre.cerrar(); }
+  });
+
+
+  prueba('VT4', 'Una plantilla aplicada con «Todo» trae su velo y su textura donde estaban en ella, aunque la diapositiva tuviera el velo movido (D-185, revisión)', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i);
+      const t = await guardarPlant();                 // velo y textura sin sitio propio
+      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      igual(c().velo.z, 2, 'el velo no se movió');
+      sinPanel(); aplicarPlant(t, 'todo'); await espera(120);
+      ok(c().velo && c().velo.z == null && c().tex && c().tex.z == null, 'la plantilla no trae su velo donde estaba: ' + json([c().velo, c().tex]));
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'las capas tras la plantilla');
+    } finally { M.libre.cerrar(); }
   });
 
   // =====================================================================================================

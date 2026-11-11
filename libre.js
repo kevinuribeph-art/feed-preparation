@@ -603,14 +603,15 @@
   function anclas(c) {
     if (!c || !((c.velo && c.velo.z != null) || (c.tex && c.tex.z != null))) return null;
     const L = pila(c), sobre = q => { const e = L.slice(L.indexOf(q) + 1).find(x => typeof x !== 'string'); return e ? e.id : null; };
-    return { c, ids: c.els.map(e => e.id), v: c.velo && c.velo.z != null ? sobre('velo') : undefined, t: c.tex && c.tex.z != null ? sobre('tex') : undefined };
+    return { c, vo: c.velo, to: c.tex, ids: c.els.map(e => e.id), v: c.velo && c.velo.z != null ? sobre('velo') : undefined, t: c.tex && c.tex.z != null ? sobre('tex') : undefined };
   }
   function reanclar(a) {
     const x = E && E.sl[E.i]; if (!a || enPila || !x || x.comp !== a.c) return;
     const c = a.c; if (c.els.length === a.ids.length && c.els.every((e, i) => e.id === a.ids[i])) return;
     const donde = id => { if (id === null) return c.els.length; for (let k = a.ids.indexOf(id); k >= 0 && k < a.ids.length; k++) { const j = c.els.findIndex(e => e.id === a.ids[k]); if (j >= 0) return j; } return c.els.length; };
-    if (a.v !== undefined && c.velo) c.velo.z = donde(a.v);
-    if (a.t !== undefined && c.tex) { const z = donde(a.t); if (z === c.els.length && !c.tex.bajoVelo) delete c.tex.z; else c.tex.z = z; }
+    // only the same veil and texture: another one (a template's «Todo») comes with its own place
+    if (a.v !== undefined && c.velo && c.velo === a.vo) c.velo.z = donde(a.v);
+    if (a.t !== undefined && c.tex && c.tex === a.to) { const z = donde(a.t); if (z === c.els.length && !c.tex.bajoVelo) delete c.tex.z; else c.tex.z = z; }
   }
 
   // ---------- the open editor ----------
@@ -2429,6 +2430,7 @@
       window.removeEventListener('pointermove', mover, true); window.removeEventListener('pointerup', fin, true); window.removeEventListener('pointercancel', fin, true);
       if (!on) return;
       row.classList.remove('arr'); if (linea) linea.remove();
+      if (!E) return;                          // the editor closed while dragging
       E.noClick = true; setTimeout(() => { if (E) E.noClick = false; }, 0);   // the click that ends the drag is not the row's
       if (ev.type === 'pointercancel' || dest < 0 || dest === from || dest === from + 1) return;
       const key = row.dataset.capa || row.dataset.id;

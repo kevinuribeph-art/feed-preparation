@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190)
+  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -69,10 +69,9 @@
   // another board's state as it was saved (as the vencidas of the client's other boards, D-120); the open board's, the mesa's own
   const estadoDe = (s, B) => { const X = I(); if (B && X.S && B === X.S) return X.estadoDe(s); const v = s.estado && s.estado.v; return v && MANUAL.includes(v) ? v : X.estadoAuto(s); };
   const mesesDe = B => Array.from({ length: B.span || 1 }, (_, i) => I().addMonths(B.month, i));
-  function pasoDe(B, m) {                      // the month's step (D-084, D-119); another board's with its saved states
+  function pasoDe(B, m) {                      // the month's step, its most delayed post's (D-119, D-192); another board's with its saved states
     const X = I(); if (X.S && B === X.S) return X.pasoDe(B, m);
     const ms = mesesDe(B); if (!ms.includes(m)) m = ms[0];
-    const g = (X.pasosDe(B) || {})[m]; if (X.PASOS.some(p => p[0] === g)) return g;
     const vivas = (B.slots || []).filter(s => estadoDe(s, B) !== 'cancelado' && X.mesDe(s, B) === m);
     return vivas.length ? X.PASOS[Math.min(...vivas.map(s => X.PASO_DE[estadoDe(s, B)] ?? 0))][0] : 'empezar';
   }

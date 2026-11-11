@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';
+  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -67,12 +67,19 @@
   // ---------- what the mesa knows ----------
   const MANUAL = ['noaprobado', 'aprobado', 'programado', 'publicado', 'cancelado', 'empezar', 'captions', 'aprobar'];
   // another board's state as it was saved (as the vencidas of the client's other boards, D-120); the open board's, the mesa's own
-  const estadoDe = (s, B) => { const X = I(); if (B && X.S && B === X.S) return X.estadoDe(s); const v = s.estado && s.estado.v; return v && MANUAL.includes(v) ? v : X.estadoAuto(s); };
+  // its data still decides what can't hold (as the mesa's estadoDe, D-085, D-192): one put back by hand never past its data, an
+  // approved or turned down one without a chosen caption falls back; whether it changed after approval isn't known here (D-180)
+  const ATRAS = { empezar: 0, captions: 1, aprobar: 2 };
+  const estadoDe = (s, B) => {
+    const X = I(); if (B && X.S && B === X.S) return X.estadoDe(s);
+    const v = s.estado && s.estado.v, a = X.estadoAuto(s); if (!v || !MANUAL.includes(v)) return a;
+    if (v in ATRAS) return ATRAS[v] < ATRAS[a] ? v : a;
+    return (v === 'aprobado' || v === 'noaprobado') && a !== 'aprobar' ? a : v;
+  };
   const mesesDe = B => Array.from({ length: B.span || 1 }, (_, i) => I().addMonths(B.month, i));
-  function pasoDe(B, m) {                      // the month's step (D-084, D-119); another board's with its saved states
+  function pasoDe(B, m) {                      // the month's step, its most delayed post's (D-119, D-192); another board's with its saved states
     const X = I(); if (X.S && B === X.S) return X.pasoDe(B, m);
     const ms = mesesDe(B); if (!ms.includes(m)) m = ms[0];
-    const g = (X.pasosDe(B) || {})[m]; if (X.PASOS.some(p => p[0] === g)) return g;
     const vivas = (B.slots || []).filter(s => estadoDe(s, B) !== 'cancelado' && X.mesDe(s, B) === m);
     return vivas.length ? X.PASOS[Math.min(...vivas.map(s => X.PASO_DE[estadoDe(s, B)] ?? 0))][0] : 'empezar';
   }
@@ -258,7 +265,9 @@
     if (x.mano) est = `<span class="pp-mano">publicar a mano</span>`;
     if (x.aMano) est += ` <span class="pp-por">· se programa a mano</span>`;   // D-181: its state stays, as the reasons of a wait
     if (x.cat === 'espera') { const r = []; if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
-    return `<button type="button" class="pp-av" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
+    // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too
+    const sin = (x.cat === 'hoy' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
+    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
   function avisos(R) {
     const html = GRUPOS.filter(([c]) => !st.filtro || st.filtro === c).map(([c, t]) => {
@@ -333,7 +342,7 @@
     const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
-    const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
+    const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
     const ncli = cli ? '' : `<span class="pp-ncampo${N.cliente ? '' : ' vacio'}" data-k="cliente"><select class="pp-ncli" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${R.filas.map(f => `<option value="${esc(f.c.id)}"${N.cliente === f.c.id ? ' selected' : ''}>${esc(f.c.name)}</option>`).join('')}</select></span>`;
     const nueva = `<div class="pp-nueva" data-tid="nueva"><input type="text" class="pp-nin" data-pp="nueva" placeholder="${cli ? 'Nueva tarea para ' + esc(cli.name) : 'Nueva tarea'}" aria-label="Nueva tarea" autocomplete="off">${pend}${nfecha}${ncli}`
       + `<button type="button" class="ibtn pp-ib" data-pp="nota-campo" title="Guardar como nota${cli ? ' de ' + esc(cli.name) : ''}" aria-label="Guardar como nota">${ICO.nota}</button>`
@@ -581,7 +590,7 @@
     const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '';
     if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1"><p class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${esc(r.txt)}</p></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
-    const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
+    const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="${venc ? 'rojo' : ''}">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';
     const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${((D && D.CL) || X.CL).map(x => `<option value="${esc(x.id)}"${r.cliente === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></span>`
       : c ? `<span>${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
@@ -1045,6 +1054,9 @@
 #mesa .pp-av .pp-est:empty{display:none}
 #mesa .pp-av.tarea{cursor:default}
 #mesa button.pp-av:hover{background:var(--bg-2)}
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog{box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog .pp-cu{color:var(--chg);font-weight:600}
+#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:color-mix(in oklab,var(--red-soft) 88%,var(--red))}
+#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-est,#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-mano{color:var(--red);font-weight:600}
 #mesa .pp-avs{display:inline-flex;align-items:center}
 #mesa .pp-avs .pp-ava:first-child{position:relative;z-index:1;box-shadow:0 0 0 2px var(--panel)}#mesa .pp-avs .pp-ava + .pp-ava{margin-left:-7px}
 #mesa .pp-av .pp-avs:has(.pp-ck){justify-content:center}

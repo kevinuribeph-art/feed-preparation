@@ -12749,6 +12749,99 @@
     } finally { await notionCliente(true); }
   });
 
+
+  // =====================================================================================================
+  // velo y textura como capas del editor (D-185)
+  // =====================================================================================================
+  const capasFilas = () => qa('.lb-panel .lb-caps > .lb-cap').map(r => r.dataset.capa || compDe(ed().i).els.find(e => e.id === r.dataset.id).t);
+  const sinPanel = () => { const E = ed(); E.sel = null; E.mas = []; E.capa = null; };
+  async function editorConVelo() {
+    await tablero([pub(1)]); await poner('r1', [await foto('vt-1.jpg')]);
+    await abrirEditor('r1'); await espera(150);
+    accion('add-txt'); await espera(30); sinPanel(); accion('velo', { v: 'grad' }); accion('tex', { v: 'grano' }); await espera(60);
+    const L = q('.lb-panel .lb-acc[data-acc="capas"] .lb-acc-h'); if (L && L.getAttribute('aria-expanded') !== 'true') L.click(); await espera(250);
+  }
+  prueba('VT1', 'Velo y textura en «Capas»: una fila cada uno donde se dibujan (el velo justo encima de la foto más alta, la textura arriba del todo), sin guardar sitio mientras no se muevan; ▲ ▼ y ⌘] ⌘[ los mueven entre las demás capas y la imagen cambia; elegido, su panel es su sección y «Capas»; ocultar no los dibuja; ⌫ los quita; uno de cada uno (D-185)', async () => {
+    await editorConVelo();
+    try {
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'las filas de «Capas»');
+      const c = () => compDe(ed().i);
+      ok(c().velo.z == null && c().tex.z == null, 'sin moverlos guardan sitio');
+      const img0 = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
+      // ▲ en el velo: pasa encima del texto
+      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      igual(capasFilas(), ['tex', 'velo', 'texto', 'foto'], '▲ no sube el velo');
+      igual(c().velo.z, 2, 'el velo no guarda su sitio');
+      ok(!(await bytesIguales(img0, await M.libre.pieza(JSON.parse(json(c())), 540, 675))), 'la imagen no cambia con el velo encima del texto');
+      // elegido: su sección y «Capas»
+      q('.lb-panel .lb-cap[data-capa="tex"]').click(); await espera(60);
+      ok(ed().capa === 'tex' && q('.lb-panel .lb-acc[data-acc="textura"]') && q('.lb-panel .lb-acc[data-acc="capas"].on') && !q('.lb-panel .lb-acc[data-acc="fondo"]'), 'elegida, la textura no tiene su panel');
+      // ⌘[ la baja debajo del velo
+      tecla('[', { meta: true, code: 'BracketLeft' }); await espera(60);
+      igual(capasFilas(), ['velo', 'tex', 'texto', 'foto'], '⌘[ no baja la textura');
+      ok(c().tex.z === 2 && c().tex.bajoVelo, 'la textura bajo el velo no guarda su sitio: ' + json(c().tex));
+      // ocultar
+      const dib = async () => M.libre.pieza(JSON.parse(json(c())), 540, 675);
+      const a = await dib(); q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-ver"]').click(); await espera(60);
+      ok(c().velo.oculto && !(await bytesIguales(a, await dib())), 'ocultar el velo no lo quita de la imagen');
+      // ⌫ con la textura elegida
+      q('.lb-panel .lb-cap[data-capa="tex"]').click(); await espera(40); tecla('Backspace'); await espera(60);
+      ok(!c().tex && !q('.lb-panel .lb-cap[data-capa="tex"]'), '⌫ no quita la textura');
+      tecla('z', { meta: true }); await espera(80);
+      ok(c().tex && c().tex.z === 2, '⌘Z no devuelve la textura en su sitio');
+      // uno de cada uno: Plano en su sección cambia el mismo velo, en su sitio
+      sinPanel(); accion('velo', { v: 'plano' }); await espera(40);
+      ok(c().velo.tipo === 'plano' && c().velo.z === 2 && qa('.lb-panel .lb-cap[data-capa="velo"]').length === 1, 'cambiar el velo crea otro o lo mueve');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('VT2', 'Arrastrar una capa en «Capas» la deja donde se suelta, también el velo y la textura; un paso de ⌘Z; un clic sin mover la elige (D-185)', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i), fila = k => q(`.lb-panel .lb-caps > .lb-cap${k === 'velo' || k === 'tex' ? `[data-capa="${k}"]` : `[data-id="${c().els.find(e => e.t === k).id}"]`}`);
+      const arrastra = (de, a, abajo) => {
+        const r0 = fila(de).getBoundingClientRect(), r1 = fila(a).getBoundingClientRect(), y1 = abajo ? r1.bottom - 2 : r1.top + 2;
+        const ev = (t, y, el) => (el || W).dispatchEvent(new W.PointerEvent(t, { bubbles: true, cancelable: true, button: 0, buttons: 1, pointerId: 1, clientX: r0.left + 30, clientY: y }));
+        ev('pointerdown', r0.top + r0.height / 2, fila(de)); ev('pointermove', r0.top + r0.height / 2 + 8); ev('pointermove', y1); ev('pointerup', y1);
+      };
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'al empezar');
+      arrastra('velo', 'tex', false); await espera(80);
+      igual(capasFilas(), ['velo', 'tex', 'texto', 'foto'], 'el velo arrastrado arriba del todo');
+      arrastra('texto', 'foto', true); await espera(80);
+      igual(capasFilas(), ['velo', 'tex', 'foto', 'texto'], 'el texto arrastrado al fondo');
+      tecla('z', { meta: true }); await espera(80);
+      igual(capasFilas(), ['velo', 'tex', 'texto', 'foto'], '⌘Z no deshace un arrastre');
+      fila('foto').click(); await espera(60);
+      ok(ed().sel === c().els.find(e => e.t === 'foto').id, 'un clic sin mover no elige la capa');
+    } finally { M.libre.cerrar(); }
+  });
+
+  prueba('VT3', 'Con sitio propio, el velo se queda bajo el mismo elemento al añadir o borrar otros; «Aplicar», exportar e importar lo llevan; la imagen aplicada lo respeta (D-185)', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i);
+      accion('add-txt'); await espera(30);   // dos textos sobre la foto: foto, texto, texto2
+      sinPanel(); await espera(30);
+      const t1 = c().els.filter(e => e.t === 'texto')[0];
+      // el velo entre los dos textos: ▲ una vez
+      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'texto', 'foto'], 'el velo entre los textos');
+      const sobre = () => { const L = capasFilas(), i = L.indexOf('velo'); return qa('.lb-panel .lb-caps > .lb-cap')[i - 1].dataset.id; };
+      const arriba = sobre();
+      // borrar el texto de abajo: el velo sigue bajo el de arriba
+      elegir(t1); tecla('Backspace'); await espera(60);
+      igual(capasFilas(), ['tex', 'texto', 'velo', 'foto'], 'al borrar el de abajo');
+      igual(sobre(), arriba, 'el velo no sigue bajo el mismo texto');
+      // una forma nueva va arriba, encima de la textura sin sitio propio no: la textura sigue arriba del todo
+      sinPanel(); accion('add-forma', { v: 'rect' }); await espera(60);
+      igual(capasFilas()[0], 'tex', 'la textura sin sitio propio no sigue arriba');
+      await aplicarEditor();
+      const r = M.board().slots.find(x => x.id === 'r1'), d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      const lc = (d.boards.find(b => b.slots.some(x => x.id === 'r1')).slots.find(x => x.id === 'r1').libre || {});
+      ok(json(lc).includes('"z":') || json(r.libre || {}).includes('"z":'), 'el sitio del velo no se guarda al aplicar ni viaja');
+    } finally { if (ed()) M.libre.cerrar(); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

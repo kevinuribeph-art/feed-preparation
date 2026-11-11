@@ -106,7 +106,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.60';   // 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.61';   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -548,14 +548,69 @@
     } else ctx.fillStyle = rgba(col, v.op);
     ctx.fillRect(0, 0, W, H);
   }
-  // the veil goes over the photos and under texts, logos and shapes that are above the topmost photo (the text reads on it)
+  // the veil and the texture are layers of the slide (D-185): z, how many elements go under it. Without a z of its own (all
+  // saved before 1.61, and until it is moved) the veil goes over the topmost photo and under what is above it (the text reads
+  // on it) and the texture on top of everything, as always: the same image, byte by byte. tex.bajoVelo: at the same height, the
+  // texture under the veil. A hidden one (oculto) is not drawn, as a hidden element
+  const topFoto = els => els.reduce((a, e, i) => e.t === 'foto' ? i : a, -1);
+  function alturas(c) {
+    const n = c.els.length, z = (q, d) => Math.max(0, Math.min(n, Number.isInteger(q) ? q : d));
+    return { vk: c.velo ? z(c.velo.z, topFoto(c.els) + 1) : -1, tk: c.tex ? z(c.tex.z, n) : -1, tb: !!(c.tex && c.tex.bajoVelo) };
+  }
   function drawComp(ctx, comp, W, H, img, k, ph) {
     ctx.fillStyle = hexOk(comp.bg) ? comp.bg : '#ffffff'; ctx.fillRect(0, 0, W, H);
-    const els = comp.els, top = els.reduce((a, e, i) => e.t === 'foto' ? i : a, -1);
-    els.forEach((el, i) => { if (i <= top) drawEl(ctx, el, W, H, img, k, ph); });
-    drawVelo(ctx, comp.velo, W, H);
-    els.forEach((el, i) => { if (i > top) drawEl(ctx, el, W, H, img, k, ph); });
-    drawTex(ctx, comp.tex, W, H);
+    const els = comp.els, { vk, tk, tb } = alturas(comp);
+    const velo = () => { if (!comp.velo.oculto) drawVelo(ctx, comp.velo, W, H); }, tex = () => { if (!comp.tex.oculto) drawTex(ctx, comp.tex, W, H); };
+    for (let i = 0; i <= els.length; i++) {
+      if (i === vk && i === tk && tb) { tex(); velo(); } else { if (i === vk) velo(); if (i === tk) tex(); }
+      if (i < els.length) drawEl(ctx, els[i], W, H, img, k, ph);
+    }
+  }
+  // the slide's layers, bottom to top: its elements and 'velo' / 'tex' (D-185)
+  function pila(c) {
+    const { vk, tk, tb } = alturas(c), L = [];
+    for (let i = 0; i <= c.els.length; i++) {
+      if (i === vk && i === tk) L.push(...(tb ? ['tex', 'velo'] : ['velo', 'tex'])); else { if (i === vk) L.push('velo'); if (i === tk) L.push('tex'); }
+      if (i < c.els.length) L.push(c.els[i]);
+    }
+    return L;
+  }
+  // a stack back to the slide: its elements in order and where the veil and the texture are; a veil still where the old rule
+  // puts it keeps no place of its own (it follows the topmost photo, as always), nor a texture on top
+  function dePila(c, L) {
+    const els = L.filter(x => typeof x !== 'string'), n = els.length;
+    const bajo = q => { let m = 0; for (const x of L) { if (x === q) return m; if (typeof x !== 'string') m++; } return m; };
+    c.els = els;
+    if (c.velo) { const z = bajo('velo'); if (!(c.velo.z == null && z === topFoto(els) + 1)) c.velo.z = z; }
+    if (c.tex) {
+      const z = bajo('tex'), b = !!c.velo && z === bajo('velo') && L.indexOf('tex') < L.indexOf('velo');
+      if (z === n && !b) delete c.tex.z; else c.tex.z = z;
+      if (b) c.tex.bajoVelo = true; else delete c.tex.bajoVelo;
+    }
+  }
+  // as «Al frente», «Adelante», «Atrás», «Al fondo» (sel: the layers moved); null: nothing moves
+  function reordenar(L, sel, dir) {
+    const mov = L.filter(x => sel.includes(x)), rest = L.filter(x => !sel.includes(x)); if (!mov.length) return null;
+    if (dir === 'front') return [...rest, ...mov];
+    if (dir === 'back') return [...mov, ...rest];
+    const idx = mov.map(x => L.indexOf(x)), k = dir === 'fwd' ? Math.min(L.length - 1, Math.max(...idx) + 1) : Math.max(0, Math.min(...idx) - 1), other = L[k];
+    if (other === undefined || sel.includes(other)) return null;
+    const at = rest.indexOf(other); rest.splice(dir === 'fwd' ? at + 1 : at, 0, ...mov); return rest;
+  }
+  // a change that adds, takes away or moves elements without the stack (a photo, a paste, a delete…): a veil or a texture with a
+  // place of its own stays right under the same element (that one gone, the next one above it that is still there; none, on top)
+  let enPila = false;
+  function anclas(c) {
+    if (!c || !((c.velo && c.velo.z != null) || (c.tex && c.tex.z != null))) return null;
+    const L = pila(c), sobre = q => { const e = L.slice(L.indexOf(q) + 1).find(x => typeof x !== 'string'); return e ? e.id : null; };
+    return { c, ids: c.els.map(e => e.id), v: c.velo && c.velo.z != null ? sobre('velo') : undefined, t: c.tex && c.tex.z != null ? sobre('tex') : undefined };
+  }
+  function reanclar(a) {
+    const x = E && E.sl[E.i]; if (!a || enPila || !x || x.comp !== a.c) return;
+    const c = a.c; if (c.els.length === a.ids.length && c.els.every((e, i) => e.id === a.ids[i])) return;
+    const donde = id => { if (id === null) return c.els.length; for (let k = a.ids.indexOf(id); k >= 0 && k < a.ids.length; k++) { const j = c.els.findIndex(e => e.id === a.ids[k]); if (j >= 0) return j; } return c.els.length; };
+    if (a.v !== undefined && c.velo) c.velo.z = donde(a.v);
+    if (a.t !== undefined && c.tex) { const z = donde(a.t); if (z === c.els.length && !c.tex.bajoVelo) delete c.tex.z; else c.tex.z = z; }
   }
 
   // ---------- the open editor ----------
@@ -603,9 +658,10 @@
   const selIds = () => E.sel ? [E.sel, ...E.mas.filter(id => id !== E.sel)] : [];
   const selEls = () => { const ids = selIds(); return compAt(E.i).els.filter(e => ids.includes(e.id)); };
   const multi = () => selIds().length > 1;
-  function soltar() { E.sel = null; E.mas = []; E.tOri = null; }
+  function soltar() { E.sel = null; E.mas = []; E.tOri = null; E.capa = null; }
   function seleccionar(el, add) {              // a click selects the element, or its whole group; with ⇧ it adds or takes away
     if (!el) { soltar(); return; }
+    E.capa = null;
     const grupo = el.g ? compAt(E.i).els.filter(e => e.g === el.g).map(e => e.id) : [el.id];
     if (!add) { if (E.sel !== el.id) E.tOri = null; E.sel = el.id; E.mas = grupo.filter(id => id !== el.id); return; }
     const ids = selIds();
@@ -1059,7 +1115,7 @@
     todo();
     if (!E.allEl.hidden) verTodas(true);   // «Ver todas» open: its slides as they are now
   }
-  function mut(tag, fn, quiet) { paso(tag); fn(); despues(quiet); }
+  function mut(tag, fn, quiet) { paso(tag); const x = E.sl[E.i], a = anclas(x && x.comp); enPila = false; fn(); reanclar(a); enPila = false; despues(quiet); }
   function renumerar() { const n = E.sl.length; E.sl.forEach((x, i) => { if (x.comp) { const { W, H } = sizeAt(i); numerar(x.comp, i, n, W, H); } }); }   // after every change: slides added, deleted, moved, duplicated or pasted
   function despues(quiet) {
     recordarTextos(true);
@@ -1258,7 +1314,13 @@
 #mesa .lb-tp canvas:hover{outline:2px solid var(--acc)}
 #mesa .lb-tp span{display:block;font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
 #mesa .lb-tp button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:var(--photo-btn);color:var(--on-photo);font-size:0;line-height:24px;padding:0}#mesa .lb-tp button::before{content:'';position:absolute;inset:0;margin:auto;width:13px;height:13px;background:currentColor;-webkit-mask:var(--i-x) center/contain no-repeat;mask:var(--i-x) center/contain no-repeat}
-#mesa .lb-caps{border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;background:var(--panel-2)}
+#mesa .lb-caps{position:relative;user-select:none;-webkit-user-select:none;border:1px solid var(--line2);border-radius:var(--r-md);overflow:hidden;background:var(--panel-2)}
+#mesa .lb-capv .lb-capn{display:flex;align-items:center;gap:6px}#mesa .lb-capv .lb-capn i{font-style:normal;color:var(--mute)}
+#mesa .lb-capv .lb-capn::before{content:'';flex:none;width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px var(--line-strong)}
+#mesa .lb-capv.velo .lb-capn::before{background:linear-gradient(0deg,color-mix(in oklab,var(--ink) 80%,transparent),transparent)}
+#mesa .lb-capv.tex .lb-capn::before{background:repeating-linear-gradient(45deg,var(--mute) 0 1px,transparent 1px 3px);opacity:.7}
+#mesa .lb-capsp{flex:none;width:24px}
+#mesa .lb-cap.arr{opacity:.5}#mesa .lb-capdrop{position:absolute;left:4px;right:4px;height:2px;border-radius:2px;background:var(--acc);pointer-events:none}
 #mesa .lb-cap{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 9px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
@@ -2181,7 +2243,7 @@
       if (E.cambio) salirCambio();
       if (!selIds().includes(el.id)) seleccionar(el);   // one of several chosen: they stay chosen
       E.crop = null; E.pick = null; panel(); pedir();
-      const ss = selEls(), c = compAt(E.i), n = c.els.length, idx = ss.map(q => c.els.indexOf(q)), uno = ss.length === 1 ? ss[0] : null;
+      const ss = selEls(), c = compAt(E.i), Lp = pila(c), n = Lp.length, idx = ss.map(q => Lp.indexOf(q)), uno = ss.length === 1 ? ss[0] : null;   // on the stack, with the veil and the texture (D-185)
       const lock = ss.every(q => q.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
       abrirCm(itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', true) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', true)
         + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : '')
@@ -2310,7 +2372,7 @@
   const MARCA = '<div class="lb-sec"><h4>';
   function abiertaDiapo(c) {                   // the remembered one, if this slide's panel has it; nothing remembered: Diapositiva
     let k = lsLeer(LS_AC); if (k == null) k = 'diapositiva';
-    const hay = ['diapositiva', E.estilos.length ? 'textos' : '', 'logos', 'fondo', 'velo', 'textura', 'rejilla', 'plantillas', c.els.length ? 'capas' : ''];
+    const hay = ['diapositiva', E.estilos.length ? 'textos' : '', 'logos', 'fondo', 'velo', 'textura', 'rejilla', 'plantillas', pila(c).length ? 'capas' : ''];
     return k === '-' || hay.includes(k) ? k : 'diapositiva';
   }
   function seccionesDiapo(h, abierta) {
@@ -2349,13 +2411,47 @@
       if (y0 < 0) p.scrollTo({ top: p.scrollTop + y0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
   }
-  function capasHTML(c, sec) {
-    if (!c.els.length) return '';
-    const ids = selIds(), n = c.els.length;
-    return plegable('capas', 'Capas', String(n), `<p class="lb-p" style="margin:0 0 8px">Arriba, lo que está delante. ⇧ + clic para elegir varias.</p><div class="lb-caps">${c.els.map((e, k) => ({ e, k })).reverse().map(({ e, k }) => `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" data-id="${esc(e.id)}"><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>`
-      + `<button type="button" data-lb="cap-ver" data-id="${esc(e.id)}" title="${e.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${e.oculto ? 'Mostrar' : 'Ocultar'}">${e.oculto ? '◌' : '◉'}</button>`
-      + `<button type="button" data-lb="cap-lock" data-id="${esc(e.id)}" title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>`
-      + `<button type="button" data-lb="cap-up" data-id="${esc(e.id)}" title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" data-id="${esc(e.id)}" title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button></div>`).join('')}</div>`, sec);
+  // a row of «Capas» dragged to another place: its layer goes there (the veil and the texture too), one step of ⌘Z (D-185); a line
+  // says where; its buttons keep their clicks, and a press that doesn't move is the row's click
+  function arrastrarCapa(e) {
+    const row = e.target.closest && e.target.closest('.lb-caps > .lb-cap'); if (!row || !E || e.button !== 0 || e.target.closest('button') || E.busy) return;
+    const box = row.parentNode, rows = [...box.children], y0 = e.clientY, from = rows.indexOf(row); let on = false, dest = -1, linea = null;
+    const mover = ev => {
+      if (!on && Math.abs(ev.clientY - y0) < 4) return;
+      if (!on) { on = true; row.classList.add('arr'); linea = document.createElement('div'); linea.className = 'lb-capdrop'; box.append(linea); }
+      ev.preventDefault();
+      const rs = rows.map(r => r.getBoundingClientRect()); let g = rs.length;
+      for (let i = 0; i < rs.length; i++) if (ev.clientY < rs[i].top + rs[i].height / 2) { g = i; break; }
+      dest = g; const br = box.getBoundingClientRect(), y = g < rs.length ? rs[g].top : rs[rs.length - 1].bottom;
+      linea.style.top = `${y - br.top + box.scrollTop - 1}px`; linea.hidden = g === from || g === from + 1;
+    };
+    const fin = ev => {
+      window.removeEventListener('pointermove', mover, true); window.removeEventListener('pointerup', fin, true); window.removeEventListener('pointercancel', fin, true);
+      if (!on) return;
+      row.classList.remove('arr'); if (linea) linea.remove();
+      E.noClick = true; setTimeout(() => { if (E) E.noClick = false; }, 0);   // the click that ends the drag is not the row's
+      if (ev.type === 'pointercancel' || dest < 0 || dest === from || dest === from + 1) return;
+      const key = row.dataset.capa || row.dataset.id;
+      // the rows go from the top of the stack down: the gap g (0: above the first row) is index n − g of the stack
+      mut(null, () => { const c = ensure(), L = pila(c), n = L.length, k = L.findIndex(q => typeof q === 'string' ? q === key : q.id === key); if (k < 0) return; const it = L.splice(k, 1)[0]; let at = n - dest; if (k < at) at--; L.splice(at, 0, it); enPila = true; dePila(c, L); });
+    };
+    window.addEventListener('pointermove', mover, true); window.addEventListener('pointerup', fin, true); window.addEventListener('pointercancel', fin, true);
+  }
+  function capasHTML(c, sec) {                 // the elements and, as layers, the veil and the texture (D-185); top: what is in front
+    const L = pila(c); if (!L.length) return '';
+    const ids = selIds(), n = L.length;
+    const ud = (k, at) => `<button type="button" data-lb="cap-up" ${at} title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" ${at} title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button>`;
+    const ver = (o, at) => `<button type="button" data-lb="cap-ver" ${at} title="${o.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${o.oculto ? 'Mostrar' : 'Ocultar'}">${o.oculto ? '◌' : '◉'}</button>`;
+    const fila = (x, k) => {
+      if (typeof x === 'string') {
+        const o = x === 'velo' ? c.velo : c.tex, at = `data-capa="${x}"`, nm = x === 'velo' ? `Velo <i>${o.tipo === 'grad' ? 'degradado' : 'plano'}</i>` : `Textura <i>${esc(String(TEXS[o.tipo] || o.tipo).toLowerCase())}</i>`;
+        return `<div class="lb-cap lb-capv ${x}${E.capa === x ? ' on' : ''}${o.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nm}</span>${ver(o, at)}<span class="lb-capsp" aria-hidden="true"></span>${ud(k, at)}</div>`;
+      }
+      const e = x, at = `data-id="${esc(e.id)}"`;
+      return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>${ver(e, at)}`
+        + `<button type="button" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>${ud(k, at)}</div>`;
+    };
+    return plegable('capas', 'Capas', String(n), `<p class="lb-p" style="margin:0 0 8px">Arriba, lo que está delante. ⇧ + clic para elegir varias.</p><div class="lb-caps" title="Arrastra una capa para cambiarla de sitio">${L.map((x, k) => ({ x, k })).reverse().map(({ x, k }) => fila(x, k)).join('')}</div>`, sec);
   }
   const grosor = el => Math.round(el.h * sizeAt(E.i).H * PX / TRAZO[el.forma] * 2) / 2;   // a line's or an arrow's stroke, in px of 1080
   function medidasHTML(el) {
@@ -2398,6 +2494,10 @@
     if (hay('sh')) h += rng('sh', 'Sombra', VAL.sh(e0), 0, 1, 0.01, mix('sh'));
     return h ? plegable('comun', 'Lo que comparten', '', h + (hay('fan') ? '<p class="lb-p">El ancho cambia cada foto sin deformarla, desde su esquina de arriba a la izquierda.</p>' : '')) : '';
   }
+  // the slide's «Velo» and «Textura» sections: in its panel and, chosen in «Capas», in the panel of each one (D-185)
+  const secVelo = c => { const v = c.velo; return `<div class="lb-sec"><h4>Velo <span>· encima de las fotos, debajo del texto</span></h4>${seg('velo', [['', 'Ninguno'], ['plano', 'Plano'], ['grad', 'Degradado']], v ? v.tipo : '')}`
+        + (v ? `<span class="lb-l">Color</span>${sws('velo-c', v.color)}${rng('velo-op', 'Intensidad', v.op, 0.05, 0.9, 0.01)}` + (v.tipo === 'grad' ? `<span class="lb-l">Desde</span>${seg('velo-dir', [['abajo', 'Abajo'], ['arriba', 'Arriba'], ['izq', 'Izquierda'], ['der', 'Derecha']], v.dir || 'abajo')}${rng('velo-alc', 'Alcance', v.alc ?? 0.6, 0.2, 1, 0.01)}` : '') : '') + '</div>'; };
+  const secTex = c => `<div class="lb-sec"><h4>Textura <span>· encima de todo</span></h4>${seg('tex', [['', 'Ninguna'], ...Object.entries(TEXS)], c.tex ? c.tex.tipo : '')}${c.tex ? rng('tex-op', 'Intensidad', c.tex.op, 0.05, 1, 0.01) : ''}</div>`;
   function panel() {
     if (!E || !E.el) return;
     const p = E.el.querySelector('.lb-panel'), top = p.scrollTop, x = cur();
@@ -2410,6 +2510,7 @@
       return;
     }
     const c = compAt(E.i), el = selEl(), tipo = el || multi() ? tipoSec() : '';
+    if (E.capa && (el || multi() || !(E.capa === 'velo' ? c.velo : c.tex))) E.capa = null;   // something else chosen, or it went
     if (tipo && el && E.crop === el.id) recordarSec(tipo, 'el');   // while reframing, the main one (its «Zoom» and «Listo»)
     abreEl = tipo ? secEl()[tipo] || 'el' : null;   // an element's panel: the section last opened for its kind; the first time, its main one
     let h = '';
@@ -2467,6 +2568,9 @@
         h += girarHTML(el, false);
       }
       h += medidasHTML(el) + capasHTML(c);
+    } else if (E.capa) {                       // the veil or the texture chosen in «Capas»: its section and «Capas» (D-185)
+      const k = E.capa === 'velo' ? 'velo' : 'textura', ab = abiertaDiapo(c);
+      h = seccionesDiapo(E.capa === 'velo' ? secVelo(c) : secTex(c), ab === k ? k : '-') + capasHTML(c, { on: ab !== k });
     } else {
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
@@ -2477,9 +2581,7 @@
       h += `<div class="lb-sec"><h4>Logos y pegatinas <span>· del cliente</span></h4>${E.logos.length ? `<div class="lb-photos">${E.logos.map(f => `<button type="button" class="lb-ph logo" data-lb="logo" data-f="${esc(f)}" title="Añadir ${esc(M.files[f].name || '')} (Alt + clic: quitarlo del kit)"><img src="${M.files[f].thumbUrl || ''}" alt=""></button>`).join('')}</div>` : '<p class="lb-p" style="margin:0">Sube el logo del cliente (mejor PNG con transparencia) y queda guardado para todos sus meses.</p>'}`
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="logo-up">Subir logo o pegatina</button></div></div>';
       h += `<div class="lb-sec"><h4>Fondo</h4>${sws('bg', c.bg)}</div>`;
-      h += `<div class="lb-sec"><h4>Velo <span>· encima de las fotos, debajo del texto</span></h4>${seg('velo', [['', 'Ninguno'], ['plano', 'Plano'], ['grad', 'Degradado']], v ? v.tipo : '')}`
-        + (v ? `<span class="lb-l">Color</span>${sws('velo-c', v.color)}${rng('velo-op', 'Intensidad', v.op, 0.05, 0.9, 0.01)}` + (v.tipo === 'grad' ? `<span class="lb-l">Desde</span>${seg('velo-dir', [['abajo', 'Abajo'], ['arriba', 'Arriba'], ['izq', 'Izquierda'], ['der', 'Derecha']], v.dir || 'abajo')}${rng('velo-alc', 'Alcance', v.alc ?? 0.6, 0.2, 1, 0.01)}` : '') : '') + '</div>';
-      h += `<div class="lb-sec"><h4>Textura <span>· encima de todo</span></h4>${seg('tex', [['', 'Ninguna'], ...Object.entries(TEXS)], c.tex ? c.tex.tipo : '')}${c.tex ? rng('tex-op', 'Intensidad', c.tex.op, 0.05, 1, 0.01) : ''}</div>`;
+      h += secVelo(c) + secTex(c);
       h += `<div class="lb-sec"><h4>Rejilla <span>· de 2 a 4 fotos</span></h4><div class="lb-grids">${GRIDS.map(([k, l]) => `<button type="button" class="lb-g" data-lb="grid" data-v="${k}" title="${l}" aria-label="Rejilla: ${l}">${gridSvg(k)}</button>`).join('')}</div>`
         + rng('gap', 'Separación', c.rej ? c.rej.g : E.gap ?? 0.02, 0, 0.08, 0.001) + '<p class="lb-p">Las fotos de la diapositiva van a los huecos por orden; un hueco vacío se rellena con un clic.</p></div>';
       const tpl = t => `<div class="lb-tp"><canvas data-lb="tpl" data-id="${esc(t.id)}" title="Aplicar «${esc(t.nombre)}» a esta diapositiva"></canvas><span>${esc(t.nombre)}</span><button type="button" data-lb="tpl-del" data-id="${esc(t.id)}" title="Borrar la plantilla" aria-label="Borrar la plantilla">×</button></div>`;
@@ -2633,15 +2735,11 @@
     const ids = selIds(); if (!ids.length) return;
     mut(tag, () => { const c = ensure(); c.els.filter(q => ids.includes(q.id)).forEach(el => fn(el, c)); }, quiet);
   }
-  function orden(dir) {
-    const ids = selIds(); if (!ids.length) return;
+  function orden(dir) {                        // on the slide's stack: the veil and the texture are layers too (D-185)
+    const ids = E.capa ? [E.capa] : selIds(); if (!ids.length) return;
     mut(null, () => {
-      const c = ensure(), mov = c.els.filter(e => ids.includes(e.id)), rest = c.els.filter(e => !ids.includes(e.id));
-      if (dir === 'front') { c.els = [...rest, ...mov]; return; }
-      if (dir === 'back') { c.els = [...mov, ...rest]; return; }
-      const idx = mov.map(e => c.els.indexOf(e)), k = dir === 'fwd' ? Math.min(c.els.length - 1, Math.max(...idx) + 1) : Math.max(0, Math.min(...idx) - 1), other = c.els[k];
-      if (!other || ids.includes(other.id)) return;
-      const at = rest.indexOf(other); rest.splice(dir === 'fwd' ? at + 1 : at, 0, ...mov); c.els = rest;
+      const c = ensure(), L = pila(c), L2 = reordenar(L, L.filter(x => ids.includes(typeof x === 'string' ? x : x.id)), dir);
+      if (L2) { enPila = true; dePila(c, L2); }
     });
   }
   function nudge(dx, dy) {          // px of a 1080-wide slide: the chosen element lands on a whole pixel, the rest move with it
@@ -2875,10 +2973,10 @@
       case 'fc': onEl(el => { if (el.t === 'forma') el.color = col(); }, 'fc'); return;
       case 'lc': onEl(el => { if (el.t !== 'logo') return; if (hexOk(b.dataset.c)) el.tint = col(); else delete el.tint; }, 'lc'); return;
       case 'bg': mut('bg', () => { ensure().bg = col(); }); return;
-      case 'velo': mut(null, () => { const c = ensure(); c.velo = b.dataset.v ? { tipo: b.dataset.v, color: (c.velo && c.velo.color) || '#000000', op: (c.velo && c.velo.op) || 0.35, dir: (c.velo && c.velo.dir) || 'abajo', alc: (c.velo && c.velo.alc) || 0.6 } : null; }); return;
+      case 'velo': mut(null, () => { const c = ensure(); c.velo = b.dataset.v ? { ...(c.velo || {}), tipo: b.dataset.v, color: (c.velo && c.velo.color) || '#000000', op: (c.velo && c.velo.op) || 0.35, dir: (c.velo && c.velo.dir) || 'abajo', alc: (c.velo && c.velo.alc) || 0.6 } : null; }); return;
       case 'velo-c': mut('velo-c', () => { const c = ensure(); if (c.velo) c.velo.color = col(); }); return;
       case 'velo-dir': mut(null, () => { const c = ensure(); if (c.velo) c.velo.dir = b.dataset.v; }); return;
-      case 'tex': mut(null, () => { const c = ensure(); if (b.dataset.v) c.tex = { tipo: b.dataset.v, op: (c.tex && c.tex.op) || 0.35 }; else delete c.tex; }); return;
+      case 'tex': mut(null, () => { const c = ensure(); if (b.dataset.v) c.tex = { ...(c.tex || {}), tipo: b.dataset.v, op: (c.tex && c.tex.op) || 0.35 }; else delete c.tex; }); return;
       case 'grid': mut(null, () => { const c = ensure(); rejilla(c, b.dataset.v, c.rej ? c.rej.g : E.gap ?? 0.02); soltar(); E.crop = null; }); return;
       case 'tpl': elegirPlantilla(b.dataset.id); return;
       case 'tpl-save': guardarPlantilla(); return;
@@ -2922,9 +3020,11 @@
       }
       case 'group': { const ids = selIds(); if (ids.length < 2) return; const g = uid(); onEl(el => { el.g = g; }); return; }
       case 'ungroup': { const el = selEl(); if (!el) return; const ids = el.g && !multi() ? compAt(E.i).els.filter(e => e.g === el.g).map(e => e.id) : selIds(); mut(null, () => { ensure().els.forEach(e => { if (ids.includes(e.id)) delete e.g; }); E.mas = []; }); return; }
-      case 'cap': { const el = compAt(E.i).els.find(e => e.id === b.dataset.id); if (!el) return; const capas = !!b.closest('.lb-acc[data-pl="capas"]'); seleccionar(el, b._shift); E.crop = null; E.pick = null; if (capas) recordarSec(tipoSec(), 'capas'); panel(); pedir(); return; }   // chosen from an element's «Capas»: «Capas» stays open (D-149)
-      case 'cap-ver': case 'cap-lock': { const id = b.dataset.id; mut(null, () => { const e = ensure().els.find(q => q.id === id); if (!e) return; if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
-      case 'cap-up': case 'cap-dn': { const id = b.dataset.id; mut(null, () => { const c = ensure(), k = c.els.findIndex(q => q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= c.els.length) return; [c.els[k], c.els[j]] = [c.els[j], c.els[k]]; }); return; }
+      case 'cap': {
+        if (b.dataset.capa) { const c = compAt(E.i); if (!(b.dataset.capa === 'velo' ? c.velo : c.tex)) return; soltar(); E.capa = b.dataset.capa; E.crop = null; E.pick = null; lsPoner(LS_AC, 'capas'); panel(); pedir(); return; }   // the veil or the texture: its section and «Capas» (D-185)
+        const el = compAt(E.i).els.find(e => e.id === b.dataset.id); if (!el) return; const capas = !!b.closest('.lb-acc[data-pl="capas"]'); seleccionar(el, b._shift); E.crop = null; E.pick = null; if (capas) recordarSec(tipoSec(), 'capas'); panel(); pedir(); return; }   // chosen from an element's «Capas»: «Capas» stays open (D-149)
+      case 'cap-ver': case 'cap-lock': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), e = cp ? (cp === 'velo' ? c.velo : c.tex) : c.els.find(q => q.id === id); if (!e) return; if (cp) { if (e.oculto) delete e.oculto; else e.oculto = true; return; } if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
+      case 'cap-up': case 'cap-dn': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), L = pila(c), k = L.findIndex(q => cp ? q === cp : typeof q !== 'string' && q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= L.length) return; [L[k], L[j]] = [L[j], L[k]]; enPila = true; dePila(c, L); }); return; }   // on the stack (D-185)
     }
   }
   function menu(on) {
@@ -3147,6 +3247,7 @@
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
+    el.querySelector('.lb-panel').addEventListener('pointerdown', arrastrarCapa);   // a row of «Capas» to another place (D-185)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
       const NUMS = 'input[data-lb="rot"], input[data-lb="mx"], input[data-lb="my"], input[data-lb="man"], input[data-lb="mal"]';   // «Girar» and «Medidas exactas»
       pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches(NUMS)) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; a figure is chosen whole, typing replaces it (D-166, D-176)
@@ -3247,10 +3348,10 @@
     if (alt && !e.shiftKey && tecla('c')) { e.preventDefault(); copiarEstilo(); return; }
     if (alt && !e.shiftKey && tecla('v')) { e.preventDefault(); pegarEstilo(); return; }
     if (mod && k === 'a') { if (E.sl.length) { e.preventDefault(); const ids = compAt(E.i).els.filter(q => !q.oculto).map(q => q.id); E.sel = ids[0] || null; E.mas = ids.slice(1); E.crop = null; panel(); pedir(); } return; }
-    if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft')) { if (E.sel) { e.preventDefault(); orden(e.code === 'BracketRight' ? (e.shiftKey ? 'front' : 'fwd') : (e.shiftKey ? 'back' : 'bwd')); } return; }
+    if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft')) { if (E.sel || E.capa) { e.preventDefault(); orden(e.code === 'BracketRight' ? (e.shiftKey ? 'front' : 'fwd') : (e.shiftKey ? 'back' : 'bwd')); } return; }
     if (mod && (k === '+' || k === '=' || k === '-')) { e.preventDefault(); zoom(E.zoom * (k === '-' ? 1 / 1.25 : 1.25)); return; }
     if (mod && k === '0') { e.preventDefault(); zoom(1); return; }
-    if (e.key === 'Backspace' || e.key === 'Delete') { if (E.sel) { e.preventDefault(); act('del'); } return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') { if (E.sel) { e.preventDefault(); act('del'); } else if (E.capa) { e.preventDefault(); const q = E.capa; mut(null, () => { const c = ensure(); if (q === 'velo') c.velo = null; else delete c.tex; }); E.capa = null; panel(); } return; }   // the veil or the texture chosen goes (D-185)
     if (e.key.startsWith('Arrow')) {
       if (t && t.closest && t.closest('.seg, .lb-rng, .ttam')) return;   // the tray's size bar too (D-091)
       e.preventDefault();

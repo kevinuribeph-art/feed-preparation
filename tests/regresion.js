@@ -12470,8 +12470,8 @@
       await M.personal.tarea({ txt: 'Llega mientras se elige' });   // algo cambia
       await M.personal.render();
       ok(M.controles.abierto() && M.controles.abierto().tipo === 'sel', 'el repaso cerró el desplegable');
-      M.controles.cerrar(); await espera(60); await M.personal.render();
-      ok(qa('.pp-tk .pp-tt').some(t => t.textContent === 'Llega mientras se elige'), 'lo dejado para después no se dibujó');
+      M.controles.cerrar(); D.body.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true })); await espera(80);   // se cierra con un clic: sin esperar al repaso siguiente
+      ok(qa('.pp-tk .pp-tt').some(t => t.textContent === 'Llega mientras se elige'), 'lo dejado para después no se dibujó al cerrar el desplegable');
     } finally { paginaCerrada(); await sinTareas(); }
   });
 

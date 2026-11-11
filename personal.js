@@ -429,6 +429,8 @@
   let pendiente = false, componiendo = false;  // a drawing put off while something is being written or chosen
   const notaEnCurso = () => { const a = document.activeElement; return !!(a && page && page.contains(a) && a.matches('[data-pp="nota-txt"]')); };
   const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
+  // a drawing put off is done as soon as what held it closes (a control, the menu, a composition, a note left)
+  const retomar = () => { if (pendiente && st.on) setTimeout(() => { if (pendiente && st.on && !ocupada()) { pendiente = false; pintar(); } }, 0); };
 
   // ---------- opening and closing ----------
   function colocar() {                         // the page after the header; the logo is its button (not in «Vista cliente»)
@@ -550,7 +552,7 @@
 
   // ---------- the right-click menu of a task or a note (the mesa's menu, .cpmenu) ----------
   let menu = null;
-  function cerrarMenu() { if (!menu) return; const m = menu; menu = null; m.el.remove(); if (pendiente && st.on) setTimeout(() => { if (pendiente && !ocupada()) { pendiente = false; pintar(); } }, 0); document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true); window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); }
+  function cerrarMenu() { if (!menu) return; const m = menu; menu = null; m.el.remove(); retomar(); document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true); window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); }
   function abrirMenu(x, y, items) {
     cerrarMenu();
     const root = I().root(), el = document.createElement('div'); el.className = 'cpmenu pp-menu'; el.setAttribute('role', 'menu');
@@ -723,7 +725,8 @@
     on(window, 'keydown', alTeclear, true);
     on(document, 'input', alEscribir);
     on(document, 'compositionstart', e => { if (page && page.contains(e.target)) componiendo = true; });
-    on(document, 'compositionend', () => { componiendo = false; });
+    on(document, 'compositionend', () => { componiendo = false; retomar(); });
+    for (const ty of ['pointerup', 'keyup', 'focusout']) on(document, ty, retomar, true);
     on(document, 'focusout', alSalir);
     on(document, 'contextmenu', alMenu, true);
     for (const ty of ['dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, alArrastrar, true);

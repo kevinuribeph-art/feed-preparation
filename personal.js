@@ -26,7 +26,10 @@
     historias: svg('<path d="M10.1 2.182a10 10 0 0 1 3.8 0m0 19.636a10 10 0 0 1-3.8 0m7.509-18.097a10 10 0 0 1 2.69 2.7M2.182 13.9a10 10 0 0 1 0-3.8m18.097 7.509a10 10 0 0 1-2.7 2.69M21.818 10.1a10 10 0 0 1 0 3.8M3.721 6.391a10 10 0 0 1 2.7-2.69m-.03 16.578a10 10 0 0 1-2.69-2.7"/>'),
     cliente: svg('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>'),
     nota: svg('<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>'),
-    fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>')
+    fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
+    texto: svg('<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>'),
+    mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
+    x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>')
   };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
@@ -308,6 +311,7 @@
     const lim = (m, d) => { const f = finMes(m); return (m + d) > f ? f : m + d; };
     return [lim(I().addMonths(hoy.slice(0, 7), -n), dd), lim(I().addMonths(hoy.slice(0, 7), n), dd)];
   }
+  const barraPg = (h, n) => `<span class="pp-pb" aria-hidden="true"><i style="width:${(h / n * 100).toFixed(1)}%"></i></span>`;
   const fotosURL = f => { if (!f || !f.mini) return ''; let u = MINI.get(f.id); if (!u) { u = URL.createObjectURL(f.mini); MINI.set(f.id, u); } return u; };
   function tareasHTML(R) {
     const X = I(), hoy = R.hoy, todas = tareas(), fin = addD(hoy, 6);
@@ -318,11 +322,15 @@
     const diaTxt = d => d === hoy ? 'hoy' : d > hoy && d <= fin ? `${DS[dow(d)]} ${+d.slice(8, 10)}` : corto(d);
     const ck = k => `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha">`;
     const ver = k => `data-pp="tver" data-id="${esc(k.id)}" tabindex="0" role="button"`;   // a click or Enter opens it big (D-182)
+    // its details, an icon; its subtasks, a thin bar with how many are done (D-183); without them the line doesn't change
+    const mas = (k, tt) => { const n = (k.subtareas || []).length, h = n ? k.subtareas.filter(x => x.hecha).length : 0, d = !!String(k.detalles || '').trim();
+      if (!n && !d) return tt;
+      return `<span class="pp-col"><span class="pp-tl">${tt}${d ? `<span class="pp-tdet" title="Con detalles">${ICO.texto}</span>` : ''}</span>${n ? `<span class="pp-pg${h === n ? ' todo' : ''}" title="${h} de ${n} subtareas hechas">${barraPg(h, n)}${h}/${n}</span>` : ''}</span>`; };
     const av = k => !st.tcli && k.cliente ? avatar(k.cliente, 'xs') : '';
     const fotos = (k, cls = '') => (k.fotos || []).length ? `<button type="button" class="pp-tfo ${cls}" data-pp="foto" data-id="${esc(k.id)}" title="${k.fotos.length === 1 ? 'Ver la foto' : `Ver las ${k.fotos.length} fotos`}" aria-label="Ver la foto"><img src="${fotosURL(k.fotos[0])}" alt="">${k.fotos.length > 1 ? `<b>${k.fotos.length}</b>` : ''}</button>` : '';
-    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${esc(k.id)}">${ck(k)}<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>${fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}</span>` : ''}${av(k)}</div>`;
+    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
-    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}">${ck(k)}<span class="pp-tt" ${ver(k)}>${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>${fotos(k, 'mini')}${av(k)}</div>`;
+    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
     const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
@@ -359,7 +367,7 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${esc(k.txt)}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${(k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${esc(k.txt)}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${(k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -400,7 +408,7 @@
     if (!st.on || !page || !D) return;
     R = R0 || calcular(D);
     const html = pagina(R);
-    if (html === ultimo && page.firstChild) return;   // nothing changed: what is open (a dropdown, a caret, a composition) stays
+    if (html === ultimo && page.firstChild) { pintarCard(); return; }   // nothing changed: what is open (a dropdown, a caret, a composition) stays; the card follows its record
     ultimo = html;
     // what is being typed survives the drawing: the new task's text, the caret, the focus
     const a = document.activeElement, enPag = a && page.contains(a);
@@ -496,7 +504,7 @@
 
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
-  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}) } : null;
+  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}) } : null;
   async function escribir(cambios) {           // [{id, despues|null}]
     const X = I();
     gen++;
@@ -580,7 +588,41 @@
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
     return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
       + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p></div>`
-      + (fecha || cli ? `<div class="pp-cm">${fecha}${cli}</div>` : '') + fotos + `</div>`;
+      + (fecha || cli ? `<div class="pp-cm">${fecha}${cli}</div>` : '') + fotos + detSub(r, ed) + `</div>`;
+  }
+  // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
+  // its checkbox (also while reading), a thin bar with how many are done, «+ Subtarea» to add one
+  const filaSub = (rid, x, ed) => `<div class="pp-csub${x.hecha ? ' hecha' : ''}" data-sid="${esc(x.id)}"><input type="checkbox" class="pp-ck" data-pp="csck" data-id="${esc(rid)}" data-sid="${esc(x.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha">`
+    + (ed ? `<input type="text" class="pp-cst" data-pp="cst" data-id="${esc(rid)}" data-sid="${esc(x.id)}" value="${esc(x.txt)}" aria-label="Subtarea" autocomplete="off" spellcheck="true"><button type="button" class="pp-csx" data-pp="csx" title="Quitar" aria-label="Quitar la subtarea">${ICO.x}</button>` : `<span>${esc(x.txt)}</span>`) + `</div>`;
+  function detSub(r, ed) {
+    const dt = String(r.detalles || ''), subs = r.subtareas || [], n = subs.length, h = subs.filter(x => x.hecha).length;
+    const det = ed ? `<div class="pp-cd" data-pp="cd" data-id="${esc(r.id)}" contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Detalles" data-ph="Detalles">${esc(dt)}</div>`
+      : `<div class="pp-cd${dt.trim() ? '' : ' vacio'}">${dt.trim() ? esc(dt) : 'Detalles'}</div>`;
+    return det + `<div class="pp-cs">${n ? `<div class="pp-csh">${barraPg(h, n)}<span>${h}/${n}</span></div>` : ''}<div class="pp-csl">${subs.map(x => filaSub(r.id, x, ed)).join('')}</div>`
+      + `<button type="button" class="pp-cmas" data-pp="cmas">${ICO.mas}Subtarea</button></div>`;
+  }
+  function barraEd() {                         // writing: the bar as the rows are (an empty new one doesn't count yet)
+    const cs = ov && ov.querySelector('.pp-cs'); if (!cs) return;
+    const fs = [...cs.querySelectorAll('.pp-csub')].filter(f => !f.dataset.nueva || f.querySelector('.pp-cst').value.trim());
+    const n = fs.length, h = fs.filter(f => f.querySelector('.pp-ck').checked).length; let hd = cs.querySelector('.pp-csh');
+    if (!n) { if (hd) hd.remove(); return; }
+    if (!hd) { hd = document.createElement('div'); hd.className = 'pp-csh'; cs.prepend(hd); }
+    hd.innerHTML = `${barraPg(h, n)}<span>${h}/${n}</span>`;
+  }
+  function nuevaSub(tras) {                    // a new subtask, being written: it goes in once something is written in it
+    if (!CARD) return;
+    if (!CARD.ed) editar(true);
+    const l = ov && ov.querySelector('.pp-csl'); if (!l) return;
+    const d = document.createElement('div'); d.innerHTML = filaSub(CARD.id, { id: 'nueva', txt: '' }, true);
+    const f = d.firstChild; f.dataset.nueva = '1';
+    if (tras) tras.after(f); else l.append(f);
+    f.querySelector('.pp-cst').focus();
+  }
+  function quitarSub(f, foco) {
+    if (!f || !CARD) return;
+    const p = f.previousElementSibling, n = f.nextElementSibling; f.remove(); guardarCard(false); barraEd();
+    const g = foco === 'antes' ? p : (n || p), i = g && g.querySelector('.pp-cst');
+    if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } else { const d = ov.querySelector(foco === 'antes' ? '[data-pp="cd"]' : '[data-pp="cmas"]'); if (d) d.focus(); }
   }
   function pintarCard(forzar) {                // the card as the record is now; while writing, only when forced
     if (!CARD || !ov) return;
@@ -638,19 +680,33 @@
   // what is written in the card: the title (never empty: an empty one goes back) and a note (empty, it goes, and one never
   // written leaves no step of ⌘Z)
   let cardT = null;
-  function guardarCard() {
+  function guardarCard(fin = true) {           // fin: writing ends (the blank subtasks go, the details are trimmed)
     clearTimeout(cardT); cardT = null;
     if (!CARD || !ov) return;
     const id = CARD.id, r = TK.get(id); if (!r) return;
     const t = ov.querySelector('[data-pp="ct"], [data-pp="cn"]'); if (!t) return;
     const txt = r.tipo === 'nota' ? t.textContent : t.textContent.replace(/\s*\n\s*/g, ' ').trim();
-    if (r.tipo === 'nota' && !txt.trim()) {
+    if (r.tipo !== 'nota') {
+      const cd = ov.querySelector('[data-pp="cd"]'), ed = !!ov.querySelector('.pp-cst, [data-pp="cd"]');
+      let det = cd ? cd.textContent : String(r.detalles || ''); if (fin) det = det.replace(/^\s*\n|\s+$/g, '');
+      let subs = ed ? [...ov.querySelectorAll('.pp-csub')].map(f => {
+        const i = f.querySelector('.pp-cst'), c = f.querySelector('.pp-ck'); if (!i) return null;
+        if (f.dataset.nueva) { if (!i.value.trim()) return null; const sid = nuevoId('st'); delete f.dataset.nueva; f.dataset.sid = sid; f.querySelectorAll('[data-sid]').forEach(x => { x.dataset.sid = sid; }); }
+        const o = { id: f.dataset.sid, txt: fin ? i.value.trim() : i.value }; if (c.checked) o.hecha = true; return o;
+      }).filter(Boolean) : (r.subtareas || []).map(x => ({ ...x }));
+      if (fin) subs = subs.filter(x => x.txt);
+      const n = { txt: txt || r.txt, detalles: det, subtareas: subs }, a = { txt: r.txt, detalles: String(r.detalles || ''), subtareas: r.subtareas || [] };
+      if (JSON.stringify(n) !== JSON.stringify(a)) cambiar(id, x => { x.txt = n.txt; if (det) x.detalles = det; else delete x.detalles; if (subs.length) x.subtareas = subs; else delete x.subtareas; return x; }, 'card:' + id).then(() => pintar());
+      return;
+    }
+    if (!txt.trim()) {
+      if (!fin) return;
       const u = H.u[H.u.length - 1];
       if (u && u.length === 1 && u[0].id === id && !u[0].antes && !String((u[0].despues || {}).txt || '').trim() && puede()) { H.u.pop(); escribir([{ id, despues: null }]).then(() => pintar()); }
       else hacer([{ id, despues: null }], 'card:' + id).then(() => pintar());
       quitarCard(); retomar(); return;
     }
-    if (txt && txt !== r.txt) cambiar(id, x => { x.txt = txt; return x; }, 'card:' + id).then(() => pintar());
+    if (txt !== r.txt) cambiar(id, x => { x.txt = txt; return x; }, 'card:' + id).then(() => pintar());
   }
 
   // ---------- the right-click menu of a task or a note (the mesa's menu, .cpmenu) ----------
@@ -742,6 +798,8 @@
     if (CARD.pd) { CARD.pd = false; return; }   // the click that closed one of the mesa's menus or calendars
     const a = t.closest('[data-pp]'), k = a && a.dataset.pp;
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
+    if (k === 'cmas') { nuevaSub(); return; }
+    if (k === 'csx') { quitarSub(a.closest('.pp-csub')); return; }
     if (t.closest('.pp-ck, input, select, button, [contenteditable="plaintext-only"], .mx-sel, .mx-f')) return;
     if (e.detail >= 2) { clearTimeout(CARD.cierre); return; }
     CARD.peq = false;
@@ -771,7 +829,13 @@
     // «Fecha» and «Cliente» of «Nueva tarea»: only the field changes (the mesa's control is still finishing its gesture)
     if (t.matches('.pp-nfecha')) { st.nueva.fecha = t.value || ''; camposNueva(); return; }
     if (t.matches('.pp-ncli')) { st.nueva.cliente = t.value || ''; camposNueva(); return; }
-    if (t.matches('[data-pp="ck"]')) { marcar(t.dataset.id, t.checked).then(() => pintar()); }
+    if (t.matches('[data-pp="ck"]')) { marcar(t.dataset.id, t.checked).then(() => pintar()); return; }
+    if (t.matches('[data-pp="csck"]')) {       // a subtask (D-183): marking them all doesn't mark the task
+      const f = t.closest('.pp-csub'); if (f) f.classList.toggle('hecha', t.checked);
+      if (CARD && CARD.ed) { barraEd(); guardarCard(false); return; }
+      const sid = t.dataset.sid; cambiar(t.dataset.id, x => { const y = (x.subtareas || []).find(z => z.id === sid); if (!y) return null; if (t.checked) y.hecha = true; else delete y.hecha; return x; });
+      pintar();                                // the record changed already: the bar now, not after the write
+    }
   }
   function alTeclear(e) {
     if (!st.on || !page) return;
@@ -780,7 +844,13 @@
       const det = I().root().querySelector('.detail'), ctl = M.controles && M.controles.abierto && M.controles.abierto();
       if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); if (CARD.ed) editar(false); else cerrarCard(); return; }
       if (e.key === 'Enter' && !CARD.ed && t === ov.firstChild) { e.preventDefault(); editar(true); return; }
-      if (e.key === 'Enter' && t.matches && t.matches('[data-pp="ct"]') && !e.isComposing) { e.preventDefault(); return; }   // the title is one line
+      if (e.key === 'Enter' && t.matches && t.matches('[data-pp="ct"]') && !e.isComposing) {   // the title is one line: Enter goes to the details
+        e.preventDefault(); const d = ov.querySelector('[data-pp="cd"]'); if (d) { d.focus(); const g = getSelection(), rg = document.createRange(); rg.selectNodeContents(d); rg.collapse(false); g.removeAllRanges(); g.addRange(rg); } return;
+      }
+      if (t.matches && t.matches('[data-pp="cst"]') && !e.isComposing && !e.metaKey && !e.ctrlKey) {
+        if (e.key === 'Enter') { e.preventDefault(); if (t.value.trim()) nuevaSub(t.closest('.pp-csub')); return; }
+        if (e.key === 'Backspace' && !t.value) { e.preventDefault(); quitarSub(t.closest('.pp-csub'), 'antes'); return; }
+      }
     }
     // ⌘Z / ⇧⌘Z: the tasks' own, never the hidden board's; a text being written undoes its own typing
     if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
@@ -793,14 +863,10 @@
     if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); crearDesdeCampo(false); return; }
     if ((e.key === 'Enter' || e.key === ' ') && t.matches('[data-pp="tver"]')) { e.preventDefault(); abrirCard(t.dataset.id); return; }
   }
-  function alEscribir(e) {
-    const p = e.target.closest && e.target.closest('[data-pp="ct"], [data-pp="cn"]'); if (!p || !st.on || !CARD || !enCard(p)) return;
-    clearTimeout(cardT); const id = p.dataset.id, nota = p.dataset.pp === 'cn';
-    cardT = setTimeout(() => {
-      cardT = null; const r = TK.get(id); if (!r) return;
-      const txt = nota ? p.textContent : p.textContent.replace(/\s*\n\s*/g, ' ').trim();
-      if ((nota || txt) && r.txt !== txt) cambiar(id, x => { x.txt = txt; return x; }, 'card:' + id).then(() => pintar());
-    }, 400);
+  function alEscribir(e) {                     // what is written in the card goes in after a pause (D-182, D-183)
+    const p = e.target.closest && e.target.closest('[data-pp="ct"], [data-pp="cn"], [data-pp="cd"], [data-pp="cst"]'); if (!p || !st.on || !CARD || !enCard(p)) return;
+    if (p.dataset.pp === 'cst') barraEd();
+    clearTimeout(cardT); cardT = setTimeout(() => guardarCard(false), 400);
   }
   function alMenu(e) {
     if (!st.on || !page || !page.contains(e.target)) return;
@@ -1131,12 +1197,33 @@
 #mesa .pp-cfo{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0 29px}#mesa .pp-cfo .pp-tfo{width:56px;height:56px;border-radius:var(--r-sm)}
 #mesa .pp-card.ed .pp-ct{background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);cursor:text}
 #mesa .pp-card.ed .pp-ct:focus{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--focus)}
+#mesa .pp-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+#mesa .pp-tl{display:flex;align-items:center;gap:6px;min-width:0}#mesa .pp-col .pp-tt{flex:0 1 auto;min-width:0}#mesa .pp-fi .pp-tl{align-items:flex-start}
+#mesa .pp-tdet{flex:none;display:inline-flex;width:14px;height:14px;color:var(--mute)}#mesa .pp-tdet svg{width:14px;height:14px}#mesa .pp-fi .pp-tdet{margin-top:1px}
+#mesa .pp-pg{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1;color:var(--mute)}
+#mesa .pp-pb{position:relative;flex:none;width:64px;height:3px;border-radius:var(--r-pill);background:var(--line2);overflow:hidden}
+#mesa .pp-pb i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:var(--acc)}#mesa .pp-pg.todo .pp-pb i{background:var(--ok)}#mesa .pp-fi .pp-pb{width:44px}
+#mesa .pp-cd{margin:16px 0 0 19px;padding:8px 10px;min-height:22px;border-radius:var(--r-sm);font-size:14px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+#mesa .pp-cd.vacio{color:var(--faint)}
+#mesa .pp-card.ed .pp-cd{min-height:66px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);cursor:text}
+#mesa .pp-card.ed .pp-cd:focus{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--focus)}#mesa .pp-card.ed .pp-cd:empty::before{content:attr(data-ph);color:var(--faint)}
+#mesa .pp-cs{margin:14px 0 0 29px}
+#mesa .pp-csh{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:12px;color:var(--mute)}#mesa .pp-csh .pp-pb{flex:1;width:auto;height:4px}
+#mesa .pp-csub{display:flex;align-items:center;gap:10px;min-height:32px;padding:0 6px;margin-left:-6px;border-radius:var(--r-sm);font-size:13.5px}
+#mesa .pp-csub > span{flex:1;min-width:0;overflow-wrap:anywhere}#mesa .pp-csub.hecha > span,#mesa .pp-csub.hecha .pp-cst{text-decoration:line-through;color:var(--mute)}
+#mesa .pp-cst{flex:1;min-width:0;height:28px;border:0;border-radius:var(--r-xs);padding:0 8px;margin-left:-8px;font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);outline:none}
+#mesa .pp-cst:focus{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--focus)}
+#mesa .pp-csx{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;padding:0;background:none;border-radius:var(--r-xs);color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease)}
+#mesa .pp-csx:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-csx svg{width:14px;height:14px}
+#mesa .pp-cmas{display:inline-flex;align-items:center;gap:6px;margin:6px 0 0 -4px;padding:5px 8px;border:0;background:none;border-radius:var(--r-pill);font:inherit;font-size:12.5px;font-weight:600;color:var(--acc);cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
+#mesa .pp-cmas svg{width:14px;height:14px}#mesa .pp-cmas:hover{background:var(--acc-soft)}#mesa .pp-cmas:active{transform:scale(.97)}
+#mesa :is(.pp-cmas,.pp-csx):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-card.nota{width:min(440px,100%);min-height:280px;display:flex;background:var(--postit-2);color:var(--postit-ink);border-radius:var(--r-sm);padding:22px 24px}
 #mesa .pp-cn{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
 #mesa .pp-card.nota.ed{box-shadow:var(--shadow-lg),0 0 0 2px var(--postit-3)}#mesa .pp-card.nota.ed .pp-cn{cursor:text}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
-@media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
 @media (max-width:720px){
   #mesa .pp{padding:4px 12px 24px}
   #mesa .pp-cifra{padding:10px 10px 11px}#mesa .pp-cifra span{font-size:12px}

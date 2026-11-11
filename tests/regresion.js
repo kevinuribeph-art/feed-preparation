@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 13, V_IDB = 15;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180)
+  const V_ARCHIVO = 14, V_IDB = 16;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -12354,7 +12354,7 @@
     } finally { paginaCerrada(); relojVuelve(); }
   });
 
-  prueba('PP9', '«⇅ Exportar» (archivo v13) lleva las tareas y las notas con sus fotos, e «Importar» las devuelve: la más reciente gana y nunca se borra ninguna; un archivo v12 entra sin tocarlas; IndexedDB 15 (D-180, D-060)', async () => {
+  prueba('PP9', '«⇅ Exportar» (archivo v13; v14 desde la 4.17, D-183) lleva las tareas y las notas con sus fotos, e «Importar» las devuelve: la más reciente gana y nunca se borra ninguna; un archivo v12 entra sin tocarlas; IndexedDB 15 (16 desde la 4.17) (D-180, D-060)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       const t = await M.personal.tarea({ txt: 'Viaja', fecha: '2026-11-20', cliente: CLIENTE });
@@ -12618,6 +12618,62 @@
       ok(ppCard() && ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'la nota no se escribe con doble clic');
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
       ok(!q(`.pp-pt[data-nid="${n.id}"] [contenteditable]`), 'la nota en pequeño se puede escribir');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+
+  prueba('PP21', 'Detalles y subtareas de una tarea: en pequeño, un icono si tiene detalles y la barra «h/n» (Lista y Semana; en Mes « · h/n»), sin ellos la línea no cambia; en grande, «Detalles» y «+ Subtarea», Intro crea otra debajo y una vacía se quita al salir; la casilla de una subtarea marca también leyendo; todas hechas no marcan la tarea; ⌘Z las cubre; viajan en «⇅ Exportar» (v14); una pestaña con la 4.16 (IndexedDB 15) se para (D-183, D-060)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
+      const t = await M.personal.tarea({ txt: 'Preparar la sesión', fecha: '2026-10-03' }), t2 = await M.personal.tarea({ txt: 'Sin nada', fecha: '2026-10-03' }); await M.personal.render();
+      const rec = async () => (await M.personal.tareas()).find(k => k.id === t.id);
+      ok(!q(`.pp-tk[data-tid="${t.id}"] .pp-col`) && !q(`.pp-tk[data-tid="${t2.id}"] .pp-col`), 'sin detalles ni subtareas la línea cambia');
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(30);
+      ok(ppCard().querySelector('.pp-cd.vacio') && /Detalles/.test(ppCard().querySelector('.pp-cd').textContent) && ppCard().querySelector('[data-pp="cmas"]'), 'en grande no salen «Detalles» ni «+ Subtarea»');
+      // «+ Subtarea» leyendo pasa a edición con la nueva escribiéndose
+      ppRaton(ppCard().querySelector('[data-pp="cmas"]'), 'click', 1); await espera(30);
+      ok(ppCard().classList.contains('ed') && D.activeElement.matches('.pp-cst') && D.activeElement.closest('.pp-csub').dataset.nueva, '«+ Subtarea» no deja la nueva escribiéndose');
+      const escribe = (el, v) => { el.value = v; el.dispatchEvent(new W.InputEvent('input', { bubbles: true })); };
+      escribe(D.activeElement, 'Uno');
+      D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await espera(20);
+      ok(D.activeElement.matches('.pp-cst') && !D.activeElement.value, 'Intro no crea otra debajo');
+      escribe(D.activeElement, 'Dos');
+      D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await espera(20);
+      const cd = ppCard().querySelector('[data-pp="cd"]'); cd.textContent = 'Carpeta del SSD.\nDoce fotos.'; cd.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      await espera(500);
+      igual(((await rec()).subtareas || []).map(x => x.txt), ['Uno', 'Dos'], 'las subtareas no se guardan al escribir');
+      igual(qa('.pp-card .pp-csub').length, 3, 'la vacía no sigue mientras se escribe');
+      ppTecla('Escape'); await espera(40);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
+      let k = await rec();
+      igual([k.detalles, k.subtareas.map(x => x.txt), qa('.pp-card .pp-csub').length], ['Carpeta del SSD.\nDoce fotos.', ['Uno', 'Dos'], 2], 'al salir: los detalles o la subtarea vacía');
+      // la casilla de una subtarea marca leyendo; todas hechas no marcan la tarea
+      qa('.pp-card .pp-csub .pp-ck')[0].click(); await espera(30);
+      ok(ppCard() && !ppCard().classList.contains('ed') && /1\/2/.test(ppCard().querySelector('.pp-csh').textContent), 'la casilla de la subtarea no marca leyendo o cierra la tarjeta: ' + json([!!ppCard(), ppCard() && ppCard().className, ppCard() && (ppCard().querySelector('.pp-csh') || {}).textContent, (await rec()).subtareas]));
+      qa('.pp-card .pp-csub .pp-ck')[1].click(); await espera(80);
+      k = await rec(); ok(k.subtareas.every(x => x.hecha) && !k.hecha, 'todas hechas marcan la tarea o no se marcan');
+      ppTecla('Escape'); await espera(200);
+      // en pequeño
+      const l = q(`.pp-tk[data-tid="${t.id}"]`);
+      ok(l.querySelector('.pp-tdet') && l.querySelector('.pp-pg.todo') && /2\/2/.test(l.querySelector('.pp-pg').textContent), 'en pequeño no salen el icono ni la barra');
+      ppTecla('z', { metaKey: true }); await espera(80);
+      k = await rec(); ok(!k.subtareas[1].hecha && /1\/2/.test(q(`.pp-tk[data-tid="${t.id}"] .pp-pg`).textContent), '⌘Z no deshace la subtarea');
+      await M.personal.set({ vista: 'semana', tsem: 0 }); await M.personal.render();
+      ok(q(`.pp-fi[data-tid="${t.id}"] .pp-pg`), 'en Semana no sale la barra');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render();
+      ok(/· 1\/2$/.test(q(`.pp-mt[data-tid="${t.id}"]`).textContent), 'en Mes no sale « · 1/2»');
+      await M.personal.set({ vista: 'lista' });
+      // ⇅ Exportar e Importar
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      igual(d.v, 14, 'la versión del archivo');
+      const e = d.tareas.find(x => x.id === t.id); ok(e && e.detalles === k.detalles && e.subtareas.length === 2, 'no viajan los detalles y las subtareas');
+      await M._in.idbDel('tareas', t.id);
+      ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
+      k = await rec(); ok(k && k.detalles === e.detalles && k.subtareas.map(x => x.txt).join() === 'Uno,Dos', 'no vuelven');
+      // una pestaña con la 4.16 no abre la base de datos
+      const r = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', 15); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
+      igual(r, 'VersionError', 'una pestaña con la 4.16 abre la base de datos');
     } finally { paginaCerrada(); await sinTareas(); }
   });
 

@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';
+  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -333,7 +333,7 @@
     const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
-    const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
+    const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
     const ncli = cli ? '' : `<span class="pp-ncampo${N.cliente ? '' : ' vacio'}" data-k="cliente"><select class="pp-ncli" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${R.filas.map(f => `<option value="${esc(f.c.id)}"${N.cliente === f.c.id ? ' selected' : ''}>${esc(f.c.name)}</option>`).join('')}</select></span>`;
     const nueva = `<div class="pp-nueva" data-tid="nueva"><input type="text" class="pp-nin" data-pp="nueva" placeholder="${cli ? 'Nueva tarea para ' + esc(cli.name) : 'Nueva tarea'}" aria-label="Nueva tarea" autocomplete="off">${pend}${nfecha}${ncli}`
       + `<button type="button" class="ibtn pp-ib" data-pp="nota-campo" title="Guardar como nota${cli ? ' de ' + esc(cli.name) : ''}" aria-label="Guardar como nota">${ICO.nota}</button>`
@@ -581,7 +581,7 @@
     const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '';
     if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1"><p class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${esc(r.txt)}</p></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
-    const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
+    const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="${venc ? 'rojo' : ''}">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';
     const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${((D && D.CL) || X.CL).map(x => `<option value="${esc(x.id)}"${r.cliente === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></span>`
       : c ? `<span>${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';

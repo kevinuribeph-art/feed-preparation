@@ -15,7 +15,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.3';   // 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
+  const VERSION = '1.4';   // 1.4: «Sin fecha» in the date's calendar where a date can be left empty (data-sin-fecha: a task's, D-188). 1.2: the list's text starts where the closed field's does, the ✓ of the chosen one on the right (D-150). 1.1: its calendar's measures are the mesa's --cx-* tokens, shared with the posts' calendar (D-147)
   if (M.controles && M.controles._off) { try { M.controles._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const QS = 'select, input[type="date"], input[type="time"]';
   const PV = { SELECT: Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), INPUT: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') };
@@ -410,10 +410,11 @@
       filas += '</div>';
     }
     const titulo = `${MES[m][0].toUpperCase()}${MES[m].slice(1)} ${y}`, hoyNo = (min && hoy < min) || (max && hoy > max);
+    const sinF = n.hasAttribute('data-sin-fecha') && !n.required;   // only where a date can be left empty: a task's (D-188)
     a.pop.innerHTML = `<div class="mx-ch"><button type="button" class="mx-nav ant" data-d="-1" aria-label="Mes anterior"${min && ant < min ? ' disabled' : ''}></button><b aria-live="polite">${titulo}</b><button type="button" class="mx-nav sig" data-d="1" aria-label="Mes siguiente"${max && sig > max ? ' disabled' : ''}></button></div>`
       + `<div class="mx-wk" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div>`
       + `<div class="mx-days${dir ? (dir > 0 ? ' mx-de' : ' mx-iz') : ''}" role="grid" aria-label="${titulo}">${filas}</div>`
-      + `<div class="mx-cf"><button type="button" class="mx-hoy"${hoyNo ? ' disabled' : ''}>Hoy</button></div>`;
+      + `<div class="mx-cf${sinF ? ' mx-cf2' : ''}">${sinF ? `<button type="button" class="mx-hoy mx-sinf"${sel ? '' : ' disabled'}>Sin fecha</button>` : ''}<button type="button" class="mx-hoy"${hoyNo ? ' disabled' : ''}>Hoy</button></div>`;
   }
   function focoGrid() { const a = abierto; const b = a && a.pop.querySelector('.mx-d[tabindex="0"]:not(:disabled)') || (a && a.pop.querySelector('.mx-d:not(:disabled)')); if (b) b.focus({ preventScroll: true }); }
   function irMes(dir) {
@@ -433,6 +434,7 @@
       if (dentro) { const x = a.pop.querySelector(`.mx-nav[data-d="${d}"]`); if (x && !x.disabled) x.focus({ preventScroll: true }); else focoGrid(); }   // the keys stay where they were
       return;
     }
+    const sf = e.target.closest('.mx-sinf'); if (sf) { if (!sf.disabled) { ponerCampo(a.g, ''); cerrar(true); } return; }   // D-188
     const h = e.target.closest('.mx-hoy'); if (h && !h.disabled) { ponerCampo(a.g, hoyISO()); cerrar(true); }
   }
   function calTecla(e) {
@@ -548,6 +550,7 @@
 #mesa .mx-d:disabled{color:var(--line-strong);cursor:default}#mesa .mx-d.otro:disabled{color:var(--line)}
 #mesa .mx-d:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
 #mesa .mx-cf{display:flex;justify-content:flex-end;margin:8px -4px 0;padding:6px 0 0;border-top:1px solid var(--line2)}
+#mesa .mx-cf.mx-cf2{justify-content:space-between}#mesa .mx-hoy.mx-sinf:not(:disabled){color:var(--ink-2)}
 #mesa .mx-hoy{margin:0;padding:6px 10px;border:0;border-radius:var(--r-sm);background:none;color:var(--acc-ink);font:600 12.5px var(--font);cursor:pointer;transition:background-color var(--d1) ease-out}#mesa .mx-hoy:hover:not(:disabled){background:var(--bg-2)}#mesa .mx-hoy:disabled{color:var(--faint);cursor:default}
 #mesa .mx-nav:focus-visible,#mesa .mx-hoy:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){#mesa .mx-pop:not(#mx),#mesa .mx-pop.arriba:not(#mx){transform:none !important;transition:opacity .12s linear !important}#mesa .mx-days.mx-de,#mesa .mx-days.mx-iz{animation:none !important}#mesa .mx-sel::after{transition:none !important}}`;

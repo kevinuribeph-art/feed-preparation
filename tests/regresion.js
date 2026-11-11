@@ -12944,6 +12944,54 @@
     } finally { const x = q('.detail[data-dlg="editclient"] .x'); if (x) x.click(); await espera(60); }
   });
 
+  prueba('PA3', 'Tarea sin fecha: el calendario de la fecha de una tarea ofrece «Sin fecha» (apagado si no tiene) y la quita, al crearla y en edición; borrar con el teclado sigue; la fecha de una publicación no lo ofrece (D-188)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const calDe = async nat => {                     // pulsa el campo de la Mesa de ese campo de fecha y espera su calendario
+      const g = M.controles.gemelo(nat); ok(g, 'el campo de fecha no es el de la Mesa');
+      const i = g.querySelector('input'); i.focus(); i.click();
+      return hasta(() => q('.mx-calpop'), 3000, 'el calendario de la fecha');
+    };
+    const cerrarCal = async () => { if (q('.mx-calpop')) { ppTecla('Escape'); await espera(250); } };
+    const calNueva = async () => { q('[data-pp="nfecha"]').click(); return hasta(() => q('.mx-calpop'), 3000, 'el calendario de «Nueva tarea»'); };   // su icono, como Kevin
+    try {
+      await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
+      igual(M.personal.estado().nueva.fecha, '', 'una tarea nueva ya no empieza sin fecha');
+      let pop = await calNueva();
+      let sf = pop.querySelector('.mx-sinf');
+      ok(sf && sf.disabled && sf.textContent === 'Sin fecha', '«Sin fecha» no sale, o se pulsa sin fecha');
+      ok(pop.querySelector('.mx-cf').lastElementChild.textContent === 'Hoy', '«Hoy» no va a la derecha');
+      pop.querySelector('.mx-d:not(.otro):not(:disabled)').click(); await espera(80);
+      ok(/^\d{4}-\d{2}-\d{2}$/.test(M.personal.estado().nueva.fecha), 'no se puso un día');
+      pop = await calNueva(); sf = pop.querySelector('.mx-sinf');
+      ok(sf && !sf.disabled, '«Sin fecha» no se pulsa con fecha');
+      sf.click(); await espera(80);
+      igual(M.personal.estado().nueva.fecha, '', '«Sin fecha» no la quita');
+      ok(!q('.mx-calpop.on'), 'el calendario sigue abierto');
+      // borrar con el teclado sigue
+      pop = await calNueva(); pop.querySelector('.mx-d:not(.otro):not(:disabled)').click(); await espera(80);
+      const inp = M.controles.gemelo(q('.pp-nfecha')).querySelector('input'); inp.focus(); inp.value = '';
+      inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await espera(80);
+      igual(M.personal.estado().nueva.fecha, '', 'borrar con el teclado no la quita');
+      await cerrarCal();
+      // una tarea en edición (D-182)
+      const t = await M.personal.tarea({ txt: 'Con fecha', fecha: '2026-10-08' }); await M.personal.render();
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(400);
+      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 1); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(350);
+      ok(ppCard() && ppCard().classList.contains('ed'), 'la tarea no está en edición');
+      pop = await calDe(ppCard().querySelector('.pp-cfecha')); sf = pop.querySelector('.mx-sinf');
+      ok(sf && !sf.disabled, 'en edición no sale «Sin fecha»');
+      sf.click();
+      await hasta(async () => !('fecha' in (await M.personal.tareas()).find(k => k.id === t.id)), 3000, 'que la tarea se quede sin fecha');
+      ppTecla('Escape'); await espera(40); ppTecla('Escape'); await espera(40);
+      paginaCerrada();
+      // la fecha de una publicación: sin «Sin fecha»
+      M._in.openDetail('r1', 0); await espera(200);
+      pop = await calDe(q('.detail input[type="date"]'));
+      ok(!pop.querySelector('.mx-sinf') && pop.querySelector('.mx-hoy'), 'la fecha de una publicación ofrece «Sin fecha»');
+      await cerrarCal(); M._in.closeDetail();
+    } finally { await cerrarCal(); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

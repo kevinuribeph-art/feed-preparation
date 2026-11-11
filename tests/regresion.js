@@ -12857,6 +12857,50 @@
     } finally { M.libre.cerrar(); }
   });
 
+
+  // =====================================================================================================
+  // la foto de perfil del cliente en la página personal (revisión del 11/11/2026, D-180)
+  // =====================================================================================================
+  prueba('PF1', 'La foto de perfil elegida en «Editar cliente» y guardada sale en la página personal: al guardar, al recargar y tras importarla; cerrar sin «Guardar» no la cambia; «Quitar» y «Guardar» vuelven a las iniciales (D-180)', async () => {
+    await tablero([pub(1)]);
+    const fotoCli = () => (M._in.CL.find(c => c.id === CLIENTE) || {}).foto || null;
+    const enPagina = async () => { await paginaAbierta(); const a = q(`.pp-blq[data-c="${CLIENTE}"] .pp-ava`); const i = a && a.querySelector('img'); const r = i ? i.getAttribute('src') : (a ? 'iniciales:' + a.textContent : 'sin bloque'); paginaCerrada(); return r; };
+    const dialogo = async () => { await M.openClient(CLIENTE); await pulsar('[data-act="editclient"]'); return hasta(() => q('.detail[data-dlg="editclient"] .avin'), 3000, '«Editar cliente»'); };
+    const elegir = async (inp, nombre, color) => { const dt = new W.DataTransfer(); dt.items.add(await foto(nombre, 400, 400, color)); inp.files = dt.files; inp.dispatchEvent(new W.Event('change', { bubbles: true })); await hasta(() => q('.detail .avprev img'), 4000, 'la foto en el diálogo'); };
+    const guardar = async () => { q('.detail[data-dlg="editclient"] button[type="submit"]').click(); await hasta(() => !q('.detail:not([hidden])'), 4000, 'que se cierre «Editar cliente»'); await espera(60); };
+    try {
+      // elegir y guardar
+      await elegir(await dialogo(), 'pf1-a.jpg', '#2a7a4a'); await guardar();
+      const a = fotoCli(); ok(a && a.startsWith('perfil-'), 'el cliente no guarda su foto');
+      const s1 = await enPagina(); ok(s1 && s1.startsWith('blob:'), 'la página no enseña la foto al guardar: ' + s1);
+      // cerrar sin «Guardar» no la cambia
+      await elegir(await dialogo(), 'pf1-b.jpg', '#7a2a4a'); q('.detail[data-dlg="editclient"] .x').click(); await espera(150);
+      igual(fotoCli(), a, 'cerrar sin «Guardar» cambió la foto');
+      // al recargar, en la página
+      W.sessionStorage.removeItem('mesa-pp-cliente');
+      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
+      W = $('mesa').contentWindow; D = W.document;
+      await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
+      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS);
+      await hasta(() => M.personal.abierta(), 4000, 'que arranque en la página');
+      await M.personal.render();
+      await hasta(() => { const i = q(`.pp-blq[data-c="${CLIENTE}"] .pp-ava img`); return i && i.complete && i.naturalWidth > 0; }, 4000, 'la foto en la página tras recargar');
+      M.personal.cerrar();
+      // tras importarla: un archivo con una elección más nueva
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      ok(d.files[a], 'la foto de perfil no viaja');
+      await M.updateClient(CLIENTE, { foto: null }); ok(!fotoCli(), 'no se quitó');
+      d.clients.find(c => c.id === CLIENTE).fotoAt = '2099-01-01T00:00:00.000Z';
+      ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');
+      igual(fotoCli(), a, 'importar no trae la foto');
+      const s2 = await enPagina(); ok(s2 && s2.startsWith('blob:'), 'la página no enseña la foto importada: ' + s2);
+      // «Quitar» y «Guardar»: las iniciales
+      await dialogo(); q('.detail[data-dlg="editclient"] [data-act="avdel"]').click(); await espera(60); await guardar();
+      ok(!fotoCli(), '«Quitar» no quita la foto');
+      const s3 = await enPagina(); ok(/^iniciales:/.test(s3), 'sin foto no salen las iniciales: ' + s3);
+    } finally { paginaCerrada(); if (M._in.CL.find(c => c.id === CLIENTE && c.foto)) await M.updateClient(CLIENTE, { foto: null }); await preparar(); }   // la mesa de las pruebas, como al empezar (recargó)
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

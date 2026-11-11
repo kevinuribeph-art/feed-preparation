@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.22';   // 1.22: «Calendario» at 17 px, as «Bandeja» (D-186). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.22';   // 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -225,8 +225,10 @@
       if (j < i) return `<button type="button" class="cpaso hecho" data-cal="paso" data-paso="${k}" data-mes="${mb}" title="Volver a ${esc(l)}">${t}</button>`;
       return `<span class="cpaso fut" title="Antes, el mes pasa a ${esc(P[i + 1][1])}">${t}</span>`;
     }).join('<span class="csep" aria-hidden="true">›</span>');
-    const extra = ['noaprobado', 'cancelado'].map(k => `<span>${X.estIco(k, ' aria-hidden="true"')}${esc((X.ESTADOS.find(e => e[0] === k) || [k, k])[1])}</span>`).join('');
-    return `<div class="cleg${mb ? '' : ' ro'}" role="group" aria-label="${mb ? 'Paso del mes' : 'Mes anterior: solo lectura'}">${pasos}<span class="cextra" title="Estados de cada publicación, no pasos del mes">${extra}</span></div>`;
+    // No aprobado and Cancelado, only if the month of this bar has one (D-189); the previous cycle has none
+    const L = mb ? delMes(X, X.S, mb) : [], hay = k => L.some(s => X.estadoDe(s) === k);
+    const extra = ['noaprobado', 'cancelado'].filter(hay).map(k => `<span>${X.estIco(k, ' aria-hidden="true"')}${esc((X.ESTADOS.find(e => e[0] === k) || [k, k])[1])}</span>`).join('');
+    return `<div class="cleg${mb ? '' : ' ro'}" role="group" aria-label="${mb ? 'Paso del mes' : 'Mes anterior: solo lectura'}">${pasos}${extra ? `<span class="cextra" title="Estados de cada publicación, no pasos del mes">${extra}</span>` : ''}</div>`;
   }
   // A step on carries the posts in the step it leaves (D-085), never a cancelled one nor one put back by hand: Por aprobar →
   // Aprobado; everything approved but the reels (also Collab Reel and Trial Reel) → Programado (D-087): the reels are marked

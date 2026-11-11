@@ -5506,7 +5506,7 @@
     await hasta(() => pasoAct() === 'Por empezar', 3000, 'Por empezar como paso actual');
     igual(qa('.side > .cal .cleg .cpaso').map(e => e.textContent), ['Por empezar', 'Captions', 'Por aprobar', 'Aprobado', 'Programado', 'Publicado'], 'los pasos');
     igual(qa('.side > .cal .cleg .cpaso > i').map(e => e.className), ['edot e-empezar', 'edot e-captions', 'edot e-aprobar', 'edot e-aprobado', 'eico e-programado', 'eico e-publicado'], 'las marcas de los pasos');
-    igual(qa('.side > .cal .cleg .cextra > span').map(e => e.textContent), ['No aprobado', 'Cancelado'], 'No aprobado y Cancelado aparte');
+    igual(qa('.side > .cal .cleg .cextra > span').map(e => e.textContent), [], 'sin ninguna, No aprobado o Cancelado salen en la barra');   // solo si el mes tiene alguna, desde la 4.18 (D-189)
     ok(!q('.side > .cal .cleg .cextra button'), 'No aprobado o Cancelado se pulsan');
     igual(qa('.side > .cal .cleg button.cpaso').map(e => e.dataset.paso), ['captions'], 'solo se pulsa el siguiente');
     igual(W.getComputedStyle(q('.side > .cal .cpaso.act')).backgroundColor, 'rgb(22, 17, 14)', 'el actual no va en una pastilla negra');   // el negro de la marca, Ink #16110E (D-131; antes #262626)
@@ -12990,6 +12990,28 @@
       ok(!pop.querySelector('.mx-sinf') && pop.querySelector('.mx-hoy'), 'la fecha de una publicación ofrece «Sin fecha»');
       await cerrarCal(); M._in.closeDetail();
     } finally { await cerrarCal(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('PA4', 'No aprobado y Cancelado van en la barra solo si el mes que enseña tiene alguna: ninguno, uno o los dos; el ciclo anterior, ninguno (D-189)', async () => {
+    const LS = 'mesa-cal-plegado', antes = W.localStorage.getItem(LS);
+    try {
+      W.localStorage.setItem(LS, '0');
+      await tablero([pub(1), pub(2), pub(3)]);
+      await hasta(() => M.calendario && q('.side > .cal .cleg'), 4000, 'la barra del calendario');
+      const extra = () => qa('.side > .cal .cleg .cextra > span').map(e => e.textContent);
+      igual(extra(), [], 'sin ninguna');
+      ok(!q('.side > .cal .cleg .cextra'), 'sin ninguna queda su hueco');
+      await porAprobar(['r1'], 'pa4'); M.setEstado('r1', 'noaprobado'); await espera(80);
+      igual(extra(), ['No aprobado'], 'con una No aprobada');
+      M.setEstado('r2', 'cancelado'); await espera(80);
+      igual(extra(), ['No aprobado', 'Cancelado'], 'con una de cada');
+      M.setEstado('r1', 'aprobado'); await espera(80);
+      igual(extra(), ['Cancelado'], 'con una cancelada');
+      igual(qa('.side > .cal .cleg .cextra > span > i').map(e => e.className), ['eico e-cancelado'], 'su marca');
+      q('.side > .cal [data-cal="prev"]').click(); await espera(80);
+      ok(q('.side > .cal .cleg.ro'), 'no está el ciclo anterior');
+      igual(extra(), [], 'el ciclo anterior lleva No aprobado o Cancelado');
+    } finally { if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes); }
   });
 
   // =====================================================================================================

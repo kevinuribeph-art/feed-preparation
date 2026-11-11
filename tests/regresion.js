@@ -12923,6 +12923,27 @@
     });
   });
 
+  prueba('PA2', '«Usa Notion» dice su estado junto al interruptor, «Conectado» o «Desconectado», y cambia al pulsarlo; la frase de antes va en el título; el texto, centrado con el interruptor (D-187)', async () => {
+    await tablero([pub(1)]);
+    await pulsar('[data-act="editclient"]');
+    try {
+      const fila = await hasta(() => q('.detail[data-dlg="editclient"] .ecnot'), 3000, 'la fila de «Usa Notion»');
+      const sw = fila.querySelector('input[name="notion"]'), lab = fila.querySelector('label.sw');
+      const dice = () => lab.innerText.trim();
+      const centro = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; };
+      ok(sw.checked, 'un cliente sin el dato no empieza con Notion');
+      igual(dice(), 'Conectado', 'encendido');
+      ok(!/Apagada/.test(fila.innerText) && /Apagada, la Mesa no compara con Notion/.test(fila.title), 'la frase de antes sigue a la vista o no va en el título');
+      const t = [...lab.querySelectorAll('.ecnot-e > span')].find(e => e.getClientRects().length);
+      cerca(centro(t), centro(sw), 1, 'el texto no va centrado con el interruptor');
+      sw.click(); await espera(30);
+      ok(!sw.checked, 'el interruptor no se apagó');
+      igual(dice(), 'Desconectado', 'apagado');
+      sw.click(); await espera(30);
+      igual(dice(), 'Conectado', 'otra vez encendido');
+    } finally { const x = q('.detail[data-dlg="editclient"] .x'); if (x) x.click(); await espera(60); }
+  });
+
   // =====================================================================================================
   // ejecución
   // =====================================================================================================

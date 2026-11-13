@@ -880,7 +880,7 @@
   }
   // what the «Diseño» layer will draw covers its photo whole (the engine's image with the photo, or the applied one meanwhile)
   // a slide of the design as it was applied and untouched: its applied image is what the engine would draw
-  const dzAplicada = x => !!(x && x.key && M.files[x.key] && M.files[x.key].design && !E.dzChg0 && !changedSl(x) && !entreDz(x.comp));
+  const dzAplicada = x => !!(x && x.key && M.files[x.key] && M.files[x.key].design && !E.dzChg0 && !changedSl(x) && !entreDz(x.comp) && JSON.stringify(E.dzp) === E.dzp0);   // the carousel's name and positions too
   function dzTapa(comp) {
     if (!E || !E.dzc || dzQuieto(comp) || entreDz(comp)) return false;
     const d = dzDe(comp); if (!d || d.oculto) return false;

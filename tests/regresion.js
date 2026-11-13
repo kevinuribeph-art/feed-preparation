@@ -8247,6 +8247,15 @@
       // ⌘Z del editor deshace el último
       tecla('z', { meta: true }); await espera(30);
       igual(dzEl(1).ov.lugar, 'arriba', '⌘Z del editor no deshizo «Restablecer ajustes»');
+      // el imán: el centro del bloque se pega al centro de la diapositiva y lo dice con su guía (D-023)
+      await pulsarDz('[data-dz="reset"]');
+      const c3 = await dzListo(1), b3 = c3.res.bloque, k3 = ed().k * 1440 / ed().dzSz.W, cx = b3.x + b3.w / 2, objetivo = ed().dzSz.W / 2 + 4;
+      ed().iman = true;
+      const [m0, n0] = cajaVentana(b3);
+      puntero('pointerdown', ed().cv, m0, n0); puntero('pointermove', ed().cv, m0 + 2, n0); puntero('pointermove', ed().cv, m0 + (objetivo - cx) * k3, n0);
+      ok(ed().guides.some(g => g.x != null && Math.abs(g.x - 720) < 0.5), 'el imán no enseñó la guía del centro: ' + json(ed().guides));
+      puntero('pointerup', ed().cv, m0 + (objetivo - cx) * k3, n0);
+      const c4 = await dzListo(1); cerca(c4.res.bloque.x + c4.res.bloque.w / 2, ed().dzSz.W / 2, 1.5, 'el bloque no se pegó al centro');
       await cerrarEd();
     });
   });
@@ -8461,6 +8470,15 @@
       for (const n of [1, 2]) { const v = await M.diseno.ver('r1', n); ok(v && !v.error && v.kb > 5 && M.out.diseno, `ver(${n}) con capas: ` + json(v)); }
       const st = await M.diseno.estado('r1'); ok(st && !st.error && st.slides[0].suelta && st.slides[1].capasLibres === 1, 'estado(): ' + json(st));
       const rv = await M.revisar(); ok(rv && !rv.error, '«Revisar» falló: ' + json(rv));
+      // el nombre del carrusel, en «Marca, número y pie»: para todo el carrusel
+      await abrirEditor('r1', 1); await dzListo(1); await elegirDz(1);
+      const sr = await hasta(() => q('.lb-panel .dz-serin'), 3000, 'el campo del nombre del carrusel');
+      sr.value = 'Nombre nuevo DC10'; sr.dispatchEvent(new W.Event('input', { bubbles: true })); await espera(20);
+      igual(ed().dzp.serie, 'Nombre nuevo DC10', 'el nombre no llegó al carrusel');
+      const c2 = await dzListo(1); ok(c2.fullKey.includes('Nombre nuevo DC10'), 'la ficha no se redibujó con el nombre');
+      await aplicarEd();
+      igual(slot('r1').design.serie, 'Nombre nuevo DC10', 'el nombre no llegó al diseño');
+      igual(estadoDz('r1'), 'ok', 'tras el nombre, el diseño no está al día');
       const pl = M.plan().find(x => x.slotId === 'r1'); ok(pl && pl.files.length === 2 && pl.files.every(f => /^diseño /.test(f.formato)) && !pl['diseño'] && !pl['hueco vacío'], 'plan() no da sus imágenes de diseño: ' + json(pl));
     });
   });

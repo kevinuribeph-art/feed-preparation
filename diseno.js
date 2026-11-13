@@ -592,7 +592,7 @@
         const av = [...slideAvisos(sl, src), ...(cur[i] || [])];
         return { n: i + 1, tipo: sl.tipo, titulo: sl.titulo, texto: sl.texto, entradilla: sl.entradilla, contacto: sl.contacto ?? null,
           ...(sl.tipo === 'final' ? { contactoUsado: sl.contacto ?? (raw && raw.final ? raw.final.contacto ?? null : null) } : {}), src: src || null, foto: src ? nameOf(src) : null, ov: clone(sl.ov || {}), avisos: av, ...(cur[i] ? {} : { avisosPendientes: true }),
-          ...(sueltaDe(sl) ? { suelta: true } : {}), ...(libresDe(sl) ? { capasLibres: libresDe(sl).abajo.length + libresDe(sl).arriba.length } : {}) };   // retouched in the editor (D-193)
+          ...(sueltaDe(sl) ? { suelta: true } : {}), ...(libresDe(sl) && !sueltaDe(sl) ? { capasLibres: libresDe(sl).abajo.length + libresDe(sl).arriba.length } : {}) };   // a slide let go keeps its free layers only for «Volver al diseño»: not drawn   // retouched in the editor (D-193)
       }),
       fotosSinUsar: rawPhotos(s).filter(f => !used.has(f)).map(f => ({ fileId: f, name: nameOf(f) })),
       archivos: outsOf(s).map(f => ({ fileId: f, name: s.photos.includes(f) ? I().dName(s, f) : nameOf(f), enCasilla: s.photos.includes(f) })),

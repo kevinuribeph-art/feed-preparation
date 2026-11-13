@@ -846,9 +846,14 @@
     cur.want = key; E.dzc.set(d.id, cur);
     if (sf ? cur.sfKey === key : cur.fullKey === key || (!alta && cur.miniKey === key)) return cur;
     const capa = E.dzCapa.get(ck);
-    if (!capa) { if (!quieto && (alta || !dzAplicada(x))) dzCapa(ck, fotoDzDe(c), sz); return cur; }   // a thumbnail of an untouched slide: its applied image meanwhile
-    E.dzCapa.delete(ck); E.dzCapa.set(ck, capa);   // the most recent last (the oldest go first)
     const lienzo = v => { if (!v || v.width !== sz.W || v.height !== sz.H) { v = document.createElement('canvas'); v.width = sz.W; v.height = sz.H; } return v; };
+    if (!capa) {
+      if (!quieto && (alta || !dzAplicada(x))) dzCapa(ck, fotoDzDe(c), sz);   // a thumbnail of an untouched slide: its applied image meanwhile
+      const vieja = alta && !quieto && cur.fullCk && cur.fullCk !== ck && E.dzCapa.get(cur.fullCk);   // its photo just changed: the texts, as they were decided, over the new photo meanwhile
+      if (vieja && cur.sfVieja !== key) { try { cur.sf = lienzo(cur.sf); const g = cur.sf.getContext('2d'); g.clearRect(0, 0, sz.W, sz.H); DZ().pintar(g, E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), vieja, true); cur.sfKey = null; cur.sfVieja = key; } catch (err) { /* the new one comes */ } }
+      return cur;
+    }
+    E.dzCapa.delete(ck); E.dzCapa.set(ck, capa);   // the most recent last (the oldest go first)
     try {
       if (sf) { cur.sf = lienzo(cur.sf); const g = cur.sf.getContext('2d'); g.clearRect(0, 0, sz.W, sz.H); cur.res = DZ().pintar(g, E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, true); cur.sfKey = key; }
       else { cur.full = lienzo(cur.full); cur.res = DZ().pintar(cur.full.getContext('2d'), E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, false); cur.fullKey = key; cur.fullCk = ck; cur.mini = null; cur.miniKey = null; }

@@ -8545,6 +8545,24 @@
     });
   });
 
+  prueba('DC13', 'Un diseño desactualizado por un cambio del kit se abre en capas como está, sin aplicarlo; la casilla no cambia hasta «Aplicar», que lo pone al día (D-193, D-128)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(13);
+      const out0 = salida('r1').slice();
+      try {
+        const k = await M.diseno.ajustarKit(CLIENTE, { velo: { contraste_objetivo: 6 } }); ok(k && !k.error, 'ajustarKit() falló: ' + json(k));
+        await hasta(() => estadoDz('r1') === 'chg', 4000, 'el diseño desactualizado por el kit');
+        await abrirEditor('r1', 0); await dzListo(0);
+        igual([estadoDz('r1'), slot('r1').photos], ['chg', out0], 'abrirlo lo aplicó o cambió la casilla');
+        ok(ed().el.querySelector('.lb-state.chg'), 'sin «Cambios sin aplicar»');
+        await aplicarEd();
+        igual(estadoDz('r1'), 'ok', '«Aplicar» no lo puso al día');
+        ok(salida('r1').every(f => !out0.includes(f)), 'no se redibujaron todas con el kit nuevo');
+      } finally { await M.diseno.ajustarKit(CLIENTE, null); }
+    });
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');

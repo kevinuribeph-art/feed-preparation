@@ -8510,6 +8510,41 @@
     });
   });
 
+  prueba('DC12', 'Revisión de la 4.19: una foto del post usada solo como capa libre no vuelve a la bandeja al aplicar; «Volver al diseño» devuelve las capas libres de antes de soltarla; una diapositiva soltada sin foto propia no deja el diseño «incompleto» al cambiar la portada (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2)]);
+    await conKitPrueba(async () => {
+      // un diseño pendiente con una foto del post que ninguna diapositiva usa
+      await disenada('r1', [await foto('dc12a.jpg', 1080, 1350, '#2f5d7c'), await foto('dc12b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: 'Portada DC12' }, { tipo: 'ficha', titulo: 'Ficha DC12' }], false);
+      const [extra] = await poner('r1', [await foto('dc12x.jpg', 700, 700, '#aa3355')]);
+      ok(slot('r1').photos.includes(extra), 'la foto extra no está en la publicación');
+      await abrirEditor('r1', 0); await dzListo(0);
+      ed().pick = { modo: 'add' }; accion('pickf', { f: extra }); await hasta(() => compDe(0).els.some(e => e.src === extra && !e.dz), 3000, 'la foto como capa libre');
+      // una forma, soltar y volver: la forma sigue
+      accion('add-forma', { v: 'rect' });
+      await elegirDz(0); await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
+      await pulsarDz('[data-lb="dz-volver"]');
+      igual(compDe(0).els.map(e => e.t), ['foto', 'foto', 'diseno', 'forma'], '«Volver al diseño» perdió las capas libres de antes de soltarla');
+      ok(compDe(0).els[1].src === extra, 'la foto libre no volvió');
+      // la ficha, soltada y sin foto propia: la foto va dentro de su composición
+      accion('sl', { i: '1' }); await espera(30); await dzListo(1);
+      dzFoto(1).src = null; M.libre.bandeja();
+      await elegirDz(1); await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(1).dzs, 4000, 'soltar la ficha');
+      const [otra] = await M.addFiles([await foto('dc12c.jpg', 1080, 1350, '#5a8c3d')]);
+      ed().pick = { modo: 'fill', id: compDe(1).els[0].id }; accion('pickf', { f: otra }); await hasta(() => compDe(1).els[0].src === otra, 3000, 'la foto en la soltada');
+      await aplicarEd();
+      igual(estadoDz('r1'), 'ok', 'no se aplicó');
+      ok(!M.board().tray.includes(extra), 'la foto de la capa libre volvió a la bandeja');
+      ok((slot('r1').design.slides[0].libres.abajo || []).some(e => e.src === extra), 'la foto libre no se guardó');
+      igual(slot('r1').design.slides[1].src, null, 'la ficha soltada tiene foto de diseño');
+      // cambiar la portada redibuja el diseño aunque la soltada no tenga foto propia
+      const [nueva] = await poner('r2', [await foto('dc12d.jpg', 1080, 1350, '#6b3d8c')]);
+      const out0 = salida('r1')[0];
+      M._test.swap('r1', 'r2');
+      await hasta(() => M.diseno._portada(slot('r1')) === nueva && estadoDz('r1') === 'ok' && !M.diseno.aplicando() && salida('r1')[0] !== out0, 20000, 'que se redibuje con la portada nueva');
+      igual(slot('r1').photos, salida('r1'), 'la casilla no lleva sus imágenes');
+    });
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');

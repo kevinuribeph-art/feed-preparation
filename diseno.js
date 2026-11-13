@@ -75,7 +75,7 @@
   }
   // photos no slide uses any more leave the post (when Kevin had put them there) and go back to the tray
   function release(s, ids) {
-    const used = new Set(srcsOf(s)), gone = [...new Set(ids)].filter(f => f && !used.has(f) && s.photos.includes(f) && !isOut(s, f));
+    const used = new Set([...srcsOf(s), ...capasSrc(s.design || { slides: [] })]), gone = [...new Set(ids)].filter(f => f && !used.has(f) && s.photos.includes(f) && !isOut(s, f));   // a free layer's photo is in use too (D-193)
     if (gone.length) s.photos = s.photos.filter(f => !gone.includes(f));
     return { gone, back: rescue(ids) };
   }
@@ -126,12 +126,13 @@
   // The texts and the design belong to the post: only the cover slide's photo changes. A design that was applied is drawn
   // again on its own (reaplicar); while a slide lacks its photo the post shows its photos, not the applied images.
   const portadaDe = s => (s.design && s.design.slides.find(x => x.tipo !== 'final')) || null;
-  function completo(s) { return s.design.slides.every(x => x.tipo === 'final' || (x.src && M.files[x.src])); }
+  function completo(s) { return s.design.slides.every(x => x.tipo === 'final' || sueltaDe(x) || (x.src && M.files[x.src])); }   // one let go from the kit draws its own composition (D-193)
   function ponerPortada(s, fid) {             // returns the photo the cover had (the caller decides where it goes)
     const d = s.design, sl = portadaDe(s); if (!sl) return null;
     const old = sl.src || null;
     if (old === (fid || null)) return old;
     sl.src = fid || null; d.at = nowISO();
+    const sc = sueltaDe(sl); if (sc && old && fid) sc.els.forEach(e => { if (e && e.t === 'foto' && e.src === old) Object.assign(e, { src: fid, cx: 0.5, cy: 0.5, z: 1 }); });   // let go from the kit: its photo too (D-193)
     const raw = s.photos.filter(f => !isOut(s, f));
     if (raw.length || !d.out || !completo(s)) {      // the post shows its own photos: the new cover first, the old one out
       const rest = raw.filter(f => f !== old && f !== fid);
@@ -565,6 +566,7 @@
     if (d0 && d0.pos) s.design.pos = d0.pos;                // and the post's own positions of marca, número and pie
     if (d0 && d0.fmt !== fmt) stampOffsets(s.design, EXT_H[d0.fmt]);
     { const gone = [...oldRest.slice(jr), ...oldFin.slice(jf)]; release(s, [...gone.map(x => x.src), ...capasSrc({ slides: gone })]); }   // the old slides no new one took (their free layers' photos too, D-193)
+    { const su = slides.reduce((a, x, i) => sueltaDe(x) ? [...a, i + 1] : a, []); if (su.length) avisos.push(`${su.length === 1 ? `La diapositiva ${su[0]} está soltada del kit` : `Las diapositivas ${listaY(su)} están soltadas del kit`}: sus textos nuevos se ven cuando Kevin pulse «Volver al diseño» en el editor.`); }   // D-193
     { const f = I().nombreDistinto ? I().nombreDistinto(s.design) : []; if (f.length) avisos.push(I().nombreAviso(s.design, f) + (opts.serie == null ? ' Si cambió, pásalo en `serie`.' : '')); }   // the name in the footer and the cover (D-129)
     remember(s); syncFmt(s);
     I().changed();
@@ -663,7 +665,7 @@
       for (const f of outs) if (!prevOut.includes(f)) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
       const err = new DzError('La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.'); err.cambio = true; throw err;
     }
-    const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set(srcsOf(s));
+    const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set([...srcsOf(s), ...capasSrc(d)]);   // a free layer's photo is in use too (D-193)
     const unused = rawPhotos(s).filter(f => !used.has(f));
     if (unused.length) { S.tray.unshift(...unused.filter(f => !S.tray.includes(f))); notas.push(`${unused.length === 1 ? 'Una foto de la casilla no se usa en el diseño: vuelve' : `${unused.length} fotos de la casilla no se usan en el diseño: vuelven`} a la bandeja.`); }
     s.photos = outs.slice();
@@ -1901,6 +1903,7 @@
     } catch (e) {                                     // nothing applied: the design, the reframes and the tray as they were
       for (const k of Object.keys(d)) delete d[k];
       Object.assign(d, antes.d); S.crops = antes.crops; S.tray = antes.tray; s.photos = antes.photos;
+      try { I().renderTray(); } catch (er) { /* drawn on the next change */ }
       throw e;
     }
   }

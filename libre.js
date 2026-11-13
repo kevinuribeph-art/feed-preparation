@@ -821,11 +821,14 @@
   function compDz(sl) {        // a slide of the design as the editor's layers
     const S = E.board, final = sl.tipo === 'final', src = final ? E.dzk.fin : sl.src || null, ok = !!(src && M.files[src]);
     const datos = datosDz(sl), suelta = sl.suelta && sl.suelta.comp;
-    if (suelta) { const c = migrado(clone(suelta)); c.dzs = { datos, src: final ? null : sl.src || null }; return c; }
+    if (suelta) { const c = migrado(clone(suelta)); c.dzs = { datos, src: final ? null : sl.src || null, libres: sl.libres ? clone(sl.libres) : null }; return c; }   // its free layers from before it was let go, for «Volver al diseño»
     const foto = { ...fotoEl(ok ? src : null, ok ? I().baseCrop(src, S) : null), lock: true, dz: true, ...(final ? { fin: true } : {}) };
     const d = { id: uid(), t: 'diseno', x: 0, y: 0, w: 0, h: 0, ...base, ...datos };
     const lib = sl.libres || {};
-    return { bg: E.dzk.fondo, velo: null, els: [foto, ...clone(lib.abajo || []), d, ...clone(lib.arriba || [])] };
+    return { bg: E.dzk.fondo, velo: null, els: [foto, ...copiasDz(lib.abajo), d, ...copiasDz(lib.arriba)] };
+  }
+  function copiasDz(els) {   // free layers coming back (opening, «Volver al diseño»): their own ids, unique on the slide
+    return clone(els || []).map(e => ({ ...e, id: e.id || uid() }));
   }
   // something shown between the photo and the design: the engine draws without the photo, over them (motor 1.7)
   function entreDz(c) { const els = (c && c.els) || [], j = els.findIndex(esDz); return j > 0 && els.slice(0, j).some(e => !e.oculto && !esFotoDz(e)); }
@@ -848,7 +851,7 @@
     const lienzo = v => { if (!v || v.width !== sz.W || v.height !== sz.H) { v = document.createElement('canvas'); v.width = sz.W; v.height = sz.H; } return v; };
     try {
       if (sf) { cur.sf = lienzo(cur.sf); const g = cur.sf.getContext('2d'); g.clearRect(0, 0, sz.W, sz.H); cur.res = DZ().pintar(g, E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, true); cur.sfKey = key; }
-      else { cur.full = lienzo(cur.full); cur.res = DZ().pintar(cur.full.getContext('2d'), E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, false); cur.fullKey = key; cur.mini = null; cur.miniKey = null; }
+      else { cur.full = lienzo(cur.full); cur.res = DZ().pintar(cur.full.getContext('2d'), E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, false); cur.fullKey = key; cur.fullCk = ck; cur.mini = null; cur.miniKey = null; }
     } catch (err) { console.warn('editor:', err); return cur; }
     cur.ck = ck; cur.resKey = key; E.dzc.set(d.id, cur);
     if (!quieto && !(E.drag && E.drag.dz && E.drag.dz[d.id])) dzCaja(d, cur.res);
@@ -860,10 +863,11 @@
     const b = res && res.bloque, sz = E.dzSz; if (!b) return;
     Object.assign(d, { x: r4(b.x / sz.W), y: r4(b.y / sz.H), w: r4(Math.max(0, b.w) / sz.W), h: r4(Math.max(0, b.h) / sz.H) });
   }
+  function dzSoltarLienzos(c) { for (const k of ['full', 'sf', 'mini']) if (c && c[k]) { c[k].width = c[k].height = 0; c[k] = null; } }
   function dzTam() {           // a horizontal carousel: its canvas follows its first photo, as the designer's (sizeOf)
-    if (!E.dzk || E.reel || E.fmt !== 'h') return;
+    if (!E.dzk || E.reel || E.dzFmt !== 'h') return;
     const srcs = E.sl.map(x => { const f = fotoDzDe(x.comp); return x.comp.dzs ? x.comp.dzs.src : f && f.src; });
-    const sz = DZ().tamano(E.dzk.kit, 'h', srcs);
+    const sz = DZ().tamano(E.dzk.kit, E.dzFmt, srcs);
     if (sz.W !== E.dzSz.W || sz.H !== E.dzSz.H) { E.dzSz = sz; E.dzc.clear(); }
   }
   const cajaDz = d => { const sz = E.dzSz; return { x: d.x * sz.W, y: d.y * sz.H, w: d.w * sz.W, h: d.h * sz.H }; };
@@ -884,7 +888,8 @@
   function dzTapa(comp) {
     if (!E || !E.dzc || dzQuieto(comp) || entreDz(comp)) return false;
     const d = dzDe(comp); if (!d || d.oculto) return false;
-    const c = E.dzc.get(d.id) || {}; if (c.full || c.mini) return true;
+    const c = E.dzc.get(d.id) || {}, ck = capaClave(fotoDzDe(comp), E.dzSz);
+    if ((c.full && c.fullCk === ck) || (c.mini && c.miniCk === ck)) return true;   // drawn with this very photo
     return dzAplicada(E.sl.find(q => q.comp === comp));
   }
   function drawDiseno(ctx, el, W, H, comp, img, k) {
@@ -897,18 +902,21 @@
     }
     // without the photo while it is reframed or something is between; with it, the engine's whole image (that of «Aplicar»);
     // a photo just changed, until its layer is read: the texts alone over the editor's photo, never the old photo
-    const cv = dzQuieto(comp) || entreDz(comp) ? (c.sfKey ? c.sf : null) : c.full && c.fullKey === c.want ? c.full : c.mini && c.miniKey === c.want ? c.mini : c.sf || c.full || c.mini;
+    const ck = capaClave(fotoDzDe(comp), E.dzSz);
+    const cv = dzQuieto(comp) || entreDz(comp) ? (c.sfKey ? c.sf : null) : c.full && c.fullCk === ck ? c.full : c.mini && c.miniCk === ck ? c.mini : c.sf || null;
     if (cv) ctx.drawImage(cv, 0, 0, W, H);
   }
   // the far slides keep only a thumbnail of what the engine drew (D-116)
   function dzLejanas() {
     if (!E.dzc) return;
+    const vivas = new Set(E.sl.map(x => (dzDe(x.comp) || {}).id).filter(Boolean));   // a layer gone (undone, back to the design): its canvases go
+    for (const [id, c] of [...E.dzc]) if (!vivas.has(id)) { dzSoltarLienzos(c); E.dzc.delete(id); }
     const cerca = new Set([E.i - 1, E.i, E.i + 1, E.pv ? E.pvI : -1, E.fv ? E.fvI : -1]);
     E.sl.forEach((x, i) => {
       const d = dzDe(x.comp), c = d && E.dzc.get(d.id); if (!c || cerca.has(i) || !c.full) return;
       const m = document.createElement('canvas'); m.width = 360; m.height = Math.round(360 * c.full.height / c.full.width);
       const g = m.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c.full, 0, 0, m.width, m.height);
-      c.full.width = c.full.height = 0; c.full = null; c.mini = m; c.miniKey = c.fullKey; c.fullKey = null;
+      c.full.width = c.full.height = 0; c.full = null; c.mini = m; c.miniKey = c.fullKey; c.miniCk = c.fullCk; c.fullKey = null;
       if (c.sf) { c.sf.width = c.sf.height = 0; c.sf = null; c.sfKey = null; }
     });
   }
@@ -959,7 +967,7 @@
     if (velo && !(velo.op > 0)) velo = null;
     mut(null, () => {
       const j = c.els.indexOf(d), foto = { ...f, lock: false }; delete foto.dz; delete foto.fin;
-      const nc = { bg: E.dzk.fondo, velo, els: [foto, ...c.els.slice(1, j), ...textos, ...c.els.slice(j + 1)], dzs: { datos: datosDz(d), src: f.fin ? null : f.src || null, crop: f.src ? { cx: f.cx, cy: f.cy, z: f.z } : null } };
+      const nc = { bg: E.dzk.fondo, velo, els: [foto, ...c.els.slice(1, j), ...textos, ...c.els.slice(j + 1)], dzs: { datos: datosDz(d), src: f.fin ? null : f.src || null, crop: f.src ? { cx: f.cx, cy: f.cy, z: f.z } : null, libres: { abajo: clone(c.els.slice(1, j)), arriba: clone(c.els.slice(j + 1)) } } };
       if (velo) velo.z = j;                         // over the layers that were between, under the texts
       x.comp = nc; soltar(); E.crop = null; E.pick = null;
     });
@@ -969,7 +977,7 @@
   function volverDz() {
     const x = cur(), c = x && x.comp; if (!c || !c.dzs) return;
     mut(null, () => {
-      const sl = { ...c.dzs.datos, src: c.dzs.src }, n = compDz(sl), f = fotoDzDe(n);
+      const sl = { ...c.dzs.datos, src: c.dzs.src, libres: c.dzs.libres || null }, n = compDz(sl), f = fotoDzDe(n);   // with its free layers from before it was let go
       if (c.dzs.crop && f && f.src) Object.assign(f, c.dzs.crop);
       x.comp = n; soltar(); E.crop = null; E.pick = null;
     });
@@ -1024,7 +1032,7 @@
   function cambiosDz() {
     return { serie: E.dzp.serie, pos: E.dzp.pos || null, slides: E.sl.map(x => {
       const c = x.comp;
-      if (c.dzs) { const comp = clone(c); delete comp.dzs; return { ...c.dzs.datos, src: c.dzs.src, crop: c.dzs.crop || null, libres: null, suelta: comp }; }
+      if (c.dzs) { const comp = clone(c); delete comp.dzs; return { ...c.dzs.datos, src: c.dzs.src, crop: c.dzs.crop || null, libres: c.dzs.libres || null, suelta: comp }; }   // its free layers from before, kept for «Volver al diseño»
       const d = dzDe(c), f = fotoDzDe(c), j = c.els.indexOf(d);
       return { ...datosDz(d), src: f && !f.fin ? f.src || null : null, crop: f && f.src ? { cx: f.cx ?? 0.5, cy: f.cy ?? 0.5, z: f.z || 1 } : null,
         libres: { abajo: clone(c.els.slice(1, j)), arriba: clone(c.els.slice(j + 1)) }, suelta: null };
@@ -1112,7 +1120,7 @@
       E.guias0 = firmaG(); E.trago = tragoAl();   // the rest of the double click that opened it is not the editor's (D-175)
       if (dzk) {                                           // a designed post: each slide of the design, in layers (D-193)
         Object.assign(E, { dzk, dzc: new Map(), dzCapa: new Map(), dzVa: new Set(), dzChg0, dzMas: false, dzp: { serie: str(dz.serie), pos: dz.pos && Object.keys(dz.pos).length ? clone(dz.pos) : null } });
-        E.dzp0 = JSON.stringify(E.dzp); E.dzSz = dzk.sz;
+        E.dzp0 = JSON.stringify(E.dzp); E.dzSz = dzk.sz; E.dzFmt = dz.fmt;
       }
       E.sl = dzk ? dz.slides.map((sl, i) => {
         const comp = compDz(sl), key = dz.out && dz.out[i] && s.photos.includes(dz.out[i]) ? dz.out[i] : null;
@@ -1185,6 +1193,7 @@
     if (e.tamRaf) cancelAnimationFrame(e.tamRaf);
     if (e.ro) e.ro.disconnect();
     e.cola.length = 0; for (const b of [...e.bm.values(), ...e.bmMini.values()]) if (b.im && b.im.close) b.im.close();
+    if (e.dzc) { for (const c of e.dzc.values()) dzSoltarLienzos(c); for (const c of e.dzCapa.values()) if (c && c.canvas) c.canvas.width = c.canvas.height = 0; }   // the «Diseño» layers' canvases (D-193)
     if (e.inert) e.inert.forEach(c => c.removeAttribute('inert'));
     if (e.el) e.el.remove();
     if (!e.applied && e.marca && I() && I().histJuntar) I().histJuntar(e.marca);   // a tidy-up at opening joins the step before it

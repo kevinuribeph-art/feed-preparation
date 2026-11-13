@@ -1549,7 +1549,7 @@
 #mesa .lb-acc-h:hover::after{background:var(--ink)}#mesa .lb-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .lb-acc-b{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s linear var(--d-m)}
 #mesa .lb-acc.on>.lb-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
-#mesa .lb-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
+#mesa .lb-acc-i{min-height:0;min-width:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
 #mesa .lb-acc.on>.lb-acc-b>.lb-acc-i{opacity:1;transform:none;transition:opacity .24s ease-out .05s,transform var(--d-m) var(--ease-m)}
 #mesa .lb-acc.on.fin>.lb-acc-b>.lb-acc-i{overflow:visible}#mesa .lb-acc.zz>.lb-acc-b>.lb-acc-i{content-visibility:hidden}
 #mesa .lb-acc-c{padding:0 0 18px}

@@ -8613,6 +8613,37 @@
     ok(W.performance.now() - t1 < 230 && !ed().ask && e.h < 0.8 - 0.01, 'el editor no contestó «2» a tiempo');
   });
 
+  // el panel del editor: no se desliza en horizontal y nada pasa del borde derecho de los títulos de sus secciones
+  function sinDesborde(que) {
+    const p = q('.lb-panel'); ok(p.scrollWidth === p.clientWidth, `${que}: el panel se desliza en horizontal (${p.scrollWidth} > ${p.clientWidth})`);
+    const t = qa('.lb-panel .lb-acc-h').filter(e => e.getClientRects().length), der = Math.max(...t.map(e => e.getBoundingClientRect().right));
+    const fuera = qa('.lb-panel .lb-caps, .lb-panel .lb-cap, .lb-panel .lb-acc-i').filter(e => e.getClientRects().length && e.getBoundingClientRect().right > der + 0.5);
+    ok(!fuera.length, `${que}: ${fuera.length} piezas pasan del borde de los títulos (${fuera.map(e => e.className).slice(0, 3).join(' · ')})`);
+  }
+  async function abrirCapas() {
+    const h = await hasta(() => qa('.lb-panel .lb-acc-h').find(b => b.querySelector('.lb-acc-n').textContent.trim() === 'Capas'), 3000, 'el título «Capas»');
+    if (h.getAttribute('aria-expanded') !== 'true') h.click();
+    return hasta(() => { const x = h.closest('.lb-acc'); return x.classList.contains('on') && x.classList.contains('fin') && x; }, 3000, '«Capas» abierta');
+  }
+  prueba('AC2', '«Capas» no se sale del panel ni lo deja deslizar en horizontal, con un nombre de capa larguísimo: en la capa «Diseño», en su foto y en la diapositiva, a lo ancho y a 720 px (D-195)', async () => {
+    await tablero([pub(1, 'Reel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('una-foto-con-un-nombre-larguisimo-que-no-cabe-en-la-fila-de-capas-del-editor.jpg', 1080, 1920, '#1f2a3a')], [{ titulo: 'La isla de noche' }]);
+      M._in.openDetail('r1', 0); await pulsar('.detail [data-act="editar"]'); await abierto(); await dzListo(0);
+      const fr = $('mesa'), w0 = fr.style.width;
+      try {
+        for (const estrecha of [false, true]) {
+          if (estrecha) { fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); }
+          const que = estrecha ? 'a 720 px' : 'a lo ancho';
+          await elegirDz(0); await abrirCapas(); sinDesborde(que + ', «Diseño»');
+          elegir(dzFoto(0)); accion('cap', { id: dzFoto(0).id }); await espera(40); await abrirCapas(); sinDesborde(que + ', su foto');
+          ed().sel = null; ed().mas = []; accion('sl', { i: '0' }); await espera(40); await abrirCapas(); sinDesborde(que + ', la diapositiva');
+        }
+      } finally { fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); }
+      await cerrarEd();
+    });
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');

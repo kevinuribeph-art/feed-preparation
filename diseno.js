@@ -791,7 +791,7 @@
 #mesa .dz-acc-h:hover::after{background:var(--ink)}#mesa .dz-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .dz-acc-b{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s linear var(--d-m)}
 #mesa .dz-acc.on>.dz-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
-#mesa .dz-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
+#mesa .dz-acc-i{min-height:0;min-width:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
 #mesa .dz-acc.on>.dz-acc-b>.dz-acc-i{opacity:1;transform:none;transition:opacity .24s ease-out .05s,transform var(--d-m) var(--ease-m)}
 #mesa .dz-acc.on.fin>.dz-acc-b>.dz-acc-i{overflow:visible}#mesa .dz-acc.zz>.dz-acc-b>.dz-acc-i{content-visibility:hidden}
 #mesa .dz-acc-c{padding:0 0 18px}#mesa .dz-sec.dz-reset{padding:16px 0 0}

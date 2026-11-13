@@ -994,27 +994,39 @@
     mut(null, () => { const ant = fd.src; if (ant && ant !== fid && M.files[ant] && !M.files[ant].design) E.vuelven.add(ant); Object.assign(fd, { src: fid, cx: 0.5, cy: 0.5, z: 1 }); E.sel = fd.id; E.mas = []; });
     return { puestas: 1, sobran: 0 };
   }
-  // the «Diseño» layer's panel: the designer's sections (D-177) as the editor's folding ones, each with its datum, «Restablecer
-  // ajustes» and «Soltar del kit» after them, and the engine's warnings on top
+  // the photo of the design reframed (not centred at 1×)
+  const cropDz = c => { const f = fotoDzDe(c); return !!(f && f.src && (Math.abs((f.cx ?? 0.5) - 0.5) > 1e-6 || Math.abs((f.cy ?? 0.5) - 0.5) > 1e-6 || (f.z || 1) !== 1)); };
+  // the «Diseño» layer's panel: the designer's sections (D-177) as the editor's folding ones, and the engine's warnings on top;
+  // «Restablecer ajustes» and «Soltar del kit» are in the menus (itemsDz, D-196)
   function panelDz(el) {
-    const c = E.dzc.get(el.id), f = fotoDzDe(compAt(E.i)), crop = !!(f && f.src && (Math.abs((f.cx ?? 0.5) - 0.5) > 1e-6 || Math.abs((f.cy ?? 0.5) - 0.5) > 1e-6 || (f.z || 1) !== 1));
+    const c = E.dzc.get(el.id), crop = cropDz(compAt(E.i));
     const tipos = E.sl.map(x => x.comp.dzs ? x.comp.dzs.datos.tipo : (dzDe(x.comp) || {}).tipo).filter(Boolean);
     const secs = DZ().secciones({ reel: E.reel, i: E.i, sl: el, d: { serie: E.dzp.serie, pos: E.dzp.pos, slides: tipos.map(tipo => ({ tipo })) }, dec: c && c.res && c.res.decision, raw: E.dzk.raw,
       masCol: E.dzMas, sec: (k, t, r, h) => plegable(k === 'texto' ? 'el' : 'dz-' + k, t, r, h), editor: true, crop });
     const av = dzAvisos(el, c && c.res);
     return `<ul class="dz-av lb-dzav"${av.length ? '' : ' hidden'}>${av.map(a => `<li>${esc(a)}</li>`).join('')}</ul>`
-      + secs.map(([k, h]) => k !== 'reset' ? h : h.replace('</button></div>', '</button><button type="button" class="btn2" data-dz="soltar" title="Sus textos y su velo pasan a capas normales del editor">Soltar del kit</button></div>')).join('');
+      + secs.filter(([k]) => k !== 'reset').map(([, h]) => h).join('');
+  }
+  // the design's own actions (D-196): «Restablecer ajustes» and «Soltar del kit» on a slide of the kit, «Volver al diseño» on one
+  // let go. First in the right-click menu (on the design or its photo, on any layer of a slide let go, and on the grey) and in
+  // «⋯» (the keyboard's way); sobre: the layer right-clicked. '' where they don't apply
+  function itemsDz(sobre) {
+    if (!E || !E.dzk || !E.sl.length) return '';
+    const c = compAt(E.i), d = dzDe(c);
+    if (c.dzs) return itCm('dz-volver', 'Volver al diseño', '', !E.busy);
+    if (!d || (sobre && !fijoDz(sobre))) return '';
+    return itCm('dz-reset', 'Restablecer ajustes', '', !E.busy && (Object.keys(d.ov || {}).length > 0 || cropDz(c))) + itCm('dz-soltar', 'Soltar del kit', '', !E.busy && !!fotoDzDe(c));
+  }
+  const SEP_CM = '<hr role="separator">';
+  function restablecerDz() {   // the slide back to how the kit puts it: its settings and its photo's reframe, one step of ⌘Z
+    const c = compAt(E.i), el = dzDe(c); if (!el || E.busy) return;
+    mut(null, () => { el.ov = {}; const f = fotoDzDe(c); if (f && f.src) Object.assign(f, { cx: 0.5, cy: 0.5, z: 1 }); });
   }
   // what a control of that panel does (the designer's code: accion, entrada), one step of the editor's ⌘Z
   function accionDzEd(b) {
     const el = selEl(); if (!el || !esDz(el) || E.busy) return;
     const a = b.dataset.dz, v = b.dataset.v;
     if (a === 'mascolores') { E.dzMas = !E.dzMas; panel(); return; }
-    if (a === 'soltar') { soltarKit(); return; }
-    if (a === 'reset') {                         // the slide back to how the kit puts it: its settings and its photo's reframe
-      mut(null, () => { el.ov = {}; const f = fotoDzDe(compAt(E.i)); if (f && f.src) Object.assign(f, { cx: 0.5, cy: 0.5, z: 1 }); });
-      return;
-    }
     const prueba = { ov: clone(el.ov || {}) }, pp = clone(E.dzp);
     if (!DZ().accion(a, v, prueba, pp)) return;   // nothing would change: no step
     mut(null, () => { DZ().accion(a, v, el, E.dzp); if (!E.dzp.pos) E.dzp.pos = null; });
@@ -1628,7 +1640,7 @@
 #mesa .lb-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:12;display:flex;flex-direction:column;min-width:220px;padding:6px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg)}
 #mesa .lb-menu[hidden],#mesa .lb-atajos[hidden]{display:none}
 #mesa .lb-menu button{display:flex;align-items:center;border:0;background:none;border-radius:var(--r-sm);padding:8px 10px;text-align:left;font-size:13px;color:var(--ink)}
-#mesa .lb-menu button:hover{background:var(--bg-2)}#mesa .lb-menu .lb-kb{margin-left:auto;padding-left:14px;color:var(--mute)}
+#mesa .lb-menu button:hover{background:var(--bg-2)}#mesa .lb-menu hr{border:0;border-top:1px solid var(--line2);margin:5px 4px}#mesa .lb-menu button:disabled{color:var(--faint);background:none;cursor:default}#mesa .lb-menu .lb-kb{margin-left:auto;padding-left:14px;color:var(--mute)}
 #mesa .lb-menu [aria-checked]::before{content:'';display:inline-block;width:18px}#mesa .lb-menu [aria-checked="true"]::before{content:'';width:14px;height:14px;margin-right:4px;vertical-align:-2px;background:currentColor;-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .lb-help{position:absolute;right:12px;top:2px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:var(--mute);font-size:0;font-weight:600;padding:0}#mesa .lb-help::before{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;background:currentColor;-webkit-mask:var(--i-keyboard) center/contain no-repeat;mask:var(--i-keyboard) center/contain no-repeat}
 #mesa .lb-help:hover{background:var(--bg);border-color:var(--line-strong);color:var(--ink)}#mesa .lb-help[aria-expanded="true"]{color:var(--ink);border-color:var(--ink)}
@@ -2536,7 +2548,8 @@
       E.crop = null; E.pick = null; panel(); pedir();
       const ss = selEls(), c = compAt(E.i), Lp = pila(c), n = Lp.length, idx = ss.map(q => Lp.indexOf(q)), uno = ss.length === 1 ? ss[0] : null;   // on the stack, with the veil and the texture (D-185)
       const lock = ss.every(q => q.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
-      abrirCm(itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', true) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', true)
+      const dz = itemsDz(uno || ss.find(fijoDz) || ss[0]);
+      abrirCm((dz ? dz + SEP_CM : '') + itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', true) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', true)
         + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : '')
         + itCm('front', 'Al frente', '⇧⌘]', !arriba) + itCm('fwd', 'Adelante', '⌘]', !arriba) + itCm('bwd', 'Atrás', '⌘[', !abajo) + itCm('back', 'Al fondo', '⇧⌘[', !abajo)
         + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', true) : '') + itCm('del', 'Borrar', '⌫', !lock),
@@ -2549,7 +2562,8 @@
     if (escribiendo()) { terminarEscritura(); return; }
     const cb = clip(), hay = E.sl.length > 0;
     const est = !!(ESTILO && ESTILO.client === E.board.client && selEls().some(q => q.t === 'texto' && !q.lock));
-    abrirCm(itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
+    const dz = itemsDz();
+    abrirCm((dz ? dz + SEP_CM : '') + itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
       + itCm('add-txt', 'Añadir texto', 'T', hay) + itCm('add-forma', 'Añadir forma', 'R', hay, 'rect'), 'gris', 'Fuera de la diapositiva', e.clientX, e.clientY);
   }
   function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, «Desliza →» (D-178), «Barra de progreso» (D-179, off on the cover and
@@ -2887,8 +2901,7 @@
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
       h += `<div class="lb-sec"><h4>Logos y pegatinas <span>· del cliente</span></h4>${E.logos.length ? `<div class="lb-photos">${E.logos.map(f => `<button type="button" class="lb-ph logo" data-lb="logo" data-f="${esc(f)}" title="Añadir ${esc(M.files[f].name || '')} (Alt + clic: quitarlo del kit)"><img src="${M.files[f].thumbUrl || ''}" alt=""></button>`).join('')}</div>` : '<p class="lb-p" style="margin:0">Sube el logo del cliente (mejor PNG con transparencia) y queda guardado para todos sus meses.</p>'}`
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="logo-up">Subir logo o pegatina</button></div></div>';
-      const dzS = E.dzk && fotoDzDe(c), dzSuelta = E.dzk && c.dzs;   // a designed slide (D-193): no background, veil, texture, grid nor templates of its own
-      if (dzSuelta) h = h.replace('</div></div>', `<button type="button" class="btn2" data-lb="dz-volver" title="Vuelve a como la pone el kit: lo hecho después de soltarla se descarta">Volver al diseño</button></div></div>`);
+      const dzS = E.dzk && fotoDzDe(c);   // a designed slide (D-193): no background, veil, texture, grid nor templates of its own
       if (!dzS) h += `<div class="lb-sec"><h4>Fondo</h4>${sws('bg', c.bg)}</div>` + secVelo(c) + secTex(c);
       if (!E.dzk) h += `<div class="lb-sec"><h4>Rejilla <span>· de 2 a 4 fotos</span></h4><div class="lb-grids">${GRIDS.map(([k, l]) => `<button type="button" class="lb-g" data-lb="grid" data-v="${k}" title="${l}" aria-label="Rejilla: ${l}">${gridSvg(k)}</button>`).join('')}</div>`
         + rng('gap', 'Separación', c.rej ? c.rej.g : E.gap ?? 0.02, 0, 0.08, 0.001) + '<p class="lb-p">Las fotos de la diapositiva van a los huecos por orden; un hueco vacío se rellena con un clic.</p></div>';
@@ -3201,7 +3214,7 @@
     const x = E.sl.length ? cur() : null, col = () => String(b.dataset.c).toLowerCase(), cm = E.cmOn && E.cmDe;
     if (E.cmOn) menuCtx(false);
     if (E.dzk && vedadoDz(a, b)) return;
-    if (a === 'dz-volver') { volverDz(); return; }
+    if (a === 'dz-volver' || a === 'dz-soltar' || a === 'dz-reset') { if (E.menuOn) menu(false); if (a === 'dz-volver') volverDz(); else if (a === 'dz-soltar') soltarKit(); else restablecerDz(); return; }   // from the menus (D-196)
     switch (a) {
       case 'cerrar': pedirCerrar(); return;
       case 'aplicar': aplicar(); return;
@@ -3368,6 +3381,8 @@
     E.menuOn = on; const m = E.el.querySelector('.lb-menu'); m.hidden = !on; m.style.left = m.style.right = '';
     E.el.querySelector('[data-lb="mas"]').setAttribute('aria-expanded', String(on));
     if (!on) return;
+    m.querySelectorAll('.lb-mdz').forEach(x => x.remove());   // the design's actions first (D-196), as they are now
+    const dz = itemsDz(); if (dz) m.insertAdjacentHTML('afterbegin', (dz + SEP_CM).replace(/<(button|hr) /g, '<$1 class="lb-mdz" '));
     // inside the window: with «⋯» at the start of a second row (a narrow window), it opens to the right
     const r = m.getBoundingClientRect();
     if (r.left < 8) { m.style.right = 'auto'; m.style.left = '0px'; const r2 = m.getBoundingClientRect(); if (r2.right > innerWidth - 8) m.style.left = Math.round(innerWidth - 8 - r2.right) + 'px'; }

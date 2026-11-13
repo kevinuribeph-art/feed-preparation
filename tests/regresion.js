@@ -8163,6 +8163,8 @@
   const pasosEd = () => ed().hist.undo.length;
   const elegirDz = async (i = ed().i) => { elegir(dzEl(i)); M.libre.bandeja(); accion('cap', { id: dzEl(i).id }); await espera(40); };
   const pulsarDz = async (sel) => { const b = await hasta(() => q('.lb-panel ' + sel), 3000, sel); b.click(); await espera(30); return b; };
+  // una acción del diseño desde el menú «⋯» (D-196): «dz-reset», «dz-soltar» o «dz-volver»
+  async function menuDz(lb) { if (!ed().menuOn) accion('mas'); const b = await hasta(() => q(`.lb-menu [data-lb="${lb}"]:not(:disabled)`), 3000, '«⋯» → ' + lb); b.click(); await espera(30); return b; }
 
   prueba('DC2', 'Doble clic sobre el titular y se escribe en su campo; el motor lo vuelve a partir y a colocar; «Aplicar a la casilla» conserva el diseño, solo redibuja lo que cambió y no devuelve sus fotos a la bandeja; al reabrir se ve lo retocado; todo es un paso de ⌘Z (D-193)', async () => {
     await tablero([pub(1, 'Carrusel')]);
@@ -8241,14 +8243,14 @@
       // Restablecer ajustes: ov y el encuadre de su foto
       Object.assign(dzFoto(1), { cx: 0.4, cy: 0.6, z: 1.4 }); M.libre.bandeja();
       ed().sel = dzEl(1).id; accion('cap', { id: dzEl(1).id }); await espera(40);
-      await pulsarDz('[data-dz="reset"]');
+      await menuDz('dz-reset');
       igual(dzEl(1).ov, {}, '«Restablecer ajustes» no vació los ajustes');
       igual([dzFoto(1).cx, dzFoto(1).cy, dzFoto(1).z], [0.5, 0.5, 1], '«Restablecer ajustes» no centró la foto');
       // ⌘Z del editor deshace el último
       tecla('z', { meta: true }); await espera(30);
       igual(dzEl(1).ov.lugar, 'arriba', '⌘Z del editor no deshizo «Restablecer ajustes»');
       // el imán: el centro del bloque se pega al centro de la diapositiva y lo dice con su guía (D-023)
-      await pulsarDz('[data-dz="reset"]');
+      await menuDz('dz-reset');
       const c3 = await dzListo(1), b3 = c3.res.bloque, k3 = ed().k * 1440 / ed().dzSz.W, cx = b3.x + b3.w / 2, objetivo = ed().dzSz.W / 2 + 4;
       ed().iman = true;
       const [m0, n0] = cajaVentana(b3);
@@ -8323,7 +8325,7 @@
       const datos0 = json({ t: dzEl(1).titulo, ov: dzEl(1).ov });
       elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
       const n = pasosEd();
-      await pulsarDz('[data-dz="soltar"]');
+      await menuDz('dz-soltar');
       await hasta(() => compDe(1).dzs, 4000, 'soltarla del kit');
       igual(pasosEd(), n + 1, 'soltar no es un paso de ⌘Z');
       const els = compDe(1).els;
@@ -8336,7 +8338,7 @@
       ok(els.filter(e => e.t === 'texto').every(e => e.font && e.font.file), 'un texto sin la letra del kit');
       ok(toastCon(/^Soltada del kit: ya no se recoloca sola\./), 'sin el aviso');
       // «Volver al diseño»
-      await pulsarDz('[data-lb="dz-volver"]');
+      await menuDz('dz-volver');
       ok(dzEl(1) && dzFoto(1) && !compDe(1).dzs, '«Volver al diseño» no la devolvió al kit');
       igual(json({ t: dzEl(1).titulo, ov: dzEl(1).ov }), datos0, 'volvió con otros datos');
       tecla('z', { meta: true }); await espera(30);
@@ -8356,8 +8358,8 @@
       // al reabrir, soltada; «Volver al diseño» descarta lo hecho después
       await abrirEditor('r1', 1);
       ok(compDe(1).dzs, 'al reabrir no está soltada');
-      ok(q('.lb-panel [data-lb="dz-volver"]'), 'sin «Volver al diseño» en su panel');
-      await pulsarDz('[data-lb="dz-volver"]');
+      accion('mas'); ok(q('.lb-menu > [data-lb="dz-volver"]'), 'sin «Volver al diseño» en «⋯»'); accion('mas');
+      await menuDz('dz-volver');
       ok(!compDe(1).els.some(e => e.txt === 'Escrito a mano') && dzEl(1).titulo === 'Ficha DC6', 'no descartó lo hecho después de soltarla');
       await aplicarEd();
       igual(slot('r1').design.slides[1].suelta, undefined, 'sigue soltada tras volver');
@@ -8411,7 +8413,7 @@
       accion('add-forma', { v: 'rect' });
       accion('sl', { i: '1' }); await espera(30); await dzListo(1);
       elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
-      await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(1).dzs, 4000, 'soltarla');
+      await menuDz('dz-soltar'); await hasta(() => compDe(1).dzs, 4000, 'soltarla');
       await aplicarEd();
       await poner('r1', [await foto('dc8c.jpg', 1080, 1350, '#5a8c3d')]);   // la foto de la tercera
       const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada nueva DC8' }, { tipo: 'ficha', titulo: 'Ficha nueva DC8' }, { tipo: 'ficha', titulo: 'Una tercera DC8' }] });
@@ -8437,7 +8439,7 @@
       ed().pick = { modo: 'add' }; accion('pickf', { f: extra }); await hasta(() => compDe(0).els.some(e => e.t === 'foto' && e.src === extra), 3000, 'la foto libre');
       accion('sl', { i: '1' }); await espera(30); await dzListo(1);
       elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
-      await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(1).dzs, 4000, 'soltarla');
+      await menuDz('dz-soltar'); await hasta(() => compDe(1).dzs, 4000, 'soltarla');
       await aplicarEd();
       await M.flush();
       ok(!M.board().tray.includes(extra), 'la foto libre sigue en la bandeja');
@@ -8465,7 +8467,7 @@
       await hasta(() => { const ul = q('.lb-panel .dz-av'); return ul && !ul.hidden && ul.textContent.includes(c.res.avisos[0]); }, 3000, 'el aviso en el panel');
       accion('add-forma', { v: 'rect' });
       accion('sl', { i: '0' }); await espera(30); await dzListo(0); await elegirDz(0);
-      await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
+      await menuDz('dz-soltar'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
       await aplicarEd();
       for (const n of [1, 2]) { const v = await M.diseno.ver('r1', n); ok(v && !v.error && v.kb > 5 && M.out.diseno, `ver(${n}) con capas: ` + json(v)); }
       const st = await M.diseno.estado('r1'); ok(st && !st.error && st.slides[0].suelta && st.slides[1].capasLibres === 1, 'estado(): ' + json(st));
@@ -8521,14 +8523,14 @@
       ed().pick = { modo: 'add' }; accion('pickf', { f: extra }); await hasta(() => compDe(0).els.some(e => e.src === extra && !e.dz), 3000, 'la foto como capa libre');
       // una forma, soltar y volver: la forma sigue
       accion('add-forma', { v: 'rect' });
-      await elegirDz(0); await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
-      await pulsarDz('[data-lb="dz-volver"]');
+      await elegirDz(0); await menuDz('dz-soltar'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
+      await menuDz('dz-volver');
       igual(compDe(0).els.map(e => e.t), ['foto', 'foto', 'diseno', 'forma'], '«Volver al diseño» perdió las capas libres de antes de soltarla');
       ok(compDe(0).els[1].src === extra, 'la foto libre no volvió');
       // la ficha, soltada y sin foto propia: la foto va dentro de su composición
       accion('sl', { i: '1' }); await espera(30); await dzListo(1);
       dzFoto(1).src = null; M.libre.bandeja();
-      await elegirDz(1); await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(1).dzs, 4000, 'soltar la ficha');
+      await elegirDz(1); await menuDz('dz-soltar'); await hasta(() => compDe(1).dzs, 4000, 'soltar la ficha');
       const [otra] = await M.addFiles([await foto('dc12c.jpg', 1080, 1350, '#5a8c3d')]);
       ed().pick = { modo: 'fill', id: compDe(1).els[0].id }; accion('pickf', { f: otra }); await hasta(() => compDe(1).els[0].src === otra, 3000, 'la foto en la soltada');
       await aplicarEd();
@@ -8567,7 +8569,8 @@
   // Ajustes del diseño en capas (D-194 a D-198)
   // =====================================================================================================
   // un botón de respuesta elegido: el acento de la Mesa en su fondo
-  const enAcento = b => { const acc = W.getComputedStyle(D.querySelector('#mesa')).getPropertyValue('--acc').trim(), x = D.createElement('i'); x.style.color = acc; D.body.append(x); const c = W.getComputedStyle(x).color; x.remove(); return b.classList.contains('elegido') && W.getComputedStyle(b).backgroundColor === c; };
+  const colorVar = v => { const x = D.createElement('i'); x.style.color = W.getComputedStyle(D.querySelector('#mesa')).getPropertyValue(v).trim(); D.querySelector('#mesa').append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; };
+  const enAcento = b => b.classList.contains('elegido') && W.getComputedStyle(b).backgroundColor === colorVar('--acc');
   prueba('AC1', 'La pregunta «1 Sustituir / 2 Añadir» va ceñida a su tecla y su palabra; al contestar (clic, 1 o 2) el elegido pasa al terracota, ningún otro clic ni tecla actúa y se cierra en menos de 200 ms; igual en las del editor (D-194)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('ac1a.jpg')]);
@@ -8642,6 +8645,54 @@
       } finally { fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); }
       await cerrarEd();
     });
+  });
+
+  prueba('AC3', '«Restablecer ajustes» y «Soltar del kit» salen del panel de «Diseño» y encabezan el clic derecho sobre el diseño o su foto (no sobre una capa libre), el del gris y «⋯»; en una soltada, «Volver al diseño» en los mismos sitios; desactivado en --faint (D-196)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('ac3a.jpg', 1080, 1350, '#2f5d7c'), await foto('ac3b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: 'Portada AC3' }, { tipo: 'ficha', titulo: 'Ficha AC3', texto: 'Un texto' }]);
+      await abrirEditor('r1', 0); await dzListo(0);
+      const m = () => ed().el.querySelector('.lb-cm'), nombres = el => [...el.children].map(x => x.tagName === 'HR' ? '—' : x.firstChild.textContent + (x.disabled ? ' (apagado)' : ''));
+      await elegirDz(0);
+      ok(!q('.lb-panel [data-dz="reset"], .lb-panel [data-dz="soltar"], .lb-panel .dz-reset, .lb-panel [data-lb="dz-volver"]'), 'siguen los botones en el panel');
+      // clic derecho sobre el bloque del diseño y sobre su foto
+      const d = dzEl(0), E = ed();
+      raton('contextmenu', E.cv, ...aVentana((d.x + d.w / 2) * E.sz.W, (d.y + d.h / 2) * E.sz.H), { button: 2 });
+      igual(nombres(m()).slice(0, 3), ['Restablecer ajustes (apagado)', 'Soltar del kit', '—'], 'el clic derecho sobre el diseño');
+      igual(W.getComputedStyle(m().children[0]).color, colorVar('--faint'), 'el apagado no va en --faint (D-171)');
+      tecla('Escape');
+      raton('contextmenu', E.cv, ...aVentana(8, 8), { button: 2 });
+      igual(nombres(m()).slice(0, 2), ['Restablecer ajustes (apagado)', 'Soltar del kit'], 'el clic derecho sobre su foto');
+      tecla('Escape');
+      // con un ajuste, se enciende; desde el clic derecho deja la diapositiva como la pone el kit, un paso de ⌘Z
+      await elegirDz(0); dzEl(0).ov = { lugar: 'arriba' }; accion('sl', { i: '0' }); await espera(40);
+      raton('contextmenu', E.cv, ...aVentana(8, 8), { button: 2 });
+      const rs = m().querySelector('[data-lb="dz-reset"]'); ok(rs && !rs.disabled, '«Restablecer ajustes» sigue apagado con un ajuste');
+      const n = ed().hist.undo.length; rs.click(); await espera(30);
+      igual([dzEl(0).ov, ed().hist.undo.length, m().hidden], [{}, n + 1, true], '«Restablecer ajustes» desde el clic derecho');
+      // una capa libre: su menú de siempre, sin lo del diseño
+      accion('add-forma', { v: 'rect' }); const fz = compDe(0).els.at(-1); await espera(40);
+      raton('contextmenu', E.cv, ...aVentana((fz.x + fz.w / 2) * E.sz.W, (fz.y + fz.h / 2) * E.sz.H), { button: 2 });
+      ok(!m().hidden && !m().querySelector('[data-lb^="dz-"]'), 'el menú de una capa libre lleva lo del diseño');
+      tecla('Escape');
+      // «⋯»: lo mismo arriba, también con el teclado (Tab desde «⋯» llega a «Soltar del kit»)
+      accion('mas'); const mm = ed().el.querySelector('.lb-menu:not(.lb-cm)');
+      igual(nombres(mm).slice(0, 3), ['Restablecer ajustes (apagado)', 'Soltar del kit', '—'], '«⋯»');
+      igual(mm.querySelectorAll('.lb-mdz').length, 3, 'se repite al abrir «⋯» otra vez'); accion('mas'); accion('mas'); igual(mm.querySelectorAll('.lb-mdz').length, 3, 'se repite al abrir «⋯» otra vez');
+      mm.querySelector('[data-lb="dz-soltar"]').click();
+      await hasta(() => compDe(0).dzs, 4000, 'soltarla desde «⋯»'); ok(!ed().menuOn, '«⋯» sigue abierto');
+      // soltada: «Volver al diseño» en el clic derecho de cualquier capa, del gris y en «⋯»
+      raton('contextmenu', E.cv, ...aVentana(8, 8), { button: 2 });
+      igual(nombres(m()).slice(0, 2), ['Volver al diseño', '—'], 'el clic derecho en una soltada'); tecla('Escape');
+      ok(!q('.lb-panel [data-lb="dz-volver"]'), '«Volver al diseño» sigue en el panel');
+      accion('mas'); igual(nombres(mm).slice(0, 2), ['Volver al diseño', '—'], '«⋯» en una soltada');
+      mm.querySelector('[data-lb="dz-volver"]').click();
+      await hasta(() => dzEl(0) && !compDe(0).dzs, 4000, 'volver al diseño desde «⋯»');
+      // una diapositiva sin diseño en «⋯» no lleva nada del diseño: sin kit no sale
+      await cerrarEd();
+    });
+    await tablero([pub(1, 'Carrusel')]); await poner('r1', [await foto('ac3c.jpg')]); await abrirEditor('r1');
+    accion('mas'); ok(!ed().el.querySelector('.lb-menu .lb-mdz'), 'un carrusel sin diseño lleva lo del diseño en «⋯»'); accion('mas');
   });
 
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {

@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 14, V_IDB = 16;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183)
+  const V_ARCHIVO = 15, V_IDB = 17;   // la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -6142,35 +6142,41 @@
   const DOS = ['portada', 'ficha'];
   const textos = (n, ...t) => t.map((titulo, i) => ({ tipo: DOS[i] || 'ficha', titulo: `${titulo} ${n}` }));
 
-  prueba('D1', '«Editar diapositivas» con un diseño con cambios sin aplicar lo aplica antes y abre sus imágenes; cerrar y ⌘Z lo deshacen de una vez; si no se puede aplicar, el editor no abre y dice por qué (D-089)', async () => {
+  prueba('D1', '«Editar diapositivas» con un diseño con cambios sin aplicar lo abre en capas como está, sin aplicarlo (D-193, que sustituye eso de D-089): la casilla no cambia hasta «Aplicar»; cerrar sin aplicar no deja paso de ⌘Z, aplicar deja uno; sin kit, el editor no abre y dice por qué', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel')]);
     await conKitPrueba(async () => {
       await disenada('r1', [await foto('d1a.jpg', 1080, 1350), await foto('d1b.jpg', 1080, 1350)], textos('D1', 'Portada', 'Ficha'), false);
       const crudas = slot('r1').photos.slice();
       igual(estadoDz('r1'), 'chg', 'el diseño cargado sin aplicar');
       M._in.openDetail('r1', 0); sinDisenar('carrusel con cambios sin aplicar');
-      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar · se aplica en «Editar»'), 'la ventana no dice que se aplica en «Editar»');
       const h0 = M._test.hist().undo;
       await pulsar('.detail [data-act="editar"]');
       await abierto();
+      igual(estadoDz('r1'), 'chg', 'abrir lo aplicó');
+      igual(slot('r1').photos, crudas, 'abrir cambió la casilla');
+      igual(compDe(0).els.map(e => e.t), ['foto', 'diseno'], 'no abrió en capas');
+      ok(ed().el.querySelector('.lb-state.chg') && !ed().el.querySelector('.lb-state').hidden, 'sin «Cambios sin aplicar»');
+      ok(!toastCon(/ya está aplicado/), 'dice que lo aplicó');
+      await cerrarEd();
+      igual(M._test.hist().undo, h0, 'cerrar sin aplicar dejó un paso de ⌘Z');
+      igual([slot('r1').photos, estadoDz('r1')], [crudas, 'chg'], 'cerrar sin aplicar cambió algo');
+      await abrirEditor('r1', 0);
+      await aplicarEd();                                   // sin tocar nada: «Aplicar» lo aplica
       igual(estadoDz('r1'), 'ok', 'el diseño no quedó aplicado');
       igual(slot('r1').photos, salida('r1'), 'la casilla no lleva sus imágenes');
-      igual(salida('r1').length, 2, 'sus imágenes');
-      igual(ed().sl.map(x => x.key), salida('r1'), 'el editor no abrió sus imágenes');
-      ok(salida('r1').every(f => M.files[f] && M.files[f].design), 'sus imágenes no son de diseño');
-      ok(toastCon(/ya está aplicado/), 'sin aviso de que se aplicó');
-      await cerrarEd();
-      igual(M._test.hist().undo, h0 + 1, 'aplicar y la sesión del editor no son un solo paso de ⌘Z');
+      ok(salida('r1').length === 2 && salida('r1').every(f => M.files[f] && M.files[f].design), 'sus imágenes no son de diseño');
+      igual(M._test.hist().undo, h0 + 1, 'abrir y aplicar no son un solo paso de ⌘Z');
       M._test.undo();
       igual(slot('r1').photos, crudas, '⌘Z no devolvió sus fotos');
       igual(estadoDz('r1'), 'chg', '⌘Z no dejó el diseño sin aplicar');
       await disenada('r2', [await foto('d1c.jpg', 1080, 1350)], textos('D1', 'Sin kit'), false);
     });
-    // sin kit el diseñador no puede aplicar: el editor no abre y el aviso dice por qué, sin mandar a «Diseñar»
+    // sin kit no hay nada que dibujar: el editor no abre y el aviso dice por qué, sin mandar a «Diseñar»
     const r = await M.libre.abrir('r2', 0);
-    ok(r && r.error && /^No se pudo aplicar el diseño: .*kit/.test(r.error) && !r.error.includes('Diseñar'), 'el error: ' + json(r));
-    ok(!ed(), 'el editor abrió sin aplicar');
-    igual(estadoDz('r2'), 'chg', 'el diseño cambió sin poder aplicarse');
+    ok(r && r.error && /kit/.test(r.error) && !r.error.includes('Diseñar'), 'el error: ' + json(r));
+    ok(!ed(), 'el editor abrió sin kit');
+    igual(estadoDz('r2'), 'chg', 'el diseño cambió');
   });
 
   prueba('D2', 'Un reel sin foto no tiene botón de diseño y ⌘E no hace nada; con su foto, «Editar portada» abre su portada (D-089, D-088)', async () => {
@@ -6197,16 +6203,17 @@
       igual(estadoDz('r1'), 'ok', 'el reel diseñado');
       M._test.unassign('r1', null, true);
       igual(slot('r1').photos, [], 'la casilla no se vació');
-      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al pulsar «Editar»/), 'el aviso de vaciarla');
+      ok(toastCon(/Imágenes del diseño quitadas de la casilla: vuelven al aplicarlo en «Editar»/), 'el aviso de vaciarla');
       M._in.openDetail('r1', 0); sinDisenar('reel diseñado vacío');
-      ok(textoVentana().includes('se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
+      ok(textoVentana().includes('se aplica en «Editar»'), 'la ventana no dice que se aplica en «Editar»');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       ok(ed().reel, 'no abrió la portada');
+      igual(slot('r1').photos, [], 'abrir le devolvió la imagen sin aplicar (D-193)');
+      await aplicarEd();
       igual(estadoDz('r1'), 'ok', 'su diseño no volvió');
       igual([slot('r1').photos.length, slot('r1').photos], [1, salida('r1')], 'la casilla no lleva su imagen');
       igual(slot('r1').design.slides[0].titulo, 'Portada D3', 'la portada perdió su título');
-      await cerrarEd();
     });
   });
 
@@ -6242,12 +6249,14 @@
       const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada nueva' }, sl[1]] }); ok(c && !c.error, 'cargar(): ' + json(c));
       igual(estadoDz('r1'), 'chg', 'los textos nuevos sin aplicar');
       M._in.openDetail('r1', 0); sinDisenar('carrusel con textos nuevos');
-      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica al pulsar «Editar»'), 'las herramientas no mandan a «Editar»');
+      ok(textoVentana().includes('Diseño con cambios sin aplicar: se aplica en «Editar»'), 'las herramientas no mandan a «Editar»');
       ok(textoVentana().includes('Las demás diapositivas se cambian en «Editar»'), 'las miniaturas no mandan a «Editar»');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
+      igual(estadoDz('r1'), 'chg', 'abrir aplicó los textos nuevos (D-193: se abre como está)');
+      igual(dzEl(0).titulo, 'Portada nueva', 'el editor no abrió con los textos nuevos');
+      await aplicarEd();
       igual([estadoDz('r1'), slot('r1').design.slides[0].titulo], ['ok', 'Portada nueva'], 'no aplicó los textos nuevos');
-      await cerrarEd();
     });
   });
 
@@ -6258,19 +6267,20 @@
       M._test.setType('r1', 'Reel');
       igual([slot('r1').type, estadoDz('r1')], ['Reel', 'chg'], 'el diseño convertido no quedó pendiente');
       M._in.openDetail('r1', 0); sinDisenar('reel convertido');
-      ok(textoVentana().includes('se aplica al pulsar «Editar»'), 'la ventana no dice que «Editar» lo aplica');
+      ok(textoVentana().includes('se aplica en «Editar»'), 'la ventana no dice que se aplica en «Editar»');
       await pulsar('.detail [data-act="editar"]');
       await abierto();
       ok(ed().reel, 'no abrió la portada');
+      igual([compDe(0).els.map(e => e.t), dzEl(0).titulo], [['foto', 'diseno'], 'Portada D6'], 'no abrió en capas su portada');
+      await aplicarEd();
       igual([estadoDz('r1'), salida('r1').length, slot('r1').design.slides[0].titulo], ['ok', 1, 'Portada D6'], 'no aplicó su portada');
       igual(slot('r1').photos, salida('r1'), 'la casilla no lleva su imagen');
-      await cerrarEd();
       // desde Notion: un carrusel diseñado que llega como reel
       await tablero([pub(2, 'Carrusel')]);
       await disenada('r2', [await foto('d6c.jpg', 1080, 1350)], textos('D6', 'Notion'));
       await M.flush();
       await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [{ ...pub(2, 'Carrusel'), type: 'Reel' }], past: [], force: true });
-      await hasta(() => toastCon(/En Notion cambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica al pulsar su «Editar …»/), 4000, 'el aviso del tipo cambiado en Notion');
+      await hasta(() => toastCon(/En Notion cambió el tipo de Carrusel 1\.2: su diseño se ha convertido y se aplica en su «Editar …»/), 4000, 'el aviso del tipo cambiado en Notion');
       igual(estadoDz('r2'), 'chg', 'el diseño de Notion no quedó pendiente');
     });
   });
@@ -6285,7 +6295,7 @@
     await conKitPrueba(async () => {
       await disenada('colab-d7', [await foto('d7a.jpg', 1080, 1350), await foto('d7b.jpg', 1080, 1350)], textos('D7', 'Collab', 'Ficha'), false);
       const r = await M.libre.abrir('colab-d7', 0); ok(r && r.ok, 'no abrió: ' + json(r));
-      await cerrarEd();
+      await aplicarEd();
       igual(estadoDz('colab-d7'), 'ok', 'no se aplicó');
     });
     await M.flush();
@@ -6360,7 +6370,7 @@
       await pulsar('.detail [data-act="editar"]');
       await abierto(6000);
       igual([ed().sl.map(x => x.key), ed().i], [out, 1], 'el editor no abrió sus imágenes en la diapositiva que se ve');
-      ok(ed().sl.every(x => !x.out && x.raw), 'el editor no las abrió como imagen');
+      ok(ed().sl.every(x => x.out && x.comp && x.comp.els.some(e => e.t === 'diseno')), 'el editor no las abrió en capas (D-193)');
       await cerrarEd();
       igual([slot('r1').photos, salida('r1'), slot('r1').design.sig, Object.keys(M.files).length], [out, out, sig0, n0], 'abrir el editor lo redibujó');
       igual(await Promise.all(out.map(huella)), h0, 'sus imágenes cambiaron de bytes');
@@ -7970,7 +7980,7 @@
   const dzCerrar = async () => { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); };
   const sinPideClaude = m => ok(!/pídele a Claude que elija/.test(m || ''), 'el aviso todavía manda a Claude: ' + m);
 
-  prueba('D21', '«Editar diapositivas» con una diapositiva sin foto abre el diseñador en ella con el aviso, la casilla sigue con sus imágenes; al ponerle foto y aplicar, la casilla se actualiza y todo es un paso de ⌘Z (D-123)', async () => {
+  prueba('D21', '«Editar diapositivas» con una diapositiva sin foto abre el editor en capas con su «Foto» vacía y el aviso; la casilla sigue con sus imágenes; al ponerle la foto y aplicar, la casilla se actualiza y todo es un paso de ⌘Z (D-193, que sustituye D-123)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await conKitPrueba(async () => {
       await disenada('r1', [await foto('d21a.jpg', 1080, 1350), await foto('d21b.jpg', 1080, 1350)], textos('D21', 'Portada', 'Ficha'));
@@ -7978,31 +7988,26 @@
       const c = await M.diseno.cargar('r1', { slides: textos('D21', 'Portada', 'Ficha', 'Nueva') }); ok(c && !c.error, 'cargar() falló: ' + json(c));
       igual(estadoDz('r1'), 'chg', 'los textos nuevos sin aplicar');
       const ap = await M.diseno.aplicar('r1');
-      igual([ap.error, ap.diapositiva, ap.faltan], ['Falta la foto de la diapositiva 3: añádela y pulsa «Aplicar a la casilla».', 3, [3]], 'el error de aplicar() por la API');
+      igual([ap.error, ap.diapositiva, ap.faltan], ['Falta la foto de la diapositiva 3: añádela y pulsa «Aplicar a la casilla».', 3, [3]], 'el error de aplicar() por la API (no cambia)');
       const [nueva] = await M.addFiles([await foto('d21c.jpg', 1080, 1350)]);
       const h0 = M._test.hist().undo;
       M._in.openDetail('r1', 0);
       await pulsar('.detail [data-act="editar"]');
-      await dzAbierto();
-      ok(!ed(), 'abrió el editor sin aplicar');
-      igual([M.diseno.abierto().slot, M.diseno.abierto().diapositiva], ['r1', 3], 'el diseñador no abrió en la diapositiva sin foto');
-      ok(toastCon(/^Falta la foto de la diapositiva 3: añádela y pulsa «Aplicar a la casilla»\./), 'sin el aviso de la foto que falta');
-      ok(!toastCon(/No se pudo aplicar/), 'salió el error de antes');
+      await abierto();
+      ok(!M.diseno.abierto(), 'abrió el diseñador');
+      ok(toastCon(/^Falta la foto de la diapositiva 3: suéltala en ella o elígela en la bandeja\./), 'sin el aviso de la foto que falta');
+      igual([dzFoto(2).src, compDe(2).els.map(e => e.t)], [null, ['foto', 'diseno']], 'la diapositiva 3 no abrió con su «Foto» vacía');
       igual(slot('r1').photos, viejas, 'la casilla cambió sin aplicar');
-      igual(estadoDz('r1'), 'chg', 'el diseño dejó de estar pendiente sin aplicar');
-      const b = await hasta(() => q(`.dz .dz-ph[data-f="${nueva}"]`), 3000, 'la foto nueva en el panel'); b.click(); await espera(40);
-      igual(slot('r1').design.slides[2].src, nueva, 'la foto no fue a la diapositiva 3');
+      accion('sl', { i: '2' }); await espera(30);
+      ed().pick = { modo: 'fill', id: dzFoto(2).id }; accion('pickf', { f: nueva });
+      await hasta(() => dzFoto(2).src === nueva, 3000, 'la foto en su capa');
       igual(slot('r1').photos, viejas, 'la casilla cambió al elegir la foto');
-      await pulsar('.dz [data-dz="aplicar"]');
-      await hasta(() => !M.diseno.abierto() && estadoDz('r1') === 'ok', 20000, 'aplicar desde el diseñador');
+      await aplicarEd();
+      igual(estadoDz('r1'), 'ok', 'no se aplicó');
+      igual(slot('r1').design.slides[2].src, nueva, 'la foto no fue a la diapositiva 3');
       igual(slot('r1').photos, salida('r1'), 'la casilla no lleva las imágenes nuevas');
       igual(salida('r1').length, 3, 'las 3 imágenes');
-      ok(!viejas.some(f => slot('r1').photos.includes(f)), 'la casilla se quedó con alguna imagen vieja');
-      igual(M._test.hist().undo, h0 + 1, 'abrir el diseñador, ponerle la foto y aplicar no son un paso de ⌘Z');
-      await pulsar('.detail [data-act="editar"]');          // ya al día: abre el editor como siempre
-      await abierto();
-      igual(ed().sl.map(x => x.key), salida('r1'), 'después, «Editar diapositivas» no abrió sus imágenes');
-      await cerrarEd();
+      igual(M._test.hist().undo, h0 + 1, 'abrir, ponerle la foto y aplicar no son un paso de ⌘Z');
       M._test.undo();
       igual(slot('r1').photos, viejas, '⌘Z no devolvió las imágenes de antes');
       igual(estadoDz('r1'), 'chg', '⌘Z no dejó el diseño pendiente');
@@ -8010,32 +8015,29 @@
     });
   });
 
-  prueba('D22', 'Con varias diapositivas sin foto, el aviso las nombra todas y el diseñador abre en la primera; cerrar sin aplicar deja la casilla como estaba y se puede volver a entrar (D-123)', async () => {
+  prueba('D22', 'Con varias diapositivas sin foto, el aviso las nombra todas y el editor abre en capas; cerrar sin aplicar deja la casilla como estaba; ⌘E lo abre igual; aplicar() por la API sigue diciendo cuáles faltan (D-193, D-123)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await conKitPrueba(async () => {
       await disenada('r1', [await foto('d22a.jpg', 1080, 1350)], textos('D22', 'Portada', 'Dos', 'Tres', 'Cuatro'), false);
       const crudas = slot('r1').photos.slice();
       const r = await M.libre.abrir('r1', 0);
-      ok(r && r.ok && r.disenador, 'abrir() no dice que abrió el diseñador: ' + json(r));
-      igual(r.faltan, [2, 3, 4], 'las diapositivas sin foto');
-      await dzAbierto();
-      igual(M.diseno.abierto().diapositiva, 2, 'no abrió en la primera sin foto');
-      ok(toastCon(/Faltan las fotos de las diapositivas 2, 3 y 4: añádelas y pulsa «Aplicar a la casilla»\./), 'el aviso no las nombra todas');
-      await pulsar('.dz [data-dz="cerrar"]');
-      await hasta(() => !M.diseno.abierto(), 3000, 'cerrar sin cambios');
+      ok(r && r.ok && !r.disenador, 'abrir() no abrió el editor: ' + json(r));
+      await abierto();
+      ok(toastCon(/Faltan las fotos de las diapositivas 2, 3 y 4: suéltalas en ellas o elígelas en la bandeja\./), 'el aviso no las nombra todas');
+      igual([1, 2, 3].map(i => dzFoto(i).src), [null, null, null], 'sus «Foto» no están vacías');
+      await cerrarEd();
       igual(slot('r1').photos, crudas, 'la casilla cambió');
-      tecla('e', { meta: true }); await espera(30);       // ⌘E sin la ventana no hace nada; con ella, lo mismo que el botón
       M._in.openDetail('r1', 0); tecla('e', { meta: true });
-      await dzAbierto();
-      igual(M.diseno.abierto().diapositiva, 2, '⌘E no abrió el diseñador en la primera sin foto');
-      await dzCerrar(); M._in.closeDetail();
+      await abierto();
+      ok(!M.diseno.abierto(), '⌘E abrió el diseñador');
+      await cerrarEd(); M._in.closeDetail();
       const e = await M.diseno.aplicar('r1');
       igual([e.diapositiva, e.faltan], [2, [2, 3, 4]], 'aplicar() por la API');
       sinPideClaude(e.error);
     });
   });
 
-  prueba('D23', 'La portada de un reel diseñado sin foto: «Editar portada» abre el diseñador con «Falta la foto de la portada»; al ponerla y aplicar, el reel tiene su portada (D-123)', async () => {
+  prueba('D23', 'La portada de un reel diseñado sin foto: «Editar portada» abre el editor en capas con «Falta la foto de la portada»; al ponerla y aplicar, el reel tiene su portada (D-193, D-123)', async () => {
     await tablero([pub(1, 'Reel')]);
     await conKitPrueba(async () => {
       await disenada('r1', [], [{ titulo: 'Reel D23' }], false);
@@ -8043,42 +8045,43 @@
       const [nueva] = await M.addFiles([await foto('d23a.jpg', 1080, 1920)]);
       M._in.openDetail('r1', 0);
       await pulsar('.detail [data-act="editar"]');
-      await dzAbierto();
-      ok(!ed(), 'abrió el editor');
-      ok(toastCon(/^Falta la foto de la portada: añádela y pulsa «Aplicar a la casilla»\./), 'sin el aviso de la portada');
+      await abierto();
+      ok(!M.diseno.abierto(), 'abrió el diseñador');
+      ok(toastCon(/^Falta la foto de la portada: suéltala en ella o elígela en la bandeja\./), 'sin el aviso de la portada');
       igual(slot('r1').photos.length, 0, 'la casilla del reel cambió sin aplicar');
-      const b = await hasta(() => q(`.dz .dz-ph[data-f="${nueva}"]`), 3000, 'la foto en el panel'); b.click(); await espera(40);
-      await pulsar('.dz [data-dz="aplicar"]');
-      await hasta(() => !M.diseno.abierto() && estadoDz('r1') === 'ok', 20000, 'aplicar la portada');
+      accion('tr-add', { f: nueva });                       // un clic en la foto de la bandeja: va a su «Foto»
+      await hasta(() => dzFoto(0).src === nueva, 3000, 'la foto en la portada');
+      await aplicarEd();
+      igual(estadoDz('r1'), 'ok', 'no se aplicó la portada');
       igual(slot('r1').photos, salida('r1'), 'la casilla no lleva la portada');
       igual(salida('r1').length, 1, 'una portada');
       M._in.closeDetail();
     });
   });
 
-  prueba('D24', 'Una diapositiva cuya foto ya no está en la mesa cuenta como foto que falta: abre el diseñador en ella y su aviso lo dice (D-123)', async () => {
+  prueba('D24', 'Una diapositiva cuya foto ya no está en la mesa cuenta como foto que falta: su «Foto» abre vacía y el aviso la nombra; ver() por la API sigue diciendo que falta (D-193, D-123)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await conKitPrueba(async () => {
       await disenada('r1', [await foto('d24a.jpg', 1080, 1350), await foto('d24b.jpg', 1080, 1350)], textos('D24', 'Portada', 'Ficha'), false);
       const f = slot('r1').design.slides[1].src;
       await M._in.idbDel('files', f); delete M.files[f];
       const r = await M.libre.abrir('r1', 0);
-      ok(r && r.ok && r.disenador, 'no abrió el diseñador: ' + json(r));
-      await dzAbierto();
-      igual(M.diseno.abierto().diapositiva, 2, 'no abrió en la diapositiva sin su foto');
-      ok(toastCon(/Falta la foto de la diapositiva 2 \(la que tenía ya no está en la mesa\): añádela y pulsa «Aplicar a la casilla»\./), 'el aviso no dice que su foto ya no está');
-      await dzCerrar();
+      ok(r && r.ok && !r.disenador, 'no abrió el editor: ' + json(r));
+      await abierto();
+      ok(toastCon(/Falta la foto de la diapositiva 2: suéltala en ella o elígela en la bandeja\./), 'el aviso no la nombra');
+      igual(dzFoto(1).src, null, 'su «Foto» no abre vacía');
+      await cerrarEd();
       const v = await M.diseno.ver('r1', 2); ok(v && v.error && v.faltan, 'ver() de la diapositiva sin foto: ' + json(v)); sinPideClaude(v.error);
     });
   });
 
-  prueba('D25', 'Sin la foto final del cliente, «Editar diapositivas» sigue sin abrir nada y dice lo de siempre (D-089, D-123)', async () => {
+  prueba('D25', 'Sin la foto final del cliente, «Editar diapositivas» sigue sin abrir nada y dice por qué (D-089, D-193)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await conKitPrueba(async () => {
       await disenada('r1', [await foto('d25a.jpg', 1080, 1350), await foto('d25b.jpg', 1080, 1350)], [...textos('D25', 'Portada', 'Ficha'), { tipo: 'final', titulo: 'Final D25' }], false);
       const crudas = slot('r1').photos.slice();
       const r = await M.libre.abrir('r1', 0);
-      igual(r && r.error, 'No se pudo aplicar el diseño: Falta la foto final del cliente: pídele a Claude que la fije.', 'el error');
+      igual(r && r.error, 'Falta la foto final del cliente: pídele a Claude que la fije.', 'el error');
       ok(!ed() && !M.diseno.abierto(), 'abrió el editor o el diseñador');
       igual(slot('r1').photos, crudas, 'la casilla cambió');
     });
@@ -8101,6 +8104,347 @@
   });
 
   // ---------- cierre de la auditoría, lote 6 (mesa 3.89): rendimiento y memoria ----------
+  // =====================================================================================================
+  // Diseño en capas (D-193): EDITAR abre un diseño en capas «Foto» y «Diseño», que el motor dibuja como «Aplicar»
+  // =====================================================================================================
+  const dzEl = (i = ed().i) => compDe(i).els.find(e => e.t === 'diseno');
+  const dzFoto = (i = ed().i) => compDe(i).els.find(e => e.t === 'foto' && e.dz);
+  // lo que el motor dibujó para la capa «Diseño» de la diapositiva i, ya al día (con su foto, o sin ella)
+  async function dzListo(i = ed().i, sf = false) {
+    return hasta(() => { const E = ed(), d = dzEl(i), c = d && E.dzc.get(d.id); if (!c) { M.libre._dzVer(i, true); return null; } M.libre._dzVer(i, true); return c.want && (sf ? c.sfKey === c.want && c.sf : c.fullKey === c.want && c.full) ? c : null; }, 15000, 'el diseño dibujado');
+  }
+  const aJpeg = cv => W.DisenoMotor.aBlob(cv, 0.92);
+  const hBlob = async b => { const h = await W.crypto.subtle.digest('SHA-256', await b.arrayBuffer()); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join(''); };
+  // escribir en un campo del panel de «Diseño» como el teclado: su valor y su evento input
+  async function escribirDz(campo, texto) {
+    const t = await hasta(() => q(`.lb-panel textarea[data-f="${campo}"]`), 3000, 'el campo ' + campo);
+    t.focus(); t.value = texto; t.dispatchEvent(new W.Event('input', { bubbles: true })); await espera(20); return t;
+  }
+  const aplicarEd = async () => { const s0 = ed().slotId; accion('aplicar'); await hasta(() => !ed() && !M.diseno.aplicando() && !M.libre.aplicando(), 30000, 'aplicar desde el editor'); return slot(s0); };
+
+  prueba('DC1', 'EDITAR abre un carrusel diseñado en capas «Foto» y «Diseño» sin aplicarlo antes; lo que dibuja el editor es la imagen de su casilla, byte a byte; sin la línea «Publicación diseñada» (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('dc1a.jpg', 1080, 1350, '#2f5d7c'), await foto('dc1b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: 'Portada DC1' }, { tipo: 'ficha', titulo: 'Ficha DC1', texto: 'Un texto de la ficha' }]);
+      const out0 = salida('r1').slice(), sig0 = slot('r1').design.sig, h0 = M._test.hist().undo;
+      M._in.openDetail('r1', 0);
+      await pulsar('.detail [data-act="editar"]');
+      await abierto();
+      igual(salida('r1'), out0, 'abrir aplicó el diseño otra vez');
+      igual(slot('r1').design.sig, sig0, 'abrir cambió la firma del diseño');
+      igual(ed().sl.length, 2, 'las diapositivas del diseño');
+      for (const i of [0, 1]) {
+        const els = compDe(i).els;
+        igual([els[0].t, !!els[0].dz, els.filter(e => e.t === 'diseno').length], ['foto', true, 1], `diapositiva ${i + 1}: «Foto» abajo y un «Diseño»`);
+        igual(dzEl(i).titulo, i ? 'Ficha DC1' : 'Portada DC1', `diapositiva ${i + 1}: el título en su capa`);
+      }
+      ok(!/Publicación diseñada/.test(ed().el.querySelector('.lb-head').textContent), 'sigue la línea «Publicación diseñada» (D-140)');
+      ok(!toastCon(/entran como imagen|queda fijado como imagen/), 'sigue el aviso de antes');
+      for (const i of [0, 1]) {
+        if (ed().i !== i) { accion('sl', { i: String(i) }); await espera(30); }
+        const c = await dzListo(i);
+        igual(await hBlob(await aJpeg(c.full)), await huella(out0[i]), `diapositiva ${i + 1}: el editor no dibuja lo mismo que su casilla`);
+      }
+      // en «Capas»: «Diseño» con su tipo y lo que decidió Auto
+      accion('sl', { i: '0' }); await espera(30);
+      elegir(dzEl(0)); M.libre.bandeja(); accion('cap', { id: dzEl(0).id }); await espera(40);
+      const fila = await hasta(() => q(`.lb-panel .lb-cap[data-id="${dzEl(0).id}"] .lb-capn`), 3000, 'la fila de «Diseño»');
+      ok(/^Diseño Portada · (auto: )?(abajo|arriba|centro)$/.test(fila.textContent.trim()), 'la fila de «Diseño»: ' + fila.textContent);
+      ok(fila.querySelector('i'), 'su tipo no va en cursiva');
+      await cerrarEd();
+      igual(M._test.hist().undo, h0, 'abrir y cerrar sin cambios dejó un paso de ⌘Z');
+      igual(salida('r1'), out0, 'cerrar cambió sus imágenes');
+    });
+  });
+
+  // un diseño al día con el kit de prueba: portada y ficha (fotos de colores distintos, para que el motor decida distinto)
+  const dosDC = async (n, id = 'r1') => disenada(id, [await foto(`dc${n}a.jpg`, 1080, 1350, '#2f5d7c'), await foto(`dc${n}b.jpg`, 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: `Portada DC${n}` }, { tipo: 'ficha', titulo: `Ficha DC${n}`, texto: 'Un texto de la ficha' }]);
+  const cajaVentana = (b, pos = [0.5, 0.5]) => { const k = 1440 / ed().dzSz.W; return aVentana((b.x + b.w * pos[0]) * k, (b.y + b.h * pos[1]) * k); };
+  const pasosEd = () => ed().hist.undo.length;
+  const elegirDz = async (i = ed().i) => { elegir(dzEl(i)); M.libre.bandeja(); accion('cap', { id: dzEl(i).id }); await espera(40); };
+  const pulsarDz = async (sel) => { const b = await hasta(() => q('.lb-panel ' + sel), 3000, sel); b.click(); await espera(30); return b; };
+
+  prueba('DC2', 'Doble clic sobre el titular y se escribe en su campo; el motor lo vuelve a partir y a colocar; «Aplicar a la casilla» conserva el diseño, solo redibuja lo que cambió y no devuelve sus fotos a la bandeja; al reabrir se ve lo retocado; todo es un paso de ⌘Z (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(2);
+      const out0 = salida('r1').slice(), srcs0 = slot('r1').design.slides.map(x => x.src), h0 = M._test.hist().undo;
+      await abrirEditor('r1', 0);
+      const c0 = await dzListo(0), h1 = c0.res.bloque.h, it = c0.res.items[0];
+      const [x, y] = cajaVentana(it);
+      puntero('pointerdown', ed().cv, x, y); puntero('pointerup', ed().cv, x, y); raton('dblclick', ed().cv, x, y);
+      const ta = await hasta(() => D.activeElement && D.activeElement.matches && D.activeElement.matches('.lb-panel textarea[data-f="titulo"]') && D.activeElement, 3000, 'el foco en el título tras el doble clic');
+      igual(ta.value, 'Portada DC2', 'el campo del título');
+      const nuevo = 'Un titular nuevo bastante más largo que el de antes';
+      ta.value = nuevo; ta.dispatchEvent(new W.Event('input', { bubbles: true }));
+      igual(dzEl(0).titulo, nuevo, 'el título no llegó a su capa');
+      const c1 = await dzListo(0);
+      ok(c1.res.lineas[0].length > 1, 'el motor no lo partió en líneas: ' + json(c1.res.lineas));
+      ok(Math.abs(c1.res.bloque.h - h1) > 1, 'el bloque no se recolocó');
+      cerca(dzEl(0).y * ed().dzSz.H, c1.res.bloque.y, 1, 'la caja de «Diseño» no es el bloque que dibujó el motor');
+      await aplicarEd();
+      const s = slot('r1');
+      ok(s.design, 'aplicar borró el diseño');
+      igual(s.design.slides[0].titulo, nuevo, 'el título no llegó al diseño');
+      igual(s.design.slides.map(x => x.src), srcs0, 'las fotos del diseño cambiaron');
+      igual(estadoDz('r1'), 'ok', 'el diseño no quedó al día');
+      igual(s.photos, salida('r1'), 'la casilla no lleva sus imágenes');
+      ok(s.photos[0] !== out0[0], 'la portada no se redibujó');
+      igual(s.photos[1], out0[1], 'la ficha, sin tocar, se redibujó');
+      ok(s.photos.every(f => M.files[f] && M.files[f].design), 'sus imágenes no llevan la marca de diseño');
+      igual(M.board().tray.filter(f => srcs0.includes(f)), [], 'sus fotos volvieron a la bandeja');
+      igual(M._test.hist().undo, h0 + 1, 'la sesión y su «Aplicar» no son un paso de ⌘Z');
+      await abrirEditor('r1', 0);
+      igual(dzEl(0).titulo, nuevo, 'al reabrir, el título');
+      const c2 = await dzListo(0);
+      igual(await hBlob(await aJpeg(c2.full)), await huella(s.photos[0]), 'al reabrir, el editor no dibuja la imagen aplicada');
+      await cerrarEd();
+      M._test.undo();
+      igual(slot('r1').design.slides[0].titulo, 'Portada DC2', '⌘Z no devolvió el título');
+      igual(slot('r1').photos, out0, '⌘Z no devolvió sus imágenes');
+      igual(estadoDz('r1'), 'ok', 'tras ⌘Z el diseño no está al día');
+    });
+  });
+
+  prueba('DC3', 'Arrastrar el bloque cambia ov.dx / ov.dy; un tirador de esquina, ov.escala; el panel cambia posición, color, velo y tamaño (un paso de ⌘Z cada uno, su dato a la derecha) y lo que no se toca sigue en Auto; «Restablecer ajustes» lo devuelve al kit, encuadre incluido (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(3);
+      await abrirEditor('r1', 1);
+      const c0 = await dzListo(1), b = c0.res.bloque, k = ed().k * 1440 / ed().dzSz.W;
+      ed().iman = false;
+      const [x0, y0] = cajaVentana(b);
+      puntero('pointerdown', ed().cv, x0, y0); puntero('pointermove', ed().cv, x0, y0 - 20 * k); puntero('pointermove', ed().cv, x0 + 30 * k, y0 - 120 * k); puntero('pointerup', ed().cv, x0 + 30 * k, y0 - 120 * k);
+      const ov = dzEl(1).ov;
+      cerca(ov.dy, -120, 3, 'ov.dy tras arrastrar'); cerca(ov.dx, 30, 3, 'ov.dx tras arrastrar'); igual(ov.h, ed().dzSz.H, 'ov.h');
+      ok(!('lugar' in ov) && !('color' in ov) && !('velo' in ov), 'mover el bloque fijó lo que no se tocó: ' + json(ov));
+      const c1 = await dzListo(1); cerca(c1.res.bloque.y, b.y - 120, 3, 'el motor no lo dibujó donde se soltó');
+      // un tirador de esquina: el tamaño del texto
+      const d = dzEl(1), H = ed().sz.H, [hx, hy] = aVentana((d.x + d.w) * 1440, (d.y + d.h) * H), dw = d.w * 1440 * ed().k * 0.25;
+      ed().sel = d.id; ed().mas = [];
+      puntero('pointerdown', ed().cv, hx, hy); puntero('pointermove', ed().cv, hx + dw / 2, hy + dw / 4); puntero('pointermove', ed().cv, hx + dw, hy + dw * d.h * H / (d.w * 1440)); puntero('pointerup', ed().cv, hx + dw, hy);
+      ok(dzEl(1).ov.escala > 1.1 && dzEl(1).ov.escala <= 1.6, 'el tirador no cambió ov.escala: ' + json(dzEl(1).ov));
+      // el panel
+      elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
+      let n = pasosEd();
+      await pulsarDz('[data-dz="lugar"][data-v="arriba"]');
+      igual([dzEl(1).ov.lugar, 'dx' in dzEl(1).ov, 'dy' in dzEl(1).ov], ['arriba', false, false], 'Posición «Arriba»');
+      igual(pasosEd(), n + 1, 'Posición: un paso de ⌘Z');
+      igual(q('.lb-panel .lb-acc-s .dz-dec[data-dec="lugar"]').textContent, 'Arriba', 'el dato de Posición');
+      const sw = q('.lb-panel [data-dz="color"][data-v]:not([data-v=""])'); sw.click(); await espera(30);
+      igual(dzEl(1).ov.color, sw.dataset.v, 'Color del texto');
+      const rg = q('.lb-panel .dz-velor'); rg.value = '0.5'; rg.dispatchEvent(new W.Event('input', { bubbles: true })); await espera(20);
+      igual(dzEl(1).ov.velo, 0.5, 'Velo');
+      n = pasosEd(); await pulsarDz('[data-dz="esc"][data-v="-1"]');
+      igual(pasosEd(), n + 1, 'A−: un paso de ⌘Z');
+      const c2 = await dzListo(1); igual(c2.res.decision.lugar, 'arriba', 'el motor no lo puso arriba');
+      // Restablecer ajustes: ov y el encuadre de su foto
+      Object.assign(dzFoto(1), { cx: 0.4, cy: 0.6, z: 1.4 }); M.libre.bandeja();
+      ed().sel = dzEl(1).id; accion('cap', { id: dzEl(1).id }); await espera(40);
+      await pulsarDz('[data-dz="reset"]');
+      igual(dzEl(1).ov, {}, '«Restablecer ajustes» no vació los ajustes');
+      igual([dzFoto(1).cx, dzFoto(1).cy, dzFoto(1).z], [0.5, 0.5, 1], '«Restablecer ajustes» no centró la foto');
+      // ⌘Z del editor deshace el último
+      tecla('z', { meta: true }); await espera(30);
+      igual(dzEl(1).ov.lugar, 'arriba', '⌘Z del editor no deshizo «Restablecer ajustes»');
+      await cerrarEd();
+    });
+  });
+
+  prueba('DC4', 'Una capa libre entre la foto y el diseño: el motor dibuja sin la foto encima de ella; la foto no sube; al aplicar va a libres.abajo (y una encima a libres.arriba), solo se redibuja esa diapositiva y al reabrir siguen en su sitio (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(4);
+      const out0 = salida('r1').slice();
+      await abrirEditor('r1', 0);
+      await dzListo(0);
+      accion('add-forma', { v: 'rect' });
+      const r = compDe(0).els[compDe(0).els.length - 1]; igual(r.t, 'forma', 'no se añadió la forma');
+      accion('cap-dn', { id: r.id });
+      igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno'], 'la forma no bajó bajo el diseño');
+      accion('cap-dn', { id: r.id });
+      igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno'], 'la forma bajó bajo la foto');
+      accion('cap-up', { id: dzFoto(0).id });
+      ok(compDe(0).els[0].dz, 'la foto del diseño subió');
+      const c = await dzListo(0, true); ok(c.sf && c.sfKey === c.want, 'el motor no dibujó sin la foto');
+      accion('add-txt');
+      igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno', 'texto'], 'el texto no quedó encima');
+      await aplicarEd();
+      const sl = slot('r1').design.slides[0];
+      igual([(sl.libres.abajo || []).map(e => e.t), (sl.libres.arriba || []).map(e => e.t)], [['forma'], ['texto']], 'las capas libres guardadas');
+      igual(slot('r1').design.slides[1].libres, undefined, 'la ficha se llevó capas libres');
+      igual(slot('r1').photos[1], out0[1], 'la ficha se redibujó');
+      ok(slot('r1').photos[0] !== out0[0], 'la portada no se redibujó');
+      igual(estadoDz('r1'), 'ok', 'el diseño no quedó al día');
+      const st = await M.diseno.estado('r1'); igual(st.slides[0].capasLibres, 2, 'estado() no las cuenta');
+      ok(!('capasLibres' in st.slides[1]), 'estado() cuenta capas en la ficha');
+      await abrirEditor('r1', 0);
+      igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno', 'texto'], 'al reabrir, las capas');
+      await cerrarEd();
+    });
+  });
+
+  prueba('DC5', 'Una collab enlazada: lo retocado en el editor (título y capas libres) llega a la copia del otro cliente con las mismas imágenes (D-193, D-008)', async () => {
+    await limpiar();
+    const col = { id: 'colab-dc5', name: 'COLLAB Carrusel DC5', type: 'Carrusel', date: `${MES}-10T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await M.flush();
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [col], past: [], force: true });
+    igual(M._test.shared('colab-dc5').length, 1, 'la collab no quedó enlazada');
+    await conKitPrueba(async () => {
+      await dosDC(5, 'colab-dc5');
+      await abrirEditor('colab-dc5', 0); await dzListo(0); await elegirDz(0);
+      await escribirDz('titulo', 'Collab retocada');
+      accion('add-pil');
+      await aplicarEd();
+    });
+    await M.flush();
+    const s = slot('colab-dc5');
+    igual([s.design.slides[0].titulo, (s.design.slides[0].libres.arriba || []).length], ['Collab retocada', 1], 'el diseño retocado');
+    const otra = await hasta(async () => { const b = await M._in.idbGet('boards', `${CLIENTE2}-${MES}`), x = b && b.slots.find(y => y.id === 'colab-dc5'); return x && x.design && x.design.sig === s.design.sig && x; }, 6000, 'que el diseño llegue a la copia del otro cliente');
+    igual([otra.photos, otra.design.slides[0].titulo, json(otra.design.slides[0].libres)], [s.photos, 'Collab retocada', json(s.design.slides[0].libres)], 'la copia del otro cliente no es igual');
+  });
+
+  prueba('DC6', '«Soltar del kit» pasa la diapositiva a capas normales (textos, velo, numeración automática) con un aviso una vez; «Volver al diseño» la deja como la pone el kit; ⌘Z lo deshace; al aplicar se guarda soltada y M.diseno lo sabe (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(6);
+      await abrirEditor('r1', 1);
+      await dzListo(1);
+      const datos0 = json({ t: dzEl(1).titulo, ov: dzEl(1).ov });
+      elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
+      const n = pasosEd();
+      await pulsarDz('[data-dz="soltar"]');
+      await hasta(() => compDe(1).dzs, 4000, 'soltarla del kit');
+      igual(pasosEd(), n + 1, 'soltar no es un paso de ⌘Z');
+      const els = compDe(1).els;
+      ok(!els.some(e => e.t === 'diseno') && !els.some(e => e.dz), 'quedan capas del kit');
+      igual(els[0].t, 'foto', 'la foto abajo');
+      const txt = els.filter(e => e.t === 'texto').map(e => e.txt.replace(/\s+/g, ' '));
+      ok(txt.some(t => /FICHA DC6|Ficha DC6/.test(t)), 'el titular no pasó a texto: ' + json(txt));
+      ok(txt.some(t => /texto de la ficha/i.test(t)), 'el cuerpo no pasó a texto: ' + json(txt));
+      ok(els.some(e => e.t === 'texto' && e.num && e.num.f === 'c'), 'el número no es la numeración automática');
+      ok(els.filter(e => e.t === 'texto').every(e => e.font && e.font.file), 'un texto sin la letra del kit');
+      ok(toastCon(/^Soltada del kit: ya no se recoloca sola\./), 'sin el aviso');
+      // «Volver al diseño»
+      await pulsarDz('[data-lb="dz-volver"]');
+      ok(dzEl(1) && dzFoto(1) && !compDe(1).dzs, '«Volver al diseño» no la devolvió al kit');
+      igual(json({ t: dzEl(1).titulo, ov: dzEl(1).ov }), datos0, 'volvió con otros datos');
+      tecla('z', { meta: true }); await espera(30);
+      ok(compDe(1).dzs, '⌘Z no deshizo «Volver al diseño»');
+      tecla('z', { meta: true }); await espera(30);
+      ok(dzEl(1) && !compDe(1).dzs, '⌘Z no deshizo «Soltar del kit»');
+      tecla('z', { meta: true, shift: true }); await espera(30);
+      ok(compDe(1).dzs, '⇧⌘Z no la volvió a soltar');
+      // un cambio después de soltarla y aplicar
+      compDe(1).els.find(e => e.t === 'texto' && !e.num).txt = 'Escrito a mano';
+      await aplicarEd();
+      const sl = slot('r1').design.slides[1];
+      ok(sl.suelta && sl.suelta.comp && sl.suelta.comp.els.some(e => e.txt === 'Escrito a mano'), 'no se guardó soltada');
+      igual(sl.titulo, 'Ficha DC6', 'soltarla cambió sus datos del kit');
+      igual(estadoDz('r1'), 'ok', 'el diseño no quedó al día');
+      const st = await M.diseno.estado('r1'); ok(st.slides[1].suelta && !st.slides[0].suelta, 'estado() no dice cuál está soltada');
+      // al reabrir, soltada; «Volver al diseño» descarta lo hecho después
+      await abrirEditor('r1', 1);
+      ok(compDe(1).dzs, 'al reabrir no está soltada');
+      ok(q('.lb-panel [data-lb="dz-volver"]'), 'sin «Volver al diseño» en su panel');
+      await pulsarDz('[data-lb="dz-volver"]');
+      ok(!compDe(1).els.some(e => e.txt === 'Escrito a mano') && dzEl(1).titulo === 'Ficha DC6', 'no descartó lo hecho después de soltarla');
+      await aplicarEd();
+      igual(slot('r1').design.slides[1].suelta, undefined, 'sigue soltada tras volver');
+    });
+  });
+
+  prueba('DC7', 'La final usa la foto fija del cliente y no se cambia aquí; la portada de un reel se abre en capas; una diapositiva sin foto abre con su «Foto» vacía, se aplica sobre el fondo del kit y la publicación queda marcada (D-035); al ponerle la foto ya no (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Reel')]);
+    await conKitPrueba(async () => {
+      const [fin] = await M.addFiles([await foto('dc7fin.jpg', 1080, 1350, '#6b4a33')]);
+      const fx = await M.diseno.fijarFinal(CLIENTE, fin); ok(fx && fx.ok, 'fijarFinal() falló: ' + json(fx));
+      await disenada('r1', [await foto('dc7a.jpg', 1080, 1350, '#2f5d7c')], [{ tipo: 'portada', titulo: 'Portada DC7' }, { tipo: 'ficha', titulo: 'Sin foto DC7' }, { tipo: 'final', titulo: 'Final DC7' }], false);
+      await abrirEditor('r1', 2);
+      const ff = dzFoto(2); ok(ff && ff.fin && ff.src, 'la final no lleva la foto del cliente');
+      elegir(ff); M.libre.bandeja(); accion('cap', { id: ff.id }); await espera(40);
+      ok(!q('.lb-panel [data-lb="rep"]'), 'la foto de la final se puede reemplazar');
+      ok(q('.lb-panel [data-lb="crop"]'), 'la foto de la final no se puede encuadrar');
+      ok(toastCon(/^Falta la foto de la diapositiva 2: suéltala en ella o elígela en la bandeja\./), 'sin el aviso de la foto que falta');
+      igual(dzFoto(1).src, null, 'la diapositiva sin foto no abre con la «Foto» vacía');
+      await dzListo(1);
+      await aplicarEd();
+      igual(estadoDz('r1'), 'ok', 'no se aplicó con el hueco vacío');
+      igual(slot('r1').photos.length, 3, 'sus imágenes');
+      igual((M.plan().find(x => x.slotId === 'r1') || {})['hueco vacío'], [2], 'plan() no marca el hueco vacío');
+      // al ponerle la foto ya no
+      const [nueva] = await M.addFiles([await foto('dc7b.jpg', 1080, 1350, '#c9b38a')]);
+      await abrirEditor('r1', 1);
+      ed().pick = { modo: 'fill', id: dzFoto(1).id }; M.libre.bandeja(); accion('pickf', { f: nueva }); await hasta(() => dzFoto(1).src === nueva, 3000, 'la foto en su capa');
+      await aplicarEd();
+      igual(slot('r1').design.slides[1].src, nueva, 'la foto no llegó al diseño');
+      ok(!M.board().tray.includes(nueva), 'la foto sigue en la bandeja');
+      ok(!(M.plan().find(x => x.slotId === 'r1') || {})['hueco vacío'], 'sigue marcado');
+      // la portada de un reel
+      await disenada('r2', [await foto('dc7r.jpg', 1080, 1920, '#1b2433')], [{ titulo: 'Reel DC7' }]);
+      await abrirEditor('r2', 0);
+      igual(compDe(0).els.map(e => e.t), ['foto', 'diseno'], 'el reel no abre en capas');
+      igual(dzEl(0).tipo, 'reel', 'su tipo');
+      const c = await dzListo(0);
+      igual(await hBlob(await aJpeg(c.full)), await huella(salida('r2')[0]), 'el reel no se dibuja como su casilla');
+      await cerrarEd();
+    });
+  });
+
+  prueba('DC8', 'Claude vuelve a cargar textos sobre un diseño retocado: entran los textos nuevos y se conservan los ajustes y las capas libres de cada diapositiva que sigue; una soltada sigue soltada (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(8);
+      await abrirEditor('r1', 0); await dzListo(0);
+      elegir(dzEl(0)); M.libre.bandeja(); accion('cap', { id: dzEl(0).id }); await espera(40);
+      await pulsarDz('[data-dz="lugar"][data-v="arriba"]');
+      accion('add-forma', { v: 'rect' });
+      accion('sl', { i: '1' }); await espera(30); await dzListo(1);
+      elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
+      await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(1).dzs, 4000, 'soltarla');
+      await aplicarEd();
+      await poner('r1', [await foto('dc8c.jpg', 1080, 1350, '#5a8c3d')]);   // la foto de la tercera
+      const c = await M.diseno.cargar('r1', { slides: [{ tipo: 'portada', titulo: 'Portada nueva DC8' }, { tipo: 'ficha', titulo: 'Ficha nueva DC8' }, { tipo: 'ficha', titulo: 'Una tercera DC8' }] });
+      ok(c && !c.error, 'cargar() falló: ' + json(c));
+      const d = slot('r1').design;
+      igual(d.slides.map(x => x.titulo), ['Portada nueva DC8', 'Ficha nueva DC8', 'Una tercera DC8'], 'los textos nuevos');
+      igual(d.slides[0].ov.lugar, 'arriba', 'la portada perdió su ajuste');
+      igual((d.slides[0].libres.arriba || []).map(e => e.t), ['forma'], 'la portada perdió su capa libre');
+      ok(d.slides[1].suelta, 'la ficha soltada dejó de estarlo');
+      ok(!d.slides[2].suelta && !d.slides[2].libres, 'la nueva heredó algo');
+      igual(c.slides.map(x => !!x.suelta), [false, true, false], 'estado() tras cargar');
+      const ap = await M.diseno.aplicar('r1'); ok(ap && ap.ok, 'aplicar() falló: ' + json(ap));
+      igual(estadoDz('r1'), 'ok', 'Claude no pudo aplicar el diseño retocado');
+    });
+  });
+
+  prueba('DC9', 'Exportar e importar (v15) devuelve igual un diseño con capas libres y una diapositiva soltada, con sus fotos y logos; su imagen sigue al día (D-193, D-060)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(9);
+      const [extra] = await M.addFiles([await foto('dc9x.jpg', 600, 600, '#aa3355')]);
+      await abrirEditor('r1', 0); await dzListo(0);
+      ed().pick = { modo: 'add' }; accion('pickf', { f: extra }); await hasta(() => compDe(0).els.some(e => e.t === 'foto' && e.src === extra), 3000, 'la foto libre');
+      accion('sl', { i: '1' }); await espera(30); await dzListo(1);
+      elegir(dzEl(1)); M.libre.bandeja(); accion('cap', { id: dzEl(1).id }); await espera(40);
+      await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(1).dzs, 4000, 'soltarla');
+      await aplicarEd();
+      await M.flush();
+      ok(!M.board().tray.includes(extra), 'la foto libre sigue en la bandeja');
+      const antes = json({ photos: slot('r1').photos, design: slot('r1').design });
+      const blob = await M.exportAll({ returnBlob: true });
+      igual(JSON.parse(await blob.text()).v, 15, 'la versión del archivo');
+      await sinMes(`${CLIENTE}-${MES}`);
+      ok(!M.files[extra], 'la foto libre no se borró con el mes');
+      const r = await M.importData(blob, { confirm: false }); ok(r && !r.error, 'importar falló: ' + json(r));
+      await M.open(`${CLIENTE}-${MES}`);
+      igual(json({ photos: slot('r1').photos, design: slot('r1').design }), antes, 'el diseño importado no es igual');
+      ok(M.files[extra], 'la foto de la capa libre no llegó');
+      igual(estadoDz('r1'), 'ok', 'el diseño importado no está al día');
+    });
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');
@@ -9378,7 +9722,7 @@
     M.libre.cerrar();
   });
 
-  prueba('J2', 'La cabecera del editor solo lleva el nombre; una publicación diseñada conserva su aviso en esa línea; una historia, su nota (D-140)', async () => {
+  prueba('J2', 'La cabecera del editor solo lleva el nombre, también la de una publicación diseñada (D-193); una historia, su nota (D-140)', async () => {
     await tablero([pub(1), pub(2, 'Reel'), pub(3, 'Carrusel')]);
     await poner('r1', [await foto('j2a.jpg')]);
     await poner('r2', [await foto('j2r.jpg', 1080, 1920)]);
@@ -9394,7 +9738,7 @@
       M._in.openDetail('r3', 0);
       await pulsar('.detail [data-act="editar"]'); await abierto();
       ok(ed().dz, 'no se abrió como diseñada');
-      igual((ed().el.querySelector('.lb-ttl p') || {}).textContent, 'Publicación diseñada: si aplicas cambios, queda fijada como imagen', 'el aviso de la diseñada');
+      ok(!ed().el.querySelector('.lb-ttl p'), 'la diseñada lleva una línea bajo el nombre (D-193 la quita): ' + (ed().el.querySelector('.lb-ttl p') || {}).textContent);
       await cerrarEd();
     });
     const h = M.hs.anadir(DIA(10), { note: 'Guion J2' });
@@ -11468,7 +11812,7 @@
       await conKitPrueba(async () => {
         await disenada('r1', [await foto('aj22a.jpg', 1080, 1350)], textos('AJ22', 'Portada', 'Ficha'), false);   // la ficha, sin foto
         W.localStorage.setItem('mesa-dz-seccion', 'pos');
-        const r = await M.libre.abrir('r1', 0); ok(r && r.disenador, 'no abrió el diseñador: ' + json(r));
+        const r = await M.diseno.abrir('r1', { faltaFoto: true }); ok(r && r.ok, 'no abrió el diseñador: ' + json(r));   // por la API (D-193: «Editar» abre el editor en capas)
         await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador');
         try { igual(abiertas(), ['foto'], 'falta una foto: la sección abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
         W.localStorage.setItem('mesa-dz-seccion', 'una-que-no-esta');
@@ -11476,7 +11820,7 @@
         try { igual(abiertas(), ['texto'], 'la recordada no está: «Texto»'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
         await disenada('r2', [], textos('AJ22b', 'Portada'), false);   // la portada, sin foto: el diseñador ya está en ella
         W.localStorage.setItem('mesa-dz-seccion', 'texto');
-        const r2 = await M.libre.abrir('r2', 0); ok(r2 && r2.disenador, 'no abrió el diseñador en la portada sin foto: ' + json(r2));
+        const r2 = await M.diseno.abrir('r2', { faltaFoto: true }); ok(r2 && r2.ok, 'no abrió el diseñador en la portada sin foto: ' + json(r2));
         await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador en la portada');
         try { igual(abiertas(), ['foto'], 'falta la foto de la portada: la sección abierta'); } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar'); }
       });
@@ -12507,7 +12851,7 @@
       await M.personal.set({ vista: 'lista' });
       // ⇅ Exportar e Importar
       const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
-      igual(d.v, 14, 'la versión del archivo');
+      igual(d.v, V_ARCHIVO, 'la versión del archivo');
       const e = d.tareas.find(x => x.id === t.id); ok(e && e.detalles === k.detalles && e.subtareas.length === 2, 'no viajan los detalles y las subtareas');
       await M._in.idbDel('tareas', t.id);
       ok(!(await M.importData(d, { confirm: false })).error, 'no se importa');

@@ -7,7 +7,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.4';   // 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
+  const VERSION = '1.5';   // 1.5: «Pegar» on only when it would paste something (D-201). 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
   const AVISO_DESDE = 20;                      // loose photos: fewer than this go in as always, without a warning
   const SISTEMA = /^(\.|__MACOSX$|Thumbs\.db$|desktop\.ini$)/i;   // .DS_Store, ._foto.jpg (the disk is exFAT), the system's folders
   const POR_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };

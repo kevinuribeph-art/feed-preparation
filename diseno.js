@@ -18,7 +18,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.24';   // 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.25';   // 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -791,7 +791,7 @@
 #mesa .dz-acc-h:hover::after{background:var(--ink)}#mesa .dz-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .dz-acc-b{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s linear var(--d-m)}
 #mesa .dz-acc.on>.dz-acc-b{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows var(--d-m) var(--ease-m),visibility 0s}
-#mesa .dz-acc-i{min-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
+#mesa .dz-acc-i{min-height:0;min-width:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .16s ease-out,transform var(--d-m) var(--ease-m)}
 #mesa .dz-acc.on>.dz-acc-b>.dz-acc-i{opacity:1;transform:none;transition:opacity .24s ease-out .05s,transform var(--d-m) var(--ease-m)}
 #mesa .dz-acc.on.fin>.dz-acc-b>.dz-acc-i{overflow:visible}#mesa .dz-acc.zz>.dz-acc-b>.dz-acc-i{content-visibility:hidden}
 #mesa .dz-acc-c{padding:0 0 18px}#mesa .dz-sec.dz-reset{padding:16px 0 0}
@@ -910,7 +910,7 @@
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Diseñar ' + s.name);
     el.innerHTML = `<header class="dz-head"><div class="dz-ttl"><h3>${esc(s.name)}</h3></div>`
       + (reel ? '' : `<div class="seg dz-fmt" role="group" aria-label="Formato del carrusel">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-dz="fmt" data-v="${k}">${l}</button>`).join('')}</div>`
-        + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(d.serie)}"></label>`)
+        + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(str(d.serie).replace(/<br\s*\/?>/gi, ' '))}"></label>`)
       + '<span class="dz-state" aria-live="polite"></span><button type="button" class="btn2" data-dz="cerrar">Cerrar</button><button type="button" class="btn" data-dz="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="dz-body"><nav class="dz-list" aria-label="Diapositivas"></nav>'
       + '<section class="dz-mid"><div class="dz-cvw"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div><div class="dz-foot"><ul class="dz-av"></ul></div></section>'
@@ -1046,8 +1046,9 @@
   }
   const LS_SEC = 'mesa-dz-seccion';
   const secLeer = () => { try { const v = localStorage.getItem(LS_SEC); return v == null ? 'texto' : v; } catch (e) { return 'texto'; } };
-  // a section of the panel, folding as the editor's (D-137, D-141, D-149): its title, what it has on the right, its inside
-  const accSec = (k, titulo, resumen, html, tt) => { const on = E.secAb === k; return `<div class="dz-sec dz-acc${on ? ' on fin' : ' zz'}" data-sec="${k}"><h4 class="dz-acc-t"><button type="button" class="dz-acc-h" id="dz-acch-${k}" aria-expanded="${on}" aria-controls="dz-accb-${k}"${tt ? ` title="${esc(tt)}"` : ''}><span class="dz-acc-n">${titulo}</span><span class="dz-acc-s">${resumen || ''}</span></button></h4><div class="dz-acc-b" id="dz-accb-${k}" role="region" aria-labelledby="dz-acch-${k}"><div class="dz-acc-i"><div class="dz-acc-c">${html}</div></div></div></div>`; };
+  // a section of the panel, folding as the editor's (D-137, D-141, D-149): its title, what it has on the right, its inside; dbl:
+  // what a double click on its title puts back (D-197)
+  const accSec = (k, titulo, resumen, html, tt, dbl) => { const on = E.secAb === k; return `<div class="dz-sec dz-acc${on ? ' on fin' : ' zz'}" data-sec="${k}"><h4 class="dz-acc-t"><button type="button" class="dz-acc-h${dbl ? ' dz-dbl' : ''}" id="dz-acch-${k}" aria-expanded="${on}" aria-controls="dz-accb-${k}"${dbl ? ` data-dbl="${dbl}"` : ''}${tt ? ` title="${esc(tt)}"` : ''}><span class="dz-acc-n">${titulo}</span><span class="dz-acc-s">${resumen || ''}</span></button></h4><div class="dz-acc-b" id="dz-accb-${k}" role="region" aria-labelledby="dz-acch-${k}"><div class="dz-acc-i"><div class="dz-acc-c">${html}</div></div></div></div>`; };
   function abrirAcc(sec, on, anim) {   // as the editor's abrirSec: animated only by a click; closed, its inside isn't laid out
     if (on) sec.classList.remove('zz');
     sec.classList.toggle('on', on); if (!on || anim) sec.classList.remove('fin'); else sec.classList.add('fin');
@@ -1073,21 +1074,21 @@
   // name), crop (the slide's photo has its own reframe), foto (the designer's «Foto» section)}. Returns [[key, markup]].
   function seccionesDz(x) {
     const { sl, d, raw } = x, reel = x.reel, et = etiquetasHTML(d, reel, raw, x.editor), i = x.i, ov = sl.ov || {}, e = ov.escala || 1, va = ov.velo == null, dec0 = x.dec || null;
-    const sec = (k, t, r, h, tt) => [k, x.sec(k, t, r, h, tt)], dec = k => `<span class="dz-dec" data-dec="${k}">${esc(decTxt(k, ov, dec0, true))}</span>`;   // dec: what «Auto» decided, set again after each render
+    const sec = (k, t, r, h, tt, dbl) => [k, x.sec(k, t, r, h, tt, dbl)], decAl = `<span class="dz-dec" data-dec="alinear">${esc(decTxt(ov, dec0))}</span>`;   // «Alineación · auto: …», set again after each render
     const vv = va ? (dec0 ? +dec0.velo || 0 : 0) : ov.velo;
     const contacto = esc((raw.final || {}).contacto || '');
     return [
-      ...(x.editor ? [] : [sec('diseno', 'Diseño', `${pad2(i + 1)} · ${(TIPO_LABEL[reel ? 'reel' : sl.tipo] || '').toLowerCase()}`, reel ? '<p class="dz-p" title="9:16; en el perfil se ve el centro 3:4">Portada de reel</p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva')),
+      ...(x.editor ? [] : [sec('diseno', 'Diseño', '', reel ? '<p class="dz-p" title="9:16; en el perfil se ve el centro 3:4">Portada de reel</p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva')),
         sec('foto', 'Foto', sl.tipo !== 'final' && !(sl.src && M.files[sl.src]) ? 'sin foto' : '', x.foto())]),
       sec('texto', 'Texto', '', `<label class="dz-l" for="dz-f-titulo" title="Intro = salto de línea">Título</label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2" title="Intro = salto de línea"></textarea>`
         + (sl.tipo === 'ficha' ? '<label class="dz-l" for="dz-f-texto">Texto</label><textarea id="dz-f-texto" class="dz-in" data-f="texto" rows="3"></textarea>' : '')
         + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont" title="Vacío = el del kit">Contacto</label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" title="Vacío = el del kit" placeholder="${contacto}"></textarea>` : '')),
-      sec('tam', 'Tamaño del texto', Math.round(e * 100) + ' %', `<div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output class="dz-dbl" data-dbl="esc1" title="Tamaño del texto · doble clic: 100 %">${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
-      sec('pos', 'Posición', dec('lugar'), `${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
-        + `<label class="dz-l">Alineación ${dec('alinear')}</label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
-      sec('color', 'Color del texto', dec('color'), `<div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
-        + coloresHTML(ov.color, raw, x.masCol) + '</div>'),
-      sec('velo', 'Velo', dec('velo'), `<div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
+      sec('tam', 'Tamaño del texto', '', `<div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output class="dz-dbl" data-dbl="esc1" title="Tamaño del texto · doble clic: 100 %">${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`, 'Tamaño del texto · doble clic: 100 %', 'esc1'),
+      sec('pos', 'Posición', '', `${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
+        + `<label class="dz-l">Alineación ${decAl}</label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`, 'Posición · doble clic: Auto', 'posauto'),
+      sec('color', 'Color del texto', '', `<div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
+        + coloresHTML(ov.color, raw, x.masCol) + '</div>', 'Color del texto · doble clic: Auto', 'colorauto'),
+      sec('velo', 'Velo', '', `<div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`, 'Velo · doble clic: Auto', 'veloauto'),
       ...(et ? [sec('etiquetas', 'Marca, número y pie', '', et, 'En px, en todo el carrusel')] : []),
       ...(x.extra || []),
       ['reset', `<div class="dz-sec dz-reset" data-sec="reset"><button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || x.crop ? '' : 'disabled'}>Restablecer ajustes</button></div>`]   // the slide's settings, under the sections
@@ -1107,7 +1108,7 @@
     const P = ENG()._interno.conf(raw).piezas, tipos = [...new Set(d.slides.map(x => x.tipo))];
     const conPie = tipos.some(t => P[t] && P[t].pie);
     const ks = ['marca', 'pagina', 'pie'].filter(k => tipos.some(t => P[t] && P[t][k]) && (k !== 'pie' || str(d.serie).trim()));
-    const serie = conSerie && conPie ? `<label class="dz-l" for="dz-serie-ed">Nombre del carrusel</label><input id="dz-serie-ed" class="dz-in dz-serin" type="text" value="${esc(str(d.serie))}" title="El pie de sus fichas y de la final, en todo el carrusel">` : '';
+    const serie = conSerie && conPie ? `<label class="dz-l" for="dz-serie-ed">Nombre del carrusel</label><input id="dz-serie-ed" class="dz-in dz-serin" type="text" value="${esc(str(d.serie).replace(/<br\s*\/?>/gi, ' '))}" title="El pie de sus fichas y de la final, en todo el carrusel">` : '';
     if (!ks.length && !serie) return null;
     const kit = ENG().posiciones(raw), cur = ENG().posiciones(raw, posOf(d));
     const NOM = { marca: 'Marca', pagina: 'Número', pie: 'Pie' }, LADO = { izquierda: 'desde la izquierda', derecha: 'desde la derecha', centro: 'desde el centro' };
@@ -1115,17 +1116,10 @@
     return serie + ks.map(k => `<div class="dz-posr"><span class="dz-posn" title="${LADO[kit[k].ancla]} · desde ${kit[k].desde === 'abajo' ? 'abajo' : 'arriba'}">${NOM[k]}</span><label>X ${inp(k, 'x', LADO[kit[k].ancla])}</label><label>Y ${inp(k, 'y', 'desde ' + (kit[k].desde === 'abajo' ? 'abajo' : 'arriba'))}</label></div>`).join('')
       + (ks.length ? `<div class="dz-row"><button type="button" class="btn2" data-dz="posreset" ${posOf(d) ? '' : 'disabled'}>Volver a las del kit</button></div>` : '');
   }
-  // what «Auto» decided, as each title's datum says it (D-177): what was chosen, or «auto: …»
-  const LUG = { arriba: 'Arriba', abajo: 'Abajo', centro: 'Centro' };
-  function decTxt(k, ov, dec, titulo) {
-    const t = k === 'lugar' ? (ov.lugar ? LUG[ov.lugar] || ov.lugar : dec && dec.lugar ? '· auto: ' + dec.lugar : '')
-      : k === 'alinear' ? (!ov.alinear && dec && dec.alinear ? '· auto: ' + dec.alinear : '')
-      : k === 'color' ? (ov.color ? String(ov.color).replace(/_/g, ' ') : dec && dec.color ? '· auto: ' + String(dec.color).replace(/_/g, ' ') : '')
-      : k === 'velo' ? (ov.velo != null ? Math.round(ov.velo * 100) + ' %' : dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '') : '';
-    return titulo && k !== 'alinear' ? t.replace(/^· /, '') : t;
-  }
-  function ponerDecision(root, ov, dec) {   // after each render: the data on the titles' right and the veil's bar in «Auto»
-    for (const k of ['lugar', 'alinear', 'color', 'velo']) { const x = root.querySelector(`.dz-dec[data-dec="${k}"]`); if (x) { const t = decTxt(k, ov, dec, !!(x.closest('.dz-acc-s, .lb-acc-s'))); if (x.textContent !== t) x.textContent = t; } }
+  // where «Auto» aligned the text, after «Alineación» (D-177); the sections' titles go without a datum (D-197)
+  const decTxt = (ov, dec) => !ov.alinear && dec && dec.alinear ? '· auto: ' + dec.alinear : '';
+  function ponerDecision(root, ov, dec) {   // after each render: «Alineación · auto: …» and the veil's bar in «Auto»
+    { const x = root.querySelector('.dz-dec[data-dec="alinear"]'); if (x) { const t = decTxt(ov, dec); if (x.textContent !== t) x.textContent = t; } }
     if (ov.velo == null && dec) { const rg = root.querySelector('.dz-velor'), o = root.querySelector('.dz-velov'); if (rg && document.activeElement !== rg) rg.value = +dec.velo || 0; if (o) o.textContent = Math.round((+dec.velo || 0) * 100) + ' %'; }
   }
   // what a control of the panel does (shared by the designer and the editor's «Diseño» layer, D-193): on the slide's data
@@ -1136,12 +1130,19 @@
     if (act === 'lugar' || act === 'alinear') { if (v) sl.ov[act] = v; else delete sl.ov[act]; delete sl.ov.dx; delete sl.ov.dy; delete sl.ov.h; return 'sl'; }   // a new position starts from its own place
     if (act === 'color') { if (v) sl.ov.color = v; else delete sl.ov.color; return 'sl'; }
     if (act === 'veloauto') { if (sl.ov.velo == null) return null; delete sl.ov.velo; return 'sl'; }
+    if (act === 'posauto') { const ks = ['lugar', 'alinear', 'dx', 'dy', 'h']; if (ks.every(k => sl.ov[k] == null)) return null; ks.forEach(k => delete sl.ov[k]); return 'sl'; }   // where the kit puts it
+    if (act === 'colorauto') { if (sl.ov.color == null) return null; delete sl.ov.color; return 'sl'; }
     if (act === 'esc1') { if (sl.ov.escala == null) return null; delete sl.ov.escala; return 'sl'; }
     if (act === 'posreset') { if (!posOf(d)) return null; delete d.pos; return 'post'; }
     return null;
   }
+  // a text with «<br>» (as Claude and the skills send it to cargar) is seen in its field with its line breaks, and what is typed
+  // there is kept in the form it came in: with «<br>» if it had them, else with line breaks (Intro). The engine reads both alike,
+  // so nothing that goes out changes (D-198)
+  function campoDz(t, v) { v = str(v); t.dataset.br = /<br\s*\/?>/i.test(v) ? '1' : ''; const x = v.replace(/<br\s*\/?>/gi, '\n'); if (t.value !== x) t.value = x; }
+  const deCampo = t => t.dataset.br === '1' ? t.value.replace(/\r?\n/g, '<br>') : t.value;
   function entradaDz(t, sl, d, raw) {   // a field of the panel being typed in or a bar being moved
-    if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; return 'sl'; }
+    if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : deCampo(t); return 'sl'; }
     if (t.matches('.dz-serin')) { d.serie = t.value; return 'post'; }
     if (t.matches('.dz-pos')) {                      // exact position of marca / número / pie (empty = the kit's)
       const k = t.dataset.e, c = t.dataset.c, kv = ENG().posiciones(raw)[k][c], v = t.value.trim() === '' ? null : Math.round(+t.value);
@@ -1160,7 +1161,7 @@
     const same = !force && E.pSlide === sl && E.pTipo === sl.tipo && E.pHtml && p.children.length === secs.length;
     if (!same) {
       p.innerHTML = secs.map(x => x[1]).join('');
-      p.querySelectorAll('[data-f]').forEach(t => { t.value = str(sl[t.dataset.f]); });   // by value: a leading line break survives
+      p.querySelectorAll('[data-f]').forEach(t => campoDz(t, sl[t.dataset.f]));   // by value: a leading line break survives; «<br>» as line breaks (D-198)
     } else {
       secs.forEach(([k, h], j) => {
         if (k === 'texto' || E.pHtml[k] === h) return;
@@ -1176,7 +1177,7 @@
   // what «Auto» decided for the selected slide (after each render)
   function edDecision() {
     if (!E) return; const sl = D().slides[E.sel], ov = sl.ov || {}, r = E.last[E.sel], dec = r && r.decision;
-    ponerDecision(E.el, ov, dec);   // on a title's right (D-177): what «Auto» decided, or what was chosen
+    ponerDecision(E.el, ov, dec);   // «Alineación · auto: …» (D-177)
     const ul = E.el.querySelector('.dz-av'), src = effSrc(sl, E.fin);
     const off = avGet(curSlot(), E.sel, avKey(curSlot(), E.sel, E.rawHash, E.sz, E.fin));   // the ones estado()/aplicar() give
     const av = [...slideAvisos(sl, src), ...(src && M.files[src] ? (off ? off.avisos : r && r.avisos) || [] : [])];   // the same list as estado()
@@ -1563,7 +1564,7 @@
     registrar();
     const k0 = H.k, n0 = H.undo.length, r0 = H.redo;
     sl.ov = sl.ov || {};
-    if (k === 'veloauto' || k === 'esc1') { if (!accionDz(k, null, sl, D())) return; touch(); edPanel(); dirty('sel'); }
+    if (k === 'veloauto' || k === 'esc1' || k === 'posauto' || k === 'colorauto') { if (!accionDz(k, null, sl, D())) return; touch(); edPanel(); dirty('sel'); }
     else if (k === 'centrar') {
       const src = effSrc(sl, E.fin); if (!src || !M.files[src]) return;
       const ant = H.tag === 'crop:' + src && Date.now() - H.t < 2000 && H.undo.length ? H.undo[H.undo.length - 1] : H.cur;   // before the click that moved the bar
@@ -1580,7 +1581,7 @@
     el.addEventListener('click', e => {
       if (E && !curSlot()) { cerrar(); return; }
       if (e.target.classList && e.target.classList.contains('dz-ask')) { cerrarPregunta(); return; }   // outside the question: keep editing
-      const ah = e.target.closest('.dz-acc-h'); if (ah && E) { plegar(ah); return; }
+      const ah = e.target.closest('.dz-acc-h'); if (ah && E) { if (e.detail > 1 && ah.dataset.dbl) { if (!ah.closest('.dz-acc').classList.contains('on')) plegar(ah); return; } plegar(ah); return; }   // the second click of a double click on a title that has one: it stays open (D-197)
       const a = e.target.closest('[data-dz]'); if (!a || !E || a.disabled) return;
       if (E.drag) endDrag();
       const act = a.dataset.dz, s = curSlot(), d = s.design, i = E.sel, sl = d.slides[i];
@@ -1910,7 +1911,7 @@
   const enCapas = {
     preparar: enPreparar, tamano: enTamano, foto: enFoto, pintar: enPintar, mover: enMover,
     guardar: (id, c) => { APL++; return enGuardar(id, c).finally(() => { APL--; }); },
-    secciones: seccionesDz, accion: accionDz, entrada: entradaDz, decision: ponerDecision, css: () => injectCSS(),
+    secciones: seccionesDz, accion: accionDz, entrada: entradaDz, campo: campoDz, decision: ponerDecision, css: () => injectCSS(),
     libres: libresDe, suelta: sueltaDe, ESC_MIN, ESC_MAX
   };
   M.diseno = {

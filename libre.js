@@ -107,7 +107,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.63';   // 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.64';   // 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1240,6 +1240,8 @@
     E.el.append(d); E.ask = d; E.askOk = () => done(btns[btns.length - 1][0]);   // Enter in the field (onKey)
     const f = d.querySelector('.lb-askin') || d.querySelector('[data-ask="seguir"]'); if (f) { f.focus(); if (f.select) f.select(); }
   }
+  // a «1 / 2» question (encaje, D-050; a story's photo, D-078): each answer with its key drawn, as the mesa's (D-199)
+  function teclas12() { E.ask.classList.add('lb-ask12'); E.ask.querySelectorAll('[data-ask]').forEach((b, i) => { b.innerHTML = `<kbd>${i + 1}</kbd><b>${esc(b.textContent)}</b>`; }); }
   function cerrarPregunta() { if (E && E.ask) { const no = E.askNo; E.askNo = null; E.ask.remove(); E.ask = null; if (no) no(); } }   // askNo: a warning closed without an answer (Esc) is Cancelar
   function sync() {     // called on every mesa render: the editor closes when its board or post is gone
     numerosMesa();
@@ -1677,7 +1679,7 @@
       + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : E.dzk ? `<span class="lb-fmtw"><span class="lb-fmtl">Diapositivas · ${FMTS[E.fmt] || '4:5'}</span></span>` : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><output class="lb-zv" title="Zoom · doble clic: la diapositiva entera, al 100 % (⌘0)">100 %</output></span>'   // ↶ ↷ (⌘Z, ⇧⌘Z) and − + (⌘−, ⌘+) only by keys and «?»
       + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
-      + '<span class="lb-menu" role="menu" hidden><button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>'
+      + '<span class="lb-menu" role="menu" hidden>' + (E.reel ? '' : '<button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>')   // a reel's cover and a story have one (D-201)
       + '<button type="button" role="menuitem" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Vista previa</button>'
       + '<button type="button" role="menuitemcheckbox" data-lb="iman" aria-checked="true" title="Al arrastrar o ampliar: alinea con los bordes, el centro, el margen del kit, las guías y los otros elementos; mide las distancias y marca los espacios y tamaños iguales (con ⌘ pulsado no actúa)">Imán al arrastrar</button>'
       + `<button type="button" role="menuitemcheckbox" data-lb="guias" aria-checked="${E.reglas}" title="Reglas y guías: arrastra desde una regla para crear una guía y fuera de la diapositiva para borrarla. No salen al exportar">Guías <span class="lb-kb">⌘G</span></button>`
@@ -2550,14 +2552,18 @@
       if (E.cambio) salirCambio();
       if (!selIds().includes(el.id)) seleccionar(el);   // one of several chosen: they stay chosen
       E.crop = null; E.pick = null; panel(); pedir();
-      const ss = selEls(), c = compAt(E.i), Lp = pila(c), n = Lp.length, idx = ss.map(q => Lp.indexOf(q)), uno = ss.length === 1 ? ss[0] : null;   // on the stack, with the veil and the texture (D-185)
-      const lock = ss.every(q => q.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
+      const ss = selEls(), c = compAt(E.i), Lp = pila(c), uno = ss.length === 1 ? ss[0] : null;   // on the stack, with the veil and the texture (D-185)
+      const lock = ss.every(q => q.lock), fijos = ss.filter(fijoDz), soloFijos = fijos.length === ss.length;
+      // only what does something (D-201): «Diseño» and its photo are not copied, duplicated, locked, swapped nor deleted and the
+      // photo never moves (D-193), so on them those don't show; what depends on the moment shows off (D-171): with one of them
+      // among the chosen, Duplicar, Bloquear and Desagrupar; an order that would leave the stack as it is (the photo goes back to the bottom)
+      const mueve = dir => { const L2 = reordenar(Lp, ss, dir); if (!L2) return false; const k = L2.findIndex(x => typeof x !== 'string' && esFotoDz(x)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((x, j) => x !== Lp[j]); };
       const dz = itemsDz(uno || ss.find(fijoDz) || ss[0]);
-      abrirCm((dz ? dz + SEP_CM : '') + itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', true) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', true)
-        + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : '')
-        + itCm('front', 'Al frente', '⇧⌘]', !arriba) + itCm('fwd', 'Adelante', '⌘]', !arriba) + itCm('bwd', 'Atrás', '⌘[', !abajo) + itCm('back', 'Al fondo', '⇧⌘[', !abajo)
-        + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', true) : '') + itCm('del', 'Borrar', '⌫', !lock),
-      'el', ss.length > 1 ? 'Elementos elegidos' : 'Elemento elegido', e.clientX, e.clientY);
+      const resto = (soloFijos ? '' : itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', !fijos.length) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', !fijos.length)
+        + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : ''))
+        + (ss.every(esFotoDz) ? '' : itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')))
+        + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', !fijos.length) : '') + (soloFijos ? '' : itCm('del', 'Borrar', '⌫', !lock));
+      abrirCm(dz && resto ? dz + SEP_CM + resto : dz + resto, 'el', ss.length > 1 ? 'Elementos elegidos' : 'Elemento elegido', e.clientX, e.clientY);
       return;
     }
     e.preventDefault();
@@ -2567,7 +2573,9 @@
     const cb = clip(), hay = E.sl.length > 0;
     const est = !!(ESTILO && ESTILO.client === E.board.client && selEls().some(q => q.t === 'texto' && !q.lock));
     const dz = itemsDz();
-    abrirCm((dz ? dz + SEP_CM : '') + itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
+    // a designed carousel's slides are not copied whole nor take a whole slide (D-193): no «Copiar diapositiva», and «Pegar» off
+    // with a slide copied (D-201)
+    abrirCm((dz ? dz + SEP_CM : '') + (E.dzk ? '' : itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop)) + itCm('paste', 'Pegar', '⌘V', !!cb && (cb.slide ? !E.dzk : hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
       + itCm('add-txt', 'Añadir texto', 'T', hay) + itCm('add-forma', 'Añadir forma', 'R', hay, 'rect'), 'gris', 'Fuera de la diapositiva', e.clientX, e.clientY);
   }
   function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, «Desliza →» (D-178), «Barra de progreso» (D-179, off on the cover and
@@ -2711,6 +2719,22 @@
   }
   const tipoSec = () => multi() ? 'varios' : (selEl() || {}).t || '';   // the kind whose open section is remembered
   function recordarSec(t, k) { if (!t) return; const o = secEl(); if (o[t] === k) return; o[t] = k; lsPoner(LS_EL, JSON.stringify(o)); }
+  // a click on a title that has a double click (D-197): an open section folds PLEGAR_MS later, and a second click in that time
+  // keeps it open, so a double click never shows it folding and unfolding (D-200); opening, a key (detail 0) and the titles
+  // without a double click act at once
+  const PLEGAR_MS = 200;
+  function clicTitulo(e, b) {
+    if (!b.dataset.dbl || !e.detail) { plegar(b); return; }
+    clearTimeout(clicTitulo.t); clicTitulo.t = 0;
+    const abierta = b.closest('.lb-acc').classList.contains('on');
+    if (e.detail > 1 || !abierta) { if (!abierta) plegar(b); return; }
+    const E0 = E, k = b.dataset.dbl;
+    clicTitulo.t = setTimeout(() => {
+      clicTitulo.t = 0; if (E !== E0 || !E) return;
+      const h = b.isConnected ? b : E.el.querySelector(`.lb-panel .lb-acc-h[data-dbl="${k}"]`);
+      if (h && h.closest('.lb-acc').classList.contains('on')) plegar(h);
+    }, PLEGAR_MS);
+  }
   function plegar(btn) {                       // a slide's sections and an element's: one at a time (D-137, D-149)
     const sec = btn.closest('.lb-acc'); if (!sec || !E) return;
     const on = !sec.classList.contains('on'), de = sec.dataset.acc ? 'acc' : 'pl', k = sec.dataset[de];
@@ -3600,7 +3624,7 @@
       r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) { raton = false; r.blur(); } });
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
-    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (!b) return; if (e.detail > 1 && b.dataset.dbl) { if (!b.closest('.lb-acc').classList.contains('on')) plegar(b); return; } plegar(b); });   // a section's title (D-137); a double click on one that has it (D-197): its second click leaves it open
+    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) clicTitulo(e, b); });   // a section's title (D-137, D-197, D-200)
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-dz]'); if (b && E && !b.disabled) accionDzEd(b); });   // the «Diseño» layer's controls (D-193)
     el.querySelector('.lb-panel').addEventListener('pointerdown', arrastrarCapa);   // a row of «Capas» to another place (D-185)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
@@ -3869,9 +3893,9 @@
       const fin = v => { if (E === owner) { E.ojo = null; pedir(); } res(v); };
       E.ojo = h.id; pedir();
       preguntar(`Esta foto es ${ORI_F[orienta(d.w, d.h)]} y el recuadro, ${ORI_H[orienta(a.w * W, a.h * H)]}`, esc,
-        [['llena', '1 · Rellenar el recuadro', 'btn2'], ['entera', '2 · Mantener el formato de la foto', 'btn2']], v => fin(v === 'llena' ? true : v === 'entera' ? false : null));
+        [['llena', 'Rellenar el recuadro', 'btn2'], ['entera', 'Mantener el formato de la foto', 'btn2']], v => fin(v === 'llena' ? true : v === 'entera' ? false : null));
       E.askNo = () => fin(null);
-      E.ask.classList.add('lb-ask12');
+      teclas12();
       const im = document.createElement('img'); im.className = 'lb-askimg'; im.alt = ''; im.src = d.thumbUrl || '';
       E.ask.querySelector('.lb-askc').prepend(im);
       E.el.focus({ preventScroll: true });   // no button holds the keys: only 1, 2 and Esc answer
@@ -4002,9 +4026,9 @@
     const id = aCambiar(c, p).id, de = v => (v === 'sustituir' ? { sustituye: id } : v === 'anadir' ? { anadir: true } : null);
     if (modo) return Promise.resolve(de(modo));
     return new Promise(res => {
-      preguntar('Esta historia ya tiene imagen', '¿Qué hago con la nueva?', [['sustituir', '1 · Sustituir', 'btn2'], ['anadir', '2 · Añadir', 'btn2']], v => res(de(v)));
+      preguntar('Esta historia ya tiene imagen', '¿Qué hago con la nueva?', [['sustituir', 'Sustituir', 'btn2'], ['anadir', 'Añadir', 'btn2']], v => res(de(v)));
       E.askNo = () => res(null);
-      E.ask.classList.add('lb-ask12');
+      teclas12();
       E.el.focus({ preventScroll: true });   // no button holds the keys: only 1, 2 and Esc answer
     });
   }

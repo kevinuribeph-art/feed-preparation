@@ -18,7 +18,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.25';   // 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.26';   // 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -1057,6 +1057,21 @@
     const b = sec.querySelector(':scope > .dz-acc-b'), fin = e => { if (e && (e.target !== b || e.propertyName !== 'grid-template-rows')) return; b.removeEventListener('transitionend', fin); clearTimeout(t); const o = sec.classList.contains('on'); if (o === on) sec.classList.add(o ? 'fin' : 'zz'); };
     const t = setTimeout(fin, 700); b.addEventListener('transitionend', fin);
   }
+  // a click on a title that has a double click (D-197): an open section folds PLEGAR_MS later, and a second click in that time
+  // keeps it open, so a double click never shows it folding and unfolding (D-200); opening and a key (detail 0) act at once
+  const PLEGAR_MS = 200;
+  function clicTitulo(e, b) {
+    if (!b.dataset.dbl || !e.detail) { plegar(b); return; }
+    clearTimeout(clicTitulo.t); clicTitulo.t = 0;
+    const abierta = b.closest('.dz-acc').classList.contains('on');
+    if (e.detail > 1 || !abierta) { if (!abierta) plegar(b); return; }
+    const E0 = E, k = b.dataset.dbl;
+    clicTitulo.t = setTimeout(() => {
+      clicTitulo.t = 0; if (E !== E0 || !E) return;
+      const h = b.isConnected ? b : E.el.querySelector(`.dz-panel .dz-acc-h[data-dbl="${k}"]`);
+      if (h && h.closest('.dz-acc').classList.contains('on')) plegar(h);
+    }, PLEGAR_MS);
+  }
   function plegar(btn) {   // one open at a time; a click on the open one closes it
     const sec = btn.closest('.dz-acc'); if (!sec || !E) return;
     const on = !sec.classList.contains('on');
@@ -1581,7 +1596,7 @@
     el.addEventListener('click', e => {
       if (E && !curSlot()) { cerrar(); return; }
       if (e.target.classList && e.target.classList.contains('dz-ask')) { cerrarPregunta(); return; }   // outside the question: keep editing
-      const ah = e.target.closest('.dz-acc-h'); if (ah && E) { if (e.detail > 1 && ah.dataset.dbl) { if (!ah.closest('.dz-acc').classList.contains('on')) plegar(ah); return; } plegar(ah); return; }   // the second click of a double click on a title that has one: it stays open (D-197)
+      const ah = e.target.closest('.dz-acc-h'); if (ah && E) { clicTitulo(e, ah); return; }   // a section's title (D-177, D-197, D-200)
       const a = e.target.closest('[data-dz]'); if (!a || !E || a.disabled) return;
       if (E.drag) endDrag();
       const act = a.dataset.dz, s = curSlot(), d = s.design, i = E.sel, sl = d.slides[i];

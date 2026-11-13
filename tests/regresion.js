@@ -8572,6 +8572,8 @@
   // un botón de respuesta elegido: el acento de la Mesa en su fondo
   const colorVar = v => { const x = D.createElement('i'); x.style.color = W.getComputedStyle(D.querySelector('#mesa')).getPropertyValue(v).trim(); D.querySelector('#mesa').append(x); const c = W.getComputedStyle(x).color; x.remove(); return c; };
   const enAcento = b => b.classList.contains('elegido') && W.getComputedStyle(b).backgroundColor === colorVar('--acc');
+  // lo mismo con el :hover del botón activo: la regla que lo pinta se aplica con :hover forzado en una copia de su hoja
+  const enAcentoHover = b => { const r = [...D.querySelectorAll('style')].map(x => x.textContent).join('').match(/#mesa \.btn2:hover:not\(:disabled\):not\(\.on\)\{[^}]*\}/); if (!r) return true; const st = D.createElement('style'); st.textContent = r[0].replace(':hover', '.vx-hover-prueba'); const tr = b.style.transition; b.style.transition = 'none'; D.head.append(st); const ok2 = W.getComputedStyle(b).backgroundColor === colorVar('--acc'); st.remove(); b.style.transition = tr; return ok2; };   // sin transición: leería el color de partida
   prueba('AC1', 'La pregunta «1 Sustituir / 2 Añadir» va ceñida a su tecla y su palabra; al contestar (clic, 1 o 2) el elegido pasa al terracota, ningún otro clic ni tecla actúa y se cierra en menos de 200 ms; igual en las del editor (D-194)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('ac1a.jpg')]);
@@ -8584,15 +8586,16 @@
       ok(r.width < am.width / 2 - 20, 'el botón ocupa media ventana: ' + Math.round(r.width) + ' de ' + Math.round(am.width));
       ok(kb.left - r.left < 12 && r.right - w.right < 20, 'aire de más alrededor de la tecla y la palabra');
     }
-    // un clic en «Añadir»: terracota en el momento; la otra respuesta, Esc y un clic fuera no hacen nada; se cierra antes de 200 ms
+    // un clic en «Añadir»: terracota en el momento, también con el ratón encima (su :hover); la otra respuesta, Esc y un clic fuera no hacen nada; se cierra antes de 200 ms
     const t0 = W.performance.now();
-    bs[1].click();
+    bs[1].click(); bs[1].classList.add('vx-hover-prueba');
     ok(enAcento(bs[1]) || bs[1].classList.contains('elegido'), 'el elegido no pasó al terracota');
     bs[0].dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
     tecla('Escape'); tecla('1');
     D.querySelector('.detail').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
     ok(dialogo() && dialogo().dataset.dlg === 'addmode' && !bs[0].classList.contains('elegido'), 'otro clic o tecla actuó mientras se elegía');
     await espera(130); ok(enAcento(bs[1]), 'al acabar su transición (--d1), el elegido no está en el terracota');
+    ok(enAcentoHover(bs[1]), 'con el ratón encima, el elegido no está en el terracota');
     await hasta(() => !dialogo(), 1000, 'que se cierre');
     const ms = W.performance.now() - t0;
     ok(ms < 230, 'tardó ' + Math.round(ms) + ' ms en cerrarse');

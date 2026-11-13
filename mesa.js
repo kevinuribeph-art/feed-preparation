@@ -2339,7 +2339,7 @@
 #mesa .amode kbd{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line);border-bottom-width:2px;border-radius:var(--r-xs);font:600 14px/1 var(--font);background:var(--bg)}
 #mesa .amode b{font-size:14px}
 #mesa .amode button:hover{border-color:var(--ink)}
-#mesa .amode button.elegido,#mesa .lb-ask12 .lb-btns button.elegido{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+#mesa .amode button.elegido:not(#mx),#mesa .lb-ask12 .lb-btns button.elegido:not(#mx){background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
 #mesa .amode button.elegido kbd{background:transparent;border-color:color-mix(in oklab,var(--on-acc) 55%,transparent);color:var(--on-acc);transition:background-color var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease)}
 #mesa .detail[data-dlg="trayview"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
 #mesa .tvwrap{position:relative;display:flex;justify-content:center;background:var(--stage);border-radius:var(--r-md);overflow:hidden;margin-top:30px}

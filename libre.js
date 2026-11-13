@@ -930,13 +930,14 @@
     const el = selEl(), c = el && esDz(el) ? E.dzc.get(el.id) : null, p = E.el && E.el.querySelector('.lb-panel');
     if (!c || !p) return;
     DZ().decision(p, el.ov || {}, c.res && c.res.decision);
-    const ul = p.querySelector('.dz-av'), av = dzAvisos(el, c.res), html = av.map(a => `<li>${esc(a)}</li>`).join('');
-    if (ul && ul.innerHTML !== html) { ul.innerHTML = html; ul.hidden = !html; }
+    const th = p.querySelector('#lb-acch-el'), tt = avisosTt(el, c);   // the engine's warnings: the title of «Texto» (D-197)
+    if (th && (th.getAttribute('title') || '') !== tt) { if (tt) th.setAttribute('title', tt); else th.removeAttribute('title'); }
     const n = p.querySelector(`.lb-cap[data-id="${window.CSS.escape(el.id)}"] .lb-capn`), t = nombreEl(el); if (n && n.innerHTML !== t) n.innerHTML = t;
   }
   function dzAvisos(el, res) {   // the same words as the designer's (estado), less the photo's: the «Foto» layer says it
     return [...(!str(el.titulo).trim() ? ['Sin título'] : []), ...((res && res.avisos) || [])];
   }
+  const avisosTt = (el, c) => dzAvisos(el, c && c.res).join('\n');   // in the title of «Texto», no line over the panel (D-197)
   // the text block moved or scaled (by a drag, the arrows or «Alinear»): its offset and size as the designer keeps them
   function dzMover(d, b0, ov0) { d.ov = clone(ov0 || {}); const x = { ov: d.ov }; DZ().mover(x, b0, cajaDz(d), E.dzSz); d.ov = x.ov; }
   // «Soltar del kit»: this slide's engine drawing as ordinary layers of the editor (marca, titular, cuerpo and pie as texts,
@@ -996,16 +997,15 @@
   }
   // the photo of the design reframed (not centred at 1×)
   const cropDz = c => { const f = fotoDzDe(c); return !!(f && f.src && (Math.abs((f.cx ?? 0.5) - 0.5) > 1e-6 || Math.abs((f.cy ?? 0.5) - 0.5) > 1e-6 || (f.z || 1) !== 1)); };
-  // the «Diseño» layer's panel: the designer's sections (D-177) as the editor's folding ones, and the engine's warnings on top;
-  // «Restablecer ajustes» and «Soltar del kit» are in the menus (itemsDz, D-196)
+  // the «Diseño» layer's panel: the designer's sections (D-177) as the editor's folding ones, a double click on a title puts it
+  // back (D-197), the engine's warnings in the title of «Texto» (D-197); «Restablecer ajustes» and «Soltar del kit» are in the
+  // menus (itemsDz, D-196)
   function panelDz(el) {
     const c = E.dzc.get(el.id), crop = cropDz(compAt(E.i));
     const tipos = E.sl.map(x => x.comp.dzs ? x.comp.dzs.datos.tipo : (dzDe(x.comp) || {}).tipo).filter(Boolean);
     const secs = DZ().secciones({ reel: E.reel, i: E.i, sl: el, d: { serie: E.dzp.serie, pos: E.dzp.pos, slides: tipos.map(tipo => ({ tipo })) }, dec: c && c.res && c.res.decision, raw: E.dzk.raw,
-      masCol: E.dzMas, sec: (k, t, r, h) => plegable(k === 'texto' ? 'el' : 'dz-' + k, t, r, h), editor: true, crop });
-    const av = dzAvisos(el, c && c.res);
-    return `<ul class="dz-av lb-dzav"${av.length ? '' : ' hidden'}>${av.map(a => `<li>${esc(a)}</li>`).join('')}</ul>`
-      + secs.filter(([k]) => k !== 'reset').map(([, h]) => h).join('');
+      masCol: E.dzMas, sec: (k, t, r, h, tt, dbl) => plegable(k === 'texto' ? 'el' : 'dz-' + k, t, r, h, null, { tt: k === 'texto' ? avisosTt(el, c) : tt, dbl }), editor: true, crop });
+    return secs.filter(([k]) => k !== 'reset').map(([, h]) => h).join('');
   }
   // the design's own actions (D-196): «Restablecer ajustes» and «Soltar del kit» on a slide of the kit, «Volver al diseño» on one
   // let go. First in the right-click menu (on the design or its photo, on any layer of a slide let go, and on the grey) and in
@@ -1555,7 +1555,7 @@
 #mesa .lb-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 21px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
 #mesa .lb-acc-n{flex:none;transition:color var(--d1) ease-out}
 #mesa .lb-acc-h .lb-acc-s{font-variant-numeric:tabular-nums;flex:1;min-width:0;font-weight:400;font-size:12.5px;letter-spacing:0;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#mesa .lb-acc-h .lb-acc-s .dz-dec{font-variant-numeric:normal;font-size:inherit;color:inherit}#mesa .lb-dzav{margin:12px 0 0}
+
 #mesa .lb-acc-h::after{content:'';flex:none;width:16px;height:16px;margin-left:auto;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m),background-color var(--d1) ease-out}
 #mesa .lb-acc.on>.lb-acc-t>.lb-acc-h::after{transform:rotate(180deg)}
 #mesa .lb-acc-h:hover::after{background:var(--ink)}#mesa .lb-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -2659,10 +2659,7 @@
   const FORMAS = { rect: 'Rectángulo', elipse: 'Círculo', linea: 'Línea', flecha: 'Flecha' }, FORMAS2 = { progreso: 'Barra de progreso', si: 'Visto', no: 'Aspa' };
   const nombreForma = e => FORMAS[e.forma] || FORMAS2[e.forma] || 'Forma', enPortada = e => e.forma === 'progreso' && !(Array.isArray(e.pa) && e.pa[0]);
   function nombreEl(e) {
-    if (e.t === 'diseno') {                     // «Diseño *Portada · auto: abajo*»: its kind and where «Auto» put it (D-193)
-      const c = E.dzc && E.dzc.get(e.id), dec = c && c.res && c.res.decision, lug = e.ov && e.ov.lugar ? e.ov.lugar : dec && dec.lugar ? 'auto: ' + dec.lugar : '';
-      return `Diseño <i>${esc(TIPO_DZ[e.tipo] || '')}${lug ? ' · ' + esc(lug) : ''}</i>`;
-    }
+    if (e.t === 'diseno') return `Diseño <i>${esc(TIPO_DZ[e.tipo] || '')}</i>`;   // «Diseño *Portada*»: its kind (D-193, D-197)
     if (e.t === 'texto') { const t = String(e.txt || '').replace(/\s+/g, ' ').trim(); return `${e.num ? 'Numeración' : e.pil ? 'Píldora' : 'Texto'} <i>${e.num && !t ? 'oculta en la portada' : `«${esc(t.length > 24 ? t.slice(0, 23) + '…' : t || 'vacío')}»`}</i>`; }
     if (e.t === 'forma') return nombreForma(e) + (enPortada(e) ? ' <i>oculta en la portada</i>' : '');
     if (e.t === 'hueco') return 'Hueco de foto';
@@ -2672,9 +2669,10 @@
   // a section folded under its title: a slide's (sec) open or closed as given; an element's open if it is the one last opened
   // for its kind (abreEl, set by panel(), D-149)
   let abreEl = null;
-  const plegable = (k, titulo, resumen, html, sec) => { const on = sec ? !!sec.on : k === abreEl; return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
+  const plegable = (k, titulo, resumen, html, sec, o) => { const on = sec ? !!sec.on : k === abreEl; return `<div class="lb-sec ${sec ? '' : 'lb-pl '}lb-acc${on ? ' on fin' : ' zz'}" data-${sec ? 'acc' : 'pl'}="${k}">${accCab(k, titulo, resumen, on, o)}${accCuerpo(k, html, sec ? '' : ' lb-plc')}</div>`; };
   const accCuerpo = (k, html, cls = '') => `<div class="lb-acc-b" id="lb-accb-${k}" role="region" aria-labelledby="lb-acch-${k}"><div class="lb-acc-i"><div class="lb-acc-c${cls}">${html}</div></div></div>`;
-  const accCab = (k, titulo, resumen, on) => `<h4 class="lb-acc-t"><button type="button" class="lb-acc-h" id="lb-acch-${k}" aria-expanded="${on}" aria-controls="lb-accb-${k}"><span class="lb-acc-n">${titulo}</span>${resumen ? `<span class="lb-acc-s">${resumen}</span>` : ''}</button></h4>`;
+  // o: {tt, the title's title; dbl, what a double click on it puts back (the «Diseño» layer's, D-197)}
+  const accCab = (k, titulo, resumen, on, o = {}) => `<h4 class="lb-acc-t"><button type="button" class="lb-acc-h${o.dbl ? ' dz-dbl' : ''}" id="lb-acch-${k}" aria-expanded="${on}" aria-controls="lb-accb-${k}"${o.dbl ? ` data-dbl="${o.dbl}"` : ''}${o.tt ? ` title="${esc(o.tt)}"` : ''}><span class="lb-acc-n">${titulo}</span>${resumen ? `<span class="lb-acc-s">${resumen}</span>` : ''}</button></h4>`;
   // A slide's panel (nothing chosen): its sections fold under their titles, one open at a time, the last one opened
   // remembered in this browser (D-137); «Capas» is one of them there. Built as always, then folded here.
   const SECCIONES = [['Diapositiva', 'diapositiva'], ['Textos de la marca', 'textos'], ['Logos y pegatinas', 'logos'], ['Fondo', 'fondo'], ['Velo', 'velo'], ['Textura', 'textura'], ['Rejilla', 'rejilla'], ['Plantillas', 'plantillas']];
@@ -3598,14 +3596,14 @@
       r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) { raton = false; r.blur(); } });
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
-    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
+    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (!b) return; if (e.detail > 1 && b.dataset.dbl) { if (!b.closest('.lb-acc').classList.contains('on')) plegar(b); return; } plegar(b); });   // a section's title (D-137); a double click on one that has it (D-197): its second click leaves it open
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-dz]'); if (b && E && !b.disabled) accionDzEd(b); });   // the «Diseño» layer's controls (D-193)
     el.querySelector('.lb-panel').addEventListener('pointerdown', arrastrarCapa);   // a row of «Capas» to another place (D-185)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
       const NUMS = 'input[data-lb="rot"], input[data-lb="mx"], input[data-lb="my"], input[data-lb="man"], input[data-lb="mal"]';   // «Girar» and «Medidas exactas»
       pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches(NUMS)) { e.target.select(); return; } const db = e.target.closest && e.target.closest('.dz-dbl'); if (db && E && !E.busy) { const a = document.activeElement; if (a && a.matches && a.matches('.dz-velor')) a.blur(); accionDzEd({ dataset: { dz: db.dataset.dbl } }); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value (the «Diseño» layer's: 100 %, Auto) of always; a figure is chosen whole, typing replaces it (D-166, D-176)
       pn.addEventListener('focusout', e => { const t = e.target, el = E && t.matches && t.matches(NUMS) && selEl(); if (el) t.value = t.dataset.lb === 'rot' ? grados(el) : Math.round(medidaPx(el, t.dataset.lb)); });   // left (Esc, Tab, a click) half typed or out of range: what it has
-      pn.addEventListener('mousedown', e => { if (e.detail > 1 && fila(e.target) && e.target.tagName !== 'INPUT') e.preventDefault(); });   // its label and figure never get selected
+      pn.addEventListener('mousedown', e => { if (e.detail > 1 && ((fila(e.target) && e.target.tagName !== 'INPUT') || e.target.closest('.lb-acc-h[data-dbl]'))) e.preventDefault(); });   // its label and figure, or a title, never get selected
       pn.addEventListener('scroll', () => { if (E && E.cmDe === 'formas') menuCtx(false); }); }
     el.querySelector('.lb-tray').addEventListener('pointerdown', arrastrarBandeja);
     el.addEventListener('dragover', e => { if (!hayArchivos(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; resaltar(e); });   // not the mesa's: a photo dropped here is for this editor

@@ -8149,7 +8149,7 @@
       accion('sl', { i: '0' }); await espera(30);
       elegir(dzEl(0)); M.libre.bandeja(); accion('cap', { id: dzEl(0).id }); await espera(40);
       const fila = await hasta(() => q(`.lb-panel .lb-cap[data-id="${dzEl(0).id}"] .lb-capn`), 3000, 'la fila de «Diseño»');
-      ok(/^Diseño Portada · (auto: )?(abajo|arriba|centro)$/.test(fila.textContent.trim()), 'la fila de «Diseño»: ' + fila.textContent);
+      igual(fila.textContent.trim(), 'Diseño Portada', 'la fila de «Diseño», sin «auto» (D-197)');
       ok(fila.querySelector('i'), 'su tipo no va en cursiva');
       await cerrarEd();
       igual(M._test.hist().undo, h0, 'abrir y cerrar sin cambios dejó un paso de ⌘Z');
@@ -8232,7 +8232,7 @@
       await pulsarDz('[data-dz="lugar"][data-v="arriba"]');
       igual([dzEl(1).ov.lugar, 'dx' in dzEl(1).ov, 'dy' in dzEl(1).ov], ['arriba', false, false], 'Posición «Arriba»');
       igual(pasosEd(), n + 1, 'Posición: un paso de ⌘Z');
-      igual(q('.lb-panel .lb-acc-s .dz-dec[data-dec="lugar"]').textContent, 'Arriba', 'el dato de Posición');
+      ok(!q('.lb-panel [data-pl^="dz-"] .lb-acc-s'), 'Posición lleva dato en su título (D-197)');
       const sw = q('.lb-panel [data-dz="color"][data-v]:not([data-v=""])'); sw.click(); await espera(30);
       igual(dzEl(1).ov.color, sw.dataset.v, 'Color del texto');
       const rg = q('.lb-panel .dz-velor'); rg.value = '0.5'; rg.dispatchEvent(new W.Event('input', { bubbles: true })); await espera(20);
@@ -8464,7 +8464,8 @@
       await escribirDz('titulo', 'Supercalifragilisticoespialidosomente extraordinariamente largo');
       const c = await dzListo(1);
       ok(c.res.avisos.length, 'el motor no avisó: ' + json(c.res.avisos));
-      await hasta(() => { const ul = q('.lb-panel .dz-av'); return ul && !ul.hidden && ul.textContent.includes(c.res.avisos[0]); }, 3000, 'el aviso en el panel');
+      await hasta(() => { const t = q('.lb-panel #lb-acch-el'); return t && (t.getAttribute('title') || '').includes(c.res.avisos[0]); }, 3000, 'el aviso en el title de «Texto» (D-197)');
+      ok(!q('.lb-panel .dz-av, .lb-panel .lb-dzav'), 'sigue la línea de avisos encima del panel (D-197)');
       accion('add-forma', { v: 'rect' });
       accion('sl', { i: '0' }); await espera(30); await dzListo(0); await elegirDz(0);
       await menuDz('dz-soltar'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
@@ -8693,6 +8694,66 @@
     });
     await tablero([pub(1, 'Carrusel')]); await poner('r1', [await foto('ac3c.jpg')]); await abrirEditor('r1');
     accion('mas'); ok(!ed().el.querySelector('.lb-menu .lb-mdz'), 'un carrusel sin diseño lleva lo del diseño en «⋯»'); accion('mas');
+  });
+
+  // un doble clic como el del ratón: mousedown, mouseup y click dos veces (detail 1 y 2) y dblclick; dice si el segundo mousedown
+  // se frenó (no selecciona el texto)
+  function dobleClicTitulo(el) {
+    const o = { bubbles: true, cancelable: true, view: W, button: 0 }; let frenado = false;
+    for (const d of [1, 2]) { const md = new W.MouseEvent('mousedown', { ...o, detail: d }); el.dispatchEvent(md); if (d === 2) frenado = md.defaultPrevented; el.dispatchEvent(new W.MouseEvent('mouseup', { ...o, detail: d })); el.dispatchEvent(new W.MouseEvent('click', { ...o, detail: d })); }
+    el.dispatchEvent(new W.MouseEvent('dblclick', { ...o, detail: 2 }));
+    return frenado;
+  }
+  prueba('AC4', 'El panel de «Diseño» va sin dato gris en los títulos (Capas conserva su número, «Alineación · auto» se queda), su fila «Diseño Portada» y el aviso del motor en el title de «Texto»; doble clic en Tamaño, Posición, Color y Velo los devuelve a 100 % o Auto, con la sección abierta, un paso de ⌘Z y ninguno si ya estaba; en Texto y en Marca, número y pie no hace nada (D-197)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('ac4a.jpg', 1080, 1350, '#2f5d7c'), await foto('ac4b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: 'Portada AC4' }, { tipo: 'ficha', titulo: 'Ficha AC4', texto: 'Un texto de la ficha' }]);
+      await abrirEditor('r1', 1); await dzListo(1); await elegirDz(1);
+      const tit = k => q(`.lb-panel #lb-acch-${k === 'texto' ? 'el' : 'dz-' + k}`), abierta = k => tit(k).closest('.lb-acc').classList.contains('on'), pasos = () => ed().hist.undo.length;
+      igual(qa('.lb-panel [data-pl^="dz-"] .lb-acc-s, .lb-panel [data-pl="el"] .lb-acc-s').length, 0, 'un título del panel lleva dato');
+      ok(/^\d+$/.test((q('.lb-panel [data-pl="capas"] .lb-acc-s') || {}).textContent || ''), '«Capas» perdió su número');
+      await hasta(() => /^· auto: (izquierda|centro|derecha)$/.test((q('.lb-panel .dz-dec[data-dec="alinear"]') || {}).textContent || ''), 3000, '«Alineación · auto: …»');
+      ok(!q('.lb-panel .dz-av, .lb-panel .lb-dzav'), 'la línea de avisos encima del panel');
+      igual([tit('tam').title, tit('pos').title, tit('color').title, tit('velo').title], ['Tamaño del texto · doble clic: 100 %', 'Posición · doble clic: Auto', 'Color del texto · doble clic: Auto', 'Velo · doble clic: Auto'], 'el title de los títulos');
+      // el aviso del motor, en el title de «Texto»
+      await escribirDz('titulo', ''); await hasta(() => /Sin título/.test(tit('texto').title), 3000, '«Sin título» en el title de «Texto»');
+      await escribirDz('titulo', 'Ficha AC4'); await hasta(() => !/Sin título/.test(tit('texto').title || ''), 3000, 'el title sin «Sin título»');
+      await abrirCapas(); igual(q(`.lb-panel .lb-cap[data-id="${dzEl(1).id}"] .lb-capn`).textContent.trim(), 'Diseño Ficha', 'la fila de «Diseño»');
+      // cada título: abierta y cerrada; vuelve a su valor de siempre, un paso de ⌘Z, ninguno si ya estaba
+      const poner = { tam: () => { dzEl(1).ov.escala = 1.3; }, pos: () => { Object.assign(dzEl(1).ov, { lugar: 'arriba', alinear: 'derecha', dx: 0.02 }); }, color: () => { dzEl(1).ov.color = q('.lb-panel [data-dz="color"][data-v]:not([data-v=""])').dataset.v; }, velo: () => { dzEl(1).ov.velo = 0.55; } };
+      const tiene = { tam: ov => 'escala' in ov, pos: ov => ['lugar', 'alinear', 'dx', 'dy', 'h'].some(k => k in ov), color: ov => 'color' in ov, velo: ov => 'velo' in ov };
+      for (const k of ['tam', 'pos', 'color', 'velo']) for (const abrir of [true, false]) {
+        poner[k](); M.libre.bandeja(); accion('sl', { i: '1' }); await espera(30); await elegirDz(1);   // el ajuste, como si se hubiera hecho
+        if (abrir !== abierta(k)) { tit(k).click(); await espera(400); }
+        const ov0 = json(dzEl(1).ov), n = pasos();
+        ok(dobleClicTitulo(tit(k)), k + ': el doble clic selecciona el texto del título');
+        await espera(450);
+        ok(!tiene[k](dzEl(1).ov), `${k} (${abrir ? 'abierta' : 'cerrada'}): el doble clic no lo devolvió: ${json(dzEl(1).ov)}`);
+        ok(abierta(k), `${k} (${abrir ? 'abierta' : 'cerrada'}): la sección no quedó abierta`);
+        igual(pasos(), n + 1, `${k}: el doble clic no es un paso de ⌘Z`);
+        tecla('z', { meta: true, code: 'KeyZ' }); await espera(30); igual(json(dzEl(1).ov), ov0, k + ': ⌘Z no lo deshizo');
+        tecla('z', { meta: true, shift: true, code: 'KeyZ' }); await espera(30);
+        const n2 = pasos(); dobleClicTitulo(tit(k)); await espera(450); igual(pasos(), n2, k + ': ya en su valor dejó un paso'); ok(abierta(k), k + ': ya en su valor, la sección no quedó abierta');
+      }
+      // Texto y Marca, número y pie: nada
+      const t0 = json(dzEl(1)), n3 = pasos();
+      for (const k of ['texto', 'etiquetas']) if (tit(k)) { dobleClicTitulo(tit(k)); await espera(450); }
+      igual([json(dzEl(1)), pasos()], [t0, n3], 'el doble clic en Texto o en Marca, número y pie cambió algo');
+      // un clic sencillo sigue plegando y desplegando en el momento
+      const a0 = abierta('velo'); tit('velo').click(); igual(abierta('velo'), !a0, 'un clic no plegó o desplegó en el momento');
+      await cerrarEd();
+      // la ventana del diseñador, con el mismo código
+      M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador');
+      try {
+        const h = k => q(`.dz #dz-acch-${k}`);
+        igual(['tam', 'pos', 'color', 'velo'].map(k => h(k).title), ['Tamaño del texto · doble clic: 100 %', 'Posición · doble clic: Auto', 'Color del texto · doble clic: Auto', 'Velo · doble clic: Auto'], 'el title de los títulos del diseñador');
+        q('.dz [data-dz="lugar"][data-v="arriba"]').click(); await espera(30);
+        const sl = () => slot('r1').design.slides[M.diseno.abierto().diapositiva - 1]; ok(sl().ov && sl().ov.lugar === 'arriba', 'el diseñador no puso «Arriba»');
+        dobleClicTitulo(h('pos')); await espera(450);
+        ok(!sl().ov || !sl().ov.lugar, 'el doble clic en «Posición» del diseñador no lo dejó en Auto');
+        ok(h('pos').closest('.dz-acc').classList.contains('on'), 'en el diseñador la sección no quedó abierta');
+      } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+    });
   });
 
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
@@ -11431,10 +11492,10 @@
       lzeDbl(vr());
       ok(lzeSl().ov.velo == null, 'el doble clic no lo dejó en «Auto»');
       igual(lzePasosDz(), n, 'dejó un paso que no cambia nada');
-      await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-dec[data-dec="velo"]').textContent), 4000, '«auto: N %» a la derecha del título (D-177)');
+      await hasta(() => !q('.dz .dz-acc-s .dz-dec') && /^\d+ %$/.test(q('.dz .dz-velov').textContent), 4000, 'el velo en «Auto», sin dato en su título (D-197)');
       // la barra enseña el valor que tiene, también si tenía el foco
       vr().focus(); mover(vr(), 0.8); lzeDbl(vr());
-      const pa = +q('.dz .dz-dec[data-dec="velo"]').textContent.match(/(\d+) %/)[1];
+      const pa = +q('.dz .dz-velov').textContent.match(/(\d+) %/)[1];
       ok(lzeSl().ov.velo == null && Math.abs(+vr().value * 100 - pa) < 1.5, `la barra del velo se quedó en ${vr().value} con el velo en «Auto» (${pa} %)`);
       // fijado antes: el doble clic es un paso
       mover(vr(), 0.6); await espera(2100); n = lzePasosDz();
@@ -12044,8 +12105,7 @@
           h('pos').click(); igual([abiertas(), W.localStorage.getItem('mesa-dz-seccion')], [['pos'], 'pos'], 'abrir «Posición» cierra «Texto» y se recuerda');
           h('pos').click(); igual([abiertas(), W.localStorage.getItem('mesa-dz-seccion')], [[], '-'], 'un clic en la abierta la cierra');
           h('velo').click();
-          igual([q('.dz .dz-acc[data-sec="diseno"] .dz-acc-s').textContent, q('.dz .dz-acc[data-sec="tam"] .dz-acc-s').textContent], ['01 · portada', '100 %'], 'los datos de «Diseño» y del tamaño');
-          await hasta(() => /^auto: \d+ %$/.test(q('.dz .dz-acc[data-sec="velo"] .dz-acc-s').textContent), 4000, '«auto: N %» a la derecha de «Velo»');
+          igual(['diseno', 'tam', 'pos', 'color', 'velo'].map(k => q(`.dz .dz-acc[data-sec="${k}"] .dz-acc-s`).textContent), ['', '', '', '', ''], 'los títulos llevan dato (D-197)');
           ok(!/Intro = salto|vacío = el del kit|px, en todo el carrusel|desde la izquierda|desde la derecha|o suéltalas aquí|Elige la foto de esta diapositiva|9:16; en el perfil/.test(q('.dz .dz-panel').textContent), 'quedan explicaciones a la vista');
           ok(/Intro = salto de línea/.test(q('.dz #dz-f-titulo').title) && /suéltalas/.test(q('.dz [data-dz="addfotos"]').title), 'las explicaciones no pasaron al title');
         } finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }

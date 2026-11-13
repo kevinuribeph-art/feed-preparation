@@ -8602,6 +8602,12 @@
     await hasta(() => !dialogo(), 1000, 'que se cierre con 2'); igual(slot('r1').photos.length, 3, '«2» no añadió');
     d = await abrirP(); tecla('1'); ok(d.querySelector('[data-m="replace"]').classList.contains('elegido'), '«1» no la marca');
     await hasta(() => !dialogo(), 1000, 'que se cierre con 1'); igual(slot('r1').photos.length, 3, '«1» no sustituyó');
+    // otra pregunta abierta mientras se elegía (una suelta que termina): la respuesta vieja no la contesta ni la cierra
+    d = await abrirP(); const n0 = slot('r1').photos.length; let r; d.querySelector('[data-m="add"]').click();
+    M._in.askModoHistoria(v => { r = v; }); await espera(300);
+    ok(r === undefined && dialogo() && dialogo().dataset.dlg === 'addmode' && !dialogo().querySelector('.elegido'), 'la respuesta vieja contestó o cerró la pregunta nueva: ' + r);
+    igual(slot('r1').photos.length, n0, 'la respuesta vieja añadió igualmente');
+    tecla('2'); await hasta(() => r === 'anadir', 1000, 'la pregunta nueva, con su respuesta');
     // ⌘1 sigue sin contestar (D-114)
     d = await abrirP(); tecla('1', { meta: true }); await espera(250);
     ok(dialogo() && !d.querySelector('.elegido'), '⌘1 contestó'); M._in.closeDetail();

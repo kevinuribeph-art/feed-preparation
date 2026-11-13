@@ -942,7 +942,11 @@
   function dzMover(d, b0, ov0) { d.ov = clone(ov0 || {}); const x = { ov: d.ov }; DZ().mover(x, b0, cajaDz(d), E.dzSz); d.ov = x.ov; }
   // «Soltar del kit»: this slide's engine drawing as ordinary layers of the editor (marca, titular, cuerpo and pie as texts,
   // the veil as the editor's, the number as its automatic numbering); comp.dzs keeps the design's data for «Volver al diseño»
-  async function soltarKit() {
+  async function soltarKit() {   // once at a time: it may wait for the photo's drawing, and a menu can be answered twice
+    if (!E || E.soltando) return; E.soltando = true;
+    try { await soltarKitYa(); } finally { if (E) E.soltando = false; }
+  }
+  async function soltarKitYa() {
     const i = E.i, x = E.sl[i], c = x && x.comp, d = dzDe(c), f = fotoDzDe(c); if (!d || !f) return;
     const sz = E.dzSz, ck = capaClave(f, sz); let capa = E.dzCapa.get(ck);
     if (!capa) { capa = await DZ().foto(E.dzk.kit, f.src && M.files[f.src] ? f.src : null, f.src ? { cx: f.cx, cy: f.cy, z: f.z } : null, sz); if (!E || E.sl[i] !== x) return; E.dzCapa.set(ck, capa); }

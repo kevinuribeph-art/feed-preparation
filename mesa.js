@@ -1761,7 +1761,10 @@
     setTimeout(() => { eligiendo = false; fn(); }, ELIGE_MS);
     return true;
   }
-  function elegirAddMode(m) { const b = root.querySelector('.detail[data-dlg="addmode"] .amode [data-m="' + m + '"]'); if (b) elegirYa(b, () => doAddMode(m)); else doAddMode(m); }
+  function elegirAddMode(m) {   // only on its own question: if another one opened in those 160 ms (a drop that finished), nothing
+    const b = root.querySelector('.detail[data-dlg="addmode"] .amode [data-m="' + m + '"]'), P = pendingAdd;
+    if (b) elegirYa(b, () => { if (pendingAdd === P) doAddMode(m); }); else doAddMode(m);
+  }
   function doAddMode(m) {
     const P = pendingAdd; pendingAdd = null; closeDetail();
     if (!P || !S || S.key !== P.key) return;

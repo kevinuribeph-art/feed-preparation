@@ -2911,7 +2911,7 @@
       h = seccionesDiapo(h, ab) + capasHTML(c, { on: ab === 'capas' });   // its sections, folded (D-137)
     }
     p.innerHTML = h;
-    if (el && esDz(el)) p.querySelectorAll('.dz-in[data-f]').forEach(t => { t.value = str(el[t.dataset.f]); });   // by value: a leading line break survives
+    if (el && esDz(el)) p.querySelectorAll('.dz-in[data-f]').forEach(t => DZ().campo(t, el[t.dataset.f]));   // by value: a leading line break survives; «<br>» as line breaks (D-198)
     if (abreEl && abreEl !== '-' && !h.includes(`data-pl="${abreEl}"`)) { const s = p.querySelector(':scope > .lb-acc[data-pl="el"]'); if (s) abrirSec(s, true, false); }   // not in this panel: the main one
     abreEl = null;
     p.scrollTop = top;

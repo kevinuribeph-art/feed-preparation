@@ -910,7 +910,7 @@
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Diseñar ' + s.name);
     el.innerHTML = `<header class="dz-head"><div class="dz-ttl"><h3>${esc(s.name)}</h3></div>`
       + (reel ? '' : `<div class="seg dz-fmt" role="group" aria-label="Formato del carrusel">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-dz="fmt" data-v="${k}">${l}</button>`).join('')}</div>`
-        + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(d.serie)}"></label>`)
+        + `<label class="dz-serie">Nombre del carrusel <input type="text" class="dz-in dz-serin" placeholder="Ej.: POR QUÉ FILIPINAS" value="${esc(str(d.serie).replace(/<br\s*\/?>/gi, ' '))}"></label>`)
       + '<span class="dz-state" aria-live="polite"></span><button type="button" class="btn2" data-dz="cerrar">Cerrar</button><button type="button" class="btn" data-dz="aplicar">Aplicar a la casilla</button></header>'
       + '<div class="dz-body"><nav class="dz-list" aria-label="Diapositivas"></nav>'
       + '<section class="dz-mid"><div class="dz-cvw"><canvas class="dz-cv" aria-label="Vista previa"></canvas><div class="thirds" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div><div class="dz-foot"><ul class="dz-av"></ul></div></section>'
@@ -1108,7 +1108,7 @@
     const P = ENG()._interno.conf(raw).piezas, tipos = [...new Set(d.slides.map(x => x.tipo))];
     const conPie = tipos.some(t => P[t] && P[t].pie);
     const ks = ['marca', 'pagina', 'pie'].filter(k => tipos.some(t => P[t] && P[t][k]) && (k !== 'pie' || str(d.serie).trim()));
-    const serie = conSerie && conPie ? `<label class="dz-l" for="dz-serie-ed">Nombre del carrusel</label><input id="dz-serie-ed" class="dz-in dz-serin" type="text" value="${esc(str(d.serie))}" title="El pie de sus fichas y de la final, en todo el carrusel">` : '';
+    const serie = conSerie && conPie ? `<label class="dz-l" for="dz-serie-ed">Nombre del carrusel</label><input id="dz-serie-ed" class="dz-in dz-serin" type="text" value="${esc(str(d.serie).replace(/<br\s*\/?>/gi, ' '))}" title="El pie de sus fichas y de la final, en todo el carrusel">` : '';
     if (!ks.length && !serie) return null;
     const kit = ENG().posiciones(raw), cur = ENG().posiciones(raw, posOf(d));
     const NOM = { marca: 'Marca', pagina: 'Número', pie: 'Pie' }, LADO = { izquierda: 'desde la izquierda', derecha: 'desde la derecha', centro: 'desde el centro' };
@@ -1136,8 +1136,13 @@
     if (act === 'posreset') { if (!posOf(d)) return null; delete d.pos; return 'post'; }
     return null;
   }
+  // a text with «<br>» (as Claude and the skills send it to cargar) is seen in its field with its line breaks, and what is typed
+  // there is kept in the form it came in: with «<br>» if it had them, else with line breaks (Intro). The engine reads both alike,
+  // so nothing that goes out changes (D-198)
+  function campoDz(t, v) { v = str(v); t.dataset.br = /<br\s*\/?>/i.test(v) ? '1' : ''; const x = v.replace(/<br\s*\/?>/gi, '\n'); if (t.value !== x) t.value = x; }
+  const deCampo = t => t.dataset.br === '1' ? t.value.replace(/\r?\n/g, '<br>') : t.value;
   function entradaDz(t, sl, d, raw) {   // a field of the panel being typed in or a bar being moved
-    if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; return 'sl'; }
+    if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : deCampo(t); return 'sl'; }
     if (t.matches('.dz-serin')) { d.serie = t.value; return 'post'; }
     if (t.matches('.dz-pos')) {                      // exact position of marca / número / pie (empty = the kit's)
       const k = t.dataset.e, c = t.dataset.c, kv = ENG().posiciones(raw)[k][c], v = t.value.trim() === '' ? null : Math.round(+t.value);
@@ -1156,7 +1161,7 @@
     const same = !force && E.pSlide === sl && E.pTipo === sl.tipo && E.pHtml && p.children.length === secs.length;
     if (!same) {
       p.innerHTML = secs.map(x => x[1]).join('');
-      p.querySelectorAll('[data-f]').forEach(t => { t.value = str(sl[t.dataset.f]); });   // by value: a leading line break survives
+      p.querySelectorAll('[data-f]').forEach(t => campoDz(t, sl[t.dataset.f]));   // by value: a leading line break survives; «<br>» as line breaks (D-198)
     } else {
       secs.forEach(([k, h], j) => {
         if (k === 'texto' || E.pHtml[k] === h) return;
@@ -1906,7 +1911,7 @@
   const enCapas = {
     preparar: enPreparar, tamano: enTamano, foto: enFoto, pintar: enPintar, mover: enMover,
     guardar: (id, c) => { APL++; return enGuardar(id, c).finally(() => { APL--; }); },
-    secciones: seccionesDz, accion: accionDz, entrada: entradaDz, decision: ponerDecision, css: () => injectCSS(),
+    secciones: seccionesDz, accion: accionDz, entrada: entradaDz, campo: campoDz, decision: ponerDecision, css: () => injectCSS(),
     libres: libresDe, suelta: sueltaDe, ESC_MIN, ESC_MAX
   };
   M.diseno = {

@@ -8756,6 +8756,38 @@
     });
   });
 
+  prueba('AC5', 'Un título con <br> se ve en su campo con sus saltos de línea, en la capa «Diseño» y en el diseñador; lo escrito se guarda con <br> si los traía (escribir, Intro y borrar un salto) y con saltos si no; volver al texto de antes lo deja igual byte a byte (D-198)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      const T0 = 'Cómo<br>funciona<br>reservar<br>con Kamaya';
+      await disenada('r1', [await foto('ac5a.jpg', 1080, 1350, '#2f5d7c'), await foto('ac5b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: T0 }, { tipo: 'ficha', titulo: 'Elige tu fecha', texto: 'Escríbenos' }]);
+      const out0 = salida('r1').slice();
+      await abrirEditor('r1', 0); await dzListo(0); await elegirDz(0);
+      const t = await hasta(() => q('.lb-panel textarea[data-f="titulo"]'), 3000, 'el campo Título');
+      igual(t.value, 'Cómo\nfunciona\nreservar\ncon Kamaya', 'el campo enseña <br>');
+      const escribe = v => { t.focus(); t.value = v; t.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      escribe('Cómo\nfunciona\nreservar\ncon Kamaya!'); igual(dzEl(0).titulo, 'Cómo<br>funciona<br>reservar<br>con Kamaya!', 'escribir una letra');
+      escribe('Cómo\nfunciona\nreservar\ncon\nKamaya!'); igual(dzEl(0).titulo, 'Cómo<br>funciona<br>reservar<br>con<br>Kamaya!', 'Intro');
+      escribe('Cómo funciona\nreservar\ncon\nKamaya!'); igual(dzEl(0).titulo, 'Cómo funciona<br>reservar<br>con<br>Kamaya!', 'borrar un salto');
+      escribe('Cómo\nfunciona\nreservar\ncon Kamaya'); igual(dzEl(0).titulo, T0, 'volver al texto de antes no lo deja igual');
+      await dzListo(0);
+      // sin <br>: los saltos de Intro se guardan como saltos, como siempre
+      accion('sl', { i: '1' }); await espera(30); await dzListo(1); await elegirDz(1);
+      const tx = await hasta(() => q('.lb-panel textarea[data-f="texto"]'), 3000, 'el campo Texto');
+      igual(tx.value, 'Escríbenos', 'el campo Texto'); tx.focus(); tx.value = 'Escríbenos\nhoy'; tx.dispatchEvent(new W.Event('input', { bubbles: true }));
+      igual(dzEl(1).texto, 'Escríbenos\nhoy', 'un texto sin <br> guarda saltos');
+      tx.value = 'Escríbenos'; tx.dispatchEvent(new W.Event('input', { bubbles: true })); await dzListo(1);
+      await cerrarEd();
+      igual(salida('r1'), out0, 'abrir, escribir y volver a lo de antes cambió sus imágenes');
+      // la API no cambia: cargar() sigue aceptando <br> y estado() los devuelve igual
+      igual(((await M.diseno.estado('r1')).slides || [])[0].titulo, T0, 'estado() cambió el título');
+      // la ventana del diseñador
+      M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz #dz-f-titulo'), 6000, 'el diseñador');
+      try { igual(q('.dz #dz-f-titulo').value, 'Cómo\nfunciona\nreservar\ncon Kamaya', 'el campo del diseñador enseña <br>'); }
+      finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+    });
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');

@@ -7943,7 +7943,7 @@
     for (const o of [{ meta: true }, { ctrl: true }, { alt: true }]) { tecla('2', o); await espera(20); }
     D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: '1', repeat: true, bubbles: true, cancelable: true })); await espera(20);
     ok(r === undefined && dialogo() && dialogo().dataset.dlg === 'addmode', 'la pregunta se contestó con un atajo: ' + r);
-    tecla('2'); await espera(30);
+    tecla('2'); await hasta(() => r !== undefined, 1000, 'la respuesta (el elegido en terracota, D-194)');
     igual(r, 'anadir', 'el 2 a secas no contestó «Añadir»');
   });
 
@@ -8561,6 +8561,56 @@
         ok(salida('r1').every(f => !out0.includes(f)), 'no se redibujaron todas con el kit nuevo');
       } finally { await M.diseno.ajustarKit(CLIENTE, null); }
     });
+  });
+
+  // =====================================================================================================
+  // Ajustes del diseño en capas (D-194 a D-198)
+  // =====================================================================================================
+  // un botón de respuesta elegido: el acento de la Mesa en su fondo
+  const enAcento = b => { const acc = W.getComputedStyle(D.querySelector('#mesa')).getPropertyValue('--acc').trim(), x = D.createElement('i'); x.style.color = acc; D.body.append(x); const c = W.getComputedStyle(x).color; x.remove(); return b.classList.contains('elegido') && W.getComputedStyle(b).backgroundColor === c; };
+  prueba('AC1', 'La pregunta «1 Sustituir / 2 Añadir» va ceñida a su tecla y su palabra; al contestar (clic, 1 o 2) el elegido pasa al terracota, ningún otro clic ni tecla actúa y se cierra en menos de 200 ms; igual en las del editor (D-194)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await poner('r1', [await foto('ac1a.jpg')]);
+    let k = 0;
+    const abrirP = async () => { const [n] = await M.addFiles([await foto('ac1-' + (++k) + '.jpg')]); M._test.setSel(n); celda('r1').click(); return hasta(() => { const d = dialogo(); return d && d.dataset.dlg === 'addmode' && d; }, 4000, 'la pregunta'); };
+    let d = await abrirP();
+    const bs = [...d.querySelectorAll('.amode button')], am = d.querySelector('.amode').getBoundingClientRect();
+    for (const b of bs) {
+      const r = b.getBoundingClientRect(), kb = b.querySelector('kbd').getBoundingClientRect(), w = b.querySelector('b').getBoundingClientRect();
+      ok(r.width < am.width / 2 - 20, 'el botón ocupa media ventana: ' + Math.round(r.width) + ' de ' + Math.round(am.width));
+      ok(kb.left - r.left < 12 && r.right - w.right < 20, 'aire de más alrededor de la tecla y la palabra');
+    }
+    // un clic en «Añadir»: terracota en el momento; la otra respuesta, Esc y un clic fuera no hacen nada; se cierra antes de 200 ms
+    const t0 = W.performance.now();
+    bs[1].click();
+    ok(enAcento(bs[1]) || bs[1].classList.contains('elegido'), 'el elegido no pasó al terracota');
+    bs[0].dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
+    tecla('Escape'); tecla('1');
+    D.querySelector('.detail').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true }));
+    ok(dialogo() && dialogo().dataset.dlg === 'addmode' && !bs[0].classList.contains('elegido'), 'otro clic o tecla actuó mientras se elegía');
+    await espera(130); ok(enAcento(bs[1]), 'al acabar su transición (--d1), el elegido no está en el terracota');
+    await hasta(() => !dialogo(), 1000, 'que se cierre');
+    const ms = W.performance.now() - t0;
+    ok(ms < 230, 'tardó ' + Math.round(ms) + ' ms en cerrarse');
+    igual(slot('r1').photos.length, 2, '«Añadir» no añadió');
+    // con 2 y con 1
+    d = await abrirP(); tecla('2'); ok(d.querySelector('[data-m="add"]').classList.contains('elegido'), '«2» no la marca');
+    await hasta(() => !dialogo(), 1000, 'que se cierre con 2'); igual(slot('r1').photos.length, 3, '«2» no añadió');
+    d = await abrirP(); tecla('1'); ok(d.querySelector('[data-m="replace"]').classList.contains('elegido'), '«1» no la marca');
+    await hasta(() => !dialogo(), 1000, 'que se cierre con 1'); igual(slot('r1').photos.length, 3, '«1» no sustituyó');
+    // ⌘1 sigue sin contestar (D-114)
+    d = await abrirP(); tecla('1', { meta: true }); await espera(250);
+    ok(dialogo() && !d.querySelector('.elegido'), '⌘1 contestó'); M._in.closeDetail();
+    // la del editor: encaje 1 / 2 (D-050)
+    const [, a] = await conHuecos([HV('hv'), HH('hh')], [V('ac1e.jpg'), A('ac1f.jpg')]);
+    arrastrarDeBandeja(a, 0.2, 0.5);
+    const pr = await hasta(() => preguntaHueco(), 4000, 'la pregunta del editor');
+    const b2 = pr.querySelector('[data-ask="entera"]'), t1 = W.performance.now();
+    tecla('2'); ok(b2.classList.contains('elegido'), '«2» no la marca en el editor');
+    tecla('1'); tecla('Escape'); ok(!pr.querySelector('[data-ask="llena"]').classList.contains('elegido') && ed().ask, 'otra tecla actuó en el editor');
+    await espera(130); ok(enAcento(b2), 'al acabar su transición, el del editor no está en el terracota');
+    const e = await hasta(() => compDe(1).els.find(q => q.src === a), 1000, 'la foto con «2»');
+    ok(W.performance.now() - t1 < 230 && !ed().ask && e.h < 0.8 - 0.01, 'el editor no contestó «2» a tiempo');
   });
 
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
@@ -11420,7 +11470,7 @@
     const b = await hasta(() => q('[data-act="addmode"][data-m="replace"]'), 4000, '«Sustituir»');
     M._in.clearToasts();
     b.click();
-    ok(/Dibujando el carrusel/.test(M.busyText || ''), 'no está dibujando al pulsar ⌘Z: ' + M.busyText);
+    await hasta(() => /Dibujando el carrusel/.test(M.busyText || ''), 1000, 'que empiece a dibujar al cerrarse la pregunta (D-194)');
     tecla('z', { meta: true, code: 'KeyZ' });
     await hasta(() => !M.busyText && !M.libre.aplicando(), 15000, 'que termine el dibujo');
     await espera(300);

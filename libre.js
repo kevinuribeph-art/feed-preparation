@@ -1216,7 +1216,11 @@
     const d = document.createElement('div'); d.className = 'lb-ask';
     d.innerHTML = `<div class="lb-askc" role="alertdialog" aria-label="${esc(t)}"><h4>${esc(t)}</h4>${Array.isArray(p) ? `<ul class="lb-askl">${p.map(([a, b]) => `<li><b>${esc(a)}</b><span>${esc(b)}</span></li>`).join('')}</ul>` : p ? `<p>${esc(p)}</p>` : ''}${campo != null ? `<input type="text" class="lb-askin" maxlength="40" value="${esc(campo)}">` : ''}<div class="lb-btns">${btns.map(([v, l, c]) => `<button type="button" class="${c}" data-ask="${v}">${esc(l)}</button>`).join('')}</div></div>`;
     const done = v => { const inp = d.querySelector('.lb-askin'), txt = inp ? inp.value : null; E.askNo = null; cerrarPregunta(); (on || (x => { if (x === 'salir') cerrar(); else if (x === 'aplicar') aplicar(); }))(v, txt); };
-    d.addEventListener('click', ev => { const b = ev.target.closest('[data-ask]'); if (!b && ev.target !== d) return; done(b ? b.dataset.ask : 'seguir'); });
+    d.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-ask]'); if (!b && ev.target !== d) return;
+      if (b && d.classList.contains('lb-ask12') && I().elegirYa) { I().elegirYa(b, () => { if (d.isConnected) done(b.dataset.ask); }); return; }   // «1 / 2» answered: the chosen one in the accent, then it closes (D-194)
+      done(b ? b.dataset.ask : 'seguir');
+    });
     E.el.append(d); E.ask = d; E.askOk = () => done(btns[btns.length - 1][0]);   // Enter in the field (onKey)
     const f = d.querySelector('.lb-askin') || d.querySelector('[data-ask="seguir"]'); if (f) { f.focus(); if (f.select) f.select(); }
   }

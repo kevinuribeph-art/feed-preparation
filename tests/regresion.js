@@ -8892,6 +8892,9 @@
       // la capa libre y «Diseño» elegidas: Duplicar y Bloquear, apagados; Copiar y Borrar, encendidos
       ed().sel = fz.id; ed().mas = [dzEl(1).id];
       const n2 = sobre(fz); ok(n2.includes('Duplicar (apagado)') && n2.includes('Bloquear (apagado)') && n2.includes('Copiar') && n2.includes('Borrar'), 'con «Diseño» entre las elegidas: ' + n2); tecla('Escape');
+      // agrupada con otra capa libre y con «Diseño» entre las elegidas: Desagrupar, apagado (no actúa)
+      accion('add-forma', { v: 'rect' }); const fz2 = compDe(1).els.at(-1); ed().sel = fz.id; ed().mas = [fz2.id]; accion('group'); await espera(30); ok(fz.g || compDe(1).els.find(e => e.id === fz.id).g, 'no se agruparon');
+      ed().sel = fz2.id; ed().mas = [dzEl(1).id]; const n3 = sobre(fz2); ok(n3.includes('Desagrupar (apagado)'), 'Desagrupar con «Diseño» entre las elegidas: ' + n3); tecla('Escape');
       // el gris de un carrusel diseñado, con una diapositiva copiada: sin «Copiar diapositiva», «Pegar» apagado
       ed().sel = null; ed().mas = []; const [gx, gy] = enGris(); raton('contextmenu', gris(), gx, gy, { button: 2 });
       const g = nombres(); ok(!g.some(n => n.startsWith('Copiar diapositiva')) && g.includes('Pegar (apagado)'), 'el gris de un carrusel diseñado: ' + g); tecla('Escape');
@@ -8923,6 +8926,11 @@
     ok(!(await pegar(await carp(c))), 'una carpeta en sí misma: «Pegar» encendido');
     ok(!(await pegar(q('.side > .tray .tbody'))), 'una carpeta en su sitio (la raíz, en un hueco): «Pegar» encendido');
     ok(await pegar(await carp(d)), 'una carpeta en otra: «Pegar» apagado');
+    // en otra que ya tiene una hermana del mismo nombre: encendido si a la hermana le falta algo; apagado si ya lo tiene todo
+    const c2 = M.crearCarpeta('AD4 C', d).id;
+    ok(await pegar(await carp(d)), 'su hermana de igual nombre está vacía: «Pegar» apagado');
+    M._in.trayCopiar({ files: [f] }); M._in.trayPegar(c2); M._in.trayCopiar({ carpetas: [c] }); M._in.clearToasts();
+    ok(!(await pegar(await carp(d))), 'su hermana de igual nombre ya lo tiene todo: «Pegar» encendido');
   });
 
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {

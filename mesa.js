@@ -3510,8 +3510,14 @@
   function trayPegaAlgo(hacia = trayCarpeta) {
     if (!trayPuedePegar() || locked) return false;
     hacia = hacia || null; const a = carpetaPor(hacia); if (hacia && !a) return false;
-    if (a) { const ya = new Set(a.files), kk = new Set(a.files.map(fileKey).filter(Boolean)); if (trayClip.files.some(f => M.files[f] && !ya.has(f) && !(fileKey(f) && kk.has(fileKey(f))))) return true; }
-    return trayClip.carpetas.some(id => { const c = carpetaPor(id); return !!c && !(hacia && subCarpetas(S.carpetas, id).has(hacia)) && (c.parent || null) !== hacia; });
+    const falta = (c, fs) => { const ya = new Set(c.files), kk = new Set(c.files.map(fileKey).filter(Boolean)); return fs.some(f => !ya.has(f) && !(fileKey(f) && kk.has(fileKey(f)))); };   // as sumaFotos
+    if (a && falta(a, trayClip.files.filter(f => M.files[f]))) return true;
+    const aporta = (c, padre) => {   // as copia: a new folder, or photos or folders that its sister of the same name lacks
+      const d = S.carpetas.find(x => (x.parent || null) === padre && x.name === c.name);
+      if (d && d.id === c.id) return false; if (!d) return true;
+      return falta(d, c.files) || S.carpetas.some(h => h.parent === c.id && aporta(h, d.id));
+    };
+    return trayClip.carpetas.some(id => { const c = carpetaPor(id); return !!c && !(hacia && subCarpetas(S.carpetas, id).has(hacia)) && aporta(c, hacia); });
   }
   function trayPegar(hacia = trayCarpeta) {
     if (!S || locked) return { error: 'Esta pestaña no puede guardar.' };

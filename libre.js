@@ -2556,13 +2556,13 @@
       const lock = ss.every(q => q.lock), fijos = ss.filter(fijoDz), soloFijos = fijos.length === ss.length;
       // only what does something (D-201): «Diseño» and its photo are not copied, duplicated, locked, swapped nor deleted and the
       // photo never moves (D-193), so on them those don't show; what depends on the moment shows off (D-171): with one of them
-      // among the chosen, Duplicar and Bloquear; an order that would leave the stack as it is (the photo goes back to the bottom)
+      // among the chosen, Duplicar, Bloquear and Desagrupar; an order that would leave the stack as it is (the photo goes back to the bottom)
       const mueve = dir => { const L2 = reordenar(Lp, ss, dir); if (!L2) return false; const k = L2.findIndex(x => typeof x !== 'string' && esFotoDz(x)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((x, j) => x !== Lp[j]); };
       const dz = itemsDz(uno || ss.find(fijoDz) || ss[0]);
       const resto = (soloFijos ? '' : itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', !fijos.length) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', !fijos.length)
         + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : ''))
         + (ss.every(esFotoDz) ? '' : itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')))
-        + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', true) : '') + (soloFijos ? '' : itCm('del', 'Borrar', '⌫', !lock));
+        + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', !fijos.length) : '') + (soloFijos ? '' : itCm('del', 'Borrar', '⌫', !lock));
       abrirCm(dz && resto ? dz + SEP_CM + resto : dz + resto, 'el', ss.length > 1 ? 'Elementos elegidos' : 'Elemento elegido', e.clientX, e.clientY);
       return;
     }

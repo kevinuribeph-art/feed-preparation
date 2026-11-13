@@ -7,7 +7,11 @@
  *   DisenoMotor.usarKit(kitObj, baseUrl)               -> Promise<kit>
  *   DisenoMotor.tamano(kit, fmt, srcW, srcH)           -> {W, H, factor}
  *   DisenoMotor.capaFoto(bitmap, rect, W, H)           -> {canvas, an, origen}
- *   DisenoMotor.dibujar(ctx, kit, capa, slide, opts)   -> {decision, bloque, avisos, avisosInfo, lineas}
+ *   DisenoMotor.dibujar(ctx, kit, capa, slide, opts)   -> {decision, bloque, avisos, avisosInfo, lineas, items}
+ *     opts.sinFoto (1.7): no pinta el fondo ni la foto (solo velos y textos, sobre lo que ya tenga el lienzo); la foto de
+ *     «capa» se analiza igual, así que color, velo y sitio son los mismos que con ella. items: el rectángulo de cada texto
+ *     del bloque ({nivel, x, y, w, h}), para saber cuál se pulsa en el editor. opts.piezas (1.7): devuelve además cada texto
+ *     dibujado (marca, número, pie y los del bloque) con su fuente, tamaño, color y líneas, y los velos, para «Soltar del kit».
  *   DisenoMotor.render(kit, slide, bitmap, rect, opts) -> Promise<{canvas, decision, bloque, avisos, avisosInfo}>
  *   DisenoMotor.aBlob(canvas, calidad = 0.92)          -> Promise<Blob>
  *
@@ -28,7 +32,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '1.6';
+  const VERSION = '1.7';   // 1.7: opts.sinFoto y items (diseño en capas, D-193); lo de siempre, idéntico
   const TIPOS = ['portada', 'ficha', 'final', 'reel'];
   // Alto mínimo de la zona analizada (y anclaje del velo) en px a factor 1: el de motor.py.
   const ALTO_ANALISIS = { ficha: 400, final: 480 };
@@ -1424,8 +1428,11 @@
     ctx.shadowBlur = 0;
     estadoTexto(ctx);
 
-    // 1. fondo y foto (el fondo tapa lo que hubiera en el lienzo y se ve bajo las zonas transparentes)
-    if (capa && capa.canvas) {
+    // 1. fondo y foto (el fondo tapa lo que hubiera en el lienzo y se ve bajo las zonas transparentes); sin foto (1.7), nada:
+    // la foto y lo que vaya entre ella y el diseño ya están en el lienzo
+    if (opts.sinFoto) {
+      // solo velos y textos
+    } else if (capa && capa.canvas) {
       ctx.fillStyle = fondo;
       ctx.fillRect(0, 0, W, H);
       ctx.imageSmoothingEnabled = true;
@@ -1731,6 +1738,22 @@
       capaB = capaR(velo);
     }
     const capas = [capaT, capaB];
+    // lo dibujado, pieza a pieza (solo si se pide, para pasarlo a capas del editor)
+    let piezasOut = null;
+    if (opts.piezas) {
+      const fte = (nivel) => { const s = C.escala[nivel] || {}, f = C.fuentes[s.fuente] || {}; return { familia: f.familia || '', archivo: f.archivo || '', peso: s.peso || f.peso || 400 }; };
+      const desc = (pieza, nivel, est, color, lineas, al) => ({ pieza, nivel, fuente: fte(nivel), px: est.px, lh: est.lh, ls: est.ls, color: colorHex(C, color), alinear: al, lineas });
+      piezasOut = [];
+      for (const k of ['marca', 'pagina', 'pie']) {
+        const e = etq[k]; if (!e || !et[k]) continue;
+        piezasOut.push(desc(k, 'etiqueta', e.est, et[k], [{ t: e.ln.t, x: e.x, w: e.ln.w, base: e.y + lineaBase(ctx, e.est) }], PS[k].ancla));
+      }
+      for (const it of lay.items) {
+        const bl = lineaBase(ctx, it.est), ls = [];
+        it.lineas.forEach((ln, i) => { if (ln.t) ls.push({ t: ln.t, x: xLinea(alinear, ln.w), w: ln.w, base: top + it.y + it.tops[i] + bl }); });
+        if (ls.length) piezasOut.push(desc(it.nivel === 'portada' ? 'titulo' : it.nivel === 'titular' ? 'titulo' : it.nivel, it.nivel, it.est, colIt.get(it) || color, ls, alinear));
+      }
+    }
 
     // 3. velos, etiquetas y texto
     pintarCapa(ctx, W, H, veloRGB, capaT);
@@ -1830,7 +1853,14 @@
       bloque: { x: minX, y: top, w: maxX - minX, h: lay.h },
       avisos: AV.lista.map((a) => a.mensaje),
       avisosInfo: AV.lista,
-      lineas: lay.items.map((it) => it.lineas.map((ln) => ln.t))
+      lineas: lay.items.map((it) => it.lineas.map((ln) => ln.t)),
+      ...(piezasOut ? { piezas: piezasOut, velos: { color: C.velo.color, top: capaT, bloque: capaB } } : {}),
+      items: lay.items.map((it) => {
+        const rs = rectsDe(alinear, top, [it]);
+        if (!rs.length) return { nivel: it.nivel, x: xLinea(alinear, 0), y: top + it.y, w: 0, h: it.h };
+        const x0 = Math.min(...rs.map((r) => r[0])), y0 = Math.min(...rs.map((r) => r[1])), x1 = Math.max(...rs.map((r) => r[2])), y1 = Math.max(...rs.map((r) => r[3]));
+        return { nivel: it.nivel, x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      })
     };
   }
 
@@ -1847,7 +1877,7 @@
     const ctx = canvas.getContext('2d');
     const r = dibujar(ctx, kit, capa, slide, { W: t.W, H: t.H, factor: t.factor, pagina: opts.pagina, serie: opts.serie, pos: opts.pos });
     if (capa.canvas) capa.canvas.width = capa.canvas.height = 0;   // the photo layer isn't kept: let go of it now (E13)
-    return { canvas, decision: r.decision, bloque: r.bloque, avisos: r.avisos, avisosInfo: r.avisosInfo, lineas: r.lineas };
+    return { canvas, decision: r.decision, bloque: r.bloque, avisos: r.avisos, avisosInfo: r.avisosInfo, lineas: r.lineas, items: r.items };
   }
 
   // JPEG siempre opaco: el lienzo se aplana sobre «fondo» (blanco por defecto) por si tuviera transparencias.

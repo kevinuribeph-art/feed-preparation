@@ -3505,6 +3505,14 @@
     return true;
   }
   const trayPuedePegar = () => !!(S && trayClip && trayClip.client === S.client);
+  // the right-click menu's «Pegar», on only when it would put something there (D-201): photos into a folder that lacks them
+  // (into the root they are not pasted), a folder outside itself and its own place; the same checks as trayPegar
+  function trayPegaAlgo(hacia = trayCarpeta) {
+    if (!trayPuedePegar() || locked) return false;
+    hacia = hacia || null; const a = carpetaPor(hacia); if (hacia && !a) return false;
+    if (a) { const ya = new Set(a.files), kk = new Set(a.files.map(fileKey).filter(Boolean)); if (trayClip.files.some(f => M.files[f] && !ya.has(f) && !(fileKey(f) && kk.has(fileKey(f))))) return true; }
+    return trayClip.carpetas.some(id => { const c = carpetaPor(id); return !!c && !(hacia && subCarpetas(S.carpetas, id).has(hacia)) && (c.parent || null) !== hacia; });
+  }
   function trayPegar(hacia = trayCarpeta) {
     if (!S || locked) return { error: 'Esta pestaña no puede guardar.' };
     if (!trayClip) return { error: 'No hay nada copiado.' };
@@ -6550,7 +6558,7 @@
   M._in = {
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
-    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
+    get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, trayPegaAlgo, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,
     showDialog, OK_TYPES, nOf, pesoTxt, setBusy, indiceFotos, empezarSubida, entrarFoto, acabarSubida, MARGEN_SUBIDA,
     bandejaVista, trayFiltro, trayTodas, paraPoner, trayDeVista,   // the client's tray as the trays show it (D-041)
     trayFiltroV, marcaDe, usoTexto, marcaTitulo,   // its filter and the marks of the used photos (D-122, mesa ≥ 3.93)

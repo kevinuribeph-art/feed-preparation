@@ -223,12 +223,13 @@
     if (t.file) return en.files.includes(t.file) ? en : { files: [t.file], carpetas: [] };
     return en;
   }
+  const pegaAlgo = hacia => (I().trayPegaAlgo ? I().trayPegaAlgo(hacia) : I().trayPuedePegar());
   function abrirMenu(x, y, id, t = { id }) {
     cerrarMenu();
     const root = I().root(), c = id && I().S && I().S.carpetas.find(q => q.id === id); if (id && !c) return;
     const it = (a, t, on = true, kb = '', tip = '') => `<button type="button" role="menuitem" data-a="${a}"${on ? '' : ' disabled'}${tip ? ` title="${I().esc(tip)}"` : ''}>${t}${kb ? `<span class="kb">${kb}</span>` : ''}</button>`;
     const el = document.createElement('div'); el.className = 'cpmenu'; el.setAttribute('role', 'menu');
-    const copiable = !!(t.id || t.file), pegable = I().trayPuedePegar();
+    const copiable = !!(t.id || t.file), pegable = pegaAlgo(id || I().trayCarpeta);   // «Pegar» on only when it would paste something (D-201)
     // in the mesa's tray (not the editor's, D-075) the menu ends with what «+ Carpeta» and «Subir carpeta» did: they create or
     // upload in what the tray has open (D-158)
     const crear = t.mesa ? '<hr>' + it('nueva', 'Nueva carpeta…') + it('subir', 'Subir carpeta…') : '';
@@ -260,7 +261,7 @@
     if (!I() || !I().root || !e.target.closest) return;
     const t = e.target.closest('.tcarpeta[data-id], .lb-tcarp[data-id]'), ph = !t && e.target.closest('.tray .titem[data-file], .lb-tray .lb-tph[data-f]'), hueco = !t && !ph && e.target.closest('.tray .tbody, .lb-tray');
     const mesa = !e.target.closest('.lb-tray') && !!e.target.closest('.side > .tray');   // the mesa's tray: its menu also creates and uploads (D-158)
-    if (!t && !ph && !(hueco && (mesa || I().trayPuedePegar()))) return;   // elsewhere, and in the editor with nothing to paste on an empty spot: the browser's own
+    if (!t && !ph && !(hueco && (mesa || pegaAlgo(I().trayCarpeta)))) return;   // elsewhere, and in the editor with nothing to paste on an empty spot: the browser's own
     e.preventDefault(); e.stopImmediatePropagation();
     if (t) abrirMenu(e.clientX, e.clientY, t.dataset.id, { id: t.dataset.id, mesa });
     else abrirMenu(e.clientX, e.clientY, null, ph ? { file: ph.dataset.file || ph.dataset.f, mesa } : { mesa });

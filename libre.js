@@ -1679,7 +1679,7 @@
       + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : E.dzk ? `<span class="lb-fmtw"><span class="lb-fmtl">Diapositivas · ${FMTS[E.fmt] || '4:5'}</span></span>` : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><output class="lb-zv" title="Zoom · doble clic: la diapositiva entera, al 100 % (⌘0)">100 %</output></span>'   // ↶ ↷ (⌘Z, ⇧⌘Z) and − + (⌘−, ⌘+) only by keys and «?»
       + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
-      + '<span class="lb-menu" role="menu" hidden><button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>'
+      + '<span class="lb-menu" role="menu" hidden>' + (E.reel ? '' : '<button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>')   // a reel's cover and a story have one (D-201)
       + '<button type="button" role="menuitem" data-lb="preview" title="Cómo se verá en Instagram, como en la vista cliente">Vista previa</button>'
       + '<button type="button" role="menuitemcheckbox" data-lb="iman" aria-checked="true" title="Al arrastrar o ampliar: alinea con los bordes, el centro, el margen del kit, las guías y los otros elementos; mide las distancias y marca los espacios y tamaños iguales (con ⌘ pulsado no actúa)">Imán al arrastrar</button>'
       + `<button type="button" role="menuitemcheckbox" data-lb="guias" aria-checked="${E.reglas}" title="Reglas y guías: arrastra desde una regla para crear una guía y fuera de la diapositiva para borrarla. No salen al exportar">Guías <span class="lb-kb">⌘G</span></button>`
@@ -2552,14 +2552,18 @@
       if (E.cambio) salirCambio();
       if (!selIds().includes(el.id)) seleccionar(el);   // one of several chosen: they stay chosen
       E.crop = null; E.pick = null; panel(); pedir();
-      const ss = selEls(), c = compAt(E.i), Lp = pila(c), n = Lp.length, idx = ss.map(q => Lp.indexOf(q)), uno = ss.length === 1 ? ss[0] : null;   // on the stack, with the veil and the texture (D-185)
-      const lock = ss.every(q => q.lock), arriba = idx.every(k => k >= n - ss.length), abajo = idx.every(k => k < ss.length);
+      const ss = selEls(), c = compAt(E.i), Lp = pila(c), uno = ss.length === 1 ? ss[0] : null;   // on the stack, with the veil and the texture (D-185)
+      const lock = ss.every(q => q.lock), fijos = ss.filter(fijoDz), soloFijos = fijos.length === ss.length;
+      // only what does something (D-201): «Diseño» and its photo are not copied, duplicated, locked, swapped nor deleted and the
+      // photo never moves (D-193), so on them those don't show; what depends on the moment shows off (D-171): with one of them
+      // among the chosen, Duplicar and Bloquear; an order that would leave the stack as it is (the photo goes back to the bottom)
+      const mueve = dir => { const L2 = reordenar(Lp, ss, dir); if (!L2) return false; const k = L2.findIndex(x => typeof x !== 'string' && esFotoDz(x)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((x, j) => x !== Lp[j]); };
       const dz = itemsDz(uno || ss.find(fijoDz) || ss[0]);
-      abrirCm((dz ? dz + SEP_CM : '') + itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', true) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', true)
-        + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : '')
-        + itCm('front', 'Al frente', '⇧⌘]', !arriba) + itCm('fwd', 'Adelante', '⌘]', !arriba) + itCm('bwd', 'Atrás', '⌘[', !abajo) + itCm('back', 'Al fondo', '⇧⌘[', !abajo)
-        + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', true) : '') + itCm('del', 'Borrar', '⌫', !lock),
-      'el', ss.length > 1 ? 'Elementos elegidos' : 'Elemento elegido', e.clientX, e.clientY);
+      const resto = (soloFijos ? '' : itCm('copy', 'Copiar', '⌘C', true) + itCm('dup', 'Duplicar', '⌘D', !fijos.length) + itCm('lock', lock ? 'Desbloquear' : 'Bloquear', '', !fijos.length)
+        + (uno && lleno(uno) ? itCm('cambio', 'Intercambiar', '', huecosCambio().length > 0) : ''))
+        + (ss.every(esFotoDz) ? '' : itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')))
+        + (ss.some(q => q.g) ? itCm('ungroup', 'Desagrupar', '⇧⌥⌘G', true) : '') + (soloFijos ? '' : itCm('del', 'Borrar', '⌫', !lock));
+      abrirCm(dz && resto ? dz + SEP_CM + resto : dz + resto, 'el', ss.length > 1 ? 'Elementos elegidos' : 'Elemento elegido', e.clientX, e.clientY);
       return;
     }
     e.preventDefault();
@@ -2569,7 +2573,9 @@
     const cb = clip(), hay = E.sl.length > 0;
     const est = !!(ESTILO && ESTILO.client === E.board.client && selEls().some(q => q.t === 'texto' && !q.lock));
     const dz = itemsDz();
-    abrirCm((dz ? dz + SEP_CM : '') + itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop) + itCm('paste', 'Pegar', '⌘V', !!cb && (!!cb.slide || hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
+    // a designed carousel's slides are not copied whole nor take a whole slide (D-193): no «Copiar diapositiva», and «Pegar» off
+    // with a slide copied (D-201)
+    abrirCm((dz ? dz + SEP_CM : '') + (E.dzk ? '' : itCm('sl-copy', 'Copiar diapositiva', '⌘C', hay && !E.crop)) + itCm('paste', 'Pegar', '⌘V', !!cb && (cb.slide ? !E.dzk : hay)) + itCm('paste-est', 'Pegar estilo', '⌥⌘V', est && hay)
       + itCm('add-txt', 'Añadir texto', 'T', hay) + itCm('add-forma', 'Añadir forma', 'R', hay, 'rect'), 'gris', 'Fuera de la diapositiva', e.clientX, e.clientY);
   }
   function menuFormas(b) {          // «+ Forma»: Rectángulo (R), Círculo, Línea and Flecha, «Desliza →» (D-178), «Barra de progreso» (D-179, off on the cover and

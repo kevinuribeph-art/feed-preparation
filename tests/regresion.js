@@ -8863,6 +8863,68 @@
     });
   });
 
+  prueba('AD3', 'El clic derecho del editor solo ofrece lo que hace algo: sobre «Diseño», lo del diseño y el orden que lo mueve; sobre su foto, solo lo del diseño; con una de ellas entre varias, Duplicar y Bloquear apagados; en un carrusel diseñado, sin «Copiar diapositiva» y «Pegar» una diapositiva apagado; un reel, sin «Ver todas las diapositivas» (D-201)', async () => {
+    await tablero([pub(1, 'Carrusel'), pub(2, 'Carrusel'), pub(3, 'Reel')]);
+    await poner('r2', [await foto('ad3c.jpg')]); await poner('r3', [await foto('ad3d.jpg', 1080, 1920)]);
+    // una diapositiva copiada entera de otro carrusel
+    await abrirEditor('r2'); ed().sel = null; ed().mas = []; accion('sl-copy'); await espera(30); await cerrarEd();
+    // un reel: «⋯» sin «Ver todas las diapositivas»
+    await abrirEditor('r3'); accion('mas'); ok(!ed().el.querySelector('.lb-menu [data-lb="todas"]'), 'un reel lleva «Ver todas las diapositivas»'); accion('mas'); await cerrarEd();
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('ad3a.jpg', 1080, 1350, '#2f5d7c'), await foto('ad3b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: 'Portada AD3' }, { tipo: 'ficha', titulo: 'Ficha AD3', texto: 'Un texto' }]);
+      await abrirEditor('r1', 1); await dzListo(1);
+      accion('mas'); ok(ed().el.querySelector('.lb-menu [data-lb="todas"]'), 'un carrusel perdió «Ver todas las diapositivas»'); accion('mas');
+      const E = ed(), m = () => E.el.querySelector('.lb-cm'), nombres = () => [...m().children].map(x => x.tagName === 'HR' ? '—' : x.firstChild.textContent + (x.disabled ? ' (apagado)' : ''));
+      const sobre = el => { raton('contextmenu', E.cv, ...aVentana((el.x + el.w / 2) * E.sz.W, (el.y + el.h / 2) * E.sz.H), { button: 2 }); return nombres(); };
+      // una capa libre encima del diseño
+      accion('add-forma', { v: 'rect' }); const fz = compDe(1).els.at(-1); await espera(40);
+      igual(sobre(dzEl(1)), ['Restablecer ajustes (apagado)', 'Soltar del kit', '—', 'Al frente', 'Adelante', 'Atrás (apagado)', 'Al fondo (apagado)'], 'el clic derecho sobre «Diseño»');
+      // cada orden encendido mueve; después, el contrario
+      const orden = () => compDe(1).els.map(e => e.t === 'diseno' ? 'D' : e.t === 'foto' ? 'F' : 'L').join('');
+      igual(orden(), 'FDL', 'el orden de partida'); m().querySelector('[data-lb="front"]').click(); await espera(30); igual(orden(), 'FLD', '«Al frente» no lo movió');
+      igual(sobre(dzEl(1)), ['Restablecer ajustes (apagado)', 'Soltar del kit', '—', 'Al frente (apagado)', 'Adelante (apagado)', 'Atrás', 'Al fondo'], 'el clic derecho sobre «Diseño» arriba del todo');
+      m().querySelector('[data-lb="back"]').click(); await espera(30); igual(orden(), 'FDL', '«Al fondo» no lo bajó hasta su foto');
+      // su foto: solo lo del diseño
+      raton('contextmenu', E.cv, ...aVentana(8, 8), { button: 2 });
+      igual(nombres(), ['Restablecer ajustes (apagado)', 'Soltar del kit'], 'el clic derecho sobre la foto del diseño'); tecla('Escape');
+      // una capa libre: su menú de siempre
+      const nl = sobre(fz); ok(!m().querySelector('[data-lb^="dz-"]') && ['Copiar', 'Duplicar', 'Bloquear', 'Borrar'].every(n => nl.includes(n)), 'el menú de una capa libre: ' + nl); tecla('Escape');
+      // la capa libre y «Diseño» elegidas: Duplicar y Bloquear, apagados; Copiar y Borrar, encendidos
+      ed().sel = fz.id; ed().mas = [dzEl(1).id];
+      const n2 = sobre(fz); ok(n2.includes('Duplicar (apagado)') && n2.includes('Bloquear (apagado)') && n2.includes('Copiar') && n2.includes('Borrar'), 'con «Diseño» entre las elegidas: ' + n2); tecla('Escape');
+      // el gris de un carrusel diseñado, con una diapositiva copiada: sin «Copiar diapositiva», «Pegar» apagado
+      ed().sel = null; ed().mas = []; const [gx, gy] = enGris(); raton('contextmenu', gris(), gx, gy, { button: 2 });
+      const g = nombres(); ok(!g.some(n => n.startsWith('Copiar diapositiva')) && g.includes('Pegar (apagado)'), 'el gris de un carrusel diseñado: ' + g); tecla('Escape');
+      await cerrarEd();
+    });
+    // un carrusel sin diseño conserva «Copiar diapositiva» y pega la diapositiva
+    await abrirEditor('r2'); ed().sel = null; ed().mas = []; const [gx, gy] = enGris(); raton('contextmenu', gris(), gx, gy, { button: 2 });
+    const g = [...q('.lb-cm').children].map(x => x.tagName === 'HR' ? '—' : x.firstChild.textContent + (x.disabled ? ' (apagado)' : ''));
+    ok(g.includes('Copiar diapositiva') && g.includes('Pegar'), 'el gris de un carrusel sin diseño: ' + g); tecla('Escape'); await cerrarEd();
+  });
+
+  prueba('AD4', '«Pegar» del clic derecho de la bandeja solo encendido si pega algo: fotos en una carpeta que no las tiene (en la raíz, no), una carpeta fuera de sí misma y de su sitio (D-201)', async () => {
+    W.localStorage.setItem('mesa-bandeja-plegada', '0');
+    await tablero([pub(1)]);
+    const [f] = await M.addFiles([await foto('ad4a.jpg')]);
+    const c = M.crearCarpeta('AD4 C').id, d = M.crearCarpeta('AD4 D').id;
+    const pegar = async el => { el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 200, view: W })); const m = await hasta(() => q('.cpmenu'), 2000, 'el menú'); const b = [...m.querySelectorAll('button')].find(x => x.textContent.startsWith('Pegar')); const on = !!b && !b.disabled; M.carpetasUI.cerrarMenu(); return on; };
+    const foto1 = () => hasta(() => q(`.side > .tray .titem[data-file="${f}"]`), 2000, 'la foto'), carp = id => hasta(() => q(`.side > .tray .tcarpeta[data-id="${id}"]`), 2000, 'la carpeta');
+    // nada copiado
+    ok(!(await pegar(await carp(c))), 'sin nada copiado, «Pegar» encendido');
+    // una foto copiada: en la raíz no se pega; en una carpeta que no la tiene, sí; ya dentro, no
+    M._in.trayCopiar({ files: [f] }); M._in.clearToasts();
+    ok(!(await pegar(await foto1())), 'una foto en la raíz: «Pegar» encendido');
+    ok(await pegar(await carp(c)), 'una foto en una carpeta que no la tiene: «Pegar» apagado');
+    M._in.trayPegar(c); M._in.clearToasts();   // la foto de la raíz pasa a la carpeta (D-077)
+    ok(!(await pegar(await carp(c))), 'la foto ya está en la carpeta: «Pegar» encendido');
+    // una carpeta copiada: en sí misma y en su sitio, no; en otra, sí
+    M._in.trayCopiar({ carpetas: [c] }); M._in.clearToasts();
+    ok(!(await pegar(await carp(c))), 'una carpeta en sí misma: «Pegar» encendido');
+    ok(!(await pegar(q('.side > .tray .tbody'))), 'una carpeta en su sitio (la raíz, en un hueco): «Pegar» encendido');
+    ok(await pegar(await carp(d)), 'una carpeta en otra: «Pegar» apagado');
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');

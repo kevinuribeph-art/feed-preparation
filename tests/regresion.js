@@ -8748,7 +8748,7 @@
       const t0 = json(dzEl(1)), n3 = pasos();
       for (const k of ['texto', 'etiquetas']) if (tit(k)) { dobleClicTitulo(tit(k)); await espera(450); }
       igual([json(dzEl(1)), pasos()], [t0, n3], 'el doble clic en Texto o en Marca, número y pie cambió algo');
-      // un clic sencillo sigue plegando y desplegando en el momento
+      // un clic sin recuento (el teclado) sigue plegando y desplegando en el momento; con el ratón, AD2 (D-200)
       const a0 = abierta('velo'); tit('velo').click(); igual(abierta('velo'), !a0, 'un clic no plegó o desplegó en el momento');
       await cerrarEd();
       // la ventana del diseñador, con el mismo código
@@ -8824,6 +8824,43 @@
     bs[1].querySelector('b').click();
     await hasta(() => !ed().ask && compDe(0).els.some(e => e.src === fb) && compDe(0).els.some(e => e.src === fa), 2000, '«Añadir» con un clic en la palabra');
     await cerrarEd();
+  });
+
+  prueba('AD2', 'Un clic con el ratón en el título abierto de Tamaño, Posición, Color o Velo lo pliega 0,2 s después, y un doble clic ya no lo pliega ni un momento; abrir, el teclado y los demás títulos, al momento; igual en el diseñador (D-200)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await disenada('r1', [await foto('ad2a.jpg', 1080, 1350, '#2f5d7c'), await foto('ad2b.jpg', 1080, 1350, '#c9b38a')], [{ tipo: 'portada', titulo: 'Portada AD2' }, { tipo: 'ficha', titulo: 'Ficha AD2', texto: 'Un texto' }]);
+      // un clic del ratón: mousedown, mouseup y click con su recuento
+      const clic = (el, d = 1) => { const o = { bubbles: true, cancelable: true, view: W, button: 0, detail: d }; el.dispatchEvent(new W.MouseEvent('mousedown', o)); el.dispatchEvent(new W.MouseEvent('mouseup', o)); el.dispatchEvent(new W.MouseEvent('click', o)); if (d === 2) el.dispatchEvent(new W.MouseEvent('dblclick', o)); };
+      const probar = async (tit, sec, que) => {
+        const abierta = k => tit(k).closest(sec).classList.contains('on'), abrir = async k => { if (!abierta(k)) { clic(tit(k)); await espera(350); } ok(abierta(k), `${que}: ${k} no se abrió`); };
+        for (const k of ['tam', 'pos', 'color', 'velo']) {
+          // un clic: sigue abierta un momento y se pliega a los 0,2 s
+          await abrir(k); clic(tit(k));
+          ok(abierta(k), `${que}: ${k} se plegó en el momento`); await espera(120); ok(abierta(k), `${que}: ${k} se plegó antes de 0,2 s`);
+          await hasta(() => !abierta(k), 400, `${que}: que ${k} se pliegue`);
+          // abrir: en el momento
+          clic(tit(k)); ok(abierta(k), `${que}: ${k} no se abrió en el momento`); await espera(350);
+          // un doble clic (el segundo clic a 120 ms): nunca se pliega
+          clic(tit(k)); await espera(120); ok(abierta(k), `${que}: ${k} se plegó entre los dos clics`);
+          clic(tit(k), 2); ok(abierta(k), `${que}: ${k} se plegó con el segundo clic`);
+          await espera(350); ok(abierta(k), `${que}: ${k} se plegó tras el doble clic`);
+        }
+        // con el teclado (un clic sin recuento), al momento
+        await abrir('velo'); tit('velo').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, view: W, detail: 0 }));
+        ok(!abierta('velo'), `${que}: con el teclado no se plegó en el momento`); await espera(350);
+      };
+      await abrirEditor('r1', 1); await dzListo(1); await elegirDz(1);
+      const tit = k => q(`.lb-panel #lb-acch-${k === 'texto' ? 'el' : 'dz-' + k}`);
+      await probar(tit, '.lb-acc', 'editor');
+      // «Texto» no tiene doble clic: se pliega al momento
+      if (!tit('texto').closest('.lb-acc').classList.contains('on')) { clic(tit('texto')); await espera(350); }
+      clic(tit('texto')); ok(!tit('texto').closest('.lb-acc').classList.contains('on'), '«Texto» no se plegó en el momento');
+      await cerrarEd();
+      M.diseno.abrir('r1'); await hasta(() => M.diseno.abierto() && q('.dz .dz-panel .dz-acc'), 6000, 'el diseñador');
+      try { await probar(k => q(`.dz #dz-acch-${k}`), '.dz-acc', 'diseñador'); }
+      finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
+    });
   });
 
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {

@@ -2713,6 +2713,22 @@
   }
   const tipoSec = () => multi() ? 'varios' : (selEl() || {}).t || '';   // the kind whose open section is remembered
   function recordarSec(t, k) { if (!t) return; const o = secEl(); if (o[t] === k) return; o[t] = k; lsPoner(LS_EL, JSON.stringify(o)); }
+  // a click on a title that has a double click (D-197): an open section folds PLEGAR_MS later, and a second click in that time
+  // keeps it open, so a double click never shows it folding and unfolding (D-200); opening, a key (detail 0) and the titles
+  // without a double click act at once
+  const PLEGAR_MS = 200;
+  function clicTitulo(e, b) {
+    if (!b.dataset.dbl || !e.detail) { plegar(b); return; }
+    clearTimeout(clicTitulo.t); clicTitulo.t = 0;
+    const abierta = b.closest('.lb-acc').classList.contains('on');
+    if (e.detail > 1 || !abierta) { if (!abierta) plegar(b); return; }
+    const E0 = E, k = b.dataset.dbl;
+    clicTitulo.t = setTimeout(() => {
+      clicTitulo.t = 0; if (E !== E0 || !E) return;
+      const h = b.isConnected ? b : E.el.querySelector(`.lb-panel .lb-acc-h[data-dbl="${k}"]`);
+      if (h && h.closest('.lb-acc').classList.contains('on')) plegar(h);
+    }, PLEGAR_MS);
+  }
   function plegar(btn) {                       // a slide's sections and an element's: one at a time (D-137, D-149)
     const sec = btn.closest('.lb-acc'); if (!sec || !E) return;
     const on = !sec.classList.contains('on'), de = sec.dataset.acc ? 'acc' : 'pl', k = sec.dataset[de];
@@ -3602,7 +3618,7 @@
       r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) { raton = false; r.blur(); } });
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
-    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (!b) return; if (e.detail > 1 && b.dataset.dbl) { if (!b.closest('.lb-acc').classList.contains('on')) plegar(b); return; } plegar(b); });   // a section's title (D-137); a double click on one that has it (D-197): its second click leaves it open
+    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) clicTitulo(e, b); });   // a section's title (D-137, D-197, D-200)
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-dz]'); if (b && E && !b.disabled) accionDzEd(b); });   // the «Diseño» layer's controls (D-193)
     el.querySelector('.lb-panel').addEventListener('pointerdown', arrastrarCapa);   // a row of «Capas» to another place (D-185)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');

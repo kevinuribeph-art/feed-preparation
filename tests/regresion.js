@@ -8445,6 +8445,53 @@
     });
   });
 
+  prueba('DC10', 'Los avisos del motor salen en el panel de «Diseño» (un titular que no cabe), y ver(), estado() y «Revisar» siguen respondiendo con un diseño retocado y una diapositiva soltada (D-193)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(10);
+      await abrirEditor('r1', 1); await dzListo(1); await elegirDz(1);
+      await escribirDz('titulo', 'Supercalifragilisticoespialidosomente extraordinariamente largo');
+      const c = await dzListo(1);
+      ok(c.res.avisos.length, 'el motor no avisó: ' + json(c.res.avisos));
+      await hasta(() => { const ul = q('.lb-panel .dz-av'); return ul && !ul.hidden && ul.textContent.includes(c.res.avisos[0]); }, 3000, 'el aviso en el panel');
+      accion('add-forma', { v: 'rect' });
+      accion('sl', { i: '0' }); await espera(30); await dzListo(0); await elegirDz(0);
+      await pulsarDz('[data-dz="soltar"]'); await hasta(() => compDe(0).dzs, 4000, 'soltarla');
+      await aplicarEd();
+      for (const n of [1, 2]) { const v = await M.diseno.ver('r1', n); ok(v && !v.error && v.kb > 5 && M.out.diseno, `ver(${n}) con capas: ` + json(v)); }
+      const st = await M.diseno.estado('r1'); ok(st && !st.error && st.slides[0].suelta && st.slides[1].capasLibres === 1, 'estado(): ' + json(st));
+      const rv = await M.revisar(); ok(rv && !rv.error, '«Revisar» falló: ' + json(rv));
+      const pl = M.plan().find(x => x.slotId === 'r1'); ok(pl && pl.files.length === 2 && pl.files.every(f => /^diseño /.test(f.formato)) && !pl['diseño'] && !pl['hueco vacío'], 'plan() no da sus imágenes de diseño: ' + json(pl));
+    });
+  });
+
+  prueba('DC11', 'Con el editor cerrado, cambiar el formato o el tipo recoloca el diseño como siempre y las capas libres conservan su sitio relativo; una diapositiva con capas no se reencuadra en vivo en la ventana (D-193, D-108)', async () => {
+    await tablero([pub(1, 'Carrusel')]);
+    await conKitPrueba(async () => {
+      await dosDC(11);
+      await abrirEditor('r1', 0); await dzListo(0);
+      accion('add-pil');
+      const p0 = JSON.parse(json(compDe(0).els[compDe(0).els.length - 1]));
+      await aplicarEd();
+      const lib = () => slot('r1').design.slides[0].libres.arriba[0];
+      igual([lib().x, lib().y, lib().w], [p0.x, p0.y, p0.w], 'la píldora no se guardó en su sitio');
+      M._in.openDetail('r1', 0);
+      await hasta(() => q('.detail .stage'), 3000, 'la ventana');
+      ok(!(await M.diseno.vista(D.createElement('canvas'), 'r1', 0)), 'la portada con capas se prepara para reencuadrarla en vivo');
+      await pulsar('.detail [data-act="fmt"][data-fmt="v34"]');
+      await hasta(() => slot('r1').design.fmt === 'v34' && estadoDz('r1') === 'ok' && !M.diseno.aplicando() && M.files[salida('r1')[0]], 20000, 'el diseño redibujado en 3:4');
+      const f0 = M.files[salida('r1')[0]]; cerca(f0.w / f0.h, 3 / 4, 0.01, 'la imagen no salió en 3:4');
+      igual([lib().x, lib().y, lib().w], [p0.x, p0.y, p0.w], 'la píldora cambió de sitio relativo');
+      M._in.closeDetail();
+      M._test.setType('r1', 'Reel');
+      igual((slot('r1').design.slides[0].libres.arriba || []).map(e => e.t), ['texto'], 'la portada del reel perdió su capa libre');
+      await abrirEditor('r1', 0);
+      igual(compDe(0).els.map(e => e.t), ['foto', 'diseno', 'texto'], 'el reel no abre con su capa libre');
+      await aplicarEd();
+      igual(estadoDz('r1'), 'ok', 'el reel no se aplicó');
+    });
+  });
+
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {
     await tablero([pub(1, 'Foto', 5)]);
     await hasta(() => M.hs && M.libre, 4000, 'historias.js y libre.js');

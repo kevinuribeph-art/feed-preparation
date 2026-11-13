@@ -1240,6 +1240,8 @@
     E.el.append(d); E.ask = d; E.askOk = () => done(btns[btns.length - 1][0]);   // Enter in the field (onKey)
     const f = d.querySelector('.lb-askin') || d.querySelector('[data-ask="seguir"]'); if (f) { f.focus(); if (f.select) f.select(); }
   }
+  // a «1 / 2» question (encaje, D-050; a story's photo, D-078): each answer with its key drawn, as the mesa's (D-199)
+  function teclas12() { E.ask.classList.add('lb-ask12'); E.ask.querySelectorAll('[data-ask]').forEach((b, i) => { b.innerHTML = `<kbd>${i + 1}</kbd><b>${esc(b.textContent)}</b>`; }); }
   function cerrarPregunta() { if (E && E.ask) { const no = E.askNo; E.askNo = null; E.ask.remove(); E.ask = null; if (no) no(); } }   // askNo: a warning closed without an answer (Esc) is Cancelar
   function sync() {     // called on every mesa render: the editor closes when its board or post is gone
     numerosMesa();
@@ -3869,9 +3871,9 @@
       const fin = v => { if (E === owner) { E.ojo = null; pedir(); } res(v); };
       E.ojo = h.id; pedir();
       preguntar(`Esta foto es ${ORI_F[orienta(d.w, d.h)]} y el recuadro, ${ORI_H[orienta(a.w * W, a.h * H)]}`, esc,
-        [['llena', '1 · Rellenar el recuadro', 'btn2'], ['entera', '2 · Mantener el formato de la foto', 'btn2']], v => fin(v === 'llena' ? true : v === 'entera' ? false : null));
+        [['llena', 'Rellenar el recuadro', 'btn2'], ['entera', 'Mantener el formato de la foto', 'btn2']], v => fin(v === 'llena' ? true : v === 'entera' ? false : null));
       E.askNo = () => fin(null);
-      E.ask.classList.add('lb-ask12');
+      teclas12();
       const im = document.createElement('img'); im.className = 'lb-askimg'; im.alt = ''; im.src = d.thumbUrl || '';
       E.ask.querySelector('.lb-askc').prepend(im);
       E.el.focus({ preventScroll: true });   // no button holds the keys: only 1, 2 and Esc answer
@@ -4002,9 +4004,9 @@
     const id = aCambiar(c, p).id, de = v => (v === 'sustituir' ? { sustituye: id } : v === 'anadir' ? { anadir: true } : null);
     if (modo) return Promise.resolve(de(modo));
     return new Promise(res => {
-      preguntar('Esta historia ya tiene imagen', '¿Qué hago con la nueva?', [['sustituir', '1 · Sustituir', 'btn2'], ['anadir', '2 · Añadir', 'btn2']], v => res(de(v)));
+      preguntar('Esta historia ya tiene imagen', '¿Qué hago con la nueva?', [['sustituir', 'Sustituir', 'btn2'], ['anadir', 'Añadir', 'btn2']], v => res(de(v)));
       E.askNo = () => res(null);
-      E.ask.classList.add('lb-ask12');
+      teclas12();
       E.el.focus({ preventScroll: true });   // no button holds the keys: only 1, 2 and Esc answer
     });
   }

@@ -3857,7 +3857,7 @@
     // distinta: al hueco donde se suelta, aunque otro encaje mejor; pregunta y enseña esa foto
     arrastrarDeBandeja(a, 0.2, 0.5);
     let pr = await hasta(() => preguntaHueco(), 4000, 'la pregunta');
-    igual([...pr.querySelectorAll('[data-ask]')].map(b => b.textContent), ['1 · Rellenar el recuadro', '2 · Mantener el formato de la foto'], 'las dos respuestas');
+    igual([...pr.querySelectorAll('[data-ask]')].map(b => b.querySelector('kbd').textContent + ' · ' + b.querySelector('b').textContent), ['1 · Rellenar el recuadro', '2 · Mantener el formato de la foto'], 'las dos respuestas, con su tecla dibujada (D-199)');
     igual(pr.querySelector('img').src, M.files[a].thumbUrl, 'no enseña la miniatura de esa foto');
     ok(!compDe(1).els.some(q => q.src === a), 'la puso antes de contestar');
     // mientras está abierta, ningún otro atajo actúa
@@ -8795,6 +8795,35 @@
       try { igual(q('.dz #dz-f-titulo').value, 'Cómo\nfunciona\nreservar\ncon Kamaya', 'el campo del diseñador enseña <br>'); }
       finally { M.diseno.cerrar(); await hasta(() => !M.diseno.abierto(), 3000, 'cerrar el diseñador'); }
     });
+  });
+
+  // =====================================================================================================
+  // Ajustes de la 4.20 (D-199 a D-201)
+  // =====================================================================================================
+  prueba('AD1', 'Las preguntas «1 / 2» del editor (encaje y foto de una historia que ya tiene una) llevan la tecla dibujada y la palabra, con el aspecto de la de la Mesa (D-199)', async () => {
+    await tablero([pub(1, 'Foto', 20)]);
+    await hasta(() => M.libre && M.hs, 4000, 'libre.js e historias.js');
+    // la de la Mesa: su aspecto
+    M._in.askModoHistoria(() => {});
+    const dm = await hasta(() => { const d = dialogo(); return d && d.dataset.dlg === 'addmode' && d; }, 2000, 'la pregunta de la Mesa');
+    const aspecto = b => { const s = W.getComputedStyle(b), k = W.getComputedStyle(b.querySelector('kbd')), p = W.getComputedStyle(b.querySelector('b')); return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft, s.borderRadius, s.display, s.columnGap, s.justifyContent, k.width, k.height, k.borderBottomWidth, k.borderRadius, k.fontSize, k.fontWeight, p.fontSize].join(' '); };
+    const ref = aspecto(dm.querySelector('.amode button')), gap = W.getComputedStyle(dm.querySelector('.amode')).columnGap;
+    M._in.closeDetail();
+    // la del editor
+    const [fa, fb] = await M.addFiles([await foto('ad1a.jpg'), await foto('ad1b.jpg')]);
+    const id = M.hs.anadir(DIA(10), { time: '12:00' });
+    await abrirEditor(id);
+    accion('tr-add', { f: fa }); await hasta(() => compDe(0).els.some(e => e.src === fa), 2000, 'la primera');
+    accion('tr-add', { f: fb });
+    const pr = await hasta(() => ed().ask && /ya tiene imagen/.test(ed().ask.textContent) && ed().ask, 2000, 'la pregunta del editor');
+    const bs = [...pr.querySelectorAll('[data-ask]')];
+    igual(bs.map(b => [(b.querySelector('kbd') || {}).textContent, (b.querySelector('b') || {}).textContent]), [['1', 'Sustituir'], ['2', 'Añadir']], 'la tecla y la palabra');
+    bs.forEach((b, i) => igual(aspecto(b), ref, `el botón ${i + 1} no se ve como el de la Mesa`));
+    igual(W.getComputedStyle(pr.querySelector('.lb-btns')).columnGap, gap, 'la separación entre los botones');
+    // un clic en la palabra contesta
+    bs[1].querySelector('b').click();
+    await hasta(() => !ed().ask && compDe(0).els.some(e => e.src === fb) && compDe(0).els.some(e => e.src === fa), 2000, '«Añadir» con un clic en la palabra');
+    await cerrarEd();
   });
 
   prueba('H37', 'Volver a aplicar una historia suelta su imagen anterior: queda pendiente de borrar mientras ⌘Z la pueda traer y nunca huérfana (D-117)', async () => {

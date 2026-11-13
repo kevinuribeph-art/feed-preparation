@@ -2334,13 +2334,13 @@
 #mesa .pdghost>*{width:100% !important;height:100% !important;margin:0 !important;max-width:none !important;max-height:none !important}
 #mesa .pdghost,#mesa .pdghost *{pointer-events:none !important}
 #mesa .detail .card.post.over{outline:3px solid var(--acc);outline-offset:-3px}
-#mesa .amode{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
-#mesa .amode button{flex:none;display:inline-flex;gap:10px;align-items:center;justify-content:flex-start;text-align:left;padding:8px 16px 8px 8px;border-radius:var(--r-md);transition:background-color var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) ease-out}
-#mesa .amode kbd{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line);border-bottom-width:2px;border-radius:var(--r-xs);font:600 14px/1 var(--font);background:var(--bg)}
-#mesa .amode b{font-size:14px}
-#mesa .amode button:hover{border-color:var(--ink)}
+#mesa .amode{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}#mesa .lb-ask12 .lb-btns{gap:8px}
+#mesa .amode button,#mesa .lb-ask12 .lb-btns button{flex:none;display:inline-flex;gap:10px;align-items:center;justify-content:flex-start;text-align:left;padding:8px 16px 8px 8px;border-radius:var(--r-md);transition:background-color var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) ease-out}
+#mesa .amode kbd,#mesa .lb-ask12 .lb-btns kbd{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line);border-bottom-width:2px;border-radius:var(--r-xs);font:600 14px/1 var(--font);background:var(--bg)}
+#mesa .amode b,#mesa .lb-ask12 .lb-btns b{font-size:14px}
+#mesa .amode button:hover,#mesa .lb-ask12 .lb-btns button:hover{border-color:var(--ink)}
 #mesa .amode button.elegido:not(#mx),#mesa .lb-ask12 .lb-btns button.elegido:not(#mx){background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
-#mesa .amode button.elegido kbd{background:transparent;border-color:color-mix(in oklab,var(--on-acc) 55%,transparent);color:var(--on-acc);transition:background-color var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease)}
+#mesa .amode button.elegido kbd,#mesa .lb-ask12 .lb-btns button.elegido kbd{background:transparent;border-color:color-mix(in oklab,var(--on-acc) 55%,transparent);color:var(--on-acc);transition:background-color var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease)}
 #mesa .detail[data-dlg="trayview"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
 #mesa .tvwrap{position:relative;display:flex;justify-content:center;background:var(--stage);border-radius:var(--r-md);overflow:hidden;margin-top:30px}
 #mesa .tvimg{display:block;max-width:100%;max-height:calc(100vh - 190px);object-fit:contain}

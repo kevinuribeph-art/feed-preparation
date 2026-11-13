@@ -5,6 +5,9 @@
 //   s.design = {v:1, kit:'<clientId>', fmt:'v45'|'v34'|'h'|'r916', serie, slides:[{tipo, titulo, texto, entradilla,
 //               contacto, src:fileId|null, ov:{lugar, alinear, dx, dy, escala, color, velo}}], out:[fileIds]|null,
 //               sig (signature of what was applied), at, outAt}
+//   since 1.24 (D-193), a slide retouched in the editor's layers may also carry libres: {abajo:[el], arriba:[el]} (free
+//   layers of the editor between its photo and the design, and over it) and suelta: {comp} (let go from the kit: an editor
+//   composition; its texts and ov stay for «Volver al diseño»). Without them its image is drawn exactly as always.
 // «Aplicar a la casilla» renders every slide at full size and puts the images in the slot (files flagged design:true:
 // uploaded to Notion exactly as rendered); the original photos then live only in slides[].src. A 'final' slide always
 // uses the client's fixed final photo (kit override final.foto = protected file 'kit-<clientId>-final').
@@ -15,7 +18,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.23';   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.24';   // 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -72,7 +75,7 @@
   }
   // photos no slide uses any more leave the post (when Kevin had put them there) and go back to the tray
   function release(s, ids) {
-    const used = new Set(srcsOf(s)), gone = [...new Set(ids)].filter(f => f && !used.has(f) && s.photos.includes(f) && !isOut(s, f));
+    const used = new Set([...srcsOf(s), ...capasSrc(s.design || { slides: [] })]), gone = [...new Set(ids)].filter(f => f && !used.has(f) && s.photos.includes(f) && !isOut(s, f));   // a free layer's photo is in use too (D-193)
     if (gone.length) s.photos = s.photos.filter(f => !gone.includes(f));
     return { gone, back: rescue(ids) };
   }
@@ -99,6 +102,7 @@
       const cover = d.slides.find(x => x.tipo === 'portada') || d.slides.find(x => x.tipo !== 'final') || d.slides[0], src = cover.src || all[0] || null;
       nd = back || { v: 1, kit: d.kit, fmt: 'r916', serie: '', slides: [blankSlide('reel', src)] };
       const old = nd.slides[0].src; nd.slides[0].titulo = str(cover.titulo); if (src) nd.slides[0].src = src;
+      if (!back && libresDe(cover)) nd.slides[0].libres = clone(cover.libres);   // its free layers go with the cover (D-193)
       if (old && old !== nd.slides[0].src && !srcs.includes(old)) tray.push(old);
       photos = nd.slides[0].src ? [nd.slides[0].src] : [];
       tray.push(...extra.filter(f => f !== nd.slides[0].src));      // the carousel's own photos stay with the kept design
@@ -107,6 +111,7 @@
       nd = back || { v: 1, kit: d.kit, fmt: 'v45', serie: '', slides: [blankSlide('portada', src)] };
       const cov = nd.slides.find(x => x.tipo === 'portada') || nd.slides.find(x => x.tipo !== 'final') || nd.slides[0], old = cov.src;
       cov.titulo = str(r0.titulo); if (src) cov.src = src;
+      if (!back && libresDe(r0)) cov.libres = clone(r0.libres);
       const used = nd.slides.filter(x => x.tipo !== 'final').map(x => x.src).filter(Boolean);
       if (old && !used.includes(old)) tray.push(old);
       photos = [...new Set([...used, ...all])];
@@ -121,12 +126,13 @@
   // The texts and the design belong to the post: only the cover slide's photo changes. A design that was applied is drawn
   // again on its own (reaplicar); while a slide lacks its photo the post shows its photos, not the applied images.
   const portadaDe = s => (s.design && s.design.slides.find(x => x.tipo !== 'final')) || null;
-  function completo(s) { return s.design.slides.every(x => x.tipo === 'final' || (x.src && M.files[x.src])); }
+  function completo(s) { return s.design.slides.every(x => x.tipo === 'final' || sueltaDe(x) || (x.src && M.files[x.src])); }   // one let go from the kit draws its own composition (D-193)
   function ponerPortada(s, fid) {             // returns the photo the cover had (the caller decides where it goes)
     const d = s.design, sl = portadaDe(s); if (!sl) return null;
     const old = sl.src || null;
     if (old === (fid || null)) return old;
     sl.src = fid || null; d.at = nowISO();
+    const sc = sueltaDe(sl); if (sc && old && fid) sc.els.forEach(e => { if (e && e.t === 'foto' && e.src === old) Object.assign(e, { src: fid, cx: 0.5, cy: 0.5, z: 1 }); });   // let go from the kit: its photo too (D-193)
     const raw = s.photos.filter(f => !isOut(s, f));
     if (raw.length || !d.out || !completo(s)) {      // the post shows its own photos: the new cover first, the old one out
       const rest = raw.filter(f => f !== old && f !== fid);
@@ -190,6 +196,7 @@
     const n = ++VI.n; vistaLibre(); VI.n = n; Object.assign(VI, { cv, slotId, i });
     try {
       const S = I().S, s = S && S.slots.find(x => x.id === slotId); if (!s || !s.design || !s.design.slides[i]) return false;
+      if (libresDe(s.design.slides[i]) || sueltaDe(s.design.slides[i])) return false;   // retouched in layers (D-193): reframed in EDITAR
       const { kit, raw } = await engineKit(s.design.kit || S.client);
       const fin = await finalReady(raw), src = effSrc(s.design.slides[i], fin);
       if (n !== VI.n || !src || !M.files[src]) return false;
@@ -330,11 +337,17 @@
     return JSON.stringify(n) === JSON.stringify(def) ? null : n;
   }
   const posOf = d => (d.pos && Object.keys(d.pos).length ? d.pos : null);   // this post's own positions (Diseñar)
+  // a slide's free layers of the editor and a slide let go from the kit (D-193): null when it has none
+  const libresDe = sl => { const c = sl && sl.libres; return c && ((c.abajo || []).length || (c.arriba || []).length) ? { abajo: c.abajo || [], arriba: c.arriba || [] } : null; };
+  const sueltaDe = sl => (sl && sl.suelta && sl.suelta.comp) || null;
+  const capasDe = d => d.slides.some(sl => libresDe(sl) || sueltaDe(sl)) ? d.slides.map(sl => [libresDe(sl), sueltaDe(sl)]) : null;
+  const capasSrc = d => (d.slides || []).flatMap(sl => { const l = libresDe(sl), c = sueltaDe(sl); return [...(l ? [...l.abajo, ...l.arriba] : []), ...(c ? c.els || [] : [])].map(e => e && e.src); }).filter(Boolean);
   function sigOf(s, raw) {
     const d = s.design, crops = I().S.crops || {}, k = raw || {}, fin = finalIdOf(k), fz = k.final || {};
     const tipos = [...new Set(d.slides.map(x => x.tipo))];
     const own = [d.fmt, str(d.serie), d.slides.map(sl => { const src = effSrc(sl, fin); return [sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null]; })];
     if (posOf(d)) own.push(posOf(d));
+    if (capasDe(d)) own.push(capasDe(d));                  // free layers and slides let go from the kit (D-193): only when there are
     const piezas = Object.fromEntries(tipos.map(t => [t, (k.piezas || {})[t] || null]));
     const cols = new Set(['blanco', 'carbon', ...tipos.map(t => piezas[t] && piezas[t].color), ...d.slides.map(x => x.ov && x.ov.color)].filter(Boolean));
     const kitPart = [k.fuentes, k.escala, k.lienzo, k.formatos, k.velo, k.variacion, piezas, k.marca, k.cliente, [...cols].sort().map(c => [c, (k.colores || {})[c] || null]),
@@ -357,7 +370,8 @@
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), crops = I().S.crops || {};
     const comun = sigOf(s, raw).split('.')[1] + '|' + hash(JSON.stringify([d.fmt, str(d.serie), posOf(d), sz.W, sz.H]));
     const acc = usaAcento(d, sl) ? accOf(s, raw) : null;
-    return comun + '|' + hash(JSON.stringify([sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null, pageOf(s, i)])) + (acc ? '|' + acc : '');
+    const cap = libresDe(sl) || sueltaDe(sl) ? '|' + hash(JSON.stringify([libresDe(sl), sueltaDe(sl)])) : '';   // D-193: only when there are
+    return comun + '|' + hash(JSON.stringify([sl.tipo, str(sl.titulo), str(sl.texto), str(sl.entradilla), sl.contacto ?? null, sl.ov || {}, src || null, src ? crops[src] || null : null, pageOf(s, i)])) + (acc ? '|' + acc : '') + cap;
   }
   // synchronous state for the mesa (post view, upload plan): 'ok' = applied and up to date, 'chg' = not, null = no design.
   // Until the client's kit file has been read once, only the post's own part is compared.
@@ -420,9 +434,53 @@
     return o;
   }
 
-  // full-size render of slide i (aplicar, ver; noBlob: only its warnings, for estado)
-  async function renderFull(s, i, kit, fin, sz, rawHash, noBlob) {
+  // a slide with free layers (D-193): the photo, the layers between it and the design, the engine without painting the photo
+  // (motor 1.7: it reads it all the same, so colour, veil and place don't change) and the layers on top. foto: {bmp, rc} or
+  // an engine photo layer (capaFoto) already made
+  const LB = () => M.libre && M.libre._capas;
+  const fondoKit = kit => (ENG()._interno.conf(kit).colores || {}).fondo || '#FFFFFF';
+  function capaPlana(kit, sz) {               // no photo yet: the kit's background, analysed as a photo
+    const c = document.createElement('canvas'); c.width = c.height = 8;
+    const x = c.getContext('2d'); x.fillStyle = fondoKit(kit); x.fillRect(0, 0, 8, 8);
+    const capa = ENG().capaFoto(c, { x: 0, y: 0, w: 8, h: 8 }, sz.W, sz.H); c.width = c.height = 0;
+    return capa;
+  }
+  async function componer(kit, slide, foto, o, lib, sz) {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const { W, H } = sz, propia = !!(foto && foto.bmp), capa = propia ? ENG().capaFoto(foto.bmp, foto.rc, W, H) : foto;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = fondoKit(kit); ctx.fillRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    if (capa && capa.canvas) ctx.drawImage(capa.canvas, 0, 0, W, H);
+    if (lib && lib.abajo.length) await LB().pintarEls(ctx, lib.abajo, W, H);
+    const r = ENG().dibujar(ctx, kit, capa, slide, { W, H, factor: sz.factor, pagina: o.pagina, serie: o.serie, pos: o.pos, sinFoto: true });
+    if (lib && lib.arriba.length) await LB().pintarEls(ctx, lib.arriba, W, H);
+    if (propia && capa.canvas) capa.canvas.width = capa.canvas.height = 0;
+    return { canvas: cv, decision: r.decision, bloque: r.bloque, avisos: r.avisos, items: r.items };
+  }
+  // full-size render of slide i (aplicar, ver; noBlob: only its warnings, for estado; huecos: a missing photo is drawn as the kit's background, D-193)
+  async function renderFull(s, i, kit, fin, sz, rawHash, noBlob, huecos) {
     const d = s.design, sl = d.slides[i], src = effSrc(sl, fin), f = M.files[src], k0 = rawHash != null ? avKey(s, i, rawHash, sz, fin) : null;
+    const suelta = sueltaDe(sl);
+    if (suelta) {                                // let go from the kit (D-193): its composition, drawn as the editor draws it
+      need(LB() && LB().dibujarComp, 'El editor no está cargado: recarga la página para aplicar este diseño.');
+      const blob = noBlob ? null : await LB().dibujarComp(suelta, sz.W, sz.H);
+      return { blob, thumb: null, w: sz.W, h: sz.H, decision: null, bloque: null, avisos: [] };
+    }
+    const lib = libresDe(sl);
+    need(!lib || (LB() && LB().pintarEls), 'El editor no está cargado: recarga la página para aplicar este diseño.');
+    if (huecos && sl.tipo !== 'final' && !(src && M.files[src])) {   // applied from the editor with its photo still missing (D-035): over the kit's background
+      const o = { pagina: pageOf(s, i), serie: str(d.serie), pos: posOf(d) }, slide = slideAt(sl, sz), capa = capaPlana(kit, sz);
+      let res = await componer(kit, slide, capa, o, lib, sz);
+      const adj = clampOv(sl, slide.ov, res, sz);
+      if (adj) { res.canvas.width = res.canvas.height = 0; res = await componer(kit, { ...slide, ov: adj }, capa, o, lib, sz); }
+      capa.canvas.width = capa.canvas.height = 0;
+      const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
+      const out = { blob, thumb: null, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
+      res.canvas.width = res.canvas.height = 0;
+      return out;
+    }
     let blob0;
     try { blob0 = await I().getBlob(src); } catch (e) { throw sl.tipo === 'final' ? new DzError(NO_FINAL, i) : faltaError(s, [i]); }
     // the photo decoded at the px the slide uses, never more than the original (D-116): the same image, less memory
@@ -432,9 +490,10 @@
     try {
       const k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
       const o = { fmt: d.fmt, pagina: pageOf(s, i), serie: str(d.serie), srcW: sz.sw, srcH: sz.sh, pos: posOf(d) }, slide = slideAt(sl, sz);
-      let res = await ENG().render(kit, slide, bmp, rc, o);
+      const pinta = sl2 => lib ? componer(kit, sl2, { bmp, rc }, o, lib, sz) : ENG().render(kit, sl2, bmp, rc, o);   // without free layers, the engine alone: the image of always
+      let res = await pinta(slide);
       const adj = clampOv(sl, slide.ov, res, sz);
-      if (adj) { res.canvas.width = res.canvas.height = 0; res = await ENG().render(kit, { ...slide, ov: adj }, bmp, rc, o); }
+      if (adj) { res.canvas.width = res.canvas.height = 0; res = await pinta({ ...slide, ov: adj }); }
       const blob = noBlob ? null : await ENG().aBlob(res.canvas, 0.92);
       const thumb = blob && I().thumbFromBitmap ? await I().thumbFromBitmap(res.canvas, res.canvas.width, res.canvas.height) : null;   // not decoding the JPEG just made (E13)
       const out = { blob, thumb, w: res.canvas.width, h: res.canvas.height, decision: res.decision, bloque: res.bloque, avisos: res.avisos || [] };
@@ -444,7 +503,7 @@
     } finally { bmp.close(); }
   }
   // slides whose photo is missing: none chosen, or the one chosen is no longer in the mesa (the final uses the client's)
-  const sinFoto = s => s.design.slides.reduce((a, sl, i) => sl.tipo !== 'final' && !(sl.src && M.files[sl.src]) ? [...a, i] : a, []);
+  const sinFoto = s => s.design.slides.reduce((a, sl, i) => sl.tipo !== 'final' && !sueltaDe(sl) && !(sl.src && M.files[sl.src]) ? [...a, i] : a, []);
   const listaY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : String(a[0]);
   // Kevin adds a missing photo himself, here: «Editar …» opens the designer on it (D-123)
   function faltaMsg(s, faltan) {
@@ -492,7 +551,8 @@
       if (!reel && !TIPOS_CAR.includes(tipo)) { need(tipo == null || tipo === '', `Tipo de diapositiva no válido: «${tipo}» (portada, ficha o final).`); tipo = i === 0 ? 'portada' : 'ficha'; }
       const o = (tipo === 'final' ? oldFin[jf++] : oldRest[jr++]) || {};
       return { tipo, titulo: str(x.titulo), texto: str(x.texto), entradilla: str(x.entradilla),
-        contacto: x.contacto != null ? str(x.contacto) : null, src: o.src || null, ov: isObj(o.ov) ? clone(o.ov) : {} };   // contacto only when given: else the kit's
+        contacto: x.contacto != null ? str(x.contacto) : null, src: o.src || null, ov: isObj(o.ov) ? clone(o.ov) : {},   // contacto only when given: else the kit's
+        ...(libresDe(o) ? { libres: clone(o.libres) } : {}), ...(sueltaDe(o) ? { suelta: clone(o.suelta) } : {}) };   // its free layers, and let go if it was (D-193)
     });
     const nf = slides.filter(x => x.tipo === 'final').length;
     need(!nf || (nf === 1 && slides[slides.length - 1].tipo === 'final'), FINAL_MSG);
@@ -505,7 +565,8 @@
     if (d0 && d0.stash) s.design.stash = d0.stash;          // the design kept from its other type (Notion) stays
     if (d0 && d0.pos) s.design.pos = d0.pos;                // and the post's own positions of marca, número and pie
     if (d0 && d0.fmt !== fmt) stampOffsets(s.design, EXT_H[d0.fmt]);
-    release(s, [...oldRest.slice(jr), ...oldFin.slice(jf)].map(x => x.src));   // the old slides no new one took
+    { const gone = [...oldRest.slice(jr), ...oldFin.slice(jf)]; release(s, [...gone.map(x => x.src), ...capasSrc({ slides: gone })]); }   // the old slides no new one took (their free layers' photos too, D-193)
+    { const su = slides.reduce((a, x, i) => sueltaDe(x) ? [...a, i + 1] : a, []); if (su.length) avisos.push(`${su.length === 1 ? `La diapositiva ${su[0]} está soltada del kit` : `Las diapositivas ${listaY(su)} están soltadas del kit`}: sus textos nuevos se ven cuando Kevin pulse «Volver al diseño» en el editor.`); }   // D-193
     { const f = I().nombreDistinto ? I().nombreDistinto(s.design) : []; if (f.length) avisos.push(I().nombreAviso(s.design, f) + (opts.serie == null ? ' Si cambió, pásalo en `serie`.' : '')); }   // the name in the footer and the cover (D-129)
     remember(s); syncFmt(s);
     I().changed();
@@ -530,7 +591,8 @@
         const src = effSrc(sl, fin);
         const av = [...slideAvisos(sl, src), ...(cur[i] || [])];
         return { n: i + 1, tipo: sl.tipo, titulo: sl.titulo, texto: sl.texto, entradilla: sl.entradilla, contacto: sl.contacto ?? null,
-          ...(sl.tipo === 'final' ? { contactoUsado: sl.contacto ?? (raw && raw.final ? raw.final.contacto ?? null : null) } : {}), src: src || null, foto: src ? nameOf(src) : null, ov: clone(sl.ov || {}), avisos: av, ...(cur[i] ? {} : { avisosPendientes: true }) };
+          ...(sl.tipo === 'final' ? { contactoUsado: sl.contacto ?? (raw && raw.final ? raw.final.contacto ?? null : null) } : {}), src: src || null, foto: src ? nameOf(src) : null, ov: clone(sl.ov || {}), avisos: av, ...(cur[i] ? {} : { avisosPendientes: true }),
+          ...(sueltaDe(sl) ? { suelta: true } : {}), ...(libresDe(sl) && !sueltaDe(sl) ? { capasLibres: libresDe(sl).abajo.length + libresDe(sl).arriba.length } : {}) };   // a slide let go keeps its free layers only for «Volver al diseño»: not drawn   // retouched in the editor (D-193)
       }),
       fotosSinUsar: rawPhotos(s).filter(f => !used.has(f)).map(f => ({ fileId: f, name: nameOf(f) })),
       archivos: outsOf(s).map(f => ({ fileId: f, name: s.photos.includes(f) ? I().dName(s, f) : nameOf(f), enCasilla: s.photos.includes(f) })),
@@ -570,18 +632,19 @@
     const { kit, raw } = await engineKit(d.kit, true);
     const fin = await finalReady(raw);
     await I().loadThumbs(srcsOf(s));
-    checkPhotos(s, fin);
+    if (opts.huecos) s.design.slides.forEach((sl, i) => { if (sl.tipo === 'final') need(fin, NO_FINAL, i); });   // from the editor: a missing photo is an empty hole (D-035, D-193)
+    else checkPhotos(s, fin);
     const sz = sizeOf(kit, d, fin), sig = sigOf(s, raw), rh = kitHash(raw), done = [], notas = [];   // sig first: an edit made while rendering stays «sin aplicar»
     const pre = i => reel ? '' : `Diapositiva ${i + 1}: `;
     // an automatic re-render (after a swap, a new cover or a reframe) draws only the slides whose inputs changed since
     // the last «Aplicar»; the others keep their image (firmas: one per slide, kept with the design)
     const per = d.slides.map((sl, i) => firmaSlide(s, raw, fin, sz, i)), prevOut = d.out || [];
-    const parcial = !!opts.silencioso && isApplied(s) && Array.isArray(d.sigs) && d.sigs.length === per.length && prevOut.length === per.length
+    const parcial = !!(opts.silencioso || opts.parcial) && isApplied(s) && Array.isArray(d.sigs) && d.sigs.length === per.length && prevOut.length === per.length
       && Array.isArray(d.avisosPor) && d.avisosPor.length === per.length && prevOut.every(f => M.files[f]);
     const avPor = parcial ? d.avisosPor.map(a => a.slice()) : per.map(() => []);
     for (let i = 0; i < d.slides.length; i++) {
       if (parcial && per[i] === d.sigs[i]) continue;
-      const r = await renderFull(s, i, kit, fin, sz, rh);
+      const r = await renderFull(s, i, kit, fin, sz, rh, false, !!opts.huecos);
       done[i] = r;
       avPor[i] = [...(!str(d.slides[i].titulo).trim() ? [reel ? 'Sin título' : pre(i) + 'sin título'] : []), ...r.avisos.map(a => pre(i) + a)];
     }
@@ -602,7 +665,7 @@
       for (const f of outs) if (!prevOut.includes(f)) { try { await I().deleteIfUnused(f); } catch (e) { /* the sweep takes it */ } }
       const err = new DzError('La mesa cambió mientras se aplicaba el diseño: vuelve a intentarlo.'); err.cambio = true; throw err;
     }
-    const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set(srcsOf(s));
+    const old = outsOf(s).filter(f => !outs.includes(f)), used = new Set([...srcsOf(s), ...capasSrc(d)]);   // a free layer's photo is in use too (D-193)
     const unused = rawPhotos(s).filter(f => !used.has(f));
     if (unused.length) { S.tray.unshift(...unused.filter(f => !S.tray.includes(f))); notas.push(`${unused.length === 1 ? 'Una foto de la casilla no se usa en el diseño: vuelve' : `${unused.length} fotos de la casilla no se usan en el diseño: vuelven`} a la bandeja.`); }
     s.photos = outs.slice();
@@ -975,11 +1038,11 @@
     const pri = [...(ct.principales || []), ...(ct.acentos || [])].filter((k, i, a) => pal.includes(k) && a.indexOf(k) === i);
     return pri.length ? { pri, mas: pal.filter(k => !pri.includes(k)) } : { pri: pal, mas: [] };
   }
-  function coloresHTML(cur) {
-    const { pri, mas } = coloresTexto(E.raw), cols = E.raw.colores || {}, nom = k => esc(k.replace(/_/g, ' '));
+  function coloresHTML(cur, raw = E.raw, masCol = E.masCol) {
+    const { pri, mas } = coloresTexto(raw), cols = raw.colores || {}, nom = k => esc(k.replace(/_/g, ' '));
     const sw = k => `<button type="button" class="dz-sw${cur === k ? ' on' : ''}" data-dz="color" data-v="${esc(k)}" style="background:${esc(cols[k])}" title="${nom(k)}" aria-label="${nom(k)}" aria-pressed="${cur === k}"></button>`;
-    const extra = E.masCol ? mas : mas.filter(k => k === cur);
-    return [...pri, ...extra].map(sw).join('') + (mas.length ? `<button type="button" class="dz-more" data-dz="mascolores" aria-expanded="${!!E.masCol}" title="${E.masCol ? 'Ver solo los colores principales' : 'Elegir otro color de la paleta'}" aria-label="${E.masCol ? 'Menos colores' : 'Más colores de la paleta'}">${E.masCol ? '−' : '+'}</button>` : '');
+    const extra = masCol ? mas : mas.filter(k => k === cur);
+    return [...pri, ...extra].map(sw).join('') + (mas.length ? `<button type="button" class="dz-more" data-dz="mascolores" aria-expanded="${!!masCol}" title="${masCol ? 'Ver solo los colores principales' : 'Elegir otro color de la paleta'}" aria-label="${masCol ? 'Menos colores' : 'Más colores de la paleta'}">${masCol ? '−' : '+'}</button>` : '');
   }
   const LS_SEC = 'mesa-dz-seccion';
   const secLeer = () => { try { const v = localStorage.getItem(LS_SEC); return v == null ? 'texto' : v; } catch (e) { return 'texto'; } };
@@ -1004,40 +1067,92 @@
       if (y0 < 0) p.scrollTo({ top: p.scrollTop + y0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
   }
-  function panelSecs(s, sl) {
-    const et = etiquetasHTML(s);
-    if (E.secAb !== '-' && !['diseno', 'foto', 'texto', 'tam', 'pos', 'color', 'velo', ...(et ? ['etiquetas'] : [])].includes(E.secAb)) E.secAb = 'texto';   // the remembered one is not in this post: «Texto», as the first time
-    const d = s.design, i = E.sel, ov = sl.ov || {}, reel = isReelS(s), e = ov.escala || 1, va = ov.velo == null, last = E.last[i];
-    const sec = (k, t, r, h, tt) => [k, accSec(k, t, r, h, tt)], dec = k => `<span class="dz-dec" data-dec="${k}"></span>`;   // dec: what «Auto» decided, set after each render
-    const vv = va ? (last && last.decision ? +last.decision.velo || 0 : 0) : ov.velo;
+  // The panel's sections (D-177), shared with the editor's «Diseño» layer (D-193): x = {reel, i, sl (the slide's data), d (the
+  // post's: serie, pos, slides' tipos), dec (what «Auto» decided last), raw, fin, masCol, sec (a section: key, title, datum,
+  // inside, title attr → markup), abierta (the one open), editor (only Texto to «Marca, número y pie», with the carousel's
+  // name), crop (the slide's photo has its own reframe), foto (the designer's «Foto» section)}. Returns [[key, markup]].
+  function seccionesDz(x) {
+    const { sl, d, raw } = x, reel = x.reel, et = etiquetasHTML(d, reel, raw, x.editor), i = x.i, ov = sl.ov || {}, e = ov.escala || 1, va = ov.velo == null, dec0 = x.dec || null;
+    const sec = (k, t, r, h, tt) => [k, x.sec(k, t, r, h, tt)], dec = k => `<span class="dz-dec" data-dec="${k}">${esc(decTxt(k, ov, dec0, true))}</span>`;   // dec: what «Auto» decided, set again after each render
+    const vv = va ? (dec0 ? +dec0.velo || 0 : 0) : ov.velo;
+    const contacto = esc((raw.final || {}).contacto || '');
     return [
-      sec('diseno', 'Diseño', `${pad2(i + 1)} · ${(TIPO_LABEL[reel ? 'reel' : sl.tipo] || '').toLowerCase()}`, reel ? '<p class="dz-p" title="9:16; en el perfil se ve el centro 3:4">Portada de reel</p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva')),
-      sec('foto', 'Foto', sl.tipo !== 'final' && !(sl.src && M.files[sl.src]) ? 'sin foto' : '', fotoHTML(s, sl)),
+      ...(x.editor ? [] : [sec('diseno', 'Diseño', `${pad2(i + 1)} · ${(TIPO_LABEL[reel ? 'reel' : sl.tipo] || '').toLowerCase()}`, reel ? '<p class="dz-p" title="9:16; en el perfil se ve el centro 3:4">Portada de reel</p>' : segHTML('tipo', [['portada', 'Portada'], ['ficha', 'Ficha'], ['final', 'Final']], sl.tipo, 'Diseño de la diapositiva')),
+        sec('foto', 'Foto', sl.tipo !== 'final' && !(sl.src && M.files[sl.src]) ? 'sin foto' : '', x.foto())]),
       sec('texto', 'Texto', '', `<label class="dz-l" for="dz-f-titulo" title="Intro = salto de línea">Título</label><textarea id="dz-f-titulo" class="dz-in" data-f="titulo" rows="2" title="Intro = salto de línea"></textarea>`
         + (sl.tipo === 'ficha' ? '<label class="dz-l" for="dz-f-texto">Texto</label><textarea id="dz-f-texto" class="dz-in" data-f="texto" rows="3"></textarea>' : '')
-        + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont" title="Vacío = el del kit">Contacto</label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" title="Vacío = el del kit" placeholder="${esc((E.raw.final || {}).contacto || '')}"></textarea>` : '')),
+        + (sl.tipo === 'final' ? `<label class="dz-l" for="dz-f-entr">Entradilla</label><textarea id="dz-f-entr" class="dz-in" data-f="entradilla" rows="2"></textarea><label class="dz-l" for="dz-f-cont" title="Vacío = el del kit">Contacto</label><textarea id="dz-f-cont" class="dz-in" data-f="contacto" rows="2" title="Vacío = el del kit" placeholder="${contacto}"></textarea>` : '')),
       sec('tam', 'Tamaño del texto', Math.round(e * 100) + ' %', `<div class="dz-size"><button type="button" class="btn2" data-dz="esc" data-v="-1" aria-label="Texto más pequeño" ${e <= ESC_MIN + 1e-6 ? 'disabled' : ''}>A−</button><output class="dz-dbl" data-dbl="esc1" title="Tamaño del texto · doble clic: 100 %">${Math.round(e * 100)} %</output><button type="button" class="btn2" data-dz="esc" data-v="1" aria-label="Texto más grande" ${e >= ESC_MAX - 1e-6 ? 'disabled' : ''}>A+</button></div>`),
       sec('pos', 'Posición', dec('lugar'), `${segHTML('lugar', [['', 'Auto'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['centro', 'Centro']], ov.lugar || '', 'Posición del texto')}`
-        + `<label class="dz-l">Alineación <span class="dz-dec" data-dec="alinear"></span></label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
+        + `<label class="dz-l">Alineación ${dec('alinear')}</label>${segHTML('alinear', [['', 'Auto'], ['izquierda', 'Izquierda'], ['centro', 'Centro'], ['derecha', 'Derecha']], ov.alinear || '', 'Alineación del texto')}`),
       sec('color', 'Color del texto', dec('color'), `<div class="dz-sws"><button type="button" class="dz-auto${ov.color ? '' : ' on'}" data-dz="color" data-v="" aria-pressed="${!ov.color}">Auto</button>`
-        + coloresHTML(ov.color) + '</div>'),
+        + coloresHTML(ov.color, raw, x.masCol) + '</div>'),
       sec('velo', 'Velo', dec('velo'), `<div class="dz-velo dz-dbl" data-dbl="veloauto" title="Velo · doble clic: Auto, el que decide el kit"><input type="range" class="dz-velor" min="0" max="${reel ? 1 : 0.9}" step="0.01" value="${vv}" aria-label="Opacidad del velo"><output class="dz-velov">${Math.round(vv * 100)} %</output></div>`),
-      ...(et ? [['etiquetas', etiquetasSec(s)]] : []),
-      ['reset', `<div class="dz-sec dz-reset" data-sec="reset"><button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || hasCrop(effSrc(sl, E.fin)) ? '' : 'disabled'}>Restablecer ajustes</button></div>`]   // the slide's settings, under the sections
+      ...(et ? [sec('etiquetas', 'Marca, número y pie', '', et, 'En px, en todo el carrusel')] : []),
+      ...(x.extra || []),
+      ['reset', `<div class="dz-sec dz-reset" data-sec="reset"><button type="button" class="btn2" data-dz="reset" ${Object.keys(ov).length || x.crop ? '' : 'disabled'}>Restablecer ajustes</button></div>`]   // the slide's settings, under the sections
     ];
   }
-  const etiquetasSec = s => accSec('etiquetas', 'Marca, número y pie', '', etiquetasHTML(s), 'En px, en todo el carrusel');
-  // marca, número and pie of this post (all its slides): exact positions in px, the kit's by default
-  function etiquetasHTML(s) {
-    const d = s.design; if (isReelS(s) || !ENG() || !ENG().posiciones) return null;
-    const P = ENG()._interno.conf(E.raw).piezas, tipos = [...new Set(d.slides.map(x => x.tipo))];
+  function panelSecs(s, sl) {
+    const et = !!etiquetasHTML(s.design, isReelS(s), E.raw);
+    if (E.secAb !== '-' && !['diseno', 'foto', 'texto', 'tam', 'pos', 'color', 'velo', ...(et ? ['etiquetas'] : [])].includes(E.secAb)) E.secAb = 'texto';   // the remembered one is not in this post: «Texto», as the first time
+    const last = E.last[E.sel];
+    return seccionesDz({ reel: isReelS(s), i: E.sel, sl, d: s.design, dec: last && last.decision, raw: E.raw, fin: E.fin, masCol: E.masCol, sec: accSec, crop: hasCrop(effSrc(sl, E.fin)), foto: () => fotoHTML(s, sl) });
+  }
+  const etiquetasSec = s => accSec('etiquetas', 'Marca, número y pie', '', etiquetasHTML(s.design, isReelS(s), E.raw), 'En px, en todo el carrusel');
+  // marca, número and pie of this post (all its slides): exact positions in px, the kit's by default; in the editor (D-193)
+  // also the carousel's name, the footer of its cards and final
+  function etiquetasHTML(d, reel, raw, conSerie) {
+    if (reel || !ENG() || !ENG().posiciones) return null;
+    const P = ENG()._interno.conf(raw).piezas, tipos = [...new Set(d.slides.map(x => x.tipo))];
+    const conPie = tipos.some(t => P[t] && P[t].pie);
     const ks = ['marca', 'pagina', 'pie'].filter(k => tipos.some(t => P[t] && P[t][k]) && (k !== 'pie' || str(d.serie).trim()));
-    if (!ks.length) return null;
-    const kit = ENG().posiciones(E.raw), cur = ENG().posiciones(E.raw, posOf(d));
+    const serie = conSerie && conPie ? `<label class="dz-l" for="dz-serie-ed">Nombre del carrusel</label><input id="dz-serie-ed" class="dz-in dz-serin" type="text" value="${esc(str(d.serie))}" title="El pie de sus fichas y de la final, en todo el carrusel">` : '';
+    if (!ks.length && !serie) return null;
+    const kit = ENG().posiciones(raw), cur = ENG().posiciones(raw, posOf(d));
     const NOM = { marca: 'Marca', pagina: 'Número', pie: 'Pie' }, LADO = { izquierda: 'desde la izquierda', derecha: 'desde la derecha', centro: 'desde el centro' };
     const inp = (k, c, t) => `<input type="number" id="dz-pos-${k}-${c}" class="dz-in dz-pos" data-e="${k}" data-c="${c}" step="1" value="${cur[k][c]}" title="${esc(t)} · kit: ${kit[k][c]} px" aria-label="${NOM[k]}: ${c.toUpperCase()} en px, ${esc(t)}">`;
-    return ks.map(k => `<div class="dz-posr"><span class="dz-posn" title="${LADO[kit[k].ancla]} · desde ${kit[k].desde === 'abajo' ? 'abajo' : 'arriba'}">${NOM[k]}</span><label>X ${inp(k, 'x', LADO[kit[k].ancla])}</label><label>Y ${inp(k, 'y', 'desde ' + (kit[k].desde === 'abajo' ? 'abajo' : 'arriba'))}</label></div>`).join('')
-      + `<div class="dz-row"><button type="button" class="btn2" data-dz="posreset" ${posOf(d) ? '' : 'disabled'}>Volver a las del kit</button></div>`;
+    return serie + ks.map(k => `<div class="dz-posr"><span class="dz-posn" title="${LADO[kit[k].ancla]} · desde ${kit[k].desde === 'abajo' ? 'abajo' : 'arriba'}">${NOM[k]}</span><label>X ${inp(k, 'x', LADO[kit[k].ancla])}</label><label>Y ${inp(k, 'y', 'desde ' + (kit[k].desde === 'abajo' ? 'abajo' : 'arriba'))}</label></div>`).join('')
+      + (ks.length ? `<div class="dz-row"><button type="button" class="btn2" data-dz="posreset" ${posOf(d) ? '' : 'disabled'}>Volver a las del kit</button></div>` : '');
+  }
+  // what «Auto» decided, as each title's datum says it (D-177): what was chosen, or «auto: …»
+  const LUG = { arriba: 'Arriba', abajo: 'Abajo', centro: 'Centro' };
+  function decTxt(k, ov, dec, titulo) {
+    const t = k === 'lugar' ? (ov.lugar ? LUG[ov.lugar] || ov.lugar : dec && dec.lugar ? '· auto: ' + dec.lugar : '')
+      : k === 'alinear' ? (!ov.alinear && dec && dec.alinear ? '· auto: ' + dec.alinear : '')
+      : k === 'color' ? (ov.color ? String(ov.color).replace(/_/g, ' ') : dec && dec.color ? '· auto: ' + String(dec.color).replace(/_/g, ' ') : '')
+      : k === 'velo' ? (ov.velo != null ? Math.round(ov.velo * 100) + ' %' : dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '') : '';
+    return titulo && k !== 'alinear' ? t.replace(/^· /, '') : t;
+  }
+  function ponerDecision(root, ov, dec) {   // after each render: the data on the titles' right and the veil's bar in «Auto»
+    for (const k of ['lugar', 'alinear', 'color', 'velo']) { const x = root.querySelector(`.dz-dec[data-dec="${k}"]`); if (x) { const t = decTxt(k, ov, dec, !!(x.closest('.dz-acc-s, .lb-acc-s'))); if (x.textContent !== t) x.textContent = t; } }
+    if (ov.velo == null && dec) { const rg = root.querySelector('.dz-velor'), o = root.querySelector('.dz-velov'); if (rg && document.activeElement !== rg) rg.value = +dec.velo || 0; if (o) o.textContent = Math.round((+dec.velo || 0) * 100) + ' %'; }
+  }
+  // what a control of the panel does (shared by the designer and the editor's «Diseño» layer, D-193): on the slide's data
+  // (sl) or the post's (d: serie, pos). 'sl' / 'post' when it changed something, else null
+  function accionDz(act, v, sl, d) {
+    sl.ov = sl.ov || {};
+    if (act === 'esc') { const n = Math.round(Math.max(ESC_MIN, Math.min(ESC_MAX, (sl.ov.escala || 1) + (+v) * ESC_STEP)) * 100) / 100; if (n === (sl.ov.escala || 1)) return null; if (n === 1) delete sl.ov.escala; else sl.ov.escala = n; return 'sl'; }
+    if (act === 'lugar' || act === 'alinear') { if (v) sl.ov[act] = v; else delete sl.ov[act]; delete sl.ov.dx; delete sl.ov.dy; delete sl.ov.h; return 'sl'; }   // a new position starts from its own place
+    if (act === 'color') { if (v) sl.ov.color = v; else delete sl.ov.color; return 'sl'; }
+    if (act === 'veloauto') { if (sl.ov.velo == null) return null; delete sl.ov.velo; return 'sl'; }
+    if (act === 'esc1') { if (sl.ov.escala == null) return null; delete sl.ov.escala; return 'sl'; }
+    if (act === 'posreset') { if (!posOf(d)) return null; delete d.pos; return 'post'; }
+    return null;
+  }
+  function entradaDz(t, sl, d, raw) {   // a field of the panel being typed in or a bar being moved
+    if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; return 'sl'; }
+    if (t.matches('.dz-serin')) { d.serie = t.value; return 'post'; }
+    if (t.matches('.dz-pos')) {                      // exact position of marca / número / pie (empty = the kit's)
+      const k = t.dataset.e, c = t.dataset.c, kv = ENG().posiciones(raw)[k][c], v = t.value.trim() === '' ? null : Math.round(+t.value);
+      const o = { ...((d.pos || {})[k] || {}) };
+      if (v == null || !isFinite(v) || v === kv) delete o[c]; else o[c] = Math.max(-2000, Math.min(2000, v));
+      d.pos = { ...(d.pos || {}) }; if (Object.keys(o).length) d.pos[k] = o; else delete d.pos[k];
+      if (!Object.keys(d.pos).length) delete d.pos;
+      return 'post';
+    }
+    if (t.matches('.dz-velor')) { sl.ov = sl.ov || {}; sl.ov.velo = Math.round(+t.value * 100) / 100; return 'sl'; }
+    return null;
   }
   function edPanel(force) {
     const s = curSlot(), sl = s.design.slides[E.sel], p = E.el.querySelector('.dz-panel'), top = p.scrollTop;
@@ -1061,13 +1176,7 @@
   // what «Auto» decided for the selected slide (after each render)
   function edDecision() {
     if (!E) return; const sl = D().slides[E.sel], ov = sl.ov || {}, r = E.last[E.sel], dec = r && r.decision;
-    const set = (k, t) => { const x = E.el.querySelector(`.dz-dec[data-dec="${k}"]`); if (x) x.textContent = x.closest('.dz-acc-s') ? t.replace(/^· /, '') : t; };
-    const LUG = { arriba: 'Arriba', abajo: 'Abajo', centro: 'Centro' };   // on a title's right (D-177): what «Auto» decided, or what was chosen
-    set('lugar', ov.lugar ? LUG[ov.lugar] || ov.lugar : dec && dec.lugar ? '· auto: ' + dec.lugar : '');
-    set('alinear', !ov.alinear && dec && dec.alinear ? '· auto: ' + dec.alinear : '');
-    set('color', ov.color ? String(ov.color).replace(/_/g, ' ') : dec && dec.color ? '· auto: ' + String(dec.color).replace(/_/g, ' ') : '');
-    set('velo', ov.velo != null ? Math.round(ov.velo * 100) + ' %' : dec ? '· auto: ' + Math.round((+dec.velo || 0) * 100) + ' %' : '');
-    if (ov.velo == null && dec) { const rg = E.el.querySelector('.dz-velor'), o = E.el.querySelector('.dz-velov'); if (rg && document.activeElement !== rg) rg.value = +dec.velo || 0; if (o) o.textContent = Math.round((+dec.velo || 0) * 100) + ' %'; }
+    ponerDecision(E.el, ov, dec);   // on a title's right (D-177): what «Auto» decided, or what was chosen
     const ul = E.el.querySelector('.dz-av'), src = effSrc(sl, E.fin);
     const off = avGet(curSlot(), E.sel, avKey(curSlot(), E.sel, E.rawHash, E.sz, E.fin));   // the ones estado()/aplicar() give
     const av = [...slideAvisos(sl, src), ...(src && M.files[src] ? (off ? off.avisos : r && r.avisos) || [] : [])];   // the same list as estado()
@@ -1454,8 +1563,7 @@
     registrar();
     const k0 = H.k, n0 = H.undo.length, r0 = H.redo;
     sl.ov = sl.ov || {};
-    if (k === 'veloauto') { if (sl.ov.velo == null) return; delete sl.ov.velo; touch(); edPanel(); dirty('sel'); }
-    else if (k === 'esc1') { if (sl.ov.escala == null) return; delete sl.ov.escala; touch(); edPanel(); dirty('sel'); }
+    if (k === 'veloauto' || k === 'esc1') { if (!accionDz(k, null, sl, D())) return; touch(); edPanel(); dirty('sel'); }
     else if (k === 'centrar') {
       const src = effSrc(sl, E.fin); if (!src || !M.files[src]) return;
       const ant = H.tag === 'crop:' + src && Date.now() - H.t < 2000 && H.undo.length ? H.undo[H.undo.length - 1] : H.cur;   // before the click that moved the bar
@@ -1500,20 +1608,13 @@
       else if (act === 'setfinal') { const f = a.dataset.f; M.diseno.fijarFinal(E.cid, f).then(r => { if (r && r.error) I().toast(r.error); else I().toast('Foto final del cliente cambiada: se usa en todos sus carruseles.'); }); }
       else if (act === 'pickfile') { const inp = el.querySelector('.dz-file'); if (inp) inp.click(); }
       else if (act === 'addfotos') { const inp = el.querySelector('.dz-addin'); if (inp) inp.click(); }
-      else if (act === 'esc') {
-        const v = Math.round(Math.max(ESC_MIN, Math.min(ESC_MAX, (sl.ov.escala || 1) + (+a.dataset.v) * ESC_STEP)) * 100) / 100;
-        if (v === 1) delete sl.ov.escala; else sl.ov.escala = v;
-        touch(); edPanel(); dirty('sel');
+      else if (['esc', 'lugar', 'alinear', 'color', 'posreset', 'veloauto'].includes(act)) {   // shared with the editor's «Diseño» layer (D-193)
+        const r = accionDz(act, a.dataset.v, sl, d);
+        if (act === 'esc' && !r) { touch(); edPanel(); dirty('sel'); }   // at its limit: as before, a step all the same
+        else if (r === 'post') { touch(true); edPanel(); }
+        else if (r) { touch(); edPanel(); dirty('sel'); }
       }
-      else if (act === 'lugar' || act === 'alinear') {
-        if (a.dataset.v) sl.ov[act] = a.dataset.v; else delete sl.ov[act];
-        delete sl.ov.dx; delete sl.ov.dy; delete sl.ov.h;    // a new position starts from its own place
-        touch(); edPanel(); dirty('sel');
-      }
-      else if (act === 'color') { if (a.dataset.v) sl.ov.color = a.dataset.v; else delete sl.ov.color; touch(); edPanel(); dirty('sel'); }
       else if (act === 'mascolores') { E.masCol = !E.masCol; edPanel(); }
-      else if (act === 'posreset') { delete d.pos; touch(true); edPanel(); }
-      else if (act === 'veloauto') { if (sl.ov.velo != null) { delete sl.ov.velo; touch(); edPanel(); dirty('sel'); } }
       else if (act === 'reset') {                            // everything back to automatic, the photo's reframe included
         sl.ov = {};
         const src = effSrc(sl, E.fin); if (hasCrop(src)) { delete I().S.crops[src]; dirtySrc(src); }
@@ -1526,20 +1627,16 @@
     el.addEventListener('input', e => {
       if (!E || !curSlot()) return;
       const t = e.target, d = D(), sl = d.slides[E.sel];
-      if (t.matches('[data-f]')) { sl[t.dataset.f] = t.dataset.f === 'contacto' && t.value === '' ? null : t.value; touch(); dirty('sel'); }
-      else if (t.matches('.dz-serin')) { d.serie = t.value; touch(true); }
+      if (t.matches('[data-f]')) { entradaDz(t, sl, d, E.raw); touch(); dirty('sel'); }   // shared with the editor's «Diseño» layer (D-193)
+      else if (t.matches('.dz-serin')) { entradaDz(t, sl, d, E.raw); touch(true); }
       else if (t.matches('.dz-pos')) {                      // exact position of marca / número / pie (empty = the kit's)
-        const k = t.dataset.e, c = t.dataset.c, kv = ENG().posiciones(E.raw)[k][c], v = t.value.trim() === '' ? null : Math.round(+t.value);
-        const o = { ...((d.pos || {})[k] || {}) };
-        if (v == null || !isFinite(v) || v === kv) delete o[c]; else o[c] = Math.max(-2000, Math.min(2000, v));
-        d.pos = { ...(d.pos || {}) }; if (Object.keys(o).length) d.pos[k] = o; else delete d.pos[k];
-        if (!Object.keys(d.pos).length) delete d.pos;
+        entradaDz(t, sl, d, E.raw);
         touch(true); const rs = el.querySelector('[data-dz="posreset"]'); if (rs) rs.disabled = !posOf(d);
         if (E.pHtml) E.pHtml.etiquetas = etiquetasSec(curSlot());   // what the field shows now (a later redraw of the section compares with it)
       }
       else if (t.matches('.dz-zoomr')) { const src = effSrc(sl, E.fin); if (src) { flashTercios(); setCropFor(src, { z: +t.value }); touch(); const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false; } }
       else if (t.matches('.dz-velor')) {
-        sl.ov = sl.ov || {}; sl.ov.velo = Math.round(+t.value * 100) / 100;
+        entradaDz(t, sl, d, E.raw);
         const o = el.querySelector('.dz-velov'); if (o) o.textContent = Math.round(sl.ov.velo * 100) + ' %';
         const rs = el.querySelector('[data-dz="reset"]'); if (rs) rs.disabled = false;
         touch(); dirty('sel');
@@ -1707,7 +1804,7 @@
     }
     if (!hechos.length) return;
     X.changed();
-    X.toast(`En Notion cambió el tipo de ${hechos.join(', ')}: su diseño se ha convertido y se aplica al pulsar su «Editar …».`, { ms: 9000 });
+    X.toast(`En Notion cambió el tipo de ${hechos.join(', ')}: su diseño se ha convertido y se aplica en su «Editar …».`, { ms: 9000 });
   }
   function sync() {
     if (E && (!E.el.isConnected || !curSlot())) cerrar();
@@ -1719,6 +1816,103 @@
     }
   }
 
+
+  // ---------- «Diseño», a layer of the free editor (libre.js 1.62, D-193) ----------
+  // EDITAR opens a designed carousel or reel cover in layers. The editor keeps its own copy of each slide's data (its
+  // «Diseño» layer: tipo, texts, ov; its «Foto»: the photo and its reframe; its free layers; a slide let go from the kit)
+  // and of the post's (serie, pos), and draws the layer with the very engine call «Aplicar» makes (enPintar, as renderFull
+  // and the editor's apply). The panel is the designer's (seccionesDz, accionDz, entradaDz). «Aplicar a la casilla» writes it
+  // into the design and applies it here (enGuardar): only the slides that changed are drawn again. Nothing here is Claude's:
+  // M.diseno's names and answers don't change.
+  async function enPreparar(slotId) {
+    const s = slotOf(slotId), d = s.design; need(d && d.slides.length, NO_DESIGN);
+    const { kit, raw } = await engineKit(d.kit);   // the kit already read (the board read it again when it opened); «Aplicar» reads it fresh
+    const fin = await finalReady(raw);
+    await I().loadThumbs(srcsOf(s));
+    return { kit, raw, fin, fondo: fondoKit(kit), sz: sizeOf(kit, d, fin), contacto: str((raw.final || {}).contacto) };
+  }
+  // the canvas' size for the editor's copy (a horizontal carousel: its first photo decides it, as sizeOf)
+  function enTamano(kit, fmt, srcs) { const f0 = srcs.find(f => f && M.files[f]), f = f0 ? M.files[f0] : { w: 1080, h: 1350 }; return { ...ENG().tamano(kit, fmt, f.w, f.h), sw: f.w, sh: f.h }; }
+  // the slide's photo as «Aplicar» decodes it (D-116) and reframed (crop: {cx, cy, z}), as an engine photo layer; no photo:
+  // the kit's background. The caller lets go of its canvas
+  async function enFoto(kit, src, crop, sz) {
+    const f = src && M.files[src]; if (!f) return capaPlana(kit, sz);
+    const r = I().rectFor(f.w, f.h, sz.W / sz.H, crop || {}), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' };
+    if (usa < 1) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
+    const bmp = await createImageBitmap(await I().getBlob(src), oo);
+    try { const k = bmp.width / f.w; return ENG().capaFoto(bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, sz.W, sz.H); } finally { bmp.close(); }
+  }
+  // draws a slide on ctx (W×H of sz), synchronously: datos {tipo, titulo, texto, entradilla, contacto, ov}, post {serie, pos},
+  // its page number (null in a reel), the photo layer; sinFoto: velos and texts only, over what ctx has (the editor's
+  // photo and the layers between). The same call and the same correction of an offset as renderFull
+  function enPintar(ctx, kit, sz, datos, post, pagina, capa, sinFoto, piezas) {   // piezas: what was drawn, piece by piece («Soltar del kit»)
+    const slide = slideAt(datos, sz), opts = { W: sz.W, H: sz.H, factor: sz.factor, pagina, serie: str(post.serie), pos: posOf(post), sinFoto: !!sinFoto, piezas: !!piezas };
+    let res = ENG().dibujar(ctx, kit, capa, slide, opts);
+    const adj = clampOv(datos, slide.ov, res, sz);
+    if (adj) { if (sinFoto) ctx.clearRect(0, 0, sz.W, sz.H); res = ENG().dibujar(ctx, kit, capa, { ...slide, ov: adj }, opts); }
+    return res;
+  }
+  // the text block moved or scaled in the editor (its frame b0 → b1, px of sz): the slide's offset and size, kept on the
+  // canvas as the designer keeps them (lim); the place and alignment stay «Auto» or as chosen
+  function enMover(datos, b0, b1, sz) {
+    const ov = datos.ov = { ...(datos.ov || {}) };
+    if (b1.w > 0 && b0.w > 0 && Math.abs(b1.w / b0.w - 1) > 0.002) {
+      const e = Math.round(Math.max(ESC_MIN, Math.min(ESC_MAX, (ov.escala || 1) * b1.w / b0.w)) * 100) / 100;
+      if (e === 1) delete ov.escala; else ov.escala = e;
+      return;
+    }
+    const dx0 = ov.dx || 0, dy0 = ovAt(ov, sz).dy || 0;   // as drawn on this canvas
+    const dx = Math.round(lim(dx0 + b1.x - b0.x, b0.x - dx0, b0.w, sz.W)), dy = Math.round(lim(dy0 + b1.y - b0.y, b0.y - dy0, b0.h, sz.H));
+    if (dx) ov.dx = dx; else delete ov.dx;
+    if (dy) ov.dy = dy; else delete ov.dy;
+    if (ov.dx || ov.dy) ov.h = sz.H; else delete ov.h;
+  }
+  // «Aplicar a la casilla» of the editor: c = {serie, pos, slides: [{titulo, texto, entradilla, contacto, ov, src, crop
+  // ({cx, cy, z} of its photo, the final's too), libres, suelta}]}, in the design's order. Photos the design no longer
+  // uses go back to the tray, the new ones leave it; then the design is applied (a missing photo: an empty hole, D-035)
+  async function enGuardar(slotId, c) {
+    const s = slotOf(slotId), S = I().S, d = s.design;
+    need(!I().locked, LOCKED);
+    need(d && c && Array.isArray(c.slides) && c.slides.length === d.slides.length, 'La publicación cambió mientras editabas: cierra el editor y vuelve a abrirlo.');
+    const antes = { d: clone(d), crops: clone(S.crops || {}), tray: S.tray.slice(), photos: s.photos.slice() };
+    const usa0 = new Set([...srcsOf(s), ...capasSrc(d)]), fin = finalIdOf(rawSync(d.kit).raw);
+    try {
+      d.slides.forEach((sl, i) => {
+        const x = c.slides[i];
+        for (const k of ['titulo', 'texto', 'entradilla']) sl[k] = str(x[k]);
+        sl.contacto = x.contacto == null ? null : String(x.contacto);
+        sl.ov = isObj(x.ov) ? clone(x.ov) : {};
+        if (sl.tipo !== 'final') sl.src = x.src || null;
+        const src = sl.tipo === 'final' ? fin : sl.src;
+        if (src && M.files[src] && x.crop) {          // only a reframe that changed is written (an untouched slide keeps its signature)
+          const b = I().baseCrop(src, S), n = { cx: x.crop.cx ?? 0.5, cy: x.crop.cy ?? 0.5, z: x.crop.z || 1 };
+          if (['cx', 'cy', 'z'].some(k => Math.abs((b[k] ?? (k === 'z' ? 1 : 0.5)) - n[k]) > 1e-6)) { S.crops = S.crops || {}; S.crops[src] = { ...b, ...n }; }
+        }
+        const lib = x.libres && ((x.libres.abajo || []).length || (x.libres.arriba || []).length) ? { abajo: clone(x.libres.abajo || []), arriba: clone(x.libres.arriba || []) } : null;
+        if (lib) sl.libres = lib; else delete sl.libres;
+        if (x.suelta) sl.suelta = { comp: clone(x.suelta) }; else delete sl.suelta;
+      });
+      d.serie = str(c.serie);
+      if (c.pos && Object.keys(c.pos).length) d.pos = clone(c.pos); else delete d.pos;
+      d.at = nowISO();
+      const usa = new Set([...srcsOf(s), ...capasSrc(d)]);
+      S.tray = S.tray.filter(f => !usa.has(f));       // in the design now: out of the tray
+      rescue([...usa0].filter(f => !usa.has(f)));     // no longer in it: back to the tray (never a logo nor a drawn image)
+      remember(s);
+      return await aplicarNow(slotId, { huecos: true, parcial: true });
+    } catch (e) {                                     // nothing applied: the design, the reframes and the tray as they were
+      for (const k of Object.keys(d)) delete d[k];
+      Object.assign(d, antes.d); S.crops = antes.crops; S.tray = antes.tray; s.photos = antes.photos;
+      try { I().renderTray(); } catch (er) { /* drawn on the next change */ }
+      throw e;
+    }
+  }
+  const enCapas = {
+    preparar: enPreparar, tamano: enTamano, foto: enFoto, pintar: enPintar, mover: enMover,
+    guardar: (id, c) => { APL++; return enGuardar(id, c).finally(() => { APL--; }); },
+    secciones: seccionesDz, accion: accionDz, entrada: entradaDz, decision: ponerDecision, css: () => injectCSS(),
+    libres: libresDe, suelta: sueltaDe, ESC_MIN, ESC_MAX
+  };
   M.diseno = {
     version: VERSION,
     cargar: api(cargar), estado: api(estado), aplicar: api(aplicar), ver: api(ver),
@@ -1727,6 +1921,7 @@
     _portada: s => { const sl = portadaDe(s); return sl ? sl.src || null : null; }, _ponerPortada: ponerPortada, reaplicar,
     vista, vistaEmpezar, vistaMover, vistaZoom, vistaCentrar, vistaSoltar, vistaLibre, formato, _srcVista: srcVista, _tienePortada: s => !!portadaDe(s),
     _hist: () => E && E.hist ? { undo: E.hist.undo.length, redo: E.hist.redo.length } : null,   // for the tests: the designer's ⌘Z steps
+    _enCapas: enCapas,   // the editor's «Diseño» layer (libre.js, D-193)
     abierto: () => E ? { slot: E.slotId, diapositiva: E.sel + 1, W: E.sz.W, H: E.sz.H, bloque: (E.last[E.sel] || {}).bloque || null, decision: (E.last[E.sel] || {}).decision || null } : null
   };
   // loaded after the mesa opened a board (async script): its designs are checked now and the views say so

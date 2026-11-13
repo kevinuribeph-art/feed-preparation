@@ -28,9 +28,10 @@
 //   comp.previa: the slide as it was before its last template (with its own previa, up to PREVIAS deep; rat: its W/H)
 // The client's colours, templates and logos live on the client record: c.libre = {colores, plantillas:[{id, nombre, comp, fmt
 // (its format's name, from 1.16), rat (W/H)}], logos}.
-// A post designed by the designer (diseno.js, s.design) opens here with its applied images as the slides (v1.4); applying a
-// change fixes the design as images (s.design goes, its photos go back to the tray). A design with changes not applied is
-// applied first (1.36, D-089: the post view has no designer button any more). The other way round, an edited post is not designed.
+// A post designed by the designer (diseno.js, s.design) opens here in layers (1.62, D-193): each slide a «Foto» (its photo,
+// a sangre and at the bottom) and a «Diseño» layer (t:'diseno', drawn by the engine as «Aplicar» draws it), with free
+// layers between them or on top; «Aplicar a la casilla» keeps the design (diseno.js applies it). «Soltar del kit» turns a
+// slide into ordinary layers and «Volver al diseño» brings it back. The other way round, an edited post is not designed.
 // Uses the mesa's bridge M._in (mesa.js ≥ 3.25).
 // v1.3 (mesa 3.26): a Foto has pages like a carousel; «Transformar» gives a photo's frame a format (vertical or horizontal)
 // and leaves it ready to reframe (el.rat = the format chosen, kept while the frame keeps its proportion); slides are dragged
@@ -106,7 +107,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.61';   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.62';   // 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -157,7 +158,7 @@
   }
   // a composition's signature for «changed?»: a text's height follows its font, which may load after opening, and its origin
   // (aProporcion) is not what it shows
-  const firma = c => JSON.stringify(c, function (k, v) { return (k === 'h' && this && this.t === 'texto') || k === 'origen' ? undefined : v; });
+  const firma = c => JSON.stringify(c, function (k, v) { return (k === 'h' && this && this.t === 'texto') || k === 'origen' || (this && this.t === 'diseno' && (k === 'x' || k === 'y' || k === 'w' || k === 'h')) ? undefined : v; });   // a «Diseño» layer's frame is the block the engine drew (D-193)
   // a slide's signature as a 53-bit summary (C15): what the session keeps in base, not the whole composition again
   function resumen(t) { let a = 0xdeadbeef, b = 0x41c6ce57; for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); } a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909); b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909); return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36); }
   const hfirma = c => resumen(firma(c));
@@ -530,6 +531,7 @@
     ctx.restore();
   }
   let FUERA = false;               // drawing the image that leaves the editor (or its preview), not the editor's
+  let SALIDA = false;              // drawing the image itself (dibujar): a «Diseño» layer is never drawn there (D-193)
   function drawEl(ctx, el, W, H, img, k, ph) {
     if (el.oculto) return;
     if (el.t === 'texto') drawTexto(ctx, el, W, H, k, ph);
@@ -559,11 +561,12 @@
   }
   function drawComp(ctx, comp, W, H, img, k, ph) {
     ctx.fillStyle = hexOk(comp.bg) ? comp.bg : '#ffffff'; ctx.fillRect(0, 0, W, H);
-    const els = comp.els, { vk, tk, tb } = alturas(comp);
+    const els = comp.els, { vk, tk, tb } = alturas(comp), tapa = !SALIDA && dzTapa(comp);   // the design's photo under what covers it whole: not drawn (nor decoded)
     const velo = () => { if (!comp.velo.oculto) drawVelo(ctx, comp.velo, W, H); }, tex = () => { if (!comp.tex.oculto) drawTex(ctx, comp.tex, W, H); };
     for (let i = 0; i <= els.length; i++) {
       if (i === vk && i === tk && tb) { tex(); velo(); } else { if (i === vk) velo(); if (i === tk) tex(); }
-      if (i < els.length) drawEl(ctx, els[i], W, H, img, k, ph);
+      if (tapa && i < els.length && esFotoDz(els[i])) continue;
+      if (i < els.length) { if (els[i].t === 'diseno') drawDiseno(ctx, els[i], W, H, comp, img, k); else drawEl(ctx, els[i], W, H, img, k, ph); }
     }
   }
   // the slide's layers, bottom to top: its elements and 'velo' / 'tex' (D-185)
@@ -717,6 +720,7 @@
   function rawComp(key, centred) { const el = fotoEl(key, centred ? null : I().baseCrop(key, E.board)); el.id = 'r0'; return { bg: '#ffffff', velo: null, els: [el] }; }
   function fmtAt(i) { return E.car ? E.fmt : (E.sl[i] && E.sl[i].fmt) || 'v45'; }
   function ratioAt(i) {   // «Horizontal» takes the ratio of the photo (a carousel's: its first slide's), never of an image drawn from it;
+    if (E.dzk && E.dzSz) return E.dzSz.W / E.dzSz.H;   // a designed post: the design's canvas (D-193)
     if (E.car && E.rat0 && E.fmt === E.fmt0) return E.rat0;   // a carousel already drawn in Horizontal keeps its own while its format stays
     const x = E.car ? E.sl[0] : E.sl[i], c = x && (x.comp || x.raw), e = c && fotosDe(c).find(q => q.src && M.files[q.src] && !M.files[q.src].design);
     const d = e ? M.files[e.src] : x && x.key && M.files[x.key] ? M.files[x.key] : { w: 4, h: 5 };
@@ -726,6 +730,7 @@
   const firmaG = () => JSON.stringify(['x', 'y'].map(k => [...E.guias[k]].sort((a, b) => a - b)));   // the post's guides, in any order
   function pendiente() {
     if (!E) return false;
+    if (E.dzk) return E.dzChg0 || JSON.stringify(E.dzp) !== E.dzp0 || E.sl.some(changedSl);   // a designed post: its layers, its name and positions, or a design not applied as it is (D-193)
     if (E.car && E.fmt !== E.fmt0) return true;
     if (firmaG() !== E.guias0) return true;
     if (!I().same(E.sl.map(x => x.key).filter(k => k || !E.historia), E.photos0)) return true;
@@ -791,11 +796,277 @@
     for (const i of [E.i, E.i - 1, E.i + 1, E.pv ? E.pvI : -1, E.fv ? E.fvI : -1]) if (E.sl[i]) srcsOf(compAt(i)).forEach(f => { quedan.add(f); if (i !== E.i) vecinas.push(f); });
     for (const [f, r] of E.bm) if (!quedan.has(f) && !String(f).startsWith('kit-')) { if (r.im && r.im.close) r.im.close(); E.bm.delete(f); }
     for (const f of vecinas) { const L = M.files[f] ? Math.max(M.files[f].w, M.files[f].h) : 0; if (L && !E.bm.has(f)) pedirFoto(f, Math.min(L, VIEW_LONG), true); }   // ready when it's opened
+    if (E.dzk) dzLejanas();
+  }
+  // ---------- «Diseño», a layer of the slide (1.62, D-193) ----------
+  // A designed carousel or reel cover opens in layers: «Foto» (the slide's photo: always a sangre and at the bottom, locked
+  // in place; reframed by dragging it, changed from the tray; the final's is the client's and isn't changed here) and
+  // «Diseño» (t:'diseno': veil, texts, marca, número and pie, drawn by the engine with the very call «Aplicar» makes; it
+  // carries the slide's data — tipo, titulo, texto, entradilla, contacto, ov — and its frame is the text block the engine
+  // drew, out of the slide's signature). Free layers go between them or over the design. A slide let go from the kit
+  // («Soltar del kit») is an ordinary composition whose comp.dzs keeps what «Volver al diseño» needs. E.dzk: the kit as
+  // diseno.js prepared it; E.dzp: the post's serie and pos (⌘Z with the slides); E.dzSz: the design's canvas; E.dzc: what
+  // the engine drew for each «Diseño» layer ({fullKey, full, sfKey, sf (without the photo), mini, res, ck}); E.dzCapa: its
+  // photo layers (decoded and read as «Aplicar» does).
+  const DZ = () => M.diseno && M.diseno._enCapas;
+  const str = v => v == null ? '' : String(v);
+  const esDz = e => !!e && e.t === 'diseno';
+  const esFotoDz = e => !!e && e.t === 'foto' && !!e.dz;
+  const fijoDz = e => esDz(e) || esFotoDz(e);
+  const dzDe = c => ((c && c.els) || []).find(esDz) || null;
+  const fotoDzDe = c => ((c && c.els) || []).find(esFotoDz) || null;
+  const datosDz = e => ({ tipo: e.tipo, titulo: str(e.titulo), texto: str(e.texto), entradilla: str(e.entradilla), contacto: e.contacto == null ? null : String(e.contacto), ov: clone(e.ov || {}) });
+  const TIPO_DZ = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
+  const dzPag = i => E.reel ? null : i + 1;
+  function compDz(sl) {        // a slide of the design as the editor's layers
+    const S = E.board, final = sl.tipo === 'final', src = final ? E.dzk.fin : sl.src || null, ok = !!(src && M.files[src]);
+    const datos = datosDz(sl), suelta = sl.suelta && sl.suelta.comp;
+    if (suelta) { const c = migrado(clone(suelta)); c.dzs = { datos, src: final ? null : sl.src || null, libres: sl.libres ? clone(sl.libres) : null }; return c; }   // its free layers from before it was let go, for «Volver al diseño»
+    const foto = { ...fotoEl(ok ? src : null, ok ? I().baseCrop(src, S) : null), lock: true, dz: true, ...(final ? { fin: true } : {}) };
+    const d = { id: uid(), t: 'diseno', x: 0, y: 0, w: 0, h: 0, ...base, ...datos };
+    const lib = sl.libres || {};
+    return { bg: E.dzk.fondo, velo: null, els: [foto, ...copiasDz(lib.abajo), d, ...copiasDz(lib.arriba)] };
+  }
+  function copiasDz(els) {   // free layers coming back (opening, «Volver al diseño»): their own ids, unique on the slide
+    return clone(els || []).map(e => ({ ...e, id: e.id || uid() }));
+  }
+  // something shown between the photo and the design: the engine draws without the photo, over them (motor 1.7)
+  function entreDz(c) { const els = (c && c.els) || [], j = els.findIndex(esDz); return j > 0 && els.slice(0, j).some(e => !e.oculto && !esFotoDz(e)); }
+  function fijarFotoDz(c) { const k = c.els.findIndex(esFotoDz); if (k > 0) c.els.unshift(c.els.splice(k, 1)[0]); }   // the photo stays at the bottom
+  // the photo being reframed: its layer and what «Auto» decided stay until it is let go (as the designer did, E4)
+  function dzQuieto(c) { const f = fotoDzDe(c); return !!f && ((!!E.drag && E.drag.t === 'pan' && E.drag.id === f.id) || E.crop === f.id); }
+  const capaClave = (f, sz) => [f && f.src && M.files[f.src] ? f.src : '-', f && f.src ? [f.cx ?? 0.5, f.cy ?? 0.5, f.z || 1].map(v => (+v).toFixed(5)).join(',') : '', sz.W, sz.H].join('|');
+  // what the engine drew for slide i, drawn again when its data, the post's or its photo changed (alta: at full size, not
+  // only its thumbnail); drawn now when its photo layer is ready, else once it is (dzCapa)
+  function dzVer(i, alta) {
+    const x = E && E.dzk && E.sl[i], c = x && x.comp, d = dzDe(c); if (!d) return null;
+    const sz = E.dzSz, cur = E.dzc.get(d.id) || {}, quieto = dzQuieto(c), sf = quieto || entreDz(c);
+    const ck = quieto && cur.ck ? cur.ck : capaClave(fotoDzDe(c), sz);
+    const key = JSON.stringify([ck, datosDz(d), E.dzp.serie, E.dzp.pos || null, dzPag(i)]);
+    cur.want = key; E.dzc.set(d.id, cur);
+    if (sf ? cur.sfKey === key : cur.fullKey === key || (!alta && cur.miniKey === key)) return cur;
+    const capa = E.dzCapa.get(ck);
+    const lienzo = v => { if (!v || v.width !== sz.W || v.height !== sz.H) { v = document.createElement('canvas'); v.width = sz.W; v.height = sz.H; } return v; };
+    if (!capa) {
+      if (!quieto && (alta || !dzAplicada(x))) dzCapa(ck, fotoDzDe(c), sz);   // a thumbnail of an untouched slide: its applied image meanwhile
+      const vieja = alta && !quieto && cur.fullCk && cur.fullCk !== ck && E.dzCapa.get(cur.fullCk);   // its photo just changed: the texts, as they were decided, over the new photo meanwhile
+      if (vieja && cur.sfVieja !== key) { try { cur.sf = lienzo(cur.sf); const g = cur.sf.getContext('2d'); g.clearRect(0, 0, sz.W, sz.H); DZ().pintar(g, E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), vieja, true); cur.sfKey = null; cur.sfVieja = key; } catch (err) { /* the new one comes */ } }
+      return cur;
+    }
+    E.dzCapa.delete(ck); E.dzCapa.set(ck, capa);   // the most recent last (the oldest go first)
+    try {
+      if (sf) { cur.sf = lienzo(cur.sf); const g = cur.sf.getContext('2d'); g.clearRect(0, 0, sz.W, sz.H); cur.res = DZ().pintar(g, E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, true); cur.sfKey = key; }
+      else { cur.full = lienzo(cur.full); cur.res = DZ().pintar(cur.full.getContext('2d'), E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, false); cur.fullKey = key; cur.fullCk = ck; cur.mini = null; cur.miniKey = null; }
+    } catch (err) { console.warn('editor:', err); return cur; }
+    cur.ck = ck; cur.resKey = key; E.dzc.set(d.id, cur);
+    if (!quieto && !(E.drag && E.drag.dz && E.drag.dz[d.id])) dzCaja(d, cur.res);
+    if (E.i === i) dzVivo();
+    E.reMini = true;
+    return cur;
+  }
+  function dzCaja(d, res) {    // the layer's frame: the block the engine drew (px of the design's canvas → the slide's fractions)
+    const b = res && res.bloque, sz = E.dzSz; if (!b) return;
+    Object.assign(d, { x: r4(b.x / sz.W), y: r4(b.y / sz.H), w: r4(Math.max(0, b.w) / sz.W), h: r4(Math.max(0, b.h) / sz.H) });
+  }
+  function dzSoltarLienzos(c) { for (const k of ['full', 'sf', 'mini']) if (c && c[k]) { c[k].width = c[k].height = 0; c[k] = null; } }
+  function dzTam() {           // a horizontal carousel: its canvas follows its first photo, as the designer's (sizeOf)
+    if (!E.dzk || E.reel || E.dzFmt !== 'h') return;
+    const srcs = E.sl.map(x => { const f = fotoDzDe(x.comp); return x.comp.dzs ? x.comp.dzs.src : f && f.src; });
+    const sz = DZ().tamano(E.dzk.kit, E.dzFmt, srcs);
+    if (sz.W !== E.dzSz.W || sz.H !== E.dzSz.H) { E.dzSz = sz; E.dzc.clear(); }
+  }
+  const cajaDz = d => { const sz = E.dzSz; return { x: d.x * sz.W, y: d.y * sz.H, w: d.w * sz.W, h: d.h * sz.H }; };
+  function dzCapa(ck, f, sz) {  // the photo layer, decoded once (two at a time with the editor's own photos is enough)
+    if (E.dzVa.has(ck)) return;
+    const owner = E; E.dzVa.add(ck);
+    DZ().foto(E.dzk.kit, f && f.src && M.files[f.src] ? f.src : null, f && f.src ? { cx: f.cx, cy: f.cy, z: f.z } : null, sz).then(capa => {
+      if (E !== owner) { if (capa && capa.canvas) capa.canvas.width = capa.canvas.height = 0; return; }
+      E.dzCapa.set(ck, capa);
+      const keep = new Set([E.i - 1, E.i, E.i + 1].map(j => E.sl[j] && E.sl[j].comp && capaClave(fotoDzDe(E.sl[j].comp), E.dzSz)));
+      for (const k of [...E.dzCapa.keys()]) { if (E.dzCapa.size <= 5) break; if (!keep.has(k)) { const c0 = E.dzCapa.get(k); if (c0 && c0.canvas) c0.canvas.width = c0.canvas.height = 0; E.dzCapa.delete(k); } }
+      E.reMini = true; pedir();
+    }).catch(err => { console.warn('editor:', err); }).finally(() => owner.dzVa.delete(ck));
+  }
+  // what the «Diseño» layer will draw covers its photo whole (the engine's image with the photo, or the applied one meanwhile)
+  // a slide of the design as it was applied and untouched: its applied image is what the engine would draw
+  const dzAplicada = x => !!(x && x.key && M.files[x.key] && M.files[x.key].design && !E.dzChg0 && !changedSl(x) && !entreDz(x.comp) && JSON.stringify(E.dzp) === E.dzp0);   // the carousel's name and positions too
+  function dzTapa(comp) {
+    if (!E || !E.dzc || dzQuieto(comp) || entreDz(comp)) return false;
+    const d = dzDe(comp); if (!d || d.oculto) return false;
+    const c = E.dzc.get(d.id) || {}, ck = capaClave(fotoDzDe(comp), E.dzSz);
+    if ((c.full && c.fullCk === ck) || (c.mini && c.miniCk === ck)) return true;   // drawn with this very photo
+    return dzAplicada(E.sl.find(q => q.comp === comp));
+  }
+  function drawDiseno(ctx, el, W, H, comp, img, k) {
+    if (!E || !E.dzc || SALIDA || el.oculto) return;   // never in an image the editor draws: diseno.js draws it
+    const c = E.dzc.get(el.id) || {};
+    if (!c.full && !c.mini && !c.sf && img) {   // not drawn yet: its applied image, the very same, while the engine draws it (opening as fast as before)
+      const x = E.sl.find(q => q.comp === comp), f = x && M.files[x.key], m = dzAplicada(x) ? img(x.key, k && f ? W * k / f.w : undefined) : null;   // decoded at the size it is drawn (D-116)
+      if (m && m.im) ctx.drawImage(m.im, 0, 0, W, H);
+      return;
+    }
+    // without the photo while it is reframed or something is between; with it, the engine's whole image (that of «Aplicar»);
+    // a photo just changed, until its layer is read: the texts alone over the editor's photo, never the old photo
+    const ck = capaClave(fotoDzDe(comp), E.dzSz);
+    const cv = dzQuieto(comp) || entreDz(comp) ? (c.sfKey ? c.sf : null) : c.full && c.fullCk === ck ? c.full : c.mini && c.miniCk === ck ? c.mini : c.sf || null;
+    if (cv) ctx.drawImage(cv, 0, 0, W, H);
+  }
+  // the far slides keep only a thumbnail of what the engine drew (D-116)
+  function dzLejanas() {
+    if (!E.dzc) return;
+    const vivas = new Set(E.sl.map(x => (dzDe(x.comp) || {}).id).filter(Boolean));   // a layer gone (undone, back to the design): its canvases go
+    for (const [id, c] of [...E.dzc]) if (!vivas.has(id)) { dzSoltarLienzos(c); E.dzc.delete(id); }
+    const cerca = new Set([E.i - 1, E.i, E.i + 1, E.pv ? E.pvI : -1, E.fv ? E.fvI : -1]);
+    E.sl.forEach((x, i) => {
+      const d = dzDe(x.comp), c = d && E.dzc.get(d.id); if (!c || cerca.has(i) || !c.full) return;
+      const m = document.createElement('canvas'); m.width = 360; m.height = Math.round(360 * c.full.height / c.full.width);
+      const g = m.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c.full, 0, 0, m.width, m.height);
+      c.full.width = c.full.height = 0; c.full = null; c.mini = m; c.miniKey = c.fullKey; c.miniCk = c.fullCk; c.fullKey = null;
+      if (c.sf) { c.sf.width = c.sf.height = 0; c.sf = null; c.sfKey = null; }
+    });
+  }
+  // the panel's data while the slide is drawn again: what «Auto» decided, the engine's warnings, the layer's name
+  function dzVivo() {
+    const el = selEl(), c = el && esDz(el) ? E.dzc.get(el.id) : null, p = E.el && E.el.querySelector('.lb-panel');
+    if (!c || !p) return;
+    DZ().decision(p, el.ov || {}, c.res && c.res.decision);
+    const ul = p.querySelector('.dz-av'), av = dzAvisos(el, c.res), html = av.map(a => `<li>${esc(a)}</li>`).join('');
+    if (ul && ul.innerHTML !== html) { ul.innerHTML = html; ul.hidden = !html; }
+    const n = p.querySelector(`.lb-cap[data-id="${window.CSS.escape(el.id)}"] .lb-capn`), t = nombreEl(el); if (n && n.innerHTML !== t) n.innerHTML = t;
+  }
+  function dzAvisos(el, res) {   // the same words as the designer's (estado), less the photo's: the «Foto» layer says it
+    return [...(!str(el.titulo).trim() ? ['Sin título'] : []), ...((res && res.avisos) || [])];
+  }
+  // the text block moved or scaled (by a drag, the arrows or «Alinear»): its offset and size as the designer keeps them
+  function dzMover(d, b0, ov0) { d.ov = clone(ov0 || {}); const x = { ov: d.ov }; DZ().mover(x, b0, cajaDz(d), E.dzSz); d.ov = x.ov; }
+  // «Soltar del kit»: this slide's engine drawing as ordinary layers of the editor (marca, titular, cuerpo and pie as texts,
+  // the veil as the editor's, the number as its automatic numbering); comp.dzs keeps the design's data for «Volver al diseño»
+  async function soltarKit() {
+    const i = E.i, x = E.sl[i], c = x && x.comp, d = dzDe(c), f = fotoDzDe(c); if (!d || !f) return;
+    const sz = E.dzSz, ck = capaClave(f, sz); let capa = E.dzCapa.get(ck);
+    if (!capa) { capa = await DZ().foto(E.dzk.kit, f.src && M.files[f.src] ? f.src : null, f.src ? { cx: f.cx, cy: f.cy, z: f.z } : null, sz); if (!E || E.sl[i] !== x) return; E.dzCapa.set(ck, capa); }
+    const cv = document.createElement('canvas'); cv.width = sz.W; cv.height = sz.H;
+    let res; try { res = DZ().pintar(cv.getContext('2d'), E.dzk.kit, sz, datosDz(d), E.dzp, dzPag(i), capa, true, true); } finally { cv.width = cv.height = 0; }
+    if (!res || !res.piezas) return;
+    const { W, H } = sizeAt(i), kx = W / sz.W, AL = { izquierda: 'izq', centro: 'cen', derecha: 'der' };
+    const textos = res.piezas.map(pz => {          // each text at its place: its first line's baseline where the engine put it
+      const px = pz.px, lh = pz.lh / px, maxW = Math.max(...pz.lineas.map(l => l.w)), al = AL[pz.alinear] || 'izq', slack = maxW * 0.06 + 4;
+      const x0 = Math.min(...pz.lineas.map(l => l.x)), x1 = Math.max(...pz.lineas.map(l => l.x + l.w));
+      const bx = al === 'izq' ? x0 : al === 'der' ? x1 - maxW - slack : (x0 + x1) / 2 - (maxW + slack) / 2;
+      const top = pz.lineas[0].base - ((pz.lh - px) / 2 + px * 0.8);
+      const e = { id: uid(), t: 'texto', txt: pz.lineas.map(l => l.t).join('\n'), x: r4(bx * kx / W), y: r4(top * kx / H), w: r4((maxW + slack) * kx / W), h: 0.1, ...base,
+        font: { n: pz.fuente.familia || 'Texto', file: pz.fuente.archivo, w: pz.fuente.peso }, peso: pz.fuente.peso, size: r4(px / sz.W), color: pz.color, al, lh: Math.round(lh * 1000) / 1000, ls: Math.round(pz.ls / px * 1000) / 1000, may: false };
+      if (pz.pieza === 'pagina') e.num = { f: 'c' };
+      ajustarTexto(e, W, H);
+      return e;
+    });
+    const v = res.velos || {}, vb = v.bloque, vt = v.top;
+    let velo = null;
+    if (vb && vb.tipo === 'lin') {               // its gradient from the edge it leans on
+      const a = Math.max(...vb.stops.map(q => q[1])), abajo = vb.y1 >= sz.H - 0.5, arriba = vb.y0 <= 0.5;
+      velo = abajo && !arriba ? { tipo: 'grad', color: v.color, op: Math.round(a * 100) / 100, dir: 'abajo', alc: r4(clamp((sz.H - vb.y0) / sz.H, 0.1, 1)) }
+        : arriba && !abajo ? { tipo: 'grad', color: v.color, op: Math.round(a * 100) / 100, dir: 'arriba', alc: r4(clamp(vb.y1 / sz.H, 0.1, 1)) }
+        : { tipo: 'plano', color: v.color, op: Math.round(a * 60) / 100 };
+    } else if (vb && vb.tipo === 'rad') velo = { tipo: 'plano', color: v.color, op: Math.round(Math.max(...vb.stops.map(q => q[1])) * 80) / 100 };   // a reel's: flat, a little lighter
+    else if (vt && vt.tipo === 'lin') velo = { tipo: 'grad', color: v.color, op: Math.round(vt.stops[0][1] * 100) / 100, dir: 'arriba', alc: r4(clamp(vt.y1 / sz.H, 0.1, 1)) };
+    if (velo && !(velo.op > 0)) velo = null;
+    mut(null, () => {
+      const j = c.els.indexOf(d), foto = { ...f, lock: false }; delete foto.dz; delete foto.fin;
+      const nc = { bg: E.dzk.fondo, velo, els: [foto, ...c.els.slice(1, j), ...textos, ...c.els.slice(j + 1)], dzs: { datos: datosDz(d), src: f.fin ? null : f.src || null, crop: f.src ? { cx: f.cx, cy: f.cy, z: f.z } : null, libres: { abajo: clone(c.els.slice(1, j)), arriba: clone(c.els.slice(j + 1)) } } };
+      if (velo) velo.z = j;                         // over the layers that were between, under the texts
+      x.comp = nc; soltar(); E.crop = null; E.pick = null;
+    });
+    if (!E.dzAviso) { E.dzAviso = true; I().toast('Soltada del kit: ya no se recoloca sola.', { ms: 6000 }); }
+  }
+  // «Volver al diseño»: the slide as the kit draws it, with its data from when it was let go; what was done since goes
+  function volverDz() {
+    const x = cur(), c = x && x.comp; if (!c || !c.dzs) return;
+    mut(null, () => {
+      const sl = { ...c.dzs.datos, src: c.dzs.src, libres: c.dzs.libres || null }, n = compDz(sl), f = fotoDzDe(n);   // with its free layers from before it was let go
+      if (c.dzs.crop && f && f.src) Object.assign(f, c.dzs.crop);
+      x.comp = n; soltar(); E.crop = null; E.pick = null;
+    });
+  }
+  // the photo of the design changed from the tray (a click, or dropped on it): Auto decides again where, which colour and veil
+  function ponerFotoDz(fid) {
+    const fd = fotoDzDe(compAt(E.i)); if (!fd || fd.fin) return null;
+    E.pick = null; E.crop = null;
+    mut(null, () => { const ant = fd.src; if (ant && ant !== fid && M.files[ant] && !M.files[ant].design) E.vuelven.add(ant); Object.assign(fd, { src: fid, cx: 0.5, cy: 0.5, z: 1 }); E.sel = fd.id; E.mas = []; });
+    return { puestas: 1, sobran: 0 };
+  }
+  // the «Diseño» layer's panel: the designer's sections (D-177) as the editor's folding ones, each with its datum, «Restablecer
+  // ajustes» and «Soltar del kit» after them, and the engine's warnings on top
+  function panelDz(el) {
+    const c = E.dzc.get(el.id), f = fotoDzDe(compAt(E.i)), crop = !!(f && f.src && (Math.abs((f.cx ?? 0.5) - 0.5) > 1e-6 || Math.abs((f.cy ?? 0.5) - 0.5) > 1e-6 || (f.z || 1) !== 1));
+    const tipos = E.sl.map(x => x.comp.dzs ? x.comp.dzs.datos.tipo : (dzDe(x.comp) || {}).tipo).filter(Boolean);
+    const secs = DZ().secciones({ reel: E.reel, i: E.i, sl: el, d: { serie: E.dzp.serie, pos: E.dzp.pos, slides: tipos.map(tipo => ({ tipo })) }, dec: c && c.res && c.res.decision, raw: E.dzk.raw,
+      masCol: E.dzMas, sec: (k, t, r, h) => plegable(k === 'texto' ? 'el' : 'dz-' + k, t, r, h), editor: true, crop });
+    const av = dzAvisos(el, c && c.res);
+    return `<ul class="dz-av lb-dzav"${av.length ? '' : ' hidden'}>${av.map(a => `<li>${esc(a)}</li>`).join('')}</ul>`
+      + secs.map(([k, h]) => k !== 'reset' ? h : h.replace('</button></div>', '</button><button type="button" class="btn2" data-dz="soltar" title="Sus textos y su velo pasan a capas normales del editor">Soltar del kit</button></div>')).join('');
+  }
+  // what a control of that panel does (the designer's code: accion, entrada), one step of the editor's ⌘Z
+  function accionDzEd(b) {
+    const el = selEl(); if (!el || !esDz(el) || E.busy) return;
+    const a = b.dataset.dz, v = b.dataset.v;
+    if (a === 'mascolores') { E.dzMas = !E.dzMas; panel(); return; }
+    if (a === 'soltar') { soltarKit(); return; }
+    if (a === 'reset') {                         // the slide back to how the kit puts it: its settings and its photo's reframe
+      mut(null, () => { el.ov = {}; const f = fotoDzDe(compAt(E.i)); if (f && f.src) Object.assign(f, { cx: 0.5, cy: 0.5, z: 1 }); });
+      return;
+    }
+    const prueba = { ov: clone(el.ov || {}) }, pp = clone(E.dzp);
+    if (!DZ().accion(a, v, prueba, pp)) return;   // nothing would change: no step
+    mut(null, () => { DZ().accion(a, v, el, E.dzp); if (!E.dzp.pos) E.dzp.pos = null; });
+  }
+  function entradaDzEd(t) {
+    const el = selEl(); if (!el || !esDz(el) || E.busy) return;
+    mut('dz:' + (t.dataset.f || t.dataset.e + t.dataset.c || t.className), () => { DZ().entrada(t, el, E.dzp, E.dzk.raw); if (!E.dzp.pos) E.dzp.pos = null; }, true);
+    if (t.matches('.dz-velor')) { const o = t.parentNode.querySelector('.dz-velov'); if (o) o.textContent = Math.round(((el.ov || {}).velo || 0) * 100) + ' %'; }
+    if (t.matches('.dz-pos')) { const rs = E.el.querySelector('[data-dz="posreset"]'); if (rs) rs.disabled = !E.dzp.pos; }
+    const rs = E.el.querySelector('[data-dz="reset"]'); if (rs && t.matches('.dz-velor')) rs.disabled = false;
+  }
+  // a double click on one of its texts: «Texto» open and that text's field chosen, to write over it
+  function dzCampo(el, p) {
+    const c = E.dzc.get(el.id), its = (c && c.res && c.res.items) || [], k = E.dzSz.W / E.sz.W, q = { x: p.x * k, y: p.y * k }, pad = 18;
+    const dentro = its.filter(t => q.x >= t.x - pad && q.x <= t.x + t.w + pad && q.y >= t.y - pad && q.y <= t.y + t.h + pad);
+    const it = dentro[0] || its.reduce((a, t) => !a || Math.abs(q.y - (t.y + t.h / 2)) < Math.abs(q.y - (a.y + a.h / 2)) ? t : a, null);
+    return !it ? 'titulo' : it.nivel === 'texto' ? 'texto' : it.nivel === 'entradilla' ? 'entradilla' : it.nivel === 'etiqueta' ? 'contacto' : 'titulo';
+  }
+  // «Aplicar a la casilla» of a designed post: its layers into the design, and diseno.js applies it (only what changed is drawn)
+  function cambiosDz() {
+    return { serie: E.dzp.serie, pos: E.dzp.pos || null, slides: E.sl.map(x => {
+      const c = x.comp;
+      if (c.dzs) { const comp = clone(c); delete comp.dzs; return { ...c.dzs.datos, src: c.dzs.src, crop: c.dzs.crop || null, libres: c.dzs.libres || null, suelta: comp }; }   // its free layers from before, kept for «Volver al diseño»
+      const d = dzDe(c), f = fotoDzDe(c), j = c.els.indexOf(d);
+      return { ...datosDz(d), src: f && !f.fin ? f.src || null : null, crop: f && f.src ? { cx: f.cx ?? 0.5, cy: f.cy ?? 0.5, z: f.z || 1 } : null,
+        libres: { abajo: clone(c.els.slice(1, j)), arriba: clone(c.els.slice(j + 1)) }, suelta: null };
+    }) };
   }
   async function renderOut(i) { const { W, H } = sizeAt(i); return dibujar(E.sl[i].comp, W, H); }   // slide i at full size: a JPEG Blob
   async function dibujar(comp, W, H) {        // a composition at W×H: a JPEG Blob (the editor open or not)
     const cache = new Map();
     try {
+      await prepararDibujo(comp, W, H, cache);
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+      FUERA = SALIDA = true; try { drawComp(x, comp, W, H, f => cache.get(f) || null, 1, false); } finally { FUERA = SALIDA = false; }
+      const blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('No se pudo exportar la imagen')), 'image/jpeg', 0.92));
+      c.width = c.height = 0;
+      return blob;
+    } finally { for (const r of cache.values()) r.im.close(); }
+  }
+  // free layers of a designed slide drawn on ctx (W×H), for diseno.js (D-193): between its photo and the design, or over it
+  async function pintarEls(ctx, els, W, H) {
+    const cache = new Map(), comp = { bg: '#ffffff', velo: null, els };
+    try {
+      await prepararDibujo(comp, W, H, cache);
+      ctx.save(); FUERA = SALIDA = true;
+      try { for (const e of els) drawEl(ctx, e, W, H, f => cache.get(f) || null, 1, false); } finally { FUERA = SALIDA = false; ctx.restore(); }
+    } finally { for (const r of cache.values()) r.im.close(); }
+  }
+  // a composition's fonts loaded and its photos decoded at the px the image uses (D-116), into cache
+  async function prepararDibujo(comp, W, H, cache) {
       const fs0 = [...new Map(textosDe(comp).filter(e => e.font && e.font.file).map(e => [e.font.file, e.font])).values()];
       fs0.forEach(f => { const r = FONTS.get(f.file); if (r && r.err) FONTS.delete(f.file); });   // a font that failed once is asked for again here
       await Promise.all(fs0.map(f => fuente(f).p.catch(() => {})));
@@ -805,19 +1076,12 @@
       // each photo decoded at the px the slide uses (D-116), never more than the original nor less: a dry run on a 1 × 1
       // canvas collects them; hidden ones aren't drawn, so they aren't decoded. One at a time.
       const usa = new Map(), seco = document.createElement('canvas'); seco.width = seco.height = 1;
-      FUERA = true; try { drawComp(seco.getContext('2d'), comp, W, H, (f, need) => { usa.set(f, Math.max(usa.get(f) || 0, need || 1)); return null; }, 1, false); } finally { FUERA = false; }
+      FUERA = SALIDA = true; try { drawComp(seco.getContext('2d'), comp, W, H, (f, need) => { usa.set(f, Math.max(usa.get(f) || 0, need || 1)); return null; }, 1, false); } finally { FUERA = SALIDA = false; }
       for (const [f, need] of usa) {
         const r = M.files[f], L = r ? Math.max(r.w, r.h) : 0, largo = L ? Math.max(1, Math.round(Math.min(1, need) * L)) : 0, o = { imageOrientation: 'from-image' };
         if (r && largo < L) { o.resizeQuality = 'high'; if (r.w >= r.h) o.resizeWidth = largo; else o.resizeHeight = largo; }
         cache.set(f, { im: await createImageBitmap(await I().getBlob(f), o) });
       }
-      const c = document.createElement('canvas'); c.width = W; c.height = H;
-      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
-      FUERA = true; try { drawComp(x, comp, W, H, f => cache.get(f) || null, 1, false); } finally { FUERA = false; }
-      const blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('No se pudo exportar la imagen')), 'image/jpeg', 0.92));
-      c.width = c.height = 0;
-      return blob;
-    } finally { for (const r of cache.values()) r.im.close(); }
   }
 
   // ---------- open / close ----------
@@ -828,33 +1092,45 @@
       need(!I().locked, LOCKED);
       const s = conHist(S).find(x => x.id === slotId); need(s, 'Esa publicación ya no está en la mesa.');
       need(isLibSlot(s), 'El editor es para carruseles, fotos y portadas de reel.');
-      const dz = s.design || null;                          // a designed carousel: its applied images are the slides
+      const dz = s.design || null;                          // a designed carousel or reel cover: it opens in layers (D-193)
       need(!(M.diseno && M.diseno.aplicando && M.diseno.aplicando()), 'Espera: el diseñador está aplicando un diseño.');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
       need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
-      // a design with changes not applied (its type or its kit changed, its cell was emptied…) is applied first, as the
-      // designer's «Aplicar» did: «Editar …» is the post's only design button (D-089); that and the session are one ⌘Z step
-      const dzTipo = dz && (I().isCarousel(s.type) || I().isReel(s.type)), marca0 = dzTipo && dzPend(s) ? await aplicarDz(S, s, dz) : null;
-      if (marca0 && marca0.faltan) {                       // a slide without its photo: the designer opens on it, where Kevin adds it (D-123)
-        const r = await M.diseno.abrir(s.id, { faltaFoto: true });   // it says why, or its own error; the cell keeps its images
-        return r && r.ok ? { ok: true, slot: s.id, disenador: true, faltan: r.faltan || marca0.faltan } : { error: (r && r.error) || 'No se pudo abrir el diseñador.' };
+      // a design opens in layers as it is now, applied or not: nothing is applied first (D-193, which replaces that of D-089);
+      // a slide without its photo opens with its «Foto» layer empty, where the photo goes (D-123 replaced)
+      const dzTipo = !!dz && (I().isCarousel(s.type) || I().isReel(s.type));
+      let dzk = null, dzChg0 = false;
+      if (dzTipo) {
+        need(await I().esperar(() => DZ(), 'diseno', 15000), 'El diseñador no está cargado: recarga la página para editar esta publicación.');
+        if (I().setBusy) I().setBusy('dz', `Abriendo el diseño de ${s.name}…`);
+        try { dzk = await DZ().preparar(s.id); } catch (e) { throw new LbError(String((e && e.message) || e)); } finally { if (I().setBusy) I().setBusy('dz', null); }
+        dzChg0 = dzPend(s);
+        need(!dz.slides.some(sl => sl.tipo === 'final') || dzk.fin, 'Falta la foto final del cliente: pídele a Claude que la fije.');   // as before (D-089): there is nothing to open on
       }
-      need(!I().isReel(s.type) || s.photos.length, 'El reel no tiene portada: ponle una foto antes de editarla.');
-      need(!dz || (dzTipo && s.photos.length && I().same(s.photos, (dz.out || []).filter(Boolean))), 'El diseño de esta publicación no está aplicado: vuelve a pulsar «Editar».');
-      await I().loadThumbs([...s.photos, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray, ...(esHist(s) ? Object.values(entries(s)).flatMap(srcsOf) : [])]);
+      need(!I().isReel(s.type) || s.photos.length || dzTipo, 'El reel no tiene portada: ponle una foto antes de editarla.');
+      need(!dz || dzTipo, 'El diseño de esta publicación no está aplicado: vuelve a pulsar «Editar».');
+      const dzLib = dzTipo ? dz.slides.flatMap(sl => [...((sl.libres && sl.libres.abajo) || []), ...((sl.libres && sl.libres.arriba) || []), ...((sl.suelta && sl.suelta.comp && sl.suelta.comp.els) || [])].map(e => e && e.src)).filter(Boolean) : [];
+      await I().loadThumbs([...s.photos, ...dzLib, ...S.slots.flatMap(x => Object.values(entries(x)).flatMap(srcsOf)), ...S.tray, ...(esHist(s) ? Object.values(entries(s)).flatMap(srcsOf) : [])]);
       need(I().S === S && conHist(S).includes(s) && (s.design || null) === dz && !(I().switching && I().switching()), 'La mesa cambió: vuelve a pulsar «Editar».');
       need(!(E && E.busy), 'Espera: el editor está aplicando una publicación.');
       need(!APL && !REDO.has(slotId) && !NUMQ.has(slotId), 'Espera: la mesa está redibujando una publicación.');   // its images would change under the editor
       if (E) cerrar(true);
-      const marca = (marca0 && marca0.m) || (I().histMarca ? I().histMarca() : null);   // the whole session is one step of the mesa's ⌘Z (with the design applied at opening)
+      const marca = I().histMarca ? I().histMarca() : null;   // the whole session is one step of the mesa's ⌘Z
       if (I().clearToasts) I().clearToasts();               // an «Deshacer» left in a toast would change the post behind the editor
       const car = I().isCarousel(s.type), fmt0 = car ? s.fmt || 'v45' : null;
       E = { slotId, board: S, dz, car, reel: I().isReel(s.type) || esHist(s), historia: esHist(s), tipo: s.type, fmt: fmt0, fmt0, sl: [], i: 0, sel: null, mas: [], crop: null, pick: null, zoom: 1, finEscr: -1e4, iman: true, hist: { undo: [], redo: [], tag: null, t: 0 },
         bm: new Map(), bmMini: new Map(), cola: [], decoding: 0, bmI: -1, previas: new Map(), marca, photos0: s.photos.slice(), kit: null, plant: [], logos: [], fkit: [], estilos: [], tcol: [], trOpen: bandejaAbierta(), trKey: '', trSel: [], vuelven: new Set(), menuOn: false, fuentes: [...FUENTES_MESA, ...FUENTES_MAC], drag: null, guides: [], cotas: [], busy: false, raf: 0, k: 1, sz: { W: OUT_W, H: OUT_W * 1.25 },
         guias: { x: ((s.guias && s.guias.x) || []).slice(), y: ((s.guias && s.guias.y) || []).slice() }, reglas: lsLeer(LS_RG) === '1', zona: esHist(s) ? lsLeer(LS_ZH) !== '0' : lsLeer(LS_ZG) === '1', margen: 0 };
       E.guias0 = firmaG(); E.trago = tragoAl();   // the rest of the double click that opened it is not the editor's (D-175)
-      E.sl = s.photos.map(key => {
+      if (dzk) {                                           // a designed post: each slide of the design, in layers (D-193)
+        Object.assign(E, { dzk, dzc: new Map(), dzCapa: new Map(), dzVa: new Set(), dzChg0, dzMas: false, dzp: { serie: str(dz.serie), pos: dz.pos && Object.keys(dz.pos).length ? clone(dz.pos) : null } });
+        E.dzp0 = JSON.stringify(E.dzp); E.dzSz = dzk.sz; E.dzFmt = dz.fmt;
+      }
+      E.sl = dzk ? dz.slides.map((sl, i) => {
+        const comp = compDz(sl), key = dz.out && dz.out[i] && s.photos.includes(dz.out[i]) ? dz.out[i] : null;
+        return { key, out: !!key, from: null, comp, raw: null, base: hfirma(comp), fmt: null, fmt0: null };
+      }) : s.photos.map(key => {
         const f = esHist(s) && entries(s)[key] ? { s, comp: entries(s)[key] } : compOf(S, key), fmt = car ? null : I().cropOf(key, s).fmt;   // a story's own: a duplicate shares its image until it is applied
         if (f) { const comp = migrado(clone(f.comp)); return { key, out: true, from: f.s !== s ? f.s.id : null, comp, raw: null, base: hfirma(comp), fmt, fmt0: fmt }; }
         const raw = rawComp(key);
@@ -869,15 +1145,18 @@
       E.sl.forEach((x, i) => { if (x.comp) { const d = x.out && M.files[x.key], { W, H } = sizeAt(i); x.rat = d ? d.w / d.h : W / H; } });   // the proportion its texts are placed for: the one it was drawn in
       recolocar();                                         // a slide drawn in another proportion (its post changed type or format): its texts to their place now
       renumerar();                                         // its numbers, if its slides moved in the mesa (sync draws them again; if not, «Aplicar»)
-      if (opts.fmt && FMTS[opts.fmt]) formatoEd(opts.fmt, true);
+      if (opts.fmt && FMTS[opts.fmt] && !E.dzk) formatoEd(opts.fmt, true);
       recordarTextos();
-      injectCSS();
+      injectCSS(); if (E.dzk) DZ().css();   // the designer's panel controls (D-193)
       build(s);
       cargarCliente();
       ofrecerNumeros();
       if (opts.foto) desdeBandeja([opts.foto], { i: null, p: null }, opts.modo);   // a photo dropped on a story in the view: as if clicked in this tray, with its warning (its question was asked there, D-078)
-      if (opts.fmt) I().toast('Formato cambiado en el editor: pulsa «Aplicar a la casilla» para redibujar las diapositivas editadas.', { ms: 7000 });
-      else if (dz) I().toast((marca0 ? ['Su diseño tenía cambios sin aplicar: ya está aplicado.', ...marca0.notas, ''].join(' ') : '') + (E.reel ? 'Reel diseñado: su portada entra como imagen. Si aplicas cambios, el diseño queda fijado así y su foto vuelve a la bandeja (⌘Z en la mesa lo deshace).' : 'Carrusel diseñado: sus diapositivas entran como imagen. Si aplicas cambios, el diseño queda fijado así y sus fotos vuelven a la bandeja (⌘Z en la mesa lo deshace).'), { ms: 9000 });
+      if (opts.fmt && !E.dzk) I().toast('Formato cambiado en el editor: pulsa «Aplicar a la casilla» para redibujar las diapositivas editadas.', { ms: 7000 });
+      else if (E.dzk) {                                    // a photo still missing: where it goes (D-193, as D-123 said it)
+        const faltan = E.sl.map((x, i) => { const f = fotoDzDe(x.comp); return f && !f.fin && !f.src ? i + 1 : 0; }).filter(Boolean);
+        if (faltan.length) I().toast(E.reel ? 'Falta la foto de la portada: suéltala en ella o elígela en la bandeja.' : faltan.length === 1 ? `Falta la foto de la diapositiva ${faltan[0]}: suéltala en ella o elígela en la bandeja.` : `Faltan las fotos de las diapositivas ${faltan.slice(0, -1).join(', ')} y ${faltan[faltan.length - 1]}: suéltalas en ellas o elígelas en la bandeja.`, { ms: 9000 });
+      }
       return { ok: true, slot: s.id, diapositivas: E.sl.length };
     } catch (e) {
       const m = e instanceof LbError ? e.message : 'No se pudo abrir el editor: ' + String((e && e.message) || e);
@@ -888,19 +1167,6 @@
   }
   // a design with changes not applied (diseno.js says so; without it, its images not in the cell)
   const dzPend = s => M.diseno && M.diseno.estadoDe ? M.diseno.estadoDe(s) === 'chg' : !I().same(s.photos, ((s.design && s.design.out) || []).filter(Boolean));
-  // applies it with the designer's «Aplicar»: {m: the mesa's ⌘Z mark from before it, notas}; {faltan}: a photo is missing
-  // (nothing was applied nor changed); any other error stops the opening
-  async function aplicarDz(S, s, dz) {
-    need(M.diseno && M.diseno.aplicar, 'El diseñador no está cargado: recarga la página para aplicar el diseño de esta publicación.');
-    const m = I().histMarca ? I().histMarca() : null;
-    if (I().setBusy) I().setBusy('dz', `Aplicando el diseño de ${s.name}…`);
-    let r; try { r = await M.diseno.aplicar(s.id); } finally { if (I().setBusy) I().setBusy('dz', null); }
-    const igual = () => I().S === S && conHist(S).includes(s) && (s.design || null) === dz;
-    if (r && r.error && r.faltan && r.faltan.length && M.diseno.abrir) { need(igual(), 'La mesa cambió: vuelve a pulsar «Editar».'); return { faltan: r.faltan }; }
-    need(r && !r.error, 'No se pudo aplicar el diseño: ' + ((r && r.error) || 'error desconocido'));
-    need(igual(), 'La mesa cambió: vuelve a pulsar «Editar».');
-    return { m, notas: r.notas || [] };
-  }
   // texts written by hand like «02 / 11»: one question to make them all automatic («Ahora no»: not again for this post here)
   const SIN_NUM = new Set();
   function ofrecerNumeros() {
@@ -932,6 +1198,7 @@
     if (e.tamRaf) cancelAnimationFrame(e.tamRaf);
     if (e.ro) e.ro.disconnect();
     e.cola.length = 0; for (const b of [...e.bm.values(), ...e.bmMini.values()]) if (b.im && b.im.close) b.im.close();
+    if (e.dzc) { for (const c of e.dzc.values()) dzSoltarLienzos(c); for (const c of e.dzCapa.values()) if (c && c.canvas) c.canvas.width = c.canvas.height = 0; }   // the «Diseño» layers' canvases (D-193)
     if (e.inert) e.inert.forEach(c => c.removeAttribute('inert'));
     if (e.el) e.el.remove();
     if (!e.applied && e.marca && I() && I().histJuntar) I().histJuntar(e.marca);   // a tidy-up at opening joins the step before it
@@ -1094,7 +1361,7 @@
   // ---------- history of the editor (⌘Z / ⇧⌘Z) ----------
   // each step is the slides as JSON; a template's «previa» (the slide before it, nested up to PREVIAS deep) goes once into
   // E.previas and the steps keep its summary (D14): a long session with templates no longer grows ×6
-  const estado = () => JSON.stringify({ sl: E.sl, i: E.i, fmt: E.fmt }, (k, v) => {
+  const estado = () => JSON.stringify({ sl: E.sl, i: E.i, fmt: E.fmt, dzp: E.dzp }, (k, v) => {
     if (k !== 'previa' || !v || typeof v !== 'object') return v;
     const t = JSON.stringify(v), h = resumen(t); if (!E.previas.has(h)) E.previas.set(h, t); return { _previa: h };
   });
@@ -1111,6 +1378,7 @@
     to.push(estado());
     const st = deEstado(from.pop());
     E.sl = st.sl; E.fmt = st.fmt; E.i = clamp(st.i, 0, Math.max(0, E.sl.length - 1)); h.tag = null; E.crop = null; E.pick = null;
+    if (st.dzp) E.dzp = st.dzp;                // a designed post: its name and positions too (D-193)
     const ids = compAt(E.i).els.map(e => e.id);
     if (E.sel && !ids.includes(E.sel)) soltar(); else E.mas = E.mas.filter(id => ids.includes(id));
     todo();
@@ -1123,6 +1391,7 @@
     renumerar();
     if (repararPan()) I().toast('La foto que cruzaba diapositivas se ha separado: cada diapositiva conserva su parte.', { ms: 6000 });
     enlazar(); recolocar();
+    if (E.dzk) { E.sl.forEach(x => { if (x.comp && fotoDzDe(x.comp)) fijarFotoDz(x.comp); }); if (!E.dzp.pos) E.dzp.pos = null; dzTam(); }   // the design's photo at the bottom; its canvas follows its first photo (D-193)
     E.reMini = true; pedir(); head(); if (!quiet) { panel(); lista(); bandeja(); }
   }
   function todo() { lista(); panel(); head(); pedir(); bandeja(); }
@@ -1270,6 +1539,7 @@
 #mesa .lb-acc-h{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:14px 2px 14px 0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:800 21px/1.2 var(--font);letter-spacing:-.02em;text-align:left;cursor:pointer}
 #mesa .lb-acc-n{flex:none;transition:color var(--d1) ease-out}
 #mesa .lb-acc-h .lb-acc-s{font-variant-numeric:tabular-nums;flex:1;min-width:0;font-weight:400;font-size:12.5px;letter-spacing:0;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .lb-acc-h .lb-acc-s .dz-dec{font-variant-numeric:normal;font-size:inherit;color:inherit}#mesa .lb-dzav{margin:12px 0 0}
 #mesa .lb-acc-h::after{content:'';flex:none;width:16px;height:16px;margin-left:auto;background:var(--mute);-webkit-mask:var(--i-chev) center/contain no-repeat;mask:var(--i-chev) center/contain no-repeat;transition:transform var(--d-m) var(--ease-m),background-color var(--d1) ease-out}
 #mesa .lb-acc.on>.lb-acc-t>.lb-acc-h::after{transform:rotate(180deg)}
 #mesa .lb-acc-h:hover::after{background:var(--ink)}#mesa .lb-acc-h:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -1383,8 +1653,8 @@
     const root = I().root(), el = document.createElement('div');
     el.className = 'lb'; el.tabIndex = -1;
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Editar ' + s.name);
-    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : E.dz ? '<p>Publicación diseñada: si aplicas cambios, queda fijada como imagen</p>' : ''}</div>`
-      + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
+    el.innerHTML = `<header class="lb-head"><div class="lb-ttl"><h3>${esc(s.name)}</h3>${E.historia ? `<textarea class="lb-guion" rows="1" aria-label="Nota de la historia" placeholder="El guion de esta historia">${esc(s.note || '')}</textarea>` : ''}</div>`
+      + (E.reel ? '<span class="lb-fmtw"><span class="lb-fmtl">' + (E.historia ? 'Historia' : 'Portada del reel') + ' · 9:16</span></span>' : E.dzk ? `<span class="lb-fmtw"><span class="lb-fmtl">Diapositivas · ${FMTS[E.fmt] || '4:5'}</span></span>` : `<span class="lb-fmtw"><span class="lb-fmtl">${E.car ? 'Diapositivas' : 'Diapositiva'}</span><div class="seg lb-fmt" role="group" aria-label="Formato de ${E.car ? 'las diapositivas' : 'la diapositiva'}">${Object.entries(FMTS).map(([k, l]) => `<button type="button" data-lb="fmt" data-v="${k}">${l}</button>`).join('')}</div></span>`)
       + '<span class="lb-tools"><output class="lb-zv" title="Zoom · doble clic: la diapositiva entera, al 100 % (⌘0)">100 %</output></span>'   // ↶ ↷ (⌘Z, ⇧⌘Z) and − + (⌘−, ⌘+) only by keys and «?»
       + '<span class="lb-mas"><button type="button" class="lb-ib" data-lb="mas" title="Más" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">⋯</button>'
       + '<span class="lb-menu" role="menu" hidden><button type="button" role="menuitem" data-lb="todas">Ver todas las diapositivas</button>'
@@ -1433,14 +1703,15 @@
   }
   function lista() {
     const nav = E.el.querySelector('.lb-list'), top = nav.scrollTop, n = E.sl.length;
+    const fijas = !!E.dzk;                       // a designed post: its slides are the design's, said by their kind (D-193)
     nav.innerHTML = E.sl.map((x, i) => {
-      const tag = !x.key ? 'nueva' : x.out || changedSl(x) ? 'editada' : 'foto';
-      return `<div class="lb-it${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}" tabindex="0" role="button" aria-label="Diapositiva ${i + 1}" title="Arrástrala para cambiar el orden (o ⌥ + flechas)"><canvas></canvas>`
-        + (n > 1 ? `<span class="lb-ord"><button type="button" data-lb="sl-up" data-i="${i}" title="Mover antes" aria-label="Mover antes"${i === 0 ? ' disabled' : ''}>▲</button>`
+      const tag = fijas ? (x.comp.dzs ? 'soltada' : (TIPO_DZ[(dzDe(x.comp) || {}).tipo] || '').toLowerCase()) : !x.key ? 'nueva' : x.out || changedSl(x) ? 'editada' : 'foto';
+      return `<div class="lb-it${i === E.i ? ' on' : ''}" data-lb="sl" data-i="${i}" tabindex="0" role="button" aria-label="Diapositiva ${i + 1}"${fijas ? '' : ' title="Arrástrala para cambiar el orden (o ⌥ + flechas)"'}><canvas></canvas>`
+        + (n > 1 && !fijas ? `<span class="lb-ord"><button type="button" data-lb="sl-up" data-i="${i}" title="Mover antes" aria-label="Mover antes"${i === 0 ? ' disabled' : ''}>▲</button>`
         + `<button type="button" data-lb="sl-dn" data-i="${i}" title="Mover después" aria-label="Mover después"${i === n - 1 ? ' disabled' : ''}>▼</button></span>` : '')
         + `<div class="lb-n"><b>${i + 1}</b> ${tag}${changedSl(x) || (!E.car && x.fmt !== x.fmt0) ? ' <em title="Cambios sin aplicar">•</em>' : ''}<span class="lb-mv">`
-        + (E.reel ? '' : `<button type="button" data-lb="sl-del" data-i="${i}" title="Quitar la diapositiva (su foto vuelve a la bandeja al aplicar)" aria-label="Quitar la diapositiva">×</button>`) + '</span></div></div>';
-    }).join('') + (E.reel ? '' : `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida"><span class="i-mas">+</span> Diapositiva</button>`);
+        + (E.reel || fijas ? '' : `<button type="button" data-lb="sl-del" data-i="${i}" title="Quitar la diapositiva (su foto vuelve a la bandeja al aplicar)" aria-label="Quitar la diapositiva">×</button>`) + '</span></div></div>';
+    }).join('') + (E.reel || fijas ? '' : `<button type="button" class="btn2 lb-add" data-lb="sl-add" title="Una diapositiva solo con color de fondo, detrás de la elegida"><span class="i-mas">+</span> Diapositiva</button>`);
     nav.scrollTop = top;
     minis();
   }
@@ -1448,6 +1719,7 @@
     const { W, H } = sizeAt(i), h = Math.round(w * H / W);
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     const x = cv.getContext('2d'), k = w / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
+    if (E.dzk) dzVer(i, false);
     drawComp(x, compAt(i), W, H, viewImg, k, false);
   }
   function minis() {
@@ -1495,6 +1767,7 @@
     x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
     const comp = compAt(E.i);
     comp.els.forEach(e => { if (e.t === 'texto') ajustarTexto(e, W, H); });   // a text's frame follows its lines (its font may have just loaded)
+    if (E.dzk) dzVer(E.i, true);                         // its «Diseño» layer as it is now (D-193)
     drawComp(x, comp, W, H, (f, need) => viewImg(f, need, true), k, true);
     const el = selEl();
     if (el && E.crop === el.id) cropView(x, el, W, H, k);
@@ -1534,21 +1807,23 @@
     const g = geo(el, W, H), u = 1 / E.k;
     x.save(); x.translate(g.cx, g.cy); x.rotate(g.a);
     x.lineWidth = 1.5 * u; x.strokeStyle = '#0095f6';
-    if (el.lock || el.oculto || !solo) x.setLineDash([5 * u, 4 * u]);
+    if ((el.lock && !esFotoDz(el)) || el.oculto || !solo) x.setLineDash([5 * u, 4 * u]);
     x.strokeRect(-g.w / 2, -g.h / 2, g.w, g.h); x.setLineDash([]);
     if (solo && !el.lock && E.crop !== el.id) {
-      x.beginPath(); x.moveTo(0, -g.h / 2); x.lineTo(0, -g.h / 2 - ROT_D * u); x.stroke();
-      x.beginPath(); x.arc(0, -g.h / 2 - ROT_D * u, 6 * u, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill(); x.stroke();
+      if (!fijoDz(el)) { x.beginPath(); x.moveTo(0, -g.h / 2); x.lineTo(0, -g.h / 2 - ROT_D * u); x.stroke();
+        x.beginPath(); x.arc(0, -g.h / 2 - ROT_D * u, 6 * u, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill(); x.stroke(); }
       const hs = 9 * u;
       for (const [hx, hy] of asas(el, g)) { x.fillStyle = '#fff'; x.fillRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); x.strokeRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); }
     }
-    if (el.lock && solo) { x.fillStyle = '#0095f6'; x.font = `600 ${12 * u}px -apple-system,sans-serif`; x.textAlign = 'left'; x.textBaseline = 'top'; x.fillText('🔒', -g.w / 2 + 6 * u, -g.h / 2 + 6 * u); }
+    if (el.lock && solo && !esFotoDz(el)) { x.fillStyle = '#0095f6'; x.font = `600 ${12 * u}px -apple-system,sans-serif`; x.textAlign = 'left'; x.textBaseline = 'top'; x.fillText('🔒', -g.w / 2 + 6 * u, -g.h / 2 + 6 * u); }
     x.restore();
   }
 
   // ---------- geometry (slide units: OUT_W wide) ----------
   const HANDLES = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
   function asas(el, g) {           // a logo only scales; a text scales from the corners and changes its width from the sides; a line only stretches
+    if (esFotoDz(el)) return [];     // the design's photo: a sangre, never resized (D-193)
+    if (esDz(el)) return HANDLES.filter(([a, b]) => a && b);   // «Diseño»: its corners, the text's size
     if (el.t === 'forma' && (TRAZO[el.forma] || el.forma === 'progreso')) return HANDLES.filter(([a, b]) => a && !b);   // a bar: its height in «Medidas exactas»
     if (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) return HANDLES.filter(([a, b]) => a && b);
     const big = Math.min(g.w, g.h) * E.k >= 46;
@@ -1584,7 +1859,7 @@
   function hitEl(p) { const c = compAt(E.i); for (let k = c.els.length - 1; k >= 0; k--) if (!c.els[k].oculto && inside(c.els[k], p)) return c.els[k]; return null; }
   function hitHandle(el, p) {
     const { W, H } = E.sz, g = geo(el, W, H), l = local(g, p), r = 10 / E.k;
-    if (Math.hypot(l.x, l.y + g.h / 2 + ROT_D / E.k) <= r) return { rot: true };
+    if (!fijoDz(el) && Math.hypot(l.x, l.y + g.h / 2 + ROT_D / E.k) <= r) return { rot: true };   // the design's layers don't turn (D-193)
     for (const [hx, hy] of asas(el, g)) if (Math.abs(l.x - hx * g.w / 2) <= r && Math.abs(l.y - hy * g.h / 2) <= r) return { hx, hy };
     return null;
   }
@@ -1821,8 +2096,9 @@
   }
   // ---------- another proportion: texts, shapes and logos keep their place ----------
   // el.mano: moved, resized or turned by hand (drag, arrows, «Alinear», exact measures) — a new proportion leaves it alone
-  function aMano(ids) { compAt(E.i).els.forEach(e => { if (ids.includes(e.id) && e.t !== 'foto') e.mano = true; }); }
+  function aMano(ids) { compAt(E.i).els.forEach(e => { if (ids.includes(e.id) && e.t !== 'foto' && e.t !== 'diseno') e.mano = true; }); }
   function recolocar() {             // a slide whose proportion changed (its format, or its first photo in Horizontal)
+    if (E.dzk) return;                 // a designed post keeps the design's canvas (D-193)
     E.sl.forEach((x, i) => {
       const { W, H } = sizeAt(i), r = W / H;
       if (x.comp && x.rat && Math.abs(x.rat - r) > 0.005) aProporcion(x.comp, W, Math.round(W / x.rat), H);   // as «Aplicar»'s check: a 1080 copy is the same proportion
@@ -1959,16 +2235,20 @@
     if (E.cambio) { e.preventDefault(); const t = huecosCambio().reverse().find(q => inside(areaHueco(q), p)); if (t) intercambiar(t.id); else salirCambio(); return; }   // «Intercambiar» waits for a hole: any other click cancels it
     let d = null;
     if (E.crop) { const el = compAt(E.i).els.find(x => x.id === E.crop); if (el && inside(el, p)) d = { t: 'pan', id: el.id, p0: p, el0: clone(el) }; else { E.crop = null; panel(); } }
-    if (!d && sel && !sel.lock && !multi() && !e.shiftKey) { const h = hitHandle(sel, p); if (h) d = h.rot ? { t: 'rot', id: sel.id, el0: clone(sel) } : { t: 'size', id: sel.id, el0: clone(sel), hx: h.hx, hy: h.hy }; }
+    if (!d && sel && !sel.lock && !multi() && !e.shiftKey) { const h = hitHandle(sel, p); if (h) d = h.rot ? { t: 'rot', id: sel.id, el0: clone(sel) } : { t: 'size', id: sel.id, el0: clone(sel), hx: h.hx, hy: h.hy, ...(esDz(sel) ? { dz: { [sel.id]: true } } : {}) }; }
     if (!d && E.reglas && !e.shiftKey) { const g = hitGuia(p); if (g) d = { t: 'guia', eje: g.eje, i: g.i, v: null }; }   // a guide over an element: the guide
     if (!d) {
       const el = hitEl(p);
-      if (el) {
+      if (el && esFotoDz(el) && el.src && !e.shiftKey) {   // the design's photo: dragging it reframes it (D-193)
+        if (!selIds().includes(el.id) || multi()) { seleccionar(el); E.pick = null; panel(); }
+        d = { t: 'pan', id: el.id, p0: p, el0: clone(el) };
+      } else if (el) {
         const was = selIds().includes(el.id), many = multi();
         if (e.shiftKey) { seleccionar(el, true); E.pick = null; panel(); if (!selIds().includes(el.id)) { pedir(); return; } }
         else if (!was) { seleccionar(el); E.pick = null; panel(); }
         const movil = selEls().filter(x => !x.lock);
         d = { t: 'move', id: el.id, p0: p, el0s: movil.map(clone), lock: !movil.some(x => x.id === el.id), reduce: was && many && !e.shiftKey && !el.g };
+        if (movil.some(esDz)) d.dz = Object.fromEntries(movil.filter(esDz).map(q => [q.id, true]));   // its block isn't put back where the engine drew it while it moves
       } else if (E.sel || E.pick) { soltar(); E.pick = null; panel(); }
     }
     pedir();
@@ -2001,13 +2281,13 @@
         if (sx) { dx += sx.d; if (sx === lx) E.guides.push({ x: sx.at }); }
         if (sy) { dy += sy.d; if (sy === ly) E.guides.push({ y: sy.at }); }
       }
-      for (const o of d.el0s) { const q = els.find(x => x.id === o.id); if (q) { q.x = r4(o.x + dx / W); q.y = r4(o.y + dy / H); delete q.fit; } }
+      for (const o of d.el0s) { const q = els.find(x => x.id === o.id); if (q) { q.x = r4(o.x + dx / W); q.y = r4(o.y + dy / H); delete q.fit; if (esDz(q)) dzMover(q, cajaDz(o), o.ov); } }   // «Diseño»: its offset (D-193)
       if (mag && !girado && d.el0s.length) E.cotas = medidas(union(els.filter(q => ids.includes(q.id)), W, H), ids);
     } else if (d.t === 'size') {
       const g0 = geo(d.el0, W, H), cen = e.altKey, f = cen ? 2 : 1;   // ⌥: from the centre, the opposite side (or the four) moving too
       const A = cen ? { x: g0.cx, y: g0.cy } : world(g0, { x: -d.hx * g0.w / 2, y: -d.hy * g0.h / 2 }), ga = { ...g0, cx: A.x, cy: A.y }, l = local(ga, p), MIN = 0.03 * W;
       let w = g0.w, h = g0.h, eje = 'x';
-      const prop = el.t === 'logo' || (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
+      const prop = el.t === 'logo' || el.t === 'diseno' || (el.t === 'forma' && (el.forma === 'si' || el.forma === 'no')) || (d.hx && d.hy && (!e.shiftKey || el.t === 'texto'));
       if (prop) { const s = f * (l.x * d.hx * g0.w + l.y * d.hy * g0.h) / (g0.w * g0.w + g0.h * g0.h); w = g0.w * s; h = g0.h * s; if (w < MIN || h < MIN) { const k = MIN / Math.min(g0.w, g0.h); w = g0.w * k; h = g0.h * k; } }
       else { if (d.hx) w = Math.max(MIN, f * l.x * d.hx); if (d.hy) h = Math.max(el.t === 'forma' ? 2 : MIN, f * l.y * d.hy); delete el.rat; }   // a side: the frame is cropped, its format is no longer the one chosen
       if (mag && !el.rot) {           // the edges being dragged stick to the lines (slide, margin, guides, elements) or take another element's width or height
@@ -2040,6 +2320,7 @@
         el.w = r4(mw / W); el.h = r4(mh / H); el.x = r4((C.x - mw / 2) / W); el.y = r4((C.y - mh / 2) / H); delete el.fit;
       }
       if (el.src) setPhoto(el, {});
+      if (esDz(el)) dzMover(el, cajaDz(d.el0), d.el0.ov);   // «Diseño»: the text's size (D-193)
       if (mag && !el.rot) E.cotas = medidas(aabb(el, W, H), [el.id], { ancho: !!d.hx, alto: !!d.hy });
     } else if (d.t === 'rot') {
       const g0 = geo(d.el0, W, H);
@@ -2069,7 +2350,7 @@
     else if (d.t === 'move') {
       const el = compAt(E.i).els.find(x => x.id === d.id);
       if (d.reduce && el) seleccionar(el);       // a click on one of several selected: only that one
-      else if (el && el.t === 'foto' && !el.src && !d.lock && !multi()) E.pick = { modo: 'fill', id: el.id };
+      else if (el && el.t === 'foto' && !el.src && (!d.lock || (esFotoDz(el) && !el.fin)) && !multi()) E.pick = { modo: 'fill', id: el.id };   // the design's empty photo too (D-193)
       else if (el && el.t === 'hueco' && !multi()) E.pick = { modo: 'fill', id: el.id };
     }
     panel(); pedir();
@@ -2092,7 +2373,12 @@
   }
   function onDbl(e) {
     if (!E.sl.length || E.busy) return;
-    const el = hitEl(toSlide(e)); if (!el || el.lock) return;
+    const p = toSlide(e), el = hitEl(p); if (!el || (el.lock && !esFotoDz(el))) return;
+    if (esDz(el)) {                    // the text under the pointer, in «Texto», chosen to write over it (D-193)
+      seleccionar(el); E.pick = null; E.crop = null; recordarSec('diseno', 'el'); panel();
+      const ta = E.el.querySelector(`.lb-panel textarea[data-f="${dzCampo(el, p)}"]`); if (ta) { ta.focus(); ta.select(); }
+      pedir(); return;
+    }
     if (el.t === 'texto') { seleccionar(el); if (el.g) E.mas = []; E.pick = null;   // a text in a group: only it, to write it (as in Canva; a click still takes the group, D-178)
       recordarSec('texto', 'el'); panel(); const ta = E.el.querySelector('.lb-panel textarea[data-lb="txt"]'); if (ta) { ta.focus(); ta.select(); } pedir(); return; }
     if (el.t !== 'foto' || !el.src) return;
@@ -2355,6 +2641,10 @@
   const FORMAS = { rect: 'Rectángulo', elipse: 'Círculo', linea: 'Línea', flecha: 'Flecha' }, FORMAS2 = { progreso: 'Barra de progreso', si: 'Visto', no: 'Aspa' };
   const nombreForma = e => FORMAS[e.forma] || FORMAS2[e.forma] || 'Forma', enPortada = e => e.forma === 'progreso' && !(Array.isArray(e.pa) && e.pa[0]);
   function nombreEl(e) {
+    if (e.t === 'diseno') {                     // «Diseño *Portada · auto: abajo*»: its kind and where «Auto» put it (D-193)
+      const c = E.dzc && E.dzc.get(e.id), dec = c && c.res && c.res.decision, lug = e.ov && e.ov.lugar ? e.ov.lugar : dec && dec.lugar ? 'auto: ' + dec.lugar : '';
+      return `Diseño <i>${esc(TIPO_DZ[e.tipo] || '')}${lug ? ' · ' + esc(lug) : ''}</i>`;
+    }
     if (e.t === 'texto') { const t = String(e.txt || '').replace(/\s+/g, ' ').trim(); return `${e.num ? 'Numeración' : e.pil ? 'Píldora' : 'Texto'} <i>${e.num && !t ? 'oculta en la portada' : `«${esc(t.length > 24 ? t.slice(0, 23) + '…' : t || 'vacío')}»`}</i>`; }
     if (e.t === 'forma') return nombreForma(e) + (enPortada(e) ? ' <i>oculta en la portada</i>' : '');
     if (e.t === 'hueco') return 'Hueco de foto';
@@ -2416,6 +2706,7 @@
   // says where; its buttons keep their clicks, and a press that doesn't move is the row's click
   function arrastrarCapa(e) {
     const row = e.target.closest && e.target.closest('.lb-caps > .lb-cap'); if (!row || !E || e.button !== 0 || e.target.closest('button') || E.busy) return;
+    if (row.dataset.id && esFotoDz(compAt(E.i).els.find(q => q.id === row.dataset.id))) return;   // the design's photo stays at the bottom (D-193)
     const box = row.parentNode, rows = [...box.children], y0 = e.clientY, from = rows.indexOf(row); let on = false, dest = -1, linea = null;
     const mover = ev => {
       if (!on && Math.abs(ev.clientY - y0) < 4) return;
@@ -2450,6 +2741,10 @@
         return `<div class="lb-cap lb-capv ${x}${E.capa === x ? ' on' : ''}${o.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nm}</span>${ver(o, at)}<span class="lb-capsp" aria-hidden="true"></span>${ud(k, at)}</div>`;
       }
       const e = x, at = `data-id="${esc(e.id)}"`;
+      if (fijoDz(e)) {                          // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
+        const sobreFoto = k > 0 && esFotoDz(L[k - 1]), mov = esDz(e) ? `<button type="button" data-lb="cap-up" ${at} title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" ${at} title="Atrás" aria-label="Atrás"${k === 0 || sobreFoto ? ' disabled' : ''}>▼</button>` : '';
+        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nombreEl(e)}</span><span class="lb-capsp" aria-hidden="true"></span>${mov}</div>`;
+      }
       return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>${ver(e, at)}`
         + `<button type="button" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>${ud(k, at)}</div>`;
     };
@@ -2523,7 +2818,13 @@
         + rng('op', 'Opacidad', ss[0] ? ss[0].op ?? 1 : 1, 0, 1, 0.01, ss.some(e => (e.op ?? 1) !== (ss[0].op ?? 1))));
       h += comunHTML(ss) + transformarHTML(ss) + capasHTML(c);
     } else if (el) {
-      if (el.t === 'foto') {
+      if (esDz(el)) h += panelDz(el);
+      else if (esFotoDz(el)) {                 // the design's photo: reframed and changed, never moved, styled nor turned (D-193)
+        const crop = E.crop === el.id;
+        const m = crop ? rng('z', 'Zoom', el.z || 1, 1, 3, 0.01) + '<div class="lb-btns"><button type="button" class="btn" data-lb="crop">Listo</button></div>'
+          : `<div class="lb-btns"><button type="button" class="btn2" data-lb="crop"${el.src ? '' : ' disabled'} title="Mover y ampliar la foto (o arrastrarla, o doble clic)">Encuadrar</button>${el.fin ? '' : `<button type="button" class="btn2" data-lb="rep">${el.src ? 'Reemplazar' : 'Elegir foto'}</button>`}</div>`;
+        h += plegable('el', 'Foto', crop ? 'encuadrando' : el.fin ? 'final del cliente' : el.src ? '' : 'sin foto', m);
+      } else if (el.t === 'foto') {
         const crop = E.crop === el.id;
         let m = '';
         if (crop) m += rng('z', 'Zoom', el.z || 1, 1, 3, 0.01) + '<div class="lb-btns"><button type="button" class="btn" data-lb="crop">Listo</button></div>';
@@ -2569,7 +2870,7 @@
           + (el.forma === 'rect' ? rng('r', 'Esquinas', el.r || 0, 0, 1, 0.01) : '') + rng('sh', 'Sombra', el.sh || 0, 0, 1, 0.01));
         h += girarHTML(el, false);
       }
-      h += medidasHTML(el) + capasHTML(c);
+      h += (fijoDz(el) ? '' : medidasHTML(el)) + capasHTML(c);
     } else if (E.capa) {                       // the veil or the texture chosen in «Capas»: its section and «Capas» (D-185)
       const k = E.capa === 'velo' ? 'velo' : 'textura', ab = abiertaDiapo(c);
       h = seccionesDiapo(E.capa === 'velo' ? secVelo(c) : secTex(c), ab === k ? k : '-') + capasHTML(c, { on: ab !== k });
@@ -2577,23 +2878,25 @@
       const v = c.velo, n0 = E.i + 1, est = !x.key ? 'nueva, sin foto' : x.out || changedSl(x) ? 'editada' : 'foto sin editar';
       const solo = fotosDe(c).filter(e => e.src && M.files[e.src] && !M.files[e.src].design);
       h += `<div class="lb-sec"><h4>Diapositiva ${n0} <span>· ${est}</span></h4><div class="lb-btns"><button type="button" class="btn2" data-lb="add"><span class="i-mas">+</span> Foto</button><button type="button" class="btn2" data-lb="add-txt"><span class="i-mas">+</span> Texto</button><button type="button" class="btn2" data-lb="formas" aria-haspopup="menu" aria-expanded="false" title="Rectángulo (R), círculo, línea, flecha, «Desliza →», barra de progreso, comillas, visto, aspa o número en círculo"><span class="i-mas">+</span> Forma</button><button type="button" class="btn2" data-lb="add-pil"><span class="i-mas">+</span> Píldora</button>`
-        + (!isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
+        + (!E.dzk && !isRaw(x) && x.key && (solo.length || (!x.out && M.files[x.key] && M.files[x.key].design)) ? `<button type="button" class="btn2" data-lb="sl-orig" title="La diapositiva vuelve a ser la foto, sin edición">Quitar la edición</button>` : '') + '</div>'
         + '</div>';
       if (E.estilos.length) h += `<div class="lb-sec"><h4>Textos de la marca <span>· fuentes y pesos del kit</span></h4><div class="lb-btns" style="margin-top:0">${E.estilos.map(st => `<button type="button" class="btn2 lb-est" data-lb="add-est" data-v="${esc(st.k)}" style="font-family:'${fuente(st.font).name}',sans-serif;font-weight:${st.font.w}" title="Añadir un texto «${esc(st.n)}»: luego se escribe, se mueve y se cambia como cualquier texto">${esc(st.n)}</button>`).join('')}</div></div>`;
       h += `<div class="lb-sec"><h4>Logos y pegatinas <span>· del cliente</span></h4>${E.logos.length ? `<div class="lb-photos">${E.logos.map(f => `<button type="button" class="lb-ph logo" data-lb="logo" data-f="${esc(f)}" title="Añadir ${esc(M.files[f].name || '')} (Alt + clic: quitarlo del kit)"><img src="${M.files[f].thumbUrl || ''}" alt=""></button>`).join('')}</div>` : '<p class="lb-p" style="margin:0">Sube el logo del cliente (mejor PNG con transparencia) y queda guardado para todos sus meses.</p>'}`
         + '<div class="lb-btns"><button type="button" class="btn2" data-lb="logo-up">Subir logo o pegatina</button></div></div>';
-      h += `<div class="lb-sec"><h4>Fondo</h4>${sws('bg', c.bg)}</div>`;
-      h += secVelo(c) + secTex(c);
-      h += `<div class="lb-sec"><h4>Rejilla <span>· de 2 a 4 fotos</span></h4><div class="lb-grids">${GRIDS.map(([k, l]) => `<button type="button" class="lb-g" data-lb="grid" data-v="${k}" title="${l}" aria-label="Rejilla: ${l}">${gridSvg(k)}</button>`).join('')}</div>`
+      const dzS = E.dzk && fotoDzDe(c), dzSuelta = E.dzk && c.dzs;   // a designed slide (D-193): no background, veil, texture, grid nor templates of its own
+      if (dzSuelta) h = h.replace('</div></div>', `<button type="button" class="btn2" data-lb="dz-volver" title="Vuelve a como la pone el kit: lo hecho después de soltarla se descarta">Volver al diseño</button></div></div>`);
+      if (!dzS) h += `<div class="lb-sec"><h4>Fondo</h4>${sws('bg', c.bg)}</div>` + secVelo(c) + secTex(c);
+      if (!E.dzk) h += `<div class="lb-sec"><h4>Rejilla <span>· de 2 a 4 fotos</span></h4><div class="lb-grids">${GRIDS.map(([k, l]) => `<button type="button" class="lb-g" data-lb="grid" data-v="${k}" title="${l}" aria-label="Rejilla: ${l}">${gridSvg(k)}</button>`).join('')}</div>`
         + rng('gap', 'Separación', c.rej ? c.rej.g : E.gap ?? 0.02, 0, 0.08, 0.001) + '<p class="lb-p">Las fotos de la diapositiva van a los huecos por orden; un hueco vacío se rellena con un clic.</p></div>';
       const tpl = t => `<div class="lb-tp"><canvas data-lb="tpl" data-id="${esc(t.id)}" title="Aplicar «${esc(t.nombre)}» a esta diapositiva"></canvas><span>${esc(t.nombre)}</span><button type="button" data-lb="tpl-del" data-id="${esc(t.id)}" title="Borrar la plantilla" aria-label="Borrar la plantilla">×</button></div>`;
       const grupos = [...PLANT_FMT, ''].map(f => [f, E.plant.filter(t => (PLANT_FMT.includes(t.fmt) ? t.fmt : '') === f)]).filter(([, ts]) => ts.length);   // by format; those saved before 1.16 have none
-      h += `<div class="lb-sec"><h4>Plantillas <span>· del cliente, para cualquier mes</span></h4>${E.plant.length ? grupos.map(([f, ts]) => `<span class="lb-l">${f || 'Sin formato'}</span><div class="lb-tpls">${ts.map(tpl).join('')}</div>`).join('') : '<p class="lb-p" style="margin:0 0 8px">Guarda una diapositiva entera y reutilízala: al aplicarla eliges solo sus textos, solo sus huecos de foto o todo.</p>'}`
+      if (!E.dzk) h += `<div class="lb-sec"><h4>Plantillas <span>· del cliente, para cualquier mes</span></h4>${E.plant.length ? grupos.map(([f, ts]) => `<span class="lb-l">${f || 'Sin formato'}</span><div class="lb-tpls">${ts.map(tpl).join('')}</div>`).join('') : '<p class="lb-p" style="margin:0 0 8px">Guarda una diapositiva entera y reutilízala: al aplicarla eliges solo sus textos, solo sus huecos de foto o todo.</p>'}`
         + `<div class="lb-btns"><button type="button" class="btn2" data-lb="tpl-save"${c.els.length || c.velo || c.tex || c.bg !== '#ffffff' ? '' : ' disabled'}>Guardar como plantilla</button>${c.previa ? '<button type="button" class="btn2" data-lb="tpl-quitar" title="La diapositiva vuelve a como estaba antes de su última plantilla">Quitar plantilla</button>' : ''}</div></div>`;
       const ab = abiertaDiapo(c);
       h = seccionesDiapo(h, ab) + capasHTML(c, { on: ab === 'capas' });   // its sections, folded (D-137)
     }
     p.innerHTML = h;
+    if (el && esDz(el)) p.querySelectorAll('.dz-in[data-f]').forEach(t => { t.value = str(el[t.dataset.f]); });   // by value: a leading line break survives
     if (abreEl && abreEl !== '-' && !h.includes(`data-pl="${abreEl}"`)) { const s = p.querySelector(':scope > .lb-acc[data-pl="el"]'); if (s) abrirSec(s, true, false); }   // not in this panel: the main one
     abreEl = null;
     p.scrollTop = top;
@@ -2642,6 +2945,7 @@
 
   // ---------- slides into another place: the strip's ▲▼, a drag (strip or «Ver todas») and ⌥ + arrows ----------
   function moverSl(i, j) {
+    if (E.dzk) return;
     if (!E || E.busy || !E.sl[i]) return;
     j = clamp(j, 0, E.sl.length - 1); if (i === j) return;
     mut(null, () => { const x0 = E.sl[E.i], [x] = E.sl.splice(i, 1); E.sl.splice(j, 0, x); E.i = Math.max(0, E.sl.indexOf(x0)); });
@@ -2709,6 +3013,7 @@
     const { W, H } = sizeAt(E.pvI), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
     cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
     const x = cv.getContext('2d'), k = cv.width / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
+    if (E.dzk) dzVer(E.pvI, true);
     FUERA = true; try { drawComp(x, compAt(E.pvI), W, H, viewImg, k, false); } finally { FUERA = false; }
   }
   // F: see it big, over the whole window (D-045): the chosen photo, original and whole; else the slide as it leaves the
@@ -2729,6 +3034,7 @@
     const { W, H } = sizeAt(E.fvI), r = E.fv.getBoundingClientRect(), s = Math.min(r.width / W, r.height / H), dpr = window.devicePixelRatio || 1;
     cv.style.width = W * s + 'px'; cv.style.height = H * s + 'px'; cv.width = Math.max(1, Math.round(W * s * dpr)); cv.height = Math.max(1, Math.round(H * s * dpr));
     const x = cv.getContext('2d'), k = cv.width / W; x.setTransform(k, 0, 0, k, 0, 0); x.imageSmoothingQuality = 'high';
+    if (E.dzk) dzVer(E.fvI, true);
     FUERA = true; try { drawComp(x, compAt(E.fvI), W, H, viewImg, k, false); } finally { FUERA = false; }
   }
 
@@ -2748,7 +3054,9 @@
     const ss = selEls().filter(e => !e.lock); if (!ss.length) return;
     const H1 = E.sz.H * PX, p = ss.find(e => e.id === E.sel) || ss[0];
     const ddx = dx ? (Math.round(p.x * 1080) + dx) / 1080 - p.x : 0, ddy = dy ? (Math.round(p.y * H1) + dy) / H1 - p.y : 0;
-    onEl(e => { if (e.lock) return; e.x = r4(e.x + ddx); e.y = r4(e.y + ddy); delete e.fit; if (e.t !== 'foto') e.mano = true; }, 'nudge', true);
+    const dzs = ss.filter(esDz).map(e => [e.id, cajaDz(e), clone(e.ov || {})]);
+    onEl(e => { if (e.lock) return; e.x = r4(e.x + ddx); e.y = r4(e.y + ddy); delete e.fit; if (e.t !== 'foto' && e.t !== 'diseno') e.mano = true; }, 'nudge', true);
+    dzs.forEach(([id, b0, ov0]) => { const e = compAt(E.i).els.find(q => q.id === id); if (e) dzMover(e, b0, ov0); });   // its offset, as a drag (D-193)
     syncNums(selEl());
   }
   // ⌥⌘C · ⌥⌘V: a text's look onto other texts, in this or another slide or post of the client (its fonts and colours are
@@ -2772,6 +3080,7 @@
     }));
   }
   function duplicarSl() {          // ⌘D with nothing chosen: a copy of the open slide goes in after it, as «Pegar diapositiva» (no warning, D-022)
+    if (E.dzk) return;               // a designed post: its slides are the design's (D-193)
     if (E.reel || !E.sl.length) return;
     if (E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
     mut(null, () => {
@@ -2783,6 +3092,7 @@
     if (!E.allEl.hidden) verTodas(true);
   }
   function borrarSl(i) {           // with something on it (a photo, an element), it asks first; then «Deshacer» (as ⌘Z, while nothing else changed)
+    if (E.dzk) return;
     if (!E.sl[i]) return;
     const ya = () => {
       mut(null, () => { E.sl.splice(i, 1); E.i = clamp(E.i > i ? E.i - 1 : E.i, 0, Math.max(0, E.sl.length - 1)); soltar(); E.crop = null; });
@@ -2799,7 +3109,8 @@
   }
   function copiar(todo) {          // the selected elements; nothing selected (or «Copiar diapositiva»): the whole slide, its background, veil and texture too
     if (!E.sl.length) return;
-    const ss = todo ? [] : selEls(), { W, H } = sizeAt(E.i), de = { client: E.board.client, rat: W / H };
+    const ss = todo ? [] : selEls().filter(e => !fijoDz(e)), { W, H } = sizeAt(E.i), de = { client: E.board.client, rat: W / H };
+    if (E.dzk && !ss.length) return;   // a designed slide is not copied whole, nor its photo or «Diseño» (D-193)
     if (ss.length) { CLIP = { ...de, els: clone(ss) }; I().toast(ss.length === 1 ? 'Copiado: pégalo con ⌘V en esta u otra diapositiva, en el mismo sitio.' : `${ss.length} elementos copiados: pégalos con ⌘V, en el mismo sitio.`); }
     else { CLIP = { ...de, slide: clone(compAt(E.i)) }; I().toast('Diapositiva copiada: pégala con ⌘V en esta u otra publicación del cliente.'); }
     panel();
@@ -2822,6 +3133,7 @@
     });
   }
   function pegarSl(cb) {           // a new slide still empty, or a reel's cover, takes it; else it goes in after the chosen one
+    if (E.dzk) { I().toast('Un carrusel diseñado lleva las diapositivas de su diseño: pega sus elementos, no la diapositiva entera.'); return; }
     const x0 = cur(); if (E.reel && !x0) return;
     const llena = E.reel || (x0 && !x0.key && !compAt(E.i).els.length);
     if (!llena && E.car && E.sl.length >= MAX_SLIDES) { I().toast('Un carrusel admite como máximo 20 diapositivas (límite de Instagram).'); return; }
@@ -2861,6 +3173,7 @@
     const { W, H } = E.sz, B = ss.length > 1 ? union(ss, W, H) : { l: 0, r: W, t: 0, b: H };
     onEl(e => {
       if (e.lock) return;
+      if (esDz(e)) { const b0 = cajaDz(e), ov0 = clone(e.ov || {}), b = aabb(e, W, H); e.x = r4(e.x + ((v === 'izq' ? B.l - b.l : v === 'der' ? B.r - b.r : v === 'cen' || v === 'h' ? (B.l + B.r - b.l - b.r) / 2 : 0)) / W); e.y = r4(e.y + ((v === 'arr' ? B.t - b.t : v === 'aba' ? B.b - b.b : v === 'med' || v === 'v' ? (B.t + B.b - b.t - b.b) / 2 : 0)) / H); dzMover(e, b0, ov0); return; }
       const b = aabb(e, W, H);
       const dx = v === 'izq' ? B.l - b.l : v === 'der' ? B.r - b.r : v === 'cen' || v === 'h' ? (B.l + B.r - b.l - b.r) / 2 : 0;
       const dy = v === 'arr' ? B.t - b.t : v === 'aba' ? B.b - b.b : v === 'med' || v === 'v' ? (B.t + B.b - b.t - b.b) / 2 : 0;
@@ -2883,6 +3196,8 @@
   function act(a, b) {
     const x = E.sl.length ? cur() : null, col = () => String(b.dataset.c).toLowerCase(), cm = E.cmOn && E.cmDe;
     if (E.cmOn) menuCtx(false);
+    if (E.dzk && vedadoDz(a, b)) return;
+    if (a === 'dz-volver') { volverDz(); return; }
     switch (a) {
       case 'cerrar': pedirCerrar(); return;
       case 'aplicar': aplicar(); return;
@@ -2961,6 +3276,7 @@
           if (!r || !r.length || E !== owner || E.pick !== pk) return;
           E.pick = null;
           const h = pk.modo === 'add' ? null : compAt(E.i).els.find(q => q.id === pk.id);
+          if (h && esFotoDz(h)) { ponerFotoDz(f); return; }   // the design's photo (D-193)
           if (h && (h.t === 'hueco' || (h.t === 'foto' && (!h.src || (h.hueco && !h.pan))))) { repartir([{ f, h }], 0); return; }   // a hole, free or filled (D-050)
           mut(null, () => {
             const c = ensure();
@@ -2984,7 +3300,7 @@
       case 'tpl-save': guardarPlantilla(); return;
       case 'tpl-quitar': quitarPlantilla(); return;
       case 'tpl-del': { const t = E.plant.find(q => q.id === b.dataset.id); if (t) preguntar(`¿Borrar la plantilla «${t.nombre}»?`, 'Se borra para este cliente; las diapositivas ya hechas con ella no cambian.', [['seguir', 'Cancelar', 'btn2'], ['borrar', 'Borrar', 'btn']], v => { if (v === 'borrar') guardarCliente(l => ({ ...l, plantillas: (l.plantillas || []).filter(q => q.id !== t.id) })); }); return; }
-      case 'crop': { const el = selEl(); if (!el || el.t !== 'foto') return; E.crop = E.crop === el.id ? null : el.src && !el.lock ? el.id : null; panel(); pedir(); return; }
+      case 'crop': { const el = selEl(); if (!el || el.t !== 'foto') return; E.crop = E.crop === el.id ? null : el.src && (!el.lock || esFotoDz(el)) ? el.id : null; panel(); pedir(); return; }
       case 'crop-c': onEl(el => setPhoto(el, { cx: 0.5, cy: 0.5, z: 1 })); return;
       case 'encajar': onEl(el => { if (el.t === 'foto') encajar(el, el.fit != null ? el.fit : 0); }); return;
       case 'llenar': onEl(el => { if (el.t === 'foto') llenar(el); }); return;
@@ -3014,7 +3330,7 @@
         const ss = selEls(); if (!ss.length) return;
         if (ss.every(e => e.lock)) { I().toast(ss.length > 1 ? 'Están bloqueados: desbloquéalos para borrarlos.' : 'Está bloqueado: desbloquéalo para borrarlo.'); return; }
         mut(null, () => {
-          const c = ensure(), ids = ss.filter(e => !e.lock).map(e => e.id), pans = ss.filter(e => !e.lock && e.pan).map(e => e.pan.id);
+          const c = ensure(), ids = ss.filter(e => !e.lock && !fijoDz(e)).map(e => e.id), pans = ss.filter(e => !e.lock && e.pan).map(e => e.pan.id);
           sacar(c, e => ids.includes(e.id)); soltar(); E.crop = null; E.pick = null;   // a photo that filled a hole leaves the hole as it was
           if (pans.length) E.sl.forEach((x, j) => { if (j !== E.i && x.comp) sacar(x.comp, e => !!(e.pan && pans.includes(e.pan.id))); });   // a crossing photo goes from all its slides
         });
@@ -3028,6 +3344,21 @@
       case 'cap-ver': case 'cap-lock': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), e = cp ? (cp === 'velo' ? c.velo : c.tex) : c.els.find(q => q.id === id); if (!e) return; if (cp) { if (e.oculto) delete e.oculto; else e.oculto = true; return; } if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
       case 'cap-up': case 'cap-dn': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), L = pila(c), k = L.findIndex(q => cp ? q === cp : typeof q !== 'string' && q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= L.length) return; [L[k], L[j]] = [L[j], L[k]]; enPila = true; dePila(c, L); }); return; }   // on the stack (D-185)
     }
+  }
+  // a designed post (D-193): its slides are the design's (none added, deleted, moved nor copied whole here); a designed slide
+  // keeps the kit's background, veil and type; the design's photo and «Diseño» are not deleted, duplicated, grouped, turned
+  // nor copied (one let go from the kit is an ordinary slide)
+  function vedadoDz(a, b) {
+    const x = cur(), suelta = !!(x && x.comp && x.comp.dzs);
+    if (['sl-del', 'sl-add', 'sl-up', 'sl-dn', 'sl-orig', 'fmt', 'sl-copy', 'cruzar', 'grid', 'tpl', 'tpl-save', 'tpl-quitar'].includes(a)) return true;
+    if (!suelta && ['bg', 'velo', 'velo-c', 'velo-dir', 'tex'].includes(a)) return true;
+    const fijos = selEls().filter(fijoDz);
+    if (fijos.length && ['dup', 'group', 'ungroup', 'lock', 'rotl', 'rotr', 'flipx', 'flipy', 'cambio', 'encajar', 'llenar', 'marco', 'bo', 't-rat', 't-ori'].includes(a)) return true;
+    if ((a === 'del' || a === 'copy') && fijos.length && fijos.length === selEls().length) { if (a === 'del') I().toast(fijos.some(esDz) ? 'El diseño no se borra: «Soltar del kit» lo pasa a capas normales.' : 'La foto del diseño no se borra: cámbiala con «Reemplazar».'); return true; }
+    const at = b && b.dataset && b.dataset.id ? compAt(E.i).els.find(q => q.id === b.dataset.id) : null;
+    if ((a === 'cap-ver' || a === 'cap-lock') && fijoDz(at)) return true;
+    if ((a === 'cap-up' || a === 'cap-dn') && esFotoDz(at)) return true;
+    return false;
   }
   function menu(on) {
     E.menuOn = on; const m = E.el.querySelector('.lb-menu'); m.hidden = !on; m.style.left = m.style.right = '';
@@ -3242,17 +3573,18 @@
       act(b.dataset.lb, b);
     });
     el.addEventListener('pointerdown', e => { if (E && E.cambio && (e.target !== E.cv || e.button !== 0)) { salirCambio(); if (E.scroll.contains(e.target)) e.stopPropagation(); } }, true);   // a click outside the slide cancels «Intercambiar»
-    el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); });
+    el.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.lb && !E.busy) onInput(t); else if (E && !E.busy && t.matches && t.matches('.lb-panel .dz-in, .lb-panel .dz-velor')) entradaDzEd(t); });   // the «Diseño» layer's fields (D-193)
     { const r = el.querySelector('.lb-foot .ttam input'); let raton = false;   // let go with the mouse, it gives the keys back to the editor
       r.addEventListener('pointerdown', () => { raton = true; }); r.addEventListener('keydown', () => { raton = false; });
       r.addEventListener('input', () => tamCambiar(r)); r.addEventListener('change', () => { if (raton) { raton = false; r.blur(); } });
       r.addEventListener('dblclick', () => { tamCambiar(r, 50); r.blur(); }); }
     el.querySelector('.lb-list').addEventListener('pointerdown', arrastrar);
     el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('.lb-acc-h'); if (b) plegar(b); });   // a section's title (D-137)
+    el.querySelector('.lb-panel').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-dz]'); if (b && E && !b.disabled) accionDzEd(b); });   // the «Diseño» layer's controls (D-193)
     el.querySelector('.lb-panel').addEventListener('pointerdown', arrastrarCapa);   // a row of «Capas» to another place (D-185)
     { const pn = el.querySelector('.lb-panel'), fila = t => t && t.closest && t.closest('.lb-rng, .lb-ang');
       const NUMS = 'input[data-lb="rot"], input[data-lb="mx"], input[data-lb="my"], input[data-lb="man"], input[data-lb="mal"]';   // «Girar» and «Medidas exactas»
-      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches(NUMS)) { e.target.select(); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value of always; a figure is chosen whole, typing replaces it (D-166, D-176)
+      pn.addEventListener('dblclick', e => { if (e.target.matches && e.target.matches(NUMS)) { e.target.select(); return; } const db = e.target.closest && e.target.closest('.dz-dbl'); if (db && E && !E.busy) { const a = document.activeElement; if (a && a.matches && a.matches('.dz-velor')) a.blur(); accionDzEd({ dataset: { dz: db.dataset.dbl } }); return; } const f = fila(e.target); if (f && E && !E.busy) volverBarra(f); });   // a bar's row: its value (the «Diseño» layer's: 100 %, Auto) of always; a figure is chosen whole, typing replaces it (D-166, D-176)
       pn.addEventListener('focusout', e => { const t = e.target, el = E && t.matches && t.matches(NUMS) && selEl(); if (el) t.value = t.dataset.lb === 'rot' ? grados(el) : Math.round(medidaPx(el, t.dataset.lb)); });   // left (Esc, Tab, a click) half typed or out of range: what it has
       pn.addEventListener('mousedown', e => { if (e.detail > 1 && fila(e.target) && e.target.tagName !== 'INPUT') e.preventDefault(); });   // its label and figure never get selected
       pn.addEventListener('scroll', () => { if (E && E.cmDe === 'formas') menuCtx(false); }); }
@@ -3599,6 +3931,11 @@
     if (E.cambio) salirCambio();
     const otra = i != null && E.sl[i] && i !== E.i, s0 = !otra && !p ? selEl() : null, c0 = E.sl.length ? compAt(otra ? i : E.i) : null;
     if (m && m.sustituye) return sustituirFoto(m.sustituye, fs[0]);
+    const fd = c0 && fotoDzDe(c0);
+    if (fd && !fd.fin && fs.length === 1 && !(m && m.anadir)) {   // a designed slide: the photo goes to its «Foto» layer, unless it falls on a free photo or hole (D-193)
+      const bajo = p ? [...c0.els].reverse().find(e => !e.oculto && !esDz(e) && inside(areaHueco(e), p)) : s0;
+      if (!bajo || fijoDz(bajo) || !(libre(bajo) || lleno(bajo))) { if (otra) elegir(i); return ponerFotoDz(fs[0]); }
+    }
     if (huecosTodos(c0).length) {
       if (otra) elegir(i);
       const plan = m && m.anadir ? planAnadir(fs[0], p, c0, s0) : planHuecos(fs, p, c0, s0);
@@ -3778,6 +4115,7 @@
       // an empty hole goes in as it is (the post is marked and never goes up, D-035); a photo or logo whose file is gone can't be drawn
       E.sl.forEach((x, i) => { if (x.comp) need(!x.comp.els.some(e => !e.oculto && (e.t === 'logo' ? !(e.src && M.files[e.src]) : e.t === 'foto' && e.src && !M.files[e.src])), `Diapositiva ${i + 1}: tiene una foto o un logo que ya no está. Elígelo o bórralo.`); });
       if (!pendiente()) { cerrar(); return; }
+      if (E.dzk) { await aplicarCapas(s, S, owner); return; }   // a designed post keeps its design (D-193)
       E.busy = true; APL++; counted = true; head();
       const fmtCh = E.car && E.fmt !== E.fmt0, outs = [], made = [];
       try {
@@ -3833,6 +4171,24 @@
     } finally { drenar(); }
   }
 
+  // a designed post: its layers into the design, which diseno.js applies (only the slides that changed are drawn again); the
+  // session and that are one step of the mesa's ⌘Z
+  async function aplicarCapas(s, S, owner) {
+    E.busy = true; APL++; head();
+    let r;
+    try {
+      if (I().setBusy) I().setBusy('dz', `Aplicando el diseño de ${s.name}…`);
+      r = await DZ().guardar(s.id, cambiosDz());
+    } catch (e) { throw new LbError('No se pudo aplicar: ' + String((e && e.message) || e)); }
+    finally { APL--; if (I().setBusy) I().setBusy('dz', null); if (E === owner) { E.busy = false; head(); } }
+    if (E !== owner) return;
+    E.applied = true;
+    if (I().histJuntar && E.marca) I().histJuntar(E.marca);
+    const i0 = E.i, slotId = E.slotId, reel = E.reel;
+    cerrar(true);
+    if (I().S === S && I().openDetail) I().openDetail(slotId, Math.min(i0, Math.max(0, s.photos.length - 1)));
+    I().toast([reel ? 'Portada aplicada: se sube tal cual.' : 'Diseño aplicado: se sube tal cual.', ...((r && r.notas) || [])].join(' '), { ms: r && r.notas && r.notas.length ? 8000 : 5000 });
+  }
   async function guardarImagen(blob, name) {   // a drawn slide into the mesa's files (uploaded as it is): its id
     const { w, h, thumb } = await I().makeThumb(blob), id = I().newId();
     await I().idbPut('files', id, { name, size: blob.size, type: 'image/jpeg', w, h, lastModified: Date.now(), blob, thumb, design: true });
@@ -4069,6 +4425,8 @@
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     hist: { pintar: pintarHistoria, altoDe, OUT_W },   // a story designed from outside (historias.js, D-062)
     pieza: (comp, W, H) => dibujar(comp, W, H),   // a slide drawn at any size, as a JPEG Blob: «Descargar» (descargar.js, D-083)
+    _capas: { pintarEls, dibujarComp: (comp, W, H) => dibujar(comp, W, H) },
+    _dzVer: (i, alta) => E && E.dzk ? dzVer(i, alta) : null,   // for the tests: the «Diseño» layer of slide i drawn now (D-193)   // a designed slide's free layers and one let go from the kit, drawn for diseno.js (D-193)
     _dibujar: () => { if (!E) return; if (E.raf) { cancelAnimationFrame(E.raf); E.raf = 0; } frame(); } };   // tests: draw now (a hidden tab gets no frames)
   // a board the mesa opened before this file loaded: its drawn holes become the element too (not a step of ⌘Z)
   { const S = I() && I().S, ids = S && !I().locked ? migrar(S) : []; if (ids.length) { ids.forEach(id => I().histAmend(id)); I().save(); } }

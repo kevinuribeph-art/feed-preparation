@@ -1,4 +1,4 @@
-// Página personal — Mesa de trabajo · v1.1 (D-180, D-181)
+// Página personal — Mesa de trabajo · v1.3 (D-180, D-181, D-202–D-205)
 // The page the logo opens: every client at a glance. Four figures (what went past, what goes out today and tomorrow, what waits
 // for the client, what is left to schedule), the notices behind them, a block per client (its two months as a line of steps
 // and its week) and the tasks and notes, which live only here (IndexedDB 'tareas', with their photos, mesa ≥ 4.16). It reads
@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.3';   // 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];

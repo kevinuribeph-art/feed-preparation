@@ -151,7 +151,7 @@
   function cuenta(a, r) { const h = hechos(a, r); return h ? `<span class="pp-hj-n">${h[0] == null ? h[1] : h[0] + '/' + h[1]}</span>` : ''; }
   function texto(campo, txt, vacio) {          // a text with marks: read (its checkboxes are used, D-204); written on a double click
     const vc = S.vista, h = (P.ES() ? P.ES().html(txt || '', { enlaces: true, casillas: vc ? 'vineta' : 'si' }) : P.esc(txt || ''));
-    return `<div class="pp-hj-tx${h ? '' : ' vacio'}" data-campo="${P.esc(campo)}"${h || vc ? '' : ' title="Doble clic para escribir"'}>${h}</div>`;
+    return `<div class="pp-hj-tx${h ? '' : ' vacio'}" data-campo="${P.esc(campo)}">${h}</div>`;
   }
   function aph(a, r, extra) {                  // a section's head: handle, fold, its name and count, its eye and «⋯»
     const vc = S.vista, plg = S.plg.has(a.id), nom = P.esc(a.nombre || (APS[a.id] || {}).n || a.id);
@@ -220,7 +220,7 @@
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
     const cli = r.cliente ? P.cliDe(r.cliente) : null;
-    const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${vc ? '' : ojoBtn(vis, '', 'data-hj="ojo"')}</div>`
+    const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'), false)}</div>`
       + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.diaHora(r.fecha, r.hora))}</span>` : ''}${cli ? `<span class="pp-hj-chip ro">${P.avatar(cli.id, 'xs')}${P.esc(cli.name)}</span>` : ''}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
         + `<span class="pp-hj-chip pp-hj-fh"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión"></span>`
@@ -291,10 +291,17 @@
     if (S.vista) return;
     const C = P.CARD; if (!C) return;
     if (C.ed && S.campo === campo) return;
+    const otro = C.ed && S.campo;
     if (C.ed) guardar(false);
-    C.ed = true; S.campo = campo; S.firma = '';
+    C.ed = true; S.campo = campo;
+    // reading, a text starts being written in its place: nothing else is drawn again (D-209); a tab's name, or going from
+    // one text to another, draws the sheet again with it
+    const el = !otro && !/^tab:/.test(campo) && P.ov && P.ov.querySelector(`[data-campo="${CSS.escape(campo)}"]`);
+    if (el) { P.ov.firstChild.classList.add('ed'); S.firma = firma(rec()); escribirEn(campo, pt); return; }
+    S.firma = '';
     pintar(rec(), { forzar: true, pt });
   }
+  const UNCLIC = /^(nom|ap:|it:)/;               // a click writes these; a tab's or a group's name is renamed with a double click (D-209)
   function valorDe(r, campo) {
     const p = campo.split(':');
     if (campo === 'nom') return r.txt;
@@ -333,19 +340,26 @@
   const cambiar = (f, junta) => { const r = rec(); return r ? P.cambiar(r.id, x => (f(x) === false ? null : x), junta).then(() => P.pintar()) : Promise.resolve(false); };
   function clic(e) {
     const t = e.target, ov = P.ov, c = ov && ov.firstChild; if (!c) return false;
-    if (!c.contains(t)) return false;          // outside: back to reading, or it closes (personal.js)
+    if (!c.contains(t)) return false;          // outside: it closes, writing too (personal.js)
     if (P.CARD.pd) { P.CARD.pd = false; return true; }
+    if (t.closest('[data-pp="ampliar"], [data-pp="cerrar"]')) return false;   // widen and the ×: personal.js (D-209, D-210)
     const a = t.closest('[data-hj]'), k = a && a.dataset.hj, apEl = t.closest('[data-ap]'), apId = apEl && apEl.dataset.ap;
-    if (P.CARD.ed && S.campo && !t.closest('[contenteditable], .pp-ecapa')) { P.editar(false); if (!k) return true; }   // writing: a click elsewhere goes back to reading
+    const pt = { x: e.clientX, y: e.clientY }, txt = !k && e.detail < 2 && !S.vista && t.closest('[data-campo]');
+    const escribe = txt && UNCLIC.test(txt.dataset.campo) && !t.closest('a, .pp-em.ca[data-ln]') ? txt.dataset.campo : null;
+    if (P.CARD.ed && S.campo && !t.closest('[contenteditable], .pp-ecapa')) {   // writing: another text is written; elsewhere, back to reading
+      if (escribe) { empezar(escribe, pt); return true; }
+      P.editar(false); if (!k) return true;
+    }
     if (t.closest('a.pp-ea, a.pp-pl-en')) return true;   // a link opens in another tab; the sheet stays
     const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !P.CARD.ed && !S.vista) { marcarTexto(cas); return true; }
     const fo = t.closest('.pp-fo'); if (fo && !k && e.detail < 2) { verFoto(fo.dataset.f); return true; }
+    if (escribe && !P.CARD.ed && !P.seleccionando()) { empezar(escribe, pt); return true; }   // reading: a click writes where it is pressed (D-209)
     if (!k) return true;
     const r = rec(); if (!r) return true;
     if (k === 'ojo') { cambiar(x => { x.sesion.visible = x.sesion.visible === false; }); return true; }
     if (k === 'ojo-ap') { cambiar(x => { const y = ap(x, apId); if (!y) return false; y.visible = y.visible === false; }); return true; }
     if (k === 'plegar') { if (S.plg.has(apId)) S.plg.delete(apId); else S.plg.add(apId); pintarYa(); const b = P.ov.querySelector(`[data-ap="${CSS.escape(apId)}"] [data-hj="plegar"]`); if (b) b.focus({ preventScroll: true }); return true; }
-    if (k === 'tab') { if (e.detail >= 2) return true; S.tab[apId] = a.dataset.tab; pintarYa(); return true; }
+    if (k === 'tab') { if (e.detail >= 2 || S.tab[apId] === a.dataset.tab) return true; S.tab[apId] = a.dataset.tab; pintarYa(); return true; }   // the tab in use: nothing to draw again
     if (k === 'tab-mas') { const id = P.nuevoId('pt'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.pestanas = y.pestanas || []).push({ id, nombre: 'Pestaña', items: [] }); }).then(() => { S.tab[apId] = id; empezar(`tab:${apId}:${id}`); }); return true; }
     if (k === 'it-nuevo') { const pt = S.tab[apId], id = P.nuevoId('pi'); cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt); if (!p) return false; (p.items = p.items || []).push({ id, titulo: '', texto: '', fotos: [], enlaces: [] }); }).then(() => empezar(`it:${apId}:${pt}:${id}:titulo`)); return true; }
     if (k === 'g-nuevo') { const id = P.nuevoId('gr'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.grupos = y.grupos || []).push({ id, nombre: 'Grupo', modo: 'linea', fotos: [] }); }).then(() => empezar(`g:${apId}:${id}`)); return true; }
@@ -363,6 +377,7 @@
     if (S.vista) return;
     const t = e.target;
     if (t.closest('.pp-hj-sep')) { const R = reparto(); R.sep = SEP0; guardarReparto(R); pintarYa(); return; }   // the separator: back to how it started (as D-148)
+    if (P.CARD.peq) return;                      // the double click that opened it writes nothing under the pointer (D-209)
     if (t.closest('[contenteditable], .pp-ck, button:not([data-campo]), a, input, select')) return;
     const f = t.closest('[data-campo]'); if (f) empezar(f.dataset.campo, { x: e.clientX, y: e.clientY });
   }
@@ -546,7 +561,7 @@
   }
   function dialogo() {
     const X = I(), E = DLG.estado;
-    X.showDialog('pp-sesion', `<div class="pp-ns-cab"><h3>Nueva sesión</h3>${ojoBtn(E.visible, '', 'data-ns="ojo"')}</div>`
+    X.showDialog('pp-sesion', `<button class="x" data-act="close" aria-label="Cerrar">×</button><div class="pp-ns-cab"><h3>Nueva sesión</h3>${ojoBtn(E.visible, 'pp-cb', 'data-ns="ojo"')}</div>`
       + `<form class="form pp-ns" autocomplete="off"><label for="pp-ns-nom">Nombre</label><input id="pp-ns-nom" type="text" maxlength="80" value="${P.esc(E.nombre)}" required>`
       + `<label id="pp-ns-tl">Tipo</label><div class="pp-ns-tipos" role="radiogroup" aria-labelledby="pp-ns-tl">${CLASES.map(([k, l, ic]) => `<button type="button" role="radio" class="pp-ns-t${E.clase === k ? ' on' : ''}" data-ns="clase" data-k="${k}" aria-checked="${E.clase === k}" tabindex="${E.clase === k ? 0 : -1}">${svgI(ic)}<span>${l}</span></button>`).join('')}</div>`
       + `<div class="pp-ns-2"><div><label for="pp-ns-fecha">Fecha y hora</label><span class="pp-ns-fh"><input id="pp-ns-fecha" type="date" data-sin-fecha value="${P.esc(E.fecha)}" aria-label="Fecha de la sesión"><input id="pp-ns-hora" type="time" value="${P.esc(E.hora)}" aria-label="Hora de la sesión"></span></div>`
@@ -626,7 +641,7 @@
     const desde = e.creada ? `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
       return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.diaHora(k.fecha, k.hora)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
-    return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div><button type="button" class="ibtn pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button></div>`
+    return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div>${P.botonesCard(`<button type="button" class="ibtn pp-cb pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button>`, false)}</div>`
       + (ns.length ? `<section class="pp-es-sec"><h3>Notas <span>${ns.length}</span></h3><div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${P.esc(n.id)}" data-pp="tver" data-id="${P.esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${P.esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div></section>` : '')
       + `<section class="pp-es-sec"><h3>Sesiones <span>${ss.length}</span></h3><div class="pp-es-l">${ss.map(ses).join('')}</div><button type="button" class="pp-cmas" data-es="sesion">${svgI('mas')}Sesión</button></section>`
       + `<section class="pp-es-sec"><h3>Tareas <span>${ts.filter(k => !k.hecha).length}</span></h3><div class="pp-es-l">${ts.map(k => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${P.esc(k.id)}"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha"><span class="pp-tt" data-pp="tver" data-id="${P.esc(k.id)}" tabindex="0" role="button">${P.esc(k.txt)}</span>${k.fecha ? `<span class="pp-tf">${P.esc(P.diaHora(k.fecha).replace(/ \d{4}$/, ''))}</span>` : ''}</div>`).join('')}</div><button type="button" class="pp-cmas" data-es="tarea">${svgI('mas')}Tarea</button></section>`
@@ -638,15 +653,17 @@
     if (!o.forzar && f === F.firma && ov.firstChild) return; F.firma = f;
     ov.innerHTML = fichaHTML(e);
     const c = ov.firstChild;
-    if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
+    if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
     else c.focus({ preventScroll: true });
   }
   const espRec = () => { const C = P.CARD; return C && C.ext === FICHA ? P.TK.get(C.id) : null; };
   function fichaClic(e) {
     const t = e.target, c = P.ov && P.ov.firstChild; if (!c || !c.contains(t)) return false;
     if (P.CARD.pd) { P.CARD.pd = false; return true; }
+    if (t.closest('[data-pp="cerrar"]')) return false;   // the ×: personal.js (D-209)
     const e0 = espRec(); if (!e0) return true;
     if (P.CARD.ed && !t.closest('[contenteditable]')) { P.editar(false); return true; }
+    if (!P.CARD.ed && e.detail < 2 && t.closest('[data-campo="nom"]') && !P.seleccionando()) { fichaEscribir({ x: e.clientX, y: e.clientY }); return true; }   // its name: a click writes it (D-209)
     const a = t.closest('[data-es]'), k = a && a.dataset.es;
     if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuEsp(e0.id), a); return true; }
     if (k === 'sesion') { nueva({ ctx: null, campo: 'ficha', desde: e0 }); return true; }
@@ -655,7 +672,15 @@
     const v = t.closest('[data-pp="tver"]'); if (v && !t.closest('.pp-ck')) { P.abrirCard(v.dataset.id); return true; }
     return true;
   }
-  function fichaDbl(e) { if (e.target.closest('[data-campo="nom"]') && !P.CARD.ed) { P.CARD.ed = true; fichaPintar(espRec(), { forzar: true }); } }
+  function fichaDbl(e) { if (!P.CARD.peq && e.target.closest('[data-campo="nom"]') && !P.CARD.ed) fichaEscribir(null); }
+  function fichaEscribir(pt) {                 // the name, written in its place (nothing else drawn again), the caret where it was pressed
+    const n = P.ov && P.ov.querySelector('.pp-es [data-campo="nom"]'); if (!n) return;
+    P.CARD.ed = true; F.firma = JSON.stringify([espRec(), true, P.vivos().filter(k => k.cliente === P.CARD.id)]);
+    n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus({ preventScroll: true });
+    let rg = pt && document.caretRangeFromPoint ? document.caretRangeFromPoint(pt.x, pt.y) : null; if (rg && !n.contains(rg.startContainer)) rg = null;
+    if (!rg) { rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); }
+    const sl = getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  }
   function fichaTecla(e) {
     if (P.CARD.ed && e.key === 'Enter' && !e.isComposing && e.target.isContentEditable) { e.preventDefault(); e.stopImmediatePropagation(); P.editar(false); return true; }
     if (!P.CARD.ed && e.key === 'Enter' && e.target === P.ov.firstChild) { e.preventDefault(); return true; }
@@ -769,10 +794,10 @@
 #mesa .pp-hj-t .pp-ck{width:17px;height:17px}
 #mesa .pp-hj-nom{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;outline:none}
 #mesa .pp-hj-nom.escribiendo,#mesa .pp-hj .escribiendo{background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus);cursor:text}
-#mesa .pp-hj-ojo{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg-2);color:var(--ink-2)}
+#mesa .pp-hj-ojo{display:inline-flex;align-items:center;justify-content:center}
 #mesa .pp-hj-ojo.sm{width:26px;height:26px;background:none}
 #mesa .pp-hj-ojo[aria-pressed="false"]{color:var(--mute)}
-#mesa .pp-hj-ojo svg{width:16px;height:16px}#mesa .pp-hj-ojo.sm svg{width:15px;height:15px}
+#mesa .pp-hj-ojo.sm svg{width:15px;height:15px}
 #mesa .pp-hj svg,#mesa .pp-es svg,#mesa .pp-ns-cab svg,#mesa .pp-ns svg,#mesa .pp-ml svg{stroke-width:var(--i-trazo)}
 #mesa .pp-hj svg path,#mesa .pp-hj svg rect,#mesa .pp-hj svg circle,#mesa .pp-es svg path,#mesa .pp-es svg rect,#mesa .pp-es svg circle,#mesa .pp-ns-cab svg path,#mesa .pp-ns-cab svg circle,#mesa .pp-ns svg path,#mesa .pp-ns svg rect,#mesa .pp-ns svg circle,#mesa .pp-ml svg path{vector-effect:non-scaling-stroke}
 #mesa .pp-hj-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0 0 29px}
@@ -878,7 +903,8 @@
 #mesa .pp-hj.vc .pp-pl-it{grid-template-columns:minmax(0,1fr) minmax(0,auto)}
 /* «Nueva sesión» (Q2) */
 #mesa .detail[data-dlg="pp-sesion"] .card.dlg{max-width:500px;width:100%}
-#mesa .pp-ns-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 4px}#mesa .pp-ns-cab h3{margin:0}
+#mesa .pp-ns-cab{display:flex;align-items:center;gap:12px;margin:0 0 4px}#mesa .pp-ns-cab h3{margin:0 64px 0 0}
+#mesa .pp-ns-cab .pp-hj-ojo{position:absolute;top:12px;right:44px}
 #mesa .pp-ns-tipos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 #mesa .pp-ns-t{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:58px;padding:8px 4px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:background var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-ns-t svg{width:17px;height:17px}#mesa .pp-ns-t:hover{border-color:var(--line-strong);color:var(--ink)}

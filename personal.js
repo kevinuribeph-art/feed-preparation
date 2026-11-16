@@ -644,19 +644,21 @@
   const enCard = el => !!(ov && el && el.nodeType === 1 && ov.contains(el));
   const pocoMov = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const fechaLarga = d => `${DS[dow(d)]} ${+d.slice(8, 10)} ${MES[+d.slice(5, 7) - 1]}${d.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + d.slice(0, 4) : ''}`;
-  // the icon that widens the card to the whole page under the mesa's header, and brings it back (D-205)
-  const ampBtn = () => { const a = !!(CARD && CARD.amplia); return `<button type="button" class="ibtn pp-amp" data-pp="ampliar" title="${a ? 'Reducir' : 'Ampliar'}" aria-label="${a ? 'Reducir' : 'Ampliar'}" aria-pressed="${a}">${a ? ICO.reducir : ICO.ampliar}</button>`; };
+  // the icon that widens the card to the whole page under the mesa's header, and brings it back (D-205); top right, in this
+  // order and where they exist: the eye, widen and the × (D-209), 32 px buttons with 18 px icons, side by side, as the mesa's ×
+  const ampBtn = () => { const a = !!(CARD && CARD.amplia); return `<button type="button" class="ibtn pp-cb pp-amp" data-pp="ampliar" title="${a ? 'Reducir' : 'Ampliar'}" aria-label="${a ? 'Reducir' : 'Ampliar'}" aria-pressed="${a}">${a ? ICO.reducir : ICO.ampliar}</button>`; };
+  const botonesCard = (ojo = '', amp = true) => `<span class="pp-cbs">${ojo}${amp ? ampBtn() : ''}<button type="button" class="ibtn pp-cb pp-cx" data-pp="cerrar" title="Cerrar" aria-label="Cerrar">${ICO.x}</button></span>`;
   function htmlCard(r, ed) {
     const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '', amp = CARD && CARD.amplia ? ' amplia' : '';
-    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${ampBtn()}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
+    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${botonesCard()}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
-      : r.fecha ? `<span class="${venc ? 'rojo' : ''}">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';
+      : r.fecha ? `<span class="pp-cml${venc ? ' rojo' : ''}" data-pp="lfecha">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';   // read: a click writes and opens its control (D-209)
     const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea">${opcionesCli(r.cliente, (D && D.CL) || X.CL)}</select></span>`
-      : c ? `<span>${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
+      : c ? `<span class="pp-cml" data-pp="lcli">${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
     return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
-      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${ampBtn()}</div>`
+      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${botonesCard()}</div>`
       + (fecha || cli ? `<div class="pp-cm">${fecha}${cli}</div>` : '') + fotos + detSub(r, ed) + `</div>`;
   }
   // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
@@ -734,10 +736,19 @@
     const enfocada = enCard(document.activeElement);
     apagarCampos();
     if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }
-    ov.innerHTML = htmlCard(r, CARD.ed);
+    ponerCard(htmlCard(r, CARD.ed));
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     activarCampos();
     if (enfocada && !CARD.ed) ov.firstChild.focus({ preventScroll: true });
+  }
+  // the card's content and classes change and the card stays: going from reading to writing never runs its entrance again
+  // (no blink, D-209); also used by sesiones.js
+  function ponerCard(html) {
+    const c = ov && ov.firstChild, t = document.createElement('template'); t.innerHTML = html; const n = t.content.firstElementChild;
+    if (!c || !n || c.nodeType !== 1 || c.tagName !== n.tagName) { ov.innerHTML = html; return; }
+    for (const a of [...c.attributes]) if (!n.hasAttribute(a.name)) c.removeAttribute(a.name);
+    for (const a of [...n.attributes]) if (c.getAttribute(a.name) !== a.value) c.setAttribute(a.name, a.value);
+    c.replaceChildren(...n.childNodes);
   }
   // the kinds of card other files draw (sesiones.js: a session's sheet, a sporadic client's file): {pintar, clic, dbl, tecla,
   // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
@@ -783,12 +794,17 @@
       sel.removeAllRanges(); sel.addRange(rg);
     }
   }
-  function editar(on, pt) {
+  function editar(on, pt, sel) {               // sel: the field to write in (a subtask: the caret at its end) or the control to open (D-209)
     if (!CARD || CARD.ed === on) return;
     if (!on) { guardarCard(); if (!CARD) return; }
     CARD.ed = on; clearTimeout(CARD.cierre); CARD.subPend = null;
     pintarCard(true);
-    if (on) enfocar(pt); else if (ov) ov.firstChild.focus({ preventScroll: true });
+    if (!on) { if (ov) ov.firstChild.focus({ preventScroll: true }); return; }
+    const f = sel && ov && ov.querySelector(sel);
+    if (!f) { enfocar(pt); return; }
+    if (f.matches('.pp-cst')) { f.focus({ preventScroll: true }); f.setSelectionRange(f.value.length, f.value.length); return; }
+    const g = M.controles && M.controles.gemelo && M.controles.gemelo(f), tgt = g ? (g.querySelector('input') || g) : f;   // its date or client: the mesa's own control, open
+    tgt.focus({ preventScroll: true }); tgt.click();
   }
   // the card to the whole page under the mesa's header and back (D-205): the same card, only wider; what is being written stays
   function ampliar(on) {
@@ -796,8 +812,8 @@
     CARD.amplia = on; CARD.ampT = Date.now();
     const c = ov.querySelector('.pp-card'); if (c) c.classList.toggle('amplia', on);
     ov.classList.toggle('amplia', on); colocarAmplia();
-    const b = ov.querySelector('[data-pp="ampliar"]');
-    if (b) { b.outerHTML = ampBtn(); }
+    const b = ov.querySelector('[data-pp="ampliar"]'), l = on ? 'Reducir' : 'Ampliar';   // the same button: the focus stays on it
+    if (b) { b.title = l; b.setAttribute('aria-label', l); b.setAttribute('aria-pressed', String(on)); b.innerHTML = on ? ICO.reducir : ICO.ampliar; }
     requestAnimationFrame(() => { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.dibujar) x._esc.dibujar(); }); });
   }
   function colocarAmplia() {                   // under the header, which keeps working
@@ -1018,34 +1034,40 @@
       if (foco && ov) { const b = ov.querySelector(`${det ? '.pp-cd' : '.pp-cn'} .pp-em.ca[data-ln="${ln}"]`); if (b) b.focus({ preventScroll: true }); }
     });
   }
-  // a click on the card: its checkbox and photos work; outside it closes at once (writing, it goes back to reading); on it, it
-  // waits what a double click lasts; the second click of a double click never closes it
+  // a click on the card (D-209): open, a click writes where it is pressed (the title, the note, «Detalles», a subtask; the date
+  // or the client also opens its control); what works with a click works as before (its checkbox, a checkbox or a link drawn
+  // in the text, its photos, its buttons); a click outside or its × closes it, also writing (what is written goes in); the
+  // second click of a double click never closes it nor moves the caret
+  const seleccionando = () => { const s = getSelection(); return !!(s && !s.isCollapsed && s.anchorNode && enCard(s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentNode)); };
   function clicCard(e) {
     const t = e.target, c = ov.firstChild;
-    if (CARD.pd) { CARD.pd = false; return; }   // the click that closed one of the mesa's menus or calendars
+    if (CARD.pd) { CARD.pd = false; return; }   // the click that closed one of the mesa's menus, calendars or the «/» menu
     if (CARD.ext && CARD.ext.clic && CARD.ext.clic(e)) return;
     const a = t.closest('[data-pp]'), k = a && a.dataset.pp;
     if (k === 'ampliar') { ampliar(!CARD.amplia); return; }
+    if (k === 'cerrar') { cerrarCard(); return; }
     const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !CARD.ed) { marcarEnTexto(cas); return; }   // a checkbox drawn in the text, read: marked (D-204)
     if (t.closest('a.pp-ea')) return;          // a link opens in another tab; the card stays (D-204)
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cmas') { nuevaSub(); return; }
     if (k === 'csx') { quitarSub(a.closest('.pp-csub')); return; }
     if (t.closest('.pp-ck, input, select, button, [contenteditable="plaintext-only"], .mx-sel, .mx-f')) return;
-    if (e.detail >= 2) { clearTimeout(CARD.cierre); return; }
+    if (e.detail >= 2) return;                 // the double click decides (alDobleClic)
     CARD.peq = false;
-    if (CARD.amplia) return;                   // widened, a click inside never closes it (D-205)
-    const fuera = !c.contains(t);
-    if (CARD.ed) { if (fuera) editar(false); return; }
-    if (fuera) { cerrarCard(); return; }
-    clearTimeout(CARD.cierre); CARD.cierre = setTimeout(() => { if (CARD && !CARD.ed) cerrarCard(); }, DBL);
+    if (!c.contains(t)) { cerrarCard(); return; }   // outside: closed at once, writing too
+    if (CARD.ed || CARD.ext || seleccionando()) return;   // writing, the click is the field's; text being selected stays selected
+    const ctl = t.closest('[data-pp="lfecha"], [data-pp="lcli"]');
+    if (ctl) { editar(true, null, ctl.dataset.pp === 'lfecha' ? '.pp-cfecha' : '.pp-ccli'); return; }
+    const sub = t.closest('.pp-csub[data-sid]');
+    if (sub) { editar(true, null, `.pp-cst[data-sid="${CSS.escape(sub.dataset.sid)}"]`); return; }
+    if (t.closest('[data-pp="ct"], [data-pp="cn"], .pp-cd')) editar(true, { x: e.clientX, y: e.clientY });
   }
   function alDobleClic(e) {
     if (CARD && enCard(e.target)) {            // writing, where it was double clicked (the double click that opened it: at the end)
       clearTimeout(CARD.cierre);
       if (CARD.ext) { if (CARD.ext.dbl) CARD.ext.dbl(e); return; }
       if (CARD.ampT && Date.now() - CARD.ampT < DBL) return;   // the second click of a double click on «Ampliar», now under it
-      if (e.target.closest('[data-pp="ampliar"], a.pp-ea, .pp-em.ca[data-ln]')) return;
+      if (e.target.closest('[data-pp="ampliar"], [data-pp="cerrar"], a.pp-ea, .pp-em.ca[data-ln]')) return;
       if (!CARD.ed && !e.target.closest('.pp-ck, [data-pp="foto"]')) editar(true, CARD.peq ? null : { x: e.clientX, y: e.clientY });
       return;
     }
@@ -1081,7 +1103,8 @@
       const det = I().root().querySelector('.detail'), ctl = M.controles && M.controles.abierto && M.controles.abierto();
       if (e.key === 'Escape' && ES() && ES().menuAbierto()) return;   // the «/» menu closes on its own and «/…» stays (D-204)
       if (CARD.ext && CARD.ext.tecla && !ctl && !(det && !det.hidden) && CARD.ext.tecla(e)) return;
-      if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); if (CARD.ed) editar(false); else if (CARD.amplia) ampliar(false); else cerrarCard(); return; }
+      // Esc closes it, writing too (what is written goes in) and widened too (D-209); what is open over it closes first
+      if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); cerrarCard(); return; }
       if ((e.key === ' ' || e.key === 'Enter') && t.matches && t.matches('.pp-em.ca[data-ln]') && enCard(t) && !CARD.ed) { e.preventDefault(); marcarEnTexto(t); return; }
       if (e.key === 'Enter' && !CARD.ed && t === ov.firstChild) { e.preventDefault(); editar(true); return; }
       if (e.key === 'Enter' && t.matches && t.matches('[data-pp="ct"]') && !e.isComposing) {   // the title is one line: Enter goes to the details
@@ -1186,7 +1209,8 @@
     on(document, 'compositionend', () => { componiendo = false; retomar(); });
     for (const ty of ['pointerup', 'keyup', 'focusout']) on(document, ty, retomar, true);
     on(document, 'contextmenu', alMenu, true);
-    on(window, 'pointerdown', e => { if (CARD) CARD.pd = enCard(e.target) && !!(M.controles && M.controles.abierto && M.controles.abierto()); }, true);
+    // the click that closes a dropdown, the mesa's calendar, the «/» menu or a right-click menu doesn't count for the card (D-209)
+    on(window, 'pointerdown', e => { if (CARD) CARD.pd = enCard(e.target) && !!((M.controles && M.controles.abierto && M.controles.abierto()) || menu || (ES() && ES().menuAbierto())); }, true);
     for (const ty of ['dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, alArrastrar, true);
     // the shell is built again (a reload of the code) or «Vista cliente» changes: the logo follows
     const mo = new MutationObserver(() => { const r = I() && I().root && I().root(); if (r && r !== root) return; colocar(); });
@@ -1226,7 +1250,7 @@
     EXT, TK, I, esc, ICO, st, avatar, cliDe, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
-    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL,
+    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
     cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }
   };
@@ -1525,17 +1549,24 @@
 #mesa .pp-cn{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
 #mesa .pp-card.nota.ed{box-shadow:var(--shadow-lg),0 0 0 2px var(--postit-3)}#mesa .pp-card.nota.ed .pp-cn{cursor:text}
 /* widen (D-205): the icon on the top right; widened, the whole page under the mesa's header */
-#mesa .pp-amp{position:absolute;top:10px;right:10px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;z-index:2}
-#mesa .pp-amp svg{width:16px;height:16px}
-#mesa .pp-amp:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-#mesa .pp-ch{padding-right:28px}
-#mesa .pp-card.nota{padding-right:44px}
-#mesa .pp-card.nota .pp-amp{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
-#mesa .pp-card.nota .pp-amp:hover{background:var(--postit-3);color:var(--postit-ink)}
+/* top right: the eye, widen and the × (D-209), 32 px buttons with 18 px icons, side by side, drawn as the mesa's × */
+#mesa .pp-cbs{display:inline-flex;align-items:center;flex:none}
+#mesa .pp-card > .pp-cbs,#mesa .pp-ch > .pp-cbs{position:absolute;top:19px;right:16px;z-index:2}
+#mesa .pp-cb{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;color:var(--ink-2)}
+#mesa .pp-cb:hover{background:var(--bg-2);color:var(--ink)}
+#mesa .pp-cb svg{width:18px;height:18px}
+#mesa .pp-cb:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .pp-ch{padding-right:60px}
+#mesa .pp-card.nota{padding-right:76px}
+#mesa .pp-card.nota .pp-cb{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
+#mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
+/* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
+#mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}
+#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}
 #mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
 #mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
 #mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
-#mesa .pp-card.amplia .pp-amp{top:16px;right:16px}
+#mesa .pp-card.amplia > .pp-cbs,#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:16px;right:16px}
 #mesa .pp-card.amplia:not(.nota){display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,470px);column-gap:56px;align-content:start}
 #mesa .pp-card.amplia > .pp-ch,#mesa .pp-card.amplia > .pp-cm,#mesa .pp-card.amplia > .pp-cfo{grid-column:1 / -1}
 #mesa .pp-card.amplia > .pp-cd{grid-column:1;margin-top:24px}

@@ -13228,7 +13228,8 @@
   const ppCard = () => q('.pp-ov:not(.sale) .pp-card');
   const ppTecla = (key, o = {}) => W.dispatchEvent(new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o }));
   const ppRaton = (el, ty, detail, o = {}) => { const r = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent(ty, { bubbles: true, cancelable: true, detail, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, ...o })); };
-  prueba('PP20', 'Una tarea o una nota: un clic la abre en grande para leer, otro clic (pasado lo que dura un doble clic) o Esc la cierra, un clic fuera la cierra al momento; doble clic la pone en edición, también desde pequeño sin cerrarse en medio; clic fuera o Esc vuelve a leer; lo escrito se guarda; la casilla marca sin abrir; fecha y cliente se cambian; un paso de ⌘Z cada uno (D-182)', async () => {
+  const ppLeer = () => M.personal._p.editar(false);   // back to reading without closing (since D-209 Esc closes, also writing)
+  prueba('PP20', 'Una tarea o una nota: un clic la abre en grande para leer; un clic dentro que no cae en lo que se escribe no la cierra; Esc o un clic fuera la cierran al momento, también escribiendo (D-209); un clic en el título o en la nota escribe; doble clic desde pequeño escribe al final del título sin cerrarse en medio; lo escrito se guarda; la casilla marca sin abrir; fecha y cliente se cambian; un paso de ⌘Z cada uno (D-182, D-209)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
@@ -13239,10 +13240,10 @@
       ok(ppCard() && !ppCard().classList.contains('ed') && ppCard().querySelector('[data-pp="ct"]').textContent === 'Llamar', 'un clic no la abre en grande para leer');
       ok(!ppCard().querySelector('[contenteditable]'), 'leyendo, se puede escribir');
       ok(/Cliente de prueba/.test(ppCard().textContent) && ppCard().querySelector('.pp-cm .rojo'), 'no dice su cliente ni que está vencida');
-      // otro clic la cierra pasado un doble clic; antes, no
-      ppRaton(ppCard().querySelector('[data-pp="ct"]'), 'click', 1); await espera(120);
-      ok(ppCard(), 'un clic sobre ella la cierra sin esperar al doble clic');
-      await espera(300); ok(!ppCard(), 'otro clic no la cierra');
+      // un clic dentro que no cae en lo que se escribe no la cierra ni la pone a escribir (D-209)
+      ppRaton(ppCard(), 'click', 1); await espera(400);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'un clic dentro la cierra o la pone a escribir');
+      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'Esc leyendo no la cierra');
       // Esc y un clic fuera la cierran al momento
       ppRaton(peq(), 'click', 1); await espera(30); ppTecla('Escape'); await espera(30);
       ok(!ppCard(), 'Esc no la cierra');
@@ -13257,15 +13258,13 @@
       ok(ct.isContentEditable && D.activeElement === ct, 'el título no se edita o no tiene el foco');
       ct.textContent = 'Llamar al cliente'; ct.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
       await hasta(async () => (await M.personal.tareas()).find(k => k.id === t.id).txt === 'Llamar al cliente', 3000, 'que se guarde lo escrito');
-      // Esc vuelve a leer, sin cerrarla; otro Esc la cierra
-      ppTecla('Escape'); await espera(30);
-      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
-      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'el segundo Esc no la cierra');
+      // Esc escribiendo la cierra (D-209)
+      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'Esc escribiendo no la cierra');
       igual(peq().textContent, 'Llamar al cliente', 'la línea no dice lo escrito');
-      // doble clic en grande; un clic fuera vuelve a leer
+      // abierta, un clic en el título escribe (D-209)
       ppRaton(peq(), 'click', 1); await espera(400);
-      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 1); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(350);
-      ok(ppCard() && ppCard().classList.contains('ed'), 'el doble clic en grande no la pone en edición');
+      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().classList.contains('ed'), 'un clic en el título no la pone a escribir');
       // fecha y cliente
       const f = ppCard().querySelector('.pp-cfecha'), c = ppCard().querySelector('.pp-ccli');
       ok(f && c, 'en edición no se cambian la fecha ni el cliente');
@@ -13273,9 +13272,8 @@
       c.value = ''; c.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(80);
       let k = (await M.personal.tareas()).find(x => x.id === t.id);
       igual([k.fecha, k.cliente || null], ['2026-10-08', null], 'la fecha o el cliente no se guardan');
-      ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(30);
-      ok(ppCard() && !ppCard().classList.contains('ed'), 'un clic fuera escribiendo no vuelve a leer');
-      ppTecla('Escape'); await espera(200);
+      ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(200);
+      ok(!ppCard(), 'un clic fuera escribiendo no la cierra');
       // ⌘Z: un paso cada cambio
       ppTecla('z', { metaKey: true }); await espera(80);
       k = (await M.personal.tareas()).find(x => x.id === t.id); igual([k.fecha, k.cliente], ['2026-10-08', CLIENTE], '⌘Z no devuelve el cliente');
@@ -13284,12 +13282,12 @@
       // la casilla marca sin abrir
       q(`.pp-tk[data-tid="${t.id}"] .pp-ck`).click(); await espera(80);
       ok(!ppCard() && (await M.personal.tareas()).find(x => x.id === t.id).hecha, 'la casilla abre la tarea o no la marca');
-      // una nota: un clic la lee, doble clic la escribe
+      // una nota: un clic la lee, el siguiente la escribe (D-209)
       const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
       ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(30);
       ok(ppCard() && ppCard().classList.contains('nota') && !ppCard().querySelector('[contenteditable]'), 'la nota no se abre para leer');
-      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 2); ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'dblclick', 2); await espera(30);
-      ok(ppCard() && ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'la nota no se escribe con doble clic');
+      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'la nota no se escribe con un clic');
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
       ok(!q(`.pp-pt[data-nid="${n.id}"] [contenteditable]`), 'la nota en pequeño se puede escribir');
     } finally { paginaCerrada(); await sinTareas(); }
@@ -13318,8 +13316,8 @@
       await espera(500);
       igual(((await rec()).subtareas || []).map(x => x.txt), ['Uno', 'Dos'], 'las subtareas no se guardan al escribir');
       igual(qa('.pp-card .pp-csub').length, 3, 'la vacía no sigue mientras se escribe');
-      ppTecla('Escape'); await espera(40);
-      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
+      ppLeer(); await espera(40);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'no vuelve a leer');
       let k = await rec();
       igual([k.detalles, k.subtareas.map(x => x.txt), qa('.pp-card .pp-csub').length], ['Carpeta del SSD.\nDoce fotos.', ['Uno', 'Dos'], 2], 'al salir: los detalles o la subtarea vacía');
       // la casilla de una subtarea marca leyendo; todas hechas no marcan la tarea
@@ -13865,7 +13863,7 @@
       igual(capa, ['vi', 'vi', 'ca', 'ca', 'ca on'], 'la capa no dibuja las viñetas y casillas: ' + json(capa));
       const H = W.CSS.highlights;
       igual(['pp-em', 'pp-en', 'pp-eh', 'pp-ea'].map(k => H.get(k) ? H.get(k).size : 0), [5, 2, 1, 1], 'los resaltados: marcas ocultas, números en gris, hecha tachada, enlace');
-      ppTecla('Escape'); await espera(60);
+      ppLeer(); await espera(60);
       const L = qa('.pp-card .pp-cn .pp-el').map(x => x.className.replace('pp-el', '').trim() || '-');
       igual(L, ['-', 'vi', 'vi', 'nu', 'nu', 'ca', 'ca', 'ca hecha', '-', '-', '-', '-', '-', '-'], 'leyendo, las líneas: ' + json(L));
       ok(q('.pp-card .pp-cn a.pp-ea') && q('.pp-card .pp-cn a.pp-ea').getAttribute('href') === 'https://example.com/a/b', 'el enlace leyendo (sin el punto final)');
@@ -13938,7 +13936,7 @@
       const ev = new W.ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }); cd.dispatchEvent(ev); await espera(80);
       ok(ev.defaultPrevented && /nota pegada$/.test(cd.textContent), 'lo pegado sin «[] » no va al texto: ' + json(cd.textContent));
       igual(subs(), ['hecha✓', 'uno', 'dos✓'], 'las líneas «[] » pegadas no pasan a subtareas');
-      ppTecla('Escape'); await espera(80);
+      ppLeer(); await espera(80);
       const k = (await M.personal.tareas()).find(x => x.id === t.id);
       igual([json(k.detalles), k.subtareas.map(x => x.txt + (x.hecha ? '✓' : ''))], [json('Luz\n[]  tras\nnota pegada'), ['hecha✓', 'uno', 'dos✓']], 'lo guardado');
       // un pegado sin «[] » es el del navegador
@@ -14068,7 +14066,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('NA7', 'Ampliar: icono arriba a la derecha de la tarjeta de una tarea y de una nota; ampliada ocupa la página bajo la cabecera, a todo el ancho (en una tarea, «Detalles» a la izquierda y subtareas a la derecha); un clic dentro nunca la cierra; Esc escribiendo vuelve a leer y Esc leyendo la devuelve a tarjeta; siempre se abre como tarjeta (D-205)', async () => {
+  prueba('NA7', 'Ampliar: icono arriba a la derecha de la tarjeta de una tarea y de una nota; ampliada ocupa la página bajo la cabecera, a todo el ancho (en una tarea, «Detalles» a la izquierda y subtareas a la derecha); un clic dentro nunca la cierra; Esc la cierra del todo, escribiendo o no, y «Reducir» la devuelve a tarjeta (D-209); siempre se abre como tarjeta (D-205)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
@@ -14081,12 +14079,14 @@
       const cd = ppCard().querySelector('.pp-cd').getBoundingClientRect(), cs = ppCard().querySelector('.pp-cs').getBoundingClientRect();
       ok(cs.left > cd.right && Math.abs(cs.top - cd.top) < 40, '«Detalles» y subtareas no van lado a lado');
       ok(ppCard().querySelector('[data-pp="ampliar"]').title === 'Reducir', 'el icono no la devuelve');
-      ppRaton(ppCard().querySelector('.pp-cd'), 'click', 1); await espera(400); ok(ppCard() && ppCard().classList.contains('amplia'), 'un clic dentro la cierra');
-      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(40);
-      ok(ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'el doble clic no la pone a escribir ampliada');
-      ppTecla('Escape'); await espera(40); ok(ppCard() && !ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'Esc escribiendo no vuelve a leer ampliada');
-      ppTecla('Escape'); await espera(40); ok(ppCard() && !ppCard().classList.contains('amplia') && !q('.pp-ov:not(.sale)').classList.contains('amplia'), 'Esc leyendo no la devuelve a tarjeta');
-      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc no la cierra');
+      ppRaton(ppCard(), 'click', 1); await espera(400); ok(ppCard() && ppCard().classList.contains('amplia'), 'un clic dentro la cierra');
+      ppRaton(ppCard().querySelector('.pp-cd'), 'click', 1); await espera(40); ok(ppCard() && ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'un clic en «Detalles» no la pone a escribir ampliada');
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc escribiendo ampliada no la cierra del todo');
+      // «Reducir» la devuelve a tarjeta; leyendo ampliada, Esc también la cierra
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40); ok(ppCard() && !ppCard().classList.contains('amplia') && !q('.pp-ov:not(.sale)').classList.contains('amplia'), '«Reducir» no la devuelve a tarjeta');
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc leyendo ampliada no la cierra');
       // siempre se abre como tarjeta; una nota también se amplía
       ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
@@ -14192,7 +14192,7 @@
       const tx = seQ('[data-campo="ap:orden"]'); await naEscribe(tx, '/fe'); naTecla(tx, 'Enter'); await espera(80);
       const a = M.controles.abierto(); ok(a, '«/fecha» no abre el calendario'); a.de.value = '2026-10-08'; a.de.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(100);
       igual([tx.textContent, (await seRec(r.id)).fecha], ['jue 8 oct', '2026-10-01'], '«/fecha» en la hoja cambia la fecha de la sesión');
-      ppTecla('Escape'); await espera(500);
+      ppLeer(); await espera(500);
       // Espacio en una casilla de un texto
       await M.personal._p.cambiar(r.id, x => { seAp(x, 'fotos').texto = '[] Carta'; return x; }); M.personal._p.pintar(); await espera(80);
       const cas = seQ('[data-ap="fotos"] .pp-em.ca[data-ln]'); cas.focus(); naTecla(cas, ' '); await espera(100);
@@ -14296,7 +14296,7 @@
     } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('SE2', 'La hoja (P2): se abre sobre la página; un clic dentro nunca la cierra y uno fuera sí; doble clic en un texto lo escribe (con marcas), Esc vuelve a leer y otro Esc la cierra; el ojo de la sesión y el de cada apartado; «Ver como el cliente» oculta lo tachado y las casillas; pestañas: «+», doble clic renombra, «Borrar pestaña»; «+ Plano»; cambiar el tipo añade los apartados que faltan y no quita ninguno (D-206)', async () => {
+  prueba('SE2', 'La hoja (P2): se abre sobre la página; un clic dentro nunca la cierra y uno fuera sí; un clic en un texto lo escribe (con marcas), Esc la cierra también escribiendo y lo escrito se guarda (D-209); el ojo de la sesión y el de cada apartado; «Ver como el cliente» oculta lo tachado y las casillas; pestañas: «+», doble clic renombra, «Borrar pestaña»; «+ Plano»; cambiar el tipo añade los apartados que faltan y no quita ninguno (D-206)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14307,8 +14307,8 @@
       seDbl(seQ('[data-campo="ap:orden"]')); await espera(60);
       const tx = seQ('[data-campo="ap:orden"]'); ok(tx.isContentEditable && D.activeElement === tx, 'el doble clic no escribe el texto');
       await naEscribe(tx, '1. Barra\nTerraza'); igual(tx.textContent, '1. Barra\n2. Terraza', 'el texto de una sesión no sigue la lista');
-      ppTecla('Escape'); await espera(80);
-      ok(seHoja() && !seHoja().querySelector('[contenteditable]'), 'Esc no vuelve a leer');
+      ppLeer(); await espera(80);
+      ok(seHoja() && !seHoja().querySelector('[contenteditable]'), 'no vuelve a leer');
       await hasta(async () => seAp(await seRec(r.id), 'orden').texto === '1. Barra\n2. Terraza', 3000, 'que se guarde el texto');
       // el ojo: de la sesión y de un apartado (un paso cada uno)
       seQ('[data-hj="ojo"]').click(); await espera(80);
@@ -14553,6 +14553,89 @@
       const v = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', 17); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
       igual(v, 'VersionError', 'una pestaña con la 4.21 abre la base de datos');
     } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  // ---------- ajustes de la 4.22, lote A (D-209 a D-216) ----------
+  const asBotones = sel => qa(sel).map(b => { const r = b.getBoundingClientRect(), v = b.querySelector('svg'); return { k: b.dataset.pp || b.dataset.hj || b.dataset.ns || b.dataset.es || b.dataset.act, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), i: v ? Math.round(v.getBoundingClientRect().width) : 0 }; });
+  const asPegados = l => l.length > 1 && l.every((b, i) => b.w === 32 && b.i === 18 && (!i || (b.x - l[i - 1].x === 32 && b.y === l[i - 1].y)));
+  prueba('AS1', 'Un clic abre y el siguiente escribe (D-209): abierta, un clic escribe donde se pulsa (título, nota, «Detalles», una subtarea, los textos de la hoja, el nombre de la ficha) sin volver a crear la tarjeta; la fecha o el cliente leyendo escriben y abren su control; Esc o un clic fuera la cierran también escribiendo (lo escrito se guarda), y antes cierran el calendario o el desplegable; arriba a la derecha ojo, ampliar y × de 32 px con iconos de 18 px, pegados; un clic en una pestaña o un grupo no los renombra (doble clic sí); «Nueva sesión» lleva la × con el ojo a su lado', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await ppClic('.pp-tabs [data-p="tareas"]'); await M.personal.set({ vista: 'lista' });
+      const t = await M.personal.tarea({ txt: 'Revisar la luz', fecha: '2026-10-03', cliente: CLIENTE });
+      await M.personal._p.cambiar(t.id, x => { x.subtareas = [{ id: 'st1', txt: 'Trípode' }]; x.detalles = 'Mirar la terraza'; return x; }); await M.personal.render();
+      const abre = async () => { ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); return ppCard(); };
+      let card = await abre(); await espera(260);   // measured once it has entered (scale .97 → 1)
+      const bs = asBotones('.pp-ov:not(.sale) .pp-cbs > button');
+      igual(bs.map(b => b.k), ['ampliar', 'cerrar'], 'los botones de arriba de una tarea');
+      ok(asPegados(bs), 'los botones no son de 32 px con iconos de 18 px, pegados: ' + json(bs));
+      // un clic en el título escribe donde se pulsa, en la misma tarjeta
+      const ct = card.querySelector('[data-pp="ct"]'), rc = ct.getBoundingClientRect();
+      ppRaton(ct, 'click', 1, { clientX: rc.left + 9, clientY: rc.top + rc.height / 2 }); await espera(30);
+      ok(ppCard() === card && card.classList.contains('ed') && D.activeElement === card.querySelector('[data-pp="ct"]'), 'un clic en el título no escribe o la tarjeta se vuelve a crear');
+      ok(W.getSelection().anchorOffset < 3, 'el cursor no va donde se pulsó: ' + W.getSelection().anchorOffset);
+      // Esc escribiendo la cierra y lo escrito se guarda
+      const ct2 = card.querySelector('[data-pp="ct"]'); ct2.textContent = 'Revisar la luz ya'; ct2.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc escribiendo no la cierra');
+      await hasta(async () => (await M.personal.tareas()).find(k => k.id === t.id).txt === 'Revisar la luz ya', 3000, 'que se guarde lo escrito al cerrar con Esc');
+      // «Detalles» y una subtarea: un clic escribe en ellos
+      card = await abre(); ppRaton(card.querySelector('.pp-cd'), 'click', 1); await espera(30);
+      ok(D.activeElement === ppCard().querySelector('[data-pp="cd"]') && D.activeElement.isContentEditable, 'un clic en «Detalles» no escribe');
+      ppTecla('Escape'); await espera(200);
+      card = await abre(); ppRaton(card.querySelector('.pp-csub > span'), 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().classList.contains('ed') && D.activeElement.matches('.pp-cst[data-sid="st1"]'), 'un clic en una subtarea no escribe en ella');
+      ppTecla('Escape'); await espera(200);
+      // la fecha leyendo: escribe y abre el calendario de la Mesa; Esc cierra primero el calendario, después la tarjeta
+      card = await abre(); ppRaton(card.querySelector('[data-pp="lfecha"]'), 'click', 1); await espera(60);
+      ok(ppCard() && ppCard().classList.contains('ed') && M.controles.abierto() && M.controles.abierto().tipo === 'fecha', 'un clic en la fecha no abre su calendario escribiendo');
+      naTecla(D.activeElement, 'Escape'); await espera(60); ok(!M.controles.abierto() && ppCard() && ppCard().classList.contains('ed'), 'Esc no cierra antes el calendario');   // the key goes to the field with the focus, as a real one
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'el segundo Esc no la cierra');
+      // el cliente leyendo: su desplegable; el clic que lo cierra no cuenta; otro clic fuera la cierra
+      card = await abre(); ppRaton(card.querySelector('[data-pp="lcli"]'), 'click', 1); await espera(60);
+      ok(M.controles.abierto() && M.controles.abierto().tipo === 'sel', 'un clic en el cliente no abre su desplegable');
+      const fondo = q('.pp-ov:not(.sale)'); fondo.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 })); ppRaton(fondo, 'click', 1, { clientX: 5, clientY: 5 }); await espera(60);
+      ok(!M.controles.abierto() && ppCard(), 'el clic que cierra el desplegable cierra también la tarjeta');
+      fondo.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 })); ppRaton(fondo, 'click', 1, { clientX: 5, clientY: 5 }); await espera(200);
+      ok(!ppCard(), 'un clic fuera escribiendo no la cierra');
+      // la ×
+      card = await abre(); ppRaton(card.querySelector('[data-pp="cerrar"]'), 'click', 1); await espera(200); ok(!ppCard(), 'la × no la cierra');
+      // una nota: ampliar y ×; un clic la escribe
+      const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(260);
+      ok(asPegados(asBotones('.pp-ov:not(.sale) .pp-cbs > button')), 'los botones de la nota');
+      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); await espera(30); ok(ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'un clic en la nota no la escribe');
+      ppTecla('Escape'); await espera(200);
+      // la hoja: ojo, ampliar y ×; un clic en un texto lo escribe en su sitio; pestañas y grupos con doble clic
+      const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'video', fecha: '2026-10-03', hora: '10:00', cliente: CLIENTE });
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'linea', fotos: [] }]; return x; });
+      await seAbrir(r.id); await espera(260);
+      const hb = asBotones('.pp-ov:not(.sale) .pp-hj-t .pp-cbs > button');
+      igual(hb.map(b => b.k), ['ojo', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
+      const sec = seQ('[data-ap="mood"]'), tx = seQ('[data-campo="ap:orden"]');
+      ppRaton(tx, 'click', 1); await espera(40);
+      ok(tx.isConnected && tx.isContentEditable && D.activeElement === tx && sec.isConnected, 'un clic en un texto no lo escribe en su sitio');
+      ppLeer(); await espera(60);
+      ppRaton(seQ('[data-campo="nom"]'), 'click', 1); await espera(40); ok(seQ('[data-campo="nom"]').isContentEditable, 'un clic en el nombre de la sesión no lo escribe'); ppLeer(); await espera(60);
+      const tab = qa('.pp-ov:not(.sale) .pp-pl-tab')[1]; ppRaton(tab, 'click', 1); await espera(60);
+      ok(!seHoja().querySelector('[contenteditable]') && qa('.pp-ov:not(.sale) .pp-pl-tab')[1].classList.contains('on'), 'un clic en una pestaña la renombra o no la elige');
+      seDbl(seQ('.pp-pl-tab.on')); await espera(60); ok(seHoja().querySelector('.pp-pl-tn[contenteditable]'), 'el doble clic no renombra la pestaña'); ppLeer(); await espera(60);
+      ppRaton(seQ('.pp-mo-gn'), 'click', 1); await espera(40); ok(!seHoja().querySelector('[contenteditable]'), 'un clic en el nombre de un grupo lo escribe');
+      seDbl(seQ('.pp-mo-gn')); await espera(60); ok(seQ('.pp-mo-gn').isContentEditable, 'el doble clic no renombra el grupo'); ppLeer(); await espera(60);
+      ppRaton(seQ('[data-pp="cerrar"]'), 'click', 1); await espera(200); ok(!seHoja(), 'la × no cierra la hoja');
+      // la ficha de un esporádico: × tras «⋯»; un clic escribe su nombre
+      const e0 = { id: M.personal._p.nuevoId('es'), tipo: 'esporadico', txt: 'Casa Faro', creada: '2026-06-02T10:00:00.000Z', at: '2026-06-02T10:00:00.000Z' }; await M.personal._p.hacer([{ id: e0.id, despues: e0 }]);
+      M.personal._p.abrirCard(e0.id); await espera(260);
+      igual(asBotones('.pp-ov:not(.sale) .pp-es-cab .pp-cbs > button').map(b => b.k), ['mas', 'cerrar'], 'los botones de la ficha');
+      ppRaton(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'click', 1); await espera(40); ok(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]').isContentEditable, 'un clic en el nombre de la ficha no lo escribe');
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc escribiendo no cierra la ficha');
+      // «Nueva sesión»: la × de la Mesa con el ojo pegado a su izquierda
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
+      const nb = asBotones('.detail:not([hidden]) [data-ns="ojo"], .detail:not([hidden]) .card > .x');
+      ok(nb.length === 2, 'sin ojo o sin × en «Nueva sesión»: ' + json(nb));
+      const o = nb.find(b => b.k === 'ojo'), x = nb.find(b => b.k === 'close');
+      ok(o && x && x.x - o.x === 32 && x.y === o.y && o.w === 32 && x.w === 32, '«Nueva sesión»: el ojo no va pegado a la ×: ' + json(nb));
+      M._in.closeDetail(); await espera(60);
+    } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

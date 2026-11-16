@@ -14610,7 +14610,7 @@
       await M.personal._p.cambiar(r.id, x => { seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'linea', fotos: [] }]; return x; });
       await seAbrir(r.id); await espera(260);
       const hb = asBotones('.pp-ov:not(.sale) .pp-hj-t .pp-cbs > button');
-      igual(hb.map(b => b.k), ['ojo', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
+      igual(hb.map(b => b.k), ['ojo', 'ampliar', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
       const sec = seQ('[data-ap="mood"]'), tx = seQ('[data-campo="ap:orden"]');
       ppRaton(tx, 'click', 1); await espera(40);
       ok(tx.isConnected && tx.isContentEditable && D.activeElement === tx && sec.isConnected, 'un clic en un texto no lo escribe en su sitio');
@@ -14636,6 +14636,37 @@
       ok(o && x && x.x - o.x === 32 && x.y === o.y && o.w === 32 && x.w === 32, '«Nueva sesión»: el ojo no va pegado a la ×: ' + json(nb));
       M._in.closeDetail(); await espera(60);
     } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS2', 'Ampliar la hoja de una sesión (D-210): ojo, ampliar y × arriba a la derecha; ampliada ocupa la página bajo la cabecera con sus dos columnas a todo el ancho (a 720 px, una); lo que se está escribiendo sigue igual; un clic dentro no la cierra; «Reducir» la devuelve; Esc la cierra del todo y lo escrito se guarda; siempre se abre sin ampliar', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'video', fecha: '2026-10-03', hora: '10:00', cliente: CLIENTE });
+      await seAbrir(r.id); await espera(260);
+      const hb = asBotones('.pp-ov:not(.sale) .pp-hj-t .pp-cbs > button');
+      igual(hb.map(b => b.k), ['ojo', 'ampliar', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
+      const ancho0 = seHoja().getBoundingClientRect().width;
+      const tx = seQ('[data-campo="ap:orden"]'); ppRaton(tx, 'click', 1); await espera(40); await naEscribe(tx, 'Barra');
+      const b = seQ('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(60);
+      const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), rh = seHoja().getBoundingClientRect(), cols = seQ('.pp-hj-cols').getBoundingClientRect();
+      ok(ov.classList.contains('amplia') && Math.abs(rh.top - cab.bottom) < 2 && rh.width >= W.innerWidth - 20 && rh.width > ancho0, 'ampliada no ocupa la página bajo la cabecera: ' + json([rh.top, cab.bottom, rh.width, ancho0]));
+      ok(cols.width >= W.innerWidth - 100 && qa('.pp-ov:not(.sale) .pp-hj-col').length === 2, 'sus dos columnas no van a todo el ancho: ' + json(cols.width));
+      ok(seQ('[data-pp="ampliar"]') === b && b.title === 'Reducir', 'el botón no la devuelve o se vuelve a crear');
+      ok(tx.isConnected && tx.isContentEditable && /Barra/.test(tx.textContent), 'lo que se escribe no sigue igual al ampliar');
+      ppRaton(seQ('.pp-hj-col'), 'click', 1); await espera(300); ok(seHoja() && ov.classList.contains('amplia'), 'un clic dentro la cierra o la reduce');
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300);
+      ok(seHoja() && qa('.pp-ov:not(.sale) .pp-hj-col').length === 1 && seHoja().getBoundingClientRect().width >= W.innerWidth - 20, 'a 720 px ampliada no va en una columna');
+      fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(300);
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
+      ok(seHoja() && !q('.pp-ov:not(.sale)').classList.contains('amplia') && Math.abs(seHoja().getBoundingClientRect().width - ancho0) < 2, '«Reducir» no la devuelve a hoja');
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
+      ppTecla('Escape'); await espera(200); ok(!seHoja(), 'Esc ampliada no la cierra del todo');
+      igual(seAp(await seRec(r.id), 'orden').texto, 'Barra', 'lo escrito no se guarda');
+      await seAbrir(r.id); ok(!q('.pp-ov:not(.sale)').classList.contains('amplia'), 'no se abre sin ampliar');
+      ppTecla('Escape'); await espera(200);
+    } finally { fr.style.width = w0; paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

@@ -220,7 +220,7 @@
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
     const cli = r.cliente ? P.cliDe(r.cliente) : null;
-    const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'), false)}</div>`
+    const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
       + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.diaHora(r.fecha, r.hora))}</span>` : ''}${cli ? `<span class="pp-hj-chip ro">${P.avatar(cli.id, 'xs')}${P.esc(cli.name)}</span>` : ''}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
         + `<span class="pp-hj-chip pp-hj-fh"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión"></span>`
@@ -749,6 +749,7 @@
       pintar(r, o);
     },
     clic, dbl, tecla, menu, cambio, escribir, archivos,
+    ampliar: () => maquetar(),                 // widened or back (D-210): as many columns of the mood board as fit now
     guardar: fin => guardar(fin),
     cerrar: () => { if (ctlCampo) { ctlCampo.apagar(); ctlCampo = null; } S._id = null; S.firma = ''; mov = null; decodQ = []; soltarFotos(); },
     nueva, volverTexto
@@ -798,6 +799,11 @@
 #mesa .pp-hj-ojo.sm{width:26px;height:26px;background:none}
 #mesa .pp-hj-ojo[aria-pressed="false"]{color:var(--mute)}
 #mesa .pp-hj-ojo.sm svg{width:15px;height:15px}
+/* widened (D-210): the whole page under the mesa's header, its two columns at the whole width */
+#mesa .pp-ov.pp-hoja.amplia{padding:0}
+#mesa .pp-ov .pp-card.pp-hj.amplia{width:100%;max-width:none;height:100%;border-radius:0;box-shadow:none;padding:0;display:flex}
+#mesa .pp-ov.amplia .pp-hj-cab{padding:22px 40px 6px}
+#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 32px 28px 40px}
 #mesa .pp-hj svg,#mesa .pp-es svg,#mesa .pp-ns-cab svg,#mesa .pp-ns svg,#mesa .pp-ml svg{stroke-width:var(--i-trazo)}
 #mesa .pp-hj svg path,#mesa .pp-hj svg rect,#mesa .pp-hj svg circle,#mesa .pp-es svg path,#mesa .pp-es svg rect,#mesa .pp-es svg circle,#mesa .pp-ns-cab svg path,#mesa .pp-ns-cab svg circle,#mesa .pp-ns svg path,#mesa .pp-ns svg rect,#mesa .pp-ns svg circle,#mesa .pp-ml svg path{vector-effect:non-scaling-stroke}
 #mesa .pp-hj-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0 0 29px}
@@ -934,7 +940,8 @@
 #mesa .pp-es-d{font-size:12.5px;color:var(--mute)}#mesa .pp-es-d.prox{color:var(--ink);font-weight:600}
 #mesa .pp-es-pie{display:flex;justify-content:flex-end;margin:22px 0 0;padding:14px 0 0;border-top:1px solid var(--line2)}
 @media (max-width:720px){
-  #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:16px 10px}
+  #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
+  #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}
   #mesa .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-pl-it{grid-template-columns:28px minmax(0,1fr)}#mesa .pp-pl-ref{grid-column:2;max-width:none;margin-top:8px}

@@ -808,12 +808,13 @@
   }
   // the card to the whole page under the mesa's header and back (D-205): the same card, only wider; what is being written stays
   function ampliar(on) {
-    if (!CARD || !ov || CARD.ext || CARD.amplia === on) return;
+    if (!CARD || !ov || (CARD.ext && !CARD.ext.ampliar) || CARD.amplia === on) return;   // a session's sheet widens too (D-210)
     CARD.amplia = on; CARD.ampT = Date.now();
     const c = ov.querySelector('.pp-card'); if (c) c.classList.toggle('amplia', on);
     ov.classList.toggle('amplia', on); colocarAmplia();
     const b = ov.querySelector('[data-pp="ampliar"]'), l = on ? 'Reducir' : 'Ampliar';   // the same button: the focus stays on it
     if (b) { b.title = l; b.setAttribute('aria-label', l); b.setAttribute('aria-pressed', String(on)); b.innerHTML = on ? ICO.reducir : ICO.ampliar; }
+    if (CARD.ext && CARD.ext.ampliar) CARD.ext.ampliar(on);
     requestAnimationFrame(() => { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.dibujar) x._esc.dibujar(); }); });
   }
   function colocarAmplia() {                   // under the header, which keeps working

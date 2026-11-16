@@ -59,6 +59,7 @@
     const L = C[aCol], i = antesDe ? L.indexOf(antesDe) : -1; if (i < 0) L.push(id); else L.splice(i, 0, id);
     for (const c of ['izq', 'der']) { const otros = R[c].filter(x => !C.izq.includes(x) && !C.der.includes(x)); R[c] = [...C[c], ...otros]; }
     guardarReparto(R); pintarYa();
+    const b = P.ov && P.ov.querySelector(`[data-ap="${CSS.escape(id)}"] [data-hj="ap-mas"]`); if (b && (!document.activeElement || document.activeElement === document.body || document.activeElement === P.ov.firstChild)) b.focus({ preventScroll: true });
   }
 
   // ---------- the list of material (D-208): a template in 'tareas' ('material'), copied into each session when it is made ----------
@@ -121,8 +122,14 @@
     try {
       const X = I(), usadas = new Set();
       for (const t of (await X.idbAll('tareas')) || []) if (t && t.tipo === 'sesion') for (const f of t.fotos || []) if (f && f.id) usadas.add(f.id);
-      const t0 = Date.now() - 36e5;            // never one put a moment ago (its session may still be on its way)
-      for (const f of (await X.idbAll('tfotos')) || []) if (f && f.id && !usadas.has(f.id) && !(+f.t > t0)) await X.idbDel('tfotos', f.id);
+      const t0 = Date.now() - 36e5, dia = Date.now() - 864e5;   // never one put a moment ago; never one loose since less than a day
+      for (const f of (await X.idbAll('tfotos')) || []) {
+        if (!f || !f.id) continue;
+        if (usadas.has(f.id)) { if (f.suelta) { const { suelta, ...g } = f; await X.idbPut('tfotos', f.id, g); } continue; }
+        if (+f.t > t0) continue;
+        if (!f.suelta) await X.idbPut('tfotos', f.id, { ...f, suelta: Date.now() });
+        else if (f.suelta < dia) await X.idbDel('tfotos', f.id);
+      }
     } catch (e) { /* next time */ }
   }
 
@@ -132,7 +139,7 @@
   const ap = (r, id) => (r.sesion.apartados || []).find(a => a.id === id);
   const svgI = k => P.ICO[k] || '';
   const ojoBtn = (on, cls, attrs) => `<button type="button" class="ibtn pp-hj-ojo${cls ? ' ' + cls : ''}" ${attrs} aria-pressed="${on}" title="${on ? 'Lo verá el cliente' : 'Solo para ti'}" aria-label="${on ? 'Lo verá el cliente' : 'Solo para ti'}">${on ? svgI('ojo') : svgI('ojoNo')}</button>`;
-  const fotoEl = (id, w, h, meta, drag) => `<span class="pp-fo" data-f="${P.esc(id)}" style="width:${w}px;height:${h}px"${drag ? ' draggable="true"' : ''} title="${meta}"></span>`;
+  const fotoEl = (id, w, h, meta, drag) => `<span class="pp-fo" data-f="${P.esc(id)}" style="width:${w}px;height:${h}px"${drag ? ' draggable="true"' : ''} tabindex="0" role="button" aria-label="${meta}" title="${meta}"></span>`;
   const aspecto = (r, id) => { const f = (r.fotos || []).find(x => x.id === id); return f && f.w && f.h ? f.w / f.h : 1; };
   const hechos = (a, r) => {                   // «h/n» of a section: its checkboxes in the text, its shots done, its material
     const t = tipoDe(a);
@@ -144,7 +151,7 @@
   function cuenta(a, r) { const h = hechos(a, r); return h ? `<span class="pp-hj-n">${h[0] == null ? h[1] : h[0] + '/' + h[1]}</span>` : ''; }
   function texto(campo, txt, vacio) {          // a text with marks: read (its checkboxes are used, D-204); written on a double click
     const vc = S.vista, h = (P.ES() ? P.ES().html(txt || '', { enlaces: true, casillas: vc ? 'vineta' : 'si' }) : P.esc(txt || ''));
-    return `<div class="pp-hj-tx${h ? '' : ' vacio'}" data-campo="${P.esc(campo)}">${h || (vc ? '' : P.esc(vacio || 'Vacío'))}</div>`;
+    return `<div class="pp-hj-tx${h ? '' : ' vacio'}" data-campo="${P.esc(campo)}"${h || vc ? '' : ' title="Doble clic para escribir"'}>${h}</div>`;
   }
   function aph(a, r, extra) {                  // a section's head: handle, fold, its name and count, its eye and «⋯»
     const vc = S.vista, plg = S.plg.has(a.id), nom = P.esc(a.nombre || (APS[a.id] || {}).n || a.id);
@@ -179,7 +186,7 @@
       const una = (g.modo || 'linea') === 'linea';
       return `<div class="pp-mo-g" data-g="${P.esc(g.id)}" data-drop="g:${P.esc(a.id)}:${P.esc(g.id)}"><div class="pp-mo-gh"><b class="pp-mo-gn" data-campo="g:${P.esc(a.id)}:${P.esc(g.id)}">${P.esc(g.nombre || 'Grupo')}</b><span class="pp-hj-n">${(g.fotos || []).length}</span><span class="pp-hj-sp"></span>`
         + (vc ? '' : `<div class="seg pp-tvs pp-mo-modo" role="group" aria-label="Cómo se ven"><button type="button" class="${una ? 'on' : ''}" data-hj="modo" data-m="linea" aria-pressed="${una}" title="Una línea" aria-label="Una línea">${svgI('una')}</button><button type="button" class="${una ? '' : 'on'}" data-hj="modo" data-m="todas" aria-pressed="${!una}" title="Todas" aria-label="Todas">${svgI('todas')}</button></div>`) + `</div>`
-        + `<div class="pp-mo-f ${una ? 'linea' : 'todas'}">${fos || `<span class="pp-pl-sin">Sin fotos</span>`}</div></div>`;
+        + `<div class="pp-mo-f ${una ? 'linea' : 'todas'}${fos ? '' : ' vacio'}"${fos ? '' : ' title="Suelta aquí fotos del ordenador o de la tira"'}>${fos}</div></div>`;
     }).join('');
     return `<div class="pp-mo">${gs}</div>${vc ? '' : `<button type="button" class="pp-cmas" data-hj="g-nuevo">${svgI('mas')}Grupo</button>`}`;
   }
@@ -221,7 +228,7 @@
         + `<button type="button" class="pp-hj-chip pp-hj-nf" data-hj="tira" aria-expanded="${S.tira}" title="${S.tira ? 'Ocultar' : 'Ver'} las fotos de la sesión">${svgI('fotos')}${nf} ${nf === 1 ? 'foto' : 'fotos'}</button>`}`
       + `<span class="pp-hj-sp"></span><button type="button" class="pp-hj-vc${vc ? ' on' : ''}" data-hj="vista" aria-pressed="${vc}" title="${vc ? 'Volver a la hoja' : 'Lo que vería el cliente'}">${svgI('cliente')}Ver como el cliente</button>`
       + (vc ? '' : `<button type="button" class="ibtn pp-hj-mas" data-hj="mas" aria-label="Más de la sesión" title="Más">${svgI('mas3')}</button>`) + `</div>`
-      + (S.tira && !vc ? `<div class="pp-hj-tira" data-drop="tira" title="Suelta aquí fotos del ordenador; arrástralas a un plano o a un grupo">${nf ? (r.fotos || []).map(f => `<span class="pp-hj-tf pp-fo" data-f="${P.esc(f.id)}" draggable="true"></span>`).join('') : `<span class="pp-pl-sin">Sin fotos</span>`}</div>` : '') + `</header>`;
+      + (S.tira && !vc ? `<div class="pp-hj-tira" data-drop="tira" title="Suelta aquí fotos del ordenador; arrástralas a un plano o a un grupo">${nf ? (r.fotos || []).map(f => `<span class="pp-hj-tf pp-fo" data-f="${P.esc(f.id)}" draggable="true" tabindex="0" role="button" aria-label="Foto de la sesión"></span>`).join('') : `<span class="pp-pl-sin">Sin fotos</span>`}</div>` : '') + `</header>`;
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
       : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
         + (dos ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
@@ -234,13 +241,16 @@
   let ctlCampo = null;
   function pintar(r, o = {}) {
     const ov = P.ov; if (!ov || !r) return;
-    const f = firma(r); if (!o.forzar && f === S.firma && r === S.rRef && ov.firstChild) return;
-    S.firma = f; S.rRef = r;
+    const f = firma(r), j = JSON.stringify(r); if (!o.forzar && f === S.firma && j === S.rJ && ov.firstChild) return;
+    if (P.CARD.ed && S.campo && ov.querySelector('[contenteditable]')) { guardar(false); r = rec() || r; }   // what is being written goes in first: never lost by a drawing
+    S.firma = f; S.rJ = JSON.stringify(r);
+    const enl = ov.querySelector('[data-hj="en-in"]'), enlV = enl ? enl.value : '';
     const c0 = ov.firstChild, y = c0 ? c0.scrollTop : 0, foco = document.activeElement && ov.contains(document.activeElement) ? claveFoco(document.activeElement) : null;
     if (ctlCampo) { ctlCampo.apagar(); ctlCampo = null; }
     ov.innerHTML = hojaHTML(r);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     const c = ov.firstChild; c.scrollTop = y;
+    if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2) e2.value = enlV; }
     maquetar();
     if (P.CARD.ed && S.campo) escribirEn(S.campo, o.pt); else if (foco) { const b = ov.querySelector(foco); if (b) b.focus({ preventScroll: true }); else c.focus({ preventScroll: true }); } else c.focus({ preventScroll: true });
   }
@@ -326,7 +336,7 @@
     if (!c.contains(t)) return false;          // outside: back to reading, or it closes (personal.js)
     if (P.CARD.pd) { P.CARD.pd = false; return true; }
     const a = t.closest('[data-hj]'), k = a && a.dataset.hj, apEl = t.closest('[data-ap]'), apId = apEl && apEl.dataset.ap;
-    if (P.CARD.ed && S.campo && !t.closest('[contenteditable]')) { P.editar(false); if (!k) return true; }   // writing: a click elsewhere goes back to reading
+    if (P.CARD.ed && S.campo && !t.closest('[contenteditable], .pp-ecapa')) { P.editar(false); if (!k) return true; }   // writing: a click elsewhere goes back to reading
     if (t.closest('a.pp-ea, a.pp-pl-en')) return true;   // a link opens in another tab; the sheet stays
     const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !P.CARD.ed && !S.vista) { marcarTexto(cas); return true; }
     const fo = t.closest('.pp-fo'); if (fo && !k && e.detail < 2) { verFoto(fo.dataset.f); return true; }
@@ -340,7 +350,7 @@
     if (k === 'it-nuevo') { const pt = S.tab[apId], id = P.nuevoId('pi'); cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt); if (!p) return false; (p.items = p.items || []).push({ id, titulo: '', texto: '', fotos: [], enlaces: [] }); }).then(() => empezar(`it:${apId}:${pt}:${id}:titulo`)); return true; }
     if (k === 'g-nuevo') { const id = P.nuevoId('gr'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.grupos = y.grupos || []).push({ id, nombre: 'Grupo', modo: 'linea', fotos: [] }); }).then(() => empezar(`g:${apId}:${id}`)); return true; }
     if (k === 'modo') { const g = t.closest('[data-g]').dataset.g, m = a.dataset.m; cambiar(x => { const y = ap(x, apId), gg = y && (y.grupos || []).find(q => q.id === g); if (!gg || (gg.modo || 'linea') === m) return false; gg.modo = m; }); return true; }
-    if (k === 'mat') { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = y.material = y.material || { lista: [], hechos: [] }; if (!m.lista || !m.lista.length) m.lista = matPlantilla(); const h = new Set(m.hechos || []); if (h.has(id)) h.delete(id); else h.add(id); m.hechos = [...h]; }); return true; }
+    if (k === 'mat' && !S.vista) { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = y.material = y.material || { lista: [], hechos: [] }; if (!m.lista || !m.lista.length) m.lista = matPlantilla(); const h = new Set(m.hechos || []); if (h.has(id)) h.delete(id); else h.add(id); m.hechos = [...h]; }); return true; }
     if (k === 'tira') { S.tira = !S.tira; pintarYa(); return true; }
     if (k === 'vista') { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
     if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuSesion(r.id, [['material', 'Editar la lista de material', () => editarLista()]]), a); return true; }
@@ -358,6 +368,11 @@
   }
   function tecla(e) {
     const t = e.target, k = e.key;
+    if ((k === ' ' || k === 'Enter') && t.matches && t.matches('.pp-em.ca[data-ln]') && !P.CARD.ed && !S.vista) { e.preventDefault(); e.stopImmediatePropagation(); marcarTexto(t); return true; }
+    if (t.matches && t.matches('.pp-fo[tabindex]')) {
+      if (k === 'Enter' || k === ' ') { e.preventDefault(); e.stopImmediatePropagation(); verFoto(t.dataset.f); return true; }
+      if (k === 'ContextMenu' || (k === 'F10' && e.shiftKey)) { e.preventDefault(); e.stopImmediatePropagation(); const q = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: q.left + 8, clientY: q.bottom })); return true; }
+    }
     if (P.CARD.ed && S.campo && UNA.test(S.campo) && k === 'Enter' && !e.isComposing && t.isContentEditable) { e.preventDefault(); e.stopImmediatePropagation(); P.editar(false); return true; }
     if (k === 'Enter' && t === P.ov.firstChild) { e.preventDefault(); return true; }   // the sheet has no «write all»: a double click on a text writes it
     if (t.matches && t.matches('[data-hj="en-in"]')) {
@@ -492,7 +507,7 @@
     if (!asa && !sep) return;
     e.preventDefault();
     const cols = ov.querySelector('.pp-hj-cols'), rc = cols.getBoundingClientRect();
-    if (sep) { mov = { sep: true, rc, el: sep }; sep.setPointerCapture(e.pointerId); sep.classList.add('mov'); return; }
+    if (sep) { mov = { sep: true, rc, el: sep, x0: e.clientX }; sep.setPointerCapture(e.pointerId); sep.classList.add('mov'); return; }
     const sec = asa.closest('[data-ap]');
     const linea = document.createElement('div'); linea.className = 'pp-hj-linea'; cols.append(linea);
     const fant = sec.querySelector('.pp-hj-aph').cloneNode(true); fant.className = 'pp-hj-aph pp-hj-fant'; ov.firstChild.append(fant);
@@ -503,7 +518,8 @@
   function seguir(e) {
     if (!mov) return;
     const ov = P.ov, cols = ov && ov.querySelector('.pp-hj-cols'); if (!cols) return;
-    if (mov.sep) { const x = Math.max(0.3, Math.min(0.7, (e.clientX - mov.rc.left) / mov.rc.width)); cols.style.gridTemplateColumns = `minmax(0,${x.toFixed(4)}fr) 17px minmax(0,${(1 - x).toFixed(4)}fr)`; mov.x = x; return; }
+    mov.ex = e.clientX; mov.ey = e.clientY;
+    if (mov.sep) { if (Math.abs(e.clientX - (mov.x0 || e.clientX)) < 3 && !mov.x) { mov.x0 = mov.x0 || e.clientX; return; } const x = Math.max(0.3, Math.min(0.7, (e.clientX - mov.rc.left) / mov.rc.width)); cols.style.gridTemplateColumns = `minmax(0,${x.toFixed(4)}fr) 17px minmax(0,${(1 - x).toFixed(4)}fr)`; mov.x = x; return; }
     const c = ov.firstChild.getBoundingClientRect();
     mov.fant.style.transform = `translate(${Math.round(e.clientX - c.left - mov.dx)}px,${Math.round(e.clientY - c.top - mov.dy + ov.firstChild.scrollTop)}px)`;
     const cs = [...cols.querySelectorAll('.pp-hj-col')], col = cs.find(x => { const q = x.getBoundingClientRect(); return e.clientX >= q.left && e.clientX <= q.right; }) || cs[e.clientX < cols.getBoundingClientRect().left + cols.clientWidth / 2 ? 0 : cs.length - 1];
@@ -516,16 +532,16 @@
   function soltar() {
     if (!mov) return;
     const m = mov; mov = null;
-    if (m.sep) { m.el.classList.remove('mov'); if (m.x) { const R = reparto(); R.sep = m.x; guardarReparto(R); } pintarYa(); return; }
+    if (m.sep) { m.el.classList.remove('mov'); if (m.x) { const R = reparto(); R.sep = m.x; guardarReparto(R); pintarYa(); } return; }   // not moved: nothing is drawn again (its double click lands on the same element)
     m.linea.remove(); m.fant.remove(); m.sec.classList.remove('mov');
-    if (m.col) mover(m.id, m.col, m.antes);
+    if (m.col && Math.hypot(m.ex - m.x0, m.ey - m.y0) > 4) mover(m.id, m.col, m.antes);
   }
 
   // ---------- «Nueva sesión» (Q2): the mesa's dialog ----------
   let DLG = null;                              // {estado, ctx, campo, desde, cambiando}
   function nueva({ ctx, campo, desde }) {
     const cli = campo === 'nueva' ? (P.st.tcli || P.st.nueva.cliente || '') : (desde && desde.tipo === 'esporadico' ? desde.id : desde && desde.cliente) || '';
-    DLG = { estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', cliente: P.cliDe(cli) ? cli : '', visible: true }, ctx, campo, desde };
+    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', cliente: P.cliDe(cli) ? cli : '', visible: true }, ctx, campo, desde };
     dialogo();
   }
   function dialogo() {
@@ -563,7 +579,8 @@
   }
   function volverFoco(d) {
     if (d.campo === 'nueva') { const i = P.page && P.page.querySelector('[data-pp="nueva"]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } return; }
-    const el = d.ctx && d.ctx.ctl && d.ctx.ctl.el; if (el && el.isConnected) { el.focus({ preventScroll: true }); d.ctx.ctl.poner(Math.min(d.ctx.b, el.textContent.length)); }
+    const el = d.ctx && d.ctx.ctl && d.ctx.ctl.el; if (el && el.isConnected) { el.focus({ preventScroll: true }); d.ctx.ctl.poner(Math.min(d.ctx.b, el.textContent.length)); return; }
+    if (d.origen && d.origen.isConnected) d.origen.focus({ preventScroll: true });
   }
   // made: the session and «/…» turned into its name (in a note, «Detalles» or a text) are one step of ⌘Z; then its sheet opens
   async function crear() {
@@ -576,7 +593,7 @@
     if ((d.campo === 'nota' || d.campo === 'det') && d.desde && P.CARD && P.CARD.id === d.desde.id) {
       P.guardarCard(false); P.cardT.quitar();   // what was written in the card goes in first
       const k = P.TK.get(d.desde.id), t = d.ctx.texto.slice(0, d.ctx.a) + nombre + d.ctx.texto.slice(d.ctx.b);
-      if (k) { const n = P.copia(k); if (d.campo === 'nota') n.txt = t; else if (t) n.detalles = t; else delete n.detalles; n.at = now; cambios.push({ id: k.id, despues: n }); }
+      if (k && !k._b) { const n = P.copia(k); if (d.campo === 'nota') n.txt = t; else if (t) n.detalles = t; else delete n.detalles; n.at = now; cambios.push({ id: k.id, despues: n }); }   // a task not made yet stays unmade (D-204)
       P.cerrarCard(true);
     }
     X.closeDetail(); DLG = null;
@@ -647,7 +664,9 @@
   }
   function fichaGuardar() {
     const e0 = espRec(), n = P.ov && P.ov.querySelector('[data-campo="nom"][contenteditable]'); if (!e0 || !n) return;
-    const v = n.textContent.replace(/\s+/g, ' ').trim(); if (v && v !== e0.txt) P.cambiar(e0.id, x => { x.txt = v; return x; }).then(() => P.pintar());
+    const v = n.textContent.replace(/\s+/g, ' ').trim(); if (!v || v === e0.txt) return;
+    if ([...I().CL.map(c => c.name), ...P.esps().filter(x => x.id !== e0.id).map(x => x.txt)].some(x => String(x).toLowerCase() === v.toLowerCase())) { I().toast('Ya hay un cliente con ese nombre.'); return; }
+    P.cambiar(e0.id, x => { x.txt = v; return x; }).then(() => P.pintar());
   }
   // «Pasar a mensual»: asked first (it isn't undone with ⌘Z); the mesa's client is made without months (Claude makes them, D-184),
   // its sessions, tasks and notes go to it, the page stays; the sporadic record stays, marked as passed and hidden, so that an
@@ -657,13 +676,14 @@
     X.showDialog('pp-pasar', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar «${P.esc(e0.txt)}» a mensual</h3><p>Se crea su cliente en la Mesa, sin meses: los crea Claude. Sus sesiones, tareas y notas pasan a él. No se deshace con ⌘Z.</p><div class="row"><button type="button" class="btn" data-pp-pasar="1">Pasar a mensual</button></div>`);
     const det = X.root().querySelector('.detail'), b = det.querySelector('[data-pp-pasar]'); b.focus();
     b.addEventListener('click', async () => {
+      if (X.CL.some(c => String(c.name).trim().toLowerCase() === String(e0.txt).trim().toLowerCase())) { X.closeDetail(); X.toast(`Ya hay un cliente mensual que se llama «${e0.txt}»: cambia antes el nombre del esporádico.`, { ms: 7000 }); return; }
       b.disabled = true;
       let c; try { c = await M.addClient({ name: e0.txt }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
       const now = P.ahoraISO(), cambios = [];
       for (const k of P.vivos()) if (k.cliente === e0.id && k.tipo !== 'esporadico') { const n = P.copia(k); n.cliente = c.id; n.at = now; cambios.push({ id: k.id, despues: n }); }
       const ne = P.copia(P.TK.get(e0.id)); ne.pasado = { cliente: c.id, at: now }; ne.at = now; cambios.push({ id: e0.id, despues: ne });
       await P.escribir(cambios);
-      P.remapH(x => { if (x.cliente === e0.id && x.tipo !== 'esporadico') x.cliente = c.id; });
+      P.remapH(x => { if (x.cliente === e0.id && x.tipo !== 'esporadico') x.cliente = c.id; }, e0.id);   // its own steps go: it can't come back unpassed
       if (P.st.tcli === e0.id) P.st.tcli = c.id;
       X.closeDetail(); if (P.CARD && P.CARD.id === e0.id) P.cerrarCard(true);
       P.st.cvista = 'mensuales'; await P.refrescar(); P.pintar();
@@ -727,6 +747,7 @@
     on(document, 'pointerup', () => { if (mov) soltar(); });
     on(document, 'pointercancel', () => { if (mov) { const m = mov; mov = null; if (m.linea) m.linea.remove(); if (m.fant) m.fant.remove(); pintarYa(); } });
     on(window, 'resize', () => { if (rec()) alRedimensionar(); });
+    on(document, 'mx-accion', e => { if (rec() && e.target.matches && e.target.matches('[data-hj="cliente"]')) pedirEsp(e2 => cambiar(x => { x.cliente = e2.id; }), () => { const r = rec(); if (r) P.abrirCard(r.id); }); });
     I().estilo('mesa-ses-css', ESTILO);
     if (P.page && P.st.on) P.pintar();
     setTimeout(limpiar, 8000);
@@ -741,6 +762,7 @@
   // ---------- style: only the mesa's tokens (D-131), its icons and stroke (D-168), its scale and weights (D-172) ----------
   const ESTILO = `
 #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:28px 16px}
+#mesa .pp-card.pp-hj:focus-visible,#mesa .pp-card.pp-es:focus-visible{outline:none}
 #mesa .pp-card.pp-hj{width:min(1180px,100%);max-height:100%;height:100%;padding:0;display:flex;flex-direction:column;overflow:auto}
 #mesa .pp-hj-cab{padding:22px 26px 6px}
 #mesa .pp-hj-t{display:flex;align-items:center;gap:12px}
@@ -794,7 +816,9 @@
 #mesa .pp-hj-pl:focus-visible,#mesa .pp-hj-ojo:focus-visible,#mesa .pp-hj-apm:focus-visible,#mesa .pp-hj-vc:focus-visible,#mesa .pp-hj-mas:focus-visible,#mesa .pp-pl-tab:focus-visible,#mesa .pp-pl-mas:focus-visible,#mesa .pp-ma-c:focus-visible,#mesa .pp-pl-ena:focus-visible,#mesa button.pp-hj-chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-hj-apc{min-width:0;animation:pp-dentro var(--d-m) var(--ease-m)}
 #mesa .pp-hj-tx{min-height:22px;margin-left:-6px;padding:2px 6px;border-radius:var(--r-xs);font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
-#mesa .pp-hj-tx.vacio{color:var(--faint)}
+#mesa .pp-hj-tx.vacio{min-height:26px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line2)}
+#mesa .pp-mo-f.vacio{min-height:56px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line2)}
+#mesa .pp-fo:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-hj-linea{position:absolute;height:2px;border-radius:var(--r-pill);background:var(--acc);pointer-events:none}
 #mesa .pp-hj-fant{position:absolute;left:0;top:0;z-index:5;margin:0;padding:4px 12px 4px 18px;border-radius:var(--r-md);background:var(--panel-2);box-shadow:var(--shadow-lg);pointer-events:none;width:300px}
 #mesa .pp-hj-oculta{display:flex;align-items:center;gap:8px;margin:40px 29px;font-size:14px;color:var(--mute)}#mesa .pp-hj-oculta svg{width:18px;height:18px}

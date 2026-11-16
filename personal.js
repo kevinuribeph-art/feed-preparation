@@ -210,8 +210,8 @@
     if (st.avTareas) for (const k of vivos()) {   // the tasks and the sessions, only with the switch of Avisos (D-180, D-206)
       if ((k.tipo !== 'tarea' && k.tipo !== 'sesion') || !k.fecha) continue;
       const hechaAntes = k.hecha && X.localDay(k.hecha) < hoy; if (hechaAntes) continue;
-      const ses = k.tipo === 'sesion', min = ses && /^\d{2}:\d{2}$/.test(k.hora || '') ? (+k.hora.slice(0, 2) * 60 + +k.hora.slice(3)) * 6e4 : 0;
-      const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, hora: ses ? k.hora || '' : '', ts: utc(k.fecha) + min, hecha: !!k.hecha };
+      const ses = k.tipo === 'sesion', conH = ses && /^\d{2}:\d{2}$/.test(k.hora || '');
+      const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, hora: ses ? k.hora || '' : '', ts: conH ? X.ts(X.madridISO(k.fecha, k.hora)) : utc(k.fecha), hecha: !!k.hecha };   // its time is Madrid's, as the posts'
       // a session the day before and the same day, with its time; from the next day, if not done, gone past (a task: only its day)
       if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy || (ses && k.fecha === man)) items.push({ ...it, cat: 'hoy' });
     }
@@ -510,7 +510,7 @@
   }
   let pendiente = false, componiendo = false;  // a drawing put off while something is being written or chosen
   const notaEnCurso = () => !!(CARD && CARD.ed && enCard(document.activeElement));   // writing in the card (D-182)
-  const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
+  const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(ES() && ES().menuAbierto()) || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
   // a drawing put off is done as soon as what held it closes (a control, the menu, a composition, a note left)
   const retomar = () => { if (pendiente && st.on) setTimeout(() => { if (pendiente && st.on && !ocupada()) { pendiente = false; pintar(); } }, 0); };
 
@@ -608,7 +608,9 @@
     if (Array.isArray(o.fotos) && o.fotos.length && tipo === 'tarea') r.fotos = o.fotos.slice();
     return (await hacer([{ id: r.id, despues: r }])) ? r : null;
   }
-  const cambiar = (id, f, junta) => { const r = TK.get(id); if (!r) return Promise.resolve(false); const n = f(copia(r)); if (!n) return Promise.resolve(false); n.at = ahoraISO(); return hacer([{ id, despues: n }], junta); };
+  const cambiar = (id, f, junta) => { const r = TK.get(id); if (!r) return Promise.resolve(false); const n = f(copia(r)); if (!n) return Promise.resolve(false); n.at = ahoraISO();
+    if (r._b) { Object.defineProperty(n, '_b', { value: true, enumerable: false, configurable: true }); TK.set(id, n); return Promise.resolve(true); }   // a new task not made yet (D-203): in memory only
+    return hacer([{ id, despues: n }], junta); };
   const marcar = (id, v) => cambiar(id, r => { if (v) r.hecha = ahoraISO(); else delete r.hecha; return r; });
   const borrar = id => TK.has(id) ? hacer([{ id, despues: null }]) : Promise.resolve(false);
 
@@ -791,7 +793,7 @@
   // the card to the whole page under the mesa's header and back (D-205): the same card, only wider; what is being written stays
   function ampliar(on) {
     if (!CARD || !ov || CARD.ext || CARD.amplia === on) return;
-    CARD.amplia = on;
+    CARD.amplia = on; CARD.ampT = Date.now();
     const c = ov.querySelector('.pp-card'); if (c) c.classList.toggle('amplia', on);
     ov.classList.toggle('amplia', on); colocarAmplia();
     const b = ov.querySelector('[data-pp="ampliar"]');
@@ -873,7 +875,7 @@
     pedirFecha(r0, { sinFecha: campo === 'det', valor: campo === 'det' ? (TK.get(id) || {}).fecha : '', alCerrar: vuelta }, v => {
       if (!CARD || CARD.id !== id || !el.isConnected) return;
       el.focus({ preventScroll: true });
-      if (campo === 'nota') { if (!v) { vuelta(); return; } ctx.poner(ES().fechaTxt(v)); ctx.ctl.cmd = ctx.volver; return; }   // in a note, written as text
+      if (campo !== 'det') { if (!v) { vuelta(); return; } ctx.poner(ES().fechaTxt(v)); ctx.ctl.cmd = ctx.volver; return; }   // in a note or a session's text, written as text
       // in «Detalles», the task's date (D-182) and «/…» goes: one step of its own; ⌘Z right after puts both back
       ctx.quitar(); clearTimeout(cardT); cardT = null;
       const det = el.textContent, f = ov.querySelector('.pp-cfecha');
@@ -924,7 +926,7 @@
     cerrarMenu();
     const root = I().root(), el = document.createElement('div'); el.className = 'cpmenu pp-menu'; el.setAttribute('role', 'menu');
     el.innerHTML = items.map(x => x === '-' ? '<hr>' : `<button type="button" role="menuitem" data-a="${x[0]}"${x[3] ? ' disabled' : ''}${x[4] ? ` title="${esc(x[4])}"` : ''}>${x[1]}</button>`).join('');   // [action, text, do, off, title]; '-' a line
-    el.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return; const it = items.find(i => i[0] === b.dataset.a); cerrarMenu(); if (it) it[2](); });
+    el.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return; const it = items.find(i => i[0] === b.dataset.a), f = menu && menu.foco; cerrarMenu(); if (it) it[2](); if (f && f.isConnected && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true }); });
     root.append(el);
     const r = el.getBoundingClientRect();
     el.style.left = `${Math.max(8, Math.min(x, innerWidth - r.width - 8))}px`; el.style.top = `${Math.max(8, Math.min(y, innerHeight - r.height - 8))}px`;
@@ -1042,6 +1044,7 @@
     if (CARD && enCard(e.target)) {            // writing, where it was double clicked (the double click that opened it: at the end)
       clearTimeout(CARD.cierre);
       if (CARD.ext) { if (CARD.ext.dbl) CARD.ext.dbl(e); return; }
+      if (CARD.ampT && Date.now() - CARD.ampT < DBL) return;   // the second click of a double click on «Ampliar», now under it
       if (e.target.closest('[data-pp="ampliar"], a.pp-ea, .pp-em.ca[data-ln]')) return;
       if (!CARD.ed && !e.target.closest('.pp-ck, [data-pp="foto"]')) editar(true, CARD.peq ? null : { x: e.clientX, y: e.clientY });
       return;
@@ -1072,6 +1075,7 @@
   }
   function alTeclear(e) {
     if (!st.on || !page) return;
+    if (menu && e.key === 'Escape') return;    // the menu closes on its own (its keys), never the card under it
     const t = e.target;
     if (CARD) {                                // the card: Esc goes back to reading or closes; Enter on it writes (D-182)
       const det = I().root().querySelector('.detail'), ctl = M.controles && M.controles.abierto && M.controles.abierto();
@@ -1145,7 +1149,7 @@
   const conArchivos = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
   let sobre = null;
   const marcarSobre = el => { if (sobre && sobre !== el) sobre.classList.remove('pp-drop'); sobre = el; if (el) el.classList.add('pp-drop'); };
-  const destino = e => { const t = e.target.closest && e.target.closest('[data-tid]'); return t && (t.dataset.tid === 'nueva' || TK.has(t.dataset.tid)) ? t : null; };
+  const destino = e => { const t = e.target.closest && e.target.closest('[data-tid]'); return t && (t.dataset.tid === 'nueva' || (TK.has(t.dataset.tid) && TK.get(t.dataset.tid).tipo === 'tarea')) ? t : null; };   // a session's photos go in its sheet, to their own store (D-206)
   function alArrastrar(e) {                    // capture on the mesa: with the page open, files only go to the page's targets
     if (!st.on || !conArchivos(e)) return;
     if (CARD && CARD.ext && enCard(e.target)) { if (e.type !== 'dragleave') { e.preventDefault(); e.stopPropagation(); } if (CARD.ext.archivos) CARD.ext.archivos(e); else if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'; return; }
@@ -1191,7 +1195,7 @@
     // up to date on its own: every minute (D-120's sweep), on coming back to the tab and with another tab's tasks
     tic = setInterval(() => { if (st.on && document.visibilityState === 'visible') refrescar(); }, 60000);
     on(document, 'visibilitychange', () => { if (st.on && document.visibilityState === 'visible') refrescar(); });
-    let rT = 0; on(window, 'resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
+    let rT = 0; on(window, 'resize', () => { if (CARD && CARD.amplia) colocarAmplia(); clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
     try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (e.data && e.data.t === 'tareas' && st.on) refrescar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
     on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);
@@ -1215,10 +1219,12 @@
   }
   // what sesiones.js reads (one file, one page: never a name of window.MESA, D-206)
   // a sporadic client passed to a monthly one (D-207): the steps of ⌘Z that bring back one of its records bring it with its new client
-  function remapH(f) { for (const paso of [...H.u, ...H.r]) for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } }
+  function remapH(f, sinId) {
+    for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
+  }
   const _p = {
     EXT, TK, I, esc, ICO, st, avatar, cliDe, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
-    hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar,
+    hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
@@ -1461,7 +1467,7 @@
 #mesa .pp-fi .pp-tt em{font-style:normal;color:var(--mute)}
 #mesa .pp-mt.ses svg{width:11px;height:11px;margin-right:3px;vertical-align:-1px;color:var(--mute)}
 #mesa .pp-av.repro{grid-template-columns:28px 42px 32px minmax(0,1fr) auto}
-#mesa .pp-repro{grid-row:1 / span 2;grid-column:5;min-height:28px;padding:0 10px;font-size:12px;gap:5px}
+#mesa .pp-repro{grid-row:1 / span 2;grid-column:5}
 #mesa .pp-repro svg{width:13px;height:13px}
 #mesa .pp-av.ses .pp-cu{line-height:1.25}
 /* the sporadic clients (E2, D-207): «Mensuales · Esporádicos» next to the title, their blocks, «+ Esporádico» */

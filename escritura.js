@@ -147,11 +147,12 @@
     ctl.res = res; ctl.L = L;
     juntar();
     // the layer: the bullet and the checkbox over their own text (L1); without highlights, the marks under a veil (L2)
-    const c = ctl.capa, b0 = c.getBoundingClientRect(); let h = '';
+    // measured in the field's own pixels: while its card opens it is scaled (from .97), and the drawings must not move
+    const c = ctl.capa, b0 = c.getBoundingClientRect(), k = (el.getBoundingClientRect().width / el.offsetWidth) || 1; let h = '';
     for (const m of marcas) {
       if (L1 && m.p.tipo === 'nu') continue;
       const q = m.r.getClientRects()[0]; if (!q) continue;
-      const pos = `left:${(q.left - b0.left).toFixed(1)}px;top:${(q.top - b0.top).toFixed(1)}px;width:${q.width.toFixed(1)}px;height:${q.height.toFixed(1)}px`;
+      const pos = `left:${((q.left - b0.left) / k).toFixed(1)}px;top:${((q.top - b0.top) / k).toFixed(1)}px;width:${(q.width / k).toFixed(1)}px;height:${(q.height / k).toFixed(1)}px`;
       if (!L1) { h += `<span class="pp-ecm gris" style="${pos}"></span>`; continue; }
       h += m.p.tipo === 'vi' ? `<span class="pp-ecm vi" style="${pos}"></span>`
         : `<span class="pp-ecm ca${m.p.hecha ? ' on' : ''}" style="${pos}" data-ln="${m.ln}" title="${m.p.hecha ? 'Hecha' : 'Sin hacer'}"></span>`;
@@ -208,8 +209,28 @@
   }
 
   // ---------- what is typed ----------
+  // a line typed as a block (some ways of typing or dictating make a <div> per line): back to plain text with «\n», the caret
+  // where it was; what the field keeps is its textContent, which would lose those lines
+  function normalizar(ctl) {
+    const el = ctl.el, s = getSelection(), M0 = '\uE000';
+    if (s && s.rangeCount && el.contains(s.getRangeAt(0).startContainer)) { const r = s.getRangeAt(0).cloneRange(); r.collapse(true); r.insertNode(document.createTextNode(M0)); }
+    let out = '';
+    const ir = n => { for (const x of [...n.childNodes]) {
+      if (x.nodeType === 3) out += x.data;
+      else if (x.nodeName === 'BR') { if (!(x.parentNode !== el && x.parentNode.childNodes.length === 1)) out += '\n'; }
+      else if (/^(DIV|P)$/.test(x.nodeName)) { if (out && !out.endsWith('\n')) out += '\n'; else if (out) out += '\n'; ir(x); }
+      else ir(x);
+    } };
+    ir(el);
+    out = out.replace(/^\n/, '');
+    const i = out.indexOf(M0); out = out.replace(M0, '');
+    el.textContent = out;
+    if (i >= 0) poner(el, i);
+  }
   function alInput(ctl, e) {
     if (ctl.propio) return;
+    ctl.tras = null;
+    if (!e.isComposing && ctl.el.querySelector('div, p')) normalizar(ctl);
     programar(ctl);
     if (e.isComposing) return;
     const el = ctl.el, c = caret(el);
@@ -229,7 +250,7 @@
   }
   // «[] » in «Detalles»: the line leaves the text and becomes a subtask, where the caret goes (D-183); what follows it on the
   // line is its text. ⌘Z right after (before writing in it) takes it away and puts «[] » back, as a hard space (the host's)
-  function aSubtarea(ctl, l, p, txt) {
+  function aSubtarea(ctl, l, p, txt, volver) {
     const el = ctl.el, t = texto(el), resto = txt != null ? txt : l.t.slice(p.fin);
     const fin = l.o + l.t.length, a = fin < t.length ? l.o : Math.max(0, l.o - 1), b = fin < t.length ? fin + 1 : fin;
     const linea = l.t.slice(0, p.ind) + p.k + ' ' + resto;
@@ -241,19 +262,42 @@
       el.dispatchEvent(new Event('input', { bubbles: true }));
     };
     el.dispatchEvent(new Event('input', { bubbles: true }));   // the host saves the text without the line
-    ctl.o.alCasilla({ txt: resto, hecha: p.hecha, deshacer });
+    ctl.o.alCasilla({ txt: resto, hecha: p.hecha, deshacer: volver || deshacer });
   }
   function antesInput(ctl, e) {
-    if (e.inputType === 'historyUndo' && (ctl.conv || ctl.cmd)) { e.preventDefault(); deshacerPropio(ctl); }
+    if (e.inputType === 'historyUndo' && (ctl.conv || ctl.cmd || ctl.tras)) { e.preventDefault(); deshacerPropio(ctl); return; }
+    // a line typed as a paragraph (not the Enter key: dictation, other ways of typing): a «\n», and in a list it goes on
+    if (e.inputType === 'insertParagraph' && !ctl.propio && !e.isComposing) {
+      e.preventDefault();
+      if (!seguirLista(ctl)) { const c = caret(ctl.el); if (c) reemplazar(ctl, c.a, c.b, '\n'); ctl.el.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+  }
+  // Enter on a list line: the list goes on (the number up), or an empty item ends it; false if the caret isn't in a list
+  function seguirLista(ctl) {
+    const el = ctl.el, c = caret(el); if (!c) return false;
+    const t = texto(el), L = lineas(t), l = lineaEn(L, c.a), p = l.m;
+    if (!p || c.a < l.o + p.fin) return false;
+    if (!t.slice(l.o + p.fin, l.o + l.t.length).trim() && c.a === c.b) reemplazar(ctl, l.o, l.o + p.fin, '');
+    else reemplazar(ctl, c.a, c.b, '\n' + ' '.repeat(p.ind) + (p.tipo === 'vi' ? '-' : p.tipo === 'nu' ? (p.n + 1) + '.' : '[]') + ' ');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
   }
   // ⌘Z right after converting or using a command: the Mesa's, not the browser's
   function deshacerPropio(ctl) {
-    if (ctl.cmd) { const c = ctl.cmd; ctl.cmd = null; ctl.conv = null; c(); return true; }
+    if (ctl.tras) {                             // the ⌘Z after the Mesa's: what was typed before it goes, never the Mesa's own step undone
+      const t = ctl.tras; ctl.tras = null;
+      if (texto(ctl.el).slice(t.a, t.b) !== t.s) return false;
+      reemplazar(ctl, t.a, t.b, ''); poner(ctl.el, t.a); ctl.el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    }
+    if (ctl.cmd) { const c = ctl.cmd; ctl.cmd = null; ctl.conv = null; c(); if (ctl.cmdQ) { ctl.tras = ctl.cmdQ; ctl.cmdQ = null; } return true; }
     if (ctl.conv) {
       const v = ctl.conv; ctl.conv = null;
       if (texto(ctl.el).charAt(v.off) !== ' ') return false;
       reemplazar(ctl, v.off, v.off + 1, ' '); poner(ctl.el, v.off + 1);
       ctl.el.dispatchEvent(new Event('input', { bubbles: true }));
+      const L = lineas(texto(ctl.el)), l = lineaEn(L, v.off), a = l.o + (/^ */.exec(l.t)[0].length);
+      ctl.tras = { a, b: v.off + 1, s: texto(ctl.el).slice(a, v.off + 1) };
       return true;
     }
     return false;
@@ -263,20 +307,16 @@
     if (e.isComposing || e.keyCode === 229) return;
     const el = ctl.el, k = e.key;
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && String(k).toLowerCase() === 'z') {
-      if ((ctl.conv || ctl.cmd) && deshacerPropio(ctl)) { e.preventDefault(); e.stopPropagation(); }
+      if ((ctl.conv || ctl.cmd || ctl.tras) && deshacerPropio(ctl)) { e.preventDefault(); e.stopPropagation(); }
       return;
     }
     if (ctl.menu && menuTecla(ctl, e)) { e.preventDefault(); e.stopPropagation(); return; }
-    if (!MODS.includes(k)) { ctl.conv = null; ctl.cmd = null; }
+    if (!MODS.includes(k)) { ctl.conv = null; ctl.cmd = null; ctl.tras = null; ctl.cmdQ = null; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const c = caret(el); if (!c) return;
     const t = texto(el), L = lineas(t), l = lineaEn(L, c.a), p = l.m;
     if (k === 'Enter' && !e.shiftKey && p && c.a >= l.o + p.fin) {   // ⇧Intro, or not in a list: the browser's line break, as before
-      e.preventDefault(); e.stopPropagation();
-      if (!t.slice(l.o + p.fin, l.o + l.t.length).trim() && c.a === c.b) { reemplazar(ctl, l.o, l.o + p.fin, ''); return; }   // an empty item ends the list
-      const sig = p.tipo === 'vi' ? '-' : p.tipo === 'nu' ? (p.n + 1) + '.' : '[]';
-      reemplazar(ctl, c.a, c.b, '\n' + ' '.repeat(p.ind) + sig + ' ');
-      return;
+      e.preventDefault(); e.stopPropagation(); seguirLista(ctl); return;
     }
     if (k === 'Backspace' && !e.shiftKey && p && c.a === c.b && c.a === l.o + p.fin) {   // right behind a mark: it goes whole
       e.preventDefault(); e.stopPropagation(); reemplazar(ctl, l.o + p.ind, l.o + p.fin, ''); return;
@@ -403,12 +443,12 @@
         const L = lineas(t), l = lineaEn(L, a), resto = t.slice(b, l.o + l.t.length);
         reemplazar(ctl, a, b, '[] ');
         const L2 = lineas(texto(el)), l2 = lineaEn(L2, a);
-        aSubtarea(ctl, l2, l2.m || { ind: 0, k: '[]', fin: 3, hecha: false }, resto);
+        aSubtarea(ctl, l2, l2.m || { ind: 0, k: '[]', fin: 3, hecha: false }, resto, volver);   // ⌘Z right after: «/…» back, not «[] »
         return;
       }
       reemplazar(ctl, a, b, CMD[k].m + ' ');
       el.dispatchEvent(new Event('input', { bubbles: true }));
-      ctl.cmd = volver;
+      ctl.cmd = volver; ctl.cmdQ = { a, b, s: t.slice(a, b) };   // a second ⌘Z takes «/…» away
       return;
     }
     const ctx = {
@@ -530,9 +570,9 @@
   M.escritura = {
     version: VERSION, activar, html, alternar, lineas, marca, fechaTxt, urls, enCampo,
     menuAbierto: () => !!(MENU && MENU.menu && !MENU.menu.el.hidden),
-    menuDe: el => !!(MENU && MENU.el === el && MENU.menu),
+    menuDe: el => !!(MENU && MENU.el === el && MENU.menu && !MENU.menu.el.hidden),
     cerrarMenu: () => cerrarMenu(),
-    pendiente: el => !!(el && el._esc && (el._esc.conv || el._esc.cmd)),
+    pendiente: el => !!(el && el._esc && (el._esc.conv || el._esc.cmd || el._esc.tras)),
     deshacer: el => !!(el && el._esc && deshacerPropio(el._esc)),
     _off: () => {
       cerrarMenu(); [...ACT].forEach(apagar);

@@ -13840,7 +13840,7 @@
   const naCmdZ = el => { if (!naTecla(el, 'z', { metaKey: true })) D.execCommand('undo'); };
   const naMenu = () => { const m = q('.pp-sm:not([hidden])'); return m ? [...m.querySelectorAll('.pp-smo')].map(b => b.dataset.k + (b.classList.contains('act') ? '*' : '')).join(',') : ''; };
   async function naNota(txt = '') {            // una nota nueva, en grande y escribiendo
-    await ppClic('.pp-tabs [data-p="tareas"]');
+    if (q('.pp-tabs [data-p="tareas"]')) await ppClic('.pp-tabs [data-p="tareas"]');
     const i = q('[data-pp="nueva"]'); i.value = '';
     q('[data-pp="nota-campo"]').click(); await espera(80);
     const cn = ppCard() && ppCard().querySelector('[data-pp="cn"][contenteditable]'); ok(cn, 'la nota nueva no se abre escribiendo');
@@ -14098,6 +14098,128 @@
       ok(ppCard().classList.contains('nota') && ppCard().classList.contains('amplia') && ppCard().getBoundingClientRect().width >= W.innerWidth - 20, 'la nota no se amplía a todo el ancho');
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
     } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA8', 'Una línea escrita como bloque (un <div> por línea, como algunas formas de escribir o dictar) vuelve a ser texto con «\n» y el cursor sigue donde estaba; un salto escrito como párrafo sigue la lista; la capa se dibuja en su sitio aunque la tarjeta esté entrando (escala .97) (D-202)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota('Uno');
+      cn.innerHTML = 'Uno<div>- dos</div><div><br></div><div>tres</div>'; naFin(cn);
+      cn.dispatchEvent(new W.InputEvent('input', { bubbles: true, inputType: 'insertText', data: 's' })); await espera(40);
+      igual([cn.textContent, cn.querySelectorAll('div').length], ['Uno\n- dos\n\ntres', 0], 'las líneas en bloque no vuelven a «\\n»');
+      const s = W.getSelection(), r = s.getRangeAt(0), pre = D.createRange(); pre.setStart(cn, 0); pre.setEnd(r.startContainer, r.startOffset);
+      igual(pre.toString().length, cn.textContent.length, 'el cursor no sigue al final');
+      // un párrafo en una lista: sigue la lista con un «\n»
+      cn.textContent = '- uno'; naFin(cn);
+      const ev = new W.InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertParagraph' }); cn.dispatchEvent(ev); await espera(30);
+      ok(ev.defaultPrevented, 'un párrafo no lo atiende la Mesa'); igual(cn.textContent, '- uno\n- ', 'un párrafo en una lista no la sigue');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      // la capa en su sitio con la tarjeta escalada (como al entrar)
+      const n = await M.personal.tarea({ tipo: 'nota', txt: 'Cabecera\nOtra\nY otra\n- punto' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(40);
+      const c0 = ppCard().querySelector('[data-pp="cn"]'); ppRaton(c0, 'click', 2); ppRaton(c0, 'dblclick', 2); await espera(40);
+      const c1 = ppCard().querySelector('[data-pp="cn"]'); ppCard().style.transform = 'scale(.97)'; c1._esc.dibujar();
+      ppCard().style.transform = ''; await espera(20);
+      const m = ppCard().querySelector('.pp-ecm.vi').getBoundingClientRect(), rg = D.createRange(), tn = c1.firstChild, i = c1.textContent.indexOf('- punto'); rg.setStart(tn, i); rg.setEnd(tn, i + 1);
+      const q2 = rg.getBoundingClientRect(); ok(Math.abs(m.top - q2.top) < 1 && Math.abs(m.left - q2.left) < 1, 'la viñeta se dibuja fuera de su sitio: ' + json([m.top, q2.top, m.left, q2.left]));
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA9', 'Arreglos de la revisión (A): un segundo ⌘Z tras el de la Mesa sigue hacia atrás y no rehace; ⌘Z tras «/casilla» en «Detalles» devuelve «/casilla»; Intro en «Nueva tarea» con el menú «/» sin coincidencias crea la tarea; un doble clic en «Ampliar» no pone a escribir; Esc con un menú de clic derecho abierto solo cierra el menú; una tarea nueva de «/tarea» marcada o fechada y cerrada sin título no se crea (D-203, D-204, D-205)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      // segundo ⌘Z
+      const cn = await naNota('x\n- ');
+      ok(naTecla(cn, 'z', { metaKey: true }), 'el primer ⌘Z no es de la Mesa'); await espera(30);
+      ok(naTecla(cn, 'z', { metaKey: true }), 'el segundo ⌘Z no es de la Mesa'); await espera(30);
+      igual(cn.textContent, 'x\n', 'el segundo ⌘Z rehace la viñeta en vez de quitarla');
+      await naEscribe(cn, '/lis'); naTecla(cn, 'Enter'); await espera(30);
+      naTecla(cn, 'z', { metaKey: true }); await espera(30); naTecla(cn, 'z', { metaKey: true }); await espera(30);
+      igual(cn.textContent, 'x\n', 'el segundo ⌘Z tras un comando no quita «/lis»');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      // ⌘Z tras «/casilla» en «Detalles»
+      await ppClic('.pp-tabs [data-p="tareas"]').catch(() => {});
+      const t = await M.personal.tarea({ txt: 'Con casilla', fecha: '2026-10-03' }); await M.personal.render();
+      const cd = await naDetalles(t); await naEscribe(cd, '/cas'); naTecla(cd, 'Enter'); await espera(60);
+      igual(qa('.pp-card .pp-csub').length, 1, '«/cas» no crea la subtarea');
+      naTecla(D.activeElement, 'z', { metaKey: true }); await espera(60);
+      igual([cd.textContent, qa('.pp-card .pp-csub').length], ['/cas', 0], '⌘Z no devuelve «/cas»');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      // Intro en «Nueva tarea» con el menú sin coincidencias
+      const i = q('[data-pp="nueva"]'); i.focus(); i.value = '/'; i.setSelectionRange(1, 1); i.dispatchEvent(new W.InputEvent('input', { bubbles: true })); i.value = '/etc'; i.setSelectionRange(4, 4); i.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(30);
+      ppTecla('Enter', {}); i.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await espera(150);
+      ok((await M.personal.tareas()).some(k => k.txt === '/etc'), 'Intro con el menú vacío no crea la tarea');
+      // doble clic en «Ampliar»
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40);
+      const b = ppCard().querySelector('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(20);
+      const cdx = ppCard().querySelector('.pp-cd'); ppRaton(cdx, 'click', 2); ppRaton(cdx, 'dblclick', 2); await espera(40);
+      ok(ppCard() && ppCard().classList.contains('amplia') && !ppCard().classList.contains('ed'), 'el doble clic en «Ampliar» la pone a escribir');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      // Esc con el menú de clic derecho abierto
+      q(`.pp-tk[data-tid="${t.id}"]`).dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 60 })); await espera(30);
+      ok(q('.pp-menu'), 'sin menú'); naTecla(D.activeElement, 'Escape'); await espera(30);
+      ok(!q('.pp-menu') && M.personal.abierta(), 'Esc con el menú abierto no solo lo cierra');
+      // una tarea de «/tarea», marcada y fechada sin título, no se crea
+      const n0 = (await M.personal.tareas()).length;
+      const cn2 = await naNota('idea\n/tarea'); naTecla(cn2, 'Enter'); await espera(260);
+      ppCard().querySelector('[data-pp="ck"]').click(); await espera(60);
+      igual((await M.personal.tareas()).length, n0 + 1, 'marcar la tarea sin título la crea');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(260);
+      igual((await M.personal.tareas()).length, n0 + 1, 'cerrada sin título se crea');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('SE9', 'Arreglos de la revisión (B): una foto soltada en la línea de una sesión no entra; «/fecha» en un texto de sesión escribe la fecha y no la cambia; Espacio en una casilla de un texto la marca; «Nuevo esporádico» del cliente de la hoja; el repaso sin cambios no redibuja la hoja; «Pasar a mensual» con un nombre que ya tiene un mensual se para, y después ⌘Z no borra ni devuelve el esporádico; Avisos ordena las sesiones por su hora de Madrid; una foto suelta solo se borra al arrancar pasado un día (D-206, D-207)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    let nuevo = null;
+    try {
+      relojEn('2026-10-01T09:00:00+02:00');
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Revisión', clase: 'foto', fecha: '2026-10-01', hora: '23:30' });
+      await M.personal.set({ plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista', avTareas: true }); await M.personal.render();
+      // foto soltada en su línea
+      const lin = q(`.pp-tk[data-tid="${r.id}"]`), dt = new W.DataTransfer(); dt.items.add(await foto('se9.jpg', 400, 300));
+      const ev = new W.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }); lin.dispatchEvent(ev); lin.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); await espera(400);
+      ok(!lin.classList.contains('pp-drop') && !((await seRec(r.id)).fotos || []).length, 'una foto soltada en la línea de la sesión entra');
+      // Avisos: hoy a las 23:30 va antes de «Mañana» (hora de Madrid)
+      const t2 = await M.sesiones._test.crear({ txt: 'Mañana pronto', clase: 'foto', fecha: '2026-10-02', hora: '08:00' }); await M.personal.render();
+      igual(ppLineas('hoy'), [r.id, t2.id], 'el orden de «Hoy y mañana»');
+      // «/fecha» en un texto de la sesión
+      await seAbrir(r.id); seDbl(seQ('[data-campo="ap:orden"]')); await espera(60);
+      const tx = seQ('[data-campo="ap:orden"]'); await naEscribe(tx, '/fe'); naTecla(tx, 'Enter'); await espera(80);
+      const a = M.controles.abierto(); ok(a, '«/fecha» no abre el calendario'); a.de.value = '2026-10-08'; a.de.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(100);
+      igual([tx.textContent, (await seRec(r.id)).fecha], ['jue 8 oct', '2026-10-01'], '«/fecha» en la hoja cambia la fecha de la sesión');
+      ppTecla('Escape'); await espera(500);
+      // Espacio en una casilla de un texto
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'fotos').texto = '[] Carta'; return x; }); M.personal._p.pintar(); await espera(80);
+      const cas = seQ('[data-ap="fotos"] .pp-em.ca[data-ln]'); cas.focus(); naTecla(cas, ' '); await espera(100);
+      igual(seAp(await seRec(r.id), 'fotos').texto, '[x] Carta', 'Espacio no marca la casilla');
+      // el repaso sin cambios no redibuja
+      const antes = seHoja(); await M.personal.render(); await espera(80); ok(seHoja() === antes, 'el repaso sin cambios redibuja la hoja');
+      // «Nuevo esporádico» del cliente de la hoja
+      seQ('[data-hj="cliente"]').dispatchEvent(new W.CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'nuevo' } })); await espera(60);
+      ok(q('.detail:not([hidden]) form.pp-espf'), '«Nuevo esporádico» de la hoja no pide el nombre');
+      q('#pp-esp-n').value = 'Otro nombre'; q('.pp-espf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(250);
+      const e1 = (await M.personal.tareas()).find(k => k.tipo === 'esporadico'); igual((await seRec(r.id)).cliente, e1.id, 'la sesión no lleva el esporádico nuevo');
+      M.personal._p.cerrarCard(true); await espera(60);
+      // «Pasar a mensual» con un nombre de mensual: se para
+      const P = M.personal._p, now = new Date(M._in.ahora()).toISOString();
+      await P.hacer([{ id: 'esmismo', despues: { id: 'esmismo', tipo: 'esporadico', txt: M._in.CL.find(c => c.id === CLIENTE).name, creada: now, at: now } }]);
+      P.abrirCard('esmismo'); await espera(60); q('.pp-card.pp-es [data-es="pasar"]').click(); await espera(40); q('[data-pp-pasar]').click(); await espera(300);
+      ok((await M.personal.tareas()).find(k => k.id === 'esmismo') && !(await M.personal.tareas()).find(k => k.id === 'esmismo').pasado, 'pasa a un cliente que ya existía');
+      // pasar uno y ⌘Z: no se borra ni vuelve sin pasar
+      P.abrirCard(e1.id); await espera(60); q('.pp-card.pp-es [data-es="pasar"]').click(); await espera(40); q('[data-pp-pasar]').click();
+      await hasta(() => M._in.CL.some(c => c.name === 'Otro nombre'), 4000, 'el cliente nuevo'); nuevo = M._in.CL.find(c => c.name === 'Otro nombre').id; await espera(200);
+      for (let k = 0; k < 6; k++) { ppTecla('z', { metaKey: true }); await espera(80); }
+      const er = (await M.personal.tareas()).find(k => k.id === e1.id); ok(er && er.pasado, '⌘Z borra o devuelve sin pasar el esporádico');
+      // una foto suelta: marcada al arrancar, borrada solo pasado un día
+      await M._in.idbPut('tfotos', 'tfsuelta', { id: 'tfsuelta', w: 1, h: 1, blob: new W.Blob(['x']), t: 1 });
+      await M.sesiones._test.limpiar(); let f = await M._in.idbGet('tfotos', 'tfsuelta'); ok(f && f.suelta, 'una foto suelta se borra a la primera');
+      await M._in.idbPut('tfotos', 'tfsuelta', { ...f, suelta: 1 }); await M.sesiones._test.limpiar(); ok(!(await M._in.idbGet('tfotos', 'tfsuelta')), 'una foto suelta de hace días no se borra');
+    } finally { M._in.closeDetail(); paginaCerrada(); relojVuelve(); await sinTareas(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
   });
 
   // =====================================================================================================

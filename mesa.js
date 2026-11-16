@@ -6265,7 +6265,7 @@
       if ((P.ubPut || []).length) await tx('ubicaciones', 'readwrite', st => P.ubPut.forEach(u => st.put(u, u.id)));   // D-124
       for (const c of P.ubLista || []) await editarCliente(c.id, o => ({ ...o, ubicaciones: c.ubicaciones.filter(id => typeof id === 'string'), ubicacionesAt: c.ubicacionesAt }));
       { const l = (P.tarPut || []).map(t => gotTar[t.id] || null).filter(Boolean);   // D-180; a session's photos go to their own store first, it keeps their list (D-206)
-        const fs = l.filter(t => t.tipo === 'sesion' && Array.isArray(t.fotos)).flatMap(t => t.fotos.filter(f => f && f.blob).map(f => ({ ...f, sesion: t.id })));
+        const fs = l.filter(t => t.tipo === 'sesion' && Array.isArray(t.fotos)).flatMap(t => t.fotos.filter(f => f && f.blob).map(f => ({ ...f, sesion: t.id, t: Date.now() })));
         if (fs.length) await tx('tfotos', 'readwrite', st => fs.forEach(f => st.put(f, f.id)));
         const ls = l.map(t => t.tipo === 'sesion' && Array.isArray(t.fotos) ? { ...t, fotos: t.fotos.map(f => ({ id: f.id, w: f.w, h: f.h })) } : t);
         if (ls.length) await tx('tareas', 'readwrite', st => ls.forEach(t => st.put(t, t.id))); res.tareas = l.length; }

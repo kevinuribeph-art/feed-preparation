@@ -1,4 +1,4 @@
-// Página personal — Mesa de trabajo · v1.1 (D-180, D-181)
+// Página personal — Mesa de trabajo · v1.3 (D-180, D-181, D-202–D-205)
 // The page the logo opens: every client at a glance. Four figures (what went past, what goes out today and tomorrow, what waits
 // for the client, what is left to schedule), the notices behind them, a block per client (its two months as a line of steps
 // and its week) and the tasks and notes, which live only here (IndexedDB 'tareas', with their photos, mesa ≥ 4.16). It reads
@@ -10,7 +10,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.2';   // 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.3';   // 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -29,8 +29,25 @@
     fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
     texto: svg('<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>'),
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
-    x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>')
+    x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    ampliar: svg('<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/>'),
+    sesion: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+    camara: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
+    video: svg('<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>'),
+    libre: svg('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'),
+    fotos: svg('<path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18"/><circle cx="12" cy="8" r="2"/><rect width="16" height="16" x="6" y="2" rx="2"/>'),
+    ojo: svg('<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>'),
+    ojoNo: svg('<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>'),
+    una: svg('<rect width="20" height="12" x="2" y="6" rx="2"/>'),
+    todas: svg('<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'),
+    enlace: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+    mas3: svg('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'),
+    asa: svg('<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>'),
+    chev: svg('<path d="m6 9 6 6 6-6"/>'),
+    reducir: svg('<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>')
   };
+  const ES = () => (M.escritura && M.escritura.html ? M.escritura : null);   // the quick writing (escritura.js, D-202); without it, plain text as before
+  const leerTxt = (t, o) => { const E = ES(); return E ? E.html(t, o) : esc(t); };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
   const ssGet = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
@@ -51,7 +68,7 @@
   const PLG0 = { tareas: true, clientes: false, avisos: false };
   const st = {
     on: false, filtro: null, modo: 'semana', desp: 0, abiertos: new Set(), plg: { ...PLG0 }, avTareas: false,
-    tcli: null, tsem: 0, tmes: 0, ttodas: false, nueva: { fecha: '', cliente: '', fotos: [] },
+    tcli: null, tsem: 0, tmes: 0, ttodas: false, nueva: { fecha: '', cliente: '', fotos: [] }, cvista: 'mensuales',
     fila: [1, 2, 5].includes(+lsGet(LS_FILA)) ? +lsGet(LS_FILA) : 2,
     alcance: ['sem', '1m', '2m', '3m'].includes(lsGet(LS_ALC)) ? lsGet(LS_ALC) : '1m',
     vista: ['lista', 'semana', 'mes'].includes(lsGet(LS_VISTA)) ? lsGet(LS_VISTA) : 'lista'
@@ -94,6 +111,7 @@
     const ts = (await X.idbAll('tareas').catch(() => [])) || [];
     const antes = new Map(TK);
     TK.clear(); for (const t of ts) if (t && t.id) TK.set(t.id, t);
+    for (const [id, r] of antes) if (r._b) TK.set(id, r);   // a new task still being written (not made yet) stays
     for (const [id, g] of TOCADA) if (g > g0) { const r = antes.get(id); if (r) TK.set(id, r); else TK.delete(id); }   // written while this read
     for (const [id, r] of PEND) { if (r) TK.set(id, r); else TK.delete(id); }   // a write still on its way wins over what was read
     return { CL: X.CL.slice(), boards };
@@ -189,11 +207,13 @@
       if (g.dia === hoy || g.dia === man) items.push({ ...it, cat: 'hoy' });
       else if (enV(g.dia)) items.push({ ...it, cat: 'falta' });
     }
-    if (st.avTareas) for (const k of TK.values()) {   // the tasks, only with the switch of Avisos (D-180)
-      if (k.tipo !== 'tarea' || !k.fecha) continue;
+    if (st.avTareas) for (const k of vivos()) {   // the tasks and the sessions, only with the switch of Avisos (D-180, D-206)
+      if ((k.tipo !== 'tarea' && k.tipo !== 'sesion') || !k.fecha) continue;
       const hechaAntes = k.hecha && X.localDay(k.hecha) < hoy; if (hechaAntes) continue;
-      const it = { tipo: 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, ts: utc(k.fecha), hecha: !!k.hecha };
-      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy) items.push({ ...it, cat: 'hoy' });
+      const ses = k.tipo === 'sesion', conH = ses && /^\d{2}:\d{2}$/.test(k.hora || '');
+      const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, hora: ses ? k.hora || '' : '', ts: conH ? X.ts(X.madridISO(k.fecha, k.hora)) : utc(k.fecha), hecha: !!k.hecha };   // its time is Madrid's, as the posts'
+      // a session the day before and the same day, with its time; from the next day, if not done, gone past (a task: only its day)
+      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy || (ses && k.fecha === man)) items.push({ ...it, cat: 'hoy' });
     }
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
@@ -216,13 +236,16 @@
       if (enV(d)) { pubs++; if (!['programado', 'publicado'].includes(e)) pubSin++; }   // reels too (D-181)
     }
     for (const h of Q.hsCli.get(c.id) || []) { const x = at[h.dia]; if (x) x.h++; if (enV(h.dia)) { hs++; if (!h.prog) hsSin++; } }
-    const tk = [...TK.values()].filter(k => k.tipo === 'tarea' && k.cliente === c.id && !k.hecha);
+    const tk = vivos().filter(k => k.tipo === 'tarea' && k.cliente === c.id && !k.hecha);
     for (const k of tk) if (k.fecha && at[k.fecha]) at[k.fecha].t++;
     return { c, meses, dias, pubs, pubSin, hs, hsSin, tareas: tk.length };
   }
 
   // ---------- pieces ----------
-  const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || null;
+  // a client: one with a board (the mesa's) or a sporadic one (D-207), never in the tabs nor where the clients with a board are read
+  const esps = () => [...TK.values()].filter(k => k.tipo === 'esporadico' && !k.pasado && !k._b).sort((a, b) => String(a.txt).localeCompare(String(b.txt), 'es'));
+  const espDe = id => { const k = id && TK.get(id); return k && k.tipo === 'esporadico' && !k.pasado ? { id: k.id, name: k.txt, esporadico: true } : null; };
+  const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || espDe(id);
   const inic = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
   const nombreC = id => esc((cliDe(id) || { name: id }).name);
   function avatar(cid, cls = '') {
@@ -245,18 +268,20 @@
   }
   const estLbl = e => (I().ESTADOS.find(x => x[0] === e) || [e, e])[1];
   function cuando(x, R) {
-    if (x.cat === 'pasado') return `<span class="pp-cu rojo">${esc(corto(x.dia))}</span>`;
-    if (x.cat === 'hoy') return `<span class="pp-cu">${x.tipo === 'post' ? esc(x.hora) : ''}</span>`;
+    if (x.cat === 'pasado') return `<span class="pp-cu rojo">${esc(corto(x.dia))}${x.tipo === 'sesion' && x.hora ? `<br>${esc(x.hora)}` : ''}</span>`;
+    if (x.cat === 'hoy') return `<span class="pp-cu">${x.tipo === 'post' || x.tipo === 'sesion' ? esc(x.hora) : ''}</span>`;
     return `<span class="pp-cu">${esc(corto(x.dia))}</span>`;
   }
   function mini(x) {                           // the post's photo (its thumbnail) with its type over it; a single photo has none
-    if (x.tipo !== 'post') return `<span class="pp-afoto vacia">${x.tipo === 'tarea' ? ICO.fecha : ICO.historias}</span>`;
+    if (x.tipo !== 'post') return `<span class="pp-afoto vacia">${x.tipo === 'tarea' ? ICO.fecha : x.tipo === 'sesion' ? ICO.sesion : ICO.historias}</span>`;
     const f = x.s.photos && x.s.photos[0] && M.files[x.s.photos[0]], ty = tipoTxt(x.s) === 'Foto' ? '' : I().tipoPost(x.s).ico;
     return f && f.thumbUrl ? `<span class="pp-afoto"><img src="${f.thumbUrl}" alt="" loading="lazy" decoding="async">${ty ? `<i>${ty}</i>` : ''}</span>` : `<span class="pp-afoto vacia">${ty || ICO.foto}</span>`;
   }
   function aviso(x, R) {
     const avs = `<span class="pp-avs">${x.clientes.slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>`, quien = x.clientes.map(nombreC).join(' × ');
-    if (x.tipo === 'tarea') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span></div>`;
+    // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
+    const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
+    if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
     if (x.tipo === 'historias') {
       const cu = x.dia === R.hoy ? 'hoy' : x.dia === R.man ? 'mañana' : 'el ' + corto(x.dia);
       return `<button type="button" class="pp-av" data-pp="hs" data-key="${esc(x.B.key)}" title="${x.n} ${x.n === 1 ? 'historia' : 'historias'} ${cu} · ${x.sin} sin programar">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${x.sin} ${x.sin === 1 ? 'historia' : 'historias'}${x.cat === 'hoy' ? ' ' + cu : ''} sin programar</b> <i>${quien}</i></span><span class="pp-est"></span></button>`;
@@ -310,8 +335,15 @@
   const cabPlg = (k, t, n, pl) => `<button type="button" class="pp-fold" data-pp="plegar" data-p="${k}" aria-expanded="${!pl}" title="${pl ? 'Desplegar' : 'Plegar'} ${t.toLowerCase()}"><b>${t}</b>${n ? `<span>${n}</span>` : ''}</button>`;
 
   // ---------- tasks and notes ----------
-  const tareas = () => [...TK.values()].filter(k => k.tipo === 'tarea');
-  const notas = () => [...TK.values()].filter(k => k.tipo === 'nota').sort((a, b) => String(a.creada).localeCompare(String(b.creada)));
+  const vivos = () => [...TK.values()].filter(k => !k._b);   // what is made (a new task still being written isn't, D-203)
+  const tareas = () => vivos().filter(k => k.tipo === 'tarea');
+  const sesiones = () => vivos().filter(k => k.tipo === 'sesion');   // a session goes where a task goes (D-206)
+  const enLista = () => vivos().filter(k => k.tipo === 'tarea' || k.tipo === 'sesion');
+  const notas = () => vivos().filter(k => k.tipo === 'nota').sort((a, b) => String(a.creada).localeCompare(String(b.creada)));
+  const cliOk = id => !!cliDe(id);
+  // the clients of a dropdown: the monthly ones and, apart, the sporadic ones (D-207)
+  const opcionesCli = (sel, CL) => { const E = esps(), o = c => `<option value="${esc(c.id)}"${sel === c.id ? ' selected' : ''}>${esc(c.name || c.txt)}</option>`;
+    return `<option value="">Sin cliente</option>` + (E.length ? `<optgroup label="Mensuales">${CL.map(o).join('')}</optgroup><optgroup label="Esporádicos">${E.map(o).join('')}</optgroup>` : CL.map(o).join('')); };
   const hechaHoy = (k, hoy) => !!k.hecha && I().localDay(k.hecha) >= hoy;
   const RANGO = { sem: ['1 semana', '1S'], '1m': ['1 mes', '1M'], '2m': ['2 meses', '2M'], '3m': ['3 meses', '3M'] };
   function alcance(hoy) {                      // back and ahead from today
@@ -323,8 +355,8 @@
   const barraPg = (h, n) => `<span class="pp-pb" aria-hidden="true"><i style="width:${(h / n * 100).toFixed(1)}%"></i></span>`;
   const fotosURL = f => { if (!f || !f.mini) return ''; let u = MINI.get(f.id); if (!u) { u = URL.createObjectURL(f.mini); MINI.set(f.id, u); } return u; };
   function tareasHTML(R) {
-    const X = I(), hoy = R.hoy, todas = tareas(), fin = addD(hoy, 6);
-    const conT = R.filas.map(f => f.c).filter(c => [...TK.values()].some(k => k.cliente === c.id && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks or notes
+    const X = I(), hoy = R.hoy, todas = enLista(), fin = addD(hoy, 6);
+    const conT = [...R.filas.map(f => f.c), ...esps().map(e => ({ id: e.id, name: e.txt }))].filter(c => vivos().some(k => k.cliente === c.id && k.tipo !== 'esporadico' && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks, sessions or notes (a sporadic one too, D-207)
     if (st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
     const l = todas.filter(k => !st.tcli || k.cliente === st.tcli);
     const venc = k => !k.hecha && k.fecha && k.fecha < hoy;
@@ -337,13 +369,16 @@
       return `<span class="pp-col"><span class="pp-tl">${tt}${d ? `<span class="pp-tdet" title="Con detalles">${ICO.texto}</span>` : ''}</span>${n ? `<span class="pp-pg${h === n ? ' todo' : ''}" title="${h} de ${n} subtareas hechas">${barraPg(h, n)}${h}/${n}</span>` : ''}</span>`; };
     const av = k => !st.tcli && k.cliente ? avatar(k.cliente, 'xs') : '';
     const fotos = (k, cls = '') => (k.fotos || []).length ? `<button type="button" class="pp-tfo ${cls}" data-pp="foto" data-id="${esc(k.id)}" title="${k.fotos.length === 1 ? 'Ver la foto' : `Ver las ${k.fotos.length} fotos`}" aria-label="Ver la foto"><img src="${fotosURL(k.fotos[0])}" alt="">${k.fotos.length > 1 ? `<b>${k.fotos.length}</b>` : ''}</button>` : '';
-    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}</span>` : ''}${av(k)}</div>`;
+    // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
+    const ses = k => k.tipo === 'sesion' ? `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>` : '';
+    const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
+    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}${hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
-    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${fotos(k, 'mini')}${av(k)}</div>`;
+    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
     const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
-    const ncli = cli ? '' : `<span class="pp-ncampo${N.cliente ? '' : ' vacio'}" data-k="cliente"><select class="pp-ncli" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${R.filas.map(f => `<option value="${esc(f.c.id)}"${N.cliente === f.c.id ? ' selected' : ''}>${esc(f.c.name)}</option>`).join('')}</select></span>`;
+    const ncli = cli ? '' : `<span class="pp-ncampo${N.cliente ? '' : ' vacio'}" data-k="cliente"><select class="pp-ncli" aria-label="Cliente de la tarea">${opcionesCli(N.cliente, R.filas.map(f => f.c))}</select></span>`;
     const nueva = `<div class="pp-nueva" data-tid="nueva"><input type="text" class="pp-nin" data-pp="nueva" placeholder="${cli ? 'Nueva tarea para ' + esc(cli.name) : 'Nueva tarea'}" aria-label="Nueva tarea" autocomplete="off">${pend}${nfecha}${ncli}`
       + `<button type="button" class="ibtn pp-ib" data-pp="nota-campo" title="Guardar como nota${cli ? ' de ' + esc(cli.name) : ''}" aria-label="Guardar como nota">${ICO.nota}</button>`
       + `<button type="button" class="ibtn pp-ib${N.fecha ? ' puesta' : ''}" data-pp="nfecha" title="Fecha" aria-label="Fecha">${ICO.fecha}</button>`
@@ -355,7 +390,7 @@
       const [r0, r1] = alcance(hoy), en = d => d >= r0 && d <= r1;
       // apagado: what is left to do up to the scope and what was done today (struck out until tomorrow); encendido: also what
       // was done, within the scope. The overdue ones, always (D-180)
-      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && k.fecha >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.creada).localeCompare(String(b.creada)));
+      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && k.fecha >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
       barra = `<span class="pp-tsw"><div class="seg pp-rg" role="group" aria-label="Hasta dónde">${Object.keys(RANGO).map(k => `<button type="button" class="${st.alcance === k ? 'on' : ''}" data-pp="alcance" data-r="${k}" aria-pressed="${st.alcance === k}" title="${RANGO[k][0]} atrás y adelante">${RANGO[k][1]}</button>`).join('')}</div>${sw}</span>`;
       izq = lf.length ? `<div class="pp-lista">${lf.map(k => linea(k)).join('')}</div>` : `<p class="pp-orden">${l.some(k => k.fecha) ? 'Nada con fecha aquí' : 'Ninguna con fecha'}</p>`;
       const sinV = l.filter(k => !k.fecha && (st.ttodas ? (!k.hecha || en(X.localDay(k.hecha))) : (!k.hecha || hechaHoy(k, hoy))));
@@ -376,14 +411,32 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${esc(k.txt)}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${(k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora ? `${esc(k.hora)} ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
-    const pn = ns.length ? `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" ${ver(n)} aria-label="Nota: ${esc(n.txt)}"><p class="pp-ptx">${esc(n.txt)}</p></div>`).join('')}</div>` : '';
+    // the small post-it draws the marks without using them: a click opens the note (D-202)
+    const pn = ns.length ? `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" ${ver(n)} aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>` : '';
     return `<div class="pp-pc">${nueva}<div class="pp-tfila">${filtro}${barra}</div>${pn}<div class="pp-tv${der ? ' dos' : ''}"><div class="pp-tvi">${izq}</div>${der}</div></div>`;
   }
   const segVista = () => `<div class="seg pp-tvs" role="group" aria-label="Vista de las tareas">${[['lista', 'Lista'], ['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => `<button type="button" class="${st.vista === k ? 'on' : ''}" data-pp="tvista" data-v="${k}" aria-pressed="${st.vista === k}">${l}</button>`).join('')}</div>`;
+  // «Mensuales · Esporádicos» in the head of «Clientes» (E2, D-207), the same piece as «Lista · Semana · Mes» (D-199)
+  const segCli = (nm, ne) => `<div class="seg pp-tvs pp-tcv" role="group" aria-label="Clientes">${[['mensuales', 'Mensuales', nm], ['esporadicos', 'Esporádicos', ne]].map(([k, l, n]) => `<button type="button" class="${st.cvista === k ? 'on' : ''}" data-pp="cvista" data-v="${k}" aria-pressed="${st.cvista === k}">${l} <span>${n}</span></button>`).join('')}</div>`;
+  const diaHora = (d, h) => `${DS[dow(d)]} ${+d.slice(8, 10)} ${MES[+d.slice(5, 7) - 1]}${d.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + d.slice(0, 4) : ''}${h ? ' · ' + h : ''}`;
+  // a sporadic client's block: its initial in a neutral circle, its name, its sessions (the last one), its tasks and notes and its
+  // next session in a band; a click opens its file (sesiones.js)
+  function espHTML(cols) {
+    const hoy = I().hoy(), E = esps();
+    const bl = E.map(e => {
+      const ss = sesiones().filter(k => k.cliente === e.id), ts = tareas().filter(k => k.cliente === e.id && !k.hecha), ns = notas().filter(k => k.cliente === e.id);
+      const pas = ss.filter(k => k.fecha && k.fecha <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], sig = ss.filter(k => k.fecha && k.fecha >= hoy && !k.hecha).sort((a, b) => (a.fecha + (a.hora || '')) < (b.fecha + (b.hora || '')) ? -1 : 1)[0];
+      const c1 = ss.length ? `${ss.length} ${ss.length === 1 ? 'sesión' : 'sesiones'}${pas ? ` · la última, ${diaHora(pas.fecha).replace(/ \d{4}$/, '')}` : ''}` : '';
+      const c2 = [ts.length ? `${ts.length} ${ts.length === 1 ? 'tarea' : 'tareas'}` : '', ns.length ? `${ns.length} ${ns.length === 1 ? 'nota' : 'notas'}` : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="pp-blq pp-esb" data-pp="esp" data-id="${esc(e.id)}" title="${esc(e.txt)}"><span class="pp-l1"><span class="pp-quien">${avatar(e.id)}<span class="pp-cn">${esc(e.txt)}</span></span><span class="pp-cuentas">${c1 ? `<span>${esc(c1)}</span>` : ''}${c2 ? `<span>${esc(c2)}</span>` : ''}</span></span>`
+        + (sig ? `<span class="pp-esf">${ICO.sesion}<b>${esc(sig.txt)}</b><span>${esc(diaHora(sig.fecha, sig.hora))}</span></span>` : '') + `</button>`;
+    }).join('');
+    return `<div class="pp-pc">${E.length ? `<div class="pp-bgrid pp-esg${cols > 2 ? ' estrecha' : ''}" style="--cols:${cols}">${bl}</div>` : ''}<button type="button" class="pp-cmas pp-esn" data-pp="esp-nuevo">${ICO.mas}Esporádico</button></div>`;
+  }
   const segFila = () => `<div class="seg pp-tvs pp-pfn" role="group" aria-label="Clientes por fila">${[1, 2, 5].map(n => `<button type="button" class="${st.fila === n ? 'on' : ''}" data-pp="fila" data-n="${n}" aria-pressed="${st.fila === n}" title="${n} por fila" aria-label="${n} por fila">${n}</button>`).join('')}</div>`;
 
   // ---------- the page ----------
@@ -396,18 +449,19 @@
   const caben = () => Math.max(1, Math.floor((anchoClientes() + 8) / 188));
   function pagina(R) {
     const pl = st.plg, cols = Math.max(1, Math.min(st.fila, R.filas.length || 1, caben()));
-    const nTar = tareas().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.espera + R.cifras.falta;
+    const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.espera + R.cifras.falta, nE = esps().length;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
-      { k: 'clientes', t: 'Clientes', n: R.filas.length, cls: 'pp-clientes', extra: segFila,
-        html: () => R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
+      { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE),
+        html: () => st.cvista === 'esporadicos' ? espHTML(Math.max(1, Math.min(st.fila, nE || 1, caben())))
+          : R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
       { k: 'avisos', t: 'Avisos', n: nAv }
     ];
     const arriba = P.filter(x => pl[x.k]), izq = P.filter(x => !pl[x.k] && x.k !== 'avisos'), rail = !pl.avisos;
     const cls = !rail ? ' sin-rail' : !izq.length ? ' solo-rail' : '';
     return `<div class="pp-in${cls}"><div class="pp-top">${cifras(R)}${periodo(R)}</div>`
       + `<div class="pp-izq">${arriba.length ? `<div class="pp-tabs">${arriba.map(x => `<section class="pp-plg fold" data-panel="${x.k}">${cabPlg(x.k, x.t, x.n, true)}</section>`).join('')}</div>` : ''}`
-      + izq.map(x => `<section class="${x.cls} pp-plg" data-panel="${x.k}"><div class="pp-phr"><h2 class="pp-ph">${cabPlg(x.k, x.t, x.n, false)}</h2>${x.extra()}</div>${x.html()}</section>`).join('') + `</div>`
+      + izq.map(x => `<section class="${x.cls} pp-plg" data-panel="${x.k}"><div class="pp-phr"><span class="pp-phl"><h2 class="pp-ph">${cabPlg(x.k, x.t, x.sinN ? 0 : x.n, false)}</h2>${x.tras ? x.tras() : ''}</span>${x.extra()}</div>${x.html()}</section>`).join('') + `</div>`
       + (rail ? `<aside class="pp-rail"><div class="pp-avisos pp-plg" data-panel="avisos"><div class="pp-phr"><h2 class="pp-ph">${cabPlg('avisos', 'Avisos', nAv, false)}</h2><label class="sw pp-sw"><input type="checkbox" data-pp="avtareas"${st.avTareas ? ' checked' : ''}> Tareas</label></div><div class="pp-grupos">${avisos(R)}</div></div></aside>` : '') + `</div>`;
   }
 
@@ -427,6 +481,7 @@
     page.innerHTML = html;
     if (M.controles && M.controles.mejorar) M.controles.mejorar(page);
     const n = page.querySelector('[data-pp="nueva"]'); if (n && txt) n.value = txt;
+    if (n && ES() && ES().enCampo) ES().enCampo(n, { comandos: () => (EXT.sesion && EXT.sesion.nueva ? ['sesion'] : []), alComando: (k, ctx) => comando(k, ctx, 'nueva') });
     if (clave) { const b = page.querySelector(clave); if (b) { b.focus({ preventScroll: true }); if (sel && b === n) b.setSelectionRange(sel[0], sel[1]); } }
     page.scrollTop = y;
     pintarCard();
@@ -455,7 +510,7 @@
   }
   let pendiente = false, componiendo = false;  // a drawing put off while something is being written or chosen
   const notaEnCurso = () => !!(CARD && CARD.ed && enCard(document.activeElement));   // writing in the card (D-182)
-  const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
+  const ocupada = () => notaEnCurso() || componiendo || !!menu || !!(ES() && ES().menuAbierto()) || !!(M.controles && M.controles.abierto && M.controles.abierto() && page && page.contains(M.controles.abierto().de));
   // a drawing put off is done as soon as what held it closes (a control, the menu, a composition, a note left)
   const retomar = () => { if (pendiente && st.on) setTimeout(() => { if (pendiente && st.on && !ocupada()) { pendiente = false; pintar(); } }, 0); };
 
@@ -475,7 +530,7 @@
     if (M.diseno && M.diseno.abierto && M.diseno.abierto()) return false;
     const det = root.querySelector('.detail'); if (det && !det.hidden && X.closeDetail) X.closeDetail();
     // each visit starts the same (D-180): Tareas folded, Clientes and Avisos open, the tasks out of Avisos, no figure chosen
-    st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear();
+    st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
     st.on = true; ssSet(SS_CLI, null);
     root.classList.add('pp-on'); colocar(); page.hidden = false; page.scrollTop = 0;
     if (D) pintar();
@@ -513,7 +568,8 @@
 
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
-  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}) } : null;
+  const hondo = o => JSON.parse(JSON.stringify(o));   // a session's part and the list of material: plain data, copied whole (D-206)
+  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}), ...(r.sesion ? { sesion: hondo(r.sesion) } : {}), ...(r.lista ? { lista: hondo(r.lista) } : {}) } : null;
   async function escribir(cambios) {           // [{id, despues|null}]
     const X = I();
     gen++;
@@ -535,12 +591,12 @@
     await escribir(paso.map(p => ({ id: p.id, despues: p.despues })));
     return true;
   }
-  async function deshacer(re) {
+  async function deshacer(re, sinCard) {        // sinCard: the card being written in stays as it is (a «/» command undone, D-204)
     if (!puede()) return false;
     const de = re ? H.r : H.u, a = re ? H.u : H.r, paso = de.pop(); if (!paso) return false;
     a.push(paso);
     await escribir(paso.map(p => ({ id: p.id, despues: copia(re ? p.despues : p.antes) })));
-    pintar(); pintarCard(true); return true;
+    pintar(); if (!sinCard) pintarCard(true); return true;
   }
   const ahoraISO = () => new Date(I().ahora()).toISOString();
   async function nuevaTarea(o = {}) {
@@ -552,7 +608,9 @@
     if (Array.isArray(o.fotos) && o.fotos.length && tipo === 'tarea') r.fotos = o.fotos.slice();
     return (await hacer([{ id: r.id, despues: r }])) ? r : null;
   }
-  const cambiar = (id, f, junta) => { const r = TK.get(id); if (!r) return Promise.resolve(false); const n = f(copia(r)); if (!n) return Promise.resolve(false); n.at = ahoraISO(); return hacer([{ id, despues: n }], junta); };
+  const cambiar = (id, f, junta) => { const r = TK.get(id); if (!r) return Promise.resolve(false); const n = f(copia(r)); if (!n) return Promise.resolve(false); n.at = ahoraISO();
+    if (r._b) { Object.defineProperty(n, '_b', { value: true, enumerable: false, configurable: true }); TK.set(id, n); return Promise.resolve(true); }   // a new task not made yet (D-203): in memory only
+    return hacer([{ id, despues: n }], junta); };
   const marcar = (id, v) => cambiar(id, r => { if (v) r.hecha = ahoraISO(); else delete r.hecha; return r; });
   const borrar = id => TK.has(id) ? hacer([{ id, despues: null }]) : Promise.resolve(false);
 
@@ -586,17 +644,19 @@
   const enCard = el => !!(ov && el && el.nodeType === 1 && ov.contains(el));
   const pocoMov = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const fechaLarga = d => `${DS[dow(d)]} ${+d.slice(8, 10)} ${MES[+d.slice(5, 7) - 1]}${d.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + d.slice(0, 4) : ''}`;
+  // the icon that widens the card to the whole page under the mesa's header, and brings it back (D-205)
+  const ampBtn = () => { const a = !!(CARD && CARD.amplia); return `<button type="button" class="ibtn pp-amp" data-pp="ampliar" title="${a ? 'Reducir' : 'Ampliar'}" aria-label="${a ? 'Reducir' : 'Ampliar'}" aria-pressed="${a}">${a ? ICO.reducir : ICO.ampliar}</button>`; };
   function htmlCard(r, ed) {
-    const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '';
-    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1"><p class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${esc(r.txt)}</p></div>`;
+    const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '', amp = CARD && CARD.amplia ? ' amplia' : '';
+    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${ampBtn()}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="${venc ? 'rojo' : ''}">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';
-    const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${((D && D.CL) || X.CL).map(x => `<option value="${esc(x.id)}"${r.cliente === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></span>`
+    const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea">${opcionesCli(r.cliente, (D && D.CL) || X.CL)}</select></span>`
       : c ? `<span>${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
-    return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
-      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p></div>`
+    return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
+      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${ampBtn()}</div>`
       + (fecha || cli ? `<div class="pp-cm">${fecha}${cli}</div>` : '') + fotos + detSub(r, ed) + `</div>`;
   }
   // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
@@ -606,7 +666,7 @@
   function detSub(r, ed) {
     const dt = String(r.detalles || ''), subs = r.subtareas || [], n = subs.length, h = subs.filter(x => x.hecha).length;
     const det = ed ? `<div class="pp-cd" data-pp="cd" data-id="${esc(r.id)}" contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Detalles" data-ph="Detalles">${esc(dt)}</div>`
-      : `<div class="pp-cd${dt.trim() ? '' : ' vacio'}">${dt.trim() ? esc(dt) : 'Detalles'}</div>`;
+      : `<div class="pp-cd${dt.trim() ? '' : ' vacio'}">${dt.trim() ? leerTxt(dt, { enlaces: true }) : 'Detalles'}</div>`;
     return det + `<div class="pp-cs">${n ? `<div class="pp-csh">${barraPg(h, n)}<span>${h}/${n}</span></div>` : ''}<div class="pp-csl">${subs.map(x => filaSub(r.id, x, ed)).join('')}</div>`
       + `<button type="button" class="pp-cmas" data-pp="cmas">${ICO.mas}Subtarea</button></div>`;
   }
@@ -618,15 +678,48 @@
     if (!hd) { hd = document.createElement('div'); hd.className = 'pp-csh'; cs.prepend(hd); }
     hd.innerHTML = `${barraPg(h, n)}<span>${h}/${n}</span>`;
   }
-  function nuevaSub(tras) {                    // a new subtask, being written: it goes in once something is written in it
-    if (!CARD) return;
+  function nuevaSub(tras, o = {}) {            // a new subtask, being written: it goes in once something is written in it
+    if (!CARD) return null;
     if (!CARD.ed) editar(true);
-    const l = ov && ov.querySelector('.pp-csl'); if (!l) return;
-    const d = document.createElement('div'); d.innerHTML = filaSub(CARD.id, { id: 'nueva', txt: '' }, true);
+    const l = ov && ov.querySelector('.pp-csl'); if (!l) return null;
+    const d = document.createElement('div'); d.innerHTML = filaSub(CARD.id, { id: 'nueva', txt: o.txt || '', hecha: !!o.hecha }, true);
     const f = d.firstChild; f.dataset.nueva = '1';
     if (tras) tras.after(f); else l.append(f);
-    f.querySelector('.pp-cst').focus();
+    if (o.foco !== false) { const i = f.querySelector('.pp-cst'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    return f;
   }
+  // «[] » typed in «Detalles»: the line became a subtask, written here (D-183, D-203); ⌘Z right after (before writing in
+  // it) takes it away and puts «[] » back in the text
+  function casillaASub(o) {
+    const f = nuevaSub(null, { txt: o.txt, hecha: o.hecha }); if (!f) return;
+    CARD.subPend = { f, v: f.querySelector('.pp-cst').value, deshacer: o.deshacer };
+    barraEd(); if (o.txt.trim()) guardarCard(false);
+  }
+  function pegarSubs(l) {                      // «[] » lines pasted in «Detalles»: subtasks, after the others
+    for (const x of l) if (x.txt.trim()) nuevaSub(null, { txt: x.txt, hecha: x.hecha, foco: false });
+    barraEd(); guardarCard(false);
+  }
+  function deshacerSub() {
+    const p = CARD && CARD.subPend; if (!p) return false;
+    CARD.subPend = null;
+    if (!p.f.isConnected) return false;
+    p.f.remove(); barraEd();
+    p.deshacer(); guardarCard(false);
+    return true;
+  }
+  // writing in the card: the note and «Detalles» take the marks and the «/» menu (escritura.js, D-202–D-204)
+  function cmdsDe(campo) {
+    const ext = EXT.sesion && EXT.sesion.nueva ? ['sesion'] : [];
+    return campo === 'det' ? [...ext, 'fecha', 'lista', 'numerada', 'casilla'] : [...ext, 'tarea', 'fecha', 'lista', 'numerada', 'casilla'];
+  }
+  function activarCampos() {
+    const E = ES(); if (!E || !ov || !CARD || !CARD.ed) return;
+    const cn = ov.querySelector('[data-pp="cn"][contenteditable]');
+    if (cn) E.activar(cn, { comandos: () => cmdsDe('nota'), alComando: (k, ctx) => comando(k, ctx, 'nota') });
+    const cd = ov.querySelector('[data-pp="cd"][contenteditable]');
+    if (cd) E.activar(cd, { subtareas: true, comandos: () => cmdsDe('det'), desc: { fecha: 'Le pone la fecha a la tarea', casilla: 'Una subtarea' }, alComando: (k, ctx) => comando(k, ctx, 'det'), alCasilla: casillaASub, alPegarCasillas: pegarSubs });
+  }
+  function apagarCampos() { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.apagar) x._esc.apagar(); }); }
   function quitarSub(f, foco) {
     if (!f || !CARD) return;
     const p = f.previousElementSibling, n = f.nextElementSibling; f.remove(); guardarCard(false); barraEd();
@@ -639,29 +732,40 @@
     if (CARD.ed && !forzar) { CARD.pend = true; return; }
     CARD.pend = false;
     const enfocada = enCard(document.activeElement);
+    apagarCampos();
+    if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }
     ov.innerHTML = htmlCard(r, CARD.ed);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
+    activarCampos();
     if (enfocada && !CARD.ed) ov.firstChild.focus({ preventScroll: true });
   }
+  // the kinds of card other files draw (sesiones.js: a session's sheet, a sporadic client's file): {pintar, clic, dbl, tecla,
+  // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
+  const EXT = {};
   function abrirCard(id, o = {}) {
     const r = TK.get(id), X = I(); if (!r || !st.on) return false;
     cerrarMenu(); if (CARD) quitarCard();
-    ov = document.createElement('div'); ov.className = 'pp-ov entra'; ov.dataset.pp = 'ov';
+    const ext = o.ext || (r.tipo === 'sesion' && EXT.sesion ? EXT.sesion : r.tipo === 'esporadico' && EXT.ficha ? EXT.ficha : null);
+    ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
     ov.addEventListener('animationend', e => { if (e.target.classList.contains('pp-card')) e.currentTarget.classList.remove('entra'); });
     X.root().append(ov);
-    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: `[data-pp="tver"][data-id="${CSS.escape(id)}"]` };
+    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext };
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it
+    if (ext) { ext.pintar(r, { ...o, forzar: true }); return true; }
     ov.innerHTML = htmlCard(r, CARD.ed);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
+    activarCampos();
     if (CARD.ed) enfocar(null); else ov.firstChild.focus({ preventScroll: true });
     return true;
   }
-  function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); ov.remove(); CARD = null; ov = null; }
+  function soltarBorrador() { for (const [id, k] of TK) if (k._b && (!CARD || CARD.id !== id)) TK.delete(id); }
+  function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); apagarCampos(); if (CARD && CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar(); ov.remove(); CARD = null; ov = null; soltarBorrador(); }
   function cerrarCard(ya) {
     if (!CARD) return;
     clearTimeout(CARD.cierre);
     if (CARD.ed && !ya) { guardarCard(); if (!CARD) return; }   // what was written goes in first (an empty note has gone with its card)
-    const o = ov, de = CARD.de; CARD = null; ov = null;
+    apagarCampos(); if (CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar();
+    const o = ov, de = CARD.de; CARD = null; ov = null; soltarBorrador();
     if (ya || pocoMov()) o.remove(); else { o.classList.add('sale'); setTimeout(() => o.remove(), 130); }
     const b = de && page && page.querySelector(de); if (b) b.focus({ preventScroll: true });
     retomar();
@@ -682,9 +786,25 @@
   function editar(on, pt) {
     if (!CARD || CARD.ed === on) return;
     if (!on) { guardarCard(); if (!CARD) return; }
-    CARD.ed = on; clearTimeout(CARD.cierre);
+    CARD.ed = on; clearTimeout(CARD.cierre); CARD.subPend = null;
     pintarCard(true);
     if (on) enfocar(pt); else if (ov) ov.firstChild.focus({ preventScroll: true });
+  }
+  // the card to the whole page under the mesa's header and back (D-205): the same card, only wider; what is being written stays
+  function ampliar(on) {
+    if (!CARD || !ov || CARD.ext || CARD.amplia === on) return;
+    CARD.amplia = on; CARD.ampT = Date.now();
+    const c = ov.querySelector('.pp-card'); if (c) c.classList.toggle('amplia', on);
+    ov.classList.toggle('amplia', on); colocarAmplia();
+    const b = ov.querySelector('[data-pp="ampliar"]');
+    if (b) { b.outerHTML = ampBtn(); }
+    requestAnimationFrame(() => { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.dibujar) x._esc.dibujar(); }); });
+  }
+  function colocarAmplia() {                   // under the header, which keeps working
+    if (!ov) return;
+    if (!CARD || !CARD.amplia) { ov.style.top = ''; return; }
+    const root = I().root(), ab = root.querySelector('.appbar'), t = ab ? Math.round(ab.getBoundingClientRect().bottom - root.getBoundingClientRect().top) : 0;
+    ov.style.top = t + 'px';
   }
   // what is written in the card: the title (never empty: an empty one goes back) and a note (empty, it goes, and one never
   // written leaves no step of ⌘Z)
@@ -693,8 +813,18 @@
     clearTimeout(cardT); cardT = null;
     if (!CARD || !ov) return;
     const id = CARD.id, r = TK.get(id); if (!r) return;
+    if (CARD.ext) { if (CARD.ext.guardar) CARD.ext.guardar(fin); return; }
     const t = ov.querySelector('[data-pp="ct"], [data-pp="cn"]'); if (!t) return;
     const txt = r.tipo === 'nota' ? t.textContent : t.textContent.replace(/\s*\n\s*/g, ' ').trim();
+    if (r._b) {                                // a task not made yet («Tarea» of the «/» menu): made with its first title, a step of its own; closed without one, it isn't (D-203)
+      if (!txt) return;
+      const cd = ov.querySelector('[data-pp="cd"]'), subs = [...ov.querySelectorAll('.pp-csub')].map(f => { const i = f.querySelector('.pp-cst'), c = f.querySelector('.pp-ck'); return i && i.value.trim() ? { id: nuevoId('st'), txt: i.value.trim(), ...(c.checked ? { hecha: true } : {}) } : null; }).filter(Boolean);
+      const n = copia(r); n.txt = txt; n.at = ahoraISO(); const det = cd ? cd.textContent.replace(/^\s*\n|\s+$/g, '') : ''; if (det) n.detalles = det; if (subs.length) n.subtareas = subs;
+      TK.delete(id); CARD.cmdVolver = null;
+      ov.querySelectorAll('.pp-csub[data-nueva]').forEach((f, i) => { const s = subs[i]; if (s) { delete f.dataset.nueva; f.dataset.sid = s.id; f.querySelectorAll('[data-sid]').forEach(x => { x.dataset.sid = s.id; }); } });
+      hacer([{ id, despues: n }]).then(() => pintar());
+      return;
+    }
     if (r.tipo !== 'nota') {
       const cd = ov.querySelector('[data-pp="cd"]'), ed = !!ov.querySelector('.pp-cst, [data-pp="cd"]');
       let det = cd ? cd.textContent : String(r.detalles || ''); if (fin) det = det.replace(/^\s*\n|\s+$/g, '');
@@ -718,21 +848,96 @@
     if (txt !== r.txt) cambiar(id, x => { x.txt = txt; return x; }, 'card:' + id).then(() => pintar());
   }
 
+  // ---------- the «/» menu's commands (D-204): «Fecha», «Tarea» (and «Sesión», sesiones.js) ----------
+  function comando(k, ctx, campo) {
+    if (k === 'fecha') return cmdFecha(ctx, campo);
+    if (k === 'tarea') return cmdTarea(ctx, campo);
+    if (k === 'sesion' && EXT.sesion && EXT.sesion.nueva) return EXT.sesion.nueva({ ctx, campo, desde: campo !== 'nueva' && CARD ? TK.get(CARD.id) : null });
+  }
+  // the mesa's own calendar (D-136), under the «/» that asked for it; closed without a day, nothing changes
+  function pedirFecha(r0, o, alElegir) {
+    const X = I(), root = X.root(), w = document.createElement('span');
+    w.className = 'pp-fpick'; w.style.left = Math.round(r0.left) + 'px'; w.style.top = Math.round(r0.top) + 'px'; w.style.height = Math.round(r0.height || 18) + 'px';
+    w.innerHTML = `<input type="date"${o.sinFecha ? ' data-sin-fecha' : ''} value="${esc(o.valor || '')}" aria-label="Fecha">`;
+    root.append(w);
+    const inp = w.firstChild; let hecho = false, vig = 0;
+    const fin = () => { if (hecho) return; hecho = true; clearInterval(vig); setTimeout(() => w.remove(), 0); };
+    inp.addEventListener('change', () => { const v = /^\d{4}-\d{2}-\d{2}$/.test(inp.value) ? inp.value : ''; fin(); alElegir(v); });
+    if (M.controles && M.controles.mejorar) {
+      M.controles.mejorar(w); const g = M.controles.gemelo(inp), t = g && g.querySelector('input');
+      if (!t) { fin(); return; }
+      t.focus({ preventScroll: true }); t.click();
+      vig = setInterval(() => { const a = M.controles.abierto(); if (!a || a.de !== inp) { fin(); if (o.alCerrar) o.alCerrar(); } }, 120);
+    } else { try { inp.showPicker(); } catch (e) { fin(); } inp.addEventListener('blur', () => setTimeout(fin, 300)); }
+  }
+  function cmdFecha(ctx, campo) {
+    const id = CARD.id, el = ctx.ctl.el, r0 = ctx.rect(), vuelta = () => { if (el.isConnected) { el.focus({ preventScroll: true }); ctx.ctl.poner(ctx.b); } };
+    pedirFecha(r0, { sinFecha: campo === 'det', valor: campo === 'det' ? (TK.get(id) || {}).fecha : '', alCerrar: vuelta }, v => {
+      if (!CARD || CARD.id !== id || !el.isConnected) return;
+      el.focus({ preventScroll: true });
+      if (campo !== 'det') { if (!v) { vuelta(); return; } ctx.poner(ES().fechaTxt(v)); ctx.ctl.cmd = ctx.volver; return; }   // in a note or a session's text, written as text
+      // in «Detalles», the task's date (D-182) and «/…» goes: one step of its own; ⌘Z right after puts both back
+      ctx.quitar(); clearTimeout(cardT); cardT = null;
+      const det = el.textContent, f = ov.querySelector('.pp-cfecha');
+      cambiar(id, x => { if (v) x.fecha = v; else delete x.fecha; x.detalles = det; if (!det) delete x.detalles; return x; }).then(() => pintar());
+      if (f) f.value = v;
+      ctx.ctl.cmd = () => { deshacer(false, true).then(() => { const k = TK.get(id), g = ov && ov.querySelector('.pp-cfecha'); if (g && k) g.value = k.fecha || ''; }); ctx.volver(); };
+    });
+  }
+  // «Tarea»: «/…» goes from the note and a new task opens big, its title being written; closed without a title it isn't made.
+  // ⌘Z right after (its title still empty) closes it and the note comes back as it was, with «/…»
+  function cmdTarea(ctx, campo) {                // in a note or a session's text («campo»: which one); a session gives its date too
+    const r = TK.get(CARD.id); if (!r) return;
+    const v = { nota: r.id, antes: ctx.texto, caret: ctx.b, campo };
+    ctx.quitar(); cerrarCard();
+    const k = borrador({ cliente: r.cliente, fecha: r.tipo === 'sesion' ? r.fecha : undefined });
+    if (k && CARD) CARD.cmdVolver = v;
+  }
+  function borrador(o = {}) {
+    const now = ahoraISO(), r = { id: nuevoId('tk'), tipo: 'tarea', txt: '', creada: now, at: now };
+    if (o.cliente && cliOk(o.cliente)) r.cliente = o.cliente;
+    if (o.fecha && /^\d{4}-\d{2}-\d{2}$/.test(o.fecha)) r.fecha = o.fecha;
+    Object.defineProperty(r, '_b', { value: true, enumerable: false, configurable: true });   // never in a copy, an export or a write
+    TK.set(r.id, r);
+    abrirCard(r.id, { ed: true, de: o.de });
+    return r;
+  }
+  async function volverDeTarea() {
+    const v = CARD && CARD.cmdVolver; if (!v) return;
+    CARD.cmdVolver = null; cerrarCard(true);
+    const r = TK.get(v.nota);
+    if (r && r.tipo === 'sesion') { if (EXT.sesion && EXT.sesion.volverTexto) await EXT.sesion.volverTexto(v); return; }   // a session's text (sesiones.js)
+    await enmendar(v.nota, x => { x.txt = v.antes; return x; });
+    pintar();
+    if (abrirCard(v.nota, { ed: true })) { const el = ov && ov.querySelector('[data-pp="cn"]'); if (el && el._esc) el._esc.poner(Math.min(v.caret, el.textContent.length)); }
+  }
+  // the last step on this record takes the change in (so a ⌘Z goes back to before it as one), or a step of its own
+  async function enmendar(id, f) {
+    const u = H.u[H.u.length - 1], p = u && u.length === 1 && u[0].id === id ? u[0] : null, r = TK.get(id); if (!r) return false;
+    if (!p) return cambiar(id, f);
+    const n = f(copia(r)); if (!n) return false; n.at = ahoraISO(); p.despues = copia(n); H.r = [];
+    await escribir([{ id, despues: n }]); return true;
+  }
+
   // ---------- the right-click menu of a task or a note (the mesa's menu, .cpmenu) ----------
   let menu = null;
   function cerrarMenu() { if (!menu) return; const m = menu; menu = null; m.el.remove(); retomar(); document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true); window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); }
-  function abrirMenu(x, y, items) {
+  function abrirMenu(x, y, items, foco) {     // foco: where the focus goes back when it closes (a «⋯» opened from the keyboard)
     cerrarMenu();
     const root = I().root(), el = document.createElement('div'); el.className = 'cpmenu pp-menu'; el.setAttribute('role', 'menu');
-    el.innerHTML = items.map(([a, t]) => `<button type="button" role="menuitem" data-a="${a}">${t}</button>`).join('');
-    el.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (!b) return; const it = items.find(i => i[0] === b.dataset.a); cerrarMenu(); if (it) it[2](); });
+    el.innerHTML = items.map(x => x === '-' ? '<hr>' : `<button type="button" role="menuitem" data-a="${x[0]}"${x[3] ? ' disabled' : ''}${x[4] ? ` title="${esc(x[4])}"` : ''}>${x[1]}</button>`).join('');   // [action, text, do, off, title]; '-' a line
+    el.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return; const it = items.find(i => i[0] === b.dataset.a), f = menu && menu.foco; cerrarMenu(); if (it) it[2](); if (f && f.isConnected && (!document.activeElement || document.activeElement === document.body)) f.focus({ preventScroll: true }); });
     root.append(el);
     const r = el.getBoundingClientRect();
     el.style.left = `${Math.max(8, Math.min(x, innerWidth - r.width - 8))}px`; el.style.top = `${Math.max(8, Math.min(y, innerHeight - r.height - 8))}px`;
-    const m = menu = { el, fuera: e => { if (!el.contains(e.target)) cerrarMenu(); }, tecla: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrarMenu(); } } };
+    const m = menu = { el, fuera: e => { if (!el.contains(e.target)) cerrarMenu(); }, tecla: e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); const f = m.foco; cerrarMenu(); if (f && f.isConnected) f.focus({ preventScroll: true }); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); const bs = [...el.querySelectorAll('button:not(:disabled)')], i = bs.indexOf(document.activeElement); const n = bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length]; if (n) n.focus(); }
+    } };
     document.addEventListener('pointerdown', m.fuera, true); document.addEventListener('keydown', m.tecla, true);
     window.addEventListener('blur', cerrarMenu); window.addEventListener('resize', cerrarMenu);
-    const b0 = el.querySelector('button'); if (b0) b0.focus();
+    const b0 = el.querySelector('button:not(:disabled)'); if (b0) b0.focus();
+    m.foco = foco;
   }
 
   // ---------- events ----------
@@ -775,7 +980,7 @@
     if (st.on && e.target.closest('.tabs [data-act="client"], .tab.add')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
     // a task or a note in small: a click opens it big (D-182); its checkbox and its photo, as before
-    const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
+    const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"], [data-pp="reprog"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
     if (it && TK.has(it.dataset.tid || it.dataset.nid)) { abrirCard(it.dataset.tid || it.dataset.nid); return; }
     const a = e.target.closest('[data-pp]'); if (!a) return;
     const k = a.dataset.pp;
@@ -793,6 +998,10 @@
     if (k === 'tnav') { if (st.vista === 'semana') st.tsem += +a.dataset.d; else st.tmes += +a.dataset.d; pintar(); return; }
     if (k === 'tcli') { st.tcli = a.dataset.c || null; pintar(); return; }
     if (k === 'nota-campo') { crearDesdeCampo(true); return; }
+    if (k === 'cvista') { st.cvista = a.dataset.v === 'esporadicos' ? 'esporadicos' : 'mensuales'; pintar(); return; }   // E2 (D-207)
+    if (k === 'esp') { abrirCard(a.dataset.id, { de: `[data-pp="esp"][data-id="${CSS.escape(a.dataset.id)}"]` }); return; }
+    if (k === 'esp-nuevo') { if (EXT.ficha && EXT.ficha.nuevo) EXT.ficha.nuevo(); return; }
+    if (k === 'reprog') { reprogramar(a.dataset.id, a); return; }
     if (k === 'nfecha') { abrirCampo('fecha'); return; }
     if (k === 'ncli') { abrirCampo('cliente'); return; }
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
@@ -800,18 +1009,32 @@
     if (k === 'abrir') { abrirPost(a.dataset.key, a.dataset.slot); return; }
     if (k === 'hs') { (async () => { const key = a.dataset.key; if (X.S && X.S.key === key) cerrar(); else if (!(await abrirTablero(() => M.open(key)))) return; if (M.hs && M.hs.ver) M.hs.ver(true); })(); return; }
   }
+  function marcarEnTexto(cas) {                // «[] » ↔ «[x] » in the note or the details, read: a step of the tasks' ⌘Z (D-204)
+    const E = ES(), id = CARD && CARD.id, r = id && TK.get(id); if (!E || !r) return;
+    const ln = +cas.dataset.ln, det = !!cas.closest('.pp-cd'), n = E.alternar(det ? r.detalles : r.txt, ln); if (n == null) return;
+    const foco = document.activeElement === cas;
+    cambiar(id, x => { if (det) x.detalles = n; else x.txt = n; return x; }).then(() => {
+      pintar();
+      if (foco && ov) { const b = ov.querySelector(`${det ? '.pp-cd' : '.pp-cn'} .pp-em.ca[data-ln="${ln}"]`); if (b) b.focus({ preventScroll: true }); }
+    });
+  }
   // a click on the card: its checkbox and photos work; outside it closes at once (writing, it goes back to reading); on it, it
   // waits what a double click lasts; the second click of a double click never closes it
   function clicCard(e) {
     const t = e.target, c = ov.firstChild;
     if (CARD.pd) { CARD.pd = false; return; }   // the click that closed one of the mesa's menus or calendars
+    if (CARD.ext && CARD.ext.clic && CARD.ext.clic(e)) return;
     const a = t.closest('[data-pp]'), k = a && a.dataset.pp;
+    if (k === 'ampliar') { ampliar(!CARD.amplia); return; }
+    const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !CARD.ed) { marcarEnTexto(cas); return; }   // a checkbox drawn in the text, read: marked (D-204)
+    if (t.closest('a.pp-ea')) return;          // a link opens in another tab; the card stays (D-204)
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cmas') { nuevaSub(); return; }
     if (k === 'csx') { quitarSub(a.closest('.pp-csub')); return; }
     if (t.closest('.pp-ck, input, select, button, [contenteditable="plaintext-only"], .mx-sel, .mx-f')) return;
     if (e.detail >= 2) { clearTimeout(CARD.cierre); return; }
     CARD.peq = false;
+    if (CARD.amplia) return;                   // widened, a click inside never closes it (D-205)
     const fuera = !c.contains(t);
     if (CARD.ed) { if (fuera) editar(false); return; }
     if (fuera) { cerrarCard(); return; }
@@ -820,6 +1043,9 @@
   function alDobleClic(e) {
     if (CARD && enCard(e.target)) {            // writing, where it was double clicked (the double click that opened it: at the end)
       clearTimeout(CARD.cierre);
+      if (CARD.ext) { if (CARD.ext.dbl) CARD.ext.dbl(e); return; }
+      if (CARD.ampT && Date.now() - CARD.ampT < DBL) return;   // the second click of a double click on «Ampliar», now under it
+      if (e.target.closest('[data-pp="ampliar"], a.pp-ea, .pp-em.ca[data-ln]')) return;
       if (!CARD.ed && !e.target.closest('.pp-ck, [data-pp="foto"]')) editar(true, CARD.peq ? null : { x: e.clientX, y: e.clientY });
       return;
     }
@@ -830,6 +1056,7 @@
   function alCambiar(e) {
     if (!st.on || !page || !(page.contains(e.target) || enCard(e.target))) return;
     const t = e.target;
+    if (CARD && CARD.ext && enCard(t) && CARD.ext.cambio && CARD.ext.cambio(e)) return;   // a session's sheet, a sporadic client's file (sesiones.js)
     // the card's date and client (D-182): saved at once, the card stays as it is (its control is finishing its gesture)
     if (t.matches('.pp-cfecha')) { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.fecha = v; else delete x.fecha; return x; }).then(() => pintar()); return; }
     if (t.matches('.pp-ccli')) { const v = t.value && cliDe(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.cliente = v; else delete x.cliente; return x; }).then(() => pintar()); return; }
@@ -848,10 +1075,14 @@
   }
   function alTeclear(e) {
     if (!st.on || !page) return;
+    if (menu && e.key === 'Escape') return;    // the menu closes on its own (its keys), never the card under it
     const t = e.target;
     if (CARD) {                                // the card: Esc goes back to reading or closes; Enter on it writes (D-182)
       const det = I().root().querySelector('.detail'), ctl = M.controles && M.controles.abierto && M.controles.abierto();
-      if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); if (CARD.ed) editar(false); else cerrarCard(); return; }
+      if (e.key === 'Escape' && ES() && ES().menuAbierto()) return;   // the «/» menu closes on its own and «/…» stays (D-204)
+      if (CARD.ext && CARD.ext.tecla && !ctl && !(det && !det.hidden) && CARD.ext.tecla(e)) return;
+      if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); if (CARD.ed) editar(false); else if (CARD.amplia) ampliar(false); else cerrarCard(); return; }
+      if ((e.key === ' ' || e.key === 'Enter') && t.matches && t.matches('.pp-em.ca[data-ln]') && enCard(t) && !CARD.ed) { e.preventDefault(); marcarEnTexto(t); return; }
       if (e.key === 'Enter' && !CARD.ed && t === ov.firstChild) { e.preventDefault(); editar(true); return; }
       if (e.key === 'Enter' && t.matches && t.matches('[data-pp="ct"]') && !e.isComposing) {   // the title is one line: Enter goes to the details
         e.preventDefault(); const d = ov.querySelector('[data-pp="cd"]'); if (d) { d.focus(); const g = getSelection(), rg = document.createRange(); rg.selectNodeContents(d); rg.collapse(false); g.removeAllRanges(); g.addRange(rg); } return;
@@ -863,38 +1094,65 @@
     }
     // ⌘Z / ⇧⌘Z: the tasks' own, never the hidden board's; a text being written undoes its own typing
     if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
+      // right after «Tarea» of the «/» menu (its title still empty) or «[] » that became a subtask: the Mesa's (D-203, D-204)
+      if (!e.shiftKey && CARD && CARD.cmdVolver && t && t.matches && t.matches('[data-pp="ct"]') && !t.textContent.trim()) { e.preventDefault(); e.stopImmediatePropagation(); volverDeTarea(); return; }
+      if (!e.shiftKey && CARD && CARD.subPend && t && t.matches && t.matches('.pp-cst') && CARD.subPend.f.contains(t) && t.value === CARD.subPend.v) { e.preventDefault(); e.stopImmediatePropagation(); deshacerSub(); return; }
       const det = I().root().querySelector('.detail');
       if ((t && (t.isContentEditable || (t.tagName === 'INPUT' && /^(text|search|)$/.test(t.type || '')) || t.tagName === 'TEXTAREA')) || (det && !det.hidden)) return;
       e.preventDefault(); e.stopImmediatePropagation();
       deshacer(e.shiftKey); return;
     }
     if (!page.contains(t)) return;
-    if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); crearDesdeCampo(false); return; }
+    if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing && !(ES() && ES().menuDe(t))) { e.preventDefault(); crearDesdeCampo(false); return; }
     if ((e.key === 'Enter' || e.key === ' ') && t.matches('[data-pp="tver"]')) { e.preventDefault(); abrirCard(t.dataset.id); return; }
   }
   function alEscribir(e) {                     // what is written in the card goes in after a pause (D-182, D-183)
+    if (CARD && CARD.ext && enCard(e.target)) { if (CARD.ext.escribir) CARD.ext.escribir(e); return; }
     const p = e.target.closest && e.target.closest('[data-pp="ct"], [data-pp="cn"], [data-pp="cd"], [data-pp="cst"]'); if (!p || !st.on || !CARD || !enCard(p)) return;
-    if (p.dataset.pp === 'cst') barraEd();
+    if (p.dataset.pp === 'cst') { barraEd(); if (CARD.subPend && CARD.subPend.f.contains(p) && p.value !== CARD.subPend.v) CARD.subPend = null; }
+    if (p.dataset.pp === 'ct' && CARD.cmdVolver && p.textContent.trim()) CARD.cmdVolver = null;
     clearTimeout(cardT); cardT = setTimeout(() => guardarCard(false), 400);
   }
   function alMenu(e) {
     if (!st.on || !page || !page.contains(e.target)) return;
     const t = e.target.closest('[data-tid]:not([data-tid="nueva"])'), n = e.target.closest('[data-nid]');
     if (n) { e.preventDefault(); const id = n.dataset.nid; abrirMenu(e.clientX, e.clientY, [['borrar', 'Borrar nota', async () => { await borrar(id); pintar(); }]]); return; }
+    const eb = e.target.closest('[data-pp="esp"]');
+    if (eb && TK.has(eb.dataset.id)) { e.preventDefault(); const id = eb.dataset.id; abrirMenu(e.clientX, e.clientY, menuEsp(id)); return; }
     if (!t || !TK.has(t.dataset.tid)) return;
     e.preventDefault();
     const id = t.dataset.tid, r = TK.get(id), l = [];
+    if (r.tipo === 'sesion') { abrirMenu(e.clientX, e.clientY, menuSesion(id)); return; }
     if ((r.fotos || []).length) l.push(['sinfotos', r.fotos.length === 1 ? 'Quitar la foto' : 'Quitar las fotos', async () => { await cambiar(id, x => { delete x.fotos; return x; }); pintar(); }]);
     l.push(['borrar', 'Borrar tarea', async () => { await borrar(id); pintar(); }]);
     abrirMenu(e.clientX, e.clientY, l);
+  }
+  // a session's menu (right click and its «⋯»): «Quitar las fotos» if it has any (also where they were placed) and «Borrar sesión»
+  function menuSesion(id, extra) {
+    const r = TK.get(id), n = (r && r.fotos || []).length, l = [];
+    if (n) l.push(['sinfotos', n === 1 ? 'Quitar la foto' : 'Quitar las fotos', async () => { await cambiar(id, x => { delete x.fotos; if (x.sesion) for (const a of x.sesion.apartados || []) { (a.pestanas || []).forEach(p => (p.items || []).forEach(i => { i.fotos = []; })); (a.grupos || []).forEach(g => { g.fotos = []; }); } return x; }); pintar(); }]);
+    if (extra) l.push(...extra);
+    l.push(['borrar', 'Borrar sesión', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }]);
+    return l;
+  }
+  // a sporadic client's: «Borrar esporádico», off while it has sessions, tasks or notes (D-201, D-207)
+  function menuEsp(id) {
+    const tiene = vivos().some(k => k.cliente === id && k.tipo !== 'esporadico');
+    return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }, tiene, tiene ? 'Tiene sesiones, tareas o notas' : '']];
+  }
+  // «Reprogramar» of a session gone past: the mesa's calendar under the button; the new day, a step of ⌘Z (D-206)
+  function reprogramar(id, b) {
+    const r = TK.get(id); if (!r) return;
+    pedirFecha(b.getBoundingClientRect(), { valor: r.fecha || '' }, v => { if (v && v !== r.fecha) cambiar(id, x => { x.fecha = v; return x; }).then(() => pintar()); });
   }
   // files over the page: only a task or «Nueva tarea» takes them; nothing reaches the hidden board's tray
   const conArchivos = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
   let sobre = null;
   const marcarSobre = el => { if (sobre && sobre !== el) sobre.classList.remove('pp-drop'); sobre = el; if (el) el.classList.add('pp-drop'); };
-  const destino = e => { const t = e.target.closest && e.target.closest('[data-tid]'); return t && (t.dataset.tid === 'nueva' || TK.has(t.dataset.tid)) ? t : null; };
+  const destino = e => { const t = e.target.closest && e.target.closest('[data-tid]'); return t && (t.dataset.tid === 'nueva' || (TK.has(t.dataset.tid) && TK.get(t.dataset.tid).tipo === 'tarea')) ? t : null; };   // a session's photos go in its sheet, to their own store (D-206)
   function alArrastrar(e) {                    // capture on the mesa: with the page open, files only go to the page's targets
     if (!st.on || !conArchivos(e)) return;
+    if (CARD && CARD.ext && enCard(e.target)) { if (e.type !== 'dragleave') { e.preventDefault(); e.stopPropagation(); } if (CARD.ext.archivos) CARD.ext.archivos(e); else if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'; return; }
     const dentro = page && page.contains(e.target);
     if (e.type === 'dragleave') { if (!dentro || !page.contains(e.relatedTarget)) marcarSobre(null); return; }
     e.preventDefault(); e.stopPropagation();
@@ -937,7 +1195,7 @@
     // up to date on its own: every minute (D-120's sweep), on coming back to the tab and with another tab's tasks
     tic = setInterval(() => { if (st.on && document.visibilityState === 'visible') refrescar(); }, 60000);
     on(document, 'visibilitychange', () => { if (st.on && document.visibilityState === 'visible') refrescar(); });
-    let rT = 0; on(window, 'resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
+    let rT = 0; on(window, 'resize', () => { if (CARD && CARD.amplia) colocarAmplia(); clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
     try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (e.data && e.data.t === 'tareas' && st.on) refrescar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
     on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);
@@ -959,10 +1217,23 @@
     // the mesa starts on the page: not in «Vista cliente» nor after a reload inside a client (this tab's session)
     if (!root.classList.contains('client') && ssGet(SS_CLI) !== '1') abrir();
   }
+  // what sesiones.js reads (one file, one page: never a name of window.MESA, D-206)
+  // a sporadic client passed to a monthly one (D-207): the steps of ⌘Z that bring back one of its records bring it with its new client
+  function remapH(f, sinId) {
+    for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
+  }
+  const _p = {
+    EXT, TK, I, esc, ICO, st, avatar, cliDe, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
+    hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
+    pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
+    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL,
+    get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
+    cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }
+  };
   M.personal = {
-    version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar,
+    version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
     datos: async () => { const d = await leer(); return calcular(d); },
-    tareas: async () => { await leer(); return [...TK.values()].map(copia); },
+    tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),
     set: o => { Object.assign(st, o); pintar(); return refrescar(); },
@@ -1185,10 +1456,30 @@
 /* the notes: small post-its in a row above the list */
 #mesa .pp-pn{display:flex;gap:8px;margin:0 0 12px;overflow-x:auto;padding:2px 2px 4px;margin-left:-2px}
 #mesa .pp-pt{position:relative;display:flex;flex:0 0 172px;height:64px;padding:8px 10px;min-width:0;border-radius:var(--r-xs);background:var(--postit-2);color:var(--postit-ink);box-shadow:var(--shadow-xs);font-size:12px;line-height:1.35}
-#mesa .pp-ptx{flex:1;margin:0;min-width:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#mesa .pp-ptx{flex:1;margin:0;min-width:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}
+#mesa .pp-ptx .pp-el{display:block}
 #mesa .pp-pt{cursor:pointer;transition:box-shadow var(--d1) var(--ease)}#mesa .pp-pt:hover{box-shadow:var(--shadow-xs),0 0 0 1px var(--postit-3)}
 #mesa .pp [data-pp="tver"]{cursor:pointer;outline:none}#mesa .pp :is(.pp-tk,.pp-fi,.pp-av.tarea){cursor:pointer}
 #mesa .pp [data-pp="tver"]:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-xs)}
+/* sessions (D-206): as a task, with the clapperboard and their time; «Reprogramar» when one went past */
+#mesa .pp-tses{flex:none;display:inline-flex;width:15px;height:15px;color:var(--mute)}#mesa .pp-tses svg{width:15px;height:15px}
+#mesa .pp-fi .pp-tses{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-tses svg{width:13px;height:13px}
+#mesa .pp-fi .pp-tt em{font-style:normal;color:var(--mute)}
+#mesa .pp-mt.ses svg{width:11px;height:11px;margin-right:3px;vertical-align:-1px;color:var(--mute)}
+#mesa .pp-av.repro{grid-template-columns:28px 42px 32px minmax(0,1fr) auto}
+#mesa .pp-repro{grid-row:1 / span 2;grid-column:5}
+#mesa .pp-repro svg{width:13px;height:13px}
+#mesa .pp-av.ses .pp-cu{line-height:1.25}
+/* the sporadic clients (E2, D-207): «Mensuales · Esporádicos» next to the title, their blocks, «+ Esporádico» */
+#mesa .pp-phl{display:inline-flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+#mesa .pp-tcv button span{font-weight:400;color:var(--mute);margin-left:3px}#mesa .pp-tcv button.on span{color:var(--ink-2)}
+#mesa .pp-esb{gap:10px}
+#mesa .pp-esf{display:flex;align-items:center;gap:8px;min-width:0;padding:7px 10px;border-radius:var(--r-sm);background:var(--bg-2);font-size:12.5px}
+#mesa .pp-esf svg{flex:none;width:14px;height:14px;color:var(--mute)}
+#mesa .pp-esf b{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .pp-esf span{flex:none;color:var(--mute);white-space:nowrap}
+#mesa .pp-esb:hover .pp-esf{background:var(--bg-3)}
+#mesa .pp-esn{margin:6px 0 2px 8px}
 /* a task or a note big (D-182): one card over the page, to read; a double click writes in it */
 #mesa .pp-ov{position:absolute;inset:0;z-index:4;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .pp-ov.entra{animation:pp-ovin var(--d2) var(--ease)}#mesa .pp-ov.entra .pp-card{animation:pp-cardin var(--d2) var(--ease)}
@@ -1196,7 +1487,7 @@
 @keyframes pp-ovin{from{opacity:0}}@keyframes pp-ovout{to{opacity:0}}
 @keyframes pp-cardin{from{opacity:0;transform:scale(.97)}}@keyframes pp-cardout{to{opacity:0;transform:scale(.97)}}
 #mesa .pp-ov svg{stroke-width:var(--i-trazo)}#mesa .pp-ov svg :is(path,rect,circle,line){vector-effect:non-scaling-stroke}
-#mesa .pp-card{width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:22px 24px 20px;outline:none}
+#mesa .pp-card{position:relative;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:22px 24px 20px;outline:none}
 #mesa .pp-ch{display:flex;align-items:flex-start;gap:12px}
 #mesa .pp-ch .pp-ck{margin-top:6px;width:17px;height:17px}
 #mesa .pp-ct{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:650;line-height:1.3;text-wrap:pretty;overflow-wrap:anywhere;outline:none}
@@ -1233,6 +1524,25 @@
 #mesa .pp-card.nota{width:min(440px,100%);min-height:280px;display:flex;background:var(--postit-2);color:var(--postit-ink);border-radius:var(--r-sm);padding:22px 24px}
 #mesa .pp-cn{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
 #mesa .pp-card.nota.ed{box-shadow:var(--shadow-lg),0 0 0 2px var(--postit-3)}#mesa .pp-card.nota.ed .pp-cn{cursor:text}
+/* widen (D-205): the icon on the top right; widened, the whole page under the mesa's header */
+#mesa .pp-amp{position:absolute;top:10px;right:10px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;z-index:2}
+#mesa .pp-amp svg{width:16px;height:16px}
+#mesa .pp-amp:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .pp-ch{padding-right:28px}
+#mesa .pp-card.nota{padding-right:44px}
+#mesa .pp-card.nota .pp-amp{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
+#mesa .pp-card.nota .pp-amp:hover{background:var(--postit-3);color:var(--postit-ink)}
+#mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
+#mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
+#mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
+#mesa .pp-card.amplia .pp-amp{top:16px;right:16px}
+#mesa .pp-card.amplia:not(.nota){display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,470px);column-gap:56px;align-content:start}
+#mesa .pp-card.amplia > .pp-ch,#mesa .pp-card.amplia > .pp-cm,#mesa .pp-card.amplia > .pp-cfo{grid-column:1 / -1}
+#mesa .pp-card.amplia > .pp-cd{grid-column:1;margin-top:24px}
+#mesa .pp-card.amplia > .pp-cs{grid-column:2;margin:30px 0 0}
+#mesa .pp-card.amplia .pp-ct{font-size:26px}
+#mesa .pp-card.amplia .pp-cn{font-size:16px}
+#mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
 @media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
@@ -1245,6 +1555,8 @@
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
   #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
+  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:36px 20px 32px}
+  #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}
 }
 `;
   // the mesa never waits for this file: this file waits for the mesa's shell (put in the body when the mesa opens)

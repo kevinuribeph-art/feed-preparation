@@ -29,8 +29,12 @@
     fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
     texto: svg('<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>'),
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
-    x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>')
+    x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    ampliar: svg('<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/>'),
+    reducir: svg('<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>')
   };
+  const ES = () => (M.escritura && M.escritura.html ? M.escritura : null);   // the quick writing (escritura.js, D-202); without it, plain text as before
+  const leerTxt = (t, o) => { const E = ES(); return E ? E.html(t, o) : esc(t); };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* storage off */ } };
   const ssGet = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
@@ -94,6 +98,7 @@
     const ts = (await X.idbAll('tareas').catch(() => [])) || [];
     const antes = new Map(TK);
     TK.clear(); for (const t of ts) if (t && t.id) TK.set(t.id, t);
+    for (const [id, r] of antes) if (r._b) TK.set(id, r);   // a new task still being written (not made yet) stays
     for (const [id, g] of TOCADA) if (g > g0) { const r = antes.get(id); if (r) TK.set(id, r); else TK.delete(id); }   // written while this read
     for (const [id, r] of PEND) { if (r) TK.set(id, r); else TK.delete(id); }   // a write still on its way wins over what was read
     return { CL: X.CL.slice(), boards };
@@ -189,7 +194,7 @@
       if (g.dia === hoy || g.dia === man) items.push({ ...it, cat: 'hoy' });
       else if (enV(g.dia)) items.push({ ...it, cat: 'falta' });
     }
-    if (st.avTareas) for (const k of TK.values()) {   // the tasks, only with the switch of Avisos (D-180)
+    if (st.avTareas) for (const k of vivos()) {   // the tasks, only with the switch of Avisos (D-180)
       if (k.tipo !== 'tarea' || !k.fecha) continue;
       const hechaAntes = k.hecha && X.localDay(k.hecha) < hoy; if (hechaAntes) continue;
       const it = { tipo: 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, ts: utc(k.fecha), hecha: !!k.hecha };
@@ -216,7 +221,7 @@
       if (enV(d)) { pubs++; if (!['programado', 'publicado'].includes(e)) pubSin++; }   // reels too (D-181)
     }
     for (const h of Q.hsCli.get(c.id) || []) { const x = at[h.dia]; if (x) x.h++; if (enV(h.dia)) { hs++; if (!h.prog) hsSin++; } }
-    const tk = [...TK.values()].filter(k => k.tipo === 'tarea' && k.cliente === c.id && !k.hecha);
+    const tk = vivos().filter(k => k.tipo === 'tarea' && k.cliente === c.id && !k.hecha);
     for (const k of tk) if (k.fecha && at[k.fecha]) at[k.fecha].t++;
     return { c, meses, dias, pubs, pubSin, hs, hsSin, tareas: tk.length };
   }
@@ -310,8 +315,10 @@
   const cabPlg = (k, t, n, pl) => `<button type="button" class="pp-fold" data-pp="plegar" data-p="${k}" aria-expanded="${!pl}" title="${pl ? 'Desplegar' : 'Plegar'} ${t.toLowerCase()}"><b>${t}</b>${n ? `<span>${n}</span>` : ''}</button>`;
 
   // ---------- tasks and notes ----------
-  const tareas = () => [...TK.values()].filter(k => k.tipo === 'tarea');
-  const notas = () => [...TK.values()].filter(k => k.tipo === 'nota').sort((a, b) => String(a.creada).localeCompare(String(b.creada)));
+  const vivos = () => [...TK.values()].filter(k => !k._b);   // what is made (a new task still being written isn't, D-203)
+  const tareas = () => vivos().filter(k => k.tipo === 'tarea');
+  const notas = () => vivos().filter(k => k.tipo === 'nota').sort((a, b) => String(a.creada).localeCompare(String(b.creada)));
+  const cliOk = id => !!cliDe(id);
   const hechaHoy = (k, hoy) => !!k.hecha && I().localDay(k.hecha) >= hoy;
   const RANGO = { sem: ['1 semana', '1S'], '1m': ['1 mes', '1M'], '2m': ['2 meses', '2M'], '3m': ['3 meses', '3M'] };
   function alcance(hoy) {                      // back and ahead from today
@@ -324,7 +331,7 @@
   const fotosURL = f => { if (!f || !f.mini) return ''; let u = MINI.get(f.id); if (!u) { u = URL.createObjectURL(f.mini); MINI.set(f.id, u); } return u; };
   function tareasHTML(R) {
     const X = I(), hoy = R.hoy, todas = tareas(), fin = addD(hoy, 6);
-    const conT = R.filas.map(f => f.c).filter(c => [...TK.values()].some(k => k.cliente === c.id && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks or notes
+    const conT = R.filas.map(f => f.c).filter(c => vivos().some(k => k.cliente === c.id && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks or notes
     if (st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
     const l = todas.filter(k => !st.tcli || k.cliente === st.tcli);
     const venc = k => !k.hecha && k.fecha && k.fecha < hoy;
@@ -380,7 +387,8 @@
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
-    const pn = ns.length ? `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" ${ver(n)} aria-label="Nota: ${esc(n.txt)}"><p class="pp-ptx">${esc(n.txt)}</p></div>`).join('')}</div>` : '';
+    // the small post-it draws the marks without using them: a click opens the note (D-202)
+    const pn = ns.length ? `<div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${esc(n.id)}" ${ver(n)} aria-label="Nota: ${esc(n.txt)}"><div class="pp-ptx">${leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div>` : '';
     return `<div class="pp-pc">${nueva}<div class="pp-tfila">${filtro}${barra}</div>${pn}<div class="pp-tv${der ? ' dos' : ''}"><div class="pp-tvi">${izq}</div>${der}</div></div>`;
   }
   const segVista = () => `<div class="seg pp-tvs" role="group" aria-label="Vista de las tareas">${[['lista', 'Lista'], ['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => `<button type="button" class="${st.vista === k ? 'on' : ''}" data-pp="tvista" data-v="${k}" aria-pressed="${st.vista === k}">${l}</button>`).join('')}</div>`;
@@ -535,12 +543,12 @@
     await escribir(paso.map(p => ({ id: p.id, despues: p.despues })));
     return true;
   }
-  async function deshacer(re) {
+  async function deshacer(re, sinCard) {        // sinCard: the card being written in stays as it is (a «/» command undone, D-204)
     if (!puede()) return false;
     const de = re ? H.r : H.u, a = re ? H.u : H.r, paso = de.pop(); if (!paso) return false;
     a.push(paso);
     await escribir(paso.map(p => ({ id: p.id, despues: copia(re ? p.despues : p.antes) })));
-    pintar(); pintarCard(true); return true;
+    pintar(); if (!sinCard) pintarCard(true); return true;
   }
   const ahoraISO = () => new Date(I().ahora()).toISOString();
   async function nuevaTarea(o = {}) {
@@ -586,17 +594,19 @@
   const enCard = el => !!(ov && el && el.nodeType === 1 && ov.contains(el));
   const pocoMov = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const fechaLarga = d => `${DS[dow(d)]} ${+d.slice(8, 10)} ${MES[+d.slice(5, 7) - 1]}${d.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + d.slice(0, 4) : ''}`;
+  // the icon that widens the card to the whole page under the mesa's header, and brings it back (D-205)
+  const ampBtn = () => { const a = !!(CARD && CARD.amplia); return `<button type="button" class="ibtn pp-amp" data-pp="ampliar" title="${a ? 'Reducir' : 'Ampliar'}" aria-label="${a ? 'Reducir' : 'Ampliar'}" aria-pressed="${a}">${a ? ICO.reducir : ICO.ampliar}</button>`; };
   function htmlCard(r, ed) {
-    const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '';
-    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1"><p class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${esc(r.txt)}</p></div>`;
+    const X = I(), ce = ed ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox"' : '', amp = CARD && CARD.amplia ? ' amplia' : '';
+    if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${ampBtn()}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="${venc ? 'rojo' : ''}">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';
     const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${((D && D.CL) || X.CL).map(x => `<option value="${esc(x.id)}"${r.cliente === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></span>`
       : c ? `<span>${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
-    return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
-      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p></div>`
+    return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
+      + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${ampBtn()}</div>`
       + (fecha || cli ? `<div class="pp-cm">${fecha}${cli}</div>` : '') + fotos + detSub(r, ed) + `</div>`;
   }
   // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
@@ -606,7 +616,7 @@
   function detSub(r, ed) {
     const dt = String(r.detalles || ''), subs = r.subtareas || [], n = subs.length, h = subs.filter(x => x.hecha).length;
     const det = ed ? `<div class="pp-cd" data-pp="cd" data-id="${esc(r.id)}" contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Detalles" data-ph="Detalles">${esc(dt)}</div>`
-      : `<div class="pp-cd${dt.trim() ? '' : ' vacio'}">${dt.trim() ? esc(dt) : 'Detalles'}</div>`;
+      : `<div class="pp-cd${dt.trim() ? '' : ' vacio'}">${dt.trim() ? leerTxt(dt, { enlaces: true }) : 'Detalles'}</div>`;
     return det + `<div class="pp-cs">${n ? `<div class="pp-csh">${barraPg(h, n)}<span>${h}/${n}</span></div>` : ''}<div class="pp-csl">${subs.map(x => filaSub(r.id, x, ed)).join('')}</div>`
       + `<button type="button" class="pp-cmas" data-pp="cmas">${ICO.mas}Subtarea</button></div>`;
   }
@@ -618,15 +628,48 @@
     if (!hd) { hd = document.createElement('div'); hd.className = 'pp-csh'; cs.prepend(hd); }
     hd.innerHTML = `${barraPg(h, n)}<span>${h}/${n}</span>`;
   }
-  function nuevaSub(tras) {                    // a new subtask, being written: it goes in once something is written in it
-    if (!CARD) return;
+  function nuevaSub(tras, o = {}) {            // a new subtask, being written: it goes in once something is written in it
+    if (!CARD) return null;
     if (!CARD.ed) editar(true);
-    const l = ov && ov.querySelector('.pp-csl'); if (!l) return;
-    const d = document.createElement('div'); d.innerHTML = filaSub(CARD.id, { id: 'nueva', txt: '' }, true);
+    const l = ov && ov.querySelector('.pp-csl'); if (!l) return null;
+    const d = document.createElement('div'); d.innerHTML = filaSub(CARD.id, { id: 'nueva', txt: o.txt || '', hecha: !!o.hecha }, true);
     const f = d.firstChild; f.dataset.nueva = '1';
     if (tras) tras.after(f); else l.append(f);
-    f.querySelector('.pp-cst').focus();
+    if (o.foco !== false) { const i = f.querySelector('.pp-cst'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    return f;
   }
+  // «[] » typed in «Detalles»: the line became a subtask, written here (D-183, D-203); ⌘Z right after (before writing in
+  // it) takes it away and puts «[] » back in the text
+  function casillaASub(o) {
+    const f = nuevaSub(null, { txt: o.txt, hecha: o.hecha }); if (!f) return;
+    CARD.subPend = { f, v: f.querySelector('.pp-cst').value, deshacer: o.deshacer };
+    barraEd(); if (o.txt.trim()) guardarCard(false);
+  }
+  function pegarSubs(l) {                      // «[] » lines pasted in «Detalles»: subtasks, after the others
+    for (const x of l) if (x.txt.trim()) nuevaSub(null, { txt: x.txt, hecha: x.hecha, foco: false });
+    barraEd(); guardarCard(false);
+  }
+  function deshacerSub() {
+    const p = CARD && CARD.subPend; if (!p) return false;
+    CARD.subPend = null;
+    if (!p.f.isConnected) return false;
+    p.f.remove(); barraEd();
+    p.deshacer(); guardarCard(false);
+    return true;
+  }
+  // writing in the card: the note and «Detalles» take the marks and the «/» menu (escritura.js, D-202–D-204)
+  function cmdsDe(campo) {
+    const ext = EXT.sesion && EXT.sesion.nueva ? ['sesion'] : [];
+    return campo === 'det' ? [...ext, 'fecha', 'lista', 'numerada', 'casilla'] : [...ext, 'tarea', 'fecha', 'lista', 'numerada', 'casilla'];
+  }
+  function activarCampos() {
+    const E = ES(); if (!E || !ov || !CARD || !CARD.ed) return;
+    const cn = ov.querySelector('[data-pp="cn"][contenteditable]');
+    if (cn) E.activar(cn, { comandos: () => cmdsDe('nota'), alComando: (k, ctx) => comando(k, ctx, 'nota') });
+    const cd = ov.querySelector('[data-pp="cd"][contenteditable]');
+    if (cd) E.activar(cd, { subtareas: true, comandos: () => cmdsDe('det'), desc: { fecha: 'Le pone la fecha a la tarea', casilla: 'Una subtarea' }, alComando: (k, ctx) => comando(k, ctx, 'det'), alCasilla: casillaASub, alPegarCasillas: pegarSubs });
+  }
+  function apagarCampos() { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.apagar) x._esc.apagar(); }); }
   function quitarSub(f, foco) {
     if (!f || !CARD) return;
     const p = f.previousElementSibling, n = f.nextElementSibling; f.remove(); guardarCard(false); barraEd();
@@ -639,29 +682,40 @@
     if (CARD.ed && !forzar) { CARD.pend = true; return; }
     CARD.pend = false;
     const enfocada = enCard(document.activeElement);
+    apagarCampos();
+    if (CARD.ext) { CARD.ext.pintar(r); return; }
     ov.innerHTML = htmlCard(r, CARD.ed);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
+    activarCampos();
     if (enfocada && !CARD.ed) ov.firstChild.focus({ preventScroll: true });
   }
+  // the kinds of card other files draw (sesiones.js: a session's sheet, a sporadic client's file): {pintar, clic, dbl, tecla,
+  // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
+  const EXT = {};
   function abrirCard(id, o = {}) {
     const r = TK.get(id), X = I(); if (!r || !st.on) return false;
     cerrarMenu(); if (CARD) quitarCard();
-    ov = document.createElement('div'); ov.className = 'pp-ov entra'; ov.dataset.pp = 'ov';
+    const ext = o.ext || (r.tipo === 'sesion' && EXT.sesion ? EXT.sesion : r.tipo === 'esporadico' && EXT.ficha ? EXT.ficha : null);
+    ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
     ov.addEventListener('animationend', e => { if (e.target.classList.contains('pp-card')) e.currentTarget.classList.remove('entra'); });
     X.root().append(ov);
-    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: `[data-pp="tver"][data-id="${CSS.escape(id)}"]` };
+    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext };
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it
+    if (ext) { ext.pintar(r, o); return true; }
     ov.innerHTML = htmlCard(r, CARD.ed);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
+    activarCampos();
     if (CARD.ed) enfocar(null); else ov.firstChild.focus({ preventScroll: true });
     return true;
   }
-  function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); ov.remove(); CARD = null; ov = null; }
+  function soltarBorrador() { for (const [id, k] of TK) if (k._b && (!CARD || CARD.id !== id)) TK.delete(id); }
+  function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); apagarCampos(); if (CARD && CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar(); ov.remove(); CARD = null; ov = null; soltarBorrador(); }
   function cerrarCard(ya) {
     if (!CARD) return;
     clearTimeout(CARD.cierre);
     if (CARD.ed && !ya) { guardarCard(); if (!CARD) return; }   // what was written goes in first (an empty note has gone with its card)
-    const o = ov, de = CARD.de; CARD = null; ov = null;
+    apagarCampos(); if (CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar();
+    const o = ov, de = CARD.de; CARD = null; ov = null; soltarBorrador();
     if (ya || pocoMov()) o.remove(); else { o.classList.add('sale'); setTimeout(() => o.remove(), 130); }
     const b = de && page && page.querySelector(de); if (b) b.focus({ preventScroll: true });
     retomar();
@@ -682,9 +736,25 @@
   function editar(on, pt) {
     if (!CARD || CARD.ed === on) return;
     if (!on) { guardarCard(); if (!CARD) return; }
-    CARD.ed = on; clearTimeout(CARD.cierre);
+    CARD.ed = on; clearTimeout(CARD.cierre); CARD.subPend = null;
     pintarCard(true);
     if (on) enfocar(pt); else if (ov) ov.firstChild.focus({ preventScroll: true });
+  }
+  // the card to the whole page under the mesa's header and back (D-205): the same card, only wider; what is being written stays
+  function ampliar(on) {
+    if (!CARD || !ov || CARD.ext || CARD.amplia === on) return;
+    CARD.amplia = on;
+    const c = ov.querySelector('.pp-card'); if (c) c.classList.toggle('amplia', on);
+    ov.classList.toggle('amplia', on); colocarAmplia();
+    const b = ov.querySelector('[data-pp="ampliar"]');
+    if (b) { b.outerHTML = ampBtn(); }
+    requestAnimationFrame(() => { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.dibujar) x._esc.dibujar(); }); });
+  }
+  function colocarAmplia() {                   // under the header, which keeps working
+    if (!ov) return;
+    if (!CARD || !CARD.amplia) { ov.style.top = ''; return; }
+    const root = I().root(), ab = root.querySelector('.appbar'), t = ab ? Math.round(ab.getBoundingClientRect().bottom - root.getBoundingClientRect().top) : 0;
+    ov.style.top = t + 'px';
   }
   // what is written in the card: the title (never empty: an empty one goes back) and a note (empty, it goes, and one never
   // written leaves no step of ⌘Z)
@@ -693,8 +763,18 @@
     clearTimeout(cardT); cardT = null;
     if (!CARD || !ov) return;
     const id = CARD.id, r = TK.get(id); if (!r) return;
+    if (CARD.ext) { if (CARD.ext.guardar) CARD.ext.guardar(fin); return; }
     const t = ov.querySelector('[data-pp="ct"], [data-pp="cn"]'); if (!t) return;
     const txt = r.tipo === 'nota' ? t.textContent : t.textContent.replace(/\s*\n\s*/g, ' ').trim();
+    if (r._b) {                                // a task not made yet («Tarea» of the «/» menu): made with its first title, a step of its own; closed without one, it isn't (D-203)
+      if (!txt) return;
+      const cd = ov.querySelector('[data-pp="cd"]'), subs = [...ov.querySelectorAll('.pp-csub')].map(f => { const i = f.querySelector('.pp-cst'), c = f.querySelector('.pp-ck'); return i && i.value.trim() ? { id: nuevoId('st'), txt: i.value.trim(), ...(c.checked ? { hecha: true } : {}) } : null; }).filter(Boolean);
+      const n = copia(r); n.txt = txt; n.at = ahoraISO(); const det = cd ? cd.textContent.replace(/^\s*\n|\s+$/g, '') : ''; if (det) n.detalles = det; if (subs.length) n.subtareas = subs;
+      TK.delete(id); CARD.cmdVolver = null;
+      ov.querySelectorAll('.pp-csub[data-nueva]').forEach((f, i) => { const s = subs[i]; if (s) { delete f.dataset.nueva; f.dataset.sid = s.id; f.querySelectorAll('[data-sid]').forEach(x => { x.dataset.sid = s.id; }); } });
+      hacer([{ id, despues: n }]).then(() => pintar());
+      return;
+    }
     if (r.tipo !== 'nota') {
       const cd = ov.querySelector('[data-pp="cd"]'), ed = !!ov.querySelector('.pp-cst, [data-pp="cd"]');
       let det = cd ? cd.textContent : String(r.detalles || ''); if (fin) det = det.replace(/^\s*\n|\s+$/g, '');
@@ -716,6 +796,75 @@
       quitarCard(); retomar(); return;
     }
     if (txt !== r.txt) cambiar(id, x => { x.txt = txt; return x; }, 'card:' + id).then(() => pintar());
+  }
+
+  // ---------- the «/» menu's commands (D-204): «Fecha», «Tarea» (and «Sesión», sesiones.js) ----------
+  function comando(k, ctx, campo) {
+    if (k === 'fecha') return cmdFecha(ctx, campo);
+    if (k === 'tarea') return cmdTarea(ctx);
+    if (k === 'sesion' && EXT.sesion && EXT.sesion.nueva) return EXT.sesion.nueva({ ctx, campo, desde: CARD ? TK.get(CARD.id) : null });
+  }
+  // the mesa's own calendar (D-136), under the «/» that asked for it; closed without a day, nothing changes
+  function pedirFecha(r0, o, alElegir) {
+    const X = I(), root = X.root(), w = document.createElement('span');
+    w.className = 'pp-fpick'; w.style.left = Math.round(r0.left) + 'px'; w.style.top = Math.round(r0.top) + 'px'; w.style.height = Math.round(r0.height || 18) + 'px';
+    w.innerHTML = `<input type="date"${o.sinFecha ? ' data-sin-fecha' : ''} value="${esc(o.valor || '')}" aria-label="Fecha">`;
+    root.append(w);
+    const inp = w.firstChild; let hecho = false, vig = 0;
+    const fin = () => { if (hecho) return; hecho = true; clearInterval(vig); setTimeout(() => w.remove(), 0); };
+    inp.addEventListener('change', () => { const v = /^\d{4}-\d{2}-\d{2}$/.test(inp.value) ? inp.value : ''; fin(); alElegir(v); });
+    if (M.controles && M.controles.mejorar) {
+      M.controles.mejorar(w); const g = M.controles.gemelo(inp), t = g && g.querySelector('input');
+      if (!t) { fin(); return; }
+      t.focus({ preventScroll: true }); t.click();
+      vig = setInterval(() => { const a = M.controles.abierto(); if (!a || a.de !== inp) { fin(); if (o.alCerrar) o.alCerrar(); } }, 120);
+    } else { try { inp.showPicker(); } catch (e) { fin(); } inp.addEventListener('blur', () => setTimeout(fin, 300)); }
+  }
+  function cmdFecha(ctx, campo) {
+    const id = CARD.id, el = ctx.ctl.el, r0 = ctx.rect(), vuelta = () => { if (el.isConnected) { el.focus({ preventScroll: true }); ctx.ctl.poner(ctx.b); } };
+    pedirFecha(r0, { sinFecha: campo === 'det', valor: campo === 'det' ? (TK.get(id) || {}).fecha : '', alCerrar: vuelta }, v => {
+      if (!CARD || CARD.id !== id || !el.isConnected) return;
+      el.focus({ preventScroll: true });
+      if (campo === 'nota') { if (!v) { vuelta(); return; } ctx.poner(ES().fechaTxt(v)); ctx.ctl.cmd = ctx.volver; return; }   // in a note, written as text
+      // in «Detalles», the task's date (D-182) and «/…» goes: one step of its own; ⌘Z right after puts both back
+      ctx.quitar(); clearTimeout(cardT); cardT = null;
+      const det = el.textContent, f = ov.querySelector('.pp-cfecha');
+      cambiar(id, x => { if (v) x.fecha = v; else delete x.fecha; x.detalles = det; if (!det) delete x.detalles; return x; }).then(() => pintar());
+      if (f) f.value = v;
+      ctx.ctl.cmd = () => { deshacer(false, true).then(() => { const k = TK.get(id), g = ov && ov.querySelector('.pp-cfecha'); if (g && k) g.value = k.fecha || ''; }); ctx.volver(); };
+    });
+  }
+  // «Tarea»: «/…» goes from the note and a new task opens big, its title being written; closed without a title it isn't made.
+  // ⌘Z right after (its title still empty) closes it and the note comes back as it was, with «/…»
+  function cmdTarea(ctx) {
+    const nota = TK.get(CARD.id); if (!nota) return;
+    const v = { nota: nota.id, antes: ctx.texto, caret: ctx.b };
+    ctx.quitar(); cerrarCard();
+    const k = borrador({ cliente: nota.cliente, fecha: ctx.fecha });
+    if (k && CARD) CARD.cmdVolver = v;
+  }
+  function borrador(o = {}) {
+    const now = ahoraISO(), r = { id: nuevoId('tk'), tipo: 'tarea', txt: '', creada: now, at: now };
+    if (o.cliente && cliOk(o.cliente)) r.cliente = o.cliente;
+    if (o.fecha && /^\d{4}-\d{2}-\d{2}$/.test(o.fecha)) r.fecha = o.fecha;
+    Object.defineProperty(r, '_b', { value: true, enumerable: false, configurable: true });   // never in a copy, an export or a write
+    TK.set(r.id, r);
+    abrirCard(r.id, { ed: true, de: o.de });
+    return r;
+  }
+  async function volverDeTarea() {
+    const v = CARD && CARD.cmdVolver; if (!v) return;
+    CARD.cmdVolver = null; cerrarCard(true);
+    await enmendar(v.nota, x => { x.txt = v.antes; return x; });
+    pintar();
+    if (abrirCard(v.nota, { ed: true })) { const el = ov && ov.querySelector('[data-pp="cn"]'); if (el && el._esc) el._esc.poner(Math.min(v.caret, el.textContent.length)); }
+  }
+  // the last step on this record takes the change in (so a ⌘Z goes back to before it as one), or a step of its own
+  async function enmendar(id, f) {
+    const u = H.u[H.u.length - 1], p = u && u.length === 1 && u[0].id === id ? u[0] : null, r = TK.get(id); if (!r) return false;
+    if (!p) return cambiar(id, f);
+    const n = f(copia(r)); if (!n) return false; n.at = ahoraISO(); p.despues = copia(n); H.r = [];
+    await escribir([{ id, despues: n }]); return true;
   }
 
   // ---------- the right-click menu of a task or a note (the mesa's menu, .cpmenu) ----------
@@ -800,18 +949,32 @@
     if (k === 'abrir') { abrirPost(a.dataset.key, a.dataset.slot); return; }
     if (k === 'hs') { (async () => { const key = a.dataset.key; if (X.S && X.S.key === key) cerrar(); else if (!(await abrirTablero(() => M.open(key)))) return; if (M.hs && M.hs.ver) M.hs.ver(true); })(); return; }
   }
+  function marcarEnTexto(cas) {                // «[] » ↔ «[x] » in the note or the details, read: a step of the tasks' ⌘Z (D-204)
+    const E = ES(), id = CARD && CARD.id, r = id && TK.get(id); if (!E || !r) return;
+    const ln = +cas.dataset.ln, det = !!cas.closest('.pp-cd'), n = E.alternar(det ? r.detalles : r.txt, ln); if (n == null) return;
+    const foco = document.activeElement === cas;
+    cambiar(id, x => { if (det) x.detalles = n; else x.txt = n; return x; }).then(() => {
+      pintar();
+      if (foco && ov) { const b = ov.querySelector(`${det ? '.pp-cd' : '.pp-cn'} .pp-em.ca[data-ln="${ln}"]`); if (b) b.focus({ preventScroll: true }); }
+    });
+  }
   // a click on the card: its checkbox and photos work; outside it closes at once (writing, it goes back to reading); on it, it
   // waits what a double click lasts; the second click of a double click never closes it
   function clicCard(e) {
     const t = e.target, c = ov.firstChild;
     if (CARD.pd) { CARD.pd = false; return; }   // the click that closed one of the mesa's menus or calendars
+    if (CARD.ext && CARD.ext.clic && CARD.ext.clic(e)) return;
     const a = t.closest('[data-pp]'), k = a && a.dataset.pp;
+    if (k === 'ampliar') { ampliar(!CARD.amplia); return; }
+    const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !CARD.ed) { marcarEnTexto(cas); return; }   // a checkbox drawn in the text, read: marked (D-204)
+    if (t.closest('a.pp-ea')) return;          // a link opens in another tab; the card stays (D-204)
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cmas') { nuevaSub(); return; }
     if (k === 'csx') { quitarSub(a.closest('.pp-csub')); return; }
     if (t.closest('.pp-ck, input, select, button, [contenteditable="plaintext-only"], .mx-sel, .mx-f')) return;
     if (e.detail >= 2) { clearTimeout(CARD.cierre); return; }
     CARD.peq = false;
+    if (CARD.amplia) return;                   // widened, a click inside never closes it (D-205)
     const fuera = !c.contains(t);
     if (CARD.ed) { if (fuera) editar(false); return; }
     if (fuera) { cerrarCard(); return; }
@@ -820,6 +983,8 @@
   function alDobleClic(e) {
     if (CARD && enCard(e.target)) {            // writing, where it was double clicked (the double click that opened it: at the end)
       clearTimeout(CARD.cierre);
+      if (CARD.ext) { if (CARD.ext.dbl) CARD.ext.dbl(e); return; }
+      if (e.target.closest('[data-pp="ampliar"], a.pp-ea, .pp-em.ca[data-ln]')) return;
       if (!CARD.ed && !e.target.closest('.pp-ck, [data-pp="foto"]')) editar(true, CARD.peq ? null : { x: e.clientX, y: e.clientY });
       return;
     }
@@ -851,7 +1016,10 @@
     const t = e.target;
     if (CARD) {                                // the card: Esc goes back to reading or closes; Enter on it writes (D-182)
       const det = I().root().querySelector('.detail'), ctl = M.controles && M.controles.abierto && M.controles.abierto();
-      if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); if (CARD.ed) editar(false); else cerrarCard(); return; }
+      if (e.key === 'Escape' && ES() && ES().menuAbierto()) return;   // the «/» menu closes on its own and «/…» stays (D-204)
+      if (CARD.ext && CARD.ext.tecla && !ctl && !(det && !det.hidden) && CARD.ext.tecla(e)) return;
+      if (e.key === 'Escape' && !ctl && !(det && !det.hidden) && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); if (CARD.ed) editar(false); else if (CARD.amplia) ampliar(false); else cerrarCard(); return; }
+      if ((e.key === ' ' || e.key === 'Enter') && t.matches && t.matches('.pp-em.ca[data-ln]') && enCard(t) && !CARD.ed) { e.preventDefault(); marcarEnTexto(t); return; }
       if (e.key === 'Enter' && !CARD.ed && t === ov.firstChild) { e.preventDefault(); editar(true); return; }
       if (e.key === 'Enter' && t.matches && t.matches('[data-pp="ct"]') && !e.isComposing) {   // the title is one line: Enter goes to the details
         e.preventDefault(); const d = ov.querySelector('[data-pp="cd"]'); if (d) { d.focus(); const g = getSelection(), rg = document.createRange(); rg.selectNodeContents(d); rg.collapse(false); g.removeAllRanges(); g.addRange(rg); } return;
@@ -863,6 +1031,9 @@
     }
     // ⌘Z / ⇧⌘Z: the tasks' own, never the hidden board's; a text being written undoes its own typing
     if ((e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'z') {
+      // right after «Tarea» of the «/» menu (its title still empty) or «[] » that became a subtask: the Mesa's (D-203, D-204)
+      if (!e.shiftKey && CARD && CARD.cmdVolver && t && t.matches && t.matches('[data-pp="ct"]') && !t.textContent.trim()) { e.preventDefault(); e.stopImmediatePropagation(); volverDeTarea(); return; }
+      if (!e.shiftKey && CARD && CARD.subPend && t && t.matches && t.matches('.pp-cst') && CARD.subPend.f.contains(t) && t.value === CARD.subPend.v) { e.preventDefault(); e.stopImmediatePropagation(); deshacerSub(); return; }
       const det = I().root().querySelector('.detail');
       if ((t && (t.isContentEditable || (t.tagName === 'INPUT' && /^(text|search|)$/.test(t.type || '')) || t.tagName === 'TEXTAREA')) || (det && !det.hidden)) return;
       e.preventDefault(); e.stopImmediatePropagation();
@@ -873,8 +1044,10 @@
     if ((e.key === 'Enter' || e.key === ' ') && t.matches('[data-pp="tver"]')) { e.preventDefault(); abrirCard(t.dataset.id); return; }
   }
   function alEscribir(e) {                     // what is written in the card goes in after a pause (D-182, D-183)
+    if (CARD && CARD.ext && enCard(e.target)) { if (CARD.ext.escribir) CARD.ext.escribir(e); return; }
     const p = e.target.closest && e.target.closest('[data-pp="ct"], [data-pp="cn"], [data-pp="cd"], [data-pp="cst"]'); if (!p || !st.on || !CARD || !enCard(p)) return;
-    if (p.dataset.pp === 'cst') barraEd();
+    if (p.dataset.pp === 'cst') { barraEd(); if (CARD.subPend && CARD.subPend.f.contains(p) && p.value !== CARD.subPend.v) CARD.subPend = null; }
+    if (p.dataset.pp === 'ct' && CARD.cmdVolver && p.textContent.trim()) CARD.cmdVolver = null;
     clearTimeout(cardT); cardT = setTimeout(() => guardarCard(false), 400);
   }
   function alMenu(e) {
@@ -962,7 +1135,7 @@
   M.personal = {
     version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar,
     datos: async () => { const d = await leer(); return calcular(d); },
-    tareas: async () => { await leer(); return [...TK.values()].map(copia); },
+    tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),
     set: o => { Object.assign(st, o); pintar(); return refrescar(); },
@@ -1185,7 +1358,8 @@
 /* the notes: small post-its in a row above the list */
 #mesa .pp-pn{display:flex;gap:8px;margin:0 0 12px;overflow-x:auto;padding:2px 2px 4px;margin-left:-2px}
 #mesa .pp-pt{position:relative;display:flex;flex:0 0 172px;height:64px;padding:8px 10px;min-width:0;border-radius:var(--r-xs);background:var(--postit-2);color:var(--postit-ink);box-shadow:var(--shadow-xs);font-size:12px;line-height:1.35}
-#mesa .pp-ptx{flex:1;margin:0;min-width:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#mesa .pp-ptx{flex:1;margin:0;min-width:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}
+#mesa .pp-ptx .pp-el{display:block}
 #mesa .pp-pt{cursor:pointer;transition:box-shadow var(--d1) var(--ease)}#mesa .pp-pt:hover{box-shadow:var(--shadow-xs),0 0 0 1px var(--postit-3)}
 #mesa .pp [data-pp="tver"]{cursor:pointer;outline:none}#mesa .pp :is(.pp-tk,.pp-fi,.pp-av.tarea){cursor:pointer}
 #mesa .pp [data-pp="tver"]:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-xs)}
@@ -1196,7 +1370,7 @@
 @keyframes pp-ovin{from{opacity:0}}@keyframes pp-ovout{to{opacity:0}}
 @keyframes pp-cardin{from{opacity:0;transform:scale(.97)}}@keyframes pp-cardout{to{opacity:0;transform:scale(.97)}}
 #mesa .pp-ov svg{stroke-width:var(--i-trazo)}#mesa .pp-ov svg :is(path,rect,circle,line){vector-effect:non-scaling-stroke}
-#mesa .pp-card{width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:22px 24px 20px;outline:none}
+#mesa .pp-card{position:relative;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:22px 24px 20px;outline:none}
 #mesa .pp-ch{display:flex;align-items:flex-start;gap:12px}
 #mesa .pp-ch .pp-ck{margin-top:6px;width:17px;height:17px}
 #mesa .pp-ct{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:650;line-height:1.3;text-wrap:pretty;overflow-wrap:anywhere;outline:none}
@@ -1233,6 +1407,25 @@
 #mesa .pp-card.nota{width:min(440px,100%);min-height:280px;display:flex;background:var(--postit-2);color:var(--postit-ink);border-radius:var(--r-sm);padding:22px 24px}
 #mesa .pp-cn{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
 #mesa .pp-card.nota.ed{box-shadow:var(--shadow-lg),0 0 0 2px var(--postit-3)}#mesa .pp-card.nota.ed .pp-cn{cursor:text}
+/* widen (D-205): the icon on the top right; widened, the whole page under the mesa's header */
+#mesa .pp-amp{position:absolute;top:10px;right:10px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;z-index:2}
+#mesa .pp-amp svg{width:16px;height:16px}
+#mesa .pp-amp:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .pp-ch{padding-right:28px}
+#mesa .pp-card.nota{padding-right:44px}
+#mesa .pp-card.nota .pp-amp{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
+#mesa .pp-card.nota .pp-amp:hover{background:var(--postit-3);color:var(--postit-ink)}
+#mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
+#mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
+#mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
+#mesa .pp-card.amplia .pp-amp{top:16px;right:16px}
+#mesa .pp-card.amplia:not(.nota){display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,470px);column-gap:56px;align-content:start}
+#mesa .pp-card.amplia > .pp-ch,#mesa .pp-card.amplia > .pp-cm,#mesa .pp-card.amplia > .pp-cfo{grid-column:1 / -1}
+#mesa .pp-card.amplia > .pp-cd{grid-column:1;margin-top:24px}
+#mesa .pp-card.amplia > .pp-cs{grid-column:2;margin:30px 0 0}
+#mesa .pp-card.amplia .pp-ct{font-size:24px}
+#mesa .pp-card.amplia .pp-cn{font-size:16px}
+#mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
 @media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
@@ -1245,6 +1438,8 @@
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
   #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
+  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:36px 20px 32px}
+  #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}
 }
 `;
   // the mesa never waits for this file: this file waits for the mesa's shell (put in the body when the mesa opens)

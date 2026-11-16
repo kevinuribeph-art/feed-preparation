@@ -7950,7 +7950,7 @@
   prueba('M52', 'Cada módulo dice que cargó entero (MESA_CARGA «ok»), y uno que lanza un error al ejecutarse queda en «fallo» y no en «Cargando…» (D-115)', async () => {
     await tablero([pub(1)]);
     const C = () => W.MESA_CARGA || {};
-    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar', 'controles'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
+    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar', 'controles', 'escritura'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
     // un módulo que llega pero falla al ejecutarse: el aviso de la mesa (index.html) lo marca «fallo»
     W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
     igual(C().revisar, 'ok', 'un error después de cargar marcó «fallo» a un módulo que ya estaba');
@@ -13818,6 +13818,284 @@
       paginaCerrada(); if (antes == null) W.localStorage.removeItem(LS); else W.localStorage.setItem(LS, antes);
       await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar();
     }
+  });
+
+  // =====================================================================================================
+  // escritura rápida en notas, «Detalles» y la tarjeta ampliada (escritura.js, D-202 a D-205)
+  // =====================================================================================================
+  // escribir como el teclado: cada letra con su tecla (si nadie la frena, insertText, como el navegador) e Intro con su tecla
+  // (si nadie la frena, el salto de línea del navegador, insertLineBreak)
+  const naTecla = (el, key, o = {}) => { const e = new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o }); el.dispatchEvent(e); return e.defaultPrevented; };
+  const naFin = el => { const s = W.getSelection(), r = D.createRange(); r.selectNodeContents(el); r.collapse(false); s.removeAllRanges(); s.addRange(r); };
+  async function naEscribe(el, txt) {
+    if (D.activeElement !== el) { el.focus(); naFin(el); }
+    for (const ch of txt) {
+      if (ch === '\n') { if (!naTecla(el, 'Enter')) D.execCommand('insertLineBreak'); }
+      else if (!naTecla(el, ch)) D.execCommand('insertText', false, ch);
+    }
+    await espera(40);
+  }
+  const naCmdZ = el => { if (!naTecla(el, 'z', { metaKey: true })) D.execCommand('undo'); };
+  const naMenu = () => { const m = q('.pp-sm:not([hidden])'); return m ? [...m.querySelectorAll('.pp-smo')].map(b => b.dataset.k + (b.classList.contains('act') ? '*' : '')).join(',') : ''; };
+  async function naNota(txt = '') {            // una nota nueva, en grande y escribiendo
+    await ppClic('.pp-tabs [data-p="tareas"]');
+    const i = q('[data-pp="nueva"]'); i.value = '';
+    q('[data-pp="nota-campo"]').click(); await espera(80);
+    const cn = ppCard() && ppCard().querySelector('[data-pp="cn"][contenteditable]'); ok(cn, 'la nota nueva no se abre escribiendo');
+    if (txt) await naEscribe(cn, txt);
+    return cn;
+  }
+  async function naDetalles(t) {               // una tarea en grande, escribiendo en «Detalles»
+    ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40);
+    const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(40);
+    const cd = ppCard().querySelector('[data-pp="cd"][contenteditable]'); ok(cd, '«Detalles» no se escribe'); cd.focus(); naFin(cd);
+    return cd;
+  }
+
+  prueba('NA1', 'Marcas al escribir (L1): «- », «1. », «[] » / «[ ] » y «[x] » al principio de línea (tras 0, 2, 4… espacios) se dibujan escribiendo y leyendo; «Ibiza - Formentera», «-5», «1/2», «2026. », un espacio duro y una URL no se convierten; se guarda texto plano con sus marcas; sin resaltado de rangos, las marcas en gris (L2) (D-202)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota();
+      cn.textContent = 'Llamada\n- uno\n  - dos\n1. tres\n12. cuatro\n[] cinco\n[ ] seis\n[x] siete\nIbiza - Formentera\n-5 y 1/2\n2026. invierno\n- duro\n   - impar\nhttps://example.com/a/b.';
+      cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(80);
+      const capa = [...ppCard().querySelectorAll('.pp-ecm')].map(x => x.className.replace('pp-ecm ', ''));
+      igual(capa, ['vi', 'vi', 'ca', 'ca', 'ca on'], 'la capa no dibuja las viñetas y casillas: ' + json(capa));
+      const H = W.CSS.highlights;
+      igual(['pp-em', 'pp-en', 'pp-eh', 'pp-ea'].map(k => H.get(k) ? H.get(k).size : 0), [5, 2, 1, 1], 'los resaltados: marcas ocultas, números en gris, hecha tachada, enlace');
+      ppTecla('Escape'); await espera(60);
+      const L = qa('.pp-card .pp-cn .pp-el').map(x => x.className.replace('pp-el', '').trim() || '-');
+      igual(L, ['-', 'vi', 'vi', 'nu', 'nu', 'ca', 'ca', 'ca hecha', '-', '-', '-', '-', '-', '-'], 'leyendo, las líneas: ' + json(L));
+      ok(q('.pp-card .pp-cn a.pp-ea') && q('.pp-card .pp-cn a.pp-ea').getAttribute('href') === 'https://example.com/a/b', 'el enlace leyendo (sin el punto final)');
+      const n = (await M.personal.tareas()).find(k => k.tipo === 'nota' && /^Llamada/.test(k.txt));
+      ok(n && n.txt.includes('\n- uno\n  - dos\n1. tres') && n.txt.includes('- duro') && !/</.test(n.txt), 'no se guarda texto plano con sus marcas: ' + json(n && n.txt));
+      // el post-it pequeño dibuja las marcas, sin casillas que se marquen
+      ppTecla('Escape'); await espera(200);
+      const pt = q(`.pp-pt[data-nid="${n.id}"]`);
+      ok(pt && pt.querySelector('.pp-em.vi') && pt.querySelector('.pp-em.ca') && !pt.querySelector('[data-ln]') && !pt.querySelector('a'), 'el post-it no dibuja las marcas o las usa');
+      // L2: sin resaltado de rangos, las marcas en gris (un velo), sin dibujos encima
+      const hl = W.Highlight; W.Highlight = undefined;
+      try {
+        ppRaton(pt, 'click', 1); await espera(40); const c = ppCard().querySelector('[data-pp="cn"]'); ppRaton(c, 'click', 2); ppRaton(c, 'dblclick', 2); await espera(60);
+        const g = [...ppCard().querySelectorAll('.pp-ecm')].map(x => x.className.replace('pp-ecm ', ''));
+        ok(g.length === 7 && g.every(x => x === 'gris'), 'sin resaltado, las marcas no van en gris: ' + json(g));
+        ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      } finally { W.Highlight = hl; }
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA2', 'Teclas en una lista: Intro la sigue (el número sube), Intro en un elemento vacío la termina, ⌫ detrás de la marca la quita entera, Tab / ⇧Tab sangran dos espacios; fuera de una lista hacen lo de siempre; nada actúa componiendo; ⌘Z justo después de convertir deja la marca escrita con un espacio duro (D-202)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota('- uno\ndos');
+      igual(cn.textContent, '- uno\n- dos', 'Intro no sigue la lista');
+      await naEscribe(cn, '\n\n3. tres\ncuatro');
+      igual(cn.textContent, '- uno\n- dos\n3. tres\n4. cuatro', 'Intro en vacío no termina o el número no sube');
+      ok(naTecla(cn, 'Tab'), 'Tab en una lista sale del campo'); await espera(20);
+      igual(cn.textContent.split('\n').pop(), '  4. cuatro', 'Tab no sangra dos espacios');
+      ok(naTecla(cn, 'Tab', { shiftKey: true }), '⇧Tab sale del campo'); await espera(20);
+      igual(cn.textContent.split('\n').pop(), '4. cuatro', '⇧Tab no desangra');
+      // ⌫ justo detrás de la marca la quita entera
+      await naEscribe(cn, '\n'); ok(naTecla(cn, 'Backspace'), '⌫ detrás de la marca no la quita'); await espera(20);
+      igual(cn.textContent.split('\n').pop(), '', 'la marca no se fue entera');
+      // fuera de una lista: Tab sale del campo, Intro es el del navegador
+      await naEscribe(cn, 'texto'); ok(!naTecla(cn, 'Tab'), 'Tab fuera de una lista no sale del campo');
+      ok(!naTecla(cn, 'Enter'), 'Intro fuera de una lista no es el del navegador');
+      ok(!naTecla(cn, 'Enter', { isComposing: true }) && !naTecla(cn, 'Tab', { isComposing: true }), 'una tecla actúa componiendo');
+      // ⌘Z justo después de convertir: el espacio de la marca pasa a ser un espacio duro (se ve igual y no convierte)
+      D.execCommand('insertLineBreak'); await naEscribe(cn, '- ');
+      ok(naTecla(cn, 'z', { metaKey: true }), '⌘Z justo después de convertir es el del navegador'); await espera(40);
+      igual(json(cn.textContent.split('\n').pop()), json('- '), '⌘Z no deja la marca escrita con un espacio duro');
+      igual(ppCard().querySelectorAll('.pp-ecm.vi').length, 2, 'la marca deshecha sigue dibujada');
+      await naEscribe(cn, 'x'); ok(!naTecla(cn, 'z', { metaKey: true }), 'después de escribir, ⌘Z sigue siendo de la Mesa');
+      // nada llega a la mesa de debajo: el ⌘Z de las tareas no se gasta
+      ppTecla('Escape'); await espera(80);
+      const k = (await M.personal.tareas()).find(x => x.tipo === 'nota');
+      ok(k && k.txt.startsWith('- uno\n- dos\n3. tres\n4. cuatro'), 'no se guarda lo escrito: ' + json(k && k.txt));
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA3', '«Detalles»: «[] » crea una subtarea (la línea sale del texto y se escribe en ella), «[x] » la crea hecha, ⌘Z justo después la quita y devuelve «[] » al texto; las líneas «[] » pegadas pasan a subtareas; una subtarea vacía se quita (D-183, D-203)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js'); await ppClic('.pp-tabs [data-p="tareas"]');
+      const t = await M.personal.tarea({ txt: 'Preparar', fecha: '2026-10-03' }); await M.personal.render();
+      const cd = await naDetalles(t);
+      await naEscribe(cd, 'Luz\n[] ');
+      const subs = () => qa('.pp-card .pp-csub').map(f => f.querySelector('.pp-cst').value + (f.querySelector('.pp-ck').checked ? '✓' : ''));
+      igual([cd.textContent, subs(), D.activeElement.matches('.pp-cst')], ['Luz', [''], true], '«[] » no pasa a una subtarea con el cursor');
+      naTecla(D.activeElement, 'z', { metaKey: true }); await espera(60);
+      igual([json(cd.textContent), subs(), D.activeElement === cd], [json('Luz\n[] '), [], true], '⌘Z no quita la subtarea ni devuelve «[] »');
+      ok(!ppCard().querySelector('.pp-ecm.ca'), '«[] » devuelto se dibuja como casilla');
+      await naEscribe(cd, ' tras\n[x] '); await naEscribe(D.activeElement, 'hecha');
+      igual(subs(), ['hecha✓'], '«[x] » no crea una subtarea hecha'); await espera(500);
+      // pegar: las líneas «[] » van a subtareas y lo demás al texto
+      cd.focus(); naFin(cd);
+      const dt = new W.DataTransfer(); dt.setData('text/plain', '\nnota pegada\n[] uno\n[x] dos\n[] ');
+      const ev = new W.ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }); cd.dispatchEvent(ev); await espera(80);
+      ok(ev.defaultPrevented && /nota pegada$/.test(cd.textContent), 'lo pegado sin «[] » no va al texto: ' + json(cd.textContent));
+      igual(subs(), ['hecha✓', 'uno', 'dos✓'], 'las líneas «[] » pegadas no pasan a subtareas');
+      ppTecla('Escape'); await espera(80);
+      const k = (await M.personal.tareas()).find(x => x.id === t.id);
+      igual([json(k.detalles), k.subtareas.map(x => x.txt + (x.hecha ? '✓' : ''))], [json('Luz\n[]  tras\nnota pegada'), ['hecha✓', 'uno', 'dos✓']], 'lo guardado');
+      // un pegado sin «[] » es el del navegador
+      const cd2 = await (async () => { const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(40); return ppCard().querySelector('[data-pp="cd"]'); })();
+      const dt2 = new W.DataTransfer(); dt2.setData('text/plain', 'a\nb'); const ev2 = new W.ClipboardEvent('paste', { clipboardData: dt2, bubbles: true, cancelable: true }); cd2.dispatchEvent(ev2);
+      ok(!ev2.defaultPrevented, 'un pegado sin «[] » no es el del navegador');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA4', 'Menú «/» (M2): al principio de una línea (o con el campo vacío) y nunca a mitad ni en una URL; filtra sin tildes y con tecla muerta; Esc lo cierra y deja «/…»; un espacio lo cierra y deja el texto; Intro usa el elegido y quita «/…»; ⌘Z justo después lo deshace en un paso; solo ofrece lo que vale (en «Detalles» no hay «Tarea»); bajo el «/» o encima si no cabe; cada comando con su descripción y las teclas (D-201, D-204)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota('/');
+      ok(/^(sesion,)?tarea\*?,?.*fecha,lista,numerada,casilla$/.test(naMenu().replace('*', '')) && naMenu().split(',')[0].endsWith('*'), 'el menú de una nota: ' + naMenu());
+      const m = q('.pp-sm'); ok(/Empieza una lista/.test(m.textContent) && m.querySelectorAll('.pp-smp kbd').length === 4 && /elegir/.test(m.textContent), 'sin descripción o sin las teclas');
+      const rs = q('.pp-sm').getBoundingClientRect(), rc = cn.getBoundingClientRect(); ok(rs.top >= rc.top, 'el menú no va bajo el «/»');
+      await naEscribe(cn, 'nu'); igual(naMenu(), 'numerada*', '«/nu» no filtra');
+      ok(naTecla(cn, 'ArrowUp'), '↑ no se usa en el menú');
+      ok(naTecla(cn, 'Escape'), 'Esc no cierra el menú'); await espera(20);
+      ok(!naMenu() && ppCard() && ppCard().classList.contains('ed') && cn.textContent === '/nu', 'Esc no deja «/nu» escrito o cierra la tarjeta');
+      // un espacio lo cierra y deja lo escrito
+      D.execCommand('insertLineBreak'); await naEscribe(cn, '/fe'); igual(naMenu(), 'fecha*', '«/fe» no filtra');
+      await naEscribe(cn, ' x'); ok(!naMenu() && cn.textContent.endsWith('/fe x'), 'un espacio no cierra el menú');
+      // Intro usa: «/…» se va y queda la marca; ⌘Z lo deshace en un paso
+      D.execCommand('insertLineBreak'); await naEscribe(cn, '/lis'); ok(naTecla(cn, 'Enter'), 'Intro no usa el comando'); await espera(30);
+      igual(cn.textContent.split('\n').pop(), '- ', 'Lista no escribe su marca');
+      ok(naTecla(cn, 'z', { metaKey: true }), '⌘Z después del comando es el del navegador'); await espera(40);
+      igual(cn.textContent.split('\n').pop(), '/lis', '⌘Z no devuelve «/lis»');
+      // nunca a mitad de línea ni en una URL; con tecla muerta («/sesi» + ´ + o)
+      D.execCommand('insertLineBreak'); await naEscribe(cn, 'a/b https://x.com/y'); ok(!naMenu(), 'el «/» a mitad abre el menú');
+      D.execCommand('insertLineBreak'); await naEscribe(cn, '/t');
+      cn.dispatchEvent(new W.CompositionEvent('compositionstart', { bubbles: true })); D.execCommand('insertText', false, '´');
+      ok(q('.pp-sm'), 'la tecla muerta cierra el menú');
+      D.execCommand('delete'); D.execCommand('insertText', false, 'á'); cn.dispatchEvent(new W.CompositionEvent('compositionend', { bubbles: true, data: 'á' })); await espera(20);
+      igual(naMenu(), 'tarea*', '«/tá» (tecla muerta) no filtra sin tildes');
+      naTecla(cn, 'Escape'); await espera(20);
+      // encima si no cabe debajo
+      const lin = Array.from({ length: 30 }, (_, i) => 'línea ' + i).join('\n');
+      const cn2 = ppCard().querySelector('[data-pp="cn"]'); if (!cn2.isContentEditable) { ppRaton(cn2, 'click', 2); ppRaton(cn2, 'dblclick', 2); await espera(40); }
+      const c3 = ppCard().querySelector('[data-pp="cn"]'); c3.focus(); naFin(c3); await naEscribe(c3, '\n' + lin + '\n'); ppCard().scrollTop = 1e5; await espera(30); await naEscribe(c3, '/'); await espera(300);   // pasada su entrada (se mueve 3 px)
+      const r2 = q('.pp-sm').getBoundingClientRect(), r3 = c3.getBoundingClientRect();
+      ok(r2.top >= 7 && r2.bottom <= W.innerHeight - 7, 'el menú se sale de la ventana: ' + json([r2.top, r2.bottom, W.innerHeight, r3.top, r3.bottom]));
+      naTecla(c3, 'Escape'); ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      // en «Detalles» no hay «Tarea»
+      await ppClic('.pp-tabs [data-p="tareas"]').catch(() => {});
+      const t = await M.personal.tarea({ txt: 'Con detalles', fecha: '2026-10-03' }); await M.personal.render();
+      const cd = await naDetalles(t); await naEscribe(cd, '/');
+      ok(!/tarea/.test(naMenu()) && /fecha/.test(naMenu()) && /casilla/.test(naMenu()), 'el menú de «Detalles»: ' + naMenu());
+      ok(/subtarea/i.test(q('.pp-sm [data-k="casilla"]').textContent), 'en «Detalles», «Casilla» no dice que es una subtarea');
+      await naEscribe(cd, 'cas'); naTecla(cd, 'Enter'); await espera(40);
+      igual([cd.textContent, qa('.pp-card .pp-csub').length], ['', 1], '«/cas» en «Detalles» no crea una subtarea');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA5', 'Comandos «Fecha» y «Tarea»: «Fecha» abre el calendario de la Mesa; en una nota escribe la fecha como texto, en «Detalles» se la pone a la tarea (un paso de ⌘Z con el texto); «Tarea» abre en grande una tarea nueva con el cliente de la nota, que no se crea si se cierra sin título; ⌘Z justo después vuelve a la nota con «/…» (D-204)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura && M.controles, 6000, 'escritura.js');
+      // Fecha en una nota: texto
+      let cn = await naNota('Llamar el\n/fe'); naTecla(cn, 'Enter'); await espera(80);
+      const a = M.controles.abierto(); ok(a && a.tipo === 'fecha' || (a && a.pop && a.pop.classList.contains('mx-cal')), 'no se abre el calendario de la Mesa: ' + json(a && a.tipo));
+      const nat = a.de; nat.value = '2026-10-03'; nat.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(60);
+      igual(cn.textContent, 'Llamar el\nsáb 3 oct', 'la fecha no se escribe como texto');
+      // Tarea: se abre en grande con el cliente de la nota; ⌘Z justo después vuelve a la nota
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      const nota = await M.personal.tarea({ tipo: 'nota', txt: 'Ideas', cliente: CLIENTE }); await M.personal.render();
+      await M.personal.set({ tcli: CLIENTE }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${nota.id}"]`), 'click', 1); await espera(40);
+      cn = ppCard().querySelector('[data-pp="cn"]'); ppRaton(cn, 'click', 2); ppRaton(cn, 'dblclick', 2); await espera(40);
+      cn = ppCard().querySelector('[data-pp="cn"]'); cn.focus(); naFin(cn); await naEscribe(cn, '\n/tarea'); naTecla(cn, 'Enter'); await espera(260);
+      ok(ppCard() && ppCard().getAttribute('aria-label') === 'Tarea' && ppCard().classList.contains('ed') && D.activeElement.dataset.pp === 'ct', 'no se abre la tarea nueva escribiendo su título');
+      ok(/Cliente de prueba/.test(ppCard().querySelector('.pp-ccli') && ppCard().querySelector('.pp-ccli').selectedOptions[0].textContent), 'la tarea nueva no lleva el cliente de la nota');
+      const n0 = (await M.personal.tareas()).length;
+      naTecla(D.activeElement, 'z', { metaKey: true }); await espera(260);
+      ok(ppCard() && ppCard().getAttribute('aria-label') === 'Nota' && ppCard().querySelector('[data-pp="cn"]').textContent === 'Ideas\n/tarea', '⌘Z no vuelve a la nota con «/tarea»');
+      igual((await M.personal.tareas()).length, n0, '⌘Z deja una tarea');
+      cn = ppCard().querySelector('[data-pp="cn"]'); naFin(cn); naTecla(cn, 'Enter'); await espera(200);   // el menú ya no está: un salto
+      await naEscribe(cn, '/tarea'); naTecla(cn, 'Enter'); await espera(260);
+      ppTecla('Escape'); ppTecla('Escape'); await espera(260);
+      igual((await M.personal.tareas()).length, n0, 'una tarea cerrada sin título se crea');
+      // con título, se crea con el cliente
+      ppRaton(q(`.pp-pt[data-nid="${nota.id}"]`), 'click', 1); await espera(40);
+      cn = ppCard().querySelector('[data-pp="cn"]'); ppRaton(cn, 'click', 2); ppRaton(cn, 'dblclick', 2); await espera(40);
+      cn = ppCard().querySelector('[data-pp="cn"]'); cn.focus(); naFin(cn); await naEscribe(cn, '\n/tarea'); naTecla(cn, 'Enter'); await espera(260);
+      const ct = ppCard().querySelector('[data-pp="ct"]'); ct.textContent = 'Desde la nota'; ct.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      await hasta(async () => (await M.personal.tareas()).some(k => k.txt === 'Desde la nota'), 3000, 'la tarea con título');
+      const kn = (await M.personal.tareas()).find(k => k.txt === 'Desde la nota'); igual(kn.cliente, CLIENTE, 'la tarea no lleva el cliente');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(260);
+      // Fecha en «Detalles»: la pone a la tarea; ⌘Z justo después la quita y devuelve «/…»
+      await M.personal.set({ tcli: null }); await M.personal.render();
+      const t = await M.personal.tarea({ txt: 'Fechar', fecha: '2026-10-02' }); await M.personal.render();
+      const cd = await naDetalles(t); await naEscribe(cd, '/fe'); naTecla(cd, 'Enter'); await espera(80);
+      const b = M.controles.abierto(); ok(b, 'en «Detalles» no se abre el calendario');
+      b.de.value = '2026-10-09'; b.de.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(120);
+      igual([(await M.personal.tareas()).find(k => k.id === t.id).fecha, cd.textContent], ['2026-10-09', ''], '«Fecha» en «Detalles» no pone la fecha o deja «/fe»');
+      ok(naTecla(cd, 'z', { metaKey: true }), '⌘Z después de «Fecha» es el del navegador'); await espera(150);
+      igual([(await M.personal.tareas()).find(k => k.id === t.id).fecha, cd.textContent], ['2026-10-02', '/fe'], '⌘Z no devuelve la fecha y «/fe»');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA6', 'Leyendo en grande: una casilla dibujada se marca y desmarca con un clic (un paso de ⌘Z) sin cerrar la tarjeta, también con Espacio; un enlace se abre en otra pestaña sin cerrarla (D-204, cambia D-182)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js'); await ppClic('.pp-tabs [data-p="tareas"]');
+      const n = await M.personal.tarea({ tipo: 'nota', txt: 'Lista\n[] uno\n  [x] dos\nVer https://example.com/a' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(40);
+      const rec = async () => (await M.personal.tareas()).find(k => k.id === n.id).txt;
+      ppRaton(ppCard().querySelector('.pp-em.ca[data-ln="1"]'), 'click', 1); await espera(400);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'el clic en la casilla cierra la tarjeta o la pone a escribir');
+      igual(await rec(), 'Lista\n[x] uno\n  [x] dos\nVer https://example.com/a', 'la casilla no se marca');
+      const c2 = ppCard().querySelector('.pp-em.ca[data-ln="2"]'); c2.focus(); naTecla(c2, ' '); await espera(80);
+      igual(await rec(), 'Lista\n[x] uno\n  [] dos\nVer https://example.com/a', 'Espacio no desmarca');
+      ok(D.activeElement && D.activeElement.matches('.pp-em.ca[data-ln="2"]'), 'el foco no vuelve a la casilla');
+      ppTecla('Escape'); await espera(200);
+      ppTecla('z', { metaKey: true }); await espera(80);
+      igual(await rec(), 'Lista\n[x] uno\n  [x] dos\nVer https://example.com/a', '⌘Z no deshace la casilla');
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(40);
+      const a = ppCard().querySelector('a.pp-ea'); ok(a && a.target === '_blank' && /noopener/.test(a.rel), 'el enlace no se abre en otra pestaña');
+      let fue = null; a.addEventListener('click', e => { fue = a.href; e.preventDefault(); }, { once: true });
+      ppRaton(a, 'click', 1); await espera(400);
+      ok(fue === 'https://example.com/a' && ppCard(), 'el clic en el enlace cierra la tarjeta');
+      ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('NA7', 'Ampliar: icono arriba a la derecha de la tarjeta de una tarea y de una nota; ampliada ocupa la página bajo la cabecera, a todo el ancho (en una tarea, «Detalles» a la izquierda y subtareas a la derecha); un clic dentro nunca la cierra; Esc escribiendo vuelve a leer y Esc leyendo la devuelve a tarjeta; siempre se abre como tarjeta (D-205)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
+      const t = await M.personal.tarea({ txt: 'Grande', fecha: '2026-10-03' }); await M.personal.render();
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40);
+      const b = ppCard().querySelector('[data-pp="ampliar"]'); ok(b && b.title === 'Ampliar' && b.querySelector('svg'), 'sin el icono de ampliar');
+      ppRaton(b, 'click', 1); await espera(60);
+      const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), r = ppCard().getBoundingClientRect();
+      ok(ov.classList.contains('amplia') && ppCard().classList.contains('amplia') && Math.abs(r.top - cab.bottom) < 2 && r.width >= W.innerWidth - 20, 'ampliada no ocupa la página bajo la cabecera: ' + json([r.top, cab.bottom, r.width]));
+      const cd = ppCard().querySelector('.pp-cd').getBoundingClientRect(), cs = ppCard().querySelector('.pp-cs').getBoundingClientRect();
+      ok(cs.left > cd.right && Math.abs(cs.top - cd.top) < 40, '«Detalles» y subtareas no van lado a lado');
+      ok(ppCard().querySelector('[data-pp="ampliar"]').title === 'Reducir', 'el icono no la devuelve');
+      ppRaton(ppCard().querySelector('.pp-cd'), 'click', 1); await espera(400); ok(ppCard() && ppCard().classList.contains('amplia'), 'un clic dentro la cierra');
+      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(40);
+      ok(ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'el doble clic no la pone a escribir ampliada');
+      ppTecla('Escape'); await espera(40); ok(ppCard() && !ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'Esc escribiendo no vuelve a leer ampliada');
+      ppTecla('Escape'); await espera(40); ok(ppCard() && !ppCard().classList.contains('amplia') && !q('.pp-ov:not(.sale)').classList.contains('amplia'), 'Esc leyendo no la devuelve a tarjeta');
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc no la cierra');
+      // siempre se abre como tarjeta; una nota también se amplía
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); ok(!ppCard().classList.contains('amplia'), 'no se abre como tarjeta');
+      ppTecla('Escape'); await espera(200);
+      const n = await M.personal.tarea({ tipo: 'nota', txt: 'Nota grande' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(40);
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ok(ppCard().classList.contains('nota') && ppCard().classList.contains('amplia') && ppCard().getBoundingClientRect().width >= W.innerWidth - 20, 'la nota no se amplía a todo el ancho');
+      ppTecla('Escape'); ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

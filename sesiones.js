@@ -179,11 +179,15 @@
     }).join('');
     return { cab: tabs, cuerpo: `<div class="pp-pl-items">${items}</div>${vc ? '' : `<button type="button" class="pp-cmas" data-hj="it-nuevo">${svgI('mas')}${P.esc(sing(pt.nombre))}</button>`}` };
   }
+  // the mood board (D-211, C): columns as wide as a cell of the mesa's feed at 1440 px (measured: 158.7 × 211.6 px), 4 px
+  // apart, each photo whole; as many columns as fit (what is left stays on the right), each photo, in its order, to the
+  // shortest one; «una línea», one row as high as a cell
+  const MO_COL = 159, MO_ALTO = 212, MO_GAP = 4;
   function moodHTML(a, r) {
     const vc = S.vista;
     const gs = (a.grupos || []).map(g => {
-      const fos = (g.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, Math.round(78 * as), 78, 'Mood board', false).replace('class="pp-fo"', `class="pp-fo" data-a="${as.toFixed(4)}"`); }).join('');
       const una = (g.modo || 'linea') === 'linea';
+      const fos = (g.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, una ? Math.round(MO_ALTO * as) : MO_COL, una ? MO_ALTO : Math.round(MO_COL / as), 'Mood board', false).replace('class="pp-fo"', `class="pp-fo" data-a="${as.toFixed(4)}"`); }).join('');
       return `<div class="pp-mo-g" data-g="${P.esc(g.id)}" data-drop="g:${P.esc(a.id)}:${P.esc(g.id)}"><div class="pp-mo-gh"><b class="pp-mo-gn" data-campo="g:${P.esc(a.id)}:${P.esc(g.id)}">${P.esc(g.nombre || 'Grupo')}</b><span class="pp-hj-n">${(g.fotos || []).length}</span><span class="pp-hj-sp"></span>`
         + (vc ? '' : `<div class="seg pp-tvs pp-mo-modo" role="group" aria-label="Cómo se ven"><button type="button" class="${una ? 'on' : ''}" data-hj="modo" data-m="linea" aria-pressed="${una}" title="Una línea" aria-label="Una línea">${svgI('una')}</button><button type="button" class="${una ? '' : 'on'}" data-hj="modo" data-m="todas" aria-pressed="${!una}" title="Todas" aria-label="Todas">${svgI('todas')}</button></div>`) + `</div>`
         + `<div class="pp-mo-f ${una ? 'linea' : 'todas'}${fos ? '' : ' vacio'}"${fos ? '' : ' title="Suelta aquí fotos del ordenador o de la tira"'}>${fos}</div></div>`;
@@ -252,21 +256,30 @@
     const c = ov.firstChild; c.scrollTop = y;
     if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2) e2.value = enlV; }
     maquetar();
+    const cl = ov.querySelector('.pp-hj-cols'); if (cl) cl.addEventListener('transitionend', ev => { if (ev.target === cl) colocarMood(); });   // the separator's move ends
     if (P.CARD.ed && S.campo) escribirEn(S.campo, o.pt); else if (foco) { const b = ov.querySelector(foco); if (b) b.focus({ preventScroll: true }); else c.focus({ preventScroll: true }); } else c.focus({ preventScroll: true });
   }
   const pintarYa = () => { const r = rec(); if (r) pintar(r, { forzar: true }); };
   const claveFoco = el => { const a = el.closest('[data-hj], [data-pp], [data-campo]'); if (!a) return null; for (const k of ['hj', 'pp', 'campo']) if (a.dataset[k] != null) { const ex = a.dataset.tab ? `[data-tab="${CSS.escape(a.dataset.tab)}"]` : a.dataset.m ? `[data-m="${CSS.escape(a.dataset.m)}"]` : ''; const ap_ = a.closest('[data-ap]'); return (ap_ ? `[data-ap="${CSS.escape(ap_.dataset.ap)}"] ` : '') + `[data-${k}="${CSS.escape(a.dataset[k])}"]${ex}`; } return null; };
-  // the photos where they are: a mood board's «todas» in justified rows (each photo whole, each row the full width)
-  function maquetar() {
+  // the photos where they are: a mood board's «todas» in columns of a fixed width (D-211); only their place changes when the
+  // separator moves or the sheet widens, never their size
+  function colocarMood() {
     const ov = P.ov; if (!ov) return;
     ov.querySelectorAll('.pp-mo-f.todas').forEach(box => {
-      const W = box.clientWidth - 1, H = 95, gap = 4, fs = [...box.querySelectorAll('.pp-fo')]; if (W < 40 || !fs.length) return;   // a pixel to spare: rounded widths never push the last one down
-      let fila = [], suma = 0;
-      // every row the full width (the last one never more than half as high again)
-      const cerrar = ultima => { const h = Math.min(ultima ? H * 1.5 : 1e9, (W - gap * (fila.length - 1)) / suma); fila.forEach(([el, a]) => { el.style.height = h.toFixed(1) + 'px'; el.style.width = (Math.floor(a * h * 10) / 10) + 'px'; }); fila = []; suma = 0; };
-      for (const el of fs) { const a = +el.dataset.a || 1; fila.push([el, a]); suma += a; if (suma * H + gap * (fila.length - 1) >= W) cerrar(false); }
-      if (fila.length) cerrar(true);
+      const fs = [...box.querySelectorAll('.pp-fo')]; if (!fs.length) { box.style.height = ''; return; }
+      const W = box.clientWidth, w = Math.max(40, Math.min(MO_COL, W)), n = Math.max(1, Math.floor((W + MO_GAP) / (w + MO_GAP))), alto = new Array(n).fill(0);
+      for (const el of fs) {
+        let c = 0; for (let i = 1; i < n; i++) if (alto[i] < alto[c] - 0.5) c = i;   // the shortest, the leftmost on a tie
+        const h = Math.round(w / (+el.dataset.a || 1));
+        if (w !== MO_COL || el.style.height !== h + 'px') { el.style.width = w + 'px'; el.style.height = h + 'px'; }
+        el.style.left = c * (w + MO_GAP) + 'px'; el.style.top = alto[c] + 'px'; alto[c] += h + MO_GAP;
+      }
+      box.style.height = (Math.max(...alto) - MO_GAP) + 'px';
     });
+  }
+  function maquetar() {
+    const ov = P.ov; if (!ov) return;
+    colocarMood();
     ov.querySelectorAll('.pp-fo').forEach(dibujarFoto);
   }
   let rzT = 0;
@@ -534,7 +547,7 @@
     if (!mov) return;
     const ov = P.ov, cols = ov && ov.querySelector('.pp-hj-cols'); if (!cols) return;
     mov.ex = e.clientX; mov.ey = e.clientY;
-    if (mov.sep) { if (Math.abs(e.clientX - (mov.x0 || e.clientX)) < 3 && !mov.x) { mov.x0 = mov.x0 || e.clientX; return; } const x = Math.max(0.3, Math.min(0.7, (e.clientX - mov.rc.left) / mov.rc.width)); cols.style.gridTemplateColumns = `minmax(0,${x.toFixed(4)}fr) 17px minmax(0,${(1 - x).toFixed(4)}fr)`; mov.x = x; return; }
+    if (mov.sep) { if (Math.abs(e.clientX - (mov.x0 || e.clientX)) < 3 && !mov.x) { mov.x0 = mov.x0 || e.clientX; return; } const x = Math.max(0.3, Math.min(0.7, (e.clientX - mov.rc.left) / mov.rc.width)); cols.style.gridTemplateColumns = `minmax(0,${x.toFixed(4)}fr) 17px minmax(0,${(1 - x).toFixed(4)}fr)`; mov.x = x; if (!mov.raf) mov.raf = requestAnimationFrame(() => { if (mov) mov.raf = 0; colocarMood(); }); return; }
     const c = ov.firstChild.getBoundingClientRect();
     mov.fant.style.transform = `translate(${Math.round(e.clientX - c.left - mov.dx)}px,${Math.round(e.clientY - c.top - mov.dy + ov.firstChild.scrollTop)}px)`;
     const cs = [...cols.querySelectorAll('.pp-hj-col')], col = cs.find(x => { const q = x.getBoundingClientRect(); return e.clientX >= q.left && e.clientX <= q.right; }) || cs[e.clientX < cols.getBoundingClientRect().left + cols.clientWidth / 2 ? 0 : cs.length - 1];
@@ -891,7 +904,8 @@
 #mesa .pp-mo-modo button{min-width:30px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-mo-modo svg{width:14px;height:14px}
 #mesa .pp-mo-f{display:flex;gap:4px;min-height:40px}
 #mesa .pp-mo-f.linea{overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
-#mesa .pp-mo-f.todas{flex-wrap:wrap}
+#mesa .pp-mo-f.todas{display:block;position:relative}
+#mesa .pp-mo-f.todas .pp-fo{position:absolute;left:0;top:0}
 #mesa .pp-mo-g.pp-drop,#mesa .pp-pl-ref.pp-drop,#mesa .pp-hj-tira.pp-drop{border-radius:var(--r-md)}
 /* material (Ma2 + Ma3): «Antes de salir» first, the rest by families, each thing a chip marked with a click */
 #mesa .pp-ma{display:flex;flex-direction:column;gap:14px}

@@ -14342,7 +14342,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('SE3', 'Fotos de una sesión: soltadas del ordenador sobre un grupo se guardan aparte (almacén «tfotos») y se ponen ahí; en otro sitio de la hoja, solo en la tira; de la tira se arrastran a un plano; «Quitar de aquí» la deja en la sesión, «Borrar la foto» la quita de todos los sitios; mood board «una línea» y «todas» (filas justificadas que llenan el ancho); el registro guarda solo la lista (D-206)', async () => {
+  prueba('SE3', 'Fotos de una sesión: soltadas del ordenador sobre un grupo se guardan aparte (almacén «tfotos») y se ponen ahí; en otro sitio de la hoja, solo en la tira; de la tira se arrastran a un plano; «Quitar de aquí» la deja en la sesión, «Borrar la foto» la quita de todos los sitios; mood board «una línea» y «todas» (columnas de 159 px desde D-211); el registro guarda solo la lista (D-206)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14357,9 +14357,8 @@
       const tf = await M._in.idbAll('tfotos'); ok(k.fotos.every(f => tf.some(t => t.id === f.id && t.blob && t.mini)), 'las fotos no están en su almacén');
       igual(seAp(k, 'mood').grupos[0].fotos.length, 3, 'las fotos no se ponen en el grupo');
       await espera(120);
-      const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = [...box.querySelectorAll('.pp-fo')];
-      const fila = fos.filter(x => Math.abs(x.offsetTop - fos[0].offsetTop) < 2), ancho = fila.reduce((a, x) => a + x.getBoundingClientRect().width, 0) + 4 * (fila.length - 1);
-      ok(fila.length >= 2 && ancho > box.clientWidth - 6 && ancho <= box.clientWidth + 0.5 && fila.every(x => Math.abs(x.getBoundingClientRect().height - fila[0].getBoundingClientRect().height) < 0.6), 'la fila de «todas» no llena el ancho: ' + json([fila.length, ancho, box.clientWidth]));
+      const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = [...box.querySelectorAll('.pp-fo')];   // columns of 159 px since D-211 (before, justified rows)
+      ok(fos.length === 3 && fos.every(x => Math.round(x.getBoundingClientRect().width) === 159), 'las fotos de «todas» no van en columnas de 159 px: ' + json(fos.map(x => x.getBoundingClientRect().width)));
       // «una línea»: todas en fila, a la misma altura
       seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click(); await espera(120);
       const l = [...seHoja().querySelectorAll('[data-g="g1"] .pp-mo-f.linea .pp-fo')]; ok(l.length === 3 && l.every(x => Math.abs(x.offsetTop - l[0].offsetTop) < 1), '«una línea» no las pone en fila');
@@ -14667,6 +14666,52 @@
       await seAbrir(r.id); ok(!q('.pp-ov:not(.sale)').classList.contains('amplia'), 'no se abre sin ampliar');
       ppTecla('Escape'); await espera(200);
     } finally { fr.style.width = w0; paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS3', 'Mood board, opción C (D-211): en «todas», columnas del ancho de una casilla del feed a 1440 px (159 px), 4 px entre fotos, cada foto entera, en su orden a la columna más corta, lo que sobra a la derecha; al mover el separador o ampliar la hoja cambia cuántas columnas caben, no su tamaño; «una línea», una fila de 212 px de alto que se desliza; cada foto se dibuja a su tamaño', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Mood', clase: 'foto' });
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'todas', fotos: [] }]; return x; });
+      await seAbrir(r.id);
+      const tam = [[1600, 1067], [1067, 1600], [1600, 1600], [1600, 900], [1067, 1600], [1600, 1067], [1200, 1600]];
+      const fs = []; for (let i = 0; i < tam.length; i++) fs.push(await foto('as3-' + i + '.jpg', tam[i][0], tam[i][1]));
+      const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); const g = seQ('[data-g="g1"]');
+      g.dispatchEvent(new W.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt })); g.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await hasta(async () => ((await seRec(r.id)).fotos || []).length === tam.length, 8000, 'que se guarden las fotos'); await espera(200);
+      const k = await seRec(r.id), orden = seAp(k, 'mood').grupos[0].fotos, prop = id => { const f = k.fotos.find(x => x.id === id); return f.w / f.h; };
+      // where each photo should go: in its order, to the shortest column (the leftmost on a tie)
+      const esperado = W2 => { const n = Math.max(1, Math.floor((W2 + 4) / 163)), al = new Array(n).fill(0); return orden.map(id => { let c = 0; for (let i = 1; i < n; i++) if (al[i] < al[c] - 0.5) c = i; const h = Math.round(159 / prop(id)), o = [c * 163, al[c], h]; al[c] += h + 4; return o; }); };
+      const mira = (que) => {
+        const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = orden.map(id => box.querySelector(`.pp-fo[data-f="${id}"]`)), e = esperado(box.clientWidth);
+        const v = fos.map(f => [Math.round(f.offsetLeft), Math.round(f.offsetTop), Math.round(f.getBoundingClientRect().height), Math.round(f.getBoundingClientRect().width)]);
+        ok(v.every((x, i) => x[3] === 159 && Math.abs(x[0] - e[i][0]) < 1 && Math.abs(x[1] - e[i][1]) < 1 && Math.abs(x[2] - e[i][2]) < 1), que + ': las fotos no van en columnas de 159 px a la más corta: ' + json([box.clientWidth, v, e]));
+        ok(Math.abs(box.getBoundingClientRect().height - Math.max(...e.map(x => x[1] + x[2]))) < 1, que + ': el alto del grupo no es el de su columna más alta');
+        return new Set(v.map(x => x[0])).size;
+      };
+      const n0 = mira('al abrir'); ok(n0 >= 2, 'una sola columna en la hoja: ' + n0);
+      // the separator narrows the mood board's column: fewer columns, the same size
+      const sep = seQ('.pp-hj-sep'), der = !!seQ('[data-ap="mood"]').closest('[data-col="der"]');
+      for (let i = 0; i < 12; i++) { naTecla(seQ('.pp-hj-sep'), der ? 'ArrowRight' : 'ArrowLeft'); await espera(30); }
+      await espera(350); const n1 = mira('con el separador movido'); ok(n1 < n0, 'mover el separador no cambia cuántas columnas caben: ' + json([n0, n1]));
+      seDbl(seQ('.pp-hj-sep')); await espera(350);
+      // widened: more columns, the same size
+      const w0 = seQ('[data-g="g1"] .pp-mo-f.todas').clientWidth;
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(350); const n2 = mira('ampliada');   // as many as fit in its new width, the same size
+      ok(seQ('[data-g="g1"] .pp-mo-f.todas').clientWidth > w0 && n2 >= n0, 'ampliada el grupo no se ensancha: ' + json([w0, n0, n2]));
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(350); igual(mira('reducida'), n0, 'al reducir no vuelve a sus columnas');
+      // each photo drawn at its size (D-116), never blurred
+      await hasta(() => [...seHoja().querySelectorAll('[data-g="g1"] .pp-fo')].every(f => { const c = f.querySelector('canvas'), d = W.devicePixelRatio || 1; return Math.max(f.clientWidth, f.clientHeight) * d <= 170 || (c && c.width === Math.round(f.clientWidth * d) && c.height === Math.round(f.clientHeight * d)); }), 6000, 'que cada foto se dibuje a su tamaño');
+      // «una línea»: one row as high as a cell, each photo whole, it slides
+      seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click(); await espera(200);
+      const box = seQ('[data-g="g1"] .pp-mo-f.linea'), l = orden.map(id => box.querySelector(`.pp-fo[data-f="${id}"]`));
+      ok(l.every(f => Math.round(f.getBoundingClientRect().height) === 212 && Math.abs(f.getBoundingClientRect().width - 212 * prop(f.dataset.f)) < 1 && Math.abs(f.offsetTop - l[0].offsetTop) < 1), '«una línea» no va a 212 px de alto con la foto entera');
+      ok(box.scrollWidth > box.clientWidth && W.getComputedStyle(box).overflowX === 'auto', '«una línea» no se desliza');
+      // a new group starts in «una línea»
+      seQ('[data-hj="g-nuevo"]').click(); await espera(150); M.personal._p.editar(false); await espera(100);
+      const k2 = await seRec(r.id); igual(seAp(k2, 'mood').grupos[1].modo, 'linea', 'un grupo nuevo no empieza en «una línea»');
+    } finally { paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

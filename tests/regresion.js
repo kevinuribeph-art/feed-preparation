@@ -12814,13 +12814,13 @@
       await M.flush();
       relojEn('2026-11-10T10:00:00+01:00');
       await paginaAbierta();
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 11 }, 'las cifras de la semana');   // 11 con el reel r10 desde la 4.17 (D-181)
+      igual(ppCifras(), { pasado: 2, hoy: 1, man: 1, espera: 2, falta: 11 }, 'las cifras de la semana');   // 11 con el reel r10 desde la 4.17 (D-181); «Hoy» y «Mañana» aparte desde D-212
       igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
       ok(/publicar a mano/.test(q('.pp-av[data-slot="r2"]').textContent), 'el reel en Aprobado pasado no dice «publicar a mano»');
       ok(q('.pp-grupo[data-cat="pasado"] .pp-cu.rojo'), 'la fecha pasada no va en rojo');
       igual(ppLineas('hoy'), ['r4', 'r5'], 'Hoy y mañana');
       ok(q('.pp-av[data-slot="r4"] .pp-cu').textContent === '18:00' && /Programado/.test(q('.pp-av[data-slot="r4"]').textContent), 'hoy: su hora y su estado');
-      ok(q('.pp-grupo[data-cat="hoy"] .pp-sub') && q('.pp-grupo[data-cat="hoy"] .pp-sub').textContent === 'Mañana' && /publicar a mano/.test(q('.pp-av[data-slot="r5"]').textContent), 'mañana: subtítulo y «publicar a mano»');
+      ok(q('.pp-grupo[data-cat="hoy"] .pp-sub') && q('.pp-grupo[data-cat="hoy"] .pp-sub').textContent === 'Mañana 1' && /publicar a mano/.test(q('.pp-av[data-slot="r5"]').textContent), 'mañana: subtítulo con su cuenta y «publicar a mano»');
       igual(ppLineas('espera'), ['r6', 'r7'], 'Esperando al cliente');
       ok(/sale en 4 días · lleva 9 días/.test(q('.pp-av[data-slot="r6"]').textContent) && /lleva 5 días/.test(q('.pp-av[data-slot="r7"]').textContent) && !/sale en/.test(q('.pp-av[data-slot="r7"]').textContent), 'las razones de la espera');
       igual(ppLineas('falta').length, 8, '8 líneas en Falta programar');
@@ -12837,10 +12837,10 @@
       igual(qa('.pp-grupo').length, 4, 'pulsarla otra vez no lo enseña todo');
       // Mes y la semana siguiente; Se ha pasado no cambia
       await ppClic('.pp-periodo [data-m="mes"]');
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 3, falta: 12 }, 'las cifras del mes');
+      igual(ppCifras(), { pasado: 2, hoy: 1, man: 1, espera: 3, falta: 12 }, 'las cifras del mes');
       await ppClic('.pp-periodo [data-m="semana"]'); await ppClic('.pp-periodo .pp-sig');
       igual(q('.pp-rango').textContent, '17 – 23 nov', 'la semana siguiente');
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 1 }, 'las cifras de la semana siguiente');
+      igual(ppCifras(), { pasado: 2, hoy: 1, man: 1, espera: 2, falta: 1 }, 'las cifras de la semana siguiente');
       q('.pp-rango').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true })); await M.personal.render();
       igual(q('.pp-rango').textContent, '10 – 16 nov', 'el doble clic no vuelve a esta semana');
       // una línea abre su publicación en su tablero
@@ -12864,7 +12864,7 @@
       const c = q('.pp-av[data-slot="colab1"]');
       igual(c.querySelectorAll('.pp-avs .pp-ava').length, 2, 'la collab no lleva las dos caras');
       ok(/× /.test(c.textContent), 'la collab no nombra a los dos clientes');
-      igual(ppCifras().hoy, 2, 'la collab cuenta dos veces');
+      igual([ppCifras().hoy, ppCifras().man], [1, 1], 'la collab cuenta dos veces');   // the collab today, the stories tomorrow: «Hoy» and «Mañana» apart since D-212
       const hs = q('.pp-grupo[data-cat="hoy"] .pp-av[data-pp="hs"]');
       ok(hs && /2 historias mañana sin programar/.test(hs.textContent), 'la línea de las historias: ' + (hs && hs.textContent));
       ok(!q('.pp-grupo[data-cat="pasado"] .pp-av[data-pp="hs"]'), 'una historia pasada entra en Se ha pasado');
@@ -13696,7 +13696,7 @@
       await M.flush();
       relojEn('2026-11-10T10:00:00+01:00');
       await paginaAbierta();
-      const c = ppCifras(); igual([c.pasado, c.hoy], [2, 3], 'las cifras');
+      const c = ppCifras(); igual([c.pasado, c.hoy, c.man], [2, 2, 1], 'las cifras');   // «Hoy» y «Mañana» aparte desde D-212
       igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
       igual(ppLineas('hoy'), ['r4', 'r6', 'r5'], 'Hoy y mañana');
       const av = id => q(`.pp-av[data-slot="${id}"]`), cs = e => W.getComputedStyle(e), tok = k => cs(q('#mesa')).getPropertyValue(k).trim();
@@ -14457,7 +14457,7 @@
       ok(/17:00/.test(q(`.pp-av[data-tid="${hoy.id}"] .pp-cu`).textContent) && q(`.pp-av[data-tid="${hoy.id}"] .pp-afoto svg`), 'sin la hora o el icono en «Hoy y mañana»');
       igual(ppLineas('pasado'), [pas.id], '«Se ha pasado»');
       const rp = q(`.pp-av[data-tid="${pas.id}"] [data-pp="reprog"]`); ok(rp && q(`.pp-av[data-tid="${pas.id}"] .pp-ck`), 'sin casilla o «Reprogramar»');
-      igual([ppCifras().pasado, ppCifras().hoy], [1, 2], 'las cifras no cuentan las sesiones');
+      igual([ppCifras().pasado, ppCifras().hoy, ppCifras().man], [1, 1, 1], 'las cifras no cuentan las sesiones');   // «Hoy» y «Mañana» aparte desde D-212
       ok(/1 tarea/.test(q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`) ? q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent : '') === false, 'el bloque del cliente cuenta la sesión como tarea');
       // Reprogramar: el calendario de la Mesa; un paso de ⌘Z
       rp.click(); await espera(80); const a = M.controles.abierto(); ok(a, 'Reprogramar no abre el calendario');
@@ -14712,6 +14712,38 @@
       seQ('[data-hj="g-nuevo"]').click(); await espera(150); M.personal._p.editar(false); await espera(100);
       const k2 = await seRec(r.id); igual(seAp(k2, 'mood').grupos[1].modo, 'linea', 'un grupo nuevo no empieza en «una línea»');
     } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS4', 'Avisos, opción B (D-212): cinco cifras, cada una con su número y su filtro (Se ha pasado · Hoy · Mañana · Esperando al cliente · Falta programar); en la columna «Hoy N» de título y «Mañana N» debajo; sin nada hoy, «Hoy», «Nada para hoy» y «Mañana N»; sin nada en los dos, sin grupo; el filtro «Hoy» solo lo de hoy y «Mañana» solo lo de mañana; la marca de lo no programado sigue; a 720 px las cinco caben sin solaparse', async () => {
+    relojEn('2026-11-01T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await tablero([{ ...pub(1, 'Foto', 10), date: '2026-11-10T18:00:00.000+01:00' }, pub(2, 'Foto', 11), pub(3, 'Reel', 11)]);
+      await porAprobar(['r1', 'r2', 'r3'], 'as4'); M.setEstado(['r1', 'r3'], 'aprobado'); M.setEstado('r1', 'programado'); await M.flush();
+      relojEn('2026-11-10T10:00:00+01:00');
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: true, avisos: false } }); await M.personal.render();
+      igual(qa('.pp-cifra').map(b => b.dataset.k + ':' + b.querySelector('span').textContent), ['pasado:Se ha pasado', 'hoy:Hoy', 'man:Mañana', 'espera:Esperando al cliente', 'falta:Falta programar'], 'las cinco cifras');
+      igual([ppCifras().hoy, ppCifras().man], [1, 2], 'las cifras de hoy y de mañana');
+      const tit = () => q('.pp-grupo[data-cat="hoy"] .pp-gt') && q('.pp-grupo[data-cat="hoy"] .pp-gt').textContent.trim(), sub = () => q('.pp-grupo[data-cat="hoy"] .pp-sub') && q('.pp-grupo[data-cat="hoy"] .pp-sub').textContent.trim();
+      igual([tit(), sub(), ppLineas('hoy')], ['Hoy 1', 'Mañana 2', ['r1', 'r2', 'r3']], '«Hoy N» y «Mañana N» debajo');
+      ok(q('.pp-av[data-slot="r2"]').classList.contains('sinprog') && q('.pp-av[data-slot="r3"]').classList.contains('sinprog') && !q('.pp-av[data-slot="r1"]').classList.contains('sinprog'), 'la marca de lo no programado (D-190) no sigue en mañana');
+      // the figures filter: today only, tomorrow only
+      await ppClic('.pp-cifra[data-k="hoy"]'); igual([tit(), sub(), ppLineas('hoy')], ['Hoy 1', null, ['r1']], 'el filtro «Hoy» no deja solo lo de hoy');
+      await ppClic('.pp-cifra[data-k="man"]'); igual([tit(), sub(), ppLineas('hoy')], ['Mañana 2', null, ['r2', 'r3']], 'el filtro «Mañana» no deja solo lo de mañana');
+      await ppClic('.pp-cifra[data-k="man"]'); igual(ppLineas('hoy'), ['r1', 'r2', 'r3'], 'quitar el filtro');
+      // nothing today, something tomorrow
+      relojEn('2026-11-09T10:00:00+01:00'); await M.personal.render();
+      igual([tit(), q('.pp-grupo[data-cat="hoy"] .pp-nada') && q('.pp-grupo[data-cat="hoy"] .pp-nada').textContent, sub(), ppLineas('hoy')], ['Hoy', 'Nada para hoy', 'Mañana 1', ['r1']], 'sin nada hoy: «Hoy», «Nada para hoy» y «Mañana N»');
+      ok(q('.pp-cifra[data-k="hoy"]').disabled && !q('.pp-cifra[data-k="man"]').disabled, 'una cifra en 0 se pulsa o una con algo no');
+      // nothing in either: no group
+      relojEn('2026-11-05T10:00:00+01:00'); await M.personal.render(); ok(!q('.pp-grupo[data-cat="hoy"]'), 'sin nada hoy ni mañana sale el grupo');
+      // 720 px: the five fit without overlapping
+      relojEn('2026-11-10T10:00:00+01:00'); await M.personal.render();
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); await M.personal.render();
+      const rs = qa('.pp-cifra').map(b => b.getBoundingClientRect()), caja = q('.pp-cifras').getBoundingClientRect();
+      ok(rs.every((a, i) => rs.every((b, j) => i === j || a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5)), 'a 720 px las cifras se solapan: ' + json(rs.map(r => [r.left, r.right, r.top, r.bottom])));
+      ok(rs.every(r => r.left >= caja.left - 0.5 && r.right <= caja.right + 0.5) && qa('.pp-cifra span').every(x => x.scrollWidth <= x.clientWidth + 1), 'a 720 px una cifra se sale o se corta');
+    } finally { fr.style.width = w0; paginaCerrada(); relojVuelve(); }
   });
 
   // =====================================================================================================

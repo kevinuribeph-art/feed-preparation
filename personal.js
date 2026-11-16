@@ -188,7 +188,7 @@
       if (e === 'publicado') continue;
       const base = { tipo: 'post', s, B, clientes: o.clientes, e, dia, hora, reel, ts: o.ts };
       if (ya) { items.push({ ...base, cat: 'pasado', mano: reel && e === 'aprobado' }); continue; }
-      if (dia === hoy || dia === man) { items.push({ ...base, cat: 'hoy', mano: reel && e !== 'programado' }); continue; }
+      if (dia === hoy || dia === man) { items.push({ ...base, cat: dia === hoy ? 'hoy' : 'man', mano: reel && e !== 'programado' }); continue; }   // today and tomorrow apart (D-212)
       if (e === 'aprobar' || e === 'noaprobado') {
         const d0 = desde(o, e), lleva = d0 ? difD(X.localDay(d0), hoy) : 0, pronto = enV(dia);
         if (pronto || lleva > 3) { items.push({ ...base, cat: 'espera', pronto, lleva: lleva > 3 ? lleva : 0 }); continue; }
@@ -204,7 +204,7 @@
     for (const g of hist.values()) {
       if (!g.sin) continue;
       const it = { tipo: 'historias', clientes: [g.client], B: g.B, dia: g.dia, n: g.n, sin: g.sin, ts: utc(g.dia) };
-      if (g.dia === hoy || g.dia === man) items.push({ ...it, cat: 'hoy' });
+      if (g.dia === hoy || g.dia === man) items.push({ ...it, cat: g.dia === hoy ? 'hoy' : 'man' });
       else if (enV(g.dia)) items.push({ ...it, cat: 'falta' });
     }
     if (st.avTareas) for (const k of vivos()) {   // the tasks and the sessions, only with the switch of Avisos (D-180, D-206)
@@ -213,12 +213,12 @@
       const ses = k.tipo === 'sesion', conH = ses && /^\d{2}:\d{2}$/.test(k.hora || '');
       const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, hora: ses ? k.hora || '' : '', ts: conH ? X.ts(X.madridISO(k.fecha, k.hora)) : utc(k.fecha), hecha: !!k.hecha };   // its time is Madrid's, as the posts'
       // a session the day before and the same day, with its time; from the next day, if not done, gone past (a task: only its day)
-      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy || (ses && k.fecha === man)) items.push({ ...it, cat: 'hoy' });
+      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy) items.push({ ...it, cat: 'hoy' }); else if (ses && k.fecha === man) items.push({ ...it, cat: 'man' });
     }
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
     const filas = D.CL.map(c => fila(c, D, Q, V, enV, hoy));
-    return { items, filas, V, hoy, man, cifras: { pasado: cuenta('pasado'), hoy: cuenta('hoy'), espera: cuenta('espera'), falta: cuenta('falta') } };
+    return { items, filas, V, hoy, man, cifras: { pasado: cuenta('pasado'), hoy: cuenta('hoy'), man: cuenta('man'), espera: cuenta('espera'), falta: cuenta('falta') } };
   }
   function fila(c, D, Q, V, enV, hoy) {        // a client's block
     const X = I(), bs = D.boards.filter(b => b.client === c.id), cd = +c.cycleDay || 1;
@@ -255,10 +255,11 @@
     return `<span class="pp-ava ${cls}${typeof k === 'string' ? ' kit' + (claro(k) ? ' claro' : '') : ''}"${typeof k === 'string' ? ` style="--pp-kit:${esc(k)}"` : ''} aria-hidden="true">${esc(inic(c.name))}</span>`;
   }
   // the figures and the groups go by urgency, in one order (D-180, chosen by Claude): what waits for the client blocks what
-  // is left to schedule
-  const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy y mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
+  // is left to schedule; «Hoy» and «Mañana», a figure each, and one group, «Hoy» with «Mañana» under it (D-212)
+  const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
+  const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   function cifras(R) {
-    return `<div class="pp-cifras" role="group" aria-label="Avisos">${GRUPOS.map(([k, l]) => { const n = R.cifras[k];
+    return `<div class="pp-cifras" role="group" aria-label="Avisos">${CIFRAS.map(([k, l]) => { const n = R.cifras[k];
       return `<button type="button" class="pp-cifra${k === 'pasado' && n ? ' rojo' : ''}${st.filtro === k ? ' on' : ''}" data-pp="filtro" data-k="${k}" aria-pressed="${st.filtro === k}"${n || st.filtro === k ? '' : ' disabled'}><b>${n}</b><span>${l}</span></button>`; }).join('')}</div>`;
   }
   function periodo(R) {
@@ -269,7 +270,7 @@
   const estLbl = e => (I().ESTADOS.find(x => x[0] === e) || [e, e])[1];
   function cuando(x, R) {
     if (x.cat === 'pasado') return `<span class="pp-cu rojo">${esc(corto(x.dia))}${x.tipo === 'sesion' && x.hora ? `<br>${esc(x.hora)}` : ''}</span>`;
-    if (x.cat === 'hoy') return `<span class="pp-cu">${x.tipo === 'post' || x.tipo === 'sesion' ? esc(x.hora) : ''}</span>`;
+    if (x.cat === 'hoy' || x.cat === 'man') return `<span class="pp-cu">${x.tipo === 'post' || x.tipo === 'sesion' ? esc(x.hora) : ''}</span>`;
     return `<span class="pp-cu">${esc(corto(x.dia))}</span>`;
   }
   function mini(x) {                           // the post's photo (its thumbnail) with its type over it; a single photo has none
@@ -284,24 +285,34 @@
     if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
     if (x.tipo === 'historias') {
       const cu = x.dia === R.hoy ? 'hoy' : x.dia === R.man ? 'mañana' : 'el ' + corto(x.dia);
-      return `<button type="button" class="pp-av" data-pp="hs" data-key="${esc(x.B.key)}" title="${x.n} ${x.n === 1 ? 'historia' : 'historias'} ${cu} · ${x.sin} sin programar">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${x.sin} ${x.sin === 1 ? 'historia' : 'historias'}${x.cat === 'hoy' ? ' ' + cu : ''} sin programar</b> <i>${quien}</i></span><span class="pp-est"></span></button>`;
+      return `<button type="button" class="pp-av" data-pp="hs" data-key="${esc(x.B.key)}" title="${x.n} ${x.n === 1 ? 'historia' : 'historias'} ${cu} · ${x.sin} sin programar">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${x.sin} ${x.sin === 1 ? 'historia' : 'historias'}${x.cat === 'hoy' || x.cat === 'man' ? ' ' + cu : ''} sin programar</b> <i>${quien}</i></span><span class="pp-est"></span></button>`;
     }
     let est = `${I().estIco(x.e, ' aria-hidden="true"')}${esc(estLbl(x.e))}`;
     if (x.mano) est = `<span class="pp-mano">publicar a mano</span>`;
     if (x.aMano) est += ` <span class="pp-por">· se programa a mano</span>`;   // D-181: its state stays, as the reasons of a wait
     if (x.cat === 'espera') { const r = []; if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
     // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too
-    const sin = (x.cat === 'hoy' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
+    const sin = (x.cat === 'hoy' || x.cat === 'man' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
     return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
+  // «Hoy N» the group's title and «Mañana N» under it; nothing today and something tomorrow: «Nada para hoy»; with the figure
+  // «Hoy» only today's, with «Mañana» only tomorrow's (D-212)
   function avisos(R) {
-    const html = GRUPOS.filter(([c]) => !st.filtro || st.filtro === c).map(([c, t]) => {
-      let l = R.items.filter(x => x.cat === c); if (!l.length) return '';
-      const n = l.filter(x => !x.hecha).length, todo = st.abiertos.has(c) || st.filtro === c, mas = l.length - TOPE;
-      if (!todo && mas > 0) l = l.slice(0, TOPE);
-      let filas = '', man = false;
-      for (const x of l) { if (c === 'hoy' && !man && x.dia === R.man) { man = true; filas += `<p class="pp-sub">Mañana</p>`; } filas += aviso(x, R); }
-      return `<section class="pp-grupo" data-cat="${c}"><h3 class="pp-gt">${t} <span>${n}</span></h3><div class="pp-lista">${filas}${!todo && mas > 0 ? `<button type="button" class="pp-mas" data-pp="mas" data-c="${c}">${mas} más</button>` : ''}</div></section>`;
+    const f = st.filtro, sinH = l => l.filter(x => !x.hecha).length;
+    const filas = (c, l) => { const todo = st.abiertos.has(c) || f === c, mas = l.length - TOPE;
+      return (todo || mas <= 0 ? l : l.slice(0, TOPE)).map(x => aviso(x, R)).join('') + (!todo && mas > 0 ? `<button type="button" class="pp-mas" data-pp="mas" data-c="${c}">${mas} más</button>` : ''); };
+    const grupo = (c, t, n, cuerpo) => `<section class="pp-grupo" data-cat="${c}"><h3 class="pp-gt">${t}${n == null ? '' : ` <span>${n}</span>`}</h3><div class="pp-lista">${cuerpo}</div></section>`;
+    const html = GRUPOS.map(([c, t]) => {
+      if (c === 'hoy') {
+        const h = R.items.filter(x => x.cat === 'hoy'), m = R.items.filter(x => x.cat === 'man');
+        if (f === 'man') return m.length ? grupo('hoy', 'Mañana', sinH(m), filas('man', m)) : '';
+        if (f && f !== 'hoy') return '';
+        if (f === 'hoy' || !m.length) return h.length ? grupo('hoy', t, sinH(h), filas('hoy', h)) : '';
+        return grupo('hoy', t, h.length ? sinH(h) : null, (h.length ? filas('hoy', h) : `<p class="pp-nada">Nada para hoy</p>`) + `<p class="pp-sub">Mañana <span>${sinH(m)}</span></p>` + filas('man', m));
+      }
+      if (f && f !== c) return '';
+      const l = R.items.filter(x => x.cat === c); if (!l.length) return '';
+      return grupo(c, t, sinH(l), filas(c, l));
     }).join('');
     return html || `<p class="pp-orden">Todo en orden</p>`;
   }
@@ -449,7 +460,7 @@
   const caben = () => Math.max(1, Math.floor((anchoClientes() + 8) / 188));
   function pagina(R) {
     const pl = st.plg, cols = Math.max(1, Math.min(st.fila, R.filas.length || 1, caben()));
-    const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.espera + R.cifras.falta, nE = esps().length;
+    const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.man + R.cifras.espera + R.cifras.falta, nE = esps().length;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
       { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE),
@@ -1300,7 +1311,7 @@
 #mesa .pp-in.solo-rail{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "izq" "rail"}
 /* the figures and the period */
 #mesa .pp-top{grid-area:top;display:flex;align-items:center;gap:24px;background:var(--bg-2);border-radius:var(--r-lg);padding:6px}
-#mesa .pp-cifras{flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+#mesa .pp-cifras{flex:1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
 #mesa .pp-cifra{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px;border:0;background:none;border-radius:var(--r-md);padding:12px 14px 13px;color:var(--ink);text-align:left;cursor:pointer;font:inherit;transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-cifra b{font-size:26px;font-weight:800;line-height:1;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
 #mesa .pp-cifra span{font-size:12.5px;line-height:1.25;color:var(--mute)}
@@ -1342,6 +1353,7 @@
 #mesa .pp-gt{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:600;color:var(--ink);padding:0 10px 6px}
 #mesa .pp-gt span{font-weight:400;color:var(--mute)}
 #mesa .pp-sub{font-size:12px;color:var(--mute);padding:8px 10px 2px}
+#mesa .pp-nada{margin:0;font-size:12.5px;color:var(--faint);padding:6px 10px 4px}
 #mesa .pp-lista{display:flex;flex-direction:column;gap:1px}
 #mesa .pp-av{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;width:100%;min-height:52px;padding:5px 10px;border:0;background:none;border-radius:var(--r-sm);font:inherit;font-size:13px;color:var(--ink);text-align:left;cursor:pointer;transition:background var(--d1) var(--ease)}
 #mesa .pp-av > :is(.pp-avs,.pp-cu,.pp-afoto){grid-row:1 / span 2}

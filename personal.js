@@ -31,6 +31,19 @@
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
     x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
     ampliar: svg('<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/>'),
+    sesion: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+    camara: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
+    video: svg('<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>'),
+    libre: svg('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'),
+    fotos: svg('<path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18"/><circle cx="12" cy="8" r="2"/><rect width="16" height="16" x="6" y="2" rx="2"/>'),
+    ojo: svg('<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>'),
+    ojoNo: svg('<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>'),
+    una: svg('<rect width="20" height="12" x="2" y="6" rx="2"/>'),
+    todas: svg('<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'),
+    enlace: svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+    mas3: svg('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'),
+    asa: svg('<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>'),
+    chev: svg('<path d="m6 9 6 6 6-6"/>'),
     reducir: svg('<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>')
   };
   const ES = () => (M.escritura && M.escritura.html ? M.escritura : null);   // the quick writing (escritura.js, D-202); without it, plain text as before
@@ -55,7 +68,7 @@
   const PLG0 = { tareas: true, clientes: false, avisos: false };
   const st = {
     on: false, filtro: null, modo: 'semana', desp: 0, abiertos: new Set(), plg: { ...PLG0 }, avTareas: false,
-    tcli: null, tsem: 0, tmes: 0, ttodas: false, nueva: { fecha: '', cliente: '', fotos: [] },
+    tcli: null, tsem: 0, tmes: 0, ttodas: false, nueva: { fecha: '', cliente: '', fotos: [] }, cvista: 'mensuales',
     fila: [1, 2, 5].includes(+lsGet(LS_FILA)) ? +lsGet(LS_FILA) : 2,
     alcance: ['sem', '1m', '2m', '3m'].includes(lsGet(LS_ALC)) ? lsGet(LS_ALC) : '1m',
     vista: ['lista', 'semana', 'mes'].includes(lsGet(LS_VISTA)) ? lsGet(LS_VISTA) : 'lista'
@@ -194,11 +207,13 @@
       if (g.dia === hoy || g.dia === man) items.push({ ...it, cat: 'hoy' });
       else if (enV(g.dia)) items.push({ ...it, cat: 'falta' });
     }
-    if (st.avTareas) for (const k of vivos()) {   // the tasks, only with the switch of Avisos (D-180)
-      if (k.tipo !== 'tarea' || !k.fecha) continue;
+    if (st.avTareas) for (const k of vivos()) {   // the tasks and the sessions, only with the switch of Avisos (D-180, D-206)
+      if ((k.tipo !== 'tarea' && k.tipo !== 'sesion') || !k.fecha) continue;
       const hechaAntes = k.hecha && X.localDay(k.hecha) < hoy; if (hechaAntes) continue;
-      const it = { tipo: 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, ts: utc(k.fecha), hecha: !!k.hecha };
-      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy) items.push({ ...it, cat: 'hoy' });
+      const ses = k.tipo === 'sesion', min = ses && /^\d{2}:\d{2}$/.test(k.hora || '') ? (+k.hora.slice(0, 2) * 60 + +k.hora.slice(3)) * 6e4 : 0;
+      const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, hora: ses ? k.hora || '' : '', ts: utc(k.fecha) + min, hecha: !!k.hecha };
+      // a session the day before and the same day, with its time; from the next day, if not done, gone past (a task: only its day)
+      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy || (ses && k.fecha === man)) items.push({ ...it, cat: 'hoy' });
     }
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
@@ -227,7 +242,10 @@
   }
 
   // ---------- pieces ----------
-  const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || null;
+  // a client: one with a board (the mesa's) or a sporadic one (D-207), never in the tabs nor where the clients with a board are read
+  const esps = () => [...TK.values()].filter(k => k.tipo === 'esporadico' && !k.pasado && !k._b).sort((a, b) => String(a.txt).localeCompare(String(b.txt), 'es'));
+  const espDe = id => { const k = id && TK.get(id); return k && k.tipo === 'esporadico' && !k.pasado ? { id: k.id, name: k.txt, esporadico: true } : null; };
+  const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || espDe(id);
   const inic = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
   const nombreC = id => esc((cliDe(id) || { name: id }).name);
   function avatar(cid, cls = '') {
@@ -250,18 +268,20 @@
   }
   const estLbl = e => (I().ESTADOS.find(x => x[0] === e) || [e, e])[1];
   function cuando(x, R) {
-    if (x.cat === 'pasado') return `<span class="pp-cu rojo">${esc(corto(x.dia))}</span>`;
-    if (x.cat === 'hoy') return `<span class="pp-cu">${x.tipo === 'post' ? esc(x.hora) : ''}</span>`;
+    if (x.cat === 'pasado') return `<span class="pp-cu rojo">${esc(corto(x.dia))}${x.tipo === 'sesion' && x.hora ? `<br>${esc(x.hora)}` : ''}</span>`;
+    if (x.cat === 'hoy') return `<span class="pp-cu">${x.tipo === 'post' || x.tipo === 'sesion' ? esc(x.hora) : ''}</span>`;
     return `<span class="pp-cu">${esc(corto(x.dia))}</span>`;
   }
   function mini(x) {                           // the post's photo (its thumbnail) with its type over it; a single photo has none
-    if (x.tipo !== 'post') return `<span class="pp-afoto vacia">${x.tipo === 'tarea' ? ICO.fecha : ICO.historias}</span>`;
+    if (x.tipo !== 'post') return `<span class="pp-afoto vacia">${x.tipo === 'tarea' ? ICO.fecha : x.tipo === 'sesion' ? ICO.sesion : ICO.historias}</span>`;
     const f = x.s.photos && x.s.photos[0] && M.files[x.s.photos[0]], ty = tipoTxt(x.s) === 'Foto' ? '' : I().tipoPost(x.s).ico;
     return f && f.thumbUrl ? `<span class="pp-afoto"><img src="${f.thumbUrl}" alt="" loading="lazy" decoding="async">${ty ? `<i>${ty}</i>` : ''}</span>` : `<span class="pp-afoto vacia">${ty || ICO.foto}</span>`;
   }
   function aviso(x, R) {
     const avs = `<span class="pp-avs">${x.clientes.slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>`, quien = x.clientes.map(nombreC).join(' × ');
-    if (x.tipo === 'tarea') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span></div>`;
+    // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
+    const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
+    if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
     if (x.tipo === 'historias') {
       const cu = x.dia === R.hoy ? 'hoy' : x.dia === R.man ? 'mañana' : 'el ' + corto(x.dia);
       return `<button type="button" class="pp-av" data-pp="hs" data-key="${esc(x.B.key)}" title="${x.n} ${x.n === 1 ? 'historia' : 'historias'} ${cu} · ${x.sin} sin programar">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${x.sin} ${x.sin === 1 ? 'historia' : 'historias'}${x.cat === 'hoy' ? ' ' + cu : ''} sin programar</b> <i>${quien}</i></span><span class="pp-est"></span></button>`;
@@ -317,8 +337,13 @@
   // ---------- tasks and notes ----------
   const vivos = () => [...TK.values()].filter(k => !k._b);   // what is made (a new task still being written isn't, D-203)
   const tareas = () => vivos().filter(k => k.tipo === 'tarea');
+  const sesiones = () => vivos().filter(k => k.tipo === 'sesion');   // a session goes where a task goes (D-206)
+  const enLista = () => vivos().filter(k => k.tipo === 'tarea' || k.tipo === 'sesion');
   const notas = () => vivos().filter(k => k.tipo === 'nota').sort((a, b) => String(a.creada).localeCompare(String(b.creada)));
   const cliOk = id => !!cliDe(id);
+  // the clients of a dropdown: the monthly ones and, apart, the sporadic ones (D-207)
+  const opcionesCli = (sel, CL) => { const E = esps(), o = c => `<option value="${esc(c.id)}"${sel === c.id ? ' selected' : ''}>${esc(c.name || c.txt)}</option>`;
+    return `<option value="">Sin cliente</option>` + (E.length ? `<optgroup label="Mensuales">${CL.map(o).join('')}</optgroup><optgroup label="Esporádicos">${E.map(o).join('')}</optgroup>` : CL.map(o).join('')); };
   const hechaHoy = (k, hoy) => !!k.hecha && I().localDay(k.hecha) >= hoy;
   const RANGO = { sem: ['1 semana', '1S'], '1m': ['1 mes', '1M'], '2m': ['2 meses', '2M'], '3m': ['3 meses', '3M'] };
   function alcance(hoy) {                      // back and ahead from today
@@ -330,8 +355,8 @@
   const barraPg = (h, n) => `<span class="pp-pb" aria-hidden="true"><i style="width:${(h / n * 100).toFixed(1)}%"></i></span>`;
   const fotosURL = f => { if (!f || !f.mini) return ''; let u = MINI.get(f.id); if (!u) { u = URL.createObjectURL(f.mini); MINI.set(f.id, u); } return u; };
   function tareasHTML(R) {
-    const X = I(), hoy = R.hoy, todas = tareas(), fin = addD(hoy, 6);
-    const conT = R.filas.map(f => f.c).filter(c => vivos().some(k => k.cliente === c.id && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks or notes
+    const X = I(), hoy = R.hoy, todas = enLista(), fin = addD(hoy, 6);
+    const conT = [...R.filas.map(f => f.c), ...esps().map(e => ({ id: e.id, name: e.txt }))].filter(c => vivos().some(k => k.cliente === c.id && k.tipo !== 'esporadico' && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks, sessions or notes (a sporadic one too, D-207)
     if (st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
     const l = todas.filter(k => !st.tcli || k.cliente === st.tcli);
     const venc = k => !k.hecha && k.fecha && k.fecha < hoy;
@@ -344,13 +369,16 @@
       return `<span class="pp-col"><span class="pp-tl">${tt}${d ? `<span class="pp-tdet" title="Con detalles">${ICO.texto}</span>` : ''}</span>${n ? `<span class="pp-pg${h === n ? ' todo' : ''}" title="${h} de ${n} subtareas hechas">${barraPg(h, n)}${h}/${n}</span>` : ''}</span>`; };
     const av = k => !st.tcli && k.cliente ? avatar(k.cliente, 'xs') : '';
     const fotos = (k, cls = '') => (k.fotos || []).length ? `<button type="button" class="pp-tfo ${cls}" data-pp="foto" data-id="${esc(k.id)}" title="${k.fotos.length === 1 ? 'Ver la foto' : `Ver las ${k.fotos.length} fotos`}" aria-label="Ver la foto"><img src="${fotosURL(k.fotos[0])}" alt="">${k.fotos.length > 1 ? `<b>${k.fotos.length}</b>` : ''}</button>` : '';
-    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}</span>` : ''}${av(k)}</div>`;
+    // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
+    const ses = k => k.tipo === 'sesion' ? `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>` : '';
+    const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
+    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}${hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
-    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}">${ck(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${fotos(k, 'mini')}${av(k)}</div>`;
+    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
     const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
-    const ncli = cli ? '' : `<span class="pp-ncampo${N.cliente ? '' : ' vacio'}" data-k="cliente"><select class="pp-ncli" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${R.filas.map(f => `<option value="${esc(f.c.id)}"${N.cliente === f.c.id ? ' selected' : ''}>${esc(f.c.name)}</option>`).join('')}</select></span>`;
+    const ncli = cli ? '' : `<span class="pp-ncampo${N.cliente ? '' : ' vacio'}" data-k="cliente"><select class="pp-ncli" aria-label="Cliente de la tarea">${opcionesCli(N.cliente, R.filas.map(f => f.c))}</select></span>`;
     const nueva = `<div class="pp-nueva" data-tid="nueva"><input type="text" class="pp-nin" data-pp="nueva" placeholder="${cli ? 'Nueva tarea para ' + esc(cli.name) : 'Nueva tarea'}" aria-label="Nueva tarea" autocomplete="off">${pend}${nfecha}${ncli}`
       + `<button type="button" class="ibtn pp-ib" data-pp="nota-campo" title="Guardar como nota${cli ? ' de ' + esc(cli.name) : ''}" aria-label="Guardar como nota">${ICO.nota}</button>`
       + `<button type="button" class="ibtn pp-ib${N.fecha ? ' puesta' : ''}" data-pp="nfecha" title="Fecha" aria-label="Fecha">${ICO.fecha}</button>`
@@ -362,7 +390,7 @@
       const [r0, r1] = alcance(hoy), en = d => d >= r0 && d <= r1;
       // apagado: what is left to do up to the scope and what was done today (struck out until tomorrow); encendido: also what
       // was done, within the scope. The overdue ones, always (D-180)
-      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && k.fecha >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.creada).localeCompare(String(b.creada)));
+      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && k.fecha >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
       barra = `<span class="pp-tsw"><div class="seg pp-rg" role="group" aria-label="Hasta dónde">${Object.keys(RANGO).map(k => `<button type="button" class="${st.alcance === k ? 'on' : ''}" data-pp="alcance" data-r="${k}" aria-pressed="${st.alcance === k}" title="${RANGO[k][0]} atrás y adelante">${RANGO[k][1]}</button>`).join('')}</div>${sw}</span>`;
       izq = lf.length ? `<div class="pp-lista">${lf.map(k => linea(k)).join('')}</div>` : `<p class="pp-orden">${l.some(k => k.fecha) ? 'Nada con fecha aquí' : 'Ninguna con fecha'}</p>`;
       const sinV = l.filter(k => !k.fecha && (st.ttodas ? (!k.hecha || en(X.localDay(k.hecha))) : (!k.hecha || hechaHoy(k, hoy))));
@@ -383,7 +411,7 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${esc(k.txt)}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${(k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora ? `${esc(k.hora)} ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -392,6 +420,23 @@
     return `<div class="pp-pc">${nueva}<div class="pp-tfila">${filtro}${barra}</div>${pn}<div class="pp-tv${der ? ' dos' : ''}"><div class="pp-tvi">${izq}</div>${der}</div></div>`;
   }
   const segVista = () => `<div class="seg pp-tvs" role="group" aria-label="Vista de las tareas">${[['lista', 'Lista'], ['semana', 'Semana'], ['mes', 'Mes']].map(([k, l]) => `<button type="button" class="${st.vista === k ? 'on' : ''}" data-pp="tvista" data-v="${k}" aria-pressed="${st.vista === k}">${l}</button>`).join('')}</div>`;
+  // «Mensuales · Esporádicos» in the head of «Clientes» (E2, D-207), the same piece as «Lista · Semana · Mes» (D-199)
+  const segCli = (nm, ne) => `<div class="seg pp-tvs pp-tcv" role="group" aria-label="Clientes">${[['mensuales', 'Mensuales', nm], ['esporadicos', 'Esporádicos', ne]].map(([k, l, n]) => `<button type="button" class="${st.cvista === k ? 'on' : ''}" data-pp="cvista" data-v="${k}" aria-pressed="${st.cvista === k}">${l} <span>${n}</span></button>`).join('')}</div>`;
+  const diaHora = (d, h) => `${DS[dow(d)]} ${+d.slice(8, 10)} ${MES[+d.slice(5, 7) - 1]}${d.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + d.slice(0, 4) : ''}${h ? ' · ' + h : ''}`;
+  // a sporadic client's block: its initial in a neutral circle, its name, its sessions (the last one), its tasks and notes and its
+  // next session in a band; a click opens its file (sesiones.js)
+  function espHTML(cols) {
+    const hoy = I().hoy(), E = esps();
+    const bl = E.map(e => {
+      const ss = sesiones().filter(k => k.cliente === e.id), ts = tareas().filter(k => k.cliente === e.id && !k.hecha), ns = notas().filter(k => k.cliente === e.id);
+      const pas = ss.filter(k => k.fecha && k.fecha <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], sig = ss.filter(k => k.fecha && k.fecha >= hoy && !k.hecha).sort((a, b) => (a.fecha + (a.hora || '')) < (b.fecha + (b.hora || '')) ? -1 : 1)[0];
+      const c1 = ss.length ? `${ss.length} ${ss.length === 1 ? 'sesión' : 'sesiones'}${pas ? ` · la última, ${diaHora(pas.fecha).replace(/ \d{4}$/, '')}` : ''}` : '';
+      const c2 = [ts.length ? `${ts.length} ${ts.length === 1 ? 'tarea' : 'tareas'}` : '', ns.length ? `${ns.length} ${ns.length === 1 ? 'nota' : 'notas'}` : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="pp-blq pp-esb" data-pp="esp" data-id="${esc(e.id)}" title="${esc(e.txt)}"><span class="pp-l1"><span class="pp-quien">${avatar(e.id)}<span class="pp-cn">${esc(e.txt)}</span></span><span class="pp-cuentas">${c1 ? `<span>${esc(c1)}</span>` : ''}${c2 ? `<span>${esc(c2)}</span>` : ''}</span></span>`
+        + (sig ? `<span class="pp-esf">${ICO.sesion}<b>${esc(sig.txt)}</b><span>${esc(diaHora(sig.fecha, sig.hora))}</span></span>` : '') + `</button>`;
+    }).join('');
+    return `<div class="pp-pc">${E.length ? `<div class="pp-bgrid pp-esg${cols > 2 ? ' estrecha' : ''}" style="--cols:${cols}">${bl}</div>` : ''}<button type="button" class="pp-cmas pp-esn" data-pp="esp-nuevo">${ICO.mas}Esporádico</button></div>`;
+  }
   const segFila = () => `<div class="seg pp-tvs pp-pfn" role="group" aria-label="Clientes por fila">${[1, 2, 5].map(n => `<button type="button" class="${st.fila === n ? 'on' : ''}" data-pp="fila" data-n="${n}" aria-pressed="${st.fila === n}" title="${n} por fila" aria-label="${n} por fila">${n}</button>`).join('')}</div>`;
 
   // ---------- the page ----------
@@ -404,18 +449,19 @@
   const caben = () => Math.max(1, Math.floor((anchoClientes() + 8) / 188));
   function pagina(R) {
     const pl = st.plg, cols = Math.max(1, Math.min(st.fila, R.filas.length || 1, caben()));
-    const nTar = tareas().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.espera + R.cifras.falta;
+    const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.espera + R.cifras.falta, nE = esps().length;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
-      { k: 'clientes', t: 'Clientes', n: R.filas.length, cls: 'pp-clientes', extra: segFila,
-        html: () => R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
+      { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE),
+        html: () => st.cvista === 'esporadicos' ? espHTML(Math.max(1, Math.min(st.fila, nE || 1, caben())))
+          : R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
       { k: 'avisos', t: 'Avisos', n: nAv }
     ];
     const arriba = P.filter(x => pl[x.k]), izq = P.filter(x => !pl[x.k] && x.k !== 'avisos'), rail = !pl.avisos;
     const cls = !rail ? ' sin-rail' : !izq.length ? ' solo-rail' : '';
     return `<div class="pp-in${cls}"><div class="pp-top">${cifras(R)}${periodo(R)}</div>`
       + `<div class="pp-izq">${arriba.length ? `<div class="pp-tabs">${arriba.map(x => `<section class="pp-plg fold" data-panel="${x.k}">${cabPlg(x.k, x.t, x.n, true)}</section>`).join('')}</div>` : ''}`
-      + izq.map(x => `<section class="${x.cls} pp-plg" data-panel="${x.k}"><div class="pp-phr"><h2 class="pp-ph">${cabPlg(x.k, x.t, x.n, false)}</h2>${x.extra()}</div>${x.html()}</section>`).join('') + `</div>`
+      + izq.map(x => `<section class="${x.cls} pp-plg" data-panel="${x.k}"><div class="pp-phr"><span class="pp-phl"><h2 class="pp-ph">${cabPlg(x.k, x.t, x.sinN ? 0 : x.n, false)}</h2>${x.tras ? x.tras() : ''}</span>${x.extra()}</div>${x.html()}</section>`).join('') + `</div>`
       + (rail ? `<aside class="pp-rail"><div class="pp-avisos pp-plg" data-panel="avisos"><div class="pp-phr"><h2 class="pp-ph">${cabPlg('avisos', 'Avisos', nAv, false)}</h2><label class="sw pp-sw"><input type="checkbox" data-pp="avtareas"${st.avTareas ? ' checked' : ''}> Tareas</label></div><div class="pp-grupos">${avisos(R)}</div></div></aside>` : '') + `</div>`;
   }
 
@@ -435,6 +481,7 @@
     page.innerHTML = html;
     if (M.controles && M.controles.mejorar) M.controles.mejorar(page);
     const n = page.querySelector('[data-pp="nueva"]'); if (n && txt) n.value = txt;
+    if (n && ES() && ES().enCampo) ES().enCampo(n, { comandos: () => (EXT.sesion && EXT.sesion.nueva ? ['sesion'] : []), alComando: (k, ctx) => comando(k, ctx, 'nueva') });
     if (clave) { const b = page.querySelector(clave); if (b) { b.focus({ preventScroll: true }); if (sel && b === n) b.setSelectionRange(sel[0], sel[1]); } }
     page.scrollTop = y;
     pintarCard();
@@ -483,7 +530,7 @@
     if (M.diseno && M.diseno.abierto && M.diseno.abierto()) return false;
     const det = root.querySelector('.detail'); if (det && !det.hidden && X.closeDetail) X.closeDetail();
     // each visit starts the same (D-180): Tareas folded, Clientes and Avisos open, the tasks out of Avisos, no figure chosen
-    st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear();
+    st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
     st.on = true; ssSet(SS_CLI, null);
     root.classList.add('pp-on'); colocar(); page.hidden = false; page.scrollTop = 0;
     if (D) pintar();
@@ -521,7 +568,8 @@
 
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
-  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}) } : null;
+  const hondo = o => JSON.parse(JSON.stringify(o));   // a session's part and the list of material: plain data, copied whole (D-206)
+  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}), ...(r.sesion ? { sesion: hondo(r.sesion) } : {}), ...(r.lista ? { lista: hondo(r.lista) } : {}) } : null;
   async function escribir(cambios) {           // [{id, despues|null}]
     const X = I();
     gen++;
@@ -602,7 +650,7 @@
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
       : r.fecha ? `<span class="${venc ? 'rojo' : ''}">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';
-    const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea"><option value="">Sin cliente</option>${((D && D.CL) || X.CL).map(x => `<option value="${esc(x.id)}"${r.cliente === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></span>`
+    const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea">${opcionesCli(r.cliente, (D && D.CL) || X.CL)}</select></span>`
       : c ? `<span>${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
     return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
@@ -683,7 +731,7 @@
     CARD.pend = false;
     const enfocada = enCard(document.activeElement);
     apagarCampos();
-    if (CARD.ext) { CARD.ext.pintar(r); return; }
+    if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }
     ov.innerHTML = htmlCard(r, CARD.ed);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     activarCampos();
@@ -701,7 +749,7 @@
     X.root().append(ov);
     CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext };
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it
-    if (ext) { ext.pintar(r, o); return true; }
+    if (ext) { ext.pintar(r, { ...o, forzar: true }); return true; }
     ov.innerHTML = htmlCard(r, CARD.ed);
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     activarCampos();
@@ -801,8 +849,8 @@
   // ---------- the «/» menu's commands (D-204): «Fecha», «Tarea» (and «Sesión», sesiones.js) ----------
   function comando(k, ctx, campo) {
     if (k === 'fecha') return cmdFecha(ctx, campo);
-    if (k === 'tarea') return cmdTarea(ctx);
-    if (k === 'sesion' && EXT.sesion && EXT.sesion.nueva) return EXT.sesion.nueva({ ctx, campo, desde: CARD ? TK.get(CARD.id) : null });
+    if (k === 'tarea') return cmdTarea(ctx, campo);
+    if (k === 'sesion' && EXT.sesion && EXT.sesion.nueva) return EXT.sesion.nueva({ ctx, campo, desde: campo !== 'nueva' && CARD ? TK.get(CARD.id) : null });
   }
   // the mesa's own calendar (D-136), under the «/» that asked for it; closed without a day, nothing changes
   function pedirFecha(r0, o, alElegir) {
@@ -836,11 +884,11 @@
   }
   // «Tarea»: «/…» goes from the note and a new task opens big, its title being written; closed without a title it isn't made.
   // ⌘Z right after (its title still empty) closes it and the note comes back as it was, with «/…»
-  function cmdTarea(ctx) {
-    const nota = TK.get(CARD.id); if (!nota) return;
-    const v = { nota: nota.id, antes: ctx.texto, caret: ctx.b };
+  function cmdTarea(ctx, campo) {                // in a note or a session's text («campo»: which one); a session gives its date too
+    const r = TK.get(CARD.id); if (!r) return;
+    const v = { nota: r.id, antes: ctx.texto, caret: ctx.b, campo };
     ctx.quitar(); cerrarCard();
-    const k = borrador({ cliente: nota.cliente, fecha: ctx.fecha });
+    const k = borrador({ cliente: r.cliente, fecha: r.tipo === 'sesion' ? r.fecha : undefined });
     if (k && CARD) CARD.cmdVolver = v;
   }
   function borrador(o = {}) {
@@ -855,6 +903,8 @@
   async function volverDeTarea() {
     const v = CARD && CARD.cmdVolver; if (!v) return;
     CARD.cmdVolver = null; cerrarCard(true);
+    const r = TK.get(v.nota);
+    if (r && r.tipo === 'sesion') { if (EXT.sesion && EXT.sesion.volverTexto) await EXT.sesion.volverTexto(v); return; }   // a session's text (sesiones.js)
     await enmendar(v.nota, x => { x.txt = v.antes; return x; });
     pintar();
     if (abrirCard(v.nota, { ed: true })) { const el = ov && ov.querySelector('[data-pp="cn"]'); if (el && el._esc) el._esc.poner(Math.min(v.caret, el.textContent.length)); }
@@ -870,18 +920,22 @@
   // ---------- the right-click menu of a task or a note (the mesa's menu, .cpmenu) ----------
   let menu = null;
   function cerrarMenu() { if (!menu) return; const m = menu; menu = null; m.el.remove(); retomar(); document.removeEventListener('pointerdown', m.fuera, true); document.removeEventListener('keydown', m.tecla, true); window.removeEventListener('blur', cerrarMenu); window.removeEventListener('resize', cerrarMenu); }
-  function abrirMenu(x, y, items) {
+  function abrirMenu(x, y, items, foco) {     // foco: where the focus goes back when it closes (a «⋯» opened from the keyboard)
     cerrarMenu();
     const root = I().root(), el = document.createElement('div'); el.className = 'cpmenu pp-menu'; el.setAttribute('role', 'menu');
-    el.innerHTML = items.map(([a, t]) => `<button type="button" role="menuitem" data-a="${a}">${t}</button>`).join('');
-    el.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (!b) return; const it = items.find(i => i[0] === b.dataset.a); cerrarMenu(); if (it) it[2](); });
+    el.innerHTML = items.map(x => x === '-' ? '<hr>' : `<button type="button" role="menuitem" data-a="${x[0]}"${x[3] ? ' disabled' : ''}${x[4] ? ` title="${esc(x[4])}"` : ''}>${x[1]}</button>`).join('');   // [action, text, do, off, title]; '-' a line
+    el.addEventListener('click', e => { const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return; const it = items.find(i => i[0] === b.dataset.a); cerrarMenu(); if (it) it[2](); });
     root.append(el);
     const r = el.getBoundingClientRect();
     el.style.left = `${Math.max(8, Math.min(x, innerWidth - r.width - 8))}px`; el.style.top = `${Math.max(8, Math.min(y, innerHeight - r.height - 8))}px`;
-    const m = menu = { el, fuera: e => { if (!el.contains(e.target)) cerrarMenu(); }, tecla: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrarMenu(); } } };
+    const m = menu = { el, fuera: e => { if (!el.contains(e.target)) cerrarMenu(); }, tecla: e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); const f = m.foco; cerrarMenu(); if (f && f.isConnected) f.focus({ preventScroll: true }); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); const bs = [...el.querySelectorAll('button:not(:disabled)')], i = bs.indexOf(document.activeElement); const n = bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length]; if (n) n.focus(); }
+    } };
     document.addEventListener('pointerdown', m.fuera, true); document.addEventListener('keydown', m.tecla, true);
     window.addEventListener('blur', cerrarMenu); window.addEventListener('resize', cerrarMenu);
-    const b0 = el.querySelector('button'); if (b0) b0.focus();
+    const b0 = el.querySelector('button:not(:disabled)'); if (b0) b0.focus();
+    m.foco = foco;
   }
 
   // ---------- events ----------
@@ -924,7 +978,7 @@
     if (st.on && e.target.closest('.tabs [data-act="client"], .tab.add')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
     // a task or a note in small: a click opens it big (D-182); its checkbox and its photo, as before
-    const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
+    const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"], [data-pp="reprog"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');
     if (it && TK.has(it.dataset.tid || it.dataset.nid)) { abrirCard(it.dataset.tid || it.dataset.nid); return; }
     const a = e.target.closest('[data-pp]'); if (!a) return;
     const k = a.dataset.pp;
@@ -942,6 +996,10 @@
     if (k === 'tnav') { if (st.vista === 'semana') st.tsem += +a.dataset.d; else st.tmes += +a.dataset.d; pintar(); return; }
     if (k === 'tcli') { st.tcli = a.dataset.c || null; pintar(); return; }
     if (k === 'nota-campo') { crearDesdeCampo(true); return; }
+    if (k === 'cvista') { st.cvista = a.dataset.v === 'esporadicos' ? 'esporadicos' : 'mensuales'; pintar(); return; }   // E2 (D-207)
+    if (k === 'esp') { abrirCard(a.dataset.id, { de: `[data-pp="esp"][data-id="${CSS.escape(a.dataset.id)}"]` }); return; }
+    if (k === 'esp-nuevo') { if (EXT.ficha && EXT.ficha.nuevo) EXT.ficha.nuevo(); return; }
+    if (k === 'reprog') { reprogramar(a.dataset.id, a); return; }
     if (k === 'nfecha') { abrirCampo('fecha'); return; }
     if (k === 'ncli') { abrirCampo('cliente'); return; }
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
@@ -995,6 +1053,7 @@
   function alCambiar(e) {
     if (!st.on || !page || !(page.contains(e.target) || enCard(e.target))) return;
     const t = e.target;
+    if (CARD && CARD.ext && enCard(t) && CARD.ext.cambio && CARD.ext.cambio(e)) return;   // a session's sheet, a sporadic client's file (sesiones.js)
     // the card's date and client (D-182): saved at once, the card stays as it is (its control is finishing its gesture)
     if (t.matches('.pp-cfecha')) { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.fecha = v; else delete x.fecha; return x; }).then(() => pintar()); return; }
     if (t.matches('.pp-ccli')) { const v = t.value && cliDe(t.value) ? t.value : ''; cambiar(t.dataset.id, x => { if (v) x.cliente = v; else delete x.cliente; return x; }).then(() => pintar()); return; }
@@ -1040,7 +1099,7 @@
       deshacer(e.shiftKey); return;
     }
     if (!page.contains(t)) return;
-    if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); crearDesdeCampo(false); return; }
+    if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing && !(ES() && ES().menuDe(t))) { e.preventDefault(); crearDesdeCampo(false); return; }
     if ((e.key === 'Enter' || e.key === ' ') && t.matches('[data-pp="tver"]')) { e.preventDefault(); abrirCard(t.dataset.id); return; }
   }
   function alEscribir(e) {                     // what is written in the card goes in after a pause (D-182, D-183)
@@ -1054,12 +1113,33 @@
     if (!st.on || !page || !page.contains(e.target)) return;
     const t = e.target.closest('[data-tid]:not([data-tid="nueva"])'), n = e.target.closest('[data-nid]');
     if (n) { e.preventDefault(); const id = n.dataset.nid; abrirMenu(e.clientX, e.clientY, [['borrar', 'Borrar nota', async () => { await borrar(id); pintar(); }]]); return; }
+    const eb = e.target.closest('[data-pp="esp"]');
+    if (eb && TK.has(eb.dataset.id)) { e.preventDefault(); const id = eb.dataset.id; abrirMenu(e.clientX, e.clientY, menuEsp(id)); return; }
     if (!t || !TK.has(t.dataset.tid)) return;
     e.preventDefault();
     const id = t.dataset.tid, r = TK.get(id), l = [];
+    if (r.tipo === 'sesion') { abrirMenu(e.clientX, e.clientY, menuSesion(id)); return; }
     if ((r.fotos || []).length) l.push(['sinfotos', r.fotos.length === 1 ? 'Quitar la foto' : 'Quitar las fotos', async () => { await cambiar(id, x => { delete x.fotos; return x; }); pintar(); }]);
     l.push(['borrar', 'Borrar tarea', async () => { await borrar(id); pintar(); }]);
     abrirMenu(e.clientX, e.clientY, l);
+  }
+  // a session's menu (right click and its «⋯»): «Quitar las fotos» if it has any (also where they were placed) and «Borrar sesión»
+  function menuSesion(id, extra) {
+    const r = TK.get(id), n = (r && r.fotos || []).length, l = [];
+    if (n) l.push(['sinfotos', n === 1 ? 'Quitar la foto' : 'Quitar las fotos', async () => { await cambiar(id, x => { delete x.fotos; if (x.sesion) for (const a of x.sesion.apartados || []) { (a.pestanas || []).forEach(p => (p.items || []).forEach(i => { i.fotos = []; })); (a.grupos || []).forEach(g => { g.fotos = []; }); } return x; }); pintar(); }]);
+    if (extra) l.push(...extra);
+    l.push(['borrar', 'Borrar sesión', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }]);
+    return l;
+  }
+  // a sporadic client's: «Borrar esporádico», off while it has sessions, tasks or notes (D-201, D-207)
+  function menuEsp(id) {
+    const tiene = vivos().some(k => k.cliente === id && k.tipo !== 'esporadico');
+    return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }, tiene, tiene ? 'Tiene sesiones, tareas o notas' : '']];
+  }
+  // «Reprogramar» of a session gone past: the mesa's calendar under the button; the new day, a step of ⌘Z (D-206)
+  function reprogramar(id, b) {
+    const r = TK.get(id); if (!r) return;
+    pedirFecha(b.getBoundingClientRect(), { valor: r.fecha || '' }, v => { if (v && v !== r.fecha) cambiar(id, x => { x.fecha = v; return x; }).then(() => pintar()); });
   }
   // files over the page: only a task or «Nueva tarea» takes them; nothing reaches the hidden board's tray
   const conArchivos = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
@@ -1068,6 +1148,7 @@
   const destino = e => { const t = e.target.closest && e.target.closest('[data-tid]'); return t && (t.dataset.tid === 'nueva' || TK.has(t.dataset.tid)) ? t : null; };
   function alArrastrar(e) {                    // capture on the mesa: with the page open, files only go to the page's targets
     if (!st.on || !conArchivos(e)) return;
+    if (CARD && CARD.ext && enCard(e.target)) { if (e.type !== 'dragleave') { e.preventDefault(); e.stopPropagation(); } if (CARD.ext.archivos) CARD.ext.archivos(e); else if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'; return; }
     const dentro = page && page.contains(e.target);
     if (e.type === 'dragleave') { if (!dentro || !page.contains(e.relatedTarget)) marcarSobre(null); return; }
     e.preventDefault(); e.stopPropagation();
@@ -1132,8 +1213,19 @@
     // the mesa starts on the page: not in «Vista cliente» nor after a reload inside a client (this tab's session)
     if (!root.classList.contains('client') && ssGet(SS_CLI) !== '1') abrir();
   }
+  // what sesiones.js reads (one file, one page: never a name of window.MESA, D-206)
+  // a sporadic client passed to a monthly one (D-207): the steps of ⌘Z that bring back one of its records bring it with its new client
+  function remapH(f) { for (const paso of [...H.u, ...H.r]) for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } }
+  const _p = {
+    EXT, TK, I, esc, ICO, st, avatar, cliDe, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
+    hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar,
+    pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
+    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL,
+    get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
+    cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }
+  };
   M.personal = {
-    version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar,
+    version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
     datos: async () => { const d = await leer(); return calcular(d); },
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
@@ -1363,6 +1455,25 @@
 #mesa .pp-pt{cursor:pointer;transition:box-shadow var(--d1) var(--ease)}#mesa .pp-pt:hover{box-shadow:var(--shadow-xs),0 0 0 1px var(--postit-3)}
 #mesa .pp [data-pp="tver"]{cursor:pointer;outline:none}#mesa .pp :is(.pp-tk,.pp-fi,.pp-av.tarea){cursor:pointer}
 #mesa .pp [data-pp="tver"]:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-xs)}
+/* sessions (D-206): as a task, with the clapperboard and their time; «Reprogramar» when one went past */
+#mesa .pp-tses{flex:none;display:inline-flex;width:15px;height:15px;color:var(--mute)}#mesa .pp-tses svg{width:15px;height:15px}
+#mesa .pp-fi .pp-tses{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-tses svg{width:13px;height:13px}
+#mesa .pp-fi .pp-tt em{font-style:normal;color:var(--mute)}
+#mesa .pp-mt.ses svg{width:11px;height:11px;margin-right:3px;vertical-align:-1px;color:var(--mute)}
+#mesa .pp-av.repro{grid-template-columns:28px 42px 32px minmax(0,1fr) auto}
+#mesa .pp-repro{grid-row:1 / span 2;grid-column:5;min-height:28px;padding:0 10px;font-size:12px;gap:5px}
+#mesa .pp-repro svg{width:13px;height:13px}
+#mesa .pp-av.ses .pp-cu{line-height:1.25}
+/* the sporadic clients (E2, D-207): «Mensuales · Esporádicos» next to the title, their blocks, «+ Esporádico» */
+#mesa .pp-phl{display:inline-flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+#mesa .pp-tcv button span{font-weight:400;color:var(--mute);margin-left:3px}#mesa .pp-tcv button.on span{color:var(--ink-2)}
+#mesa .pp-esb{gap:10px}
+#mesa .pp-esf{display:flex;align-items:center;gap:8px;min-width:0;padding:7px 10px;border-radius:var(--r-sm);background:var(--bg-2);font-size:12.5px}
+#mesa .pp-esf svg{flex:none;width:14px;height:14px;color:var(--mute)}
+#mesa .pp-esf b{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa .pp-esf span{flex:none;color:var(--mute);white-space:nowrap}
+#mesa .pp-esb:hover .pp-esf{background:var(--bg-3)}
+#mesa .pp-esn{margin:6px 0 2px 8px}
 /* a task or a note big (D-182): one card over the page, to read; a double click writes in it */
 #mesa .pp-ov{position:absolute;inset:0;z-index:4;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .pp-ov.entra{animation:pp-ovin var(--d2) var(--ease)}#mesa .pp-ov.entra .pp-card{animation:pp-cardin var(--d2) var(--ease)}
@@ -1423,7 +1534,7 @@
 #mesa .pp-card.amplia > .pp-ch,#mesa .pp-card.amplia > .pp-cm,#mesa .pp-card.amplia > .pp-cfo{grid-column:1 / -1}
 #mesa .pp-card.amplia > .pp-cd{grid-column:1;margin-top:24px}
 #mesa .pp-card.amplia > .pp-cs{grid-column:2;margin:30px 0 0}
-#mesa .pp-card.amplia .pp-ct{font-size:24px}
+#mesa .pp-card.amplia .pp-ct{font-size:26px}
 #mesa .pp-card.amplia .pp-cn{font-size:16px}
 #mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */

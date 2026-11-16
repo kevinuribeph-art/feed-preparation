@@ -185,8 +185,11 @@
       // 16 (mesa 4.17): no new store: a task keeps its details and subtasks (D-183), which an older tab would drop.
       // 17 (mesa 4.19): no new store: a designed slide may keep free layers of the editor and be let go from the kit
       // (s.design.slides[].libres / suelta, D-193), which an older tab would drop when it applies the design again.
-      const r = indexedDB.open('mesa-feed', 17);
-      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+      // 18 (mesa 4.22): + 'tfotos', the photos of the personal page's sessions, each on its own (a session keeps only their
+      // list, so writing in it never writes its photos again); and 'tareas' may hold sessions, sporadic clients and the list of
+      // material (D-206, D-207), which an older tab doesn't show and whose file it would refuse.
+      const r = indexedDB.open('mesa-feed', 18);
+      r.onupgradeneeded = () => { const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
       r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady()) toast(m); else if (document.body) document.body.textContent = m; };
@@ -5959,13 +5962,17 @@
       const huecos = boards.flatMap(b => (b.slots || []).filter(vivo).flatMap(s => { const d = huecosVacios(s, b.slots); return d.length ? [{ client: b.client, month: b.month, slotId: s.id, post: shortLabel(s.name, s.type), diapositivas: d }] : []; }));   // exported as they are, then said where (D-037)
       const ids = [...new Set([...boards.flatMap(b => [...refsTodo(b)]), ...bandejas.flatMap(r => r.tray), ...clients.map(kitRef).filter(Boolean), ...clients.map(c => c.foto).filter(Boolean), ...clients.flatMap(c => (c.libre && c.libre.logos) || [])])];   // + the editor's logos of each client
       const ubicaciones = ((await idbAll('ubicaciones')) || []).filter(u => u && u.id);   // the locations' catalog (D-124)
-      const tareas = [];                   // the personal page's tasks and notes, with their photos (D-180)
+      const tareas = [];                   // the personal page's tasks and notes, with their photos (D-180); a session's photos come from their own store (D-206)
       for (const t of ((await idbAll('tareas')) || []).filter(t => t && t.id)) {
         const { fotos, ...o } = t, fs = [];
-        for (const f of fotos || []) { if (!f || !f.blob) continue; try { fs.push({ id: f.id, w: f.w, h: f.h, data: await b64of(f.blob), ...(f.mini ? { mini: await b64of(f.mini) } : {}) }); } catch (e) { /* a photo that can't be read stays here */ } }
+        for (const f0 of fotos || []) {
+          const f = t.tipo === 'sesion' && f0 && f0.id ? await idbGet('tfotos', f0.id).catch(() => null) : f0;
+          if (!f || !f.blob) continue;
+          try { fs.push({ id: f0.id, w: f.w, h: f.h, data: await b64of(f.blob), ...(f.mini ? { mini: await b64of(f.mini) } : {}) }); } catch (e) { /* a photo that can't be read stays here */ }
+        }
         tareas.push(fs.length ? { ...o, fotos: fs } : o);
       }
-      const parts = ['{"format":"mesa-feed","v":15,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193)
+      const parts = ['{"format":"mesa-feed","v":16,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193)
         + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
@@ -6033,15 +6040,16 @@
     return { error: m, name: (e && e.name) || null, left: gone };
   }
 
+  const TIPOS_TAREAS = ['tarea', 'nota', 'sesion', 'esporadico', 'material'];   // v16: sessions, sporadic clients and the list of material (D-206, D-207)
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(d.v)) return +d.v > 15 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(d.v)) return +d.v > 16 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
     if (d.ubicaciones != null && (!Array.isArray(d.ubicaciones) || d.ubicaciones.some(u => !u || typeof u.id !== 'string' || !u.id || typeof u.nombre !== 'string' || typeof u.locationId !== 'string'))) return bad;   // v10 (D-124)
     if (d.clients.some(c => c.personas != null && (!Array.isArray(c.personas) || c.personas.some(x => !x || typeof x.usuario !== 'string' || !x.usuario)))) return bad;   // v11 (D-130)
-    if (d.tareas != null && (!Array.isArray(d.tareas) || d.tareas.some(t => !t || typeof t.id !== 'string' || !t.id || (t.tipo !== 'tarea' && t.tipo !== 'nota') || typeof t.txt !== 'string' || (t.fotos != null && (!Array.isArray(t.fotos) || t.fotos.some(f => !f || typeof f.id !== 'string' || typeof f.data !== 'string' || !f.data)))
+    if (d.tareas != null && (!Array.isArray(d.tareas) || d.tareas.some(t => !t || typeof t.id !== 'string' || !t.id || !TIPOS_TAREAS.includes(t.tipo) || typeof t.txt !== 'string' || (t.sesion != null && typeof t.sesion !== 'object') || (t.lista != null && !Array.isArray(t.lista)) || (t.fotos != null && (!Array.isArray(t.fotos) || t.fotos.some(f => !f || typeof f.id !== 'string' || typeof f.data !== 'string' || !f.data)))
       || (t.detalles != null && typeof t.detalles !== 'string') || (t.subtareas != null && (!Array.isArray(t.subtareas) || t.subtareas.some(x => !x || typeof x.id !== 'string' || typeof x.txt !== 'string')))))) return bad;   // v13 (D-180); v14: details and subtasks (D-183)
     if (d.bandejas != null && (!Array.isArray(d.bandejas) || d.bandejas.some(r => !r || typeof r.client !== 'string' || !r.client || !Array.isArray(r.tray)))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
@@ -6256,7 +6264,11 @@
       for (const c of P.libUpd || []) await editarCliente(c.id, o => ({ ...o, libre: c.libre, libreAt: c.libreAt }));
       if ((P.ubPut || []).length) await tx('ubicaciones', 'readwrite', st => P.ubPut.forEach(u => st.put(u, u.id)));   // D-124
       for (const c of P.ubLista || []) await editarCliente(c.id, o => ({ ...o, ubicaciones: c.ubicaciones.filter(id => typeof id === 'string'), ubicacionesAt: c.ubicacionesAt }));
-      { const l = (P.tarPut || []).map(t => gotTar[t.id] || null).filter(Boolean); if (l.length) await tx('tareas', 'readwrite', st => l.forEach(t => st.put(t, t.id))); res.tareas = l.length; }   // D-180
+      { const l = (P.tarPut || []).map(t => gotTar[t.id] || null).filter(Boolean);   // D-180; a session's photos go to their own store first, it keeps their list (D-206)
+        const fs = l.filter(t => t.tipo === 'sesion' && Array.isArray(t.fotos)).flatMap(t => t.fotos.filter(f => f && f.blob).map(f => ({ ...f, sesion: t.id })));
+        if (fs.length) await tx('tfotos', 'readwrite', st => fs.forEach(f => st.put(f, f.id)));
+        const ls = l.map(t => t.tipo === 'sesion' && Array.isArray(t.fotos) ? { ...t, fotos: t.fotos.map(f => ({ id: f.id, w: f.w, h: f.h })) } : t);
+        if (ls.length) await tx('tareas', 'readwrite', st => ls.forEach(t => st.put(t, t.id))); res.tareas = l.length; }
       for (const c of P.notUpd || []) await editarCliente(c.id, o => { const n = { ...o, notionAt: c.notionAt }; if (c.notion === false) n.notion = false; else delete n.notion; return n; });
       for (const c of P.perLista || []) await editarCliente(c.id, o => ({ ...o, personas: c.personas.map(x => ({ usuario: perNorm(x.usuario), colaborador: !!x.colaborador })).filter(x => PER_RE.test(x.usuario)), personasAt: c.personasAt }));   // D-130
       for (const c of P.fotoUpd || []) {

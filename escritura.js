@@ -488,6 +488,7 @@
 #mesa .pp-em.vi .pp-emk::before{background:var(--pp-tinta,var(--ink-2))}
 #mesa .pp-em.ca .pp-emk::before{box-shadow:inset 0 0 0 1.5px var(--pp-tinta,var(--ink-2))}
 #mesa .pp-em.ca[data-ln]{cursor:pointer;outline:none}
+#mesa .pp-el.ca .pp-et{padding-left:.22em}   /* read, a little air after the checkbox (written, its mark is only its own text) */
 #mesa .pp-em.ca[data-ln]:focus-visible .pp-emk{outline:2px solid var(--focus);outline-offset:2px;border-radius:50%}
 #mesa .pp-em.nu{color:var(--mute)}
 #mesa .pp-et{flex:1;min-width:0}

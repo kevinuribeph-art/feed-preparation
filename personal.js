@@ -1432,7 +1432,7 @@
 #mesa .pp-pfn button{min-width:32px;padding:0 10px}
 /* the tasks */
 #mesa .pp-nueva{display:flex;align-items:center;gap:2px;height:32px;padding:0 2px 0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);margin-bottom:6px;transition:border-color var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
-#mesa .pp-nueva:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
+#mesa .pp-nueva:focus-within{border-color:var(--pp-escr);box-shadow:none}
 #mesa .pp-nin{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:13px;color:var(--ink);outline:none;height:30px;padding:0}
 #mesa .pp-nin::placeholder{color:var(--faint)}
 #mesa .pp-ib{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-ib svg{width:15px;height:15px}
@@ -1527,40 +1527,40 @@
 #mesa .pp-card{position:relative;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:22px 24px 20px;outline:none}
 #mesa .pp-ch{display:flex;align-items:flex-start;gap:12px}
 #mesa .pp-ch .pp-ck{margin-top:6px;width:17px;height:17px}
-#mesa .pp-ct{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:650;line-height:1.3;text-wrap:pretty;overflow-wrap:anywhere;outline:none}
+#mesa .pp-ct{flex:1;min-width:0;margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:650;line-height:1.3;text-wrap:pretty;overflow-wrap:anywhere;outline:none}
 #mesa .pp-card.hecha .pp-ct{text-decoration:line-through;color:var(--mute)}
-#mesa .pp-cm{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:10px 0 0 29px;font-size:12.5px;color:var(--ink-2)}
+#mesa .pp-cm{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;min-height:28px;margin:10px 0 0 29px;font-size:12.5px;color:var(--ink-2)}
 #mesa .pp-cm > span{display:inline-flex;align-items:center;gap:6px}#mesa .pp-cm svg{flex:none;width:14px;height:14px;color:var(--mute)}
 #mesa .pp-cm .rojo{color:var(--red);font-weight:600}#mesa .pp-cm .rojo svg{color:var(--red)}
 #mesa .pp-cmf :is(.mx-sel,.mx-f){min-height:28px;height:28px;border-color:transparent;background:var(--bg-2);border-radius:var(--r-pill)}
 #mesa .pp-cmf :is(.mx-sel,.mx-f):hover{border-color:var(--line-strong)}
 #mesa .pp-cfo{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0 29px}#mesa .pp-cfo .pp-tfo{width:56px;height:56px;border-radius:var(--r-sm)}
-#mesa .pp-card.ed .pp-ct{background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);cursor:text}
-#mesa .pp-card.ed .pp-ct:focus{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--focus)}
+/* what is written in the page (D-213, 6-A): the field being written, one line of 1 px in terracotta at 50 %, no background
+   nor ring; the others in a card being written look as read (nothing moves going from reading to writing) */
+#mesa{--pp-escr:color-mix(in oklab,var(--acc) 50%,transparent)}
+#mesa .pp-card.ed .pp-ct:focus,#mesa .pp-card.ed .pp-cd:focus,#mesa .pp-card.ed .pp-cn:focus,#mesa .pp-cst:focus,#mesa .pp-ov .escribiendo,#mesa .pp-pl-ein{background:none;box-shadow:inset 0 0 0 1px var(--pp-escr);border-radius:var(--r-sm)}
 #mesa .pp-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 #mesa .pp-tl{display:flex;align-items:center;gap:6px;min-width:0}#mesa .pp-col .pp-tt{flex:0 1 auto;min-width:0}#mesa .pp-fi .pp-tl{align-items:flex-start}
 #mesa .pp-tdet{flex:none;display:inline-flex;width:14px;height:14px;color:var(--mute)}#mesa .pp-tdet svg{width:14px;height:14px}#mesa .pp-fi .pp-tdet{margin-top:1px}
 #mesa .pp-pg{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1;color:var(--mute)}
 #mesa .pp-pb{position:relative;flex:none;width:64px;height:3px;border-radius:var(--r-pill);background:var(--line2);overflow:hidden}
 #mesa .pp-pb i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:var(--acc)}#mesa .pp-pg.todo .pp-pb i{background:var(--ok)}#mesa .pp-fi .pp-pb{width:44px}
-#mesa .pp-cd{margin:16px 0 0 19px;padding:8px 10px;min-height:22px;border-radius:var(--r-sm);font-size:14px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+#mesa .pp-cd{margin:16px 0 0 19px;padding:8px 10px;min-height:22px;border-radius:var(--r-sm);cursor:text;font-size:14px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
 #mesa .pp-cd.vacio{color:var(--faint)}
-#mesa .pp-card.ed .pp-cd{min-height:66px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);cursor:text}
-#mesa .pp-card.ed .pp-cd:focus{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--focus)}#mesa .pp-card.ed .pp-cd:empty::before{content:attr(data-ph);color:var(--faint)}
+#mesa .pp-card.ed .pp-cd:empty::before{content:attr(data-ph);color:var(--faint)}
 #mesa .pp-cs{margin:14px 0 0 29px}
 #mesa .pp-csh{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:12px;color:var(--mute)}#mesa .pp-csh .pp-pb{flex:1;width:auto;height:4px}
 #mesa .pp-csub{display:flex;align-items:center;gap:10px;min-height:32px;padding:0 6px;margin-left:-6px;border-radius:var(--r-sm);font-size:13.5px}
 #mesa .pp-csub > span{flex:1;min-width:0;overflow-wrap:anywhere}#mesa .pp-csub.hecha > span,#mesa .pp-csub.hecha .pp-cst{text-decoration:line-through;color:var(--mute)}
-#mesa .pp-cst{flex:1;min-width:0;height:28px;border:0;border-radius:var(--r-xs);padding:0 8px;margin-left:-8px;font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);outline:none}
-#mesa .pp-cst:focus{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--focus)}
+#mesa .pp-cst{flex:1;min-width:0;height:28px;border:0;border-radius:var(--r-xs);padding:0 8px;margin-left:-8px;font:inherit;font-size:13.5px;color:var(--ink);background:none;outline:none}
 #mesa .pp-csx{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;padding:0;background:none;border-radius:var(--r-xs);color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease)}
 #mesa .pp-csx:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-csx svg{width:14px;height:14px}
 #mesa .pp-cmas{display:inline-flex;align-items:center;gap:6px;margin:6px 0 0 -4px;padding:5px 8px;border:0;background:none;border-radius:var(--r-pill);font:inherit;font-size:12.5px;font-weight:600;color:var(--acc);cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-cmas svg{width:14px;height:14px}#mesa .pp-cmas:hover{background:var(--acc-soft)}#mesa .pp-cmas:active{transform:scale(.97)}
 #mesa :is(.pp-cmas,.pp-csx):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-card.nota{width:min(440px,100%);min-height:280px;display:flex;background:var(--postit-2);color:var(--postit-ink);border-radius:var(--r-sm);padding:22px 24px}
-#mesa .pp-cn{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
-#mesa .pp-card.nota.ed{box-shadow:var(--shadow-lg),0 0 0 2px var(--postit-3)}#mesa .pp-card.nota.ed .pp-cn{cursor:text}
+#mesa .pp-cn{flex:1;min-width:0;margin:-6px -8px;padding:6px 8px;border-radius:var(--r-sm);font-size:16px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+#mesa .pp-card.nota.ed .pp-cn{cursor:text}
 /* widen (D-205): the icon on the top right; widened, the whole page under the mesa's header */
 /* top right: the eye, widen and the × (D-209), 32 px buttons with 18 px icons, side by side, drawn as the mesa's × */
 #mesa .pp-cbs{display:inline-flex;align-items:center;flex:none}

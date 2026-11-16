@@ -14748,6 +14748,41 @@
 
   // =====================================================================================================
   // ejecución
+  prueba('AS5', 'Lo que se escribe en la página personal, opción A (D-213): el campo que se escribe lleva una línea de 1 px en terracota al 50 %, radio --r-sm, sin fondo ni aro, en la tarjeta, la hoja, la ficha y «Nueva tarea»; los demás campos de la tarjeta se ven como leyendo; los diálogos de la Mesa siguen como sus campos', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await ppClic('.pp-tabs [data-p="tareas"]'); await M.personal.set({ vista: 'lista' });
+      const cs = e => W.getComputedStyle(e), sonda = v => { const d = D.createElement('i'); d.style.color = v; q('#mesa').append(d); const c = cs(d).color; d.remove(); return c; };
+      const linea = sonda('color-mix(in oklab, var(--acc) 50%, transparent)'), rsm = cs(q('#mesa')).getPropertyValue('--r-sm').trim();
+      const fina = (e, que) => { const c = cs(e); ok(/inset/.test(c.boxShadow) && c.boxShadow.includes(linea) && /0px 0px 0px 1px/.test(c.boxShadow) && /rgba\(0, 0, 0, 0\)|transparent/.test(c.backgroundColor) && c.borderTopLeftRadius === rsm, que + ': no lleva la línea fina sin fondo: ' + json([c.boxShadow, c.backgroundColor, c.borderTopLeftRadius, linea, rsm])); };
+      const t = await M.personal.tarea({ txt: 'Contorno', fecha: '2026-10-03' }); await M.personal._p.cambiar(t.id, x => { x.subtareas = [{ id: 's1', txt: 'Uno' }]; return x; }); await M.personal.render();
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(260);
+      const alto0 = ppCard().getBoundingClientRect().height;
+      ppRaton(ppCard().querySelector('[data-pp="ct"]'), 'click', 1); await espera(250);
+      // with the battery's frame the document has no focus and «:focus» doesn't apply: the rule itself (the real one: ratón y teclado reales)
+      const reglas = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }), sels = r => (r.selectorText || '').split(',').map(x => x.trim());
+      const regla = sel => reglas.find(r => sels(r).includes(sel)), escr = regla('#mesa .pp-card.ed .pp-ct:focus');
+      ok(escr && /^inset 0 0 0 1px var\(--pp-escr\)$/.test(escr.style.boxShadow) && escr.style.backgroundImage === 'none' && escr.style.borderRadius === 'var(--r-sm)', 'sin la regla de lo que se escribe: ' + (escr && escr.cssText));
+      igual(['#mesa .pp-card.ed .pp-cd:focus', '#mesa .pp-card.ed .pp-cn:focus', '#mesa .pp-cst:focus', '#mesa .pp-ov .escribiendo'].filter(x => !sels(escr).includes(x)), [], 'la regla no cubre todo lo que se escribe');
+      igual(sonda('var(--pp-escr)'), linea, '--pp-escr no es la terracota al 50 %');
+      const nv = regla('#mesa .pp-nueva:focus-within'); ok(nv && nv.style.borderColor === 'var(--pp-escr)' && nv.style.boxShadow === 'none', '«Nueva tarea» no lleva la línea fina: ' + (nv && nv.cssText));
+      const cd = ppCard().querySelector('[data-pp="cd"]'), st = ppCard().querySelector('.pp-cst');
+      ok(cs(cd).boxShadow === 'none' && cs(st).boxShadow === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(cs(cd).backgroundColor), 'los campos sin el foco no se ven como leyendo');
+      ok(Math.abs(ppCard().getBoundingClientRect().height - alto0) < 2, 'la tarjeta cambia de alto al pasar a escribir: ' + json([alto0, ppCard().getBoundingClientRect().height]));
+      ppTecla('Escape'); await espera(200);
+      // the sheet and the file
+      const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'foto' }); await seAbrir(r.id);
+      ppRaton(seQ('[data-campo="ap:orden"]'), 'click', 1); await espera(250); fina(seQ('[data-campo="ap:orden"]'), 'un texto de la hoja'); ppTecla('Escape'); await espera(200);
+      const e0 = { id: M.personal._p.nuevoId('es'), tipo: 'esporadico', txt: 'Casa Faro', creada: '2026-06-02T10:00:00.000Z', at: '2026-06-02T10:00:00.000Z' }; await M.personal._p.hacer([{ id: e0.id, despues: e0 }]);
+      M.personal._p.abrirCard(e0.id); await espera(260); ppRaton(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'click', 1); await espera(250);
+      fina(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'el nombre de la ficha'); ppTecla('Escape'); await espera(200);
+      // a dialog of the Mesa keeps the Mesa's fields (D-171): the rule never reaches them
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(120);
+      const ni = q('#pp-ns-nom'); ok(ni && !sels(escr).concat(sels(nv)).some(x => ni.matches(x.replace(/:focus(-within)?/g, '')) || q('.detail:not([hidden]) .pp-nueva')), 'la regla llega a los campos de «Nueva sesión»');
+      M._in.closeDetail(); await espera(60);
+    } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

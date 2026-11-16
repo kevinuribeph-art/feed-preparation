@@ -807,7 +807,7 @@
 #mesa .pp-hj-t{display:flex;align-items:center;gap:12px}
 #mesa .pp-hj-t .pp-ck{width:17px;height:17px}
 #mesa .pp-hj-nom{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;outline:none}
-#mesa .pp-hj-nom.escribiendo,#mesa .pp-hj .escribiendo{background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus);cursor:text}
+#mesa .pp-ov .escribiendo{cursor:text}
 #mesa .pp-hj-ojo{display:inline-flex;align-items:center;justify-content:center}
 #mesa .pp-hj-ojo.sm{width:26px;height:26px;background:none}
 #mesa .pp-hj-ojo[aria-pressed="false"]{color:var(--mute)}
@@ -892,7 +892,7 @@
 #mesa .pp-pl-ens{display:flex;flex-direction:column;gap:3px;max-width:100%}
 #mesa .pp-pl-en{display:inline-flex;align-items:center;gap:4px;max-width:100%;font-size:12px;color:var(--acc-ink);text-decoration:none}
 #mesa .pp-pl-en span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .pp-pl-en:hover span{text-decoration:underline}#mesa .pp-pl-en svg{flex:none;width:12px;height:12px}
-#mesa .pp-pl-ein{width:100%;height:26px;border:0;border-radius:var(--r-xs);padding:0 8px;font:inherit;font-size:12px;background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus);outline:none;color:var(--ink)}
+#mesa .pp-pl-ein{width:100%;height:26px;border:0;padding:0 8px;font:inherit;font-size:12px;outline:none;color:var(--ink)}
 #mesa .pp-pl-sin{font-size:12px;color:var(--faint)}
 #mesa .pp-pl-ena{display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:2px 6px;margin-left:-6px;border-radius:var(--r-pill);font:inherit;font-size:12px;color:var(--mute);cursor:pointer;opacity:0;transition:opacity var(--d1) var(--ease),background var(--d1) var(--ease)}
 #mesa .pp-pl-ena svg{width:12px;height:12px}#mesa .pp-pl-it:hover .pp-pl-ena,#mesa .pp-pl-ena:focus-visible{opacity:1}#mesa .pp-pl-ena:hover{background:var(--bg-2);color:var(--ink)}
@@ -944,7 +944,7 @@
 #mesa .pp-ava.lg{width:44px;height:44px;font-size:16px}
 #mesa .pp-es-t{flex:1;min-width:0}#mesa .pp-es-t p{margin:2px 0 0;font-size:12.5px;color:var(--mute)}
 #mesa .pp-es-nom{margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;outline:none;overflow-wrap:anywhere}
-#mesa .pp-es-nom[contenteditable]{background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus)}
+
 #mesa .pp-es-sec{margin:20px 0 0 58px}
 #mesa .pp-es-sec h3{margin:0 0 8px;font-size:14px;font-weight:600}#mesa .pp-es-sec h3 span{font-weight:400;color:var(--mute);font-size:12.5px}
 #mesa .pp-es-l{display:flex;flex-direction:column}

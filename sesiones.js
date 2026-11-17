@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];

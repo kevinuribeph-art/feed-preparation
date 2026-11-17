@@ -60,22 +60,19 @@
   // figure written (emphasis); a title per column, the chart's aria-label and a table for screen readers (dataviz)
   function grafica(res, mes) {
     const P = res.posts, n = P.length; if (!n) return '';
-    const W = 320, H = 100, TOP = 22, max = Math.max(1, ...P.map(p => p.alcance));
-    const best = P.reduce((a, p, i) => p.alcance > P[a].alcance ? i : a, 0), band = W / n, bw = Math.min(24, Math.max(2, band - 2));
-    const cols = P.map((p, i) => {
-      const x = i * band + (band - bw) / 2, h = p.alcance ? Math.max(2, Math.round(p.alcance / max * H)) : 0, y = TOP + H - h, r = Math.min(4, bw / 2, h);
-      const d = h ? `M${x.toFixed(1)},${TOP + H} V${(y + r).toFixed(1)} Q${x.toFixed(1)},${y} ${(x + r).toFixed(1)},${y} H${(x + bw - r).toFixed(1)} Q${(x + bw).toFixed(1)},${y} ${(x + bw).toFixed(1)},${(y + r).toFixed(1)} V${TOP + H} Z` : '';
-      const tit = `${p.nombre} · ${p.tipo} · ${corto(p.fecha)} · ${exacta(p.alcance)} de alcance`;
-      return `<g class="if-c${i === best ? ' top' : ''}"><title>${esc(tit)}</title><rect class="if-hit" x="${(i * band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="${TOP + H}"/>${d ? `<path class="if-b" d="${d}"/>` : ''}</g>`;
-    }).join('');
-    const bx = best * band + band / 2, by = TOP + H - Math.max(2, Math.round(P[best].alcance / max * H)) - 6;
+    const max = Math.max(1, ...P.map(p => p.alcance)), best = P.reduce((a, p, i) => p.alcance > P[a].alcance ? i : a, 0);
+    const alto = v => v ? Math.max(2, v / max * 100) : 0;   // % of the plot; a post with reach shows at least 2 px
     const nom = P[best].nombre.length > 26 ? P[best].nombre.slice(0, 25).trimEnd() + '…' : P[best].nombre;
-    const anc = bx < W * 0.3 ? ['start', Math.max(0, bx - bw / 2)] : bx > W * 0.7 ? ['end', Math.min(W, bx + bw / 2)] : ['middle', bx];
-    const lab = `<text class="if-v" x="${anc[1].toFixed(1)}" y="${Math.max(12, by)}" text-anchor="${anc[0]}">${esc(nom)} · ${esc(cifra(P[best].alcance))}</text>`;
-    const ejes = `<line class="if-eje" x1="0" x2="${W}" y1="${TOP + H + 0.5}" y2="${TOP + H + 0.5}"/><text x="0" y="${TOP + H + 16}">${esc(corto(P[0].fecha))}</text>${n > 1 ? `<text x="${W}" y="${TOP + H + 16}" text-anchor="end">${esc(corto(P[n - 1].fecha))}</text>` : ''}`;
+    const lado = best < n * 0.3 ? 'ini' : best > n * 0.7 - 1 && n > 2 ? 'fin' : 'medio';   // the best's label stays inside the chart
+    const cols = P.map((p, i) => {
+      const h = alto(p.alcance), tit = `${p.nombre} · ${p.tipo} · ${corto(p.fecha)} · ${exacta(p.alcance)} de alcance`;
+      const lab = i === best ? `<b class="if-v ${lado}" style="bottom:calc(${h.toFixed(1)}% + 6px)">${esc(nom)} · ${esc(cifra(p.alcance))}</b>` : '';
+      return `<span class="if-c${i === best ? ' top' : ''}" title="${esc(tit)}">${h ? `<i style="height:${h.toFixed(1)}%"></i>` : ''}${lab}</span>`;
+    }).join('');
     const aria = `Alcance de cada publicación de ${nomMes(mes)}, ${n === 1 ? 'una publicación' : n + ' publicaciones'}; la de más alcance, ${P[best].nombre}, con ${exacta(P[best].alcance)}`;
     const tabla = `<div class="if-sr"><table><caption>Alcance de cada publicación de ${esc(nomMes(mes))}</caption><thead><tr><th>Publicación</th><th>Tipo</th><th>Fecha</th><th>Alcance</th></tr></thead><tbody>${P.map(p => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.tipo)}</td><td>${esc(corto(p.fecha))}</td><td>${esc(exacta(p.alcance))}</td></tr>`).join('')}</tbody></table></div>`;   // in a box: a table ignores width:1px
-    return `<h3 class="if-sub">Alcance de cada publicación</h3><svg class="if-ch" viewBox="0 0 ${W} ${TOP + H + 20}" role="img" aria-label="${esc(aria)}">${cols}${ejes}${lab}</svg>${tabla}`;
+    // HTML, not SVG: the columns keep their 24 px and the letters their 12 px at any width (an SVG would scale them)
+    return `<h3 class="if-sub">Alcance de cada publicación</h3><div class="if-ch" role="img" aria-label="${esc(aria)}"><div class="if-cols">${cols}</div><div class="if-ej"><span>${esc(corto(P[0].fecha))}</span>${n > 1 ? `<span>${esc(corto(P[n - 1].fecha))}</span>` : ''}</div></div>${tabla}`;
   }
   function tiposHTML(res) {
     const T = res.tipos || []; if (!T.length) return '';
@@ -146,18 +143,21 @@
 #mesa .if-f i.sube{color:var(--ok)}#mesa .if-f i.baja{color:var(--red)}
 #mesa .if-fr0{margin:10px 0 0;font-size:13px;color:var(--mute)}
 #mesa .if-sub{margin:18px 0 8px;font-size:13px;font-weight:600;color:var(--ink)}
-#mesa .if-ch{display:block;width:100%;height:auto;overflow:visible}
-#mesa .if-ch .if-b{fill:var(--barra);transition:fill var(--d1) ease-out}#mesa .if-ch .top .if-b{fill:var(--acc)}
-#mesa .if-ch .if-hit{fill:transparent}
-#mesa .if-ch .if-c:hover .if-b{fill:var(--ink-2)}#mesa .if-ch .top:hover .if-b{fill:var(--acc-hover)}
-#mesa .if-ch .if-eje{stroke:var(--line);stroke-width:1}
-#mesa .if-ch text{font:12px var(--font);fill:var(--mute)}#mesa .if-ch text.if-v{font-weight:600;fill:var(--ink)}
+#mesa .if-ch{position:relative}
+#mesa .if-cols{display:flex;align-items:stretch;gap:2px;height:124px;padding-top:24px;box-sizing:border-box;border-bottom:1px solid var(--line)}
+#mesa .if-c{position:relative;flex:1 1 0;min-width:0;display:flex;align-items:flex-end;justify-content:center}
+#mesa .if-c i{display:block;width:100%;max-width:24px;border-radius:4px 4px 0 0;background:var(--barra);transition:background var(--d1) ease-out}
+#mesa .if-c.top i{background:var(--acc)}
+#mesa .if-c:hover i{background:var(--ink-2)}#mesa .if-c.top:hover i{background:var(--acc-hover)}
+#mesa .if-v{position:absolute;white-space:nowrap;font-size:12px;font-weight:600;line-height:1;color:var(--ink);pointer-events:none}
+#mesa .if-v.medio{left:50%;transform:translateX(-50%)}#mesa .if-v.ini{left:0}#mesa .if-v.fin{right:0}
+#mesa .if-ej{display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:var(--mute)}
 #mesa .if-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 #mesa .if-tp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px 10px;font-size:13px;color:var(--ink-2)}
 #mesa .if-tp i{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--barra)}
 #mesa .if-tp em{font-style:normal;text-align:right;color:var(--ink)}
 #mesa .if-frase{margin:16px 0 0;font-size:14px;line-height:1.5;color:var(--ink-2);max-width:62ch}
-@media (prefers-reduced-motion:reduce){#mesa .if-ch .if-b{transition:none}}
+@media (prefers-reduced-motion:reduce){#mesa .if-c i{transition:none}}
 `;
   (window.MESA_CARGA = window.MESA_CARGA || {}).informe = 'ok';
 })();

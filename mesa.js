@@ -7127,7 +7127,7 @@
   M._in = {
     vc: VC,
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
-    mes: { leer: mesLeer, listo: () => !!MES && !mesLee, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js)
+    mes: { leer: mesLeer, listo: () => !!MES, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js); listo once read: while it reads again, what was read stays (nothing jumps)
     cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)

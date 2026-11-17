@@ -16478,7 +16478,7 @@
     } finally { await vistaCliente(false); relojVuelve(); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await sinMes(`${CLIENTE}-2026-12`); await sinMes(`${CLIENTE}-2026-09`); await limpiar(); }
   });
 
-  prueba('IF4', '«Cómo fue» dibujado (D-240): cuatro cifras en el formato de España con su cambio («+133 %», «−13 %», «igual», «sin datos de …») y «Frente a <mes>»; el alcance de cada publicación en columnas de --barra (claro #998F85, oscuro #9E9388) de 24 px como mucho, la mejor en --acc con su nombre y su cifra escritos, un title por columna, el aria-label de la gráfica y una tabla para lectores; el alcance medio por tipo, de mayor a menor; contraste de 4,5:1 o más en claro y oscuro; un redibujo sin cambios no toca nada; a 720 px, una columna con «Tus pagos» encima', async () => {
+  prueba('IF4', '«Cómo fue» dibujado (D-240): cuatro cifras en el formato de España con su cambio («+133 %», «−13 %», «igual», «sin datos de …») y «Frente a <mes>»; el alcance de cada publicación en columnas de --barra (claro #998F85, oscuro #9E9388) de 24 px como mucho (también a 720 px, con su letra de 12 px), la mejor en --acc con su nombre y su cifra escritos, un title por columna, el aria-label de la gráfica y una tabla para lectores; el alcance medio por tipo, de mayor a menor; contraste de 4,5:1 o más en claro y oscuro; un redibujo sin cambios no toca nada; a 720 px, una columna con «Tus pagos» encima', async () => {
     await ifListo();
     relojEn('2026-11-17T10:00:00+01:00');
     const fr = $('mesa'), w0 = fr.style.width, tema0 = D.documentElement.dataset.theme;
@@ -16496,12 +16496,13 @@
       // the columns
       const cols = [...cf.querySelectorAll('.if-ch .if-c')]; igual(cols.length, 4, 'una columna por publicación');
       igual(cols.map(c => c.classList.contains('top')), [false, true, false, false], 'la mejor no es la única en el acento');
-      igual(cols.map(c => c.querySelector('title').textContent), ['Foto 1.1 · Foto · 3 oct · 1400 de alcance', 'Reel 1.2 · Reel · 7 oct · 4200 de alcance', 'Carrusel 1.3 · Carrusel · 10 oct · 3000 de alcance', 'Reel 1.4 · Reel · 17 oct · 2600 de alcance'], 'el title de cada columna');
-      igual((cf.querySelector('.if-ch text.if-v') || {}).textContent, 'Reel 1.2 · 4,2 mil', 'la cifra de la mejor escrita');
+      igual(cols.map(c => c.getAttribute('title')), ['Foto 1.1 · Foto · 3 oct · 1400 de alcance', 'Reel 1.2 · Reel · 7 oct · 4200 de alcance', 'Carrusel 1.3 · Carrusel · 10 oct · 3000 de alcance', 'Reel 1.4 · Reel · 17 oct · 2600 de alcance'], 'el title de cada columna');
+      igual((cf.querySelector('.if-ch .if-v') || {}).textContent, 'Reel 1.2 · 4,2 mil', 'la cifra de la mejor escrita');
       ok(/Alcance de cada publicación de octubre, 4 publicaciones; la de más alcance, Reel 1\.2, con 4200/.test(cf.querySelector('.if-ch').getAttribute('aria-label')) && cf.querySelector('.if-ch').getAttribute('role') === 'img', 'el aria-label de la gráfica: ' + cf.querySelector('.if-ch').getAttribute('aria-label'));
       igual([...cf.querySelectorAll('.if-sr tbody tr')].map(t => t.children[0].textContent + '|' + t.children[3].textContent), ['Foto 1.1|1400', 'Reel 1.2|4200', 'Carrusel 1.3|3000', 'Reel 1.4|2600'], 'la tabla para lectores');
       ok(cf.querySelector('.if-sr').getBoundingClientRect().width <= 1, 'la tabla para lectores se ve');
-      const bw = [...cf.querySelectorAll('.if-ch .if-b')].map(b => b.getBBox().width); ok(bw.every(x => x <= 24.01 && x > 2), 'columnas de más de 24 px: ' + json(bw));
+      const colw = () => [...ifCf().querySelectorAll('.if-ch .if-c i')].map(b => +b.getBoundingClientRect().width.toFixed(1)); ok(colw().every(x => x <= 24.01 && x > 2), 'columnas de más de 24 px: ' + json(colw()));
+      const pv = cf.querySelector('.if-ch .if-v').getBoundingClientRect(), pc = cf.querySelector('.if-ch').getBoundingClientRect(); ok(pv.left >= pc.left - 0.5 && pv.right <= pc.right + 0.5 && pv.bottom <= cf.querySelector('.if-c.top i').getBoundingClientRect().top, 'la cifra de la mejor se sale de la gráfica o pisa su columna');
       igual([...cf.querySelectorAll('.if-tp span')].map(s => s.textContent + ' ' + s.nextElementSibling.nextElementSibling.textContent), ['Reel 3,4 mil', 'Carrusel 3 mil', 'Foto 1,4 mil'], 'el alcance medio por tipo, de mayor a menor');
       igual(cf.querySelector('.if-frase').textContent, 'Lo que mejor funcionó: los reels.', 'la frase');
       // colours and contrast, light and dark
@@ -16509,13 +16510,12 @@
       const malos = [];
       for (const tema of ['claro', 'oscuro']) {
         if (tema === 'oscuro') D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme;
-        await espera(250); const c = ifCf();   // past the fill's transition (--d1)
-        igual(W.getComputedStyle(c.querySelector('.if-c:not(.top) .if-b')).fill, tema === 'claro' ? 'rgb(153, 143, 133)' : 'rgb(158, 147, 136)', 'el gris de las columnas en ' + tema);
-        igual(W.getComputedStyle(c.querySelector('.if-c.top .if-b')).fill, 'rgb(178, 80, 58)', 'la mejor no va en el acento (--acc) en ' + tema);
-        for (const s of ['.if-h', '.if-h span', '.if-f span', '.if-f b', '.if-f i.sube', '.if-f i.baja', '.if-f i.sin', '.if-f i.igual', '.if-fr0', '.if-sub', '.if-tp span', '.if-tp em', '.if-frase']) {
+        await espera(250); const c = ifCf();   // past the columns' transition (--d1)
+        igual(W.getComputedStyle(c.querySelector('.if-c:not(.top) i')).backgroundColor, tema === 'claro' ? 'rgb(153, 143, 133)' : 'rgb(158, 147, 136)', 'el gris de las columnas en ' + tema);
+        igual(W.getComputedStyle(c.querySelector('.if-c.top i')).backgroundColor, 'rgb(178, 80, 58)', 'la mejor no va en el acento (--acc) en ' + tema);
+        for (const s of ['.if-h', '.if-h span', '.if-f span', '.if-f b', '.if-f i.sube', '.if-f i.baja', '.if-f i.sin', '.if-f i.igual', '.if-fr0', '.if-sub', '.if-ch .if-v', '.if-ej span', '.if-tp span', '.if-tp em', '.if-frase']) {
           const e = c.querySelector(s); ok(e, 'no está ' + s); if (e) { const k = contraste(W.getComputedStyle(e).color, fondo(e)); if (k < 4.5) malos.push([tema, s, +k.toFixed(2)]); }
         }
-        for (const t of c.querySelectorAll('.if-ch text')) { const k = contraste(W.getComputedStyle(t).fill, fondo(c)); if (k < 4.5) malos.push([tema, 'svg ' + t.textContent, +k.toFixed(2)]); }
       }
       igual(malos, [], 'contraste por debajo de 4,5:1');
       if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await espera(40);
@@ -16530,11 +16530,38 @@
       const ys = ['.main > .feed', '.side > .cal', '.main > .vc-lado [data-vc="pagos"]', '.main > .vc-lado [data-vc="comofue"]'].map(s => q(s).getBoundingClientRect().top);
       ok(ys[0] < ys[1] && ys[1] < ys[2] && ys[2] < ys[3], 'a 720 px no van en una columna en su orden: ' + json(ys));
       const fx = [...ifCf().querySelectorAll('.if-f')].map(f => Math.round(f.getBoundingClientRect().left)); ok(fx[0] === fx[2] && fx[1] === fx[3] && fx[0] < fx[1], 'a 720 px las cifras no van en dos columnas: ' + json(fx));
+      ok(colw().every(x => x <= 24.01) && W.getComputedStyle(ifCf().querySelector('.if-ch .if-v')).fontSize === '12px', 'a 720 px la gráfica se agranda: ' + json(colw()));
       ok(D.documentElement.scrollWidth <= W.innerWidth + 1, 'a 720 px hay desplazamiento lateral');
       // reduced motion covers the columns' hover
-      ok([...D.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => /prefers-reduced-motion/.test(r.cssText) && /if-b/.test(r.cssText)); } catch (e) { return false; } }), '«reducir movimiento» no cubre las columnas');
+      ok([...D.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => /prefers-reduced-motion/.test(r.cssText) && /if-c i/.test(r.cssText)); } catch (e) { return false; } }), '«reducir movimiento» no cubre las columnas');
     } finally { fr.style.width = w0; if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await vistaCliente(false); relojVuelve(); }
   });
+
+  prueba('IF5', 'El porqué y cómo fue, lo que no se ve (D-238, D-240): mientras se vuelven a leer (un cambio en otra pestaña) lo leído sigue a la vista y nada salta; «Usar aquí» los relee; la página personal no cambia: nada de esto en ella', async () => {
+    await ifListo();
+    relojEn('2026-11-17T10:00:00+01:00');
+    try {
+      await tablero([pub(1)]);
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES() })).ok && (await M.informe.cargar(CLIENTE, MES, { porque: IF_PQ })).ok, 'no se cargó');
+      await vistaCliente(true); M._in.render(); await espera(60);
+      const cf = ifCf(); ok(cf && ifPq(), 'sin las partes');
+      const p = M._in.mes.leer(true); M._in.render();
+      ok(ifCf() === cf && ifPq(), 'mientras se relee, las partes desaparecen'); await p; M._in.render(); await espera(40);
+      ok(ifCf() === cf, 'tras releer sin cambios, «Cómo fue» se vuelve a crear');
+      // «Usar aquí» reads them again: a change written straight to the database shows after it
+      await M._in.idbPut('meses', CLIENTE + '|' + MES, { cliente: CLIENTE, mes: MES, porque: { partes: [{ t: 'Horario', x: 'Escrito por otra pestaña.' }] }, resumen: null, at: new Date().toISOString() });
+      ok(!/Escrito por otra pestaña/.test(JSON.stringify(M._in.mes.get(CLIENTE, MES))), 'la caché lee sola sin aviso');
+      const b = D.createElement('button'); b.dataset.act = 'takeover'; b.hidden = true; M._in.root().append(b);
+      try { b.click(); await hasta(() => /Escrito por otra pestaña/.test(JSON.stringify(M._in.mes.get(CLIENTE, MES))), 3000, 'que «Usar aquí» relea'); await hasta(() => !M._in.switching() && M._in.S && M._in.S.key === `${CLIENTE}-${MES}`, 6000, 'que vuelva el tablero'); } finally { b.remove(); }
+      await vistaCliente(false);
+      // the personal page: nothing of it
+      await paginaAbierta(); await M.personal.render(); await espera(60);
+      const tx = (q('.pp') || D.body).textContent;
+      ok(!/Por qué este calendario|Cómo fue|En camino|Alcance de cada publicación/.test(tx), 'la página personal enseña el porqué o cómo fue');
+      paginaCerrada();
+    } finally { await vistaCliente(false); relojVuelve(); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

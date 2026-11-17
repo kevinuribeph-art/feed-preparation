@@ -6,14 +6,13 @@
 // mesa's bridge (M._in, mesa ≥ 3.32) and is drawn again on every redraw of the grid (renderFeed → M.calendario.render):
 // it keeps no copy of any post. If this file doesn't load, the mesa works as before (the tray takes the whole column).
 //   Folded: a thin bar with its title and the changes not yet in Notion (1.16: with the tray folded too, a tab beside the
-//   tray's; pressing it opens it, D-148); the weekly count column folds too. Both are
-//   remembered per browser (localStorage; if it can't be read, open).
+//   tray's; pressing it opens it, D-148). Remembered per browser (localStorage; if it can't be read, open).
 //   Months: the board's cycles and, before them, the previous month (its published posts in grey, read only); the days
 //   outside the board's cycles are dimmed. 1.17 (D-153): so are, with their chips muted in their type's colour, the days of
 //   another month of the board that show in the month seen (the calendar's month decides, not the step bar's cycle); they
 //   work as the others (open, drag, drop) and their chips go back to full colour on hover, focus or the grid's link.
-//   Weekly count: the posts of each week on the days of the month shown, so the weeks add up to the month's total;
-//   cancelled posts don't count.
+//   The month's total: the posts of the month shown, cancelled ones not counted, in its own row under the grid; never in the
+//   vista cliente. No weekly count (Σ) since 1.24 (D-229).
 //   Moving: a chip dragged to another day keeps its time and goes through the mesa's setDate, as the post view's date field
 //   (it renumbers, reorders the grid, reaches a collab's boards and is one step of ⌘Z); a past day is refused.
 //   Notion: the mesa doesn't read Notion live — each chip has the grid's mark of changes since the last upload (1.1: the one
@@ -41,7 +40,7 @@
 //   Sessions (1.23, D-219, mesa ≥ 4.24): a session of the personal page (sesiones.js) with a date has a chip on each day of the
 //   board it lasts, in the board of each of its monthly clients — clapperboard, name and its time on its first day, slate blue,
 //   no state mark — dimmed on another month of the board as the posts' (D-153); always in Kevin's calendar and, in the vista
-//   cliente, only with the session's eye open. It never moves nor counts (Σ, the month's total, the step bar, the vencidas, «N
+//   cliente, only with the session's eye open. It never moves nor counts (the month's total, the step bar, the vencidas, «N
 //   cambiadas», «Revisar», Notion, Zernio, Descargar: they read the posts only); its click opens its sheet over the board (in
 //   the vista cliente, fixed in «Ver como el cliente»). Read from 'tareas' when the first board opens (also one the tab
 //   started in) and again after each change («mesa-tareas», also from another tab and after an import).
@@ -51,7 +50,7 @@
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const VERSION = '1.23';   // 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
-  const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
+  const LS_FOLD = 'mesa-cal-plegado';   // the weekly count Σ is gone, and its «mesa-cal-recuento» no longer read (D-229)
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   // pastel of each type (Notion's tag colours); the dot of each state is the mesa's (.edot.e-<state>), other hues
   const TYPE = { 'Reel': 'reel', 'Collab Reel': 'collab', 'Foto': 'foto', 'Carrusel': 'carr', 'Trial Reel': 'trial' };
@@ -59,7 +58,6 @@
   const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
   const NARROW = window.matchMedia ? window.matchMedia('(max-width:720px)') : { matches: false };
   const folded = () => { const v = lsGet(LS_FOLD); return v === '1' || (v == null && NARROW.matches); };   // a narrow pane starts folded
-  const cntFolded = () => lsGet(LS_CNT) === '1';
 
   // ---------- days ('YYYY-MM-DD', Madrid) and months ('YYYY-MM') ----------
   const dayAt = t => new Date(t).toISOString().slice(0, 10);
@@ -141,9 +139,8 @@
     }
     const live = it => it.p || X.estadoDe(it.s) !== 'cancelado';       // what counts (and what the vista cliente shows)
     const first = `${m}-01`, start = addDays(first, -dow(first)), dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-    const rows = Math.ceil((dow(first) + dim) / 7), cf = cntFolded();
-    let body = DOW.map(d => `<div class="cdow">${d}</div>`).join('')
-      + `<button type="button" class="cdow ccnt" data-cal="cnt" title="${cf ? 'Ver el recuento de cada semana' : 'Plegar el recuento'}" aria-expanded="${!cf}">Σ</button>`;
+    const rows = Math.ceil((dow(first) + dim) / 7);
+    let body = DOW.map(d => `<div class="cdow">${d}</div>`).join('');
     let total = 0;
     for (let r = 0; r < rows; r++) {
       let n = 0;
@@ -157,9 +154,9 @@
           + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
       }
       total += n;
-      body += `<div class="ccnt${n ? '' : ' z'}" title="${n} publicaci${n === 1 ? 'ón' : 'ones'} esta semana en ${X.MONTHS[mo - 1]}">${cf ? '' : n}</div>`;
     }
-    if (!cf && !client) body += `<div class="ctot">Total de ${X.MONTHS[mo - 1]}</div><div class="ccnt ctotn" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">${total}</div>`;   // never in the vista cliente (D-228)
+    // no weekly count (Σ) anywhere; the month's total, always in my view, under the grid (D-229), and never in the vista cliente (D-228)
+    if (!client) body += `<div class="ctot" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">Total de ${X.MONTHS[mo - 1]} <b>${total}</b></div>`;
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
     const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
@@ -174,8 +171,8 @@
     const nav = `<span class="cnav">${flechas ? `<button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button>` : ''}<span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span>${flechas ? `<button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button>` : ''}</span>`;
     const cab = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nav}</div>`;
     sec.hidden = false;
-    sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
-    sec.innerHTML = cab + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${cf || client ? '' : ' 26px'}">${body}</div></div>`;
+    sec.classList.toggle('fold', fo);
+    sec.innerHTML = cab + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${client ? '' : ' auto'}">${body}</div></div>`;
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
     vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)
@@ -231,8 +228,7 @@
       if (a === 'paso') { if (!client) abrirPaso(b.dataset.paso, b.dataset.mes); return; }
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
       if (a === 'fold') { plegar(X, sec); return; }
-      if (a === 'cnt') lsSet(LS_CNT, cntFolded() ? '0' : '1');
-      else if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
+      if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
@@ -540,12 +536,8 @@
 #mesa .detail .cprv>p{margin:0 0 10px;color:var(--mute);font-size:12.5px}#mesa .detail .cprv>p.xwhat{color:var(--ink);font-size:13px}
 #mesa .detail .xwhat .cpn{color:var(--mute);font-size:12.5px}
 #mesa .calbody{flex:1;min-height:0;overflow:auto;padding:0 10px 10px}
-#mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 28px;gap:var(--cx-gap);min-height:100%}
-#mesa .cal.nocnt .cgrid{grid-template-columns:repeat(7,minmax(0,1fr)) 16px}
+#mesa .cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--cx-gap);min-height:100%}
 #mesa .cdow{padding:3px 6px;font-size:10.5px;font-weight:600;color:var(--cx-wk-c)}
-#mesa button.cdow.ccnt::before{content:'';position:absolute;inset:0;margin:auto;width:12px;height:12px;background:currentColor;-webkit-mask:var(--i-sigma) center/contain no-repeat;mask:var(--i-sigma) center/contain no-repeat}
-#mesa button.cdow.ccnt{position:relative;border:0;padding:0;border-radius:var(--cx-r);background:none;font:inherit;font-size:0;font-weight:600;color:var(--cx-wk-c);text-align:center;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
-#mesa button.cdow.ccnt:hover{color:var(--ink);background:var(--cx-hov)}
 #mesa .cday{position:relative;min-width:0;display:flex;flex-direction:column;gap:2px;padding:2px 3px 4px;border-radius:var(--cx-r);background:var(--cx-casilla)}
 #mesa .cday.off,#mesa .cday.prevc,#mesa .cday.otromes{background:none}
 #mesa .cday.out .dn,#mesa .cday.off .dn,#mesa .cday.prevc .dn,#mesa .cday.otromes .dn{color:var(--cx-otro)}
@@ -578,10 +570,7 @@
 #mesa .cday.cno{background:var(--red-soft)}#mesa.calmv .cday.cno,#mesa.calmv .cday.cno *{cursor:not-allowed !important}
 #mesa .chip.calhi{box-shadow:0 0 0 2px var(--ink)}
 #mesa .cell.calhi::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;box-shadow:inset 0 0 0 2px var(--on-photo),inset 0 0 0 4px var(--ink)}
-#mesa .cgrid>.ccnt:not(button){display:flex;align-items:center;justify-content:center;font:600 11px var(--font);color:var(--ink);font-variant-numeric:tabular-nums}
-#mesa .cgrid>.ccnt.z{color:var(--cx-otro);font-weight:400}
-#mesa .ctot{grid-column:1/8;padding:4px 8px;text-align:right;font-size:11px;color:var(--mute)}
-#mesa .ctotn{min-height:22px}
+#mesa .ctot{grid-column:1/-1;padding:4px 6px 0;text-align:right;font-size:11px;color:var(--mute)}#mesa .ctot b{margin-left:4px;font-weight:600;color:var(--ink)}   /* the month's total, its own row (D-229) */
 #mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
 #mesa.client .chip{cursor:pointer}
 @media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}#mesa .cfold b{font-size:14px}}`;

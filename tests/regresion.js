@@ -11826,16 +11826,15 @@
     igual([e.boxShadow, e.backgroundColor], ['none', raiz.getPropertyValue('--st-empezar-aro').trim() === '#A39A90' ? 'rgb(163, 154, 144)' : e.backgroundColor], 'Por empezar con aro');
   });
 
-  prueba('ES2', 'Glifos que pasan a icono: «+», ✓ de uso y su recuento, Σ, barra de tamaño, ⋯ y ? del editor, × de la tira, ✓ y atajo de sus menús; el texto se queda (D-169)', async () => {
+  prueba('ES2', 'Glifos que pasan a icono: «+», ✓ de uso y su recuento, barra de tamaño, ⋯ y ? del editor, × de la tira, ✓ y atajo de sus menús; el texto se queda (D-169)', async () => {
     await tablero([pub(1), pub(2)]);
-    await hasta(() => M.calendario && q('.side > .cal button.ccnt'), 4000, 'calendario.js');
+    await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'calendario.js');   // Σ ya no está (D-229, AV8)
     const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
     const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
     for (const [sel, txt] of [['[data-act="addfiller"]', '+ Hueco'], ['[data-act="newclient"]', '+ Cliente']]) {
       const b = q(sel), i = b && b.querySelector('.i-mas');
       ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
     }
-    const cc = q('.side > .cal button.ccnt'); ok(cc.textContent === 'Σ' && tam0(cc) && /M18 7V5/.test(masc(cc)), 'Σ sin el icono sigma');
     const ti = qa('.tray .trayhead .ttam i'); ok(ti.length === 2 && ti.every(i => W.getComputedStyle(i).borderTopWidth === '0px' && /rect/.test(masc(i, null))), 'la barra de tamaño sigue con bordes');
     await poner('r1', [await foto('es2.jpg')]); await espera(80);
     await pulsar('.tray .tfil button[data-v="todas"]'); await espera(120);
@@ -15053,7 +15052,7 @@
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
-  prueba('DS3', 'La sesión en el calendario (D-219): en el tablero de cada cliente mensual de la sesión, un chip por día que dura (claqueta, nombre, la hora el primer día, azul pizarra, sin punto de estado); sin fecha, sin cliente o solo con esporádicos, en ninguno; no cuenta en Σ ni en el total ni se arrastra; en «Vista cliente» solo con el ojo abierto; su clic abre la hoja encima del tablero sin la página personal y al cerrarla se vuelve al chip; en «Vista cliente» la hoja, fija en «Ver como el cliente», sin «⋯» y con solo el cliente de ese tablero; el calendario se pone al día al cambiar una sesión', async () => {
+  prueba('DS3', 'La sesión en el calendario (D-219): en el tablero de cada cliente mensual de la sesión, un chip por día que dura (claqueta, nombre, la hora el primer día, azul pizarra, sin punto de estado); sin fecha, sin cliente o solo con esporádicos, en ninguno; no cuenta en el total (sin Σ desde D-229) ni se arrastra; en «Vista cliente» solo con el ojo abierto; su clic abre la hoja encima del tablero sin la página personal y al cerrarla se vuelve al chip; en «Vista cliente» la hoja, fija en «Ver como el cliente», sin «⋯» y con solo el cliente de ese tablero; el calendario se pone al día al cambiar una sesión', async () => {
     await tablero([pub(1), pub(2, 'Reel', 9)]); await sinTareas();
     const raiz = M._in.root();
     try {
@@ -15075,9 +15074,8 @@
       ok(c1.classList.contains('ty-ses') && c1.querySelector('svg.cses') && !c1.querySelector('.edot, .eico, .cmk') && /Rodaje largo/.test(c1.textContent), 'el chip sin claqueta, nombre o con punto de estado');
       igual([c1.querySelector('.ct') && c1.querySelector('.ct').textContent, !!cs(s1.id)[1].querySelector('.ct')], ['10:30', false], 'la hora, solo el primer día');
       const bg = getComputedStyle(c1).backgroundColor; ok(bg !== getComputedStyle(q('.side > .cal .chip[data-slot]')).backgroundColor && /220, 228, 238|39, 50, 63/.test(bg), 'el chip sin su azul pizarra: ' + bg);
-      // no cuenta: Σ y el total solo las publicaciones; no se arrastra
-      igual(q('.side > .cal .ctotn').textContent, '2', 'el total cuenta las sesiones');
-      igual(qa('.side > .cal .cgrid > .ccnt:not(.ctotn):not(button)').reduce((n, x) => n + (+x.textContent || 0), 0), 2, 'Σ cuenta las sesiones');
+      // no cuenta: el total solo las publicaciones (sin Σ, D-229); no se arrastra
+      igual(q('.side > .cal .ctot b').textContent, '2', 'el total cuenta las sesiones');   // sin Σ (D-229)
       const r0 = c1.getBoundingClientRect(), pe = (t, el, x, y) => el.dispatchEvent(new W.PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 9, button: 0, pointerType: 'mouse' }));
       pe('pointerdown', c1, r0.left + 5, r0.top + 5); pe('pointermove', q('.side > .cal'), r0.left + 80, r0.top + 70); ok(!q('.cghost'), 'el chip de la sesión se arrastra'); pe('pointerup', q('.side > .cal'), r0.left + 80, r0.top + 70); await espera(450);
       // su clic: la hoja encima del tablero, sin la página; al cerrarla, el chip
@@ -15625,6 +15623,20 @@
       const nx = q('.side > .cal [data-cal="next"]'), pv2 = q('.side > .cal [data-cal="prev"]'); ok(nx || pv2, 'un ciclo del 22 al 21 pierde ‹ › en «Vista cliente»');
       if (nx && !nx.disabled) { nx.click(); await espera(60); } ok(q('.side > .cal .chip[data-slot="c22b"]') || (pv2 && !pv2.disabled), 'la publicación del 10 dic no se alcanza');
     } finally { await vistaCliente(false); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('AV8', 'Σ fuera (D-229): el calendario no tiene recuento semanal en ninguna vista (sin botón Σ ni columna, 7 columnas, sin .nocnt, «mesa-cal-recuento» no se lee); «Total de <mes>» sale siempre en mi vista, en su fila, y nunca en «Vista cliente»', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    const ls0 = W.localStorage.getItem('mesa-cal-recuento');
+    try {
+      W.localStorage.setItem('mesa-cal-recuento', '1'); M._in.render(); await hasta(() => q('.side > .cal .cgrid'), 4000, 'el calendario');
+      ok(!q('.side > .cal [data-cal="cnt"]') && !q('.side > .cal .ccnt') && !q('.side > .cal.nocnt'), 'sigue Σ o su columna');
+      igual(W.getComputedStyle(q('.side > .cal .cgrid')).gridTemplateColumns.split(' ').length, 7, 'la rejilla no tiene 7 columnas');
+      const t = q('.side > .cal .ctot'); ok(t && /^Total de noviembre\s*3$/.test(t.textContent.trim()) && W.getComputedStyle(t).gridColumnStart === '1', 'sin «Total de noviembre 3» en su fila: ' + (t && t.textContent));
+      ok(t.getBoundingClientRect().top >= qa('.side > .cal .cday').reduce((m, d) => Math.max(m, d.getBoundingClientRect().bottom), 0) - 1, 'el total no va debajo de los días');
+      W.localStorage.setItem('mesa-cal-recuento', '0'); M._in.render(); ok(q('.side > .cal .ctot'), 'el total depende de «mesa-cal-recuento»');
+      await vistaCliente(true); ok(!q('.side > .cal .ctot') && !q('.side > .cal .ccnt'), 'en «Vista cliente» sale el total o Σ');
+    } finally { await vistaCliente(false); if (ls0 == null) W.localStorage.removeItem('mesa-cal-recuento'); else W.localStorage.setItem('mesa-cal-recuento', ls0); }
   });
 
 

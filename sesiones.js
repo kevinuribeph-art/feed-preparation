@@ -38,7 +38,7 @@
     if (a.t === 'texto') o.texto = '';
     if (a.t === 'planos') o.pestanas = [{ id: P.nuevoId('pt'), nombre: 'Planos', items: [] }, { id: P.nuevoId('pt'), nombre: 'Vídeos', items: [] }];
     if (a.t === 'mood') o.grupos = [];
-    if (a.t === 'material') o.material = { lista: matPlantilla(), hechos: [] };
+    if (a.t === 'material') o.material = { lista: matPlantilla(), hechos: [], ...(matRec() ? { plantilla: MAT_ID } : {}) };
     return o;
   }
   const tipoDe = a => (APS[a.id] ? APS[a.id].t : 'texto');   // one this version doesn't know: shown as text
@@ -63,9 +63,14 @@
   }
 
   // ---------- the list of material (D-208): a template in 'tareas' ('material'), copied into each session when it is made ----------
-  const MAT_ID = 'material';
-  const matRec = () => P && P.TK.get(MAT_ID);
-  const matPlantilla = () => { const m = matRec(); return m && Array.isArray(m.lista) ? P.hondo(m.lista) : []; };
+  // several templates (D-220), each a record `tipo: 'material'` with its name in `txt` and its place in `orden`; the one with
+  // id 'material' is the one a new session takes («Equipo completo»: first, renamed but never deleted) and the one
+  // MESA.material loads and reads
+  const MAT_ID = 'material', MAT_SERIE = 'Equipo completo';
+  const matRec = (id = MAT_ID) => P && P.TK.get(id);
+  const matPlantilla = (id = MAT_ID) => { const m = matRec(id); return m && m.tipo === 'material' && Array.isArray(m.lista) ? P.hondo(m.lista) : []; };
+  const plantillas = () => [...P.TK.values()].filter(t => t && t.tipo === 'material' && !t._b).sort((a, b) => (a.id === MAT_ID ? -1 : b.id === MAT_ID ? 1 : 0) || (+a.orden || 0) - (+b.orden || 0) || String(a.creada || '').localeCompare(String(b.creada || '')));
+  const plNombre = id => { const t = matRec(id); return t && t.tipo === 'material' ? String(t.txt || '') : ''; };
   const TIPO_MAT = t => /^v/i.test(String(t || '')) ? 'video' : /^f/i.test(String(t || '')) ? 'foto' : 'ambas';
   function matNormal(l) {                      // [{nombre, familia, tipo, colgadoDe}] → the list kept, with ids; colgadoDe by name or id
     const out = [], porNombre = new Map();
@@ -74,7 +79,7 @@
     return out;
   }
   async function matGuardar(lista, paso) {
-    const now = P.ahoraISO(), m = matRec(), n = { ...(m ? P.copia(m) : { id: MAT_ID, tipo: 'material', txt: 'Material', creada: now }), lista: matNormal(lista), at: now };
+    const now = P.ahoraISO(), m = matRec(), n = { ...(m ? P.copia(m) : { id: MAT_ID, tipo: 'material', txt: MAT_SERIE, creada: now }), lista: matNormal(lista), at: now };
     if (paso) await P.hacer([{ id: MAT_ID, despues: n }]); else await P.escribir([{ id: MAT_ID, despues: n }]);
     return n;
   }
@@ -134,7 +139,7 @@
   }
 
   // ---------- the session being seen ----------
-  const S = { vista: false, tira: false, plg: new Set(), tab: {}, campo: null, firma: '', enl: null };   // what the sheet shows (this visit)
+  const S = { vista: false, tira: false, plg: new Set(), tab: {}, campo: null, firma: '', enl: null, cosa: null };   // what the sheet shows (this visit)
   const rec = () => { const C = P && P.CARD; return C && C.ext === HOJA ? P.TK.get(C.id) : null; };
   const ap = (r, id) => (r.sesion.apartados || []).find(a => a.id === id);
   const svgI = k => P.ICO[k] || '';
@@ -216,20 +221,37 @@
   }
   // the material of a session: its own copy (or, while it has none, the list now), only what goes with its kind
   function matDe(a, r) {
-    const m = a.material || { lista: [], hechos: [] }, L0 = m.lista && m.lista.length ? m.lista : matPlantilla(), c = r.sesion.clase;
+    const m = a.material || { lista: [], hechos: [] }, L0 = m.lista && m.lista.length ? m.lista : matPlantilla(m.plantilla || MAT_ID), c = r.sesion.clase;
     const L = L0.filter(x => c === 'foto' ? x.tipo !== 'video' : c === 'video' ? x.tipo !== 'foto' : true);
     return { L, propia: !!(m.lista && m.lista.length) };
   }
+  // the row of templates (D-220): the piece of «Mensuales · Esporádicos» (more than 5, the mesa's dropdown) and «+ Guardar como
+  // plantilla»; retouched in this session, a dot on its template, «Guardar en …» and «Como plantilla nueva»
+  function plsHTML(a) {
+    const T = plantillas(); if (!T.length) return '';
+    const m = a.material || {}, cur = m.plantilla || MAT_ID, hay = T.some(t => t.id === cur), ret = !!m.retocada;
+    const pt = `<i class="pp-ma-pt" title="Con cambios en esta sesión" aria-label="Con cambios en esta sesión"></i>`;
+    const sel = T.length > 5 ? `<span class="pp-hj-chip pp-ma-plsel"><select data-hj="mat-plsel" aria-label="Plantilla de material">${hay ? '' : '<option value="" hidden selected>Sin plantilla</option>'}${T.map(t => `<option value="${P.esc(t.id)}"${t.id === cur ? ' selected' : ''}>${P.esc(t.txt)}</option>`).join('')}</select></span>${ret && hay ? pt : ''}`
+      : `<div class="seg pp-tvs pp-ma-pls" role="group" aria-label="Plantilla de material">${T.map(t => `<button type="button" class="${t.id === cur ? 'on' : ''}" data-hj="mat-pl" data-pl="${P.esc(t.id)}" aria-pressed="${t.id === cur}">${P.esc(t.txt)}${t.id === cur && ret ? pt : ''}</button>`).join('')}</div>`;
+    const guardar = `<button type="button" class="${ret ? 'pp-ma-ge' : 'pp-cmas'}" data-hj="mat-nueva">${svgI('mas')}${ret ? 'Como plantilla nueva' : 'Guardar como plantilla'}</button>`;
+    return `<div class="pp-ma-plr">${sel}<span class="pp-hj-sp"></span>${ret ? '' : guardar}</div>`
+      + (ret ? `<div class="pp-ma-plr pp-ma-cmb"><span>Con cambios en esta sesión</span><span class="pp-hj-sp"></span>${hay ? `<button type="button" class="pp-ma-ge" data-hj="mat-en">Guardar en ${P.esc(plNombre(cur))}</button>` : ''}${guardar}</div>` : '');
+  }
   function matHTML(a, r) {
-    const { L } = matDe(a, r), hs = new Set((a.material && a.material.hechos) || []);
-    if (!L.length) return `<p class="pp-pl-sin">Sin lista de material</p>`;
+    const { L } = matDe(a, r), hs = new Set((a.material && a.material.hechos) || []), ed = !S.vista;
+    if (!L.length && !(ed && plantillas().length)) return `<p class="pp-pl-sin">Sin lista de material</p>`;
+    if (!L.length) return `${plsHTML(a)}<p class="pp-pl-sin">Sin cosas en esta sesión</p>`;
     const fams = []; for (const x of L) if (!fams.includes(x.familia)) fams.push(x.familia);
     fams.sort((x, y) => (/^antes de salir$/i.test(y) ? 1 : 0) - (/^antes de salir$/i.test(x) ? 1 : 0));
     const orden = l => { const out = []; for (const x of l.filter(y => !y.padre || !l.some(z => z.id === y.padre))) { out.push(x); out.push(...l.filter(y => y.padre === x.id)); } return out; };
     const n = L.length, h = L.filter(x => hs.has(x.id)).length;
-    return `<div class="pp-ma"><div class="pp-ma-bar">${`<span class="pp-pb" aria-hidden="true"><i style="width:${(h / n * 100).toFixed(1)}%"></i></span>`}<span>${h}/${n}</span></div>`
+    // each thing: a click marks it; with the pointer over it, its × takes it out of this session (D-220); at the end of each
+    // family, «+ Cosa» (written in its place: Enter puts it, Esc lets it go)
+    const ficha = x => `<span class="pp-ma-w"><button type="button" class="pp-ma-c${hs.has(x.id) ? ' on' : ''}${x.padre ? ' hijo' : ''}" data-hj="mat" data-m="${P.esc(x.id)}" aria-pressed="${hs.has(x.id)}">${P.esc(x.nombre)}</button>${ed ? `<button type="button" class="pp-ma-x" data-hj="mat-x" data-m="${P.esc(x.id)}" title="Quitar de esta sesión" aria-label="Quitar ${P.esc(x.nombre)} de esta sesión">${svgI('x')}</button>` : ''}</span>`;
+    const mas = f => !ed ? '' : S.cosa === f ? `<input type="text" class="pp-ma-in" data-hj="mat-in" data-fam="${P.esc(f)}" maxlength="60" aria-label="Cosa nueva de ${P.esc(f)}" placeholder="Cosa">` : `<button type="button" class="pp-ma-mas" data-hj="mat-mas" data-fam="${P.esc(f)}" aria-label="Otra cosa en ${P.esc(f)}">${svgI('mas')}Cosa</button>`;
+    return (ed ? plsHTML(a) : '') + `<div class="pp-ma"><div class="pp-ma-bar">${`<span class="pp-pb" aria-hidden="true"><i style="width:${(h / n * 100).toFixed(1)}%"></i></span>`}<span>${h}/${n}</span></div>`
       + fams.map(f => { const l = orden(L.filter(x => x.familia === f)), fh = l.filter(x => hs.has(x.id)).length;
-        return `<div class="pp-ma-fam${/^antes de salir$/i.test(f) ? ' antes' : ''}"><p class="pp-ma-ft"><b>${P.esc(f)}</b> <span>${fh}/${l.length}</span></p><div class="pp-ma-fi">${l.map(x => `<button type="button" class="pp-ma-c${hs.has(x.id) ? ' on' : ''}${x.padre ? ' hijo' : ''}" data-hj="mat" data-m="${P.esc(x.id)}" aria-pressed="${hs.has(x.id)}">${P.esc(x.nombre)}</button>`).join('')}</div></div>`; }).join('') + `</div>`;
+        return `<div class="pp-ma-fam${/^antes de salir$/i.test(f) ? ' antes' : ''}"><p class="pp-ma-ft"><b>${P.esc(f)}</b> <span>${fh}/${l.length}</span></p><div class="pp-ma-fi">${l.map(ficha).join('')}${mas(f)}</div></div>`; }).join('') + `</div>`;
   }
   function apHTML(a, r) {
     const t = tipoDe(a), plg = S.plg.has(a.id);
@@ -261,7 +283,7 @@
 
   // ---------- drawing the sheet ----------
   // what the sheet shows besides the record (each write leaves a new record object: compared as it is, never by its time)
-  function firma(r) { return [S.vista, S.tira, [...S.plg].join(), JSON.stringify(S.tab), S.enl, P.CARD.ed, S.campo, P.lsGet(LS), innerWidth > 720, P.clis(r).map(c => (P.cliDe(c) || {}).name).join(',')].join('|'); }
+  function firma(r) { return [S.vista, S.tira, [...S.plg].join(), JSON.stringify(S.tab), S.enl, S.cosa, JSON.stringify(plantillas().map(t => [t.id, t.txt, (t.lista || []).length])), P.CARD.ed, S.campo, P.lsGet(LS), innerWidth > 720, P.clis(r).map(c => (P.cliDe(c) || {}).name).join(',')].join('|'); }
   let ctlCampo = null;
   function pintar(r, o = {}) {
     const ov = P.ov; if (!ov || !r) return;
@@ -275,6 +297,7 @@
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     const c = ov.firstChild; c.scrollTop = y;
     if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2) e2.value = enlV; }
+    const mi = ov.querySelector('[data-hj="mat-in"]'); if (mi) mi.addEventListener('blur', () => { if (S.cosa === mi.dataset.fam && mi.isConnected) ponerCosa(mi, false); });
     maquetar();
     const cl = ov.querySelector('.pp-hj-cols'); if (cl) cl.addEventListener('transitionend', ev => { if (ev.target === cl) colocarMood(); });   // the separator's move ends
     if (P.CARD.ed && S.campo) escribirEn(S.campo, o.pt); else if (foco) { const b = ov.querySelector(foco); if (b) b.focus({ preventScroll: true }); else c.focus({ preventScroll: true }); } else c.focus({ preventScroll: true });
@@ -397,13 +420,18 @@
     if (k === 'it-nuevo') { const pt = S.tab[apId], id = P.nuevoId('pi'); cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt); if (!p) return false; (p.items = p.items || []).push({ id, titulo: '', texto: '', fotos: [], enlaces: [] }); }).then(() => empezar(`it:${apId}:${pt}:${id}:titulo`)); return true; }
     if (k === 'g-nuevo') { const id = P.nuevoId('gr'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.grupos = y.grupos || []).push({ id, nombre: 'Grupo', modo: 'linea', fotos: [] }); }).then(() => empezar(`g:${apId}:${id}`)); return true; }
     if (k === 'modo') { const g = t.closest('[data-g]').dataset.g, m = a.dataset.m; cambiar(x => { const y = ap(x, apId), gg = y && (y.grupos || []).find(q => q.id === g); if (!gg || (gg.modo || 'linea') === m) return false; gg.modo = m; }); return true; }
-    if (k === 'mat' && !S.vista) { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = y.material = y.material || { lista: [], hechos: [] }; if (!m.lista || !m.lista.length) m.lista = matPlantilla(); const h = new Set(m.hechos || []); if (h.has(id)) h.delete(id); else h.add(id); m.hechos = [...h]; }); return true; }
+    if (k === 'mat' && !S.vista) { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = matDeY(y); const h = new Set(m.hechos || []); if (h.has(id)) h.delete(id); else h.add(id); m.hechos = [...h]; }); return true; }
+    if (k === 'mat-x' && !S.vista) { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = matDeY(y); if (!m.lista.some(z => z.id === id)) return false; m.lista = m.lista.filter(z => z.id !== id).map(z => z.padre === id ? (({ padre, ...w }) => w)(z) : z); m.hechos = (m.hechos || []).filter(h => h !== id); m.retocada = true; }); return true; }
+    if (k === 'mat-mas' && !S.vista) { S.cosa = a.dataset.fam; pintarYa(); const i = P.ov.querySelector('[data-hj="mat-in"]'); if (i) i.focus({ preventScroll: true }); return true; }
+    if (k === 'mat-pl' && !S.vista) { elegirPl(apId, a.dataset.pl); return true; }
+    if (k === 'mat-nueva' && !S.vista) { comoNueva(apId); return true; }
+    if (k === 'mat-en' && !S.vista) { guardarEn(apId); return true; }
     if (k === 'cli-x' && !S.vista) { quitarCli(a.dataset.c); return true; }
     if (k === 'fin' && !S.vista) { cambiar(x => { if (!x.fecha || x.fin) return false; x.fin = P.finNuevo(x); }).then(() => { const i = P.ov && P.ov.querySelector('[data-hj="fin-hora"], [data-hj="fin-fecha"]'), g = i && M.controles && M.controles.gemelo && M.controles.gemelo(i); if (g) (g.firstChild || g).focus({ preventScroll: true }); }); return true; }
     if (k === 'fin-x' && !S.vista) { cambiar(x => { if (!x.fin) return false; delete x.fin; }).then(() => { const b = P.ov && P.ov.querySelector('[data-hj="fin"]'); if (b) b.focus({ preventScroll: true }); }); return true; }
     if (k === 'tira') { S.tira = !S.tira; pintarYa(); return true; }
     if (k === 'vista' && !P.CARD.vc) { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
-    if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuSesion(r.id, [['material', 'Editar la lista de material', () => editarLista()]]), a); return true; }
+    if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuSesion(r.id, [['material', 'Editar plantillas', () => editarLista()]]), a); return true; }
     if (k === 'ap-mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, menuAp(apId), a); return true; }
     if (k === 'ap-nuevo') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, ORDEN.filter(id => !ap(r, id)).map(id => ['ap-' + id, APS[id].n, () => anadirAp(id)]), a); return true; }
     if (k === 'en-mas') { S.enl = t.closest('[data-it]').dataset.it; pintarYa(); const i = P.ov.querySelector('[data-hj="en-in"]'); if (i) i.focus(); return true; }
@@ -426,6 +454,11 @@
     }
     if (P.CARD.ed && S.campo && UNA.test(S.campo) && k === 'Enter' && !e.isComposing && t.isContentEditable) { e.preventDefault(); e.stopImmediatePropagation(); P.editar(false); return true; }
     if (k === 'Enter' && t === P.ov.firstChild) { e.preventDefault(); return true; }   // the sheet has no «write all»: a double click on a text writes it
+    if (t.matches && t.matches('[data-hj="mat-in"]')) {
+      if (k === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); S.cosa = null; pintarYa(); const b = P.ov.querySelector(`[data-hj="mat-mas"][data-fam="${CSS.escape(t.dataset.fam)}"]`); if (b) b.focus({ preventScroll: true }); return true; }
+      if (k === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopImmediatePropagation(); ponerCosa(t, true); return true; }
+      return false;
+    }
     if (t.matches && t.matches('[data-hj="en-in"]')) {
       if (k === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); S.enl = null; pintarYa(); return true; }
       if (k === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); anadirEnlace(t); return true; }
@@ -438,7 +471,7 @@
     return false;
   }
   function escribir(e) {
-    if (e.target.matches && e.target.matches('[data-hj="en-in"]')) return;
+    if (e.target.matches && e.target.matches('[data-hj="en-in"], [data-hj="mat-in"]')) return;
     if (P.CARD.ed && S.campo && e.target.isContentEditable) P.cardT.poner(() => guardar(false));
   }
   function cambio(e) {
@@ -450,9 +483,51 @@
     if (k === 'fin-fecha' || k === 'fin-hora') { const r = rec(); if (!r || !r.fin) return true; const f = { ...r.fin }; if (k === 'fin-fecha') { if (!/^\d{4}-\d{2}-\d{2}$/.test(t.value)) { pintarYa(); return true; } f.fecha = t.value; } else if (/^\d{2}:\d{2}/.test(t.value)) f.hora = t.value.slice(0, 5); else delete f.hora;
       if (!P.finOk(r, f)) { I().toast('El fin no puede ser antes del inicio.', { key: 'fin-antes' }); S.firma = ''; pintarYa(); return true; }   // not taken: back to the one before
       cambiar(x => { if (JSON.stringify(x.fin) === JSON.stringify(f)) return false; x.fin = f; }); return true; }
+    if (k === 'mat-plsel') { const v = t.value, apId = t.closest('[data-ap]').dataset.ap; if (v && matRec(v)) elegirPl(apId, v); return true; }
     if (k === 'cli-mas') { const v = t.value; t.value = ''; if (v === '__nuevo') { pedirEsp(e2 => anadirCli(e2.id)); return true; } if (v && P.cliDe(v)) anadirCli(v); return true; }   // one more client (D-217): a step of ⌘Z
     if (k === 'it-hecho') { const it = t.dataset.it, apId = t.closest('[data-ap]').dataset.ap, pt = S.tab[apId]; cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt), i = p && (p.items || []).find(q => q.id === it); if (!i) return false; i.hecho = t.checked; if (!i.hecho) delete i.hecho; }); return true; }
     return false;
+  }
+  // the session's own material (made from its template when it has none yet)
+  function matDeY(y) { const m = y.material = y.material || { lista: [], hechos: [] }; if (!m.lista || !m.lista.length) { m.lista = matPlantilla(m.plantilla || MAT_ID); if (!m.plantilla && matRec()) m.plantilla = MAT_ID; } return m; }
+  // another template: this session's copy is its list now; what was marked stays marked by its name; a step of ⌘Z, no question
+  function elegirPl(apId, id) {
+    const T = matRec(id); if (!T || T.tipo !== 'material') return;
+    cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = y.material = y.material || { lista: [], hechos: [] };
+      if (m.plantilla === id && !m.retocada && m.lista && m.lista.length) return false;
+      const antes = m.lista && m.lista.length ? m.lista : matPlantilla(m.plantilla || MAT_ID), nueva = matPlantilla(id), porNombre = new Map(nueva.map(z => [z.nombre.toLowerCase(), z.id]));
+      const hechos = (m.hechos || []).map(h => { const o = antes.find(z => z.id === h); return o && porNombre.get(o.nombre.toLowerCase()); }).filter(Boolean);
+      y.material = { lista: nueva, hechos: [...new Set(hechos)], plantilla: id }; });
+  }
+  // «+ Cosa»: in this session only (its template doesn't change until it is saved)
+  function ponerCosa(inp, foco) {
+    const n = inp.value.trim(), fam = inp.dataset.fam, apId = inp.closest('[data-ap]').dataset.ap; S.cosa = null;
+    if (!n) { pintarYa(); return; }
+    cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = matDeY(y); m.lista.push({ id: P.nuevoId('ma'), nombre: n, familia: fam, tipo: 'ambas' }); m.retocada = true; })
+      .then(() => { if (!foco) return; S.cosa = fam; pintarYa(); const i = P.ov && P.ov.querySelector('[data-hj="mat-in"]'); if (i) i.focus({ preventScroll: true }); });   // Enter: another one
+  }
+  // «Guardar en …»: this session's list goes to its template; one step of ⌘Z with the session, which isn't retouched any more
+  function guardarEn(apId) {
+    const r = rec(), y = r && ap(r, apId), m = y && y.material; if (!m || !m.plantilla || !matRec(m.plantilla)) return;
+    const now = P.ahoraISO(), T = { ...P.copia(matRec(m.plantilla)), lista: P.hondo(matDe(y, { sesion: { clase: 'fotovideo' } }).L), at: now }, x = P.copia(r);
+    const yy = ap(x, apId); yy.material = { ...yy.material, lista: P.hondo(T.lista) }; delete yy.material.retocada; x.at = now;
+    P.hacer([{ id: T.id, despues: T }, { id: x.id, despues: x }]).then(() => P.pintar());
+  }
+  // «+ Guardar como plantilla» / «Como plantilla nueva»: its name in the mesa's dialog; the session takes it
+  function comoNueva(apId) {
+    const X = I(), r = rec(); if (!r) return; let hecho = false;
+    X.showDialog('pp-plantilla', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Plantilla nueva</h3><form class="form pp-plf" autocomplete="off"><label for="pp-pl-n">Nombre</label><input id="pp-pl-n" type="text" maxlength="40" required><p class="ferr" hidden></p><div class="row"><button type="submit" class="btn">Guardar plantilla</button></div></form>`);
+    const det = X.root().querySelector('.detail'), f = det.querySelector('form'), i = f.querySelector('input'), err = f.querySelector('.ferr');
+    f.addEventListener('submit', async ev => {
+      ev.preventDefault(); const n = i.value.replace(/\s+/g, ' ').trim(); if (!n || hecho) return;
+      if (plantillas().some(t => String(t.txt).toLowerCase() === n.toLowerCase())) { err.textContent = 'Ya hay una plantilla con ese nombre.'; err.hidden = false; return; }
+      const r1 = rec() || r, y = ap(r1, apId); if (!y) { X.closeDetail(); return; }
+      const now = P.ahoraISO(), id = P.nuevoId('ml'), T = { id, tipo: 'material', txt: n, lista: P.hondo(matDe(y, { sesion: { clase: 'fotovideo' } }).L), orden: plantillas().reduce((o, t) => Math.max(o, +t.orden || 0), 0) + 1, creada: now, at: now };
+      const x = P.copia(r1), yy = ap(x, apId); yy.material = { ...(yy.material || { hechos: [] }), lista: P.hondo(T.lista), plantilla: id }; delete yy.material.retocada; x.at = now;
+      hecho = true; await P.hacer([{ id, despues: T }, { id: x.id, despues: x }]);
+      X.closeDetail(); P.pintar();
+    });
+    i.focus();
   }
   const anadirCli = id => cambiar(x => { const l = P.clis(x); if (l.includes(id)) return false; ponerClis(x, [...l, id]); });
   const quitarCli = id => cambiar(x => { const l = P.clis(x); if (!l.includes(id)) return false; ponerClis(x, l.filter(c => c !== id)); });
@@ -484,7 +559,7 @@
     const it = t.closest('[data-it]'); if (it && apEl) { const pt = S.tab[apId], n = ((ap(r, apId).pestanas || []).find(q => q.id === pt) || {}).nombre || ''; e.preventDefault(); P.abrirMenu(e.clientX, e.clientY, [['borrar', /^v[ií]deos$/i.test(n) ? 'Borrar vídeo' : /^planos$/i.test(n) ? 'Borrar plano' : 'Borrar', () => cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt); if (!p) return false; p.items = p.items.filter(q => q.id !== it.dataset.it); })]]); return true; }
     const g = t.closest('[data-g]'); if (g && apEl) { e.preventDefault(); P.abrirMenu(e.clientX, e.clientY, [['borrar', 'Borrar grupo', () => cambiar(x => { const y = ap(x, apId); y.grupos = y.grupos.filter(q => q.id !== g.dataset.g); })]]); return true; }
     if (apEl && t.closest('.pp-hj-aph')) { e.preventDefault(); P.abrirMenu(e.clientX, e.clientY, menuAp(apId)); return true; }
-    if (t.closest('.pp-hj-cab')) { e.preventDefault(); P.abrirMenu(e.clientX, e.clientY, P.menuSesion(r.id, [['material', 'Editar la lista de material', () => editarLista()]])); return true; }
+    if (t.closest('.pp-hj-cab')) { e.preventDefault(); P.abrirMenu(e.clientX, e.clientY, P.menuSesion(r.id, [['material', 'Editar plantillas', () => editarLista()]])); return true; }
     return false;
   }
   function quitarDe(drop, id) {                // «Quitar de aquí»: the photo stays in the session
@@ -774,34 +849,56 @@
     });
   }
 
-  // ---------- «Editar la lista» (D-208): one row each thing, «+ Cosa», «Guardar» ----------
+  // ---------- «Editar plantillas» (D-208, D-220): each template, its name, its place and its things; «Guardar» is one step ----------
   function editarLista() {
-    const X = I(), L = matPlantilla();
-    const fila = x => `<div class="pp-ml-f" data-id="${P.esc(x.id || '')}"><input type="text" class="pp-ml-n" value="${P.esc(x.nombre || '')}" aria-label="Nombre" maxlength="60"><input type="text" class="pp-ml-fa" value="${P.esc(x.familia || '')}" aria-label="Familia" list="pp-ml-fams" maxlength="40">`
+    const X = I(), ED = plantillas().map(t => ({ id: t.id, txt: String(t.txt || ''), lista: matPlantilla(t.id), orden: +t.orden || 0 }));
+    if (!ED.length) ED.push({ id: MAT_ID, txt: MAT_SERIE, lista: [], orden: 0, nueva: true });
+    let cur = Math.max(0, ED.findIndex(t => t.id === ((rec() && (ap(rec(), 'material') || {}).material || {}).plantilla || MAT_ID)));
+    const fila = (x, L) => `<div class="pp-ml-f" data-id="${P.esc(x.id || '')}"><input type="text" class="pp-ml-n" value="${P.esc(x.nombre || '')}" aria-label="Nombre" maxlength="60"><input type="text" class="pp-ml-fa" value="${P.esc(x.familia || '')}" aria-label="Familia" list="pp-ml-fams" maxlength="40">`
       + `<select class="pp-ml-t" aria-label="Para"><option value="ambas"${x.tipo !== 'foto' && x.tipo !== 'video' ? ' selected' : ''}>Las dos</option><option value="foto"${x.tipo === 'foto' ? ' selected' : ''}>Foto</option><option value="video"${x.tipo === 'video' ? ' selected' : ''}>Vídeo</option></select>`
       + `<select class="pp-ml-p" aria-label="Colgada de"><option value="">Suelta</option>${L.filter(y => y.id !== x.id).map(y => `<option value="${P.esc(y.id)}"${x.padre === y.id ? ' selected' : ''}>${P.esc(y.nombre)}</option>`).join('')}</select>`
       + `<button type="button" class="pp-csx" data-ml="x" title="Quitar" aria-label="Quitar ${P.esc(x.nombre || 'la fila')}">${svgI('x')}</button></div>`;
-    X.showDialog('pp-material', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Lista de material</h3><form class="form pp-ml" autocomplete="off"><div class="pp-ml-cab" aria-hidden="true"><span>Cosa</span><span>Familia</span><span>Para</span><span>Colgada de</span><span></span></div><div class="pp-ml-l">${L.map(fila).join('')}</div>`
-      + `<datalist id="pp-ml-fams">${[...new Set(L.map(x => x.familia))].map(f => `<option value="${P.esc(f)}">`).join('')}</datalist><button type="button" class="pp-cmas" data-ml="mas">${svgI('mas')}Cosa</button><div class="row"><button type="submit" class="btn">Guardar</button></div></form>`);
-    const det = X.root().querySelector('.detail'), f = det.querySelector('form'), l = f.querySelector('.pp-ml-l');
-    if (M.controles && M.controles.mejorar) M.controles.mejorar(det);
-    f.addEventListener('click', e => {
-      const b = e.target.closest('[data-ml]'); if (!b) return;
-      if (b.dataset.ml === 'x') { b.closest('.pp-ml-f').remove(); return; }
-      if (b.dataset.ml === 'mas') { const d = document.createElement('div'); d.innerHTML = fila({ id: P.nuevoId('ma'), nombre: '', familia: (l.lastElementChild && l.lastElementChild.querySelector('.pp-ml-fa').value) || '', tipo: 'ambas' }); l.append(d.firstChild); if (M.controles && M.controles.mejorar) M.controles.mejorar(l); l.lastElementChild.querySelector('.pp-ml-n').focus(); }
-    });
-    f.addEventListener('submit', async e => {
-      e.preventDefault();
-      const out = [...l.querySelectorAll('.pp-ml-f')].map(r => ({ id: r.dataset.id || undefined, nombre: r.querySelector('.pp-ml-n').value, familia: r.querySelector('.pp-ml-fa').value, tipo: r.querySelector('.pp-ml-t').value, colgadoDe: r.querySelector('.pp-ml-p').value || undefined })).filter(x => x.nombre.trim());
-      await matGuardar(out, true); X.closeDetail(); P.pintar();
-    });
-    const i = f.querySelector('.pp-ml-n'); if (i) i.focus();
+    const leerForm = det => { const t = ED[cur], n = det.querySelector('.pp-mpl-n'); if (!t || !n) return; t.txt = n.value; t.lista = [...det.querySelectorAll('.pp-ml-f')].map(r => ({ id: r.dataset.id || undefined, nombre: r.querySelector('.pp-ml-n').value, familia: r.querySelector('.pp-ml-fa').value, tipo: r.querySelector('.pp-ml-t').value, colgadoDe: r.querySelector('.pp-ml-p').value || undefined })).filter(x => x.nombre.trim()); };
+    const pintarD = foco => {
+      const t = ED[cur], L = t.lista, serie = t.id === MAT_ID;
+      X.showDialog('pp-material', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Plantillas de material</h3>`
+        + `<div class="seg pp-tvs pp-mpl-tabs" role="group" aria-label="Plantilla">${ED.map((x, i) => `<button type="button" class="${i === cur ? 'on' : ''}" data-ml="pl" data-i="${i}" aria-pressed="${i === cur}">${P.esc(x.txt || 'Sin nombre')}</button>`).join('')}</div>`
+        + `<form class="form pp-ml" autocomplete="off"><div class="pp-mpl-cab"><label for="pp-mpl-n">Nombre</label><input id="pp-mpl-n" class="pp-mpl-n" type="text" maxlength="40" value="${P.esc(t.txt)}">`
+        + `<button type="button" class="ibtn pp-mpl-b" data-ml="antes" title="Antes" aria-label="Mover antes"${serie || cur <= 1 ? ' disabled' : ''}>${svgI('chev')}</button><button type="button" class="ibtn pp-mpl-b pp-mpl-d" data-ml="despues" title="Después" aria-label="Mover después"${serie || cur >= ED.length - 1 ? ' disabled' : ''}>${svgI('chev')}</button>`
+        + `<button type="button" class="btn2 pp-mpl-x" data-ml="borrar"${serie ? ' disabled title="La plantilla de serie no se borra"' : ''}>Borrar plantilla</button></div><p class="ferr" hidden></p>`
+        + `<div class="pp-ml-cab" aria-hidden="true"><span>Cosa</span><span>Familia</span><span>Para</span><span>Colgada de</span><span></span></div><div class="pp-ml-l">${matNormal(L).map(x => fila(x, matNormal(L))).join('')}</div>`
+        + `<datalist id="pp-ml-fams">${[...new Set(ED.flatMap(x => x.lista.map(y => y.familia)).filter(Boolean))].map(f => `<option value="${P.esc(f)}">`).join('')}</datalist><button type="button" class="pp-cmas" data-ml="mas">${svgI('mas')}Cosa</button><div class="row"><button type="submit" class="btn">Guardar</button></div></form>`);
+      const det = X.root().querySelector('.detail'), f = det.querySelector('form'), l = f.querySelector('.pp-ml-l'), err = f.querySelector('.ferr');
+      if (M.controles && M.controles.mejorar) M.controles.mejorar(det);
+      det.querySelector('.pp-mpl-tabs').addEventListener('click', e => { const b = e.target.closest('[data-ml="pl"]'); if (!b || +b.dataset.i === cur) return; leerForm(det); cur = +b.dataset.i; pintarD(`[data-ml="pl"][data-i="${cur}"]`); });
+      f.addEventListener('click', e => {
+        const b = e.target.closest('[data-ml]'); if (!b || b.disabled) return;
+        if (b.dataset.ml === 'x') { b.closest('.pp-ml-f').remove(); return; }
+        if (b.dataset.ml === 'mas') { const d = document.createElement('div'); d.innerHTML = fila({ id: P.nuevoId('ma'), nombre: '', familia: (l.lastElementChild && l.lastElementChild.querySelector('.pp-ml-fa').value) || '', tipo: 'ambas' }, []); l.append(d.firstChild); if (M.controles && M.controles.mejorar) M.controles.mejorar(l); l.lastElementChild.querySelector('.pp-ml-n').focus(); return; }
+        if (b.dataset.ml === 'antes' || b.dataset.ml === 'despues') { leerForm(det); const j = cur + (b.dataset.ml === 'antes' ? -1 : 1); if (j < 1 || j >= ED.length) return; [ED[cur], ED[j]] = [ED[j], ED[cur]]; cur = j; pintarD(`[data-ml="${b.dataset.ml}"]`); return; }
+        if (b.dataset.ml === 'borrar') { ED.splice(cur, 1); cur = Math.max(0, cur - 1); pintarD('.pp-mpl-n'); }
+      });
+      f.addEventListener('submit', async e => {
+        e.preventDefault(); leerForm(det);
+        const nombres = ED.map(x => x.txt.replace(/\s+/g, ' ').trim());
+        if (nombres.some(n => !n)) { err.textContent = 'Cada plantilla necesita su nombre.'; err.hidden = false; return; }
+        if (new Set(nombres.map(n => n.toLowerCase())).size !== nombres.length) { err.textContent = 'Hay dos plantillas con el mismo nombre.'; err.hidden = false; return; }
+        const now = P.ahoraISO(), cambios = [], quedan = new Set(ED.map(x => x.id));
+        ED.forEach((x, i) => { const o = matRec(x.id), n = { ...(o ? P.copia(o) : { id: x.id, tipo: 'material', creada: now }), txt: nombres[i], lista: matNormal(x.lista), orden: i, at: now };
+          if (!o || JSON.stringify([o.txt, o.lista, +o.orden || 0]) !== JSON.stringify([n.txt, n.lista, n.orden])) cambios.push({ id: x.id, despues: n }); });
+        for (const t of plantillas()) if (!quedan.has(t.id) && t.id !== MAT_ID) cambios.push({ id: t.id, despues: null });   // the sessions keep their copy (D-208)
+        if (cambios.length) await P.hacer(cambios);
+        X.closeDetail(); P.pintar();
+      });
+      const fo = foco && det.querySelector(foco); (fo || f.querySelector('.pp-mpl-n')).focus();
+    };
+    pintarD();
   }
 
   // ---------- the two kinds of card this file draws (personal.js keeps the card itself) ----------
   const HOJA = {
     cls: 'pp-hoja', pintar: (r, o = {}) => {
-      if (S._id !== r.id) { S._id = r.id; S.vista = false; S.tira = false; S.plg.clear(); S.tab = {}; S.enl = null; S.campo = null; }
+      if (S._id !== r.id) { S._id = r.id; S.vista = false; S.tira = false; S.plg.clear(); S.tab = {}; S.enl = null; S.campo = null; S.cosa = null; }
       if (P.CARD.vc) { S.vista = true; S.tira = false; }   // opened from the board in the vista cliente: fixed in «Ver como el cliente» (D-219)
       if (o.forzar && !P.CARD.ed) S.campo = null;
       const a = !o.forzar && M.controles && M.controles.abierto && M.controles.abierto(); if (a && P.ov && P.ov.contains(a.de)) return;   // a dropdown of the sheet open: it is finishing its gesture
@@ -987,6 +1084,23 @@
 #mesa .pp-ma-ft{margin:0 0 8px;font-size:13px}#mesa .pp-ma-ft b{font-weight:600}#mesa .pp-ma-ft span{color:var(--mute);font-size:12px}
 #mesa .pp-ma-fi{display:flex;flex-wrap:wrap;gap:6px}
 #mesa .pp-ma-c{display:inline-flex;align-items:center;gap:8px;min-height:30px;padding:0 12px 0 9px;border:0;border-radius:var(--r-pill);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) var(--ease)}
+#mesa .pp-ma-plr{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 12px}#mesa .pp-ma-plr .seg button{white-space:nowrap}
+#mesa .pp-ma-plr .pp-cmas{margin:0}#mesa .pp-ma-cmb{margin-top:-4px}#mesa .pp-ma-cmb > span:first-child{font-size:12.5px;font-weight:600;color:var(--chg)}
+#mesa .pp-ma-pt{display:inline-block;width:6px;height:6px;margin:0 0 0 6px;border-radius:50%;background:var(--chg);vertical-align:middle}
+#mesa .pp-ma-ge{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border:0;border-radius:var(--r-pill);background:var(--bg-2);font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
+#mesa .pp-ma-ge svg{width:14px;height:14px}#mesa .pp-ma-ge:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-ma-ge:active{transform:scale(.97)}#mesa .pp-ma-ge:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .pp-ma-w{position:relative;display:inline-flex}
+#mesa .pp-ma-x{position:absolute;right:5px;top:50%;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-top:-9px;border:0;padding:0;border-radius:50%;background:var(--bg-3);color:var(--ink-2);cursor:pointer;opacity:0;pointer-events:none;transition:opacity var(--d1) var(--ease)}
+#mesa .pp-ma-x svg{width:12px;height:12px}#mesa .pp-ma-x:hover{background:var(--line-strong);color:var(--ink)}
+#mesa .pp-ma-w:hover .pp-ma-x,#mesa .pp-ma-w:focus-within .pp-ma-x{opacity:1;pointer-events:auto}
+#mesa .pp-ma-w:hover .pp-ma-c,#mesa .pp-ma-w:focus-within .pp-ma-c{padding-right:29px}
+#mesa .pp-ma-x:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#mesa .pp-ma-mas{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px 0 9px;border:1px dashed var(--line-strong);border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease),color var(--d1) var(--ease)}
+#mesa .pp-ma-mas svg{width:13px;height:13px}#mesa .pp-ma-mas:hover{background:var(--bg-2);color:var(--ink)}#mesa .pp-ma-mas:active{transform:scale(.97)}#mesa .pp-ma-mas:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .pp-ma-in{min-height:30px;width:12em;max-width:100%;box-sizing:border-box;padding:0 12px;border:1px solid var(--acc);border-radius:var(--r-pill);background:var(--panel-2);font:inherit;font-size:12.5px;color:var(--ink);outline:0}
+#mesa .pp-mpl-tabs{margin:2px 0 14px;flex-wrap:wrap}
+#mesa .pp-mpl-cab{display:flex;align-items:center;gap:8px;margin:0 0 12px}#mesa .pp-mpl-cab label{margin:0}#mesa .pp-mpl-cab .pp-mpl-n{flex:1;min-width:0}
+#mesa .pp-mpl-b svg{width:16px;height:16px;transform:rotate(90deg)}#mesa .pp-mpl-d svg{transform:rotate(-90deg)}
 #mesa .pp-ma-c::before{content:'';flex:none;width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--mute);transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
 #mesa .pp-ma-c:hover{box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink)}
 #mesa .pp-ma-c.on{background:var(--acc-soft);box-shadow:none;color:var(--acc-ink)}#mesa .pp-ma-c.on::before{background:var(--acc);box-shadow:none}

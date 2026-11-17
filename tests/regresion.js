@@ -14414,7 +14414,7 @@
       ppTecla('z', { metaKey: true }); await espera(120); k = await seRec(r.id); igual(seAp(k, 'material').material.hechos.length, 0, '⌘Z no desmarca');
       // «Editar la lista»: el «⋯» de la hoja
       seQ('[data-hj="mas"]').click(); await espera(40);
-      igual(qa('.pp-menu button').map(b => b.textContent), ['Editar la lista de material', 'Borrar sesión'], 'el «⋯» de la hoja (sin fotos)');
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Editar plantillas', 'Borrar sesión'], 'el «⋯» de la hoja (sin fotos)');   // «Editar plantillas» desde D-220
       q('.pp-menu [data-a="material"]').click(); await espera(80);
       ok(q('.detail:not([hidden]) form.pp-ml') && qa('.pp-ml-f').length === 7, '«Editar la lista» no abre la lista');
       q('[data-ml="mas"]').click(); await espera(30); const fs = qa('.pp-ml-f'), u = fs[fs.length - 1]; u.querySelector('.pp-ml-n').value = 'Rebotador'; u.querySelector('.pp-ml-fa').value = 'Luz';
@@ -15098,6 +15098,85 @@
       ppTecla('Escape'); await espera(250); ok(!seHoja(), 'Esc no cierra la hoja de «Vista cliente»');
       q('.clientToggle').click(); await espera(150);
     } finally { if (raiz.classList.contains('client')) q('.clientToggle').click(); M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('DS4', 'Plantillas de equipo (D-220): la de serie se llama «Equipo completo» y va primera (también al importar un v16); encima de la barra, la fila de plantillas y «+ Guardar como plantilla»; elegir otra cambia la copia de la sesión y conserva lo marcado con el mismo nombre (un paso de ⌘Z); «+ Cosa» y la × tocan solo la sesión: un punto, «Guardar en …» y «Como plantilla nueva»; con más de 5, el desplegable; «Editar plantillas» las nombra, ordena, edita y borra (la de serie no) sin tocar las sesiones; MESA.material sigue sobre la de serie', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p, T = () => [...P.TK.values()].filter(t => t.tipo === 'material');
+      igual(P.TK.get('material').txt, 'Equipo completo', 'la de serie no se llama «Equipo completo»');
+      const r = await M.sesiones._test.crear({ txt: 'Con material', clase: 'fotovideo' });
+      igual(seAp(r, 'material').material.plantilla, 'material', 'una sesión nueva no guarda su plantilla');
+      await seAbrir(r.id);
+      const fila = () => qa('.pp-hj [data-ap="material"] .pp-ma-pls button').map(b => b.textContent.trim() + (b.classList.contains('on') ? '*' : ''));
+      igual(fila(), ['Equipo completo*'], 'la fila de plantillas');
+      ok(seQ('[data-hj="mat-nueva"]') && /Guardar como plantilla/.test(seQ('[data-hj="mat-nueva"]').textContent), 'sin «+ Guardar como plantilla»');
+      ok(seQ('.pp-ma-plr').compareDocumentPosition(seQ('.pp-ma-bar')) & 4, 'la fila no va encima de la barra');
+      // «+ Guardar como plantilla»: su nombre en el diálogo de la Mesa; la sesión la toma; un paso de ⌘Z
+      seQ('[data-hj="mat-nueva"]').click(); await espera(60);
+      q('#pp-pl-n').value = 'equipo completo'; q('.pp-plf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(80);
+      ok(!q('.pp-plf .ferr').hidden, 'acepta un nombre repetido');
+      q('#pp-pl-n').value = 'Exterior'; q('.pp-plf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(200);
+      const ex = T().find(t => t.txt === 'Exterior'); ok(ex && ex.lista.length === 7, 'no se guarda la plantilla nueva');
+      igual(seAp(await seRec(r.id), 'material').material.plantilla, ex.id, 'la sesión no toma la plantilla nueva');
+      igual(fila(), ['Equipo completo', 'Exterior*'], 'la fila tras guardar');
+      // marcar, retocar: «+ Cosa» y la ×, solo en la sesión
+      const fi = n => qa('.pp-hj [data-ap="material"] .pp-ma-c').find(b => b.textContent === n);
+      fi('Cuerpo').click(); await espera(120);
+      seQ('[data-hj="mat-mas"][data-fam="Luz"]').click(); await espera(60);
+      const inp = seQ('[data-hj="mat-in"]'); inp.value = 'Rebotador'; naTecla(inp, 'Enter'); await espera(150);
+      ok(fi('Rebotador'), '«+ Cosa» no pone la cosa'); ok(seHoja().querySelector('[data-hj="mat-in"]'), 'Intro no deja escribir otra');
+      naTecla(seQ('[data-hj="mat-in"]'), 'Escape'); await espera(80);
+      seQ('.pp-ma-w [data-hj="mat-x"][data-m="' + fi('Disparador').dataset.m + '"]').click(); await espera(150);
+      let m = seAp(await seRec(r.id), 'material').material;
+      igual([m.retocada, m.lista.some(x => x.nombre === 'Rebotador'), m.lista.some(x => x.nombre === 'Disparador')], [true, true, false], 'retocar la sesión');
+      igual([T().find(t => t.id === ex.id).lista.length, P.TK.get('material').lista.length], [7, 7], 'retocar la sesión toca la plantilla');
+      ok(seQ('.pp-ma-pls button.on .pp-ma-pt') && /Con cambios en esta sesión/.test(seQ('.pp-ma-cmb').textContent) && /Guardar en Exterior/.test(seQ('[data-hj="mat-en"]').textContent) && /Como plantilla nueva/.test(seQ('.pp-ma-cmb [data-hj="mat-nueva"]').textContent), 'con cambios: sin el punto, «Guardar en …» o «Como plantilla nueva»');
+      await M.personal.deshacer(); await espera(120); ok(!seAp(await seRec(r.id), 'material').material.lista.some(x => x.nombre === 'Disparador') === false, '⌘Z no devuelve lo quitado');
+      await M.personal.rehacer(); await espera(120);
+      // «Guardar en Exterior»: la plantilla toma la lista de la sesión; un paso
+      seQ('[data-hj="mat-en"]').click(); await espera(200);
+      igual(T().find(t => t.id === ex.id).lista.map(x => x.nombre).sort(), ['Cuerpo', 'Foco', 'Luz de vídeo', 'Micro', 'Pie del foco', 'Rebotador', 'Revisar baterías'], '«Guardar en …» no guarda la lista de la sesión');
+      ok(!seAp(await seRec(r.id), 'material').material.retocada && !seHoja().querySelector('.pp-ma-cmb'), 'tras guardar sigue con cambios');
+      await M.personal.deshacer(); await espera(120); igual(T().find(t => t.id === ex.id).lista.length, 7, '⌘Z no devuelve la plantilla');
+      ok(seAp(await seRec(r.id), 'material').material.retocada, '⌘Z no devuelve los cambios de la sesión'); await M.personal.rehacer(); await espera(120);
+      // elegir otra: su lista; lo marcado con el mismo nombre sigue marcado; un paso de ⌘Z, sin pregunta
+      qa('.pp-hj .pp-ma-pls button').find(b => /Equipo completo/.test(b.textContent)).click(); await espera(150);
+      m = seAp(await seRec(r.id), 'material').material;
+      igual([m.plantilla, m.lista.length, m.lista.filter(x => m.hechos.includes(x.id)).map(x => x.nombre), !!m.retocada, !q('.detail:not([hidden])')], ['material', 7, ['Cuerpo'], false, true], 'elegir otra plantilla');
+      await M.personal.deshacer(); await espera(120); igual(seAp(await seRec(r.id), 'material').material.plantilla, ex.id, '⌘Z no devuelve la plantilla de antes');
+      // más de 5: el desplegable de la Mesa
+      const now = P.ahoraISO(); await P.hacer(['A', 'B', 'C', 'D'].map((n, i) => ({ id: 'mlds' + n, despues: { id: 'mlds' + n, tipo: 'material', txt: 'Plantilla ' + n, lista: [{ id: 'm' + n, nombre: 'Cosa ' + n, familia: 'Otros', tipo: 'ambas' }], orden: 10 + i, creada: now, at: now } })));
+      P.pintar(); await espera(120);
+      const sel = seQ('[data-hj="mat-plsel"]'); ok(sel && !seHoja().querySelector('.pp-ma-pls') && sel.options.length === 6 && sel.options[0].textContent === 'Equipo completo', 'con más de 5, sin el desplegable');
+      sel.value = 'mldsB'; sel.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150);
+      igual(seAp(await seRec(r.id), 'material').material.plantilla, 'mldsB', 'el desplegable no elige');
+      // «Editar plantillas»: nombrar, ordenar, borrar (la de serie no); las sesiones guardan su copia
+      seQ('[data-hj="mas"]').click(); await espera(40); ok(qa('.pp-menu button').some(b => b.textContent === 'Editar plantillas'), 'el «⋯» sin «Editar plantillas»');
+      q('.pp-menu [data-a="material"]').click(); await espera(80);
+      const tabs = () => qa('.pp-mpl-tabs button').map(b => b.textContent);
+      igual(tabs()[0], 'Equipo completo', 'la de serie no va primera'); ok(q('[data-ml="borrar"]') && (q('.pp-mpl-tabs button.on').textContent !== 'Equipo completo' || q('[data-ml="borrar"]').disabled), 'la de serie se borra');
+      qa('.pp-mpl-tabs button')[0].click(); await espera(60); ok(q('[data-ml="borrar"]').disabled, 'la de serie se borra');
+      q('.pp-mpl-n').value = 'Equipo de estudio';
+      qa('.pp-mpl-tabs button').find(b => b.textContent === 'Plantilla B').click(); await espera(60);
+      q('[data-ml="antes"]').click(); await espera(60); igual(tabs().slice(0, 4), ['Equipo de estudio', 'Exterior', 'Plantilla B', 'Plantilla A'], 'no se ordena o no conserva el nombre escrito');
+      q('[data-ml="borrar"]').click(); await espera(60);
+      q('form.pp-ml').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(200);
+      igual(T().sort((a, b) => (a.id === 'material' ? -1 : b.id === 'material' ? 1 : a.orden - b.orden)).map(t => t.txt), ['Equipo de estudio', 'Exterior', 'Plantilla A', 'Plantilla C', 'Plantilla D'], 'no se guardan nombre, orden y borrado');
+      m = seAp(await seRec(r.id), 'material').material; igual([m.plantilla, m.lista.map(x => x.nombre)], ['mldsB', ['Cosa B']], 'borrar una plantilla toca la sesión');
+      await M.personal.deshacer(); await espera(120); ok(T().some(t => t.id === 'mldsB') && P.TK.get('material').txt === 'Equipo completo', '⌘Z no devuelve las plantillas');
+      // MESA.material sigue sobre la de serie
+      igual((await M.material.ver()).length, 7, 'MESA.material.ver no lee la de serie');
+      P.cerrarCard(true);
+      // un v16: la lista de material se llama «Equipo completo»
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()); d.v = 16;
+      const mr = d.tareas.find(t => t.id === 'material'); mr.txt = 'Material'; mr.at = new Date(Date.parse(now) + 6e4).toISOString(); d.tareas = d.tareas.filter(t => t.tipo !== 'material' || t.id === 'material');
+      await sinTareas(); const x = await M.importData(new W.Blob([JSON.stringify(d)], { type: 'application/json' }), { confirm: false }); ok(!x || !x.error, 'importar un v16 falla: ' + json(x));
+      igual((await M.personal.tareas()).find(t => t.id === 'material').txt, 'Equipo completo', 'un v16 no se llama «Equipo completo»');
+      const d17 = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()); d17.tareas.push({ id: 'mlvacia', tipo: 'material', txt: ' ', lista: [] });
+      const y = await M.importData(new W.Blob([JSON.stringify(d17)], { type: 'application/json' }), { confirm: false }); ok(y && y.error, 'un v17 con una plantilla sin nombre se importa');
+    } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

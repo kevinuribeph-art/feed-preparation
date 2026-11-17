@@ -6052,6 +6052,7 @@
   function tareaAl17(t) {
     if (!t || typeof t !== 'object') return t;
     if (t.tipo === 'sesion' && !Array.isArray(t.clientes)) { const { cliente, ...n } = t; n.clientes = typeof cliente === 'string' && cliente ? [cliente] : []; return n; }
+    if (t.tipo === 'material' && t.id === 'material' && (!t.txt || t.txt === 'Material')) return { ...t, txt: 'Equipo completo' };   // the one by default (D-220)
     return t;
   }
   function xferCheck(d) {
@@ -6063,6 +6064,7 @@
     if (d.ubicaciones != null && (!Array.isArray(d.ubicaciones) || d.ubicaciones.some(u => !u || typeof u.id !== 'string' || !u.id || typeof u.nombre !== 'string' || typeof u.locationId !== 'string'))) return bad;   // v10 (D-124)
     if (d.clients.some(c => c.personas != null && (!Array.isArray(c.personas) || c.personas.some(x => !x || typeof x.usuario !== 'string' || !x.usuario)))) return bad;   // v11 (D-130)
     if (d.tareas != null && (!Array.isArray(d.tareas) || d.tareas.some(t => !t || typeof t.id !== 'string' || !t.id || !TIPOS_TAREAS.includes(t.tipo) || typeof t.txt !== 'string' || (t.sesion != null && typeof t.sesion !== 'object') || (t.lista != null && !Array.isArray(t.lista)) || (t.fotos != null && (!Array.isArray(t.fotos) || t.fotos.some(f => !f || typeof f.id !== 'string' || typeof f.data !== 'string' || !f.data)))
+      || (t.tipo === 'material' && d.v >= 17 && !String(t.txt).trim())   // v17: a template's name (D-220)
       || (t.clientes != null && (!Array.isArray(t.clientes) || t.clientes.some(c => typeof c !== 'string' || !c)))
       || (t.fin != null && (typeof t.fin !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha) || (t.fin.hora != null && !/^\d{2}:\d{2}$/.test(t.fin.hora))))
       || (t.detalles != null && typeof t.detalles !== 'string') || (t.subtareas != null && (!Array.isArray(t.subtareas) || t.subtareas.some(x => !x || typeof x.id !== 'string' || typeof x.txt !== 'string')))))) return bad;   // v13 (D-180); v14: details and subtasks (D-183)

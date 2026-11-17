@@ -16589,7 +16589,7 @@
       // fourteen: 4 px between the columns, 120 px of plot, and the types' bars
       ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: res(Array.from({ length: 14 }, (_, i) => p('Reel ' + (i + 1), i + 1, 500 + i * 50, i % 2 ? 'Reel' : 'Foto'))) })).ok, 'no se cargaron 14');
       M._in.render(); await espera(60);
-      { const cs = [...ifCf().querySelectorAll('.if-c')].map(c => c.getBoundingClientRect()); cerca(cs[1].left - cs[0].right, 4, 0.6, 'no hay 4 px entre columnas');
+      { const cs = [...ifCf().querySelectorAll('.if-c i')].map(c => c.getBoundingClientRect()); cerca(cs[1].left - cs[0].right, 4, 0.6, 'no hay 4 px entre columnas');
         cerca(ifCf().querySelector('.if-c.top i').getBoundingClientRect().height, 120, 1, 'la gráfica no mide 120 px de alto'); ok(dentro(), 'con 14 se sale algo');
         ok([...ifCf().querySelectorAll('.if-v, .if-d')].every(e => W.getComputedStyle(e).fontStyle === 'normal'), 'la cifra de la mejor o las fechas van en cursiva (heredan del <i> de su columna)'); }
       { const t = ifCf().querySelector('.if-tp i'); cerca(t.getBoundingClientRect().height, 24, 0.6, 'la barra por tipo no tiene 24 px para el ratón');
@@ -16645,7 +16645,7 @@
       const res2 = IF_RES(); res2.posts[0].nombre = 'Collab con ' + NOMBRE2; r = await M.informe.cargar(CLIENTE, '2026-10', { resumen: res2 }); ok(r.error && /posts\[0\]\.nombre: nombra a otro cliente/.test(r.problemas.join()), 'el nombre de una publicación nombra a otro cliente y entra');
       ok((await M.informe.cargar(CLIENTE, MES, { porque: { partes: [{ t: 'Días', x: `${NOMBRE} publica los jueves.` }] } })).ok, 'su propio nombre no entra');
       // 4, 7 a label that is only a sign, an inherited type, a day that doesn't exist
-      for (const [args, re] of [[{ porque: { partes: [{ t: ':', x: 'Algo.' }] } }, /no solo un signo/], [{ resumen: (() => { const y = IF_RES(); y.tipos = [{ tipo: 'constructor', alcance: 1 }]; return y; })() }, /no es el tipo de ningún post/], [{ resumen: (() => { const y = IF_RES('2026-09'); y.posts[0].fecha = '2026-09-31'; return y; })() }, /que exista/]]) {
+      for (const [args, re] of [[{ porque: { partes: [{ t: ':', x: 'Algo.' }] } }, /no solo signos/], [{ resumen: (() => { const y = IF_RES(); y.tipos = [{ tipo: 'constructor', alcance: 1 }]; return y; })() }, /no es el tipo de ningún post/], [{ resumen: (() => { const y = IF_RES('2026-09'); y.posts[0].fecha = '2026-09-31'; return y; })() }, /que exista/]]) {
         r = await M.informe.cargar(CLIENTE, args.porque ? MES : args.resumen.posts[0].fecha.slice(0, 7), args); ok(r.error && r.problemas.some(p => re.test(p)), `no rechaza ${re}: ` + json(r).slice(0, 200));
       }
       // 9 deleting a client takes also the months the cache doesn't hold
@@ -16678,6 +16678,59 @@
       await vistaCliente(true); M._in.render(); await espera(60);
       ok(ifCf() && /^Cómo fue diciembre 2026/.test(ifCf().querySelector('.if-h').textContent) && /Frente a noviembre/.test(ifCf().textContent), 'en enero no dice «Cómo fue diciembre 2026»: ' + (ifCf() || {}).textContent);
     } finally { await vistaCliente(false); relojVuelve(); await sinMes(`${CLIENTE}-2027-01`); }
+  });
+
+  prueba('IF8', 'Arreglos de la segunda ronda de revisiones del punto 9 (D-238 a D-240): lo cargado con MESA.informe (cada parte sola) va y vuelve dos veces sin quedar «dañado»; una parte con contenido y sin fecha propia va por la del registro; otro cliente también por una palabra de su nombre; etiquetas solo de signos fuera y sin puntos suspensivos; la cifra de la mejor cabe aunque sea larga y en mayúsculas; con 60 publicaciones las columnas no desaparecen; sin huecos muertos para el ratón; la mejor no se apaga al pasar en oscuro; a 720 px, 12 px entre todos los apartados', async () => {
+    await ifListo();
+    relojEn('2026-11-17T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width, tema0 = D.documentElement.dataset.theme;
+    try {
+      await tablero([pub(1)]);
+      // 1 there and back twice: what M.informe leaves (one part each), into an empty Mesa, then again
+      ok((await M.informe.cargar(CLIENTE, MES, { porque: IF_PQ })).ok && (await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES() })).ok, 'no se cargó');
+      const ida = async () => { const b = await M.exportAll({ returnBlob: true }); await M._test.mesBorrarTodo(); const x = await M.importData(b, { confirm: false }); ok(x && x.ok && x.meses === 2, 'la ida y vuelta no trae los meses: ' + json(x)); };
+      await ida(); await ida();
+      const r11 = await M._in.idbGet('meses', CLIENTE + '|' + MES); ok(r11.porque && !('resumenAt' in r11) && r11.porqueAt, 'una parte nunca cargada lleva fecha: ' + json(r11).slice(0, 160));
+      // 4 a part with content and no date of its own goes by the record's
+      const k = CLIENTE + '|2026-09';
+      await M._in.idbPut('meses', k, { cliente: CLIENTE, mes: '2026-09', porque: null, resumen: IF_RES('2026-09'), at: '2026-11-05T10:00:00.000Z' });
+      const arch = d => ({ format: 'mesa-feed', v: V_ARCHIVO, app: 'prueba', exportedAt: new Date().toISOString(), clients: [], boards: [], files: {}, meses: d });
+      await M.importData(arch([{ cliente: CLIENTE, mes: '2026-09', porque: IF_PQ, resumen: null, porqueAt: '2026-11-10T10:00:00.000Z', at: '2026-11-10T10:00:00.000Z' }]), { confirm: false });
+      const vieja = IF_RES('2026-09', 2); await M.importData(arch([{ cliente: CLIENTE, mes: '2026-09', porque: null, resumen: vieja, resumenAt: '2026-11-01T10:00:00.000Z', at: '2026-11-01T10:00:00.000Z' }]), { confirm: false });
+      const r9 = await M._in.idbGet('meses', k); ok(r9.porque && r9.resumen && r9.resumen.cifras.alcance.valor === IF_RES('2026-09').cifras.alcance.valor, 'un resumen más viejo pisó uno sin fecha propia: ' + json(r9).slice(0, 200));
+      // 2 a word of another client's name
+      if (!(await M.clients()).some(c => c.id === CLIENTE2)) await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+      const otraPal = NOMBRE2.split(' ')[0];
+      let r = await M.informe.cargar(CLIENTE, MES, { porque: { partes: [{ t: 'Días', x: `Los martes, alternados con ${otraPal}.` }] } });
+      ok(r.error && r.problemas.some(p => /nombra a otro cliente/.test(p)), 'una palabra del nombre de otro cliente entra: ' + json(r).slice(0, 200));
+      // 5 labels: only signs out; trailing dots off
+      r = await M.informe.cargar(CLIENTE, MES, { porque: { partes: [{ t: '¿?', x: 'Algo.' }] } }); ok(r.error && /no solo signos/.test(r.problemas.join()), 'una etiqueta solo de signos entra');
+      ok((await M.informe.cargar(CLIENTE, MES, { porque: { partes: [{ t: 'Horario...', x: 'A las 13:00.' }] } })).ok && (await M.informe.ver(CLIENTE, MES)).porque.partes[0].t === 'Horario', 'la etiqueta guarda sus puntos suspensivos');
+      // 6 a long capital name: inside the chart
+      const siete = Array.from({ length: 7 }, (_, i) => ({ nombre: i === 2 ? 'EL NOMBRE MUY LARGO EN MAYÚSCULAS' : 'Foto 1.' + (i + 1), tipo: 'Foto', fecha: '2026-10-' + String(i + 2).padStart(2, '0'), alcance: i === 2 ? 999900 : 1000 }));
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: { cifras: { alcance: { valor: siete.reduce((a, p) => a + p.alcance, 0), anterior: 1 }, interacciones: { valor: 1, anterior: 1 }, guardados: { valor: 1, anterior: 1 }, publicaciones: { valor: 7, anterior: 7 } }, posts: siete, frase: 'Una.' } })).ok, 'no se cargaron siete');
+      await vistaCliente(true); M._in.render(); await espera(60);
+      { const c = ifCf().querySelector('.if-ch').getBoundingClientRect(), v = ifCf().querySelector('.if-v').getBoundingClientRect(); ok(v.left >= c.left - 0.5 && v.right <= c.right + 0.5, `la cifra larga en mayúsculas se sale: ${v.left}–${v.right} en ${c.left}–${c.right}`); }
+      ok(q('.main > .vc-lado').scrollWidth <= q('.main > .vc-lado').clientWidth + 1, 'la columna se desliza a lo ancho');
+      // no dead gap for the pointer: the columns' targets touch
+      { const cs = [...ifCf().querySelectorAll('.if-c')].map(c => c.getBoundingClientRect()); ok(cs.slice(1).every((c, i) => Math.abs(c.left - cs[i].right) < 0.6), 'quedan huecos sin respuesta entre columnas'); }
+      { const t = ifCf().querySelector('.if-tp i').getBoundingClientRect(), pista = ifCf().querySelector('.if-tp em').getBoundingClientRect(); ok(t.right > pista.left - 20, 'la barra por tipo no ocupa su pista para el ratón'); }
+      // dark: the best doesn't fade on hover (its hover colour has at least its contrast)
+      D.documentElement.dataset.theme = 'dark'; await espera(250);
+      { const fondo = W.getComputedStyle(ifCf().closest('.vc-parte')).backgroundColor, cs = W.getComputedStyle(q('#mesa')), mk = v => { const d = D.createElement('span'); d.style.color = v; ifCf().append(d); const c = W.getComputedStyle(d).color; d.remove(); return c; };
+        const base = mk('var(--barra-top)'), hov = mk('var(--barra-top-hov)'); ok(contraste(hov, fondo) >= contraste(base, fondo) - 0.01 || contraste(hov, fondo) >= 4.5, `en oscuro la mejor se apaga al pasar: ${contraste(base, fondo).toFixed(2)} → ${contraste(hov, fondo).toFixed(2)}`); }
+      if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await espera(60);
+      // 60 posts: the columns never vanish
+      const sesenta = Array.from({ length: 60 }, (_, i) => ({ nombre: 'Foto ' + (i + 1), tipo: 'Foto', fecha: '2026-10-' + String(1 + (i % 31)).padStart(2, '0'), alcance: 100 + i }));
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: { cifras: { alcance: { valor: sesenta.reduce((a, p) => a + p.alcance, 0), anterior: 1 }, interacciones: { valor: 1, anterior: 1 }, guardados: { valor: 1, anterior: 1 }, publicaciones: { valor: 60, anterior: 60 } }, posts: sesenta, frase: 'Muchas.' } })).ok, 'no se cargaron sesenta'); await espera(60);
+      { const bw = [...ifCf().querySelectorAll('.if-c i')].map(i => i.getBoundingClientRect().width); ok(bw.every(x => x >= 2), 'con 60 publicaciones las columnas desaparecen: ' + Math.min(...bw).toFixed(2)); }
+      // 720: 12 px between every part
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES() })).ok, 'no vuelve el resumen');
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); M._in.render(); await espera(100);
+      const rs = ['.main > .feed', '.side', '.main > .vc-lado [data-vc="pagos"]', '.main > .vc-lado [data-vc="comofue"]'].map(sel => q(sel).getBoundingClientRect());
+      igual(rs.slice(1).map((x, i) => Math.round(x.top - rs[i].bottom)), [12, 12, 12], 'a 720 px los apartados no van a 12 px');
+    } finally { fr.style.width = w0; if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await vistaCliente(false); relojVuelve(); }
   });
 
 

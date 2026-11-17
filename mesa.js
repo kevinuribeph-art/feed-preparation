@@ -5480,7 +5480,10 @@
   }
   const mesEntero = v => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e12;
   const mesDia = v => typeof v === 'string' && COB_DIA.test(v) && new Date(Date.UTC(+v.slice(0, 4), +v.slice(5, 7) - 1, +v.slice(8, 10))).toISOString().slice(0, 10) === v;   // a day that exists (2026-09-31 doesn't)
-  const mesAtOk = v => v == null || (typeof v === 'string' && !isNaN(Date.parse(v)));
+  const mesAtOk = v => v == null || v === '' || (typeof v === 'string' && !isNaN(Date.parse(v)));
+  // a part's date: its own; a part with content and no date of its own, or a record without any part's date (hand-made, or
+  // older), goes by the record's at; a part never loaded (null, and the record dates its other part) has none: it never wins
+  const mesAtDe = (r, parte) => { if (!r) return ''; const v = r[parte + 'At'] || (r[parte] != null || !(r.porqueAt || r.resumenAt) ? r.at : ''); return v && !isNaN(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : ''; };
   const mesSoloClaves = (o, ok, donde, mal) => { const x = Object.keys(o).filter(k => !ok.includes(k)); if (x.length) mal(`${donde}: no se esperaba ${x.map(k => '«' + k + '»').join(', ')} (solo ${ok.join(', ')})`); };
   // a why: {partes: [{t, x}]}; mal(msg) collects the problems; gives the clean value
   function mesPorque(p, mal) {
@@ -5491,8 +5494,8 @@
       const d = `porque.partes[${i}]`;
       if (!q || typeof q !== 'object' || Array.isArray(q)) return mal(`${d}: tiene que ser {t, x}`), null;
       mesSoloClaves(q, ['t', 'x'], d, mal);
-      const t = mesPlano(q.t, d + '.t', 40, mal).replace(/[.:]\s*$/, '').trim(), x = mesPlano(q.x, d + '.x', 600, mal);
-      if (typeof q.t === 'string' && q.t.trim() && !t) mal(`${d}.t: una etiqueta, no solo un signo`);
+      const t = mesPlano(q.t, d + '.t', 40, mal).replace(/[\s.:…]+$/u, '').trim(), x = mesPlano(q.x, d + '.x', 600, mal);
+      if (typeof q.t === 'string' && q.t.trim() && !/\p{L}/u.test(t)) mal(`${d}.t: una etiqueta con palabras, no solo signos`);
       const otra = MES_NOTION[t.toLowerCase()];
       if (otra) mal(`${d}.t: «${t}» es la etiqueta de Notion; para el cliente: ${otra.startsWith('la ') ? otra : '«' + otra + '»'}`);
       if (t && vistas.has(t.toLowerCase())) mal(`${d}.t: «${t}» repetida`); vistas.add(t.toLowerCase());
@@ -5558,12 +5561,18 @@
   function mesNoLocked() { if (locked) throw new Error('la mesa está abierta en otra pestaña o hay una versión nueva'); }
   // the client sees it: no other client by its name, id or handle, in no text (lesson 70)
   const mesSinAcento = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  function mesOtros(cli, textos, mal) {
-    const otros = CL.filter(c => c.id !== cli).flatMap(c => [c.name, c.id, String(c.handle || '').replace(/^@/, '')].filter(x => x && String(x).trim().length >= 3).map(x => ({ c: c.name || c.id, x: mesSinAcento(x).trim() })));
+  // the words of a name that tell a client apart (3 letters or more, not a common word): «One LAB» → lab
+  const MES_COMUNES = new Set('one the and los las del con por para que una uno cafe bar club casa shop tienda studio estudio hotel villa travel experiences ibiza surf coffee food'.split(' '));
+  const mesPalabras = t => mesSinAcento(t).split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !MES_COMUNES.has(w));
+  function mesOtros(cli, textos, mal, esporadicos = []) {
+    const yo = CL.find(c => c.id === cli) || {}, mios = [yo.name, yo.id, String(yo.handle || '').replace(/^@/, '')].filter(x => x && String(x).trim().length >= 3);
+    const mias = new Set(mios.flatMap(mesPalabras)), quitarMio = v => mios.reduce((t, x) => t.replace(new RegExp('(^|[^a-z0-9_-])@?' + mesSinAcento(x).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^a-z0-9_-])', 'g'), '$1 '), v);   // its own name doesn't count (alone, never inside a longer id)
+    const otros = [...CL.filter(c => c.id !== cli).map(c => ({ c: c.name || c.id, xs: [c.name, c.id, String(c.handle || '').replace(/^@/, '')] })), ...esporadicos.map(e => ({ c: e, xs: [e] }))]
+      .flatMap(({ c, xs }) => [...xs.filter(x => x && String(x).trim().length >= 3).map(x => mesSinAcento(x).trim()), ...xs.flatMap(mesPalabras)].filter(x => !mias.has(x)).map(x => ({ c, x })));
     for (const [donde, t] of textos) {
-      const v = mesSinAcento(t);
+      const v = quitarMio(mesSinAcento(t));
       const o = otros.find(({ x }) => new RegExp('(^|[^a-z0-9])@?' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])').test(v));
-      if (o) mal(`${donde}: nombra a otro cliente («${o.c}»); el cliente lo ve: dilo sin su nombre (p. ej. «una colaboración»)`);
+      if (o) mal(`${donde}: nombra a otro cliente («${o.c}»${o.x !== mesSinAcento(o.c) ? `, por «${o.x}»` : ''}); el cliente lo ve: dilo sin su nombre (p. ej. «una colaboración»)`);
     }
   }
   const infDe = cli => MES ? [...MES.values()].filter(r => r.cliente === cli).sort((a, b) => a.mes < b.mes ? -1 : 1) : [];
@@ -5590,9 +5599,10 @@
           else resumen = partes.resumen === null ? null : mesResumen(partes.resumen, m, mal);
         }
       }
-      if (!problemas.length) mesOtros(cli, [...(porque ? porque.partes.flatMap((q, i) => [[`porque.partes[${i}].t`, q.t], [`porque.partes[${i}].x`, q.x]]) : []), ...(resumen ? [...resumen.posts.map((q, i) => [`resumen.posts[${i}].nombre`, q.nombre]), ['resumen.frase', resumen.frase]] : [])], mal);
+      const esporadicos = problemas.length ? [] : (await cobTareas().catch(() => [])).filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt).map(t => String(t.txt));
+      if (!problemas.length) mesOtros(cli, [...(porque ? porque.partes.flatMap((q, i) => [[`porque.partes[${i}].t`, q.t], [`porque.partes[${i}].x`, q.x]]) : []), ...(resumen ? [...resumen.posts.map((q, i) => [`resumen.posts[${i}].nombre`, q.nombre]), ['resumen.frase', resumen.frase]] : [])], mal, esporadicos);
       if (problemas.length) return { error: 'no se ha cargado nada: ' + problemas[0] + (problemas.length > 1 ? ` (y ${problemas.length - 1} más)` : ''), problemas };
-      if (mesMal) { await mesLeer(true); if (mesMal) return { error: 'no se ha cargado nada: no se pudieron leer los meses guardados; recarga la Mesa' }; }
+      if (mesMal) { await mesLeer(true); mesAvisar(false); if (mesMal) return { error: 'no se ha cargado nada: no se pudieron leer los meses guardados; recarga la Mesa' }; }
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
       // read and written in one transaction, over what is stored (never over an older copy in this tab's cache); each part
       // keeps its own date, so importing joins part by part (D-238)
@@ -5623,7 +5633,7 @@
   async function mesBorrarCliente(id) {   // a deleted client's months go with it: all its keys, also those the cache doesn't hold
     mesGen++; if (MES) [...MES.keys()].filter(k => k.startsWith(id + '|')).forEach(k => MES.delete(k));
     const pw = tx('meses', 'readwrite', st => st.delete(IDBKeyRange.bound(id + '|', id + '|\uffff'))); mesPend = mesPend.then(() => pw).catch(() => {});
-    try { await pw; } catch (e) { mesLeer(true); }
+    try { await pw; } catch (e) { await mesLeer(true); }
     mesAvisar(true);
   }
   // cycleDay: the day of the month its work cycle starts (1-28, default 1 = calendar month)
@@ -6658,7 +6668,7 @@
     // own date (a part taken away too); a client that is (or comes) here; what is kept is what M.informe would keep (clean)
     const mesAqui = Object.fromEntries(((await idbAll('meses')) || []).filter(r => r && r.cliente && r.mes).map(r => [mesClave(r.cliente, r.mes), r])), nada = () => {};
     // a part's date: its own; a part never loaded has none (it never wins); a record without any part's date (hand-made, or older) goes by its at
-    const atDe = (r, parte) => { if (!r) return ''; const v = r[parte + 'At'] || (r.porqueAt || r.resumenAt ? '' : r.at); return v ? new Date(Date.parse(v)).toISOString() : ''; };
+    const atDe = mesAtDe;
     P.mesPut = [];
     const mesArch = {}; (d.meses || []).forEach(r => { const k = mesClave(r.cliente, r.mes); (mesArch[k] = mesArch[k] || []).push(r); });
     for (const [k, l] of Object.entries(mesArch)) {
@@ -6670,7 +6680,7 @@
         const de = l.reduce((a, r) => atDe(r, parte) > atDe(a, parte) ? r : a, l[0]);
         if (aqui && atDe(de, parte) <= atDe(aqui, parte)) continue;
         n[parte] = de[parte] == null ? null : parte === 'porque' ? mesPorque(de[parte], nada) : mesResumen(de[parte], de.mes, nada);
-        if (!legado) n[parte + 'At'] = atDe(de, parte); cambia = true;
+        const fecha = atDe(de, parte); if (!legado && fecha) n[parte + 'At'] = fecha; else delete n[parte + 'At']; cambia = true;
         if (legado) n.at = new Date(Date.parse(de.at)).toISOString();
       }
       if (!cambia) continue;
@@ -6841,7 +6851,12 @@
       { const pdfs = Object.values(gotPdf), aqui = id => (P.cobAqui || {})[id], tiene = pid => !!pid && (!!gotPdf[pid] || (P.pdfAqui && P.pdfAqui.has(pid))), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: !r.pdf || tiene(r.pdf) ? r.pdf || '' : (aqui(r.id) && !aqui(r.id).borrado && tiene(aqui(r.id).pdf) ? aqui(r.id).pdf : '') });   // a PDF the file names but doesn't bring: the one here stays   // D-232: the PDFs first, then the invoices that name them
         if (pdfs.length) await tx('cfacturas', 'readwrite', st => pdfs.forEach(f => st.put(f, f.id)));
         if (co.length) { await tx('cobros', 'readwrite', st => co.forEach(r => st.put(r, r.id))); res.cobros = co.length; } }
-      if ((P.mesPut || []).length) { await tx('meses', 'readwrite', st => P.mesPut.forEach(r => st.put(r, mesClave(r.cliente, r.mes)))); res.meses = P.mesPut.length; }   // D-238
+      if ((P.mesPut || []).length) {   // D-238: over what is stored now, part by part (a load made while this was confirmed stays if newer)
+        await tx('meses', 'readwrite', st => P.mesPut.forEach(r0 => { const k = mesClave(r0.cliente, r0.mes), g = st.get(k); g.onsuccess = () => {
+          const cur = g.result, r = { ...r0 };
+          if (cur) for (const parte of ['porque', 'resumen']) if (mesAtDe(cur, parte) > mesAtDe(r, parte)) { r[parte] = cur[parte] || null; if (cur[parte + 'At']) r[parte + 'At'] = cur[parte + 'At']; else delete r[parte + 'At']; }
+          st.put(r, k); }; }));
+        res.meses = P.mesPut.length; }
       for (const c of P.cuotaUpd || []) await editarCliente(c.id, o => { const n = { ...o, cuotaAt: c.cuotaAt }; if (c.cuota && typeof c.cuota === 'object') n.cuota = c.cuota; else delete n.cuota; return n; });   // D-232
       for (const c of P.perLista || []) await editarCliente(c.id, o => ({ ...o, personas: c.personas.map(x => ({ usuario: perNorm(x.usuario), colaborador: !!x.colaborador })).filter(x => PER_RE.test(x.usuario)), personasAt: c.personasAt }));   // D-130
       for (const c of P.fotoUpd || []) {

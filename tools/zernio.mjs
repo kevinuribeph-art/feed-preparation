@@ -108,9 +108,12 @@ async function feedDe(accountId, desde, hasta) {
     const r = await call('GET', '/analytics', { query: { accountId, source: 'all', fromDate: masDias(desde, -1), toDate: masDias(hasta, 1), page, limit: 100 } });
     if (!cuenta) cuenta = (r.accounts || []).find(a => (a._id || a.id) === accountId) || null;
     for (const p of r.posts || []) {
-      const ps = p.platforms || [], idDe = x => x && x.accountId && (x.accountId._id || x.accountId);
+      const ps = p.platforms || [], idDe = x => { const a = x && x.accountId; return a && typeof a === 'object' ? a._id || a.id || null : a || null; };
       let pl = ps.find(x => idDe(x) === accountId);
-      if (!pl) { if (ps.length === 1 && !idDe(ps[0])) pl = ps[0]; else if (!ps.length) pl = {}; else continue; }   // another account's post doesn't count
+      if (!pl) {
+        if (ps.some(idDe)) continue;   // its platforms are another account's: it doesn't count
+        pl = ps.find(x => cuenta && x.platform === cuenta.platform) || ps[0] || {};   // no account named anywhere: the asked account's (Zernio filtered by it)
+      }
       const url = pl.platformPostUrl || p.platformPostUrl || '';
       if (p.mediaProductType === 'STORY' || /\/stories\//.test(url)) continue;   // stories don't count
       if (p.status && p.status !== 'published') continue;

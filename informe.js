@@ -67,11 +67,15 @@
     const P = res.posts, n = P.length; if (!n) return '';
     const max = Math.max(1, ...P.map(p => p.alcance)), best = P.reduce((a, p, i) => p.alcance > P[a].alcance ? i : a, 0);
     const alto = v => v ? Math.max(2, v / max * 100) : 0;   // % of the plot; a post with reach shows at least 2 px
-    const nom = P[best].nombre.length > 26 ? P[best].nombre.slice(0, 25).trimEnd() + '…' : P[best].nombre;
-    // where its column is and how long the label is (about 7.2 px a letter at 12 px, in a chart 320 px wide at least): centred if
-    // it fits, else from the column's left or right edge, so it never goes out of the chart
-    const f = (best + 0.5) / n, largo = (nom.length + 3 + cifra(P[best].alcance).length) * 7.2, cx = f * 320;
-    const lado = cx - largo / 2 >= 0 && cx + largo / 2 <= 320 ? 'medio' : f < 0.5 ? 'ini' : 'fin';
+    // the best's label: centred over its column if it fits in the chart (320 px at least), else from the column's edge with
+    // more room, cut to fit (width estimated per letter at 12 px, capitals wider)
+    const ancho = t => [...t].reduce((a, ch) => a + (/[A-ZÁÉÍÓÚÑ@MW]/.test(ch) ? 9 : /[\s.,·]/.test(ch) ? 3.5 : 6.8), 0);
+    const W = 320, band = W / n, bw = Math.min(24, band - 4), cx = (best + 0.5) * band, bi = cx - bw / 2, bd = cx + bw / 2, fig = ' · ' + cifra(P[best].alcance);
+    let nom = P[best].nombre.length > 26 ? P[best].nombre.slice(0, 25).trimEnd() + '…' : P[best].nombre, lado = 'medio';
+    if (cx - ancho(nom + fig) / 2 < 0 || cx + ancho(nom + fig) / 2 > W) {
+      lado = W - bi >= bd ? 'ini' : 'fin'; const sitio = lado === 'ini' ? W - bi : bd;
+      while (nom.length > 1 && ancho(nom + fig) > sitio) nom = nom.slice(0, -2).trimEnd() + '…';
+    }
     const cols = P.map((p, i) => {
       const h = alto(p.alcance), tit = `${p.nombre} · ${p.tipo} · ${corto(p.fecha)} · ${exacta(p.alcance)} de alcance`;
       const lab = i === best ? `<b class="if-v ${lado}">${esc(nom)} · ${esc(cifra(p.alcance))}</b>` : '';
@@ -82,12 +86,13 @@
     const tabla = `<div class="if-sr"><table><caption>Alcance de cada publicación de ${esc(nomMes(mes))}</caption><thead><tr><th>Publicación</th><th>Tipo</th><th>Fecha</th><th>Alcance</th></tr></thead><tbody>${P.map(p => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.tipo)}</td><td>${esc(corto(p.fecha))}</td><td>${esc(exacta(p.alcance))}</td></tr>`).join('')}</tbody></table></div>`;   // in a box: a table ignores width:1px
     // HTML, not SVG: the columns keep their 24 px and the letters their 12 px at any width (an SVG would scale them); the best's
     // label and the first and last dates hang from their column, so they follow it
-    return `<h3 class="if-sub">Alcance de cada publicación</h3><div class="if-ch" role="img" aria-label="${esc(aria)}"><div class="if-cols">${cols}</div></div>${tabla}`;
+    const medio = n > 40 ? 0.5 : n > 24 ? 1 : 2;   // half the gap between columns: 4 px, less with many (they never vanish)
+    return `<h3 class="if-sub">Alcance de cada publicación</h3><div class="if-ch" role="img" aria-label="${esc(aria)}"><div class="if-cols" style="--g:${medio}px">${cols}</div></div>${tabla}`;
   }
   function tiposHTML(res) {
     const T = res.tipos || []; if (!T.length) return '';
     const max = Math.max(1, ...T.map(t => t.alcance));
-    return `<h3 class="if-sub">Alcance medio por tipo</h3><div class="if-tp">${T.map(t => `<span>${esc(t.tipo)}</span><i style="width:${Math.max(t.alcance ? 1 : 0, t.alcance / max * 100).toFixed(1)}%" title="${esc(`${t.tipo}: ${exacta(t.alcance)} de alcance medio`)}"></i><em>${esc(cifra(t.alcance))}</em>`).join('')}</div>`;
+    return `<h3 class="if-sub">Alcance medio por tipo</h3><div class="if-tp">${T.map(t => `<span>${esc(t.tipo)}</span><i style="--w:${Math.max(t.alcance ? 1 : 0, t.alcance / max * 100).toFixed(1)}%" title="${esc(`${t.tipo}: ${exacta(t.alcance)} de alcance medio`)}"></i><em>${esc(cifra(t.alcance))}</em>`).join('')}</div>`;
   }
   const NOMBRES = { alcance: 'Alcance', interacciones: 'Interacciones', guardados: 'Guardados', publicaciones: 'Publicaciones' };
   function comoFueHTML(ctx) {
@@ -134,8 +139,8 @@
 
   // ---------- style (the mesa's tokens; light and dark come with them) ----------
   const ESTILO = `
-#mesa{--barra:#998F85;--barra-top:var(--acc)}
-:root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{--barra:#726960;--barra-top:var(--acc-ink)}
+#mesa{--barra:#998F85;--barra-top:var(--acc);--barra-top-hov:var(--acc-hover)}
+:root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{--barra:#726960;--barra-top:var(--acc-ink);--barra-top-hov:color-mix(in srgb,var(--acc-ink) 80%,var(--ink))}
 #mesa .if-pq{display:flex;flex-direction:column;gap:10px;max-width:62ch;margin:0;font-size:14px;line-height:1.5;color:var(--ink-2)}
 #mesa .if-pq p{margin:0}#mesa .if-pq b{font-weight:600;color:var(--ink)}
 #mesa .if-camino{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r-md);background:var(--bg);color:var(--ink-2);font-size:14px;line-height:1.5}
@@ -154,11 +159,11 @@
 #mesa .if-fr0{margin:10px 0 0;font-size:13px;color:var(--mute)}
 #mesa .if-sub{margin:14px 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
 #mesa .if-ch{position:relative;padding-bottom:20px}
-#mesa .if-cols{display:flex;align-items:stretch;gap:4px;height:144px;padding-top:24px;box-sizing:border-box;border-bottom:1px solid var(--line)}
-#mesa .if-c{position:relative;flex:1 1 0;min-width:0;display:flex;align-items:flex-end;justify-content:center}
+#mesa .if-cols{display:flex;align-items:stretch;height:144px;padding-top:24px;box-sizing:border-box;border-bottom:1px solid var(--line)}
+#mesa .if-c{position:relative;flex:1 1 0;min-width:0;display:flex;align-items:flex-end;justify-content:center;padding:0 var(--g)}#mesa .if-c:first-child{padding-left:0}#mesa .if-c:last-child{padding-right:0}   /* the gap is part of each column's target */
 #mesa .if-c i{position:relative;display:block;width:100%;max-width:24px;border-radius:4px 4px 0 0;background:var(--barra);transition:background var(--d1) ease-out}
 #mesa .if-c.top i{background:var(--barra-top)}
-#mesa .if-c:hover i{background:var(--ink-2)}#mesa .if-c.top:hover i{background:var(--acc-hover)}
+#mesa .if-c:hover i{background:var(--ink-2)}#mesa .if-c.top:hover i{background:var(--barra-top-hov)}
 #mesa .if-v,#mesa .if-d{position:absolute;white-space:nowrap;font-size:12px;font-style:normal;line-height:1;pointer-events:none}
 #mesa .if-v{bottom:calc(100% + 6px);font-weight:600;color:var(--ink)}
 #mesa .if-d{top:calc(100% + 6px);color:var(--mute)}
@@ -166,7 +171,7 @@
 #mesa .if-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 #mesa .if-tp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 10px;max-width:460px;font-size:13px;color:var(--ink-2)}
 #mesa .if-tp i{position:relative;display:block;height:24px}
-#mesa .if-tp i::before{content:'';position:absolute;inset:7px 0;border-radius:0 4px 4px 0;background:var(--barra);transition:background var(--d1) ease-out}
+#mesa .if-tp i::before{content:'';position:absolute;top:7px;bottom:7px;left:0;width:var(--w);border-radius:0 4px 4px 0;background:var(--barra);transition:background var(--d1) ease-out}   /* the whole track is its target */
 #mesa .if-tp i:hover::before{background:var(--ink-2)}
 #mesa .if-tp em{font-style:normal;text-align:right;color:var(--ink)}
 #mesa .if-frase{margin:14px 0 0;font-size:14px;line-height:1.5;color:var(--ink-2);max-width:62ch}

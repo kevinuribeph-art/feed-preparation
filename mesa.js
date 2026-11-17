@@ -6591,7 +6591,26 @@
   let switching = 0;
   for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => { switching++; try { return await f(...a); } finally { switching--; } }; }
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
+  // ---------- the vista cliente's structure (D-230) ----------
+  // Besides the feed and the calendar, the vista cliente has tabs over the calendar («Calendario» and the parts of 'pestana')
+  // and a right column of 360 px (the parts of 'lado'; at 720 px, under the calendar). A part is { id, orden, html: ctx => string }
+  // (a tab also { titulo }); ctx = { cliente, mes: 'YYYY-MM' (the month the calendar shows), S }. '' (or nothing) and it doesn't
+  // show; with none, neither tabs nor column: the page as it was. Only in the vista cliente; calendario.js draws them with the
+  // calendar (also when its month changes) and pintar() asks for it after a part's data change. «Tus pagos» (lado, orden 10),
+  // the porqué (pestana) and the past month (lado, orden 20) give their content here; nothing of it is a name of window.MESA.
+  const VC = {
+    pestanas: [], lado: [],
+    poner(zona, p) {
+      if (!p || !p.id || typeof p.html !== 'function') return false;
+      const l = zona === 'lado' ? VC.lado : VC.pestanas, i = l.findIndex(x => x.id === p.id);
+      if (i >= 0) l.splice(i, 1, p); else l.push(p);
+      l.sort((a, b) => (a.orden || 0) - (b.orden || 0)); VC.pintar(); return true;
+    },
+    quitar(zona, id) { const l = zona === 'lado' ? VC.lado : VC.pestanas, i = l.findIndex(x => x.id === id); if (i >= 0) { l.splice(i, 1); VC.pintar(); } },
+    pintar() { if (M.calendario && M.calendario.render) M.calendario.render(); }
+  };
   M._in = {
+    vc: VC,
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, trayPegaAlgo, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,

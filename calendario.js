@@ -13,6 +13,8 @@
 //   work as the others (open, drag, drop) and their chips go back to full colour on hover, focus or the grid's link.
 //   The month's total: the posts of the month shown, cancelled ones not counted, in its own row under the grid; never in the
 //   vista cliente. No weekly count (Σ) since 1.24 (D-229).
+//   Vista cliente (1.24, D-230): only what the client sees, and tabs over the calendar and a right column when M._in.vc has
+//   parts with something to show for this client and month.
 //   Moving: a chip dragged to another day keeps its time and goes through the mesa's setDate, as the post view's date field
 //   (it renumbers, reorders the grid, reaches a collab's boards and is one step of ⌘Z); a past day is refused.
 //   Notion: the mesa doesn't read Notion live — each chip has the grid's mark of changes since the last upload (1.1: the one
@@ -113,13 +115,39 @@
     return `<button type="button" class="chip ty-ses" data-ses="${esc(x.id)}" title="${esc(`Sesión · ${x.txt} · ${cu}`)}"><span class="cl">${CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;
   }
 
+  // ---------- the vista cliente's structure (D-230) ----------
+  // Its parts are given by others through M._in.vc (mesa.js): tabs beside «Calendario» and the right column. Each part draws
+  // for the board's client and the calendar's month; one with nothing ('') doesn't show, and with none the page is as before.
+  let vcTab = 'cal';                             // the tab chosen (this visit; back to «Calendario» with another board)
+  function vcPartes(X, m) {
+    const V = X.vc, ctx = { cliente: X.S.client, mes: m, S: X.S };
+    const html = p => { try { return String(p.html(ctx) || ''); } catch (e) { return ''; } };
+    const titulo = p => { try { return String((typeof p.titulo === 'function' ? p.titulo(ctx) : p.titulo) || ''); } catch (e) { return ''; } };   // one that fails doesn't show
+    return { tabs: V ? V.pestanas.map(p => ({ id: p.id, titulo: titulo(p), html: html(p) })).filter(p => p.html && p.titulo) : [],
+      lado: V ? V.lado.map(p => ({ id: p.id, html: html(p) })).filter(p => p.html) : [] };
+  }
+  function vcLado(X, root, partes) {             // the right column: each part in its panel; only what changed is drawn again
+    const main = root.querySelector('.main'); let col = main && main.querySelector(':scope > .vc-lado');
+    root.classList.toggle('vc-lado-on', partes.length > 0);
+    if (!partes.length) { if (col) { col.remove(); dispatchEvent(new Event('resize')); } return; }
+    if (!col) { col = document.createElement('aside'); col.className = 'vc-lado'; col.setAttribute('aria-label', 'Este cliente'); main.append(col); }
+    const ya = new Map([...col.children].map(e => [e.dataset.vc, e]));
+    partes.forEach((p, i) => {
+      let e = ya.get(p.id); ya.delete(p.id);
+      if (!e) { e = document.createElement('section'); e.className = 'vc-parte'; e.dataset.vc = p.id; }
+      if (e._h !== p.html) { e.innerHTML = p.html; e._h = p.html; }
+      if (col.children[i] !== e) col.insertBefore(e, col.children[i] || null);
+    });
+    ya.forEach(e => e.remove());
+    if (!col._visto) { col._visto = true; dispatchEvent(new Event('resize')); }   // the feed sizes its grid with its new width (lesson 72)
+  }
   function render() {
     if (mv && mv.on) { later = true; return; }   // a chip being moved: drawn again once it is let go
     const X = I(); if (!X || !X.shellReady || !X.shellReady()) return;
     const root = X.root(), sec = root && root.querySelector('.side > .cal'); if (!sec) return;
     const S = X.S; if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
-    if (view.key !== S.key || !sp.list.includes(view.m)) view = { key: S.key, m: mesInicial(X, sp) };
+    if (view.key !== S.key || !sp.list.includes(view.m)) { if (view.key !== S.key) vcTab = 'cal'; view = { key: S.key, m: mesInicial(X, sp) }; }
     // ‹ › only with another month of the board's own days to go to, in the vista cliente (D-228); without, its month (also when
     // the view comes on while my calendar shows the previous month)
     const propios = sp.list.filter(x => x >= sp.lo.slice(0, 7)), flechas = !client || propios.length > 1;
@@ -168,11 +196,21 @@
     const nv = !client && X.vencidas ? X.vencidas().length : 0;
     const vh = nv ? `<button type="button" class="cvenc" data-cal="venc" title="Ver las vencidas y resolverlas">${nv} vencida${nv === 1 ? '' : 's'}</button>` : '';
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
+    // the vista cliente's parts (D-230): with a tab of its own, «Calendario» is a tab (no title nor fold, also at 720 px)
+    const vc = client ? vcPartes(X, m) : { tabs: [], lado: [] }, tabs = vc.tabs.length ? [{ id: 'cal', titulo: 'Calendario' }, ...vc.tabs] : [];
+    if (!tabs.some(t => t.id === vcTab)) vcTab = 'cal';
+    const conTabs = tabs.length > 0, fo2 = fo && !conTabs, panel = conTabs && vcTab !== 'cal' ? tabs.find(t => t.id === vcTab) : null;
     const nav = `<span class="cnav">${flechas ? `<button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button>` : ''}<span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span>${flechas ? `<button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button>` : ''}</span>`;
-    const cab = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nav}</div>`;
+    const cab = conTabs
+      ? `<div class="calhead vcp"><div class="vcp-tabs" role="tablist" aria-label="Este mes">${tabs.map(t => `<button type="button" class="vcp-tab${t.id === vcTab ? ' on' : ''}" role="tab" id="vcp-t-${esc(t.id)}" data-cal="vctab" data-t="${esc(t.id)}" aria-selected="${t.id === vcTab}" aria-controls="vcp-p" tabindex="${t.id === vcTab ? 0 : -1}">${esc(t.titulo)}</button>`).join('')}</div>${panel ? '' : nav}</div>`
+      : `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nav}</div>`;
+    const panelEl = sec.querySelector(':scope > .vcp-panel'), mismo = panel && panelEl && panelEl.dataset.t === panel.id && panelEl._h === panel.html, pTop = mismo ? panelEl.scrollTop : 0;
     sec.hidden = false;
-    sec.classList.toggle('fold', fo);
-    sec.innerHTML = cab + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${client ? '' : ' auto'}">${body}</div></div>`;
+    sec.classList.toggle('fold', fo2); sec.classList.toggle('vctabs', conTabs);
+    sec.innerHTML = cab + (panel ? `<div class="vcp-panel" id="vcp-p" role="tabpanel" aria-labelledby="vcp-t-${esc(panel.id)}" data-t="${esc(panel.id)}" tabindex="0"></div>`
+      : `${leg}<div class="calbody"${conTabs ? ' id="vcp-p" role="tabpanel" aria-labelledby="vcp-t-cal"' : ''}><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${client ? '' : ' auto'}">${body}</div></div>`);
+    if (panel) { const ph = sec.querySelector(':scope > .vcp-panel'); if (mismo) { ph.replaceWith(panelEl); if (pTop) panelEl.scrollTop = pTop; } else { ph.innerHTML = panel.html; ph._h = panel.html; } }   // the same panel stays as it is: nothing jumps
+    vcLado(X, root, vc.lado);
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
     vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)
@@ -228,6 +266,7 @@
       if (a === 'paso') { if (!client) abrirPaso(b.dataset.paso, b.dataset.mes); return; }
       if (a === 'venc') { if (!client) abrirVencidas(); return; }
       if (a === 'fold') { plegar(X, sec); return; }
+      if (a === 'vctab') { if (vcTab === b.dataset.t) return; vcTab = b.dataset.t; render(); const t = sec.querySelector(`.vcp-tab[data-t="${cssq(vcTab)}"]`); if (t) t.focus({ preventScroll: true }); return; }
       if (a === 'prev' || a === 'next') { const sp = span(X), i = sp.list.indexOf(view.m) + (a === 'prev' ? -1 : 1); if (sp.list[i]) view.m = sp.list[i]; }
       render(); return;
     }
@@ -391,7 +430,12 @@
     vencPintar();
   }
   function onKey(e) {                          // Enter in a field of the vencidas' window: its button; Esc: closes the form
-    const t = e.target; if (!t || !t.matches || !t.matches('#mesa .detail[data-dlg="venc"] .vform input')) return;
+    const t = e.target; if (!t || !t.matches) return;
+    if (t.matches('#mesa .cal .vcp-tab') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {   // the vista cliente's tabs, as a tab list (D-230)
+      const ts = [...t.parentNode.querySelectorAll('.vcp-tab')], i = ts.indexOf(t), k = e.key, n = k === 'Home' ? 0 : k === 'End' ? ts.length - 1 : (i + (k === 'ArrowRight' ? 1 : -1) + ts.length) % ts.length;
+      e.preventDefault(); if (ts[n] && ts[n] !== t) ts[n].click(); return;
+    }
+    if (!t.matches('#mesa .detail[data-dlg="venc"] .vform input')) return;
     if (e.key === 'Enter') { e.preventDefault(); const b = t.closest('.vform').querySelector('[data-cal="v-rep-ok"], [data-cal="v-can-ok"]'); if (b) b.click(); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); vabre = null; vencPintar(); }
   }
@@ -571,9 +615,30 @@
 #mesa .chip.calhi{box-shadow:0 0 0 2px var(--ink)}
 #mesa .cell.calhi::after{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;box-shadow:inset 0 0 0 2px var(--on-photo),inset 0 0 0 4px var(--ink)}
 #mesa .ctot{grid-column:1/-1;padding:4px 6px 0;text-align:right;font-size:11px;color:var(--mute)}#mesa .ctot b{margin-left:4px;font-weight:600;color:var(--ink)}   /* the month's total, its own row (D-229) */
+/* the vista cliente's structure (D-230): «Calendario» and the other tabs; the right column, 360 px */
+#mesa .cal.vctabs .calhead{flex-wrap:wrap;padding:12px 14px 4px;gap:6px}
+#mesa .vcp-tabs{display:flex;gap:4px;min-width:0;flex-wrap:wrap}
+#mesa .vcp-tab{border:0;background:none;font:inherit;font-size:14px;padding:7px 12px;border-radius:var(--r-pill);color:var(--mute);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .vcp-tab:hover:not(.on){background:var(--cx-hov);color:var(--ink)}#mesa .vcp-tab.on{background:var(--ink);color:var(--on-ink);font-weight:600;cursor:default}
+#mesa .vcp-tab:focus-visible,#mesa .vcp-panel:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .vcp-tab:active:not(.on){transform:scale(.97)}
+#mesa .cal.vctabs .calhead .cnav{flex-basis:100%;justify-content:flex-end}
+#mesa .vcp-panel{flex:1;min-height:0;overflow:auto;padding:8px 20px 20px;color:var(--ink);font-size:14px;line-height:1.5}
+#mesa .vc-lado{flex:0 0 360px;min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+#mesa .vc-parte{flex:none;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
+#mesa:not(.client) .vc-lado{display:none}
+#mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
+@media (prefers-reduced-motion:reduce){#mesa .vcp-tab{transition:none}#mesa .vcp-tab:active:not(.on){transform:none}}
 #mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
 #mesa.client .chip{cursor:pointer}
-@media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}#mesa .cfold b{font-size:14px}}`;
+@media (max-width:720px){#mesa .side>.cal:not(.fold){flex:none;height:42vh}#mesa .cfold b{font-size:14px}
+  /* the vista cliente with its parts: one column in the drawing's order, and the page scrolls (D-230) */
+  #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .main{flex:1 1 auto;min-height:0;overflow-y:auto;align-items:stretch}
+  #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .feed{flex:none;width:auto;height:620px;margin:0}
+  #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .side{flex:none}
+  #mesa.client .side>.cal.vctabs{height:auto}#mesa .cal.vctabs .calbody{flex:none;overflow:visible}
+  #mesa .vc-lado{flex:none;overflow:visible;gap:6px}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}
+}`;
   I().estilo('mesa-cal-css', CSS);
 
   function onDbl(e) {                            // the month's name: back to the month the board opens with (D-159)

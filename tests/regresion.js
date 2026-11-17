@@ -15639,6 +15639,50 @@
     } finally { await vistaCliente(false); if (ls0 == null) W.localStorage.removeItem('mesa-cal-recuento'); else W.localStorage.setItem('mesa-cal-recuento', ls0); }
   });
 
+  prueba('AV9', 'La estructura de la «Vista cliente» (D-230): con partes dadas por M._in.vc (contenido de prueba), pestañas «Calendario · <otra>» sobre el calendario (sin su título ni su pliegue) y a la derecha una columna de 360 px en su orden, con el feed como en el dibujo; sin contenido, la página de siempre; nunca en mi vista; siguen al mes del calendario', async () => {
+    await tablero([pub(1), pub(2)]);
+    const V = M._in.vc, fr = $('mesa'), w0 = fr.style.width;
+    ok(V && typeof V.poner === 'function' && typeof V.quitar === 'function', 'sin M._in.vc');
+    const meses = [];
+    try {
+      await vistaCliente(true);
+      V.poner('pestana', { id: 'av9p', titulo: 'Por qué este calendario', orden: 10, html: c => { meses.push(c.mes); return c.mes === MES && c.cliente === CLIENTE ? '<p>Porque sí</p>' : ''; } });
+      V.poner('lado', { id: 'av9b', orden: 20, html: () => '<h2>Cómo fue</h2>' });
+      V.poner('lado', { id: 'av9a', orden: 10, html: () => '<h2>Tus pagos</h2>' });
+      await espera(60); ok(meses.includes(MES), 'la parte no recibe el mes del calendario');
+      igual(qa('.side > .cal .vcp-tab').map(t => [t.textContent, t.getAttribute('aria-selected')]), [['Calendario', 'true'], ['Por qué este calendario', 'false']], 'las pestañas');
+      ok(!q('.side > .cal .cfold') && q('.side > .cal .cgrid'), 'con pestañas el calendario sigue con su título o pliegue');
+      const col = q('.main > .vc-lado'); ok(col, 'sin la columna derecha');
+      igual([...col.children].map(e => e.dataset.vc), ['av9a', 'av9b'], 'las partes de la columna, en su orden');
+      cerca(col.getBoundingClientRect().width, 360, 1, 'la columna no mide 360 px');
+      cerca(q('.main > .feed').getBoundingClientRect().width, Math.min(440, W.innerWidth * 0.32), 1, 'el feed no mide como en el dibujo');
+      V.poner('pestana', { id: 'av9p', titulo: 'Por qué este calendario', orden: 10, html: c => c.mes === MES && c.cliente === CLIENTE ? '<p>Porque sí</p>' + '<p>Línea</p>'.repeat(80) : '' }); await espera(40);
+      q('.side > .cal .vcp-tab[data-t="av9p"]').click(); await espera(40);
+      ok(q('.side > .cal .vcp-panel') && /Porque sí/.test(q('.side > .cal .vcp-panel').textContent) && !q('.side > .cal .cgrid'), 'la pestaña no enseña su contenido');
+      const pan = q('.side > .cal .vcp-panel'); pan.scrollTop = 200; const st0 = pan.scrollTop; M._in.render(); await espera(40);
+      ok(q('.side > .cal .vcp-panel') === pan && pan.scrollTop === st0 && st0 > 0, 'el panel se dibuja otra vez o pierde su desplazamiento: ' + pan.scrollTop);
+      // a part that throws (its title or its content) doesn't show, and the calendar goes on
+      V.poner('pestana', { id: 'av9x', titulo: () => { throw new Error('x'); }, orden: 20, html: () => '<p>x</p>' }); V.poner('lado', { id: 'av9y', orden: 30, html: () => { throw new Error('y'); } }); await espera(40);
+      ok(!q('.side > .cal .vcp-tab[data-t="av9x"]') && !q('.vc-lado [data-vc="av9y"]') && q('.side > .cal .vcp-tab[data-t="av9p"]'), 'una parte que falla rompe el calendario o sale');
+      V.quitar('pestana', 'av9x'); V.quitar('lado', 'av9y');
+      q('.side > .cal .vcp-tab[data-t="cal"]').click(); await espera(40); ok(q('.side > .cal .cgrid'), 'no vuelve al calendario');
+      // my view: nothing of it
+      await vistaCliente(false); ok(!q('.side > .cal .vcp-tab') && q('.side > .cal .cfold') && (!q('.main > .vc-lado') || !q('.main > .vc-lado').getClientRects().length), 'sale en mi vista');
+      await vistaCliente(true);
+      // 720: one column, the page scrolls, the calendar not folded
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); M._in.render(); await espera(100);
+      const ys = ['.main > .feed', '.side > .cal', '.main > .vc-lado'].map(s => q(s).getBoundingClientRect().top);
+      ok(ys[0] < ys[1] && ys[1] < ys[2], 'a 720 px no van en una columna en su orden');
+      ok(!q('.side > .cal').classList.contains('fold') && W.getComputedStyle(q('.main')).overflowY === 'auto' && W.getComputedStyle(q('#mesa')).overflowY !== 'auto', 'a 720 px el calendario va plegado o no se desliza su columna (nunca #mesa)');
+      q('.main').scrollTop = 300; await espera(40); q('.cell[data-slot="r1"]').click(); const dl = await hasta(() => q('.detail:not([hidden])'), 3000, 'la previsualización');
+      ok(Math.abs(dl.getBoundingClientRect().top) < 1 && q('#mesa').scrollTop === 0, 'a 720 px, desplazada, la previsualización se abre fuera de su sitio: ' + dl.getBoundingClientRect().top); M._in.closeDetail(); q('.main').scrollTop = 0;
+      fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(200);
+      // without content: the page as before
+      V.quitar('pestana', 'av9p'); V.quitar('lado', 'av9a'); V.quitar('lado', 'av9b'); await espera(40);
+      ok(!q('.side > .cal .vcp-tab') && q('.side > .cal .cfold') && !q('.main > .vc-lado') && !q('#mesa').classList.contains('vc-lado-on'), 'sin contenido queda algo de la estructura');
+    } finally { fr.style.width = w0; for (const [z, i] of [['pestana', 'av9p'], ['lado', 'av9a'], ['lado', 'av9b'], ['pestana', 'av9x'], ['lado', 'av9y']]) V.quitar(z, i); await vistaCliente(false); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

@@ -190,12 +190,13 @@
       + (vc ? '' : ojoBtn(a.visible !== false, 'sm', `data-hj="ojo-ap"`) + `<button type="button" class="ibtn pp-hj-apm" data-hj="ap-mas" aria-label="Más de ${nom}" title="Más">${svgI('mas3')}</button>`) + `</div>`;
   }
   function planosHTML(a, r) {
-    const P_ = a.pestanas && a.pestanas.length ? a.pestanas : [{ id: 'p0', nombre: 'Planos', items: [] }], vc = S.vista;
-    let act = S.tab[a.id]; if (!P_.some(p => p.id === act)) act = S.tab[a.id] = P_[0].id;
+    const vc = S.vista, P0 = a.pestanas && a.pestanas.length ? a.pestanas : [{ id: 'p0', nombre: 'Planos', items: [] }];
+    const P_ = vc && P0.some(p => (p.items || []).length) ? P0.filter(p => (p.items || []).length) : P0;   // what the client sees: a tab without elements doesn't show (D-228)
+    let act = S.tab[a.id]; if (!P_.some(p => p.id === act)) { act = P_[0].id; if (!vc) S.tab[a.id] = act; }
     const pt = P_.find(p => p.id === act), sing = n => /^planos$/i.test(n) ? 'Plano' : /^v[ií]deos$/i.test(n) ? 'Vídeo' : n;
     const tabs = `<span class="pp-pl-tabs" role="tablist" aria-label="${P.esc(a.nombre || 'Planos')}">${P_.map(p => { const n = (p.items || []).length, h = (p.items || []).filter(i => i.hecho).length, c = `tab:${a.id}:${p.id}`;
       if (P.CARD.ed && S.campo === c) return `<span class="pp-pl-tab on"><span class="pp-pl-tn" data-campo="${P.esc(c)}">${P.esc(p.nombre)}</span></span>`;   // being renamed
-      return `<button type="button" role="tab" class="pp-pl-tab${p.id === act ? ' on' : ''}" data-hj="tab" data-tab="${P.esc(p.id)}" aria-selected="${p.id === act}" data-campo="${P.esc(c)}" title="Doble clic: cambiar el nombre"><span class="pp-pl-tn">${P.esc(p.nombre)}</span>${n ? ` <span class="pp-hj-n">${h}/${n}</span>` : ''}</button>`; }).join('')}${vc ? '' : `<button type="button" class="ibtn pp-pl-mas" data-hj="tab-mas" title="Nueva pestaña" aria-label="Nueva pestaña">${svgI('mas')}</button>`}</span>`;
+      return `<button type="button" role="tab" class="pp-pl-tab${p.id === act ? ' on' : ''}" data-hj="tab" data-tab="${P.esc(p.id)}" aria-selected="${p.id === act}" data-campo="${P.esc(c)}"${vc ? '' : ' title="Doble clic: cambiar el nombre"'}><span class="pp-pl-tn">${P.esc(p.nombre)}</span>${n ? ` <span class="pp-hj-n">${h}/${n}</span>` : ''}</button>`; }).join('')}${vc ? '' : `<button type="button" class="ibtn pp-pl-mas" data-hj="tab-mas" title="Nueva pestaña" aria-label="Nueva pestaña">${svgI('mas')}</button>`}</span>`;
     if (S.plg.has(a.id)) return { cab: tabs, cuerpo: '' };
     const items = (pt.items || []).map(it => {
       const ref = (it.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, Math.round(72 * as), 72, 'Foto de referencia', false); }).join('');
@@ -214,7 +215,7 @@
   const MO_COL = 157, MO_ALTO = 212, MO_GAP = 4;   // 157: 1 % under the cell, so the three columns of 4-C fit in the default split
   function moodHTML(a, r) {
     const vc = S.vista;
-    const gs = (a.grupos || []).map(g => {
+    const gs = (a.grupos || []).filter(g => !vc || (g.fotos || []).length).map(g => {   // what the client sees: a group without photos doesn't show (D-228)
       const una = (g.modo || 'linea') === 'linea';
       const fos = (g.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, una ? Math.round(MO_ALTO * as) : MO_COL, una ? MO_ALTO : Math.round(MO_COL / as), 'Mood board', false).replace('class="pp-fo"', `class="pp-fo" data-a="${as.toFixed(4)}"`); }).join('');
       return `<div class="pp-mo-g" data-g="${P.esc(g.id)}" data-drop="g:${P.esc(a.id)}:${P.esc(g.id)}"><div class="pp-mo-gh"><b class="pp-mo-gn" data-campo="g:${P.esc(a.id)}:${P.esc(g.id)}">${P.esc(g.nombre || 'Grupo')}</b><span class="pp-hj-n">${(g.fotos || []).length}</span><span class="pp-hj-sp"></span>`
@@ -263,10 +264,21 @@
     const cuerpo = plg ? '' : t === 'mood' ? moodHTML(a, r) : t === 'material' ? matHTML(a, r) : texto('ap:' + a.id, typeof a.texto === 'string' ? a.texto : '', 'Vacío');
     return `<section class="pp-hj-ap${plg ? ' plg' : ''}" data-ap="${P.esc(a.id)}">${aph(a, r)}${plg ? '' : `<div class="pp-hj-apc">${cuerpo}</div>`}</section>`;
   }
+  // empty, for what the client sees (D-228): a text with nothing once spaces and line breaks are taken out; Planos without a
+  // tab with elements; a mood board without a group with photos; Material without things
+  function vacioAp(a, r) {
+    const t = tipoDe(a);
+    if (t === 'planos') return !(a.pestanas || []).some(p => (p.items || []).length);
+    if (t === 'mood') return !(a.grupos || []).some(g => (g.fotos || []).length);
+    if (t === 'material') return !matDe(a, r).L.length;
+    return !String(typeof a.texto === 'string' ? a.texto : '').replace(/\s+/g, '');
+  }
   function hojaHTML(r) {
     const X = I(), ses = r.sesion, vc = S.vista, vis = ses.visible !== false, nf = (r.fotos || []).length;
-    const C = columnas(r), dos = innerWidth > 720 && C.izq.length && C.der.length;
-    const verAp = id => { const a = ap(r, id); return a && (!vc || (vis && a.visible !== false)); };
+    // as the client sees it, neither what is struck out (D-206) nor what is empty (D-228)
+    const verAp = id => { const a = ap(r, id); return a && (!vc || (vis && a.visible !== false && !vacioAp(a, r))); };
+    const C = columnas(r), dos = innerWidth > 720 && (vc ? C.izq.some(verAp) && C.der.some(verAp) : C.izq.length && C.der.length);
+    const nada = vc && vis && !C.izq.some(verAp) && !C.der.some(verAp);
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
     const fija = !!(P.CARD && P.CARD.vc), cls = P.clis(r).filter(P.cliOk).filter(c => !fija || c === P.CARD.cli);   // the vista cliente: only that board's client (D-219)
@@ -280,8 +292,10 @@
       + (vc ? '' : `<button type="button" class="ibtn pp-hj-mas" data-hj="mas" aria-label="Más de la sesión" title="Más">${svgI('mas3')}</button>`) + `</div>`
       + (S.tira && !vc ? `<div class="pp-hj-tira" data-drop="tira" title="Suelta aquí fotos del ordenador; arrástralas a un plano o a un grupo">${nf ? (r.fotos || []).map(f => `<span class="pp-hj-tf pp-fo" data-f="${P.esc(f.id)}" draggable="true" tabindex="0" role="button" aria-label="Foto de la sesión"></span>`).join('') : `<span class="pp-pl-sin">Sin fotos</span>`}</div>` : '') + `</header>`;
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
+      : nada ? `<p class="pp-hj-oculta pp-hj-nada">Aún sin detalles</p>`
       : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
-        + (dos ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
+        + (dos && vc ? `<div class="pp-hj-sep fija" aria-hidden="true"></div><div class="pp-hj-col" data-col="der">${col('der')}</div>` : '')   // seen as the client: the line, nothing that moves (D-228)
+        + (dos && !vc ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
     return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
   }
 
@@ -471,7 +485,7 @@
       if (k === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); anadirEnlace(t); return true; }
       return false;
     }
-    if (t.matches && t.matches('.pp-hj-sep') && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home')) {
+    if (t.matches && t.matches('.pp-hj-sep:not(.fija)') && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home')) {
       e.preventDefault(); const R = reparto(); R.sep = k === 'Home' ? SEP0 : Math.max(0.3, Math.min(0.7, R.sep + (k === 'ArrowRight' ? 0.02 : -0.02))); guardarReparto(R); pintarYa(); const s = P.ov.querySelector('.pp-hj-sep'); if (s) s.focus(); return true;
     }
     if (k === 'Escape' && !P.CARD.ed && S.vista && !P.CARD.vc) { e.preventDefault(); e.stopImmediatePropagation(); S.vista = false; pintarYa(); return true; }
@@ -642,7 +656,7 @@
   let mov = null;
   function alPuntero(e) {
     const ov = P.ov; if (!ov || !rec() || e.button !== 0) return;
-    const asa = e.target.closest('.pp-hj-asa'), sep = e.target.closest('.pp-hj-sep');
+    const asa = e.target.closest('.pp-hj-asa'), sep = e.target.closest('.pp-hj-sep:not(.fija)');
     if (!asa && !sep) return;
     e.preventDefault();
     const cols = ov.querySelector('.pp-hj-cols'), rc = cols.getBoundingClientRect();
@@ -1040,7 +1054,7 @@
 #mesa .pp-hj-sep{position:relative;cursor:col-resize;outline:none}
 #mesa .pp-hj-sep::before{content:'';position:absolute;top:0;bottom:0;left:8px;width:1px;background:var(--line2);transition:background var(--d1) var(--ease)}
 #mesa .pp-hj-sep::after{content:'';position:absolute;top:120px;left:5px;width:7px;height:28px;border-radius:var(--r-pill);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);transition:background var(--d1) var(--ease)}
-#mesa .pp-hj-sep:hover::before,#mesa .pp-hj-sep.mov::before{background:var(--line-strong)}#mesa .pp-hj-sep:focus-visible::after{box-shadow:0 0 0 2px var(--focus)}
+#mesa .pp-hj-sep:not(.fija):hover::before,#mesa .pp-hj-sep.mov::before{background:var(--line-strong)}#mesa .pp-hj-sep.fija{cursor:auto}#mesa .pp-hj-sep.fija::after{display:none}   /* as the client sees it: the line alone (D-228) */#mesa .pp-hj-sep:focus-visible::after{box-shadow:0 0 0 2px var(--focus)}
 #mesa .pp-hj-ap{min-width:0}
 #mesa .pp-hj-ap.mov{opacity:.4}
 #mesa .pp-hj-aph{position:relative;display:flex;align-items:center;gap:6px;min-height:32px;margin:0 0 6px -18px;padding-left:18px}
@@ -1065,7 +1079,8 @@
 #mesa .pp-fo:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-hj-linea{position:absolute;height:2px;border-radius:var(--r-pill);background:var(--acc);pointer-events:none}
 #mesa .pp-hj-fant{position:absolute;left:0;top:0;z-index:5;margin:0;padding:4px 12px 4px 18px;border-radius:var(--r-md);background:var(--panel-2);box-shadow:var(--shadow-lg);pointer-events:none;width:300px}
-#mesa .pp-hj-oculta{display:flex;align-items:center;gap:8px;margin:40px 29px;font-size:14px;color:var(--mute)}#mesa .pp-hj-oculta svg{width:18px;height:18px}
+#mesa .pp-hj-oculta{display:flex;align-items:center;gap:8px;margin:40px 26px;font-size:14px;color:var(--mute)}#mesa .pp-ov.amplia .pp-hj-oculta{margin-inline:40px}   /* where the title starts */
+#mesa .pp-card.pp-hj:not(.amplia):has(> .pp-hj-oculta){height:auto}   /* one line, no sheet of the whole height (D-228) */#mesa .pp-hj-oculta svg{width:18px;height:18px}
 #mesa .pp-hj-apn{align-self:flex-start;margin-top:-6px}
 /* the photos placed: each one whole, at the size it takes */
 #mesa .pp-fo{position:relative;flex:none;display:inline-block;overflow:hidden;border-radius:var(--r-xs);background:var(--bg-3)}
@@ -1178,7 +1193,7 @@
 @media (max-width:720px){
   #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
   #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
-  #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}
+  #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}#mesa .pp-hj-oculta,#mesa .pp-ov.amplia .pp-hj-oculta{margin:32px 16px}
   #mesa .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-pl-it{grid-template-columns:28px minmax(0,1fr)}#mesa .pp-pl-ref{grid-column:2;max-width:none;margin-top:8px}
   #mesa .pp-ns-tipos{grid-template-columns:repeat(2,minmax(0,1fr))}#mesa .pp-ns-2{grid-template-columns:minmax(0,1fr)}

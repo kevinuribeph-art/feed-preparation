@@ -15549,6 +15549,84 @@
     } finally { await vistaCliente(false); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } await M.updateClient(CLIENTE, { handle: '' }); await M.updateClient(CLIENTE2, { handle: '' }); await sinTareas(); }
   });
 
+  prueba('AV7', 'Sin lo que no se usa (D-228): en «Vista cliente», sin «Feed / Historias» en un mes sin historias que vea (y de «Historias» vuelve a «Feed»), sin el logo (su sitio se queda), sin «Total de <mes>», sin «Editar» en la previsualización, sin ‹ › sin otro mes; en la hoja, sin apartados vacíos («Aún sin detalles» si no queda ninguno), sin pestañas de Planos ni grupos vacíos, y el separador quieto; en mi vista, todo como estaba', async () => {
+    await sinTareas(); await tablero([pub(1), pub(2)]);
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', slots: [pub(9, 'Foto', 3, '2026-12')], past: [], force: true }); await M.flush();
+    await M.open(`${CLIENTE}-${MES}`); await espera(100);
+    const [fid] = await M.addFiles([await foto('av7.jpg', 1080, 1920)]);
+    const hid = M.hs.anadir(`${MES}-04`, { time: '10:00' }); conFichero(hid, fid); await M.flush(); M._in.render(); await espera(60);
+    try {
+      ok(q('.bar .hvsw'), 'en mi vista no sale «Feed / Historias»');
+      await vistaCliente(true);
+      ok(q('.bar .hvsw'), 'con una historia diseñada no sale «Feed / Historias»');
+      // logo: hidden, its place kept
+      const lg = q('.appbar .brand'); ok(lg && W.getComputedStyle(lg).visibility === 'hidden' && lg.getBoundingClientRect().width > 10, 'el logo se ve o pierde su sitio');
+      // no total, no ‹ › with one month
+      ok(!q('.side > .cal .ctot'), 'sale «Total de …»');
+      ok(!q('.side > .cal .cnav button'), 'salen ‹ › sin otro mes en el tablero');
+      // the preview has no «Editar»
+      q('.cell[data-slot="r1"]').click(); await hasta(() => q('.detail:not([hidden]) .igwrap'), 3000, 'la previsualización');
+      ok(!q('.detail .igedit'), 'la previsualización tiene «Editar»'); M._in.closeDetail(); await espera(40);
+      // «Historias», then a month without stories: back to «Feed», no switch
+      q('.bar .hvsw [data-v="1"]').click(); await espera(80); ok(q('#mesa').classList.contains('hv-on'), 'no pasa a «Historias»');
+      await M.open(`${CLIENTE}-2026-12`); await espera(150);
+      ok(!q('.bar .hvsw') && !q('#mesa').classList.contains('hv-on') && !q('.main > section.hv:not([hidden])'), 'en un mes sin historias sigue «Historias» o su conmutador: ' + json([M.board().key, !!q('.bar .hvsw'), q('#mesa').classList.contains('hv-on'), !!q('.main > section.hv:not([hidden])'), q('#mesa').classList.contains('client'), M.hs.lista().length]));
+      await vistaCliente(false); ok(q('.bar .hvsw'), 'al salir de «Vista cliente» no vuelve «Feed / Historias»');
+      // my calendar on the previous month, then the vista cliente: back to its month (without ‹ › it couldn't)
+      await M.open(`${CLIENTE}-2026-12`); await espera(120); M._in.render(); const pv = await hasta(() => q('.side > .cal [data-cal="prev"]:not([disabled])'), 3000, '‹'); pv.click(); await espera(60);
+      ok(!/diciembre/i.test(q('.side > .cal .cmes').textContent), 'no va al mes anterior');
+      await vistaCliente(true); ok(/diciembre/i.test(q('.side > .cal .cmes').textContent) && !q('.side > .cal .cnav button'), 'en «Vista cliente» el calendario se queda en otro mes sin ‹ ›: ' + q('.side > .cal .cmes').textContent);
+      await vistaCliente(false);
+      await M.open(`${CLIENTE}-${MES}`); await espera(150);
+      ok(q('.side > .cal .ctot') && q('.side > .cal .cnav button') && W.getComputedStyle(q('.appbar .brand')).visibility === 'visible', 'en mi vista falta el total, ‹ › o el logo');
+      // the sheet, as the client sees it
+      await seListo(); await seLista();
+      const ses = await M.sesiones._test.crear({ txt: 'Con huecos', clase: 'fotovideo', fecha: `${MES}-10`, hora: '10:00', clientes: [CLIENTE] });
+      const blob = await (await foto('av7b.jpg', 900, 600)).arrayBuffer();
+      await M._in.idbPut('tfotos', 'tfav7', { id: 'tfav7', w: 900, h: 600, blob: new W.Blob([blob], { type: 'image/jpeg' }), mini: new W.Blob([blob], { type: 'image/jpeg' }), t: Date.now() });
+      await M.personal._p.cambiar(ses.id, x => { x.fotos = [{ id: 'tfav7', w: 900, h: 600 }];
+        seAp(x, 'orden').texto = ' \n  \n'; seAp(x, 'fotos').texto = 'Retratos';
+        const pl = seAp(x, 'planos'); pl.pestanas = [{ id: 'p1', nombre: 'Planos', items: [{ id: 'i1', titulo: 'Solo título' }] }, { id: 'p2', nombre: 'Vídeos', items: [] }];
+        seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Con fotos', modo: 'linea', fotos: ['tfav7'] }, { id: 'g2', nombre: 'Sin fotos', modo: 'linea', fotos: [] }]; seAp(x, 'material').visible = true; return x; });
+      paginaCerrada(); M._in.render(); await vistaCliente(true);
+      const chip = await hasta(() => q(`.side > .cal .chip[data-ses="${ses.id}"]`), 4000, 'el chip de la sesión'); chip.click();
+      const hoja = await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'la hoja fija en «Ver como el cliente»');
+      const aps = () => qa('.pp-hj .pp-hj-ap').map(a => a.dataset.ap).sort();
+      igual(aps(), ['fotos', 'material', 'mood', 'planos'], 'los apartados que se ven (Orden está vacío)');
+      igual(qa('.pp-hj [data-ap="planos"] .pp-pl-tab .pp-pl-tn').map(t => t.textContent.trim()), ['Planos'], 'una pestaña de Planos sin elementos sale');
+      igual(qa('.pp-hj [data-ap="mood"] .pp-mo-g').map(g => g.dataset.g), ['g1'], 'un grupo sin fotos sale');
+      const sep = q('.pp-hj .pp-hj-sep');
+      if (sep) {
+        ok(sep.classList.contains('fija') && !sep.hasAttribute('tabindex') && !sep.hasAttribute('role') && !sep.title && W.getComputedStyle(sep, '::after').display === 'none' && W.getComputedStyle(sep, '::before').width === '1px', 'el separador se mueve, se alcanza o pierde su línea');
+        const r0 = json(M.sesiones._test.reparto()), b = sep.getBoundingClientRect();
+        sep.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: b.x + 8, clientY: b.y + 50, pointerId: 1 }));
+        D.dispatchEvent(new W.PointerEvent('pointermove', { bubbles: true, clientX: b.x + 140, clientY: b.y + 50, pointerId: 1 })); D.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, clientX: b.x + 140, clientY: b.y + 50, pointerId: 1 }));
+        sep.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, detail: 2 })); await espera(60);
+        igual(json(M.sesiones._test.reparto()), r0, 'el separador se mueve en «Vista cliente»');
+      }
+      M.personal._p.cerrarCard(true); await espera(40);
+      // all empty: «Aún sin detalles»
+      await M.personal._p.cambiar(ses.id, x => { seAp(x, 'fotos').texto = ''; seAp(x, 'planos').pestanas = [{ id: 'p1', nombre: 'Planos', items: [] }]; seAp(x, 'mood').grupos = []; seAp(x, 'material').material = { lista: [], hechos: [], plantilla: 'nada' }; return x; });
+      q(`.side > .cal .chip[data-ses="${ses.id}"]`).click(); await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'la hoja');
+      igual([qa('.pp-hj .pp-hj-ap').length, (q('.pp-hj .pp-hj-nada') || {}).textContent], [0, 'Aún sin detalles'], 'sin nada que ver no dice «Aún sin detalles»');
+      { const nom = q('.pp-hj .pp-hj-nom'); cerca(q('.pp-hj .pp-hj-nada').getBoundingClientRect().left, nom.getBoundingClientRect().left + parseFloat(W.getComputedStyle(nom).paddingLeft), 1.5, '«Aún sin detalles» no empieza donde el texto del título'); }
+      ok(q('.pp-hj').getBoundingClientRect().height < W.innerHeight * 0.6, 'con una línea, la hoja sigue de toda la altura');
+      M.personal._p.cerrarCard(true); await vistaCliente(false);
+      // in my page, «Ver como el cliente» follows the same rules; my sheet, as it was
+      await paginaAbierta(); await seAbrir(ses.id);
+      ok(qa('.pp-hj .pp-hj-ap').length >= 4, 'en mi hoja faltan los apartados vacíos');
+      seQ('[data-hj="vista"]').click(); await espera(60);
+      igual((q('.pp-hj .pp-hj-nada') || {}).textContent, 'Aún sin detalles', '«Ver como el cliente» enseña lo vacío');
+    } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } await vistaCliente(false); paginaCerrada(); await sinTareas(); await sinMes(`${CLIENTE}-2026-12`); }
+    // a board of one cycle from day 22 covers two months of the calendar: ‹ › stay in the vista cliente
+    try {
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 22, slots: [{ id: 'c22a', name: 'Foto 1.1', type: 'Foto', date: '2026-11-25T12:00:00.000+01:00' }, { id: 'c22b', name: 'Foto 1.2', type: 'Foto', date: '2026-12-10T12:00:00.000+01:00' }], past: [], force: true }); await M.flush();
+      M._in.render(); await vistaCliente(true); await espera(60);
+      const nx = q('.side > .cal [data-cal="next"]'), pv2 = q('.side > .cal [data-cal="prev"]'); ok(nx || pv2, 'un ciclo del 22 al 21 pierde ‹ › en «Vista cliente»');
+      if (nx && !nx.disabled) { nx.click(); await espera(60); } ok(q('.side > .cal .chip[data-slot="c22b"]') || (pv2 && !pv2.disabled), 'la publicación del 10 dic no se alcanza');
+    } finally { await vistaCliente(false); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

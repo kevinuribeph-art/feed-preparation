@@ -2670,7 +2670,7 @@
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
 #mesa.client .tab.add,#mesa.client .appbar .xfer,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}
-#mesa.client .tabs .tab:not(.on){display:none}   /* only its own tab (D-227) */
+#mesa.client .tabs .tab:not(.on){display:none}#mesa.client .appbar .brand{visibility:hidden}   /* only its own tab (D-227); no logo, its place kept (D-228) */#mesa.client .tab.on.hasedit{padding-right:13px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
 @media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"cab" "izq" "col";min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible;min-height:auto}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
@@ -4223,7 +4223,7 @@
   async function openIG(id, idx, soloVer) {   // soloVer: from the stories' view, without «Editar» (D-079)
     const P = igFotos(id); if (!P || !shellReady()) return;
     const n = P.list.length; idx = Math.max(0, Math.min(n - 1, idx || 0));
-    soloVer = soloVer || (ig && ig.id === id && ig.soloVer);
+    soloVer = soloVer || (ig && ig.id === id && ig.soloVer) || root.classList.contains('client');   // the vista cliente only looks: no «Editar» (D-228)
     ig = { id, idx, prev: P.prev, soloVer };
     await loadClientPhotos();
     const it = P.list[idx];
@@ -4934,7 +4934,7 @@
     else if (act === 'right') { move(a.dataset.slot, +a.dataset.k, 1); openDetail(a.dataset.slot, +a.dataset.k + 1); }
     else if (act === 'cover') { setCover(a.dataset.slot, +a.dataset.k); openDetail(a.dataset.slot, 0); }
     else if (act === 'ignav') igNav(+a.dataset.d);
-    else if (act === 'igedit') igEditar();
+    else if (act === 'igedit') { if (!root.classList.contains('client')) igEditar(); }
     else if (act === 'caporig') capRevert(a.dataset.slot, +a.dataset.k);
     else if (act === 'pickcover') { pickOpen = pickOpen === a.dataset.slot ? null : a.dataset.slot; openDetail(a.dataset.slot, cur.idx); }
     else if (act === 'setcover') { const id = a.dataset.slot, f = a.dataset.f; pickOpen = null; if (!M.files[f]) return; repetidas([{ name: M.files[f].name, size: M.files[f].size }], { slot: id }).then(r => { if (r) changeCover(id, f); openDetail(id, 0); }); }

@@ -122,6 +122,10 @@
     const S = X.S; if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
     if (view.key !== S.key || !sp.list.includes(view.m)) view = { key: S.key, m: mesInicial(X, sp) };
+    // ‹ › only with another month of the board's own days to go to, in the vista cliente (D-228); without, its month (also when
+    // the view comes on while my calendar shows the previous month)
+    const propios = sp.list.filter(x => x >= sp.lo.slice(0, 7)), flechas = !client || propios.length > 1;
+    if (!flechas && view.m !== propios[0]) view.m = propios[0];
     if (!SES && !sesLee) leerSes();            // the first board the tab opens (also one it started in); then each change says so (D-219)
     const m = view.m, [y, mo] = m.split('-').map(Number), today = X.hoy();
     // posts by day (sorted by time; a cancelled one is drawn crossed out, never in the vista cliente)
@@ -155,7 +159,7 @@
       total += n;
       body += `<div class="ccnt${n ? '' : ' z'}" title="${n} publicaci${n === 1 ? 'ón' : 'ones'} esta semana en ${X.MONTHS[mo - 1]}">${cf ? '' : n}</div>`;
     }
-    if (!cf) body += `<div class="ctot">Total de ${X.MONTHS[mo - 1]}</div><div class="ccnt ctotn" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">${total}</div>`;
+    if (!cf && !client) body += `<div class="ctot">Total de ${X.MONTHS[mo - 1]}</div><div class="ccnt ctotn" title="${total} publicaci${total === 1 ? 'ón' : 'ones'} en ${X.MONTHS[mo - 1]}">${total}</div>`;   // never in the vista cliente (D-228)
     const i = sp.list.indexOf(m), pend = M.notionChanges ? M.notionChanges().length : 0, fo = folded();
     // «Notion a fecha de» is no longer a text of its own: it goes in the title of the line that already speaks of Notion (D-160)
     const nat = `Notion a fecha de: ${S.notionAt ? esc(X.fmtDate(S.notionAt)) : '—'}`;
@@ -167,11 +171,11 @@
     const nv = !client && X.vencidas ? X.vencidas().length : 0;
     const vh = nv ? `<button type="button" class="cvenc" data-cal="venc" title="Ver las vencidas y resolverlas">${nv} vencida${nv === 1 ? '' : 's'}</button>` : '';
     const bodyEl = sec.querySelector('.calbody'), top = bodyEl ? bodyEl.scrollTop : 0;
+    const nav = `<span class="cnav">${flechas ? `<button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button>` : ''}<span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span>${flechas ? `<button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button>` : ''}</span>`;
+    const cab = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}${nav}</div>`;
     sec.hidden = false;
     sec.classList.toggle('fold', fo); sec.classList.toggle('nocnt', cf);
-    sec.innerHTML = `<div class="calhead"><button type="button" class="cfold" data-cal="fold" aria-expanded="${!fo}" title="${fo ? 'Abrir el calendario' : 'Plegar el calendario'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><b>Calendario</b></button>${vh}${sync}`
-      + `<span class="cnav"><button type="button" data-cal="prev" aria-label="Mes anterior" ${i > 0 ? '' : 'disabled'}>‹</button><span class="cmes" title="${esc(mesTit)}">${esc(mesNom)}</span><button type="button" data-cal="next" aria-label="Mes siguiente" ${i < sp.list.length - 1 ? '' : 'disabled'}>›</button></span></div>`
-      + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${cf ? '' : ' 26px'}">${body}</div></div>`;
+    sec.innerHTML = cab + `${leg}<div class="calbody"><div class="cgrid" style="grid-template-rows:24px repeat(${rows},minmax(58px,auto))${cf || client ? '' : ' 26px'}">${body}</div></div>`;
     const nb = sec.querySelector('.calbody'); if (nb && top) nb.scrollTop = top;
     light();
     vencPintar(true);                            // the vencidas' window, if it is open (a ⌘Z, a change from elsewhere)

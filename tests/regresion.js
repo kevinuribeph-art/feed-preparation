@@ -15845,6 +15845,102 @@
     await sinMes(`${CLIENTE}-${MES}`);
     const rm = await M.removeClient(CLIENTE); ok(typeof rm === 'string' && /factura/.test(rm), 'se elimina un cliente con facturas: ' + rm);
   });
+  async function coFicha(cid, tab) {             // «Editar cliente» of any client, in its tab (D-233)
+    await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+    await M._in.cob.dlgCliente(cid, tab);
+    return hasta(() => q('.detail[data-dlg="editclient"] .dlg form'), 4000, 'el diálogo «Editar cliente»');
+  }
+  const coFila = id => q(`tr.co-f[data-id="${id}"]`);
+  const coCambiar = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const coToast = () => qa('.toasts .toast').map(t => t.textContent).join(' | ');
+  async function coSoltar(el, file) { const dt = new W.DataTransfer(); dt.items.add(file); for (const ty of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new W.DragEvent(ty, { bubbles: true, cancelable: true, dataTransfer: dt })); await espera(60); }
+  prueba('CO2', 'La ficha «Datos · Cobros» (D-233): «Editar cliente» de otro cliente se abre encima de la página sin abrir su tablero y «Guardar» guarda en ese; dos pestañas del mismo ancho (← → entre ellas) y «Guardar» solo en «Datos»; la cuota se guarda al momento («450 €», «1.470,50»); «+ Factura de <mes>» con su cuota y fechas; número, importe y fechas en su sitio (Esc devuelve el campo); un PDF soltado en la fila, solo PDF; «Quitar» y borrar con «Deshacer» (mismos bytes); «Cobrada» pone hoy y «Sin fecha» la devuelve; sin desplazamiento lateral; un cliente con facturas no se elimina', async () => {
+    await tablero([pub(1)]);
+    await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+    try {
+      await paginaAbierta();
+      // another client's dialog over the page: its board isn't opened, curClient stays
+      const cur0 = M._in.curClient, d = await coFicha(CLIENTE2, 'cobros');
+      ok(M.personal.abierta() && M._in.curClient === cur0, 'abrir la ficha de otro cliente cierra la página o cambia de tablero');
+      const tabs = qa('.detail .ectab'); igual(tabs.map(b => [b.textContent, b.getAttribute('role'), b.getAttribute('aria-selected')]), [['Datos', 'tab', 'false'], ['Cobros', 'tab', 'true']], 'las pestañas');
+      ok(D.activeElement === tabs[1], 'el foco no va a «Cobros»');
+      ok(q('#ecp-datos').hidden && !q('#ecp-cobros').hidden && !q('#ecp-cobros [type=submit]') && !q('.detail button[type=submit]').getClientRects().length, '«Guardar» sale en «Cobros»');
+      const w1 = q('.detail .card').getBoundingClientRect().width;
+      tecla('ArrowLeft', { en: tabs[1] }); await espera(30);
+      ok(!q('#ecp-datos').hidden && q('#ecp-cobros').hidden && D.activeElement === q('.ectab[data-t="datos"]'), '← no va a «Datos»');
+      cerca(q('.detail .card').getBoundingClientRect().width, w1, 0.5, 'las dos pestañas no miden lo mismo');
+      ok(q('.detail button[type=submit]').getClientRects().length, '«Guardar» no sale en «Datos»');
+      // «Guardar» saves in that client, not in the open board's
+      q('#ec-name').value = NOMBRE2 + ' bis'; q('.detail form').requestSubmit(); await hasta(() => !dialogo(), 3000, 'que se cierre');
+      igual([M._in.CL.find(c => c.id === CLIENTE2).name, M._in.CL.find(c => c.id === CLIENTE).name], [NOMBRE2 + ' bis', NOMBRE], '«Guardar» guarda en otro cliente');
+      await M.updateClient(CLIENTE2, { name: NOMBRE2 });
+      // the fee: saved at once, its formats
+      await coFicha(CLIENTE, 'cobros');
+      ok(q('.co-mas[data-co="nueva"]').disabled, '«+ Factura» sin cuota se pulsa');
+      const qi = q('[data-co="cuota"][data-k="importe"]'); coCambiar(qi, '1.470,50'); await hasta(() => (M._in.CL.find(c => c.id === CLIENTE).cuota || {}).importe === 1470.5, 3000, 'la cuota «1.470,50»');
+      igual(qi.value, '1470,50 €', 'la cuota no se ve como se guarda');
+      coCambiar(qi, 'mucho'); await espera(60); igual(M._in.CL.find(c => c.id === CLIENTE).cuota.importe, 1470.5, 'una cuota no válida se guarda'); ok(/importe/.test(coToast()), 'sin aviso de una cuota no válida');
+      coCambiar(q('[data-co="cuota"][data-k="importe"]'), '450 €'); coCambiar(q('[data-co="cuota"][data-k="dia"]'), '15'); coCambiar(q('[data-co="cuota"][data-k="plazo"]'), '10');
+      await hasta(() => M._in.cob.cuota(M._in.CL.find(c => c.id === CLIENTE)), 3000, 'la cuota entera');
+      igual(M._in.CL.find(c => c.id === CLIENTE).cuota, { importe: 450, dia: 15, plazo: 10 }, 'la cuota guardada');
+      // «+ Factura de octubre» (none yet: this month, with the clock at 1 Oct), then «noviembre»
+      await hasta(() => !q('.co-mas[data-co="nueva"]').disabled, 2000, '«+ Factura» con cuota');
+      ok(/Factura de octubre/.test(q('.co-mas[data-co="nueva"]').textContent), '«+ Factura» no es la del mes en curso: ' + q('.co-mas').textContent);
+      q('.co-mas[data-co="nueva"]').click(); await hasta(() => M.cobros.ver(CLIENTE).length === 1, 3000, 'la factura nueva');
+      let f1 = M.cobros.ver(CLIENTE)[0]; igual([f1.periodo, f1.importe, f1.emitida, f1.vence, f1.estado], ['2026-10', 450, '2026-10-15', '2026-10-25', 'sinemitir'], 'la factura nueva y sus fechas');
+      await hasta(() => D.activeElement === q(`tr.co-f[data-id="${f1.id}"] [data-co="num"]`), 2000, 'el foco en su número');
+      ok(/Factura de noviembre/.test(q('.co-mas[data-co="nueva"]').textContent), 'la siguiente no es la de noviembre');
+      // number and amount in place; Esc puts a field back first
+      const num = q(`tr.co-f[data-id="${f1.id}"] [data-co="num"]`); num.value = 'T-9'; tecla('Enter', { en: num }); await hasta(() => M.cobros.ver(CLIENTE)[0].factura === 'T-9', 2000, 'el número con Intro');
+      const imp = q(`tr.co-f[data-id="${f1.id}"] [data-co="imp"]`); imp.value = '9'; tecla('Escape', { en: imp }); igual(imp.value, '450 €', 'Esc no devuelve el importe'); ok(dialogo(), 'el primer Esc cierra el diálogo');
+      coCambiar(imp, '12,5'); await hasta(() => M.cobros.ver(CLIENTE)[0].importe === 12.5, 2000, 'el importe «12,5»'); igual(imp.value, '12,50 €', 'el importe no se ve con sus céntimos');
+      coCambiar(imp, 'x'); await espera(60); igual(M.cobros.ver(CLIENTE)[0].importe, 12.5, 'un importe no válido se guarda');
+      // the dates: open below the row; vence before emitida is refused
+      q(`tr.co-f[data-id="${f1.id}"] [data-co="fechas"]`).click(); await espera(60);
+      const det = await hasta(() => q(`tr.co-det[data-id="${f1.id}"]`), 2000, 'las fechas de la fila');
+      igual(qa(`tr.co-det[data-id="${f1.id}"] input[type=date]`).map(i => [i.dataset.k, i.hasAttribute('data-sin-fecha')]), [['emitida', true], ['vence', true], ['cobrada', true]], 'las tres fechas');
+      coCambiar(det.querySelector('[data-k="vence"]'), '2026-10-01'); await espera(80); igual(M.cobros.ver(CLIENTE)[0].vence, '2026-10-25', 'vence antes de emitirse y se guarda');
+      coCambiar(q(`tr.co-det[data-id="${f1.id}"] [data-k="vence"]`), '2026-10-30'); await hasta(() => M.cobros.ver(CLIENTE)[0].vence === '2026-10-30', 2000, 'vence cambiado');
+      // a PDF dropped on the row: only PDF
+      await coSoltar(coFila(f1.id), new W.File(['hola'], 'nota.txt', { type: 'text/plain' }));
+      await espera(100); ok(!M.cobros.ver(CLIENTE)[0].pdf && /PDF/.test(coToast()), 'un archivo que no es PDF entra o no avisa');
+      const pdf = new W.File(['%PDF-1.4\n% co2\n' + 'y'.repeat(4000)], 'co2.pdf', { type: 'application/pdf' }), h0 = await shaDe(pdf);
+      await coSoltar(coFila(f1.id), pdf); await hasta(() => M.cobros.ver(CLIENTE)[0].pdf, 3000, 'el PDF soltado');
+      await hasta(() => coFila(f1.id) && coFila(f1.id).querySelector('[data-co="ver-pdf"]'), 2000, 'su nombre en la fila');
+      // «Quitar» and «Deshacer»: the same bytes
+      const pid = M.cobros.ver(CLIENTE)[0].pdf; coFila(f1.id).querySelector('[data-co="quitar"]').click();
+      await hasta(() => !M.cobros.ver(CLIENTE)[0].pdf, 2000, 'quitar el PDF'); await hasta(async () => !(await M._in.idbGet('cfacturas', pid)), 2000, 'el PDF que nadie nombra se va');
+      const deshacer = () => [...qa('.toasts .toast button')].find(b => b.textContent === 'Deshacer');
+      (await hasta(deshacer, 2000, '«Deshacer»')).click(); await hasta(() => M.cobros.ver(CLIENTE)[0].pdf === pid, 3000, 'el PDF de vuelta');
+      igual(await shaDe((await M._in.idbGet('cfacturas', pid)).blob), h0, 'los bytes del PDF devuelto');
+      // «Cobrada»: today; «Sin fecha» gives it back
+      await hasta(() => coFila(f1.id).querySelector('[data-co="cobrada"]'), 2000, '«Cobrada»'); coFila(f1.id).querySelector('[data-co="cobrada"]').click();
+      await hasta(() => M.cobros.ver(CLIENTE)[0].cobrada === '2026-10-01', 2000, 'cobrada hoy');
+      ok(!coFila(f1.id).querySelector('[data-co="cobrada"]') && /cobrada el 1 oct/.test(coFila(f1.id).textContent), 'la fila no dice cobrada');
+      coCambiar(q(`tr.co-det[data-id="${f1.id}"] [data-k="cobrada"]`), ''); await hasta(() => !M.cobros.ver(CLIENTE)[0].cobrada, 2000, 'sin fecha de cobro');
+      // the right click: «Borrar factura», with «Deshacer»
+      coFila(f1.id).dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 300 })); await espera(40);
+      const mi = await hasta(() => q('.pp-menu button[data-a="co-borrar"]'), 2000, '«Borrar factura» en el clic derecho'); igual(mi.textContent, 'Borrar factura', 'el texto del menú'); mi.click();
+      await hasta(() => !M.cobros.ver(CLIENTE).length, 2000, 'borrada'); ok(!coFila(f1.id), 'la fila sigue');
+      (await hasta(deshacer, 2000, '«Deshacer» del borrado')).click(); await hasta(() => M.cobros.ver(CLIENTE).length === 1 && M.cobros.ver(CLIENTE)[0].pdf === pid, 3000, 'devuelta con su PDF');
+      igual(await shaDe((await M._in.idbGet('cfacturas', pid)).blob), h0, 'los bytes del PDF tras deshacer el borrado');
+      // no side scrolling: long values at 1400 and stacked rows at 700
+      await M.cobros.cargar([{ id: 'co2-largo', cliente: CLIENTE, periodo: '2025-09', importe: 12500.5, factura: 'T-2025-0001', emitida: '2025-09-15', vence: '2025-09-25' }]); await espera(80);
+      const sinLado = m => { const k = q('.detail .card'), c = q('.co'), t = q('.co-t'); ok(k.scrollWidth <= k.clientWidth + 1 && (!t || t.getBoundingClientRect().right <= c.getBoundingClientRect().right + 1), m + ': ' + json({ card: [k.clientWidth, k.scrollWidth], t: t && Math.round(t.getBoundingClientRect().right), c: Math.round(c.getBoundingClientRect().right) })); };
+      sinLado('se desliza a lo ancho');
+      const fr = $('mesa'), w0 = fr.style.width;
+      try {
+        fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(200);
+        ok(W.getComputedStyle(q('.co-t thead')).display === 'none' && W.getComputedStyle(coFila(f1.id)).display === 'grid', 'a 720 px la tabla no pasa a filas apiladas');
+        sinLado('a 720 px se desliza a lo ancho');
+      } finally { fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); }
+      M._in.closeDetail();
+      // a client with invoices and no months: «no se puede eliminar»
+      await M.cobros.cargar([{ id: 'co2-b', cliente: CLIENTE2, periodo: '2026-10', importe: 1 }]);
+      await coFicha(CLIENTE2, 'datos'); ok(!q('[data-act="delclient"]') && /Tiene 1 factura: no se puede eliminar/.test(q('.detail .row').textContent), 'un cliente con facturas se puede eliminar');
+      M._in.closeDetail();
+    } finally { M._in.closeDetail(); paginaCerrada(); }
+  });
 
   // =====================================================================================================
   const filas = $('filas');

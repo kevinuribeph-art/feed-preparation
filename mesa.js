@@ -2506,7 +2506,7 @@
 #mesa .card h3{margin:0 32px 6px 0;font-size:20px;font-weight:800;letter-spacing:-.025em;line-height:1.2}#mesa .card>p{margin:0 0 12px;color:var(--mute);font-size:13px;line-height:1.5}
 #mesa .card .x{position:absolute;top:12px;right:12px;border:0;background:none;width:32px;height:32px;border-radius:50%;transition:background var(--d1) ease-out}
 #mesa .card .x:hover{background:var(--bg-2);color:var(--ink)}
-#mesa .card.dlg{max-width:440px}
+#mesa .card.dlg{max-width:440px}#mesa .card.dlg.ec2{max-width:760px;width:min(760px,100%)}
 #mesa .repl{list-style:none;margin:8px 0 0;padding:0;max-height:min(50vh,320px);overflow:auto;font-size:13px}#mesa .repl li{display:flex;flex-direction:column;gap:1px;padding:8px 0;border-top:1px solid var(--line2)}#mesa .repl li span{color:var(--mute);font-size:12.5px}
 #mesa .form label{display:block;font-size:12.5px;font-weight:600;margin:14px 0 6px}#mesa .form label span{font-weight:400;color:var(--mute)}
 #mesa .form input[type=text],#mesa .form input[type=number]{width:100%;box-sizing:border-box;height:32px;min-height:0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);padding:0 12px;font:13px var(--font);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
@@ -4130,6 +4130,7 @@
     const d = root && root.querySelector('.detail'); if (!d) return;
     const wasPrev = d.dataset.prev; if (d.dataset.dlg === 'addmode') pendingAdd = null;
     if (d.dataset.dlg === 'editclient' && avStage) { if (avStage.id) avDiscard(); else avStage = null; }
+    if (d.dataset.dlg === 'editclient') { edCid = null; if (M.cobrosUI && M.cobrosUI.cerrado) M.cobrosUI.cerrado(); }
     d.hidden = true; d.innerHTML = ''; delete d.dataset.slot; delete d.dataset.dlg; delete d.dataset.prev; delete d.dataset.file; pickOpen = null; ig = null;
     if (wasPrev && prevOnce) { prevOnce = false; renderFeed(); }
   }
@@ -4285,17 +4286,27 @@
       <label for="nc-cycle" class="dcl" data-v="1" title="Inicio de ciclo · doble clic: día 1">Inicio de ciclo <span>(1-28)</span></label><input id="nc-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="1" required>
       <p class="ferr" hidden></p><div class="row"><button type="submit" class="btn">Crear cliente</button></div></form>`);
   }
-  function dlgEditClient() {
-    const c = CL.find(x => x.id === curClient); if (!c) return;
-    const nm = MB.length;
-    showDialog('editclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Editar cliente</h3>
-      <form class="form" data-form="editclient" autocomplete="off"><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
+  // «Editar cliente» of the open board's client or, from the personal page, of any (D-233): `edCid` is the one it edits, never
+  // `curClient` (it opens over the page, without opening its board); with cobros.js, two tabs «Datos · Cobros» as wide
+  async function dlgEditClient(cid, tab) {
+    cid = cid || curClient;
+    const c = CL.find(x => x.id === cid); if (!c) return;
+    const nm = cid === curClient ? MB.length : ((await idbAll('boards').catch(() => [])) || []).filter(b => b.client === cid).length;
+    await cobLeer(); const nf = cobVivos(cid).length;
+    edCid = cid;
+    const U = M.cobrosUI && M.cobrosUI.pane ? M.cobrosUI : null, co = U && tab === 'cobros';
+    const tabs = U ? `<div class="ectabs" role="tablist" aria-label="Editar cliente"><button type="button" role="tab" class="ectab${co ? '' : ' on'}" id="ect-datos" data-co="tab" data-t="datos" aria-selected="${!co}" aria-controls="ecp-datos" tabindex="${co ? -1 : 0}">Datos</button><button type="button" role="tab" class="ectab${co ? ' on' : ''}" id="ect-cobros" data-co="tab" data-t="cobros" aria-selected="${co}" aria-controls="ecp-cobros" tabindex="${co ? 0 : -1}">Cobros</button></div>` : '';
+    showDialog('editclient', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Editar cliente</h3>${tabs}
+      <form class="form" data-form="editclient" autocomplete="off"${U ? ` id="ecp-datos" role="tabpanel" aria-labelledby="ect-datos"${co ? ' hidden' : ''}` : ''}><label for="ec-name">Nombre</label><input id="ec-name" name="name" type="text" maxlength="60" value="${esc(c.name)}" required>
       <label for="ec-handle">Usuario de Instagram</label><input id="ec-handle" name="handle" type="text" maxlength="120" value="${esc(c.handle || '')}" placeholder="@usuario">
       <label for="ec-cycle" class="dcl" data-v="${cdOf(c.cycleDay)}" title="Inicio de ciclo · doble clic: el guardado">Inicio de ciclo <span>(1-28; los meses ya cargados conservan el suyo)</span></label><input id="ec-cycle" name="cycleDay" type="number" min="1" max="28" step="1" value="${cdOf(c.cycleDay)}" required>
       <label>Foto de perfil</label><div class="avrow">${avatarHTML(c, 'avprev')}<button type="button" class="btn2" data-act="avpick">Elegir foto…</button><button type="button" class="lnk" data-act="avdel"${c.foto ? '' : ' hidden'}>Quitar</button><input type="file" class="avin" accept="image/jpeg,image/png,image/webp" hidden></div>
       <div class="ecnot" title="Apagada, la Mesa no compara con Notion ni invita a subir."><b>Usa Notion</b><label class="sw"><span class="ecnot-e" aria-hidden="true"><span class="ecnot-si">Conectado</span><span class="ecnot-no">Desconectado</span></span><input type="checkbox" name="notion" role="switch" aria-label="Usa Notion"${c.notion === false ? '' : ' checked'}></label></div>
       <p class="ferr" hidden></p>
-      <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="submit" class="btn">Guardar</button></div></form>`);
+      <div class="row">${nm ? `<span class="left muted">Tiene ${nm} mes${nm === 1 ? '' : 'es'} guardado${nm === 1 ? '' : 's'}: no se puede eliminar.</span>` : nf ? `<span class="left muted">Tiene ${nf} factura${nf === 1 ? '' : 's'}: no se puede eliminar.</span>` : '<button type="button" class="btn2 danger left" data-act="delclient">Eliminar cliente</button>'}<button type="submit" class="btn">Guardar</button></div></form>${U ? `<div class="co-pane" id="ecp-cobros" role="tabpanel" aria-labelledby="ect-cobros" data-co-cli="${esc(cid)}"${co ? '' : ' hidden'}>${U.pane(cid)}</div>` : ''}`);
+    const card = root.querySelector('.detail .card.dlg'); if (U && card) card.classList.add('ec2');
+    if (co) { const t = root.querySelector('#ect-cobros'); if (t) t.focus(); }
+    if (U && U.abierto) U.abierto(cid);
   }
   function dlgHowMonth() {
     const c = CL.find(x => x.id === curClient), cn = esc(c ? c.name : 'este cliente');
@@ -4317,27 +4328,30 @@
     if (!name) return fail('Escribe el nombre del cliente.');
     if (!/^\d+$/.test(cyc) || !okCd(+cyc)) return fail('El inicio de ciclo es un día del 1 al 28.');
     const cycleDay = +cyc;
-    if (CL.some(c => c.name.toLowerCase() === name.toLowerCase() && (kind === 'newclient' || c.id !== curClient))) return fail('Ya existe un cliente con ese nombre.');
+    const cid = edCid || curClient;   // D-233
+    if (CL.some(c => c.name.toLowerCase() === name.toLowerCase() && (kind === 'newclient' || c.id !== cid))) return fail('Ya existe un cliente con ese nombre.');
     if (kind === 'newclient') {
       if (busyGuard()) return;
       const c = await M.addClient({ name, handle, cycleDay }); closeDetail(); await M.openClient(c.id); toast(`Cliente «${c.name}» creado.`);
     } else {
-      const av = avStage && avStage.cid === curClient ? avStage : null;
-      await M.updateClient(curClient, { name, handle, cycleDay, ...(av ? { foto: av.id } : {}), ...(form.elements.notion ? { notion: form.elements.notion.checked } : {}) });
+      const av = avStage && avStage.cid === cid ? avStage : null;
+      await M.updateClient(cid, { name, handle, cycleDay, ...(av ? { foto: av.id } : {}), ...(form.elements.notion ? { notion: form.elements.notion.checked } : {}) });
       if (av) avStage = null;                       // kept: the dialog no longer owns it
       closeDetail();
+      if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();   // opened from the page (D-233)
     }
   }
   // ---------- the client's profile photo (vista cliente) ----------
   // A protected file «perfil-<cliente>-<n>» (never in the tray, kept while the client points at it); chosen in «Editar
   // cliente» and saved with «Guardar» (Cancelar discards it); it travels with the export.
   let avStage = null;                                // {cid, id}: chosen in the open dialog, not saved yet ('' = remove)
+  let edCid = null;                                  // the client «Editar cliente» edits (D-233)
   function avatarHTML(c, cls) {
     const f = c && c.foto && M.files[c.foto];
     return `<span class="${cls || 'igav'}">${f ? `<img src="${f.thumbUrl}" alt="">` : esc(initials(c ? c.name : '?'))}</span>`;
   }
   async function avPick(file) {
-    const c = CL.find(x => x.id === curClient); if (!c || !file) return;
+    const c = CL.find(x => x.id === (edCid || curClient)); if (!c || !file) return;
     if (!OK_TYPES.includes(file.type)) { toast('La foto de perfil tiene que ser JPG o PNG.'); return; }
     try {
       const { w, h, thumb } = await makeThumb(file), id = `perfil-${c.id}-${Date.now().toString(36)}`;
@@ -4949,9 +4963,9 @@
     else if (act === 'client') { if (a.dataset.id !== curClient && !root.classList.contains('client') && !busyGuard()) await M.openClient(a.dataset.id); }   // the vista cliente never reaches another client (D-227)
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
-    else if (act === 'editclient') { await loadClientPhotos(); dlgEditClient(); }
+    else if (act === 'editclient') { await loadClientPhotos(); await dlgEditClient(curClient); }
     else if (act === 'avpick') { const i = root.querySelector('.detail .avin'); if (i) i.click(); }
-    else if (act === 'avdel') { await avDiscard(); avStage = { cid: curClient, id: '' }; const c = CL.find(x => x.id === curClient); const pv = root.querySelector('.detail .avprev'); if (pv) pv.outerHTML = avatarHTML({ ...c, foto: null }, 'avprev'); a.hidden = true; }
+    else if (act === 'avdel') { const cid = edCid || curClient; await avDiscard(); avStage = { cid, id: '' }; const c = CL.find(x => x.id === cid); const pv = root.querySelector('.detail .avprev'); if (pv) pv.outerHTML = avatarHTML({ ...c, foto: null }, 'avprev'); a.hidden = true; }
     else if (act === 'howmonth') dlgHowMonth();
     else if (act === 'addfiller') setFillers(fillersOf() + 1);
     else if (act === 'delfiller') delFiller(+a.dataset.k);
@@ -4993,14 +5007,15 @@
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
         a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
-        const r = await resumenBandeja(curClient);
+        const r = await resumenBandeja(edCid || curClient);
         if (r.fotos && a.isConnected) a.textContent = `Confirmar: eliminar y borrar ${nOf(r.fotos, 'foto', 'fotos')} de su bandeja${r.carpetas ? ` y ${nOf(r.carpetas, 'carpeta', 'carpetas')}` : ''} (${pesoTxt(r.bytes)})`;
         return;
       }
-      const c = CL.find(x => x.id === curClient);
-      const r = await M.removeClient(curClient);
+      const cid = edCid || curClient, c = CL.find(x => x.id === cid);
+      const r = await M.removeClient(cid);
       closeDetail();
       if (r === true) toast(`Cliente «${c ? c.name : ''}» eliminado.`); else toast(String(r));
+      if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();   // removed from the page (D-233)
     }
   }
 
@@ -5288,7 +5303,8 @@
   async function cobBorrar(id) {
     cobNoLocked(); await cobLeer();
     const r = COB.get(id); if (!r || r.borrado) return null;
-    const pdf = r.pdf ? await idbGet('cfacturas', r.pdf).catch(() => null) : null;
+    const f = r.pdf ? await idbGet('cfacturas', r.pdf).catch(() => null) : null;   // its bytes in memory: the stored one goes now
+    const pdf = f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null;
     const t = { id, cliente: r.cliente, borrado: true, at: cobAt(r.at) };
     cobGen++; await idbPut('cobros', id, t); COB.set(id, t);
     if (r.pdf) await cobPdfLibre(r.pdf);
@@ -6893,6 +6909,7 @@
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
     cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
+      dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES },
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,

@@ -43,8 +43,8 @@
 //   no state mark — dimmed on another month of the board as the posts' (D-153); always in Kevin's calendar and, in the vista
 //   cliente, only with the session's eye open. It never moves nor counts (Σ, the month's total, the step bar, the vencidas, «N
 //   cambiadas», «Revisar», Notion, Zernio, Descargar: they read the posts only); its click opens its sheet over the board (in
-//   the vista cliente, fixed in «Ver como el cliente»). Read from 'tareas' when a board opens and after each change
-//   («mesa-tareas», also from another tab).
+//   the vista cliente, fixed in «Ver como el cliente»). Read from 'tareas' when the first board opens (also one the tab
+//   started in) and again after each change («mesa-tareas», also from another tab and after an import).
 (function calendarioBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
@@ -93,7 +93,7 @@
   const when = (X, iso) => X.dOnly(iso) ? -1 : +X.localTime(iso).replace(':', '');   // a post without a time goes first, as in Notion
 
   // ---------- the personal page's sessions (D-219): what a chip needs, read from 'tareas' ----------
-  let SES = null, sesFirma = '', sesLee = null, sesKey = null;
+  let SES = null, sesFirma = '', sesLee = null;
   const CLAQ = '<svg class="cses" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path vector-effect="non-scaling-stroke" d="m6.2 5.3 3.1 3.9"/><path vector-effect="non-scaling-stroke" d="m12.4 3.4 3.1 4"/><path vector-effect="non-scaling-stroke" d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>';
   async function leerSes() {
     if (sesLee) { sesLee.otra = true; return; }
@@ -122,7 +122,7 @@
     const S = X.S; if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
     if (view.key !== S.key || !sp.list.includes(view.m)) view = { key: S.key, m: mesInicial(X, sp) };
-    if (sesKey !== S.key) { sesKey = S.key; leerSes(); }   // a board opens: its sessions are read again (D-219)
+    if (!SES && !sesLee) leerSes();            // the first board the tab opens (also one it started in); then each change says so (D-219)
     const m = view.m, [y, mo] = m.split('-').map(Number), today = X.hoy();
     // posts by day (sorted by time; a cancelled one is drawn crossed out, never in the vista cliente)
     const by = {};

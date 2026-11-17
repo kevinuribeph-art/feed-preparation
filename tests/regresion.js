@@ -12747,6 +12747,7 @@
     for (const f of (await M._in.idbAll('tfotos').catch(() => [])) || []) await M._in.idbDel('tfotos', f.id);   // las fotos de las sesiones (D-206)
     try { W.localStorage.removeItem('mesa-pp-hoja'); } catch (e) { /* */ }
     if (M.personal) { M.personal._test.olvidar(); if (M.personal.abierta()) await M.personal.render(); }
+    W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));   // the posts' calendar reads its sessions again (D-219)
   }
   const ppCifras = () => Object.fromEntries(qa('.pp-cifra').map(b => [b.dataset.k, +b.querySelector('b').textContent]));
   const ppGrupo = c => q(`.pp-grupo[data-cat="${c}"]`);

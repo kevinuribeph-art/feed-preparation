@@ -8271,11 +8271,11 @@
       await dzListo(0);
       accion('add-forma', { v: 'rect' });
       const r = compDe(0).els[compDe(0).els.length - 1]; igual(r.t, 'forma', 'no se añadió la forma');
-      accion('cap-dn', { id: r.id });
+      accion('cap', { id: r.id }); accion('bwd');   // «Atrás», since D-215 in the row's menu (before, its ▼)
       igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno'], 'la forma no bajó bajo el diseño');
-      accion('cap-dn', { id: r.id });
+      accion('cap', { id: r.id }); accion('bwd');
       igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno'], 'la forma bajó bajo la foto');
-      accion('cap-up', { id: dzFoto(0).id });
+      accion('cap', { id: dzFoto(0).id }); accion('fwd');
       ok(compDe(0).els[0].dz, 'la foto del diseño subió');
       const c = await dzListo(0, true); ok(c.sf && c.sfKey === c.want, 'el motor no dibujó sin la foto');
       accion('add-txt');
@@ -11398,7 +11398,7 @@
     accion('cap', { id: ra.id }); tecla(']', { meta: true, code: 'BracketRight' });
     igual(compDe(0).els.indexOf(lzeEl(ra.id)), 1, '⌘] no lo puso delante');
     tecla('c', { meta: true }); tecla('v', { meta: true }); igual(compDe(0).els.length, 4, '⌘C ⌘V no pegaron');
-    ok(q('.lb-panel [data-pl="capas"] [data-lb="cap-up"]'), 'sin ▲ ▼ en «Capas»');
+    ok(q('.lb-panel [data-pl="capas"] .lb-cap .lb-capasa'), 'sin «Capas» con su asa');   // ▲ ▼ went to each row's menu (D-215)
     const at = q('.lb-atajos').textContent; ok(/⌘C · ⌘V/.test(at) && /⌘D · ⌫/.test(at) && /⌘\] · ⌘\[/.test(at), '«?» no los dice');
     M.libre.cerrar();
   });
@@ -12031,21 +12031,20 @@
     } finally { caja.remove(); M.libre.cerrar(); }
   });
 
-  prueba('AJ4', '▲ ▼ de «Capas» y × de «Plantillas» del editor: iconos de Lucide (chevron-up, chevron-down, x) con el carácter de texto; misma área pulsable (D-175)', async () => {
+  prueba('AJ4', '× de «Plantillas» del editor: icono de Lucide (x) con el carácter de texto; misma área pulsable (D-175; ▲ ▼ de «Capas», a su menú desde D-215)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('aj4.jpg')]);
     await abrirEditor('r1');
     const masc = el => decodeURIComponent(W.getComputedStyle(el, '::before').webkitMaskImage || '');
     const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; q('#mesa').append(caja);
     try {
-      caja.innerHTML = '<div class="lb-cap"><span class="lb-capn">Texto</span><button type="button" data-lb="cap-up">▲</button><button type="button" data-lb="cap-dn" disabled>▼</button></div><div class="lb-tp" style="width:120px;height:90px"><button type="button" data-lb="tpl-del">×</button></div>';
-      const [up, dn] = caja.querySelectorAll('.lb-cap button'), x = caja.querySelector('.lb-tp button');
-      for (const [b, d, txt] of [[up, 'm18 15-6-6-6 6', '▲'], [dn, 'm6 9 6 6 6-6', '▼'], [x, 'M18 6 6 18', '×']]) {
+      caja.innerHTML = '<div class="lb-tp" style="width:120px;height:90px"><button type="button" data-lb="tpl-del">×</button></div>';
+      const x = caja.querySelector('.lb-tp button');
+      for (const [b, d, txt] of [[x, 'M18 6 6 18', '×']]) {
         const c = W.getComputedStyle(b), r = b.getBoundingClientRect();
         ok(c.fontSize === '0px' && masc(b).includes(d) && b.textContent === txt, txt + ' sin su icono o sin su texto');
         igual([r.width, r.height], [24, 24], 'el área pulsable de ' + txt);
       }
-      igual(W.getComputedStyle(dn, '::before').backgroundColor, W.getComputedStyle(dn).color, '▼ desactivado no sigue su color');
     } finally { caja.remove(); M.libre.cerrar(); }
   });
 
@@ -13428,6 +13427,11 @@
   // =====================================================================================================
   const capasFilas = () => qa('.lb-panel .lb-caps > .lb-cap').map(r => r.dataset.capa || compDe(ed().i).els.find(e => e.id === r.dataset.id).t);
   const sinPanel = () => { const E = ed(); E.sel = null; E.mas = []; E.capa = null; };
+  // a row of «Capas»: its right click and one of its orders (D-215; before, ▲ ▼ on the row)
+  async function capaMenu(sel, a) {
+    const f = q(sel), r = f.getBoundingClientRect(); f.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 8 })); await espera(30);
+    const b = q(`.lb-cm:not([hidden]) [data-lb="${a}"]`); ok(b && !b.disabled, `el menú de la capa no ofrece ${a}`); b.click(); await espera(30);
+  }
   async function editorConVelo() {
     await tablero([pub(1)]); await poner('r1', [await foto('vt-1.jpg')]);
     await abrirEditor('r1'); await espera(150);
@@ -13442,7 +13446,7 @@
       ok(c().velo.z == null && c().tex.z == null, 'sin moverlos guardan sitio');
       const img0 = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
       // ▲ en el velo: pasa encima del texto
-      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      await capaMenu('.lb-panel .lb-cap[data-capa="velo"]', 'fwd'); await espera(60);
       igual(capasFilas(), ['tex', 'velo', 'texto', 'foto'], '▲ no sube el velo');
       igual(c().velo.z, 2, 'el velo no guarda su sitio');
       ok(!(await bytesIguales(img0, await M.libre.pieza(JSON.parse(json(c())), 540, 675))), 'la imagen no cambia con el velo encima del texto');
@@ -13497,7 +13501,7 @@
       sinPanel(); await espera(30);
       const t1 = c().els.filter(e => e.t === 'texto')[0];
       // el velo entre los dos textos: ▲ una vez
-      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      await capaMenu('.lb-panel .lb-cap[data-capa="velo"]', 'fwd'); await espera(60);
       igual(capasFilas(), ['tex', 'texto', 'velo', 'texto', 'foto'], 'el velo entre los textos');
       const sobre = () => { const L = capasFilas(), i = L.indexOf('velo'); return qa('.lb-panel .lb-caps > .lb-cap')[i - 1].dataset.id; };
       const arriba = sobre();
@@ -13521,7 +13525,7 @@
     try {
       const c = () => compDe(ed().i);
       const t = await guardarPlant();                 // velo y textura sin sitio propio
-      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      await capaMenu('.lb-panel .lb-cap[data-capa="velo"]', 'fwd'); await espera(60);
       igual(c().velo.z, 2, 'el velo no se movió');
       sinPanel(); aplicarPlant(t, 'todo'); await espera(120);
       ok(c().velo && c().velo.z == null && c().tex && c().tex.z == null, 'la plantilla no trae su velo donde estaba: ' + json([c().velo, c().tex]));
@@ -14744,6 +14748,53 @@
       ok(rs.every((a, i) => rs.every((b, j) => i === j || a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5)), 'a 720 px las cifras se solapan: ' + json(rs.map(r => [r.left, r.right, r.top, r.bottom])));
       ok(rs.every(r => r.left >= caja.left - 0.5 && r.right <= caja.right + 0.5) && qa('.pp-cifra span').every(x => x.scrollWidth <= x.clientWidth + 1), 'a 720 px una cifra se sale o se corta');
     } finally { fr.style.width = w0; paginaCerrada(); relojVuelve(); }
+  });
+
+  prueba('AS7', '«Capas», opción B (D-215): asa en cada fila; ojo y candado de Lucide, a la vista al pasar, en la fila elegida o con el foco, y siempre si está oculta o bloqueada; eslabón de Lucide en lo agrupado; sin ▲ ▼ ni caracteres; el clic derecho de una fila (y la tecla de menú o ⇧F10) ofrece Al frente, Adelante, Atrás y Al fondo, apagados si no mueven nada; lo bloqueado no sale en la imagen', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i), fila = k => q(`.lb-panel .lb-caps > .lb-cap${k === 'velo' || k === 'tex' ? `[data-capa="${k}"]` : `[data-id="${c().els.find(e => e.t === k).id}"]`}`);
+      accion('add-forma', { v: 'rect' }); await espera(60); sinPanel(); accion('cap', { id: c().els.find(e => e.t === 'foto').id }); await espera(80);
+      const L = q('.lb-panel [data-acc="capas"] .lb-acc-h, .lb-panel [data-pl="capas"] .lb-acc-h'); if (L && L.getAttribute('aria-expanded') !== 'true') { L.click(); await espera(250); }
+      const filas = qa('.lb-panel .lb-caps > .lb-cap');
+      igual(capasFilas(), ['tex', 'forma', 'texto', 'velo', 'foto'], 'las filas de «Capas»');
+      ok(filas.every(f => f.querySelector('.lb-capasa:not(.no)')), 'una fila sin asa');
+      ok(!q('.lb-panel [data-lb="cap-up"], .lb-panel [data-lb="cap-dn"]') && qa('.lb-panel .lb-cap button').every(b => !b.textContent.trim()) && !/[⛓◉◌🔒🔓▲▼]/u.test(q('.lb-panel .lb-caps').textContent), 'quedan ▲ ▼ o caracteres en «Capas»');
+      const masc = el => decodeURIComponent(W.getComputedStyle(el, '::before').webkitMaskImage || ''), op = el => +W.getComputedStyle(el).opacity;
+      const ojo = k => fila(k).querySelector('[data-lb="cap-ver"]'), cand = k => fila(k).querySelector('[data-lb="cap-lock"]');
+      await espera(250);
+      ok(masc(ojo('texto')).includes('M2.062 12.348') && masc(cand('texto')).includes('9.9-1'), 'el ojo o el candado no son de Lucide');
+      ok(op(ojo('texto')) === 0 && op(cand('texto')) === 0 && op(ojo('foto')) === 1 && op(cand('foto')) === 1, 'los iconos de una fila sin elegir se ven, o los de la elegida no: ' + json([op(ojo('texto')), op(ojo('foto'))]));
+      // hidden and locked: always seen, their own icons
+      ojo('texto').click(); await espera(60); cand('forma').click(); await espera(60); accion('cap', { id: c().els.find(e => e.t === 'foto').id }); await espera(250);
+      ok(ojo('texto').classList.contains('act') && masc(ojo('texto')).includes('m2 2 20 20') && op(ojo('texto')) === 1, 'lo oculto no se ve con el ojo tachado');
+      ok(cand('forma').classList.contains('act') && masc(cand('forma')).includes('0 1 10 0v4') && op(cand('forma')) === 1, 'lo bloqueado no se ve con el candado cerrado');
+      // locked, it doesn't go out: the same image with and without the lock
+      const forma = c().els.find(e => e.t === 'forma'), conCandado = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
+      cand('forma').click(); await espera(60); ok(await bytesIguales(conCandado, await M.libre.pieza(JSON.parse(json(c())), 540, 675)), 'el candado cambia la imagen que sale');
+      ojo('texto').click(); await espera(60);
+      // grouped: Lucide's link
+      fila('texto').click(); await espera(30); fila('forma').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })); await espera(30); accion('group'); await espera(80);
+      ok(fila('texto').querySelector('.lb-capg[aria-label="En un grupo"]') && fila('forma').querySelector('.lb-capg') && !fila('velo').querySelector('.lb-capg'), 'lo agrupado no lleva el eslabón');
+      accion('ungroup'); await espera(60);
+      // the row's menu: the four orders, off when they move nothing; one step of ⌘Z
+      const tex = fila('tex'), rt = tex.getBoundingClientRect(); tex.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rt.left + 20, clientY: rt.top + 8 })); await espera(40);
+      igual(qa('.lb-cm:not([hidden]) button').map(b => b.dataset.lb + (b.disabled ? '-' : '+')), ['front-', 'fwd-', 'bwd+', 'back+'], 'el menú de la fila de arriba');
+      ok(ed().capa === 'tex', 'el clic derecho no elige la capa');
+      q('.lb-cm:not([hidden]) [data-lb="bwd"]').click(); await espera(60);
+      igual(capasFilas(), ['forma', 'tex', 'texto', 'velo', 'foto'], '«Atrás» no la baja una');
+      tecla('z', { meta: true }); await espera(80); igual(capasFilas(), ['tex', 'forma', 'texto', 'velo', 'foto'], '⌘Z no la devuelve');
+      // the keyboard: the menu key and ⇧F10 on a row's button; Esc closes the menu
+      const b = ojo('velo'); b.focus(); await espera(30);
+      { const rs = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } });   // the frame's document has no focus: the rule (real keys, aparte)
+        ok(rs.some(r => (r.selectorText || '').split(',').map(x => x.trim()).includes('#mesa .lb-cap:focus-within .lb-ci') && r.style.opacity === '1'), 'con el foco del teclado no se ven sus iconos'); }
+      b.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true })); await espera(40);
+      ok(q('.lb-cm:not([hidden])') && ed().capa === 'velo', 'la tecla de menú no abre el de la fila');
+      tecla('Escape'); await espera(40); ok(!q('.lb-cm:not([hidden])'), 'Esc no cierra el menú de la fila');
+      const b2 = ojo('texto'); b2.focus(); b2.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true })); await espera(40);
+      ok(q('.lb-cm:not([hidden])') && ed().sel === c().els.find(e => e.t === 'texto').id, '⇧F10 no abre el menú de la fila');
+      tecla('Escape'); await espera(40);
+    } finally { M.libre.cerrar(); }
   });
 
   // =====================================================================================================

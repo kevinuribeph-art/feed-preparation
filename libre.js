@@ -1613,12 +1613,24 @@
 #mesa .lb-capv.velo .lb-capn::before{background:linear-gradient(0deg,color-mix(in oklab,var(--ink) 80%,transparent),transparent)}
 #mesa .lb-capv.tex .lb-capn::before{background:repeating-linear-gradient(45deg,var(--mute) 0 1px,transparent 1px 3px);opacity:.7}
 #mesa .lb-capsp{flex:none;width:24px}
+#mesa .lb{--lb-i-ojo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='12' cy='12' r='3'/%3E%3C/svg%3E");--lb-i-ojo-no:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M14.084 14.158a3 3 0 0 1-4.242-4.242'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m2 2 20 20'/%3E%3C/svg%3E");--lb-i-lock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect vector-effect='non-scaling-stroke' width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");--lb-i-lock-o:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect vector-effect='non-scaling-stroke' width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M7 11V7a5 5 0 0 1 9.9-1'/%3E%3C/svg%3E");--lb-i-link:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");--lb-i-grip:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle vector-effect='non-scaling-stroke' cx='9' cy='12' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='9' cy='5' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='9' cy='19' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='15' cy='12' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='15' cy='5' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='15' cy='19' r='1'/%3E%3C/svg%3E")}
+#mesa .lb-capasa{flex:none;align-self:stretch;width:16px;margin:-4px 2px -4px -4px;color:var(--faint);cursor:grab;position:relative}
+#mesa .lb-capasa::before,#mesa .lb-capg::before,#mesa .lb-cap .lb-ci::before{content:'';position:absolute;inset:0;margin:auto;background:currentColor;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+#mesa .lb-capasa::before{width:14px;height:14px;--m:var(--lb-i-grip)}#mesa .lb-capasa.no{cursor:default}#mesa .lb-capasa.no::before{content:none}
+#mesa .lb-cap:hover .lb-capasa:not(.no){color:var(--mute)}
+#mesa .lb-capg{flex:none;position:relative;width:14px;height:14px;margin-right:5px;color:var(--mute)}#mesa .lb-capg::before{--m:var(--lb-i-link)}
+#mesa .lb-cap .lb-ci{position:relative;font-size:0;opacity:0;transition:opacity var(--d1) var(--ease),background var(--d1) var(--ease)}
+#mesa .lb-cap .lb-ci::before{width:15px;height:15px}
+#mesa .lb-cap .lb-ci[data-lb="cap-ver"]::before{--m:var(--lb-i-ojo)}#mesa .lb-cap .lb-ci[data-lb="cap-ver"].act::before{--m:var(--lb-i-ojo-no)}
+#mesa .lb-cap .lb-ci[data-lb="cap-lock"]::before{--m:var(--lb-i-lock-o)}#mesa .lb-cap .lb-ci[data-lb="cap-lock"].act::before{--m:var(--lb-i-lock)}
+#mesa .lb-cap:hover .lb-ci,#mesa .lb-cap.on .lb-ci,#mesa .lb-cap:focus-within .lb-ci,#mesa .lb-cap .lb-ci.act{opacity:1}
+#mesa .lb-cap .lb-ci.act{color:var(--ink-2)}
+#mesa .lb-cap .lb-ci:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 #mesa .lb-cap.arr{opacity:.5}#mesa .lb-capdrop{position:absolute;left:4px;right:4px;height:2px;border-radius:2px;background:var(--acc);pointer-events:none}
-#mesa .lb-cap{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 9px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
+#mesa .lb-cap{display:flex;align-items:center;gap:2px;min-height:33px;padding:4px 6px 4px 4px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
 #mesa .lb-cap button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);padding:0;font-size:11.5px;color:var(--mute)}
-#mesa .lb-cap button[data-lb="cap-up"],#mesa .lb-cap button[data-lb="cap-dn"]{position:relative;font-size:0}#mesa .lb-cap button[data-lb="cap-up"]::before,#mesa .lb-cap button[data-lb="cap-dn"]::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .lb-cap button[data-lb="cap-dn"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}
 #mesa .lb-cap button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-cap button:disabled{color:var(--faint)}
 #mesa .lb-cap.off .lb-capn{opacity:.45}
 #mesa .lb-all{position:absolute;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:16px 20px}
@@ -1825,6 +1837,7 @@
       x.restore();
     }
   }
+  const LB_LOCK = typeof Path2D === 'function' ? new Path2D('M7 11V7a5 5 0 0 1 10 0v4') : null;
   function marco(x, el, W, H, solo) {
     const g = geo(el, W, H), u = 1 / E.k;
     x.save(); x.translate(g.cx, g.cy); x.rotate(g.a);
@@ -1837,7 +1850,12 @@
       const hs = 9 * u;
       for (const [hx, hy] of asas(el, g)) { x.fillStyle = '#fff'; x.fillRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); x.strokeRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); }
     }
-    if (el.lock && solo && !esFotoDz(el)) { x.fillStyle = '#0095f6'; x.font = `600 ${12 * u}px -apple-system,sans-serif`; x.textAlign = 'left'; x.textBaseline = 'top'; x.fillText('🔒', -g.w / 2 + 6 * u, -g.h / 2 + 6 * u); }
+    if (el.lock && solo && !esFotoDz(el)) {    // Lucide's lock (D-215) on a white badge, as the handles
+      const b = 18 * u, k = 12 * u / 24; x.translate(-g.w / 2 + 6 * u, -g.h / 2 + 6 * u);
+      x.beginPath(); x.roundRect(0, 0, b, b, 4 * u); x.fillStyle = '#fff'; x.fill(); x.lineWidth = u; x.stroke();
+      x.translate(3 * u, 3 * u); x.scale(k, k); x.lineWidth = 1.33 * u / k; x.lineCap = 'round'; x.lineJoin = 'round';
+      x.beginPath(); x.roundRect(3, 11, 18, 11, 2); x.stroke(); x.stroke(LB_LOCK);
+    }
     x.restore();
   }
 
@@ -2539,9 +2557,30 @@
     m.style.left = Math.max(4, Math.min(x, vw - w - 4)) + 'px'; m.style.top = Math.max(4, Math.min(y, vh - h - 4)) + 'px';
     const b = m.querySelector('button:not(:disabled)'); if (b) b.focus({ preventScroll: true });
   }
+  // a row of «Capas» (D-215): its right click (also the menu key and ⇧F10 on it) chooses its layer, as on the slide, and offers
+  // the orders that move it, each one off when it would leave the stack as it is (D-201); the design's photo never moves: the
+  // browser's menu
+  function menuCapa(f, x, y) {
+    if (E.busy || !f || !f.isConnected) return false;
+    const c = compAt(E.i), r = f.getBoundingClientRect(), cp = f.dataset.capa;
+    let sel;
+    if (cp) { if (!(cp === 'velo' ? c.velo : c.tex)) return false; if (E.capa !== cp) { soltar(); E.capa = cp; E.crop = null; E.pick = null; panel(); pedir(); } sel = [cp]; }
+    else {
+      const el = c.els.find(q => q.id === f.dataset.id); if (!el || esFotoDz(el)) return false;
+      if (E.capa || !selIds().includes(el.id)) { seleccionar(el); E.crop = null; E.pick = null; panel(); pedir(); }   // one of several chosen: they stay chosen
+      sel = selEls();
+    }
+    const Lp = pila(compAt(E.i));
+    const mueve = dir => { const L2 = reordenar(Lp, sel, dir); if (!L2) return false; const k = L2.findIndex(q => typeof q !== 'string' && esFotoDz(q)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((q, j) => q !== Lp[j]); };
+    abrirCm(itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')),
+      'capa', 'Orden de la capa', x == null ? r.left + 24 : x, y == null ? r.bottom : y);
+    return true;
+  }
   function onCtx(e) {
     if (!E) return;
     menuCtx(false);
+    const fc = e.target && e.target.closest && e.target.closest('.lb-caps .lb-cap');
+    if (fc) { if (menuCapa(fc, e.clientX, e.clientY)) e.preventDefault(); return; }
     const enEl = e.target === E.cv && E.sl.length > 0 && E.allEl.hidden;
     if (!gris(e) && !enEl) return;  // on the panel, the strip or the bars: the browser's menu, as before
     if (enEl) {
@@ -2777,20 +2816,20 @@
   function capasHTML(c, sec) {                 // the elements and, as layers, the veil and the texture (D-185); top: what is in front
     const L = pila(c); if (!L.length) return '';
     const ids = selIds(), n = L.length;
-    const ud = (k, at) => `<button type="button" data-lb="cap-up" ${at} title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" ${at} title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button>`;
-    const ver = (o, at) => `<button type="button" data-lb="cap-ver" ${at} title="${o.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${o.oculto ? 'Mostrar' : 'Ocultar'}">${o.oculto ? '◌' : '◉'}</button>`;
+    // B (D-215): a handle on the left (the design's photo never moves, D-193), the eye and the lock of Lucide, seen on hover, on
+    // the chosen row or with the keyboard's focus, and always when hidden or locked; the order, in each row's right click
+    const asa = (si = true) => `<span class="lb-capasa${si ? '' : ' no'}" aria-hidden="true"></span>`;
+    const ver = (o, at) => `<button type="button" class="lb-ci${o.oculto ? ' act' : ''}" data-lb="cap-ver" ${at} title="${o.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${o.oculto ? 'Mostrar' : 'Ocultar'}" aria-pressed="${!!o.oculto}"></button>`;
     const fila = (x, k) => {
       if (typeof x === 'string') {
         const o = x === 'velo' ? c.velo : c.tex, at = `data-capa="${x}"`, nm = x === 'velo' ? `Velo <i>${o.tipo === 'grad' ? 'degradado' : 'plano'}</i>` : `Textura <i>${esc(String(TEXS[o.tipo] || o.tipo).toLowerCase())}</i>`;
-        return `<div class="lb-cap lb-capv ${x}${E.capa === x ? ' on' : ''}${o.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nm}</span>${ver(o, at)}<span class="lb-capsp" aria-hidden="true"></span>${ud(k, at)}</div>`;
+        return `<div class="lb-cap lb-capv ${x}${E.capa === x ? ' on' : ''}${o.oculto ? ' off' : ''}" data-lb="cap" ${at}>${asa()}<span class="lb-capn">${nm}</span>${ver(o, at)}<span class="lb-capsp" aria-hidden="true"></span></div>`;
       }
       const e = x, at = `data-id="${esc(e.id)}"`;
-      if (fijoDz(e)) {                          // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
-        const sobreFoto = k > 0 && esFotoDz(L[k - 1]), mov = esDz(e) ? `<button type="button" data-lb="cap-up" ${at} title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" ${at} title="Atrás" aria-label="Atrás"${k === 0 || sobreFoto ? ' disabled' : ''}>▼</button>` : '';
-        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nombreEl(e)}</span><span class="lb-capsp" aria-hidden="true"></span>${mov}</div>`;
-      }
-      return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>${ver(e, at)}`
-        + `<button type="button" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>${ud(k, at)}</div>`;
+      if (fijoDz(e))                            // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
+        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}>${asa(esDz(e))}<span class="lb-capn">${nombreEl(e)}</span></div>`;
+      return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}>${asa()}${e.g ? '<span class="lb-capg" role="img" aria-label="En un grupo" title="En un grupo"></span>' : ''}<span class="lb-capn">${nombreEl(e)}</span>${ver(e, at)}`
+        + `<button type="button" class="lb-ci${e.lock ? ' act' : ''}" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-pressed="${!!e.lock}"></button></div>`;
     };
     return plegable('capas', 'Capas', String(n), `<p class="lb-p" style="margin:0 0 8px">Arriba, lo que está delante. ⇧ + clic para elegir varias.</p><div class="lb-caps" title="Arrastra una capa para cambiarla de sitio">${L.map((x, k) => ({ x, k })).reverse().map(({ x, k }) => fila(x, k)).join('')}</div>`, sec);
   }
@@ -3385,7 +3424,6 @@
         if (b.dataset.capa) { const c = compAt(E.i); if (!(b.dataset.capa === 'velo' ? c.velo : c.tex)) return; soltar(); E.capa = b.dataset.capa; E.crop = null; E.pick = null; lsPoner(LS_AC, 'capas'); panel(); pedir(); return; }   // the veil or the texture: its section and «Capas» (D-185)
         const el = compAt(E.i).els.find(e => e.id === b.dataset.id); if (!el) return; const capas = !!b.closest('.lb-acc[data-pl="capas"]'); seleccionar(el, b._shift); E.crop = null; E.pick = null; if (capas) recordarSec(tipoSec(), 'capas'); panel(); pedir(); return; }   // chosen from an element's «Capas»: «Capas» stays open (D-149)
       case 'cap-ver': case 'cap-lock': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), e = cp ? (cp === 'velo' ? c.velo : c.tex) : c.els.find(q => q.id === id); if (!e) return; if (cp) { if (e.oculto) delete e.oculto; else e.oculto = true; return; } if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
-      case 'cap-up': case 'cap-dn': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), L = pila(c), k = L.findIndex(q => cp ? q === cp : typeof q !== 'string' && q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= L.length) return; [L[k], L[j]] = [L[j], L[k]]; enPila = true; dePila(c, L); }); return; }   // on the stack (D-185)
     }
   }
   // a designed post (D-193): its slides are the design's (none added, deleted, moved nor copied whole here); a designed slide
@@ -3400,7 +3438,6 @@
     if ((a === 'del' || a === 'copy') && fijos.length && fijos.length === selEls().length) { if (a === 'del') I().toast(fijos.some(esDz) ? 'El diseño no se borra: «Soltar del kit» lo pasa a capas normales.' : 'La foto del diseño no se borra: cámbiala con «Reemplazar».'); return true; }
     const at = b && b.dataset && b.dataset.id ? compAt(E.i).els.find(q => q.id === b.dataset.id) : null;
     if ((a === 'cap-ver' || a === 'cap-lock') && fijoDz(at)) return true;
-    if ((a === 'cap-up' || a === 'cap-dn') && esFotoDz(at)) return true;
     return false;
   }
   function menu(on) {
@@ -3706,6 +3743,7 @@
       return;
     }
     if (E.cmOn && !['Enter', 'Tab', ' ', 'Shift'].includes(e.key)) menuCtx(false);   // another key: the menu goes
+    if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && t && t.closest && t.closest('.lb-caps .lb-cap')) { e.preventDefault(); menuCapa(t.closest('.lb-cap')); return; }   // a row of «Capas» from the keyboard (D-215)
     const sola = !e.metaKey && !e.ctrlKey && !e.altKey, teclado = t && t !== E.el && t !== document.body && t.matches && t.matches(':focus-visible');
     if (e.key === ' ' && sola && !E.cmOn && !teclado && sobreGris()) { e.preventDefault(); if (!E.esp) { E.esp = true; mano(); } return; }   // space over the slide or the grey: the hand
     if (sola && !e.shiftKey && (k === 't' || k === 'r')) { if (E.sl.length && !e.repeat) { e.preventDefault(); if (k === 't') act('add-txt'); else act('add-forma', { dataset: { v: 'rect' } }); } return; }

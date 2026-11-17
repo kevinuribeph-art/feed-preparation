@@ -14602,6 +14602,17 @@
       ok(!ppCard(), 'un clic fuera escribiendo no la cierra');
       // la ×
       card = await abre(); ppRaton(card.querySelector('[data-pp="cerrar"]'), 'click', 1); await espera(200); ok(!ppCard(), 'la × no la cierra');
+      // a task without a date nor a client: «Fecha» and «Cliente» in grey, read; a click in «Detalles» writes there and nothing moves
+      const t2 = await M.personal.tarea({ txt: 'Sin nada' }); await M.personal._p.cambiar(t2.id, x => { x.detalles = 'Primera línea\nSegunda'; return x; }); await M.personal.render();
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260);
+      ok(ppCard().querySelector('[data-pp="lfecha"].vacio') && ppCard().querySelector('[data-pp="lcli"].vacio'), 'sin fecha ni cliente no salen «Fecha» y «Cliente» en gris');
+      const h0 = ppCard().getBoundingClientRect().height, cd0 = ppCard().querySelector('.pp-cd'), rr = cd0.getBoundingClientRect();
+      ppRaton(cd0, 'click', 1, { clientX: rr.left + 20, clientY: rr.top + 12 }); await espera(40);
+      ok(D.activeElement === ppCard().querySelector('[data-pp="cd"]') && Math.abs(ppCard().getBoundingClientRect().height - h0) < 2, 'un clic en «Detalles» de una tarea sin fecha ni cliente no escribe allí o la tarjeta cambia de alto: ' + json([D.activeElement && D.activeElement.dataset.pp, h0, ppCard().getBoundingClientRect().height]));
+      ppTecla('Escape'); await espera(200);
+      // the second click of the double click that opened it, on the ×: it stays open
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="cerrar"]'), 'click', 2); await espera(200);
+      ok(ppCard(), 'el segundo clic de un doble clic en la × la cierra'); ppTecla('Escape'); await espera(200);
       // una nota: ampliar y ×; un clic la escribe
       const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
       ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(260);
@@ -14659,6 +14670,8 @@
       ok(seQ('[data-pp="ampliar"]') === b && b.title === 'Reducir', 'el botón no la devuelve o se vuelve a crear');
       ok(tx.isConnected && tx.isContentEditable && /Barra/.test(tx.textContent), 'lo que se escribe no sigue igual al ampliar');
       ppRaton(seQ('.pp-hj-col'), 'click', 1); await espera(300); ok(seHoja() && ov.classList.contains('amplia'), 'un clic dentro la cierra o la reduce');
+      ppRaton(qa('.pp-ov:not(.sale) .pp-pl-tab')[1], 'click', 1); await espera(120);   // drawn again (another tab): still widened, in its place
+      ok(seHoja().classList.contains('amplia') && W.getComputedStyle(seHoja()).paddingTop === '0px' && Math.abs(seHoja().getBoundingClientRect().top - cab.bottom) < 2, 'redibujada, la hoja ampliada pierde su sitio: ' + json([seHoja().className, W.getComputedStyle(seHoja()).paddingTop]));
       fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300);
       ok(seHoja() && qa('.pp-ov:not(.sale) .pp-hj-col').length === 1 && seHoja().getBoundingClientRect().width >= W.innerWidth - 20, 'a 720 px ampliada no va en una columna');
       fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(300);
@@ -14777,6 +14790,12 @@
       fila('texto').click(); await espera(30); fila('forma').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })); await espera(30); accion('group'); await espera(80);
       ok(fila('texto').querySelector('.lb-capg[aria-label="En un grupo"]') && fila('forma').querySelector('.lb-capg') && !fila('velo').querySelector('.lb-capg'), 'lo agrupado no lleva el eslabón');
       accion('ungroup'); await espera(60);
+      // nothing chosen, the slide's «Capas»: the right click on a row chooses it and «Capas» stays open
+      tecla('Escape'); await espera(60); W.localStorage.removeItem('mesa-lb-seccion-el'); accion('cap', { id: c().els.find(e => e.t === 'foto').id }); tecla('Escape'); await espera(60);   // a text's remembered section, none
+      const L2 = q('.lb-panel [data-acc="capas"] .lb-acc-h'); if (L2 && L2.getAttribute('aria-expanded') !== 'true') { L2.click(); await espera(250); }
+      const ft = fila('texto'), rf = ft.getBoundingClientRect(); ft.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rf.left + 20, clientY: rf.top + 8 })); await espera(80);
+      ok(q('.lb-cm:not([hidden])') && q('.lb-panel [data-pl="capas"] .lb-acc-h[aria-expanded="true"]'), 'el clic derecho en una fila pliega «Capas»');
+      tecla('Escape'); await espera(40);
       // the row's menu: the four orders, off when they move nothing; one step of ⌘Z
       const tex = fila('tex'), rt = tex.getBoundingClientRect(); tex.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rt.left + 20, clientY: rt.top + 8 })); await espera(40);
       igual(qa('.lb-cm:not([hidden]) button').map(b => b.dataset.lb + (b.disabled ? '-' : '+')), ['front-', 'fwd-', 'bwd+', 'back+'], 'el menú de la fila de arriba');
@@ -14813,7 +14832,7 @@
       // with the battery's frame the document has no focus and «:focus» doesn't apply: the rule itself (the real one: ratón y teclado reales)
       const reglas = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }), sels = r => (r.selectorText || '').split(',').map(x => x.trim());
       const regla = sel => reglas.find(r => sels(r).includes(sel)), escr = regla('#mesa .pp-card.ed .pp-ct:focus');
-      ok(escr && /^inset 0 0 0 1px var\(--pp-escr\)$/.test(escr.style.boxShadow) && escr.style.backgroundImage === 'none' && escr.style.borderRadius === 'var(--r-sm)', 'sin la regla de lo que se escribe: ' + (escr && escr.cssText));
+      ok(escr && /^inset 0 0 0 1px var\(--pp-escr\)$/.test(escr.style.boxShadow) && escr.style.backgroundImage === 'none' && escr.style.borderRadius === 'var(--r-sm)' && escr.style.outlineStyle === 'none', 'sin la regla de lo que se escribe (línea fina, sin fondo ni aro): ' + (escr && escr.cssText));
       igual(['#mesa .pp-card.ed .pp-cd:focus', '#mesa .pp-card.ed .pp-cn:focus', '#mesa .pp-cst:focus', '#mesa .pp-ov .escribiendo'].filter(x => !sels(escr).includes(x)), [], 'la regla no cubre todo lo que se escribe');
       igual(sonda('var(--pp-escr)'), linea, '--pp-escr no es la terracota al 50 %');
       const nv = regla('#mesa .pp-nueva:focus-within'); ok(nv && nv.style.borderColor === 'var(--pp-escr)' && nv.style.boxShadow === 'none', '«Nueva tarea» no lleva la línea fina: ' + (nv && nv.cssText));

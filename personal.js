@@ -664,13 +664,13 @@
     if (r.tipo === 'nota') return `<div class="pp-card nota${ed ? ' ed' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Nota" tabindex="-1">${botonesCard()}<div class="pp-cn" data-pp="cn" data-id="${esc(r.id)}"${ce}${ed ? ' aria-multiline="true" aria-label="Nota"' : ''}>${ed ? esc(r.txt) : leerTxt(r.txt, { enlaces: true })}</div></div>`;
     const venc = !r.hecha && r.fecha && r.fecha < X.hoy(), c = r.cliente ? cliDe(r.cliente) : null;
     const fecha = ed ? `<span class="pp-cmf"><input type="date" class="pp-cfecha" data-sin-fecha data-id="${esc(r.id)}" value="${esc(r.fecha || '')}" aria-label="Fecha de la tarea"></span>`
-      : r.fecha ? `<span class="pp-cml${venc ? ' rojo' : ''}" data-pp="lfecha">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : '';   // read: a click writes and opens its control (D-209)
+      : r.fecha ? `<span class="pp-cml${venc ? ' rojo' : ''}" data-pp="lfecha">${ICO.fecha}${esc(fechaLarga(r.fecha))}</span>` : `<span class="pp-cml vacio" data-pp="lfecha">${ICO.fecha}Fecha</span>`;   // read: a click writes and opens its control (D-209)
     const cli = ed ? `<span class="pp-cmf">${ICO.cliente}<select class="pp-ccli" data-id="${esc(r.id)}" aria-label="Cliente de la tarea">${opcionesCli(r.cliente, (D && D.CL) || X.CL)}</select></span>`
-      : c ? `<span class="pp-cml" data-pp="lcli">${avatar(c.id, 'xs')}${esc(c.name)}</span>` : '';
+      : c ? `<span class="pp-cml" data-pp="lcli">${avatar(c.id, 'xs')}${esc(c.name)}</span>` : `<span class="pp-cml vacio" data-pp="lcli">${ICO.cliente}Cliente</span>`;
     const fotos = (r.fotos || []).length ? `<div class="pp-cfo">${r.fotos.map((f, i) => `<button type="button" class="pp-tfo" data-pp="foto" data-id="${esc(r.id)}" data-i="${i}" title="Ver la foto" aria-label="Ver la foto"><img src="${fotosURL(f)}" alt=""></button>`).join('')}</div>` : '';
     return `<div class="pp-card${ed ? ' ed' : ''}${r.hecha ? ' hecha' : ''}${amp}" role="dialog" aria-modal="true" aria-label="Tarea" tabindex="-1">`
       + `<div class="pp-ch"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha"><p class="pp-ct" data-pp="ct" data-id="${esc(r.id)}"${ce}${ed ? ' aria-label="Tarea"' : ''}>${esc(r.txt)}</p>${botonesCard()}</div>`
-      + (fecha || cli ? `<div class="pp-cm">${fecha}${cli}</div>` : '') + fotos + detSub(r, ed) + `</div>`;
+      + `<div class="pp-cm">${fecha}${cli}</div>` + fotos + detSub(r, ed) + `</div>`;
   }
   // its details and its subtasks (D-183): the details, one field that takes no room in small when empty; the subtasks, each with
   // its checkbox (also while reading), a thin bar with how many are done, «+ Subtarea» to add one
@@ -753,7 +753,7 @@
     if (enfocada && !CARD.ed) ov.firstChild.focus({ preventScroll: true });
   }
   // the card's content and classes change and the card stays: going from reading to writing never runs its entrance again
-  // (no blink, D-209); also used by sesiones.js
+  // (no blink, D-209)
   function ponerCard(html) {
     const c = ov && ov.firstChild, t = document.createElement('template'); t.innerHTML = html; const n = t.content.firstElementChild;
     if (!c || !n || c.nodeType !== 1 || c.tagName !== n.tagName) { ov.innerHTML = html; return; }
@@ -1056,8 +1056,8 @@
     if (CARD.pd) { CARD.pd = false; return; }   // the click that closed one of the mesa's menus, calendars or the «/» menu
     if (CARD.ext && CARD.ext.clic && CARD.ext.clic(e)) return;
     const a = t.closest('[data-pp]'), k = a && a.dataset.pp;
-    if (k === 'ampliar') { ampliar(!CARD.amplia); return; }
-    if (k === 'cerrar') { cerrarCard(); return; }
+    if (k === 'ampliar') { if (e.detail < 2) ampliar(!CARD.amplia); return; }   // the second click of a double click: nothing
+    if (k === 'cerrar') { if (e.detail < 2) cerrarCard(); return; }
     const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !CARD.ed) { marcarEnTexto(cas); return; }   // a checkbox drawn in the text, read: marked (D-204)
     if (t.closest('a.pp-ea')) return;          // a link opens in another tab; the card stays (D-204)
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
@@ -1223,6 +1223,7 @@
     on(document, 'contextmenu', alMenu, true);
     // the click that closes a dropdown, the mesa's calendar, the «/» menu or a right-click menu doesn't count for the card (D-209)
     on(window, 'pointerdown', e => { if (CARD) CARD.pd = enCard(e.target) && !!((M.controles && M.controles.abierto && M.controles.abierto()) || menu || (ES() && ES().menuAbierto())); }, true);
+    on(window, 'pointerup', () => { if (CARD && CARD.pd) setTimeout(() => { if (CARD) CARD.pd = false; }, 0); }, true);   // its click, if any, came already
     for (const ty of ['dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, alArrastrar, true);
     // the shell is built again (a reload of the code) or «Vista cliente» changes: the logo follows
     const mo = new MutationObserver(() => { const r = I() && I().root && I().root(); if (r && r !== root) return; colocar(); });
@@ -1538,7 +1539,7 @@
 /* what is written in the page (D-213, 6-A): the field being written, one line of 1 px in terracotta at 50 %, no background
    nor ring; the others in a card being written look as read (nothing moves going from reading to writing) */
 #mesa{--pp-escr:color-mix(in oklab,var(--acc) 50%,transparent)}
-#mesa .pp-card.ed .pp-ct:focus,#mesa .pp-card.ed .pp-cd:focus,#mesa .pp-card.ed .pp-cn:focus,#mesa .pp-cst:focus,#mesa .pp-ov .escribiendo,#mesa .pp-pl-ein{background:none;box-shadow:inset 0 0 0 1px var(--pp-escr);border-radius:var(--r-sm)}
+#mesa .pp-card.ed .pp-ct:focus,#mesa .pp-card.ed .pp-cd:focus,#mesa .pp-card.ed .pp-cn:focus,#mesa .pp-cst:focus,#mesa .pp-ov .escribiendo,#mesa .pp-pl-ein{background:none;box-shadow:inset 0 0 0 1px var(--pp-escr);border-radius:var(--r-sm);outline:none}
 #mesa .pp-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 #mesa .pp-tl{display:flex;align-items:center;gap:6px;min-width:0}#mesa .pp-col .pp-tt{flex:0 1 auto;min-width:0}#mesa .pp-fi .pp-tl{align-items:flex-start}
 #mesa .pp-tdet{flex:none;display:inline-flex;width:14px;height:14px;color:var(--mute)}#mesa .pp-tdet svg{width:14px;height:14px}#mesa .pp-fi .pp-tdet{margin-top:1px}
@@ -1575,7 +1576,7 @@
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
 #mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}
-#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}
+#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--faint)}#mesa .pp-cml.vacio:hover{color:var(--mute)}
 #mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
 #mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
 #mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
@@ -1599,7 +1600,7 @@
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
   #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
-  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:36px 20px 32px}
+  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}
   #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}
 }
 `;

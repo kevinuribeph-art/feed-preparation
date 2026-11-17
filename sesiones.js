@@ -236,7 +236,7 @@
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
       : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
         + (dos ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
-    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
+    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
   }
 
   // ---------- drawing the sheet ----------
@@ -861,6 +861,7 @@
 #mesa .pp-hj-pl:focus-visible,#mesa .pp-hj-ojo:focus-visible,#mesa .pp-hj-apm:focus-visible,#mesa .pp-hj-vc:focus-visible,#mesa .pp-hj-mas:focus-visible,#mesa .pp-pl-tab:focus-visible,#mesa .pp-pl-mas:focus-visible,#mesa .pp-ma-c:focus-visible,#mesa .pp-pl-ena:focus-visible,#mesa button.pp-hj-chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-hj-apc{min-width:0;animation:pp-dentro var(--d-m) var(--ease-m)}
 #mesa .pp-hj-tx{min-height:22px;margin-left:-6px;padding:2px 6px;border-radius:var(--r-xs);font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+#mesa .pp-hj-tx.escribiendo{min-height:26px}
 #mesa .pp-hj-tx.vacio{min-height:26px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line2)}
 #mesa .pp-mo-f.vacio{min-height:56px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line2)}
 #mesa .pp-fo:focus-visible{outline:2px solid var(--focus);outline-offset:2px}

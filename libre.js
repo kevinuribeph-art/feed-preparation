@@ -1850,8 +1850,8 @@
       const hs = 9 * u;
       for (const [hx, hy] of asas(el, g)) { x.fillStyle = '#fff'; x.fillRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); x.strokeRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); }
     }
-    if (el.lock && solo && !esFotoDz(el)) {    // Lucide's lock (D-215) on a white badge, as the handles
-      const b = 18 * u, k = 12 * u / 24; x.translate(-g.w / 2 + 6 * u, -g.h / 2 + 6 * u);
+    if (el.lock && solo && !esFotoDz(el)) {    // Lucide's lock (D-215) on a white badge, as the handles, outside the corner: it never covers what is locked
+      const b = 18 * u, k = 12 * u / 24; x.translate(-g.w / 2, -g.h / 2 - b - 4 * u);
       x.beginPath(); x.roundRect(0, 0, b, b, 4 * u); x.fillStyle = '#fff'; x.fill(); x.lineWidth = u; x.stroke();
       x.translate(3 * u, 3 * u); x.scale(k, k); x.lineWidth = 1.33 * u / k; x.lineCap = 'round'; x.lineJoin = 'round';
       x.beginPath(); x.roundRect(3, 11, 18, 11, 2); x.stroke(); x.stroke(LB_LOCK);
@@ -2567,17 +2567,19 @@
     if (cp) { if (!(cp === 'velo' ? c.velo : c.tex)) return false; if (E.capa !== cp) { soltar(); E.capa = cp; E.crop = null; E.pick = null; panel(); pedir(); } sel = [cp]; }
     else {
       const el = c.els.find(q => q.id === f.dataset.id); if (!el || esFotoDz(el)) return false;
-      if (E.capa || !selIds().includes(el.id)) { seleccionar(el); E.crop = null; E.pick = null; panel(); pedir(); }   // one of several chosen: they stay chosen
+      if (E.capa || !selIds().includes(el.id)) { seleccionar(el); E.crop = null; E.pick = null; recordarSec(tipoSec(), 'capas'); panel(); pedir(); }   // one of several chosen: they stay chosen; «Capas» stays open
       sel = selEls();
     }
     const Lp = pila(compAt(E.i));
     const mueve = dir => { const L2 = reordenar(Lp, sel, dir); if (!L2) return false; const k = L2.findIndex(q => typeof q !== 'string' && esFotoDz(q)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((q, j) => q !== Lp[j]); };
     abrirCm(itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')),
       'capa', 'Orden de la capa', x == null ? r.left + 24 : x, y == null ? r.bottom : y);
+    E.capaVuelve = x == null ? `.lb-caps .lb-cap[${cp ? `data-capa="${cp}"` : `data-id="${CSS.escape(f.dataset.id)}"`}] button` : null;   // from the keyboard: the focus comes back to the row
     return true;
   }
   function onCtx(e) {
     if (!E) return;
+    if (E.cmOn && e.target && e.target.closest && e.target.closest('.lb-cm')) { e.preventDefault(); return; }   // on the open menu: it stays (the menu key sends this on release in some systems)
     menuCtx(false);
     const fc = e.target && e.target.closest && e.target.closest('.lb-caps .lb-cap');
     if (fc) { if (menuCapa(fc, e.clientX, e.clientY)) e.preventDefault(); return; }
@@ -2628,7 +2630,9 @@
     if (!E || (!on && !E.cmOn)) return;
     E.cmOn = on; const m = E.el.querySelector('.lb-cm'); m.hidden = !on;
     if (!on) { E.cmDe = null; E.el.querySelectorAll('[data-lb="formas"][aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
-    if (!on && m.contains(document.activeElement)) E.el.focus({ preventScroll: true });
+    const dentro = !on && m.contains(document.activeElement);
+    if (dentro) E.el.focus({ preventScroll: true });
+    if (!on && E.capaVuelve) { const s = E.capaVuelve; E.capaVuelve = null; if (dentro) requestAnimationFrame(() => { const b = E && E.el.querySelector(s); if (b) b.focus({ preventScroll: true }); }); }   // closed with its keys or an order: back to the row
   }
 
   // ---------- a double click on a bar's row puts it back (Mesa más limpia) ----------

@@ -11,6 +11,10 @@
 //   node tools/zernio.mjs post <id>
 //   node tools/zernio.mjs update <id> <patch.json|->
 //   node tools/zernio.mjs delete <id>              only a post not yet published
+//   node tools/zernio.mjs resumen <accountId> --from YYYY-MM-DD --to YYYY-MM-DD
+//                                                  read only: each feed post of those days (Madrid) with its reach,
+//                                                  interactions and saves, and the sums of the period and of the month
+//                                                  before it (D-239)
 
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -83,6 +87,54 @@ const slim = p => p && ({
   ...(p.metadata && Object.keys(p.metadata).length ? { metadata: p.metadata } : {})
 });
 
+// ---- resumen (D-239): the per-post metrics of /v1/analytics, nothing else (no followers, demographics, best time or
+// account insights). Days are Madrid's; Zernio filters by UTC days, so it asks one day more on each side and keeps
+// the Madrid days asked. Stories are left out. Reach = the sum of each feed post's reach (not unique reach);
+// interactions = likes + comments + shares + saves, as Zernio gives them.
+const DIA = /^\d{4}-\d{2}-\d{2}$/;
+const madrid = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const enMadrid = iso => { const s = madrid.format(new Date(iso)); return { fecha: s.slice(0, 10), hora: s.slice(11, 16) }; };
+const masDias = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+function diaValido(d, nombre) {
+  if (!DIA.test(d || '')) throw new Fail(`resumen: falta --${nombre} AAAA-MM-DD (días de Madrid)`);
+  if (masDias(d, 0) !== d) throw new Fail(`resumen: --${nombre} «${d}» no es un día que exista`);
+  return d;
+}
+const num = v => (Number.isFinite(+v) && v !== null ? +v : 0);
+async function feedDe(accountId, desde, hasta) {
+  const all = [], vistos = new Set();
+  let cuenta = null;
+  for (let page = 1; ; page++) {
+    const r = await call('GET', '/analytics', { query: { accountId, source: 'all', fromDate: masDias(desde, -1), toDate: masDias(hasta, 1), page, limit: 100 } });
+    if (!cuenta) cuenta = (r.accounts || []).find(a => (a._id || a.id) === accountId) || null;
+    for (const p of r.posts || []) {
+      const pl = (p.platforms || []).find(x => x && (x.accountId === accountId || (x.accountId && x.accountId._id === accountId))) || (p.platforms || [])[0] || {};
+      const url = p.platformPostUrl || pl.platformPostUrl || '';
+      if (p.mediaProductType === 'STORY' || /\/stories\//.test(url)) continue;   // stories don't count
+      if (p.status && p.status !== 'published') continue;
+      const when = p.publishedAt || p.scheduledFor;
+      if (!when) continue;
+      const { fecha, hora } = enMadrid(when);
+      if (fecha < desde || fecha > hasta) continue;
+      const key = pl.platformPostId || url || p._id;
+      if (vistos.has(key)) continue;   // one post once, however Zernio lists it
+      vistos.add(key);
+      const a = pl.analytics || p.analytics || {};
+      const reel = p.mediaProductType === 'REELS' || p.mediaType === 'video';
+      all.push({
+        fecha, hora, tipo: reel ? 'reel' : (p.mediaType || 'carousel'),   // Zernio gives every photo as «carousel»
+        fotos: reel ? 0 : (p.mediaItems || []).length || 1,
+        alcance: num(a.reach), interacciones: num(a.likes) + num(a.comments) + num(a.shares) + num(a.saves), guardados: num(a.saves),
+        enlace: url || null
+      });
+    }
+    if (!r.pagination || page >= (r.pagination.pages || 1)) break;
+  }
+  all.sort((x, y) => (x.fecha + x.hora).localeCompare(y.fecha + y.hora));
+  return { posts: all, cuenta };
+}
+const suma = ps => ({ alcance: ps.reduce((s, p) => s + p.alcance, 0), interacciones: ps.reduce((s, p) => s + p.interacciones, 0), guardados: ps.reduce((s, p) => s + p.guardados, 0), publicaciones: ps.length });
+
 function flags(args) {
   const out = {};
   for (let i = 0; i < args.length; i++) if (args[i].startsWith('--')) out[args[i].slice(2)] = args[++i];
@@ -137,6 +189,26 @@ const commands = {
     if (!id) throw new Fail('delete <id>');
     await call('DELETE', '/posts/' + encodeURIComponent(id));
     return { id, deleted: true };
+  },
+  async resumen(accountId, ...args) {
+    if (!/^[a-f0-9]{24}$/i.test(accountId || '')) throw new Fail('resumen <accountId> --from AAAA-MM-DD --to AAAA-MM-DD (el id de «accounts»)');
+    const f = flags(args), desde = diaValido(f.from, 'from'), hasta = diaValido(f.to, 'to');
+    if (desde > hasta) throw new Fail('resumen: --from va antes que --to');
+    if (Date.parse(hasta) - Date.parse(desde) > 92 * 864e5) throw new Fail('resumen: como mucho 93 días');
+    // the month before: the whole calendar month before the one --from falls in
+    const ini = desde.slice(0, 8) + '01', antDesde = masDias(ini, -1).slice(0, 8) + '01', antHasta = masDias(ini, -1);
+    const [esta, antes] = await Promise.all([feedDe(accountId, desde, hasta), feedDe(accountId, antDesde, antHasta)]);
+    const cuenta = esta.cuenta || antes.cuenta;
+    if (!cuenta) throw new Fail(`resumen: la cuenta ${accountId} no está conectada a Zernio (mira «accounts»)`);
+    const s = suma(esta.posts), a = suma(antes.posts);
+    return {
+      cuenta: { id: accountId, usuario: cuenta.username, plataforma: cuenta.platform },
+      periodo: { desde, hasta, zona: 'Europe/Madrid' },
+      anterior: { desde: antDesde, hasta: antHasta },
+      cifras: Object.fromEntries(Object.keys(s).map(k => [k, { valor: s[k], anterior: a[k] }])),
+      posts: esta.posts,
+      nota: 'Solo publicaciones de feed (fotos, carruseles y reels), sin historias. Alcance: la suma del de cada publicación, no el alcance único de la cuenta. Interacciones: me gusta + comentarios + compartidos + guardados. Zernio da toda foto como «carousel» y no marca los trial reels: el nombre y el tipo de la Mesa salen de emparejar fecha y hora con el tablero.'
+    };
   }
 };
 

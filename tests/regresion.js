@@ -15757,7 +15757,7 @@
   const shaDe = async b => [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', await b.arrayBuffer()))].map(x => x.toString(16).padStart(2, '0')).join('');
   async function coCliente(cuota) {               // the test client with its fee (or none)
     await M._in.editarCliente(CLIENTE, o => { const n = { ...o }; if (cuota) { n.cuota = cuota; n.cuotaAt = new Date().toISOString(); } else { delete n.cuota; delete n.cuotaAt; } return n; });
-    await M._in.loadClients(); await CB().leer(true);
+    await M._in.loadClients(); await CB().leer(true); CB().avisar(false);   // as cuotaGuardar: the pages draw again
   }
   prueba('CO1', 'Cobros, datos (D-232): IndexedDB 20 con «cobros» y «cfacturas»; MESA.cobros.cargar valida (todo o nada) y une por id y at; ver da su estado; adjuntar acepta un PDF (blob o base64) de hasta 10 MB; «⇅ Exportar» v18 → borrar → «Importar» devuelve los cobros y los PDF con los mismos bytes; una lápida no deja que un archivo viejo devuelva lo borrado; la cuota sobrevive a guardar el cliente, a un ⌘Z y a importar; un v17 se importa; un cliente con facturas no se elimina', async () => {
     await tablero([pub(1)]);
@@ -15940,6 +15940,56 @@
       await coFicha(CLIENTE2, 'datos'); ok(!q('[data-act="delclient"]') && /Tiene 1 factura: no se puede eliminar/.test(q('.detail .row').textContent), 'un cliente con facturas se puede eliminar');
       M._in.closeDetail();
     } finally { M._in.closeDetail(); paginaCerrada(); }
+  });
+  prueba('CO3', 'Cobros en la página personal (D-235): cada bloque lleva la línea de su cobro más urgente (retrasada, en rojo, antes que pendiente; pendiente antes que sin emitir, también el mes en curso de un cliente con cuota; todo cobrado, la última con su fecha) y su clic abre «Cobros» sin abrir el tablero; un esporádico también, con su ficha; la cabecera de Clientes suma lo cobrado este mes y lo pendiente (sin lo que está sin emitir) de mensuales y esporádicos, sin cifras tabulares; se pone al día sola', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await seListo(); await paginaAbierta(); await ppClic('.pp-tabs [data-p="clientes"]').catch(() => {});
+      await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      const linea = () => q(`.pp-bw[data-c="${CLIENTE}"] .pp-cob`);
+      ok(!linea() || linea().classList.contains('vacia'), 'una línea sin cuota ni cobros');
+      // the fee alone: this month not issued yet
+      await coCliente({ importe: 300, dia: 25, plazo: 10 }); await espera(80);
+      await hasta(() => linea() && /Factura sin emitir · 300 €/.test(linea().textContent), 3000, 'la línea «Factura sin emitir»');
+      // paid ones: the last one paid, with its date
+      await M.cobros.cargar([{ id: 'c3-a', cliente: CLIENTE, periodo: '2026-11', importe: 600, factura: 'A', emitida: '2026-11-01', vence: '2026-11-11', cobrada: '2026-11-06' },
+        { id: 'c3-b', cliente: CLIENTE, periodo: '2026-10', importe: 600, factura: 'B', emitida: '2026-10-01', vence: '2026-10-11', cobrada: '2026-10-08' }]);
+      await hasta(() => /Cobrada · 600 € · 6 nov/.test(linea().textContent), 3000, 'la última cobrada con su fecha');
+      // pending beats paid, retrasada beats pending; red with its icon
+      await M.cobros.cargar([{ id: 'c3-c', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'C', emitida: '2026-11-15', vence: '2026-11-25' }]);
+      await hasta(() => /Pendiente · 450 € · vence el 25 nov/.test(linea().textContent) && linea().classList.contains('pend'), 3000, 'la pendiente');
+      await M.cobros.cargar([{ id: 'c3-d', cliente: CLIENTE, periodo: '2026-09', importe: 380, factura: 'D', emitida: '2026-10-26', vence: '2026-11-05' }]);
+      await hasta(() => /Retrasada 15 días · 380 €/.test(linea().textContent) && linea().classList.contains('tarde'), 3000, 'la retrasada');
+      igual(rgbDe(W.getComputedStyle(linea()).color).join(), rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--red').trim()).join(), 'la retrasada no va en rojo');
+      ok(linea().querySelector('svg'), 'la línea sin su icono');
+      // a sporadic one: its line and its file
+      const T = M.personal._p, e = { id: T.nuevoId('es'), tipo: 'esporadico', txt: 'Esporádico C3', creada: new Date().toISOString(), at: new Date().toISOString() };
+      await M._in.idbPut('tareas', e.id, e); await M.personal.render();
+      const s1 = await M.sesiones._test.crear({ txt: 'Sesión C3', clase: 'foto', fecha: '2026-11-10', clientes: [e.id] });
+      await M.cobros.cargar([{ id: 'c3-e', cliente: e.id, periodo: s1.id, importe: 350, factura: 'E', emitida: '2026-11-10', vence: '2026-11-10', cobrada: '2026-11-10' }]);
+      // the sums: paid in November (600 + 350) and pending of any month (450 + 380); not issued yet doesn't count
+      const ing = () => q('.pp-clientes .pp-ing');
+      await hasta(() => ing() && /950 € cobrado/.test(ing().textContent) && /830 € pendiente/.test(ing().textContent), 3000, 'las sumas de la cabecera: ' + (ing() && ing().textContent));
+      igual(W.getComputedStyle(ing().querySelector('b')).fontVariantNumeric, 'normal', 'las cifras de la cabecera son tabulares');
+      // the sporadic block's line, and the sums whatever the selector
+      await ppClic('[data-pp="cvista"][data-v="esporadicos"]');
+      const le = await hasta(() => q(`.pp-bw[data-c="${e.id}"] .pp-cob`), 3000, 'la línea del esporádico'); ok(/Cobrada · 350 €/.test(le.textContent), 'la línea del esporádico: ' + le.textContent);
+      ok(/950 € cobrado/.test(ing().textContent), 'las sumas cambian con el selector');
+      le.click(); await espera(300);
+      ok(M.personal._p.CARD && M.personal._p.CARD.ext && M.personal._p.CARD.ext.cls === 'pp-ficha', 'el clic en la línea del esporádico no abre su ficha');
+      M.personal._p.cerrarCard(true); await espera(200);
+      // the monthly line opens «Cobros», over the page, without its board; the block still opens its board
+      await ppClic('[data-pp="cvista"][data-v="mensuales"]');
+      const cur0 = M._in.curClient; M.personal.cerrar(); await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      linea().click(); await hasta(() => q('.detail[data-dlg="editclient"] #ecp-cobros:not([hidden])'), 3000, '«Cobros» al pulsar la línea');
+      ok(M.personal.abierta() && M._in.curClient === cur0, 'la línea abre el tablero');
+      M._in.closeDetail();
+      ok(q(`.pp-bw[data-c="${CLIENTE}"] > .pp-blq[data-pp="cliente"]`), 'el bloque ya no es su botón');
+      // up to date on its own: an invoice paid elsewhere (MESA.cobros)
+      await M.cobros.cargar([{ id: 'c3-d', cliente: CLIENTE, periodo: '2026-09', importe: 380, factura: 'D', emitida: '2026-10-26', vence: '2026-11-05', cobrada: '2026-11-20', at: new Date(Date.now() + 1000).toISOString() }]);
+      await hasta(() => /Pendiente · 450 €/.test(linea().textContent), 3000, 'la línea no se pone al día');
+    } finally { M._in.closeDetail(); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
   // =====================================================================================================

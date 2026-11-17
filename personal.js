@@ -29,6 +29,10 @@
     cliente: svg('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>'),
     nota: svg('<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>'),
     fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
+    euro: svg('<path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>'),
+    reloj: svg('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
+    alerta: svg('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'),
+    hecho: svg('<path d="M20 6 9 17l-5-5"/>'),
     texto: svg('<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>'),
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
     x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
@@ -354,10 +358,27 @@
     if (f.tareas) a.push(`${f.tareas} ${f.tareas === 1 ? 'tarea' : 'tareas'}`);
     return `<span class="pp-cuentas">${a.map(x => `<span>${x}</span>`).join('')}</span>`;
   }
-  function bloque(f, R) {
+  function bloque(f, R, hueco) {
     const m = f.meses[0];
-    return `<button type="button" class="pp-blq" data-pp="cliente" data-c="${esc(f.c.id)}"${m.B ? ` data-key="${esc(m.B.key)}"` : ''}><span class="pp-l1"><span class="pp-quien">${avatar(f.c.id)}<span class="pp-cn">${esc(f.c.name)}</span></span>${cuentas(f)}</span>`
-      + `<span class="pp-l2">${f.meses.map(x => paso(x.B, x.m, x.paso)).join('')}</span>${tira(f, R)}</button>`;
+    return `<div class="pp-bw" data-c="${esc(f.c.id)}"><button type="button" class="pp-blq" data-pp="cliente" data-c="${esc(f.c.id)}"${m.B ? ` data-key="${esc(m.B.key)}"` : ''}><span class="pp-l1"><span class="pp-quien">${avatar(f.c.id)}<span class="pp-cn">${esc(f.c.name)}</span></span>${cuentas(f)}</span>`
+      + `<span class="pp-l2">${f.meses.map(x => paso(x.B, x.m, x.paso)).join('')}</span>${tira(f, R)}</button>${cobLinea(f.c.id, f.c.name, hueco)}</div>`;
+  }
+  // a client's payment that matters most, under its block (D-235): retrasada before pendiente, pendiente before sin emitir;
+  // all paid, the last one; a click opens its «Cobros». hueco: another block of the row has one, the same height stays
+  function cobLinea(cid, nombre, hueco) {
+    const C = I().cob, u = C && C.urgente(cid); if (!u) return hueco ? '<span class="pp-cob vacia" aria-hidden="true"></span>' : '';
+    const { r, e } = u, imp = C.eur(r.importe), d = x => C.corto(x) + (x && x.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + x.slice(0, 4) : '');
+    const [cls, ico, txt] = e.k === 'retrasada' ? ['tarde', ICO.alerta, `Retrasada ${e.dias} ${e.dias === 1 ? 'día' : 'días'} · ${imp}`]
+      : e.k === 'pendiente' ? ['pend', ICO.reloj, `Pendiente · ${imp}${r.vence ? ' · vence el ' + d(r.vence) : ''}`]
+      : e.k === 'sinemitir' ? ['sin', ICO.libre, `Factura sin emitir · ${imp}`]
+      : ['ok', ICO.hecho, `Cobrada · ${imp} · ${d(r.cobrada)}`];
+    return `<button type="button" class="pp-cob ${cls}" data-pp="cobro" data-c="${esc(cid)}" title="Cobros de ${esc(nombre)}">${ico}<span>${esc(txt)}</span></button>`;
+  }
+  const conCob = l => { const C = I().cob; return !!(C && l.some(id => C.urgente(id))); };
+  // Kevin's sums in the header of Clientes, monthly and sporadic whatever the selector says: paid this month, pending of any
+  function ingresos() {
+    const C = I().cob, t = C && C.totales(); if (!t || !t.hay) return '';
+    return `<span class="pp-ing" title="Cobrado este mes y pendiente de cobrar">${ICO.euro}<span><b>${esc(C.eur(t.cobrado))}</b> cobrado</span><span><b>${esc(C.eur(t.pendiente))}</b> pendiente</span></span>`;
   }
   const cabPlg = (k, t, n, pl) => `<button type="button" class="pp-fold" data-pp="plegar" data-p="${k}" aria-expanded="${!pl}" title="${pl ? 'Desplegar' : 'Plegar'} ${t.toLowerCase()}"><b>${t}</b>${n ? `<span>${n}</span>` : ''}</button>`;
 
@@ -481,14 +502,15 @@
   // a sporadic client's block: its initial in a neutral circle, its name, its sessions (the last one), its tasks and notes and its
   // next session in a band; a click opens its file (sesiones.js)
   function espHTML(cols) {
-    const hoy = I().hoy(), E = esps();
+    const hoy = I().hoy(), E = esps(), hueco = conCob(E.map(e => e.id));
     const bl = E.map(e => {
       const ss = sesiones().filter(k => conCli(k, e.id)), ts = tareas().filter(k => k.cliente === e.id && !k.hecha), ns = notas().filter(k => k.cliente === e.id);
       const pas = ss.filter(k => k.fecha && k.fecha <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], sig = ss.filter(k => k.fecha && k.fecha >= hoy && !k.hecha).sort((a, b) => (a.fecha + (a.hora || '')) < (b.fecha + (b.hora || '')) ? -1 : 1)[0];
       const c1 = ss.length ? `${ss.length} ${ss.length === 1 ? 'sesión' : 'sesiones'}${pas ? ` · la última, ${diaHora(pas.fecha).replace(/ \d{4}$/, '')}` : ''}` : '';
       const c2 = [ts.length ? `${ts.length} ${ts.length === 1 ? 'tarea' : 'tareas'}` : '', ns.length ? `${ns.length} ${ns.length === 1 ? 'nota' : 'notas'}` : ''].filter(Boolean).join(' · ');
-      return `<button type="button" class="pp-blq pp-esb" data-pp="esp" data-id="${esc(e.id)}" title="${esc(e.txt)}"><span class="pp-l1"><span class="pp-quien">${avatar(e.id)}<span class="pp-cn">${esc(e.txt)}</span></span><span class="pp-cuentas">${c1 ? `<span>${esc(c1)}</span>` : ''}${c2 ? `<span>${esc(c2)}</span>` : ''}</span></span>`
+      const b = `<button type="button" class="pp-blq pp-esb" data-pp="esp" data-id="${esc(e.id)}" title="${esc(e.txt)}"><span class="pp-l1"><span class="pp-quien">${avatar(e.id)}<span class="pp-cn">${esc(e.txt)}</span></span><span class="pp-cuentas">${c1 ? `<span>${esc(c1)}</span>` : ''}${c2 ? `<span>${esc(c2)}</span>` : ''}</span></span>`
         + (sig ? `<span class="pp-esf">${ICO.sesion}<b>${esc(sig.txt)}</b><span>${esc(diaHora(sig.fecha, sig.hora))}</span></span>` : '') + `</button>`;
+      return `<div class="pp-bw" data-c="${esc(e.id)}">${b}${cobLinea(e.id, e.txt, hueco)}</div>`;
     }).join('');
     return `<div class="pp-pc">${E.length ? `<div class="pp-bgrid pp-esg${cols > 2 ? ' estrecha' : ''}" style="--cols:${cols}">${bl}</div>` : ''}<button type="button" class="pp-cmas pp-esn" data-pp="esp-nuevo">${ICO.mas}Esporádico</button></div>`;
   }
@@ -507,9 +529,9 @@
     const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.man + R.cifras.espera + R.cifras.falta, nE = esps().length;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
-      { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE),
+      { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE) + ingresos(),
         html: () => st.cvista === 'esporadicos' ? espHTML(Math.max(1, Math.min(st.fila, nE || 1, caben())))
-          : R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${R.filas.map(f => bloque(f, R)).join('')}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
+          : R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${(h => R.filas.map(f => bloque(f, R, h)).join(''))(conCob(R.filas.map(f => f.c.id)))}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
       { k: 'avisos', t: 'Avisos', n: nAv }
     ];
     const arriba = P.filter(x => pl[x.k]), izq = P.filter(x => !pl[x.k] && x.k !== 'avisos'), rail = !pl.avisos;
@@ -1179,6 +1201,7 @@
     if (k === 'ncli') { abrirCampo('cliente'); return; }
     if (k === 'foto') { verFoto(a.dataset.id, a.dataset.i); return; }
     if (k === 'cliente') { abrirCliente(a.dataset.c, a.dataset.key); return; }
+    if (k === 'cobro') { const c = a.dataset.c; if (espDe(c)) { abrirCard(c); if (EXT.ficha && EXT.ficha.aCobros) EXT.ficha.aCobros(); } else if (I().cob) I().cob.dlgCliente(c, 'cobros'); return; }   // its «Cobros» (D-235)
     if (k === 'abrir') { abrirPost(a.dataset.key, a.dataset.slot); return; }
     if (k === 'hs') { (async () => { const key = a.dataset.key; if (X.S && X.S.key === key) cerrar(); else if (!(await abrirTablero(() => M.open(key)))) return; if (M.hs && M.hs.ver) M.hs.ver(true); })(); return; }
   }
@@ -1380,6 +1403,7 @@
     tic = setInterval(() => { if (st.on && document.visibilityState === 'visible') refrescar(); }, 60000);
     on(document, 'visibilitychange', () => { if (st.on && document.visibilityState === 'visible') refrescar(); });
     let rT = 0; on(window, 'resize', () => { if (CARD && CARD.amplia) colocarAmplia(); clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
+    on(document, 'mesa-cobros', () => { if (!st.on) return; if (ocupada()) pendiente = true; else pintar(); });   // the invoices changed (D-235)
     try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (!e.data || e.data.t !== 'tareas') return; if (st.on) refrescar(); else if (CARD && CARD.tablero) { cargarTK().then(() => pintarCard()); } avisar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
     on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);
@@ -1673,6 +1697,17 @@
 #mesa .pp-esf span{flex:none;color:var(--mute);white-space:nowrap}
 #mesa .pp-esb:hover .pp-esf{background:var(--bg-3)}
 #mesa .pp-esn{margin:6px 0 2px 8px}
+/* a client's payments (D-235): the line under its block, opening its «Cobros», and the sums in the header */
+#mesa .pp-bw{display:flex;flex-direction:column;min-width:0;border-radius:var(--r-md);transition:background var(--d1) var(--ease)}
+#mesa .pp-bw > .pp-blq{flex:1 1 auto}#mesa .pp-bw:hover{background:var(--bg-2)}
+#mesa .pp-cob{display:flex;align-items:center;gap:6px;align-self:flex-start;max-width:calc(100% - 16px);min-height:26px;margin:-8px 0 6px 8px;padding:2px 4px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:12.5px;line-height:1.35;text-align:left;color:var(--mute);cursor:pointer}
+#mesa .pp-cob span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .pp-cob svg{flex:none;width:14px;height:14px}
+#mesa .pp-cob.tarde{color:var(--red);font-weight:600}#mesa .pp-cob.pend{color:var(--chg)}
+#mesa .pp-cob:hover span{text-decoration:underline;text-underline-offset:2px}
+#mesa .pp-cob:focus-visible{outline:2px solid var(--focus);outline-offset:1px}#mesa .pp-cob:active{transform:scale(.97)}
+#mesa .pp-cob.vacia{visibility:hidden;pointer-events:none}
+#mesa .pp-ing{display:inline-flex;align-items:center;gap:6px 12px;font-size:13px;color:var(--mute);white-space:nowrap}
+#mesa .pp-ing b{font-weight:600;color:var(--ink)}#mesa .pp-ing svg{width:16px;height:16px;flex:none}
 /* a task or a note big (D-182): one card over the page, to read; a double click writes in it */
 #mesa .pp-ov{position:absolute;inset:0;z-index:4;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .pp-ov.entra{animation:pp-ovin var(--d2) var(--ease)}#mesa .pp-ov.entra .pp-card{animation:pp-cardin var(--d2) var(--ease)}
@@ -1746,7 +1781,7 @@
 #mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
-@media (prefers-reduced-motion:reduce){#mesa .pp-cml.vacio{transition:none}#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-bw{transition:none}#mesa .pp-cob:active{transform:none}#mesa .pp-cml.vacio{transition:none}#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
 @media (max-width:720px){
   #mesa .pp{padding:4px 12px 24px}
   #mesa .pp-cifra{padding:10px 10px 11px}#mesa .pp-cifra span{font-size:12px}

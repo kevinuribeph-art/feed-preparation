@@ -12738,6 +12738,7 @@
   // =====================================================================================================
   async function paginaAbierta() {
     await hasta(() => M.personal, 8000, 'personal.js');
+    try { W.sessionStorage.removeItem('mesa-pp-tareas'); } catch (e) { /* */ }   // each opening as a new tab's: Tareas folded (D-225)
     ok(M.personal.abrir() !== false || M.personal.abierta(), 'no se abrió la página personal');
     await M.personal.render(); await espera(30);
   }
@@ -15388,6 +15389,22 @@
     } finally { M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
   });
 
+  prueba('AV4', 'Tareas recuerda cómo la dejé (D-225): plegar o desplegar Tareas se guarda en sessionStorage («mesa-pp-tareas») y abrir la página lo lee; sin nada guardado (una pestaña nueva), plegada; Clientes, Avisos y el interruptor «Tareas» de Avisos, como al entrar siempre (D-180)', async () => {
+    const SS = W.sessionStorage;
+    try {
+      await paginaAbierta(); igual(SS.getItem('mesa-pp-tareas'), null, 'empieza con algo guardado');
+      igual(M.personal.estado().plg, { tareas: true, clientes: false, avisos: false }, 'una pestaña nueva no empieza con Tareas plegada');
+      await ppClic('[data-pp="plegar"][data-p="tareas"]');
+      igual([M.personal.estado().plg.tareas, SS.getItem('mesa-pp-tareas')], [false, '0'], 'desplegar Tareas no se guarda');
+      await ppClic('[data-pp="plegar"][data-p="clientes"]'); await M.personal.set({ avTareas: true });
+      paginaCerrada(); M.personal.abrir(); await M.personal.render();
+      igual([M.personal.estado().plg, M.personal.estado().avTareas], [{ tareas: false, clientes: false, avisos: false }, false], 'al volver, Tareas no sigue abierta o Clientes y el interruptor no vuelven a como al entrar');
+      ok(q('[data-panel="tareas"]') && !q('[data-panel="tareas"]').classList.contains('fold'), 'Tareas no se dibuja abierta');
+      await ppClic('[data-pp="plegar"][data-p="tareas"]'); igual(SS.getItem('mesa-pp-tareas'), '1', 'plegar Tareas no se guarda');
+      paginaCerrada(); M.personal.abrir(); await M.personal.render(); igual(M.personal.estado().plg.tareas, true, 'al volver, Tareas no sigue plegada');
+    } finally { try { SS.removeItem('mesa-pp-tareas'); } catch (e) { /* */ } paginaCerrada(); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');
@@ -15442,6 +15459,7 @@
         tr.className = 'corre'; tr.querySelector('.r').textContent = 'corre';
         $('resumen').textContent = `Pasando ${t.id}…`;
         let err = null, reloj;
+        try { W.sessionStorage.removeItem('mesa-pp-tareas'); } catch (e) { /* */ }   // Tareas folded as each test starts (D-225)
         try { await Promise.race([t.fn(), new Promise((_, no) => { reloj = setTimeout(() => no(new Error(`sin terminar en ${MAX_MS / 1000} s`)), MAX_MS); })]); }
         catch (e) { err = e; }
         finally { clearTimeout(reloj); }

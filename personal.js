@@ -19,6 +19,7 @@
   const INI = ['D', 'L', 'M', 'X', 'J', 'V', 'S'], DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   const LS_FILA = 'mesa-pp-fila', LS_ALC = 'mesa-pp-alcance', LS_VISTA = 'mesa-pp-vista';   // remembered in this browser
   const SS_CLI = 'mesa-pp-cliente';            // this tab left the page for a client: a reload stays there
+  const SS_TAREAS = 'mesa-pp-tareas';          // Tareas folded ('1') or open ('0') as this tab left it (D-225); a new tab, folded
   const TOPE = 8;                              // lines of a group before «N más»
   const FOTO_PX = 1600, MINI_PX = 160;         // a task's photo, lowered; and the thumbnail drawn
   const svg = b => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${b}</svg>`;
@@ -582,8 +583,10 @@
     if (M.diseno && M.diseno.abierto && M.diseno.abierto()) return false;
     const det = root.querySelector('.detail'); if (det && !det.hidden && X.closeDetail) X.closeDetail();
     if (CARD && CARD.tablero) cerrarCard();    // a session's sheet over the board (D-219)
-    // each visit starts the same (D-180): Tareas folded, Clientes and Avisos open, the tasks out of Avisos, no figure chosen
-    st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
+    // each visit starts the same (D-180): Clientes and Avisos open, the tasks out of Avisos, no figure chosen; Tareas as this tab
+    // left it, folded in a new tab (D-225)
+    const tg = ssGet(SS_TAREAS);
+    st.plg = { ...PLG0, tareas: tg === '0' ? false : tg === '1' ? true : PLG0.tareas }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
     st.on = true; ssSet(SS_CLI, null);
     root.classList.add('pp-on'); colocar(); page.hidden = false; page.scrollTop = 0;
     if (D) pintar();
@@ -1070,7 +1073,7 @@
     if (k === 'modo') { if (st.modo !== a.dataset.m) { st.modo = a.dataset.m; st.desp = 0; pintar(); refrescar(); } return; }
     if (k === 'desp') { st.desp += +a.dataset.d; pintar(); refrescar(); return; }
     if (k === 'mas') { st.abiertos.add(a.dataset.c); pintar(); return; }
-    if (k === 'plegar') { st.plg[a.dataset.p] = !st.plg[a.dataset.p]; pintar(); const b = page.querySelector(`[data-pp="plegar"][data-p="${a.dataset.p}"]`); if (b) b.focus({ preventScroll: true }); return; }
+    if (k === 'plegar') { st.plg[a.dataset.p] = !st.plg[a.dataset.p]; if (a.dataset.p === 'tareas') ssSet(SS_TAREAS, st.plg.tareas ? '1' : '0'); pintar(); const b = page.querySelector(`[data-pp="plegar"][data-p="${a.dataset.p}"]`); if (b) b.focus({ preventScroll: true }); return; }
     if (k === 'fila') { st.fila = +a.dataset.n; lsSet(LS_FILA, String(st.fila)); pintar(); return; }
     if (k === 'tvista') { st.vista = a.dataset.v; lsSet(LS_VISTA, st.vista); pintar(); return; }
     if (k === 'alcance') { st.alcance = a.dataset.r; lsSet(LS_ALC, st.alcance); pintar(); return; }

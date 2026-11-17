@@ -14988,6 +14988,69 @@
     } finally { paginaCerrada(); await sinTareas(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
   });
 
+  prueba('DS2', 'Fecha de fin (D-218): sin fin, la pieza como hoy y «– Fin» tras la hora al pasar; con hora, el fin es una hora después; sin hora, el día siguiente; la fecha de fin solo si es otro día; un fin antes del inicio no se acepta; mover el inicio (fecha, hora, «Reprogramar») conserva la duración; sin fecha no hay fin; la × lo quita; cada cambio, un paso de ⌘Z; con fin, «Mañana» el día antes, «Hoy» cada día y «Se ha pasado» desde el día siguiente al fin; en Semana y Mes en cada día y en la Lista una vez con el intervalo; «Nueva sesión» lo pide bajo «Fecha y hora»', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      relojEn('2026-10-01T09:00:00+02:00');
+      await paginaAbierta(); await seListo();
+      const s = await M.sesiones._test.crear({ txt: 'Larga', clase: 'foto', fecha: '2026-10-05', hora: '10:30', cliente: CLIENTE });
+      await seAbrir(s.id);
+      ok(seQ('.pp-hj-fh [data-hj="fin"]') && /– Fin/.test(seQ('[data-hj="fin"]').textContent), 'sin «– Fin» tras la hora');
+      ok(getComputedStyle(seQ('[data-hj="fin"]')).opacity === '0', '«– Fin» a la vista sin el ratón encima');
+      ok(!seHoja().querySelector('[data-hj="fin-hora"], [data-hj="fin-fecha"]'), 'sin fin, la pieza no es como hoy');
+      seQ('[data-hj="fin"]').click(); await espera(150);
+      igual((await seRec(s.id)).fin, { fecha: '2026-10-05', hora: '11:30' }, 'con hora, el fin no es una hora después');
+      ok(seQ('.pp-hj-ff').classList.contains('mismo') && seQ('[data-hj="fin-hora"]'), 'el mismo día, la fecha de fin a la vista');
+      await M.personal.deshacer(); await espera(120); ok(!(await seRec(s.id)).fin, '⌘Z no quita el fin');
+      await M.personal.rehacer(); await espera(120); ok((await seRec(s.id)).fin, '⇧⌘Z no lo devuelve');
+      const pon = async (k, v) => { const i = seQ(`[data-hj="${k}"]`); i.value = v; i.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150); };
+      await pon('fin-hora', '09:00'); igual((await seRec(s.id)).fin, { fecha: '2026-10-05', hora: '11:30' }, 'un fin antes del inicio se acepta');
+      igual(seQ('[data-hj="fin-hora"]').value, '11:30', 'el campo no vuelve al fin de antes');
+      await pon('fin-fecha', '2026-10-06'); igual((await seRec(s.id)).fin, { fecha: '2026-10-06', hora: '11:30' }, 'el fin a otro día');
+      ok(!seQ('.pp-hj-ff').classList.contains('mismo'), 'otro día, sin su fecha a la vista');
+      await pon('fecha', '2026-10-07'); igual((await seRec(s.id)).fin, { fecha: '2026-10-08', hora: '11:30' }, 'mover la fecha no conserva la duración');
+      await pon('hora', '12:00'); igual((await seRec(s.id)).fin, { fecha: '2026-10-08', hora: '13:00' }, 'mover la hora no conserva la duración');
+      await M.personal.deshacer(); await espera(120); igual((await seRec(s.id)).fin, { fecha: '2026-10-08', hora: '11:30' }, '⌘Z de mover la hora');
+      seQ('[data-hj="fin-x"]').click(); await espera(150); ok(!(await seRec(s.id)).fin, 'la × no quita el fin');
+      await M.personal.deshacer(); await espera(120); ok((await seRec(s.id)).fin, '⌘Z no devuelve el fin quitado');
+      await pon('fecha', ''); const sf = await seRec(s.id); ok(!sf.fecha && !sf.fin, 'sin fecha queda el fin'); ok(!seHoja().querySelector('[data-hj="fin"]'), '«– Fin» sin fecha');
+      await M.personal.deshacer(); await espera(120); igual([(await seRec(s.id)).fecha, (await seRec(s.id)).fin], ['2026-10-07', { fecha: '2026-10-08', hora: '11:30' }], '⌘Z no devuelve fecha y fin');
+      M.personal._p.cerrarCard(true);
+      // sin hora: el día siguiente, sin hora de fin
+      const t = await M.sesiones._test.crear({ txt: 'Sin hora', clase: 'foto', fecha: '2026-10-05' });
+      await seAbrir(t.id); seQ('[data-hj="fin"]').click(); await espera(150);
+      igual((await seRec(t.id)).fin, { fecha: '2026-10-06' }, 'sin hora, el fin no es el día siguiente'); ok(!seHoja().querySelector('[data-hj="fin-hora"]'), 'sin hora, el fin pide hora');
+      M.personal._p.cerrarCard(true); await M.personal.borrar(t.id);
+      // Avisos: «Mañana» el día antes, «Hoy» cada día, «Se ha pasado» desde el día siguiente al fin
+      await M.personal.set({ avTareas: true, plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista' });
+      const en = async (dia, filtro) => { relojEn(dia + 'T09:00:00+02:00'); await M.personal.set({ filtro }); await M.personal.render(); await espera(60); return ppLineas(filtro === 'pasado' ? 'pasado' : 'hoy'); };
+      ok((await en('2026-10-06', 'man')).includes(s.id), 'el día antes no sale en «Mañana»');
+      ok((await en('2026-10-07', 'hoy')).includes(s.id), 'el primer día no sale en «Hoy»');
+      ok((await en('2026-10-08', 'hoy')).includes(s.id), 'el último día no sale en «Hoy»');
+      ok(!(await en('2026-10-08', 'pasado')).includes(s.id), 'el último día ya sale en «Se ha pasado»');
+      ok((await en('2026-10-09', 'pasado')).includes(s.id), 'el día siguiente al fin no sale en «Se ha pasado»');
+      // «Reprogramar» conserva la duración
+      await M.personal.set({ filtro: null }); await espera(60);
+      const rp = q(`.pp-av[data-tid="${s.id}"] [data-pp="reprog"]`); ok(rp, 'sin «Reprogramar»'); rp.click(); await espera(80);
+      const a = M.controles.abierto(); a.de.value = '2026-10-12'; a.de.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(150);
+      igual([(await seRec(s.id)).fecha, (await seRec(s.id)).fin], ['2026-10-12', { fecha: '2026-10-13', hora: '11:30' }], '«Reprogramar» no conserva la duración');
+      // Semana y Mes, en cada día; la Lista, una vez con el intervalo
+      relojEn('2026-10-12T09:00:00+02:00'); await M.personal.set({ avTareas: false, plg: { tareas: false, clientes: true, avisos: false }, vista: 'semana', tsem: 0 }); await espera(60);
+      igual(qa(`.pp-fi[data-tid="${s.id}"]`).length, 2, 'Semana: no sale en cada día');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await espera(60); igual(qa(`.pp-mt[data-tid="${s.id}"]`).length, 2, 'Mes: no sale en cada día');
+      await M.personal.set({ vista: 'lista' }); await espera(60); const li = qa(`.pp-tk[data-tid="${s.id}"]`);
+      ok(li.length === 1 && /10:30 – .+ · 11:30/.test(li[0].querySelector('.pp-tf').textContent), 'Lista: no sale una vez con el intervalo: ' + (li[0] && li[0].textContent));
+      // «Nueva sesión»: bajo «Fecha y hora»
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
+      ok(!q('.pp-ns-fin [data-ns="fin"]'), '«– Fin» sin fecha en «Nueva sesión»');
+      const f = q('#pp-ns-fecha'); f.value = '2026-10-20'; f.dispatchEvent(new W.Event('change', { bubbles: true })); const h = q('#pp-ns-hora'); h.value = '10:00'; h.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+      q('.pp-ns-fin [data-ns="fin"]').click(); await espera(60);
+      const fh = q('.pp-ns-fin [data-ns="fin-hora"]'); ok(fh && fh.value === '11:00', '«– Fin» de «Nueva sesión» no pone una hora después'); fh.value = '13:00'; fh.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+      q('form.pp-ns').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(300);
+      const nu = (await M.personal.tareas()).find(k => k.tipo === 'sesion' && k.fecha === '2026-10-20'); igual(nu && nu.fin, { fecha: '2026-10-20', hora: '13:00' }, '«Nueva sesión» no guarda el fin');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

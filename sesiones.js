@@ -139,6 +139,16 @@
   const ap = (r, id) => (r.sesion.apartados || []).find(a => a.id === id);
   const svgI = k => P.ICO[k] || '';
   const ojoBtn = (on, cls, attrs) => `<button type="button" class="ibtn pp-hj-ojo${cls ? ' ' + cls : ''}" ${attrs} aria-pressed="${on}" title="${on ? 'Lo verá el cliente' : 'Solo para ti'}" aria-label="${on ? 'Lo verá el cliente' : 'Solo para ti'}">${on ? svgI('ojo') : svgI('ojoNo')}</button>`;
+  // a session's end (D-218), in the same piece as its date and time: «– Fin» while it has none (seen with the pointer over it or
+  // the focus in it); with one, «–», its date only if it is another day (else its calendar opens with its icon), its time if the
+  // start has one, and ×. No date, no end
+  function finHTML(r, at) {
+    const f = r.fin;
+    if (!f || !f.fecha) return r.fecha ? `<button type="button" class="pp-hj-fin" ${at}="fin" title="Añadir cuándo termina">– Fin</button>` : '';
+    return `<span class="pp-hj-gu" aria-hidden="true">–</span><span class="pp-hj-ff${f.fecha === r.fecha ? ' mismo' : ''}"><input type="date" ${at}="fin-fecha" value="${P.esc(f.fecha)}" aria-label="Fecha de fin"></span>`
+      + (r.hora ? `<input type="time" ${at}="fin-hora" value="${P.esc(f.hora || '')}" aria-label="Hora de fin">` : '')
+      + `<button type="button" class="pp-hj-clx pp-hj-finx" ${at}="fin-x" title="Quitar el fin" aria-label="Quitar el fin">${svgI('x')}</button>`;
+  }
   // a session's clients (D-217): a chip each (its avatar, name and ×) and «+ Cliente», the mesa's dropdown with Mensuales,
   // Esporádicos and «Nuevo esporádico» (its first option hidden: it says what the closed field shows); none, «Sin cliente»
   const opcionesMas = ya => { const o = c => `<option value="${P.esc(c.id)}">${P.esc(c.name || c.txt)}</option>`, Mn = I().CL.filter(c => !ya.includes(c.id)), E = P.esps().filter(e => !ya.includes(e.id));
@@ -235,9 +245,9 @@
     const faltan = ORDEN.filter(id => !ap(r, id));
     const cls = P.clis(r).filter(P.cliOk);
     const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
-      + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.diaHora(r.fecha, r.hora))}</span>` : ''}${cls.map(id => `<span class="pp-hj-chip ro">${P.avatar(id, 'xs')}${P.esc(P.cliDe(id).name)}</span>`).join('')}`
+      + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.tramo(r))}</span>` : ''}${cls.map(id => `<span class="pp-hj-chip ro">${P.avatar(id, 'xs')}${P.esc(P.cliDe(id).name)}</span>`).join('')}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
-        + `<span class="pp-hj-chip pp-hj-fh"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión"></span>`
+        + `<span class="pp-hj-chip pp-hj-fh${r.fin ? ' confin' : ''}"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión">${finHTML(r, 'data-hj')}</span>`
         + clisHTML(cls, 'data-hj')
         + `<button type="button" class="pp-hj-chip pp-hj-nf" data-hj="tira" aria-expanded="${S.tira}" title="${S.tira ? 'Ocultar' : 'Ver'} las fotos de la sesión">${svgI('fotos')}${nf} ${nf === 1 ? 'foto' : 'fotos'}</button>`}`
       + `<span class="pp-hj-sp"></span><button type="button" class="pp-hj-vc${vc ? ' on' : ''}" data-hj="vista" aria-pressed="${vc}" title="${vc ? 'Volver a la hoja' : 'Lo que vería el cliente'}">${svgI('cliente')}Ver como el cliente</button>`
@@ -389,6 +399,8 @@
     if (k === 'modo') { const g = t.closest('[data-g]').dataset.g, m = a.dataset.m; cambiar(x => { const y = ap(x, apId), gg = y && (y.grupos || []).find(q => q.id === g); if (!gg || (gg.modo || 'linea') === m) return false; gg.modo = m; }); return true; }
     if (k === 'mat' && !S.vista) { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = y.material = y.material || { lista: [], hechos: [] }; if (!m.lista || !m.lista.length) m.lista = matPlantilla(); const h = new Set(m.hechos || []); if (h.has(id)) h.delete(id); else h.add(id); m.hechos = [...h]; }); return true; }
     if (k === 'cli-x' && !S.vista) { quitarCli(a.dataset.c); return true; }
+    if (k === 'fin' && !S.vista) { cambiar(x => { if (!x.fecha || x.fin) return false; x.fin = P.finNuevo(x); }).then(() => { const i = P.ov && P.ov.querySelector('[data-hj="fin-hora"], [data-hj="fin-fecha"]'), g = i && M.controles && M.controles.gemelo && M.controles.gemelo(i); if (g) (g.firstChild || g).focus({ preventScroll: true }); }); return true; }
+    if (k === 'fin-x' && !S.vista) { cambiar(x => { if (!x.fin) return false; delete x.fin; }).then(() => { const b = P.ov && P.ov.querySelector('[data-hj="fin"]'); if (b) b.focus({ preventScroll: true }); }); return true; }
     if (k === 'tira') { S.tira = !S.tira; pintarYa(); return true; }
     if (k === 'vista') { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
     if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuSesion(r.id, [['material', 'Editar la lista de material', () => editarLista()]]), a); return true; }
@@ -432,8 +444,12 @@
   function cambio(e) {
     const t = e.target, k = t.dataset && t.dataset.hj;
     if (k === 'clase') { const v = t.value; cambiar(x => { if (x.sesion.clase === v) return false; x.sesion.clase = v; const ya = new Set(x.sesion.apartados.map(y => y.id)); for (const id of PLANTILLA[v] || []) if (!ya.has(id)) x.sesion.apartados.push(apartado(id)); }); return true; }   // the new kind's sections that are missing; none goes
-    if (k === 'fecha') { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(x => { if ((x.fecha || '') === v) return false; if (v) x.fecha = v; else delete x.fecha; }); return true; }
-    if (k === 'hora') { const v = /^\d{2}:\d{2}/.test(t.value) ? t.value.slice(0, 5) : ''; cambiar(x => { if ((x.hora || '') === v) return false; if (v) x.hora = v; else delete x.hora; }); return true; }
+    // the start moves its end with it, keeping the length (D-218); without a date, no end
+    if (k === 'fecha') { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(x => { if ((x.fecha || '') === v) return false; P.moverInicio(x, v); }); return true; }
+    if (k === 'hora') { const v = /^\d{2}:\d{2}/.test(t.value) ? t.value.slice(0, 5) : ''; cambiar(x => { if ((x.hora || '') === v) return false; P.moverInicio(x, x.fecha, v); }); return true; }
+    if (k === 'fin-fecha' || k === 'fin-hora') { const r = rec(); if (!r || !r.fin) return true; const f = { ...r.fin }; if (k === 'fin-fecha') { if (!/^\d{4}-\d{2}-\d{2}$/.test(t.value)) { pintarYa(); return true; } f.fecha = t.value; } else if (/^\d{2}:\d{2}/.test(t.value)) f.hora = t.value.slice(0, 5); else delete f.hora;
+      if (!P.finOk(r, f)) { I().toast('El fin no puede ser antes del inicio.', { key: 'fin-antes' }); S.firma = ''; pintarYa(); return true; }   // not taken: back to the one before
+      cambiar(x => { if (JSON.stringify(x.fin) === JSON.stringify(f)) return false; x.fin = f; }); return true; }
     if (k === 'cli-mas') { const v = t.value; t.value = ''; if (v === '__nuevo') { pedirEsp(e2 => anadirCli(e2.id)); return true; } if (v && P.cliDe(v)) anadirCli(v); return true; }   // one more client (D-217): a step of ⌘Z
     if (k === 'it-hecho') { const it = t.dataset.it, apId = t.closest('[data-ap]').dataset.ap, pt = S.tab[apId]; cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt), i = p && (p.items || []).find(q => q.id === it); if (!i) return false; i.hecho = t.checked; if (!i.hecho) delete i.hecho; }); return true; }
     return false;
@@ -582,7 +598,7 @@
   let DLG = null;                              // {estado, ctx, campo, desde, cambiando}
   function nueva({ ctx, campo, desde }) {
     const cli = campo === 'nueva' ? (P.st.tcli || P.st.nueva.cliente || '') : (desde && desde.tipo === 'esporadico' ? desde.id : desde && desde.cliente) || '';
-    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
+    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
     dialogo();
   }
   function dialogo() {
@@ -590,7 +606,7 @@
     X.showDialog('pp-sesion', `<button class="x" data-act="close" aria-label="Cerrar">×</button><div class="pp-ns-cab"><h3>Nueva sesión</h3>${ojoBtn(E.visible, 'pp-cb', 'data-ns="ojo"')}</div>`
       + `<form class="form pp-ns" autocomplete="off"><label for="pp-ns-nom">Nombre</label><input id="pp-ns-nom" type="text" maxlength="80" value="${P.esc(E.nombre)}" required>`
       + `<label id="pp-ns-tl">Tipo</label><div class="pp-ns-tipos" role="radiogroup" aria-labelledby="pp-ns-tl">${CLASES.map(([k, l, ic]) => `<button type="button" role="radio" class="pp-ns-t${E.clase === k ? ' on' : ''}" data-ns="clase" data-k="${k}" aria-checked="${E.clase === k}" tabindex="${E.clase === k ? 0 : -1}">${svgI(ic)}<span>${l}</span></button>`).join('')}</div>`
-      + `<div class="pp-ns-2"><div><label for="pp-ns-fecha">Fecha y hora</label><span class="pp-ns-fh"><input id="pp-ns-fecha" type="date" data-sin-fecha value="${P.esc(E.fecha)}" aria-label="Fecha de la sesión"><input id="pp-ns-hora" type="time" value="${P.esc(E.hora)}" aria-label="Hora de la sesión"></span></div>`
+      + `<div class="pp-ns-2"><div><label for="pp-ns-fecha">Fecha y hora</label><span class="pp-ns-fh"><input id="pp-ns-fecha" type="date" data-sin-fecha value="${P.esc(E.fecha)}" aria-label="Fecha de la sesión"><input id="pp-ns-hora" type="time" value="${P.esc(E.hora)}" aria-label="Hora de la sesión"></span><span class="pp-ns-fin${E.fin ? ' confin' : ''}">${finHTML(E, 'data-ns')}</span></div>`
       + `<div><label id="pp-ns-cl">Clientes</label><div class="pp-ns-cli" role="group" aria-labelledby="pp-ns-cl">${clisHTML(E.clientes, 'data-ns')}</div></div></div>`
       + `<div class="row"><button type="submit" class="btn">Crear sesión</button></div></form>`);
     const det = X.root().querySelector('.detail'), f = det.querySelector('form.pp-ns'), nom = f.querySelector('#pp-ns-nom');
@@ -599,8 +615,19 @@
     const tipos = [...det.querySelectorAll('[data-ns="clase"]')], elegir = (b, foco) => { E.clase = b.dataset.k; tipos.forEach(x => { const s = x === b; x.classList.toggle('on', s); x.setAttribute('aria-checked', String(s)); x.tabIndex = s ? 0 : -1; }); if (!E.tocado) { E.nombre = nombreDe(E.clase); nom.value = E.nombre; } if (foco) b.focus(); };
     tipos.forEach((b, i) => { b.addEventListener('click', () => elegir(b)); b.addEventListener('keydown', ev => { const d = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 0; if (!d) return; ev.preventDefault(); elegir(tipos[(i + d + tipos.length) % tipos.length], true); }); });
     const fe = det.querySelector('#pp-ns-fecha'), ho = det.querySelector('#pp-ns-hora'), cz = det.querySelector('.pp-ns-cli');
-    fe.addEventListener('change', () => { E.fecha = /^\d{4}-\d{2}-\d{2}$/.test(fe.value) ? fe.value : ''; });
-    ho.addEventListener('change', () => { E.hora = /^\d{2}:\d{2}/.test(ho.value) ? ho.value.slice(0, 5) : ''; });
+    // the end (D-218), under «Fecha y hora»: only its place is drawn again; the start moves it keeping the length
+    const fz = det.querySelector('.pp-ns-fin');
+    const pintarFin = foco => { fz.classList.toggle('confin', !!E.fin); fz.innerHTML = finHTML(E, 'data-ns'); if (M.controles && M.controles.mejorar) M.controles.mejorar(fz); const f = foco && fz.querySelector(foco); if (f) { const g = M.controles && M.controles.gemelo && M.controles.gemelo(f); (g ? g.firstChild || g : f).focus({ preventScroll: true }); } };
+    const inicio = (fecha, hora) => { const x = { tipo: 'sesion', fecha: E.fecha, hora: E.hora, ...(E.fin ? { fin: { ...E.fin } } : {}) }; P.moverInicio(x, fecha, hora); E.fecha = x.fecha || ''; E.hora = x.hora || ''; E.fin = x.fin || null; setTimeout(() => pintarFin(), 0); };
+    fe.addEventListener('change', () => inicio(/^\d{4}-\d{2}-\d{2}$/.test(fe.value) ? fe.value : ''));
+    ho.addEventListener('change', () => inicio(E.fecha, /^\d{2}:\d{2}/.test(ho.value) ? ho.value.slice(0, 5) : ''));
+    fz.addEventListener('click', ev => { const b = ev.target.closest('[data-ns]'); if (!b) return;
+      if (b.dataset.ns === 'fin' && E.fecha) { E.fin = P.finNuevo(E); pintarFin('[data-ns="fin-hora"], [data-ns="fin-fecha"]'); }
+      else if (b.dataset.ns === 'fin-x') { E.fin = null; pintarFin('[data-ns="fin"]'); } });
+    fz.addEventListener('change', ev => { const t = ev.target, k = t.dataset.ns; if (!E.fin || (k !== 'fin-fecha' && k !== 'fin-hora')) return; const f = { ...E.fin };
+      if (k === 'fin-fecha') { if (/^\d{4}-\d{2}-\d{2}$/.test(t.value)) f.fecha = t.value; } else if (/^\d{2}:\d{2}/.test(t.value)) f.hora = t.value.slice(0, 5); else delete f.hora;
+      if (P.finOk(E, f)) E.fin = f; else I().toast('El fin no puede ser antes del inicio.', { key: 'fin-antes' });
+      setTimeout(() => pintarFin(), 0); });
     // its clients: only their place is drawn again (the rest of the dialog, as it is: what is typed, the focus)
     const pintarCli = foco => { cz.innerHTML = clisHTML(E.clientes, 'data-ns'); if (M.controles && M.controles.mejorar) M.controles.mejorar(cz); const f = foco && cz.querySelector(foco); if (f) { const g = M.controles && M.controles.gemelo && M.controles.gemelo(f); (g || f).focus({ preventScroll: true }); } };
     const nuevoEsp = () => pedirEsp(e2 => { if (e2 && !E.clientes.includes(e2.id)) E.clientes.push(e2.id); dialogo(); }, () => dialogo());
@@ -632,7 +659,7 @@
     const E = d.estado, X = I(), nombre = String(E.nombre || '').trim() || nombreDe(E.clase);
     d.hecho = true;
     const now = P.ahoraISO(), r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: nombre, creada: now, at: now, sesion: { clase: E.clase, visible: !!E.visible, plantilla: PLANTILLA.v, apartados: (PLANTILLA[E.clase] || PLANTILLA.fotovideo).map(apartado) } };
-    if (E.fecha) r.fecha = E.fecha; if (E.hora) r.hora = E.hora; r.clientes = E.clientes.filter(c => P.cliDe(c));
+    if (E.fecha) r.fecha = E.fecha; if (E.hora) r.hora = E.hora; r.clientes = E.clientes.filter(c => P.cliDe(c)); if (E.fin && E.fecha && P.finOk(r, E.fin)) r.fin = { ...E.fin };
     const cambios = [{ id: r.id, despues: r }];
     if ((d.campo === 'nota' || d.campo === 'det') && d.desde && P.CARD && P.CARD.id === d.desde.id) {
       P.guardarCard(false); P.cardT.quitar();   // what was written in the card goes in first
@@ -669,7 +696,7 @@
     const hoy = I().hoy(), ss = P.sesiones().filter(k => P.conCli(k, e.id)).sort((a, b) => String(b.fecha || '9').localeCompare(String(a.fecha || '9'))), ts = P.tareas().filter(k => k.cliente === e.id).sort((a, b) => String(a.fecha || '9').localeCompare(String(b.fecha || '9'))), ns = P.notas().filter(k => k.cliente === e.id);
     const desde = e.creada ? `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
-      return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.diaHora(k.fecha, k.hora)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
+      return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.tramo(k)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
     return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div>${P.botonesCard(`<button type="button" class="ibtn pp-cb pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button>`, false)}</div>`
       + (ns.length ? `<section class="pp-es-sec"><h3>Notas <span>${ns.length}</span></h3><div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${P.esc(n.id)}" data-pp="tver" data-id="${P.esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${P.esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div></section>` : '')
       + `<section class="pp-es-sec"><h3>Sesiones <span>${ss.length}</span></h3><div class="pp-es-l">${ss.map(ses).join('')}</div><button type="button" class="pp-cmas" data-es="sesion">${svgI('mas')}Sesión</button></section>`
@@ -812,7 +839,7 @@
   M.sesiones = {
     version: VERSION, plantilla: () => P.hondo(PLANTILLA),
     _test: { limpiar, reparto: () => reparto(), S: () => ({ ...S, plg: [...S.plg] }), decodificados: () => BM.size,
-      crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; ponerClis(r, o.clientes || (o.cliente ? [o.cliente] : [])); await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
+      crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; ponerClis(r, o.clientes || (o.cliente ? [o.cliente] : [])); if (o.fin && r.fecha) r.fin = { ...o.fin }; await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
     _off: () => { OFF.forEach(f => f()); OFF.length = 0; if (P) { delete P.EXT.sesion; delete P.EXT.ficha; } soltarFotos(); }
   };
 
@@ -854,6 +881,15 @@
 #mesa .pp-hj-clmas.con .mx-sel{padding:0 10px 0 0;color:var(--acc);font-weight:600}#mesa .pp-hj-clmas.con .mx-sel:not(#mx){border-color:transparent}
 #mesa .pp-hj-clmas.con .mx-sel::after,#mesa .pp-hj-clmas.con .mx-z{display:none}
 #mesa .pp-ns-cli{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+#mesa .pp-hj-fin{flex:none;max-width:0;overflow:hidden;opacity:0;margin:0 0 0 -2px;padding:0;min-height:26px;border:0;border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--acc);white-space:nowrap;cursor:pointer;transition:max-width var(--d-m) var(--ease-m),padding var(--d-m) var(--ease-m),opacity var(--d1) var(--ease),background var(--d1) var(--ease)}
+#mesa .pp-hj-fh:hover .pp-hj-fin,#mesa .pp-hj-fh:focus-within .pp-hj-fin,#mesa .pp-ns-2 > div:hover .pp-hj-fin,#mesa .pp-ns-2 > div:focus-within .pp-hj-fin{max-width:5em;padding:0 9px;opacity:1}
+#mesa .pp-hj-fin:hover{background:var(--acc-soft)}#mesa .pp-hj-fin:active{transform:scale(.97)}#mesa .pp-hj-fin:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#mesa .pp-hj-gu{flex:none;color:var(--mute);margin:0 -1px}
+#mesa .pp-hj-ff{display:inline-flex;min-width:0}
+#mesa .pp-hj-ff.mismo .mx-in:not(#mx){width:0;padding:0}#mesa .pp-hj-ff.mismo .mx-in:not(#mx):focus-visible{width:10.2ch;padding:0 2px 0 10px}
+#mesa .pp-hj-fh.confin{padding-right:3px}
+#mesa .pp-ns-fin{display:flex;align-items:center;gap:6px;min-height:30px;margin-top:6px;min-width:0}#mesa .pp-ns-fin .pp-hj-fin{margin-left:-9px}
+#mesa .pp-ns-fin .pp-hj-ff.mismo .mx-f:not(#mx){border-color:transparent;background:none}
 #mesa button.pp-hj-chip{padding:0 12px 0 10px;cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa button.pp-hj-chip:hover{background:var(--bg-3)}#mesa button.pp-hj-chip[aria-expanded="true"]{background:var(--panel-2);box-shadow:var(--shadow-xs);color:var(--ink)}
 #mesa .pp-hj-sp{flex:1}
@@ -999,7 +1035,7 @@
   #mesa .pp-es-sec{margin-left:0}#mesa .pp-es-s{grid-template-columns:116px 18px minmax(0,1fr) auto}
   #mesa .pp-ml-cab{display:none}#mesa .pp-ml-f{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:8px 0;border-bottom:1px solid var(--line2)}
 }
-@media (prefers-reduced-motion:reduce){#mesa .pp-hj-cols,#mesa .pp-hj-pl svg{transition:none}#mesa .pp-hj-apc{animation:none}#mesa .pp-ma-c:active,#mesa button.pp-hj-chip:active,#mesa .pp-hj-vc:active,#mesa .pp-ns-t:active{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-hj-cols,#mesa .pp-hj-pl svg,#mesa .pp-hj-fin{transition:none}#mesa .pp-hj-apc{animation:none}#mesa .pp-ma-c:active,#mesa button.pp-hj-chip:active,#mesa .pp-hj-vc:active,#mesa .pp-ns-t:active{transform:none}}
 `;
   (window.MESA_CARGA = window.MESA_CARGA || {}).sesiones = 'ok';
 })();

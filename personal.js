@@ -212,8 +212,10 @@
       const hechaAntes = k.hecha && X.localDay(k.hecha) < hoy; if (hechaAntes) continue;
       const ses = k.tipo === 'sesion', conH = ses && /^\d{2}:\d{2}$/.test(k.hora || '');
       const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: clis(k).filter(cliOk), dia: k.fecha, hora: ses ? k.hora || '' : '', ts: conH ? X.ts(X.madridISO(k.fecha, k.hora)) : utc(k.fecha), hecha: !!k.hecha };   // its time is Madrid's, as the posts'
-      // a session the day before and the same day, with its time; from the next day, if not done, gone past (a task: only its day)
-      if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy) items.push({ ...it, cat: 'hoy' }); else if (ses && k.fecha === man) items.push({ ...it, cat: 'man' });
+      // a session the day before and each day it lasts, with its time on its first day; from the day after its end, if not
+      // done, gone past (a task: only its day) (D-206, D-218)
+      const ult = ultDia(k);
+      if (ult < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha <= hoy) items.push({ ...it, cat: 'hoy', ...(k.fecha < hoy ? { hora: '', sigue: true } : {}) }); else if (ses && k.fecha === man) items.push({ ...it, cat: 'man' });
     }
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
@@ -375,7 +377,7 @@
     const conT = [...R.filas.map(f => f.c), ...esps().map(e => ({ id: e.id, name: e.txt }))].filter(c => vivos().some(k => conCli(k, c.id) && k.tipo !== 'esporadico' && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks, sessions or notes (a sporadic one too, D-207)
     if (st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
     const l = todas.filter(k => !st.tcli || conCli(k, st.tcli));
-    const venc = k => !k.hecha && k.fecha && k.fecha < hoy;
+    const venc = k => !k.hecha && k.fecha && ultDia(k) < hoy;   // a session, once its last day passed (D-218)
     const diaTxt = d => d === hoy ? 'hoy' : d > hoy && d <= fin ? `${DS[dow(d)]} ${+d.slice(8, 10)}` : corto(d);
     const ck = k => `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha">`;
     const ver = k => `data-pp="tver" data-id="${esc(k.id)}" tabindex="0" role="button"`;   // a click or Enter opens it big (D-182)
@@ -388,9 +390,9 @@
     // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
     const ses = k => k.tipo === 'sesion' ? `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>` : '';
     const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
-    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${diaTxt(k.fecha)}${hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
+    const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${k.tipo === 'sesion' && k.fin ? esc(tramo(k, diaTxt)) : diaTxt(k.fecha) + hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
-    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
+    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora && (!celda || celda === k.fecha) ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
     const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
@@ -406,7 +408,7 @@
       const [r0, r1] = alcance(hoy), en = d => d >= r0 && d <= r1;
       // apagado: what is left to do up to the scope and what was done today (struck out until tomorrow); encendido: also what
       // was done, within the scope. The overdue ones, always (D-180)
-      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && k.fecha >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
+      const lf = l.filter(k => k.fecha && (venc(k) || (st.ttodas ? en(k.fecha) : ((!k.hecha && k.fecha <= r1 && ultDia(k) >= hoy) || (hechaHoy(k, hoy) && k.fecha <= r1))))).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : String(a.hora || '').localeCompare(String(b.hora || '')) || String(a.creada).localeCompare(String(b.creada)));
       barra = `<span class="pp-tsw"><div class="seg pp-rg" role="group" aria-label="Hasta dónde">${Object.keys(RANGO).map(k => `<button type="button" class="${st.alcance === k ? 'on' : ''}" data-pp="alcance" data-r="${k}" aria-pressed="${st.alcance === k}" title="${RANGO[k][0]} atrás y adelante">${RANGO[k][1]}</button>`).join('')}</div>${sw}</span>`;
       izq = lf.length ? `<div class="pp-lista">${lf.map(k => linea(k)).join('')}</div>` : `<p class="pp-orden">${l.some(k => k.fecha) ? 'Nada con fecha aquí' : 'Ninguna con fecha'}</p>`;
       const sinV = l.filter(k => !k.fecha && (st.ttodas ? (!k.hecha || en(X.localDay(k.hecha))) : (!k.hecha || hechaHoy(k, hoy))));
@@ -414,7 +416,7 @@
     } else {
       const ver = k => st.ttodas || !k.hecha || hechaHoy(k, hoy);
       // today's cell also holds the overdue ones from before what is seen (those seen are on their own day)
-      const enDia = (d, desde) => l.filter(k => k.fecha === d && ver(k)).concat(desde ? l.filter(k => venc(k) && k.fecha < desde).sort((a, b) => a.fecha < b.fecha ? -1 : 1) : []);
+      const enDia = (d, desde) => l.filter(k => enTramo(k, d) && ver(k)).concat(desde ? l.filter(k => venc(k) && k.fecha < desde).sort((a, b) => a.fecha < b.fecha ? -1 : 1) : []);
       const nav = (t, ant, sig, dbl) => `<span class="pp-nav"><button type="button" class="ibtn pp-ant" data-pp="tnav" data-d="-1" aria-label="${ant}" title="${ant}">‹</button><span class="pp-rango" data-pp="trango" title="${esc(t)} · doble clic: ${dbl}">${esc(t)}</span><button type="button" class="ibtn pp-sig" data-pp="tnav" data-d="1" aria-label="${sig}" title="${sig}">›</button></span>`;
       if (st.vista === 'semana') {
         const lun = addD(lunes(hoy), 7 * st.tsem), dias = Array.from({ length: 7 }, (_, i) => addD(lun, i));
@@ -427,7 +429,7 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora ? `${esc(k.hora)} ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `${esc(k.hora)} ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -439,6 +441,31 @@
   // «Mensuales · Esporádicos» in the head of «Clientes» (E2, D-207), the same piece as «Lista · Semana · Mes» (D-199)
   const segCli = (nm, ne) => `<div class="seg pp-tvs pp-tcv" role="group" aria-label="Clientes">${[['mensuales', 'Mensuales', nm], ['esporadicos', 'Esporádicos', ne]].map(([k, l, n]) => `<button type="button" class="${st.cvista === k ? 'on' : ''}" data-pp="cvista" data-v="${k}" aria-pressed="${st.cvista === k}">${l} <span>${n}</span></button>`).join('')}</div>`;
   const diaHora = (d, h) => `${DS[dow(d)]} ${+d.slice(8, 10)} ${MES[+d.slice(5, 7) - 1]}${d.slice(0, 4) !== I().hoy().slice(0, 4) ? ' ' + d.slice(0, 4) : ''}${h ? ' · ' + h : ''}`;
+  // a session's end (D-218): `fin: {fecha, hora?}`; its last day, its when with the end and its start moved keeping the length
+  const ultDia = k => k && k.tipo === 'sesion' && k.fin && k.fin.fecha > (k.fecha || '') ? k.fin.fecha : k && k.fecha;
+  const enTramo = (k, d) => k.fecha === d || (k.tipo === 'sesion' && !!k.fecha && k.fecha < d && d <= ultDia(k));
+  function tramo(k, dia = diaHora) {           // «sáb 21 nov · 10:30 – 12:30», «… – dom 22 nov · 18:00», «sáb 21 nov – dom 22 nov»
+    if (!k.fecha) return '';
+    const f = k.fin, a = dia(k.fecha) + (k.hora ? ' · ' + k.hora : '');
+    if (!f || !f.fecha || (f.fecha === k.fecha && !f.hora)) return a;
+    return f.fecha === k.fecha ? `${a} – ${f.hora}` : `${a} – ${dia(f.fecha)}${f.hora ? ' · ' + f.hora : ''}`;
+  }
+  const minDe = h => +h.slice(0, 2) * 60 + +h.slice(3, 5), hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  function correr(fecha, hora, min) { const t = minDe(hora) + min, d = Math.floor(t / 1440); return { fecha: addD(fecha, d), hora: hhmm(t - d * 1440) }; }
+  // into a copy of the record: the start to `fecha` (and `hora`, if given); the end keeps the length; no start, no end
+  function moverInicio(x, fecha, hora) {
+    const f0 = x.fecha || '', h0 = x.hora || ''; if (hora === undefined) hora = h0;
+    if (!fecha) { delete x.fecha; delete x.fin; if (hora) x.hora = hora; else delete x.hora; return; }
+    if (x.fin && x.fin.fecha && f0) {
+      const dd = difD(f0, fecha);
+      if (h0 && hora && x.fin.hora) x.fin = correr(x.fin.fecha, x.fin.hora, dd * 1440 + minDe(hora) - minDe(h0));
+      else { x.fin = { ...x.fin, fecha: addD(x.fin.fecha, dd) }; if (!hora) delete x.fin.hora; }
+    }
+    x.fecha = fecha; if (hora) x.hora = hora; else delete x.hora;
+  }
+  // a new end (or none): never before its start (D-218)
+  const finOk = (x, f) => !f || (!!x.fecha && !!f.fecha && (f.fecha > x.fecha || (f.fecha === x.fecha && (!f.hora || !x.hora || f.hora >= x.hora))));
+  const finNuevo = x => x.hora ? correr(x.fecha, x.hora, 60) : { fecha: addD(x.fecha, 1) };   // with a time, an hour after; without, the next day
   // a sporadic client's block: its initial in a neutral circle, its name, its sessions (the last one), its tasks and notes and its
   // next session in a band; a click opens its file (sesiones.js)
   function espHTML(cols) {
@@ -1185,7 +1212,7 @@
   // «Reprogramar» of a session gone past: the mesa's calendar under the button; the new day, a step of ⌘Z (D-206)
   function reprogramar(id, b) {
     const r = TK.get(id); if (!r) return;
-    pedirFecha(b.getBoundingClientRect(), { valor: r.fecha || '' }, v => { if (v && v !== r.fecha) cambiar(id, x => { x.fecha = v; return x; }).then(() => pintar()); });
+    pedirFecha(b.getBoundingClientRect(), { valor: r.fecha || '' }, v => { if (v && v !== r.fecha) cambiar(id, x => { moverInicio(x, v); return x; }).then(() => pintar()); });   // its end keeps the length (D-218)
   }
   // files over the page: only a task or «Nueva tarea» takes them; nothing reaches the hidden board's tray
   const conArchivos = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
@@ -1267,7 +1294,7 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
-    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
+    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando,

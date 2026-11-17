@@ -6064,6 +6064,7 @@
     if (d.clients.some(c => c.personas != null && (!Array.isArray(c.personas) || c.personas.some(x => !x || typeof x.usuario !== 'string' || !x.usuario)))) return bad;   // v11 (D-130)
     if (d.tareas != null && (!Array.isArray(d.tareas) || d.tareas.some(t => !t || typeof t.id !== 'string' || !t.id || !TIPOS_TAREAS.includes(t.tipo) || typeof t.txt !== 'string' || (t.sesion != null && typeof t.sesion !== 'object') || (t.lista != null && !Array.isArray(t.lista)) || (t.fotos != null && (!Array.isArray(t.fotos) || t.fotos.some(f => !f || typeof f.id !== 'string' || typeof f.data !== 'string' || !f.data)))
       || (t.clientes != null && (!Array.isArray(t.clientes) || t.clientes.some(c => typeof c !== 'string' || !c)))
+      || (t.fin != null && (typeof t.fin !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha) || (t.fin.hora != null && !/^\d{2}:\d{2}$/.test(t.fin.hora))))
       || (t.detalles != null && typeof t.detalles !== 'string') || (t.subtareas != null && (!Array.isArray(t.subtareas) || t.subtareas.some(x => !x || typeof x.id !== 'string' || typeof x.txt !== 'string')))))) return bad;   // v13 (D-180); v14: details and subtasks (D-183)
     if (d.bandejas != null && (!Array.isArray(d.bandejas) || d.bandejas.some(r => !r || typeof r.client !== 'string' || !r.client || !Array.isArray(r.tray)))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;

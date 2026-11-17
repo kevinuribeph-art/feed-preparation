@@ -239,7 +239,7 @@
       : `<div class="seg pp-tvs pp-ma-pls" role="group" aria-label="Plantilla de material">${T.map(t => `<button type="button" class="${t.id === cur ? 'on' : ''}" data-hj="mat-pl" data-pl="${P.esc(t.id)}" aria-pressed="${t.id === cur}">${P.esc(t.txt)}${t.id === cur && ret ? pt : ''}</button>`).join('')}</div>`;
     const guardar = `<button type="button" class="${ret ? 'pp-ma-ge' : 'pp-cmas'}" data-hj="mat-nueva">${svgI('mas')}${ret ? 'Como plantilla nueva' : 'Guardar como plantilla'}</button>`;
     return `<div class="pp-ma-plr">${sel}<span class="pp-hj-sp"></span>${ret ? '' : guardar}</div>`
-      + (ret ? `<div class="pp-ma-plr pp-ma-cmb"><span>Con cambios en esta sesión</span><span class="pp-hj-sp"></span>${hay ? `<button type="button" class="pp-ma-ge" data-hj="mat-en">Guardar en ${P.esc(plNombre(cur))}</button>` : ''}${guardar}</div>` : '');
+      + (ret ? `<div class="pp-ma-plr pp-ma-cmb"><span>Con cambios en esta sesión</span><span class="pp-hj-sp"></span><span class="pp-ma-gb">${hay ? `<button type="button" class="pp-ma-ge" data-hj="mat-en">Guardar en ${P.esc(plNombre(cur))}</button>` : ''}${guardar}</span></div>` : '');   // its two buttons together
   }
   function matHTML(a, r) {
     const { L } = matDe(a, r), hs = new Set((a.material && a.material.hechos) || []), ed = !S.vista;
@@ -893,7 +893,7 @@
       X.showDialog('pp-material', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Plantillas de material</h3>`
         + `<div class="seg pp-tvs pp-mpl-tabs" role="group" aria-label="Plantilla">${ED.map((x, i) => `<button type="button" class="${i === cur ? 'on' : ''}" data-ml="pl" data-i="${i}" aria-pressed="${i === cur}">${P.esc(x.txt || 'Sin nombre')}</button>`).join('')}</div>`
         + `<form class="form pp-ml" autocomplete="off"><div class="pp-mpl-cab"><label for="pp-mpl-n">Nombre</label><input id="pp-mpl-n" class="pp-mpl-n" type="text" maxlength="40" value="${P.esc(t.txt)}">`
-        + `<button type="button" class="ibtn pp-mpl-b" data-ml="antes" title="Antes" aria-label="Mover antes"${serie || cur <= 1 ? ' disabled' : ''}>${svgI('chev')}</button><button type="button" class="ibtn pp-mpl-b pp-mpl-d" data-ml="despues" title="Después" aria-label="Mover después"${serie || cur >= ED.length - 1 ? ' disabled' : ''}>${svgI('chev')}</button>`
+        + `<button type="button" class="btn2 pp-mpl-b" data-ml="antes" title="Mover la plantilla antes"${serie || cur <= 1 ? ' disabled' : ''}>Antes</button><button type="button" class="btn2 pp-mpl-b" data-ml="despues" title="Mover la plantilla después"${serie || cur >= ED.length - 1 ? ' disabled' : ''}>Después</button>`
         + `<button type="button" class="btn2 pp-mpl-x" data-ml="borrar"${serie ? ' disabled title="La plantilla de serie no se borra"' : ''}>Borrar plantilla</button></div><p class="ferr" hidden></p>`
         + `<div class="pp-ml-cab" aria-hidden="true"><span>Cosa</span><span>Familia</span><span>Para</span><span>Colgada de</span><span></span></div><div class="pp-ml-l">${matNormal(L).map(x => fila(x, matNormal(L))).join('')}</div>`
         + `<datalist id="pp-ml-fams">${[...new Set(ED.flatMap(x => x.lista.map(y => y.familia)).filter(Boolean))].map(f => `<option value="${P.esc(f)}">`).join('')}</datalist><button type="button" class="pp-cmas" data-ml="mas">${svgI('mas')}Cosa</button><div class="row"><button type="submit" class="btn">Guardar</button></div></form>`);
@@ -1003,19 +1003,22 @@
 #mesa .pp-hj-clx{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;padding:0;border-radius:50%;background:none;color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease),color var(--d1) var(--ease)}
 #mesa .pp-hj-clx svg{width:13px;height:13px}#mesa .pp-hj-clx:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-hj-clx:active{transform:scale(.97)}
 #mesa .pp-hj-clx:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-#mesa .pp-hj-clmas.con{padding:0 0 0 8px;background:none;color:var(--acc);transition:background var(--d1) var(--ease)}
-#mesa .pp-hj-clmas.con > svg{color:var(--acc)}#mesa .pp-hj-clmas.con:hover{background:var(--acc-soft)}
-#mesa .pp-hj-clmas.con .mx-sel{padding:0 10px 0 0;color:var(--acc);font-weight:600}#mesa .pp-hj-clmas.con .mx-sel:not(#mx){border-color:transparent}
+#mesa .pp-hj-clmas.con{padding:0 0 0 8px;background:none;color:var(--acc-ink);transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
+#mesa .pp-hj-clmas.con > svg{color:var(--acc-ink)}#mesa .pp-hj-clmas.con:hover{background:var(--acc-soft)}
+#mesa .pp-hj-clmas.con .mx-sel{padding:0 10px 0 0;color:var(--acc-ink);font-weight:600}#mesa .pp-hj-clmas.con .mx-sel:not(#mx){border-color:transparent;box-shadow:none}
+#mesa .pp-hj-clmas.con:has(.mx-abierto),#mesa .pp-hj-clmas.con:has(.mx-sel:focus-visible){background:var(--acc-soft);box-shadow:0 0 0 3px var(--ring)}
 #mesa .pp-hj-clmas.con .mx-sel::after,#mesa .pp-hj-clmas.con .mx-z{display:none}
+#mesa .pp-hj-meta > .pp-hj-sp,#mesa .pp-ma-plr > .pp-hj-sp{display:none}#mesa .pp-hj-meta > .pp-hj-vc,#mesa .pp-ma-gb,#mesa .pp-ma-plr > .pp-cmas{margin-left:auto}
+#mesa .pp-hj.vc .pp-hj-meta,#mesa .pp-hj.vc .pp-hj-tira{margin-left:0}
 #mesa .pp-ns-cli{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
-#mesa .pp-hj-fin{flex:none;max-width:0;overflow:hidden;opacity:0;margin:0 0 0 -2px;padding:0;min-height:26px;border:0;border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--acc);white-space:nowrap;cursor:pointer;transition:max-width var(--d-m) var(--ease-m),padding var(--d-m) var(--ease-m),opacity var(--d1) var(--ease),background var(--d1) var(--ease)}
-#mesa .pp-hj-fh:hover .pp-hj-fin,#mesa .pp-hj-fh:focus-within .pp-hj-fin,#mesa .pp-ns-2 > div:hover .pp-hj-fin,#mesa .pp-ns-2 > div:focus-within .pp-hj-fin{max-width:5em;padding:0 9px;opacity:1}
+#mesa .pp-hj-fin{flex:none;opacity:0;pointer-events:none;margin:0 0 0 -2px;padding:0 9px;min-height:26px;border:0;border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--acc-ink);white-space:nowrap;cursor:pointer;transition:opacity var(--d1) var(--ease),background var(--d1) var(--ease),transform var(--d1) var(--ease)}
+#mesa .pp-hj-fh:hover .pp-hj-fin,#mesa .pp-hj-fh:focus-within .pp-hj-fin,#mesa .pp-ns-2 > div:hover .pp-hj-fin,#mesa .pp-ns-2 > div:focus-within .pp-hj-fin{opacity:1;pointer-events:auto}
 #mesa .pp-hj-fin:hover{background:var(--acc-soft)}#mesa .pp-hj-fin:active{transform:scale(.97)}#mesa .pp-hj-fin:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 #mesa .pp-hj-gu{flex:none;color:var(--mute);margin:0 -1px}
 #mesa .pp-hj-ff{display:inline-flex;min-width:0}
 #mesa .pp-hj-ff.mismo .mx-in:not(#mx){width:0;padding:0}#mesa .pp-hj-ff.mismo .mx-in:not(#mx):focus-visible{width:10.2ch;padding:0 2px 0 10px}
 #mesa .pp-hj-fh.confin{padding-right:3px}
-#mesa .pp-ns-fin{display:flex;align-items:center;gap:6px;min-height:30px;margin-top:6px;min-width:0}#mesa .pp-ns-fin .pp-hj-fin{margin-left:-9px}
+#mesa .pp-ns-fin{display:flex;align-items:center;gap:6px;min-height:30px;margin-top:6px;min-width:0}#mesa .pp-ns-fin:empty{display:none}#mesa .pp-ns-fin .pp-hj-fin{margin-left:-9px}
 #mesa .pp-ns-fin .pp-hj-ff.mismo .mx-f:not(#mx){border-color:transparent;background:none}
 #mesa button.pp-hj-chip{padding:0 12px 0 10px;cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa button.pp-hj-chip:hover{background:var(--bg-3)}#mesa button.pp-hj-chip[aria-expanded="true"]{background:var(--panel-2);box-shadow:var(--shadow-xs);color:var(--ink)}
@@ -1114,22 +1117,22 @@
 #mesa .pp-ma-fi{display:flex;flex-wrap:wrap;gap:6px}
 #mesa .pp-ma-c{display:inline-flex;align-items:center;gap:8px;min-height:30px;padding:0 12px 0 9px;border:0;border-radius:var(--r-pill);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-ma-plr{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 12px}#mesa .pp-ma-plr .seg button{white-space:nowrap}
-#mesa .pp-ma-plr .pp-cmas{margin:0}#mesa .pp-ma-cmb{margin-top:-4px}#mesa .pp-ma-cmb > span:first-child{font-size:12.5px;font-weight:600;color:var(--chg)}
-#mesa .pp-ma-pt{display:inline-block;width:6px;height:6px;margin:0 0 0 6px;border-radius:50%;background:var(--chg);vertical-align:middle}
+#mesa .pp-ma-plr .pp-cmas{margin:0;color:var(--acc-ink)}#mesa .pp-ma-gb{display:inline-flex;flex-wrap:wrap;gap:8px}#mesa .pp-ma-cmb{margin-top:-4px}#mesa .pp-ma-cmb > span:first-child{font-size:12.5px;font-weight:600;color:var(--chg)}
+#mesa .pp-ma-pt{display:inline-block;width:6px;height:6px;margin:0 0 0 6px;border-radius:50%;background:var(--chg);vertical-align:middle}#mesa .pp-ma-plr > .pp-ma-pt{margin-left:-6px}
 #mesa .pp-ma-ge{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border:0;border-radius:var(--r-pill);background:var(--bg-2);font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-ma-ge svg{width:14px;height:14px}#mesa .pp-ma-ge:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-ma-ge:active{transform:scale(.97)}#mesa .pp-ma-ge:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-ma-w{position:relative;display:inline-flex}
-#mesa .pp-ma-x{position:absolute;right:5px;top:50%;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-top:-9px;border:0;padding:0;border-radius:50%;background:var(--bg-3);color:var(--ink-2);cursor:pointer;opacity:0;pointer-events:none;transition:opacity var(--d1) var(--ease)}
+#mesa .pp-ma-x{position:absolute;right:-6px;top:-6px;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:0;padding:0;border-radius:50%;background:var(--bg-3);box-shadow:0 0 0 2px var(--panel);color:var(--ink-2);cursor:pointer;opacity:0;pointer-events:none;transition:opacity var(--d1) var(--ease),transform var(--d1) var(--ease)}
+#mesa .pp-ma-fam.antes .pp-ma-x{box-shadow:0 0 0 2px var(--bg-2)}#mesa .pp-ma-x:active{transform:scale(.97)}
 #mesa .pp-ma-x svg{width:12px;height:12px}#mesa .pp-ma-x:hover{background:var(--line-strong);color:var(--ink)}
 #mesa .pp-ma-w:hover .pp-ma-x,#mesa .pp-ma-w:focus-within .pp-ma-x{opacity:1;pointer-events:auto}
-#mesa .pp-ma-w:hover .pp-ma-c,#mesa .pp-ma-w:focus-within .pp-ma-c{padding-right:29px}
 #mesa .pp-ma-x:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-#mesa .pp-ma-mas{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px 0 9px;border:1px dashed var(--line-strong);border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease),color var(--d1) var(--ease)}
+#mesa .pp-ma-mas{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px 0 9px;border:1px dashed var(--line-strong);border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-ma-mas svg{width:13px;height:13px}#mesa .pp-ma-mas:hover{background:var(--bg-2);color:var(--ink)}#mesa .pp-ma-mas:active{transform:scale(.97)}#mesa .pp-ma-mas:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-#mesa .pp-ma-in{min-height:30px;width:12em;max-width:100%;box-sizing:border-box;padding:0 12px;border:1px solid var(--acc);border-radius:var(--r-pill);background:var(--panel-2);font:inherit;font-size:12.5px;color:var(--ink);outline:0}
+#mesa .pp-ma-in{min-height:30px;width:12em;max-width:100%;box-sizing:border-box;padding:0 12px;border:1px solid color-mix(in srgb,var(--acc) 50%,transparent);border-radius:var(--r-pill);background:none;font:inherit;font-size:12.5px;color:var(--ink);outline:0}   /* what is written in the page: one thin line (D-213) */
 #mesa .pp-mpl-tabs{margin:2px 0 14px;flex-wrap:wrap}
 #mesa .pp-mpl-cab{display:flex;align-items:center;gap:8px;margin:0 0 12px}#mesa .pp-mpl-cab label{margin:0}#mesa .pp-mpl-cab .pp-mpl-n{flex:1;min-width:0}
-#mesa .pp-mpl-b svg{width:16px;height:16px;transform:rotate(90deg)}#mesa .pp-mpl-d svg{transform:rotate(-90deg)}
+#mesa .pp-mpl-b{flex:none}
 #mesa .pp-ma-c::before{content:'';flex:none;width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--mute);transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
 #mesa .pp-ma-c:hover{box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink)}
 #mesa .pp-ma-c.on{background:var(--acc-soft);box-shadow:none;color:var(--acc-ink)}#mesa .pp-ma-c.on::before{background:var(--acc);box-shadow:none}
@@ -1179,7 +1182,7 @@
   #mesa .pp-es-sec{margin-left:0}#mesa .pp-es-s{grid-template-columns:116px 18px minmax(0,1fr) auto}
   #mesa .pp-ml-cab{display:none}#mesa .pp-ml-f{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:8px 0;border-bottom:1px solid var(--line2)}
 }
-@media (prefers-reduced-motion:reduce){#mesa .pp-hj-cols,#mesa .pp-hj-pl svg,#mesa .pp-hj-fin{transition:none}#mesa .pp-hj-apc{animation:none}#mesa .pp-ma-c:active,#mesa button.pp-hj-chip:active,#mesa .pp-hj-vc:active,#mesa .pp-ns-t:active{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-hj-cols,#mesa .pp-hj-pl svg,#mesa .pp-hj-fin{transition:none}#mesa .pp-hj-apc{animation:none}#mesa .pp-ma-c:active,#mesa button.pp-hj-chip:active,#mesa .pp-hj-vc:active,#mesa .pp-ns-t:active,#mesa .pp-hj-clx:active,#mesa .pp-hj-fin:active,#mesa .pp-ma-mas:active,#mesa .pp-ma-ge:active,#mesa .pp-ma-x:active{transform:none}}
 `;
   (window.MESA_CARGA = window.MESA_CARGA || {}).sesiones = 'ok';
 })();

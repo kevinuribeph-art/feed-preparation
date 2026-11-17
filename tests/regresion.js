@@ -15267,6 +15267,40 @@
     } finally { M.personal._p.cerrarCard(true); paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+  prueba('DS7', 'Arreglos de la revisión de dibujo (lote B): «– Fin» guarda su sitio y solo cambia su opacidad (nada se mueve al pasar); la × de una ficha de material es una insignia en su esquina (la ficha no se ensancha); «+ Cliente», «– Fin» y «+ Guardar como plantilla» con --acc-ink; lo que pasa a otra fila va siempre a la derecha; en «Vista cliente» las piezas sin sangría; «Nueva sesión» sin hueco bajo «Fecha y hora»; «Reducir movimiento» cubre las pulsaciones nuevas; «Antes» y «Después» con palabras en «Editar plantillas» (D-217 a D-220)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const s = await M.sesiones._test.crear({ txt: 'Dibujo', clase: 'foto', fecha: MES + '-06', hora: '10:00', clientes: [CLIENTE] });
+      await seAbrir(s.id);
+      const fin = seQ('[data-hj="fin"]'), cs = getComputedStyle(fin);
+      ok(cs.opacity === '0' && cs.pointerEvents === 'none' && fin.getBoundingClientRect().width > 30, '«– Fin» no guarda su sitio: ' + fin.getBoundingClientRect().width);
+      ok(!/max-width/.test(cs.transitionProperty), '«– Fin» anima su ancho');
+      const acc = getComputedStyle(seQ('.pp-hj-clmas')).getPropertyValue('--acc-ink').trim(), rgb = h => { const d = W.document.createElement('i'); d.style.color = h; W.document.body.append(d); const c = getComputedStyle(d).color; d.remove(); return c; };
+      igual([cs.color, getComputedStyle(seQ('.pp-hj-clmas.con .mx-sel')).color], [rgb(acc), rgb(acc)], '«– Fin» o «+ Cliente» sin --acc-ink');
+      ok(getComputedStyle(seQ('.pp-hj-meta > .pp-hj-sp')).display === 'none' && getComputedStyle(seQ('.pp-hj-meta > .pp-hj-vc')).marginLeft !== '0px', 'lo que pasa a otra fila no va a la derecha');
+      // la × de una ficha: insignia en su esquina, la ficha no se ensancha
+      const x = seQ('[data-ap="material"] .pp-ma-x'), xs = getComputedStyle(x);
+      ok(parseFloat(xs.top) < 0 && parseFloat(xs.right) < 0, 'la × no va en la esquina');
+      const reglas = [...W.document.styleSheets].flatMap(h => { try { return [...h.cssRules].map(r => r.cssText); } catch (e) { return []; } }).join('\n');
+      ok(!/\.pp-ma-w:hover \.pp-ma-c/.test(reglas), 'la ficha se ensancha al pasar');
+      ok(/prefers-reduced-motion[\s\S]*\.pp-hj-fin:active[\s\S]*\.pp-ma-x:active/.test(reglas), '«Reducir movimiento» no cubre las pulsaciones nuevas');
+      ok(getComputedStyle(seQ('[data-ap="material"] .pp-ma-plr .pp-cmas')).color === rgb(acc), '«+ Guardar como plantilla» sin --acc-ink');
+      // «Editar plantillas»: «Antes» y «Después» con palabras
+      seQ('[data-hj="mas"]').click(); await espera(40); q('.pp-menu [data-a="material"]').click(); await espera(80);
+      igual(qa('.pp-mpl-b').map(b => b.textContent), ['Antes', 'Después'], '«Antes» y «Después» sin palabras'); M._in.closeDetail(); await espera(60);
+      M.personal._p.cerrarCard(true);
+      // «Nueva sesión» sin fecha: sin hueco bajo «Fecha y hora»
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
+      ok(getComputedStyle(q('.pp-ns-fin')).display === 'none', '«Nueva sesión» deja un hueco bajo «Fecha y hora»'); M._in.closeDetail(); await espera(60);
+      // «Vista cliente»: las piezas sin sangría
+      paginaCerrada(); M._in.render(); q('.clientToggle').click(); await espera(150);
+      await M.personal.abrirSesion(s.id, { vc: true, cli: CLIENTE }); await espera(150);
+      igual(getComputedStyle(seQ('.pp-hj-meta')).marginLeft, '0px', 'en «Vista cliente» las piezas van sangradas');
+      M.personal._p.cerrarCard(true); q('.clientToggle').click(); await espera(100);
+    } finally { if (M._in.root().classList.contains('client')) q('.clientToggle').click(); M._in.closeDetail(); M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

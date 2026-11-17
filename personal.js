@@ -211,7 +211,7 @@
       if ((k.tipo !== 'tarea' && k.tipo !== 'sesion') || !k.fecha) continue;
       const hechaAntes = k.hecha && X.localDay(k.hecha) < hoy; if (hechaAntes) continue;
       const ses = k.tipo === 'sesion', conH = ses && /^\d{2}:\d{2}$/.test(k.hora || '');
-      const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: k.cliente ? [k.cliente] : [], dia: k.fecha, hora: ses ? k.hora || '' : '', ts: conH ? X.ts(X.madridISO(k.fecha, k.hora)) : utc(k.fecha), hecha: !!k.hecha };   // its time is Madrid's, as the posts'
+      const it = { tipo: ses ? 'sesion' : 'tarea', k, clientes: clis(k).filter(cliOk), dia: k.fecha, hora: ses ? k.hora || '' : '', ts: conH ? X.ts(X.madridISO(k.fecha, k.hora)) : utc(k.fecha), hecha: !!k.hecha };   // its time is Madrid's, as the posts'
       // a session the day before and the same day, with its time; from the next day, if not done, gone past (a task: only its day)
       if (k.fecha < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha === hoy) items.push({ ...it, cat: 'hoy' }); else if (ses && k.fecha === man) items.push({ ...it, cat: 'man' });
     }
@@ -246,6 +246,9 @@
   const esps = () => [...TK.values()].filter(k => k.tipo === 'esporadico' && !k.pasado && !k._b).sort((a, b) => String(a.txt).localeCompare(String(b.txt), 'es'));
   const espDe = id => { const k = id && TK.get(id); return k && k.tipo === 'esporadico' && !k.pasado ? { id: k.id, name: k.txt, esporadico: true } : null; };
   const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || espDe(id);
+  // a session has several clients (D-217): `clientes`; one saved before the 4.24 still says `cliente`. A task or a note, one
+  const clis = k => !k ? [] : k.tipo === 'sesion' && Array.isArray(k.clientes) ? k.clientes.filter(c => typeof c === 'string' && c) : k.cliente ? [k.cliente] : [];
+  const conCli = (k, c) => !!c && clis(k).includes(c);
   const inic = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
   const nombreC = id => esc((cliDe(id) || { name: id }).name);
   function avatar(cid, cls = '') {
@@ -254,6 +257,8 @@
     const k = kits[cid];
     return `<span class="pp-ava ${cls}${typeof k === 'string' ? ' kit' + (claro(k) ? ' claro' : '') : ''}"${typeof k === 'string' ? ` style="--pp-kit:${esc(k)}"` : ''} aria-hidden="true">${esc(inic(c.name))}</span>`;
   }
+  // several clients (a session's, D-217): the first one's avatar and «+N»; their names in its title
+  const avatarN = (l, cls = 'xs') => !l.length ? '' : l.length === 1 ? avatar(l[0], cls) : `<span class="pp-avn" title="${l.map(nombreC).join(' · ')}">${avatar(l[0], cls)}<span>+${l.length - 1}</span></span>`;
   // the figures and the groups go by urgency, in one order (D-180, chosen by Claude): what waits for the client blocks what
   // is left to schedule; «Hoy» and «Mañana», a figure each, and one group, «Hoy» with «Mañana» under it (D-212)
   const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
@@ -279,7 +284,7 @@
     return f && f.thumbUrl ? `<span class="pp-afoto"><img src="${f.thumbUrl}" alt="" loading="lazy" decoding="async">${ty ? `<i>${ty}</i>` : ''}</span>` : `<span class="pp-afoto vacia">${ty || ICO.foto}</span>`;
   }
   function aviso(x, R) {
-    const avs = `<span class="pp-avs">${x.clientes.slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>`, quien = x.clientes.map(nombreC).join(' × ');
+    const avs = `<span class="pp-avs">${x.clientes.slice(0, 2).map(c => avatar(c, 'xs')).join('')}</span>`, quien = x.clientes.map(nombreC).join(x.tipo === 'sesion' ? ' · ' : ' × ');   // a collab's two clients; a session's, as a list (D-217)
     // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
     const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
     if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
@@ -367,9 +372,9 @@
   const fotosURL = f => { if (!f || !f.mini) return ''; let u = MINI.get(f.id); if (!u) { u = URL.createObjectURL(f.mini); MINI.set(f.id, u); } return u; };
   function tareasHTML(R) {
     const X = I(), hoy = R.hoy, todas = enLista(), fin = addD(hoy, 6);
-    const conT = [...R.filas.map(f => f.c), ...esps().map(e => ({ id: e.id, name: e.txt }))].filter(c => vivos().some(k => k.cliente === c.id && k.tipo !== 'esporadico' && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks, sessions or notes (a sporadic one too, D-207)
+    const conT = [...R.filas.map(f => f.c), ...esps().map(e => ({ id: e.id, name: e.txt }))].filter(c => vivos().some(k => conCli(k, c.id) && k.tipo !== 'esporadico' && !(k.hecha && X.localDay(k.hecha) < hoy)));   // the clients with tasks, sessions or notes (a sporadic one too, D-207)
     if (st.tcli && !conT.some(c => c.id === st.tcli)) st.tcli = null;
-    const l = todas.filter(k => !st.tcli || k.cliente === st.tcli);
+    const l = todas.filter(k => !st.tcli || conCli(k, st.tcli));
     const venc = k => !k.hecha && k.fecha && k.fecha < hoy;
     const diaTxt = d => d === hoy ? 'hoy' : d > hoy && d <= fin ? `${DS[dow(d)]} ${+d.slice(8, 10)}` : corto(d);
     const ck = k => `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha">`;
@@ -378,7 +383,7 @@
     const mas = (k, tt) => { const n = (k.subtareas || []).length, h = n ? k.subtareas.filter(x => x.hecha).length : 0, d = !!String(k.detalles || '').trim();
       if (!n && !d) return tt;
       return `<span class="pp-col"><span class="pp-tl">${tt}${d ? `<span class="pp-tdet" title="Con detalles">${ICO.texto}</span>` : ''}</span>${n ? `<span class="pp-pg${h === n ? ' todo' : ''}" title="${h} de ${n} subtareas hechas">${barraPg(h, n)}${h}/${n}</span>` : ''}</span>`; };
-    const av = k => !st.tcli && k.cliente ? avatar(k.cliente, 'xs') : '';
+    const av = k => st.tcli ? '' : avatarN(clis(k).filter(cliOk));
     const fotos = (k, cls = '') => (k.fotos || []).length ? `<button type="button" class="pp-tfo ${cls}" data-pp="foto" data-id="${esc(k.id)}" title="${k.fotos.length === 1 ? 'Ver la foto' : `Ver las ${k.fotos.length} fotos`}" aria-label="Ver la foto"><img src="${fotosURL(k.fotos[0])}" alt="">${k.fotos.length > 1 ? `<b>${k.fotos.length}</b>` : ''}</button>` : '';
     // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
     const ses = k => k.tipo === 'sesion' ? `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>` : '';
@@ -439,7 +444,7 @@
   function espHTML(cols) {
     const hoy = I().hoy(), E = esps();
     const bl = E.map(e => {
-      const ss = sesiones().filter(k => k.cliente === e.id), ts = tareas().filter(k => k.cliente === e.id && !k.hecha), ns = notas().filter(k => k.cliente === e.id);
+      const ss = sesiones().filter(k => conCli(k, e.id)), ts = tareas().filter(k => k.cliente === e.id && !k.hecha), ns = notas().filter(k => k.cliente === e.id);
       const pas = ss.filter(k => k.fecha && k.fecha <= hoy).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0], sig = ss.filter(k => k.fecha && k.fecha >= hoy && !k.hecha).sort((a, b) => (a.fecha + (a.hora || '')) < (b.fecha + (b.hora || '')) ? -1 : 1)[0];
       const c1 = ss.length ? `${ss.length} ${ss.length === 1 ? 'sesión' : 'sesiones'}${pas ? ` · la última, ${diaHora(pas.fecha).replace(/ \d{4}$/, '')}` : ''}` : '';
       const c2 = [ts.length ? `${ts.length} ${ts.length === 1 ? 'tarea' : 'tareas'}` : '', ns.length ? `${ns.length} ${ns.length === 1 ? 'nota' : 'notas'}` : ''].filter(Boolean).join(' · ');
@@ -580,7 +585,7 @@
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
   const hondo = o => JSON.parse(JSON.stringify(o));   // a session's part and the list of material: plain data, copied whole (D-206)
-  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}), ...(r.sesion ? { sesion: hondo(r.sesion) } : {}), ...(r.lista ? { lista: hondo(r.lista) } : {}) } : null;
+  const copia = r => r ? { ...r, ...(r.fotos ? { fotos: r.fotos.slice() } : {}), ...(r.subtareas ? { subtareas: r.subtareas.map(x => ({ ...x })) } : {}), ...(r.sesion ? { sesion: hondo(r.sesion) } : {}), ...(r.lista ? { lista: hondo(r.lista) } : {}), ...(Array.isArray(r.clientes) ? { clientes: r.clientes.slice() } : {}), ...(r.fin ? { fin: { ...r.fin } } : {}) } : null;
   async function escribir(cambios) {           // [{id, despues|null}]
     const X = I();
     gen++;
@@ -918,7 +923,7 @@
     const r = TK.get(CARD.id); if (!r) return;
     const v = { nota: r.id, antes: ctx.texto, caret: ctx.b, campo };
     ctx.quitar(); cerrarCard();
-    const k = borrador({ cliente: r.cliente, fecha: r.tipo === 'sesion' ? r.fecha : undefined });
+    const k = borrador({ cliente: clis(r).filter(cliOk)[0], fecha: r.tipo === 'sesion' ? r.fecha : undefined });
     if (k && CARD) CARD.cmdVolver = v;
   }
   function borrador(o = {}) {
@@ -1174,7 +1179,7 @@
   }
   // a sporadic client's: «Borrar esporádico», off while it has sessions, tasks or notes (D-201, D-207)
   function menuEsp(id) {
-    const tiene = vivos().some(k => k.cliente === id && k.tipo !== 'esporadico');
+    const tiene = vivos().some(k => conCli(k, id) && k.tipo !== 'esporadico');   // a session shared with others too (D-217)
     return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }, tiene, tiene ? 'Tiene sesiones, tareas o notas' : '']];
   }
   // «Reprogramar» of a session gone past: the mesa's calendar under the button; the new day, a step of ⌘Z (D-206)
@@ -1262,7 +1267,7 @@
     for (const L of [H.u, H.r]) { for (let i = L.length - 1; i >= 0; i--) { const paso = L[i]; if (sinId) for (let j = paso.length - 1; j >= 0; j--) if (paso[j].id === sinId) paso.splice(j, 1); if (!paso.length) { L.splice(i, 1); continue; } for (const p of paso) { if (p.antes) f(p.antes); if (p.despues) f(p.despues); } } }
   }
   const _p = {
-    EXT, TK, I, esc, ICO, st, avatar, cliDe, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
+    EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, corto, fechaLarga, addD, dow, difD,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando,
@@ -1389,6 +1394,7 @@
 /* the avatar: its photo, or its initial in its kit's colour */
 #mesa .pp-ava{flex:none;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg-3);color:var(--ink-2);font-size:12.5px;font-weight:800;line-height:1}
 #mesa .pp-ava.xs{width:20px;height:20px;font-size:10.5px}
+#mesa .pp-avn{display:inline-flex;align-items:center;gap:3px;flex:none}#mesa .pp-avn > span:last-child{font-size:11px;font-weight:600;color:var(--mute);font-variant-numeric:normal}
 #mesa .pp-ava img{width:100%;height:100%;object-fit:cover;display:block}
 #mesa .pp-ava.kit{background:var(--pp-kit);color:var(--on-photo)}#mesa .pp-ava.kit.claro{color:var(--photo-ink)}
 /* the clients' blocks */
@@ -1482,7 +1488,7 @@
 #mesa .pp-fi{display:flex;align-items:flex-start;gap:6px;padding:6px;border-radius:var(--r-xs);background:var(--panel-2);box-shadow:var(--shadow-xs);font-size:12px;line-height:1.3}
 #mesa .pp-fi .pp-tt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap-style:pretty}
 #mesa .pp-fi .pp-tt i{font-style:normal;color:var(--red);font-weight:600}
-#mesa .pp-fi .pp-ck{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-ava.xs{width:16px;height:16px;font-size:9.5px;margin-left:auto}
+#mesa .pp-fi .pp-ck{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-ava.xs{width:16px;height:16px;font-size:9.5px;margin-left:auto}#mesa .pp-fi .pp-avn{margin-left:auto}#mesa .pp-fi .pp-avn .pp-ava.xs{margin-left:0}
 #mesa .pp-fi.venc .pp-tt{color:var(--red)}
 #mesa .pp-mcab,#mesa .pp-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--cx-gap)}
 #mesa .pp-mcab span{font-size:10.5px;color:var(--cx-wk-c);padding:0 4px 4px}

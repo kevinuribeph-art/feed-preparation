@@ -139,6 +139,16 @@
   const ap = (r, id) => (r.sesion.apartados || []).find(a => a.id === id);
   const svgI = k => P.ICO[k] || '';
   const ojoBtn = (on, cls, attrs) => `<button type="button" class="ibtn pp-hj-ojo${cls ? ' ' + cls : ''}" ${attrs} aria-pressed="${on}" title="${on ? 'Lo verá el cliente' : 'Solo para ti'}" aria-label="${on ? 'Lo verá el cliente' : 'Solo para ti'}">${on ? svgI('ojo') : svgI('ojoNo')}</button>`;
+  // a session's clients (D-217): a chip each (its avatar, name and ×) and «+ Cliente», the mesa's dropdown with Mensuales,
+  // Esporádicos and «Nuevo esporádico» (its first option hidden: it says what the closed field shows); none, «Sin cliente»
+  const opcionesMas = ya => { const o = c => `<option value="${P.esc(c.id)}">${P.esc(c.name || c.txt)}</option>`, Mn = I().CL.filter(c => !ya.includes(c.id)), E = P.esps().filter(e => !ya.includes(e.id));
+    return E.length && Mn.length ? `<optgroup label="Mensuales">${Mn.map(o).join('')}</optgroup><optgroup label="Esporádicos">${E.map(o).join('')}</optgroup>` : E.length ? `<optgroup label="Esporádicos">${E.map(o).join('')}</optgroup>` : Mn.map(o).join(''); };
+  function clisHTML(l, at) {                   // at: 'data-hj' in the sheet, 'data-ns' in «Nueva sesión»
+    const ficha = id => { const n = P.esc((P.cliDe(id) || {}).name || ''); return `<span class="pp-hj-chip pp-hj-cl">${P.avatar(id, 'xs')}<span class="pp-hj-cln">${n}</span><button type="button" class="pp-hj-clx" ${at}="cli-x" data-c="${P.esc(id)}" title="Quitar a ${n}" aria-label="Quitar a ${n}">${svgI('x')}</button></span>`; };
+    const mas = `<span class="pp-hj-chip pp-hj-clmas${l.length ? ' con' : ''}">${l.length ? svgI('mas') : svgI('cliente')}<select ${at}="cli-mas" aria-label="${l.length ? 'Otro cliente para la sesión' : 'Cliente de la sesión'}"><option value="" hidden selected>${l.length ? 'Cliente' : 'Sin cliente'}</option>${opcionesMas(l)}<option value="__nuevo" data-accion="nuevo">Nuevo esporádico</option></select></span>`;
+    return l.map(ficha).join('') + mas;
+  }
+  const ponerClis = (x, l) => { x.clientes = [...new Set(l.filter(c => typeof c === 'string' && c))]; delete x.cliente; };   // never `cliente` again on a session
   const fotoEl = (id, w, h, meta, drag) => `<span class="pp-fo" data-f="${P.esc(id)}" style="width:${w}px;height:${h}px"${drag ? ' draggable="true"' : ''} tabindex="0" role="button" aria-label="${meta}" title="${meta}"></span>`;
   const aspecto = (r, id) => { const f = (r.fotos || []).find(x => x.id === id); return f && f.w && f.h ? f.w / f.h : 1; };
   const hechos = (a, r) => {                   // «h/n» of a section: its checkboxes in the text, its shots done, its material
@@ -223,12 +233,12 @@
     const verAp = id => { const a = ap(r, id); return a && (!vc || (vis && a.visible !== false)); };
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
-    const cli = r.cliente ? P.cliDe(r.cliente) : null;
+    const cls = P.clis(r).filter(P.cliOk);
     const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
-      + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.diaHora(r.fecha, r.hora))}</span>` : ''}${cli ? `<span class="pp-hj-chip ro">${P.avatar(cli.id, 'xs')}${P.esc(cli.name)}</span>` : ''}`
+      + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.diaHora(r.fecha, r.hora))}</span>` : ''}${cls.map(id => `<span class="pp-hj-chip ro">${P.avatar(id, 'xs')}${P.esc(P.cliDe(id).name)}</span>`).join('')}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
         + `<span class="pp-hj-chip pp-hj-fh"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión"></span>`
-        + `<span class="pp-hj-chip">${cli ? P.avatar(cli.id, 'xs') : svgI('cliente')}<select data-hj="cliente" aria-label="Cliente de la sesión">${P.opcionesCli(r.cliente, X.CL)}<option value="__nuevo" data-accion="nuevo">Nuevo esporádico</option></select></span>`
+        + clisHTML(cls, 'data-hj')
         + `<button type="button" class="pp-hj-chip pp-hj-nf" data-hj="tira" aria-expanded="${S.tira}" title="${S.tira ? 'Ocultar' : 'Ver'} las fotos de la sesión">${svgI('fotos')}${nf} ${nf === 1 ? 'foto' : 'fotos'}</button>`}`
       + `<span class="pp-hj-sp"></span><button type="button" class="pp-hj-vc${vc ? ' on' : ''}" data-hj="vista" aria-pressed="${vc}" title="${vc ? 'Volver a la hoja' : 'Lo que vería el cliente'}">${svgI('cliente')}Ver como el cliente</button>`
       + (vc ? '' : `<button type="button" class="ibtn pp-hj-mas" data-hj="mas" aria-label="Más de la sesión" title="Más">${svgI('mas3')}</button>`) + `</div>`
@@ -241,7 +251,7 @@
 
   // ---------- drawing the sheet ----------
   // what the sheet shows besides the record (each write leaves a new record object: compared as it is, never by its time)
-  function firma(r) { return [S.vista, S.tira, [...S.plg].join(), JSON.stringify(S.tab), S.enl, P.CARD.ed, S.campo, P.lsGet(LS), innerWidth > 720, (P.cliDe(r.cliente) || {}).name].join('|'); }
+  function firma(r) { return [S.vista, S.tira, [...S.plg].join(), JSON.stringify(S.tab), S.enl, P.CARD.ed, S.campo, P.lsGet(LS), innerWidth > 720, P.clis(r).map(c => (P.cliDe(c) || {}).name).join(',')].join('|'); }
   let ctlCampo = null;
   function pintar(r, o = {}) {
     const ov = P.ov; if (!ov || !r) return;
@@ -378,6 +388,7 @@
     if (k === 'g-nuevo') { const id = P.nuevoId('gr'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.grupos = y.grupos || []).push({ id, nombre: 'Grupo', modo: 'linea', fotos: [] }); }).then(() => empezar(`g:${apId}:${id}`)); return true; }
     if (k === 'modo') { const g = t.closest('[data-g]').dataset.g, m = a.dataset.m; cambiar(x => { const y = ap(x, apId), gg = y && (y.grupos || []).find(q => q.id === g); if (!gg || (gg.modo || 'linea') === m) return false; gg.modo = m; }); return true; }
     if (k === 'mat' && !S.vista) { const id = a.dataset.m; cambiar(x => { const y = ap(x, apId); if (!y) return false; const m = y.material = y.material || { lista: [], hechos: [] }; if (!m.lista || !m.lista.length) m.lista = matPlantilla(); const h = new Set(m.hechos || []); if (h.has(id)) h.delete(id); else h.add(id); m.hechos = [...h]; }); return true; }
+    if (k === 'cli-x' && !S.vista) { quitarCli(a.dataset.c); return true; }
     if (k === 'tira') { S.tira = !S.tira; pintarYa(); return true; }
     if (k === 'vista') { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
     if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuSesion(r.id, [['material', 'Editar la lista de material', () => editarLista()]]), a); return true; }
@@ -423,10 +434,12 @@
     if (k === 'clase') { const v = t.value; cambiar(x => { if (x.sesion.clase === v) return false; x.sesion.clase = v; const ya = new Set(x.sesion.apartados.map(y => y.id)); for (const id of PLANTILLA[v] || []) if (!ya.has(id)) x.sesion.apartados.push(apartado(id)); }); return true; }   // the new kind's sections that are missing; none goes
     if (k === 'fecha') { const v = /^\d{4}-\d{2}-\d{2}$/.test(t.value) ? t.value : ''; cambiar(x => { if ((x.fecha || '') === v) return false; if (v) x.fecha = v; else delete x.fecha; }); return true; }
     if (k === 'hora') { const v = /^\d{2}:\d{2}/.test(t.value) ? t.value.slice(0, 5) : ''; cambiar(x => { if ((x.hora || '') === v) return false; if (v) x.hora = v; else delete x.hora; }); return true; }
-    if (k === 'cliente') { if (t.value === '__nuevo') { const r = rec(); t.value = (r && r.cliente) || ''; pedirEsp(e2 => cambiar(x => { x.cliente = e2.id; })); return true; } const v = t.value && P.cliDe(t.value) ? t.value : ''; cambiar(x => { if ((x.cliente || '') === v) return false; if (v) x.cliente = v; else delete x.cliente; }); return true; }
+    if (k === 'cli-mas') { const v = t.value; t.value = ''; if (v === '__nuevo') { pedirEsp(e2 => anadirCli(e2.id)); return true; } if (v && P.cliDe(v)) anadirCli(v); return true; }   // one more client (D-217): a step of ⌘Z
     if (k === 'it-hecho') { const it = t.dataset.it, apId = t.closest('[data-ap]').dataset.ap, pt = S.tab[apId]; cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt), i = p && (p.items || []).find(q => q.id === it); if (!i) return false; i.hecho = t.checked; if (!i.hecho) delete i.hecho; }); return true; }
     return false;
   }
+  const anadirCli = id => cambiar(x => { const l = P.clis(x); if (l.includes(id)) return false; ponerClis(x, [...l, id]); });
+  const quitarCli = id => cambiar(x => { const l = P.clis(x); if (!l.includes(id)) return false; ponerClis(x, l.filter(c => c !== id)); });
   function marcarTexto(cas) {                  // a checkbox in a section's text, read: marked (a step of ⌘Z, D-204)
     const f = cas.closest('[data-campo]'), campo = f && f.dataset.campo, r = rec(); if (!campo || !r || !P.ES()) return;
     const n = P.ES().alternar(valorDe(r, campo), +cas.dataset.ln); if (n == null) return;
@@ -569,7 +582,7 @@
   let DLG = null;                              // {estado, ctx, campo, desde, cambiando}
   function nueva({ ctx, campo, desde }) {
     const cli = campo === 'nueva' ? (P.st.tcli || P.st.nueva.cliente || '') : (desde && desde.tipo === 'esporadico' ? desde.id : desde && desde.cliente) || '';
-    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', cliente: P.cliDe(cli) ? cli : '', visible: true }, ctx, campo, desde };
+    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
     dialogo();
   }
   function dialogo() {
@@ -578,19 +591,22 @@
       + `<form class="form pp-ns" autocomplete="off"><label for="pp-ns-nom">Nombre</label><input id="pp-ns-nom" type="text" maxlength="80" value="${P.esc(E.nombre)}" required>`
       + `<label id="pp-ns-tl">Tipo</label><div class="pp-ns-tipos" role="radiogroup" aria-labelledby="pp-ns-tl">${CLASES.map(([k, l, ic]) => `<button type="button" role="radio" class="pp-ns-t${E.clase === k ? ' on' : ''}" data-ns="clase" data-k="${k}" aria-checked="${E.clase === k}" tabindex="${E.clase === k ? 0 : -1}">${svgI(ic)}<span>${l}</span></button>`).join('')}</div>`
       + `<div class="pp-ns-2"><div><label for="pp-ns-fecha">Fecha y hora</label><span class="pp-ns-fh"><input id="pp-ns-fecha" type="date" data-sin-fecha value="${P.esc(E.fecha)}" aria-label="Fecha de la sesión"><input id="pp-ns-hora" type="time" value="${P.esc(E.hora)}" aria-label="Hora de la sesión"></span></div>`
-      + `<div><label for="pp-ns-cli">Cliente</label><select id="pp-ns-cli" aria-label="Cliente de la sesión">${P.opcionesCli(E.cliente, X.CL)}<option value="__nuevo" data-accion="nuevo">Nuevo esporádico</option></select></div></div>`
+      + `<div><label id="pp-ns-cl">Clientes</label><div class="pp-ns-cli" role="group" aria-labelledby="pp-ns-cl">${clisHTML(E.clientes, 'data-ns')}</div></div></div>`
       + `<div class="row"><button type="submit" class="btn">Crear sesión</button></div></form>`);
     const det = X.root().querySelector('.detail'), f = det.querySelector('form.pp-ns'), nom = f.querySelector('#pp-ns-nom');
     nom.addEventListener('input', () => { E.nombre = nom.value; E.tocado = true; });
     det.querySelector('[data-ns="ojo"]').addEventListener('click', ev => { E.visible = !E.visible; const b = ev.currentTarget; b.setAttribute('aria-pressed', String(E.visible)); b.title = b.ariaLabel = E.visible ? 'Lo verá el cliente' : 'Solo para ti'; b.innerHTML = E.visible ? svgI('ojo') : svgI('ojoNo'); });
     const tipos = [...det.querySelectorAll('[data-ns="clase"]')], elegir = (b, foco) => { E.clase = b.dataset.k; tipos.forEach(x => { const s = x === b; x.classList.toggle('on', s); x.setAttribute('aria-checked', String(s)); x.tabIndex = s ? 0 : -1; }); if (!E.tocado) { E.nombre = nombreDe(E.clase); nom.value = E.nombre; } if (foco) b.focus(); };
     tipos.forEach((b, i) => { b.addEventListener('click', () => elegir(b)); b.addEventListener('keydown', ev => { const d = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 0; if (!d) return; ev.preventDefault(); elegir(tipos[(i + d + tipos.length) % tipos.length], true); }); });
-    const fe = det.querySelector('#pp-ns-fecha'), ho = det.querySelector('#pp-ns-hora'), cl = det.querySelector('#pp-ns-cli');
+    const fe = det.querySelector('#pp-ns-fecha'), ho = det.querySelector('#pp-ns-hora'), cz = det.querySelector('.pp-ns-cli');
     fe.addEventListener('change', () => { E.fecha = /^\d{4}-\d{2}-\d{2}$/.test(fe.value) ? fe.value : ''; });
     ho.addEventListener('change', () => { E.hora = /^\d{2}:\d{2}/.test(ho.value) ? ho.value.slice(0, 5) : ''; });
-    const nuevoEsp = () => { cl.value = E.cliente; pedirEsp(e2 => { if (e2) E.cliente = e2.id; dialogo(); }, () => dialogo()); };
-    cl.addEventListener('change', () => { if (cl.value === '__nuevo') { nuevoEsp(); return; } E.cliente = cl.value; });
-    cl.addEventListener('mx-accion', nuevoEsp);
+    // its clients: only their place is drawn again (the rest of the dialog, as it is: what is typed, the focus)
+    const pintarCli = foco => { cz.innerHTML = clisHTML(E.clientes, 'data-ns'); if (M.controles && M.controles.mejorar) M.controles.mejorar(cz); const f = foco && cz.querySelector(foco); if (f) { const g = M.controles && M.controles.gemelo && M.controles.gemelo(f); (g || f).focus({ preventScroll: true }); } };
+    const nuevoEsp = () => pedirEsp(e2 => { if (e2 && !E.clientes.includes(e2.id)) E.clientes.push(e2.id); dialogo(); }, () => dialogo());
+    cz.addEventListener('change', ev => { const t = ev.target; if (!t.matches('[data-ns="cli-mas"]')) return; const v = t.value; t.value = ''; if (v === '__nuevo') { nuevoEsp(); return; } if (v && P.cliDe(v) && !E.clientes.includes(v)) { E.clientes.push(v); setTimeout(() => pintarCli('[data-ns="cli-mas"]'), 0); } });
+    cz.addEventListener('mx-accion', nuevoEsp);
+    cz.addEventListener('click', ev => { const b = ev.target.closest('[data-ns="cli-x"]'); if (!b) return; E.clientes = E.clientes.filter(c => c !== b.dataset.c); pintarCli('[data-ns="cli-mas"]'); });
     f.addEventListener('submit', ev => { ev.preventDefault(); crear(); });
     if (M.controles && M.controles.mejorar) M.controles.mejorar(det);
     nom.focus(); nom.select();
@@ -616,7 +632,7 @@
     const E = d.estado, X = I(), nombre = String(E.nombre || '').trim() || nombreDe(E.clase);
     d.hecho = true;
     const now = P.ahoraISO(), r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: nombre, creada: now, at: now, sesion: { clase: E.clase, visible: !!E.visible, plantilla: PLANTILLA.v, apartados: (PLANTILLA[E.clase] || PLANTILLA.fotovideo).map(apartado) } };
-    if (E.fecha) r.fecha = E.fecha; if (E.hora) r.hora = E.hora; if (E.cliente && P.cliDe(E.cliente)) r.cliente = E.cliente;
+    if (E.fecha) r.fecha = E.fecha; if (E.hora) r.hora = E.hora; r.clientes = E.clientes.filter(c => P.cliDe(c));
     const cambios = [{ id: r.id, despues: r }];
     if ((d.campo === 'nota' || d.campo === 'det') && d.desde && P.CARD && P.CARD.id === d.desde.id) {
       P.guardarCard(false); P.cardT.quitar();   // what was written in the card goes in first
@@ -650,7 +666,7 @@
   // a sporadic client's file: its notes (post-its), its sessions and tasks, «+ Sesión», «+ Tarea» and «Pasar a mensual»
   const F = { campo: null, firma: '' };
   function fichaHTML(e) {
-    const hoy = I().hoy(), ss = P.sesiones().filter(k => k.cliente === e.id).sort((a, b) => String(b.fecha || '9').localeCompare(String(a.fecha || '9'))), ts = P.tareas().filter(k => k.cliente === e.id).sort((a, b) => String(a.fecha || '9').localeCompare(String(b.fecha || '9'))), ns = P.notas().filter(k => k.cliente === e.id);
+    const hoy = I().hoy(), ss = P.sesiones().filter(k => P.conCli(k, e.id)).sort((a, b) => String(b.fecha || '9').localeCompare(String(a.fecha || '9'))), ts = P.tareas().filter(k => k.cliente === e.id).sort((a, b) => String(a.fecha || '9').localeCompare(String(b.fecha || '9'))), ns = P.notas().filter(k => k.cliente === e.id);
     const desde = e.creada ? `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
       return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.diaHora(k.fecha, k.hora)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
@@ -662,7 +678,7 @@
   }
   function fichaPintar(e, o = {}) {
     const ov = P.ov; if (!ov || !e) return;
-    const f = JSON.stringify([e, P.CARD.ed, P.vivos().filter(k => k.cliente === e.id)]);
+    const f = JSON.stringify([e, P.CARD.ed, P.vivos().filter(k => P.conCli(k, e.id))]);
     if (!o.forzar && f === F.firma && ov.firstChild) return; F.firma = f;
     ov.innerHTML = fichaHTML(e);
     const c = ov.firstChild;
@@ -688,7 +704,7 @@
   function fichaDbl(e) { if (!P.CARD.peq && e.target.closest('[data-campo="nom"]') && !P.CARD.ed) fichaEscribir(null); }
   function fichaEscribir(pt) {                 // the name, written in its place (nothing else drawn again), the caret where it was pressed
     const n = P.ov && P.ov.querySelector('.pp-es [data-campo="nom"]'); if (!n) return;
-    P.CARD.ed = true; F.firma = JSON.stringify([espRec(), true, P.vivos().filter(k => k.cliente === P.CARD.id)]);
+    P.CARD.ed = true; F.firma = JSON.stringify([espRec(), true, P.vivos().filter(k => P.conCli(k, P.CARD.id))]);
     n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus({ preventScroll: true });
     let rg = pt && document.caretRangeFromPoint ? document.caretRangeFromPoint(pt.x, pt.y) : null; if (rg && !n.contains(rg.startContainer)) rg = null;
     if (!rg) { rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); }
@@ -718,10 +734,12 @@
       b.disabled = true;
       let c; try { c = await M.addClient({ name: e0.txt }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
       const now = P.ahoraISO(), cambios = [];
-      for (const k of P.vivos()) if (k.cliente === e0.id && k.tipo !== 'esporadico') { const n = P.copia(k); n.cliente = c.id; n.at = now; cambios.push({ id: k.id, despues: n }); }
+      // a session shared with others: only its part (D-217)
+      const pasa = x => { if (x.tipo === 'esporadico' || !P.conCli(x, e0.id)) return false; if (x.tipo === 'sesion') ponerClis(x, P.clis(x).map(id => id === e0.id ? c.id : id)); else x.cliente = c.id; return true; };
+      for (const k of P.vivos()) { const n = P.copia(k); if (pasa(n)) { n.at = now; cambios.push({ id: k.id, despues: n }); } }
       const ne = P.copia(P.TK.get(e0.id)); ne.pasado = { cliente: c.id, at: now }; ne.at = now; cambios.push({ id: e0.id, despues: ne });
       await P.escribir(cambios);
-      P.remapH(x => { if (x.cliente === e0.id && x.tipo !== 'esporadico') x.cliente = c.id; }, e0.id);   // its own steps go: it can't come back unpassed
+      P.remapH(pasa, e0.id);   // its own steps go: it can't come back unpassed
       if (P.st.tcli === e0.id) P.st.tcli = c.id;
       X.closeDetail(); if (P.CARD && P.CARD.id === e0.id) P.cerrarCard(true);
       P.st.cvista = 'mensuales'; await P.refrescar(); P.pintar();
@@ -786,7 +804,7 @@
     on(document, 'pointerup', () => { if (mov) soltar(); });
     on(document, 'pointercancel', () => { if (mov) { const m = mov; mov = null; if (m.linea) m.linea.remove(); if (m.fant) m.fant.remove(); pintarYa(); } });
     on(window, 'resize', () => { if (rec()) alRedimensionar(); });
-    on(document, 'mx-accion', e => { if (rec() && e.target.matches && e.target.matches('[data-hj="cliente"]')) pedirEsp(e2 => cambiar(x => { x.cliente = e2.id; }), () => { const r = rec(); if (r) P.abrirCard(r.id); }); });
+    on(document, 'mx-accion', e => { if (rec() && e.target.matches && e.target.matches('[data-hj="cli-mas"]')) pedirEsp(e2 => anadirCli(e2.id), () => { const r = rec(); if (r) P.abrirCard(r.id); }); });
     I().estilo('mesa-ses-css', ESTILO);
     if (P.page && P.st.on) P.pintar();
     setTimeout(limpiar, 8000);
@@ -794,7 +812,7 @@
   M.sesiones = {
     version: VERSION, plantilla: () => P.hondo(PLANTILLA),
     _test: { limpiar, reparto: () => reparto(), S: () => ({ ...S, plg: [...S.plg] }), decodificados: () => BM.size,
-      crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; if (o.cliente) r.cliente = o.cliente; await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
+      crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; ponerClis(r, o.clientes || (o.cliente ? [o.cliente] : [])); await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
     _off: () => { OFF.forEach(f => f()); OFF.length = 0; if (P) { delete P.EXT.sesion; delete P.EXT.ficha; } soltarFotos(); }
   };
 
@@ -826,6 +844,16 @@
 #mesa .pp-hj-chip .mx-sel,#mesa .pp-hj-chip .mx-f{min-height:26px;height:26px;border-color:transparent;background:none}
 #mesa .pp-hj-chip .mx-sel:hover,#mesa .pp-hj-chip .mx-f:hover{border-color:var(--line-strong)}
 #mesa .pp-hj-chip .pp-ava.xs{width:18px;height:18px;font-size:9.5px}
+#mesa .pp-hj-cl{padding:0 3px 0 6px}
+#mesa .pp-hj-cln{min-width:0;max-width:15em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mesa .pp-hj-clx{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;padding:0;border-radius:50%;background:none;color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease),color var(--d1) var(--ease)}
+#mesa .pp-hj-clx svg{width:13px;height:13px}#mesa .pp-hj-clx:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-hj-clx:active{transform:scale(.97)}
+#mesa .pp-hj-clx:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#mesa .pp-hj-clmas.con{padding:0 0 0 8px;background:none;color:var(--acc);transition:background var(--d1) var(--ease)}
+#mesa .pp-hj-clmas.con > svg{color:var(--acc)}#mesa .pp-hj-clmas.con:hover{background:var(--acc-soft)}
+#mesa .pp-hj-clmas.con .mx-sel{padding:0 10px 0 0;color:var(--acc);font-weight:600}#mesa .pp-hj-clmas.con .mx-sel:not(#mx){border-color:transparent}
+#mesa .pp-hj-clmas.con .mx-sel::after,#mesa .pp-hj-clmas.con .mx-z{display:none}
+#mesa .pp-ns-cli{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
 #mesa button.pp-hj-chip{padding:0 12px 0 10px;cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa button.pp-hj-chip:hover{background:var(--bg-3)}#mesa button.pp-hj-chip[aria-expanded="true"]{background:var(--panel-2);box-shadow:var(--shadow-xs);color:var(--ink)}
 #mesa .pp-hj-sp{flex:1}

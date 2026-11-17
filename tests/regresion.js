@@ -11826,16 +11826,15 @@
     igual([e.boxShadow, e.backgroundColor], ['none', raiz.getPropertyValue('--st-empezar-aro').trim() === '#A39A90' ? 'rgb(163, 154, 144)' : e.backgroundColor], 'Por empezar con aro');
   });
 
-  prueba('ES2', 'Glifos que pasan a icono: «+», ✓ de uso y su recuento, Σ, barra de tamaño, ⋯ y ? del editor, × de la tira, ✓ y atajo de sus menús; el texto se queda (D-169)', async () => {
+  prueba('ES2', 'Glifos que pasan a icono: «+», ✓ de uso y su recuento, barra de tamaño, ⋯ y ? del editor, × de la tira, ✓ y atajo de sus menús; el texto se queda (D-169)', async () => {
     await tablero([pub(1), pub(2)]);
-    await hasta(() => M.calendario && q('.side > .cal button.ccnt'), 4000, 'calendario.js');
+    await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'calendario.js');   // Σ ya no está (D-229, AV8)
     const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
     const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
     for (const [sel, txt] of [['[data-act="addfiller"]', '+ Hueco'], ['[data-act="newclient"]', '+ Cliente']]) {
       const b = q(sel), i = b && b.querySelector('.i-mas');
       ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
     }
-    const cc = q('.side > .cal button.ccnt'); ok(cc.textContent === 'Σ' && tam0(cc) && /M18 7V5/.test(masc(cc)), 'Σ sin el icono sigma');
     const ti = qa('.tray .trayhead .ttam i'); ok(ti.length === 2 && ti.every(i => W.getComputedStyle(i).borderTopWidth === '0px' && /rect/.test(masc(i, null))), 'la barra de tamaño sigue con bordes');
     await poner('r1', [await foto('es2.jpg')]); await espera(80);
     await pulsar('.tray .tfil button[data-v="todas"]'); await espera(120);
@@ -12738,6 +12737,7 @@
   // =====================================================================================================
   async function paginaAbierta() {
     await hasta(() => M.personal, 8000, 'personal.js');
+    try { W.sessionStorage.removeItem('mesa-pp-tareas'); } catch (e) { /* */ }   // each opening as a new tab's: Tareas folded (D-225)
     ok(M.personal.abrir() !== false || M.personal.abierta(), 'no se abrió la página personal');
     await M.personal.render(); await espera(30);
   }
@@ -14078,7 +14078,7 @@
       const t = await M.personal.tarea({ txt: 'Grande', fecha: '2026-10-03' }); await M.personal.render();
       ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40);
       const b = ppCard().querySelector('[data-pp="ampliar"]'); ok(b && b.title === 'Ampliar' && b.querySelector('svg'), 'sin el icono de ampliar');
-      ppRaton(b, 'click', 1); await espera(60);
+      ppRaton(b, 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), r = ppCard().getBoundingClientRect();
       ok(ov.classList.contains('amplia') && ppCard().classList.contains('amplia') && Math.abs(r.top - cab.bottom) < 2 && r.width >= W.innerWidth - 20, 'ampliada no ocupa la página bajo la cabecera: ' + json([r.top, cab.bottom, r.width]));
       const cd = ppCard().querySelector('.pp-cd').getBoundingClientRect(), cs = ppCard().querySelector('.pp-cs').getBoundingClientRect();
@@ -14099,7 +14099,7 @@
       ppTecla('Escape'); await espera(200);
       const n = await M.personal.tarea({ tipo: 'nota', txt: 'Nota grande' }); await M.personal.render();
       ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(40);
-      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       ok(ppCard().classList.contains('nota') && ppCard().classList.contains('amplia') && ppCard().getBoundingClientRect().width >= W.innerWidth - 20, 'la nota no se amplía a todo el ancho');
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
     } finally { paginaCerrada(); await sinTareas(); }
@@ -14673,7 +14673,7 @@
       igual(hb.map(b => b.k), ['ojo', 'ampliar', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
       const ancho0 = seHoja().getBoundingClientRect().width;
       const tx = seQ('[data-campo="ap:orden"]'); ppRaton(tx, 'click', 1); await espera(40); await naEscribe(tx, 'Barra');
-      const b = seQ('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(60);
+      const b = seQ('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), rh = seHoja().getBoundingClientRect(), cols = seQ('.pp-hj-cols').getBoundingClientRect();
       ok(ov.classList.contains('amplia') && Math.abs(rh.top - cab.bottom) < 2 && rh.width >= W.innerWidth - 20 && rh.width > ancho0, 'ampliada no ocupa la página bajo la cabecera: ' + json([rh.top, cab.bottom, rh.width, ancho0]));
       ok(cols.width >= W.innerWidth - 100 && qa('.pp-ov:not(.sale) .pp-hj-col').length === 2, 'sus dos columnas no van a todo el ancho: ' + json(cols.width));
@@ -14685,7 +14685,7 @@
       fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300);
       ok(seHoja() && qa('.pp-ov:not(.sale) .pp-hj-col').length === 1 && seHoja().getBoundingClientRect().width >= W.innerWidth - 20, 'a 720 px ampliada no va en una columna');
       fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(300);
-      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       ok(seHoja() && !q('.pp-ov:not(.sale)').classList.contains('amplia') && Math.abs(seHoja().getBoundingClientRect().width - ancho0) < 2, '«Reducir» no la devuelve a hoja');
       ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
       ppTecla('Escape'); await espera(200); ok(!seHoja(), 'Esc ampliada no la cierra del todo');
@@ -14875,7 +14875,7 @@
     } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('AS6', 'Planos y Vídeos, opción A (D-214): las pestañas con la letra, el tamaño y el peso del título de un apartado y su cuenta como la de los apartados; sin raya ni línea debajo; la no elegida en --faint; el «+» sigue', async () => {
+  prueba('AS6', 'Planos y Vídeos, opción A (D-214): las pestañas con la letra, el tamaño y el peso del título de un apartado y su cuenta como la de los apartados; sin raya ni línea debajo; la no elegida en --mute (D-231); el «+» sigue', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14894,7 +14894,7 @@
       ok(seQ('[data-ap="planos"] .pp-hj-pl').getBoundingClientRect().right <= on.getBoundingClientRect().left + 0.5, 'la primera pestaña tapa el botón de plegar');
       igual(W.getComputedStyle(on, '::after').content, 'none', 'la elegida lleva raya');
       igual(cs(seQ('.pp-pl-tabs')).borderBottomWidth, '0px', 'hay línea debajo');
-      igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--faint')], 'la elegida no va en tinta o la otra no en --faint');
+      igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--mute')], 'la elegida no va en tinta o la otra no en --mute');   // texto que se lee (D-231)
       ok(seQ('[data-hj="tab-mas"]'), 'sin «+»');
       const x0 = on.querySelector('.pp-pl-tn').getBoundingClientRect().left; await espera(400); seDbl(on); await espera(80);   // past the double click that opened it
       { const tn = seQ('.pp-pl-tn[contenteditable]'), cs = W.getComputedStyle(tn); ok(Math.abs(tn.getBoundingClientRect().left + parseFloat(cs.paddingLeft) - x0) < 1, 'al renombrar, el nombre de la pestaña salta: ' + json([x0, tn.getBoundingClientRect().left, cs.paddingLeft, cs.marginLeft, tn.parentNode.tagName, W.getComputedStyle(tn.parentNode).paddingLeft])); } M.personal._p.editar(false); await espera(80);
@@ -15052,7 +15052,7 @@
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
-  prueba('DS3', 'La sesión en el calendario (D-219): en el tablero de cada cliente mensual de la sesión, un chip por día que dura (claqueta, nombre, la hora el primer día, azul pizarra, sin punto de estado); sin fecha, sin cliente o solo con esporádicos, en ninguno; no cuenta en Σ ni en el total ni se arrastra; en «Vista cliente» solo con el ojo abierto; su clic abre la hoja encima del tablero sin la página personal y al cerrarla se vuelve al chip; en «Vista cliente» la hoja, fija en «Ver como el cliente», sin «⋯» y con solo el cliente de ese tablero; el calendario se pone al día al cambiar una sesión', async () => {
+  prueba('DS3', 'La sesión en el calendario (D-219): en el tablero de cada cliente mensual de la sesión, un chip por día que dura (claqueta, nombre, la hora el primer día, azul pizarra, sin punto de estado); sin fecha, sin cliente o solo con esporádicos, en ninguno; no cuenta en el total (sin Σ desde D-229) ni se arrastra; en «Vista cliente» solo con el ojo abierto; su clic abre la hoja encima del tablero sin la página personal y al cerrarla se vuelve al chip; en «Vista cliente» la hoja, fija en «Ver como el cliente», sin «⋯» y con solo el cliente de ese tablero; el calendario se pone al día al cambiar una sesión', async () => {
     await tablero([pub(1), pub(2, 'Reel', 9)]); await sinTareas();
     const raiz = M._in.root();
     try {
@@ -15074,9 +15074,8 @@
       ok(c1.classList.contains('ty-ses') && c1.querySelector('svg.cses') && !c1.querySelector('.edot, .eico, .cmk') && /Rodaje largo/.test(c1.textContent), 'el chip sin claqueta, nombre o con punto de estado');
       igual([c1.querySelector('.ct') && c1.querySelector('.ct').textContent, !!cs(s1.id)[1].querySelector('.ct')], ['10:30', false], 'la hora, solo el primer día');
       const bg = getComputedStyle(c1).backgroundColor; ok(bg !== getComputedStyle(q('.side > .cal .chip[data-slot]')).backgroundColor && /220, 228, 238|39, 50, 63/.test(bg), 'el chip sin su azul pizarra: ' + bg);
-      // no cuenta: Σ y el total solo las publicaciones; no se arrastra
-      igual(q('.side > .cal .ctotn').textContent, '2', 'el total cuenta las sesiones');
-      igual(qa('.side > .cal .cgrid > .ccnt:not(.ctotn):not(button)').reduce((n, x) => n + (+x.textContent || 0), 0), 2, 'Σ cuenta las sesiones');
+      // no cuenta: el total solo las publicaciones (sin Σ, D-229); no se arrastra
+      igual(q('.side > .cal .ctot b').textContent, '2', 'el total cuenta las sesiones');   // sin Σ (D-229)
       const r0 = c1.getBoundingClientRect(), pe = (t, el, x, y) => el.dispatchEvent(new W.PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 9, button: 0, pointerType: 'mouse' }));
       pe('pointerdown', c1, r0.left + 5, r0.top + 5); pe('pointermove', q('.side > .cal'), r0.left + 80, r0.top + 70); ok(!q('.cghost'), 'el chip de la sesión se arrastra'); pe('pointerup', q('.side > .cal'), r0.left + 80, r0.top + 70); await espera(450);
       // su clic: la hoja encima del tablero, sin la página; al cerrarla, el chip
@@ -15317,6 +15316,440 @@
   });
 
   // =====================================================================================================
+  // ajustes de la 4.24, lote A (D-222 en adelante)
+  // =====================================================================================================
+  // a computed colour (rgb, color(srgb …), oklab …) as [r, g, b] 0–255, through a canvas of the mesa's frame
+  function rgbDe(css) {
+    css = String(css).trim(); let m;
+    const de = v => Math.max(0, Math.min(255, Math.round((v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055) * 255)));
+    if ((m = css.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/))) return [+m[1], +m[2], +m[3]].map(Math.round);
+    if ((m = css.match(/^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)/))) return [+m[1], +m[2], +m[3]].map(v => Math.round(v * 255));
+    if ((m = css.match(/^oklab\(\s*([\d.e-]+%?)\s+([\d.e-]+)\s+([\d.e-]+)/))) {
+      const L = m[1].endsWith('%') ? parseFloat(m[1]) / 100 : +m[1], a = +m[2], b = +m[3];
+      const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, mm = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+      return [4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * mm + 1.7076147010 * s].map(de);
+    }
+    const c = D.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.fillStyle = '#010203'; g.fillStyle = css; if (g.fillStyle === '#010203') throw new Error('color sin leer: ' + css);
+    g.fillRect(0, 0, 1, 1); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  }
+  const lumi = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contraste = (a, b) => { const x = lumi(rgbDe(a)), y = lumi(rgbDe(b)); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  // the value of a CSS rule's property (for :hover and :focus, which the battery's frame never gets, lesson 79), computed on a probe
+  function deRegla(re, prop, dentro) {
+    let v = null; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (const r of rs) if (r.selectorText && re.test(r.selectorText) && r.style.getPropertyValue(prop)) v = r.style.getPropertyValue(prop); }
+    if (!v) return null; const p = D.createElement('div'); p.style.setProperty(prop, v); (dentro || q('#mesa')).append(p); const c = W.getComputedStyle(p).getPropertyValue(prop); p.remove(); return c;
+  }
+  async function enTema(t, fn) { const h = D.documentElement, t0 = h.dataset.theme; if (t === 'dark') h.dataset.theme = 'dark'; else delete h.dataset.theme; try { await espera(400); return await fn(); } finally { if (t0) h.dataset.theme = t0; else delete h.dataset.theme; } }
+
+  prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar se oscurece sin bajar de 4,5:1, en claro y en oscuro; «Mañana», las tareas y lo programado, como estaban (D-190)', async () => {
+    relojEn('2026-11-01T10:00:00+01:00');
+    try {
+      await tablero([{ ...pub(1, 'Foto', 10), date: '2026-11-10T18:00:00.000+01:00' }, pub(2, 'Foto', 11), { ...pub(3, 'Reel', 10), date: '2026-11-10T19:00:00.000+01:00' }, { ...pub(4, 'Foto', 10), date: '2026-11-10T20:00:00.000+01:00' }]);
+      await porAprobar(['r1', 'r2', 'r3', 'r4'], 'av1'); M.setEstado(['r1', 'r3', 'r4'], 'aprobado'); M.setEstado('r4', 'programado'); await M.flush();
+      relojEn('2026-11-10T10:00:00+01:00');
+      await M.personal.tarea({ txt: 'Tarea de hoy', fecha: '2026-11-10', cliente: CLIENTE });
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: true, avisos: false }, avTareas: true }); await M.personal.render();
+      const fila = id => q(`.pp-grupo[data-cat="hoy"] .pp-av[data-slot="${id}"]`), cs = e => W.getComputedStyle(e);
+      igual(['r1', 'r2', 'r3', 'r4'].map(id => fila(id) && fila(id).classList.contains('pp-avhoy')), [true, false, true, false], 'la marca de hoy va en r1 y r3 (la Foto y el Reel sin programar de hoy), no en mañana ni en lo programado');
+      ok(fila('r2').classList.contains('sinprog'), '«Mañana» pierde su franja (D-190)');
+      const tk = q('.pp-grupo[data-cat="hoy"] .pp-av.tarea'); ok(tk && !tk.classList.contains('pp-avhoy') && !tk.classList.contains('sinprog'), 'una tarea de hoy lleva la marca');
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        const tok = n => cs(q('#mesa')).getPropertyValue(n).trim(), chg = rgbDe(tok('--chg')), soft = rgbDe(tok('--chg-soft'));
+        const a = fila('r1'), cu = a.querySelector('.pp-cu'), est = a.querySelector('.pp-est');
+        igual(rgbDe(cs(a).backgroundColor), soft, `${t}: la fila no va en --chg-soft`);
+        const sh = cs(a).boxShadow, shc = (sh.match(/^(?:rgba?|color|oklab|oklch)\([^)]*\)/) || [''])[0];
+        ok(/inset/.test(sh) && /\) 3px 0px 0px/.test(sh) && rgbDe(shc).join() === chg.join(), `${t}: la franja de 3 px en --chg: ${sh}`);
+        igual([rgbDe(cs(cu).color), cs(cu).fontWeight, rgbDe(cs(est).color), cs(est).fontWeight], [chg, '600', chg, '600'], `${t}: hora y estado en --chg a 600`);
+        const reel = fila('r3').querySelector('.pp-mano'); ok(reel && rgbDe(cs(reel).color).join() === chg.join(), `${t}: «publicar a mano» del reel de hoy no va en --chg`);
+        ok(contraste(cs(cu).color, cs(a).backgroundColor) >= 4.5, `${t}: la hora sobre la fila no llega a 4,5:1`);
+        const hov = deRegla(/button\.pp-av\.pp-avhoy:hover/, 'background-color', a.parentNode) || deRegla(/button\.pp-av\.pp-avhoy:hover/, 'background', a.parentNode);
+        ok(hov && rgbDe(hov).join() !== soft.join() && lumi(rgbDe(hov)) !== lumi(soft), `${t}: al pasar la fila no cambia: ${hov}`);
+        ok(contraste(cs(cu).color, hov) >= 4.5 && contraste(cs(est).color, hov) >= 4.5, `${t}: al pasar, la hora o el estado bajan de 4,5:1 (${contraste(cs(cu).color, hov).toFixed(2)})`);
+        const m = fila('r2'); igual(rgbDe(cs(m).backgroundColor).join() === soft.join(), false, `${t}: «Mañana» va tintada`);
+      });
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  // what a gesture replaces: nodes taken out, photos and keyed pieces put back the same, and the pp-dentro entrances running
+  async function sustituye(fn, ms = 260) {
+    const R = { nodos: 0, fotos: [], claves: [] }, sig = n => n.outerHTML.replace(/<(img|canvas)[^>]*>(<\/canvas>)?/g, '').replace(/ (style|data-k)="[^"]*"/g, '').replace(/ nitida/g, '');
+    const SEL = '.pp-fo,[data-tid],[data-ap],[data-it],[data-g],[data-panel],[data-slot]', quitados = [];
+    const mo = new W.MutationObserver(l => { for (const m of l) for (const n of m.removedNodes) if (n.nodeType === 1) { R.nodos += 1 + n.getElementsByTagName('*').length; quitados.push(...(n.matches(SEL) ? [n] : []), ...n.querySelectorAll(SEL)); } });
+    mo.observe(q('#mesa'), { childList: true, subtree: true });
+    try { await fn(); await espera(30); } finally { mo.disconnect(); }
+    const anim = D.getAnimations().filter(a => a.animationName === 'pp-dentro' && a.playState === 'running').length;
+    for (const n of quitados) { const k = n.dataset.f || n.dataset.tid || n.dataset.ap || n.dataset.it || n.dataset.g || n.dataset.panel || n.dataset.slot; const nuevo = D.querySelector(`#mesa ${n.matches('.pp-fo') ? '.pp-fo' : '*'}[data-${n.dataset.f ? 'f' : n.dataset.tid ? 'tid' : n.dataset.ap ? 'ap' : n.dataset.it ? 'it' : n.dataset.g ? 'g' : n.dataset.panel ? 'panel' : 'slot'}="${W.CSS.escape(k)}"]`); if (nuevo && sig(nuevo) === sig(n)) (n.matches('.pp-fo') ? R.fotos : R.claves).push(k); }
+    await espera(ms); return { ...R, anim };
+  }
+
+  prueba('AV2', 'El parpadeo (D-223): la página personal, la tarjeta de una tarea y la hoja de una sesión cambian en su sitio solo lo que cambió; cada gesto quita pocos nodos, ninguna foto ni pieza igual se sustituye y la entrada pp-dentro solo corre en lo que se despliega; los campos y los desplegables de la Mesa siguen funcionando tras dos redibujos', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-10-06T10:00:00+02:00');
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p;
+      const tk = await M.personal.tarea({ txt: 'Tarea uno', fecha: '2026-10-06', cliente: CLIENTE }); await M.personal.tarea({ txt: 'Tarea dos', fecha: '2026-10-07' });
+      const r = await M.sesiones._test.crear({ txt: 'Con fotos', clase: 'fotovideo', fecha: '2026-10-08', hora: '10:00', clientes: [CLIENTE] });
+      const blob = await (await foto('av2.jpg', 900, 600)).arrayBuffer(), ids = [1, 2, 3, 4, 5, 6].map(i => 'tfav2' + i);
+      for (const id of ids) await M._in.idbPut('tfotos', id, { id, w: 900, h: 600, blob: new W.Blob([blob], { type: 'image/jpeg' }), mini: new W.Blob([blob], { type: 'image/jpeg' }), t: Date.now() });
+      await P.cambiar(r.id, x => { x.fotos = ids.map(id => ({ id, w: 900, h: 600 })); seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Luz', modo: 'todas', fotos: ids }];
+        const pl = seAp(x, 'planos'); pl.pestanas[0].items = [{ id: 'i1', titulo: 'Plano', texto: 'Texto', fotos: [ids[0]] }]; seAp(x, 'orden').texto = 'Uno\nDos'; return x; });
+      await M.personal.set({ plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista', avTareas: true }); await M.personal.render(); await espera(400);
+      const malo = (g, x, max = 40) => { ok(x.nodos <= max && !x.fotos.length && !x.claves.length && !x.anim, `${g}: ${json(x)}`); };
+      // the page
+      malo('página · marcar una tarea', await sustituye(() => q(`.pp-izq .pp-tk[data-tid="${tk.id}"] .pp-ck`).click()));
+      malo('página · desmarcarla', await sustituye(() => q(`.pp-izq .pp-tk[data-tid="${tk.id}"] .pp-ck`).click()));
+      malo('página · una cifra', await sustituye(async () => { q('.pp-cifra:not([disabled])').click(); await M.personal.render(); }), 400);
+      malo('página · quitar la cifra', await sustituye(async () => { q('.pp-cifra.on').click(); await M.personal.render(); }), 400);
+      malo('página · plegar Clientes', await sustituye(() => q('[data-pp="plegar"][data-p="clientes"]').click()), 400);
+      const des = await sustituye(() => q('[data-pp="plegar"][data-p="clientes"]').click(), 450);
+      ok(des.anim === 1 && !des.fotos.length, 'página · desplegar Clientes: la entrada corre en otro sitio o en más de uno: ' + json(des));
+      malo('página · repaso sin cambios', await sustituye(() => M.personal.render()), 0);
+      const nativos = sel => qa(sel).filter(n => n.matches('select, input[type="date"], input[type="time"]'));
+      const ocultos = sel => nativos(sel).every(n => n.classList.contains('mx-nat') && n._mx && n._mx.isConnected && n.tabIndex === -1 && n.getAttribute('aria-hidden') === 'true' && n.getBoundingClientRect().width <= 1);
+      const nf = q('.pp [data-pp="nfecha"], .pp input[type="date"]'); if (nf) { nf.value = '2026-10-09'; nf.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60); }
+      q('[data-pp="plegar"][data-p="clientes"]').click(); await espera(60); q('[data-pp="plegar"][data-p="clientes"]').click(); await espera(400);
+      ok(nativos('.pp *').length && ocultos('.pp *'), 'tras dos redibujos, un desplegable o una fecha de la página se ve duplicado (sin mx-nat): ' + json(nativos('.pp *').map(n => [n.tagName, n.className, n.getBoundingClientRect().width])));
+      // a task's card: open, write, read
+      P.abrirCard(tk.id); await espera(400);
+      const card = q('.pp-card');
+      malo('tarjeta · escribir', await sustituye(() => P.editar(true)));
+      ok(q('.pp-card') === card, 'tarjeta · escribir cambia la tarjeta');
+      malo('tarjeta · leer', await sustituye(() => P.editar(false)));
+      P.cerrarCard(true); await espera(200);
+      // the sheet
+      await seAbrir(r.id); await espera(500);
+      const fotos0 = qa('.pp-hj .pp-fo').length; ok(fotos0 >= 7, 'la hoja sin sus fotos: ' + fotos0);
+      malo('hoja · plegar «Orden»', await sustituye(() => seQ('[data-ap="orden"] [data-hj="plegar"]').click()));
+      const dh = await sustituye(() => seQ('[data-ap="orden"] [data-hj="plegar"]').click(), 450);
+      ok(dh.anim === 1 && !dh.fotos.length && dh.nodos <= 40, 'hoja · desplegar «Orden»: ' + json(dh));
+      malo('hoja · ojo de un apartado', await sustituye(() => seQ('[data-ap="orden"] [data-hj="ojo-ap"]').click()));
+      malo('hoja · el ojo otra vez', await sustituye(() => seQ('[data-ap="orden"] [data-hj="ojo-ap"]').click()));
+      malo('hoja · una cosa del material', await sustituye(() => seQ('[data-ap="material"] [data-hj="mat"]').click()));
+      malo('hoja · «una línea»', await sustituye(() => seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click()), 60);
+      malo('hoja · «todas»', await sustituye(() => seQ('[data-g="g1"] [data-hj="modo"][data-m="todas"]').click()), 60);
+      malo('hoja · repaso sin cambios', await sustituye(() => M.personal.render()), 0);
+      ok(qa('.pp-hj .mx-sel').length === qa('.pp-hj select').length && qa('.pp-hj select').every(x => x._mx && x._mx.isConnected && x.nextElementSibling === x._mx), 'un desplegable de la hoja sin su gemelo tras los redibujos');
+      ok(nativos('.pp-hj *').length >= 3 && ocultos('.pp-hj *'), 'tras los redibujos, un desplegable o una fecha de la hoja se ve duplicado (sin mx-nat): ' + json(nativos('.pp-hj *').map(n => [n.tagName, n.className, n.getBoundingClientRect().width])));
+      // a checkbox the record didn't take goes back to what is drawn
+      const ck = q('.pp-hj [data-ap="material"] [data-hj="mat"]'); const ckp = q('.pp-hj .pp-hj-t .pp-ck'); if (ckp) { ckp.checked = !ckp.checked; await M.personal._p.pintarCard(true); await espera(40); igual(q('.pp-hj .pp-hj-t .pp-ck').checked, q('.pp-hj .pp-hj-t .pp-ck').hasAttribute('checked'), 'una casilla sin guardar sigue marcada tras un redibujo'); }
+      // a listener put after drawing isn't doubled: the separator's transitionend, once
+      const cols = q('.pp-hj-cols'); ok(!cols || cols._fin === true, 'las columnas sin su aviso de fin');
+      P.cerrarCard(true);
+    } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('AV3', 'Las flechas de ampliar en la caja de la × (D-224): «Ampliar» (maximize-2) y «Reducir» (minimize-2) se dibujan en las unidades 6 a 18 de 24, como la ×, con el mismo trazo; el botón sigue de 32 px', async () => {
+    await paginaAbierta();
+    const t = await M.personal.tarea({ txt: 'Con flechas', fecha: '2026-10-02' });
+    try {
+      M.personal._p.abrirCard(t.id); const amp = await hasta(() => q('.pp-card [data-pp="ampliar"]'), 3000, 'el botón de ampliar'), x = q('.pp-card [data-pp="cerrar"]');
+      const caja = b => { const g = b.querySelector('svg').getBBox(); return [g.x, g.y, g.width, g.height].map(v => Math.round(v * 100) / 100); };
+      const trazo = b => [...b.querySelectorAll('svg path')].map(p => W.getComputedStyle(p).strokeWidth + '|' + W.getComputedStyle(p).vectorEffect);
+      igual(caja(x), [6, 6, 12, 12], 'la caja de la ×');
+      igual(caja(amp), [6, 6, 12, 12], '«Ampliar» no ocupa la caja de la ×');
+      igual([...new Set(trazo(amp))], [...new Set(trazo(x))], '«Ampliar» con otro trazo que la ×');
+      igual([amp.offsetWidth, amp.offsetHeight, parseFloat(W.getComputedStyle(amp.querySelector('svg')).width)], [32, 32, 18], 'el botón de 32 px con su icono de 18');
+      amp.click(); await espera(60); const red = q('.pp-card [data-pp="ampliar"]');
+      igual([red.getAttribute('aria-label'), caja(red)], ['Reducir', [6, 6, 12, 12]], '«Reducir» no ocupa la caja de la ×');
+      igual([...new Set(trazo(red))], [...new Set(trazo(x))], '«Reducir» con otro trazo que la ×');
+    } finally { M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AV4', 'Tareas recuerda cómo la dejé (D-225): plegar o desplegar Tareas se guarda en sessionStorage («mesa-pp-tareas») y abrir la página lo lee; sin nada guardado (una pestaña nueva), plegada; Clientes, Avisos y el interruptor «Tareas» de Avisos, como al entrar siempre (D-180)', async () => {
+    const SS = W.sessionStorage;
+    try {
+      await paginaAbierta(); igual(SS.getItem('mesa-pp-tareas'), null, 'empieza con algo guardado');
+      igual(M.personal.estado().plg, { tareas: true, clientes: false, avisos: false }, 'una pestaña nueva no empieza con Tareas plegada');
+      await ppClic('[data-pp="plegar"][data-p="tareas"]');
+      igual([M.personal.estado().plg.tareas, SS.getItem('mesa-pp-tareas')], [false, '0'], 'desplegar Tareas no se guarda');
+      await ppClic('[data-pp="plegar"][data-p="clientes"]'); await M.personal.set({ avTareas: true });
+      paginaCerrada(); M.personal.abrir(); await M.personal.render();
+      igual([M.personal.estado().plg, M.personal.estado().avTareas], [{ tareas: false, clientes: false, avisos: false }, false], 'al volver, Tareas no sigue abierta o Clientes y el interruptor no vuelven a como al entrar');
+      ok(q('[data-panel="tareas"]') && !q('[data-panel="tareas"]').classList.contains('fold'), 'Tareas no se dibuja abierta');
+      await ppClic('[data-pp="plegar"][data-p="tareas"]'); igual(SS.getItem('mesa-pp-tareas'), '1', 'plegar Tareas no se guarda');
+      paginaCerrada(); M.personal.abrir(); await M.personal.render(); igual(M.personal.estado().plg.tareas, true, 'al volver, Tareas no sigue plegada');
+    } finally { try { SS.removeItem('mesa-pp-tareas'); } catch (e) { /* */ } paginaCerrada(); }
+  });
+
+  prueba('AV5', 'La sesión se distingue en Tareas (D-226): en Lista, Semana y Mes el título de una sesión va a 600 y su claqueta en --ty-ses-ink; una tarea no cambia; la vencida sigue en rojo y la hecha tachada (y en gris)', async () => {
+    await seListo(); await paginaAbierta();
+    relojEn('2026-10-07T10:00:00+02:00');
+    try {
+      const ses = await M.sesiones._test.crear({ txt: 'Sesión clara', clase: 'foto', fecha: '2026-10-08', hora: '10:00' });
+      const vieja = await M.sesiones._test.crear({ txt: 'Sesión vencida', clase: 'foto', fecha: '2026-10-06', hora: '09:00' });
+      const hecha = await M.sesiones._test.crear({ txt: 'Sesión hecha', clase: 'foto', fecha: '2026-10-08', hora: '12:00' }); await M.personal.hecha(hecha.id);
+      const tk = await M.personal.tarea({ txt: 'Tarea al lado', fecha: '2026-10-09' });
+      await M.personal.set({ plg: { tareas: false, clientes: true, avisos: true }, vista: 'lista' }); await M.personal.render();
+      const cs = e => W.getComputedStyle(e), ink = () => rgbDe(cs(q('#mesa')).getPropertyValue('--ty-ses-ink').trim()).join(), red = () => rgbDe(cs(q('#mesa')).getPropertyValue('--red').trim()).join();
+      const fila = (id, sel) => q(`${sel}[data-tid="${id}"]`);
+      const mira = (vista, sel, tit, ico) => {
+        const s1 = fila(ses.id, sel), t1 = fila(tk.id, sel), h1 = fila(hecha.id, sel); ok(s1 && t1 && h1, `${vista}: falta una fila`);
+        const T = e => tit ? e.querySelector(tit) : e, C = e => e.querySelector(ico);
+        igual([cs(T(s1)).fontWeight, rgbDe(cs(C(s1)).color).join()], ['600', ink()], `${vista}: la sesión no va a 600 con su claqueta en --ty-ses-ink`);
+        ok(cs(T(t1)).fontWeight !== '600', `${vista}: la tarea pasa a 600`);
+        ok(/line-through/.test(cs(T(h1)).textDecorationLine) && cs(T(h1)).fontWeight !== '600', `${vista}: la sesión hecha no va tachada o sigue a 600`);
+      };
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        await M.personal.set({ vista: 'lista' }); await M.personal.render(); mira(`Lista (${t})`, '.pp-tk', '.pp-tt', '.pp-tses');
+        ok(q(`.pp-tk[data-tid="${vieja.id}"] .pp-tf.rojo`), `Lista (${t}): la fecha de la vencida no va en rojo`);
+        await M.personal.set({ vista: 'semana' }); await M.personal.render(); mira(`Semana (${t})`, '.pp-fi', '.pp-tt', '.pp-tses');
+        const v = q(`.pp-fi[data-tid="${vieja.id}"] .pp-tt`); ok(v && rgbDe(cs(v).color).join() === red(), `Semana (${t}): la vencida no va en rojo`);
+        await M.personal.set({ vista: 'mes' }); await M.personal.render(); mira(`Mes (${t})`, '.pp-mt', null, 'svg');
+        const mh = q(`.pp-mt[data-tid="${ses.id}"] .pp-mh`); ok(mh && cs(mh).fontWeight === '400', `Mes (${t}): la hora de la sesión no va a 400, como en Lista y Semana`);
+        const vm = q(`.pp-mt[data-tid="${vieja.id}"]`); ok(vm && rgbDe(cs(vm).color).join() === red(), `Mes (${t}): la vencida no va en rojo`);
+      });
+    } finally { await M.personal.set({ vista: 'lista' }); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  // the vista cliente on and off, as the switch does it
+  async function vistaCliente(on) { const t = q('.clientToggle'); if (t && t.checked !== on) { t.click(); await espera(80); } }
+  // every element seen (in the mesa, its dialogs and a card over it) whose text, title, aria-label or alt says one of `qs`
+  function nombrados(qs) {
+    const out = [], vis = e => e.getClientRects().length && W.getComputedStyle(e).visibility !== 'hidden';
+    for (const e of D.querySelectorAll('#mesa *')) {
+      if (!vis(e) || e.closest('[hidden]')) continue;
+      const own = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join(' ');
+      for (const v of [own, e.getAttribute('title'), e.getAttribute('aria-label'), e.getAttribute('alt'), e.matches('input,textarea') ? e.value : null]) if (v && qs.some(x => v.toLowerCase().includes(x.toLowerCase()))) out.push(e.tagName + '.' + e.className + ': ' + v.slice(0, 60));
+    }
+    return out;
+  }
+
+  prueba('AV6', 'El cliente no ve a otros clientes (D-227): en «Vista cliente» la cabecera solo enseña su pestaña (las demás, ni se ven ni se alcanzan con el teclado) y ningún texto, title, aria-label ni alt visible nombra a otro cliente ni su usuario de Instagram, tampoco con una collab o una sesión compartida abiertas; «uribe.visuals» se queda', async () => {
+    await limpiar(); await sinTareas();
+    const col = { id: 'colav6', name: 'Foto en collab', type: 'Foto', date: `${MES}-05T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), col], past: [], force: true }); await M.flush();
+    await M.updateClient(CLIENTE, { handle: 'prueba.uno' }); await M.updateClient(CLIENTE2, { handle: 'prueba.dos' });
+    const otros = [NOMBRE2, 'prueba.dos'];
+    try {
+      await seListo();
+      const ses = await M.sesiones._test.crear({ txt: 'Sesión de los dos', clase: 'foto', fecha: `${MES}-10`, hora: '10:00', clientes: [CLIENTE, CLIENTE2] });
+      await M.personal._p.cambiar(ses.id, x => { seAp(x, 'orden').texto = 'Primero la luz'; return x; });
+      paginaCerrada(); M._in.render(); await hasta(() => q('.side > .cal .chip[data-ses]'), 4000, 'el chip de la sesión');
+      ok(qa('.tabs .tab').filter(t => t.getClientRects().length).length === 2, 'en mi vista no salen las dos pestañas');
+      await vistaCliente(true);
+      const vis = qa('.tabs .tab').filter(t => t.getClientRects().length);
+      igual(vis.map(t => t.dataset.id), [CLIENTE], 'en «Vista cliente» sale otra pestaña que la suya');
+      ok(qa('#mesa button, #mesa [tabindex]').filter(e => e.getClientRects().length && e.tabIndex >= 0).every(e => !(e.dataset.act === 'client' && e.dataset.id !== CLIENTE)), 'la pestaña de otro cliente se alcanza con el teclado');
+      igual(nombrados(otros), [], 'el tablero nombra a otro cliente');
+      // a collab's preview
+      q('.cell[data-slot="colav6"]').click(); await hasta(() => q('.detail:not([hidden]) .igwrap'), 3000, 'la previsualización de la collab');
+      igual(nombrados(otros), [], 'la previsualización de la collab nombra al otro cliente');
+      ok(/uribe\.visuals/.test(q('.detail .igwrap').textContent), '«Les gusta a uribe.visuals» se ha ido');
+      M._in.closeDetail(); await espera(40);
+      // a shared session's sheet, from the calendar
+      q(`.side > .cal .chip[data-ses="${ses.id}"]`).click(); await hasta(() => q('.pp-ov .pp-hj'), 3000, 'la hoja de la sesión');
+      igual(nombrados(otros), [], 'la hoja de una sesión compartida nombra al otro cliente');
+      M.personal._p.cerrarCard(true); await espera(40);
+      // the tab of another client, clicked from code, doesn't open it
+      const otra = q(`.tabs .tab[data-id="${CLIENTE2}"]`); if (otra) { otra.click(); await espera(150); } igual(M.board().client, CLIENTE, 'desde «Vista cliente» se llega a otro cliente');
+    } finally { await vistaCliente(false); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } await M.updateClient(CLIENTE, { handle: '' }); await M.updateClient(CLIENTE2, { handle: '' }); await sinTareas(); }
+  });
+
+  prueba('AV7', 'Sin lo que no se usa (D-228): en «Vista cliente», sin «Feed / Historias» en un mes sin historias que vea (y de «Historias» vuelve a «Feed»), sin el logo (su sitio se queda), sin «Total de <mes>», sin «Editar» en la previsualización, sin ‹ › sin otro mes; en la hoja, sin apartados vacíos («Aún sin detalles» si no queda ninguno), sin pestañas de Planos ni grupos vacíos, y el separador quieto; en mi vista, todo como estaba', async () => {
+    await sinTareas(); await tablero([pub(1), pub(2)]);
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', slots: [pub(9, 'Foto', 3, '2026-12')], past: [], force: true }); await M.flush();
+    await M.open(`${CLIENTE}-${MES}`); await espera(100);
+    const [fid] = await M.addFiles([await foto('av7.jpg', 1080, 1920)]);
+    const hid = M.hs.anadir(`${MES}-04`, { time: '10:00' }); conFichero(hid, fid); await M.flush(); M._in.render(); await espera(60);
+    try {
+      ok(q('.bar .hvsw'), 'en mi vista no sale «Feed / Historias»');
+      await vistaCliente(true);
+      ok(q('.bar .hvsw'), 'con una historia diseñada no sale «Feed / Historias»');
+      // logo: hidden, its place kept
+      const lg = q('.appbar .brand'); ok(lg && W.getComputedStyle(lg).visibility === 'hidden' && lg.getBoundingClientRect().width > 10, 'el logo se ve o pierde su sitio');
+      // no total, no ‹ › with one month
+      ok(!q('.side > .cal .ctot'), 'sale «Total de …»');
+      ok(!q('.side > .cal .cnav button'), 'salen ‹ › sin otro mes en el tablero');
+      // the preview has no «Editar»
+      q('.cell[data-slot="r1"]').click(); await hasta(() => q('.detail:not([hidden]) .igwrap'), 3000, 'la previsualización');
+      ok(!q('.detail .igedit'), 'la previsualización tiene «Editar»'); M._in.closeDetail(); await espera(40);
+      // «Historias», then a month without stories: back to «Feed», no switch
+      q('.bar .hvsw [data-v="1"]').click(); await espera(80); ok(q('#mesa').classList.contains('hv-on'), 'no pasa a «Historias»');
+      await M.open(`${CLIENTE}-2026-12`); await espera(150);
+      ok(!q('.bar .hvsw') && !q('#mesa').classList.contains('hv-on') && !q('.main > section.hv:not([hidden])'), 'en un mes sin historias sigue «Historias» o su conmutador: ' + json([M.board().key, !!q('.bar .hvsw'), q('#mesa').classList.contains('hv-on'), !!q('.main > section.hv:not([hidden])'), q('#mesa').classList.contains('client'), M.hs.lista().length]));
+      await vistaCliente(false); ok(q('.bar .hvsw'), 'al salir de «Vista cliente» no vuelve «Feed / Historias»');
+      // my calendar on the previous month, then the vista cliente: back to its month (without ‹ › it couldn't)
+      await M.open(`${CLIENTE}-2026-12`); await espera(120); M._in.render(); const pv = await hasta(() => q('.side > .cal [data-cal="prev"]:not([disabled])'), 3000, '‹'); pv.click(); await espera(60);
+      ok(!/diciembre/i.test(q('.side > .cal .cmes').textContent), 'no va al mes anterior');
+      await vistaCliente(true); ok(/diciembre/i.test(q('.side > .cal .cmes').textContent) && !q('.side > .cal .cnav button'), 'en «Vista cliente» el calendario se queda en otro mes sin ‹ ›: ' + q('.side > .cal .cmes').textContent);
+      await vistaCliente(false);
+      await M.open(`${CLIENTE}-${MES}`); await espera(150);
+      ok(q('.side > .cal .ctot') && q('.side > .cal .cnav button') && W.getComputedStyle(q('.appbar .brand')).visibility === 'visible', 'en mi vista falta el total, ‹ › o el logo');
+      // the sheet, as the client sees it
+      await seListo(); await seLista();
+      const ses = await M.sesiones._test.crear({ txt: 'Con huecos', clase: 'fotovideo', fecha: `${MES}-10`, hora: '10:00', clientes: [CLIENTE] });
+      const blob = await (await foto('av7b.jpg', 900, 600)).arrayBuffer();
+      await M._in.idbPut('tfotos', 'tfav7', { id: 'tfav7', w: 900, h: 600, blob: new W.Blob([blob], { type: 'image/jpeg' }), mini: new W.Blob([blob], { type: 'image/jpeg' }), t: Date.now() });
+      await M.personal._p.cambiar(ses.id, x => { x.fotos = [{ id: 'tfav7', w: 900, h: 600 }];
+        seAp(x, 'orden').texto = ' \n  \n'; seAp(x, 'fotos').texto = 'Retratos';
+        const pl = seAp(x, 'planos'); pl.pestanas = [{ id: 'p1', nombre: 'Planos', items: [{ id: 'i1', titulo: 'Solo título' }] }, { id: 'p2', nombre: 'Vídeos', items: [] }];
+        seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Con fotos', modo: 'linea', fotos: ['tfav7'] }, { id: 'g2', nombre: 'Sin fotos', modo: 'linea', fotos: [] }]; seAp(x, 'material').visible = true; return x; });
+      paginaCerrada(); M._in.render(); await vistaCliente(true);
+      const chip = await hasta(() => q(`.side > .cal .chip[data-ses="${ses.id}"]`), 4000, 'el chip de la sesión'); chip.click();
+      const hoja = await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'la hoja fija en «Ver como el cliente»');
+      const aps = () => qa('.pp-hj .pp-hj-ap').map(a => a.dataset.ap).sort();
+      igual(aps(), ['fotos', 'material', 'mood', 'planos'], 'los apartados que se ven (Orden está vacío)');
+      igual(qa('.pp-hj [data-ap="planos"] .pp-pl-tab .pp-pl-tn').map(t => t.textContent.trim()), ['Planos'], 'una pestaña de Planos sin elementos sale');
+      igual(qa('.pp-hj [data-ap="mood"] .pp-mo-g').map(g => g.dataset.g), ['g1'], 'un grupo sin fotos sale');
+      const sep = q('.pp-hj .pp-hj-sep');
+      if (sep) {
+        ok(sep.classList.contains('fija') && !sep.hasAttribute('tabindex') && !sep.hasAttribute('role') && !sep.title && W.getComputedStyle(sep, '::after').display === 'none' && W.getComputedStyle(sep, '::before').width === '1px', 'el separador se mueve, se alcanza o pierde su línea');
+        const r0 = json(M.sesiones._test.reparto()), b = sep.getBoundingClientRect();
+        sep.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: b.x + 8, clientY: b.y + 50, pointerId: 1 }));
+        D.dispatchEvent(new W.PointerEvent('pointermove', { bubbles: true, clientX: b.x + 140, clientY: b.y + 50, pointerId: 1 })); D.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, clientX: b.x + 140, clientY: b.y + 50, pointerId: 1 }));
+        sep.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, detail: 2 })); await espera(60);
+        igual(json(M.sesiones._test.reparto()), r0, 'el separador se mueve en «Vista cliente»');
+      }
+      M.personal._p.cerrarCard(true); await espera(40);
+      // all empty: «Aún sin detalles»
+      await M.personal._p.cambiar(ses.id, x => { seAp(x, 'fotos').texto = ''; seAp(x, 'planos').pestanas = [{ id: 'p1', nombre: 'Planos', items: [] }]; seAp(x, 'mood').grupos = []; seAp(x, 'material').material = { lista: [], hechos: [], plantilla: 'nada' }; return x; });
+      q(`.side > .cal .chip[data-ses="${ses.id}"]`).click(); await hasta(() => q('.pp-ov .pp-hj.vc'), 3000, 'la hoja');
+      igual([qa('.pp-hj .pp-hj-ap').length, (q('.pp-hj .pp-hj-nada') || {}).textContent], [0, 'Aún sin detalles'], 'sin nada que ver no dice «Aún sin detalles»');
+      { const nom = q('.pp-hj .pp-hj-nom'); cerca(q('.pp-hj .pp-hj-nada').getBoundingClientRect().left, nom.getBoundingClientRect().left + parseFloat(W.getComputedStyle(nom).paddingLeft), 1.5, '«Aún sin detalles» no empieza donde el texto del título'); }
+      ok(q('.pp-hj').getBoundingClientRect().height < W.innerHeight * 0.6, 'con una línea, la hoja sigue de toda la altura');
+      M.personal._p.cerrarCard(true); await vistaCliente(false);
+      // in my page, «Ver como el cliente» follows the same rules; my sheet, as it was
+      await paginaAbierta(); await seAbrir(ses.id);
+      ok(qa('.pp-hj .pp-hj-ap').length >= 4, 'en mi hoja faltan los apartados vacíos');
+      seQ('[data-hj="vista"]').click(); await espera(60);
+      igual((q('.pp-hj .pp-hj-nada') || {}).textContent, 'Aún sin detalles', '«Ver como el cliente» enseña lo vacío');
+    } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } await vistaCliente(false); paginaCerrada(); await sinTareas(); await sinMes(`${CLIENTE}-2026-12`); }
+    // a board of one cycle from day 22 covers two months of the calendar: ‹ › stay in the vista cliente
+    try {
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 22, slots: [{ id: 'c22a', name: 'Foto 1.1', type: 'Foto', date: '2026-11-25T12:00:00.000+01:00' }, { id: 'c22b', name: 'Foto 1.2', type: 'Foto', date: '2026-12-10T12:00:00.000+01:00' }], past: [], force: true }); await M.flush();
+      M._in.render(); await vistaCliente(true); await espera(60);
+      const nx = q('.side > .cal [data-cal="next"]'), pv2 = q('.side > .cal [data-cal="prev"]'); ok(nx || pv2, 'un ciclo del 22 al 21 pierde ‹ › en «Vista cliente»');
+      if (nx && !nx.disabled) { nx.click(); await espera(60); } ok(q('.side > .cal .chip[data-slot="c22b"]') || (pv2 && !pv2.disabled), 'la publicación del 10 dic no se alcanza');
+    } finally { await vistaCliente(false); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await limpiar(); }
+  });
+
+  prueba('AV8', 'Σ fuera (D-229): el calendario no tiene recuento semanal en ninguna vista (sin botón Σ ni columna, 7 columnas, sin .nocnt, «mesa-cal-recuento» no se lee); «Total de <mes>» sale siempre en mi vista, en su fila, y nunca en «Vista cliente»', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    const ls0 = W.localStorage.getItem('mesa-cal-recuento');
+    try {
+      W.localStorage.setItem('mesa-cal-recuento', '1'); M._in.render(); await hasta(() => q('.side > .cal .cgrid'), 4000, 'el calendario');
+      ok(!q('.side > .cal [data-cal="cnt"]') && !q('.side > .cal .ccnt') && !q('.side > .cal.nocnt'), 'sigue Σ o su columna');
+      igual(W.getComputedStyle(q('.side > .cal .cgrid')).gridTemplateColumns.split(' ').length, 7, 'la rejilla no tiene 7 columnas');
+      const t = q('.side > .cal .ctot'); ok(t && /^Total de noviembre\s*3$/.test(t.textContent.trim()) && W.getComputedStyle(t).gridColumnStart === '1', 'sin «Total de noviembre 3» en su fila: ' + (t && t.textContent));
+      ok(t.getBoundingClientRect().top >= qa('.side > .cal .cday').reduce((m, d) => Math.max(m, d.getBoundingClientRect().bottom), 0) - 1, 'el total no va debajo de los días');
+      W.localStorage.setItem('mesa-cal-recuento', '0'); M._in.render(); ok(q('.side > .cal .ctot'), 'el total depende de «mesa-cal-recuento»');
+      await vistaCliente(true); ok(!q('.side > .cal .ctot') && !q('.side > .cal .ccnt'), 'en «Vista cliente» sale el total o Σ');
+    } finally { await vistaCliente(false); if (ls0 == null) W.localStorage.removeItem('mesa-cal-recuento'); else W.localStorage.setItem('mesa-cal-recuento', ls0); }
+  });
+
+  prueba('AV9', 'La estructura de la «Vista cliente» (D-230): con partes dadas por M._in.vc (contenido de prueba), pestañas «Calendario · <otra>» sobre el calendario (sin su título ni su pliegue) y a la derecha una columna de 360 px en su orden, con el feed como en el dibujo; sin contenido, la página de siempre; nunca en mi vista; siguen al mes del calendario', async () => {
+    await tablero([pub(1), pub(2)]);
+    const V = M._in.vc, fr = $('mesa'), w0 = fr.style.width;
+    ok(V && typeof V.poner === 'function' && typeof V.quitar === 'function', 'sin M._in.vc');
+    const meses = [];
+    try {
+      await vistaCliente(true);
+      V.poner('pestana', { id: 'av9p', titulo: 'Por qué este calendario', orden: 10, html: c => { meses.push(c.mes); return c.mes === MES && c.cliente === CLIENTE ? '<p>Porque sí</p>' : ''; } });
+      V.poner('lado', { id: 'av9b', orden: 20, html: () => '<h2>Cómo fue</h2>' });
+      V.poner('lado', { id: 'av9a', orden: 10, html: () => '<h2>Tus pagos</h2>' });
+      await espera(60); ok(meses.includes(MES), 'la parte no recibe el mes del calendario');
+      igual(qa('.side > .cal .vcp-tab').map(t => [t.textContent, t.getAttribute('aria-selected')]), [['Calendario', 'true'], ['Por qué este calendario', 'false']], 'las pestañas');
+      ok(!q('.side > .cal .cfold') && q('.side > .cal .cgrid'), 'con pestañas el calendario sigue con su título o pliegue');
+      const col = q('.main > .vc-lado'); ok(col, 'sin la columna derecha');
+      igual([...col.children].map(e => e.dataset.vc), ['av9a', 'av9b'], 'las partes de la columna, en su orden');
+      cerca(col.getBoundingClientRect().width, 360, 1, 'la columna no mide 360 px');
+      cerca(q('.main > .feed').getBoundingClientRect().width, Math.min(440, W.innerWidth * 0.32), 1, 'el feed no mide como en el dibujo');
+      V.poner('pestana', { id: 'av9p', titulo: 'Por qué este calendario', orden: 10, html: c => c.mes === MES && c.cliente === CLIENTE ? '<p>Porque sí</p>' + '<p>Línea</p>'.repeat(80) : '' }); await espera(40);
+      q('.side > .cal .vcp-tab[data-t="av9p"]').click(); await espera(40);
+      ok(q('.side > .cal .vcp-panel') && /Porque sí/.test(q('.side > .cal .vcp-panel').textContent) && !q('.side > .cal .cgrid'), 'la pestaña no enseña su contenido');
+      const pan = q('.side > .cal .vcp-panel'); pan.scrollTop = 200; const st0 = pan.scrollTop; M._in.render(); await espera(40);
+      ok(q('.side > .cal .vcp-panel') === pan && pan.scrollTop === st0 && st0 > 0, 'el panel se dibuja otra vez o pierde su desplazamiento: ' + pan.scrollTop);
+      // a part that throws (its title or its content) doesn't show, and the calendar goes on
+      V.poner('pestana', { id: 'av9x', titulo: () => { throw new Error('x'); }, orden: 20, html: () => '<p>x</p>' }); V.poner('lado', { id: 'av9y', orden: 30, html: () => { throw new Error('y'); } }); await espera(40);
+      ok(!q('.side > .cal .vcp-tab[data-t="av9x"]') && !q('.vc-lado [data-vc="av9y"]') && q('.side > .cal .vcp-tab[data-t="av9p"]'), 'una parte que falla rompe el calendario o sale');
+      V.quitar('pestana', 'av9x'); V.quitar('lado', 'av9y');
+      q('.side > .cal .vcp-tab[data-t="cal"]').click(); await espera(40); ok(q('.side > .cal .cgrid'), 'no vuelve al calendario');
+      // my view: nothing of it
+      await vistaCliente(false); ok(!q('.side > .cal .vcp-tab') && q('.side > .cal .cfold') && (!q('.main > .vc-lado') || !q('.main > .vc-lado').getClientRects().length), 'sale en mi vista');
+      await vistaCliente(true);
+      // 720: one column, the page scrolls, the calendar not folded
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); M._in.render(); await espera(100);
+      const ys = ['.main > .feed', '.side > .cal', '.main > .vc-lado'].map(s => q(s).getBoundingClientRect().top);
+      ok(ys[0] < ys[1] && ys[1] < ys[2], 'a 720 px no van en una columna en su orden');
+      ok(!q('.side > .cal').classList.contains('fold') && W.getComputedStyle(q('.main')).overflowY === 'auto' && W.getComputedStyle(q('#mesa')).overflowY !== 'auto', 'a 720 px el calendario va plegado o no se desliza su columna (nunca #mesa)');
+      q('.main').scrollTop = 300; await espera(40); q('.cell[data-slot="r1"]').click(); const dl = await hasta(() => q('.detail:not([hidden])'), 3000, 'la previsualización');
+      ok(Math.abs(dl.getBoundingClientRect().top) < 1 && q('#mesa').scrollTop === 0, 'a 720 px, desplazada, la previsualización se abre fuera de su sitio: ' + dl.getBoundingClientRect().top); M._in.closeDetail(); q('.main').scrollTop = 0;
+      fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(200);
+      // without content: the page as before
+      V.quitar('pestana', 'av9p'); V.quitar('lado', 'av9a'); V.quitar('lado', 'av9b'); await espera(40);
+      ok(!q('.side > .cal .vcp-tab') && q('.side > .cal .cfold') && !q('.main > .vc-lado') && !q('#mesa').classList.contains('vc-lado-on'), 'sin contenido queda algo de la estructura');
+    } finally { fr.style.width = w0; for (const [z, i] of [['pestana', 'av9p'], ['lado', 'av9a'], ['lado', 'av9b'], ['pestana', 'av9x'], ['lado', 'av9y']]) V.quitar(z, i); await vistaCliente(false); }
+  });
+
+  prueba('AV10', 'Pendientes de las revisiones (D-231): b) con el fin el mismo día, el icono de su calendario solo al pasar o con foco y guarda su sitio; c) esquinas rectas donde continúa una sesión de varios días, por sus días reales, en el calendario y en Semana y Mes; d) texto que se lee en --mute y lo desactivado en --faint; e) «Fecha» y «Cliente» vacíos solo al pasar, con su sitio; f) ampliar y reducir con una transición de 0,2 s hecha con transformaciones, sin redibujar, y sin ella con «reducir movimiento»', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-03T10:00:00+01:00');
+    const cs = e => W.getComputedStyle(e), tok = n => rgbDe(cs(q('#mesa')).getPropertyValue(n).trim()).join(), col = e => rgbDe(cs(e).color).join();
+    const mm0 = W.matchMedia;
+    try {
+      await seListo(); await seLista(); await paginaAbierta();
+      // b) the end the same day
+      const s1 = await M.sesiones._test.crear({ txt: 'Mismo día', clase: 'foto', fecha: '2026-11-05', hora: '12:00', fin: { fecha: '2026-11-05', hora: '14:00' }, clientes: [CLIENTE] });
+      await seAbrir(s1.id); await espera(60);
+      const cal = seQ('.pp-hj-ff.mismo .mx-cal');
+      ok(cs(cal).opacity === '0' && cal.getBoundingClientRect().width > 10, 'el icono del calendario del fin se ve sin pasar o pierde su sitio');
+      ok(deRegla(/\.pp-hj-fh:hover \.pp-hj-ff\.mismo \.mx-cal/, 'opacity') === '1' && deRegla(/\.pp-hj-fh:focus-within \.pp-hj-ff\.mismo \.mx-cal/, 'opacity') === '1', 'al pasar o con foco no sale el icono');
+      igual(qa('.pp-hj-fh .mx-f .mx-in').filter(i => i.getClientRects().length && i.offsetWidth > 4).map(i => i.value).filter(v => /:/.test(v)), ['12:00', '14:00'], 'no se lee «12:00 – 14:00»');
+      { const gu = seQ('.pp-hj-fh .pp-hj-gu').getBoundingClientRect(), fh = seQ('.pp-hj-fh input[data-hj="fin-hora"]')._mx.getBoundingClientRect(); ok(fh.left - gu.right < 16, 'el sitio del icono queda entre «–» y la hora de fin: ' + (fh.left - gu.right)); }
+      // d) a tab of Planos not chosen, «Sin referencia» in --mute
+      const tabNo = q('.pp-hj [data-ap="planos"] .pp-pl-tab:not(.on)'); if (tabNo) igual(col(tabNo), tok('--mute'), 'la pestaña no elegida no va en --mute');
+      M.personal._p.cerrarCard(true); await espera(40);
+      // c) three days, in the calendar and in Semana and Mes
+      const s2 = await M.sesiones._test.crear({ txt: 'Tres días', clase: 'foto', fecha: '2026-11-10', hora: '09:00', fin: { fecha: '2026-11-12' }, clientes: [CLIENTE] });
+      const s3 = await M.sesiones._test.crear({ txt: 'Desde octubre', clase: 'foto', fecha: '2026-10-31', fin: { fecha: '2026-11-02' }, clientes: [CLIENTE] });
+      const esq = e => [cs(e).borderTopLeftRadius === '0px', cs(e).borderTopRightRadius === '0px'];
+      paginaCerrada(); M._in.render(); await hasta(() => qa(`.side > .cal .chip[data-ses="${s2.id}"]`).length === 3 && qa(`.side > .cal .chip[data-ses="${s3.id}"]`).length === 2, 4000, 'los chips de las sesiones de varios días');
+      igual(qa(`.side > .cal .chip[data-ses="${s2.id}"]`).map(esq), [[false, true], [true, true], [true, false]], 'las esquinas del calendario (primero, medio, último)');
+      igual(qa(`.side > .cal .chip[data-ses="${s3.id}"]`).map(esq), [[true, true], [true, false]], 'las esquinas de una sesión que empezó antes de lo que se ve');
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: true, avisos: true }, vista: 'semana', tsem: 1 }); await M.personal.render();
+      igual(qa(`.pp-fi[data-tid="${s2.id}"]`).map(esq), [[false, true], [true, true], [true, false]], 'las esquinas en Semana');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render();
+      igual(qa(`.pp-mt[data-tid="${s2.id}"]`).map(esq), [[false, true], [true, true], [true, false]], 'las esquinas en Mes');
+      // d) and e) a task without date nor client
+      await M.personal.set({ vista: 'lista' }); await M.personal.render();
+      const tk = await M.personal.tarea({ txt: 'Sin fecha ni cliente' });
+      M.personal._p.abrirCard(tk.id); await hasta(() => q('.pp-card .pp-cml.vacio'), 3000, 'la tarjeta');
+      const vs = qa('.pp-card .pp-cml.vacio'); igual(vs.length, 2, 'sin «Fecha» y «Cliente»');
+      ok(vs.every(v => cs(v).opacity === '0' && v.getBoundingClientRect().width > 20 && col(v) === tok('--mute')), '«Fecha» y «Cliente» se ven sin pasar, pierden su sitio o no van en --mute');
+      ok(deRegla(/\.pp-cm:hover \.pp-cml\.vacio/, 'opacity') === '1', 'al pasar no salen «Fecha» y «Cliente»');
+      // f) widening: a transform of 0.2 s with --ease-m, nothing drawn again
+      const card = q('.pp-card'); let cambios = 0; const mo = new W.MutationObserver(l => { cambios += l.filter(m => m.type === 'childList' && m.target !== q('.pp-card [data-pp="ampliar"]')).length; }); mo.observe(card, { childList: true, subtree: true });
+      q('.pp-card [data-pp="ampliar"]').click(); await espera(20);
+      const an = card.getAnimations().find(a => !a.animationName && a.effect && a.effect.getTiming().duration === 200);
+      ok(an && /cubic-bezier\(0?\.32, ?0?\.72, ?0, ?1\)/.test(an.effect.getTiming().easing) && an.effect.getKeyframes().some(k => /scale/.test(k.transform)), 'ampliar sin su transición de 0,2 s con --ease-m: ' + json([card.classList.contains('amplia'), card.getAnimations().map(a => [a.effect.getTiming().duration, a.effect.getTiming().easing, a.animationName || ''])]));
+      await espera(260); mo.disconnect(); igual(cambios, 0, 'ampliar vuelve a dibujar la tarjeta');
+      // twice in a row (before the first ends): it ends widened or reduced in its place, without a jump
+      const a0 = card.classList.contains('amplia');
+      q('.pp-card [data-pp="ampliar"]').click(); await espera(60); q('.pp-card [data-pp="ampliar"]').click(); await espera(300);
+      ok(card.classList.contains('amplia') === a0 && Math.abs(card.getBoundingClientRect().width - card.offsetWidth) < 1 && !card.getAnimations().some(x => !x.animationName && x.playState === 'running'), 'dos veces seguidas no acaba en su sitio');
+      M.personal._p.cerrarCard(true);
+      // a note being written: its marks' layer, measured once widened (never half way)
+      const nt = await M.personal.tarea({ tipo: 'nota', txt: '- uno\n- dos\n- tres\n- cuatro\n[] cinco\n[] seis' }); await M.personal.render();
+      M.personal._p.abrirCard(nt.id, { ed: true }); await espera(400);
+      const cn = q('.pp-card [data-pp="cn"][contenteditable]');
+      if (cn && cn._esc) { q('.pp-card [data-pp="ampliar"]').click(); await espera(320); const capa = cn.nextElementSibling, h0 = capa.innerHTML; cn._esc.dibujar(); igual(capa.innerHTML, h0, 'tras ampliar, las viñetas y casillas de la nota no van en su sitio'); }
+      M.personal._p.cerrarCard(true); await espera(60);
+      M.personal._p.abrirCard(tk.id); await espera(400);
+      W.matchMedia = qy => /reduce/.test(qy) ? { matches: true, addEventListener() {}, removeEventListener() {} } : mm0.call(W, qy);
+      q('.pp-card [data-pp="ampliar"]').click(); await espera(20);
+      ok(q('.pp-card').classList.contains('amplia') && !q('.pp-card').getAnimations().some(a => !a.animationName && a.effect && a.effect.getTiming().duration === 200), 'con «reducir movimiento» hay transición (o no se amplía)');
+      W.matchMedia = mm0;
+      M.personal._p.cerrarCard(true);
+      // d) what is disabled stays in --faint
+      paginaCerrada(); M._in.render(); await espera(40);
+      const dis = q('.side > .cal .cnav button:disabled'); ok(dis, 'sin una flecha desactivada'); igual(col(dis), tok('--faint'), 'una flecha desactivada no va en --faint');
+    } finally { W.matchMedia = mm0; try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+
+  // =====================================================================================================
   const filas = $('filas');
   function fila(t) {
     const tr = document.createElement('tr'); tr.id = 'p-' + t.id;
@@ -15369,6 +15802,7 @@
         tr.className = 'corre'; tr.querySelector('.r').textContent = 'corre';
         $('resumen').textContent = `Pasando ${t.id}…`;
         let err = null, reloj;
+        try { W.sessionStorage.removeItem('mesa-pp-tareas'); } catch (e) { /* */ }   // Tareas folded as each test starts (D-225)
         try { await Promise.race([t.fn(), new Promise((_, no) => { reloj = setTimeout(() => no(new Error(`sin terminar en ${MAX_MS / 1000} s`)), MAX_MS); })]); }
         catch (e) { err = e; }
         finally { clearTimeout(reloj); }

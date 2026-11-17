@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.16';   // 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
+  const VERSION = '1.17';   // 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -370,7 +370,8 @@
   const disenarHistoria = (id, datos, opts) => { const pr = colaD.then(() => disenar(id, datos || {}, opts || {})); colaD = pr.catch(() => {}); return pr; };
 
   // ---------- the view ----------
-  const barra = () => { const n = lista().filter(cliente() ? paraCliente : h => !h.cancelada).length; return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
+  // in the vista cliente, a month without a story it can see has no «Feed / Historias»; seeing «Historias», back to «Feed» (D-228)
+  const barra = () => { const cl = cliente(), n = lista().filter(cl ? paraCliente : h => !h.cancelada).length; if (cl && !n) { if (ON) { ON = false; queueMicrotask(render); } return ''; } return `<div class="hvsw" role="group" aria-label="Qué se ve"><button type="button" data-hv="ver" data-v="0" aria-pressed="${!ON}"${ON ? '' : ' class="on"'}>Feed</button><button type="button" data-hv="ver" data-v="1" aria-pressed="${ON}"${ON ? ' class="on"' : ''}>Historias${n ? ` <i>${n}</i>` : ''}</button></div>`; };
   function ver(on) { ON = !!on; const X = I(); if (!X) return; render(); X.renderBar(); }
   function dias() {                            // the board's days, and any a story has moved beyond them (with its post)
     const X = I(), ms = X.boardMonths(), cd = X.curCd(), lo = X.cycleStart(ms[0], cd), hi = X.cycleEnd(ms[ms.length - 1], cd), out = new Set();
@@ -508,7 +509,11 @@
   }
   function onChange(e) {
     const t = e.target, c = t.dataset && t.dataset.hvC;
-    if (t.matches && t.matches('.clientToggle')) { render(); const sw = I().root().querySelector('.hvsw'); if (sw) sw.outerHTML = barra(); return; }   // the mesa only changes its class
+    if (t.matches && t.matches('.clientToggle')) {   // the mesa only changes its class: the switch goes out or comes back in its place
+      const bar = I().root().querySelector('.bar'), sw = bar && bar.querySelector('.hvsw'), h = barra();
+      if (sw) sw.outerHTML = h; else if (h && bar) { const ref = bar.querySelector('.dlbtn, .memobtn, .rvbtn, label.sw'); if (ref) ref.insertAdjacentHTML('beforebegin', h); }
+      render(); return;
+    }
     if (!c || !abierta) return;
     const h = porId(abierta); if (!h) return;
     const X = I(), box = t.closest('.hv-form');

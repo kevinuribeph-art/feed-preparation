@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.5';   // 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.6';   // 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -19,6 +19,7 @@
   const INI = ['D', 'L', 'M', 'X', 'J', 'V', 'S'], DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   const LS_FILA = 'mesa-pp-fila', LS_ALC = 'mesa-pp-alcance', LS_VISTA = 'mesa-pp-vista';   // remembered in this browser
   const SS_CLI = 'mesa-pp-cliente';            // this tab left the page for a client: a reload stays there
+  const SS_TAREAS = 'mesa-pp-tareas';          // Tareas folded ('1') or open ('0') as this tab left it (D-225); a new tab, folded
   const TOPE = 8;                              // lines of a group before «N más»
   const FOTO_PX = 1600, MINI_PX = 160;         // a task's photo, lowered; and the thumbnail drawn
   const svg = b => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${b}</svg>`;
@@ -31,7 +32,8 @@
     texto: svg('<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>'),
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
     x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
-    ampliar: svg('<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/>'),
+    // maximize-2 and minimize-2 drawn in the ×'s box, units 6 to 18 of 24 (12 + (v − 12) · 2/3), the same stroke (D-224)
+    ampliar: svg('<path d="M14 6h4v4"/><path d="m18 6-4.667 4.667"/><path d="m6 18 4.667-4.667"/><path d="M10 18H6v-4"/>'),
     sesion: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
     camara: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
     video: svg('<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>'),
@@ -45,7 +47,7 @@
     mas3: svg('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'),
     asa: svg('<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>'),
     chev: svg('<path d="m6 9 6 6 6-6"/>'),
-    reducir: svg('<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>')
+    reducir: svg('<path d="m13.333 10.667 4.667-4.667"/><path d="M17.333 10.667h-4V6.667"/><path d="m6 18 4.667-4.667"/><path d="M6.667 13.333h4v4"/>')
   };
   const ES = () => (M.escritura && M.escritura.html ? M.escritura : null);   // the quick writing (escritura.js, D-202); without it, plain text as before
   const leerTxt = (t, o) => { const E = ES(); return E ? E.html(t, o) : esc(t); };
@@ -305,7 +307,9 @@
     if (x.cat === 'espera') { const r = []; if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
     // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too
     const sin = (x.cat === 'hoy' || x.cat === 'man' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
-    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
+    // today's, louder than tomorrow's: the row tinted amber, its band, time and state in --chg (D-222); by row, as «Hoy» and
+    // «Mañana» share the group
+    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}${sin && x.cat === 'hoy' ? ' pp-avhoy' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
   // «Hoy N» the group's title and «Mañana N» under it; nothing today and something tomorrow: «Nada para hoy»; with the figure
   // «Hoy» only today's, with «Mañana» only tomorrow's (D-212)
@@ -397,7 +401,9 @@
     const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
     const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${k.tipo === 'sesion' && k.fin ? esc(tramo(k, diaTxt)) : diaTxt(k.fecha) + hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date
-    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora && (!celda || celda === k.fecha) ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
+    // a session of several days goes on: square corners where it continues, by its real days (D-231)
+    const sigue = (k, d) => k.tipo === 'sesion' && d && enTramo(k, d) && ultDia(k) > k.fecha ? `${k.fecha < d ? ' sigue-i' : ''}${d < ultDia(k) ? ' sigue-d' : ''}` : '';
+    const ficha = k => `<div class="pp-fi${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, celda)}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${k.tipo === 'sesion' && k.hora && (!celda || celda === k.fecha) ? `<em>${esc(k.hora)}</em> ` : ''}${esc(k.txt)}${venc(k) && k.fecha !== celda ? ` <i>${esc(corto(k.fecha))}</i>` : ''}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k, 'mini')}${av(k)}</div>`;
     const cli = st.tcli ? cliDe(st.tcli) : null, N = st.nueva;
     const pend = N.fotos.length ? `<span class="pp-tfo pp-npend"><img src="${fotosURL(N.fotos[0])}" alt="">${N.fotos.length > 1 ? `<b>${N.fotos.length}</b>` : ''}</span>` : '';
     const nfecha = `<span class="pp-ncampo${N.fecha ? '' : ' vacio'}" data-k="fecha"><input type="date" class="pp-nfecha" data-sin-fecha value="${esc(N.fecha)}" aria-label="Fecha de la tarea"></span>`;
@@ -434,7 +440,7 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `${esc(k.hora)} ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}${sigue(k, d)}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -527,7 +533,7 @@
     const clave = enPag ? (a.dataset.pp ? `[data-pp="${a.dataset.pp}"]${a.dataset.id ? `[data-id="${CSS.escape(a.dataset.id)}"]` : ''}${a.dataset.k ? `[data-k="${CSS.escape(a.dataset.k)}"]` : ''}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ''}${a.dataset.v ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ''}${a.dataset.r ? `[data-r="${CSS.escape(a.dataset.r)}"]` : ''}${a.dataset.n ? `[data-n="${CSS.escape(a.dataset.n)}"]` : ''}${a.dataset.p ? `[data-p="${CSS.escape(a.dataset.p)}"]` : ''}` : null) : null;
     const inp = page.querySelector('[data-pp="nueva"]'), txt = inp ? inp.value : '', sel = inp && a === inp ? [inp.selectionStart, inp.selectionEnd] : null;
     const y = page.scrollTop;
-    page.innerHTML = html;
+    morfar(page, html);                        // in place: nothing runs its entrance again nor is drawn again (D-223)
     if (M.controles && M.controles.mejorar) M.controles.mejorar(page);
     const n = page.querySelector('[data-pp="nueva"]'); if (n && txt) n.value = txt;
     if (n && ES() && ES().enCampo) ES().enCampo(n, { comandos: () => (EXT.sesion && EXT.sesion.nueva ? ['sesion'] : []), alComando: (k, ctx) => comando(k, ctx, 'nueva') });
@@ -579,8 +585,10 @@
     if (M.diseno && M.diseno.abierto && M.diseno.abierto()) return false;
     const det = root.querySelector('.detail'); if (det && !det.hidden && X.closeDetail) X.closeDetail();
     if (CARD && CARD.tablero) cerrarCard();    // a session's sheet over the board (D-219)
-    // each visit starts the same (D-180): Tareas folded, Clientes and Avisos open, the tasks out of Avisos, no figure chosen
-    st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
+    // each visit starts the same (D-180): Clientes and Avisos open, the tasks out of Avisos, no figure chosen; Tareas as this tab
+    // left it, folded in a new tab (D-225)
+    const tg = ssGet(SS_TAREAS);
+    st.plg = { ...PLG0, tareas: tg === '0' ? false : tg === '1' ? true : PLG0.tareas }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
     st.on = true; ssSet(SS_CLI, null);
     root.classList.add('pp-on'); colocar(); page.hidden = false; page.scrollTop = 0;
     if (D) pintar();
@@ -785,21 +793,94 @@
     if (CARD.ed && !forzar) { CARD.pend = true; return; }
     CARD.pend = false;
     const enfocada = enCard(document.activeElement);
+    if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }   // the sheet and the file look after their own writing (D-223)
     apagarCampos();
-    if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }
     ponerCard(htmlCard(r, CARD.ed));
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     activarCampos();
     if (enfocada && !CARD.ed) ov.firstChild.focus({ preventScroll: true });
   }
+  // ---------- changing in place only what changed (D-223) ----------
+  // The page, a card and a session's sheet are drawn from HTML; instead of writing them again whole, each live node takes the
+  // new one's attributes and children, matched by its tag and its data key. What stays keeps everything: its entrance never
+  // runs again (pp-dentro), a photo keeps what it drew, the focus, the caret, a composition and an open dropdown stay. A
+  // control's twin (controles.js) goes with its native, which is kept only while it would be drawn the same.
+  const CLAVES = ['f', 'ap', 'it', 'tid', 'sid', 'g', 'panel', 'slot', 'id', 'cat', 'tab', 'pp', 'hj', 'p', 'v', 'k', 'm', 'c', 'campo', 'key'];
+  function claveDe(n) {
+    if (n.nodeType !== 1) return '#' + n.nodeType;
+    let k = n.tagName; const d = n.dataset;
+    for (const c of CLAVES) if (d[c] != null && !(c === 'k' && n.classList.contains('pp-fo'))) k += '|' + c + '=' + d[c];   // a photo's data-k is its drawing
+    return k;
+  }
+  const ajeno = n => n.nodeType === 1 && (n._nat || n.classList.contains('pp-ecapa'));   // a twin (controles.js), a writing layer (escritura.js)
+  // a native control as drawn, without what controles.js added to it
+  function propio(a) { const c = a.cloneNode(true); c.classList.remove('mx-nat'); if (!c.classList.length) c.removeAttribute('class'); c.removeAttribute('tabindex'); c.removeAttribute('aria-hidden'); return c.outerHTML; }
+  // a native control kept as it is: drawn the same and showing the value it would be drawn with (a value refused, as an end
+  // before the start, goes back to the one before)
+  function nativoIgual(x, y) {
+    if (propio(x) !== y.outerHTML) return false;
+    if (x.tagName === 'INPUT') return x.value === (y.getAttribute('value') || '');
+    if (x.tagName === 'SELECT') { const o = y.querySelector('option[selected]') || y.querySelector('option'); return x.value === (o ? (o.hasAttribute('value') ? o.getAttribute('value') : o.textContent) : ''); }
+    return true;
+  }
+  function quitarNodo(n) { if (n._mx && n._mx.parentNode) n._mx.remove(); n.remove(); }
+  function morfAttrs(a, b) {
+    for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+    for (const at of b.attributes) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  }
+  function morfNodo(a, b, o) {
+    if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+    if (o.vivo && o.vivo(a)) return;                    // left as it is (a text being written)
+    if (a._mx) return;                                  // a native control kept: the same, with its twin's marks (mx-nat, tabindex, aria-hidden)
+    if (a.isEqualNode(b)) return;
+    if (a.classList.contains('pp-fo') && b.classList.contains('pp-fo')) {   // the same photo keeps its drawing until it has the new one
+      const k = a.dataset.k, nit = a.classList.contains('nitida');
+      morfAttrs(a, b); if (k) a.dataset.k = k; if (nit) a.classList.add('nitida');
+      return;
+    }
+    morfAttrs(a, b);
+    if (a.tagName === 'INPUT') {
+      if (a.type === 'checkbox' || a.type === 'radio') { if (a.checked !== b.hasAttribute('checked')) a.checked = b.hasAttribute('checked'); }
+      else if (a !== document.activeElement && a.value !== (b.getAttribute('value') || '')) a.value = b.getAttribute('value') || '';
+      return;
+    }
+    if (a.tagName === 'TEXTAREA') { if (a !== document.activeElement && a.value !== b.value) a.value = b.value; return; }
+    morfHijos(a, [...b.childNodes], o);
+  }
+  function morfHijos(cont, nuevos, o = {}) {
+    const viejos = [...cont.childNodes].filter(n => !ajeno(n)), mapa = new Map();
+    for (const n of viejos) { const k = claveDe(n); if (!mapa.has(k)) mapa.set(k, []); mapa.get(k).push(n); }
+    // first who stays (a native control only if it would be drawn the same), then out what goes: a node moved in the DOM
+    // runs its entrance again, so the ones that stay move only when the order really changed
+    const par = nuevos.map(y => { const l = mapa.get(claveDe(y)), x = l && l.length ? l.shift() : null; return x && (!x._mx || nativoIgual(x, y)) ? x : null; });
+    const vale = new Set(par.filter(Boolean));
+    for (const n of viejos) if (!vale.has(n)) quitarNodo(n);
+    let tras = null;                                     // the last node placed (its twin goes after it)
+    nuevos.forEach((y, i) => {
+      const x = par[i], n = x || y;
+      if (x) morfNodo(x, y, o);
+      let ref = tras ? tras.nextSibling : cont.firstChild; while (ref && ajeno(ref)) ref = ref.nextSibling;   // a twin or a layer stays after its own
+      if (n !== ref) cont.insertBefore(n, ref);
+      if (n._mx && n._mx.parentNode === cont && n.nextSibling !== n._mx) n.after(n._mx);
+      tras = n;
+    });
+  }
+  // the container's content as `html`: the nodes that are the same stay; {vivo: node => true to leave it as it is}
+  function morfar(cont, html, o) {
+    if (!cont) return;
+    if (!cont.firstChild) { cont.innerHTML = html; return; }
+    const t = document.createElement('template'); t.innerHTML = html;
+    morfHijos(cont, [...t.content.childNodes], o);
+    marcadas(cont);
+  }
+  // a checkbox shows what was drawn (a click the record didn't take goes back), as when it was written again whole
+  function marcadas(cont) { cont.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(i => { const v = i.hasAttribute('checked'); if (i.checked !== v) i.checked = v; }); }
   // the card's content and classes change and the card stays: going from reading to writing never runs its entrance again
-  // (no blink, D-209)
+  // (no blink, D-209); its children too, in place (D-223)
   function ponerCard(html) {
     const c = ov && ov.firstChild, t = document.createElement('template'); t.innerHTML = html; const n = t.content.firstElementChild;
     if (!c || !n || c.nodeType !== 1 || c.tagName !== n.tagName) { ov.innerHTML = html; return; }
-    for (const a of [...c.attributes]) if (!n.hasAttribute(a.name)) c.removeAttribute(a.name);
-    for (const a of [...n.attributes]) if (c.getAttribute(a.name) !== a.value) c.setAttribute(a.name, a.value);
-    c.replaceChildren(...n.childNodes);
+    morfAttrs(c, n); morfHijos(c, [...n.childNodes]); marcadas(c);
   }
   // the kinds of card other files draw (sesiones.js: a session's sheet, a sporadic client's file): {pintar, clic, dbl, tecla,
   // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
@@ -867,12 +948,28 @@
   function ampliar(on) {
     if (!CARD || !ov || (CARD.ext && !CARD.ext.ampliar) || CARD.amplia === on) return;   // a session's sheet widens too (D-210)
     CARD.amplia = on; CARD.ampT = Date.now();
-    const c = ov.querySelector('.pp-card'); if (c) c.classList.toggle('amplia', on);
+    const c = ov.querySelector('.pp-card'), r0 = c && c.animate && !pocoMov() ? c.getBoundingClientRect() : null;   // where it is seen (also half way)
+    if (c && c._amp) { c._amp.cancel(); c._amp = null; }
+    if (c) c.classList.toggle('amplia', on);
     ov.classList.toggle('amplia', on); colocarAmplia();
+    // from where it was to where it is, 0.2 s with --ease-m, with transforms only: nothing is drawn again (D-205, D-210, D-231);
+    // with «reducir movimiento», at once
+    if (r0) {
+      const r1 = c.getBoundingClientRect();
+      if (r1.width && r1.height) {
+        const sx = r0.width / r1.width, sy = r0.height / r1.height, dx = r0.left - r1.left, dy = r0.top - r1.top;
+        const ease = getComputedStyle(ov).getPropertyValue('--ease-m').trim() || 'ease-out';
+        c._amp = c.animate([{ transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transformOrigin: '0 0', transform: 'none' }], { duration: 200, easing: ease });
+        for (const h of c.children) h.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 200 });   // the content, never seen stretched
+        c._amp.onfinish = c._amp.oncancel = () => { if (c._amp && c._amp.playState !== 'running') c._amp = null; };
+      }
+    }
     const b = ov.querySelector('[data-pp="ampliar"]'), l = on ? 'Reducir' : 'Ampliar';   // the same button: the focus stays on it
     if (b) { b.title = l; b.setAttribute('aria-label', l); b.setAttribute('aria-pressed', String(on)); b.innerHTML = on ? ICO.reducir : ICO.ampliar; }
     if (CARD.ext && CARD.ext.ampliar) CARD.ext.ampliar(on);
-    requestAnimationFrame(() => { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.dibujar) x._esc.dibujar(); }); });
+    // the writing layers measure their text: once the card is in its place (never half way through its transition)
+    const capas = () => { if (ov) ov.querySelectorAll('[contenteditable]').forEach(x => { if (x._esc && x._esc.dibujar) x._esc.dibujar(); }); };
+    if (c && c._amp) c._amp.finished.then(capas, () => {}); else requestAnimationFrame(capas);
   }
   function colocarAmplia() {                   // under the header, which keeps working
     if (!ov) return;
@@ -1067,7 +1164,7 @@
     if (k === 'modo') { if (st.modo !== a.dataset.m) { st.modo = a.dataset.m; st.desp = 0; pintar(); refrescar(); } return; }
     if (k === 'desp') { st.desp += +a.dataset.d; pintar(); refrescar(); return; }
     if (k === 'mas') { st.abiertos.add(a.dataset.c); pintar(); return; }
-    if (k === 'plegar') { st.plg[a.dataset.p] = !st.plg[a.dataset.p]; pintar(); const b = page.querySelector(`[data-pp="plegar"][data-p="${a.dataset.p}"]`); if (b) b.focus({ preventScroll: true }); return; }
+    if (k === 'plegar') { st.plg[a.dataset.p] = !st.plg[a.dataset.p]; if (a.dataset.p === 'tareas') ssSet(SS_TAREAS, st.plg.tareas ? '1' : '0'); pintar(); const b = page.querySelector(`[data-pp="plegar"][data-p="${a.dataset.p}"]`); if (b) b.focus({ preventScroll: true }); return; }
     if (k === 'fila') { st.fila = +a.dataset.n; lsSet(LS_FILA, String(st.fila)); pintar(); return; }
     if (k === 'tvista') { st.vista = a.dataset.v; lsSet(LS_VISTA, st.vista); pintar(); return; }
     if (k === 'alcance') { st.alcance = a.dataset.r; lsSet(LS_ALC, st.alcance); pintar(); return; }
@@ -1313,7 +1410,7 @@
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
-    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando,
+    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
     cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }
   };
@@ -1406,7 +1503,7 @@
 #mesa .pp-gt{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:600;color:var(--ink);padding:0 10px 6px}
 #mesa .pp-gt span{font-weight:400;color:var(--mute)}
 #mesa .pp-sub{font-size:12px;color:var(--mute);padding:8px 10px 2px}#mesa .pp-sub span{margin-left:4px}
-#mesa .pp-nada{margin:0;font-size:12.5px;color:var(--faint);padding:6px 10px 18px}
+#mesa .pp-nada{margin:0;font-size:12.5px;color:var(--mute);padding:6px 10px 18px}
 #mesa .pp-lista{display:flex;flex-direction:column;gap:1px}
 #mesa .pp-av{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;width:100%;min-height:52px;padding:5px 10px;border:0;background:none;border-radius:var(--r-sm);font:inherit;font-size:13px;color:var(--ink);text-align:left;cursor:pointer;transition:background var(--d1) var(--ease)}
 #mesa .pp-av > :is(.pp-avs,.pp-cu,.pp-afoto){grid-row:1 / span 2}
@@ -1416,6 +1513,8 @@
 #mesa .pp-av.tarea{cursor:default}
 #mesa button.pp-av:hover{background:var(--bg-2)}
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog{box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog .pp-cu{color:var(--chg);font-weight:600}
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy{background:var(--chg-soft)}#mesa .pp-grupo[data-cat="hoy"] button.pp-av.pp-avhoy:hover{background:color-mix(in oklab,var(--chg-soft) 95%,var(--chg))}   /* D-222: 4.56:1 light, 6.65:1 dark at hover */
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy :is(.pp-est,.pp-mano){color:var(--chg);font-weight:600}
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:color-mix(in oklab,var(--red-soft) 88%,var(--red))}
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-est,#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-mano{color:var(--red);font-weight:600}
 #mesa .pp-avs{display:inline-flex;align-items:center}
@@ -1488,7 +1587,7 @@
 #mesa .pp-nueva{display:flex;align-items:center;gap:2px;height:32px;padding:0 2px 0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);margin-bottom:6px;transition:border-color var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
 #mesa .pp-nueva:focus-within{border-color:var(--pp-escr);box-shadow:none}
 #mesa .pp-nin{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:13px;color:var(--ink);outline:none;height:30px;padding:0}
-#mesa .pp-nin::placeholder{color:var(--faint)}
+#mesa .pp-nin::placeholder{color:var(--mute)}
 #mesa .pp-ib{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-ib svg{width:15px;height:15px}
 #mesa .pp-ib.puesta{display:none}
 #mesa .pp-ncampo{flex:none;display:inline-flex;align-items:center}#mesa .pp-ncampo.vacio{display:none}
@@ -1531,6 +1630,7 @@
 #mesa .pp-sd.hoy{box-shadow:var(--cx-hoy)}#mesa .pp-sd.pas{background:var(--bg)}
 #mesa .pp-sh{margin:0 0 2px;font-size:10.5px;color:var(--mute)}#mesa .pp-sh b{font-weight:400}#mesa .pp-sd.hoy .pp-sh{color:var(--ink);font-weight:600}#mesa .pp-sd.hoy .pp-sh b{font-weight:600}
 #mesa .pp-fi{display:flex;align-items:flex-start;gap:6px;padding:6px;border-radius:var(--r-xs);background:var(--panel-2);box-shadow:var(--shadow-xs);font-size:12px;line-height:1.3}
+#mesa .pp-fi.sigue-i,#mesa .pp-mt.sigue-i{border-top-left-radius:0;border-bottom-left-radius:0}#mesa .pp-fi.sigue-d,#mesa .pp-mt.sigue-d{border-top-right-radius:0;border-bottom-right-radius:0}
 #mesa .pp-fi .pp-tt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap-style:pretty}
 #mesa .pp-fi .pp-tt i{font-style:normal;color:var(--red);font-weight:600}
 #mesa .pp-fi .pp-ck{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-ava.xs{width:16px;height:16px;font-size:9.5px;margin-left:auto}#mesa .pp-fi .pp-avn{margin-left:auto}#mesa .pp-fi .pp-avn .pp-ava.xs{margin-left:0}
@@ -1557,6 +1657,8 @@
 #mesa .pp-fi .pp-tses{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-tses svg{width:13px;height:13px}
 #mesa .pp-fi .pp-tt em{font-style:normal;color:var(--mute)}
 #mesa .pp-mt.ses svg{width:11px;height:11px;margin-right:3px;vertical-align:-1px;color:var(--mute)}
+#mesa .pp-tk.ses:not(.hecha) .pp-tt,#mesa .pp-fi.ses:not(.hecha) .pp-tt,#mesa .pp-mt.ses:not(.hecha){font-weight:600}#mesa .pp-mt .pp-mh{font-weight:400}   /* D-226: a session stands out among the tasks; its time, as in Lista and Semana */
+#mesa .pp-tk.ses:not(.hecha) .pp-tses,#mesa .pp-fi.ses:not(.hecha) .pp-tses,#mesa .pp-mt.ses:not(.hecha) svg{color:var(--ty-ses-ink)}
 #mesa .pp-av.repro{grid-template-columns:28px 42px 32px minmax(0,1fr) auto}
 #mesa .pp-repro{grid-row:1 / span 2;grid-column:5}
 #mesa .pp-repro svg{width:13px;height:13px}
@@ -1600,8 +1702,8 @@
 #mesa .pp-pb{position:relative;flex:none;width:64px;height:3px;border-radius:var(--r-pill);background:var(--line2);overflow:hidden}
 #mesa .pp-pb i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:var(--acc)}#mesa .pp-pg.todo .pp-pb i{background:var(--ok)}#mesa .pp-fi .pp-pb{width:44px}
 #mesa .pp-cd{margin:16px 0 0 19px;padding:8px 10px;min-height:22px;border-radius:var(--r-sm);cursor:text;font-size:14px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
-#mesa .pp-cd.vacio{color:var(--faint)}
-#mesa .pp-card.ed .pp-cd:empty::before{content:attr(data-ph);color:var(--faint)}
+#mesa .pp-cd.vacio{color:var(--mute)}
+#mesa .pp-card.ed .pp-cd:empty::before{content:attr(data-ph);color:var(--mute)}
 #mesa .pp-cs{margin:14px 0 0 29px}
 #mesa .pp-csh{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:12px;color:var(--mute)}#mesa .pp-csh .pp-pb{flex:1;width:auto;height:4px}
 #mesa .pp-csub{display:flex;align-items:center;gap:10px;min-height:32px;padding:0 6px;margin-left:-6px;border-radius:var(--r-sm);font-size:13.5px}
@@ -1629,9 +1731,10 @@
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
 #mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}
-#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--faint)}#mesa .pp-cml.vacio svg{color:inherit}#mesa .pp-cml.vacio:hover{color:var(--mute)}
+#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--mute);opacity:0;transition:opacity var(--d1) var(--ease)}#mesa .pp-cml.vacio svg{color:inherit}#mesa .pp-cml.vacio:hover{color:var(--ink)}
+#mesa .pp-cm:hover .pp-cml.vacio,#mesa .pp-card:focus-visible .pp-cml.vacio,#mesa .pp-cm:focus-within .pp-cml.vacio{opacity:1}   /* «Fecha» and «Cliente» of a task without them, only with the pointer over them or the focus, their place kept (D-231) */
 #mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
-#mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
+#mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}#mesa .pp-ov.amplia .pp-card:focus-visible{outline-offset:-2px}
 #mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
 #mesa .pp-card.amplia > .pp-cbs{top:16px;right:16px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:46px;right:48px}
 #mesa .pp-card.amplia:not(.nota){display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,470px);column-gap:56px;align-content:start}
@@ -1643,7 +1746,7 @@
 #mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
-@media (prefers-reduced-motion:reduce){#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-cml.vacio{transition:none}#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
 @media (max-width:720px){
   #mesa .pp{padding:4px 12px 24px}
   #mesa .pp-cifra{padding:10px 10px 11px}#mesa .pp-cifra span{font-size:12px}

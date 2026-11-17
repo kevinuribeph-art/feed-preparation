@@ -8271,11 +8271,11 @@
       await dzListo(0);
       accion('add-forma', { v: 'rect' });
       const r = compDe(0).els[compDe(0).els.length - 1]; igual(r.t, 'forma', 'no se añadió la forma');
-      accion('cap-dn', { id: r.id });
+      accion('cap', { id: r.id }); accion('bwd');   // «Atrás», since D-215 in the row's menu (before, its ▼)
       igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno'], 'la forma no bajó bajo el diseño');
-      accion('cap-dn', { id: r.id });
+      accion('cap', { id: r.id }); accion('bwd');
       igual(compDe(0).els.map(e => e.t), ['foto', 'forma', 'diseno'], 'la forma bajó bajo la foto');
-      accion('cap-up', { id: dzFoto(0).id });
+      accion('cap', { id: dzFoto(0).id }); accion('fwd');
       ok(compDe(0).els[0].dz, 'la foto del diseño subió');
       const c = await dzListo(0, true); ok(c.sf && c.sfKey === c.want, 'el motor no dibujó sin la foto');
       accion('add-txt');
@@ -11398,7 +11398,7 @@
     accion('cap', { id: ra.id }); tecla(']', { meta: true, code: 'BracketRight' });
     igual(compDe(0).els.indexOf(lzeEl(ra.id)), 1, '⌘] no lo puso delante');
     tecla('c', { meta: true }); tecla('v', { meta: true }); igual(compDe(0).els.length, 4, '⌘C ⌘V no pegaron');
-    ok(q('.lb-panel [data-pl="capas"] [data-lb="cap-up"]'), 'sin ▲ ▼ en «Capas»');
+    ok(q('.lb-panel [data-pl="capas"] .lb-cap .lb-capasa'), 'sin «Capas» con su asa');   // ▲ ▼ went to each row's menu (D-215)
     const at = q('.lb-atajos').textContent; ok(/⌘C · ⌘V/.test(at) && /⌘D · ⌫/.test(at) && /⌘\] · ⌘\[/.test(at), '«?» no los dice');
     M.libre.cerrar();
   });
@@ -12031,21 +12031,20 @@
     } finally { caja.remove(); M.libre.cerrar(); }
   });
 
-  prueba('AJ4', '▲ ▼ de «Capas» y × de «Plantillas» del editor: iconos de Lucide (chevron-up, chevron-down, x) con el carácter de texto; misma área pulsable (D-175)', async () => {
+  prueba('AJ4', '× de «Plantillas» del editor: icono de Lucide (x) con el carácter de texto; misma área pulsable (D-175; ▲ ▼ de «Capas», a su menú desde D-215)', async () => {
     await tablero([pub(1, 'Carrusel')]);
     await poner('r1', [await foto('aj4.jpg')]);
     await abrirEditor('r1');
     const masc = el => decodeURIComponent(W.getComputedStyle(el, '::before').webkitMaskImage || '');
     const caja = D.createElement('div'); caja.style.cssText = 'position:fixed;left:0;top:0;width:300px'; q('#mesa').append(caja);
     try {
-      caja.innerHTML = '<div class="lb-cap"><span class="lb-capn">Texto</span><button type="button" data-lb="cap-up">▲</button><button type="button" data-lb="cap-dn" disabled>▼</button></div><div class="lb-tp" style="width:120px;height:90px"><button type="button" data-lb="tpl-del">×</button></div>';
-      const [up, dn] = caja.querySelectorAll('.lb-cap button'), x = caja.querySelector('.lb-tp button');
-      for (const [b, d, txt] of [[up, 'm18 15-6-6-6 6', '▲'], [dn, 'm6 9 6 6 6-6', '▼'], [x, 'M18 6 6 18', '×']]) {
+      caja.innerHTML = '<div class="lb-tp" style="width:120px;height:90px"><button type="button" data-lb="tpl-del">×</button></div>';
+      const x = caja.querySelector('.lb-tp button');
+      for (const [b, d, txt] of [[x, 'M18 6 6 18', '×']]) {
         const c = W.getComputedStyle(b), r = b.getBoundingClientRect();
         ok(c.fontSize === '0px' && masc(b).includes(d) && b.textContent === txt, txt + ' sin su icono o sin su texto');
         igual([r.width, r.height], [24, 24], 'el área pulsable de ' + txt);
       }
-      igual(W.getComputedStyle(dn, '::before').backgroundColor, W.getComputedStyle(dn).color, '▼ desactivado no sigue su color');
     } finally { caja.remove(); M.libre.cerrar(); }
   });
 
@@ -12814,13 +12813,13 @@
       await M.flush();
       relojEn('2026-11-10T10:00:00+01:00');
       await paginaAbierta();
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 11 }, 'las cifras de la semana');   // 11 con el reel r10 desde la 4.17 (D-181)
+      igual(ppCifras(), { pasado: 2, hoy: 1, man: 1, espera: 2, falta: 11 }, 'las cifras de la semana');   // 11 con el reel r10 desde la 4.17 (D-181); «Hoy» y «Mañana» aparte desde D-212
       igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
       ok(/publicar a mano/.test(q('.pp-av[data-slot="r2"]').textContent), 'el reel en Aprobado pasado no dice «publicar a mano»');
       ok(q('.pp-grupo[data-cat="pasado"] .pp-cu.rojo'), 'la fecha pasada no va en rojo');
       igual(ppLineas('hoy'), ['r4', 'r5'], 'Hoy y mañana');
       ok(q('.pp-av[data-slot="r4"] .pp-cu').textContent === '18:00' && /Programado/.test(q('.pp-av[data-slot="r4"]').textContent), 'hoy: su hora y su estado');
-      ok(q('.pp-grupo[data-cat="hoy"] .pp-sub') && q('.pp-grupo[data-cat="hoy"] .pp-sub').textContent === 'Mañana' && /publicar a mano/.test(q('.pp-av[data-slot="r5"]').textContent), 'mañana: subtítulo y «publicar a mano»');
+      ok(q('.pp-grupo[data-cat="hoy"] .pp-sub') && q('.pp-grupo[data-cat="hoy"] .pp-sub').textContent === 'Mañana 1' && /publicar a mano/.test(q('.pp-av[data-slot="r5"]').textContent), 'mañana: subtítulo con su cuenta y «publicar a mano»');
       igual(ppLineas('espera'), ['r6', 'r7'], 'Esperando al cliente');
       ok(/sale en 4 días · lleva 9 días/.test(q('.pp-av[data-slot="r6"]').textContent) && /lleva 5 días/.test(q('.pp-av[data-slot="r7"]').textContent) && !/sale en/.test(q('.pp-av[data-slot="r7"]').textContent), 'las razones de la espera');
       igual(ppLineas('falta').length, 8, '8 líneas en Falta programar');
@@ -12837,10 +12836,10 @@
       igual(qa('.pp-grupo').length, 4, 'pulsarla otra vez no lo enseña todo');
       // Mes y la semana siguiente; Se ha pasado no cambia
       await ppClic('.pp-periodo [data-m="mes"]');
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 3, falta: 12 }, 'las cifras del mes');
+      igual(ppCifras(), { pasado: 2, hoy: 1, man: 1, espera: 3, falta: 12 }, 'las cifras del mes');
       await ppClic('.pp-periodo [data-m="semana"]'); await ppClic('.pp-periodo .pp-sig');
       igual(q('.pp-rango').textContent, '17 – 23 nov', 'la semana siguiente');
-      igual(ppCifras(), { pasado: 2, hoy: 2, espera: 2, falta: 1 }, 'las cifras de la semana siguiente');
+      igual(ppCifras(), { pasado: 2, hoy: 1, man: 1, espera: 2, falta: 1 }, 'las cifras de la semana siguiente');
       q('.pp-rango').dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true })); await M.personal.render();
       igual(q('.pp-rango').textContent, '10 – 16 nov', 'el doble clic no vuelve a esta semana');
       // una línea abre su publicación en su tablero
@@ -12864,7 +12863,7 @@
       const c = q('.pp-av[data-slot="colab1"]');
       igual(c.querySelectorAll('.pp-avs .pp-ava').length, 2, 'la collab no lleva las dos caras');
       ok(/× /.test(c.textContent), 'la collab no nombra a los dos clientes');
-      igual(ppCifras().hoy, 2, 'la collab cuenta dos veces');
+      igual([ppCifras().hoy, ppCifras().man], [1, 1], 'la collab cuenta dos veces');   // the collab today, the stories tomorrow: «Hoy» and «Mañana» apart since D-212
       const hs = q('.pp-grupo[data-cat="hoy"] .pp-av[data-pp="hs"]');
       ok(hs && /2 historias mañana sin programar/.test(hs.textContent), 'la línea de las historias: ' + (hs && hs.textContent));
       ok(!q('.pp-grupo[data-cat="pasado"] .pp-av[data-pp="hs"]'), 'una historia pasada entra en Se ha pasado');
@@ -13228,7 +13227,8 @@
   const ppCard = () => q('.pp-ov:not(.sale) .pp-card');
   const ppTecla = (key, o = {}) => W.dispatchEvent(new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o }));
   const ppRaton = (el, ty, detail, o = {}) => { const r = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent(ty, { bubbles: true, cancelable: true, detail, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, ...o })); };
-  prueba('PP20', 'Una tarea o una nota: un clic la abre en grande para leer, otro clic (pasado lo que dura un doble clic) o Esc la cierra, un clic fuera la cierra al momento; doble clic la pone en edición, también desde pequeño sin cerrarse en medio; clic fuera o Esc vuelve a leer; lo escrito se guarda; la casilla marca sin abrir; fecha y cliente se cambian; un paso de ⌘Z cada uno (D-182)', async () => {
+  const ppLeer = () => M.personal._p.editar(false);   // back to reading without closing (since D-209 Esc closes, also writing)
+  prueba('PP20', 'Una tarea o una nota: un clic la abre en grande para leer; un clic dentro que no cae en lo que se escribe no la cierra; Esc o un clic fuera la cierran al momento, también escribiendo (D-209); un clic en el título o en la nota escribe; doble clic desde pequeño escribe al final del título sin cerrarse en medio; lo escrito se guarda; la casilla marca sin abrir; fecha y cliente se cambian; un paso de ⌘Z cada uno (D-182, D-209)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
@@ -13239,10 +13239,10 @@
       ok(ppCard() && !ppCard().classList.contains('ed') && ppCard().querySelector('[data-pp="ct"]').textContent === 'Llamar', 'un clic no la abre en grande para leer');
       ok(!ppCard().querySelector('[contenteditable]'), 'leyendo, se puede escribir');
       ok(/Cliente de prueba/.test(ppCard().textContent) && ppCard().querySelector('.pp-cm .rojo'), 'no dice su cliente ni que está vencida');
-      // otro clic la cierra pasado un doble clic; antes, no
-      ppRaton(ppCard().querySelector('[data-pp="ct"]'), 'click', 1); await espera(120);
-      ok(ppCard(), 'un clic sobre ella la cierra sin esperar al doble clic');
-      await espera(300); ok(!ppCard(), 'otro clic no la cierra');
+      // un clic dentro que no cae en lo que se escribe no la cierra ni la pone a escribir (D-209)
+      ppRaton(ppCard(), 'click', 1); await espera(400);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'un clic dentro la cierra o la pone a escribir');
+      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'Esc leyendo no la cierra');
       // Esc y un clic fuera la cierran al momento
       ppRaton(peq(), 'click', 1); await espera(30); ppTecla('Escape'); await espera(30);
       ok(!ppCard(), 'Esc no la cierra');
@@ -13257,15 +13257,13 @@
       ok(ct.isContentEditable && D.activeElement === ct, 'el título no se edita o no tiene el foco');
       ct.textContent = 'Llamar al cliente'; ct.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
       await hasta(async () => (await M.personal.tareas()).find(k => k.id === t.id).txt === 'Llamar al cliente', 3000, 'que se guarde lo escrito');
-      // Esc vuelve a leer, sin cerrarla; otro Esc la cierra
-      ppTecla('Escape'); await espera(30);
-      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
-      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'el segundo Esc no la cierra');
+      // Esc escribiendo la cierra (D-209)
+      ppTecla('Escape'); await espera(30); ok(!ppCard(), 'Esc escribiendo no la cierra');
       igual(peq().textContent, 'Llamar al cliente', 'la línea no dice lo escrito');
-      // doble clic en grande; un clic fuera vuelve a leer
+      // abierta, un clic en el título escribe (D-209)
       ppRaton(peq(), 'click', 1); await espera(400);
-      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 1); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(350);
-      ok(ppCard() && ppCard().classList.contains('ed'), 'el doble clic en grande no la pone en edición');
+      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().classList.contains('ed'), 'un clic en el título no la pone a escribir');
       // fecha y cliente
       const f = ppCard().querySelector('.pp-cfecha'), c = ppCard().querySelector('.pp-ccli');
       ok(f && c, 'en edición no se cambian la fecha ni el cliente');
@@ -13273,9 +13271,8 @@
       c.value = ''; c.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(80);
       let k = (await M.personal.tareas()).find(x => x.id === t.id);
       igual([k.fecha, k.cliente || null], ['2026-10-08', null], 'la fecha o el cliente no se guardan');
-      ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(30);
-      ok(ppCard() && !ppCard().classList.contains('ed'), 'un clic fuera escribiendo no vuelve a leer');
-      ppTecla('Escape'); await espera(200);
+      ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(200);
+      ok(!ppCard(), 'un clic fuera escribiendo no la cierra');
       // ⌘Z: un paso cada cambio
       ppTecla('z', { metaKey: true }); await espera(80);
       k = (await M.personal.tareas()).find(x => x.id === t.id); igual([k.fecha, k.cliente], ['2026-10-08', CLIENTE], '⌘Z no devuelve el cliente');
@@ -13284,12 +13281,12 @@
       // la casilla marca sin abrir
       q(`.pp-tk[data-tid="${t.id}"] .pp-ck`).click(); await espera(80);
       ok(!ppCard() && (await M.personal.tareas()).find(x => x.id === t.id).hecha, 'la casilla abre la tarea o no la marca');
-      // una nota: un clic la lee, doble clic la escribe
+      // una nota: un clic la lee, el siguiente la escribe (D-209)
       const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
       ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(30);
       ok(ppCard() && ppCard().classList.contains('nota') && !ppCard().querySelector('[contenteditable]'), 'la nota no se abre para leer');
-      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 2); ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'dblclick', 2); await espera(30);
-      ok(ppCard() && ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'la nota no se escribe con doble clic');
+      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'la nota no se escribe con un clic');
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
       ok(!q(`.pp-pt[data-nid="${n.id}"] [contenteditable]`), 'la nota en pequeño se puede escribir');
     } finally { paginaCerrada(); await sinTareas(); }
@@ -13318,8 +13315,8 @@
       await espera(500);
       igual(((await rec()).subtareas || []).map(x => x.txt), ['Uno', 'Dos'], 'las subtareas no se guardan al escribir');
       igual(qa('.pp-card .pp-csub').length, 3, 'la vacía no sigue mientras se escribe');
-      ppTecla('Escape'); await espera(40);
-      ok(ppCard() && !ppCard().classList.contains('ed'), 'Esc no vuelve a leer');
+      ppLeer(); await espera(40);
+      ok(ppCard() && !ppCard().classList.contains('ed'), 'no vuelve a leer');
       let k = await rec();
       igual([k.detalles, k.subtareas.map(x => x.txt), qa('.pp-card .pp-csub').length], ['Carpeta del SSD.\nDoce fotos.', ['Uno', 'Dos'], 2], 'al salir: los detalles o la subtarea vacía');
       // la casilla de una subtarea marca leyendo; todas hechas no marcan la tarea
@@ -13430,6 +13427,11 @@
   // =====================================================================================================
   const capasFilas = () => qa('.lb-panel .lb-caps > .lb-cap').map(r => r.dataset.capa || compDe(ed().i).els.find(e => e.id === r.dataset.id).t);
   const sinPanel = () => { const E = ed(); E.sel = null; E.mas = []; E.capa = null; };
+  // a row of «Capas»: its right click and one of its orders (D-215; before, ▲ ▼ on the row)
+  async function capaMenu(sel, a) {
+    const f = q(sel), r = f.getBoundingClientRect(); f.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 8 })); await espera(30);
+    const b = q(`.lb-cm:not([hidden]) [data-lb="${a}"]`); ok(b && !b.disabled, `el menú de la capa no ofrece ${a}`); b.click(); await espera(30);
+  }
   async function editorConVelo() {
     await tablero([pub(1)]); await poner('r1', [await foto('vt-1.jpg')]);
     await abrirEditor('r1'); await espera(150);
@@ -13444,7 +13446,7 @@
       ok(c().velo.z == null && c().tex.z == null, 'sin moverlos guardan sitio');
       const img0 = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
       // ▲ en el velo: pasa encima del texto
-      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      await capaMenu('.lb-panel .lb-cap[data-capa="velo"]', 'fwd'); await espera(60);
       igual(capasFilas(), ['tex', 'velo', 'texto', 'foto'], '▲ no sube el velo');
       igual(c().velo.z, 2, 'el velo no guarda su sitio');
       ok(!(await bytesIguales(img0, await M.libre.pieza(JSON.parse(json(c())), 540, 675))), 'la imagen no cambia con el velo encima del texto');
@@ -13499,7 +13501,7 @@
       sinPanel(); await espera(30);
       const t1 = c().els.filter(e => e.t === 'texto')[0];
       // el velo entre los dos textos: ▲ una vez
-      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      await capaMenu('.lb-panel .lb-cap[data-capa="velo"]', 'fwd'); await espera(60);
       igual(capasFilas(), ['tex', 'texto', 'velo', 'texto', 'foto'], 'el velo entre los textos');
       const sobre = () => { const L = capasFilas(), i = L.indexOf('velo'); return qa('.lb-panel .lb-caps > .lb-cap')[i - 1].dataset.id; };
       const arriba = sobre();
@@ -13523,7 +13525,7 @@
     try {
       const c = () => compDe(ed().i);
       const t = await guardarPlant();                 // velo y textura sin sitio propio
-      q('.lb-panel .lb-cap[data-capa="velo"] [data-lb="cap-up"]').click(); await espera(60);
+      await capaMenu('.lb-panel .lb-cap[data-capa="velo"]', 'fwd'); await espera(60);
       igual(c().velo.z, 2, 'el velo no se movió');
       sinPanel(); aplicarPlant(t, 'todo'); await espera(120);
       ok(c().velo && c().velo.z == null && c().tex && c().tex.z == null, 'la plantilla no trae su velo donde estaba: ' + json([c().velo, c().tex]));
@@ -13698,7 +13700,7 @@
       await M.flush();
       relojEn('2026-11-10T10:00:00+01:00');
       await paginaAbierta();
-      const c = ppCifras(); igual([c.pasado, c.hoy], [2, 3], 'las cifras');
+      const c = ppCifras(); igual([c.pasado, c.hoy, c.man], [2, 2, 1], 'las cifras');   // «Hoy» y «Mañana» aparte desde D-212
       igual(ppLineas('pasado'), ['r1', 'r2'], 'Se ha pasado');
       igual(ppLineas('hoy'), ['r4', 'r6', 'r5'], 'Hoy y mañana');
       const av = id => q(`.pp-av[data-slot="${id}"]`), cs = e => W.getComputedStyle(e), tok = k => cs(q('#mesa')).getPropertyValue(k).trim();
@@ -13865,7 +13867,7 @@
       igual(capa, ['vi', 'vi', 'ca', 'ca', 'ca on'], 'la capa no dibuja las viñetas y casillas: ' + json(capa));
       const H = W.CSS.highlights;
       igual(['pp-em', 'pp-en', 'pp-eh', 'pp-ea'].map(k => H.get(k) ? H.get(k).size : 0), [5, 2, 1, 1], 'los resaltados: marcas ocultas, números en gris, hecha tachada, enlace');
-      ppTecla('Escape'); await espera(60);
+      ppLeer(); await espera(60);
       const L = qa('.pp-card .pp-cn .pp-el').map(x => x.className.replace('pp-el', '').trim() || '-');
       igual(L, ['-', 'vi', 'vi', 'nu', 'nu', 'ca', 'ca', 'ca hecha', '-', '-', '-', '-', '-', '-'], 'leyendo, las líneas: ' + json(L));
       ok(q('.pp-card .pp-cn a.pp-ea') && q('.pp-card .pp-cn a.pp-ea').getAttribute('href') === 'https://example.com/a/b', 'el enlace leyendo (sin el punto final)');
@@ -13938,7 +13940,7 @@
       const ev = new W.ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }); cd.dispatchEvent(ev); await espera(80);
       ok(ev.defaultPrevented && /nota pegada$/.test(cd.textContent), 'lo pegado sin «[] » no va al texto: ' + json(cd.textContent));
       igual(subs(), ['hecha✓', 'uno', 'dos✓'], 'las líneas «[] » pegadas no pasan a subtareas');
-      ppTecla('Escape'); await espera(80);
+      ppLeer(); await espera(80);
       const k = (await M.personal.tareas()).find(x => x.id === t.id);
       igual([json(k.detalles), k.subtareas.map(x => x.txt + (x.hecha ? '✓' : ''))], [json('Luz\n[]  tras\nnota pegada'), ['hecha✓', 'uno', 'dos✓']], 'lo guardado');
       // un pegado sin «[] » es el del navegador
@@ -14068,7 +14070,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('NA7', 'Ampliar: icono arriba a la derecha de la tarjeta de una tarea y de una nota; ampliada ocupa la página bajo la cabecera, a todo el ancho (en una tarea, «Detalles» a la izquierda y subtareas a la derecha); un clic dentro nunca la cierra; Esc escribiendo vuelve a leer y Esc leyendo la devuelve a tarjeta; siempre se abre como tarjeta (D-205)', async () => {
+  prueba('NA7', 'Ampliar: icono arriba a la derecha de la tarjeta de una tarea y de una nota; ampliada ocupa la página bajo la cabecera, a todo el ancho (en una tarea, «Detalles» a la izquierda y subtareas a la derecha); un clic dentro nunca la cierra; Esc la cierra del todo, escribiendo o no, y «Reducir» la devuelve a tarjeta (D-209); siempre se abre como tarjeta (D-205)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await ppClic('.pp-tabs [data-p="tareas"]');
@@ -14081,12 +14083,14 @@
       const cd = ppCard().querySelector('.pp-cd').getBoundingClientRect(), cs = ppCard().querySelector('.pp-cs').getBoundingClientRect();
       ok(cs.left > cd.right && Math.abs(cs.top - cd.top) < 40, '«Detalles» y subtareas no van lado a lado');
       ok(ppCard().querySelector('[data-pp="ampliar"]').title === 'Reducir', 'el icono no la devuelve');
-      ppRaton(ppCard().querySelector('.pp-cd'), 'click', 1); await espera(400); ok(ppCard() && ppCard().classList.contains('amplia'), 'un clic dentro la cierra');
-      const tt = ppCard().querySelector('[data-pp="ct"]'); ppRaton(tt, 'click', 2); ppRaton(tt, 'dblclick', 2); await espera(40);
-      ok(ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'el doble clic no la pone a escribir ampliada');
-      ppTecla('Escape'); await espera(40); ok(ppCard() && !ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'Esc escribiendo no vuelve a leer ampliada');
-      ppTecla('Escape'); await espera(40); ok(ppCard() && !ppCard().classList.contains('amplia') && !q('.pp-ov:not(.sale)').classList.contains('amplia'), 'Esc leyendo no la devuelve a tarjeta');
-      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc no la cierra');
+      ppRaton(ppCard(), 'click', 1); await espera(400); ok(ppCard() && ppCard().classList.contains('amplia'), 'un clic dentro la cierra');
+      ppRaton(ppCard().querySelector('.pp-cd'), 'click', 1); await espera(40); ok(ppCard() && ppCard().classList.contains('ed') && ppCard().classList.contains('amplia'), 'un clic en «Detalles» no la pone a escribir ampliada');
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc escribiendo ampliada no la cierra del todo');
+      // «Reducir» la devuelve a tarjeta; leyendo ampliada, Esc también la cierra
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40); ok(ppCard() && !ppCard().classList.contains('amplia') && !q('.pp-ov:not(.sale)').classList.contains('amplia'), '«Reducir» no la devuelve a tarjeta');
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc leyendo ampliada no la cierra');
       // siempre se abre como tarjeta; una nota también se amplía
       ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
@@ -14192,7 +14196,7 @@
       const tx = seQ('[data-campo="ap:orden"]'); await naEscribe(tx, '/fe'); naTecla(tx, 'Enter'); await espera(80);
       const a = M.controles.abierto(); ok(a, '«/fecha» no abre el calendario'); a.de.value = '2026-10-08'; a.de.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(100);
       igual([tx.textContent, (await seRec(r.id)).fecha], ['jue 8 oct', '2026-10-01'], '«/fecha» en la hoja cambia la fecha de la sesión');
-      ppTecla('Escape'); await espera(500);
+      ppLeer(); await espera(500);
       // Espacio en una casilla de un texto
       await M.personal._p.cambiar(r.id, x => { seAp(x, 'fotos').texto = '[] Carta'; return x; }); M.personal._p.pintar(); await espera(80);
       const cas = seQ('[data-ap="fotos"] .pp-em.ca[data-ln]'); cas.focus(); naTecla(cas, ' '); await espera(100);
@@ -14296,7 +14300,7 @@
     } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('SE2', 'La hoja (P2): se abre sobre la página; un clic dentro nunca la cierra y uno fuera sí; doble clic en un texto lo escribe (con marcas), Esc vuelve a leer y otro Esc la cierra; el ojo de la sesión y el de cada apartado; «Ver como el cliente» oculta lo tachado y las casillas; pestañas: «+», doble clic renombra, «Borrar pestaña»; «+ Plano»; cambiar el tipo añade los apartados que faltan y no quita ninguno (D-206)', async () => {
+  prueba('SE2', 'La hoja (P2): se abre sobre la página; un clic dentro nunca la cierra y uno fuera sí; un clic en un texto lo escribe (con marcas), Esc la cierra también escribiendo y lo escrito se guarda (D-209); el ojo de la sesión y el de cada apartado; «Ver como el cliente» oculta lo tachado y las casillas; pestañas: «+», doble clic renombra, «Borrar pestaña»; «+ Plano»; cambiar el tipo añade los apartados que faltan y no quita ninguno (D-206)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14307,8 +14311,8 @@
       seDbl(seQ('[data-campo="ap:orden"]')); await espera(60);
       const tx = seQ('[data-campo="ap:orden"]'); ok(tx.isContentEditable && D.activeElement === tx, 'el doble clic no escribe el texto');
       await naEscribe(tx, '1. Barra\nTerraza'); igual(tx.textContent, '1. Barra\n2. Terraza', 'el texto de una sesión no sigue la lista');
-      ppTecla('Escape'); await espera(80);
-      ok(seHoja() && !seHoja().querySelector('[contenteditable]'), 'Esc no vuelve a leer');
+      ppLeer(); await espera(80);
+      ok(seHoja() && !seHoja().querySelector('[contenteditable]'), 'no vuelve a leer');
       await hasta(async () => seAp(await seRec(r.id), 'orden').texto === '1. Barra\n2. Terraza', 3000, 'que se guarde el texto');
       // el ojo: de la sesión y de un apartado (un paso cada uno)
       seQ('[data-hj="ojo"]').click(); await espera(80);
@@ -14342,7 +14346,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('SE3', 'Fotos de una sesión: soltadas del ordenador sobre un grupo se guardan aparte (almacén «tfotos») y se ponen ahí; en otro sitio de la hoja, solo en la tira; de la tira se arrastran a un plano; «Quitar de aquí» la deja en la sesión, «Borrar la foto» la quita de todos los sitios; mood board «una línea» y «todas» (filas justificadas que llenan el ancho); el registro guarda solo la lista (D-206)', async () => {
+  prueba('SE3', 'Fotos de una sesión: soltadas del ordenador sobre un grupo se guardan aparte (almacén «tfotos») y se ponen ahí; en otro sitio de la hoja, solo en la tira; de la tira se arrastran a un plano; «Quitar de aquí» la deja en la sesión, «Borrar la foto» la quita de todos los sitios; mood board «una línea» y «todas» (columnas de 157 px desde D-211); el registro guarda solo la lista (D-206)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14357,9 +14361,8 @@
       const tf = await M._in.idbAll('tfotos'); ok(k.fotos.every(f => tf.some(t => t.id === f.id && t.blob && t.mini)), 'las fotos no están en su almacén');
       igual(seAp(k, 'mood').grupos[0].fotos.length, 3, 'las fotos no se ponen en el grupo');
       await espera(120);
-      const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = [...box.querySelectorAll('.pp-fo')];
-      const fila = fos.filter(x => Math.abs(x.offsetTop - fos[0].offsetTop) < 2), ancho = fila.reduce((a, x) => a + x.getBoundingClientRect().width, 0) + 4 * (fila.length - 1);
-      ok(fila.length >= 2 && ancho > box.clientWidth - 6 && ancho <= box.clientWidth + 0.5 && fila.every(x => Math.abs(x.getBoundingClientRect().height - fila[0].getBoundingClientRect().height) < 0.6), 'la fila de «todas» no llena el ancho: ' + json([fila.length, ancho, box.clientWidth]));
+      const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = [...box.querySelectorAll('.pp-fo')];   // columns of 157 px since D-211 (before, justified rows)
+      ok(fos.length === 3 && fos.every(x => Math.round(x.getBoundingClientRect().width) === 157), 'las fotos de «todas» no van en columnas de 157 px: ' + json(fos.map(x => x.getBoundingClientRect().width)));
       // «una línea»: todas en fila, a la misma altura
       seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click(); await espera(120);
       const l = [...seHoja().querySelectorAll('[data-g="g1"] .pp-mo-f.linea .pp-fo')]; ok(l.length === 3 && l.every(x => Math.abs(x.offsetTop - l[0].offsetTop) < 1), '«una línea» no las pone en fila');
@@ -14458,7 +14461,7 @@
       ok(/17:00/.test(q(`.pp-av[data-tid="${hoy.id}"] .pp-cu`).textContent) && q(`.pp-av[data-tid="${hoy.id}"] .pp-afoto svg`), 'sin la hora o el icono en «Hoy y mañana»');
       igual(ppLineas('pasado'), [pas.id], '«Se ha pasado»');
       const rp = q(`.pp-av[data-tid="${pas.id}"] [data-pp="reprog"]`); ok(rp && q(`.pp-av[data-tid="${pas.id}"] .pp-ck`), 'sin casilla o «Reprogramar»');
-      igual([ppCifras().pasado, ppCifras().hoy], [1, 2], 'las cifras no cuentan las sesiones');
+      igual([ppCifras().pasado, ppCifras().hoy, ppCifras().man], [1, 1, 1], 'las cifras no cuentan las sesiones');   // «Hoy» y «Mañana» aparte desde D-212
       ok(/1 tarea/.test(q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`) ? q(`.pp-blq[data-c="${CLIENTE}"] .pp-cuentas`).textContent : '') === false, 'el bloque del cliente cuenta la sesión como tarea');
       // Reprogramar: el calendario de la Mesa; un paso de ⌘Z
       rp.click(); await espera(80); const a = M.controles.abierto(); ok(a, 'Reprogramar no abre el calendario');
@@ -14555,8 +14558,374 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
+  // ---------- ajustes de la 4.22, lote A (D-209 a D-216) ----------
+  const asBotones = sel => qa(sel).map(b => { const r = b.getBoundingClientRect(), v = b.querySelector('svg'); return { k: b.dataset.pp || b.dataset.hj || b.dataset.ns || b.dataset.es || b.dataset.act, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), i: v ? Math.round(v.getBoundingClientRect().width) : 0 }; });
+  const asPegados = l => l.length > 1 && l.every((b, i) => b.w === 32 && b.i === 18 && (!i || (b.x - l[i - 1].x === 32 && b.y === l[i - 1].y)));
+  prueba('AS1', 'Un clic abre y el siguiente escribe (D-209): abierta, un clic escribe donde se pulsa (título, nota, «Detalles», una subtarea, los textos de la hoja, el nombre de la ficha) sin volver a crear la tarjeta; la fecha o el cliente leyendo escriben y abren su control; Esc o un clic fuera la cierran también escribiendo (lo escrito se guarda), y antes cierran el calendario o el desplegable; arriba a la derecha ojo, ampliar y × de 32 px con iconos de 18 px, pegados; un clic en una pestaña o un grupo no los renombra (doble clic sí); «Nueva sesión» lleva la × con el ojo a su lado', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await ppClic('.pp-tabs [data-p="tareas"]'); await M.personal.set({ vista: 'lista' });
+      const t = await M.personal.tarea({ txt: 'Revisar la luz', fecha: '2026-10-03', cliente: CLIENTE });
+      await M.personal._p.cambiar(t.id, x => { x.subtareas = [{ id: 'st1', txt: 'Trípode' }]; x.detalles = 'Mirar la terraza'; return x; }); await M.personal.render();
+      const abre = async () => { ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40); return ppCard(); };
+      let card = await abre(); await espera(260);   // measured once it has entered (scale .97 → 1)
+      const bs = asBotones('.pp-ov:not(.sale) .pp-cbs > button');
+      igual(bs.map(b => b.k), ['ampliar', 'cerrar'], 'los botones de arriba de una tarea');
+      ok(asPegados(bs), 'los botones no son de 32 px con iconos de 18 px, pegados: ' + json(bs));
+      // un clic en el título escribe donde se pulsa, en la misma tarjeta
+      const ct = card.querySelector('[data-pp="ct"]'), rc = ct.getBoundingClientRect();
+      ppRaton(ct, 'click', 1, { clientX: rc.left + 9, clientY: rc.top + rc.height / 2 }); await espera(30);
+      ok(ppCard() === card && card.classList.contains('ed') && D.activeElement === card.querySelector('[data-pp="ct"]'), 'un clic en el título no escribe o la tarjeta se vuelve a crear');
+      ok(W.getSelection().anchorOffset < 3, 'el cursor no va donde se pulsó: ' + W.getSelection().anchorOffset);
+      // Esc escribiendo la cierra y lo escrito se guarda
+      const ct2 = card.querySelector('[data-pp="ct"]'); ct2.textContent = 'Revisar la luz ya'; ct2.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc escribiendo no la cierra');
+      await hasta(async () => (await M.personal.tareas()).find(k => k.id === t.id).txt === 'Revisar la luz ya', 3000, 'que se guarde lo escrito al cerrar con Esc');
+      // «Detalles» y una subtarea: un clic escribe en ellos
+      card = await abre(); ppRaton(card.querySelector('.pp-cd'), 'click', 1); await espera(30);
+      ok(D.activeElement === ppCard().querySelector('[data-pp="cd"]') && D.activeElement.isContentEditable, 'un clic en «Detalles» no escribe');
+      ppTecla('Escape'); await espera(200);
+      card = await abre(); ppRaton(card.querySelector('.pp-csub > span'), 'click', 1); await espera(30);
+      ok(ppCard() && ppCard().classList.contains('ed') && D.activeElement.matches('.pp-cst[data-sid="st1"]'), 'un clic en una subtarea no escribe en ella');
+      ppTecla('Escape'); await espera(200);
+      // la fecha leyendo: escribe y abre el calendario de la Mesa; Esc cierra primero el calendario, después la tarjeta
+      card = await abre(); ppRaton(card.querySelector('[data-pp="lfecha"]'), 'click', 1); await espera(60);
+      ok(ppCard() && ppCard().classList.contains('ed') && M.controles.abierto() && M.controles.abierto().tipo === 'fecha', 'un clic en la fecha no abre su calendario escribiendo');
+      naTecla(D.activeElement, 'Escape'); await espera(60); ok(!M.controles.abierto() && ppCard() && ppCard().classList.contains('ed'), 'Esc no cierra antes el calendario');   // the key goes to the field with the focus, as a real one
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'el segundo Esc no la cierra');
+      // el cliente leyendo: su desplegable; el clic que lo cierra no cuenta; otro clic fuera la cierra
+      card = await abre(); ppRaton(card.querySelector('[data-pp="lcli"]'), 'click', 1); await espera(60);
+      ok(M.controles.abierto() && M.controles.abierto().tipo === 'sel', 'un clic en el cliente no abre su desplegable');
+      const fondo = q('.pp-ov:not(.sale)'); fondo.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 })); ppRaton(fondo, 'click', 1, { clientX: 5, clientY: 5 }); await espera(60);
+      ok(!M.controles.abierto() && ppCard(), 'el clic que cierra el desplegable cierra también la tarjeta');
+      fondo.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: 5, clientY: 5 })); ppRaton(fondo, 'click', 1, { clientX: 5, clientY: 5 }); await espera(200);
+      ok(!ppCard(), 'un clic fuera escribiendo no la cierra');
+      // la ×
+      card = await abre(); ppRaton(card.querySelector('[data-pp="cerrar"]'), 'click', 1); await espera(200); ok(!ppCard(), 'la × no la cierra');
+      // a task without a date nor a client: «Fecha» and «Cliente» in grey, read; a click in «Detalles» writes there and nothing moves
+      const t2 = await M.personal.tarea({ txt: 'Sin nada' }); await M.personal._p.cambiar(t2.id, x => { x.detalles = 'Primera línea\nSegunda'; return x; }); await M.personal.render();
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260);
+      ok(ppCard().querySelector('[data-pp="lfecha"].vacio') && ppCard().querySelector('[data-pp="lcli"].vacio'), 'sin fecha ni cliente no salen «Fecha» y «Cliente» en gris');
+      { const v = ppCard().querySelector('[data-pp="lfecha"].vacio'); igual(W.getComputedStyle(v.querySelector('svg')).color, W.getComputedStyle(v).color, 'el icono de «Fecha» vacía no va como su texto'); }
+      const h0 = ppCard().getBoundingClientRect().height, cd0 = ppCard().querySelector('.pp-cd'), rr = cd0.getBoundingClientRect();
+      ppRaton(cd0, 'click', 1, { clientX: rr.left + 20, clientY: rr.top + 12 }); await espera(40);
+      ok(D.activeElement === ppCard().querySelector('[data-pp="cd"]') && Math.abs(ppCard().getBoundingClientRect().height - h0) < 2, 'un clic en «Detalles» de una tarea sin fecha ni cliente no escribe allí o la tarjeta cambia de alto: ' + json([D.activeElement && D.activeElement.dataset.pp, h0, ppCard().getBoundingClientRect().height]));
+      ppTecla('Escape'); await espera(200);
+      // widened, the buttons in line with the title's first line
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(80);
+      { const bq = ppCard().querySelector('.pp-cbs').getBoundingClientRect(), tq = ppCard().querySelector('[data-pp="ct"]').getBoundingClientRect(), kq = ppCard().querySelector('.pp-ch .pp-ck').getBoundingClientRect(); ok(Math.abs((bq.top + bq.bottom) / 2 - (tq.top + 3 + 17)) < 4, 'ampliada, los botones no van en línea con el título: ' + json([bq.top, tq.top]));
+        ok(Math.abs((kq.top + kq.bottom) / 2 - (tq.top + 3 + 17)) < 3, 'ampliada, la casilla no va en línea con el título: ' + json([kq.top, tq.top])); }
+      ppTecla('Escape'); await espera(200);
+      // the second click of the double click that opened it, on the ×: it stays open
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="cerrar"]'), 'click', 2); await espera(200);
+      ok(ppCard(), 'el segundo clic de un doble clic en la × la cierra'); ppTecla('Escape'); await espera(200);
+      // a double click that closes it (outside): its second click never opens what was under it
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260); ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(40);
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 2); await espera(200); ok(!ppCard(), 'el segundo clic del doble clic que la cerró abre lo de debajo');
+      // una nota: ampliar y ×; un clic la escribe
+      const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(260);
+      ok(asPegados(asBotones('.pp-ov:not(.sale) .pp-cbs > button')), 'los botones de la nota');
+      ppRaton(ppCard().querySelector('[data-pp="cn"]'), 'click', 1); await espera(30); ok(ppCard().querySelector('[data-pp="cn"]').isContentEditable, 'un clic en la nota no la escribe');
+      ppTecla('Escape'); await espera(200);
+      // la hoja: ojo, ampliar y ×; un clic en un texto lo escribe en su sitio; pestañas y grupos con doble clic
+      const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'video', fecha: '2026-10-03', hora: '10:00', cliente: CLIENTE });
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'linea', fotos: [] }]; return x; });
+      await seAbrir(r.id); await espera(260);
+      const hb = asBotones('.pp-ov:not(.sale) .pp-hj-t .pp-cbs > button');
+      igual(hb.map(b => b.k), ['ojo', 'ampliar', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
+      const sec = seQ('[data-ap="mood"]'), tx = seQ('[data-campo="ap:orden"]');
+      ppRaton(tx, 'click', 1); await espera(40);
+      ok(tx.isConnected && tx.isContentEditable && D.activeElement === tx && sec.isConnected, 'un clic en un texto no lo escribe en su sitio');
+      ppLeer(); await espera(60);
+      ppRaton(seQ('[data-campo="nom"]'), 'click', 1); await espera(40); ok(seQ('[data-campo="nom"]').isContentEditable, 'un clic en el nombre de la sesión no lo escribe'); ppLeer(); await espera(60);
+      const tab = qa('.pp-ov:not(.sale) .pp-pl-tab')[1]; ppRaton(tab, 'click', 1); await espera(60);
+      ok(!seHoja().querySelector('[contenteditable]') && qa('.pp-ov:not(.sale) .pp-pl-tab')[1].classList.contains('on'), 'un clic en una pestaña la renombra o no la elige');
+      seDbl(seQ('.pp-pl-tab.on')); await espera(60); ok(seHoja().querySelector('.pp-pl-tn[contenteditable]'), 'el doble clic no renombra la pestaña'); ppLeer(); await espera(60);
+      ppRaton(seQ('.pp-mo-gn'), 'click', 1); await espera(40); ok(!seHoja().querySelector('[contenteditable]'), 'un clic en el nombre de un grupo lo escribe');
+      seDbl(seQ('.pp-mo-gn')); await espera(60); ok(seQ('.pp-mo-gn').isContentEditable, 'el doble clic no renombra el grupo'); ppLeer(); await espera(60);
+      ppRaton(seQ('[data-pp="cerrar"]'), 'click', 1); await espera(200); ok(!seHoja(), 'la × no cierra la hoja');
+      // la ficha de un esporádico: × tras «⋯»; un clic escribe su nombre
+      const e0 = { id: M.personal._p.nuevoId('es'), tipo: 'esporadico', txt: 'Casa Faro', creada: '2026-06-02T10:00:00.000Z', at: '2026-06-02T10:00:00.000Z' }; await M.personal._p.hacer([{ id: e0.id, despues: e0 }]);
+      M.personal._p.abrirCard(e0.id); await espera(260);
+      igual(asBotones('.pp-ov:not(.sale) .pp-es-cab .pp-cbs > button').map(b => b.k), ['mas', 'cerrar'], 'los botones de la ficha');
+      ppRaton(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'click', 1); await espera(40); ok(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]').isContentEditable, 'un clic en el nombre de la ficha no lo escribe');
+      ppTecla('Escape'); await espera(200); ok(!ppCard(), 'Esc escribiendo no cierra la ficha');
+      // «Nueva sesión»: la × de la Mesa con el ojo pegado a su izquierda
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
+      const nb = asBotones('.detail:not([hidden]) [data-ns="ojo"], .detail:not([hidden]) .card > .x');
+      ok(nb.length === 2, 'sin ojo o sin × en «Nueva sesión»: ' + json(nb));
+      const o = nb.find(b => b.k === 'ojo'), x = nb.find(b => b.k === 'close');
+      ok(o && x && x.x - o.x === 32 && x.y === o.y && o.w === 32 && x.w === 32, '«Nueva sesión»: el ojo no va pegado a la ×: ' + json(nb));
+      M._in.closeDetail(); await espera(60);
+    } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS2', 'Ampliar la hoja de una sesión (D-210): ojo, ampliar y × arriba a la derecha; ampliada ocupa la página bajo la cabecera con sus dos columnas a todo el ancho (a 720 px, una); lo que se está escribiendo sigue igual; un clic dentro no la cierra; «Reducir» la devuelve; Esc la cierra del todo y lo escrito se guarda; siempre se abre sin ampliar', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'video', fecha: '2026-10-03', hora: '10:00', cliente: CLIENTE });
+      await seAbrir(r.id); await espera(260);
+      const hb = asBotones('.pp-ov:not(.sale) .pp-hj-t .pp-cbs > button');
+      igual(hb.map(b => b.k), ['ojo', 'ampliar', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
+      const ancho0 = seHoja().getBoundingClientRect().width;
+      const tx = seQ('[data-campo="ap:orden"]'); ppRaton(tx, 'click', 1); await espera(40); await naEscribe(tx, 'Barra');
+      const b = seQ('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(60);
+      const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), rh = seHoja().getBoundingClientRect(), cols = seQ('.pp-hj-cols').getBoundingClientRect();
+      ok(ov.classList.contains('amplia') && Math.abs(rh.top - cab.bottom) < 2 && rh.width >= W.innerWidth - 20 && rh.width > ancho0, 'ampliada no ocupa la página bajo la cabecera: ' + json([rh.top, cab.bottom, rh.width, ancho0]));
+      ok(cols.width >= W.innerWidth - 100 && qa('.pp-ov:not(.sale) .pp-hj-col').length === 2, 'sus dos columnas no van a todo el ancho: ' + json(cols.width));
+      ok(seQ('[data-pp="ampliar"]') === b && b.title === 'Reducir', 'el botón no la devuelve o se vuelve a crear');
+      ok(tx.isConnected && tx.isContentEditable && /Barra/.test(tx.textContent), 'lo que se escribe no sigue igual al ampliar');
+      ppRaton(seQ('.pp-hj-col'), 'click', 1); await espera(300); ok(seHoja() && ov.classList.contains('amplia'), 'un clic dentro la cierra o la reduce');
+      ppRaton(qa('.pp-ov:not(.sale) .pp-pl-tab')[1], 'click', 1); await espera(120);   // drawn again (another tab): still widened, in its place
+      ok(seHoja().classList.contains('amplia') && W.getComputedStyle(seHoja()).paddingTop === '0px' && Math.abs(seHoja().getBoundingClientRect().top - cab.bottom) < 2, 'redibujada, la hoja ampliada pierde su sitio: ' + json([seHoja().className, W.getComputedStyle(seHoja()).paddingTop]));
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300);
+      ok(seHoja() && qa('.pp-ov:not(.sale) .pp-hj-col').length === 1 && seHoja().getBoundingClientRect().width >= W.innerWidth - 20, 'a 720 px ampliada no va en una columna');
+      fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(300);
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
+      ok(seHoja() && !q('.pp-ov:not(.sale)').classList.contains('amplia') && Math.abs(seHoja().getBoundingClientRect().width - ancho0) < 2, '«Reducir» no la devuelve a hoja');
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
+      ppTecla('Escape'); await espera(200); ok(!seHoja(), 'Esc ampliada no la cierra del todo');
+      igual(seAp(await seRec(r.id), 'orden').texto, 'Barra', 'lo escrito no se guarda');
+      await seAbrir(r.id); ok(!q('.pp-ov:not(.sale)').classList.contains('amplia'), 'no se abre sin ampliar');
+      ppTecla('Escape'); await espera(200);
+    } finally { fr.style.width = w0; paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS3', 'Mood board, opción C (D-211): en «todas», columnas de 157 px (1 % menos que la casilla del feed a 1440 px, para que quepan las 3 de 4-C con el reparto de serie), 4 px entre fotos, cada foto entera, en su orden a la columna más corta, lo que sobra a la derecha; al mover el separador o ampliar la hoja cambia cuántas columnas caben, no su tamaño; «una línea», una fila de 212 px de alto que se desliza; cada foto se dibuja a su tamaño', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Mood', clase: 'foto' });
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'todas', fotos: [] }]; return x; });
+      await seAbrir(r.id);
+      const tam = [[1600, 1067], [1067, 1600], [1600, 1600], [1600, 900], [1067, 1600], [1600, 1067], [1200, 1600]];
+      const fs = []; for (let i = 0; i < tam.length; i++) fs.push(await foto('as3-' + i + '.jpg', tam[i][0], tam[i][1]));
+      const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); const g = seQ('[data-g="g1"]');
+      g.dispatchEvent(new W.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt })); g.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await hasta(async () => ((await seRec(r.id)).fotos || []).length === tam.length, 8000, 'que se guarden las fotos'); await espera(200);
+      const k = await seRec(r.id), orden = seAp(k, 'mood').grupos[0].fotos, prop = id => { const f = k.fotos.find(x => x.id === id); return f.w / f.h; };
+      // where each photo should go: in its order, to the shortest column (the leftmost on a tie)
+      const esperado = W2 => { const n = Math.max(1, Math.floor((W2 + 4) / 161)), al = new Array(n).fill(0); return orden.map(id => { let c = 0; for (let i = 1; i < n; i++) if (al[i] < al[c] - 0.5) c = i; const h = Math.round(157 / prop(id)), o = [c * 161, al[c], h]; al[c] += h + 4; return o; }); };
+      const mira = (que) => {
+        const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = orden.map(id => box.querySelector(`.pp-fo[data-f="${id}"]`)), e = esperado(box.clientWidth);
+        const v = fos.map(f => [Math.round(f.offsetLeft), Math.round(f.offsetTop), Math.round(f.getBoundingClientRect().height), Math.round(f.getBoundingClientRect().width)]);
+        ok(v.every((x, i) => x[3] === 157 && Math.abs(x[0] - e[i][0]) < 1 && Math.abs(x[1] - e[i][1]) < 1 && Math.abs(x[2] - e[i][2]) < 1), que + ': las fotos no van en columnas de 157 px a la más corta: ' + json([box.clientWidth, v, e]));
+        ok(Math.abs(box.getBoundingClientRect().height - Math.max(...e.map(x => x[1] + x[2]))) < 1, que + ': el alto del grupo no es el de su columna más alta');
+        return new Set(v.map(x => x[0])).size;
+      };
+      const n0 = mira('al abrir'); igual(n0, 3, 'con el reparto de serie no caben las 3 columnas de 4-C');
+      // the separator narrows the mood board's column: fewer columns, the same size
+      const sep = seQ('.pp-hj-sep'), der = !!seQ('[data-ap="mood"]').closest('[data-col="der"]');
+      for (let i = 0; i < 12; i++) { naTecla(seQ('.pp-hj-sep'), der ? 'ArrowRight' : 'ArrowLeft'); await espera(30); }
+      await espera(350); const n1 = mira('con el separador movido'); ok(n1 < n0, 'mover el separador no cambia cuántas columnas caben: ' + json([n0, n1]));
+      seDbl(seQ('.pp-hj-sep')); await espera(350);
+      // widened: more columns, the same size
+      const w0 = seQ('[data-g="g1"] .pp-mo-f.todas').clientWidth;
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(350); const n2 = mira('ampliada');   // as many as fit in its new width, the same size
+      ok(seQ('[data-g="g1"] .pp-mo-f.todas').clientWidth > w0 && n2 >= n0, 'ampliada el grupo no se ensancha: ' + json([w0, n0, n2]));
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(350); igual(mira('reducida'), n0, 'al reducir no vuelve a sus columnas');
+      // each photo drawn at its size (D-116), never blurred
+      await hasta(() => [...seHoja().querySelectorAll('[data-g="g1"] .pp-fo')].every(f => { const c = f.querySelector('canvas'), d = W.devicePixelRatio || 1; return Math.max(f.clientWidth, f.clientHeight) * d <= 170 || (c && c.width === Math.round(f.clientWidth * d) && c.height === Math.round(f.clientHeight * d)); }), 6000, 'que cada foto se dibuje a su tamaño');
+      // «una línea»: one row as high as a cell, each photo whole, it slides
+      seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click(); await espera(200);
+      const box = seQ('[data-g="g1"] .pp-mo-f.linea'), l = orden.map(id => box.querySelector(`.pp-fo[data-f="${id}"]`));
+      ok(l.every(f => Math.round(f.getBoundingClientRect().height) === 212 && Math.abs(f.getBoundingClientRect().width - 212 * prop(f.dataset.f)) < 1 && Math.abs(f.offsetTop - l[0].offsetTop) < 1), '«una línea» no va a 212 px de alto con la foto entera');
+      ok(box.scrollWidth > box.clientWidth && W.getComputedStyle(box).overflowX === 'auto', '«una línea» no se desliza');
+      // a new group starts in «una línea»
+      seQ('[data-hj="g-nuevo"]').click(); await espera(150); M.personal._p.editar(false); await espera(100);
+      const k2 = await seRec(r.id); igual(seAp(k2, 'mood').grupos[1].modo, 'linea', 'un grupo nuevo no empieza en «una línea»');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS4', 'Avisos, opción B (D-212): cinco cifras, cada una con su número y su filtro (Se ha pasado · Hoy · Mañana · Esperando al cliente · Falta programar); en la columna «Hoy N» de título y «Mañana N» debajo; sin nada hoy, «Hoy», «Nada para hoy» y «Mañana N»; sin nada en los dos, sin grupo; el filtro «Hoy» solo lo de hoy y «Mañana» solo lo de mañana; la marca de lo no programado sigue; a 720 px las cinco caben sin solaparse', async () => {
+    relojEn('2026-11-01T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await tablero([{ ...pub(1, 'Foto', 10), date: '2026-11-10T18:00:00.000+01:00' }, pub(2, 'Foto', 11), pub(3, 'Reel', 11)]);
+      await porAprobar(['r1', 'r2', 'r3'], 'as4'); M.setEstado(['r1', 'r3'], 'aprobado'); M.setEstado('r1', 'programado'); await M.flush();
+      relojEn('2026-11-10T10:00:00+01:00');
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: true, avisos: false } }); await M.personal.render();
+      igual(qa('.pp-cifra').map(b => b.dataset.k + ':' + b.querySelector('span').textContent), ['pasado:Se ha pasado', 'hoy:Hoy', 'man:Mañana', 'espera:Esperando al cliente', 'falta:Falta programar'], 'las cinco cifras');
+      igual([ppCifras().hoy, ppCifras().man], [1, 2], 'las cifras de hoy y de mañana');
+      const tit = () => q('.pp-grupo[data-cat="hoy"] .pp-gt') && q('.pp-grupo[data-cat="hoy"] .pp-gt').textContent.trim(), sub = () => q('.pp-grupo[data-cat="hoy"] .pp-sub') && q('.pp-grupo[data-cat="hoy"] .pp-sub').textContent.trim();
+      igual([tit(), sub(), ppLineas('hoy')], ['Hoy 1', 'Mañana 2', ['r1', 'r2', 'r3']], '«Hoy N» y «Mañana N» debajo');
+      ok(q('.pp-av[data-slot="r2"]').classList.contains('sinprog') && q('.pp-av[data-slot="r3"]').classList.contains('sinprog') && !q('.pp-av[data-slot="r1"]').classList.contains('sinprog'), 'la marca de lo no programado (D-190) no sigue en mañana');
+      // the figures filter: today only, tomorrow only
+      await ppClic('.pp-cifra[data-k="hoy"]'); igual([tit(), sub(), ppLineas('hoy')], ['Hoy 1', null, ['r1']], 'el filtro «Hoy» no deja solo lo de hoy');
+      await ppClic('.pp-cifra[data-k="man"]'); igual([tit(), sub(), ppLineas('hoy')], ['Mañana 2', null, ['r2', 'r3']], 'el filtro «Mañana» no deja solo lo de mañana');
+      await ppClic('.pp-cifra[data-k="man"]'); igual(ppLineas('hoy'), ['r1', 'r2', 'r3'], 'quitar el filtro');
+      // nothing today, something tomorrow
+      relojEn('2026-11-09T10:00:00+01:00'); await M.personal.render();
+      igual([tit(), q('.pp-grupo[data-cat="hoy"] .pp-nada') && q('.pp-grupo[data-cat="hoy"] .pp-nada').textContent, sub(), ppLineas('hoy')], ['Hoy', 'Nada para hoy', 'Mañana 1', ['r1']], 'sin nada hoy: «Hoy», «Nada para hoy» y «Mañana N»');
+      ok(q('.pp-cifra[data-k="hoy"]').disabled && !q('.pp-cifra[data-k="man"]').disabled, 'una cifra en 0 se pulsa o una con algo no');
+      ok(q('.pp-grupo[data-cat="hoy"] .pp-sub').getBoundingClientRect().top - q('.pp-grupo[data-cat="hoy"] .pp-nada').getBoundingClientRect().top >= 38, '«Nada para hoy» y «Mañana» van pegados');
+      // nothing in either: no group
+      relojEn('2026-11-05T10:00:00+01:00'); await M.personal.render(); ok(!q('.pp-grupo[data-cat="hoy"]'), 'sin nada hoy ni mañana sale el grupo');
+      // 720 px: the five fit without overlapping
+      relojEn('2026-11-10T10:00:00+01:00'); await M.personal.render();
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); await M.personal.render();
+      const rs = qa('.pp-cifra').map(b => b.getBoundingClientRect()), caja = q('.pp-cifras').getBoundingClientRect();
+      ok(rs.every((a, i) => rs.every((b, j) => i === j || a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5)), 'a 720 px las cifras se solapan: ' + json(rs.map(r => [r.left, r.right, r.top, r.bottom])));
+      ok(rs.every(r => r.left >= caja.left - 0.5 && r.right <= caja.right + 0.5) && qa('.pp-cifra span').every(x => x.scrollWidth <= x.clientWidth + 1), 'a 720 px una cifra se sale o se corta');
+    } finally { fr.style.width = w0; paginaCerrada(); relojVuelve(); }
+  });
+
+  prueba('AS7', '«Capas», opción B (D-215): asa en cada fila; ojo y candado de Lucide, a la vista al pasar, en la fila elegida o con el foco, y siempre si está oculta o bloqueada; eslabón de Lucide en lo agrupado; sin ▲ ▼ ni caracteres; el clic derecho de una fila (y la tecla de menú o ⇧F10) ofrece Al frente, Adelante, Atrás y Al fondo, apagados si no mueven nada; lo bloqueado no sale en la imagen', async () => {
+    await editorConVelo();
+    try {
+      const c = () => compDe(ed().i), fila = k => q(`.lb-panel .lb-caps > .lb-cap${k === 'velo' || k === 'tex' ? `[data-capa="${k}"]` : `[data-id="${c().els.find(e => e.t === k).id}"]`}`);
+      accion('add-forma', { v: 'rect' }); await espera(60); sinPanel(); accion('cap', { id: c().els.find(e => e.t === 'foto').id }); await espera(80);
+      const L = q('.lb-panel [data-acc="capas"] .lb-acc-h, .lb-panel [data-pl="capas"] .lb-acc-h'); if (L && L.getAttribute('aria-expanded') !== 'true') { L.click(); await espera(250); }
+      const filas = qa('.lb-panel .lb-caps > .lb-cap');
+      igual(capasFilas(), ['tex', 'forma', 'texto', 'velo', 'foto'], 'las filas de «Capas»');
+      ok(filas.every(f => f.querySelector('.lb-capasa:not(.no)')), 'una fila sin asa');
+      ok(!q('.lb-panel [data-lb="cap-up"], .lb-panel [data-lb="cap-dn"]') && qa('.lb-panel .lb-cap button').every(b => !b.textContent.trim()) && !/[⛓◉◌🔒🔓▲▼]/u.test(q('.lb-panel .lb-caps').textContent), 'quedan ▲ ▼ o caracteres en «Capas»');
+      const masc = el => decodeURIComponent(W.getComputedStyle(el, '::before').webkitMaskImage || ''), op = el => +W.getComputedStyle(el).opacity;
+      const ojo = k => fila(k).querySelector('[data-lb="cap-ver"]'), cand = k => fila(k).querySelector('[data-lb="cap-lock"]');
+      await espera(250);
+      ok(masc(ojo('texto')).includes('M2.062 12.348') && masc(cand('texto')).includes('9.9-1'), 'el ojo o el candado no son de Lucide');
+      ok(op(ojo('texto')) === 0 && op(cand('texto')) === 0 && op(ojo('foto')) === 1 && op(cand('foto')) === 1, 'los iconos de una fila sin elegir se ven, o los de la elegida no: ' + json([op(ojo('texto')), op(ojo('foto'))]));
+      // hidden and locked: always seen, their own icons
+      ojo('texto').click(); await espera(60); cand('forma').click(); await espera(60); accion('cap', { id: c().els.find(e => e.t === 'foto').id }); await espera(250);
+      ok(ojo('texto').classList.contains('act') && masc(ojo('texto')).includes('m2 2 20 20') && op(ojo('texto')) === 1, 'lo oculto no se ve con el ojo tachado');
+      ok(cand('forma').classList.contains('act') && masc(cand('forma')).includes('0 1 10 0v4') && op(cand('forma')) === 1, 'lo bloqueado no se ve con el candado cerrado');
+      // locked, it doesn't go out: the same image with and without the lock
+      const forma = c().els.find(e => e.t === 'forma'), conCandado = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
+      cand('forma').click(); await espera(60); ok(await bytesIguales(conCandado, await M.libre.pieza(JSON.parse(json(c())), 540, 675)), 'el candado cambia la imagen que sale');
+      ojo('texto').click(); await espera(60);
+      // locked at the top edge: its lock, inside its corner (outside there is no canvas)
+      { const fm = c().els.find(e => e.t === 'forma'); fm.x = 0; fm.y = 0; fm.color = '#000000'; cand('forma').click(); await espera(60); accion('cap', { id: fm.id }); await espera(200);
+        const cv = ed().cv, d = W.devicePixelRatio || 1, px = cv.getContext('2d').getImageData(Math.round(9 * d), Math.round(9 * d), 1, 1).data;   // the badge's white, beside its lock (18 px at 6 px in the corner)
+        ok(px[0] > 235 && px[1] > 235 && px[2] > 235, 'el candado de lo bloqueado arriba del todo no se ve: ' + json([...px]));
+        cand('forma').click(); await espera(60); }
+      // grouped: Lucide's link
+      fila('texto').click(); await espera(30); fila('forma').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })); await espera(30); accion('group'); await espera(80);
+      ok(fila('texto').querySelector('.lb-capg[aria-label="En un grupo"]') && fila('forma').querySelector('.lb-capg') && !fila('velo').querySelector('.lb-capg'), 'lo agrupado no lleva el eslabón');
+      accion('ungroup'); await espera(60);
+      // nothing chosen, the slide's «Capas»: the right click on a row chooses it and «Capas» stays open
+      tecla('Escape'); await espera(60); W.localStorage.removeItem('mesa-lb-seccion-el'); accion('cap', { id: c().els.find(e => e.t === 'foto').id }); tecla('Escape'); await espera(60);   // a text's remembered section, none
+      const L2 = q('.lb-panel [data-acc="capas"] .lb-acc-h'); if (L2 && L2.getAttribute('aria-expanded') !== 'true') { L2.click(); await espera(250); }
+      const ft = fila('texto'), rf = ft.getBoundingClientRect(); ft.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rf.left + 20, clientY: rf.top + 8 })); await espera(80);
+      ok(q('.lb-cm:not([hidden])') && q('.lb-panel [data-pl="capas"] .lb-acc-h[aria-expanded="true"]'), 'el clic derecho en una fila pliega «Capas»');
+      tecla('Escape'); await espera(40);
+      // the row's menu: the four orders, off when they move nothing; one step of ⌘Z
+      const tex = fila('tex'), rt = tex.getBoundingClientRect(); tex.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rt.left + 20, clientY: rt.top + 8 })); await espera(40);
+      igual(qa('.lb-cm:not([hidden]) button').map(b => b.dataset.lb + (b.disabled ? '-' : '+')), ['front-', 'fwd-', 'bwd+', 'back+'], 'el menú de la fila de arriba');
+      ok(ed().capa === 'tex', 'el clic derecho no elige la capa');
+      q('.lb-cm:not([hidden]) [data-lb="bwd"]').click(); await espera(60);
+      igual(capasFilas(), ['forma', 'tex', 'texto', 'velo', 'foto'], '«Atrás» no la baja una');
+      tecla('z', { meta: true }); await espera(80); igual(capasFilas(), ['tex', 'forma', 'texto', 'velo', 'foto'], '⌘Z no la devuelve');
+      // the keyboard: the menu key and ⇧F10 on a row's button; Esc closes the menu
+      const b = ojo('velo'); b.focus(); await espera(30);
+      { const rs = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } });   // the frame's document has no focus: the rule (real keys, aparte)
+        ok(rs.some(r => (r.selectorText || '').split(',').map(x => x.trim()).includes('#mesa .lb-cap:focus-within .lb-ci') && r.style.opacity === '1'), 'con el foco del teclado no se ven sus iconos'); }
+      b.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true })); await espera(40);
+      ok(q('.lb-cm:not([hidden])') && ed().capa === 'velo', 'la tecla de menú no abre el de la fila');
+      tecla('Escape'); await espera(40); ok(!q('.lb-cm:not([hidden])'), 'Esc no cierra el menú de la fila');
+      const b2 = ojo('texto'); b2.focus(); b2.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true })); await espera(40);
+      ok(q('.lb-cm:not([hidden])') && ed().sel === c().els.find(e => e.t === 'texto').id, '⇧F10 no abre el menú de la fila');
+      tecla('Escape'); await espera(40);
+    } finally { M.libre.cerrar(); }
+  });
+
   // =====================================================================================================
   // ejecución
+  prueba('AS5', 'Lo que se escribe en la página personal, opción A (D-213): el campo que se escribe lleva una línea de 1 px en terracota al 50 %, radio --r-sm, sin fondo ni aro, en la tarjeta, la hoja, la ficha y «Nueva tarea»; los demás campos de la tarjeta se ven como leyendo; los diálogos de la Mesa siguen como sus campos', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await ppClic('.pp-tabs [data-p="tareas"]'); await M.personal.set({ vista: 'lista' });
+      const cs = e => W.getComputedStyle(e), sonda = v => { const d = D.createElement('i'); d.style.color = v; q('#mesa').append(d); const c = cs(d).color; d.remove(); return c; };
+      const linea = sonda('color-mix(in oklab, var(--acc-ink) 50%, transparent)'), rsm = cs(q('#mesa')).getPropertyValue('--r-sm').trim();
+      const fina = (e, que) => { const c = cs(e); ok(/inset/.test(c.boxShadow) && c.boxShadow.includes(linea) && /0px 0px 0px 1px/.test(c.boxShadow) && /rgba\(0, 0, 0, 0\)|transparent/.test(c.backgroundColor) && c.borderTopLeftRadius === rsm, que + ': no lleva la línea fina sin fondo: ' + json([c.boxShadow, c.backgroundColor, c.borderTopLeftRadius, linea, rsm])); };
+      const t = await M.personal.tarea({ txt: 'Contorno', fecha: '2026-10-03' }); await M.personal._p.cambiar(t.id, x => { x.subtareas = [{ id: 's1', txt: 'Uno' }]; return x; }); await M.personal.render();
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(260);
+      const alto0 = ppCard().getBoundingClientRect().height;
+      ppRaton(ppCard().querySelector('[data-pp="ct"]'), 'click', 1); await espera(250);
+      // with the battery's frame the document has no focus and «:focus» doesn't apply: the rule itself (the real one: ratón y teclado reales)
+      const reglas = [...D.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch (e) { return []; } }), sels = r => (r.selectorText || '').split(',').map(x => x.trim());
+      const regla = sel => reglas.find(r => sels(r).includes(sel)), escr = regla('#mesa .pp-card.ed .pp-ct:focus');
+      ok(escr && /^inset 0 0 0 1px var\(--pp-escr\)$/.test(escr.style.boxShadow) && escr.style.backgroundImage === 'none' && escr.style.borderRadius === 'var(--r-sm)' && escr.style.outlineStyle === 'none', 'sin la regla de lo que se escribe (línea fina, sin fondo ni aro): ' + (escr && escr.cssText));
+      igual(['#mesa .pp-card.ed .pp-cd:focus', '#mesa .pp-card.ed .pp-cn:focus', '#mesa .pp-cst:focus', '#mesa .pp-ov .escribiendo'].filter(x => !sels(escr).includes(x)), [], 'la regla no cubre todo lo que se escribe');
+      igual(sonda('var(--pp-escr)'), linea, '--pp-escr no es la terracota al 50 %');
+      const nv = regla('#mesa .pp-nueva:focus-within'); ok(nv && nv.style.borderColor === 'var(--pp-escr)' && nv.style.boxShadow === 'none', '«Nueva tarea» no lleva la línea fina: ' + (nv && nv.cssText));
+      const cd = ppCard().querySelector('[data-pp="cd"]'), st = ppCard().querySelector('.pp-cst');
+      ok(cs(cd).boxShadow === 'none' && cs(st).boxShadow === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(cs(cd).backgroundColor), 'los campos sin el foco no se ven como leyendo');
+      ok(Math.abs(ppCard().getBoundingClientRect().height - alto0) < 2, 'la tarjeta cambia de alto al pasar a escribir: ' + json([alto0, ppCard().getBoundingClientRect().height]));
+      ppTecla('Escape'); await espera(200);
+      // a note: its line (when written) clears the buttons
+      const nt = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea larga para ver dónde acaba la línea' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${nt.id}"]`), 'click', 1); await espera(260);
+      ok(ppCard().querySelector('[data-pp="cn"]').getBoundingClientRect().right <= ppCard().querySelector('.pp-cbs').getBoundingClientRect().left - 2, 'la línea de la nota pasa por encima de sus botones');
+      ppTecla('Escape'); await espera(200);
+      // the sheet and the file
+      const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'foto' }); await seAbrir(r.id);
+      ppRaton(seQ('[data-campo="ap:orden"]'), 'click', 1); await espera(250); fina(seQ('[data-campo="ap:orden"]'), 'un texto de la hoja');
+      igual(cs(seQ('[data-campo="nom"]')).paddingTop, '3px', 'el nombre de la hoja no deja sitio a la línea'); ppTecla('Escape'); await espera(200);
+      const e0 = { id: M.personal._p.nuevoId('es'), tipo: 'esporadico', txt: 'Casa Faro', creada: '2026-06-02T10:00:00.000Z', at: '2026-06-02T10:00:00.000Z' }; await M.personal._p.hacer([{ id: e0.id, despues: e0 }]);
+      M.personal._p.abrirCard(e0.id); await espera(260); ppRaton(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'click', 1); await espera(250);
+      fina(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'el nombre de la ficha'); igual(cs(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]')).paddingTop, '3px', 'el nombre de la ficha no deja sitio a la línea'); ppTecla('Escape'); await espera(200);
+      // a dialog of the Mesa keeps the Mesa's fields (D-171): the rule never reaches them
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(120);
+      const ni = q('#pp-ns-nom'); ok(ni && !sels(escr).concat(sels(nv)).some(x => ni.matches(x.replace(/:focus(-within)?/g, '')) || q('.detail:not([hidden]) .pp-nueva')), 'la regla llega a los campos de «Nueva sesión»');
+      M._in.closeDetail(); await espera(60);
+    } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS6', 'Planos y Vídeos, opción A (D-214): las pestañas con la letra, el tamaño y el peso del título de un apartado y su cuenta como la de los apartados; sin raya ni línea debajo; la no elegida en --faint; el «+» sigue', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Planos', clase: 'video' });
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'planos').pestanas[0].items = [{ id: 'i1', titulo: 'Uno', texto: '', fotos: [], enlaces: [], hecho: true }, { id: 'i2', titulo: 'Dos', texto: '', fotos: [], enlaces: [] }]; seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'linea', fotos: [] }]; return x; });
+      await seAbrir(r.id); await espera(260);
+      const cs = e => W.getComputedStyle(e), tok = k => { const d = D.createElement('i'); d.style.color = `var(${k})`; q('#mesa').append(d); const c = cs(d).color; d.remove(); return c; };
+      const ti = cs(seQ('[data-ap="orden"] .pp-hj-pl b')), [on, off] = [seQ('.pp-pl-tab.on'), qa('.pp-ov:not(.sale) .pp-pl-tab:not(.on)')[0]];
+      const tn = cs(on.querySelector('.pp-pl-tn'));
+      igual([tn.fontSize, tn.fontWeight, tn.letterSpacing], [ti.fontSize, ti.fontWeight, ti.letterSpacing], 'la pestaña no lleva la letra del título');
+      const nn = cs(on.querySelector('.pp-hj-n')), ap = cs(seQ('[data-ap="mood"] .pp-mo-gh .pp-hj-n'));
+      igual([nn.fontSize, nn.fontWeight, nn.color], [ap.fontSize, ap.fontWeight, ap.color], 'la cuenta no va como la de los apartados');
+      igual(on.querySelector('.pp-hj-n').textContent, '1/2', 'la cuenta');
+      ok(Math.abs(on.querySelector('.pp-pl-tn').getBoundingClientRect().left - seQ('[data-ap="orden"] .pp-hj-pl b').getBoundingClientRect().left) < 1.5, 'la pestaña no empieza donde los demás títulos');
+      ok(on.querySelector('.pp-hj-n').getBoundingClientRect().left - on.querySelector('.pp-pl-tn').getBoundingClientRect().right >= 5, 'la cuenta va pegada al nombre');
+      ok(seQ('[data-ap="planos"] .pp-hj-pl').getBoundingClientRect().right <= on.getBoundingClientRect().left + 0.5, 'la primera pestaña tapa el botón de plegar');
+      igual(W.getComputedStyle(on, '::after').content, 'none', 'la elegida lleva raya');
+      igual(cs(seQ('.pp-pl-tabs')).borderBottomWidth, '0px', 'hay línea debajo');
+      igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--faint')], 'la elegida no va en tinta o la otra no en --faint');
+      ok(seQ('[data-hj="tab-mas"]'), 'sin «+»');
+      const x0 = on.querySelector('.pp-pl-tn').getBoundingClientRect().left; await espera(400); seDbl(on); await espera(80);   // past the double click that opened it
+      { const tn = seQ('.pp-pl-tn[contenteditable]'), cs = W.getComputedStyle(tn); ok(Math.abs(tn.getBoundingClientRect().left + parseFloat(cs.paddingLeft) - x0) < 1, 'al renombrar, el nombre de la pestaña salta: ' + json([x0, tn.getBoundingClientRect().left, cs.paddingLeft, cs.marginLeft, tn.parentNode.tagName, W.getComputedStyle(tn.parentNode).paddingLeft])); } M.personal._p.editar(false); await espera(80);
+      seQ('[data-hj="it-nuevo"]').click(); await espera(120);
+      ok(seQ('.pp-pl-ti.escribiendo').getBoundingClientRect().height >= 20, 'el título vacío de un plano nuevo encoge al escribir'); M.personal._p.editar(false); await espera(80);
+      ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('AS8', 'El asa del separador, opción A (D-216): con dos columnas la derecha va 20 px más adentro y el asa de sus apartados no cae sobre la del separador (separador al 30, 50 y 70 %, también ampliada); a 720 px, una columna sin esos 20 px', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Asa', clase: 'fotovideo' }); await seAbrir(r.id); await espera(260);
+      const pi = c => parseFloat(W.getComputedStyle(seQ(`.pp-hj-col[data-col="${c}"]`)).paddingLeft);
+      igual(pi('der') - pi('izq'), 20, 'la columna derecha no va 20 px más adentro');
+      const mira = que => {
+        const sep = seQ('.pp-hj-sep').getBoundingClientRect(), asa = [...seHoja().querySelectorAll('[data-col="der"] .pp-hj-asa')].map(a => a.getBoundingClientRect());
+        ok(asa.length && asa.every(a => a.left >= sep.right + 2), que + ': el asa de un apartado cae sobre el separador: ' + json([sep.right, asa.map(a => a.left)]));
+      };
+      for (const v of [0.3, 0.5, 0.7]) { M.personal._p.lsSet('mesa-pp-hoja', JSON.stringify({ ...M.sesiones._test.reparto(), sep: v })); M.personal._p.cerrarCard(true); await seAbrir(r.id); await espera(300); mira('al ' + v * 100 + ' %'); }
+      const sp = seQ('.pp-hj-sep'), rs = sp.getBoundingClientRect(); sp.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: rs.left + 8, clientY: rs.top + 50 }));
+      ok(seQ('.pp-hj-cols').classList.contains('mov') && W.getComputedStyle(seQ('.pp-hj-cols')).transitionDuration === '0s', 'el separador arrastrado va con transición');
+      W.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1 })); sp.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1 })); await espera(60);
+      ok(!seQ('.pp-hj-cols').classList.contains('mov'), 'al soltarlo sigue sin transición');
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(300); mira('ampliada');
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(350);
+      ok(!seHoja().querySelector('[data-col="der"]') && parseFloat(W.getComputedStyle(seQ('.pp-hj-col')).paddingLeft) === 4, 'a 720 px lleva los 20 px o dos columnas');
+    } finally { fr.style.width = w0; M.personal._p.lsSet('mesa-pp-hoja', ''); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

@@ -107,7 +107,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.64';   // 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.65';   // 1.65: «Capas» with a handle, Lucide's eye, lock and link, seen on hover, chosen or with the focus, and the order in each row's right click; Lucide's lock on the canvas (D-215). 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -1613,12 +1613,24 @@
 #mesa .lb-capv.velo .lb-capn::before{background:linear-gradient(0deg,color-mix(in oklab,var(--ink) 80%,transparent),transparent)}
 #mesa .lb-capv.tex .lb-capn::before{background:repeating-linear-gradient(45deg,var(--mute) 0 1px,transparent 1px 3px);opacity:.7}
 #mesa .lb-capsp{flex:none;width:24px}
+#mesa .lb{--lb-i-ojo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='12' cy='12' r='3'/%3E%3C/svg%3E");--lb-i-ojo-no:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M14.084 14.158a3 3 0 0 1-4.242-4.242'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m2 2 20 20'/%3E%3C/svg%3E");--lb-i-lock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect vector-effect='non-scaling-stroke' width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");--lb-i-lock-o:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect vector-effect='non-scaling-stroke' width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M7 11V7a5 5 0 0 1 9.9-1'/%3E%3C/svg%3E");--lb-i-link:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");--lb-i-grip:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle vector-effect='non-scaling-stroke' cx='9' cy='12' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='9' cy='5' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='9' cy='19' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='15' cy='12' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='15' cy='5' r='1'/%3E%3Ccircle vector-effect='non-scaling-stroke' cx='15' cy='19' r='1'/%3E%3C/svg%3E")}
+#mesa .lb-capasa{flex:none;align-self:stretch;width:16px;margin:-4px 2px -4px -4px;color:var(--faint);cursor:grab;position:relative}
+#mesa .lb-capasa::before,#mesa .lb-capg::before,#mesa .lb-cap .lb-ci::before{content:'';position:absolute;inset:0;margin:auto;background:currentColor;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+#mesa .lb-capasa::before{width:14px;height:14px;--m:var(--lb-i-grip)}#mesa .lb-capasa.no{cursor:default}#mesa .lb-capasa.no::before{content:none}
+#mesa .lb-cap:hover .lb-capasa:not(.no){color:var(--mute)}
+#mesa .lb-capg{flex:none;position:relative;width:14px;height:14px;margin-right:5px;color:var(--mute)}#mesa .lb-capg::before{--m:var(--lb-i-link)}
+#mesa .lb-cap .lb-ci{position:relative;font-size:0;opacity:0;transition:opacity var(--d1) var(--ease),background var(--d1) var(--ease)}
+#mesa .lb-cap .lb-ci::before{width:15px;height:15px}
+#mesa .lb-cap .lb-ci[data-lb="cap-ver"]::before{--m:var(--lb-i-ojo)}#mesa .lb-cap .lb-ci[data-lb="cap-ver"].act::before{--m:var(--lb-i-ojo-no)}
+#mesa .lb-cap .lb-ci[data-lb="cap-lock"]::before{--m:var(--lb-i-lock-o)}#mesa .lb-cap .lb-ci[data-lb="cap-lock"].act::before{--m:var(--lb-i-lock)}
+#mesa .lb-cap:hover .lb-ci,#mesa .lb-cap.on .lb-ci,#mesa .lb-cap:focus-within .lb-ci,#mesa .lb-cap .lb-ci.act{opacity:1}
+#mesa .lb-cap .lb-ci.act{color:var(--ink-2)}
+#mesa .lb-cap .lb-ci:focus-visible,#mesa .lb-cap[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 #mesa .lb-cap.arr{opacity:.5}#mesa .lb-capdrop{position:absolute;left:4px;right:4px;height:2px;border-radius:2px;background:var(--acc);pointer-events:none}
-#mesa .lb-cap{display:flex;align-items:center;gap:2px;padding:4px 6px 4px 9px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
+#mesa .lb-cap{display:flex;align-items:center;gap:2px;min-height:33px;padding:4px 6px 4px 4px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
 #mesa .lb-capn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .lb-capn i{font-style:normal;color:var(--mute)}
 #mesa .lb-cap button{border:0;background:none;width:24px;height:24px;border-radius:var(--r-xs);padding:0;font-size:11.5px;color:var(--mute)}
-#mesa .lb-cap button[data-lb="cap-up"],#mesa .lb-cap button[data-lb="cap-dn"]{position:relative;font-size:0}#mesa .lb-cap button[data-lb="cap-up"]::before,#mesa .lb-cap button[data-lb="cap-dn"]::before{content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;background:currentColor;-webkit-mask:var(--i-chev-u) center/contain no-repeat;mask:var(--i-chev-u) center/contain no-repeat}#mesa .lb-cap button[data-lb="cap-dn"]::before{-webkit-mask-image:var(--i-chev);mask-image:var(--i-chev)}
 #mesa .lb-cap button:hover:not(:disabled){background:var(--bg-2);color:var(--ink)}#mesa .lb-cap button:disabled{color:var(--faint)}
 #mesa .lb-cap.off .lb-capn{opacity:.45}
 #mesa .lb-all{position:absolute;inset:0;z-index:20;background:var(--bg);overflow:auto;padding:16px 20px}
@@ -1825,6 +1837,7 @@
       x.restore();
     }
   }
+  const LB_LOCK = typeof Path2D === 'function' ? new Path2D('M7 11V7a5 5 0 0 1 10 0v4') : null;
   function marco(x, el, W, H, solo) {
     const g = geo(el, W, H), u = 1 / E.k;
     x.save(); x.translate(g.cx, g.cy); x.rotate(g.a);
@@ -1837,7 +1850,12 @@
       const hs = 9 * u;
       for (const [hx, hy] of asas(el, g)) { x.fillStyle = '#fff'; x.fillRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); x.strokeRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); }
     }
-    if (el.lock && solo && !esFotoDz(el)) { x.fillStyle = '#0095f6'; x.font = `600 ${12 * u}px -apple-system,sans-serif`; x.textAlign = 'left'; x.textBaseline = 'top'; x.fillText('🔒', -g.w / 2 + 6 * u, -g.h / 2 + 6 * u); }
+    if (el.lock && solo && !esFotoDz(el)) {    // Lucide's lock (D-215) on a white badge, as the handles, outside the corner: it never covers what is locked
+      const b = 18 * u, k = 12 * u / 24, fuera = !g.a && g.cy - g.h / 2 - b - 4 * u >= 0; x.translate(-g.w / 2 + (fuera ? 0 : 6 * u), fuera ? -g.h / 2 - b - 4 * u : -g.h / 2 + 6 * u);   // at the top edge, inside its corner
+      x.beginPath(); x.roundRect(0, 0, b, b, 4 * u); x.fillStyle = '#fff'; x.fill(); x.lineWidth = u; x.stroke();
+      x.translate(3 * u, 3 * u); x.scale(k, k); x.lineWidth = 1.33 * u / k; x.lineCap = 'round'; x.lineJoin = 'round';
+      x.beginPath(); x.roundRect(3, 11, 18, 11, 2); x.stroke(); x.stroke(LB_LOCK);
+    }
     x.restore();
   }
 
@@ -2413,6 +2431,7 @@
   }
   function onWheel(e) {
     if (!E) return;
+    E.ultPuntero = performance.now();   // a menu closed by the wheel: the focus stays where it is
     menuCtx(false);
     if (E.crop && e.target === E.cv && E.sl.length) {   // framing a photo: the wheel or a pinch on the slide zooms the photo
       const el = compAt(E.i).els.find(x => x.id === E.crop); if (!el) return;
@@ -2539,9 +2558,32 @@
     m.style.left = Math.max(4, Math.min(x, vw - w - 4)) + 'px'; m.style.top = Math.max(4, Math.min(y, vh - h - 4)) + 'px';
     const b = m.querySelector('button:not(:disabled)'); if (b) b.focus({ preventScroll: true });
   }
+  // a row of «Capas» (D-215): its right click (also the menu key and ⇧F10 on it) chooses its layer, as on the slide, and offers
+  // the orders that move it, each one off when it would leave the stack as it is (D-201); the design's photo never moves: the
+  // browser's menu
+  function menuCapa(f, x, y) {
+    if (E.busy || !f || !f.isConnected) return false;
+    const c = compAt(E.i), r = f.getBoundingClientRect(), cp = f.dataset.capa;
+    let sel;
+    if (cp) { if (!(cp === 'velo' ? c.velo : c.tex)) return false; if (E.capa !== cp) { soltar(); E.capa = cp; E.crop = null; E.pick = null; panel(); pedir(); } sel = [cp]; }
+    else {
+      const el = c.els.find(q => q.id === f.dataset.id); if (!el || esFotoDz(el)) return false;
+      if (E.capa || !selIds().includes(el.id)) { seleccionar(el); E.crop = null; E.pick = null; recordarSec(tipoSec(), 'capas'); panel(); pedir(); }   // one of several chosen: they stay chosen; «Capas» stays open
+      sel = selEls();
+    }
+    const Lp = pila(compAt(E.i));
+    const mueve = dir => { const L2 = reordenar(Lp, sel, dir); if (!L2) return false; const k = L2.findIndex(q => typeof q !== 'string' && esFotoDz(q)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((q, j) => q !== Lp[j]); };
+    abrirCm(itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')),
+      'capa', 'Orden de la capa', x == null ? r.left + 24 : x, y == null ? r.bottom : y);
+    E.capaVuelve = x == null ? `.lb-caps .lb-cap[${cp ? `data-capa="${cp}"` : `data-id="${CSS.escape(f.dataset.id)}"`}]` : null;   // from the keyboard: the focus comes back to the row
+    return true;
+  }
   function onCtx(e) {
     if (!E) return;
+    if (E.cmOn && e.target && e.target.closest && e.target.closest('.lb-cm')) { e.preventDefault(); return; }   // on the open menu: it stays (the menu key sends this on release in some systems)
     menuCtx(false);
+    const fc = e.target && e.target.closest && e.target.closest('.lb-caps .lb-cap');
+    if (fc) { if (menuCapa(fc, e.clientX, e.clientY)) e.preventDefault(); return; }
     const enEl = e.target === E.cv && E.sl.length > 0 && E.allEl.hidden;
     if (!gris(e) && !enEl) return;  // on the panel, the strip or the bars: the browser's menu, as before
     if (enEl) {
@@ -2589,7 +2631,9 @@
     if (!E || (!on && !E.cmOn)) return;
     E.cmOn = on; const m = E.el.querySelector('.lb-cm'); m.hidden = !on;
     if (!on) { E.cmDe = null; E.el.querySelectorAll('[data-lb="formas"][aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
-    if (!on && m.contains(document.activeElement)) E.el.focus({ preventScroll: true });
+    const dentro = !on && m.contains(document.activeElement);
+    if (dentro) E.el.focus({ preventScroll: true });
+    if (!on && E.capaVuelve) { const s = E.capaVuelve; E.capaVuelve = null; if (dentro && performance.now() - (E.ultPuntero || 0) > 400) requestAnimationFrame(() => { const r = E && !E.cmOn && E.el.querySelector(s), b = r && (r.querySelector('button') || r); if (b) b.focus({ preventScroll: true }); }); }   // closed with its keys or an order: back to the row
   }
 
   // ---------- a double click on a bar's row puts it back (Mesa más limpia) ----------
@@ -2777,20 +2821,20 @@
   function capasHTML(c, sec) {                 // the elements and, as layers, the veil and the texture (D-185); top: what is in front
     const L = pila(c); if (!L.length) return '';
     const ids = selIds(), n = L.length;
-    const ud = (k, at) => `<button type="button" data-lb="cap-up" ${at} title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" ${at} title="Atrás" aria-label="Atrás"${k === 0 ? ' disabled' : ''}>▼</button>`;
-    const ver = (o, at) => `<button type="button" data-lb="cap-ver" ${at} title="${o.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${o.oculto ? 'Mostrar' : 'Ocultar'}">${o.oculto ? '◌' : '◉'}</button>`;
+    // B (D-215): a handle on the left (the design's photo never moves, D-193), the eye and the lock of Lucide, seen on hover, on
+    // the chosen row or with the keyboard's focus, and always when hidden or locked; the order, in each row's right click
+    const asa = (si = true) => `<span class="lb-capasa${si ? '' : ' no'}" aria-hidden="true"></span>`;
+    const ver = (o, at) => `<button type="button" class="lb-ci${o.oculto ? ' act' : ''}" data-lb="cap-ver" ${at} title="${o.oculto ? 'Mostrar' : 'Ocultar (no sale en la imagen)'}" aria-label="${o.oculto ? 'Mostrar' : 'Ocultar'}" aria-pressed="${!!o.oculto}"></button>`;
     const fila = (x, k) => {
       if (typeof x === 'string') {
         const o = x === 'velo' ? c.velo : c.tex, at = `data-capa="${x}"`, nm = x === 'velo' ? `Velo <i>${o.tipo === 'grad' ? 'degradado' : 'plano'}</i>` : `Textura <i>${esc(String(TEXS[o.tipo] || o.tipo).toLowerCase())}</i>`;
-        return `<div class="lb-cap lb-capv ${x}${E.capa === x ? ' on' : ''}${o.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nm}</span>${ver(o, at)}<span class="lb-capsp" aria-hidden="true"></span>${ud(k, at)}</div>`;
+        return `<div class="lb-cap lb-capv ${x}${E.capa === x ? ' on' : ''}${o.oculto ? ' off' : ''}" data-lb="cap" ${at}>${asa()}<span class="lb-capn">${nm}</span>${ver(o, at)}<span class="lb-capsp" aria-hidden="true"></span></div>`;
       }
       const e = x, at = `data-id="${esc(e.id)}"`;
-      if (fijoDz(e)) {                          // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
-        const sobreFoto = k > 0 && esFotoDz(L[k - 1]), mov = esDz(e) ? `<button type="button" data-lb="cap-up" ${at} title="Adelante" aria-label="Adelante"${k === n - 1 ? ' disabled' : ''}>▲</button><button type="button" data-lb="cap-dn" ${at} title="Atrás" aria-label="Atrás"${k === 0 || sobreFoto ? ' disabled' : ''}>▼</button>` : '';
-        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}><span class="lb-capn">${nombreEl(e)}</span><span class="lb-capsp" aria-hidden="true"></span>${mov}</div>`;
-      }
-      return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}><span class="lb-capn">${e.g ? '⛓ ' : ''}${nombreEl(e)}</span>${ver(e, at)}`
-        + `<button type="button" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}">${e.lock ? '🔒' : '🔓'}</button>${ud(k, at)}</div>`;
+      if (fijoDz(e))                            // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
+        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}${esDz(e) ? ` tabindex="0" role="button" aria-pressed="${ids.includes(e.id)}"` : ''}>${asa(esDz(e))}<span class="lb-capn">${nombreEl(e)}</span></div>`;
+      return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}>${asa()}${e.g ? '<span class="lb-capg" role="img" aria-label="En un grupo" title="En un grupo"></span>' : ''}<span class="lb-capn">${nombreEl(e)}</span>${ver(e, at)}`
+        + `<button type="button" class="lb-ci${e.lock ? ' act' : ''}" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-pressed="${!!e.lock}"></button></div>`;
     };
     return plegable('capas', 'Capas', String(n), `<p class="lb-p" style="margin:0 0 8px">Arriba, lo que está delante. ⇧ + clic para elegir varias.</p><div class="lb-caps" title="Arrastra una capa para cambiarla de sitio">${L.map((x, k) => ({ x, k })).reverse().map(({ x, k }) => fila(x, k)).join('')}</div>`, sec);
   }
@@ -3385,7 +3429,6 @@
         if (b.dataset.capa) { const c = compAt(E.i); if (!(b.dataset.capa === 'velo' ? c.velo : c.tex)) return; soltar(); E.capa = b.dataset.capa; E.crop = null; E.pick = null; lsPoner(LS_AC, 'capas'); panel(); pedir(); return; }   // the veil or the texture: its section and «Capas» (D-185)
         const el = compAt(E.i).els.find(e => e.id === b.dataset.id); if (!el) return; const capas = !!b.closest('.lb-acc[data-pl="capas"]'); seleccionar(el, b._shift); E.crop = null; E.pick = null; if (capas) recordarSec(tipoSec(), 'capas'); panel(); pedir(); return; }   // chosen from an element's «Capas»: «Capas» stays open (D-149)
       case 'cap-ver': case 'cap-lock': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), e = cp ? (cp === 'velo' ? c.velo : c.tex) : c.els.find(q => q.id === id); if (!e) return; if (cp) { if (e.oculto) delete e.oculto; else e.oculto = true; return; } if (a === 'cap-ver') e.oculto = !e.oculto; else e.lock = !e.lock; }); return; }
-      case 'cap-up': case 'cap-dn': { const id = b.dataset.id, cp = b.dataset.capa; mut(null, () => { const c = ensure(), L = pila(c), k = L.findIndex(q => cp ? q === cp : typeof q !== 'string' && q.id === id), j = k + (a === 'cap-up' ? 1 : -1); if (k < 0 || j < 0 || j >= L.length) return; [L[k], L[j]] = [L[j], L[k]]; enPila = true; dePila(c, L); }); return; }   // on the stack (D-185)
     }
   }
   // a designed post (D-193): its slides are the design's (none added, deleted, moved nor copied whole here); a designed slide
@@ -3400,7 +3443,6 @@
     if ((a === 'del' || a === 'copy') && fijos.length && fijos.length === selEls().length) { if (a === 'del') I().toast(fijos.some(esDz) ? 'El diseño no se borra: «Soltar del kit» lo pasa a capas normales.' : 'La foto del diseño no se borra: cámbiala con «Reemplazar».'); return true; }
     const at = b && b.dataset && b.dataset.id ? compAt(E.i).els.find(q => q.id === b.dataset.id) : null;
     if ((a === 'cap-ver' || a === 'cap-lock') && fijoDz(at)) return true;
-    if ((a === 'cap-up' || a === 'cap-dn') && esFotoDz(at)) return true;
     return false;
   }
   function menu(on) {
@@ -3653,7 +3695,7 @@
     el.querySelector('.lb-zv').addEventListener('dblclick', e => { e.preventDefault(); if (E && !E.busy) zoom(1); });   // the percentage: the whole slide, at 100 % («Ajustar» was, D-145)
     sc.addEventListener('dblclick', e => { if (!E || !gris(e) || E.busy || E.esp || !E.sl.length || escribiendo() || performance.now() - E.finEscr < 600) return; zoom(1); });
     sc.addEventListener('scroll', () => menuCtx(false));
-    el.addEventListener('pointerdown', e => { if (E && e.button === 2 && escribiendo()) E.ctxEscr = performance.now(); }, true);   // a right click while writing: the focus leaves the field before its menu
+    el.addEventListener('pointerdown', e => { if (E) E.ultPuntero = performance.now(); if (E && e.button === 2 && escribiendo()) E.ctxEscr = performance.now(); }, true);   // a right click while writing: the focus leaves the field before its menu
     el.addEventListener('contextmenu', onCtx);
     el.addEventListener('pointermove', e => { E && (E.ptr = { x: e.clientX, y: e.clientY }); }, true);
     el.addEventListener('pointerleave', () => { if (E) E.ptr = null; });
@@ -3706,6 +3748,8 @@
       return;
     }
     if (E.cmOn && !['Enter', 'Tab', ' ', 'Shift'].includes(e.key)) menuCtx(false);   // another key: the menu goes
+    if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && t && t.closest && t.closest('.lb-caps .lb-cap')) { e.preventDefault(); menuCapa(t.closest('.lb-cap')); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !e.altKey && t && t.matches && t.matches('.lb-caps .lb-cap[tabindex]')) { e.preventDefault(); if (!e.repeat) { t.click(); const r = E && E.el.querySelector('.lb-caps .lb-cap[tabindex]'); if (r) r.focus({ preventScroll: true }); } return; }   // a row with no buttons («Diseño»): chosen from the keyboard   // a row of «Capas» from the keyboard (D-215)
     const sola = !e.metaKey && !e.ctrlKey && !e.altKey, teclado = t && t !== E.el && t !== document.body && t.matches && t.matches(':focus-visible');
     if (e.key === ' ' && sola && !E.cmOn && !teclado && sobreGris()) { e.preventDefault(); if (!E.esp) { E.esp = true; mano(); } return; }   // space over the slide or the grey: the hand
     if (sola && !e.shiftKey && (k === 't' || k === 'r')) { if (E.sl.length && !e.repeat) { e.preventDefault(); if (k === 't') act('add-txt'); else act('add-forma', { dataset: { v: 'rect' } }); } return; }

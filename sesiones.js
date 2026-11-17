@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];
@@ -151,7 +151,7 @@
   function cuenta(a, r) { const h = hechos(a, r); return h ? `<span class="pp-hj-n">${h[0] == null ? h[1] : h[0] + '/' + h[1]}</span>` : ''; }
   function texto(campo, txt, vacio) {          // a text with marks: read (its checkboxes are used, D-204); written on a double click
     const vc = S.vista, h = (P.ES() ? P.ES().html(txt || '', { enlaces: true, casillas: vc ? 'vineta' : 'si' }) : P.esc(txt || ''));
-    return `<div class="pp-hj-tx${h ? '' : ' vacio'}" data-campo="${P.esc(campo)}"${h || vc ? '' : ' title="Doble clic para escribir"'}>${h}</div>`;
+    return `<div class="pp-hj-tx${h ? '' : ' vacio'}" data-campo="${P.esc(campo)}">${h}</div>`;
   }
   function aph(a, r, extra) {                  // a section's head: handle, fold, its name and count, its eye and «⋯»
     const vc = S.vista, plg = S.plg.has(a.id), nom = P.esc(a.nombre || (APS[a.id] || {}).n || a.id);
@@ -166,7 +166,7 @@
     const pt = P_.find(p => p.id === act), sing = n => /^planos$/i.test(n) ? 'Plano' : /^v[ií]deos$/i.test(n) ? 'Vídeo' : n;
     const tabs = `<span class="pp-pl-tabs" role="tablist" aria-label="${P.esc(a.nombre || 'Planos')}">${P_.map(p => { const n = (p.items || []).length, h = (p.items || []).filter(i => i.hecho).length, c = `tab:${a.id}:${p.id}`;
       if (P.CARD.ed && S.campo === c) return `<span class="pp-pl-tab on"><span class="pp-pl-tn" data-campo="${P.esc(c)}">${P.esc(p.nombre)}</span></span>`;   // being renamed
-      return `<button type="button" role="tab" class="pp-pl-tab${p.id === act ? ' on' : ''}" data-hj="tab" data-tab="${P.esc(p.id)}" aria-selected="${p.id === act}" data-campo="${P.esc(c)}" title="Doble clic: cambiar el nombre"><span class="pp-pl-tn">${P.esc(p.nombre)}</span>${n ? ` <span>${h}/${n}</span>` : ''}</button>`; }).join('')}${vc ? '' : `<button type="button" class="ibtn pp-pl-mas" data-hj="tab-mas" title="Nueva pestaña" aria-label="Nueva pestaña">${svgI('mas')}</button>`}</span>`;
+      return `<button type="button" role="tab" class="pp-pl-tab${p.id === act ? ' on' : ''}" data-hj="tab" data-tab="${P.esc(p.id)}" aria-selected="${p.id === act}" data-campo="${P.esc(c)}" title="Doble clic: cambiar el nombre"><span class="pp-pl-tn">${P.esc(p.nombre)}</span>${n ? ` <span class="pp-hj-n">${h}/${n}</span>` : ''}</button>`; }).join('')}${vc ? '' : `<button type="button" class="ibtn pp-pl-mas" data-hj="tab-mas" title="Nueva pestaña" aria-label="Nueva pestaña">${svgI('mas')}</button>`}</span>`;
     if (S.plg.has(a.id)) return { cab: tabs, cuerpo: '' };
     const items = (pt.items || []).map(it => {
       const ref = (it.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, Math.round(72 * as), 72, 'Foto de referencia', false); }).join('');
@@ -179,11 +179,15 @@
     }).join('');
     return { cab: tabs, cuerpo: `<div class="pp-pl-items">${items}</div>${vc ? '' : `<button type="button" class="pp-cmas" data-hj="it-nuevo">${svgI('mas')}${P.esc(sing(pt.nombre))}</button>`}` };
   }
+  // the mood board (D-211, C): columns as wide as a cell of the mesa's feed at 1440 px (measured: 158.7 × 211.6 px), 4 px
+  // apart, each photo whole; as many columns as fit (what is left stays on the right), each photo, in its order, to the
+  // shortest one; «una línea», one row as high as a cell
+  const MO_COL = 157, MO_ALTO = 212, MO_GAP = 4;   // 157: 1 % under the cell, so the three columns of 4-C fit in the default split
   function moodHTML(a, r) {
     const vc = S.vista;
     const gs = (a.grupos || []).map(g => {
-      const fos = (g.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, Math.round(78 * as), 78, 'Mood board', false).replace('class="pp-fo"', `class="pp-fo" data-a="${as.toFixed(4)}"`); }).join('');
       const una = (g.modo || 'linea') === 'linea';
+      const fos = (g.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, una ? Math.round(MO_ALTO * as) : MO_COL, una ? MO_ALTO : Math.round(MO_COL / as), 'Mood board', false).replace('class="pp-fo"', `class="pp-fo" data-a="${as.toFixed(4)}"`); }).join('');
       return `<div class="pp-mo-g" data-g="${P.esc(g.id)}" data-drop="g:${P.esc(a.id)}:${P.esc(g.id)}"><div class="pp-mo-gh"><b class="pp-mo-gn" data-campo="g:${P.esc(a.id)}:${P.esc(g.id)}">${P.esc(g.nombre || 'Grupo')}</b><span class="pp-hj-n">${(g.fotos || []).length}</span><span class="pp-hj-sp"></span>`
         + (vc ? '' : `<div class="seg pp-tvs pp-mo-modo" role="group" aria-label="Cómo se ven"><button type="button" class="${una ? 'on' : ''}" data-hj="modo" data-m="linea" aria-pressed="${una}" title="Una línea" aria-label="Una línea">${svgI('una')}</button><button type="button" class="${una ? '' : 'on'}" data-hj="modo" data-m="todas" aria-pressed="${!una}" title="Todas" aria-label="Todas">${svgI('todas')}</button></div>`) + `</div>`
         + `<div class="pp-mo-f ${una ? 'linea' : 'todas'}${fos ? '' : ' vacio'}"${fos ? '' : ' title="Suelta aquí fotos del ordenador o de la tira"'}>${fos}</div></div>`;
@@ -220,7 +224,7 @@
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
     const cli = r.cliente ? P.cliDe(r.cliente) : null;
-    const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${vc ? '' : ojoBtn(vis, '', 'data-hj="ojo"')}</div>`
+    const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
       + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.diaHora(r.fecha, r.hora))}</span>` : ''}${cli ? `<span class="pp-hj-chip ro">${P.avatar(cli.id, 'xs')}${P.esc(cli.name)}</span>` : ''}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
         + `<span class="pp-hj-chip pp-hj-fh"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión"></span>`
@@ -232,7 +236,7 @@
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
       : `<div class="pp-hj-cols${dos ? '' : ' una'}" style="${dos ? `grid-template-columns:minmax(0,${C.sep.toFixed(4)}fr) 17px minmax(0,${(1 - C.sep).toFixed(4)}fr)` : ''}"><div class="pp-hj-col" data-col="izq">${col('izq')}${dos ? '' : col('der')}${!dos && !vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>`
         + (dos ? `<div class="pp-hj-sep" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Separador de las columnas" aria-valuemin="25" aria-valuemax="75" aria-valuenow="${Math.round(C.sep * 100)}" title="Arrastra para repartir · doble clic: como al principio"></div><div class="pp-hj-col" data-col="der">${col('der')}${!vc && faltan.length ? `<button type="button" class="pp-cmas pp-hj-apn" data-hj="ap-nuevo">${svgI('mas')}Apartado</button>` : ''}</div>` : '') + `</div>`;
-    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
+    return `<div class="pp-card pp-hj${vc ? ' vc' : ''}${P.CARD && P.CARD.ed ? ' ed' : ''}${P.CARD && P.CARD.amplia ? ' amplia' : ''}" role="dialog" aria-modal="true" aria-label="Sesión: ${P.esc(r.txt)}" tabindex="-1">${cab}${cuerpo}</div>`;
   }
 
   // ---------- drawing the sheet ----------
@@ -252,21 +256,30 @@
     const c = ov.firstChild; c.scrollTop = y;
     if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2) e2.value = enlV; }
     maquetar();
+    const cl = ov.querySelector('.pp-hj-cols'); if (cl) cl.addEventListener('transitionend', ev => { if (ev.target === cl) colocarMood(); });   // the separator's move ends
     if (P.CARD.ed && S.campo) escribirEn(S.campo, o.pt); else if (foco) { const b = ov.querySelector(foco); if (b) b.focus({ preventScroll: true }); else c.focus({ preventScroll: true }); } else c.focus({ preventScroll: true });
   }
   const pintarYa = () => { const r = rec(); if (r) pintar(r, { forzar: true }); };
   const claveFoco = el => { const a = el.closest('[data-hj], [data-pp], [data-campo]'); if (!a) return null; for (const k of ['hj', 'pp', 'campo']) if (a.dataset[k] != null) { const ex = a.dataset.tab ? `[data-tab="${CSS.escape(a.dataset.tab)}"]` : a.dataset.m ? `[data-m="${CSS.escape(a.dataset.m)}"]` : ''; const ap_ = a.closest('[data-ap]'); return (ap_ ? `[data-ap="${CSS.escape(ap_.dataset.ap)}"] ` : '') + `[data-${k}="${CSS.escape(a.dataset[k])}"]${ex}`; } return null; };
-  // the photos where they are: a mood board's «todas» in justified rows (each photo whole, each row the full width)
-  function maquetar() {
+  // the photos where they are: a mood board's «todas» in columns of a fixed width (D-211); only their place changes when the
+  // separator moves or the sheet widens, never their size
+  function colocarMood() {
     const ov = P.ov; if (!ov) return;
     ov.querySelectorAll('.pp-mo-f.todas').forEach(box => {
-      const W = box.clientWidth - 1, H = 95, gap = 4, fs = [...box.querySelectorAll('.pp-fo')]; if (W < 40 || !fs.length) return;   // a pixel to spare: rounded widths never push the last one down
-      let fila = [], suma = 0;
-      // every row the full width (the last one never more than half as high again)
-      const cerrar = ultima => { const h = Math.min(ultima ? H * 1.5 : 1e9, (W - gap * (fila.length - 1)) / suma); fila.forEach(([el, a]) => { el.style.height = h.toFixed(1) + 'px'; el.style.width = (Math.floor(a * h * 10) / 10) + 'px'; }); fila = []; suma = 0; };
-      for (const el of fs) { const a = +el.dataset.a || 1; fila.push([el, a]); suma += a; if (suma * H + gap * (fila.length - 1) >= W) cerrar(false); }
-      if (fila.length) cerrar(true);
+      const fs = [...box.querySelectorAll('.pp-fo')]; if (!fs.length) { box.style.height = ''; return; }
+      const W = box.clientWidth, w = Math.max(40, Math.min(MO_COL, W)), n = Math.max(1, Math.floor((W + MO_GAP) / (w + MO_GAP))), alto = new Array(n).fill(0);
+      for (const el of fs) {
+        let c = 0; for (let i = 1; i < n; i++) if (alto[i] < alto[c] - 0.5) c = i;   // the shortest, the leftmost on a tie
+        const h = Math.round(w / (+el.dataset.a || 1));
+        if (w !== MO_COL || el.style.height !== h + 'px') { el.style.width = w + 'px'; el.style.height = h + 'px'; }
+        el.style.left = c * (w + MO_GAP) + 'px'; el.style.top = alto[c] + 'px'; alto[c] += h + MO_GAP;
+      }
+      box.style.height = (Math.max(...alto) - MO_GAP) + 'px';
     });
+  }
+  function maquetar() {
+    const ov = P.ov; if (!ov) return;
+    colocarMood();
     ov.querySelectorAll('.pp-fo').forEach(dibujarFoto);
   }
   let rzT = 0;
@@ -291,10 +304,17 @@
     if (S.vista) return;
     const C = P.CARD; if (!C) return;
     if (C.ed && S.campo === campo) return;
+    const otro = C.ed && S.campo;
     if (C.ed) guardar(false);
-    C.ed = true; S.campo = campo; S.firma = '';
+    C.ed = true; S.campo = campo;
+    // reading, a text starts being written in its place: nothing else is drawn again (D-209); a tab's name, or going from
+    // one text to another, draws the sheet again with it
+    const el = !otro && !/^tab:/.test(campo) && P.ov && P.ov.querySelector(`[data-campo="${CSS.escape(campo)}"]`);
+    if (el) { P.ov.firstChild.classList.add('ed'); S.firma = firma(rec()); escribirEn(campo, pt); return; }
+    S.firma = '';
     pintar(rec(), { forzar: true, pt });
   }
+  const UNCLIC = /^(nom|ap:|it:)/;               // a click writes these; a tab's or a group's name is renamed with a double click (D-209)
   function valorDe(r, campo) {
     const p = campo.split(':');
     if (campo === 'nom') return r.txt;
@@ -333,19 +353,26 @@
   const cambiar = (f, junta) => { const r = rec(); return r ? P.cambiar(r.id, x => (f(x) === false ? null : x), junta).then(() => P.pintar()) : Promise.resolve(false); };
   function clic(e) {
     const t = e.target, ov = P.ov, c = ov && ov.firstChild; if (!c) return false;
-    if (!c.contains(t)) return false;          // outside: back to reading, or it closes (personal.js)
+    if (!c.contains(t)) return false;          // outside: it closes, writing too (personal.js)
     if (P.CARD.pd) { P.CARD.pd = false; return true; }
+    if (t.closest('[data-pp="ampliar"], [data-pp="cerrar"]')) return false;   // widen and the ×: personal.js (D-209, D-210)
     const a = t.closest('[data-hj]'), k = a && a.dataset.hj, apEl = t.closest('[data-ap]'), apId = apEl && apEl.dataset.ap;
-    if (P.CARD.ed && S.campo && !t.closest('[contenteditable], .pp-ecapa')) { P.editar(false); if (!k) return true; }   // writing: a click elsewhere goes back to reading
+    const pt = { x: e.clientX, y: e.clientY }, txt = !k && e.detail < 2 && !S.vista && t.closest('[data-campo]');
+    const escribe = txt && UNCLIC.test(txt.dataset.campo) && !t.closest('a, .pp-em.ca[data-ln]') ? txt.dataset.campo : null;
+    if (P.CARD.ed && S.campo && !t.closest('[contenteditable], .pp-ecapa')) {   // writing: another text is written; elsewhere, back to reading
+      if (escribe) { empezar(escribe, pt); return true; }
+      P.editar(false); if (!k) return true;
+    }
     if (t.closest('a.pp-ea, a.pp-pl-en')) return true;   // a link opens in another tab; the sheet stays
     const cas = t.closest('.pp-em.ca[data-ln]'); if (cas && !P.CARD.ed && !S.vista) { marcarTexto(cas); return true; }
     const fo = t.closest('.pp-fo'); if (fo && !k && e.detail < 2) { verFoto(fo.dataset.f); return true; }
+    if (escribe && !P.CARD.ed && !P.seleccionando()) { empezar(escribe, pt); return true; }   // reading: a click writes where it is pressed (D-209)
     if (!k) return true;
     const r = rec(); if (!r) return true;
     if (k === 'ojo') { cambiar(x => { x.sesion.visible = x.sesion.visible === false; }); return true; }
     if (k === 'ojo-ap') { cambiar(x => { const y = ap(x, apId); if (!y) return false; y.visible = y.visible === false; }); return true; }
     if (k === 'plegar') { if (S.plg.has(apId)) S.plg.delete(apId); else S.plg.add(apId); pintarYa(); const b = P.ov.querySelector(`[data-ap="${CSS.escape(apId)}"] [data-hj="plegar"]`); if (b) b.focus({ preventScroll: true }); return true; }
-    if (k === 'tab') { if (e.detail >= 2) return true; S.tab[apId] = a.dataset.tab; pintarYa(); return true; }
+    if (k === 'tab') { if (e.detail >= 2 || S.tab[apId] === a.dataset.tab) return true; S.tab[apId] = a.dataset.tab; pintarYa(); return true; }   // the tab in use: nothing to draw again
     if (k === 'tab-mas') { const id = P.nuevoId('pt'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.pestanas = y.pestanas || []).push({ id, nombre: 'Pestaña', items: [] }); }).then(() => { S.tab[apId] = id; empezar(`tab:${apId}:${id}`); }); return true; }
     if (k === 'it-nuevo') { const pt = S.tab[apId], id = P.nuevoId('pi'); cambiar(x => { const y = ap(x, apId), p = y && (y.pestanas || []).find(q => q.id === pt); if (!p) return false; (p.items = p.items || []).push({ id, titulo: '', texto: '', fotos: [], enlaces: [] }); }).then(() => empezar(`it:${apId}:${pt}:${id}:titulo`)); return true; }
     if (k === 'g-nuevo') { const id = P.nuevoId('gr'); cambiar(x => { const y = ap(x, apId); if (!y) return false; (y.grupos = y.grupos || []).push({ id, nombre: 'Grupo', modo: 'linea', fotos: [] }); }).then(() => empezar(`g:${apId}:${id}`)); return true; }
@@ -363,6 +390,7 @@
     if (S.vista) return;
     const t = e.target;
     if (t.closest('.pp-hj-sep')) { const R = reparto(); R.sep = SEP0; guardarReparto(R); pintarYa(); return; }   // the separator: back to how it started (as D-148)
+    if (P.CARD.peq) return;                      // the double click that opened it writes nothing under the pointer (D-209)
     if (t.closest('[contenteditable], .pp-ck, button:not([data-campo]), a, input, select')) return;
     const f = t.closest('[data-campo]'); if (f) empezar(f.dataset.campo, { x: e.clientX, y: e.clientY });
   }
@@ -507,7 +535,7 @@
     if (!asa && !sep) return;
     e.preventDefault();
     const cols = ov.querySelector('.pp-hj-cols'), rc = cols.getBoundingClientRect();
-    if (sep) { mov = { sep: true, rc, el: sep, x0: e.clientX }; sep.setPointerCapture(e.pointerId); sep.classList.add('mov'); return; }
+    if (sep) { mov = { sep: true, rc, el: sep, x0: e.clientX, cols }; sep.setPointerCapture(e.pointerId); sep.classList.add('mov'); cols.classList.add('mov'); return; }
     const sec = asa.closest('[data-ap]');
     const linea = document.createElement('div'); linea.className = 'pp-hj-linea'; cols.append(linea);
     const fant = sec.querySelector('.pp-hj-aph').cloneNode(true); fant.className = 'pp-hj-aph pp-hj-fant'; ov.firstChild.append(fant);
@@ -519,7 +547,7 @@
     if (!mov) return;
     const ov = P.ov, cols = ov && ov.querySelector('.pp-hj-cols'); if (!cols) return;
     mov.ex = e.clientX; mov.ey = e.clientY;
-    if (mov.sep) { if (Math.abs(e.clientX - (mov.x0 || e.clientX)) < 3 && !mov.x) { mov.x0 = mov.x0 || e.clientX; return; } const x = Math.max(0.3, Math.min(0.7, (e.clientX - mov.rc.left) / mov.rc.width)); cols.style.gridTemplateColumns = `minmax(0,${x.toFixed(4)}fr) 17px minmax(0,${(1 - x).toFixed(4)}fr)`; mov.x = x; return; }
+    if (mov.sep) { if (Math.abs(e.clientX - (mov.x0 || e.clientX)) < 3 && !mov.x) { mov.x0 = mov.x0 || e.clientX; return; } const x = Math.max(0.3, Math.min(0.7, (e.clientX - mov.rc.left) / mov.rc.width)); cols.style.gridTemplateColumns = `minmax(0,${x.toFixed(4)}fr) 17px minmax(0,${(1 - x).toFixed(4)}fr)`; mov.x = x; if (!mov.raf) mov.raf = requestAnimationFrame(() => { if (mov) mov.raf = 0; colocarMood(); }); return; }
     const c = ov.firstChild.getBoundingClientRect();
     mov.fant.style.transform = `translate(${Math.round(e.clientX - c.left - mov.dx)}px,${Math.round(e.clientY - c.top - mov.dy + ov.firstChild.scrollTop)}px)`;
     const cs = [...cols.querySelectorAll('.pp-hj-col')], col = cs.find(x => { const q = x.getBoundingClientRect(); return e.clientX >= q.left && e.clientX <= q.right; }) || cs[e.clientX < cols.getBoundingClientRect().left + cols.clientWidth / 2 ? 0 : cs.length - 1];
@@ -532,7 +560,7 @@
   function soltar() {
     if (!mov) return;
     const m = mov; mov = null;
-    if (m.sep) { m.el.classList.remove('mov'); if (m.x) { const R = reparto(); R.sep = m.x; guardarReparto(R); pintarYa(); } return; }   // not moved: nothing is drawn again (its double click lands on the same element)
+    if (m.sep) { m.el.classList.remove('mov'); m.cols.classList.remove('mov'); if (m.x) { const R = reparto(); R.sep = m.x; guardarReparto(R); pintarYa(); } return; }   // not moved: nothing is drawn again (its double click lands on the same element)
     m.linea.remove(); m.fant.remove(); m.sec.classList.remove('mov');
     if (m.col && Math.hypot(m.ex - m.x0, m.ey - m.y0) > 4) mover(m.id, m.col, m.antes);
   }
@@ -546,7 +574,7 @@
   }
   function dialogo() {
     const X = I(), E = DLG.estado;
-    X.showDialog('pp-sesion', `<div class="pp-ns-cab"><h3>Nueva sesión</h3>${ojoBtn(E.visible, '', 'data-ns="ojo"')}</div>`
+    X.showDialog('pp-sesion', `<button class="x" data-act="close" aria-label="Cerrar">×</button><div class="pp-ns-cab"><h3>Nueva sesión</h3>${ojoBtn(E.visible, 'pp-cb', 'data-ns="ojo"')}</div>`
       + `<form class="form pp-ns" autocomplete="off"><label for="pp-ns-nom">Nombre</label><input id="pp-ns-nom" type="text" maxlength="80" value="${P.esc(E.nombre)}" required>`
       + `<label id="pp-ns-tl">Tipo</label><div class="pp-ns-tipos" role="radiogroup" aria-labelledby="pp-ns-tl">${CLASES.map(([k, l, ic]) => `<button type="button" role="radio" class="pp-ns-t${E.clase === k ? ' on' : ''}" data-ns="clase" data-k="${k}" aria-checked="${E.clase === k}" tabindex="${E.clase === k ? 0 : -1}">${svgI(ic)}<span>${l}</span></button>`).join('')}</div>`
       + `<div class="pp-ns-2"><div><label for="pp-ns-fecha">Fecha y hora</label><span class="pp-ns-fh"><input id="pp-ns-fecha" type="date" data-sin-fecha value="${P.esc(E.fecha)}" aria-label="Fecha de la sesión"><input id="pp-ns-hora" type="time" value="${P.esc(E.hora)}" aria-label="Hora de la sesión"></span></div>`
@@ -626,7 +654,7 @@
     const desde = e.creada ? `${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][+e.creada.slice(5, 7) - 1]} ${e.creada.slice(0, 4)}` : '';
     const ses = k => { const ico = k.sesion && k.sesion.clase === 'foto' ? 'camara' : k.sesion && k.sesion.clase === 'video' ? 'video' : k.sesion && k.sesion.clase === 'libre' ? 'libre' : 'sesion', d = k.fecha ? P.difD(hoy, k.fecha) : null;
       return `<button type="button" class="pp-es-s" data-pp="tver" data-id="${P.esc(k.id)}"><span class="pp-es-d${d != null && d >= 0 ? ' prox' : ''}">${k.fecha ? P.esc(P.diaHora(k.fecha, k.hora)) : 'Sin fecha'}</span>${svgI(ico)}<b>${P.esc(k.txt)}</b>${d === 0 ? '<i>hoy</i>' : d === 1 ? '<i>mañana</i>' : ''}</button>`; };
-    return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div><button type="button" class="ibtn pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button></div>`
+    return `<div class="pp-card pp-es" role="dialog" aria-modal="true" aria-label="Esporádico: ${P.esc(e.txt)}" tabindex="-1"><div class="pp-es-cab">${P.avatar(e.id, 'lg')}<div class="pp-es-t"><h2 class="pp-es-nom" data-campo="nom">${P.esc(e.txt)}</h2>${desde ? `<p>Esporádico desde ${desde}</p>` : ''}</div>${P.botonesCard(`<button type="button" class="ibtn pp-cb pp-hj-mas" data-es="mas" aria-label="Más del esporádico" title="Más">${svgI('mas3')}</button>`, false)}</div>`
       + (ns.length ? `<section class="pp-es-sec"><h3>Notas <span>${ns.length}</span></h3><div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${P.esc(n.id)}" data-pp="tver" data-id="${P.esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${P.esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div></section>` : '')
       + `<section class="pp-es-sec"><h3>Sesiones <span>${ss.length}</span></h3><div class="pp-es-l">${ss.map(ses).join('')}</div><button type="button" class="pp-cmas" data-es="sesion">${svgI('mas')}Sesión</button></section>`
       + `<section class="pp-es-sec"><h3>Tareas <span>${ts.filter(k => !k.hecha).length}</span></h3><div class="pp-es-l">${ts.map(k => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${P.esc(k.id)}"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha"><span class="pp-tt" data-pp="tver" data-id="${P.esc(k.id)}" tabindex="0" role="button">${P.esc(k.txt)}</span>${k.fecha ? `<span class="pp-tf">${P.esc(P.diaHora(k.fecha).replace(/ \d{4}$/, ''))}</span>` : ''}</div>`).join('')}</div><button type="button" class="pp-cmas" data-es="tarea">${svgI('mas')}Tarea</button></section>`
@@ -638,15 +666,17 @@
     if (!o.forzar && f === F.firma && ov.firstChild) return; F.firma = f;
     ov.innerHTML = fichaHTML(e);
     const c = ov.firstChild;
-    if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
+    if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
     else c.focus({ preventScroll: true });
   }
   const espRec = () => { const C = P.CARD; return C && C.ext === FICHA ? P.TK.get(C.id) : null; };
   function fichaClic(e) {
     const t = e.target, c = P.ov && P.ov.firstChild; if (!c || !c.contains(t)) return false;
     if (P.CARD.pd) { P.CARD.pd = false; return true; }
+    if (t.closest('[data-pp="cerrar"]')) return false;   // the ×: personal.js (D-209)
     const e0 = espRec(); if (!e0) return true;
     if (P.CARD.ed && !t.closest('[contenteditable]')) { P.editar(false); return true; }
+    if (!P.CARD.ed && e.detail < 2 && t.closest('[data-campo="nom"]') && !P.seleccionando()) { fichaEscribir({ x: e.clientX, y: e.clientY }); return true; }   // its name: a click writes it (D-209)
     const a = t.closest('[data-es]'), k = a && a.dataset.es;
     if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuEsp(e0.id), a); return true; }
     if (k === 'sesion') { nueva({ ctx: null, campo: 'ficha', desde: e0 }); return true; }
@@ -655,7 +685,15 @@
     const v = t.closest('[data-pp="tver"]'); if (v && !t.closest('.pp-ck')) { P.abrirCard(v.dataset.id); return true; }
     return true;
   }
-  function fichaDbl(e) { if (e.target.closest('[data-campo="nom"]') && !P.CARD.ed) { P.CARD.ed = true; fichaPintar(espRec(), { forzar: true }); } }
+  function fichaDbl(e) { if (!P.CARD.peq && e.target.closest('[data-campo="nom"]') && !P.CARD.ed) fichaEscribir(null); }
+  function fichaEscribir(pt) {                 // the name, written in its place (nothing else drawn again), the caret where it was pressed
+    const n = P.ov && P.ov.querySelector('.pp-es [data-campo="nom"]'); if (!n) return;
+    P.CARD.ed = true; F.firma = JSON.stringify([espRec(), true, P.vivos().filter(k => k.cliente === P.CARD.id)]);
+    n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus({ preventScroll: true });
+    let rg = pt && document.caretRangeFromPoint ? document.caretRangeFromPoint(pt.x, pt.y) : null; if (rg && !n.contains(rg.startContainer)) rg = null;
+    if (!rg) { rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); }
+    const sl = getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  }
   function fichaTecla(e) {
     if (P.CARD.ed && e.key === 'Enter' && !e.isComposing && e.target.isContentEditable) { e.preventDefault(); e.stopImmediatePropagation(); P.editar(false); return true; }
     if (!P.CARD.ed && e.key === 'Enter' && e.target === P.ov.firstChild) { e.preventDefault(); return true; }
@@ -724,6 +762,7 @@
       pintar(r, o);
     },
     clic, dbl, tecla, menu, cambio, escribir, archivos,
+    ampliar: () => maquetar(),                 // widened or back (D-210): as many columns of the mood board as fit now
     guardar: fin => guardar(fin),
     cerrar: () => { if (ctlCampo) { ctlCampo.apagar(); ctlCampo = null; } S._id = null; S.firma = ''; mov = null; decodQ = []; soltarFotos(); },
     nueva, volverTexto
@@ -767,12 +806,17 @@
 #mesa .pp-hj-cab{padding:22px 26px 6px}
 #mesa .pp-hj-t{display:flex;align-items:center;gap:12px}
 #mesa .pp-hj-t .pp-ck{width:17px;height:17px}
-#mesa .pp-hj-nom{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;outline:none}
-#mesa .pp-hj-nom.escribiendo,#mesa .pp-hj .escribiendo{background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus);cursor:text}
-#mesa .pp-hj-ojo{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg-2);color:var(--ink-2)}
+#mesa .pp-hj-nom{flex:1;min-width:0;margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;outline:none}
+#mesa .pp-ov .escribiendo{cursor:text}
+#mesa .pp-hj-ojo{display:inline-flex;align-items:center;justify-content:center}
 #mesa .pp-hj-ojo.sm{width:26px;height:26px;background:none}
 #mesa .pp-hj-ojo[aria-pressed="false"]{color:var(--mute)}
-#mesa .pp-hj-ojo svg{width:16px;height:16px}#mesa .pp-hj-ojo.sm svg{width:15px;height:15px}
+#mesa .pp-hj-ojo.sm svg{width:15px;height:15px}
+/* widened (D-210): the whole page under the mesa's header, its two columns at the whole width */
+#mesa .pp-ov.pp-hoja.amplia{padding:0}
+#mesa .pp-ov .pp-card.pp-hj.amplia{width:100%;max-width:none;height:100%;border-radius:0;box-shadow:none;padding:0;display:flex}
+#mesa .pp-ov.amplia .pp-hj-cab{padding:22px 40px 6px}
+#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 32px 28px 40px}
 #mesa .pp-hj svg,#mesa .pp-es svg,#mesa .pp-ns-cab svg,#mesa .pp-ns svg,#mesa .pp-ml svg{stroke-width:var(--i-trazo)}
 #mesa .pp-hj svg path,#mesa .pp-hj svg rect,#mesa .pp-hj svg circle,#mesa .pp-es svg path,#mesa .pp-es svg rect,#mesa .pp-es svg circle,#mesa .pp-ns-cab svg path,#mesa .pp-ns-cab svg circle,#mesa .pp-ns svg path,#mesa .pp-ns svg rect,#mesa .pp-ns svg circle,#mesa .pp-ml svg path{vector-effect:non-scaling-stroke}
 #mesa .pp-hj-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0 0 29px}
@@ -793,7 +837,9 @@
 #mesa .pp-hj-tf.pp-fo img{object-fit:cover}
 #mesa .pp-hj-cols{display:grid;grid-template-columns:minmax(0,1.2fr) 17px minmax(0,1fr);flex:1 0 auto;padding:6px 18px 28px 26px;position:relative;transition:grid-template-columns var(--d-m) var(--ease-m)}
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
+#mesa .pp-hj-cols.mov{transition:none}
 #mesa .pp-hj-col{min-width:0;display:flex;flex-direction:column;gap:26px;padding:14px 4px 0}
+#mesa .pp-hj-col[data-col="der"]{padding-left:24px}   /* 20 px more inside: its sections' handle has its own room, off the separator's (D-216) */
 #mesa .pp-hj-sep{position:relative;cursor:col-resize;outline:none}
 #mesa .pp-hj-sep::before{content:'';position:absolute;top:0;bottom:0;left:8px;width:1px;background:var(--line2);transition:background var(--d1) var(--ease)}
 #mesa .pp-hj-sep::after{content:'';position:absolute;top:120px;left:5px;width:7px;height:28px;border-radius:var(--r-pill);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);transition:background var(--d1) var(--ease)}
@@ -816,6 +862,7 @@
 #mesa .pp-hj-pl:focus-visible,#mesa .pp-hj-ojo:focus-visible,#mesa .pp-hj-apm:focus-visible,#mesa .pp-hj-vc:focus-visible,#mesa .pp-hj-mas:focus-visible,#mesa .pp-pl-tab:focus-visible,#mesa .pp-pl-mas:focus-visible,#mesa .pp-ma-c:focus-visible,#mesa .pp-pl-ena:focus-visible,#mesa button.pp-hj-chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-hj-apc{min-width:0;animation:pp-dentro var(--d-m) var(--ease-m)}
 #mesa .pp-hj-tx{min-height:22px;margin-left:-6px;padding:2px 6px;border-radius:var(--r-xs);font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:none}
+#mesa .pp-hj-tx.escribiendo{min-height:26px}
 #mesa .pp-hj-tx.vacio{min-height:26px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line2)}
 #mesa .pp-mo-f.vacio{min-height:56px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line2)}
 #mesa .pp-fo:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -828,12 +875,17 @@
 #mesa .pp-fo img,#mesa .pp-fo canvas{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain}
 #mesa .pp-hj .pp-fo{cursor:zoom-in}#mesa .pp-hj .pp-fo[draggable="true"]{cursor:grab}
 /* shots: tabs, each one with its references on the right */
-#mesa .pp-pl-tabs{display:flex;align-items:flex-end;gap:2px;flex:1;min-width:0;overflow-x:auto;border-bottom:1px solid var(--line2);margin-left:2px}
-#mesa .pp-pl-tab{position:relative;border:0;background:none;padding:6px 10px 8px;font:inherit;font-size:14px;font-weight:600;color:var(--mute);cursor:pointer;white-space:nowrap;border-radius:var(--r-sm) var(--r-sm) 0 0;transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
-#mesa .pp-pl-tab span{font-weight:400;font-size:12px}#mesa .pp-pl-tab:hover{color:var(--ink);background:var(--bg-2)}
-#mesa .pp-pl-tab.on{color:var(--ink)}#mesa .pp-pl-tab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--acc)}
-#mesa .pp-pl-tabs .pp-pl-tn.escribiendo{padding:0 4px}
-#mesa .pp-pl-mas{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:4px}#mesa .pp-pl-mas svg{width:15px;height:15px}
+/* the tabs as the sections' titles (D-214, 7-A): the title's letter, its count as the sections', the other one in --faint */
+#mesa .pp-pl-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;margin-left:-6px}
+#mesa .pp-hj-pl:has(.pp-hj-sr){padding-right:0}
+#mesa .pp-pl-tab{display:inline-flex;align-items:baseline;gap:6px;border:0;background:none;padding:3px 8px 3px 6px;font:inherit;color:var(--faint);cursor:pointer;white-space:nowrap;border-radius:var(--r-pill);transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
+#mesa .pp-pl-tab .pp-pl-tn{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
+#mesa .pp-pl-tab .pp-hj-n{color:inherit}#mesa .pp-pl-tab:hover{background:var(--bg-2);color:var(--mute)}
+#mesa .pp-pl-tab.on{color:var(--ink)}#mesa .pp-pl-tab.on .pp-hj-n{color:var(--mute)}
+#mesa .pp-pl-tab:focus-visible,#mesa .pp-pl-mas:focus-visible{outline-offset:-2px}
+#mesa .pp-pl-tabs .pp-pl-tn.escribiendo{padding:2px 4px;margin:-2px -4px}
+#mesa .pp-pl-ti.escribiendo{min-height:22px}
+#mesa .pp-pl-mas{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-pl-mas svg{width:15px;height:15px}
 #mesa .pp-pl-items{display:flex;flex-direction:column}
 #mesa .pp-pl-it{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,auto);column-gap:8px;padding:14px 0 14px;border-bottom:1px solid var(--line2)}
 #mesa .pp-pl-it:last-child{border-bottom:0}
@@ -848,7 +900,7 @@
 #mesa .pp-pl-ens{display:flex;flex-direction:column;gap:3px;max-width:100%}
 #mesa .pp-pl-en{display:inline-flex;align-items:center;gap:4px;max-width:100%;font-size:12px;color:var(--acc-ink);text-decoration:none}
 #mesa .pp-pl-en span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .pp-pl-en:hover span{text-decoration:underline}#mesa .pp-pl-en svg{flex:none;width:12px;height:12px}
-#mesa .pp-pl-ein{width:100%;height:26px;border:0;border-radius:var(--r-xs);padding:0 8px;font:inherit;font-size:12px;background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus);outline:none;color:var(--ink)}
+#mesa .pp-pl-ein{width:100%;height:26px;border:0;padding:0 8px;font:inherit;font-size:12px;outline:none;color:var(--ink)}
 #mesa .pp-pl-sin{font-size:12px;color:var(--faint)}
 #mesa .pp-pl-ena{display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:2px 6px;margin-left:-6px;border-radius:var(--r-pill);font:inherit;font-size:12px;color:var(--mute);cursor:pointer;opacity:0;transition:opacity var(--d1) var(--ease),background var(--d1) var(--ease)}
 #mesa .pp-pl-ena svg{width:12px;height:12px}#mesa .pp-pl-it:hover .pp-pl-ena,#mesa .pp-pl-ena:focus-visible{opacity:1}#mesa .pp-pl-ena:hover{background:var(--bg-2);color:var(--ink)}
@@ -860,7 +912,8 @@
 #mesa .pp-mo-modo button{min-width:30px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-mo-modo svg{width:14px;height:14px}
 #mesa .pp-mo-f{display:flex;gap:4px;min-height:40px}
 #mesa .pp-mo-f.linea{overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
-#mesa .pp-mo-f.todas{flex-wrap:wrap}
+#mesa .pp-mo-f.todas{display:block;position:relative}
+#mesa .pp-mo-f.todas .pp-fo{position:absolute;left:0;top:0}
 #mesa .pp-mo-g.pp-drop,#mesa .pp-pl-ref.pp-drop,#mesa .pp-hj-tira.pp-drop{border-radius:var(--r-md)}
 /* material (Ma2 + Ma3): «Antes de salir» first, the rest by families, each thing a chip marked with a click */
 #mesa .pp-ma{display:flex;flex-direction:column;gap:14px}
@@ -878,7 +931,8 @@
 #mesa .pp-hj.vc .pp-pl-it{grid-template-columns:minmax(0,1fr) minmax(0,auto)}
 /* «Nueva sesión» (Q2) */
 #mesa .detail[data-dlg="pp-sesion"] .card.dlg{max-width:500px;width:100%}
-#mesa .pp-ns-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 4px}#mesa .pp-ns-cab h3{margin:0}
+#mesa .pp-ns-cab{display:flex;align-items:center;gap:12px;margin:0 0 4px}#mesa .pp-ns-cab h3{margin:0 64px 0 0}
+#mesa .pp-ns-cab .pp-hj-ojo{position:absolute;top:12px;right:44px}
 #mesa .pp-ns-tipos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 #mesa .pp-ns-t{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:58px;padding:8px 4px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;transition:background var(--d1) var(--ease),border-color var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-ns-t svg{width:17px;height:17px}#mesa .pp-ns-t:hover{border-color:var(--line-strong);color:var(--ink)}
@@ -897,8 +951,8 @@
 #mesa .pp-es-cab{display:flex;align-items:flex-start;gap:14px;margin:0 0 6px}
 #mesa .pp-ava.lg{width:44px;height:44px;font-size:16px}
 #mesa .pp-es-t{flex:1;min-width:0}#mesa .pp-es-t p{margin:2px 0 0;font-size:12.5px;color:var(--mute)}
-#mesa .pp-es-nom{margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;outline:none;overflow-wrap:anywhere}
-#mesa .pp-es-nom[contenteditable]{background:var(--panel-2);box-shadow:inset 0 0 0 1.5px var(--focus)}
+#mesa .pp-es-nom{margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:800;line-height:1.3;outline:none;overflow-wrap:anywhere}
+
 #mesa .pp-es-sec{margin:20px 0 0 58px}
 #mesa .pp-es-sec h3{margin:0 0 8px;font-size:14px;font-weight:600}#mesa .pp-es-sec h3 span{font-weight:400;color:var(--mute);font-size:12.5px}
 #mesa .pp-es-l{display:flex;flex-direction:column}
@@ -908,7 +962,8 @@
 #mesa .pp-es-d{font-size:12.5px;color:var(--mute)}#mesa .pp-es-d.prox{color:var(--ink);font-weight:600}
 #mesa .pp-es-pie{display:flex;justify-content:flex-end;margin:22px 0 0;padding:14px 0 0;border-top:1px solid var(--line2)}
 @media (max-width:720px){
-  #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:16px 10px}
+  #mesa .pp-ov.pp-hoja,#mesa .pp-ov.pp-ficha{padding:16px 10px}#mesa .pp-ov.pp-hoja.amplia{padding:0}
+  #mesa .pp-ov.amplia .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-ov.amplia .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-hj-cab{padding:18px 16px 4px}#mesa .pp-hj-meta{margin-left:0}#mesa .pp-hj-tira{margin-left:0}
   #mesa .pp-hj-cols{padding:6px 14px 24px 22px}
   #mesa .pp-pl-it{grid-template-columns:28px minmax(0,1fr)}#mesa .pp-pl-ref{grid-column:2;max-width:none;margin-top:8px}

@@ -296,15 +296,18 @@
     S.firma = f; S.rJ = JSON.stringify(r);
     const enl = ov.querySelector('[data-hj="en-in"]'), enlV = enl ? enl.value : '';
     const c0 = ov.firstChild, y = c0 ? c0.scrollTop : 0, foco = document.activeElement && ov.contains(document.activeElement) ? claveFoco(document.activeElement) : null;
-    if (ctlCampo) { ctlCampo.apagar(); ctlCampo = null; }
-    ov.innerHTML = hojaHTML(r);
+    // in place, only what changed (D-223): the text being written stays as it is, with its caret and its layer
+    const viva = P.CARD.ed && S.campo ? ov.querySelector(`[data-campo="${CSS.escape(S.campo)}"][contenteditable]`) : null;
+    if (ctlCampo && !viva) { ctlCampo.apagar(); ctlCampo = null; }
+    P.morfar(ov, hojaHTML(r), { vivo: n => n === viva });
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
-    const c = ov.firstChild; c.scrollTop = y;
-    if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2) e2.value = enlV; }
-    const mi = ov.querySelector('[data-hj="mat-in"]'); if (mi) mi.addEventListener('blur', () => { if (S.cosa === mi.dataset.fam && mi.isConnected) ponerCosa(mi, false); });
+    const c = ov.firstChild; if (c.scrollTop !== y) c.scrollTop = y;
+    if (enlV) { const e2 = ov.querySelector('[data-hj="en-in"]'); if (e2 && e2.value !== enlV) e2.value = enlV; }
+    const mi = ov.querySelector('[data-hj="mat-in"]'); if (mi && !mi._blur) { mi._blur = true; mi.addEventListener('blur', () => { if (S.cosa === mi.dataset.fam && mi.isConnected) ponerCosa(mi, false); }); }
     maquetar();
-    const cl = ov.querySelector('.pp-hj-cols'); if (cl) cl.addEventListener('transitionend', ev => { if (ev.target === cl) colocarMood(); });   // the separator's move ends
-    if (P.CARD.ed && S.campo) escribirEn(S.campo, o.pt); else if (foco) { const b = ov.querySelector(foco); if (b) b.focus({ preventScroll: true }); else c.focus({ preventScroll: true }); } else c.focus({ preventScroll: true });
+    const cl = ov.querySelector('.pp-hj-cols'); if (cl && !cl._fin) { cl._fin = true; cl.addEventListener('transitionend', ev => { if (ev.target === cl) colocarMood(); }); }   // the separator's move ends
+    if (P.CARD.ed && S.campo && viva && viva.isConnected) { /* still being written: nothing to do */ }
+    else if (P.CARD.ed && S.campo) escribirEn(S.campo, o.pt); else if (foco) { const b = ov.querySelector(foco); if (b) b.focus({ preventScroll: true }); else c.focus({ preventScroll: true }); } else c.focus({ preventScroll: true });
   }
   const pintarYa = () => { const r = rec(); if (r) pintar(r, { forzar: true }); };
   const claveFoco = el => { const a = el.closest('[data-hj], [data-pp], [data-campo]'); if (!a) return null; for (const k of ['hj', 'pp', 'campo']) if (a.dataset[k] != null) { const ex = a.dataset.tab ? `[data-tab="${CSS.escape(a.dataset.tab)}"]` : a.dataset.m ? `[data-m="${CSS.escape(a.dataset.m)}"]` : ''; const ap_ = a.closest('[data-ap]'); return (ap_ ? `[data-ap="${CSS.escape(ap_.dataset.ap)}"] ` : '') + `[data-${k}="${CSS.escape(a.dataset[k])}"]${ex}`; } return null; };
@@ -786,7 +789,7 @@
     const ov = P.ov; if (!ov || !e) return;
     const f = JSON.stringify([e, P.CARD.ed, P.vivos().filter(k => P.conCli(k, e.id))]);
     if (!o.forzar && f === F.firma && ov.firstChild) return; F.firma = f;
-    ov.innerHTML = fichaHTML(e);
+    P.morfar(ov, fichaHTML(e));                  // in place, only what changed (D-223)
     const c = ov.firstChild;
     if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
     else c.focus({ preventScroll: true });

@@ -15372,6 +15372,75 @@
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+  // what a gesture replaces: nodes taken out, photos and keyed pieces put back the same, and the pp-dentro entrances running
+  async function sustituye(fn, ms = 260) {
+    const R = { nodos: 0, fotos: [], claves: [] }, sig = n => n.outerHTML.replace(/<(img|canvas)[^>]*>(<\/canvas>)?/g, '').replace(/ (style|data-k)="[^"]*"/g, '').replace(/ nitida/g, '');
+    const SEL = '.pp-fo,[data-tid],[data-ap],[data-it],[data-g],[data-panel],[data-slot]', quitados = [];
+    const mo = new W.MutationObserver(l => { for (const m of l) for (const n of m.removedNodes) if (n.nodeType === 1) { R.nodos += 1 + n.getElementsByTagName('*').length; quitados.push(...(n.matches(SEL) ? [n] : []), ...n.querySelectorAll(SEL)); } });
+    mo.observe(q('#mesa'), { childList: true, subtree: true });
+    try { await fn(); await espera(30); } finally { mo.disconnect(); }
+    const anim = D.getAnimations().filter(a => a.animationName === 'pp-dentro' && a.playState === 'running').length;
+    for (const n of quitados) { const k = n.dataset.f || n.dataset.tid || n.dataset.ap || n.dataset.it || n.dataset.g || n.dataset.panel || n.dataset.slot; const nuevo = D.querySelector(`#mesa ${n.matches('.pp-fo') ? '.pp-fo' : '*'}[data-${n.dataset.f ? 'f' : n.dataset.tid ? 'tid' : n.dataset.ap ? 'ap' : n.dataset.it ? 'it' : n.dataset.g ? 'g' : n.dataset.panel ? 'panel' : 'slot'}="${W.CSS.escape(k)}"]`); if (nuevo && sig(nuevo) === sig(n)) (n.matches('.pp-fo') ? R.fotos : R.claves).push(k); }
+    await espera(ms); return { ...R, anim };
+  }
+
+  prueba('AV2', 'El parpadeo (D-223): la página personal, la tarjeta de una tarea y la hoja de una sesión cambian en su sitio solo lo que cambió; cada gesto quita pocos nodos, ninguna foto ni pieza igual se sustituye y la entrada pp-dentro solo corre en lo que se despliega; los campos y los desplegables de la Mesa siguen funcionando tras dos redibujos', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-10-06T10:00:00+02:00');
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p;
+      const tk = await M.personal.tarea({ txt: 'Tarea uno', fecha: '2026-10-06', cliente: CLIENTE }); await M.personal.tarea({ txt: 'Tarea dos', fecha: '2026-10-07' });
+      const r = await M.sesiones._test.crear({ txt: 'Con fotos', clase: 'fotovideo', fecha: '2026-10-08', hora: '10:00', clientes: [CLIENTE] });
+      const blob = await (await foto('av2.jpg', 900, 600)).arrayBuffer(), ids = [1, 2, 3, 4, 5, 6].map(i => 'tfav2' + i);
+      for (const id of ids) await M._in.idbPut('tfotos', id, { id, w: 900, h: 600, blob: new W.Blob([blob], { type: 'image/jpeg' }), mini: new W.Blob([blob], { type: 'image/jpeg' }), t: Date.now() });
+      await P.cambiar(r.id, x => { x.fotos = ids.map(id => ({ id, w: 900, h: 600 })); seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Luz', modo: 'todas', fotos: ids }];
+        const pl = seAp(x, 'planos'); pl.pestanas[0].items = [{ id: 'i1', titulo: 'Plano', texto: 'Texto', fotos: [ids[0]] }]; seAp(x, 'orden').texto = 'Uno\nDos'; return x; });
+      await M.personal.set({ plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista', avTareas: true }); await M.personal.render(); await espera(400);
+      const malo = (g, x, max = 40) => { ok(x.nodos <= max && !x.fotos.length && !x.claves.length && !x.anim, `${g}: ${json(x)}`); };
+      // the page
+      malo('página · marcar una tarea', await sustituye(() => q(`.pp-izq .pp-tk[data-tid="${tk.id}"] .pp-ck`).click()));
+      malo('página · desmarcarla', await sustituye(() => q(`.pp-izq .pp-tk[data-tid="${tk.id}"] .pp-ck`).click()));
+      malo('página · una cifra', await sustituye(async () => { q('.pp-cifra:not([disabled])').click(); await M.personal.render(); }), 400);
+      malo('página · quitar la cifra', await sustituye(async () => { q('.pp-cifra.on').click(); await M.personal.render(); }), 400);
+      malo('página · plegar Clientes', await sustituye(() => q('[data-pp="plegar"][data-p="clientes"]').click()), 400);
+      const des = await sustituye(() => q('[data-pp="plegar"][data-p="clientes"]').click(), 450);
+      ok(des.anim === 1 && !des.fotos.length, 'página · desplegar Clientes: la entrada corre en otro sitio o en más de uno: ' + json(des));
+      malo('página · repaso sin cambios', await sustituye(() => M.personal.render()), 0);
+      const nativos = sel => qa(sel).filter(n => n.matches('select, input[type="date"], input[type="time"]'));
+      const ocultos = sel => nativos(sel).every(n => n.classList.contains('mx-nat') && n._mx && n._mx.isConnected && n.tabIndex === -1 && n.getAttribute('aria-hidden') === 'true' && n.getBoundingClientRect().width <= 1);
+      const nf = q('.pp [data-pp="nfecha"], .pp input[type="date"]'); if (nf) { nf.value = '2026-10-09'; nf.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60); }
+      q('[data-pp="plegar"][data-p="clientes"]').click(); await espera(60); q('[data-pp="plegar"][data-p="clientes"]').click(); await espera(400);
+      ok(nativos('.pp *').length && ocultos('.pp *'), 'tras dos redibujos, un desplegable o una fecha de la página se ve duplicado (sin mx-nat): ' + json(nativos('.pp *').map(n => [n.tagName, n.className, n.getBoundingClientRect().width])));
+      // a task's card: open, write, read
+      P.abrirCard(tk.id); await espera(400);
+      const card = q('.pp-card');
+      malo('tarjeta · escribir', await sustituye(() => P.editar(true)));
+      ok(q('.pp-card') === card, 'tarjeta · escribir cambia la tarjeta');
+      malo('tarjeta · leer', await sustituye(() => P.editar(false)));
+      P.cerrarCard(true); await espera(200);
+      // the sheet
+      await seAbrir(r.id); await espera(500);
+      const fotos0 = qa('.pp-hj .pp-fo').length; ok(fotos0 >= 7, 'la hoja sin sus fotos: ' + fotos0);
+      malo('hoja · plegar «Orden»', await sustituye(() => seQ('[data-ap="orden"] [data-hj="plegar"]').click()));
+      const dh = await sustituye(() => seQ('[data-ap="orden"] [data-hj="plegar"]').click(), 450);
+      ok(dh.anim === 1 && !dh.fotos.length && dh.nodos <= 40, 'hoja · desplegar «Orden»: ' + json(dh));
+      malo('hoja · ojo de un apartado', await sustituye(() => seQ('[data-ap="orden"] [data-hj="ojo-ap"]').click()));
+      malo('hoja · el ojo otra vez', await sustituye(() => seQ('[data-ap="orden"] [data-hj="ojo-ap"]').click()));
+      malo('hoja · una cosa del material', await sustituye(() => seQ('[data-ap="material"] [data-hj="mat"]').click()));
+      malo('hoja · «una línea»', await sustituye(() => seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click()), 60);
+      malo('hoja · «todas»', await sustituye(() => seQ('[data-g="g1"] [data-hj="modo"][data-m="todas"]').click()), 60);
+      malo('hoja · repaso sin cambios', await sustituye(() => M.personal.render()), 0);
+      ok(qa('.pp-hj .mx-sel').length === qa('.pp-hj select').length && qa('.pp-hj select').every(x => x._mx && x._mx.isConnected && x.nextElementSibling === x._mx), 'un desplegable de la hoja sin su gemelo tras los redibujos');
+      ok(nativos('.pp-hj *').length >= 3 && ocultos('.pp-hj *'), 'tras los redibujos, un desplegable o una fecha de la hoja se ve duplicado (sin mx-nat): ' + json(nativos('.pp-hj *').map(n => [n.tagName, n.className, n.getBoundingClientRect().width])));
+      // a checkbox the record didn't take goes back to what is drawn
+      const ck = q('.pp-hj [data-ap="material"] [data-hj="mat"]'); const ckp = q('.pp-hj .pp-hj-t .pp-ck'); if (ckp) { ckp.checked = !ckp.checked; await M.personal._p.pintarCard(true); await espera(40); igual(q('.pp-hj .pp-hj-t .pp-ck').checked, q('.pp-hj .pp-hj-t .pp-ck').hasAttribute('checked'), 'una casilla sin guardar sigue marcada tras un redibujo'); }
+      // a listener put after drawing isn't doubled: the separator's transitionend, once
+      const cols = q('.pp-hj-cols'); ok(!cols || cols._fin === true, 'las columnas sin su aviso de fin');
+      P.cerrarCard(true);
+    } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
   prueba('AV3', 'Las flechas de ampliar en la caja de la × (D-224): «Ampliar» (maximize-2) y «Reducir» (minimize-2) se dibujan en las unidades 6 a 18 de 24, como la ×, con el mismo trazo; el botón sigue de 32 px', async () => {
     await paginaAbierta();
     const t = await M.personal.tarea({ txt: 'Con flechas', fecha: '2026-10-02' });

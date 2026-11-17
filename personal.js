@@ -531,7 +531,7 @@
     const clave = enPag ? (a.dataset.pp ? `[data-pp="${a.dataset.pp}"]${a.dataset.id ? `[data-id="${CSS.escape(a.dataset.id)}"]` : ''}${a.dataset.k ? `[data-k="${CSS.escape(a.dataset.k)}"]` : ''}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ''}${a.dataset.v ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ''}${a.dataset.r ? `[data-r="${CSS.escape(a.dataset.r)}"]` : ''}${a.dataset.n ? `[data-n="${CSS.escape(a.dataset.n)}"]` : ''}${a.dataset.p ? `[data-p="${CSS.escape(a.dataset.p)}"]` : ''}` : null) : null;
     const inp = page.querySelector('[data-pp="nueva"]'), txt = inp ? inp.value : '', sel = inp && a === inp ? [inp.selectionStart, inp.selectionEnd] : null;
     const y = page.scrollTop;
-    page.innerHTML = html;
+    morfar(page, html);                        // in place: nothing runs its entrance again nor is drawn again (D-223)
     if (M.controles && M.controles.mejorar) M.controles.mejorar(page);
     const n = page.querySelector('[data-pp="nueva"]'); if (n && txt) n.value = txt;
     if (n && ES() && ES().enCampo) ES().enCampo(n, { comandos: () => (EXT.sesion && EXT.sesion.nueva ? ['sesion'] : []), alComando: (k, ctx) => comando(k, ctx, 'nueva') });
@@ -791,21 +791,94 @@
     if (CARD.ed && !forzar) { CARD.pend = true; return; }
     CARD.pend = false;
     const enfocada = enCard(document.activeElement);
+    if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }   // the sheet and the file look after their own writing (D-223)
     apagarCampos();
-    if (CARD.ext) { CARD.ext.pintar(r, { forzar }); return; }
     ponerCard(htmlCard(r, CARD.ed));
     if (M.controles && M.controles.mejorar) M.controles.mejorar(ov);
     activarCampos();
     if (enfocada && !CARD.ed) ov.firstChild.focus({ preventScroll: true });
   }
+  // ---------- changing in place only what changed (D-223) ----------
+  // The page, a card and a session's sheet are drawn from HTML; instead of writing them again whole, each live node takes the
+  // new one's attributes and children, matched by its tag and its data key. What stays keeps everything: its entrance never
+  // runs again (pp-dentro), a photo keeps what it drew, the focus, the caret, a composition and an open dropdown stay. A
+  // control's twin (controles.js) goes with its native, which is kept only while it would be drawn the same.
+  const CLAVES = ['f', 'ap', 'it', 'tid', 'sid', 'g', 'panel', 'slot', 'id', 'cat', 'tab', 'pp', 'hj', 'p', 'v', 'k', 'm', 'c', 'campo', 'key'];
+  function claveDe(n) {
+    if (n.nodeType !== 1) return '#' + n.nodeType;
+    let k = n.tagName; const d = n.dataset;
+    for (const c of CLAVES) if (d[c] != null && !(c === 'k' && n.classList.contains('pp-fo'))) k += '|' + c + '=' + d[c];   // a photo's data-k is its drawing
+    return k;
+  }
+  const ajeno = n => n.nodeType === 1 && (n._nat || n.classList.contains('pp-ecapa'));   // a twin (controles.js), a writing layer (escritura.js)
+  // a native control as drawn, without what controles.js added to it
+  function propio(a) { const c = a.cloneNode(true); c.classList.remove('mx-nat'); if (!c.classList.length) c.removeAttribute('class'); c.removeAttribute('tabindex'); c.removeAttribute('aria-hidden'); return c.outerHTML; }
+  // a native control kept as it is: drawn the same and showing the value it would be drawn with (a value refused, as an end
+  // before the start, goes back to the one before)
+  function nativoIgual(x, y) {
+    if (propio(x) !== y.outerHTML) return false;
+    if (x.tagName === 'INPUT') return x.value === (y.getAttribute('value') || '');
+    if (x.tagName === 'SELECT') { const o = y.querySelector('option[selected]') || y.querySelector('option'); return x.value === (o ? (o.hasAttribute('value') ? o.getAttribute('value') : o.textContent) : ''); }
+    return true;
+  }
+  function quitarNodo(n) { if (n._mx && n._mx.parentNode) n._mx.remove(); n.remove(); }
+  function morfAttrs(a, b) {
+    for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+    for (const at of b.attributes) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  }
+  function morfNodo(a, b, o) {
+    if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+    if (o.vivo && o.vivo(a)) return;                    // left as it is (a text being written)
+    if (a._mx) return;                                  // a native control kept: the same, with its twin's marks (mx-nat, tabindex, aria-hidden)
+    if (a.isEqualNode(b)) return;
+    if (a.classList.contains('pp-fo') && b.classList.contains('pp-fo')) {   // the same photo keeps its drawing until it has the new one
+      const k = a.dataset.k, nit = a.classList.contains('nitida');
+      morfAttrs(a, b); if (k) a.dataset.k = k; if (nit) a.classList.add('nitida');
+      return;
+    }
+    morfAttrs(a, b);
+    if (a.tagName === 'INPUT') {
+      if (a.type === 'checkbox' || a.type === 'radio') { if (a.checked !== b.hasAttribute('checked')) a.checked = b.hasAttribute('checked'); }
+      else if (a !== document.activeElement && a.value !== (b.getAttribute('value') || '')) a.value = b.getAttribute('value') || '';
+      return;
+    }
+    if (a.tagName === 'TEXTAREA') { if (a !== document.activeElement && a.value !== b.value) a.value = b.value; return; }
+    morfHijos(a, [...b.childNodes], o);
+  }
+  function morfHijos(cont, nuevos, o = {}) {
+    const viejos = [...cont.childNodes].filter(n => !ajeno(n)), mapa = new Map();
+    for (const n of viejos) { const k = claveDe(n); if (!mapa.has(k)) mapa.set(k, []); mapa.get(k).push(n); }
+    // first who stays (a native control only if it would be drawn the same), then out what goes: a node moved in the DOM
+    // runs its entrance again, so the ones that stay move only when the order really changed
+    const par = nuevos.map(y => { const l = mapa.get(claveDe(y)), x = l && l.length ? l.shift() : null; return x && (!x._mx || nativoIgual(x, y)) ? x : null; });
+    const vale = new Set(par.filter(Boolean));
+    for (const n of viejos) if (!vale.has(n)) quitarNodo(n);
+    let tras = null;                                     // the last node placed (its twin goes after it)
+    nuevos.forEach((y, i) => {
+      const x = par[i], n = x || y;
+      if (x) morfNodo(x, y, o);
+      let ref = tras ? tras.nextSibling : cont.firstChild; while (ref && ajeno(ref)) ref = ref.nextSibling;   // a twin or a layer stays after its own
+      if (n !== ref) cont.insertBefore(n, ref);
+      if (n._mx && n._mx.parentNode === cont && n.nextSibling !== n._mx) n.after(n._mx);
+      tras = n;
+    });
+  }
+  // the container's content as `html`: the nodes that are the same stay; {vivo: node => true to leave it as it is}
+  function morfar(cont, html, o) {
+    if (!cont) return;
+    if (!cont.firstChild) { cont.innerHTML = html; return; }
+    const t = document.createElement('template'); t.innerHTML = html;
+    morfHijos(cont, [...t.content.childNodes], o);
+    marcadas(cont);
+  }
+  // a checkbox shows what was drawn (a click the record didn't take goes back), as when it was written again whole
+  function marcadas(cont) { cont.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(i => { const v = i.hasAttribute('checked'); if (i.checked !== v) i.checked = v; }); }
   // the card's content and classes change and the card stays: going from reading to writing never runs its entrance again
-  // (no blink, D-209)
+  // (no blink, D-209); its children too, in place (D-223)
   function ponerCard(html) {
     const c = ov && ov.firstChild, t = document.createElement('template'); t.innerHTML = html; const n = t.content.firstElementChild;
     if (!c || !n || c.nodeType !== 1 || c.tagName !== n.tagName) { ov.innerHTML = html; return; }
-    for (const a of [...c.attributes]) if (!n.hasAttribute(a.name)) c.removeAttribute(a.name);
-    for (const a of [...n.attributes]) if (c.getAttribute(a.name) !== a.value) c.setAttribute(a.name, a.value);
-    c.replaceChildren(...n.childNodes);
+    morfAttrs(c, n); morfHijos(c, [...n.childNodes]); marcadas(c);
   }
   // the kinds of card other files draw (sesiones.js: a session's sheet, a sporadic client's file): {pintar, clic, dbl, tecla,
   // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
@@ -1319,7 +1392,7 @@
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
     pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
-    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando,
+    abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando, morfar,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
     cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }
   };

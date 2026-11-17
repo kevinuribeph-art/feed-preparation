@@ -217,9 +217,11 @@ if (!commands[cmd]) {
   console.log(JSON.stringify({ error: `orden desconocida «${cmd || ''}»`, usage: Object.keys(commands) }));
   process.exit(1);
 }
+// the key never goes out, not even if an answer from Zernio repeated it (D-239)
+const tapar = t => { const k = loadKey(); return k && k.length >= 8 ? t.split(k).join('[clave]') : t; };
 try {
-  console.log(JSON.stringify(await commands[cmd](...rest), null, 2));
+  console.log(tapar(JSON.stringify(await commands[cmd](...rest), null, 2)));
 } catch (e) {
-  console.log(JSON.stringify({ error: e.message, ...(e.extra || {}) }, null, 2));
+  console.log(tapar(JSON.stringify({ error: e.message, ...(e.extra || {}) }, null, 2)));
   process.exit(1);
 }

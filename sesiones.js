@@ -4,14 +4,17 @@
 // Kevin), in two columns with a separator; a sporadic client has a file with its notes, sessions and tasks and can become a
 // monthly one. Everything lives in the store 'tareas' (tipo 'sesion', 'esporadico', 'material'), so it travels in «⇅ Exportar»,
 // and a session's photos in their own store 'tfotos' (D-206: writing in a session never writes its photos again). Nothing is
-// built for the client yet: the eye is only a datum. Sessions never go to Notion nor Zernio (D-184).
-//   M.material: cargar(lista) · ver()          (the list of material, which Claude loads; it isn't in the code: the repo is public)
+// built for the client yet: the eye is only a datum, except for the posts' calendar (D-219). Sessions never go to Notion nor
+// Zernio (D-184). 1.2 (mesa ≥ 4.24): a session has several clients (`clientes`, D-217) and maybe an end (`fin`, D-218); the
+// material comes from one of several named templates (D-220); «Duplicar sesión» (D-221).
+//   M.material: cargar(lista) · ver()          (the template by default, «Equipo completo», which Claude loads; the lists aren't in
+//                                              the code: the repo is public)
 // It waits for personal.js (its card, its ⌘Z, its writing); if it doesn't load, the sessions still show in the lists.
 (function sesionesBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
-  const VERSION = '1.1';   // 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
+  const VERSION = '1.2';   // 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];

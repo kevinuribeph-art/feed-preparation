@@ -15504,6 +15504,51 @@
     } finally { await M.personal.set({ vista: 'lista' }); paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+  // the vista cliente on and off, as the switch does it
+  async function vistaCliente(on) { const t = q('.clientToggle'); if (t && t.checked !== on) { t.click(); await espera(80); } }
+  // every element seen (in the mesa, its dialogs and a card over it) whose text, title, aria-label or alt says one of `qs`
+  function nombrados(qs) {
+    const out = [], vis = e => e.getClientRects().length && W.getComputedStyle(e).visibility !== 'hidden';
+    for (const e of D.querySelectorAll('#mesa *')) {
+      if (!vis(e) || e.closest('[hidden]')) continue;
+      const own = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join(' ');
+      for (const v of [own, e.getAttribute('title'), e.getAttribute('aria-label'), e.getAttribute('alt'), e.matches('input,textarea') ? e.value : null]) if (v && qs.some(x => v.toLowerCase().includes(x.toLowerCase()))) out.push(e.tagName + '.' + e.className + ': ' + v.slice(0, 60));
+    }
+    return out;
+  }
+
+  prueba('AV6', 'El cliente no ve a otros clientes (D-227): en «Vista cliente» la cabecera solo enseña su pestaña (las demás, ni se ven ni se alcanzan con el teclado) y ningún texto, title, aria-label ni alt visible nombra a otro cliente ni su usuario de Instagram, tampoco con una collab o una sesión compartida abiertas; «uribe.visuals» se queda', async () => {
+    await limpiar(); await sinTareas();
+    const col = { id: 'colav6', name: 'Foto en collab', type: 'Foto', date: `${MES}-05T12:00:00.000+01:00` };
+    await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [col], past: [], force: true });
+    await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), col], past: [], force: true }); await M.flush();
+    await M.updateClient(CLIENTE, { handle: 'prueba.uno' }); await M.updateClient(CLIENTE2, { handle: 'prueba.dos' });
+    const otros = [NOMBRE2, 'prueba.dos'];
+    try {
+      await seListo();
+      const ses = await M.sesiones._test.crear({ txt: 'Sesión de los dos', clase: 'foto', fecha: `${MES}-10`, hora: '10:00', clientes: [CLIENTE, CLIENTE2] });
+      await M.personal._p.cambiar(ses.id, x => { seAp(x, 'orden').texto = 'Primero la luz'; return x; });
+      paginaCerrada(); M._in.render(); await hasta(() => q('.side > .cal .chip[data-ses]'), 4000, 'el chip de la sesión');
+      ok(qa('.tabs .tab').filter(t => t.getClientRects().length).length === 2, 'en mi vista no salen las dos pestañas');
+      await vistaCliente(true);
+      const vis = qa('.tabs .tab').filter(t => t.getClientRects().length);
+      igual(vis.map(t => t.dataset.id), [CLIENTE], 'en «Vista cliente» sale otra pestaña que la suya');
+      ok(qa('#mesa button, #mesa [tabindex]').filter(e => e.getClientRects().length && e.tabIndex >= 0).every(e => !(e.dataset.act === 'client' && e.dataset.id !== CLIENTE)), 'la pestaña de otro cliente se alcanza con el teclado');
+      igual(nombrados(otros), [], 'el tablero nombra a otro cliente');
+      // a collab's preview
+      q('.cell[data-slot="colav6"]').click(); await hasta(() => q('.detail:not([hidden]) .igwrap'), 3000, 'la previsualización de la collab');
+      igual(nombrados(otros), [], 'la previsualización de la collab nombra al otro cliente');
+      ok(/uribe\.visuals/.test(q('.detail .igwrap').textContent), '«Les gusta a uribe.visuals» se ha ido');
+      M._in.closeDetail(); await espera(40);
+      // a shared session's sheet, from the calendar
+      q(`.side > .cal .chip[data-ses="${ses.id}"]`).click(); await hasta(() => q('.pp-ov .pp-hj'), 3000, 'la hoja de la sesión');
+      igual(nombrados(otros), [], 'la hoja de una sesión compartida nombra al otro cliente');
+      M.personal._p.cerrarCard(true); await espera(40);
+      // the tab of another client, clicked from code, doesn't open it
+      const otra = q(`.tabs .tab[data-id="${CLIENTE2}"]`); if (otra) { otra.click(); await espera(150); } igual(M.board().client, CLIENTE, 'desde «Vista cliente» se llega a otro cliente');
+    } finally { await vistaCliente(false); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } await M.updateClient(CLIENTE, { handle: '' }); await M.updateClient(CLIENTE2, { handle: '' }); await sinTareas(); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

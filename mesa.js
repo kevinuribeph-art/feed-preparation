@@ -2669,7 +2669,8 @@
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
-#mesa.client .tab.add,#mesa.client .appbar .xfer,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}#mesa.client .tab.on.hasedit{padding-right:13px}
+#mesa.client .tab.add,#mesa.client .appbar .xfer,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}
+#mesa.client .tabs .tab:not(.on){display:none}   /* only its own tab (D-227) */
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
 @media (max-width:560px){#mesa .card.post.hascap .pbody{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"cab" "izq" "col";min-height:0;overflow:auto}#mesa .card.post.hascap .pleft{overflow:visible;min-height:auto}#mesa .pright.hascap{contain:none;min-height:auto;overflow-y:visible;scrollbar-gutter:auto}#mesa .pright.hascap textarea.note{min-height:52px;height:60px}}
@@ -4942,7 +4943,7 @@
     else if (act === 'pick') openDetail(cur.slot, +a.dataset.k);
     else if (act === 'fmt') { flashThirds(); touchPrev(slot(cur.slot)); setFmt(cur.slot, a.dataset.fmt); }
     else if (act === 'center') centrarFoto();
-    else if (act === 'client') { if (a.dataset.id !== curClient && !busyGuard()) await M.openClient(a.dataset.id); }
+    else if (act === 'client') { if (a.dataset.id !== curClient && !root.classList.contains('client') && !busyGuard()) await M.openClient(a.dataset.id); }   // the vista cliente never reaches another client (D-227)
     else if (act === 'month') { if ((!S || a.dataset.key !== S.key) && !busyGuard()) await M.open(a.dataset.key); }
     else if (act === 'newclient') dlgNewClient();
     else if (act === 'editclient') { await loadClientPhotos(); dlgEditClient(); }

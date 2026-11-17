@@ -16071,6 +16071,52 @@
       await vistaCliente(true); await M._test.cobBorrarTodo(); M._in.render(); await espera(80); ok(!lado(), 'sale sin cuota ni cobros');
     } finally { relojVuelve(); await vistaCliente(false); }
   });
+  prueba('CO6', 'Cobros de un esporádico (D-234): su ficha lleva «Cobros», un cobro por sesión y cliente con el nombre de la sesión, «+ Cobro» eligiendo entre sus sesiones sin cobro; se pinta en su sitio sin quitar el foco; «Pasar a mensual» se lleva sus cobros; «Borrar esporádico» se apaga con cobros', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await seListo(); await paginaAbierta(); await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      const T = M.personal._p, e = { id: T.nuevoId('es'), tipo: 'esporadico', txt: 'Esporádico C6', creada: '2026-06-02T10:00:00.000Z', at: new Date().toISOString() };
+      await M._in.idbPut('tareas', e.id, e); await M.personal.render();
+      const s1 = await M.sesiones._test.crear({ txt: 'Boda en la cala', clase: 'foto', fecha: '2026-11-10', clientes: [e.id] });
+      const s2 = await M.sesiones._test.crear({ txt: 'Retratos', clase: 'foto', fecha: '2026-11-12', clientes: [e.id, CLIENTE] });
+      ok(T.menuEsp(e.id)[0][3], '«Borrar esporádico» con sesiones se pulsa');
+      T.abrirCard(e.id); const ficha = await hasta(() => q('.pp-card.pp-es'), 3000, 'su ficha');
+      const sec = await hasta(() => ficha.querySelector('.pp-es-cob'), 3000, 'su sección «Cobros»');
+      ok(/Aún sin cobros/.test(sec.textContent), 'sin cobros no lo dice');
+      // «+ Cobro»: its sessions without one
+      sec.querySelector('[data-co="nuevo-ses"]').click();
+      const items = await hasta(() => qa('.pp-menu button[data-a]').length ? qa('.pp-menu button[data-a]') : null, 2000, 'el menú de sus sesiones');
+      igual(items.map(b => b.dataset.a).sort(), [s1.id, s2.id].sort(), 'el menú no ofrece sus sesiones');
+      items.find(b => b.dataset.a === s1.id).click();
+      await hasta(() => M.cobros.ver(e.id).length === 1, 3000, 'el cobro nuevo');
+      const c1 = M.cobros.ver(e.id)[0]; igual([c1.periodo, c1.concepto, c1.estado, c1.importe], [s1.id, 'Boda en la cala', 'sinemitir', 0], 'el cobro nuevo de la sesión');
+      const imp = await hasta(() => q(`.pp-es-cob tr.co-f[data-id="${c1.id}"] [data-co="imp"]`), 2000, 'su fila');
+      await hasta(() => D.activeElement === imp, 2000, 'el foco en su importe');
+      // writing in it: the file draws itself in place and the focus stays
+      coCambiar(imp, '350'); await hasta(() => M.cobros.ver(e.id)[0].importe === 350, 2000, 'el importe'); await espera(80);
+      ok(q('.pp-card.pp-es') === ficha && D.activeElement === imp, 'la ficha se vuelve a crear o pierde el foco');
+      ok(/Boda en la cala/.test(q(`tr.co-f[data-id="${c1.id}"] .co-m`).textContent), 'la fila no dice su sesión');
+      // one per session and client: «+ Cobro» offers only the other one
+      q('.pp-es-cob [data-co="nuevo-ses"]').click(); const it2 = await hasta(() => qa('.pp-menu button[data-a]').length ? qa('.pp-menu button[data-a]') : null, 2000, 'el menú');
+      igual(it2.map(b => b.dataset.a), [s2.id], 'una sesión con cobro se ofrece otra vez'); T.cerrarMenu();
+      ok((await M.cobros.cargar([{ cliente: e.id, periodo: s1.id, importe: 1 }])).error, 'cargar deja dos cobros de una sesión y un cliente');
+      ok((await M.cobros.cargar([{ cliente: CLIENTE, periodo: s2.id, importe: 200 }])).ok, 'el otro cliente de una sesión compartida no tiene su cobro');
+      // «Borrar esporádico» is off with payments (sessions and tasks aside)
+      ok(T.menuEsp(e.id)[0][3] && /cobros/.test(T.menuEsp(e.id)[0][4]), '«Borrar esporádico» con cobros se pulsa');
+      T.cerrarCard(true); await espera(200);
+      // «Pasar a mensual» takes its payments
+      const e2 = { id: T.nuevoId('es'), tipo: 'esporadico', txt: 'Pasa C6', creada: '2026-06-02T10:00:00.000Z', at: new Date().toISOString() };
+      await M._in.idbPut('tareas', e2.id, e2); await M.personal.render();
+      const s3 = await M.sesiones._test.crear({ txt: 'Sesión que pasa', clase: 'foto', fecha: '2026-11-05', clientes: [e2.id] });
+      await M.cobros.cargar([{ id: 'c6-p', cliente: e2.id, periodo: s3.id, importe: 500, emitida: '2026-11-05', vence: '2026-11-15' }]);
+      T.abrirCard(e2.id); await hasta(() => q('.pp-card.pp-es [data-es="pasar"]'), 3000, 'la ficha que pasa');
+      q('.pp-card.pp-es [data-es="pasar"]').click(); (await hasta(() => q('.detail [data-pp-pasar]'), 2000, 'la confirmación')).click();
+      const nuevo = await hasta(() => M._in.CL.find(c => c.name === 'Pasa C6'), 4000, 'el cliente mensual');
+      await hasta(() => (M.cobros.ver(nuevo.id)[0] || {}).id === 'c6-p', 3000, 'su cobro en el mensual'); igual(M.cobros.ver(e2.id).length, 0, 'el cobro se queda en el esporádico');
+      await M._test.cobBorrarTodo(); await M.removeClient(nuevo.id);
+    } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } M._in.closeDetail(); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
 
   // =====================================================================================================
   const filas = $('filas');

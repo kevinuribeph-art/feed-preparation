@@ -1352,8 +1352,8 @@
   }
   // a sporadic client's: «Borrar esporádico», off while it has sessions, tasks or notes (D-201, D-207)
   function menuEsp(id) {
-    const tiene = vivos().some(k => conCli(k, id) && k.tipo !== 'esporadico');   // a session shared with others too (D-217)
-    return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }, tiene, tiene ? 'Tiene sesiones, tareas o notas' : '']];
+    const tiene = vivos().some(k => conCli(k, id) && k.tipo !== 'esporadico') || !!(I().cob && I().cob.vivos(id).length);   // a session shared with others too (D-217); its payments (D-234)
+    return [['borrar', 'Borrar esporádico', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }, tiene, tiene ? 'Tiene sesiones, tareas, notas o cobros' : '']];
   }
   // «Reprogramar» of a session gone past: the mesa's calendar under the button; the new day, a step of ⌘Z (D-206)
   function reprogramar(id, b) {

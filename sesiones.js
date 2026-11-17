@@ -797,16 +797,23 @@
       + (ns.length ? `<section class="pp-es-sec"><h3>Notas <span>${ns.length}</span></h3><div class="pp-pn">${ns.map(n => `<div class="pp-pt" data-nid="${P.esc(n.id)}" data-pp="tver" data-id="${P.esc(n.id)}" tabindex="0" role="button" aria-label="Nota: ${P.esc(n.txt)}"><div class="pp-ptx">${P.leerTxt(n.txt, { casillas: 'no' })}</div></div>`).join('')}</div></section>` : '')
       + `<section class="pp-es-sec"><h3>Sesiones <span>${ss.length}</span></h3><div class="pp-es-l">${ss.map(ses).join('')}</div><button type="button" class="pp-cmas" data-es="sesion">${svgI('mas')}Sesión</button></section>`
       + `<section class="pp-es-sec"><h3>Tareas <span>${ts.filter(k => !k.hecha).length}</span></h3><div class="pp-es-l">${ts.map(k => `<div class="pp-tk${k.hecha ? ' hecha' : ''}" data-tid="${P.esc(k.id)}"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(k.id)}"${k.hecha ? ' checked' : ''} aria-label="Hecha"><span class="pp-tt" data-pp="tver" data-id="${P.esc(k.id)}" tabindex="0" role="button">${P.esc(k.txt)}</span>${k.fecha ? `<span class="pp-tf">${P.esc(P.diaHora(k.fecha).replace(/ \d{4}$/, ''))}</span>` : ''}</div>`).join('')}</div><button type="button" class="pp-cmas" data-es="tarea">${svgI('mas')}Tarea</button></section>`
+      + cobrosHTML(e)
       + `<div class="pp-es-pie"><button type="button" class="btn2" data-es="pasar" title="Le crea su cliente en la Mesa (sin meses: los crea Claude) y le pasa sus sesiones, tareas y notas. No se deshace con ⌘Z.">Pasar a mensual</button></div></div>`;
+  }
+  // its payments: one per session and client, no fee (D-234); drawn by cobros.js, which does what is done in them
+  function cobrosHTML(e) {
+    const CO = M.cobrosUI; if (!CO || !I().cob) return '';
+    const n = I().cob.vivos(e.id).length;
+    return `<section class="pp-es-sec pp-es-cob"><h3>Cobros${n ? ` <span>${n}</span>` : ''}</h3>${CO.html(e.id, { esp: true })}</section>`;
   }
   function fichaPintar(e, o = {}) {
     const ov = P.ov; if (!ov || !e) return;
-    const f = JSON.stringify([e, P.CARD.ed, P.vivos().filter(k => P.conCli(k, e.id))]);
+    const f = JSON.stringify([e, P.CARD.ed, P.vivos().filter(k => P.conCli(k, e.id)), M.cobrosUI && I().cob ? M.cobrosUI.firma(e.id) : '']);
     if (!o.forzar && f === F.firma && ov.firstChild) return; F.firma = f;
     P.morfar(ov, fichaHTML(e));                  // in place, only what changed (D-223)
     const c = ov.firstChild;
     if (P.CARD.ed) { const n = c.querySelector('[data-campo="nom"]'); n.setAttribute('contenteditable', 'plaintext-only'); n.setAttribute('role', 'textbox'); n.classList.add('escribiendo'); n.focus(); const rg = document.createRange(); rg.selectNodeContents(n); rg.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); }
-    else c.focus({ preventScroll: true });
+    else if (!c.contains(document.activeElement)) c.focus({ preventScroll: true });
   }
   const espRec = () => { const C = P.CARD; return C && C.ext === FICHA ? P.TK.get(C.id) : null; };
   function fichaClic(e) {
@@ -862,6 +869,7 @@
       for (const k of P.vivos()) { const n = P.copia(k); if (pasa(n)) { n.at = now; cambios.push({ id: k.id, despues: n }); } }
       const ne = P.copia(P.TK.get(e0.id)); ne.pasado = { cliente: c.id, at: now }; ne.at = now; cambios.push({ id: e0.id, despues: ne });
       await P.escribir(cambios);
+      if (I().cob) for (const r of I().cob.vivos(e0.id)) await I().cob.guardar({ ...r, cliente: c.id });   // its payments go with it (D-234)
       P.remapH(pasa, e0.id);   // its own steps go: it can't come back unpassed
       if (P.st.tcli === e0.id) P.st.tcli = c.id;
       X.closeDetail(); if (P.CARD && P.CARD.id === e0.id) P.cerrarCard(true);
@@ -959,6 +967,8 @@
   const FICHA = {
     cls: 'pp-ficha', pintar: (e, o) => fichaPintar(e, o), clic: fichaClic, dbl: fichaDbl, tecla: fichaTecla, guardar: () => fichaGuardar(),
     menu: e => { if (e.target.closest('.pp-es-cab')) { e.preventDefault(); const e0 = espRec(); if (e0) P.abrirMenu(e.clientX, e.clientY, P.menuEsp(e0.id)); return true; } return false; },
+    // opened from the line of its payments (D-235): its «Cobros» in sight, the focus on its first control
+    aCobros: () => setTimeout(() => { const ov = P.ov, sc = ov && ov.querySelector('.pp-es-cob'); if (!sc) return; sc.scrollIntoView({ block: 'nearest' }); const b = sc.querySelector('[data-co="num"], .co-mas:not(:disabled)'); if (b) b.focus({ preventScroll: true }); }, 60),
     cerrar: () => { F.firma = ''; }, nuevo: () => pedirEsp(e2 => { if (e2) { P.st.cvista = 'esporadicos'; P.pintar(); } })
   };
 

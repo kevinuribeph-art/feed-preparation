@@ -15991,6 +15991,36 @@
       await hasta(() => /Pendiente · 450 €/.test(linea().textContent), 3000, 'la línea no se pone al día');
     } finally { M._in.closeDetail(); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
+  prueba('CO4', 'Una factura retrasada en Avisos (D-236): una línea más de «Se ha pasado», tintada de rojo como lo no programado, con el euro, la fecha de vencimiento en rojo, «Factura nº · importe», el cliente y «Retrasada N días · sin cobrar»; cuenta en la cifra «Se ha pasado» (cinco cifras, sin sexta); el interruptor «Tareas» no la oculta; su clic abre «Cobros»; pagada, se va', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false }, avTareas: false }); await M.personal.render();
+      const n0 = ppCifras().pasado;
+      await M.cobros.cargar([{ id: 'c4-a', cliente: CLIENTE, periodo: '2026-10', importe: 380, factura: '2026-028', emitida: '2026-10-26', vence: '2026-11-05' },
+        { id: 'c4-b', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: '2026-031', emitida: '2026-11-15', vence: '2026-11-25' }]);
+      const lin = () => q('.pp-grupo[data-cat="pasado"] .pp-av[data-pp="cobro"][data-id="c4-a"]');
+      const l = await hasta(lin, 3000, 'la línea de la factura retrasada');
+      ok(!q('.pp-av[data-pp="cobro"][data-id="c4-b"]'), 'una pendiente sale en Avisos');
+      igual(ppCifras().pasado, n0 + 1, 'no cuenta en «Se ha pasado»'); igual(qa('.pp-cifra').length, 5, 'una sexta cifra');
+      ok(l.classList.contains('sinprog') && /Factura 2026-028 · 380 €/.test(l.querySelector('.pp-nm b').textContent) && new RegExp(NOMBRE).test(l.querySelector('.pp-nm i').textContent), 'la línea no dice su factura, importe y cliente: ' + l.textContent);
+      igual(l.querySelector('.pp-est').textContent, 'Retrasada 15 días · sin cobrar', 'su estado');
+      ok(l.querySelector('.pp-cu.rojo') && /5 nov/.test(l.querySelector('.pp-cu').textContent), 'la fecha de vencimiento en rojo');
+      ok(l.querySelector('.pp-afoto.vacia svg'), 'sin el euro');
+      const cs = W.getComputedStyle(l), red = W.getComputedStyle(q('#mesa')).getPropertyValue('--red-soft').trim();
+      igual(rgbDe(cs.backgroundColor).join(), rgbDe(red).join(), 'la fila no va tintada de rojo');
+      // the switch «Tareas» doesn't hide it
+      await M.personal.set({ avTareas: true }); await M.personal.render(); ok(lin(), 'con «Tareas» encendido no sale');
+      await M.personal.set({ avTareas: false }); await M.personal.render(); ok(lin(), 'con «Tareas» apagado no sale');
+      // the figure «Se ha pasado» filters it in
+      await ppClic('.pp-cifra[data-k="pasado"]'); ok(lin(), 'con el filtro «Se ha pasado» no sale'); await ppClic('.pp-cifra[data-k="pasado"]');
+      // its click opens «Cobros»
+      lin().click(); await hasta(() => q('.detail[data-dlg="editclient"] #ecp-cobros:not([hidden])'), 3000, '«Cobros» al pulsar la línea'); M._in.closeDetail();
+      // paid, it goes
+      await M.cobros.cargar([{ id: 'c4-a', cliente: CLIENTE, periodo: '2026-10', importe: 380, factura: '2026-028', emitida: '2026-10-26', vence: '2026-11-05', cobrada: '2026-11-20', at: new Date(Date.now() + 1000).toISOString() }]);
+      await hasta(() => !lin(), 3000, 'que se vaya al cobrarla'); igual(ppCifras().pasado, n0, 'sigue contando');
+    } finally { M._in.closeDetail(); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
 
   // =====================================================================================================
   const filas = $('filas');

@@ -228,6 +228,12 @@
       const ult = ultDia(k);
       if (ult < hoy) items.push({ ...it, cat: 'pasado' }); else if (k.fecha <= hoy) items.push({ ...it, cat: 'hoy', ...(k.fecha < hoy ? { hora: '', sigue: true } : {}) }); else if (ses && k.fecha === man) items.push({ ...it, cat: 'man' });
     }
+    const CB = X.cob;                           // an invoice not paid after it was due: in «Se ha pasado», with or without «Tareas» (D-236)
+    if (CB) for (const r of CB.vivos()) {
+      const e = CB.estado(r, hoy); if (e.k !== 'retrasada') continue;
+      const c = cliDe(r.cliente); if (!c) continue;
+      items.push({ tipo: 'cobro', r, dias: e.dias, clientes: [r.cliente], dia: r.vence, ts: utc(r.vence), cat: 'pasado' });
+    }
     items.sort((a, b) => a.ts - b.ts || (a.tipo === 'historias') - (b.tipo === 'historias'));
     const cuenta = c => items.filter(x => x.cat === c && !x.hecha).length;
     const filas = D.CL.map(c => fila(c, D, Q, V, enV, hoy));
@@ -301,6 +307,10 @@
     // a session gone past: its checkbox and «Reprogramar» (the mesa's calendar; a step of ⌘Z, D-206)
     const repro = x.tipo === 'sesion' && x.cat === 'pasado' && !x.hecha ? `<button type="button" class="btn2 pp-repro" data-pp="reprog" data-id="${esc(x.k.id)}" title="Otra fecha para la sesión">${ICO.fecha}Reprogramar</button>` : '';
     if (x.tipo === 'tarea' || x.tipo === 'sesion') return `<div class="pp-av tarea${x.hecha ? ' hecha' : ''}${x.tipo === 'sesion' ? ' ses' : ''}${repro ? ' repro sinprog' : ''}" data-tid="${esc(x.k.id)}"><span class="pp-avs"><input type="checkbox" class="pp-ck" data-pp="ck" data-id="${esc(x.k.id)}"${x.hecha ? ' checked' : ''} aria-label="Hecha"></span>${cuando(x, R)}${mini(x)}<span class="pp-nm" data-pp="tver" data-id="${esc(x.k.id)}" tabindex="0" role="button"><b>${esc(x.k.txt)}</b>${x.clientes.length ? ` <i>${quien}</i>` : ''}</span><span class="pp-est"></span>${repro}</div>`;
+    if (x.tipo === 'cobro') {                   // tinted red as what isn't scheduled (D-190), the euro where the photo goes (D-236)
+      const C = I().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
+      return `<button type="button" class="pp-av sinprog pp-avco" data-pp="cobro" data-c="${esc(r.cliente)}" data-id="${esc(r.id)}" title="${esc(nf)} · ${esc(C.eur(r.importe))} · venció el ${esc(corto(r.vence))}">${avs}${cuando(x, R)}<span class="pp-afoto vacia">${ICO.euro}</span><span class="pp-nm"><b>${esc(nf)} · ${esc(C.eur(r.importe))}</b> <i>${quien}</i></span><span class="pp-est">Retrasada ${x.dias} ${x.dias === 1 ? 'día' : 'días'} · sin cobrar</span></button>`;
+    }
     if (x.tipo === 'historias') {
       const cu = x.dia === R.hoy ? 'hoy' : x.dia === R.man ? 'mañana' : 'el ' + corto(x.dia);
       return `<button type="button" class="pp-av" data-pp="hs" data-key="${esc(x.B.key)}" title="${x.n} ${x.n === 1 ? 'historia' : 'historias'} ${cu} · ${x.sin} sin programar">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${x.sin} ${x.sin === 1 ? 'historia' : 'historias'}${x.cat === 'hoy' || x.cat === 'man' ? ' ' + cu : ''} sin programar</b> <i>${quien}</i></span><span class="pp-est"></span></button>`;

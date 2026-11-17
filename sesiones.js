@@ -849,6 +849,31 @@
     });
   }
 
+  // ---------- «Duplicar sesión» (D-221): a whole copy to start from — its sections and its photos, these with new ids in their
+  // own store (and in its shots, groups and strip), so deleting one never deletes it from the other; «Copia de …», without
+  // date, time, end, clients nor done, its material unmarked from the same template; its sheet opens; one step of ⌘Z ----------
+  async function duplicar(id) {
+    const r0 = P.TK.get(id); if (!r0 || r0.tipo !== 'sesion' || !P.puede()) return;
+    const X = I(), now = P.ahoraISO(), nid = P.nuevoId('ss'), mapa = new Map(), fotos = [];
+    for (const f of r0.fotos || []) {
+      const o = await X.idbGet('tfotos', f.id).catch(() => null); if (!o || !o.blob) continue;
+      const fid = P.nuevoId('tf'); const { suelta, ...g } = o;
+      await X.idbPut('tfotos', fid, { ...g, id: fid, sesion: nid, t: Date.now() }); mapa.set(f.id, fid); fotos.push({ ...f, id: fid });
+    }
+    const x = P.copia(r0), re = l => (l || []).map(f => mapa.get(f)).filter(Boolean);
+    Object.assign(x, { id: nid, txt: 'Copia de ' + r0.txt, creada: now, at: now, clientes: [] });
+    for (const k of ['fecha', 'hora', 'fin', 'hecha', 'cliente', 'fotos']) delete x[k];
+    if (fotos.length) x.fotos = fotos;
+    for (const a of x.sesion.apartados || []) {
+      (a.pestanas || []).forEach(pt => (pt.items || []).forEach(i => { i.fotos = re(i.fotos); }));
+      (a.grupos || []).forEach(g => { g.fotos = re(g.fotos); });
+      if (a.material) a.material.hechos = [];
+    }
+    if (P.CARD && P.CARD.id === id) { if (P.CARD.ed) guardar(true); }
+    await P.hacer([{ id: nid, despues: x }]);
+    P.pintar(); P.abrirCard(nid);
+  }
+
   // ---------- «Editar plantillas» (D-208, D-220): each template, its name, its place and its things; «Guardar» is one step ----------
   function editarLista() {
     const X = I(), ED = plantillas().map(t => ({ id: t.id, txt: String(t.txt || ''), lista: matPlantilla(t.id), orden: +t.orden || 0 }));
@@ -908,7 +933,7 @@
     ampliar: () => maquetar(),                 // widened or back (D-210): as many columns of the mood board as fit now
     guardar: fin => guardar(fin),
     cerrar: () => { if (ctlCampo) { ctlCampo.apagar(); ctlCampo = null; } S._id = null; S.firma = ''; mov = null; decodQ = []; soltarFotos(); },
-    nueva, volverTexto
+    nueva, volverTexto, duplicar
   };
   const FICHA = {
     cls: 'pp-ficha', pintar: (e, o) => fichaPintar(e, o), clic: fichaClic, dbl: fichaDbl, tecla: fichaTecla, guardar: () => fichaGuardar(),

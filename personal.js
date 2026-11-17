@@ -1212,6 +1212,7 @@
     const r = TK.get(id), n = (r && r.fotos || []).length, l = [];
     if (n) l.push(['sinfotos', n === 1 ? 'Quitar la foto' : 'Quitar las fotos', async () => { await cambiar(id, x => { delete x.fotos; if (x.sesion) for (const a of x.sesion.apartados || []) { (a.pestanas || []).forEach(p => (p.items || []).forEach(i => { i.fotos = []; })); (a.grupos || []).forEach(g => { g.fotos = []; }); } return x; }); pintar(); }]);
     if (extra) l.push(...extra);
+    if (EXT.sesion && EXT.sesion.duplicar) l.push(['duplicar', 'Duplicar sesión', () => EXT.sesion.duplicar(id)]);   // D-221
     l.push(['borrar', 'Borrar sesión', async () => { if (CARD && CARD.id === id) cerrarCard(true); await borrar(id); pintar(); }]);
     return l;
   }

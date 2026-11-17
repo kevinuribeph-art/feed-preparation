@@ -14390,7 +14390,7 @@
       M.personal._p.cerrarCard(true); await espera(60); await ppClic('.pp-tabs [data-p="tareas"]').catch(() => {}); await M.personal.render();
       const lin = q(`.pp-tk[data-tid="${r.id}"]`); ok(lin && lin.querySelector('.pp-tses'), 'la sesión no sale en la lista con su icono');
       lin.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 60 })); await espera(40);
-      igual(qa('.pp-menu button').map(b => b.textContent), ['Quitar las fotos', 'Borrar sesión'], 'el menú de una sesión');
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Quitar las fotos', 'Duplicar sesión', 'Borrar sesión'], 'el menú de una sesión');   // «Duplicar sesión» desde D-221
       q('.pp-menu [data-a="sinfotos"]').click(); await espera(120);
       k = await seRec(r.id); ok(!(k.fotos || []).length && !seAp(k, 'mood').grupos[0].fotos.length, '«Quitar las fotos» no las quita de todo');
     } finally { paginaCerrada(); await sinTareas(); }
@@ -14414,7 +14414,7 @@
       ppTecla('z', { metaKey: true }); await espera(120); k = await seRec(r.id); igual(seAp(k, 'material').material.hechos.length, 0, '⌘Z no desmarca');
       // «Editar la lista»: el «⋯» de la hoja
       seQ('[data-hj="mas"]').click(); await espera(40);
-      igual(qa('.pp-menu button').map(b => b.textContent), ['Editar plantillas', 'Borrar sesión'], 'el «⋯» de la hoja (sin fotos)');   // «Editar plantillas» desde D-220
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Editar plantillas', 'Duplicar sesión', 'Borrar sesión'], 'el «⋯» de la hoja (sin fotos)');   // «Editar plantillas» desde D-220; «Duplicar sesión» desde D-221
       q('.pp-menu [data-a="material"]').click(); await espera(80);
       ok(q('.detail:not([hidden]) form.pp-ml') && qa('.pp-ml-f').length === 7, '«Editar la lista» no abre la lista');
       q('[data-ml="mas"]').click(); await espera(30); const fs = qa('.pp-ml-f'), u = fs[fs.length - 1]; u.querySelector('.pp-ml-n').value = 'Rebotador'; u.querySelector('.pp-ml-fa').value = 'Luz';
@@ -15176,6 +15176,50 @@
       igual((await M.personal.tareas()).find(t => t.id === 'material').txt, 'Equipo completo', 'un v16 no se llama «Equipo completo»');
       const d17 = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()); d17.tareas.push({ id: 'mlvacia', tipo: 'material', txt: ' ', lista: [] });
       const y = await M.importData(new W.Blob([JSON.stringify(d17)], { type: 'application/json' }), { confirm: false }); ok(y && y.error, 'un v17 con una plantilla sin nombre se importa');
+    } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('DS5', '«Duplicar sesión» (D-221): en el «⋯» y el clic derecho de la hoja y en el clic derecho de su fila; copia entera (apartados y fotos, estas con ids nuevos en su almacén y en planos, grupos y tira); «Copia de …» sin fecha, hora, fin, clientes ni hecha, con el material sin marcar y de la misma plantilla; se abre su hoja; un paso de ⌘Z; borrar una foto de la copia no la quita de la otra', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p;
+      const r = await M.sesiones._test.crear({ txt: 'Original', clase: 'fotovideo', fecha: '2026-10-06', hora: '10:00', fin: { fecha: '2026-10-07', hora: '12:00' }, clientes: [CLIENTE] });
+      const f1 = 'tfds5a', f2 = 'tfds5b', blob = await (await foto('ds5.jpg', 900, 600)).arrayBuffer();
+      for (const id of [f1, f2]) await M._in.idbPut('tfotos', id, { id, w: 900, h: 600, blob: new W.Blob([blob], { type: 'image/jpeg' }), mini: new W.Blob([blob], { type: 'image/jpeg' }), t: Date.now() });
+      await P.cambiar(r.id, x => { x.hecha = new Date(M._in.ahora()).toISOString(); x.fotos = [{ id: f1, w: 900, h: 600 }, { id: f2, w: 900, h: 600 }];
+        const mo = seAp(x, 'mood'); mo.grupos = [{ id: 'g1', nombre: 'Luz', modo: 'linea', fotos: [f1, f2] }];
+        const pl = seAp(x, 'planos'); pl.pestanas[0].items = [{ id: 'i1', titulo: 'Plano', texto: 'Texto', fotos: [f2], enlaces: ['https://ejemplo.com'] }];
+        const ma = seAp(x, 'material').material; ma.hechos = [ma.lista[0].id]; seAp(x, 'orden').texto = 'Uno\nDos'; return x; });
+      await seAbrir(r.id);
+      seQ('[data-hj="mas"]').click(); await espera(40);
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Quitar las fotos', 'Editar plantillas', 'Duplicar sesión', 'Borrar sesión'], 'el «⋯» de la hoja');
+      P.cerrarMenu();
+      seQ('.pp-hj-cab').dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 120 })); await espera(40);
+      ok(q('.pp-menu [data-a="duplicar"]'), 'el clic derecho de la hoja sin «Duplicar sesión»');
+      q('.pp-menu [data-a="duplicar"]').click(); await hasta(async () => (await M.personal.tareas()).filter(k => k.tipo === 'sesion').length === 2, 4000, 'la copia');
+      const L = await M.personal.tareas(), c = L.find(k => k.tipo === 'sesion' && k.id !== r.id), o = L.find(k => k.id === r.id);
+      igual([c.txt, c.fecha, c.hora, c.fin, c.clientes, c.hecha], ['Copia de Original', undefined, undefined, undefined, [], undefined], 'la copia lleva fecha, hora, fin, clientes o hecha');
+      const nf = c.fotos.map(f => f.id); ok(nf.length === 2 && !nf.includes(f1) && !nf.includes(f2), 'las fotos de la copia no tienen ids nuevos: ' + json(nf));
+      igual([seAp(c, 'mood').grupos[0].fotos, seAp(c, 'planos').pestanas[0].items[0].fotos], [nf, [nf[1]]], 'los grupos y planos de la copia no apuntan a sus fotos');
+      igual([seAp(c, 'orden').texto, seAp(c, 'planos').pestanas[0].items[0].enlaces, seAp(c, 'material').material.hechos, seAp(c, 'material').material.plantilla, seAp(c, 'material').material.lista.length], ['Uno\nDos', ['https://ejemplo.com'], [], 'material', 7], 'la copia no es entera o su material sigue marcado');
+      for (const id of nf) { const t = await M._in.idbGet('tfotos', id); ok(t && t.blob && t.blob.size === blob.byteLength, 'la foto copiada no está en su almacén'); }
+      igual([o.fotos.map(f => f.id), seAp(o, 'mood').grupos[0].fotos], [[f1, f2], [f1, f2]], 'la original cambia');
+      ok(seHoja() && P.CARD.id === c.id, 'no se abre la hoja de la copia');
+      ok(!JSON.stringify(c).includes('"blob"') && JSON.stringify(c).length < JSON.stringify(o).length + 200, 'la copia guarda las fotos dentro del registro');
+      // borrar una foto de la copia no la quita de la original
+      seQ('[data-hj="tira"]').click(); await espera(60);
+      seQ(`.pp-hj-tira [data-f="${nf[0]}"]`).dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })); await espera(40);
+      q('.pp-menu [data-a="borrar"]').click(); await espera(150);
+      igual([(await seRec(c.id)).fotos.length, (await seRec(r.id)).fotos.length], [1, 2], 'borrar una foto de la copia la quita de la otra');
+      await M.personal.deshacer(); await espera(120);
+      await M.personal.deshacer(); await espera(150); ok(!(await M.personal.tareas()).some(k => k.id === c.id), '⌘Z no quita la copia');
+      P.cerrarCard(true);
+      // el clic derecho de su fila
+      await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, vista: 'lista', ttodas: true, alcance: '1m' }); await espera(80);
+      const fila = q(`.pp-tk[data-tid="${r.id}"]`); ok(fila, 'la sesión no sale en la Lista');
+      fila.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })); await espera(40);
+      ok(q('.pp-menu [data-a="duplicar"]'), 'el clic derecho de la fila sin «Duplicar sesión»'); P.cerrarMenu();
     } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 

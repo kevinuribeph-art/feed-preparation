@@ -838,6 +838,7 @@
 #mesa .pp-hj-cols{display:grid;grid-template-columns:minmax(0,1.2fr) 17px minmax(0,1fr);flex:1 0 auto;padding:6px 18px 28px 26px;position:relative;transition:grid-template-columns var(--d-m) var(--ease-m)}
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
 #mesa .pp-hj-col{min-width:0;display:flex;flex-direction:column;gap:26px;padding:14px 4px 0}
+#mesa .pp-hj-col[data-col="der"]{padding-left:24px}   /* 20 px more inside: its sections' handle has its own room, off the separator's (D-216) */
 #mesa .pp-hj-sep{position:relative;cursor:col-resize;outline:none}
 #mesa .pp-hj-sep::before{content:'';position:absolute;top:0;bottom:0;left:8px;width:1px;background:var(--line2);transition:background var(--d1) var(--ease)}
 #mesa .pp-hj-sep::after{content:'';position:absolute;top:120px;left:5px;width:7px;height:28px;border-radius:var(--r-pill);background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);transition:background var(--d1) var(--ease)}

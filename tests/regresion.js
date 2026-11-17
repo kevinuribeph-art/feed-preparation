@@ -14856,6 +14856,25 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
+  prueba('AS8', 'El asa del separador, opción A (D-216): con dos columnas la derecha va 20 px más adentro y el asa de sus apartados no cae sobre la del separador (separador al 30, 50 y 70 %, también ampliada); a 720 px, una columna sin esos 20 px', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Asa', clase: 'fotovideo' }); await seAbrir(r.id); await espera(260);
+      const pi = c => parseFloat(W.getComputedStyle(seQ(`.pp-hj-col[data-col="${c}"]`)).paddingLeft);
+      igual(pi('der') - pi('izq'), 20, 'la columna derecha no va 20 px más adentro');
+      const mira = que => {
+        const sep = seQ('.pp-hj-sep').getBoundingClientRect(), asa = [...seHoja().querySelectorAll('[data-col="der"] .pp-hj-asa')].map(a => a.getBoundingClientRect());
+        ok(asa.length && asa.every(a => a.left >= sep.right + 2), que + ': el asa de un apartado cae sobre el separador: ' + json([sep.right, asa.map(a => a.left)]));
+      };
+      for (const v of [0.3, 0.5, 0.7]) { M.personal._p.lsSet('mesa-pp-hoja', JSON.stringify({ ...M.sesiones._test.reparto(), sep: v })); M.personal._p.cerrarCard(true); await seAbrir(r.id); await espera(300); mira('al ' + v * 100 + ' %'); }
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(300); mira('ampliada');
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(350);
+      ok(!seHoja().querySelector('[data-col="der"]') && parseFloat(W.getComputedStyle(seQ('.pp-hj-col')).paddingLeft) === 4, 'a 720 px lleva los 20 px o dos columnas');
+    } finally { fr.style.width = w0; M.personal._p.lsSet('mesa-pp-hoja', ''); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

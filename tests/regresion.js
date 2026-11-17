@@ -15405,6 +15405,36 @@
     } finally { try { SS.removeItem('mesa-pp-tareas'); } catch (e) { /* */ } paginaCerrada(); }
   });
 
+  prueba('AV5', 'La sesión se distingue en Tareas (D-226): en Lista, Semana y Mes el título de una sesión va a 600 y su claqueta en --ty-ses-ink; una tarea no cambia; la vencida sigue en rojo y la hecha tachada (y en gris)', async () => {
+    await seListo(); await paginaAbierta();
+    relojEn('2026-10-07T10:00:00+02:00');
+    try {
+      const ses = await M.sesiones._test.crear({ txt: 'Sesión clara', clase: 'foto', fecha: '2026-10-08', hora: '10:00' });
+      const vieja = await M.sesiones._test.crear({ txt: 'Sesión vencida', clase: 'foto', fecha: '2026-10-06', hora: '09:00' });
+      const hecha = await M.sesiones._test.crear({ txt: 'Sesión hecha', clase: 'foto', fecha: '2026-10-08', hora: '12:00' }); await M.personal.hecha(hecha.id);
+      const tk = await M.personal.tarea({ txt: 'Tarea al lado', fecha: '2026-10-09' });
+      await M.personal.set({ plg: { tareas: false, clientes: true, avisos: true }, vista: 'lista' }); await M.personal.render();
+      const cs = e => W.getComputedStyle(e), ink = () => rgbDe(cs(q('#mesa')).getPropertyValue('--ty-ses-ink').trim()).join(), red = () => rgbDe(cs(q('#mesa')).getPropertyValue('--red').trim()).join();
+      const fila = (id, sel) => q(`${sel}[data-tid="${id}"]`);
+      const mira = (vista, sel, tit, ico) => {
+        const s1 = fila(ses.id, sel), t1 = fila(tk.id, sel), h1 = fila(hecha.id, sel); ok(s1 && t1 && h1, `${vista}: falta una fila`);
+        const T = e => tit ? e.querySelector(tit) : e, C = e => e.querySelector(ico);
+        igual([cs(T(s1)).fontWeight, rgbDe(cs(C(s1)).color).join()], ['600', ink()], `${vista}: la sesión no va a 600 con su claqueta en --ty-ses-ink`);
+        ok(cs(T(t1)).fontWeight !== '600', `${vista}: la tarea pasa a 600`);
+        ok(/line-through/.test(cs(T(h1)).textDecorationLine) && cs(T(h1)).fontWeight !== '600', `${vista}: la sesión hecha no va tachada o sigue a 600`);
+      };
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        await M.personal.set({ vista: 'lista' }); await M.personal.render(); mira(`Lista (${t})`, '.pp-tk', '.pp-tt', '.pp-tses');
+        ok(q(`.pp-tk[data-tid="${vieja.id}"] .pp-tf.rojo`), `Lista (${t}): la fecha de la vencida no va en rojo`);
+        await M.personal.set({ vista: 'semana' }); await M.personal.render(); mira(`Semana (${t})`, '.pp-fi', '.pp-tt', '.pp-tses');
+        const v = q(`.pp-fi[data-tid="${vieja.id}"] .pp-tt`); ok(v && rgbDe(cs(v).color).join() === red(), `Semana (${t}): la vencida no va en rojo`);
+        await M.personal.set({ vista: 'mes' }); await M.personal.render(); mira(`Mes (${t})`, '.pp-mt', null, 'svg');
+        const mh = q(`.pp-mt[data-tid="${ses.id}"] .pp-mh`); ok(mh && cs(mh).fontWeight === '400', `Mes (${t}): la hora de la sesión no va a 400, como en Lista y Semana`);
+        const vm = q(`.pp-mt[data-tid="${vieja.id}"]`); ok(vm && rgbDe(cs(vm).color).join() === red(), `Mes (${t}): la vencida no va en rojo`);
+      });
+    } finally { await M.personal.set({ vista: 'lista' }); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

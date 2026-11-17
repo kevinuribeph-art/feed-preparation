@@ -438,7 +438,7 @@
         barra = `<span class="pp-tsw">${nav(t, 'Mes anterior', 'Mes siguiente', 'este mes')}${sw}</span>`;
         izq = `<div class="pp-mesg"><div class="pp-mcab" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="pp-mgrid">${Array.from({ length: n }, (_, i) => addD(ini, i)).map(d => {
           const fuera = d.slice(0, 7) !== m, ks = fuera ? [] : enDia(d, d === hoy ? d0 : null);
-          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `${esc(k.hora)} ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
+          return `<div class="pp-md${d === hoy ? ' hoy' : ''}${fuera ? ' fuera' : ''}"><span class="pp-mn">${+d.slice(8, 10)}</span>${ks.slice(0, 2).map(k => `<span class="pp-mt${k.hecha ? ' hecha' : ''}${venc(k) ? ' venc' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}" ${ver(k)} title="${k.tipo === 'sesion' ? 'Sesión: ' : ''}${esc(k.txt)}${k.tipo === 'sesion' && k.fin ? ' · ' + esc(tramo(k)) : k.hora ? ' · ' + esc(k.hora) : ''}${venc(k) ? ' · ' + esc(corto(k.fecha)) : ''}">${k.tipo === 'sesion' ? ICO.sesion + (k.hora && k.fecha === d ? `<span class="pp-mh">${esc(k.hora)}</span> ` : '') : (k.fotos || []).length ? `<img src="${fotosURL(k.fotos[0])}" alt="">` : ''}${esc(k.txt)}${(k.subtareas || []).length ? ` · ${k.subtareas.filter(x => x.hecha).length}/${k.subtareas.length}` : ''}</span>`).join('')}${ks.length > 2 ? `<span class="pp-mm">${ks.length - 2} más</span>` : ''}</div>`; }).join('')}</div></div>`;
       }
     }
     const ns = st.vista === 'lista' ? notas().filter(n => st.tcli ? n.cliente === st.tcli : !n.cliente) : [];
@@ -1565,6 +1565,8 @@
 #mesa .pp-fi .pp-tses{margin-top:1px;width:13px;height:13px}#mesa .pp-fi .pp-tses svg{width:13px;height:13px}
 #mesa .pp-fi .pp-tt em{font-style:normal;color:var(--mute)}
 #mesa .pp-mt.ses svg{width:11px;height:11px;margin-right:3px;vertical-align:-1px;color:var(--mute)}
+#mesa .pp-tk.ses:not(.hecha) .pp-tt,#mesa .pp-fi.ses:not(.hecha) .pp-tt,#mesa .pp-mt.ses:not(.hecha){font-weight:600}#mesa .pp-mt .pp-mh{font-weight:400}   /* D-226: a session stands out among the tasks; its time, as in Lista and Semana */
+#mesa .pp-tk.ses:not(.hecha) .pp-tses,#mesa .pp-fi.ses:not(.hecha) .pp-tses,#mesa .pp-mt.ses:not(.hecha) svg{color:var(--ty-ses-ink)}
 #mesa .pp-av.repro{grid-template-columns:28px 42px 32px minmax(0,1fr) auto}
 #mesa .pp-repro{grid-row:1 / span 2;grid-column:5}
 #mesa .pp-repro svg{width:13px;height:13px}

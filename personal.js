@@ -108,14 +108,18 @@
   async function leer() {
     const X = I(), B0 = X.S, g0 = gen;
     const boards = ((await X.idbAll('boards')) || []).filter(b => b && b.month && Array.isArray(b.slots)).map(b => (B0 && b.key === B0.key ? B0 : b));
-    const ts = (await X.idbAll('tareas').catch(() => [])) || [];
+    ponerTK((await X.idbAll('tareas').catch(() => [])) || [], g0);
+    return { CL: X.CL.slice(), boards };
+  }
+  function ponerTK(ts, g0) {
     const antes = new Map(TK);
     TK.clear(); for (const t of ts) if (t && t.id) TK.set(t.id, t);
     for (const [id, r] of antes) if (r._b) TK.set(id, r);   // a new task still being written (not made yet) stays
     for (const [id, g] of TOCADA) if (g > g0) { const r = antes.get(id); if (r) TK.set(id, r); else TK.delete(id); }   // written while this read
     for (const [id, r] of PEND) { if (r) TK.set(id, r); else TK.delete(id); }   // a write still on its way wins over what was read
-    return { CL: X.CL.slice(), boards };
   }
+  async function cargarTK() { const g0 = gen; ponerTK((await I().idbAll('tareas').catch(() => [])) || [], g0); }   // without the page (a session's sheet over the board, D-219)
+  const avisar = () => { try { document.dispatchEvent(new CustomEvent('mesa-tareas')); } catch (e) { /* */ } };   // the posts' calendar draws its sessions again
   const kits = {};                             // clientId -> the kit's accent colour (null: none)
   function kitColor(cid, D) {                  // only for a client with designs (its kit exists): no 404 for the others
     if (cid in kits) return Promise.resolve(kits[cid]);
@@ -511,7 +515,7 @@
   // ---------- drawing: from what was read (sync), and reading again (async) ----------
   let R = null, ultimo = '';
   function pintar(R0) {
-    if (!st.on || !page || !D) return;
+    if (!st.on || !page || !D) { if (CARD && CARD.tablero) pintarCard(); return; }   // a session's sheet over the board (D-219)
     R = R0 || calcular(D);
     const html = pagina(R);
     if (html === ultimo && page.firstChild) { pintarCard(); return; }   // nothing changed: what is open (a dropdown, a caret, a composition) stays; the card follows its record
@@ -572,6 +576,7 @@
     if (M.libre && M.libre.abierto && M.libre.abierto()) return false;   // the editor covers the mesa: it is closed with its own buttons
     if (M.diseno && M.diseno.abierto && M.diseno.abierto()) return false;
     const det = root.querySelector('.detail'); if (det && !det.hidden && X.closeDetail) X.closeDetail();
+    if (CARD && CARD.tablero) cerrarCard();    // a session's sheet over the board (D-219)
     // each visit starts the same (D-180): Tareas folded, Clientes and Avisos open, the tasks out of Avisos, no figure chosen
     st.plg = { ...PLG0 }; st.avTareas = false; st.filtro = null; st.abiertos.clear(); st.cvista = 'mensuales';
     st.on = true; ssSet(SS_CLI, null);
@@ -621,6 +626,7 @@
     catch (e) { X.toast('No se pudo guardar la tarea: ' + ((e && e.message) || e)); }
     finally { for (const c of cambios) if (PEND.get(c.id) === (c.despues || null)) PEND.delete(c.id); }
     if (bc) { try { bc.postMessage({ t: 'tareas' }); } catch (e) { /* */ } }
+    avisar();
   }
   function soltarFotos(r) { for (const f of (r && r.fotos) || []) { const u = MINI.get(f.id); if (u && ![...TK.values()].some(k => k !== r && (k.fotos || []).some(g => g.id === f.id))) { URL.revokeObjectURL(u); MINI.delete(f.id); } } }
   function puede() { const X = I(); return !!X && !X.locked; }
@@ -797,13 +803,17 @@
   // menu, guardar, cerrar}; this file keeps the card itself (its layer, its opening and closing, its ⌘Z)
   const EXT = {};
   function abrirCard(id, o = {}) {
-    const r = TK.get(id), X = I(); if (!r || !st.on) return false;
+    // over the board (D-219): the page closed, a session's sheet opened from the posts' calendar (in the vista cliente, read
+    // only, fixed in «Ver como el cliente», naming only that board's client); a card opened from it stays over the board
+    const tab = o.tablero != null ? !!o.tablero : !st.on && !!(CARD && CARD.tablero), vc = o.vc != null ? !!o.vc : !!(tab && CARD && CARD.vc), cli = o.cli || (CARD && CARD.cli) || null;
+    const r = TK.get(id), X = I(); if (!r || !(st.on || tab)) return false;
     cerrarMenu(); if (CARD) quitarCard();
     const ext = o.ext || (r.tipo === 'sesion' && EXT.sesion ? EXT.sesion : r.tipo === 'esporadico' && EXT.ficha ? EXT.ficha : null);
     ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
     ov.addEventListener('animationend', e => { if (e.target.classList.contains('pp-card')) e.currentTarget.classList.remove('entra'); });
     X.root().append(ov);
-    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext };
+    CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext, tablero: tab, vc: tab && vc, cli: tab ? cli : null };
+    X.root().classList.toggle('pp-card-on', tab);   // the board under it takes no keys
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it
     if (ext) { ext.pintar(r, { ...o, forzar: true }); return true; }
     ov.innerHTML = htmlCard(r, CARD.ed);
@@ -813,15 +823,16 @@
     return true;
   }
   function soltarBorrador() { for (const [id, k] of TK) if (k._b && (!CARD || CARD.id !== id)) TK.delete(id); }
-  function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); apagarCampos(); if (CARD && CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar(); ov.remove(); CARD = null; ov = null; soltarBorrador(); }
+  function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); apagarCampos(); if (CARD && CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar(); ov.remove(); CARD = null; ov = null; soltarBorrador(); sinTablero(); }
+  const sinTablero = () => { const X = I(), root = X && X.root && X.root(); if (root) root.classList.remove('pp-card-on'); };
   function cerrarCard(ya) {
     if (!CARD) return;
     clearTimeout(CARD.cierre);
     if (CARD.ed && !ya) { guardarCard(); if (!CARD) return; }   // what was written goes in first (an empty note has gone with its card)
     apagarCampos(); if (CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar();
-    const o = ov, de = CARD.de; CARD = null; ov = null; soltarBorrador(); cerradaT = Date.now();
+    const o = ov, de = CARD.de, tab = CARD.tablero; CARD = null; ov = null; soltarBorrador(); cerradaT = Date.now(); sinTablero();
     if (ya || pocoMov()) o.remove(); else { o.classList.add('sale'); setTimeout(() => o.remove(), 130); }
-    const b = de && page && page.querySelector(de); if (b) b.focus({ preventScroll: true });
+    const dn = tab ? I().root() : page, b = de && dn && dn.querySelector(de); if (b) b.focus({ preventScroll: true });   // over the board: back to its chip
     retomar();
   }
   // the caret where the double click was (on the title, the note or a field), else at the end of the title or the note
@@ -1122,7 +1133,7 @@
     else if (e.target.closest('[data-pp="trango"]')) { if (st.vista === 'semana') st.tsem = 0; else st.tmes = 0; pintar(); }
   }
   function alCambiar(e) {
-    if (!st.on || !page || !(page.contains(e.target) || enCard(e.target))) return;
+    if (!enCard(e.target) && !(st.on && page && page.contains(e.target))) return;
     const t = e.target;
     if (CARD && CARD.ext && enCard(t) && CARD.ext.cambio && CARD.ext.cambio(e)) return;   // a session's sheet, a sporadic client's file (sesiones.js)
     // the card's date and client (D-182): saved at once, the card stays as it is (its control is finishing its gesture)
@@ -1142,7 +1153,7 @@
     }
   }
   function alTeclear(e) {
-    if (!st.on || !page) return;
+    if (!(st.on && page) && !(CARD && CARD.tablero)) return;
     if (menu && e.key === 'Escape') return;    // the menu closes on its own (its keys), never the card under it
     const t = e.target;
     if (CARD) {                                // the card: Esc goes back to reading or closes; Enter on it writes (D-182)
@@ -1169,9 +1180,9 @@
       const det = I().root().querySelector('.detail');
       if ((t && (t.isContentEditable || (t.tagName === 'INPUT' && /^(text|search|)$/.test(t.type || '')) || t.tagName === 'TEXTAREA')) || (det && !det.hidden)) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      deshacer(e.shiftKey); return;
+      if (!(CARD && CARD.vc)) deshacer(e.shiftKey); return;   // in the vista cliente nothing changes
     }
-    if (!page.contains(t)) return;
+    if (!page || !page.contains(t)) return;
     if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing && !(ES() && ES().menuDe(t))) { e.preventDefault(); crearDesdeCampo(false); return; }
     if ((e.key === 'Enter' || e.key === ' ') && t.matches('[data-pp="tver"]')) { e.preventDefault(); abrirCard(t.dataset.id); return; }
   }
@@ -1220,7 +1231,7 @@
   const marcarSobre = el => { if (sobre && sobre !== el) sobre.classList.remove('pp-drop'); sobre = el; if (el) el.classList.add('pp-drop'); };
   const destino = e => { const t = e.target.closest && e.target.closest('[data-tid]'); return t && (t.dataset.tid === 'nueva' || (TK.has(t.dataset.tid) && TK.get(t.dataset.tid).tipo === 'tarea')) ? t : null; };   // a session's photos go in its sheet, to their own store (D-206)
   function alArrastrar(e) {                    // capture on the mesa: with the page open, files only go to the page's targets
-    if (!st.on || !conArchivos(e)) return;
+    if (!(st.on || (CARD && CARD.tablero)) || !conArchivos(e)) return;   // over the board too: never to its tray
     if (CARD && CARD.ext && enCard(e.target)) { if (e.type !== 'dragleave') { e.preventDefault(); e.stopPropagation(); } if (CARD.ext.archivos) CARD.ext.archivos(e); else if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'; return; }
     const dentro = page && page.contains(e.target);
     if (e.type === 'dragleave') { if (!dentro || !page.contains(e.relatedTarget)) marcarSobre(null); return; }
@@ -1267,7 +1278,7 @@
     tic = setInterval(() => { if (st.on && document.visibilityState === 'visible') refrescar(); }, 60000);
     on(document, 'visibilitychange', () => { if (st.on && document.visibilityState === 'visible') refrescar(); });
     let rT = 0; on(window, 'resize', () => { if (CARD && CARD.amplia) colocarAmplia(); clearTimeout(rT); rT = setTimeout(() => { if (st.on && !ocupada()) pintar(); }, 120); });   // fewer clients a row when they don't fit
-    try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (e.data && e.data.t === 'tareas' && st.on) refrescar(); }; } catch (e) { bc = null; }
+    try { bc = new BroadcastChannel('mesa-personal'); bc.onmessage = e => { if (!e.data || e.data.t !== 'tareas') return; if (st.on) refrescar(); else if (CARD && CARD.tablero) { cargarTK().then(() => pintarCard()); } avisar(); }; } catch (e) { bc = null; }
     // «Usar aquí» opens the board again: with the page open, it stays, with what the other tab saved
     on(document, 'click', e => { if (st.on && e.target.closest && e.target.closest('[data-act="takeover"]')) retomando = Date.now(); }, true);
     // opening a board (a tab, the skill through window.MESA, the battery) leaves the page; an import or «Usar aquí» don't
@@ -1282,7 +1293,7 @@
     }
     retomando = false;
     if (typeof M.importData === 'function' && !M.importData._pp) {
-      const f = M.importData, g = async function (...a) { quedarse++; try { return await f.apply(this, a); } finally { quedarse--; if (st.on) refrescar(); } };
+      const f = M.importData, g = async function (...a) { quedarse++; try { return await f.apply(this, a); } finally { quedarse--; if (st.on) refrescar(); avisar(); } };
       g._pp = f; M.importData = g;
     }
     // the mesa starts on the page: not in «Vista cliente» nor after a reload inside a client (this tab's session)
@@ -1303,6 +1314,8 @@
   };
   M.personal = {
     version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
+    // a session's sheet over the board, from the posts' calendar (D-219): {de, vc, cli}
+    abrirSesion: async (id, o = {}) => { if (!EXT.sesion) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; return abrirCard(id, { ...o, tablero: !st.on }); },
     datos: async () => { const d = await leer(); return calcular(d); },
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),

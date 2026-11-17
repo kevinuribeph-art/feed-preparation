@@ -15051,6 +15051,55 @@
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+  prueba('DS3', 'La sesión en el calendario (D-219): en el tablero de cada cliente mensual de la sesión, un chip por día que dura (claqueta, nombre, la hora el primer día, azul pizarra, sin punto de estado); sin fecha, sin cliente o solo con esporádicos, en ninguno; no cuenta en Σ ni en el total ni se arrastra; en «Vista cliente» solo con el ojo abierto; su clic abre la hoja encima del tablero sin la página personal y al cerrarla se vuelve al chip; en «Vista cliente» la hoja, fija en «Ver como el cliente», sin «⋯» y con solo el cliente de ese tablero; el calendario se pone al día al cambiar una sesión', async () => {
+    await tablero([pub(1), pub(2, 'Reel', 9)]); await sinTareas();
+    const raiz = M._in.root();
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, now = new Date(M._in.ahora()).toISOString();
+      const e = { id: 'esds3', tipo: 'esporadico', txt: 'Villa de prueba', creada: now, at: now }; await P.hacer([{ id: e.id, despues: e }]);
+      const d1 = MES + '-06', d2 = MES + '-07';
+      const s1 = await M.sesiones._test.crear({ txt: 'Rodaje largo', clase: 'video', fecha: d1, hora: '10:30', fin: { fecha: d2, hora: '18:00' }, clientes: [CLIENTE, e.id] });
+      const s2 = await M.sesiones._test.crear({ txt: 'Oculta', clase: 'foto', fecha: MES + '-12', clientes: [CLIENTE], visible: false });
+      const s3 = await M.sesiones._test.crear({ txt: 'Sin fecha', clase: 'foto', clientes: [CLIENTE] });
+      const s4 = await M.sesiones._test.crear({ txt: 'Solo esporádico', clase: 'foto', fecha: MES + '-13', clientes: [e.id] });
+      const s5 = await M.sesiones._test.crear({ txt: 'Sin cliente', clase: 'foto', fecha: MES + '-14' });
+      paginaCerrada(); M._in.render(); await espera(60);
+      await hasta(() => qa('.side > .cal .chip[data-ses]').length >= 3, 4000, 'los chips de las sesiones');
+      const cs = id => qa(`.side > .cal .chip[data-ses="${id}"]`);
+      igual([cs(s1.id).length, cs(s2.id).length, cs(s3.id).length, cs(s4.id).length, cs(s5.id).length], [2, 1, 0, 0, 0], 'los chips de cada sesión');
+      igual(cs(s1.id).map(c => c.closest('.cday').dataset.day), [d1, d2], 'no sale en cada día que dura');
+      const c1 = cs(s1.id)[0];
+      ok(c1.classList.contains('ty-ses') && c1.querySelector('svg.cses') && !c1.querySelector('.edot, .eico, .cmk') && /Rodaje largo/.test(c1.textContent), 'el chip sin claqueta, nombre o con punto de estado');
+      igual([c1.querySelector('.ct') && c1.querySelector('.ct').textContent, !!cs(s1.id)[1].querySelector('.ct')], ['10:30', false], 'la hora, solo el primer día');
+      const bg = getComputedStyle(c1).backgroundColor; ok(bg !== getComputedStyle(q('.side > .cal .chip[data-slot]')).backgroundColor && /220, 228, 238|39, 50, 63/.test(bg), 'el chip sin su azul pizarra: ' + bg);
+      // no cuenta: Σ y el total solo las publicaciones; no se arrastra
+      igual(q('.side > .cal .ctotn').textContent, '2', 'el total cuenta las sesiones');
+      igual(qa('.side > .cal .cgrid > .ccnt:not(.ctotn):not(button)').reduce((n, x) => n + (+x.textContent || 0), 0), 2, 'Σ cuenta las sesiones');
+      const r0 = c1.getBoundingClientRect(), pe = (t, el, x, y) => el.dispatchEvent(new W.PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 9, button: 0, pointerType: 'mouse' }));
+      pe('pointerdown', c1, r0.left + 5, r0.top + 5); pe('pointermove', q('.side > .cal'), r0.left + 80, r0.top + 70); ok(!q('.cghost'), 'el chip de la sesión se arrastra'); pe('pointerup', q('.side > .cal'), r0.left + 80, r0.top + 70); await espera(450);
+      // su clic: la hoja encima del tablero, sin la página; al cerrarla, el chip
+      cs(s1.id)[0].click(); await hasta(() => seHoja(), 3000, 'la hoja');
+      ok(!M.personal.abierta() && raiz.classList.contains('pp-card-on') && q('.feed').offsetParent !== null, 'la hoja no se abre encima del tablero');
+      ok(seQ('[data-hj="vista"]') && seQ('[data-hj="mas"]') && seHoja().querySelectorAll('.pp-hj-cl').length === 2, 'en tu calendario, la hoja no es la de siempre');
+      // un cambio: la hoja y el calendario se ponen al día
+      await P.cambiar(s1.id, x => { x.txt = 'Rodaje de dos días'; return x; }); P.pintar(); await espera(120);
+      ok(/Rodaje de dos días/.test(seQ('.pp-hj-nom').textContent), 'la hoja no se pone al día');
+      await hasta(() => /Rodaje de dos días/.test((cs(s1.id)[0] || {}).textContent || ''), 3000, 'el chip al día');
+      ppTecla('Escape'); await espera(250);
+      ok(!seHoja() && !raiz.classList.contains('pp-card-on'), 'Esc no cierra la hoja encima del tablero');
+      ok(D.activeElement && D.activeElement.matches && D.activeElement.matches(`.chip[data-ses="${s1.id}"]`), 'el foco no vuelve al chip');
+      // Vista cliente: solo con el ojo abierto; la hoja fija en «Ver como el cliente»
+      q('.clientToggle').click(); await espera(150);
+      igual([cs(s1.id).length, cs(s2.id).length], [2, 0], 'en «Vista cliente» sale la sesión con el ojo cerrado');
+      cs(s1.id)[0].click(); await hasta(() => seHoja(), 3000, 'la hoja en «Vista cliente»');
+      ok(seHoja().classList.contains('vc') && !seHoja().querySelector('[data-hj="vista"], [data-hj="mas"], [data-hj="ojo"], .pp-ck'), 'en «Vista cliente» la hoja no está fija en «Ver como el cliente»');
+      ok(!/Villa de prueba/.test(seHoja().textContent) && seHoja().textContent.includes(NOMBRE), 'en «Vista cliente» se nombra a otro cliente');
+      ppTecla('Escape'); await espera(250); ok(!seHoja(), 'Esc no cierra la hoja de «Vista cliente»');
+      q('.clientToggle').click(); await espera(150);
+    } finally { if (raiz.classList.contains('client')) q('.clientToggle').click(); M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

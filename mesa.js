@@ -2166,7 +2166,7 @@
 --acc:#B2503A;--acc-ink:#A0472F;--acc-hover:#9B432F;--acc-on-ink:#D07152;--on-acc:#FFFFFF;--acc-soft:#F3E2DA;--ring:rgba(178,80,58,.32);--acc2:#A0472F;--focus:#A0472F;
 --ok:#2F7440;--ok-soft:#E2EDE3;--red:#C42B3A;--red-soft:#F9E8E9;--chg:#8A5A14;--chg-soft:#F3E8D4;
 --ok-on-ink:#86C795;--cal-off:#F0EAE2;--cruce-veil:rgba(22,17,14,.62);
---ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;
+--ty-reel:#DDE8D8;--ty-reel-ink:#1E3A26;--ty-collab:#BFD6C2;--ty-collab-ink:#12321C;--ty-foto:#F6DFD7;--ty-foto-ink:#5E2418;--ty-carr:#E6DDEA;--ty-carr-ink:#42284E;--ty-trial:#E7E1D9;--ty-trial-ink:#3A322B;--ty-past:#F0EBE4;--ty-ses:#DCE4EE;--ty-ses-ink:#24385A;
 --knob:#FFFFFF;--sw-on:#16110E;
 --tg-track:#E4DBCE;--tg-line:rgba(22,17,14,.06);--tg-line-h:rgba(22,17,14,.18);--tg-sun:#E0A73C;--tg-sun-ring:rgba(224,167,60,.22);--tg-moon:#EDE6DC;--tg-crater:#CBC1B3;
 --sel:#0095F6;--sel-wash:rgba(0,149,246,.08);--checker-a:#DDD6CC;--checker-b:#F6F2EC;--swatch-ring:rgba(22,17,14,.18);--on-photo-soft:rgba(255,255,255,.85);--fv-bg:#000000;--text-on-photo:0 1px 3px rgba(0,0,0,.8);
@@ -2215,7 +2215,7 @@
 --acc:#B2503A;--acc-ink:#D9805F;--acc-hover:#C25A41;--acc-on-ink:#A0472F;--acc-soft:#3B241B;--ring:rgba(217,128,95,.42);--acc2:#D9805F;--focus:#D9805F;
 --ok:#6FBF85;--ok-soft:#1F2E22;--red:#F0727A;--red-soft:#3A1E21;--chg:#E0B25C;--chg-soft:#33291A;
 --ok-on-ink:#2F7440;--cal-off:#1A1511;
---ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--ty-past:#241E19;
+--ty-reel:#23352A;--ty-reel-ink:#CFE6D3;--ty-collab:#2D4834;--ty-collab-ink:#DDF0E1;--ty-foto:#46271F;--ty-foto-ink:#F5D7CC;--ty-carr:#392C42;--ty-carr-ink:#E6DAEE;--ty-trial:#2E2823;--ty-trial-ink:#E2D9CE;--ty-past:#241E19;--ty-ses:#27323F;--ty-ses-ink:#D2DDEB;
 --st-empezar:#2A231E;--st-empezar-aro:#7A6F64;
 --franja:#EDE6DC;--cell-ph:#2E2620;--cell-past:#5E5650;
 --checker-a:#2E2722;--checker-b:#3A322B;--swatch-ring:rgba(255,255,255,.24);
@@ -4855,7 +4855,7 @@
     M._onKey = e => {
       if (!shellReady()) return;
       const open = !root.querySelector('.detail').hidden;
-      if (root.classList.contains('pp-on') && !(open && e.key === 'Escape')) return;   // the personal page open: the hidden board takes no keys; Esc still closes a dialog (D-180)
+      if ((root.classList.contains('pp-on') || root.classList.contains('pp-card-on')) && !(open && e.key === 'Escape')) return;   // the personal page open, or a session's sheet over the board (D-219): the board takes no keys; Esc still closes a dialog (D-180)
       if (e.key === 'Escape' && pd && pd.on) { e.preventDefault(); pdCancel(); return; }
       if (e.key === 'Escape' && e.target.matches && e.target.matches('.pitin')) { e.preventDefault(); e.target.blur(); return; }
       if (e.key === 'Escape') { if (open) closeDetail(); else if (sel) { sel = null; renderTray(); renderBar(); } else traySoltar(); return; }

@@ -243,14 +243,14 @@
     const verAp = id => { const a = ap(r, id); return a && (!vc || (vis && a.visible !== false)); };
     const col = c => C[c].filter(verAp).map(id => apHTML(ap(r, id), r)).join('');
     const faltan = ORDEN.filter(id => !ap(r, id));
-    const cls = P.clis(r).filter(P.cliOk);
+    const fija = !!(P.CARD && P.CARD.vc), cls = P.clis(r).filter(P.cliOk).filter(c => !fija || c === P.CARD.cli);   // the vista cliente: only that board's client (D-219)
     const cab = `<header class="pp-hj-cab"><div class="pp-hj-t">${vc ? '' : `<input type="checkbox" class="pp-ck" data-pp="ck" data-id="${P.esc(r.id)}"${r.hecha ? ' checked' : ''} aria-label="Hecha">`}<h2 class="pp-hj-nom" data-campo="nom">${P.esc(r.txt)}</h2>${P.botonesCard(vc ? '' : ojoBtn(vis, 'pp-cb', 'data-hj="ojo"'))}</div>`
       + `<div class="pp-hj-meta">${vc ? `<span class="pp-hj-chip ro">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}${P.esc(claseTxt(ses.clase))}</span>${r.fecha ? `<span class="pp-hj-chip ro">${svgI('fecha')}${P.esc(P.tramo(r))}</span>` : ''}${cls.map(id => `<span class="pp-hj-chip ro">${P.avatar(id, 'xs')}${P.esc(P.cliDe(id).name)}</span>`).join('')}`
         : `<span class="pp-hj-chip">${svgI(CLASES.find(c => c[0] === ses.clase) ? CLASES.find(c => c[0] === ses.clase)[2] : 'sesion')}<select data-hj="clase" aria-label="Tipo de sesión">${CLASES.map(([k, l]) => `<option value="${k}"${ses.clase === k ? ' selected' : ''}>${l}</option>`).join('')}</select></span>`
         + `<span class="pp-hj-chip pp-hj-fh${r.fin ? ' confin' : ''}"><input type="date" data-hj="fecha" data-sin-fecha value="${P.esc(r.fecha || '')}" aria-label="Fecha de la sesión"><input type="time" data-hj="hora" value="${P.esc(r.hora || '')}" aria-label="Hora de la sesión">${finHTML(r, 'data-hj')}</span>`
         + clisHTML(cls, 'data-hj')
         + `<button type="button" class="pp-hj-chip pp-hj-nf" data-hj="tira" aria-expanded="${S.tira}" title="${S.tira ? 'Ocultar' : 'Ver'} las fotos de la sesión">${svgI('fotos')}${nf} ${nf === 1 ? 'foto' : 'fotos'}</button>`}`
-      + `<span class="pp-hj-sp"></span><button type="button" class="pp-hj-vc${vc ? ' on' : ''}" data-hj="vista" aria-pressed="${vc}" title="${vc ? 'Volver a la hoja' : 'Lo que vería el cliente'}">${svgI('cliente')}Ver como el cliente</button>`
+      + `<span class="pp-hj-sp"></span>${fija ? '' : `<button type="button" class="pp-hj-vc${vc ? ' on' : ''}" data-hj="vista" aria-pressed="${vc}" title="${vc ? 'Volver a la hoja' : 'Lo que vería el cliente'}">${svgI('cliente')}Ver como el cliente</button>`}`
       + (vc ? '' : `<button type="button" class="ibtn pp-hj-mas" data-hj="mas" aria-label="Más de la sesión" title="Más">${svgI('mas3')}</button>`) + `</div>`
       + (S.tira && !vc ? `<div class="pp-hj-tira" data-drop="tira" title="Suelta aquí fotos del ordenador; arrástralas a un plano o a un grupo">${nf ? (r.fotos || []).map(f => `<span class="pp-hj-tf pp-fo" data-f="${P.esc(f.id)}" draggable="true" tabindex="0" role="button" aria-label="Foto de la sesión"></span>`).join('') : `<span class="pp-pl-sin">Sin fotos</span>`}</div>` : '') + `</header>`;
     const cuerpo = vc && !vis ? `<p class="pp-hj-oculta">${svgI('ojoNo')}El cliente no ve esta sesión</p>`
@@ -402,7 +402,7 @@
     if (k === 'fin' && !S.vista) { cambiar(x => { if (!x.fecha || x.fin) return false; x.fin = P.finNuevo(x); }).then(() => { const i = P.ov && P.ov.querySelector('[data-hj="fin-hora"], [data-hj="fin-fecha"]'), g = i && M.controles && M.controles.gemelo && M.controles.gemelo(i); if (g) (g.firstChild || g).focus({ preventScroll: true }); }); return true; }
     if (k === 'fin-x' && !S.vista) { cambiar(x => { if (!x.fin) return false; delete x.fin; }).then(() => { const b = P.ov && P.ov.querySelector('[data-hj="fin"]'); if (b) b.focus({ preventScroll: true }); }); return true; }
     if (k === 'tira') { S.tira = !S.tira; pintarYa(); return true; }
-    if (k === 'vista') { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
+    if (k === 'vista' && !P.CARD.vc) { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
     if (k === 'mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, P.menuSesion(r.id, [['material', 'Editar la lista de material', () => editarLista()]]), a); return true; }
     if (k === 'ap-mas') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, menuAp(apId), a); return true; }
     if (k === 'ap-nuevo') { const q = a.getBoundingClientRect(); P.abrirMenu(q.left, q.bottom + 4, ORDEN.filter(id => !ap(r, id)).map(id => ['ap-' + id, APS[id].n, () => anadirAp(id)]), a); return true; }
@@ -434,7 +434,7 @@
     if (t.matches && t.matches('.pp-hj-sep') && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home')) {
       e.preventDefault(); const R = reparto(); R.sep = k === 'Home' ? SEP0 : Math.max(0.3, Math.min(0.7, R.sep + (k === 'ArrowRight' ? 0.02 : -0.02))); guardarReparto(R); pintarYa(); const s = P.ov.querySelector('.pp-hj-sep'); if (s) s.focus(); return true;
     }
-    if (k === 'Escape' && !P.CARD.ed && S.vista) { e.preventDefault(); e.stopImmediatePropagation(); S.vista = false; pintarYa(); return true; }
+    if (k === 'Escape' && !P.CARD.ed && S.vista && !P.CARD.vc) { e.preventDefault(); e.stopImmediatePropagation(); S.vista = false; pintarYa(); return true; }
     return false;
   }
   function escribir(e) {
@@ -802,6 +802,7 @@
   const HOJA = {
     cls: 'pp-hoja', pintar: (r, o = {}) => {
       if (S._id !== r.id) { S._id = r.id; S.vista = false; S.tira = false; S.plg.clear(); S.tab = {}; S.enl = null; S.campo = null; }
+      if (P.CARD.vc) { S.vista = true; S.tira = false; }   // opened from the board in the vista cliente: fixed in «Ver como el cliente» (D-219)
       if (o.forzar && !P.CARD.ed) S.campo = null;
       const a = !o.forzar && M.controles && M.controles.abierto && M.controles.abierto(); if (a && P.ov && P.ov.contains(a.de)) return;   // a dropdown of the sheet open: it is finishing its gesture
       pintar(r, o);

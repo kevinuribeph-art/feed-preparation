@@ -16021,6 +16021,56 @@
       await hasta(() => !lin(), 3000, 'que se vaya al cobrarla'); igual(ppCifras().pasado, n0, 'sigue contando');
     } finally { M._in.closeDetail(); paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
+  prueba('CO5', '«Tus pagos» en la «Vista cliente» (D-237): arriba de la columna derecha, «Tus pagos · <cuota> al mes», «Pendiente de pago <suma> · N vencida(s)» en rojo, lo que falta por pagar primero (lo más antiguo arriba) y las tres últimas pagadas, «Ver las anteriores (N)» y «La de <mes> se emite el <día>»; cada factura con su estado y, con PDF, su botón de descarga, que funciona en la vista; no cambia con el mes; sin cuota ni cobros, no sale; solo lo de ese cliente: ni otro cliente ni las sumas de Kevin', async () => {
+    await tablero([pub(1)]);
+    await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+    relojEn('2026-11-20T10:00:00+01:00');
+    const lado = () => q('.main > .vc-lado [data-vc="pagos"]');
+    try {
+      await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      await vistaCliente(true); await espera(60); ok(!lado(), 'sale sin cuota ni cobros');
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      const L = [['2026-04', '2026-012', '2026-04-22'], ['2026-05', '2026-013', '2026-05-21'], ['2026-06', '2026-014', '2026-06-23'], ['2026-07', '2026-015', '2026-07-22'], ['2026-08', '2026-018', '2026-08-22'], ['2026-09', '2026-022', '2026-09-23']]
+        .map(([m, n, c]) => ({ id: 'c5-' + m, cliente: CLIENTE, periodo: m, importe: 450, factura: n, emitida: m + '-15', vence: m + '-25', cobrada: c }));
+      L.push({ id: 'c5-oct', cliente: CLIENTE, periodo: '2026-10', importe: 450, factura: '2026-027', emitida: '2026-10-26', vence: '2026-11-05' });
+      L.push({ id: 'c5-nov', cliente: CLIENTE, periodo: '2026-11', importe: 380.5, factura: '2026-031', emitida: '2026-11-15', vence: '2026-11-25' });
+      L.push({ id: 'c5-otro', cliente: CLIENTE2, periodo: '2026-11', importe: 999, factura: 'OTRO-1', emitida: '2026-11-01', vence: '2026-11-02' });
+      ok((await M.cobros.cargar(L)).ok, 'cargar');
+      const pdf = new W.Blob(['%PDF-1.4\n% c5\n' + 'z'.repeat(3000)], { type: 'application/pdf' }), h0 = await shaDe(pdf);
+      for (const x of L) if (x.id !== 'c5-nov') await M.cobros.adjuntar(x.id, pdf, x.factura + '.pdf');
+      M._in.render(); await espera(80);
+      const p = await hasta(lado, 3000, '«Tus pagos»');
+      igual(q('.main > .vc-lado').firstElementChild, p, '«Tus pagos» no va arriba de la columna');
+      igual(p.querySelector('.co-vh').textContent, 'Tus pagos 450 € al mes', 'el título');
+      igual(p.querySelector('.co-vp').textContent.replace(/\s+/g, ' ').trim(), 'Pendiente de pago 830,50 € · 1 vencida', 'lo pendiente');
+      igual(rgbDe(W.getComputedStyle(p.querySelector('.co-vp .rojo')).color).join(), rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--red').trim()).join(), '«vencida» no va en rojo');
+      const lis = () => [...p.querySelectorAll('.co-vl li')].map(li => [li.querySelector('.m').textContent, li.querySelector('.n').textContent, li.querySelector('.co-ce').textContent, li.querySelector('.co-ce').className.replace('co-ce ', ''), !!li.querySelector('.co-dw')]);
+      igual(lis(), [['Octubre · 450 €', 'Factura 2026-027 · venció el 5 nov', 'Pendiente', 'rojo', true], ['Noviembre · 380,50 €', 'Factura 2026-031 · vence el 25 nov', 'Pendiente', 'pend', false],
+        ['Septiembre · 450 €', 'Factura 2026-022 · pagada el 23 sep', 'Pagada', 'ok', true], ['Agosto · 450 €', 'Factura 2026-018 · pagada el 22 ago', 'Pagada', 'ok', true], ['Julio · 450 €', 'Factura 2026-015 · pagada el 22 jul', 'Pagada', 'ok', true]], 'las líneas y su orden');
+      const dw = p.querySelector('.co-dw'); igual([dw.title, dw.getAttribute('aria-label')], ['Descargar la factura 2026-027 (PDF)', 'Descargar la factura 2026-027 (PDF)'], 'el botón de descarga');
+      cerca(dw.getBoundingClientRect().width, 32, 0.5, 'el botón de descarga no mide 32 px');
+      igual(p.querySelector('.co-vprox').textContent, 'La de diciembre se emite el 15 dic', 'la próxima');
+      // «Ver las anteriores (3)»
+      const ver = p.querySelector('[data-co="ver-ant"]'); igual([ver.textContent, ver.getAttribute('aria-expanded')], ['Ver las anteriores (3)', 'false'], '«Ver las anteriores»');
+      ver.click(); await espera(80); igual(lado().querySelectorAll('.co-vl li').length, 8, 'no despliega las anteriores');
+      ok(D.activeElement === lado().querySelector('[data-co="ver-ant"]'), 'el foco no sigue en su botón');
+      lado().querySelector('[data-co="ver-ant"]').click(); await espera(80); igual(lado().querySelectorAll('.co-vl li').length, 5, 'no las vuelve a plegar');
+      // download, in the vista cliente
+      const got = await conDescarga(async cap => { lado().querySelector('.co-dw').click(); await hasta(() => cap(), 3000, 'la descarga'); });
+      ok(got && got.name === 'Factura 2026-027.pdf', 'el nombre del PDF descargado: ' + (got && got.name)); igual(await shaDe(got.blob), h0, 'los bytes del PDF descargado');
+      // it doesn't change with the month
+      const p0 = lado(), html0 = p0.innerHTML; const sig = q('.side > .cal .cnav button:not(:disabled):last-child'); if (sig) { sig.click(); await espera(80); }
+      ok(lado() === p0 && lado().innerHTML === html0, 'cambia con el mes');
+      // only this client's: no other client, nor Kevin's sums, anywhere visible (text, title, aria-label, alt)
+      const vis = [...D.querySelectorAll('#mesa *')].filter(e => e.getClientRects().length && W.getComputedStyle(e).visibility !== 'hidden');
+      const todo = vis.map(e => [e.childNodes.length && [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join(''), e.getAttribute('title'), e.getAttribute('aria-label'), e.getAttribute('alt')].filter(Boolean).join(' ')).join(' | ');
+      for (const x of [NOMBRE2, 'OTRO-1', '999', 'cobrado', 'Cobrada', 'Retrasada']) ok(!todo.includes(x), `en «Vista cliente» se ve «${x}»`);
+      // my view: nothing of it
+      await vistaCliente(false); ok(!lado() || !lado().getClientRects().length, 'sale en mi vista');
+      // without a fee nor invoices: nothing
+      await vistaCliente(true); await M._test.cobBorrarTodo(); M._in.render(); await espera(80); ok(!lado(), 'sale sin cuota ni cobros');
+    } finally { relojVuelve(); await vistaCliente(false); }
+  });
 
   // =====================================================================================================
   const filas = $('filas');

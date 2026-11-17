@@ -1,8 +1,9 @@
 // Cobros — Mesa de trabajo · v1.0 (D-232 a D-237)
 // A client's invoices as they are drawn and done: the «Cobros» tab of «Editar cliente» (a monthly client: its fee and the
-// table of its invoices) and the same table in a sporadic client's file (sesiones.js). The data, its states and its sums
-// live in mesa.js (M._in.cob, M.cobros): here a PDF is never read to draw a line. If this file doesn't load, «Editar
-// cliente» is the one of always.
+// table of its invoices), the same table in a sporadic client's file (sesiones.js) and «Tus pagos» in the vista cliente
+// (only that client's, through M._in.vc). The data, its states and its sums live in mesa.js (M._in.cob, M.cobros): here a
+// PDF is never read to draw a line. If this file doesn't load, «Editar cliente» is the one of always and the client sees no
+// «Tus pagos».
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
@@ -104,6 +105,7 @@
   function pintar() {
     const d = pane(); if (d) morf(d, tabla(d.dataset.coCli));
     const p = P(); if (p && p.CARD && p.CARD.ext && p.CARD.ext.cls === 'pp-ficha' && p.pintarCard) p.pintarCard();   // a sporadic client's file
+    const r = I().root && I().root(); if (r && r.classList.contains('client') && I().vc) I().vc.pintar();   // «Tus pagos»
   }
   const filaDe = el => el && el.closest ? el.closest('tr.co-f[data-id], tr.co-det[data-id]') : null;
   const cliDe = el => { const t = el && el.closest && el.closest('[data-co-cli]'); return t ? t.dataset.coCli : null; };
@@ -229,11 +231,39 @@
     if (foco) { const b = d.querySelector(`.ectab[data-t="${t}"]`); if (b) b.focus(); }
   }
 
+  // ---------- «Tus pagos» (vista cliente): only this client's, never Kevin's sums nor another client ----------
+  function pagosHTML(ctx) {
+    const cli = ctx && ctx.cliente; if (!cli) return '';
+    const h = hoy(), c = cliRec(cli), q = C().cuota(c), l = C().vivos(cli).map(r => ({ r, e: C().estado(r, h) }));
+    const deber = l.filter(x => x.e.k === 'pendiente' || x.e.k === 'retrasada').sort((a, b) => C().clave(a.r).localeCompare(C().clave(b.r)));
+    const pagadas = l.filter(x => x.e.k === 'cobrada').sort((a, b) => C().orden(a.r, b.r));
+    const prox = C().proxima(cli, h);
+    if (!q && !deber.length && !pagadas.length && !prox) return '';
+    const venc = deber.filter(x => x.e.k === 'retrasada').length, suma = deber.reduce((n, x) => n + (+x.r.importe || 0), 0);
+    const ver = UI.ant.has(cli), N = Math.max(0, pagadas.length - 3);
+    const linea = ({ r, e }) => {
+      const nom = C().nombre(r, h), nf = r.factura ? 'la factura ' + r.factura : 'la factura de ' + nom.toLowerCase();
+      const t = e.k === 'cobrada' ? 'pagada el ' + corto(r.cobrada, h) : e.k === 'retrasada' ? 'venció el ' + corto(r.vence, h) : r.vence ? 'vence el ' + corto(r.vence, h) : 'emitida el ' + corto(r.emitida, h);
+      const chip = e.k === 'cobrada' ? `<span class="co-ce ok">${IC.ok}Pagada</span>` : e.k === 'retrasada' ? `<span class="co-ce rojo">${IC.alerta}Pendiente</span>` : `<span class="co-ce pend">${IC.reloj}Pendiente</span>`;
+      const dl = r.pdf ? `<button type="button" class="co-dw" data-co="dl" data-id="${esc(r.id)}" title="Descargar ${esc(nf)} (PDF)" aria-label="Descargar ${esc(nf)} (PDF)">${IC.descarga}</button>` : '<span class="co-dw0"></span>';
+      return `<li data-id="${esc(r.id)}"><span class="m">${esc(nom)} · ${esc(eur(r.importe))}</span><span class="n">${r.factura ? 'Factura ' + esc(r.factura) + ' · ' + esc(t) : esc(may(t))}</span>${chip}${dl}</li>`;
+    };
+    const lis = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])].map(linea).join('');
+    const px = prox ? `<p class="co-vprox">${IC.doc}La de ${esc(mesTxt(prox.mes, h))} se emite ${prox.emitida >= h ? 'el ' + esc(corto(prox.emitida, h)) : 'en unos días'}</p>` : '';
+    return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${q ? ` <span>${esc(eur(q.importe))} al mes</span>` : ''}</h2>`
+      + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
+      + (lis ? `<ul class="co-vl">${lis}</ul>` : '')
+      + (N ? `<button type="button" class="co-ver" data-co="ver-ant" data-c="${esc(cli)}" aria-expanded="${ver}">${ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`}</button>` : '')
+      + px + `</div>`;
+  }
+
   // ---------- events ----------
   function alClic(e) {
     const b = e.target.closest && e.target.closest('[data-co]'); if (!b || b.disabled) return;
     const k = b.dataset.co;
     if (k === 'tab') { tab(b.dataset.t, true); return; }
+    if (k === 'dl') { e.preventDefault(); descargar(b.dataset.id, true); return; }
+    if (k === 'ver-ant') { const c = b.dataset.c; if (UI.ant.has(c)) UI.ant.delete(c); else UI.ant.add(c); if (I().vc) I().vc.pintar(); enfocar('[data-co="ver-ant"]'); return; }
     const f = filaDe(b);
     if (k === 'nueva') nueva(b);
     else if (k === 'nuevo-ses') nuevoSes(b);
@@ -292,10 +322,10 @@
   M.cobrosUI = {
     version: VERSION,
     pane: cli => tabla(cli),                       // the «Cobros» tab of «Editar cliente» (mesa.js)
-    tabla, firma, html: (cli, o) => tabla(cli, o), estK, IC, tab,
+    tabla, firma, html: (cli, o) => tabla(cli, o), pagos: pagosHTML, estK, IC, tab,
     abierto: () => { UI.det = null; }, cerrado: () => { UI.det = null; },
     _test: { UI, descargar, borrar },
-    _off: () => { OFF.splice(0).forEach(f => f()); }
+    _off: () => { OFF.splice(0).forEach(f => f()); if (I() && I().vc) I().vc.quitar('lado', 'pagos'); }
   };
   listo().then(() => {
     on(document, 'click', alClic);
@@ -305,6 +335,7 @@
     for (const ty of ['dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, alArrastre, true);
     on(document, 'mesa-cobros', pintar);
     const t = setInterval(alMinuto, 60000); OFF.push(() => clearInterval(t)); dia = hoy();
+    I().vc.poner('lado', { id: 'pagos', orden: 10, html: pagosHTML });
     I().estilo('mesa-co-css', ESTILO);
     const d = pane(); if (d) pintar();
   });
@@ -368,6 +399,24 @@
   #mesa .co-t tr.co-det{display:block}#mesa .co-t tr.co-det td{display:block;padding:0 0 10px}
   #mesa .co-cuota{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#mesa .co-cuota > div:first-child{grid-column:1 / -1}
 }
+#mesa .co-pagos{color:var(--ink)}
+#mesa .co-vh{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.01em}
+#mesa .co-vh span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
+#mesa .co-vp{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:-4px 0 12px;font-size:13.5px;color:var(--ink-2)}
+#mesa .co-vp b{font-size:18px;font-weight:800;color:var(--ink)}#mesa .co-vp .rojo{color:var(--red);font-weight:600}
+#mesa .co-vl{display:flex;flex-direction:column;margin:0;padding:0;list-style:none}
+#mesa .co-vl li{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;align-items:center;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line2)}
+#mesa .co-vl li:first-child{border-top:0;padding-top:0}
+#mesa .co-vl .m{font-size:14px;font-weight:600}#mesa .co-vl .n{grid-column:1;font-size:12.5px;line-height:1.4;color:var(--mute)}
+#mesa .co-ce{grid-row:1 / span 2;grid-column:2;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;white-space:nowrap}
+#mesa .co-ce svg{width:14px;height:14px}
+#mesa .co-ce.ok{background:var(--ok-soft);color:var(--ok)}#mesa .co-ce.pend{background:var(--chg-soft);color:var(--chg)}#mesa .co-ce.rojo{background:var(--red-soft);color:var(--red)}
+#mesa .co-dw,#mesa .co-dw0{grid-row:1 / span 2;grid-column:3;width:32px;height:32px}
+#mesa .co-dw{display:inline-grid;place-items:center;padding:0;border:0;border-radius:var(--r-sm);background:none;color:var(--ink-2);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out,transform var(--d1) ease-out}
+#mesa .co-dw:hover{background:var(--bg-2);color:var(--ink)}#mesa .co-dw svg{width:18px;height:18px}
+#mesa .co-ver{display:inline-flex;margin-top:8px;padding:4px 0;border:0;background:none;font:inherit;font-size:13px;color:var(--acc-ink);cursor:pointer}
+#mesa .co-ver:hover{text-decoration:underline}
+#mesa .co-vprox{display:flex;align-items:center;gap:6px;margin:12px 0 0;font-size:13px;color:var(--mute)}
 @media (prefers-reduced-motion:reduce){#mesa :is(.ectab,.co-q,.co-in,.co-fe,.co-mini,.co-dw){transition:none}#mesa :is(.ectab,.co-fe,.co-mini,.co-pn,.co-x,.co-mas,.co-dw,.co-ver):active:not(:disabled){transform:none}}
 `;
   (window.MESA_CARGA = window.MESA_CARGA || {}).cobros = 'ok';

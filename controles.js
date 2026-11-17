@@ -514,7 +514,7 @@
 #mesa .mx-f.mx-dis{opacity:.5}
 #mesa .mx-f .mx-in:not(#mx){flex:1 1 auto;box-sizing:content-box;width:10.2ch;min-width:0;height:30px;min-height:0;margin:0;padding:0 2px 0 10px;border:0;border-radius:0;background:none;box-shadow:none;outline:0;font:400 12.5px var(--font);color:var(--ink);font-variant-numeric:tabular-nums;cursor:text}
 #mesa .mx-time .mx-in:not(#mx){width:5.2ch}
-#mesa .mx-f .mx-in::placeholder{color:var(--faint)}
+#mesa .mx-f .mx-in::placeholder{color:var(--mute)}   /* text that is read, --mute (D-231) */
 #mesa .mx-f .mx-cal:not(#mx){position:relative;flex:none;width:28px;height:28px;min-height:0;margin:0 1px 0 0;padding:0;border:0;border-radius:6px;background:none;color:var(--mute);cursor:pointer;transition:background-color var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .mx-cal::before{content:'';position:absolute;inset:0;margin:auto;width:15px;height:15px;background:currentColor;-webkit-mask:var(--i-cal) center/contain no-repeat;mask:var(--i-cal) center/contain no-repeat}
 #mesa .mx-time .mx-cal::before{-webkit-mask-image:var(--i-clock);mask-image:var(--i-clock)}

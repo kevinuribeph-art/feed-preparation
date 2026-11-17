@@ -14078,7 +14078,7 @@
       const t = await M.personal.tarea({ txt: 'Grande', fecha: '2026-10-03' }); await M.personal.render();
       ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(40);
       const b = ppCard().querySelector('[data-pp="ampliar"]'); ok(b && b.title === 'Ampliar' && b.querySelector('svg'), 'sin el icono de ampliar');
-      ppRaton(b, 'click', 1); await espera(60);
+      ppRaton(b, 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), r = ppCard().getBoundingClientRect();
       ok(ov.classList.contains('amplia') && ppCard().classList.contains('amplia') && Math.abs(r.top - cab.bottom) < 2 && r.width >= W.innerWidth - 20, 'ampliada no ocupa la página bajo la cabecera: ' + json([r.top, cab.bottom, r.width]));
       const cd = ppCard().querySelector('.pp-cd').getBoundingClientRect(), cs = ppCard().querySelector('.pp-cs').getBoundingClientRect();
@@ -14099,7 +14099,7 @@
       ppTecla('Escape'); await espera(200);
       const n = await M.personal.tarea({ tipo: 'nota', txt: 'Nota grande' }); await M.personal.render();
       ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(40);
-      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(40);
+      ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       ok(ppCard().classList.contains('nota') && ppCard().classList.contains('amplia') && ppCard().getBoundingClientRect().width >= W.innerWidth - 20, 'la nota no se amplía a todo el ancho');
       ppTecla('Escape'); ppTecla('Escape'); await espera(200);
     } finally { paginaCerrada(); await sinTareas(); }
@@ -14673,7 +14673,7 @@
       igual(hb.map(b => b.k), ['ojo', 'ampliar', 'cerrar'], 'los botones de la hoja'); ok(asPegados(hb), 'los botones de la hoja no son de 32 px pegados: ' + json(hb));
       const ancho0 = seHoja().getBoundingClientRect().width;
       const tx = seQ('[data-campo="ap:orden"]'); ppRaton(tx, 'click', 1); await espera(40); await naEscribe(tx, 'Barra');
-      const b = seQ('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(60);
+      const b = seQ('[data-pp="ampliar"]'); ppRaton(b, 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       const ov = q('.pp-ov:not(.sale)'), cab = q('.appbar').getBoundingClientRect(), rh = seHoja().getBoundingClientRect(), cols = seQ('.pp-hj-cols').getBoundingClientRect();
       ok(ov.classList.contains('amplia') && Math.abs(rh.top - cab.bottom) < 2 && rh.width >= W.innerWidth - 20 && rh.width > ancho0, 'ampliada no ocupa la página bajo la cabecera: ' + json([rh.top, cab.bottom, rh.width, ancho0]));
       ok(cols.width >= W.innerWidth - 100 && qa('.pp-ov:not(.sale) .pp-hj-col').length === 2, 'sus dos columnas no van a todo el ancho: ' + json(cols.width));
@@ -14685,7 +14685,7 @@
       fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300);
       ok(seHoja() && qa('.pp-ov:not(.sale) .pp-hj-col').length === 1 && seHoja().getBoundingClientRect().width >= W.innerWidth - 20, 'a 720 px ampliada no va en una columna');
       fr.style.width = w0; await hasta(() => W.innerWidth > 720, 3000, 'la ventana ancha'); await espera(300);
-      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
+      ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(260);   // su transición de 0,2 s (D-231)
       ok(seHoja() && !q('.pp-ov:not(.sale)').classList.contains('amplia') && Math.abs(seHoja().getBoundingClientRect().width - ancho0) < 2, '«Reducir» no la devuelve a hoja');
       ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(60);
       ppTecla('Escape'); await espera(200); ok(!seHoja(), 'Esc ampliada no la cierra del todo');
@@ -14875,7 +14875,7 @@
     } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('AS6', 'Planos y Vídeos, opción A (D-214): las pestañas con la letra, el tamaño y el peso del título de un apartado y su cuenta como la de los apartados; sin raya ni línea debajo; la no elegida en --faint; el «+» sigue', async () => {
+  prueba('AS6', 'Planos y Vídeos, opción A (D-214): las pestañas con la letra, el tamaño y el peso del título de un apartado y su cuenta como la de los apartados; sin raya ni línea debajo; la no elegida en --mute (D-231); el «+» sigue', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14894,7 +14894,7 @@
       ok(seQ('[data-ap="planos"] .pp-hj-pl').getBoundingClientRect().right <= on.getBoundingClientRect().left + 0.5, 'la primera pestaña tapa el botón de plegar');
       igual(W.getComputedStyle(on, '::after').content, 'none', 'la elegida lleva raya');
       igual(cs(seQ('.pp-pl-tabs')).borderBottomWidth, '0px', 'hay línea debajo');
-      igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--faint')], 'la elegida no va en tinta o la otra no en --faint');
+      igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--mute')], 'la elegida no va en tinta o la otra no en --mute');   // texto que se lee (D-231)
       ok(seQ('[data-hj="tab-mas"]'), 'sin «+»');
       const x0 = on.querySelector('.pp-pl-tn').getBoundingClientRect().left; await espera(400); seDbl(on); await espera(80);   // past the double click that opened it
       { const tn = seQ('.pp-pl-tn[contenteditable]'), cs = W.getComputedStyle(tn); ok(Math.abs(tn.getBoundingClientRect().left + parseFloat(cs.paddingLeft) - x0) < 1, 'al renombrar, el nombre de la pestaña salta: ' + json([x0, tn.getBoundingClientRect().left, cs.paddingLeft, cs.marginLeft, tn.parentNode.tagName, W.getComputedStyle(tn.parentNode).paddingLeft])); } M.personal._p.editar(false); await espera(80);
@@ -15681,6 +15681,71 @@
       V.quitar('pestana', 'av9p'); V.quitar('lado', 'av9a'); V.quitar('lado', 'av9b'); await espera(40);
       ok(!q('.side > .cal .vcp-tab') && q('.side > .cal .cfold') && !q('.main > .vc-lado') && !q('#mesa').classList.contains('vc-lado-on'), 'sin contenido queda algo de la estructura');
     } finally { fr.style.width = w0; for (const [z, i] of [['pestana', 'av9p'], ['lado', 'av9a'], ['lado', 'av9b'], ['pestana', 'av9x'], ['lado', 'av9y']]) V.quitar(z, i); await vistaCliente(false); }
+  });
+
+  prueba('AV10', 'Pendientes de las revisiones (D-231): b) con el fin el mismo día, el icono de su calendario solo al pasar o con foco y guarda su sitio; c) esquinas rectas donde continúa una sesión de varios días, por sus días reales, en el calendario y en Semana y Mes; d) texto que se lee en --mute y lo desactivado en --faint; e) «Fecha» y «Cliente» vacíos solo al pasar, con su sitio; f) ampliar y reducir con una transición de 0,2 s hecha con transformaciones, sin redibujar, y sin ella con «reducir movimiento»', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-03T10:00:00+01:00');
+    const cs = e => W.getComputedStyle(e), tok = n => rgbDe(cs(q('#mesa')).getPropertyValue(n).trim()).join(), col = e => rgbDe(cs(e).color).join();
+    const mm0 = W.matchMedia;
+    try {
+      await seListo(); await seLista(); await paginaAbierta();
+      // b) the end the same day
+      const s1 = await M.sesiones._test.crear({ txt: 'Mismo día', clase: 'foto', fecha: '2026-11-05', hora: '12:00', fin: { fecha: '2026-11-05', hora: '14:00' }, clientes: [CLIENTE] });
+      await seAbrir(s1.id); await espera(60);
+      const cal = seQ('.pp-hj-ff.mismo .mx-cal');
+      ok(cs(cal).opacity === '0' && cal.getBoundingClientRect().width > 10, 'el icono del calendario del fin se ve sin pasar o pierde su sitio');
+      ok(deRegla(/\.pp-hj-fh:hover \.pp-hj-ff\.mismo \.mx-cal/, 'opacity') === '1' && deRegla(/\.pp-hj-fh:focus-within \.pp-hj-ff\.mismo \.mx-cal/, 'opacity') === '1', 'al pasar o con foco no sale el icono');
+      igual(qa('.pp-hj-fh .mx-f .mx-in').filter(i => i.getClientRects().length && i.offsetWidth > 4).map(i => i.value).filter(v => /:/.test(v)), ['12:00', '14:00'], 'no se lee «12:00 – 14:00»');
+      { const gu = seQ('.pp-hj-fh .pp-hj-gu').getBoundingClientRect(), fh = seQ('.pp-hj-fh input[data-hj="fin-hora"]')._mx.getBoundingClientRect(); ok(fh.left - gu.right < 16, 'el sitio del icono queda entre «–» y la hora de fin: ' + (fh.left - gu.right)); }
+      // d) a tab of Planos not chosen, «Sin referencia» in --mute
+      const tabNo = q('.pp-hj [data-ap="planos"] .pp-pl-tab:not(.on)'); if (tabNo) igual(col(tabNo), tok('--mute'), 'la pestaña no elegida no va en --mute');
+      M.personal._p.cerrarCard(true); await espera(40);
+      // c) three days, in the calendar and in Semana and Mes
+      const s2 = await M.sesiones._test.crear({ txt: 'Tres días', clase: 'foto', fecha: '2026-11-10', hora: '09:00', fin: { fecha: '2026-11-12' }, clientes: [CLIENTE] });
+      const s3 = await M.sesiones._test.crear({ txt: 'Desde octubre', clase: 'foto', fecha: '2026-10-31', fin: { fecha: '2026-11-02' }, clientes: [CLIENTE] });
+      const esq = e => [cs(e).borderTopLeftRadius === '0px', cs(e).borderTopRightRadius === '0px'];
+      paginaCerrada(); M._in.render(); await hasta(() => qa(`.side > .cal .chip[data-ses="${s2.id}"]`).length === 3 && qa(`.side > .cal .chip[data-ses="${s3.id}"]`).length === 2, 4000, 'los chips de las sesiones de varios días');
+      igual(qa(`.side > .cal .chip[data-ses="${s2.id}"]`).map(esq), [[false, true], [true, true], [true, false]], 'las esquinas del calendario (primero, medio, último)');
+      igual(qa(`.side > .cal .chip[data-ses="${s3.id}"]`).map(esq), [[true, true], [true, false]], 'las esquinas de una sesión que empezó antes de lo que se ve');
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: true, avisos: true }, vista: 'semana', tsem: 1 }); await M.personal.render();
+      igual(qa(`.pp-fi[data-tid="${s2.id}"]`).map(esq), [[false, true], [true, true], [true, false]], 'las esquinas en Semana');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await M.personal.render();
+      igual(qa(`.pp-mt[data-tid="${s2.id}"]`).map(esq), [[false, true], [true, true], [true, false]], 'las esquinas en Mes');
+      // d) and e) a task without date nor client
+      await M.personal.set({ vista: 'lista' }); await M.personal.render();
+      const tk = await M.personal.tarea({ txt: 'Sin fecha ni cliente' });
+      M.personal._p.abrirCard(tk.id); await hasta(() => q('.pp-card .pp-cml.vacio'), 3000, 'la tarjeta');
+      const vs = qa('.pp-card .pp-cml.vacio'); igual(vs.length, 2, 'sin «Fecha» y «Cliente»');
+      ok(vs.every(v => cs(v).opacity === '0' && v.getBoundingClientRect().width > 20 && col(v) === tok('--mute')), '«Fecha» y «Cliente» se ven sin pasar, pierden su sitio o no van en --mute');
+      ok(deRegla(/\.pp-cm:hover \.pp-cml\.vacio/, 'opacity') === '1', 'al pasar no salen «Fecha» y «Cliente»');
+      // f) widening: a transform of 0.2 s with --ease-m, nothing drawn again
+      const card = q('.pp-card'); let cambios = 0; const mo = new W.MutationObserver(l => { cambios += l.filter(m => m.type === 'childList' && m.target !== q('.pp-card [data-pp="ampliar"]')).length; }); mo.observe(card, { childList: true, subtree: true });
+      q('.pp-card [data-pp="ampliar"]').click(); await espera(20);
+      const an = card.getAnimations().find(a => !a.animationName && a.effect && a.effect.getTiming().duration === 200);
+      ok(an && /cubic-bezier\(0?\.32, ?0?\.72, ?0, ?1\)/.test(an.effect.getTiming().easing) && an.effect.getKeyframes().some(k => /scale/.test(k.transform)), 'ampliar sin su transición de 0,2 s con --ease-m: ' + json([card.classList.contains('amplia'), card.getAnimations().map(a => [a.effect.getTiming().duration, a.effect.getTiming().easing, a.animationName || ''])]));
+      await espera(260); mo.disconnect(); igual(cambios, 0, 'ampliar vuelve a dibujar la tarjeta');
+      // twice in a row (before the first ends): it ends widened or reduced in its place, without a jump
+      const a0 = card.classList.contains('amplia');
+      q('.pp-card [data-pp="ampliar"]').click(); await espera(60); q('.pp-card [data-pp="ampliar"]').click(); await espera(300);
+      ok(card.classList.contains('amplia') === a0 && Math.abs(card.getBoundingClientRect().width - card.offsetWidth) < 1 && !card.getAnimations().some(x => !x.animationName && x.playState === 'running'), 'dos veces seguidas no acaba en su sitio');
+      M.personal._p.cerrarCard(true);
+      // a note being written: its marks' layer, measured once widened (never half way)
+      const nt = await M.personal.tarea({ tipo: 'nota', txt: '- uno\n- dos\n- tres\n- cuatro\n[] cinco\n[] seis' }); await M.personal.render();
+      M.personal._p.abrirCard(nt.id, { ed: true }); await espera(400);
+      const cn = q('.pp-card [data-pp="cn"][contenteditable]');
+      if (cn && cn._esc) { q('.pp-card [data-pp="ampliar"]').click(); await espera(320); const capa = cn.nextElementSibling, h0 = capa.innerHTML; cn._esc.dibujar(); igual(capa.innerHTML, h0, 'tras ampliar, las viñetas y casillas de la nota no van en su sitio'); }
+      M.personal._p.cerrarCard(true); await espera(60);
+      M.personal._p.abrirCard(tk.id); await espera(400);
+      W.matchMedia = qy => /reduce/.test(qy) ? { matches: true, addEventListener() {}, removeEventListener() {} } : mm0.call(W, qy);
+      q('.pp-card [data-pp="ampliar"]').click(); await espera(20);
+      ok(q('.pp-card').classList.contains('amplia') && !q('.pp-card').getAnimations().some(a => !a.animationName && a.effect && a.effect.getTiming().duration === 200), 'con «reducir movimiento» hay transición (o no se amplía)');
+      W.matchMedia = mm0;
+      M.personal._p.cerrarCard(true);
+      // d) what is disabled stays in --faint
+      paginaCerrada(); M._in.render(); await espera(40);
+      const dis = q('.side > .cal .cnav button:disabled'); ok(dis, 'sin una flecha desactivada'); igual(col(dis), tok('--faint'), 'una flecha desactivada no va en --faint');
+    } finally { W.matchMedia = mm0; try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
 

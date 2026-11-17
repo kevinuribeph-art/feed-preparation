@@ -112,7 +112,8 @@
   const alTareas = () => { if (SES || sesLee) leerSes(); };   // a session changed (here or in another tab); during the first reading, it reads again
   function sesHTML(X, x, d) {
     const P = M.personal && M.personal._p, cu = P && P.tramo ? P.tramo(x.t) : x.fecha + (x.hora ? ' ' + x.hora : ''), t = x.fecha === d ? x.hora : '';
-    return `<button type="button" class="chip ty-ses" data-ses="${esc(x.id)}" title="${esc(`Sesión · ${x.txt} · ${cu}`)}"><span class="cl">${CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;
+    const sg = x.fin > x.fecha ? `${x.fecha < d ? ' sigue-i' : ''}${d < x.fin ? ' sigue-d' : ''}` : '';   // square where it goes on, by its real days (D-231)
+    return `<button type="button" class="chip ty-ses${sg}" data-ses="${esc(x.id)}" title="${esc(`Sesión · ${x.txt} · ${cu}`)}"><span class="cl">${CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;
   }
 
   // ---------- the vista cliente's structure (D-230) ----------
@@ -574,7 +575,7 @@
 #mesa .vacc button[disabled]{opacity:.4;cursor:default}
 #mesa .vform input{font:inherit;font-size:12px;min-height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-2);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}#mesa .vform input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}#mesa .vform input[type=text]{flex:1;min-width:160px}
 #mesa .cleg .csep{position:relative;display:inline-block;width:10px;height:10px;vertical-align:middle;color:var(--faint);font-size:0}#mesa .cleg .csep::before{content:'';position:absolute;inset:0;background:currentColor;-webkit-mask:var(--i-chev-r) center/contain no-repeat;mask:var(--i-chev-r) center/contain no-repeat}
-#mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--faint)}
+#mesa .cleg .cextra{gap:8px;margin-left:auto;padding-left:8px;color:var(--mute)}   /* text that is read (D-231) */
 #mesa .detail .cplist{max-height:30vh}#mesa .detail .cplist li span.cpb{color:var(--red)}
 #mesa .detail .cpnota{font-size:12px}
 #mesa .detail .cprv>p{margin:0 0 10px;color:var(--mute);font-size:12.5px}#mesa .detail .cprv>p.xwhat{color:var(--ink);font-size:13px}
@@ -599,7 +600,7 @@
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}
 #mesa .chip.ty-carr{--cb:var(--ty-carr);--ci:var(--ty-carr-ink)}
 #mesa .chip.ty-trial{--cb:var(--ty-trial);--ci:var(--ty-trial-ink)}
-#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}#mesa .chip .cses{flex:none;width:11px;height:11px}
+#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}#mesa .chip.sigue-i{border-top-left-radius:0;border-bottom-left-radius:0}#mesa .chip.sigue-d{border-top-right-radius:0;border-bottom-right-radius:0}#mesa .chip .cses{flex:none;width:11px;height:11px}
 #mesa .cday.otromes .chip:not(.cx):not(.past):not(:hover):not(:focus-visible):not(.calhi){background:color-mix(in srgb,var(--cb) 45%,transparent);color:color-mix(in srgb,var(--ci) 55%,transparent)}
 #mesa .chip.past{background:var(--ty-past);color:var(--faint);cursor:pointer}
 #mesa .chip.cx{background:var(--ty-past);color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}

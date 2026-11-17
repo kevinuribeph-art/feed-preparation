@@ -1192,7 +1192,7 @@
   }
   function alEscribir(e) {                     // what is written in the card goes in after a pause (D-182, D-183)
     if (CARD && CARD.ext && enCard(e.target)) { if (CARD.ext.escribir) CARD.ext.escribir(e); return; }
-    const p = e.target.closest && e.target.closest('[data-pp="ct"], [data-pp="cn"], [data-pp="cd"], [data-pp="cst"]'); if (!p || !st.on || !CARD || !enCard(p)) return;
+    const p = e.target.closest && e.target.closest('[data-pp="ct"], [data-pp="cn"], [data-pp="cd"], [data-pp="cst"]'); if (!p || !CARD || !(st.on || CARD.tablero) || !enCard(p)) return;   // over the board too (D-219)
     if (p.dataset.pp === 'cst') { barraEd(); if (CARD.subPend && CARD.subPend.f.contains(p) && p.value !== CARD.subPend.v) CARD.subPend = null; }
     if (p.dataset.pp === 'ct' && CARD.cmdVolver && p.textContent.trim()) CARD.cmdVolver = null;
     clearTimeout(cardT); cardT = setTimeout(() => guardarCard(false), 400);
@@ -1298,7 +1298,7 @@
     }
     retomando = false;
     if (typeof M.importData === 'function' && !M.importData._pp) {
-      const f = M.importData, g = async function (...a) { quedarse++; try { return await f.apply(this, a); } finally { quedarse--; if (st.on) refrescar(); avisar(); } };
+      const f = M.importData, g = async function (...a) { quedarse++; try { return await f.apply(this, a); } finally { quedarse--; if (st.on) refrescar(); avisar(); if (bc) { try { bc.postMessage({ t: 'tareas' }); } catch (e) { /* */ } } } };   // the other tabs' calendars too
       g._pp = f; M.importData = g;
     }
     // the mesa starts on the page: not in «Vista cliente» nor after a reload inside a client (this tab's session)

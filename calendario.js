@@ -109,7 +109,7 @@
       } while (yo.otra);
     } finally { if (sesLee === yo) sesLee = null; }
   }
-  const alTareas = () => { if (SES) leerSes(); };   // a session changed (here or in another tab)
+  const alTareas = () => { if (SES || sesLee) leerSes(); };   // a session changed (here or in another tab); during the first reading, it reads again
   function sesHTML(X, x, d) {
     const P = M.personal && M.personal._p, cu = P && P.tramo ? P.tramo(x.t) : x.fecha + (x.hora ? ' ' + x.hora : ''), t = x.fecha === d ? x.hora : '';
     return `<button type="button" class="chip ty-ses" data-ses="${esc(x.id)}" title="${esc(`Sesión · ${x.txt} · ${cu}`)}"><span class="cl">${CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;

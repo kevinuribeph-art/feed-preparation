@@ -15301,6 +15301,21 @@
     } finally { if (M._in.root().classList.contains('client')) q('.clientToggle').click(); M._in.closeDetail(); M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
   });
 
+  prueba('DS8', 'Segunda ronda de la revisión (lote B): una tarea abierta encima del tablero con «/tarea» se guarda mientras se escribe, como en la página (D-219)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, s = await M.sesiones._test.crear({ txt: 'Con tarea', clase: 'foto', fecha: MES + '-06', clientes: [CLIENTE] });
+      paginaCerrada(); M._in.render(); await espera(60);
+      await M.personal.abrirSesion(s.id, {}); await espera(120); ok(seHoja() && P.CARD.tablero, 'la hoja no se abre encima del tablero');
+      P.comando('tarea', { texto: '', a: 0, b: 0, quitar: () => {} }, 'ap:orden'); await espera(150);
+      const ct = q('.pp-ov:not(.sale) [data-pp="ct"]'); ok(ct && P.CARD.tablero, 'la tarea no se abre encima del tablero');
+      ct.textContent = 'Llamar al cliente'; ct.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      await hasta(async () => (await M.personal.tareas()).some(k => k.tipo === 'tarea' && k.txt === 'Llamar al cliente'), 3000, 'que se guarde mientras se escribe');
+      ok(!P.CARD.cmdVolver, 'escrito el título, ⌘Z sigue volviendo a la hoja');
+    } finally { M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

@@ -15371,6 +15371,23 @@
     } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+  prueba('AV3', 'Las flechas de ampliar en la caja de la × (D-224): «Ampliar» (maximize-2) y «Reducir» (minimize-2) se dibujan en las unidades 6 a 18 de 24, como la ×, con el mismo trazo; el botón sigue de 32 px', async () => {
+    await paginaAbierta();
+    const t = await M.personal.tarea({ txt: 'Con flechas', fecha: '2026-10-02' });
+    try {
+      M.personal._p.abrirCard(t.id); const amp = await hasta(() => q('.pp-card [data-pp="ampliar"]'), 3000, 'el botón de ampliar'), x = q('.pp-card [data-pp="cerrar"]');
+      const caja = b => { const g = b.querySelector('svg').getBBox(); return [g.x, g.y, g.width, g.height].map(v => Math.round(v * 100) / 100); };
+      const trazo = b => [...b.querySelectorAll('svg path')].map(p => W.getComputedStyle(p).strokeWidth + '|' + W.getComputedStyle(p).vectorEffect);
+      igual(caja(x), [6, 6, 12, 12], 'la caja de la ×');
+      igual(caja(amp), [6, 6, 12, 12], '«Ampliar» no ocupa la caja de la ×');
+      igual([...new Set(trazo(amp))], [...new Set(trazo(x))], '«Ampliar» con otro trazo que la ×');
+      igual([amp.offsetWidth, amp.offsetHeight, parseFloat(W.getComputedStyle(amp.querySelector('svg')).width)], [32, 32, 18], 'el botón de 32 px con su icono de 18');
+      amp.click(); await espera(60); const red = q('.pp-card [data-pp="ampliar"]');
+      igual([red.getAttribute('aria-label'), caja(red)], ['Reducir', [6, 6, 12, 12]], '«Reducir» no ocupa la caja de la ×');
+      igual([...new Set(trazo(red))], [...new Set(trazo(x))], '«Reducir» con otro trazo que la ×');
+    } finally { M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

@@ -31,7 +31,8 @@
     texto: svg('<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>'),
     mas: svg('<path d="M5 12h14"/><path d="M12 5v14"/>'),
     x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
-    ampliar: svg('<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/>'),
+    // maximize-2 and minimize-2 drawn in the ×'s box, units 6 to 18 of 24 (12 + (v − 12) · 2/3), the same stroke (D-224)
+    ampliar: svg('<path d="M14 6h4v4"/><path d="m18 6-4.667 4.667"/><path d="m6 18 4.667-4.667"/><path d="M10 18H6v-4"/>'),
     sesion: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
     camara: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
     video: svg('<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>'),
@@ -45,7 +46,7 @@
     mas3: svg('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'),
     asa: svg('<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>'),
     chev: svg('<path d="m6 9 6 6 6-6"/>'),
-    reducir: svg('<path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/>')
+    reducir: svg('<path d="m13.333 10.667 4.667-4.667"/><path d="M17.333 10.667h-4V6.667"/><path d="m6 18 4.667-4.667"/><path d="M6.667 13.333h4v4"/>')
   };
   const ES = () => (M.escritura && M.escritura.html ? M.escritura : null);   // the quick writing (escritura.js, D-202); without it, plain text as before
   const leerTxt = (t, o) => { const E = ES(); return E ? E.html(t, o) : esc(t); };

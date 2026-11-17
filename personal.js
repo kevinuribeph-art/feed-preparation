@@ -305,7 +305,9 @@
     if (x.cat === 'espera') { const r = []; if (x.pronto) { const n = difD(R.hoy, x.dia); r.push(n === 1 ? 'sale mañana' : `sale en ${n} días`); } if (x.lleva) r.push(`lleva ${x.lleva} días`); est += ` <span class="pp-por">· ${r.join(' · ')}</span>`; }
     // not scheduled yet in «Hoy y mañana» or «Se ha pasado»: a mark that stands out, louder once it passed (D-190); reels too
     const sin = (x.cat === 'hoy' || x.cat === 'man' || x.cat === 'pasado') && x.e !== 'programado' && x.e !== 'publicado';
-    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
+    // today's, louder than tomorrow's: the row tinted amber, its band, time and state in --chg (D-222); by row, as «Hoy» and
+    // «Mañana» share the group
+    return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}${sin && x.cat === 'hoy' ? ' pp-avhoy' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
   // «Hoy N» the group's title and «Mañana N» under it; nothing today and something tomorrow: «Nada para hoy»; with the figure
   // «Hoy» only today's, with «Mañana» only tomorrow's (D-212)
@@ -1416,6 +1418,8 @@
 #mesa .pp-av.tarea{cursor:default}
 #mesa button.pp-av:hover{background:var(--bg-2)}
 #mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog{box-shadow:inset 3px 0 0 var(--chg)}#mesa .pp-grupo[data-cat="hoy"] .pp-av.sinprog .pp-cu{color:var(--chg);font-weight:600}
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy{background:var(--chg-soft)}#mesa .pp-grupo[data-cat="hoy"] button.pp-av.pp-avhoy:hover{background:color-mix(in oklab,var(--chg-soft) 95%,var(--chg))}   /* D-222: 4.56:1 light, 6.65:1 dark at hover */
+#mesa .pp-grupo[data-cat="hoy"] .pp-av.pp-avhoy :is(.pp-est,.pp-mano){color:var(--chg);font-weight:600}
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog{background:var(--red-soft);box-shadow:inset 3px 0 0 var(--red)}#mesa .pp-grupo[data-cat="pasado"] button.pp-av.sinprog:hover{background:color-mix(in oklab,var(--red-soft) 88%,var(--red))}
 #mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-est,#mesa .pp-grupo[data-cat="pasado"] .pp-av.sinprog .pp-mano{color:var(--red);font-weight:600}
 #mesa .pp-avs{display:inline-flex;align-items:center}

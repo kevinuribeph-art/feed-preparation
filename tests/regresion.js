@@ -15317,6 +15317,62 @@
   });
 
   // =====================================================================================================
+  // ajustes de la 4.24, lote A (D-222 en adelante)
+  // =====================================================================================================
+  // a computed colour (rgb, color(srgb …), oklab …) as [r, g, b] 0–255, through a canvas of the mesa's frame
+  function rgbDe(css) {
+    css = String(css).trim(); let m;
+    const de = v => Math.max(0, Math.min(255, Math.round((v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055) * 255)));
+    if ((m = css.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/))) return [+m[1], +m[2], +m[3]].map(Math.round);
+    if ((m = css.match(/^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)/))) return [+m[1], +m[2], +m[3]].map(v => Math.round(v * 255));
+    if ((m = css.match(/^oklab\(\s*([\d.e-]+%?)\s+([\d.e-]+)\s+([\d.e-]+)/))) {
+      const L = m[1].endsWith('%') ? parseFloat(m[1]) / 100 : +m[1], a = +m[2], b = +m[3];
+      const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, mm = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+      return [4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * mm + 1.7076147010 * s].map(de);
+    }
+    const c = D.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.fillStyle = '#010203'; g.fillStyle = css; if (g.fillStyle === '#010203') throw new Error('color sin leer: ' + css);
+    g.fillRect(0, 0, 1, 1); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  }
+  const lumi = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contraste = (a, b) => { const x = lumi(rgbDe(a)), y = lumi(rgbDe(b)); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  // the value of a CSS rule's property (for :hover and :focus, which the battery's frame never gets, lesson 79), computed on a probe
+  function deRegla(re, prop, dentro) {
+    let v = null; for (const sh of D.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (const r of rs) if (r.selectorText && re.test(r.selectorText) && r.style.getPropertyValue(prop)) v = r.style.getPropertyValue(prop); }
+    if (!v) return null; const p = D.createElement('div'); p.style.setProperty(prop, v); (dentro || q('#mesa')).append(p); const c = W.getComputedStyle(p).getPropertyValue(prop); p.remove(); return c;
+  }
+  async function enTema(t, fn) { const h = D.documentElement, t0 = h.dataset.theme; if (t === 'dark') h.dataset.theme = 'dark'; else delete h.dataset.theme; try { await espera(400); return await fn(); } finally { if (t0) h.dataset.theme = t0; else delete h.dataset.theme; } }
+
+  prueba('AV1', 'Hoy, más marcado (D-222): en Avisos, cada fila de hoy que no está Programada ni Publicada (reels también) va tintada en --chg-soft con su franja de 3 px y la hora y el estado en --chg a 600; al pasar se oscurece sin bajar de 4,5:1, en claro y en oscuro; «Mañana», las tareas y lo programado, como estaban (D-190)', async () => {
+    relojEn('2026-11-01T10:00:00+01:00');
+    try {
+      await tablero([{ ...pub(1, 'Foto', 10), date: '2026-11-10T18:00:00.000+01:00' }, pub(2, 'Foto', 11), { ...pub(3, 'Reel', 10), date: '2026-11-10T19:00:00.000+01:00' }, { ...pub(4, 'Foto', 10), date: '2026-11-10T20:00:00.000+01:00' }]);
+      await porAprobar(['r1', 'r2', 'r3', 'r4'], 'av1'); M.setEstado(['r1', 'r3', 'r4'], 'aprobado'); M.setEstado('r4', 'programado'); await M.flush();
+      relojEn('2026-11-10T10:00:00+01:00');
+      await M.personal.tarea({ txt: 'Tarea de hoy', fecha: '2026-11-10', cliente: CLIENTE });
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: true, avisos: false }, avTareas: true }); await M.personal.render();
+      const fila = id => q(`.pp-grupo[data-cat="hoy"] .pp-av[data-slot="${id}"]`), cs = e => W.getComputedStyle(e);
+      igual(['r1', 'r2', 'r3', 'r4'].map(id => fila(id) && fila(id).classList.contains('pp-avhoy')), [true, false, true, false], 'la marca de hoy va en r1 y r3 (la Foto y el Reel sin programar de hoy), no en mañana ni en lo programado');
+      ok(fila('r2').classList.contains('sinprog'), '«Mañana» pierde su franja (D-190)');
+      const tk = q('.pp-grupo[data-cat="hoy"] .pp-av.tarea'); ok(tk && !tk.classList.contains('pp-avhoy') && !tk.classList.contains('sinprog'), 'una tarea de hoy lleva la marca');
+      for (const t of ['light', 'dark']) await enTema(t, async () => {
+        const tok = n => cs(q('#mesa')).getPropertyValue(n).trim(), chg = rgbDe(tok('--chg')), soft = rgbDe(tok('--chg-soft'));
+        const a = fila('r1'), cu = a.querySelector('.pp-cu'), est = a.querySelector('.pp-est');
+        igual(rgbDe(cs(a).backgroundColor), soft, `${t}: la fila no va en --chg-soft`);
+        const sh = cs(a).boxShadow, shc = (sh.match(/^(?:rgba?|color|oklab|oklch)\([^)]*\)/) || [''])[0];
+        ok(/inset/.test(sh) && /\) 3px 0px 0px/.test(sh) && rgbDe(shc).join() === chg.join(), `${t}: la franja de 3 px en --chg: ${sh}`);
+        igual([rgbDe(cs(cu).color), cs(cu).fontWeight, rgbDe(cs(est).color), cs(est).fontWeight], [chg, '600', chg, '600'], `${t}: hora y estado en --chg a 600`);
+        const reel = fila('r3').querySelector('.pp-mano'); ok(reel && rgbDe(cs(reel).color).join() === chg.join(), `${t}: «publicar a mano» del reel de hoy no va en --chg`);
+        ok(contraste(cs(cu).color, cs(a).backgroundColor) >= 4.5, `${t}: la hora sobre la fila no llega a 4,5:1`);
+        const hov = deRegla(/button\.pp-av\.pp-avhoy:hover/, 'background-color', a.parentNode) || deRegla(/button\.pp-av\.pp-avhoy:hover/, 'background', a.parentNode);
+        ok(hov && rgbDe(hov).join() !== soft.join() && lumi(rgbDe(hov)) !== lumi(soft), `${t}: al pasar la fila no cambia: ${hov}`);
+        ok(contraste(cs(cu).color, hov) >= 4.5 && contraste(cs(est).color, hov) >= 4.5, `${t}: al pasar, la hora o el estado bajan de 4,5:1 (${contraste(cs(cu).color, hov).toFixed(2)})`);
+        const m = fila('r2'); igual(rgbDe(cs(m).backgroundColor).join() === soft.join(), false, `${t}: «Mañana» va tintada`);
+      });
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+
+  // =====================================================================================================
   const filas = $('filas');
   function fila(t) {
     const tr = document.createElement('tr'); tr.id = 'p-' + t.id;

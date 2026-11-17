@@ -16413,6 +16413,129 @@
     } finally { relojVuelve(); }
   });
 
+  // the vista cliente's month report (D-240): what it shows for the calendar's month
+  const ifPq = () => q('.side > .cal .vcp-tab[data-t="porque"]'), ifCf = () => q('.main > .vc-lado [data-vc="comofue"]');
+  async function ifTab(t) { const b = q(`.side > .cal .vcp-tab[data-t="${t}"]`); ok(b, 'falta la pestaña ' + t); if (b) { b.click(); await espera(40); } }
+  async function ifMes(dir) { const b = q(`.side > .cal [data-cal="${dir}"]`); ok(b && !b.disabled, 'no hay ' + dir); if (b) { b.click(); await espera(60); } }
+  const ifMesCal = () => (q('.side > .cal .cmes') || {}).textContent || '';
+  async function ifListo() { await hasta(() => M.informeUI && M._in.mes && M._in.mes.listo(), 15000, 'informe.js'); }
+
+  prueba('IF3', 'El porqué y cómo fue en la «Vista cliente» (D-240): siguen al mes natural del calendario (‹ › de un tablero de 3 meses y de un ciclo del 22, y las pastillas de los tableros): en el mes en curso, su porqué y cómo fue el anterior; en uno pasado con datos, los suyos; en uno pasado sin datos, ni la pestaña ni el apartado; en uno adelantado, «En camino» en los dos; un mes acabado sin resumen después del último, «llega en unos días»; un cliente sin datos no ve nada nuevo; cambian solos si Claude carga algo; nada de esto en mi vista ni de otro cliente', async () => {
+    await ifListo();
+    relojEn('2026-11-17T10:00:00+01:00');
+    try {
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-09', months: 3, slots: [pub(1, 'Foto', 3, '2026-09'), pub(2, 'Reel', 5, '2026-10'), pub(3, 'Foto', 9, '2026-11')], past: [], force: true }); await M.flush();
+      const pq = m => ({ partes: [{ t: 'Horario', x: `Horario de ${m}.` }, { t: 'Días', x: `Días de ${m}.` }] });
+      for (const [m, p] of [['2026-10', { porque: pq('octubre') }], ['2026-11', { porque: pq('noviembre') }]]) ok((await M.informe.cargar(CLIENTE, m, p)).ok, 'no se cargó ' + m);
+      ok((await M.informe.cargar(CLIENTE, '2026-09', { resumen: IF_RES('2026-09') })).ok, 'no se cargó el resumen de septiembre');
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES('2026-10', 2) })).ok, 'no se cargó el resumen de octubre');
+      await vistaCliente(true); M._in.render(); await espera(60);
+      // the month in course (November): its why and how October went
+      ok(/Noviembre/.test(ifMesCal()), 'el calendario no abre en noviembre: ' + ifMesCal());
+      ok(ifPq() && ifPq().textContent === 'Por qué este calendario', 'sin la pestaña «Por qué este calendario»');
+      await ifTab('porque'); igual(qa('.side > .cal .vcp-panel .if-pq p').map(p => p.textContent), ['Horario. Horario de noviembre.', 'Días. Días de noviembre.'], 'el porqué de noviembre');
+      ok(ifCf() && /^Cómo fue octubre/.test(ifCf().querySelector('.if-h').textContent) && /4 publicaciones/.test(ifCf().querySelector('.if-h').textContent), 'sin «Cómo fue octubre · 4 publicaciones»: ' + (ifCf() || {}).textContent);
+      // a past month with data (October): its why and how September went; the chosen tab stays
+      await ifTab('cal'); await ifMes('prev'); ok(/Octubre/.test(ifMesCal()), 'no pasa a octubre');
+      await ifTab('porque'); ok(/Horario de octubre/.test(q('.side > .cal .vcp-panel').textContent), 'el porqué no sigue al mes (octubre)');
+      ok(ifCf() && /^Cómo fue septiembre/.test(ifCf().querySelector('.if-h').textContent), '«Cómo fue» no sigue al mes (septiembre)');
+      // a past month without data (September): neither the tab nor the section; back to «Calendario»
+      await ifTab('cal'); await ifMes('prev'); ok(/Septiembre/.test(ifMesCal()), 'no pasa a septiembre');
+      ok(!ifPq() && !ifCf() && !q('.side > .cal .vcp-tab'), 'un mes pasado sin datos enseña algo: ' + (ifCf() || {}).textContent);
+      await ifMes('next'); await ifMes('next'); ok(/Noviembre/.test(ifMesCal()) && ifPq() && ifCf(), 'al volver a noviembre no vuelven');
+      // a month over after the last summary: «llega en unos días»
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: null })).ok, 'no quita el resumen');
+      await espera(60); ok(ifCf() && /aún no|en unos días/.test(ifCf().textContent) && /El resumen de octubre llega en unos días/.test(ifCf().textContent), 'un mes acabado sin resumen después del último no dice «llega en unos días»: ' + (ifCf() || {}).textContent);
+      ok(ifCf().querySelector('.if-camino svg') && !ifCf().querySelector('.if-fs'), '«En camino» sin su icono o con cifras');
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES('2026-10', 2) })).ok, 'no vuelve el resumen'); await espera(60);
+      ok(ifCf() && ifCf().querySelector('.if-fs'), 'cargar en otra pestaña (el aviso) no pone al día «Cómo fue»');
+      // the client's own only: no other client by name or handle
+      if (!(await M.clients()).some(c => c.id === CLIENTE2)) await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+      igual(nombrados([NOMBRE2, CLIENTE2]).map(e => e.tagName), [], 'la «Vista cliente» nombra a otro cliente');
+      // my view: nothing of it
+      await vistaCliente(false); M._in.render(); await espera(40);
+      ok(!ifPq() && (!ifCf() || !ifCf().getClientRects().length), 'sale en mi vista');
+      // a month ahead (December, its own board): «En camino» in both
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', slots: [pub(4, 'Foto', 4, '2026-12')], past: [], force: true }); await M.flush();
+      await vistaCliente(true); M._in.render(); await espera(60);
+      ok(/Diciembre/.test(ifMesCal()) || !q('.side > .cal .cmes'), 'el tablero de diciembre no enseña diciembre');
+      await ifTab('porque'); ok(/En camino/.test(q('.side > .cal .vcp-panel').textContent) && /El porqué de diciembre llega con su calendario/.test(q('.side > .cal .vcp-panel').textContent), 'el porqué de un mes adelantado no dice «En camino»');
+      ok(ifCf() && /^Cómo fue noviembre/.test(ifCf().querySelector('.if-h').textContent) && /Noviembre aún no ha terminado: el resumen llega los primeros días de diciembre/.test(ifCf().textContent), '«Cómo fue noviembre» no dice «En camino»: ' + (ifCf() || {}).textContent);
+      await vistaCliente(false);
+      // a client without any data: nothing new
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [{ id: 'if-b1', name: 'Foto 1.1', type: 'Foto', date: '2026-11-10T12:00:00.000+01:00' }], past: [], force: true }); await M.flush();
+      await vistaCliente(true); M._in.render(); await espera(60);
+      ok(!ifPq() && !ifCf(), 'un cliente sin datos ve algo nuevo');
+      // a cycle from day 22: the calendar's natural months, with ‹ ›
+      await vistaCliente(false);
+      await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 22, slots: [{ id: 'if-c1', name: 'Foto 1.1', type: 'Foto', date: '2026-11-25T12:00:00.000+01:00' }, { id: 'if-c2', name: 'Foto 1.2', type: 'Foto', date: '2026-12-10T12:00:00.000+01:00' }], past: [], force: true }); await M.flush();
+      ok((await M.informe.cargar(CLIENTE2, '2026-11', { porque: pq('noviembre') })).ok && (await M.informe.cargar(CLIENTE2, '2026-12', { porque: pq('diciembre') })).ok, 'no se cargó el porqué del ciclo');
+      await vistaCliente(true); M._in.render(); await espera(60);
+      const n0 = ifMesCal(); await ifTab('porque');
+      ok(new RegExp('Horario de ' + (/Diciembre/.test(n0) ? 'diciembre' : 'noviembre')).test(q('.side > .cal .vcp-panel').textContent), 'el porqué de un ciclo del 22 no es el del mes del calendario: ' + n0);
+      await ifTab('cal'); await ifMes(/Diciembre/.test(n0) ? 'prev' : 'next'); await ifTab('porque');
+      ok(new RegExp('Horario de ' + (/Diciembre/.test(n0) ? 'noviembre' : 'diciembre')).test(q('.side > .cal .vcp-panel').textContent), 'el porqué de un ciclo del 22 no sigue a ‹ ›');
+    } finally { await vistaCliente(false); relojVuelve(); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await sinMes(`${CLIENTE}-2026-12`); await sinMes(`${CLIENTE}-2026-09`); await limpiar(); }
+  });
+
+  prueba('IF4', '«Cómo fue» dibujado (D-240): cuatro cifras en el formato de España con su cambio («+133 %», «−13 %», «igual», «sin datos de …») y «Frente a <mes>»; el alcance de cada publicación en columnas de --barra (claro #998F85, oscuro #9E9388) de 24 px como mucho, la mejor en --acc con su nombre y su cifra escritos, un title por columna, el aria-label de la gráfica y una tabla para lectores; el alcance medio por tipo, de mayor a menor; contraste de 4,5:1 o más en claro y oscuro; un redibujo sin cambios no toca nada; a 720 px, una columna con «Tus pagos» encima', async () => {
+    await ifListo();
+    relojEn('2026-11-17T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width, tema0 = D.documentElement.dataset.theme;
+    try {
+      await tablero([pub(1), pub(2, 'Reel')]);
+      const r = IF_RES('2026-10', 2); r.cifras.interacciones.anterior = null; r.cifras.guardados.anterior = 60;
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: r })).ok && (await M.informe.cargar(CLIENTE, MES, { porque: IF_PQ })).ok, 'no se cargó el resumen o el porqué');
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      await vistaCliente(true); M._in.render(); await espera(80);
+      const cf = ifCf(); ok(cf, 'sin «Cómo fue octubre»'); if (!cf) return;
+      igual([...cf.querySelectorAll('.if-f')].map(f => [...f.children].map(x => x.textContent)), [['Alcance', '11,2 mil', '+133 %'], ['Interacciones', '410', 'sin datos de septiembre'], ['Guardados', '52', '−13 %'], ['Publicaciones', '4', 'igual']], 'las cuatro cifras');
+      igual([...cf.querySelectorAll('.if-f i')].map(i => i.className), ['sube', 'sin', 'baja', 'igual'], 'el color de cada cambio');
+      igual(cf.querySelector('.if-f b').title, '11.200', 'la cifra exacta en el title');
+      igual((cf.querySelector('.if-fr0') || {}).textContent, 'Frente a septiembre', '«Frente a septiembre»');
+      // the columns
+      const cols = [...cf.querySelectorAll('.if-ch .if-c')]; igual(cols.length, 4, 'una columna por publicación');
+      igual(cols.map(c => c.classList.contains('top')), [false, true, false, false], 'la mejor no es la única en el acento');
+      igual(cols.map(c => c.querySelector('title').textContent), ['Foto 1.1 · Foto · 3 oct · 1400 de alcance', 'Reel 1.2 · Reel · 7 oct · 4200 de alcance', 'Carrusel 1.3 · Carrusel · 10 oct · 3000 de alcance', 'Reel 1.4 · Reel · 17 oct · 2600 de alcance'], 'el title de cada columna');
+      igual((cf.querySelector('.if-ch text.if-v') || {}).textContent, 'Reel 1.2 · 4,2 mil', 'la cifra de la mejor escrita');
+      ok(/Alcance de cada publicación de octubre, 4 publicaciones; la de más alcance, Reel 1\.2, con 4200/.test(cf.querySelector('.if-ch').getAttribute('aria-label')) && cf.querySelector('.if-ch').getAttribute('role') === 'img', 'el aria-label de la gráfica: ' + cf.querySelector('.if-ch').getAttribute('aria-label'));
+      igual([...cf.querySelectorAll('.if-sr tbody tr')].map(t => t.children[0].textContent + '|' + t.children[3].textContent), ['Foto 1.1|1400', 'Reel 1.2|4200', 'Carrusel 1.3|3000', 'Reel 1.4|2600'], 'la tabla para lectores');
+      ok(cf.querySelector('.if-sr').getBoundingClientRect().width <= 1, 'la tabla para lectores se ve');
+      const bw = [...cf.querySelectorAll('.if-ch .if-b')].map(b => b.getBBox().width); ok(bw.every(x => x <= 24.01 && x > 2), 'columnas de más de 24 px: ' + json(bw));
+      igual([...cf.querySelectorAll('.if-tp span')].map(s => s.textContent + ' ' + s.nextElementSibling.nextElementSibling.textContent), ['Reel 3,4 mil', 'Carrusel 3 mil', 'Foto 1,4 mil'], 'el alcance medio por tipo, de mayor a menor');
+      igual(cf.querySelector('.if-frase').textContent, 'Lo que mejor funcionó: los reels.', 'la frase');
+      // colours and contrast, light and dark
+      const fondo = e => { for (let x = e; x; x = x.parentElement) { const b = W.getComputedStyle(x).backgroundColor; if (b && !/rgba\(0, 0, 0, 0\)|transparent/.test(b)) return b; } return W.getComputedStyle(D.body).backgroundColor; };
+      const malos = [];
+      for (const tema of ['claro', 'oscuro']) {
+        if (tema === 'oscuro') D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme;
+        await espera(250); const c = ifCf();   // past the fill's transition (--d1)
+        igual(W.getComputedStyle(c.querySelector('.if-c:not(.top) .if-b')).fill, tema === 'claro' ? 'rgb(153, 143, 133)' : 'rgb(158, 147, 136)', 'el gris de las columnas en ' + tema);
+        igual(W.getComputedStyle(c.querySelector('.if-c.top .if-b')).fill, 'rgb(178, 80, 58)', 'la mejor no va en el acento (--acc) en ' + tema);
+        for (const s of ['.if-h', '.if-h span', '.if-f span', '.if-f b', '.if-f i.sube', '.if-f i.baja', '.if-f i.sin', '.if-f i.igual', '.if-fr0', '.if-sub', '.if-tp span', '.if-tp em', '.if-frase']) {
+          const e = c.querySelector(s); ok(e, 'no está ' + s); if (e) { const k = contraste(W.getComputedStyle(e).color, fondo(e)); if (k < 4.5) malos.push([tema, s, +k.toFixed(2)]); }
+        }
+        for (const t of c.querySelectorAll('.if-ch text')) { const k = contraste(W.getComputedStyle(t).fill, fondo(c)); if (k < 4.5) malos.push([tema, 'svg ' + t.textContent, +k.toFixed(2)]); }
+      }
+      igual(malos, [], 'contraste por debajo de 4,5:1');
+      if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await espera(40);
+      // nothing jumps: a redraw without changes touches nothing (lesson 54); the column in its order
+      await ifTab('porque');
+      let n = 0; const mo = new W.MutationObserver(l => { n += l.length; }); mo.observe(q('.main > .vc-lado'), { subtree: true, childList: true, characterData: true, attributes: true }); mo.observe(q('.side > .cal .vcp-panel'), { subtree: true, childList: true, characterData: true });
+      const panel = q('.side > .cal .vcp-panel'); M._in.render(); await espera(60); M._in.render(); await espera(60); mo.disconnect();
+      igual(n, 0, 'un redibujo sin cambios toca «Cómo fue» o el porqué'); ok(q('.side > .cal .vcp-panel') === panel, 'el panel del porqué se vuelve a crear');
+      igual([...q('.main > .vc-lado').children].map(e => e.dataset.vc), ['pagos', 'comofue'], '«Cómo fue» no va debajo de «Tus pagos»');
+      // 720: one column in the drawing's order, the four figures in two columns
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); M._in.render(); await espera(100);
+      const ys = ['.main > .feed', '.side > .cal', '.main > .vc-lado [data-vc="pagos"]', '.main > .vc-lado [data-vc="comofue"]'].map(s => q(s).getBoundingClientRect().top);
+      ok(ys[0] < ys[1] && ys[1] < ys[2] && ys[2] < ys[3], 'a 720 px no van en una columna en su orden: ' + json(ys));
+      const fx = [...ifCf().querySelectorAll('.if-f')].map(f => Math.round(f.getBoundingClientRect().left)); ok(fx[0] === fx[2] && fx[1] === fx[3] && fx[0] < fx[1], 'a 720 px las cifras no van en dos columnas: ' + json(fx));
+      ok(D.documentElement.scrollWidth <= W.innerWidth + 1, 'a 720 px hay desplazamiento lateral');
+      // reduced motion covers the columns' hover
+      ok([...D.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => /prefers-reduced-motion/.test(r.cssText) && /if-b/.test(r.cssText)); } catch (e) { return false; } }), '«reducir movimiento» no cubre las columnas');
+    } finally { fr.style.width = w0; if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await vistaCliente(false); relojVuelve(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

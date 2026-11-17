@@ -5554,6 +5554,48 @@
   }
   function mesNoLocked() { if (locked) throw new Error('la mesa está abierta en otra pestaña o hay una versión nueva'); }
   const infDe = cli => MES ? [...MES.values()].filter(r => r.cliente === cli).sort((a, b) => a.mes < b.mes ? -1 : 1) : [];
+  // ---------- Claude's API (D-238) ----------
+  // cargar(cliente, mes, {porque?, resumen?}): each part alone or both; null takes a part away. Checks the shape and refuses
+  // all with {error, problemas} if anything doesn't fit; a resumen only of a month already over (Madrid). ver(cliente, mes):
+  // that record (a copy) or null; ver(cliente): every month of that client.
+  M.informe = {
+    async cargar(cliente, mes, partes) {
+      if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+      await loadClients(); await mesLeer();
+      const problemas = [], mal = m => problemas.push(m);
+      const cli = String(cliente || '');
+      if (!CL.some(c => c.id === cli)) mal(`cliente desconocido «${cli}» (los ids, en MESA.clients(); solo clientes mensuales)`);
+      const m = String(mes || '');
+      if (!COB_MES.test(m)) mal(`mes «${m}»: AAAA-MM`);
+      if (!partes || typeof partes !== 'object' || Array.isArray(partes) || !('porque' in partes || 'resumen' in partes)) mal('falta {porque} o {resumen} (o los dos)');
+      else mesSoloClaves(partes, ['porque', 'resumen'], 'partes', mal);
+      let porque, resumen;
+      if (!problemas.length) {
+        if ('porque' in partes) porque = partes.porque === null ? null : mesPorque(partes.porque, mal);
+        if ('resumen' in partes) {
+          if (partes.resumen !== null && m >= madParts(ahora()).day.slice(0, 7)) mal(`resumen: ${m} aún no ha terminado; el resumen se carga cuando acaba el mes`);
+          else resumen = partes.resumen === null ? null : mesResumen(partes.resumen, m, mal);
+        }
+      }
+      if (problemas.length) return { error: 'no se ha cargado nada: ' + problemas[0] + (problemas.length > 1 ? ` (y ${problemas.length - 1} más)` : ''), problemas };
+      if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
+      const k = mesClave(cli, m), prev = MES.get(k);
+      const n = { cliente: cli, mes: m, porque: porque !== undefined ? porque : prev ? prev.porque || null : null, resumen: resumen !== undefined ? resumen : prev ? prev.resumen || null : null };
+      if (prev && JSON.stringify([prev.porque || null, prev.resumen || null]) === JSON.stringify([n.porque, n.resumen])) return { ok: true, clave: k, igual: true, porque: !!n.porque, resumen: !!n.resumen };
+      if (!prev && !n.porque && !n.resumen) return { ok: true, clave: k, igual: true, porque: false, resumen: false };
+      mesNoLocked(); n.at = cobAt(prev && prev.at); mesGen++; MES.set(k, n);
+      const pw = idbPut('meses', k, n); mesPend = mesPend.then(() => pw).catch(() => {});
+      try { await pw; } catch (e) { mesLeer(true).then(() => mesAvisar(false)); return { error: 'no se pudo guardar: ' + String((e && e.message) || e) }; }
+      mesAvisar(true);
+      return { ok: true, clave: k, porque: !!n.porque, resumen: !!n.resumen };
+    },
+    async ver(cliente, mes) {
+      await mesLeer();
+      const copia = r => r && JSON.parse(JSON.stringify(r));
+      if (mes == null) return infDe(String(cliente || '')).map(copia);
+      return copia(MES.get(mesClave(String(cliente || ''), String(mes)))) || null;
+    }
+  };
   async function mesBorrarCliente(id) {   // a deleted client's months go with it
     await mesLeer(); const ks = [...MES.keys()].filter(k => k.startsWith(id + '|')); if (!ks.length || locked) return;
     mesGen++; ks.forEach(k => MES.delete(k));

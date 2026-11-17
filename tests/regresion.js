@@ -16351,6 +16351,67 @@
     ok(!(await M._in.idbGet('meses', CLIENTE2 + '|2026-11')) && !M._in.mes.get(CLIENTE2, '2026-11'), 'los meses de un cliente eliminado se quedan');
   });
 
+  prueba('IF2', 'MESA.informe (D-238): cargar(cliente, mes, {porque, resumen}) guarda cada parte sola o las dos, null la quita y lo igual no se reescribe; valida la forma y lo rechaza todo con un mensaje claro (cliente, mes, partes de 1 a 6 en texto plano sin etiquetas de Notion, cifras, posts del mes, alcance = suma, publicaciones = posts, tipos = medias, frase, un mes que no ha terminado); ver(cliente, mes) da una copia o null y ver(cliente) todos sus meses; los nombres de siempre no cambian', async () => {
+    await tablero([pub(1)]);
+    relojEn('2026-11-17T10:00:00+01:00');
+    try {
+      ok(M.informe && typeof M.informe.cargar === 'function' && typeof M.informe.ver === 'function', 'sin MESA.informe');
+      ok(M.cobros && M.personas && M.ubicaciones && M.startZernio, 'cambiaron los nombres de siempre');
+      let r = await M.informe.cargar(CLIENTE, '2026-11', { porque: IF_PQ }); ok(r && r.ok && r.porque && !r.resumen, 'no carga el porqué: ' + json(r));
+      let v = await M.informe.ver(CLIENTE, '2026-11'); igual([v.cliente, v.mes, v.porque, v.resumen], [CLIENTE, '2026-11', IF_PQ, null], 'ver no da lo cargado');
+      ok(typeof v.at === 'string' && !isNaN(Date.parse(v.at)), 'sin at');
+      v.porque.partes[0].x = 'tocado'; igual((await M.informe.ver(CLIENTE, '2026-11')).porque, IF_PQ, 'ver no da una copia');
+      // the summary alone; its types come from the posts, the best first
+      r = await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES() }); ok(r && r.ok && r.resumen, 'no carga el resumen: ' + json(r));
+      v = await M.informe.ver(CLIENTE, '2026-10');
+      igual(v.resumen.tipos, [{ tipo: 'Reel', alcance: 1700 }, { tipo: 'Carrusel', alcance: 1500 }, { tipo: 'Foto', alcance: 700 }], 'el alcance medio por tipo');
+      r = await M.informe.cargar(CLIENTE, '2026-10', { porque: IF_PQ }); v = await M.informe.ver(CLIENTE, '2026-10'); ok(v.porque && v.resumen, 'cargar una parte se lleva la otra');
+      const at1 = v.at; r = await M.informe.cargar(CLIENTE, '2026-10', { porque: IF_PQ }); ok(r.ok && r.igual && (await M.informe.ver(CLIENTE, '2026-10')).at === at1, 'lo igual se vuelve a escribir');
+      r = await M.informe.cargar(CLIENTE, '2026-10', { porque: null }); v = await M.informe.ver(CLIENTE, '2026-10'); ok(r.ok && v.porque === null && v.resumen, 'null no quita la parte');
+      igual((await M.informe.ver(CLIENTE)).map(x => x.mes), ['2026-10', '2026-11'], 'ver(cliente) no da sus meses en orden');
+      igual(await M.informe.ver(CLIENTE, '2026-09'), null, 'un mes sin nada no da null');
+      // given types must be the averages
+      const t2 = IF_RES('2026-09'); t2.tipos = [{ tipo: 'Foto', alcance: 700 }, { tipo: 'Reel', alcance: 1700 }, { tipo: 'Carrusel', alcance: 1501 }];
+      r = await M.informe.cargar(CLIENTE, '2026-09', { resumen: t2 }); ok(r.ok, 'unos tipos dados que son las medias no entran: ' + json(r));
+      // everything that doesn't fit is refused, all of it, with a clear message
+      const antes = JSON.stringify(await M._in.idbAll('meses'));
+      const res = f => { const x = IF_RES(); f(x); return x; };
+      const malos = [
+        [['nadie', '2026-11', { porque: IF_PQ }], /cliente desconocido/],
+        [[CLIENTE, '2026-13', { porque: IF_PQ }], /AAAA-MM/],
+        [[CLIENTE, '2026-11', {}], /falta \{porque\}/],
+        [[CLIENTE, '2026-11', { porque: IF_PQ, otro: 1 }], /no se esperaba «otro»/],
+        [[CLIENTE, '2026-11', { porque: { partes: [] } }], /de 1 a 6/],
+        [[CLIENTE, '2026-11', { porque: { partes: Array(7).fill({ t: 'Días', x: 'Algo.' }) } }], /de 1 a 6/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Test de horario', x: 'A las 13:00.' }] } }], /etiqueta de Notion.*«Horario»/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Fechas ancla', x: 'El 27.' }] } }], /«Fechas clave»/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'A las **13:00**.' }] } }], /texto plano/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'A las <b>13:00</b>.' }] } }], /texto plano/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: 'Uno.\nDos.' }] } }], /saltos de línea/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Horario', x: '' }] } }], /falta el texto/],
+        [[CLIENTE, '2026-11', { porque: { partes: [{ t: 'Días', x: 'A.' }, { t: 'días', x: 'B.' }] } }], /repetida/],
+        [[CLIENTE, '2026-11', { resumen: IF_RES('2026-11') }], /aún no ha terminado/],
+        [[CLIENTE, '2026-12', { resumen: IF_RES('2026-12') }], /aún no ha terminado/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.cifras.publicaciones.valor = 5; }) }], /no es el número de posts/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.cifras.alcance.valor += 1; }) }], /no es la suma/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.posts[1].fecha = '2026-11-02'; }) }], /un día AAAA-MM-DD de 2026-10/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.posts[1].tipo = 'Historia'; }) }], /tipo: uno de/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.posts[1].alcance = -3; }) }], /entero/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.posts[1].likes = 3; }) }], /no se esperaba «likes»/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { delete x.cifras.guardados; }) }], /guardados: falta/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.cifras.interacciones.anterior = -1; }) }], /anterior/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.tipos = [{ tipo: 'Reel', alcance: 1000 }, { tipo: 'Carrusel', alcance: 1500 }, { tipo: 'Foto', alcance: 700 }]; }) }], /el medio de sus posts es 1700/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.tipos = [{ tipo: 'Reel', alcance: 1700 }]; }) }], /falta «Carrusel»/],
+        [[CLIENTE, '2026-10', { resumen: res(x => { x.frase = ''; }) }], /frase: falta/],
+        [[CLIENTE, '2026-10', { porque: IF_PQ, resumen: res(x => { x.frase = 'x'.repeat(301); }) }], /300/]
+      ];
+      for (const [args, re] of malos) {
+        r = await M.informe.cargar(...args);
+        ok(r && r.error && /no se ha cargado nada/.test(r.error) && Array.isArray(r.problemas) && r.problemas.some(p => re.test(p)), `no rechaza ${json(args).slice(0, 140)} con ${re}: ` + json(r).slice(0, 300));
+      }
+      igual(JSON.stringify(await M._in.idbAll('meses')), antes, 'algo rechazado se guardó');
+    } finally { relojVuelve(); }
+  });
 
   // =====================================================================================================
   const filas = $('filas');

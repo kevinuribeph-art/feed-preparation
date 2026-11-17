@@ -166,7 +166,7 @@
     const pt = P_.find(p => p.id === act), sing = n => /^planos$/i.test(n) ? 'Plano' : /^v[ií]deos$/i.test(n) ? 'Vídeo' : n;
     const tabs = `<span class="pp-pl-tabs" role="tablist" aria-label="${P.esc(a.nombre || 'Planos')}">${P_.map(p => { const n = (p.items || []).length, h = (p.items || []).filter(i => i.hecho).length, c = `tab:${a.id}:${p.id}`;
       if (P.CARD.ed && S.campo === c) return `<span class="pp-pl-tab on"><span class="pp-pl-tn" data-campo="${P.esc(c)}">${P.esc(p.nombre)}</span></span>`;   // being renamed
-      return `<button type="button" role="tab" class="pp-pl-tab${p.id === act ? ' on' : ''}" data-hj="tab" data-tab="${P.esc(p.id)}" aria-selected="${p.id === act}" data-campo="${P.esc(c)}" title="Doble clic: cambiar el nombre"><span class="pp-pl-tn">${P.esc(p.nombre)}</span>${n ? ` <span>${h}/${n}</span>` : ''}</button>`; }).join('')}${vc ? '' : `<button type="button" class="ibtn pp-pl-mas" data-hj="tab-mas" title="Nueva pestaña" aria-label="Nueva pestaña">${svgI('mas')}</button>`}</span>`;
+      return `<button type="button" role="tab" class="pp-pl-tab${p.id === act ? ' on' : ''}" data-hj="tab" data-tab="${P.esc(p.id)}" aria-selected="${p.id === act}" data-campo="${P.esc(c)}" title="Doble clic: cambiar el nombre"><span class="pp-pl-tn">${P.esc(p.nombre)}</span>${n ? ` <span class="pp-hj-n">${h}/${n}</span>` : ''}</button>`; }).join('')}${vc ? '' : `<button type="button" class="ibtn pp-pl-mas" data-hj="tab-mas" title="Nueva pestaña" aria-label="Nueva pestaña">${svgI('mas')}</button>`}</span>`;
     if (S.plg.has(a.id)) return { cab: tabs, cuerpo: '' };
     const items = (pt.items || []).map(it => {
       const ref = (it.fotos || []).map(id => { const as = aspecto(r, id); return fotoEl(id, Math.round(72 * as), 72, 'Foto de referencia', false); }).join('');
@@ -872,12 +872,14 @@
 #mesa .pp-fo img,#mesa .pp-fo canvas{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain}
 #mesa .pp-hj .pp-fo{cursor:zoom-in}#mesa .pp-hj .pp-fo[draggable="true"]{cursor:grab}
 /* shots: tabs, each one with its references on the right */
-#mesa .pp-pl-tabs{display:flex;align-items:flex-end;gap:2px;flex:1;min-width:0;overflow-x:auto;border-bottom:1px solid var(--line2);margin-left:2px}
-#mesa .pp-pl-tab{position:relative;border:0;background:none;padding:6px 10px 8px;font:inherit;font-size:14px;font-weight:600;color:var(--mute);cursor:pointer;white-space:nowrap;border-radius:var(--r-sm) var(--r-sm) 0 0;transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
-#mesa .pp-pl-tab span{font-weight:400;font-size:12px}#mesa .pp-pl-tab:hover{color:var(--ink);background:var(--bg-2)}
-#mesa .pp-pl-tab.on{color:var(--ink)}#mesa .pp-pl-tab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--acc)}
+/* the tabs as the sections' titles (D-214, 7-A): the title's letter, its count as the sections', the other one in --faint */
+#mesa .pp-pl-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;margin-left:-6px}
+#mesa .pp-pl-tab{border:0;background:none;padding:3px 8px 3px 6px;font:inherit;color:var(--faint);cursor:pointer;white-space:nowrap;border-radius:var(--r-pill);transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
+#mesa .pp-pl-tab .pp-pl-tn{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
+#mesa .pp-pl-tab .pp-hj-n{color:inherit}#mesa .pp-pl-tab:hover{background:var(--bg-2);color:var(--mute)}
+#mesa .pp-pl-tab.on{color:var(--ink)}#mesa .pp-pl-tab.on .pp-hj-n{color:var(--mute)}
 #mesa .pp-pl-tabs .pp-pl-tn.escribiendo{padding:0 4px}
-#mesa .pp-pl-mas{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:4px}#mesa .pp-pl-mas svg{width:15px;height:15px}
+#mesa .pp-pl-mas{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-pl-mas svg{width:15px;height:15px}
 #mesa .pp-pl-items{display:flex;flex-direction:column}
 #mesa .pp-pl-it{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,auto);column-gap:8px;padding:14px 0 14px;border-bottom:1px solid var(--line2)}
 #mesa .pp-pl-it:last-child{border-bottom:0}

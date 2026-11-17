@@ -14783,6 +14783,28 @@
     } finally { if (M._in.closeDetail) M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
+  prueba('AS6', 'Planos y Vídeos, opción A (D-214): las pestañas con la letra, el tamaño y el peso del título de un apartado y su cuenta como la de los apartados; sin raya ni línea debajo; la no elegida en --faint; el «+» sigue', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const r = await M.sesiones._test.crear({ txt: 'Planos', clase: 'video' });
+      await M.personal._p.cambiar(r.id, x => { seAp(x, 'planos').pestanas[0].items = [{ id: 'i1', titulo: 'Uno', texto: '', fotos: [], enlaces: [], hecho: true }, { id: 'i2', titulo: 'Dos', texto: '', fotos: [], enlaces: [] }]; seAp(x, 'mood').grupos = [{ id: 'g1', nombre: 'Comida', modo: 'linea', fotos: [] }]; return x; });
+      await seAbrir(r.id); await espera(260);
+      const cs = e => W.getComputedStyle(e), tok = k => { const d = D.createElement('i'); d.style.color = `var(${k})`; q('#mesa').append(d); const c = cs(d).color; d.remove(); return c; };
+      const ti = cs(seQ('[data-ap="orden"] .pp-hj-pl b')), [on, off] = [seQ('.pp-pl-tab.on'), qa('.pp-ov:not(.sale) .pp-pl-tab:not(.on)')[0]];
+      const tn = cs(on.querySelector('.pp-pl-tn'));
+      igual([tn.fontSize, tn.fontWeight, tn.letterSpacing], [ti.fontSize, ti.fontWeight, ti.letterSpacing], 'la pestaña no lleva la letra del título');
+      const nn = cs(on.querySelector('.pp-hj-n')), ap = cs(seQ('[data-ap="mood"] .pp-mo-gh .pp-hj-n'));
+      igual([nn.fontSize, nn.fontWeight, nn.color], [ap.fontSize, ap.fontWeight, ap.color], 'la cuenta no va como la de los apartados');
+      igual(on.querySelector('.pp-hj-n').textContent, '1/2', 'la cuenta');
+      igual(W.getComputedStyle(on, '::after').content, 'none', 'la elegida lleva raya');
+      igual(cs(seQ('.pp-pl-tabs')).borderBottomWidth, '0px', 'hay línea debajo');
+      igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--faint')], 'la elegida no va en tinta o la otra no en --faint');
+      ok(seQ('[data-hj="tab-mas"]'), 'sin «+»');
+      ppTecla('Escape'); await espera(200);
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

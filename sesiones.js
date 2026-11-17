@@ -87,8 +87,9 @@
     return n;
   }
   M.material = {
+    // with the page closed, the template as it is saved (its name, D-220)
     // Claude loads Kevin's list: [{nombre, familia, tipo: 'foto' | 'video' | 'ambas', colgadoDe}]; only new, never a name of the API changed
-    cargar: async lista => { await listo(); if (!Array.isArray(lista) || !lista.length) return { error: 'falta la lista' }; await P.refrescar(); const n = await matGuardar(lista, false); P.pintar(); return { ok: true, n: n.lista.length }; },
+    cargar: async lista => { await listo(); if (!Array.isArray(lista) || !lista.length) return { error: 'falta la lista' }; await P.refrescar(); if (!P.st.on) await P.cargarTK(); const n = await matGuardar(lista, false); P.pintar(); return { ok: true, n: n.lista.length }; },
     ver: async () => { await listo(); const m = await I().idbGet('tareas', MAT_ID).catch(() => null); return m && Array.isArray(m.lista) ? P.hondo(m.lista) : []; }
   };
 
@@ -430,7 +431,7 @@
     if (k === 'mat-nueva' && !S.vista) { comoNueva(apId); return true; }
     if (k === 'mat-en' && !S.vista) { guardarEn(apId); return true; }
     if (k === 'cli-x' && !S.vista) { quitarCli(a.dataset.c); return true; }
-    if (k === 'fin' && !S.vista) { cambiar(x => { if (!x.fecha || x.fin) return false; x.fin = P.finNuevo(x); }).then(() => { const i = P.ov && P.ov.querySelector('[data-hj="fin-hora"], [data-hj="fin-fecha"]'), g = i && M.controles && M.controles.gemelo && M.controles.gemelo(i); if (g) (g.firstChild || g).focus({ preventScroll: true }); }); return true; }
+    if (k === 'fin' && !S.vista) { cambiar(x => { if (!x.fecha || x.fin) return false; x.fin = P.finNuevo(x); }).then(() => { const i = P.ov && (P.ov.querySelector('[data-hj="fin-hora"]') || P.ov.querySelector('[data-hj="fin-fecha"]')), g = i && M.controles && M.controles.gemelo && M.controles.gemelo(i); if (g) (g.firstChild || g).focus({ preventScroll: true }); }); return true; }
     if (k === 'fin-x' && !S.vista) { cambiar(x => { if (!x.fin) return false; delete x.fin; }).then(() => { const b = P.ov && P.ov.querySelector('[data-hj="fin"]'); if (b) b.focus({ preventScroll: true }); }); return true; }
     if (k === 'tira') { S.tira = !S.tira; pintarYa(); return true; }
     if (k === 'vista' && !P.CARD.vc) { if (P.CARD.ed) P.editar(false); S.vista = !S.vista; pintarYa(); const b = P.ov.querySelector('[data-hj="vista"]'); if (b) b.focus({ preventScroll: true }); return true; }
@@ -700,7 +701,7 @@
     fe.addEventListener('change', () => inicio(/^\d{4}-\d{2}-\d{2}$/.test(fe.value) ? fe.value : ''));
     ho.addEventListener('change', () => inicio(E.fecha, /^\d{2}:\d{2}/.test(ho.value) ? ho.value.slice(0, 5) : ''));
     fz.addEventListener('click', ev => { const b = ev.target.closest('[data-ns]'); if (!b) return;
-      if (b.dataset.ns === 'fin' && E.fecha) { E.fin = P.finNuevo(E); pintarFin('[data-ns="fin-hora"], [data-ns="fin-fecha"]'); }
+      if (b.dataset.ns === 'fin' && E.fecha) { E.fin = P.finNuevo(E); pintarFin(E.hora ? '[data-ns="fin-hora"]' : '[data-ns="fin-fecha"]'); }
       else if (b.dataset.ns === 'fin-x') { E.fin = null; pintarFin('[data-ns="fin"]'); } });
     fz.addEventListener('change', ev => { const t = ev.target, k = t.dataset.ns; if (!E.fin || (k !== 'fin-fecha' && k !== 'fin-hora')) return; const f = { ...E.fin };
       if (k === 'fin-fecha') { if (/^\d{4}-\d{2}-\d{2}$/.test(t.value)) f.fecha = t.value; } else if (/^\d{2}:\d{2}/.test(t.value)) f.hora = t.value.slice(0, 5); else delete f.hora;

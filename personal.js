@@ -421,7 +421,7 @@
     } else {
       const ver = k => st.ttodas || !k.hecha || hechaHoy(k, hoy);
       // today's cell also holds the overdue ones from before what is seen (those seen are on their own day)
-      const enDia = (d, desde) => l.filter(k => enTramo(k, d) && ver(k)).concat(desde ? l.filter(k => venc(k) && k.fecha < desde).sort((a, b) => a.fecha < b.fecha ? -1 : 1) : []);
+      const enDia = (d, desde) => l.filter(k => enTramo(k, d) && ver(k)).concat(desde ? l.filter(k => venc(k) && ultDia(k) < desde).sort((a, b) => a.fecha < b.fecha ? -1 : 1) : []);
       const nav = (t, ant, sig, dbl) => `<span class="pp-nav"><button type="button" class="ibtn pp-ant" data-pp="tnav" data-d="-1" aria-label="${ant}" title="${ant}">‹</button><span class="pp-rango" data-pp="trango" title="${esc(t)} · doble clic: ${dbl}">${esc(t)}</span><button type="button" class="ibtn pp-sig" data-pp="tnav" data-d="1" aria-label="${sig}" title="${sig}">›</button></span>`;
       if (st.vista === 'semana') {
         const lun = addD(lunes(hoy), 7 * st.tsem), dias = Array.from({ length: 7 }, (_, i) => addD(lun, i));
@@ -467,6 +467,7 @@
       else { x.fin = { ...x.fin, fecha: addD(x.fin.fecha, dd) }; if (!hora) delete x.fin.hora; }
     }
     x.fecha = fecha; if (hora) x.hora = hora; else delete x.hora;
+    if (x.fin && x.fin.fecha <= fecha && !x.fin.hora) delete x.fin;   // its own day without a time says nothing
   }
   // a new end (or none): never before its start (D-218)
   const finOk = (x, f) => !f || (!!x.fecha && !!f.fecha && (f.fecha > x.fecha || (f.fecha === x.fecha && (!f.hora || !x.hora || f.hora >= x.hora))));
@@ -806,15 +807,16 @@
   function abrirCard(id, o = {}) {
     // over the board (D-219): the page closed, a session's sheet opened from the posts' calendar (in the vista cliente, read
     // only, fixed in «Ver como el cliente», naming only that board's client); a card opened from it stays over the board
-    const tab = o.tablero != null ? !!o.tablero : !st.on && !!(CARD && CARD.tablero), vc = o.vc != null ? !!o.vc : !!(tab && CARD && CARD.vc), cli = o.cli || (CARD && CARD.cli) || null;
-    const r = TK.get(id), X = I(); if (!r || !(st.on || tab)) return false;
+    const X = I(), root = X.root(), tab = o.tablero != null ? !!o.tablero : !st.on, vc = tab && (o.vc != null ? !!o.vc : root.classList.contains('client')), cli = tab ? o.cli || (X.S && X.S.client) || null : null;
+    const r = TK.get(id); if (!r || !(st.on || tab)) return false;
     cerrarMenu(); if (CARD) quitarCard();
     const ext = o.ext || (r.tipo === 'sesion' && EXT.sesion ? EXT.sesion : r.tipo === 'esporadico' && EXT.ficha ? EXT.ficha : null);
     ov = document.createElement('div'); ov.className = 'pp-ov entra' + (ext ? ' ' + ext.cls : ''); ov.dataset.pp = 'ov';
     ov.addEventListener('animationend', e => { if (e.target.classList.contains('pp-card')) e.currentTarget.classList.remove('entra'); });
     X.root().append(ov);
     CARD = { id, ed: !!o.ed, peq: !o.ed, t0: Date.now(), cierre: 0, de: o.de || `[data-pp="tver"][data-id="${CSS.escape(id)}"]`, amplia: false, ext, tablero: tab, vc: tab && vc, cli: tab ? cli : null };
-    X.root().classList.toggle('pp-card-on', tab);   // the board under it takes no keys
+    root.classList.toggle('pp-card-on', tab);   // the board under it takes no keys, nor the focus (inert)
+    root.querySelectorAll(':scope > .appbar, :scope > .bar, :scope > .main').forEach(el => { el.inert = tab; });
     setTimeout(() => { if (CARD && CARD.id === id) CARD.peq = false; }, 600);   // the second click of the double click that opened it
     if (ext) { ext.pintar(r, { ...o, forzar: true }); return true; }
     ov.innerHTML = htmlCard(r, CARD.ed);
@@ -825,7 +827,7 @@
   }
   function soltarBorrador() { for (const [id, k] of TK) if (k._b && (!CARD || CARD.id !== id)) TK.delete(id); }
   function quitarCard() { if (!ov) return; clearTimeout(CARD && CARD.cierre); apagarCampos(); if (CARD && CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar(); ov.remove(); CARD = null; ov = null; soltarBorrador(); sinTablero(); }
-  const sinTablero = () => { const X = I(), root = X && X.root && X.root(); if (root) root.classList.remove('pp-card-on'); };
+  const sinTablero = () => { const X = I(), root = X && X.root && X.root(); if (!root) return; root.classList.remove('pp-card-on'); root.querySelectorAll(':scope > .appbar, :scope > .bar, :scope > .main').forEach(el => { el.inert = false; }); };
   function cerrarCard(ya) {
     if (!CARD) return;
     clearTimeout(CARD.cierre);
@@ -1181,7 +1183,8 @@
       const det = I().root().querySelector('.detail');
       if ((t && (t.isContentEditable || (t.tagName === 'INPUT' && /^(text|search|)$/.test(t.type || '')) || t.tagName === 'TEXTAREA')) || (det && !det.hidden)) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      if (!(CARD && CARD.vc)) deshacer(e.shiftKey); return;   // in the vista cliente nothing changes
+      if (CARD && CARD.tablero) { const L = e.shiftKey ? H.r : H.u, p = L[L.length - 1]; if (CARD.vc || !p || !p.some(x => x.id === CARD.id || ((x.antes || x.despues || {}).tipo === 'material'))) return; }   // over the board: never a step of the hidden page
+      deshacer(e.shiftKey); return;
     }
     if (!page || !page.contains(t)) return;
     if (t.matches('[data-pp="nueva"]') && e.key === 'Enter' && !e.isComposing && !(ES() && ES().menuDe(t))) { e.preventDefault(); crearDesdeCampo(false); return; }
@@ -1309,7 +1312,7 @@
   const _p = {
     EXT, TK, I, esc, ICO, st, avatar, avatarN, cliDe, clis, conCli, cliOk, esps, sesiones, tareas, notas, vivos, opcionesCli, diaHora, tramo, ultDia, moverInicio, finOk, finNuevo, corto, fechaLarga, addD, dow, difD,
     hacer, cambiar, enmendar, escribir, deshacer, copia, hondo, nuevoId, ahoraISO, puede, borrar, marcar, rebajar, esImagen, verFoto, remapH, guardarCard, ampliar, colocarAmplia,
-    pintar, refrescar, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
+    pintar, refrescar, cargarTK, abrirCard, cerrarCard, quitarCard, pintarCard, editar, borrador, pedirFecha, comando, menuSesion, menuEsp,
     abrirMenu, cerrarMenu, ES, leerTxt, lsGet, lsSet, enCard, pocoMov, DBL, fotosURL, botonesCard, ponerCard, seleccionando,
     get CARD() { return CARD; }, get ov() { return ov; }, get page() { return page; },
     cardT: { quitar: () => { clearTimeout(cardT); cardT = null; }, poner: f => { clearTimeout(cardT); cardT = setTimeout(f, 400); } }

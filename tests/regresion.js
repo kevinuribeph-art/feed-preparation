@@ -15224,6 +15224,49 @@
     } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
   });
 
+  prueba('DS6', 'Arreglos de la revisión (lote B): tras «– Fin» el foco va a la hora de fin; «/tarea» en la hoja encima del tablero abre la tarea encima del tablero; con la hoja encima, el tablero no recibe el foco (inert); su ⌘Z no deshace un paso de la página oculta; Esc que la cierra no vacía la elección de Descargar; una sesión de varios días vencida no sale otra vez hoy en Semana; quitar la hora del inicio no deja un fin vacío; MESA.material.cargar con la página cerrada conserva el nombre de la de serie (D-217 a D-220)', async () => {
+    await tablero([pub(1), pub(2, 'Foto', 9)]); await sinTareas();
+    const raiz = M._in.root();
+    try {
+      relojEn('2026-10-01T09:00:00+02:00');
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p, d1 = MES + '-06';
+      const s = await M.sesiones._test.crear({ txt: 'Encima', clase: 'foto', fecha: d1, hora: '10:00', clientes: [CLIENTE] });
+      await seAbrir(s.id); seQ('[data-hj="fin"]').click(); await espera(200);
+      ok(D.activeElement && D.activeElement.closest && D.activeElement.closest('.mx-time') && D.activeElement.closest('.pp-hj-fh'), 'tras «– Fin» el foco no va a su hora');
+      // quitar la hora del inicio con un fin el mismo día: sin fin
+      const h = seQ('[data-hj="hora"]'); h.value = ''; h.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150);
+      ok(!(await seRec(s.id)).fin, 'quitar la hora deja un fin vacío');
+      P.cerrarCard(true);
+      // la de serie renombrada; con la página cerrada y su registro viejo en memoria, cargar conserva el nombre
+      await P.cambiar('material', x => { x.txt = 'Mi equipo'; return x; });
+      const tarea = await M.personal.tarea({ txt: 'Paso de la página' }); await M.personal.borrar(tarea.id);
+      paginaCerrada(); M._in.render(); await espera(60);
+      P.TK.set('material', { ...P.TK.get('material'), txt: 'Material' });   // lo que la pestaña tenía leído
+      await M.material.cargar([{ nombre: 'Otra cosa', familia: 'Luz' }]);
+      igual((await M.personal.tareas()).find(t => t.id === 'material').txt, 'Mi equipo', 'cargar con la página cerrada pisa el nombre de la de serie');
+      // la hoja encima del tablero: el tablero inert; ⌘Z no toca la página oculta; Esc no vacía Descargar
+      await hasta(() => q(`.side > .cal .chip[data-ses="${s.id}"]`), 4000, 'el chip');
+      if (M.descargar && M.descargar.elegir) M.descargar.elegir(q('.feed .grid .cell[data-slot]').dataset.slot);
+      const eleg0 = M.descargar && M.descargar.elegidas ? M.descargar.elegidas().length : null;
+      q(`.side > .cal .chip[data-ses="${s.id}"]`).click(); await hasta(() => seHoja(), 3000, 'la hoja');
+      ok(q('#mesa > .main').inert && q('#mesa > .bar').inert && q('#mesa > .appbar').inert, 'con la hoja encima, el tablero recibe el foco');
+      ppTecla('z', { metaKey: true }); await espera(150);
+      ok(!(await M.personal.tareas()).some(k => k.id === tarea.id), '⌘Z encima del tablero deshace un paso de la página oculta');
+      ppTecla('Escape'); await espera(250); ok(!seHoja() && !q('#mesa > .main').inert, 'Esc no cierra la hoja o el tablero sigue inert');
+      if (eleg0 != null) igual(M.descargar.elegidas().length, eleg0, 'Esc que cierra la hoja vacía la elección de Descargar');
+      // «/tarea» en la hoja encima del tablero: la tarea, también encima
+      q(`.side > .cal .chip[data-ses="${s.id}"]`).click(); await hasta(() => seHoja(), 3000, 'la hoja');
+      P.comando('tarea', { texto: '', a: 0, b: 0, quitar: () => {} }, 'ap:orden'); await espera(120);
+      ok(P.CARD && P.CARD.tablero && [...P.TK.values()].some(k => k._b) && raiz.classList.contains('pp-card-on'), '«/tarea» encima del tablero no abre la tarea');
+      P.cerrarCard(true); await espera(80);
+      // Semana: una sesión de varios días vencida, en sus días y no otra vez hoy
+      const v = await M.sesiones._test.crear({ txt: 'Vencida larga', clase: 'foto', fecha: '2026-09-28', fin: { fecha: '2026-09-29' }, clientes: [CLIENTE] });
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, vista: 'semana', tsem: 0 }); await espera(80);
+      igual(qa(`.pp-fi[data-tid="${v.id}"]`).map(f => f.closest('.pp-sd').querySelector('.pp-sh b').textContent), ['28', '29'], 'la vencida de varios días sale otra vez hoy');
+    } finally { M.personal._p.cerrarCard(true); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
   // =====================================================================================================
   const filas = $('filas');
   function fila(t) {

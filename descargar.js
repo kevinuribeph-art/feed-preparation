@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.6';   // 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
+  const VERSION = '1.7';   // 1.7: Esc that closes a session's sheet over the board keeps the choice (D-219). 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -241,7 +241,7 @@
   function onKey(e) {
     if (e.key !== 'Escape' || !eleg.length) return;
     const X = I(), root = X && X.root && X.root(), det = root && root.querySelector('.detail');
-    if (!root || (det && !det.hidden) || (M.libre && M.libre.abierto && M.libre.abierto()) || root.querySelector('.cpmenu')) return;   // Esc closes what is open first (a folder's menu too)
+    if (!root || (det && !det.hidden) || root.classList.contains('pp-card-on') || (M.libre && M.libre.abierto && M.libre.abierto()) || root.querySelector('.cpmenu')) return;   // Esc closes what is open first (a folder's menu too)
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     vaciar();
   }

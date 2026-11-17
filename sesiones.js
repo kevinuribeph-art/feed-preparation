@@ -182,7 +182,7 @@
   // the mood board (D-211, C): columns as wide as a cell of the mesa's feed at 1440 px (measured: 158.7 × 211.6 px), 4 px
   // apart, each photo whole; as many columns as fit (what is left stays on the right), each photo, in its order, to the
   // shortest one; «una línea», one row as high as a cell
-  const MO_COL = 159, MO_ALTO = 212, MO_GAP = 4;
+  const MO_COL = 157, MO_ALTO = 212, MO_GAP = 4;   // 157: 1 % under the cell, so the three columns of 4-C fit in the default split
   function moodHTML(a, r) {
     const vc = S.vista;
     const gs = (a.grupos || []).map(g => {
@@ -535,7 +535,7 @@
     if (!asa && !sep) return;
     e.preventDefault();
     const cols = ov.querySelector('.pp-hj-cols'), rc = cols.getBoundingClientRect();
-    if (sep) { mov = { sep: true, rc, el: sep, x0: e.clientX }; sep.setPointerCapture(e.pointerId); sep.classList.add('mov'); return; }
+    if (sep) { mov = { sep: true, rc, el: sep, x0: e.clientX, cols }; sep.setPointerCapture(e.pointerId); sep.classList.add('mov'); cols.classList.add('mov'); return; }
     const sec = asa.closest('[data-ap]');
     const linea = document.createElement('div'); linea.className = 'pp-hj-linea'; cols.append(linea);
     const fant = sec.querySelector('.pp-hj-aph').cloneNode(true); fant.className = 'pp-hj-aph pp-hj-fant'; ov.firstChild.append(fant);
@@ -560,7 +560,7 @@
   function soltar() {
     if (!mov) return;
     const m = mov; mov = null;
-    if (m.sep) { m.el.classList.remove('mov'); if (m.x) { const R = reparto(); R.sep = m.x; guardarReparto(R); pintarYa(); } return; }   // not moved: nothing is drawn again (its double click lands on the same element)
+    if (m.sep) { m.el.classList.remove('mov'); m.cols.classList.remove('mov'); if (m.x) { const R = reparto(); R.sep = m.x; guardarReparto(R); pintarYa(); } return; }   // not moved: nothing is drawn again (its double click lands on the same element)
     m.linea.remove(); m.fant.remove(); m.sec.classList.remove('mov');
     if (m.col && Math.hypot(m.ex - m.x0, m.ey - m.y0) > 4) mover(m.id, m.col, m.antes);
   }
@@ -806,7 +806,7 @@
 #mesa .pp-hj-cab{padding:22px 26px 6px}
 #mesa .pp-hj-t{display:flex;align-items:center;gap:12px}
 #mesa .pp-hj-t .pp-ck{width:17px;height:17px}
-#mesa .pp-hj-nom{flex:1;min-width:0;margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;outline:none}
+#mesa .pp-hj-nom{flex:1;min-width:0;margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;outline:none}
 #mesa .pp-ov .escribiendo{cursor:text}
 #mesa .pp-hj-ojo{display:inline-flex;align-items:center;justify-content:center}
 #mesa .pp-hj-ojo.sm{width:26px;height:26px;background:none}
@@ -837,6 +837,7 @@
 #mesa .pp-hj-tf.pp-fo img{object-fit:cover}
 #mesa .pp-hj-cols{display:grid;grid-template-columns:minmax(0,1.2fr) 17px minmax(0,1fr);flex:1 0 auto;padding:6px 18px 28px 26px;position:relative;transition:grid-template-columns var(--d-m) var(--ease-m)}
 #mesa .pp-hj-cols.una{grid-template-columns:minmax(0,1fr)}
+#mesa .pp-hj-cols.mov{transition:none}
 #mesa .pp-hj-col{min-width:0;display:flex;flex-direction:column;gap:26px;padding:14px 4px 0}
 #mesa .pp-hj-col[data-col="der"]{padding-left:24px}   /* 20 px more inside: its sections' handle has its own room, off the separator's (D-216) */
 #mesa .pp-hj-sep{position:relative;cursor:col-resize;outline:none}
@@ -875,11 +876,12 @@
 #mesa .pp-hj .pp-fo{cursor:zoom-in}#mesa .pp-hj .pp-fo[draggable="true"]{cursor:grab}
 /* shots: tabs, each one with its references on the right */
 /* the tabs as the sections' titles (D-214, 7-A): the title's letter, its count as the sections', the other one in --faint */
-#mesa .pp-pl-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;margin-left:-6px}
-#mesa .pp-pl-tab{border:0;background:none;padding:3px 8px 3px 6px;font:inherit;color:var(--faint);cursor:pointer;white-space:nowrap;border-radius:var(--r-pill);transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
+#mesa .pp-pl-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;margin-left:-14px}
+#mesa .pp-pl-tab{display:inline-flex;align-items:baseline;gap:6px;border:0;background:none;padding:3px 8px 3px 6px;font:inherit;color:var(--faint);cursor:pointer;white-space:nowrap;border-radius:var(--r-pill);transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
 #mesa .pp-pl-tab .pp-pl-tn{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
 #mesa .pp-pl-tab .pp-hj-n{color:inherit}#mesa .pp-pl-tab:hover{background:var(--bg-2);color:var(--mute)}
 #mesa .pp-pl-tab.on{color:var(--ink)}#mesa .pp-pl-tab.on .pp-hj-n{color:var(--mute)}
+#mesa .pp-pl-tab:focus-visible{outline-offset:-2px}
 #mesa .pp-pl-tabs .pp-pl-tn.escribiendo{padding:0 4px}
 #mesa .pp-pl-mas{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-pl-mas svg{width:15px;height:15px}
 #mesa .pp-pl-items{display:flex;flex-direction:column}
@@ -947,7 +949,7 @@
 #mesa .pp-es-cab{display:flex;align-items:flex-start;gap:14px;margin:0 0 6px}
 #mesa .pp-ava.lg{width:44px;height:44px;font-size:16px}
 #mesa .pp-es-t{flex:1;min-width:0}#mesa .pp-es-t p{margin:2px 0 0;font-size:12.5px;color:var(--mute)}
-#mesa .pp-es-nom{margin:0 0 0 -6px;padding:1px 6px;border-radius:var(--r-xs);font-size:20px;font-weight:800;line-height:1.3;outline:none;overflow-wrap:anywhere}
+#mesa .pp-es-nom{margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:800;line-height:1.3;outline:none;overflow-wrap:anywhere}
 
 #mesa .pp-es-sec{margin:20px 0 0 58px}
 #mesa .pp-es-sec h3{margin:0 0 8px;font-size:14px;font-weight:600}#mesa .pp-es-sec h3 span{font-weight:400;color:var(--mute);font-size:12.5px}

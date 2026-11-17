@@ -1353,8 +1353,8 @@
 #mesa .pp-grupo + .pp-grupo{margin-top:18px}
 #mesa .pp-gt{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:600;color:var(--ink);padding:0 10px 6px}
 #mesa .pp-gt span{font-weight:400;color:var(--mute)}
-#mesa .pp-sub{font-size:12px;color:var(--mute);padding:8px 10px 2px}
-#mesa .pp-nada{margin:0;font-size:12.5px;color:var(--faint);padding:6px 10px 4px}
+#mesa .pp-sub{font-size:12px;color:var(--mute);padding:8px 10px 2px}#mesa .pp-sub span{margin-left:4px}
+#mesa .pp-nada{margin:0;font-size:12.5px;color:var(--faint);padding:6px 10px 18px}
 #mesa .pp-lista{display:flex;flex-direction:column;gap:1px}
 #mesa .pp-av{display:grid;grid-template-columns:28px 42px 32px minmax(0,1fr);align-items:center;column-gap:10px;width:100%;min-height:52px;padding:5px 10px;border:0;background:none;border-radius:var(--r-sm);font:inherit;font-size:13px;color:var(--ink);text-align:left;cursor:pointer;transition:background var(--d1) var(--ease)}
 #mesa .pp-av > :is(.pp-avs,.pp-cu,.pp-afoto){grid-row:1 / span 2}
@@ -1528,7 +1528,7 @@
 #mesa .pp-card{position:relative;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:22px 24px 20px;outline:none}
 #mesa .pp-ch{display:flex;align-items:flex-start;gap:12px}
 #mesa .pp-ch .pp-ck{margin-top:6px;width:17px;height:17px}
-#mesa .pp-ct{flex:1;min-width:0;margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:650;line-height:1.3;text-wrap:pretty;overflow-wrap:anywhere;outline:none}
+#mesa .pp-ct{flex:1;min-width:0;margin:-2px 0 -2px -6px;padding:3px 6px;border-radius:var(--r-sm);font-size:20px;font-weight:800;line-height:1.3;text-wrap:pretty;overflow-wrap:anywhere;outline:none}
 #mesa .pp-card.hecha .pp-ct{text-decoration:line-through;color:var(--mute)}
 #mesa .pp-cm{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;min-height:28px;margin:10px 0 0 29px;font-size:12.5px;color:var(--ink-2)}
 #mesa .pp-cm > span{display:inline-flex;align-items:center;gap:6px}#mesa .pp-cm svg{flex:none;width:14px;height:14px;color:var(--mute)}
@@ -1538,7 +1538,7 @@
 #mesa .pp-cfo{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0 29px}#mesa .pp-cfo .pp-tfo{width:56px;height:56px;border-radius:var(--r-sm)}
 /* what is written in the page (D-213, 6-A): the field being written, one line of 1 px in terracotta at 50 %, no background
    nor ring; the others in a card being written look as read (nothing moves going from reading to writing) */
-#mesa{--pp-escr:color-mix(in oklab,var(--acc) 50%,transparent)}
+#mesa{--pp-escr:color-mix(in oklab,var(--acc-ink) 50%,transparent)}
 #mesa .pp-card.ed .pp-ct:focus,#mesa .pp-card.ed .pp-cd:focus,#mesa .pp-card.ed .pp-cn:focus,#mesa .pp-cst:focus,#mesa .pp-ov .escribiendo,#mesa .pp-pl-ein{background:none;box-shadow:inset 0 0 0 1px var(--pp-escr);border-radius:var(--r-sm);outline:none}
 #mesa .pp-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 #mesa .pp-tl{display:flex;align-items:center;gap:6px;min-width:0}#mesa .pp-col .pp-tt{flex:0 1 auto;min-width:0}#mesa .pp-fi .pp-tl{align-items:flex-start}
@@ -1571,7 +1571,7 @@
 #mesa .pp-cb svg{width:18px;height:18px}
 #mesa .pp-cb:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-ch{padding-right:60px}
-#mesa .pp-card.nota{padding-right:76px}
+#mesa .pp-card.nota{padding-right:92px}
 #mesa .pp-card.nota .pp-cb{color:color-mix(in oklab,var(--postit-ink) 62%,var(--postit-2))}
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
@@ -1580,7 +1580,7 @@
 #mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
 #mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
 #mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
-#mesa .pp-card.amplia > .pp-cbs,#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:16px;right:16px}
+#mesa .pp-card.amplia > .pp-cbs{top:16px;right:16px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:46px;right:48px}
 #mesa .pp-card.amplia:not(.nota){display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,470px);column-gap:56px;align-content:start}
 #mesa .pp-card.amplia > .pp-ch,#mesa .pp-card.amplia > .pp-cm,#mesa .pp-card.amplia > .pp-cfo{grid-column:1 / -1}
 #mesa .pp-card.amplia > .pp-cd{grid-column:1;margin-top:24px}
@@ -1600,7 +1600,7 @@
   #mesa .pp-sem{grid-template-columns:repeat(4,minmax(0,1fr))}#mesa .pp-sd{min-height:84px}
   #mesa .pp-tv.dos{grid-template-columns:minmax(0,1fr)}#mesa .pp-md{min-height:52px}#mesa .pp-mt{font-size:10.5px}
   #mesa .pp-av{column-gap:8px}
-  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}
+  #mesa .pp-ov.amplia .pp-card{padding:28px 16px 32px}#mesa .pp-ov.amplia .pp-card.nota{padding:56px 20px 32px}#mesa .pp-card.amplia .pp-ch{padding-right:68px}#mesa .pp-card.amplia .pp-ch > .pp-cbs{top:30px;right:8px}
   #mesa .pp-card.amplia:not(.nota){grid-template-columns:minmax(0,1fr)}#mesa .pp-card.amplia > .pp-cs{grid-column:1;margin:14px 0 0 29px}
 }
 `;

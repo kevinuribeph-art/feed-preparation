@@ -14346,7 +14346,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('SE3', 'Fotos de una sesión: soltadas del ordenador sobre un grupo se guardan aparte (almacén «tfotos») y se ponen ahí; en otro sitio de la hoja, solo en la tira; de la tira se arrastran a un plano; «Quitar de aquí» la deja en la sesión, «Borrar la foto» la quita de todos los sitios; mood board «una línea» y «todas» (columnas de 159 px desde D-211); el registro guarda solo la lista (D-206)', async () => {
+  prueba('SE3', 'Fotos de una sesión: soltadas del ordenador sobre un grupo se guardan aparte (almacén «tfotos») y se ponen ahí; en otro sitio de la hoja, solo en la tira; de la tira se arrastran a un plano; «Quitar de aquí» la deja en la sesión, «Borrar la foto» la quita de todos los sitios; mood board «una línea» y «todas» (columnas de 157 px desde D-211); el registro guarda solo la lista (D-206)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14361,8 +14361,8 @@
       const tf = await M._in.idbAll('tfotos'); ok(k.fotos.every(f => tf.some(t => t.id === f.id && t.blob && t.mini)), 'las fotos no están en su almacén');
       igual(seAp(k, 'mood').grupos[0].fotos.length, 3, 'las fotos no se ponen en el grupo');
       await espera(120);
-      const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = [...box.querySelectorAll('.pp-fo')];   // columns of 159 px since D-211 (before, justified rows)
-      ok(fos.length === 3 && fos.every(x => Math.round(x.getBoundingClientRect().width) === 159), 'las fotos de «todas» no van en columnas de 159 px: ' + json(fos.map(x => x.getBoundingClientRect().width)));
+      const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = [...box.querySelectorAll('.pp-fo')];   // columns of 157 px since D-211 (before, justified rows)
+      ok(fos.length === 3 && fos.every(x => Math.round(x.getBoundingClientRect().width) === 157), 'las fotos de «todas» no van en columnas de 157 px: ' + json(fos.map(x => x.getBoundingClientRect().width)));
       // «una línea»: todas en fila, a la misma altura
       seQ('[data-g="g1"] [data-hj="modo"][data-m="linea"]').click(); await espera(120);
       const l = [...seHoja().querySelectorAll('[data-g="g1"] .pp-mo-f.linea .pp-fo')]; ok(l.length === 3 && l.every(x => Math.abs(x.offsetTop - l[0].offsetTop) < 1), '«una línea» no las pone en fila');
@@ -14610,6 +14610,10 @@
       ppRaton(cd0, 'click', 1, { clientX: rr.left + 20, clientY: rr.top + 12 }); await espera(40);
       ok(D.activeElement === ppCard().querySelector('[data-pp="cd"]') && Math.abs(ppCard().getBoundingClientRect().height - h0) < 2, 'un clic en «Detalles» de una tarea sin fecha ni cliente no escribe allí o la tarjeta cambia de alto: ' + json([D.activeElement && D.activeElement.dataset.pp, h0, ppCard().getBoundingClientRect().height]));
       ppTecla('Escape'); await espera(200);
+      // widened, the buttons in line with the title's first line
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(80);
+      { const bq = ppCard().querySelector('.pp-cbs').getBoundingClientRect(), tq = ppCard().querySelector('[data-pp="ct"]').getBoundingClientRect(); ok(Math.abs((bq.top + bq.bottom) / 2 - (tq.top + 3 + 17)) < 4, 'ampliada, los botones no van en línea con el título: ' + json([bq.top, tq.top])); }
+      ppTecla('Escape'); await espera(200);
       // the second click of the double click that opened it, on the ×: it stays open
       ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="cerrar"]'), 'click', 2); await espera(200);
       ok(ppCard(), 'el segundo clic de un doble clic en la × la cierra'); ppTecla('Escape'); await espera(200);
@@ -14685,7 +14689,7 @@
     } finally { fr.style.width = w0; paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('AS3', 'Mood board, opción C (D-211): en «todas», columnas del ancho de una casilla del feed a 1440 px (159 px), 4 px entre fotos, cada foto entera, en su orden a la columna más corta, lo que sobra a la derecha; al mover el separador o ampliar la hoja cambia cuántas columnas caben, no su tamaño; «una línea», una fila de 212 px de alto que se desliza; cada foto se dibuja a su tamaño', async () => {
+  prueba('AS3', 'Mood board, opción C (D-211): en «todas», columnas de 157 px (1 % menos que la casilla del feed a 1440 px, para que quepan las 3 de 4-C con el reparto de serie), 4 px entre fotos, cada foto entera, en su orden a la columna más corta, lo que sobra a la derecha; al mover el separador o ampliar la hoja cambia cuántas columnas caben, no su tamaño; «una línea», una fila de 212 px de alto que se desliza; cada foto se dibuja a su tamaño', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await seListo();
@@ -14699,15 +14703,15 @@
       await hasta(async () => ((await seRec(r.id)).fotos || []).length === tam.length, 8000, 'que se guarden las fotos'); await espera(200);
       const k = await seRec(r.id), orden = seAp(k, 'mood').grupos[0].fotos, prop = id => { const f = k.fotos.find(x => x.id === id); return f.w / f.h; };
       // where each photo should go: in its order, to the shortest column (the leftmost on a tie)
-      const esperado = W2 => { const n = Math.max(1, Math.floor((W2 + 4) / 163)), al = new Array(n).fill(0); return orden.map(id => { let c = 0; for (let i = 1; i < n; i++) if (al[i] < al[c] - 0.5) c = i; const h = Math.round(159 / prop(id)), o = [c * 163, al[c], h]; al[c] += h + 4; return o; }); };
+      const esperado = W2 => { const n = Math.max(1, Math.floor((W2 + 4) / 161)), al = new Array(n).fill(0); return orden.map(id => { let c = 0; for (let i = 1; i < n; i++) if (al[i] < al[c] - 0.5) c = i; const h = Math.round(157 / prop(id)), o = [c * 161, al[c], h]; al[c] += h + 4; return o; }); };
       const mira = (que) => {
         const box = seQ('[data-g="g1"] .pp-mo-f.todas'), fos = orden.map(id => box.querySelector(`.pp-fo[data-f="${id}"]`)), e = esperado(box.clientWidth);
         const v = fos.map(f => [Math.round(f.offsetLeft), Math.round(f.offsetTop), Math.round(f.getBoundingClientRect().height), Math.round(f.getBoundingClientRect().width)]);
-        ok(v.every((x, i) => x[3] === 159 && Math.abs(x[0] - e[i][0]) < 1 && Math.abs(x[1] - e[i][1]) < 1 && Math.abs(x[2] - e[i][2]) < 1), que + ': las fotos no van en columnas de 159 px a la más corta: ' + json([box.clientWidth, v, e]));
+        ok(v.every((x, i) => x[3] === 157 && Math.abs(x[0] - e[i][0]) < 1 && Math.abs(x[1] - e[i][1]) < 1 && Math.abs(x[2] - e[i][2]) < 1), que + ': las fotos no van en columnas de 157 px a la más corta: ' + json([box.clientWidth, v, e]));
         ok(Math.abs(box.getBoundingClientRect().height - Math.max(...e.map(x => x[1] + x[2]))) < 1, que + ': el alto del grupo no es el de su columna más alta');
         return new Set(v.map(x => x[0])).size;
       };
-      const n0 = mira('al abrir'); ok(n0 >= 2, 'una sola columna en la hoja: ' + n0);
+      const n0 = mira('al abrir'); igual(n0, 3, 'con el reparto de serie no caben las 3 columnas de 4-C');
       // the separator narrows the mood board's column: fewer columns, the same size
       const sep = seQ('.pp-hj-sep'), der = !!seQ('[data-ap="mood"]').closest('[data-col="der"]');
       for (let i = 0; i < 12; i++) { naTecla(seQ('.pp-hj-sep'), der ? 'ArrowRight' : 'ArrowLeft'); await espera(30); }
@@ -14752,6 +14756,7 @@
       relojEn('2026-11-09T10:00:00+01:00'); await M.personal.render();
       igual([tit(), q('.pp-grupo[data-cat="hoy"] .pp-nada') && q('.pp-grupo[data-cat="hoy"] .pp-nada').textContent, sub(), ppLineas('hoy')], ['Hoy', 'Nada para hoy', 'Mañana 1', ['r1']], 'sin nada hoy: «Hoy», «Nada para hoy» y «Mañana N»');
       ok(q('.pp-cifra[data-k="hoy"]').disabled && !q('.pp-cifra[data-k="man"]').disabled, 'una cifra en 0 se pulsa o una con algo no');
+      ok(q('.pp-grupo[data-cat="hoy"] .pp-sub').getBoundingClientRect().top - q('.pp-grupo[data-cat="hoy"] .pp-nada').getBoundingClientRect().top >= 38, '«Nada para hoy» y «Mañana» van pegados');
       // nothing in either: no group
       relojEn('2026-11-05T10:00:00+01:00'); await M.personal.render(); ok(!q('.pp-grupo[data-cat="hoy"]'), 'sin nada hoy ni mañana sale el grupo');
       // 720 px: the five fit without overlapping
@@ -14786,6 +14791,11 @@
       const forma = c().els.find(e => e.t === 'forma'), conCandado = await M.libre.pieza(JSON.parse(json(c())), 540, 675);
       cand('forma').click(); await espera(60); ok(await bytesIguales(conCandado, await M.libre.pieza(JSON.parse(json(c())), 540, 675)), 'el candado cambia la imagen que sale');
       ojo('texto').click(); await espera(60);
+      // locked at the top edge: its lock, inside its corner (outside there is no canvas)
+      { const fm = c().els.find(e => e.t === 'forma'); fm.x = 0; fm.y = 0; fm.color = '#000000'; cand('forma').click(); await espera(60); accion('cap', { id: fm.id }); await espera(200);
+        const cv = ed().cv, d = W.devicePixelRatio || 1, px = cv.getContext('2d').getImageData(Math.round(9 * d), Math.round(9 * d), 1, 1).data;   // the badge's white, beside its lock (18 px at 6 px in the corner)
+        ok(px[0] > 235 && px[1] > 235 && px[2] > 235, 'el candado de lo bloqueado arriba del todo no se ve: ' + json([...px]));
+        cand('forma').click(); await espera(60); }
       // grouped: Lucide's link
       fila('texto').click(); await espera(30); fila('forma').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })); await espera(30); accion('group'); await espera(80);
       ok(fila('texto').querySelector('.lb-capg[aria-label="En un grupo"]') && fila('forma').querySelector('.lb-capg') && !fila('velo').querySelector('.lb-capg'), 'lo agrupado no lleva el eslabón');
@@ -14823,7 +14833,7 @@
     try {
       await paginaAbierta(); await seListo(); await ppClic('.pp-tabs [data-p="tareas"]'); await M.personal.set({ vista: 'lista' });
       const cs = e => W.getComputedStyle(e), sonda = v => { const d = D.createElement('i'); d.style.color = v; q('#mesa').append(d); const c = cs(d).color; d.remove(); return c; };
-      const linea = sonda('color-mix(in oklab, var(--acc) 50%, transparent)'), rsm = cs(q('#mesa')).getPropertyValue('--r-sm').trim();
+      const linea = sonda('color-mix(in oklab, var(--acc-ink) 50%, transparent)'), rsm = cs(q('#mesa')).getPropertyValue('--r-sm').trim();
       const fina = (e, que) => { const c = cs(e); ok(/inset/.test(c.boxShadow) && c.boxShadow.includes(linea) && /0px 0px 0px 1px/.test(c.boxShadow) && /rgba\(0, 0, 0, 0\)|transparent/.test(c.backgroundColor) && c.borderTopLeftRadius === rsm, que + ': no lleva la línea fina sin fondo: ' + json([c.boxShadow, c.backgroundColor, c.borderTopLeftRadius, linea, rsm])); };
       const t = await M.personal.tarea({ txt: 'Contorno', fecha: '2026-10-03' }); await M.personal._p.cambiar(t.id, x => { x.subtareas = [{ id: 's1', txt: 'Uno' }]; return x; }); await M.personal.render();
       ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(260);
@@ -14840,12 +14850,18 @@
       ok(cs(cd).boxShadow === 'none' && cs(st).boxShadow === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(cs(cd).backgroundColor), 'los campos sin el foco no se ven como leyendo');
       ok(Math.abs(ppCard().getBoundingClientRect().height - alto0) < 2, 'la tarjeta cambia de alto al pasar a escribir: ' + json([alto0, ppCard().getBoundingClientRect().height]));
       ppTecla('Escape'); await espera(200);
+      // a note: its line (when written) clears the buttons
+      const nt = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea larga para ver dónde acaba la línea' }); await M.personal.render();
+      ppRaton(q(`.pp-pt[data-nid="${nt.id}"]`), 'click', 1); await espera(260);
+      ok(ppCard().querySelector('[data-pp="cn"]').getBoundingClientRect().right <= ppCard().querySelector('.pp-cbs').getBoundingClientRect().left - 2, 'la línea de la nota pasa por encima de sus botones');
+      ppTecla('Escape'); await espera(200);
       // the sheet and the file
       const r = await M.sesiones._test.crear({ txt: 'Hoja', clase: 'foto' }); await seAbrir(r.id);
-      ppRaton(seQ('[data-campo="ap:orden"]'), 'click', 1); await espera(250); fina(seQ('[data-campo="ap:orden"]'), 'un texto de la hoja'); ppTecla('Escape'); await espera(200);
+      ppRaton(seQ('[data-campo="ap:orden"]'), 'click', 1); await espera(250); fina(seQ('[data-campo="ap:orden"]'), 'un texto de la hoja');
+      igual(cs(seQ('[data-campo="nom"]')).paddingTop, '3px', 'el nombre de la hoja no deja sitio a la línea'); ppTecla('Escape'); await espera(200);
       const e0 = { id: M.personal._p.nuevoId('es'), tipo: 'esporadico', txt: 'Casa Faro', creada: '2026-06-02T10:00:00.000Z', at: '2026-06-02T10:00:00.000Z' }; await M.personal._p.hacer([{ id: e0.id, despues: e0 }]);
       M.personal._p.abrirCard(e0.id); await espera(260); ppRaton(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'click', 1); await espera(250);
-      fina(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'el nombre de la ficha'); ppTecla('Escape'); await espera(200);
+      fina(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]'), 'el nombre de la ficha'); igual(cs(q('.pp-ov:not(.sale) .pp-es [data-campo="nom"]')).paddingTop, '3px', 'el nombre de la ficha no deja sitio a la línea'); ppTecla('Escape'); await espera(200);
       // a dialog of the Mesa keeps the Mesa's fields (D-171): the rule never reaches them
       M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(120);
       const ni = q('#pp-ns-nom'); ok(ni && !sels(escr).concat(sels(nv)).some(x => ni.matches(x.replace(/:focus(-within)?/g, '')) || q('.detail:not([hidden]) .pp-nueva')), 'la regla llega a los campos de «Nueva sesión»');
@@ -14867,6 +14883,8 @@
       const nn = cs(on.querySelector('.pp-hj-n')), ap = cs(seQ('[data-ap="mood"] .pp-mo-gh .pp-hj-n'));
       igual([nn.fontSize, nn.fontWeight, nn.color], [ap.fontSize, ap.fontWeight, ap.color], 'la cuenta no va como la de los apartados');
       igual(on.querySelector('.pp-hj-n').textContent, '1/2', 'la cuenta');
+      ok(Math.abs(on.querySelector('.pp-pl-tn').getBoundingClientRect().left - seQ('[data-ap="orden"] .pp-hj-pl b').getBoundingClientRect().left) < 1.5, 'la pestaña no empieza donde los demás títulos');
+      ok(on.querySelector('.pp-hj-n').getBoundingClientRect().left - on.querySelector('.pp-pl-tn').getBoundingClientRect().right >= 5, 'la cuenta va pegada al nombre');
       igual(W.getComputedStyle(on, '::after').content, 'none', 'la elegida lleva raya');
       igual(cs(seQ('.pp-pl-tabs')).borderBottomWidth, '0px', 'hay línea debajo');
       igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--faint')], 'la elegida no va en tinta o la otra no en --faint');
@@ -14888,6 +14906,10 @@
         ok(asa.length && asa.every(a => a.left >= sep.right + 2), que + ': el asa de un apartado cae sobre el separador: ' + json([sep.right, asa.map(a => a.left)]));
       };
       for (const v of [0.3, 0.5, 0.7]) { M.personal._p.lsSet('mesa-pp-hoja', JSON.stringify({ ...M.sesiones._test.reparto(), sep: v })); M.personal._p.cerrarCard(true); await seAbrir(r.id); await espera(300); mira('al ' + v * 100 + ' %'); }
+      const sp = seQ('.pp-hj-sep'), rs = sp.getBoundingClientRect(); sp.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: rs.left + 8, clientY: rs.top + 50 }));
+      ok(seQ('.pp-hj-cols').classList.contains('mov') && W.getComputedStyle(seQ('.pp-hj-cols')).transitionDuration === '0s', 'el separador arrastrado va con transición');
+      W.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1 })); sp.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1 })); await espera(60);
+      ok(!seQ('.pp-hj-cols').classList.contains('mov'), 'al soltarlo sigue sin transición');
       ppRaton(seQ('[data-pp="ampliar"]'), 'click', 1); await espera(300); mira('ampliada');
       fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(350);
       ok(!seHoja().querySelector('[data-col="der"]') && parseFloat(W.getComputedStyle(seQ('.pp-hj-col')).paddingLeft) === 4, 'a 720 px lleva los 20 px o dos columnas');

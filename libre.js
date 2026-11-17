@@ -1625,7 +1625,7 @@
 #mesa .lb-cap .lb-ci[data-lb="cap-lock"]::before{--m:var(--lb-i-lock-o)}#mesa .lb-cap .lb-ci[data-lb="cap-lock"].act::before{--m:var(--lb-i-lock)}
 #mesa .lb-cap:hover .lb-ci,#mesa .lb-cap.on .lb-ci,#mesa .lb-cap:focus-within .lb-ci,#mesa .lb-cap .lb-ci.act{opacity:1}
 #mesa .lb-cap .lb-ci.act{color:var(--ink-2)}
-#mesa .lb-cap .lb-ci:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+#mesa .lb-cap .lb-ci:focus-visible,#mesa .lb-cap[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 #mesa .lb-cap.arr{opacity:.5}#mesa .lb-capdrop{position:absolute;left:4px;right:4px;height:2px;border-radius:2px;background:var(--acc);pointer-events:none}
 #mesa .lb-cap{display:flex;align-items:center;gap:2px;min-height:33px;padding:4px 6px 4px 4px;font-size:12.5px;cursor:pointer;border-top:1px solid var(--line2)}#mesa .lb-cap:first-child{border-top:0}
 #mesa .lb-cap:hover{background:var(--bg)}#mesa .lb-cap.on{background:var(--acc-soft)}
@@ -1851,7 +1851,7 @@
       for (const [hx, hy] of asas(el, g)) { x.fillStyle = '#fff'; x.fillRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); x.strokeRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); }
     }
     if (el.lock && solo && !esFotoDz(el)) {    // Lucide's lock (D-215) on a white badge, as the handles, outside the corner: it never covers what is locked
-      const b = 18 * u, k = 12 * u / 24; x.translate(-g.w / 2, -g.h / 2 - b - 4 * u);
+      const b = 18 * u, k = 12 * u / 24, fuera = g.cy - g.h / 2 - b - 4 * u >= 0; x.translate(-g.w / 2 + (fuera ? 0 : 6 * u), fuera ? -g.h / 2 - b - 4 * u : -g.h / 2 + 6 * u);   // at the top edge, inside its corner
       x.beginPath(); x.roundRect(0, 0, b, b, 4 * u); x.fillStyle = '#fff'; x.fill(); x.lineWidth = u; x.stroke();
       x.translate(3 * u, 3 * u); x.scale(k, k); x.lineWidth = 1.33 * u / k; x.lineCap = 'round'; x.lineJoin = 'round';
       x.beginPath(); x.roundRect(3, 11, 18, 11, 2); x.stroke(); x.stroke(LB_LOCK);
@@ -2574,7 +2574,7 @@
     const mueve = dir => { const L2 = reordenar(Lp, sel, dir); if (!L2) return false; const k = L2.findIndex(q => typeof q !== 'string' && esFotoDz(q)); if (k > 0) L2.unshift(L2.splice(k, 1)[0]); return L2.some((q, j) => q !== Lp[j]); };
     abrirCm(itCm('front', 'Al frente', '⇧⌘]', mueve('front')) + itCm('fwd', 'Adelante', '⌘]', mueve('fwd')) + itCm('bwd', 'Atrás', '⌘[', mueve('bwd')) + itCm('back', 'Al fondo', '⇧⌘[', mueve('back')),
       'capa', 'Orden de la capa', x == null ? r.left + 24 : x, y == null ? r.bottom : y);
-    E.capaVuelve = x == null ? `.lb-caps .lb-cap[${cp ? `data-capa="${cp}"` : `data-id="${CSS.escape(f.dataset.id)}"`}] button` : null;   // from the keyboard: the focus comes back to the row
+    E.capaVuelve = x == null ? `.lb-caps .lb-cap[${cp ? `data-capa="${cp}"` : `data-id="${CSS.escape(f.dataset.id)}"`}]` : null;   // from the keyboard: the focus comes back to the row
     return true;
   }
   function onCtx(e) {
@@ -2632,7 +2632,7 @@
     if (!on) { E.cmDe = null; E.el.querySelectorAll('[data-lb="formas"][aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
     const dentro = !on && m.contains(document.activeElement);
     if (dentro) E.el.focus({ preventScroll: true });
-    if (!on && E.capaVuelve) { const s = E.capaVuelve; E.capaVuelve = null; if (dentro) requestAnimationFrame(() => { const b = E && E.el.querySelector(s); if (b) b.focus({ preventScroll: true }); }); }   // closed with its keys or an order: back to the row
+    if (!on && E.capaVuelve) { const s = E.capaVuelve; E.capaVuelve = null; if (dentro) requestAnimationFrame(() => { const r = E && E.el.querySelector(s), b = r && (r.querySelector('button') || r); if (b) b.focus({ preventScroll: true }); }); }   // closed with its keys or an order: back to the row
   }
 
   // ---------- a double click on a bar's row puts it back (Mesa más limpia) ----------
@@ -2831,7 +2831,7 @@
       }
       const e = x, at = `data-id="${esc(e.id)}"`;
       if (fijoDz(e))                            // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
-        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}>${asa(esDz(e))}<span class="lb-capn">${nombreEl(e)}</span></div>`;
+        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}${esDz(e) ? ' tabindex="0"' : ''}>${asa(esDz(e))}<span class="lb-capn">${nombreEl(e)}</span></div>`;
       return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}>${asa()}${e.g ? '<span class="lb-capg" role="img" aria-label="En un grupo" title="En un grupo"></span>' : ''}<span class="lb-capn">${nombreEl(e)}</span>${ver(e, at)}`
         + `<button type="button" class="lb-ci${e.lock ? ' act' : ''}" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-pressed="${!!e.lock}"></button></div>`;
     };
@@ -3747,7 +3747,8 @@
       return;
     }
     if (E.cmOn && !['Enter', 'Tab', ' ', 'Shift'].includes(e.key)) menuCtx(false);   // another key: the menu goes
-    if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && t && t.closest && t.closest('.lb-caps .lb-cap')) { e.preventDefault(); menuCapa(t.closest('.lb-cap')); return; }   // a row of «Capas» from the keyboard (D-215)
+    if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && t && t.closest && t.closest('.lb-caps .lb-cap')) { e.preventDefault(); menuCapa(t.closest('.lb-cap')); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !e.altKey && t && t.matches && t.matches('.lb-caps .lb-cap[tabindex]')) { e.preventDefault(); t.click(); return; }   // a row with no buttons («Diseño»): chosen from the keyboard   // a row of «Capas» from the keyboard (D-215)
     const sola = !e.metaKey && !e.ctrlKey && !e.altKey, teclado = t && t !== E.el && t !== document.body && t.matches && t.matches(':focus-visible');
     if (e.key === ' ' && sola && !E.cmOn && !teclado && sobreGris()) { e.preventDefault(); if (!E.esp) { E.esp = true; mano(); } return; }   // space over the slide or the grey: the hand
     if (sola && !e.shiftKey && (k === 't' || k === 'r')) { if (E.sl.length && !e.repeat) { e.preventDefault(); if (k === 't') act('add-txt'); else act('add-forma', { dataset: { v: 'rect' } }); } return; }

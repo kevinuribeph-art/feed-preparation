@@ -15886,7 +15886,8 @@
       // «+ Factura de octubre» (none yet: this month, with the clock at 1 Oct), then «noviembre»
       await hasta(() => !q('.co-mas[data-co="nueva"]').disabled, 2000, '«+ Factura» con cuota');
       ok(/Factura de octubre/.test(q('.co-mas[data-co="nueva"]').textContent), '«+ Factura» no es la del mes en curso: ' + q('.co-mas').textContent);
-      q('.co-mas[data-co="nueva"]').click(); await hasta(() => M.cobros.ver(CLIENTE).length === 1, 3000, 'la factura nueva');
+      { const bn = q('.co-mas[data-co="nueva"]'); bn.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })); bn.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, detail: 2 })); }   // a double click: one invoice (lesson 57)
+      await hasta(() => M.cobros.ver(CLIENTE).length === 1, 3000, 'la factura nueva'); await espera(150); igual(M.cobros.ver(CLIENTE).length, 1, 'un doble clic en «+ Factura» crea dos');
       let f1 = M.cobros.ver(CLIENTE)[0]; igual([f1.periodo, f1.importe, f1.emitida, f1.vence, f1.estado], ['2026-10', 450, '2026-10-15', '2026-10-25', 'sinemitir'], 'la factura nueva y sus fechas');
       await hasta(() => D.activeElement === q(`tr.co-f[data-id="${f1.id}"] [data-co="num"]`), 2000, 'el foco en su número');
       ok(/Factura de noviembre/.test(q('.co-mas[data-co="nueva"]').textContent), 'la siguiente no es la de noviembre');
@@ -16116,6 +16117,183 @@
       await hasta(() => (M.cobros.ver(nuevo.id)[0] || {}).id === 'c6-p', 3000, 'su cobro en el mensual'); igual(M.cobros.ver(e2.id).length, 0, 'el cobro se queda en el esporádico');
       await M._test.cobBorrarTodo(); await M.removeClient(nuevo.id);
     } finally { try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } M._in.closeDetail(); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+  prueba('CO7', 'Cobros, contraste (D-232 a D-237): los estados de Kevin («Cobrada», «Pendiente», «Retrasada N días», «Sin emitir») y del cliente («Pagada», «Pendiente», vencida), las fechas, la línea de cada bloque, la de Avisos y lo pendiente de «Tus pagos», de 4,5:1 o más sobre su fondo, en claro y en oscuro', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    const fondo = e => { for (let x = e; x; x = x.parentElement) { const b = W.getComputedStyle(x).backgroundColor; if (b && !/rgba\(0, 0, 0, 0\)|transparent/.test(b)) return b; } return W.getComputedStyle(D.body).backgroundColor; };
+    const mide = (sel, que) => { const l = qa(sel); ok(l.length, 'no está ' + sel); return l.map(e => [que + ' ' + sel, +contraste(W.getComputedStyle(e).color, fondo(e)).toFixed(2)]); };
+    const tema0 = D.documentElement.dataset.theme;
+    try {
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      await M.cobros.cargar([{ id: 'c7-a', cliente: CLIENTE, periodo: '2026-09', importe: 450, factura: 'A', emitida: '2026-09-15', vence: '2026-09-25', cobrada: '2026-09-23' },
+        { id: 'c7-b', cliente: CLIENTE, periodo: '2026-10', importe: 450, factura: 'B', emitida: '2026-10-15', vence: '2026-10-25' },
+        { id: 'c7-c', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: 'C', emitida: '2026-11-15', vence: '2026-11-25' },
+        { id: 'c7-d', cliente: CLIENTE, periodo: '2026-12', importe: 450, factura: 'D', emitida: '2026-12-15', vence: '2026-12-25' }]);
+      const malos = [];
+      for (const tema of ['claro', 'oscuro']) {
+        if (tema === 'oscuro') D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme;
+        await espera(60);
+        await coFicha(CLIENTE, 'cobros'); await espera(60);
+        const m1 = [...mide('.co-e.ok', tema), ...mide('.co-e.pend', tema), ...mide('.co-e.tarde', tema), ...mide('.co-e.sin', tema), ...mide('.co-fe', tema), ...mide('.co-mas', tema), ...mide('.co-t th', tema)];
+        M._in.closeDetail();
+        await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+        const m2 = [...mide(`.pp-bw[data-c="${CLIENTE}"] .pp-cob`, tema), ...mide('.pp-ing', tema), ...mide('.pp-av[data-pp="cobro"] .pp-est', tema), ...mide('.pp-av[data-pp="cobro"] .pp-cu', tema)];
+        paginaCerrada(); await vistaCliente(true); M._in.render(); await espera(80);
+        const m3 = [...mide('.co-ce.ok', tema), ...mide('.co-ce.pend', tema), ...mide('.co-ce.rojo', tema), ...mide('.co-vp', tema), ...mide('.co-vp .rojo', tema), ...mide('.co-vl .n', tema), ...mide('.co-vh span', tema), ...mide('.co-vprox', tema)];
+        await vistaCliente(false);
+        malos.push(...[...m1, ...m2, ...m3].filter(x => x[1] < 4.5));
+      }
+      igual(malos, [], 'contraste por debajo de 4,5:1');
+    } finally { if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; M._in.closeDetail(); paginaCerrada(); await vistaCliente(false); relojVuelve(); await sinTareas(); }
+  });
+  prueba('CO8', 'Arreglos de la revisión funcional de los cobros (D-232 a D-237): un PDF soltado sobre otro deja «PDF sustituido» con «Deshacer» (mismos bytes); lo editado mientras se guarda un PDF no se pierde; importar un archivo que nombra un PDF que no trae conserva el de aquí, y uno perdido aquí vuelve del archivo; las sumas no cuentan cobros de un cliente que ya no existe; una fila que se escribe no cambia de sitio; una fecha imposible o una cuota rara en un archivo no entran; `at` en ISO; un cobro con solo «Vence» cuenta; Esc en un campo de la ficha de un esporádico lo devuelve y no la cierra', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      await M.cobros.cargar([{ id: 'c8-a', cliente: CLIENTE, periodo: '2026-10', importe: 100, factura: 'A', emitida: '2026-10-15', vence: '2026-10-25' }]);
+      const pA = new W.File(['%PDF-1.4\n% a\n' + 'a'.repeat(3000)], 'a.pdf', { type: 'application/pdf' }), hA = await shaDe(pA);
+      ok((await M.cobros.adjuntar('c8-a', pA, 'a.pdf')).ok, 'adjuntar A');
+      const idA = M.cobros.ver(CLIENTE)[0].pdf;
+      // a PDF dropped over another: «PDF sustituido» and «Deshacer» brings the first one back, the same bytes
+      await coFicha(CLIENTE, 'cobros');
+      await coSoltar(coFila('c8-a'), new W.File(['%PDF-1.4\n% b\n' + 'b'.repeat(3000)], 'b.pdf', { type: 'application/pdf' }));
+      await hasta(() => M.cobros.ver(CLIENTE)[0].pdf && M.cobros.ver(CLIENTE)[0].pdf !== idA, 3000, 'el PDF sustituido');
+      const des = await hasta(() => [...qa('.toasts .toast')].find(x => /PDF sustituido/.test(x.textContent)), 2000, '«PDF sustituido»');
+      des.querySelector('button').click(); await hasta(() => M.cobros.ver(CLIENTE)[0].pdf === idA, 3000, 'el primero de vuelta');
+      igual(await shaDe((await M._in.idbGet('cfacturas', idA)).blob), hA, 'los bytes del PDF devuelto');
+      M._in.closeDetail();
+      // an edit while a big PDF is written stays
+      const grande = new W.Blob(['%PDF-1.4\n' + 'g'.repeat(9 * 1024 * 1024)], { type: 'application/pdf' });
+      const pr = M.cobros.adjuntar('c8-a', grande, 'g.pdf'); await espera(5);
+      await CB().parche('c8-a', { factura: 'NUEVO' }); await pr;
+      const r1 = M.cobros.ver(CLIENTE)[0]; ok(r1.factura === 'NUEVO' && r1.pdf && r1.pdf !== idA, 'lo editado mientras se guardaba el PDF se pierde: ' + json([r1.factura, r1.pdf]));
+      // import: a file that names a PDF it doesn't bring keeps the one here
+      const pdfAqui = r1.pdf, d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      const raro = JSON.parse(JSON.stringify(d)); raro.cfacturas = []; raro.cobros = raro.cobros.map(c => c.id === 'c8-a' ? { ...c, pdf: 'cf-no-viene', importe: 101, at: new Date(Date.now() + 60000).toISOString() } : c);
+      let x = await M.importData(raro, { confirm: false }); ok(x && x.ok, 'importar');
+      const r2 = M.cobros.ver(CLIENTE)[0]; igual([r2.importe, r2.pdf], [101, pdfAqui], 'la factura se queda sin el PDF de aquí');
+      ok(await M._in.idbGet('cfacturas', pdfAqui), 'el PDF de aquí se borra');
+      // a PDF lost here comes back from the file
+      await M._in.idbDel('cfacturas', pdfAqui);
+      x = await M.importData(d, { confirm: false }); ok(x && x.ok, 'importar otra vez');
+      ok(await M._in.idbGet('cfacturas', pdfAqui), 'el PDF perdido aquí no vuelve del archivo');
+      // the sums leave out a client that doesn't exist
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      const suma0 = (q('.pp-clientes .pp-ing') || {}).textContent || '';
+      await M._in.idbPut('cobros', 'c8-huerfano', { id: 'c8-huerfano', cliente: 'nadie-c8', periodo: '2026-10', importe: 999, factura: '', emitida: '2026-10-01', vence: '2026-12-01', cobrada: '', pdf: '', at: new Date().toISOString() }); await CB().leer(true);
+      await M.personal.render();
+      igual((q('.pp-clientes .pp-ing') || {}).textContent || '', suma0, 'las sumas cuentan un cobro de un cliente que no existe');
+      paginaCerrada(); await M._in.idbDel('cobros', 'c8-huerfano'); await CB().leer(true);
+      // a stable order: writing a row without dates doesn't move it
+      const T = M.personal._p, e = { id: T.nuevoId('es'), tipo: 'esporadico', txt: 'Esporádico C8', creada: new Date().toISOString(), at: new Date().toISOString() };
+      await M._in.idbPut('tareas', e.id, e);
+      const s1 = await M.sesiones._test.crear({ txt: 'S1', clase: 'foto', fecha: '2026-11-01', clientes: [e.id] }), s2 = await M.sesiones._test.crear({ txt: 'S2', clase: 'foto', fecha: '2026-11-02', clientes: [e.id] });
+      await M.cobros.cargar([{ id: 'c8-x1', cliente: e.id, periodo: s1.id, importe: 0 }, { id: 'c8-x2', cliente: e.id, periodo: s2.id, importe: 0 }]);
+      const orden0 = M.cobros.ver(e.id).map(r => r.id); await CB().parche(orden0[1], { importe: 5 });
+      igual(M.cobros.ver(e.id).map(r => r.id), orden0, 'una fila escrita cambia de sitio');
+      // Esc in a field of the sporadic client's file: back to what is saved, the file stays
+      await paginaAbierta(); T.abrirCard(e.id); await hasta(() => q('.pp-es-cob tr.co-f'), 3000, 'la ficha con sus cobros');
+      const inp = q(`.pp-es-cob tr.co-f[data-id="${orden0[1]}"] [data-co="imp"]`); inp.focus(); inp.value = '77';
+      inp.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await espera(150);
+      ok(q('.pp-card.pp-es') && inp.value === '5 €', 'Esc en un campo de la ficha la cierra o no lo devuelve: ' + inp.value);
+      T.cerrarCard(true); paginaCerrada();
+      // a file with an impossible date, or a strange fee, is refused whole
+      const malo = JSON.parse(JSON.stringify(d)); malo.cobros[0] = { ...malo.cobros[0], emitida: '2026-13-01' };
+      ok((await M.importData(malo, { confirm: false })).error, 'entra una fecha imposible');
+      const malo2 = JSON.parse(JSON.stringify(d)); malo2.clients.find(c => c.id === CLIENTE).cuota = { importe: 1, dia: '<b>x</b>', plazo: 1 };
+      ok((await M.importData(malo2, { confirm: false })).error, 'entra una cuota con un día que no es un número');
+      // `at` as ISO; only «Vence» counts as issued
+      await M.cobros.cargar([{ id: 'c8-at', cliente: CLIENTE, periodo: '2026-08', importe: 1, vence: '2026-11-10', at: 'Tue Nov 10 2026 10:00:00 GMT+0100' }]);
+      const ra = M.cobros.ver(CLIENTE).find(r => r.id === 'c8-at'); igual(ra.at, '2026-11-10T09:00:00.000Z', '`at` no queda en ISO');
+      igual([ra.estado, ra.diasRetraso], ['retrasada', 10], 'un cobro con solo «Vence» no cuenta');
+    } finally { M._in.closeDetail(); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+  prueba('CO9', 'Arreglos de la revisión de dibujo de los cobros (D-233 a D-237): «Editar cliente» no salta al cambiar de pestaña ni al añadir una factura; en oscuro los separadores de la tabla se ven; las sumas de la cabecera van aparte del selector; la × de los PDF forma columna; en «Tus pagos» una fecha no se parte y el año no se repite; «+ Cobro» como «+ Sesión»; la línea de un bloque se ilumina sola', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    const tema0 = D.documentElement.dataset.theme;
+    try {
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      const L = ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11'].map((m, i) => ({ id: 'c9-' + m, cliente: CLIENTE, periodo: m, importe: 450, factura: 'F-' + i, emitida: m + '-15', vence: m + '-25', cobrada: i < 4 ? m + '-22' : '' }));
+      L.push({ id: 'c9-ene', cliente: CLIENTE, periodo: '2027-01', importe: 450, factura: 'F-9', emitida: '2027-01-15', vence: '2027-01-25' });
+      await M.cobros.cargar(L); for (const x of L.slice(0, 4)) await M.cobros.adjuntar(x.id, new W.Blob(['%PDF-1.4\n' + x.id], { type: 'application/pdf' }), x.factura + '.pdf');
+      // the dialog doesn't jump: its tabs stay where they were
+      await coFicha(CLIENTE, 'datos'); const y0 = q('.ectab').getBoundingClientRect().top;
+      q('.ectab[data-t="cobros"]').click(); await espera(60); cerca(q('.ectab').getBoundingClientRect().top, y0, 0.5, 'las pestañas saltan al pasar a «Cobros»');
+      // the ×s of the PDFs in one column
+      const xs = qa('.co-t .co-x').map(b => Math.round(b.getBoundingClientRect().left)); ok(xs.length >= 3 && new Set(xs).size === 1, 'la × no forma columna: ' + json(xs));
+      // in dark, the table's separators show on the dialog's card
+      D.documentElement.dataset.theme = 'dark'; await espera(60);
+      const td = q('.co-t tr.co-f + tr.co-f td') || qa('.co-t tr.co-f td')[8], card = q('.detail .card');
+      ok(contraste(W.getComputedStyle(td).borderTopColor, W.getComputedStyle(card).backgroundColor) > 1.15, 'en oscuro los separadores no se ven');
+      delete D.documentElement.dataset.theme; if (tema0) D.documentElement.dataset.theme = tema0;
+      M._in.closeDetail();
+      // the sums apart from the selector
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      const ing = q('.pp-clientes .pp-ing'); ok(ing && !ing.closest('.pp-phl') && ing.parentElement.classList.contains('pp-phr'), 'las sumas van pegadas al selector');
+      // the line of a block lights alone
+      ok(!deRegla(/\.pp-bw:hover/, 'background') && deRegla(/\.pp-cob:hover/, 'background'), 'al pasar por la línea se ilumina el bloque');
+      paginaCerrada();
+      // «Tus pagos»: a date never split, no year twice
+      await vistaCliente(true); M._in.render(); await espera(80);
+      ok(qa('.co-vl .n .co-nw').length && qa('.co-vl .n .co-nw').every(e => W.getComputedStyle(e).whiteSpace === 'nowrap'), 'una fecha se parte');
+      const px = q('.co-vprox'); ok(px && !/2027.*2027/.test(px.textContent), 'el año se repite: ' + (px && px.textContent));
+      await vistaCliente(false);
+      // «+ Cobro» as «+ Sesión»
+      const T = M.personal._p, e = { id: T.nuevoId('es'), tipo: 'esporadico', txt: 'Esporádico C9', creada: new Date().toISOString(), at: new Date().toISOString() };
+      await M._in.idbPut('tareas', e.id, e); await paginaAbierta(); T.abrirCard(e.id); await hasta(() => q('.pp-es-cob'), 3000, 'su ficha');
+      ok(q('.pp-es-cob [data-co="nuevo-ses"]').classList.contains('pp-cmas'), '«+ Cobro» no es como «+ Sesión»');
+      T.cerrarCard(true); paginaCerrada();
+    } finally { if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; M._in.closeDetail(); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); await vistaCliente(false); relojVuelve(); await sinTareas(); }
+  });
+  prueba('CO10', 'Arreglos de la segunda ronda de los cobros (D-232 a D-237): un PDF quitado en el otro Mac se queda quitado al importar; un archivo con un `at` que no es fecha o un mes que no existe no entra; uno que solo trae un PDF perdido lo dice; dos cambios durante una lectura no pierden ninguno; «+ Cobro» apagado se ve apagado; las sumas bajan a su línea cuando no caben con «1 · 2 · 5»; la línea de un bloque con aire; en «Tus pagos» estrecho, la fecha bajo el número sin «·» colgando', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width;
+    try {
+      await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      await M.cobros.cargar([{ id: 'c10-a', cliente: CLIENTE, periodo: '2026-10', importe: 100, factura: 'A', emitida: '2026-10-15', vence: '2026-10-25' }]);
+      await M.cobros.adjuntar('c10-a', new W.Blob(['%PDF-1.4\n% c10'], { type: 'application/pdf' }), 'a.pdf');
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()), pid = M.cobros.ver(CLIENTE)[0].pdf;
+      // a PDF taken away on the other Mac stays away
+      const quitado = JSON.parse(JSON.stringify(d)); quitado.cobros = quitado.cobros.map(c => c.id === 'c10-a' ? { ...c, pdf: '', at: new Date(Date.now() + 60000).toISOString() } : c);
+      ok((await M.importData(quitado, { confirm: false })).ok, 'importar'); igual(M.cobros.ver(CLIENTE)[0].pdf, '', 'un PDF quitado en el otro Mac vuelve');
+      // a file with an `at` that isn't a date, or a month that doesn't exist, is refused; cargar too
+      const malo = JSON.parse(JSON.stringify(d)); malo.cobros[0].at = 'zzz'; ok((await M.importData(malo, { confirm: false })).error, 'entra un `at` que no es fecha');
+      const malo2 = JSON.parse(JSON.stringify(d)); malo2.cobros[0].periodo = '2026-13'; ok((await M.importData(malo2, { confirm: false })).error, 'entra un mes que no existe');
+      ok((await M.cobros.cargar([{ cliente: CLIENTE, periodo: '2026-13', importe: 1 }])).error, 'cargar acepta un mes que no existe');
+      // a file that only brings a lost PDF says so
+      await M.cobros.cargar([{ id: 'c10-a', cliente: CLIENTE, periodo: '2026-10', importe: 100, factura: 'A', emitida: '2026-10-15', vence: '2026-10-25', at: new Date(Date.now() + 120000).toISOString() }]);
+      await M.cobros.adjuntar('c10-a', new W.Blob(['%PDF-1.4\n% c10b'], { type: 'application/pdf' }), 'b.pdf');
+      const d2 = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()), pid2 = M.cobros.ver(CLIENTE)[0].pdf;
+      await M._in.idbDel('cfacturas', pid2);
+      ok((await M.importData(d2, { confirm: false })).ok, 'importar el PDF perdido');
+      await hasta(() => qa('.toasts .toast').some(x => /PDF de factura/.test(x.textContent)), 3000, 'que diga el PDF que vuelve');
+      // two changes during a reading in course: none lost
+      const lee = CB().leer(true), p1 = CB().parche('c10-a', { factura: 'G1' }), p2 = CB().parche('c10-a', { importe: 222 });
+      await Promise.all([lee, p1, p2]); await CB().leer(true);
+      const rr = M.cobros.ver(CLIENTE)[0], db = await M._in.idbGet('cobros', 'c10-a'); igual([rr.factura, rr.importe, db.factura, db.importe], ['G1', 222, 'G1', 222], 'un cambio se pierde');
+      // «+ Cobro» off, as off
+      const T = M.personal._p, e = { id: T.nuevoId('es'), tipo: 'esporadico', txt: 'Esporádico C10', creada: new Date().toISOString(), at: new Date().toISOString() };
+      await M._in.idbPut('tareas', e.id, e); await paginaAbierta(); T.abrirCard(e.id); const bm = await hasta(() => q('.pp-es-cob [data-co="nuevo-ses"]'), 3000, '«+ Cobro»');
+      ok(bm.disabled && rgbDe(W.getComputedStyle(bm).color).join() === rgbDe(W.getComputedStyle(q('#mesa')).getPropertyValue('--faint').trim()).join(), '«+ Cobro» apagado no se ve apagado');
+      T.cerrarCard(true);
+      // the sums to their own line when they don't fit with «1 · 2 · 5»; the line of a block with air
+      await M.personal.set({ plg: { tareas: true, clientes: false, avisos: false } }); await M.personal.render();
+      const blq = q(`.pp-bw[data-c="${CLIENTE}"] .pp-blq`), lin = q(`.pp-bw[data-c="${CLIENTE}"] .pp-cob`);
+      ok(lin && lin.querySelector('svg').getBoundingClientRect().top >= blq.getBoundingClientRect().bottom, 'la línea se mete bajo el bloque: ' + (lin && lin.querySelector('svg').getBoundingClientRect().top) + ' ' + blq.getBoundingClientRect().bottom);
+      fr.style.width = '1100px'; await espera(300); await M.personal.render(); await espera(60);
+      const hr = q('.pp-clientes > .pp-phr'), ing = hr.querySelector('.pp-ing'), fila = hr.querySelector('.pp-pfn'), phl = hr.querySelector('.pp-phl');
+      ok(hr.getBoundingClientRect().width <= 740 ? (W.getComputedStyle(ing).order === '3' && Math.abs(fila.getBoundingClientRect().top - phl.getBoundingClientRect().top) < 12) : true, 'las sumas no bajan a su línea o «1 · 2 · 5» se cae');
+      fr.style.width = w0; await espera(300); paginaCerrada();
+      // «Tus pagos» narrow: the date under the number, no «·» hanging
+      await vistaCliente(true); M._in.render(); await espera(80);
+      const pt = q('.co-vl .co-pt'); ok(pt && W.getComputedStyle(pt).display === 'none' && W.getComputedStyle(q('.co-vl .n .co-nw')).display === 'block', 'en la columna estrecha el «·» cuelga');
+      await vistaCliente(false);
+    } finally { fr.style.width = w0; try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); await vistaCliente(false); relojVuelve(); await sinTareas(); }
   });
 
   // =====================================================================================================

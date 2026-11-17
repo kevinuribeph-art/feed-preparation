@@ -2506,7 +2506,7 @@
 #mesa .card h3{margin:0 32px 6px 0;font-size:20px;font-weight:800;letter-spacing:-.025em;line-height:1.2}#mesa .card>p{margin:0 0 12px;color:var(--mute);font-size:13px;line-height:1.5}
 #mesa .card .x{position:absolute;top:12px;right:12px;border:0;background:none;width:32px;height:32px;border-radius:50%;transition:background var(--d1) ease-out}
 #mesa .card .x:hover{background:var(--bg-2);color:var(--ink)}
-#mesa .card.dlg{max-width:440px}#mesa .card.dlg.ec2{max-width:760px;width:min(760px,100%)}
+#mesa .card.dlg{max-width:440px}#mesa .card.dlg.ec2{max-width:784px;width:min(784px,100%)}#mesa .detail[data-dlg="editclient"]{align-items:flex-start;padding-top:clamp(16px,10vh,96px)}
 #mesa .repl{list-style:none;margin:8px 0 0;padding:0;max-height:min(50vh,320px);overflow:auto;font-size:13px}#mesa .repl li{display:flex;flex-direction:column;gap:1px;padding:8px 0;border-top:1px solid var(--line2)}#mesa .repl li span{color:var(--mute);font-size:12.5px}
 #mesa .form label{display:block;font-size:12.5px;font-weight:600;margin:14px 0 6px}#mesa .form label span{font-weight:400;color:var(--mute)}
 #mesa .form input[type=text],#mesa .form input[type=number]{width:100%;box-sizing:border-box;height:32px;min-height:0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);padding:0 12px;font:13px var(--font);color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out}
@@ -4358,7 +4358,7 @@
       await idbPut('files', id, { name: 'Perfil · ' + file.name, size: file.size, type: file.type, w, h, lastModified: file.lastModified || 0, blob: file, thumb });
       await avDiscard();
       avStage = { cid: c.id, id }; await loadThumbs([id]);
-      const d = root.querySelector('.detail'); if (d.dataset.dlg !== 'editclient') { await avDiscard(); return; }
+      const d = root.querySelector('.detail'); if (d.dataset.dlg !== 'editclient' || (edCid || curClient) !== c.id) { await avDiscard(); return; }
       d.querySelector('.avprev').outerHTML = avatarHTML({ ...c, foto: id }, 'avprev'); d.querySelector('[data-act="avdel"]').hidden = false;
     } catch (e) { toast('No se pudo leer esa foto.'); }
   }
@@ -5003,7 +5003,7 @@
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
         a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
@@ -5170,17 +5170,19 @@
   let COB = null, cobGen = 0, cobLee = null;
   const COB_PDF_MAX = 10 * 1024 * 1024;
   const cobBC = (() => { try { const b = new BroadcastChannel('mesa-cobros'); b.onmessage = () => { cobLeer(true).then(() => cobAvisar(false)); }; return b; } catch (e) { return null; } })();
-  let cobOtra = false;
+  let cobOtra = false, cobMal = false;           // cobMal: 'cobros' couldn't be read (nothing is deleted on that)
   function cobLeer(otra) {
     if (otra) cobOtra = true;
     if (cobLee) return cobLee;
-    if (COB && !cobOtra) return Promise.resolve(COB);
+    if (COB && !cobOtra && !cobMal) return Promise.resolve(COB);
     const p = cobLee = (async () => {
       try {
         for (;;) {
-          cobOtra = false; const g = cobGen, l = (await idbAll('cobros').catch(() => [])) || [];
+          await cobPend;                                // the writes in course first: never a reading older than the cache
+          cobOtra = false; const g = cobGen; let l;
+          try { l = (await idbAll('cobros')) || []; } catch (e) { if (!COB) { COB = new Map(); cobMal = true; } return COB; }   // a failed reading keeps what was read
           if (g !== cobGen || cobOtra) continue;        // a change while reading: read again (lesson 75)
-          COB = new Map(l.filter(r => r && r.id).map(r => [r.id, r]));
+          COB = new Map(l.filter(r => r && r.id).map(r => [r.id, r])); cobMal = false;
           await loadClients().catch(() => {});          // a fee changed in another tab
           return COB;
         }
@@ -5195,16 +5197,17 @@
   }
   const cobAt = prev => { let t = new Date().toISOString(); if (prev && t <= prev) t = new Date(Date.parse(prev) + 1).toISOString(); return t; };
   const cobVivos = cli => COB ? [...COB.values()].filter(r => !r.borrado && (cli == null || r.cliente === cli)) : [];
-  const COB_DIA = /^\d{4}-\d{2}-\d{2}$/, COB_MES = /^\d{4}-\d{2}$/;
+  const COB_DIA = /^\d{4}-\d{2}-\d{2}$/, COB_MES = /^\d{4}-(0[1-9]|1[0-2])$/;   // a month that exists
   const cobDia = v => (typeof v === 'string' && COB_DIA.test(v) && !isNaN(Date.parse(v + 'T12:00:00Z'))) ? v : '';
   const cobDias = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);   // b − a, in days
   const cobMasDias = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
-  // its state today (Madrid): cobrada, it has a date of payment; sin emitir, no date of issue or a later one; retrasada, not
+  // its state today (Madrid): cobrada, it has a date of payment; sin emitir, no date of issue nor when it's due, or a later
+  // date of issue; retrasada, not
   // paid since the day after it was due; pendiente, the rest (issued, not paid, due today or later)
   function cobEstado(r, hoy) {
     hoy = hoy || madParts(ahora()).day;
     if (r.cobrada) return { k: 'cobrada' };
-    if (!r.emitida || r.emitida > hoy) return { k: 'sinemitir' };
+    if ((!r.emitida && !r.vence) || (r.emitida && r.emitida > hoy)) return { k: 'sinemitir' };   // only «Vence» given: it counts as issued
     if (r.vence && r.vence < hoy) return { k: 'retrasada', dias: cobDias(r.vence, hoy) };
     return { k: 'pendiente' };
   }
@@ -5216,8 +5219,8 @@
   }
   const cobFechas = (mes, q) => { const emitida = `${mes}-${String(q.dia).padStart(2, '0')}`; return { emitida, vence: cobMasDias(emitida, q.plazo) }; };
   // what goes first in a list: its date of issue, else its month, else when it was written
-  const cobClave = r => r.emitida || (COB_MES.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || String(r.at || '').slice(0, 10);
-  const cobOrden = (a, b) => cobClave(b).localeCompare(cobClave(a)) || String(b.at || '').localeCompare(String(a.at || ''));
+  const cobClave = r => r.emitida || (COB_MES.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
+  const cobOrden = (a, b) => cobClave(b).localeCompare(cobClave(a)) || String(b.id).localeCompare(String(a.id));   // never by `at`: a row being written doesn't jump
   // the next invoice not issued yet of a monthly client: one saved with a later date of issue, or the first month from this
   // one that has none, with its fee
   function cobProxima(cli, hoy) {
@@ -5247,10 +5250,11 @@
     return ok || null;
   }
   // Kevin's sums: paid this calendar month (by its date of payment) and pending (pendiente and retrasada, of any month)
-  function cobTotales(hoy) {
+  function cobTotales(hoy, existe) {
     hoy = hoy || madParts(ahora()).day;
     let cobrado = 0, pendiente = 0, hay = false;
     for (const r of cobVivos()) {
+      if (existe && !existe(r.cliente)) continue;
       hay = true; const e = cobEstado(r, hoy).k, n = +r.importe || 0;
       if (e === 'cobrada' && String(r.cobrada).slice(0, 7) === hoy.slice(0, 7)) cobrado += n;
       else if (e === 'pendiente' || e === 'retrasada') pendiente += n;
@@ -5269,12 +5273,12 @@
     return Math.round(parseFloat(t) * 100) / 100;
   }
   const COB_MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  const cobCorto = d => d ? `${+d.slice(8, 10)} ${COB_MESES[+d.slice(5, 7) - 1].slice(0, 3)}` : '';
+  const cobCorto = d => { const m = COB_MESES[+String(d || '').slice(5, 7) - 1]; return d ? (m ? `${+d.slice(8, 10)} ${m.slice(0, 3)}` : String(d)) : ''; };
   // what an invoice is called: its month («Noviembre», with its year if it isn't this one's) or its session
   function cobNombre(r, hoy) {
     hoy = hoy || madParts(ahora()).day;
     const p = r.periodo || '';
-    if (COB_MES.test(p)) { const n = COB_MESES[+p.slice(5, 7) - 1]; return n.charAt(0).toUpperCase() + n.slice(1) + (p.slice(0, 4) !== hoy.slice(0, 4) ? ' ' + p.slice(0, 4) : ''); }
+    if (COB_MES.test(p) && COB_MESES[+p.slice(5, 7) - 1]) { const n = COB_MESES[+p.slice(5, 7) - 1]; return n.charAt(0).toUpperCase() + n.slice(1) + (p.slice(0, 4) !== hoy.slice(0, 4) ? ' ' + p.slice(0, 4) : ''); }
     return r.concepto || 'Sesión';
   }
   async function cobPdfValido(blob) {
@@ -5284,12 +5288,21 @@
     return '';
   }
   function cobNoLocked() { if (locked) throw new Error('la mesa está abierta en otra pestaña o hay una versión nueva'); }
-  async function cobGuardar(rec) {
-    cobNoLocked(); await cobLeer();
-    const prev = COB.get(rec.id), n = { ...rec, at: cobAt(prev && prev.at) };
-    cobGen++; await idbPut('cobros', n.id, n); COB.set(n.id, n);
+  // one write: in the cache first, in the same step as the reading of what it changes (a change read meanwhile builds on
+  // this one), then in the database; a reading waits for the writes in course
+  let cobPend = Promise.resolve();
+  async function cobEscribir(n, prev) {
+    const p = idbPut('cobros', n.id, n); cobPend = cobPend.then(() => p).catch(() => {});
+    try { await p; } catch (e) { cobLeer(true).then(() => cobAvisar(false)); throw e; }
     if (prev && prev.pdf && prev.pdf !== n.pdf) await cobPdfLibre(prev.pdf);
     cobAvisar(true); return n;
+  }
+  function cobPoner(rec) { cobNoLocked(); const prev = COB.get(rec.id), n = { ...rec, at: cobAt(prev && prev.at) }; cobGen++; COB.set(n.id, n); return [n, prev]; }
+  async function cobGuardar(rec) { await cobLeer(); const [n, prev] = cobPoner(rec); return cobEscribir(n, prev); }
+  // a change of some fields of an invoice, over its record as it is when it's written (never over an older copy)
+  async function cobParche(id, cambio) {
+    await cobLeer(); const r = COB.get(id); if (!r || r.borrado) return null;
+    const [n, prev] = cobPoner({ ...r, ...cambio }); return cobEscribir(n, prev);
   }
   // a PDF goes from its store only when no invoice names it
   async function cobPdfLibre(pid) {
@@ -5297,32 +5310,48 @@
     try { await idbDel('cfacturas', pid); } catch (e) { /* */ }
   }
   async function cobPdfBarrer() {                      // the PDFs no invoice names any longer (after an import)
-    const vivos = new Set(cobVivos().map(r => r.pdf).filter(Boolean));
+    let l; try { l = (await idbAll('cobros')) || []; } catch (e) { return; }   // unread, nothing goes
+    const vivos = new Set(l.filter(r => r && !r.borrado && r.pdf).map(r => r.pdf));
     for (const k of await allKeys('cfacturas').catch(() => [])) if (!vivos.has(k)) { try { await idbDel('cfacturas', k); } catch (e) { /* */ } }
   }
   async function cobBorrar(id) {
-    cobNoLocked(); await cobLeer();
-    const r = COB.get(id); if (!r || r.borrado) return null;
-    const f = r.pdf ? await idbGet('cfacturas', r.pdf).catch(() => null) : null;   // its bytes in memory: the stored one goes now
-    const pdf = f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null;
+    await cobLeer(); cobNoLocked();
+    const r0 = COB.get(id); if (!r0 || r0.borrado) return null;
+    const pdf = await cobPdfCopia(r0.pdf);              // its bytes in memory: the stored one goes now
+    let r = COB.get(id); if (!r || r.borrado) return null;   // as it is now (a change while copying)
+    const pdf2 = r.pdf !== r0.pdf ? await cobPdfCopia(r.pdf) : pdf; r = COB.get(id); if (!r || r.borrado) return null;
+    cobNoLocked();
     const t = { id, cliente: r.cliente, borrado: true, at: cobAt(r.at) };
-    cobGen++; await idbPut('cobros', id, t); COB.set(id, t);
+    cobGen++; COB.set(id, t);
+    try { const p = idbPut('cobros', id, t); cobPend = cobPend.then(() => p).catch(() => {}); await p; } catch (e) { cobLeer(true).then(() => cobAvisar(false)); throw e; }
     if (r.pdf) await cobPdfLibre(r.pdf);
-    cobAvisar(true); return { rec: r, pdf };            // what «Deshacer» puts back
+    cobAvisar(true); return { rec: r, pdf: pdf2 };      // what «Deshacer» puts back
   }
   async function cobDevolver(x) {                       // «Deshacer»: the record (newer than its tombstone) and its PDF
     if (!x || !x.rec) return null;
-    if (x.pdf && x.rec.pdf) await idbPut('cfacturas', x.rec.pdf, x.pdf);
+    cobNoLocked(); if (x.pdf && x.rec.pdf) await idbPut('cfacturas', x.rec.pdf, x.pdf);
     return cobGuardar(x.rec);
+  }
+  async function cobPdfCopia(pid) {                     // a PDF with its bytes in memory (for «Deshacer»), or null
+    if (!pid) return null;
+    try { const f = await idbGet('cfacturas', pid); return f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null; } catch (e) { return null; }
+  }
+  async function cobPdfVolver(id, f) {                  // «Deshacer» of a PDF taken away or replaced: that one again
+    if (!f) return null; await cobLeer(); const r = COB.get(id); if (!r || r.borrado) return null;
+    cobNoLocked(); await idbPut('cfacturas', f.id, f);
+    const n = await cobParche(id, { pdf: f.id }); if (!n) await cobPdfLibre(f.id);   // gone meanwhile: the PDF doesn't stay alone
+    return n;
   }
   async function cobPdfPoner(id, blob, nombre) {
     const err = await cobPdfValido(blob); if (err) return { error: err };
-    cobNoLocked(); await cobLeer();
-    const r = COB.get(id); if (!r || r.borrado) return { error: 'esa factura ya no está' };
+    await cobLeer(); cobNoLocked();
+    const r0 = COB.get(id); if (!r0 || r0.borrado) return { error: 'esa factura ya no está' };
+    const antes = await cobPdfCopia(r0.pdf);           // the one it replaces, for «Deshacer»
     const pid = 'cf-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    await idbPut('cfacturas', pid, { id: pid, nombre: String(nombre || (blob && blob.name) || 'factura.pdf').slice(0, 120), tam: blob.size, tipo: 'application/pdf', blob });
-    const n = await cobGuardar({ ...r, pdf: pid });
-    return { ok: true, rec: n };
+    cobNoLocked(); await idbPut('cfacturas', pid, { id: pid, nombre: String(nombre || (blob && blob.name) || 'factura.pdf').slice(0, 120), tam: blob.size, tipo: 'application/pdf', blob });
+    let n = null; try { n = await cobParche(id, { pdf: pid }); } catch (e) { try { await idbDel('cfacturas', pid); } catch (x) { /* */ } throw e; }   // over the record as it is now (a change while the PDF was written stays)
+    if (!n) { try { await idbDel('cfacturas', pid); } catch (e) { /* */ } return { error: 'esa factura ya no está' }; }
+    return { ok: true, rec: n, antes };
   }
   const cobId = () => 'co-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const cuotaTxt = q => q ? `${cobEur(q.importe)} al mes` : '';
@@ -5353,13 +5382,14 @@
         if (it.id != null && !/^[\w.-]{1,60}$/.test(String(it.id))) return mal('id no válido (letras, números, guiones; hasta 60)');
         const per = String(it.periodo || '');
         if (COB_MES.test(per)) { if (!mensual) return mal('un esporádico no tiene cuota: su periodo es el id de una sesión'); }
-        else if (!ses.has(per)) return mal(`periodo «${per}»: ni un mes AAAA-MM ni una sesión`);
+        else if (!ses.has(per)) { const ya = it.id != null && COB.get(String(it.id)); if (!ya || ya.borrado || ya.periodo !== per || ya.cliente !== cli) return mal(`periodo «${per}»: ni un mes AAAA-MM ni una sesión`); }   // one already here keeps its session
         else if (!clisDe(ses.get(per)).includes(cli)) return mal('esa sesión no es de ese cliente');
         const importe = cobImporte(it.importe); if (isNaN(importe)) return mal('importe no válido (euros: 450, «1.470,50»)');
         const f = {}; for (const k of ['emitida', 'vence', 'cobrada']) { const v = it[k] == null ? '' : String(it[k]); if (v && !cobDia(v)) return mal(`${k} no es una fecha AAAA-MM-DD`); f[k] = v; }
         if (f.emitida && f.vence && f.vence < f.emitida) return mal('vence antes de emitirse');
         const factura = it.factura == null ? '' : String(it.factura).trim(); if (factura.length > 40) return mal('el número de factura pasa de 40 caracteres');
-        const at = it.at == null ? ahoraISO : String(it.at); if (isNaN(Date.parse(at))) return mal('at no es una fecha');
+        if (it.at != null && isNaN(Date.parse(String(it.at)))) return mal('at no es una fecha');
+        const at = it.at == null ? ahoraISO : new Date(Date.parse(String(it.at))).toISOString();   // ISO always: compared as text
         const id = it.id != null ? String(it.id) : cobId();
         if (plan.some(p => p.id === id)) return mal('id repetido en la lista');
         if (!COB_MES.test(per)) {
@@ -5380,8 +5410,9 @@
         escribir.push(p);
       }
       if (escribir.length) {
+        if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
         cobGen++;
-        await tx('cobros', 'readwrite', st => { escribir.forEach(p => st.put(p, p.id)); });
+        const pw = tx('cobros', 'readwrite', st => { escribir.forEach(p => st.put(p, p.id)); }); cobPend = cobPend.then(() => pw).catch(() => {}); await pw;
         escribir.forEach(p => COB.set(p.id, p));
         cobAvisar(true);
       }
@@ -5457,7 +5488,8 @@
     const boards = (await idbAll('boards')) || [];
     const n = boards.filter(b => b.client === id).length;
     if (n) return `No se puede eliminar: tiene ${n} mes(es) guardados.`;
-    await cobLeer(); const nf = cobVivos(id).length;
+    await cobLeer(true); if (cobMal) return 'No se puede eliminar: no se pudieron leer sus facturas.';
+    const nf = cobVivos(id).length;
     if (nf) return `No se puede eliminar: tiene ${nf} factura${nf === 1 ? '' : 's'}.`;   // its invoices stay with it (D-232)
     if (subida && subida.client === id) return 'Espera a que termine la subida de la carpeta.';
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
@@ -6340,12 +6372,13 @@
       || (t.detalles != null && typeof t.detalles !== 'string') || (t.subtareas != null && (!Array.isArray(t.subtareas) || t.subtareas.some(x => !x || typeof x.id !== 'string' || typeof x.txt !== 'string')))))) return bad;   // v13 (D-180); v14: details and subtasks (D-183)
     if (d.bandejas != null && (!Array.isArray(d.bandejas) || d.bandejas.some(r => !r || typeof r.client !== 'string' || !r.client || !Array.isArray(r.tray)))) return bad;
     // v18: the invoices (a tombstone, its id, client and date) and their PDFs (D-232)
-    const dOk = v => v == null || v === '' || (typeof v === 'string' && COB_DIA.test(v));
-    if (d.cobros != null && (!Array.isArray(d.cobros) || d.cobros.some(r => !r || typeof r.id !== 'string' || !r.id || typeof r.cliente !== 'string' || !r.cliente || typeof r.at !== 'string'
+    const dOk = v => v == null || v === '' || !!cobDia(v);
+    if (d.cobros != null && (!Array.isArray(d.cobros) || d.cobros.some(r => !r || typeof r.id !== 'string' || !r.id || typeof r.cliente !== 'string' || !r.cliente || typeof r.at !== 'string' || isNaN(Date.parse(r.at)) || (/^\d{4}-\d{2}$/.test(r.periodo || '') && !COB_MES.test(r.periodo))
       || (!r.borrado && (typeof r.periodo !== 'string' || !r.periodo || !(typeof r.importe === 'number' && isFinite(r.importe) && r.importe >= 0) || !dOk(r.emitida) || !dOk(r.vence) || !dOk(r.cobrada)
         || (r.factura != null && typeof r.factura !== 'string') || (r.pdf != null && typeof r.pdf !== 'string') || (r.concepto != null && typeof r.concepto !== 'string')))))) return bad;
     if (d.cfacturas != null && (!Array.isArray(d.cfacturas) || d.cfacturas.some(f => !f || typeof f.id !== 'string' || !f.id || typeof f.data !== 'string' || !f.data))) return bad;
-    if (d.clients.some(c => c.cuota != null && (typeof c.cuota !== 'object'))) return bad;
+    const qn = (v, a, b) => v == null || v === '' || (typeof v === 'number' && isFinite(v) && v >= a && v <= b && (b === 1e9 || Number.isInteger(v)));
+    if (d.clients.some(c => c.cuota != null && (typeof c.cuota !== 'object' || !qn(c.cuota.importe, 0, 1e9) || !qn(c.cuota.dia, 1, 28) || !qn(c.cuota.plazo, 0, 365)))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
     if (Object.values(d.files).some(f => !f || typeof f.data !== 'string' || !f.data)) return bad;
     return null;
@@ -6389,9 +6422,12 @@
     // the invoices (D-232): one new here, or changed later on the other Mac (a tombstone too: what was deleted there goes here);
     // the PDFs they name that aren't here yet
     const cobAqui = Object.fromEntries(((await idbAll('cobros')) || []).filter(r => r && r.id).map(r => [r.id, r]));
-    P.cobPut = (d.cobros || []).filter(r => !cobAqui[r.id] || String(r.at || '') > String(cobAqui[r.id].at || ''));
-    const pdfAqui = new Set(((await allKeys('cfacturas').catch(() => [])) || []));
-    P.pdfPut = (d.cfacturas || []).filter(f => !pdfAqui.has(f.id) && P.cobPut.some(r => !r.borrado && r.pdf === f.id));
+    const isoAt = r => ({ ...r, at: new Date(Date.parse(r.at)).toISOString() });   // compared as text: ISO always
+    P.cobPut = (d.cobros || []).map(isoAt).filter(r => !cobAqui[r.id] || String(r.at || '') > String(cobAqui[r.id].at || ''));
+    const pdfAqui = P.pdfAqui = new Set(((await allKeys('cfacturas').catch(() => [])) || []));
+    P.cobAqui = cobAqui;
+    const pon = new Set(P.cobPut.filter(r => !r.borrado).map(r => r.id)), nombrados = new Set([...P.cobPut.filter(r => !r.borrado && r.pdf).map(r => r.pdf), ...Object.values(cobAqui).filter(r => !r.borrado && r.pdf && !pon.has(r.id)).map(r => r.pdf)]);
+    P.pdfPut = (d.cfacturas || []).filter(f => !pdfAqui.has(f.id) && nombrados.has(f.id));   // also one an invoice here names and lost
     // the clients' trays (D-041): what the file's adds to each one here (never takes anything out of it)
     const locTr = {}; ((await idbAll('bandejas')) || []).forEach(r => { locTr[r.client] = new Set([...(r.tray || []), ...enCarpetas(r.carpetas)]); });
     local.forEach(b => { if (Array.isArray(b.tray)) { const c = boardClient(b); (locTr[c] = locTr[c] || new Set()); b.tray.forEach(f => locTr[c].add(f)); } });   // boards from before 3.44
@@ -6419,7 +6455,7 @@
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
     P.trays = P.trays.filter(r => cids.has(r.client)); P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);   // a tray only with its client
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length;
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length;
     return P;
   }
   // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
@@ -6456,6 +6492,7 @@
       P.tarPut && P.tarPut.length && nOf(P.tarPut.length, 'tarea o nota nueva o al día', 'tareas o notas nuevas o al día'),
       P.cuotaUpd && P.cuotaUpd.length && nOf(P.cuotaUpd.length, 'cliente con su cuota al día', 'clientes con su cuota al día'),
       P.cobPut && P.cobPut.length && nOf(P.cobPut.length, 'factura nueva o al día', 'facturas nuevas o al día'),
+      P.pdfPut && P.pdfPut.length && nOf(P.pdfPut.length, 'PDF de factura', 'PDF de facturas'),
       P.trayAdd && `${nOf(P.trayAdd, 'foto entra', 'fotos entran')} en la bandeja`].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
@@ -6578,7 +6615,7 @@
         const ls = l.map(t => t.tipo === 'sesion' && Array.isArray(t.fotos) ? { ...t, fotos: t.fotos.map(f => ({ id: f.id, w: f.w, h: f.h })) } : t);
         if (ls.length) await tx('tareas', 'readwrite', st => ls.forEach(t => st.put(t, t.id))); res.tareas = l.length; }
       for (const c of P.notUpd || []) await editarCliente(c.id, o => { const n = { ...o, notionAt: c.notionAt }; if (c.notion === false) n.notion = false; else delete n.notion; return n; });
-      { const pdfs = Object.values(gotPdf), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: r.pdf && (gotPdf[r.pdf] || (P.pdfPut || []).every(f => f.id !== r.pdf)) ? r.pdf : '' });   // D-232: the PDFs first, then the invoices that name them
+      { const pdfs = Object.values(gotPdf), aqui = id => (P.cobAqui || {})[id], tiene = pid => !!pid && (!!gotPdf[pid] || (P.pdfAqui && P.pdfAqui.has(pid))), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: !r.pdf || tiene(r.pdf) ? r.pdf || '' : (aqui(r.id) && !aqui(r.id).borrado && tiene(aqui(r.id).pdf) ? aqui(r.id).pdf : '') });   // a PDF the file names but doesn't bring: the one here stays   // D-232: the PDFs first, then the invoices that name them
         if (pdfs.length) await tx('cfacturas', 'readwrite', st => pdfs.forEach(f => st.put(f, f.id)));
         if (co.length) { await tx('cobros', 'readwrite', st => co.forEach(r => st.put(r, r.id))); res.cobros = co.length; } }
       for (const c of P.cuotaUpd || []) await editarCliente(c.id, o => { const n = { ...o, cuotaAt: c.cuotaAt }; if (c.cuota && typeof c.cuota === 'object') n.cuota = c.cuota; else delete n.cuota; return n; });   // D-232
@@ -6608,7 +6645,7 @@
       try { const pend = pendienteLS(); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
-      if ((P.cobPut || []).length || (P.cuotaUpd || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }   // D-232: here and the other tabs
+      if ((P.cobPut || []).length || (P.cuotaUpd || []).length || (P.pdfPut || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }   // D-232: here and the other tabs
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
       const k = P.newer.length;
       toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), P.vueltas && (P.vueltas === 1 ? '1 foto que solo usaba este Mac ha vuelto a la bandeja' : `${P.vueltas} fotos que solo usaba este Mac han vuelto a la bandeja`), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
@@ -6910,7 +6947,7 @@
     cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
-      guardar: cobGuardar, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES },
+      guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES },
     get S() { return S; }, get CL() { return CL; }, get curClient() { return curClient; }, get locked() { return locked; },
     root: () => root, colPliegue, trayFold, shellReady, slot, changed, save, flushNow, render, renderFeed, renderBar, renderTray, refreshDetail, openDetail, closeDetail,
     get trayCarpeta() { return trayCarpeta; }, trayAbrir, pestNueva, pestIr, pestCerrar, pestLista, pestOrdenar, pestArrastrar, pestVisible, dondeGuardar, dondeVolver, trayLote, traySoltar, trayElegir, trayMover, trayCopiar, trayPegar, trayPuedePegar, trayPegaAlgo, get trayFoco() { return trayFoco; }, get trayClip() { return trayClip; }, rutaCarpeta, carpetasDeVista, cuentaCarpeta, minisPerezosas, MINIS_DE_UNA, ICON_CARPETA,

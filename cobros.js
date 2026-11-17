@@ -86,7 +86,7 @@
     let pie;
     if (o.esp) {
       const ss = sesSinCobro(cli), n = ss.length;
-      pie = `<button type="button" class="co-mas" data-co="nuevo-ses"${n ? '' : ` disabled title="${C().vivos(cli).length ? 'Todas sus sesiones tienen su cobro' : 'Aún no tiene sesiones'}"`}>${IC.mas}Cobro</button>`;
+      pie = `<button type="button" class="pp-cmas" data-co="nuevo-ses"${n ? '' : ` disabled title="${C().vivos(cli).length ? 'Todas sus sesiones tienen su cobro' : 'Aún no tiene sesiones'}"`}>${IC.mas}Cobro</button>`;
     } else {
       const q = C().cuota(c), m = mesNueva(cli, h);
       pie = `<button type="button" class="co-mas" data-co="nueva" data-m="${m}"${q ? '' : ' disabled title="Pon antes la cuota, el día en que se emite y a cuántos días vence"'}>${IC.mas}Factura de ${esc(mesTxt(m, h))}</button>`;
@@ -113,9 +113,8 @@
   const fallo = e => toast('No se pudo: ' + String((e && e.message) || e), { ms: 8000, key: 'fallo' });
 
   // ---------- doing ----------
-  async function guardar(id, cambio) {
-    const r = C().get(id); if (!r || r.borrado) return null;
-    try { return await C().guardar({ ...r, ...cambio }); } catch (e) { fallo(e); return null; }
+  async function guardar(id, cambio) {               // over the record as it is when written (D-232)
+    try { return await C().parche(id, cambio); } catch (e) { fallo(e); return null; }
   }
   async function cuota(inp) {
     const cid = cliDe(inp), c = cliRec(cid); if (!c) return;
@@ -191,13 +190,14 @@
     let x; try { x = await C().pdfPoner(id, file, file.name); } catch (e) { fallo(e); return; }
     if (x.error) { toast(x.error, { ms: 6000 }); return; }
     enfocar(`tr.co-f[data-id="${id}"] [data-co="ver-pdf"]`);
+    if (x.antes) toast('PDF sustituido.', { action: 'Deshacer', ms: UNDO, onAction: async () => { try { await C().pdfVolver(id, x.antes); } catch (e) { fallo(e); } } });   // one dropped by mistake on another row
   }
   async function quitar(btn) {
     const f = filaDe(btn), r = f && C().get(f.dataset.id); if (!r || !r.pdf) return;
     let g = null; try { const x = await I().idbGet('cfacturas', r.pdf); if (x && x.blob) g = { ...x, blob: new Blob([await x.blob.arrayBuffer()], { type: 'application/pdf' }) }; } catch (e) { /* */ }   // its bytes, for «Deshacer»
     if (!(await guardar(r.id, { pdf: '' }))) return;
     enfocar(`tr.co-f[data-id="${r.id}"] [data-co="subir"]`);
-    toast('PDF quitado.', { action: 'Deshacer', ms: UNDO, onAction: async () => { const r2 = C().get(r.id); if (!r2 || r2.borrado || !g) return; try { await I().idbPut('cfacturas', g.id, g); await C().guardar({ ...r2, pdf: g.id }); } catch (e) { fallo(e); } } });
+    toast('PDF quitado.', { action: 'Deshacer', ms: UNDO, onAction: async () => { try { await C().pdfVolver(r.id, g); } catch (e) { fallo(e); } } });
   }
   async function borrar(id) {
     const r = C().get(id); if (!r || r.borrado) return;
@@ -205,7 +205,7 @@
     let x; try { x = await C().borrar(id); } catch (e) { fallo(e); return; }
     if (!x) return;
     if (UI.det === id) UI.det = null;
-    enfocar(sig ? `tr.co-f[data-id="${sig}"] [data-co="num"]` : `[data-co-cli="${tab}"] .co-mas`);
+    enfocar(sig ? `tr.co-f[data-id="${sig}"] [data-co="num"]` : `[data-co-cli="${tab}"] .co-mas, [data-co-cli="${tab}"] [data-co="nuevo-ses"]`);
     toast('Factura borrada.', { action: 'Deshacer', ms: UNDO, onAction: async () => { try { await C().devolver(x); } catch (e) { fallo(e); } } });
   }
   async function descargar(id, comoCliente) {
@@ -246,10 +246,10 @@
       const t = e.k === 'cobrada' ? 'pagada el ' + corto(r.cobrada, h) : e.k === 'retrasada' ? 'venció el ' + corto(r.vence, h) : r.vence ? 'vence el ' + corto(r.vence, h) : 'emitida el ' + corto(r.emitida, h);
       const chip = e.k === 'cobrada' ? `<span class="co-ce ok">${IC.ok}Pagada</span>` : e.k === 'retrasada' ? `<span class="co-ce rojo">${IC.alerta}Pendiente</span>` : `<span class="co-ce pend">${IC.reloj}Pendiente</span>`;
       const dl = r.pdf ? `<button type="button" class="co-dw" data-co="dl" data-id="${esc(r.id)}" title="Descargar ${esc(nf)} (PDF)" aria-label="Descargar ${esc(nf)} (PDF)">${IC.descarga}</button>` : '<span class="co-dw0"></span>';
-      return `<li data-id="${esc(r.id)}"><span class="m">${esc(nom)} · ${esc(eur(r.importe))}</span><span class="n">${r.factura ? 'Factura ' + esc(r.factura) + ' · ' + esc(t) : esc(may(t))}</span>${chip}${dl}</li>`;
+      return `<li data-id="${esc(r.id)}"><span class="m">${esc(nom)} · ${esc(eur(r.importe))}</span><span class="n">${r.factura ? 'Factura ' + esc(r.factura) + '<span class="co-pt"> · </span><span class="co-nw">' + esc(t) + '</span>' : `<span class="co-nw">${esc(may(t))}</span>`}</span>${chip}${dl}</li>`;
     };
     const lis = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])].map(linea).join('');
-    const px = prox ? `<p class="co-vprox">${IC.doc}La de ${esc(mesTxt(prox.mes, h))} se emite ${prox.emitida >= h ? 'el ' + esc(corto(prox.emitida, h)) : 'en unos días'}</p>` : '';
+    const px = prox ? `<p class="co-vprox">${IC.doc}La de ${esc(C().MESES[+prox.mes.slice(5, 7) - 1])} se emite ${prox.emitida >= h ? 'el ' + esc(corto(prox.emitida, h)) : 'en unos días'}</p>` : '';
     return `<div class="co-pagos"><h2 class="co-vh">Tus pagos${q ? ` <span>${esc(eur(q.importe))} al mes</span>` : ''}</h2>`
       + (deber.length ? `<p class="co-vp">Pendiente de pago <b>${esc(eur(suma))}</b>${venc ? ` <span class="rojo">· ${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</p>` : '')
       + (lis ? `<ul class="co-vl">${lis}</ul>` : '')
@@ -261,6 +261,7 @@
   function alClic(e) {
     const b = e.target.closest && e.target.closest('[data-co]'); if (!b || b.disabled) return;
     const k = b.dataset.co;
+    if (e.detail > 1 && k !== 'tab') return;      // the second click of a double click does nothing (lesson 57): no second invoice, no chooser under the ×
     if (k === 'tab') { tab(b.dataset.t, true); return; }
     if (k === 'dl') { e.preventDefault(); descargar(b.dataset.id, true); return; }
     if (k === 'ver-ant') { const c = b.dataset.c; if (UI.ant.has(c)) UI.ant.delete(c); else UI.ant.add(c); if (I().vc) I().vc.pintar(); enfocar('[data-co="ver-ant"]'); return; }
@@ -288,15 +289,18 @@
     const k = t.dataset && t.dataset.co;
     if (k === 'cuota' || k === 'num' || k === 'imp') {
       if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); alCambiar({ target: t }); return; }
-      if (e.key === 'Escape') {                     // first Esc puts the field back; the next one closes what is open
-        const c = cliRec(cliDe(t)), f = filaDe(t), r = f && C().get(f.dataset.id);
-        const v0 = k === 'cuota' ? (() => { const x = document.createElement('input'); x.dataset.k = t.dataset.k; pintarCuota(x, c); return x.value; })() : k === 'num' ? (r && r.factura) || '' : r && +r.importe ? eur(r.importe) : '';
-        if (t.value !== v0) { e.preventDefault(); e.stopPropagation(); t.value = v0; }
-        return;
-      }
+      if (e.key === 'Escape') { escCampo(e); return; }   // first Esc puts the field back; the next one closes what is open
     }
     const f = filaDe(t);
     if (f && (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) { e.preventDefault(); e.stopPropagation(); const r = t.getBoundingClientRect(); menuFila(f.dataset.id, r.left, r.bottom + 4, t); }
+  }
+  // Esc in a field that changed: back to what is saved, and nothing else closes (true); else false
+  function escCampo(e) {
+    const t = e.target, k = t && t.dataset && t.dataset.co; if (k !== 'cuota' && k !== 'num' && k !== 'imp') return false;
+    const c = cliRec(cliDe(t)), f = filaDe(t), r = f && C().get(f.dataset.id);
+    const v0 = k === 'cuota' ? (() => { const x = document.createElement('input'); x.dataset.k = t.dataset.k; pintarCuota(x, c); return x.value; })() : k === 'num' ? (r && r.factura) || '' : r && +r.importe ? eur(r.importe) : '';
+    if (t.value === v0) return false;
+    e.preventDefault(); e.stopPropagation(); t.value = v0; return true;
   }
   function alMenu(e) {
     const f = filaDe(e.target); if (!f || !f.closest('.co')) return;
@@ -318,11 +322,11 @@
 
   // ---------- mounting ----------
   let listoP = null;
-  const listo = () => listoP || (listoP = new Promise(res => { const t = setInterval(() => { if (I() && I().cob && I().vc && I().estilo) { clearInterval(t); res(); } }, 50); }));
+  const listo = () => listoP || (listoP = new Promise((res, rej) => { const t0 = Date.now(), t = setInterval(() => { if (I() && I().cob && I().vc && I().estilo) { clearInterval(t); res(); } else if (Date.now() - t0 > 30000) { clearInterval(t); rej(new Error('mesa.js sin cobros')); } }, 50); }));
   M.cobrosUI = {
     version: VERSION,
     pane: cli => tabla(cli),                       // the «Cobros» tab of «Editar cliente» (mesa.js)
-    tabla, firma, html: (cli, o) => tabla(cli, o), pagos: pagosHTML, estK, IC, tab,
+    tabla, firma, html: (cli, o) => tabla(cli, o), pagos: pagosHTML, estK, IC, tab, escCampo,
     abierto: () => { UI.det = null; }, cerrado: () => { UI.det = null; },
     _test: { UI, descargar, borrar },
     _off: () => { OFF.splice(0).forEach(f => f()); if (I() && I().vc) I().vc.quitar('lado', 'pagos'); }
@@ -338,14 +342,15 @@
     I().vc.poner('lado', { id: 'pagos', orden: 10, html: pagosHTML });
     I().estilo('mesa-co-css', ESTILO);
     const d = pane(); if (d) pintar();
-  });
+  }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).cobros = 'fallo'; });   // a mesa.js without invoices (an old cached one): «Editar cliente» as always
 
   const ESTILO = `
 #mesa .ectabs{display:flex;gap:4px;margin:4px 0 16px}
 #mesa .ectab{border:0;background:none;font:inherit;font-size:14px;padding:6px 12px;border-radius:var(--r-pill);color:var(--mute);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out,transform var(--d1) ease-out}
-#mesa .ectab:hover:not(.on){background:var(--bg-2);color:var(--ink)}#mesa .ectab.on{background:var(--ink);color:var(--on-ink);font-weight:600;cursor:default}
+#mesa .ectab:hover:not(.on){background:var(--co-hov,var(--bg-2));color:var(--ink)}#mesa .ectab.on{background:var(--ink);color:var(--on-ink);font-weight:600;cursor:default}
 #mesa .ectab:focus-visible{outline:2px solid var(--focus);outline-offset:2px}#mesa .ectab:active:not(.on){transform:scale(.97)}
 #mesa .co{container-type:inline-size;font-size:13px;color:var(--ink)}
+#mesa .card.ec2{--co-sep:var(--line2);--co-hov:var(--bg-2)}:root[data-theme="dark"] #mesa .card.ec2,#mesa[data-theme="dark"] .card.ec2{--co-sep:var(--line);--co-hov:var(--bg)}
 #mesa .co svg,#mesa .co-pagos svg,#mesa .co-mf svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}
 #mesa .co svg *,#mesa .co-pagos svg *{vector-effect:non-scaling-stroke}
 #mesa .co-cuota{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
@@ -354,52 +359,56 @@
 #mesa .co-q:hover{border-color:var(--line-strong)}#mesa .co-q:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .co-q::placeholder,#mesa .co-in::placeholder{color:var(--mute)}
 #mesa .co-t{width:100%;border-collapse:collapse}
-#mesa .co-t th{padding:0 8px 8px 0;font-size:12.5px;font-weight:400;color:var(--mute);text-align:left;white-space:nowrap}
-#mesa .co-t td{padding:5px 8px 5px 0;border-top:1px solid var(--line2);white-space:nowrap;vertical-align:middle}
+#mesa .co-t th{padding:0 10px 8px 0;font-size:12.5px;font-weight:400;color:var(--mute);text-align:left;white-space:nowrap}
+#mesa .co-t td{padding:5px 10px 5px 0;border-top:1px solid var(--co-sep,var(--line2));white-space:nowrap;vertical-align:middle}
 #mesa .co-t th:last-child,#mesa .co-t td:last-child{padding-right:0}
 #mesa .co-t .co-i{text-align:right}
 #mesa .co-vh0{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-#mesa .co-m{font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+#mesa .co-m{font-weight:400;max-width:120px;overflow:hidden;text-overflow:ellipsis}
 #mesa .co-in{box-sizing:border-box;height:28px;margin-left:-7px;padding:0 6px;border:1px solid transparent;border-radius:var(--r-sm);background:none;font:inherit;color:var(--ink);transition:border-color var(--d1) ease-out,box-shadow var(--d1) ease-out,background var(--d1) ease-out}
-#mesa .co-n .co-in{width:82px}#mesa .co-in.co-imp{width:70px;margin:0 -7px 0 0;text-align:right}
+#mesa .co-n .co-in{width:76px}#mesa .co-in.co-imp{width:70px;margin:0 -7px 0 0;text-align:right}
 #mesa .co-in:hover{border-color:var(--line)}#mesa .co-in:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring);background:var(--panel-2)}
 #mesa .co-e{display:inline-flex;align-items:center;padding:2px 8px;border-radius:var(--r-xs);font-size:12.5px;font-weight:600;line-height:18px}
 #mesa .co-e.ok{background:var(--ok-soft);color:var(--ok)}#mesa .co-e.pend{background:var(--chg-soft);color:var(--chg)}#mesa .co-e.tarde{background:var(--red-soft);color:var(--red)}#mesa .co-e.sin{background:var(--bg-2);color:var(--mute)}
-#mesa .co-fe{display:inline-flex;align-items:center;min-height:28px;max-width:132px;margin-left:-6px;padding:4px 6px;white-space:normal;text-align:left;line-height:1.3;border:0;border-radius:var(--r-sm);background:none;font:inherit;color:var(--mute);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
-#mesa .co-fe:hover,#mesa .co-fe[aria-expanded="true"]{background:var(--bg-2);color:var(--ink)}
-#mesa .co-mini{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:1px solid var(--line-strong);border-radius:var(--r-pill);background:var(--panel-2);font:inherit;font-size:12.5px;color:var(--ink-2);white-space:nowrap;cursor:pointer;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,transform var(--d1) ease-out}
-#mesa .co-mini:hover{background:var(--bg-2);color:var(--ink)}#mesa .co-mini svg{width:14px;height:14px}
-#mesa .co-pdf{display:inline-flex;align-items:center;gap:0;max-width:120px}
-#mesa .co-pn{display:inline-flex;align-items:center;gap:5px;min-width:0;height:28px;padding:0 4px;margin-left:-4px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer}
-#mesa .co-pn span{overflow:hidden;text-overflow:ellipsis}#mesa .co-pn svg{color:var(--mute)}#mesa .co-pn:hover{background:var(--bg-2);color:var(--ink)}
+#mesa .co-fe{display:inline-flex;align-items:center;min-height:28px;max-width:132px;margin-left:-6px;padding:4px 6px;white-space:normal;text-align:left;line-height:1.3;border:0;border-radius:var(--r-sm);background:none;font:inherit;color:var(--mute);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out,transform var(--d1) ease-out}
+#mesa .co-fe:hover,#mesa .co-fe[aria-expanded="true"]{background:var(--co-hov,var(--bg-2));color:var(--ink)}
+#mesa .co-mini{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:1px solid var(--line-strong);border-radius:var(--r-pill);background:var(--panel-2);font:inherit;font-size:12.5px;color:var(--ink-2);white-space:nowrap;cursor:pointer;transition:background var(--d1) ease-out,border-color var(--d1) ease-out,color var(--d1) ease-out,transform var(--d1) ease-out}
+#mesa .co-mini:hover{background:var(--co-hov,var(--bg-2));color:var(--ink)}#mesa .co-mini svg{width:14px;height:14px}
+#mesa .co-pdf{display:inline-grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;width:136px;max-width:100%;margin-left:-4px}
+#mesa .co-pn{display:inline-flex;align-items:center;gap:5px;min-width:0;justify-self:start;max-width:100%;height:28px;padding:0 4px;margin-left:0;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+#mesa .co-pn span{overflow:hidden;text-overflow:ellipsis}#mesa .co-pn svg{color:var(--mute)}#mesa .co-pn:hover{background:var(--co-hov,var(--bg-2));color:var(--ink)}
 #mesa .co-x{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;padding:0;border:0;border-radius:var(--r-sm);background:none;color:var(--mute);cursor:pointer}
-#mesa .co-x:hover{background:var(--bg-2);color:var(--ink)}#mesa .co-x svg{width:14px;height:14px}
+#mesa .co-x:hover{background:var(--co-hov,var(--bg-2));color:var(--ink)}#mesa .co-x svg{width:14px;height:14px}
 #mesa .co-a{text-align:right}
 #mesa :is(.co-in,.co-fe,.co-mini,.co-pn,.co-x,.co-mas,.co-dw,.co-ver):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa :is(.co-fe,.co-mini,.co-pn,.co-x,.co-mas,.co-dw,.co-ver):active:not(:disabled){transform:scale(.97)}
-#mesa tr.co-f.co-drop td{background:var(--bg-2)}
+#mesa :is(.co-pn,.co-x,.co-mas,.co-ver){transition:background var(--d1) ease-out,color var(--d1) ease-out,transform var(--d1) ease-out}
+#mesa tr.co-f.co-drop td{background:var(--co-hov,var(--bg-2))}
 #mesa .co-det td{border-top:0;padding:0 0 10px}
 #mesa .co-fs{display:flex;flex-wrap:wrap;gap:10px 18px;padding:10px 12px;border-radius:var(--r-md);background:var(--bg)}
 #mesa .co-fl{display:flex;align-items:center;gap:8px;margin:0;font-size:12.5px;font-weight:600}
 #mesa .co-vacio{margin:4px 0 0;color:var(--mute)}
 #mesa .co-pie{display:flex;margin:10px 0 0}
 #mesa .co-mas{display:inline-flex;align-items:center;gap:6px;padding:6px 4px;margin-left:-4px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:13px;font-weight:600;color:var(--acc-ink);cursor:pointer}
-#mesa .co-mas:disabled{color:var(--faint);cursor:default}#mesa .co-mas:hover:not(:disabled){background:var(--bg-2)}
+#mesa .co-mas:disabled{color:var(--faint);cursor:default}#mesa .co-mas:hover:not(:disabled){background:var(--co-hov,var(--bg-2))}
 #mesa .co-mf{font-weight:400;color:var(--mute)}
+#mesa .co-esp .co-pie{margin:0}#mesa .co-esp .co-vacio{margin:0}#mesa .co-esp .co-t tr.co-f:first-child{padding-top:4px}
 @container (max-width: 699px){
   #mesa .co-t,#mesa .co-t tbody{display:block}#mesa .co-t thead{display:none}
-  #mesa .co-t tr.co-f{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"m s" "n i" "f f" "p a";align-items:center;gap:4px 12px;padding:10px 0;border-top:1px solid var(--line2)}
+  #mesa .co-t tr.co-f{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"m f s" "n n i" "p p a";align-items:center;gap:4px 10px;padding:10px 0;border-top:1px solid var(--co-sep,var(--line2))}
+  #mesa .co-t tr.co-f.co-drop{background:var(--co-hov,var(--bg-2));box-shadow:0 0 0 6px var(--co-hov,var(--bg-2));border-radius:var(--r-sm)}#mesa .co-t tr.co-f.co-drop td{background:none}
   #mesa .co-t tr.co-f:first-child{border-top:0}
   #mesa .co-t tr.co-f td{display:block;padding:0;border:0}
-  #mesa .co-t .co-m{grid-area:m;max-width:none}#mesa .co-t .co-s{grid-area:s;justify-self:end}#mesa .co-t .co-n{grid-area:n}#mesa .co-t .co-i{grid-area:i;text-align:right}
+  #mesa .co-t .co-m{grid-area:m;max-width:none;font-weight:600}#mesa .co-t .co-s{grid-area:s;justify-self:end}#mesa .co-t .co-n{grid-area:n}#mesa .co-t .co-i{grid-area:i;text-align:right}
   #mesa .co-t .co-fc{grid-area:f}#mesa .co-t .co-p{grid-area:p}#mesa .co-t .co-a{grid-area:a}
   #mesa .co-t .co-n,#mesa .co-t .co-i{display:flex;align-items:center;gap:8px}#mesa .co-t .co-i{justify-content:flex-end}
   #mesa .co-t .co-n::before,#mesa .co-t .co-i::before{content:attr(data-l);font-size:12.5px;color:var(--mute)}
-  #mesa .co-n .co-in{margin-left:0}#mesa .co-in.co-imp{margin-right:0}
+  #mesa .co-n .co-in{margin-left:0}#mesa .co-pdf{width:auto;max-width:100%;grid-template-columns:auto 28px}
   #mesa .co-t tr.co-det{display:block}#mesa .co-t tr.co-det td{display:block;padding:0 0 10px}
   #mesa .co-cuota{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#mesa .co-cuota > div:first-child{grid-column:1 / -1}
 }
-#mesa .co-pagos{color:var(--ink)}
+#mesa .co-pagos{color:var(--ink);container-type:inline-size}
+@container (max-width:420px){#mesa .co-vl .co-pt{display:none}#mesa .co-vl .n .co-nw{display:block}}
 #mesa .co-vh{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.01em}
 #mesa .co-vh span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
 #mesa .co-vp{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;margin:-4px 0 12px;font-size:13.5px;color:var(--ink-2)}
@@ -407,7 +416,7 @@
 #mesa .co-vl{display:flex;flex-direction:column;margin:0;padding:0;list-style:none}
 #mesa .co-vl li{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;align-items:center;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line2)}
 #mesa .co-vl li:first-child{border-top:0;padding-top:0}
-#mesa .co-vl .m{font-size:14px;font-weight:600}#mesa .co-vl .n{grid-column:1;font-size:12.5px;line-height:1.4;color:var(--mute)}
+#mesa .co-vl .m{font-size:14px;font-weight:600}#mesa .co-vl .co-nw{white-space:nowrap}#mesa .co-vl .n{grid-column:1;font-size:12.5px;line-height:1.4;color:var(--mute)}
 #mesa .co-ce{grid-row:1 / span 2;grid-column:2;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);font-size:12.5px;font-weight:600;white-space:nowrap}
 #mesa .co-ce svg{width:14px;height:14px}
 #mesa .co-ce.ok{background:var(--ok-soft);color:var(--ok)}#mesa .co-ce.pend{background:var(--chg-soft);color:var(--chg)}#mesa .co-ce.rojo{background:var(--red-soft);color:var(--red)}
@@ -417,7 +426,7 @@
 #mesa .co-ver{display:inline-flex;margin-top:8px;padding:4px 0;border:0;background:none;font:inherit;font-size:13px;color:var(--acc-ink);cursor:pointer}
 #mesa .co-ver:hover{text-decoration:underline}
 #mesa .co-vprox{display:flex;align-items:center;gap:6px;margin:12px 0 0;font-size:13px;color:var(--mute)}
-@media (prefers-reduced-motion:reduce){#mesa :is(.ectab,.co-q,.co-in,.co-fe,.co-mini,.co-dw){transition:none}#mesa :is(.ectab,.co-fe,.co-mini,.co-pn,.co-x,.co-mas,.co-dw,.co-ver):active:not(:disabled){transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa :is(.ectab,.co-q,.co-in,.co-fe,.co-mini,.co-dw,.co-pn,.co-x,.co-mas,.co-ver){transition:none}#mesa :is(.ectab,.co-fe,.co-mini,.co-pn,.co-x,.co-mas,.co-dw,.co-ver):active:not(:disabled){transform:none}}
 `;
   (window.MESA_CARGA = window.MESA_CARGA || {}).cobros = 'ok';
 })();

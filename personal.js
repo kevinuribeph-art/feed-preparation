@@ -387,7 +387,7 @@
   const conCob = l => { const C = I().cob; return !!(C && l.some(id => C.urgente(id))); };
   // Kevin's sums in the header of Clientes, monthly and sporadic whatever the selector says: paid this month, pending of any
   function ingresos() {
-    const C = I().cob, t = C && C.totales(); if (!t || !t.hay) return '';
+    const C = I().cob, t = C && C.totales(null, id => !!cliDe(id)); if (!t || !t.hay) return '';
     return `<span class="pp-ing" title="Cobrado este mes y pendiente de cobrar">${ICO.euro}<span><b>${esc(C.eur(t.cobrado))}</b> cobrado</span><span><b>${esc(C.eur(t.pendiente))}</b> pendiente</span></span>`;
   }
   const cabPlg = (k, t, n, pl) => `<button type="button" class="pp-fold" data-pp="plegar" data-p="${k}" aria-expanded="${!pl}" title="${pl ? 'Desplegar' : 'Plegar'} ${t.toLowerCase()}"><b>${t}</b>${n ? `<span>${n}</span>` : ''}</button>`;
@@ -539,7 +539,7 @@
     const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.man + R.cifras.espera + R.cifras.falta, nE = esps().length;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
-      { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE) + ingresos(),
+      { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE), medio: ingresos,
         html: () => st.cvista === 'esporadicos' ? espHTML(Math.max(1, Math.min(st.fila, nE || 1, caben())))
           : R.filas.length ? `<div class="pp-pc"><div class="pp-bcab" style="--cols:${cols}" aria-hidden="true">${Array.from({ length: cols }, () => cabDias(R)).join('')}</div><div class="pp-bgrid${cols > 2 || (anchoClientes() - (cols - 1) * 8) / cols < 380 ? ' estrecha' : ''}" style="--cols:${cols}">${(h => R.filas.map(f => bloque(f, R, h)).join(''))(conCob(R.filas.map(f => f.c.id)))}</div></div>` : '<div class="pp-pc"><p class="pp-orden">Sin clientes</p></div>' },
       { k: 'avisos', t: 'Avisos', n: nAv }
@@ -548,7 +548,7 @@
     const cls = !rail ? ' sin-rail' : !izq.length ? ' solo-rail' : '';
     return `<div class="pp-in${cls}"><div class="pp-top">${cifras(R)}${periodo(R)}</div>`
       + `<div class="pp-izq">${arriba.length ? `<div class="pp-tabs">${arriba.map(x => `<section class="pp-plg fold" data-panel="${x.k}">${cabPlg(x.k, x.t, x.n, true)}</section>`).join('')}</div>` : ''}`
-      + izq.map(x => `<section class="${x.cls} pp-plg" data-panel="${x.k}"><div class="pp-phr"><span class="pp-phl"><h2 class="pp-ph">${cabPlg(x.k, x.t, x.sinN ? 0 : x.n, false)}</h2>${x.tras ? x.tras() : ''}</span>${x.extra()}</div>${x.html()}</section>`).join('') + `</div>`
+      + izq.map(x => `<section class="${x.cls} pp-plg" data-panel="${x.k}"><div class="pp-phr"><span class="pp-phl"><h2 class="pp-ph">${cabPlg(x.k, x.t, x.sinN ? 0 : x.n, false)}</h2>${x.tras ? x.tras() : ''}</span>${x.medio ? x.medio() : ''}${x.extra()}</div>${x.html()}</section>`).join('') + `</div>`
       + (rail ? `<aside class="pp-rail"><div class="pp-avisos pp-plg" data-panel="avisos"><div class="pp-phr"><h2 class="pp-ph">${cabPlg('avisos', 'Avisos', nAv, false)}</h2><label class="sw pp-sw"><input type="checkbox" data-pp="avtareas"${st.avTareas ? ' checked' : ''}> Tareas</label></div><div class="pp-grupos">${avisos(R)}</div></div></aside>` : '') + `</div>`;
   }
 
@@ -1287,6 +1287,7 @@
   }
   function alTeclear(e) {
     if (!(st.on && page) && !(CARD && CARD.tablero)) return;
+    if (e.key === 'Escape' && M.cobrosUI && M.cobrosUI.escCampo && M.cobrosUI.escCampo(e)) return;   // a payment's field changed: back to what is saved (D-234)
     if (menu && e.key === 'Escape') return;    // the menu closes on its own (its keys), never the card under it
     const t = e.target;
     if (CARD) {                                // the card: Esc goes back to reading or closes; Enter on it writes (D-182)
@@ -1709,15 +1710,17 @@
 #mesa .pp-esn{margin:6px 0 2px 8px}
 /* a client's payments (D-235): the line under its block, opening its «Cobros», and the sums in the header */
 #mesa .pp-bw{display:flex;flex-direction:column;min-width:0;border-radius:var(--r-md);transition:background var(--d1) var(--ease)}
-#mesa .pp-bw > .pp-blq{flex:1 1 auto}#mesa .pp-bw:hover{background:var(--bg-2)}
-#mesa .pp-cob{display:flex;align-items:center;gap:6px;align-self:flex-start;max-width:calc(100% - 16px);min-height:26px;margin:-8px 0 6px 8px;padding:2px 4px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:12.5px;line-height:1.35;text-align:left;color:var(--mute);cursor:pointer}
+#mesa .pp-bw > .pp-blq{flex:1 1 auto}
+#mesa .pp-cob{display:flex;align-items:center;gap:6px;align-self:flex-start;max-width:calc(100% - 16px);min-height:26px;margin:-2px 0 6px 8px;padding:2px 4px;border:0;border-radius:var(--r-sm);background:none;font:inherit;font-size:12.5px;line-height:1.35;text-align:left;color:var(--mute);cursor:pointer}
 #mesa .pp-cob span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mesa .pp-cob svg{flex:none;width:14px;height:14px}
 #mesa .pp-cob.tarde{color:var(--red);font-weight:600}#mesa .pp-cob.pend{color:var(--chg)}
-#mesa .pp-cob:hover span{text-decoration:underline;text-underline-offset:2px}
-#mesa .pp-cob:focus-visible{outline:2px solid var(--focus);outline-offset:1px}#mesa .pp-cob:active{transform:scale(.97)}
+#mesa .pp-cob:hover{background:var(--bg-2)}
+#mesa .pp-cob:focus-visible{outline:2px solid var(--focus);outline-offset:1px}#mesa .pp-cob:active{transform:scale(.97)}#mesa .pp-cob{transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-cob.vacia{visibility:hidden;pointer-events:none}
-#mesa .pp-ing{display:inline-flex;align-items:center;gap:6px 12px;font-size:13px;color:var(--mute);white-space:nowrap}
-#mesa .pp-ing b{font-weight:600;color:var(--ink)}#mesa .pp-ing svg{width:16px;height:16px;flex:none}
+#mesa .pp-cmas:disabled,#mesa .pp-cmas:disabled:hover,#mesa .pp-cmas:disabled:active{color:var(--faint);background:none;cursor:default;transform:none}
+#mesa .pp-ing{display:inline-flex;align-items:center;gap:6px 12px;font-size:13px;color:var(--mute);white-space:nowrap}#mesa .pp-clientes > .pp-phr{flex-wrap:wrap}
+#mesa .pp-ing b{font-weight:800;color:var(--ink)}#mesa .pp-ing svg{width:16px;height:16px;flex:none}
+#mesa .pp-clientes > .pp-phr{container-type:inline-size}@container (max-width:740px){#mesa .pp-clientes > .pp-phr > .pp-ing{order:3;flex-basis:100%}}
 /* a task or a note big (D-182): one card over the page, to read; a double click writes in it */
 #mesa .pp-ov{position:absolute;inset:0;z-index:4;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px}
 #mesa .pp-ov.entra{animation:pp-ovin var(--d2) var(--ease)}#mesa .pp-ov.entra .pp-card{animation:pp-cardin var(--d2) var(--ease)}
@@ -1756,7 +1759,7 @@
 #mesa .pp-cst{flex:1;min-width:0;height:28px;border:0;border-radius:var(--r-xs);padding:0 8px;margin-left:-8px;font:inherit;font-size:13.5px;color:var(--ink);background:none;outline:none}
 #mesa .pp-csx{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;padding:0;background:none;border-radius:var(--r-xs);color:var(--mute);cursor:pointer;transition:background var(--d1) var(--ease)}
 #mesa .pp-csx:hover{background:var(--bg-3);color:var(--ink)}#mesa .pp-csx svg{width:14px;height:14px}
-#mesa .pp-cmas{display:inline-flex;align-items:center;gap:6px;margin:6px 0 0 -4px;padding:5px 8px;border:0;background:none;border-radius:var(--r-pill);font:inherit;font-size:12.5px;font-weight:600;color:var(--acc);cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
+#mesa .pp-cmas{display:inline-flex;align-items:center;gap:6px;margin:6px 0 0 -4px;padding:5px 8px;border:0;background:none;border-radius:var(--r-pill);font:inherit;font-size:12.5px;font-weight:600;color:var(--acc-ink);cursor:pointer;transition:background var(--d1) var(--ease),transform var(--d1) var(--ease)}
 #mesa .pp-cmas svg{width:14px;height:14px}#mesa .pp-cmas:hover{background:var(--acc-soft)}#mesa .pp-cmas:active{transform:scale(.97)}
 #mesa :is(.pp-cmas,.pp-csx):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 #mesa .pp-card.nota{width:min(440px,100%);min-height:280px;display:flex;background:var(--postit-2);color:var(--postit-ink);border-radius:var(--r-sm);padding:22px 24px}
@@ -1791,7 +1794,7 @@
 #mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */
 #mesa .detail[data-dlg="pp-foto"] .card.dlg{max-width:min(94vw,980px);width:auto;padding:12px 12px 10px}
-@media (prefers-reduced-motion:reduce){#mesa .pp-bw{transition:none}#mesa .pp-cob:active{transform:none}#mesa .pp-cml.vacio{transition:none}#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa .pp-bw,#mesa .pp-cob{transition:none}#mesa .pp-cob:active{transform:none}#mesa .pp-cml.vacio{transition:none}#mesa .pp-pc{animation:none}#mesa .pp-ov.entra .pp-card{animation-name:pp-ovin}#mesa .pp-ov.sale .pp-card{animation:none}#mesa .pp-cmas:active{transform:none}#mesa .pp :is(.pp-fold,.pp-cifra,.ibtn,.pp-tc,button.pp-av,.pp-blq,.pp-mas,button.pp-tfo):active,#mesa .brand.pp-logo:active svg{transform:none}}
 @media (max-width:720px){
   #mesa .pp{padding:4px 12px 24px}
   #mesa .pp-cifra{padding:10px 10px 11px}#mesa .pp-cifra span{font-size:12px}

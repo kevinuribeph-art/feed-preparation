@@ -863,13 +863,14 @@
       if (X.CL.some(c => String(c.name).trim().toLowerCase() === String(e0.txt).trim().toLowerCase())) { X.closeDetail(); X.toast(`Ya hay un cliente mensual que se llama «${e0.txt}»: cambia antes el nombre del esporádico.`, { ms: 7000 }); return; }
       b.disabled = true;
       let c; try { c = await M.addClient({ name: e0.txt }); } catch (err) { X.toast('No se pudo: ' + ((err && err.message) || err)); b.disabled = false; return; }
+      try { if (I().cob) for (const r of I().cob.vivos(e0.id)) await I().cob.parche(r.id, { cliente: c.id }); }   // its payments go with it first (D-234)
+      catch (err) { X.toast('No se pudo pasar sus cobros: ' + ((err && err.message) || err), { ms: 8000 }); b.disabled = false; return; }
       const now = P.ahoraISO(), cambios = [];
       // a session shared with others: only its part (D-217)
       const pasa = x => { if (x.tipo === 'esporadico' || !P.conCli(x, e0.id)) return false; if (x.tipo === 'sesion') ponerClis(x, P.clis(x).map(id => id === e0.id ? c.id : id)); else x.cliente = c.id; return true; };
       for (const k of P.vivos()) { const n = P.copia(k); if (pasa(n)) { n.at = now; cambios.push({ id: k.id, despues: n }); } }
       const ne = P.copia(P.TK.get(e0.id)); ne.pasado = { cliente: c.id, at: now }; ne.at = now; cambios.push({ id: e0.id, despues: ne });
       await P.escribir(cambios);
-      if (I().cob) for (const r of I().cob.vivos(e0.id)) await I().cob.guardar({ ...r, cliente: c.id });   // its payments go with it (D-234)
       P.remapH(pasa, e0.id);   // its own steps go: it can't come back unpassed
       if (P.st.tcli === e0.id) P.st.tcli = c.id;
       X.closeDetail(); if (P.CARD && P.CARD.id === e0.id) P.cerrarCard(true);

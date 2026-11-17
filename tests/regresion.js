@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 18, V_IDB = 20;   // v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 19, V_IDB = 21;   // v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -79,6 +79,7 @@
     if (M._test.ubBorrar) await M._test.ubBorrar();   // el catálogo de ubicaciones y las listas (D-124)
     if (M._test.perBorrar) await M._test.perBorrar();   // las listas de personas (D-130)
     if (M._test.cobBorrarTodo) await M._test.cobBorrarTodo();   // los cobros, sus PDF y las cuotas (D-232)
+    if (M._test.mesBorrarTodo) await M._test.mesBorrarTodo();   // el porqué y cómo fue de cada mes (D-238)
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -16295,6 +16296,61 @@
       await vistaCliente(false);
     } finally { fr.style.width = w0; try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); await vistaCliente(false); relojVuelve(); await sinTareas(); }
   });
+
+  // ---------- ajustes de la 4.24, punto 9: el porqué del mes y cómo fue el anterior (D-238 a D-240) ----------
+  const IF_PQ = { partes: [{ t: 'Horario', x: 'Las fotos a las 13:00 y los reels a las 12:30.' }, { t: 'Días', x: 'Lunes, martes y jueves.' }] };
+  function IF_RES(mes = '2026-10', k = 1) {
+    const p = [['Foto 1.1', 'Foto', 3, 700], ['Reel 1.2', 'Reel', 7, 2100], ['Carrusel 1.3', 'Carrusel', 10, 1500], ['Reel 1.4', 'Reel', 17, 1300]].map(([nombre, tipo, d, a]) => ({ nombre, tipo, fecha: mes + '-' + String(d).padStart(2, '0'), alcance: a * k }));
+    const al = p.reduce((s, x) => s + x.alcance, 0);
+    return { cifras: { alcance: { valor: al, anterior: 4800 }, interacciones: { valor: 410, anterior: 380 }, guardados: { valor: 52, anterior: 40 }, publicaciones: { valor: p.length, anterior: 4 } }, posts: p, frase: 'Lo que mejor funcionó: los reels.' };
+  }
+  async function infPoner(rec) { await M._in.idbPut('meses', rec.cliente + '|' + rec.mes, rec); await M._in.mes.leer(true); }
+  const infAbrir = v => new Promise(res => { const o = W.indexedDB.open('mesa-feed', v); o.onsuccess = () => { const x = { v: o.result.version, n: [...o.result.objectStoreNames] }; o.result.close(); res(x); }; o.onerror = () => res({ error: o.error && o.error.name }); o.onupgradeneeded = () => res({ error: 'subió' }); });
+
+  prueba('IF1', 'El porqué y cómo fue, datos (D-238): IndexedDB 21 con «meses» (clave cliente|AAAA-MM); «⇅ Exportar» v19 los lleva → borrar → «Importar» los devuelve iguales; une por clave (gana el más reciente, también una parte quitada); importar lo mismo no trae nada; un archivo con uno dañado no entra entero; un v18 se importa; una pestaña con IndexedDB 20 no abre la base; un cliente eliminado se lleva sus meses', async () => {
+    await tablero([pub(1)]);
+    const st = await infAbrir(); igual(st.v, V_IDB, 'la versión de IndexedDB'); ok((st.n || []).includes('meses'), 'falta el almacén «meses»: ' + json(st.n));
+    const at0 = '2026-11-01T10:00:00.000Z';
+    const r1 = { cliente: CLIENTE, mes: '2026-11', porque: IF_PQ, resumen: null, at: at0 }, r2 = { cliente: CLIENTE, mes: '2026-10', porque: null, resumen: IF_RES(), at: at0 };
+    await infPoner(r1); await infPoner(r2);
+    igual(M._in.mes.get(CLIENTE, '2026-11'), r1, 'la caché no lee lo guardado');
+    let ev = 0; const on = () => ev++; D.addEventListener('mesa-meses', on);
+    try {
+      const blob = await M.exportAll({ returnBlob: true }), d = JSON.parse(await blob.text());
+      igual(d.v, V_ARCHIVO, 'la versión del archivo');
+      igual((d.meses || []).filter(r => r.cliente === CLIENTE).sort((a, b) => a.mes < b.mes ? -1 : 1), [r2, r1], 'el archivo no lleva los meses tal cual');
+      await M._test.mesBorrarTodo(); ok(!M._in.mes.get(CLIENTE, '2026-11'), 'borrar no borra');
+      ev = 0; let x = await M.importData(blob, { confirm: false }); ok(x && x.ok && x.meses === 2, 'importar no trae los meses: ' + json(x));
+      igual(M._in.mes.get(CLIENTE, '2026-11'), r1, 'el porqué importado no es el exportado'); igual(await M._in.idbGet('meses', CLIENTE + '|2026-10'), r2, 'el resumen importado no es el exportado');
+      ok(ev > 0, 'importar no avisa (mesa-meses)');
+      x = await M.importData(blob, { confirm: false }); ok(x && !x.meses, 'importar lo mismo otra vez trae meses: ' + json(x));
+      // the newest wins: one newer here stays; one newer in the file wins, a part taken away too
+      await infPoner({ ...r1, porque: { partes: [{ t: 'Horario', x: 'Cambiado aquí.' }] }, at: '2026-11-05T10:00:00.000Z' });
+      x = await M.importData(d, { confirm: false }); igual(M._in.mes.get(CLIENTE, '2026-11').porque.partes[0].x, 'Cambiado aquí.', 'un archivo viejo pisa lo más reciente de aquí');
+      const nuevo = JSON.parse(JSON.stringify(d)), n11 = nuevo.meses.find(r => r.cliente === CLIENTE && r.mes === '2026-11'); n11.porque = null; n11.at = '2026-11-06T10:00:00Z';
+      x = await M.importData(nuevo, { confirm: false }); ok(x && x.meses === 1, 'el más reciente del archivo no entra: ' + json(x));
+      const q11 = M._in.mes.get(CLIENTE, '2026-11'); ok(q11 && q11.porque === null && q11.at === '2026-11-06T10:00:00.000Z', 'una parte quitada en el otro Mac no se queda quitada: ' + json(q11));
+      // a damaged one: the whole file is refused and nothing changes
+      const danos = [r => { r.mes = '2026-13'; }, r => { r.at = 'ayer'; }, r => { r.porque = { partes: [] }; }, r => { r.resumen.frase = '<b>hola</b>'; }, r => { r.resumen.posts[0].fecha = '2026-09-30'; }, r => { r.resumen.cifras.publicaciones.valor = 9; }, r => { r.cliente = ''; }];
+      for (const [i, danar] of danos.entries()) {
+        const m = JSON.parse(JSON.stringify(nuevo)); danar(m.meses.find(y => y.cliente === CLIENTE && y.mes === '2026-10'));
+        const antes = JSON.stringify(await M._in.idbAll('meses'));
+        x = await M.importData(m, { confirm: false }); ok(x && x.error && /dañado/.test(x.error), `un archivo con un mes dañado (${i}) entra: ` + json(x));
+        igual(JSON.stringify(await M._in.idbAll('meses')), antes, `un archivo dañado (${i}) cambió algo`);
+      }
+      // a v18 still imports (no months)
+      const v18 = JSON.parse(JSON.stringify(d)); v18.v = 18; delete v18.meses;
+      x = await M.importData(v18, { confirm: false }); ok(x && !x.error, 'un v18 no se importa: ' + json(x));
+    } finally { D.removeEventListener('mesa-meses', on); }
+    // an older version of the database is refused (a 4.26 tab stops)
+    igual((await infAbrir(V_IDB - 1)).error, 'VersionError', 'una pestaña con IndexedDB 20 abre la base de datos');
+    // a deleted client takes its months with it
+    if (!(await M.clients()).some(c => c.id === CLIENTE2)) await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+    await infPoner({ cliente: CLIENTE2, mes: '2026-11', porque: IF_PQ, resumen: null, at: at0 });
+    igual(await M.removeClient(CLIENTE2), true, 'no se pudo eliminar el cliente');
+    ok(!(await M._in.idbGet('meses', CLIENTE2 + '|2026-11')) && !M._in.mes.get(CLIENTE2, '2026-11'), 'los meses de un cliente eliminado se quedan');
+  });
+
 
   // =====================================================================================================
   const filas = $('filas');

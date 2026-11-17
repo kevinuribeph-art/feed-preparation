@@ -194,9 +194,11 @@
       // 20 (mesa 4.26): + 'cobros', one record per invoice of a client (its state, its dates, its PDF's id; a deleted one stays
       // as a tombstone, so an old file doesn't bring it back), and 'cfacturas', the invoices' PDFs, each on its own as 'tfotos';
       // a client may keep its monthly fee (`cuota`, D-232); an older tab would drop them on an import or a save of the client.
-      const r = indexedDB.open('mesa-feed', 20);
+      // 21 (mesa 4.27): + 'meses', one record per client and month (key 'cliente|AAAA-MM'): the month's why and how the month
+      // before went, for the vista cliente, loaded by Claude (D-238); an older tab would drop them on an import.
+      const r = indexedDB.open('mesa-feed', 21);
       r.onupgradeneeded = e => {
-        const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
+        const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
         if (e.oldVersion >= 15 && e.oldVersion < 19) r.transaction.objectStore('tareas').openCursor().onsuccess = ev => { const c = ev.target.result; if (!c) return; const n = tareaAl17(c.value); if (n !== c.value) c.update(n); c.continue(); };
       };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
@@ -5003,7 +5005,7 @@
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'prevrestore') { prevRestore(a.dataset.id); openPast(a.dataset.id); }
     else if (act === 'recargar') location.reload();
-    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
+    else if (act === 'takeover') { const k = S && S.key; S = null; PB = null; await claim(); cobLeer(true).then(() => cobAvisar(false)); mesLeer(true).then(() => mesAvisar(false)); if (k && (await idbGet('boards', k))) await M.open(k); else await M.boot(); }
     else if (act === 'delclient') {
       if (a.dataset.confirm !== '1') {   // its tray goes with it (D-072): the button says how much
         a.dataset.confirm = '1'; a.textContent = 'Confirmar: eliminar';
@@ -5433,6 +5435,132 @@
       return x.error ? x : { ok: true, id: x.rec.id, pdf: x.rec.pdf };
     }
   };
+  // ---------- the month's why and how the month before went (D-238) ----------
+  // 'meses', one record per client and month, key 'cliente|AAAA-MM': {cliente, mes, porque, resumen, at}. porque = {partes:
+  // [{t, x}]}, 1 to 6 paragraphs with their label, plain text; resumen = {cifras: {alcance, interacciones, guardados,
+  // publicaciones: {valor, anterior}}, posts: [{nombre, tipo, fecha, alcance}], tipos: [{tipo, alcance}], frase}. Claude
+  // writes them (M.informe), never the client; a part taken away stays as null with the record's at, so an older file
+  // doesn't bring it back. Read once per tab and then with each change, here or in another tab ('mesa-meses'), as 'cobros'.
+  let MES = null, mesGen = 0, mesLee = null, mesOtra = false, mesMal = false, mesPend = Promise.resolve();
+  const mesBC = (() => { try { const b = new BroadcastChannel('mesa-meses'); b.onmessage = () => { mesLeer(true).then(() => mesAvisar(false)); }; return b; } catch (e) { return null; } })();
+  function mesLeer(otra) {
+    if (otra) mesOtra = true;
+    if (mesLee) return mesLee;
+    if (MES && !mesOtra && !mesMal) return Promise.resolve(MES);
+    const p = mesLee = (async () => {
+      try {
+        for (;;) {
+          await mesPend;                                // the writes in course first
+          mesOtra = false; const g = mesGen; let l;
+          try { l = (await idbAll('meses')) || []; } catch (e) { if (!MES) { MES = new Map(); mesMal = true; } return MES; }   // a failed reading keeps what was read
+          if (g !== mesGen || mesOtra) continue;        // a change while reading: read again (lesson 75)
+          MES = new Map(l.filter(r => r && r.cliente && COB_MES.test(r.mes || '')).map(r => [mesClave(r.cliente, r.mes), r])); mesMal = false;
+          return MES;
+        }
+      } finally { mesLee = null; }
+    })();
+    return p;
+  }
+  Promise.resolve().then(() => mesLeer()).then(() => mesAvisar(false));   // once per tab, at the start
+  function mesAvisar(aOtras) {
+    if (aOtras && mesBC) try { mesBC.postMessage({ t: 'meses' }); } catch (e) { /* */ }
+    try { document.dispatchEvent(new CustomEvent('mesa-meses')); } catch (e) { /* */ }
+  }
+  const mesClave = (c, m) => c + '|' + m;
+  const MES_TIPOS = ['Foto', 'Carrusel', 'Reel', 'Collab Reel', 'Trial Reel'], MES_CIFRAS = ['alcance', 'interacciones', 'guardados', 'publicaciones'];
+  const MES_NOTION = { 'test de horario': 'Horario', 'fechas ancla': 'Fechas clave', 'estructura': 'Cómo se reparte', 'métricas previas': 'la que mejor lo diga al cliente, p. ej. «Qué vamos a mirar»', 'metricas previas': 'la que mejor lo diga al cliente, p. ej. «Qué vamos a mirar»' };
+  // plain text: no tags, no markdown marks, no line breaks (each part is one paragraph)
+  function mesPlano(v, donde, max, mal) {
+    if (typeof v !== 'string' || !v.trim()) return mal(`${donde}: falta el texto`), '';
+    const s = v.trim();
+    if (s.length > max) return mal(`${donde}: pasa de ${max} caracteres`), '';
+    if (/[\r\n]/.test(s)) return mal(`${donde}: sin saltos de línea (cada parte es un párrafo)`), '';
+    if (/<[a-z/!]|\*\*|__|`|\]\(|^\s*(#|[-*] )/i.test(s)) return mal(`${donde}: texto plano, sin marcas (ni HTML ni markdown)`), '';
+    return s;
+  }
+  const mesEntero = v => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e12;
+  const mesSoloClaves = (o, ok, donde, mal) => { const x = Object.keys(o).filter(k => !ok.includes(k)); if (x.length) mal(`${donde}: no se esperaba ${x.map(k => '«' + k + '»').join(', ')} (solo ${ok.join(', ')})`); };
+  // a why: {partes: [{t, x}]}; mal(msg) collects the problems; gives the clean value
+  function mesPorque(p, mal) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return mal('porque: tiene que ser {partes: [{t, x}]}'), null;
+    mesSoloClaves(p, ['partes'], 'porque', mal);
+    if (!Array.isArray(p.partes) || p.partes.length < 1 || p.partes.length > 6) return mal('porque.partes: de 1 a 6 partes'), null;
+    const vistas = new Set(), partes = p.partes.map((q, i) => {
+      const d = `porque.partes[${i}]`;
+      if (!q || typeof q !== 'object' || Array.isArray(q)) return mal(`${d}: tiene que ser {t, x}`), null;
+      mesSoloClaves(q, ['t', 'x'], d, mal);
+      const t = mesPlano(q.t, d + '.t', 40, mal).replace(/[.:]\s*$/, ''), x = mesPlano(q.x, d + '.x', 600, mal);
+      const otra = MES_NOTION[t.toLowerCase()];
+      if (otra) mal(`${d}.t: «${t}» es la etiqueta de Notion; para el cliente: ${otra.startsWith('la ') ? otra : '«' + otra + '»'}`);
+      if (t && vistas.has(t.toLowerCase())) mal(`${d}.t: «${t}» repetida`); vistas.add(t.toLowerCase());
+      return { t, x };
+    });
+    return { partes };
+  }
+  // how a month went: its four figures with the month before's, each feed post, the average reach by type and a sentence or
+  // two. Checked against itself: as many posts as «publicaciones», reach = their sum, dates in the month, types = averages
+  function mesResumen(r, mes, mal) {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return mal('resumen: tiene que ser {cifras, posts, tipos, frase}'), null;
+    mesSoloClaves(r, ['cifras', 'posts', 'tipos', 'frase'], 'resumen', mal);
+    const c = r.cifras, cifras = {};
+    if (!c || typeof c !== 'object' || Array.isArray(c)) mal('resumen.cifras: tiene que ser {alcance, interacciones, guardados, publicaciones}, cada una {valor, anterior}');
+    else {
+      mesSoloClaves(c, MES_CIFRAS, 'resumen.cifras', mal);
+      for (const k of MES_CIFRAS) {
+        const v = c[k], d = 'resumen.cifras.' + k;
+        if (!v || typeof v !== 'object') { mal(`${d}: falta {valor, anterior}`); continue; }
+        mesSoloClaves(v, ['valor', 'anterior'], d, mal);
+        if (!mesEntero(v.valor)) mal(`${d}.valor: un número entero, 0 o más`);
+        if (v.anterior !== null && !mesEntero(v.anterior)) mal(`${d}.anterior: un número entero, 0 o más (null si no hay datos del mes anterior)`);
+        cifras[k] = { valor: v.valor, anterior: v.anterior === undefined ? null : v.anterior };
+      }
+    }
+    if (!Array.isArray(r.posts) || r.posts.length > 80) return mal('resumen.posts: una lista de hasta 80 publicaciones [{nombre, tipo, fecha, alcance}]'), null;
+    const posts = r.posts.map((q, i) => {
+      const d = `resumen.posts[${i}]`;
+      if (!q || typeof q !== 'object' || Array.isArray(q)) return mal(`${d}: tiene que ser {nombre, tipo, fecha, alcance}`), null;
+      mesSoloClaves(q, ['nombre', 'tipo', 'fecha', 'alcance', 'hora'], d, mal);
+      const nombre = mesPlano(q.nombre, d + '.nombre', 80, mal);
+      if (!MES_TIPOS.includes(q.tipo)) mal(`${d}.tipo: uno de ${MES_TIPOS.join(', ')}`);
+      if (!cobDia(q.fecha || '') || String(q.fecha).slice(0, 7) !== mes) mal(`${d}.fecha: un día AAAA-MM-DD de ${mes}`);
+      if (q.hora != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(q.hora)) mal(`${d}.hora: HH:MM`);
+      if (!mesEntero(q.alcance)) mal(`${d}.alcance: un número entero, 0 o más`);
+      return { nombre, tipo: q.tipo, fecha: q.fecha, ...(q.hora != null ? { hora: q.hora } : {}), alcance: q.alcance };
+    });
+    const ok = posts.every(Boolean);
+    if (ok && cifras.publicaciones && mesEntero(cifras.publicaciones.valor) && cifras.publicaciones.valor !== posts.length) mal(`resumen.cifras.publicaciones.valor (${cifras.publicaciones.valor}) no es el número de posts (${posts.length})`);
+    const suma = ok ? posts.reduce((s, p) => s + (mesEntero(p.alcance) ? p.alcance : 0), 0) : 0;
+    if (ok && cifras.alcance && mesEntero(cifras.alcance.valor) && cifras.alcance.valor !== suma) mal(`resumen.cifras.alcance.valor (${cifras.alcance.valor}) no es la suma del alcance de los posts (${suma})`);
+    const medias = {}; if (ok) { const g = {}; posts.forEach(p => { (g[p.tipo] = g[p.tipo] || []).push(p.alcance); }); for (const [t, l] of Object.entries(g)) medias[t] = Math.round(l.reduce((s, v) => s + v, 0) / l.length); }
+    let tipos;
+    if (r.tipos == null) tipos = Object.entries(medias).map(([tipo, alcance]) => ({ tipo, alcance }));
+    else if (!Array.isArray(r.tipos)) { mal('resumen.tipos: una lista [{tipo, alcance}] (o nada: sale de los posts)'); tipos = []; }
+    else {
+      tipos = r.tipos.map((q, i) => {
+        const d = `resumen.tipos[${i}]`;
+        if (!q || typeof q !== 'object') return mal(`${d}: tiene que ser {tipo, alcance}`), null;
+        mesSoloClaves(q, ['tipo', 'alcance'], d, mal);
+        if (!(q.tipo in medias)) mal(`${d}.tipo: «${q.tipo}» no es el tipo de ningún post`);
+        else if (!mesEntero(q.alcance) || Math.abs(q.alcance - medias[q.tipo]) > 1) mal(`${d}.alcance: el medio de sus posts es ${medias[q.tipo]}`);
+        return { tipo: q.tipo, alcance: q.alcance };
+      }).filter(Boolean);
+      const dados = new Set(tipos.map(t => t.tipo));
+      if (dados.size !== tipos.length) mal('resumen.tipos: un tipo repetido');
+      Object.keys(medias).forEach(t => { if (!dados.has(t)) mal(`resumen.tipos: falta «${t}»`); });
+    }
+    tipos.sort((a, b) => b.alcance - a.alcance);
+    const frase = mesPlano(r.frase, 'resumen.frase', 300, mal);
+    return { cifras, posts, tipos, frase };
+  }
+  function mesNoLocked() { if (locked) throw new Error('la mesa está abierta en otra pestaña o hay una versión nueva'); }
+  const infDe = cli => MES ? [...MES.values()].filter(r => r.cliente === cli).sort((a, b) => a.mes < b.mes ? -1 : 1) : [];
+  async function mesBorrarCliente(id) {   // a deleted client's months go with it
+    await mesLeer(); const ks = [...MES.keys()].filter(k => k.startsWith(id + '|')); if (!ks.length || locked) return;
+    mesGen++; ks.forEach(k => MES.delete(k));
+    const pw = tx('meses', 'readwrite', st => { ks.forEach(k => st.delete(k)); }); mesPend = mesPend.then(() => pw).catch(() => {});
+    try { await pw; } catch (e) { mesLeer(true); }
+    mesAvisar(true);
+  }
   // cycleDay: the day of the month its work cycle starts (1-28, default 1 = calendar month)
   M.addClient = async ({ id, name, handle, cycleDay } = {}) => {
     if (!okCd(cycleDay)) throw new Error('cycleDay debe ser un día del 1 al 28');
@@ -5494,6 +5622,7 @@
     if (subida && subida.client === id) return 'Espera a que termine la subida de la carpeta.';
     const c0 = await idbGet('clients', id), tr = await idbGet('bandejas', id);
     await idbDel('clients', id);
+    try { await mesBorrarCliente(id); } catch (e) { /* */ }   // its months' why and summary (D-238)
     if (tr) { await idbDel('bandejas', id); try { await borrarSiNadie([...new Set([...(tr.tray || []), ...enCarpetas(tr.carpetas)])]); } catch (e) { /* */ } }   // its tray and folders, with no month left (D-041, D-072)
     if (c0 && c0.foto && String(c0.foto).startsWith('perfil-')) { try { await idbDel('files', c0.foto); } catch (e) { /* */ } soltarArchivo(c0.foto); }   // its profile photo, and its URL (D-071)
     try { await borrarKitDe(id, c0, boards); } catch (e) { /* */ }   // its logos and final photo, if no other client uses them (D-104)
@@ -6280,8 +6409,9 @@
         const f = await idbGet('cfacturas', pid).catch(() => null); if (!f || !f.blob) continue;
         try { cfacturas.push({ id: pid, nombre: f.nombre || '', tam: f.blob.size, tipo: f.tipo || 'application/pdf', data: await b64of(f.blob) }); } catch (e) { /* a PDF that can't be read stays here */ }
       }
-      const parts = ['{"format":"mesa-feed","v":18,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
-        + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
+      const meses = ((await idbAll('meses')) || []).filter(r => r && typeof r.cliente === 'string' && COB_MES.test(r.mes || ''));   // each month's why and summary (D-238)
+      const parts = ['{"format":"mesa-feed","v":19,"app":' + JSON.stringify(M.version) + ',"exportedAt":' + JSON.stringify(now.toISOString())   // v19: + meses, each client's month's why and summary (D-238); v18: + cobros (with their tombstones) and cfacturas, their PDFs in base64 (D-232); v3: + bandejas (D-041); v4: the boards may hold stories (D-054), whose images a mesa before 3.53 wouldn't bring; v5: «No aprobado» and the reason of a cancellation (D-082); v6: the month's step of each board (D-084); v7: a post put back by hand (D-085); v8: one step per month of a board (D-119; a file before it has the board's step, which goes to its first month); v9: a Programada keeps the date it was scheduled for (D-120); v10: + ubicaciones, the locations' catalog; the clients carry their lists and the posts the one chosen (D-124); v11: the clients carry their lists of people and the posts their tags and collaborators (D-130); v12: the editor's slides may hold a progress bar, a check or an x (D-179); v13: + tareas, the personal page's tasks and notes with their photos, and since when a post waits for the client (D-180); v14: a task's details and subtasks (D-183); v15: a designed slide's free layers of the editor and slides let go from the kit (D-193); v16: sessions, sporadic clients and the list of material (D-206, D-207); v17: a session's clients, end and template of material, several templates of material (D-217, D-218, D-220)
+        + ',"clients":' + JSON.stringify(clients) + ',"ubicaciones":' + JSON.stringify(ubicaciones) + ',"tareas":' + JSON.stringify(tareas) + ',"cobros":' + JSON.stringify(cobros) + ',"cfacturas":' + JSON.stringify(cfacturas) + ',"meses":' + JSON.stringify(meses) + ',"bandejas":' + JSON.stringify(bandejas) + ',"boards":' + JSON.stringify(boards) + ',"files":{'];
       let sep = '', n = 0, photos = 0, skipped = 0;
       for (const id of ids) {
         setBusy('imp', `Exportando ${++n}/${ids.length} fotos…`);
@@ -6322,7 +6452,7 @@
       const aviso = () => { if (huecos.length) dlgHuecos(msg, huecos, clients); else toast(msg, { ms: 7000 }); };
       if (M.revisar && M.revisar.auto) M.revisar.auto('exportar', null, { msg, fallo: aviso, huecos: huecos.map(h => ({ ...h, cliente: (clients.find(c => c.id === h.client) || {}).name || h.client, mes: monthLabel(h.month) })) });   // the review, with the holes of the other months (D-037, D-040)
       else aviso();
-      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb, huecos, carpetasFuera, tareas: tareas.length, cobros: cobros.filter(r => !r.borrado).length, facturas: cfacturas.length };
+      return { ok: true, file: fname, via, clients: clients.length, boards: boards.length, photos, past, skipped, mb, huecos, carpetasFuera, tareas: tareas.length, cobros: cobros.filter(r => !r.borrado).length, facturas: cfacturas.length, meses: meses.length };
     } catch (e) { const q = xferW ? await xferDrop() : 'borrado'; return fail('No se pudo exportar la mesa: ' + String((e && e.message) || e) + (q === 'vacio' ? ' Puede haber quedado un archivo vacío con el nombre elegido: bórralo.' : '')); }
     finally { xferRun = null; xferW = null; xferH = null; xferSz = null; setBusy('imp', null); }
   };
@@ -6359,7 +6489,7 @@
   }
   function xferCheck(d) {
     if (!d || typeof d !== 'object' || d.format !== 'mesa-feed') return 'Este archivo no es una exportación de la Mesa de trabajo.';
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(d.v)) return +d.v > 18 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(d.v)) return +d.v > 19 ? 'Este archivo viene de una versión más nueva de la mesa: actualízala antes de importarlo.' : 'Versión de archivo desconocida: no se puede importar.';
     const bad = 'El archivo está dañado o incompleto: no se puede importar.';
     if (!Array.isArray(d.clients) || !Array.isArray(d.boards) || !d.files || typeof d.files !== 'object' || (d.past != null && typeof d.past !== 'object')) return bad;
     if (d.clients.some(c => !c || typeof c.id !== 'string' || !c.id)) return bad;
@@ -6379,6 +6509,10 @@
     if (d.cfacturas != null && (!Array.isArray(d.cfacturas) || d.cfacturas.some(f => !f || typeof f.id !== 'string' || !f.id || typeof f.data !== 'string' || !f.data))) return bad;
     const qn = (v, a, b) => v == null || v === '' || (typeof v === 'number' && isFinite(v) && v >= a && v <= b && (b === 1e9 || Number.isInteger(v)));
     if (d.clients.some(c => c.cuota != null && (typeof c.cuota !== 'object' || !qn(c.cuota.importe, 0, 1e9) || !qn(c.cuota.dia, 1, 28) || !qn(c.cuota.plazo, 0, 365)))) return bad;
+    // v19: each month's why and summary (D-238), with the same checks as M.informe (but whether the month is over)
+    if (d.meses != null && (!Array.isArray(d.meses) || d.meses.some(r => { if (!r || typeof r.cliente !== 'string' || !r.cliente || !COB_MES.test(r.mes || '') || typeof r.at !== 'string' || isNaN(Date.parse(r.at))) return true;
+      let malo = false; const mal = () => { malo = true; };
+      if (r.porque != null) mesPorque(r.porque, mal); if (r.resumen != null) mesResumen(r.resumen, r.mes, mal); return malo; }))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
     if (Object.values(d.files).some(f => !f || typeof f.data !== 'string' || !f.data)) return bad;
     return null;
@@ -6455,7 +6589,11 @@
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
     P.trays = P.trays.filter(r => cids.has(r.client)); P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);   // a tray only with its client
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length;
+    // each month's why and summary (D-238): one new here or changed later on the other Mac, of a client that is (or comes) here
+    const mesAqui = Object.fromEntries(((await idbAll('meses')) || []).filter(r => r && r.cliente && r.mes).map(r => [mesClave(r.cliente, r.mes), r])), mesArch = {};
+    (d.meses || []).map(isoAt).forEach(r => { const k = mesClave(r.cliente, r.mes); if (!mesArch[k] || r.at > mesArch[k].at) mesArch[k] = r; });
+    P.mesPut = Object.entries(mesArch).filter(([k, r]) => cids.has(r.cliente) && (!mesAqui[k] || r.at > String(mesAqui[k].at || ''))).map(([, r]) => ({ cliente: r.cliente, mes: r.mes, porque: r.porque || null, resumen: r.resumen || null, at: r.at }));
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length;
     return P;
   }
   // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
@@ -6493,6 +6631,7 @@
       P.cuotaUpd && P.cuotaUpd.length && nOf(P.cuotaUpd.length, 'cliente con su cuota al día', 'clientes con su cuota al día'),
       P.cobPut && P.cobPut.length && nOf(P.cobPut.length, 'factura nueva o al día', 'facturas nuevas o al día'),
       P.pdfPut && P.pdfPut.length && nOf(P.pdfPut.length, 'PDF de factura', 'PDF de facturas'),
+      P.mesPut && P.mesPut.length && nOf(P.mesPut.length, 'mes con su porqué o su resumen al día', 'meses con su porqué o su resumen al día'),
       P.trayAdd && `${nOf(P.trayAdd, 'foto entra', 'fotos entran')} en la bandeja`].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
@@ -6618,6 +6757,7 @@
       { const pdfs = Object.values(gotPdf), aqui = id => (P.cobAqui || {})[id], tiene = pid => !!pid && (!!gotPdf[pid] || (P.pdfAqui && P.pdfAqui.has(pid))), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: !r.pdf || tiene(r.pdf) ? r.pdf || '' : (aqui(r.id) && !aqui(r.id).borrado && tiene(aqui(r.id).pdf) ? aqui(r.id).pdf : '') });   // a PDF the file names but doesn't bring: the one here stays   // D-232: the PDFs first, then the invoices that name them
         if (pdfs.length) await tx('cfacturas', 'readwrite', st => pdfs.forEach(f => st.put(f, f.id)));
         if (co.length) { await tx('cobros', 'readwrite', st => co.forEach(r => st.put(r, r.id))); res.cobros = co.length; } }
+      if ((P.mesPut || []).length) { await tx('meses', 'readwrite', st => P.mesPut.forEach(r => st.put(r, mesClave(r.cliente, r.mes)))); res.meses = P.mesPut.length; }   // D-238
       for (const c of P.cuotaUpd || []) await editarCliente(c.id, o => { const n = { ...o, cuotaAt: c.cuotaAt }; if (c.cuota && typeof c.cuota === 'object') n.cuota = c.cuota; else delete n.cuota; return n; });   // D-232
       for (const c of P.perLista || []) await editarCliente(c.id, o => ({ ...o, personas: c.personas.map(x => ({ usuario: perNorm(x.usuario), colaborador: !!x.colaborador })).filter(x => PER_RE.test(x.usuario)), personasAt: c.personasAt }));   // D-130
       for (const c of P.fotoUpd || []) {
@@ -6646,6 +6786,7 @@
       setBusy('imp', null);
       await reopen();
       if ((P.cobPut || []).length || (P.cuotaUpd || []).length || (P.pdfPut || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }   // D-232: here and the other tabs
+      if ((P.mesPut || []).length) { await mesLeer(true); mesAvisar(true); }   // D-238: here and the other tabs
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
       const k = P.newer.length;
       toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), P.vueltas && (P.vueltas === 1 ? '1 foto que solo usaba este Mac ha vuelto a la bandeja' : `${P.vueltas} fotos que solo usaba este Mac han vuelto a la bandeja`), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
@@ -6944,6 +7085,7 @@
   M._in = {
     vc: VC,
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
+    mes: { leer: mesLeer, listo: () => !!MES && !mesLee, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js)
     cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
@@ -6972,6 +7114,7 @@
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); }   // for the stories (historias.js, mesa ≥ 3.53)
   };
   M._test = {
+    mesBorrarTodo: async () => { mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
     cobBorrarTodo: async () => { cobGen++; await tx(['cobros', 'cfacturas'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); }); COB = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices and fees go (D-232)
     reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,

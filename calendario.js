@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.24';   // 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.25';   // 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado';   // the weekly count Σ is gone, and its «mesa-cal-recuento» no longer read (D-229)
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -628,6 +628,7 @@
 #mesa .vc-lado{flex:0 0 360px;min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
 #mesa .vc-parte{flex:none;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
 #mesa:not(.client) .vc-lado{display:none}
+#mesa.client .side>.cal{border-radius:inherit}   /* alone in its column (no tray): round on top too, as the drawing (D-240) */
 #mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
 @media (prefers-reduced-motion:reduce){#mesa .vcp-tab{transition:none}#mesa .vcp-tab:active:not(.on){transform:none}}
 #mesa.client .edot,#mesa.client .eico,#mesa.client .cmk,#mesa.client .cleg,#mesa.client .csync,#mesa.client .cnat,#mesa.client .dmany,#mesa.client .chip.cx,#mesa.client .chip .dchg{display:none}
@@ -638,7 +639,7 @@
   #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .feed{flex:none;width:auto;height:620px;margin:0}
   #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .side{flex:none}
   #mesa.client .side>.cal.vctabs{height:auto}#mesa .cal.vctabs .calbody{flex:none;overflow:visible}
-  #mesa .vc-lado{flex:none;overflow:visible;gap:6px}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}
+  #mesa .vc-lado{flex:none;overflow:visible;gap:12px}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}#mesa .vcp-panel{padding:8px 16px 16px}   /* the panels' text on one edge and their gap as the drawing (D-240) */
 }`;
   I().estilo('mesa-cal-css', CSS);
 

@@ -16311,7 +16311,7 @@
     await tablero([pub(1)]);
     const st = await infAbrir(); igual(st.v, V_IDB, 'la versión de IndexedDB'); ok((st.n || []).includes('meses'), 'falta el almacén «meses»: ' + json(st.n));
     const at0 = '2026-11-01T10:00:00.000Z';
-    const r1 = { cliente: CLIENTE, mes: '2026-11', porque: IF_PQ, resumen: null, at: at0 }, r2 = { cliente: CLIENTE, mes: '2026-10', porque: null, resumen: IF_RES(), at: at0 };
+    const r1 = { cliente: CLIENTE, mes: '2026-11', porque: IF_PQ, resumen: null, at: at0 }, r2 = { cliente: CLIENTE, mes: '2026-10', porque: null, resumen: (x => ({ cifras: x.cifras, posts: x.posts, tipos: [{ tipo: 'Reel', alcance: 1700 }, { tipo: 'Carrusel', alcance: 1500 }, { tipo: 'Foto', alcance: 700 }], frase: x.frase }))(IF_RES()), at: at0 };   // as MESA.informe leaves it (importing keeps it clean)
     await infPoner(r1); await infPoner(r2);
     igual(M._in.mes.get(CLIENTE, '2026-11'), r1, 'la caché no lee lo guardado');
     let ev = 0; const on = () => ev++; D.addEventListener('mesa-meses', on);
@@ -16478,7 +16478,7 @@
     } finally { await vistaCliente(false); relojVuelve(); await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, cycleDay: 1, slots: [], past: [], force: true }); await sinMes(`${CLIENTE}-2026-12`); await sinMes(`${CLIENTE}-2026-09`); await limpiar(); }
   });
 
-  prueba('IF4', '«Cómo fue» dibujado (D-240): cuatro cifras en el formato de España con su cambio («+133 %», «−13 %», «igual», «sin datos de …») y «Frente a <mes>»; el alcance de cada publicación en columnas de --barra (claro #998F85, oscuro #9E9388) de 24 px como mucho (también a 720 px, con su letra de 12 px), la mejor en --acc con su nombre y su cifra escritos, un title por columna, el aria-label de la gráfica y una tabla para lectores; el alcance medio por tipo, de mayor a menor; contraste de 4,5:1 o más en claro y oscuro; un redibujo sin cambios no toca nada; a 720 px, una columna con «Tus pagos» encima', async () => {
+  prueba('IF4', '«Cómo fue» dibujado (D-240): cuatro cifras en el formato de España con su cambio («+133 %», «−13 %», «igual», «sin datos de …») y «Frente a <mes>»; el alcance de cada publicación en columnas de --barra (claro #998F85, oscuro #726960; la mejor en --acc, en oscuro --acc-ink) de 24 px como mucho (también a 720 px, con su letra de 12 px), la mejor en --acc con su nombre y su cifra escritos, un title por columna, el aria-label de la gráfica y una tabla para lectores; el alcance medio por tipo, de mayor a menor; contraste de 4,5:1 o más en claro y oscuro; un redibujo sin cambios no toca nada; a 720 px, una columna con «Tus pagos» encima', async () => {
     await ifListo();
     relojEn('2026-11-17T10:00:00+01:00');
     const fr = $('mesa'), w0 = fr.style.width, tema0 = D.documentElement.dataset.theme;
@@ -16511,10 +16511,10 @@
       for (const tema of ['claro', 'oscuro']) {
         if (tema === 'oscuro') D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme;
         await espera(250); const c = ifCf();   // past the columns' transition (--d1)
-        igual(W.getComputedStyle(c.querySelector('.if-c:not(.top) i')).backgroundColor, tema === 'claro' ? 'rgb(153, 143, 133)' : 'rgb(158, 147, 136)', 'el gris de las columnas en ' + tema);
-        igual(W.getComputedStyle(c.querySelector('.if-c.top i')).backgroundColor, 'rgb(178, 80, 58)', 'la mejor no va en el acento (--acc) en ' + tema);
-        for (const s of ['.if-h', '.if-h span', '.if-f span', '.if-f b', '.if-f i.sube', '.if-f i.baja', '.if-f i.sin', '.if-f i.igual', '.if-fr0', '.if-sub', '.if-ch .if-v', '.if-ej span', '.if-tp span', '.if-tp em', '.if-frase']) {
-          const e = c.querySelector(s); ok(e, 'no está ' + s); if (e) { const k = contraste(W.getComputedStyle(e).color, fondo(e)); if (k < 4.5) malos.push([tema, s, +k.toFixed(2)]); }
+        igual(W.getComputedStyle(c.querySelector('.if-c:not(.top) i')).backgroundColor, tema === 'claro' ? 'rgb(153, 143, 133)' : 'rgb(114, 105, 96)', 'el gris de las columnas en ' + tema);
+        igual(W.getComputedStyle(c.querySelector('.if-c.top i')).backgroundColor, tema === 'claro' ? 'rgb(178, 80, 58)' : 'rgb(217, 128, 95)', 'la mejor no va en el acento (--acc, en oscuro --acc-ink) en ' + tema);
+        for (const s of ['.if-h', '.if-h span', '.if-f span', '.if-f b', '.if-f i.sube', '.if-f i.baja', '.if-f i.sin', '.if-f i.igual', '.if-fr0', '.if-sub', '.if-ch .if-v', '.if-ch .if-d', '.if-tp span', '.if-tp em', '.if-frase']) {
+          const e = c.querySelector(s); ok(e, 'no está ' + s); if (e) { const k = contraste(W.getComputedStyle(e).color, fondo(/if-v|if-d/.test(s) ? c.querySelector('.if-ch') : e)); if (k < 4.5) malos.push([tema, s, +k.toFixed(2)]); }   // the best's figure and the dates hang from their column but are drawn over the chart's ground
         }
       }
       igual(malos, [], 'contraste por debajo de 4,5:1');
@@ -16560,6 +16560,124 @@
       ok(!/Por qué este calendario|Cómo fue|En camino|Alcance de cada publicación/.test(tx), 'la página personal enseña el porqué o cómo fue');
       paginaCerrada();
     } finally { await vistaCliente(false); relojVuelve(); }
+  });
+
+  prueba('IF6', 'Arreglos de la revisión de dibujo del punto 9 (D-240): en oscuro la mejor columna destaca (gris #726960, más oscuro que ella, y la mejor en --acc-ink); 4 px entre columnas; la cifra de la mejor y las dos fechas cuelgan de su columna (con 1 o 2 publicaciones también) y nunca se salen; las medidas del dibujo (120 px de alto); las barras por tipo con 24 px para el ratón y responden al pasar; en la «Vista cliente» el panel del calendario redondeado arriba; a 720 px el texto de la pestaña en el borde de los apartados y 12 px entre ellos; «mill.» y «frente a 0»', async () => {
+    await ifListo();
+    relojEn('2026-11-17T10:00:00+01:00');
+    const fr = $('mesa'), w0 = fr.style.width, tema0 = D.documentElement.dataset.theme;
+    const res = (posts, extra = {}) => { const al = posts.reduce((s, p) => s + p.alcance, 0); return { cifras: { alcance: { valor: al, anterior: 0 }, interacciones: { valor: 1250000, anterior: 1000000 }, guardados: { valor: 0, anterior: 0 }, publicaciones: { valor: posts.length, anterior: 1 } }, posts, frase: 'Una frase.', ...extra }; };
+    const p = (nombre, d, alcance, tipo = 'Reel') => ({ nombre, tipo, fecha: '2026-10-' + String(d).padStart(2, '0'), alcance });
+    const dentro = () => { const c = ifCf().querySelector('.if-ch').getBoundingClientRect(), r = [...ifCf().querySelectorAll('.if-ch .if-v, .if-ch .if-d')].map(e => e.getBoundingClientRect()); return r.every(x => x.left >= c.left - 0.5 && x.right <= c.right + 0.5); };
+    try {
+      await tablero([pub(1)]);
+      await vistaCliente(true);
+      // one post: its label and its date over and under its column, centred
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: res([p('Un nombre muy largo para la publicación', 9, 700)]) })).ok, 'no se cargó uno');
+      M._in.render(); await espera(60);
+      { const b = ifCf().querySelector('.if-c i').getBoundingClientRect(), v = ifCf().querySelector('.if-v').getBoundingClientRect(), d = ifCf().querySelector('.if-d').getBoundingClientRect();
+        cerca((v.left + v.right) / 2, (b.left + b.right) / 2, 1, 'con una publicación la cifra no va sobre su columna'); cerca((d.left + d.right) / 2, (b.left + b.right) / 2, 1, 'con una publicación la fecha no va bajo su columna');
+        ok(v.bottom <= b.top && d.top >= b.bottom, 'la cifra o la fecha pisan la columna'); }
+      igual([...ifCf().querySelectorAll('.if-f i')].map(i => i.textContent), ['frente a 0', '+25 %', 'igual', 'igual'], '«frente a 0»');
+      igual(ifCf().querySelectorAll('.if-f b')[1].textContent, '1,3 mill.', 'los millones');
+      // two posts, the best second, with a long name: inside the chart, the dates at the ends of their columns
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: res([p('Reel corto', 3, 300), p('Un nombre muy largo para la publicación', 20, 900)]) })).ok, 'no se cargaron dos');
+      M._in.render(); await espera(60);
+      ok(dentro(), 'con dos publicaciones la cifra o las fechas se salen de la gráfica');
+      { const bs = [...ifCf().querySelectorAll('.if-c i')].map(i => i.getBoundingClientRect()), ds = [...ifCf().querySelectorAll('.if-d')].map(e => e.getBoundingClientRect());
+        cerca(ds[0].left, bs[0].left, 1, 'la primera fecha no empieza con su columna'); cerca(ds[1].right, bs[1].right, 1, 'la última fecha no acaba con su columna'); }
+      // fourteen: 4 px between the columns, 120 px of plot, and the types' bars
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: res(Array.from({ length: 14 }, (_, i) => p('Reel ' + (i + 1), i + 1, 500 + i * 50, i % 2 ? 'Reel' : 'Foto'))) })).ok, 'no se cargaron 14');
+      M._in.render(); await espera(60);
+      { const cs = [...ifCf().querySelectorAll('.if-c')].map(c => c.getBoundingClientRect()); cerca(cs[1].left - cs[0].right, 4, 0.6, 'no hay 4 px entre columnas');
+        cerca(ifCf().querySelector('.if-c.top i').getBoundingClientRect().height, 120, 1, 'la gráfica no mide 120 px de alto'); ok(dentro(), 'con 14 se sale algo');
+        ok([...ifCf().querySelectorAll('.if-v, .if-d')].every(e => W.getComputedStyle(e).fontStyle === 'normal'), 'la cifra de la mejor o las fechas van en cursiva (heredan del <i> de su columna)'); }
+      { const t = ifCf().querySelector('.if-tp i'); cerca(t.getBoundingClientRect().height, 24, 0.6, 'la barra por tipo no tiene 24 px para el ratón');
+        ok([...D.styleSheets].some(sh => { try { return [...sh.cssRules].some(r => /\.if-tp i:hover::before/.test(r.selectorText || '')); } catch (e) { return false; } }), 'la barra por tipo no responde al pasar'); }
+      // dark: the best stands out (darker grey than it)
+      D.documentElement.dataset.theme = 'dark'; await espera(250);
+      { const lum = c => { const [r, g, b] = rgbDe(c).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        ok(lum(W.getComputedStyle(ifCf().querySelector('.if-c.top i')).backgroundColor) > lum(W.getComputedStyle(ifCf().querySelector('.if-c:not(.top) i')).backgroundColor), 'en oscuro la mejor no destaca sobre el gris'); }
+      if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await espera(60);
+      // the calendar's panel: round on top in the vista cliente
+      ok(parseFloat(W.getComputedStyle(q('.side > .cal')).borderTopLeftRadius) > 0, 'el panel del calendario va recto arriba en «Vista cliente»');
+      // 720: the tab's text on the parts' edge, 12 px between parts
+      ok((await M.informe.cargar(CLIENTE, MES, { porque: IF_PQ })).ok, 'no se cargó el porqué');
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(300); M._in.render(); await espera(100);
+      await ifTab('porque');
+      const xs = [q('.side > .cal .vcp-panel .if-pq p'), ifCf().querySelector('.if-h')].map(e => e.getBoundingClientRect().left); cerca(xs[0], xs[1], 1, 'a 720 px el texto de la pestaña no va en el borde de los apartados');
+      const pg = q('.main > .vc-lado [data-vc="pagos"]').getBoundingClientRect(), cfr = ifCf().closest('.vc-parte').getBoundingClientRect(); cerca(cfr.top - pg.bottom, 12, 1, 'a 720 px los apartados no van a 12 px');
+    } finally { fr.style.width = w0; if (tema0) D.documentElement.dataset.theme = tema0; else delete D.documentElement.dataset.theme; await vistaCliente(false); relojVuelve(); }
+  });
+
+  prueba('IF7', 'Arreglos de la revisión funcional del punto 9 (D-238 a D-240): importar une parte a parte (una parte nunca cargada en el otro Mac no borra la de aquí; una quitada, sí) y guarda lo limpio; cargar escribe sobre lo guardado, no sobre la caché, y no nombra a otro cliente; una etiqueta que solo es un signo, un tipo heredado o un día que no existe no entran; eliminar un cliente se lleva también los meses que la caché no tenía; una pestaña pausada no carga; el aviso de otra pestaña pone al día la vista; «1 mill.» y no «1000 mil»; «Cómo fue diciembre 2026» en enero; la cifra de la mejor nunca se sale', async () => {
+    await ifListo();
+    relojEn('2026-11-17T10:00:00+01:00');
+    try {
+      await tablero([pub(1)]);
+      const k = CLIENTE + '|2026-10';
+      // 1 part by part: here the why (loaded on day 1); the other Mac, only the summary (day 5), never the why
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { porque: IF_PQ })).ok, 'no se cargó el porqué');
+      const aqui = await M._in.idbGet('meses', k); ok(aqui.porqueAt && !aqui.resumenAt, 'el porqué sin su fecha: ' + json(aqui));
+      const arch = d => ({ format: 'mesa-feed', v: V_ARCHIVO, app: 'prueba', exportedAt: new Date().toISOString(), clients: [], boards: [], files: {}, meses: d });
+      const otroMac = { cliente: CLIENTE, mes: '2026-10', porque: null, resumen: { ...IF_RES(), tipos: [{ tipo: 'Foto', alcance: 700 }, { tipo: 'Reel', alcance: 1700 }, { tipo: 'Carrusel', alcance: 1500 }] }, resumenAt: '2099-11-05T10:00:00.000Z', at: '2099-11-05T10:00:00.000Z' };
+      let x = await M.importData(arch([otroMac]), { confirm: false }); ok(x && x.ok && x.meses === 1, 'importar el resumen del otro Mac: ' + json(x));
+      let r = await M._in.idbGet('meses', k);
+      ok(r.porque && r.resumen, 'una parte nunca cargada en el otro Mac borró la de aquí: ' + json(r).slice(0, 200));
+      igual(r.resumen.tipos.map(t => t.tipo), ['Reel', 'Carrusel', 'Foto'], 'importar no guarda lo limpio (tipos de mayor a menor)');
+      // a part taken away there (with its date) goes here too
+      x = await M.importData(arch([{ ...otroMac, porque: null, porqueAt: '2099-11-06T10:00:00.000Z', at: '2099-11-06T10:00:00.000Z' }]), { confirm: false });
+      r = await M._in.idbGet('meses', k); ok(r.porque === null && r.resumen, 'una parte quitada en el otro Mac no se quita aquí: ' + json(r).slice(0, 160));
+      // a hand-made label with its stop: kept clean
+      x = await M.importData(arch([{ cliente: CLIENTE, mes: '2026-09', porque: { partes: [{ t: '  Horario. ', x: ' A las 13:00. ' }] }, resumen: null, at: '2099-11-07T10:00:00.000Z' }]), { confirm: false });
+      igual((await M._in.idbGet('meses', CLIENTE + '|2026-09')).porque, { partes: [{ t: 'Horario', x: 'A las 13:00.' }] }, 'importar no guarda lo limpio (etiqueta)');
+      // 3 cargar writes over what is stored: a summary written by another tab (not in this cache) stays
+      await M._in.idbPut('meses', CLIENTE + '|2026-08', { cliente: CLIENTE, mes: '2026-08', porque: null, resumen: IF_RES('2026-08'), resumenAt: '2026-11-01T10:00:00.000Z', at: '2026-11-01T10:00:00.000Z' });
+      ok((await M.informe.cargar(CLIENTE, '2026-08', { porque: IF_PQ })).ok, 'no carga');
+      r = await M._in.idbGet('meses', CLIENTE + '|2026-08'); ok(r.porque && r.resumen, 'cargar pisó lo guardado por otra pestaña con su caché vieja');
+      // 2 no other client, by name, id or handle; its own name, yes
+      if (!(await M.clients()).some(c => c.id === CLIENTE2)) await M.addClient({ id: CLIENTE2, name: NOMBRE2 });
+      for (const [txt, re] of [[`Las colaboraciones con ${NOMBRE2} salen los jueves.`, /nombra a otro cliente/], [`Con @${CLIENTE2} los jueves.`, /nombra a otro cliente/], [`Con ${NOMBRE2.toUpperCase()} los jueves.`, /nombra a otro cliente/]]) {
+        r = await M.informe.cargar(CLIENTE, MES, { porque: { partes: [{ t: 'Días', x: txt }] } });
+        ok(r.error && r.problemas.some(p => re.test(p)), 'nombra a otro cliente y entra: ' + txt + ' → ' + json(r).slice(0, 160));
+      }
+      const res2 = IF_RES(); res2.posts[0].nombre = 'Collab con ' + NOMBRE2; r = await M.informe.cargar(CLIENTE, '2026-10', { resumen: res2 }); ok(r.error && /posts\[0\]\.nombre: nombra a otro cliente/.test(r.problemas.join()), 'el nombre de una publicación nombra a otro cliente y entra');
+      ok((await M.informe.cargar(CLIENTE, MES, { porque: { partes: [{ t: 'Días', x: `${NOMBRE} publica los jueves.` }] } })).ok, 'su propio nombre no entra');
+      // 4, 7 a label that is only a sign, an inherited type, a day that doesn't exist
+      for (const [args, re] of [[{ porque: { partes: [{ t: ':', x: 'Algo.' }] } }, /no solo un signo/], [{ resumen: (() => { const y = IF_RES(); y.tipos = [{ tipo: 'constructor', alcance: 1 }]; return y; })() }, /no es el tipo de ningún post/], [{ resumen: (() => { const y = IF_RES('2026-09'); y.posts[0].fecha = '2026-09-31'; return y; })() }, /que exista/]]) {
+        r = await M.informe.cargar(CLIENTE, args.porque ? MES : args.resumen.posts[0].fecha.slice(0, 7), args); ok(r.error && r.problemas.some(p => re.test(p)), `no rechaza ${re}: ` + json(r).slice(0, 200));
+      }
+      // 9 deleting a client takes also the months the cache doesn't hold
+      await M._in.idbPut('meses', CLIENTE2 + '|2026-07', { cliente: CLIENTE2, mes: '2026-07', porque: IF_PQ, resumen: null, at: '2026-11-01T10:00:00.000Z' });
+      igual(await M.removeClient(CLIENTE2), true, 'no se eliminó el cliente');
+      ok(!(await M._in.idbGet('meses', CLIENTE2 + '|2026-07')), 'quedan meses de un cliente eliminado que la caché no tenía');
+      // a paused tab doesn't load
+      const bc = new W.BroadcastChannel('mesa-feed'); bc.postMessage({ t: 'claim', id: 'otra-pestana-de-prueba' });
+      try { await hasta(() => M._in.locked, 3000, 'la mesa pausada'); r = await M.informe.cargar(CLIENTE, MES, { porque: IF_PQ }); ok(r.error && /locked/.test(r.error), 'una pestaña pausada carga'); }
+      finally { bc.close(); await M._test.claim(); await hasta(() => !M._in.locked, 3000, 'la mesa activa otra vez'); }
+      // the notice of another tab (its channel) brings the view up to date
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES() })).ok, 'no carga el resumen');
+      await vistaCliente(true); M._in.render(); await espera(60); ok(ifCf(), 'sin «Cómo fue»');
+      const r10 = await M._in.idbGet('meses', k); await M._in.idbPut('meses', k, { ...r10, resumen: { ...r10.resumen, frase: 'Escrita en otra pestaña.' }, resumenAt: new Date().toISOString(), at: new Date().toISOString() });
+      const ch = new W.BroadcastChannel('mesa-meses'); ch.postMessage({ t: 'meses' }); ch.close();
+      await hasta(() => ifCf() && /Escrita en otra pestaña/.test(ifCf().textContent), 3000, 'que el aviso de otra pestaña ponga al día «Cómo fue»');
+      // 10 a million
+      const mil = { cifras: { alcance: { valor: 999950, anterior: 900000 }, interacciones: { valor: 1, anterior: 1 }, guardados: { valor: 0, anterior: 0 }, publicaciones: { valor: 1, anterior: 1 } }, posts: [{ nombre: 'Reel 1.1', tipo: 'Reel', fecha: '2026-10-02', alcance: 999950 }], frase: 'Mucho alcance.' };
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: mil })).ok, 'no carga el millón'); await espera(60);
+      igual(ifCf().querySelector('.if-f b').textContent, '1 mill.', 'el millón');
+      // five posts, the best second with a long name: inside the chart
+      const cinco = IF_RES(); cinco.posts.push({ nombre: 'Reel 1.5', tipo: 'Reel', fecha: '2026-10-25', alcance: 300 }); cinco.posts[1].nombre = 'Un nombre de publicación largo de verdad'; cinco.cifras.publicaciones.valor = 5; cinco.cifras.alcance.valor += 300;
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: cinco })).ok, 'no carga cinco'); await espera(60);
+      { const c = ifCf().querySelector('.if-ch').getBoundingClientRect(), v = ifCf().querySelector('.if-v').getBoundingClientRect(); ok(v.left >= c.left - 0.5 && v.right <= c.right + 0.5, `la cifra de la mejor se sale: ${v.left}–${v.right} en ${c.left}–${c.right}`); }
+      await vistaCliente(false);
+      // January: «Cómo fue diciembre 2026»
+      relojEn('2027-01-15T10:00:00+01:00');
+      await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2027-01', slots: [pub(5, 'Foto', 8, '2027-01')], past: [], force: true }); await M.flush();
+      ok((await M.informe.cargar(CLIENTE, '2026-12', { resumen: IF_RES('2026-12') })).ok, 'no carga diciembre');
+      await vistaCliente(true); M._in.render(); await espera(60);
+      ok(ifCf() && /^Cómo fue diciembre 2026/.test(ifCf().querySelector('.if-h').textContent) && /Frente a noviembre/.test(ifCf().textContent), 'en enero no dice «Cómo fue diciembre 2026»: ' + (ifCf() || {}).textContent);
+    } finally { await vistaCliente(false); relojVuelve(); await sinMes(`${CLIENTE}-2027-01`); }
   });
 
 

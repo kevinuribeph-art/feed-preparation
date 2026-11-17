@@ -1,7 +1,7 @@
 // node tests/zernio-resumen.mjs — prueba de «tools/zernio.mjs resumen» (D-239) sin red ni clave de verdad: un `fetch` falso
 // con publicaciones inventadas y una clave falsa en el entorno (el .env nunca se lee: la del entorno va primero).
 // IF-Z1 forma y sumas · IF-Z2 días de Madrid · IF-Z3 historias, repetidas y páginas · IF-Z4 solo /v1/analytics ·
-// IF-Z5 la clave nunca sale · IF-Z6 errores de uso.
+// IF-Z5 la clave nunca sale (tampoco cortada) · IF-Z6 errores de uso · IF-Z7 solo lo de esa cuenta, con su enlace.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -19,6 +19,9 @@ const POSTS = ${JSON.stringify([
   { _id: 'p3', publishedAt: '2026-10-12T17:00:00.000Z', status: 'published', mediaType: 'image', mediaProductType: 'STORY', mediaItems: [{}], platformPostUrl: 'https://www.instagram.com/stories/x/1/', platforms: [{ accountId: CUENTA, platformPostId: '3', analytics: { reach: 300 } }] },
   { _id: 'p4', publishedAt: '2026-10-20T08:00:00.000Z', status: 'published', mediaType: 'carousel', mediaProductType: 'FEED', mediaItems: [{}], platformPostUrl: 'https://www.instagram.com/p/AAA4/', platforms: [{ accountId: CUENTA, platformPostId: '4', analytics: { reach: 700, likes: 30, comments: null, shares: 0, saves: 1 } }] },
   { _id: 'p5', publishedAt: '2026-10-31T23:30:00.000Z', status: 'published', mediaType: 'carousel', mediaProductType: 'FEED', mediaItems: [{}, {}], platformPostUrl: 'https://www.instagram.com/p/AAA5/', platforms: [{ accountId: CUENTA, platformPostId: '5', analytics: { reach: 999, likes: 9 } }] },
+  // another account's post (not counted) and one posted to two platforms (its Instagram link and figures)
+  { _id: 'p6', publishedAt: '2026-10-22T10:00:00.000Z', status: 'published', mediaType: 'carousel', mediaProductType: 'FEED', mediaItems: [{}], platformPostUrl: 'https://www.facebook.com/x/6', platforms: [{ accountId: 'bbbbbbbbbbbbbbbbbbbbbbbb', platformPostId: '6', analytics: { reach: 999, likes: 9 } }] },
+  { _id: 'p7', publishedAt: '2026-10-25T09:00:00.000Z', status: 'published', mediaType: 'carousel', mediaProductType: 'FEED', mediaItems: [{}, {}], platformPostUrl: 'https://www.facebook.com/x/7', platforms: [{ accountId: 'bbbbbbbbbbbbbbbbbbbbbbbb', platformPostId: '7f', platformPostUrl: 'https://www.facebook.com/x/7', analytics: { reach: 5000 } }, { accountId: CUENTA, platformPostId: '7', platformPostUrl: 'https://www.instagram.com/p/AAA7/', analytics: { reach: 100, likes: 5 } }] },
   // September (the month before)
   { _id: 'q1', publishedAt: '2026-09-05T10:00:00.000Z', status: 'published', mediaType: 'carousel', mediaProductType: 'FEED', mediaItems: [{}, {}], platformPostUrl: 'https://www.instagram.com/p/BBB1/', platforms: [{ accountId: CUENTA, platformPostId: '11', analytics: { reach: 800, likes: 40, comments: 2, shares: 1, saves: 3 } }] },
   { _id: 'q2', publishedAt: '2026-09-15T10:00:00.000Z', status: 'failed', mediaType: 'carousel', mediaProductType: 'FEED', mediaItems: [{}], platformPostUrl: '', platforms: [{ accountId: CUENTA, platformPostId: '12', analytics: { reach: 5 } }] }
@@ -29,6 +32,7 @@ globalThis.fetch = async (url, o) => {
   const json = (st, b) => ({ ok: st < 400, status: st, text: async () => JSON.stringify(b) });
   if (u.pathname !== '/api/v1/analytics') return json(404, { error: 'no' });
   if (process.env.ERROR_FALSO) return json(401, { error: 'clave no válida: ' + (o.headers || {}).authorization });
+  if (process.env.ERROR_LARGO) return { ok: false, status: 500, text: async () => 'x'.repeat(285) + ' ' + (o.headers || {}).authorization };   // not JSON: the key right where the message is cut
   const desde = Date.parse(q.fromDate + 'T00:00:00Z'), hasta = Date.parse(q.toDate + 'T23:59:59Z');
   const l = POSTS.filter(p => { const t = Date.parse(p.publishedAt); return t >= desde && t <= hasta; });
   const page = +q.page || 1, por = 2, pages = Math.max(1, Math.ceil(l.length / por));   // two per page: the command must go through them all
@@ -58,14 +62,15 @@ try {
   ok(JSON.stringify(j.cuenta) === JSON.stringify({ id: CUENTA, usuario: 'cuenta_de_prueba', plataforma: 'instagram' }), 'IF-Z1: la cuenta: ' + JSON.stringify(j.cuenta));
   ok(JSON.stringify(j.periodo) === JSON.stringify({ desde: '2026-10-01', hasta: '2026-10-31', zona: 'Europe/Madrid' }) && JSON.stringify(j.anterior) === JSON.stringify({ desde: '2026-09-01', hasta: '2026-09-30' }), 'IF-Z1: el periodo o el anterior');
   const fechas = (j.posts || []).map(p => p.fecha + ' ' + p.hora);
-  ok(JSON.stringify(fechas) === JSON.stringify(['2026-10-01 00:30', '2026-10-10 13:30', '2026-10-20 10:00']), 'IF-Z2: días y horas de Madrid (dentro el 1 oct 00:30, fuera el 1 nov 00:30): ' + JSON.stringify(fechas));
-  ok((j.posts || []).length === 3, 'IF-Z3: sin historias ni repetidas, por todas las páginas: ' + (j.posts || []).length);
+  ok(JSON.stringify(fechas) === JSON.stringify(['2026-10-01 00:30', '2026-10-10 13:30', '2026-10-20 10:00', '2026-10-25 10:00']), 'IF-Z2: días y horas de Madrid (dentro el 1 oct 00:30, fuera el 1 nov 00:30; el 25 oct ya en invierno): ' + JSON.stringify(fechas));
+  ok((j.posts || []).length === 4, 'IF-Z3: sin historias, repetidas ni las de otra cuenta, por todas las páginas: ' + (j.posts || []).length);
+  const p3 = (j.posts || [])[3] || {}; ok(p3.enlace === 'https://www.instagram.com/p/AAA7/' && p3.alcance === 100 && p3.fotos === 2, 'IF-Z7: una publicación en dos plataformas da su enlace y sus cifras de Instagram: ' + JSON.stringify(p3));
   const p0 = (j.posts || [])[0] || {}, p1 = (j.posts || [])[1] || {}, p2 = (j.posts || [])[2] || {};
   ok(p0.tipo === 'carousel' && p0.fotos === 3 && p0.alcance === 1000 && p0.interacciones === 60 && p0.guardados === 2 && p0.enlace === 'https://www.instagram.com/p/AAA1/', 'IF-Z1: la primera publicación: ' + JSON.stringify(p0));
   ok(p1.tipo === 'reel' && p1.fotos === 0 && p1.interacciones === 145, 'IF-Z1: el reel: ' + JSON.stringify(p1));
   ok(p2.fotos === 1 && p2.interacciones === 31, 'IF-Z1: una foto suelta (un comentario null cuenta 0): ' + JSON.stringify(p2));
   const c = j.cifras || {};
-  ok(JSON.stringify(c) === JSON.stringify({ alcance: { valor: 4200, anterior: 800 }, interacciones: { valor: 236, anterior: 46 }, guardados: { valor: 18, anterior: 3 }, publicaciones: { valor: 3, anterior: 1 } }), 'IF-Z1: las cifras (el fallido de septiembre no cuenta): ' + JSON.stringify(c));
+  ok(JSON.stringify(c) === JSON.stringify({ alcance: { valor: 4300, anterior: 800 }, interacciones: { valor: 241, anterior: 46 }, guardados: { valor: 18, anterior: 3 }, publicaciones: { valor: 4, anterior: 1 } }), 'IF-Z1: las cifras (el fallido de septiembre y la de otra cuenta no cuentan): ' + JSON.stringify(c));
   ok(Object.keys(j).join() === 'cuenta,periodo,anterior,cifras,posts,nota', 'IF-Z1: las claves de la salida: ' + Object.keys(j).join());
   // IF-Z4: only /v1/analytics, per-post, a day more on each side, Madrid days filtered here
   ok(r.pet.length >= 3 && r.pet.every(x => x.path === '/api/v1/analytics' && x.q.source === 'all' && x.q.accountId === CUENTA), 'IF-Z4: pide algo que no es /v1/analytics?source=all: ' + JSON.stringify(r.pet.map(x => x.path)));
@@ -75,6 +80,8 @@ try {
   ok(!r.out.includes(CLAVE), 'IF-Z5: la clave sale en la salida');
   const e = correr(['resumen', CUENTA, '--from', '2026-10-01', '--to', '2026-10-31'], { ERROR_FALSO: '1' });
   ok(e.code === 1 && e.js && /Zernio 401/.test(e.js.error) && !e.out.includes(CLAVE) && e.out.includes('[clave]'), 'IF-Z5: un error de Zernio que repite la clave la enseña: ' + e.out.slice(0, 200).replaceAll(CLAVE, '***'));
+  const e2 = correr(['resumen', CUENTA, '--from', '2026-10-01', '--to', '2026-10-31'], { ERROR_LARGO: '1' });
+  ok(e2.code === 1 && e2.js && /Zernio 500/.test(e2.js.error) && !e2.out.includes(CLAVE.slice(0, 8)), 'IF-Z5: un error que no es JSON enseña un trozo de la clave: ' + e2.out.slice(0, 120).replaceAll(CLAVE.slice(0, 8), '***'));
   // IF-Z6: usage errors, before asking anything
   for (const [args, re] of [[['resumen'], /accountId/], [['resumen', CUENTA, '--from', '2026-10-01'], /--to/], [['resumen', CUENTA, '--from', '2026-02-30', '--to', '2026-03-01'], /no es un día que exista/], [['resumen', CUENTA, '--from', '2026-10-31', '--to', '2026-10-01'], /antes que --to/], [['resumen', CUENTA, '--from', '2026-01-01', '--to', '2026-06-30'], /93 días/], [['resumen', 'bbbbbbbbbbbbbbbbbbbbbbbc', '--from', '2026-10-01', '--to', '2026-10-31'], /no está conectada/]]) {
     const x = correr(args);

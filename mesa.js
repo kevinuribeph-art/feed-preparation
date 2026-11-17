@@ -5479,6 +5479,8 @@
     return s;
   }
   const mesEntero = v => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1e12;
+  const mesDia = v => typeof v === 'string' && COB_DIA.test(v) && new Date(Date.UTC(+v.slice(0, 4), +v.slice(5, 7) - 1, +v.slice(8, 10))).toISOString().slice(0, 10) === v;   // a day that exists (2026-09-31 doesn't)
+  const mesAtOk = v => v == null || (typeof v === 'string' && !isNaN(Date.parse(v)));
   const mesSoloClaves = (o, ok, donde, mal) => { const x = Object.keys(o).filter(k => !ok.includes(k)); if (x.length) mal(`${donde}: no se esperaba ${x.map(k => '«' + k + '»').join(', ')} (solo ${ok.join(', ')})`); };
   // a why: {partes: [{t, x}]}; mal(msg) collects the problems; gives the clean value
   function mesPorque(p, mal) {
@@ -5489,7 +5491,8 @@
       const d = `porque.partes[${i}]`;
       if (!q || typeof q !== 'object' || Array.isArray(q)) return mal(`${d}: tiene que ser {t, x}`), null;
       mesSoloClaves(q, ['t', 'x'], d, mal);
-      const t = mesPlano(q.t, d + '.t', 40, mal).replace(/[.:]\s*$/, ''), x = mesPlano(q.x, d + '.x', 600, mal);
+      const t = mesPlano(q.t, d + '.t', 40, mal).replace(/[.:]\s*$/, '').trim(), x = mesPlano(q.x, d + '.x', 600, mal);
+      if (typeof q.t === 'string' && q.t.trim() && !t) mal(`${d}.t: una etiqueta, no solo un signo`);
       const otra = MES_NOTION[t.toLowerCase()];
       if (otra) mal(`${d}.t: «${t}» es la etiqueta de Notion; para el cliente: ${otra.startsWith('la ') ? otra : '«' + otra + '»'}`);
       if (t && vistas.has(t.toLowerCase())) mal(`${d}.t: «${t}» repetida`); vistas.add(t.toLowerCase());
@@ -5522,7 +5525,7 @@
       mesSoloClaves(q, ['nombre', 'tipo', 'fecha', 'alcance', 'hora'], d, mal);
       const nombre = mesPlano(q.nombre, d + '.nombre', 80, mal);
       if (!MES_TIPOS.includes(q.tipo)) mal(`${d}.tipo: uno de ${MES_TIPOS.join(', ')}`);
-      if (!cobDia(q.fecha || '') || String(q.fecha).slice(0, 7) !== mes) mal(`${d}.fecha: un día AAAA-MM-DD de ${mes}`);
+      if (!mesDia(q.fecha) || String(q.fecha).slice(0, 7) !== mes) mal(`${d}.fecha: un día AAAA-MM-DD de ${mes} que exista`);
       if (q.hora != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(q.hora)) mal(`${d}.hora: HH:MM`);
       if (!mesEntero(q.alcance)) mal(`${d}.alcance: un número entero, 0 o más`);
       return { nombre, tipo: q.tipo, fecha: q.fecha, ...(q.hora != null ? { hora: q.hora } : {}), alcance: q.alcance };
@@ -5540,7 +5543,7 @@
         const d = `resumen.tipos[${i}]`;
         if (!q || typeof q !== 'object') return mal(`${d}: tiene que ser {tipo, alcance}`), null;
         mesSoloClaves(q, ['tipo', 'alcance'], d, mal);
-        if (!(q.tipo in medias)) mal(`${d}.tipo: «${q.tipo}» no es el tipo de ningún post`);
+        if (!Object.hasOwn(medias, q.tipo)) mal(`${d}.tipo: «${q.tipo}» no es el tipo de ningún post`);
         else if (!mesEntero(q.alcance) || Math.abs(q.alcance - medias[q.tipo]) > 1) mal(`${d}.alcance: el medio de sus posts es ${medias[q.tipo]}`);
         return { tipo: q.tipo, alcance: q.alcance };
       }).filter(Boolean);
@@ -5553,6 +5556,16 @@
     return { cifras, posts, tipos, frase };
   }
   function mesNoLocked() { if (locked) throw new Error('la mesa está abierta en otra pestaña o hay una versión nueva'); }
+  // the client sees it: no other client by its name, id or handle, in no text (lesson 70)
+  const mesSinAcento = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  function mesOtros(cli, textos, mal) {
+    const otros = CL.filter(c => c.id !== cli).flatMap(c => [c.name, c.id, String(c.handle || '').replace(/^@/, '')].filter(x => x && String(x).trim().length >= 3).map(x => ({ c: c.name || c.id, x: mesSinAcento(x).trim() })));
+    for (const [donde, t] of textos) {
+      const v = mesSinAcento(t);
+      const o = otros.find(({ x }) => new RegExp('(^|[^a-z0-9])@?' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])').test(v));
+      if (o) mal(`${donde}: nombra a otro cliente («${o.c}»); el cliente lo ve: dilo sin su nombre (p. ej. «una colaboración»)`);
+    }
+  }
   const infDe = cli => MES ? [...MES.values()].filter(r => r.cliente === cli).sort((a, b) => a.mes < b.mes ? -1 : 1) : [];
   // ---------- Claude's API (D-238) ----------
   // cargar(cliente, mes, {porque?, resumen?}): each part alone or both; null takes a part away. Checks the shape and refuses
@@ -5577,29 +5590,39 @@
           else resumen = partes.resumen === null ? null : mesResumen(partes.resumen, m, mal);
         }
       }
+      if (!problemas.length) mesOtros(cli, [...(porque ? porque.partes.flatMap((q, i) => [[`porque.partes[${i}].t`, q.t], [`porque.partes[${i}].x`, q.x]]) : []), ...(resumen ? [...resumen.posts.map((q, i) => [`resumen.posts[${i}].nombre`, q.nombre]), ['resumen.frase', resumen.frase]] : [])], mal);
       if (problemas.length) return { error: 'no se ha cargado nada: ' + problemas[0] + (problemas.length > 1 ? ` (y ${problemas.length - 1} más)` : ''), problemas };
+      if (mesMal) { await mesLeer(true); if (mesMal) return { error: 'no se ha cargado nada: no se pudieron leer los meses guardados; recarga la Mesa' }; }
       if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
-      const k = mesClave(cli, m), prev = MES.get(k);
-      const n = { cliente: cli, mes: m, porque: porque !== undefined ? porque : prev ? prev.porque || null : null, resumen: resumen !== undefined ? resumen : prev ? prev.resumen || null : null };
-      if (prev && JSON.stringify([prev.porque || null, prev.resumen || null]) === JSON.stringify([n.porque, n.resumen])) return { ok: true, clave: k, igual: true, porque: !!n.porque, resumen: !!n.resumen };
-      if (!prev && !n.porque && !n.resumen) return { ok: true, clave: k, igual: true, porque: false, resumen: false };
-      mesNoLocked(); n.at = cobAt(prev && prev.at); mesGen++; MES.set(k, n);
-      const pw = idbPut('meses', k, n); mesPend = mesPend.then(() => pw).catch(() => {});
+      // read and written in one transaction, over what is stored (never over an older copy in this tab's cache); each part
+      // keeps its own date, so importing joins part by part (D-238)
+      const k = mesClave(cli, m), ahoraAt = new Date().toISOString(); let out = null;
+      mesNoLocked(); mesGen++;
+      const pw = tx('meses', 'readwrite', st => { const g = st.get(k); g.onsuccess = () => {
+        const prev = g.result || null, n = { cliente: cli, mes: m, porque: prev ? prev.porque || null : null, resumen: prev ? prev.resumen || null : null };
+        if (prev) { if (prev.porqueAt) n.porqueAt = prev.porqueAt; if (prev.resumenAt) n.resumenAt = prev.resumenAt; }
+        if (porque !== undefined) n.porque = porque; if (resumen !== undefined) n.resumen = resumen;
+        const igual = prev ? JSON.stringify([prev.porque || null, prev.resumen || null]) === JSON.stringify([n.porque, n.resumen]) : !n.porque && !n.resumen;
+        if (igual) { out = { ok: true, clave: k, igual: true, porque: !!n.porque, resumen: !!n.resumen }; if (prev) MES.set(k, prev); return; }
+        const at = cobAt(prev && prev.at > ahoraAt ? prev.at : ahoraAt);
+        if (porque !== undefined) n.porqueAt = at; if (resumen !== undefined) n.resumenAt = at; n.at = at;
+        st.put(n, k); MES.set(k, n); out = { ok: true, clave: k, porque: !!n.porque, resumen: !!n.resumen };
+      }; });
+      mesPend = mesPend.then(() => pw).catch(() => {});
       try { await pw; } catch (e) { mesLeer(true).then(() => mesAvisar(false)); return { error: 'no se pudo guardar: ' + String((e && e.message) || e) }; }
-      mesAvisar(true);
-      return { ok: true, clave: k, porque: !!n.porque, resumen: !!n.resumen };
+      if (out && !out.igual) mesAvisar(true);
+      return out;
     },
     async ver(cliente, mes) {
-      await mesLeer();
+      await mesLeer(); if (mesMal) return { error: 'no se pudieron leer los meses guardados; recarga la Mesa' };
       const copia = r => r && JSON.parse(JSON.stringify(r));
       if (mes == null) return infDe(String(cliente || '')).map(copia);
       return copia(MES.get(mesClave(String(cliente || ''), String(mes)))) || null;
     }
   };
-  async function mesBorrarCliente(id) {   // a deleted client's months go with it
-    await mesLeer(); const ks = [...MES.keys()].filter(k => k.startsWith(id + '|')); if (!ks.length || locked) return;
-    mesGen++; ks.forEach(k => MES.delete(k));
-    const pw = tx('meses', 'readwrite', st => { ks.forEach(k => st.delete(k)); }); mesPend = mesPend.then(() => pw).catch(() => {});
+  async function mesBorrarCliente(id) {   // a deleted client's months go with it: all its keys, also those the cache doesn't hold
+    mesGen++; if (MES) [...MES.keys()].filter(k => k.startsWith(id + '|')).forEach(k => MES.delete(k));
+    const pw = tx('meses', 'readwrite', st => st.delete(IDBKeyRange.bound(id + '|', id + '|\uffff'))); mesPend = mesPend.then(() => pw).catch(() => {});
     try { await pw; } catch (e) { mesLeer(true); }
     mesAvisar(true);
   }
@@ -6552,7 +6575,7 @@
     const qn = (v, a, b) => v == null || v === '' || (typeof v === 'number' && isFinite(v) && v >= a && v <= b && (b === 1e9 || Number.isInteger(v)));
     if (d.clients.some(c => c.cuota != null && (typeof c.cuota !== 'object' || !qn(c.cuota.importe, 0, 1e9) || !qn(c.cuota.dia, 1, 28) || !qn(c.cuota.plazo, 0, 365)))) return bad;
     // v19: each month's why and summary (D-238), with the same checks as M.informe (but whether the month is over)
-    if (d.meses != null && (!Array.isArray(d.meses) || d.meses.some(r => { if (!r || typeof r.cliente !== 'string' || !r.cliente || !COB_MES.test(r.mes || '') || typeof r.at !== 'string' || isNaN(Date.parse(r.at))) return true;
+    if (d.meses != null && (!Array.isArray(d.meses) || d.meses.some(r => { if (!r || typeof r.cliente !== 'string' || !r.cliente || !COB_MES.test(r.mes || '') || typeof r.at !== 'string' || isNaN(Date.parse(r.at)) || !mesAtOk(r.porqueAt) || !mesAtOk(r.resumenAt)) return true;
       let malo = false; const mal = () => { malo = true; };
       if (r.porque != null) mesPorque(r.porque, mal); if (r.resumen != null) mesResumen(r.resumen, r.mes, mal); return malo; }))) return bad;
     if (d.boards.some(b => !b || typeof b.key !== 'string' || !/^.+-\d{4}-\d{2}$/.test(b.key) || !Array.isArray(b.slots))) return bad;
@@ -6631,10 +6654,29 @@
     for (const c of d.clients) if (!cids.has(c.id)) { P.newClients.push(c); cids.add(c.id); }
     for (const b of P.put) { const c = boardClient(b); if (c && !cids.has(c)) { P.newClients.push({ id: c, name: c, handle: '', createdAt: new Date().toISOString() }); cids.add(c); } }
     P.trays = P.trays.filter(r => cids.has(r.client)); P.trayAdd = P.trays.reduce((n, r) => n + r.add.length, 0);   // a tray only with its client
-    // each month's why and summary (D-238): one new here or changed later on the other Mac, of a client that is (or comes) here
-    const mesAqui = Object.fromEntries(((await idbAll('meses')) || []).filter(r => r && r.cliente && r.mes).map(r => [mesClave(r.cliente, r.mes), r])), mesArch = {};
-    (d.meses || []).map(isoAt).forEach(r => { const k = mesClave(r.cliente, r.mes); if (!mesArch[k] || r.at > mesArch[k].at) mesArch[k] = r; });
-    P.mesPut = Object.entries(mesArch).filter(([k, r]) => cids.has(r.cliente) && (!mesAqui[k] || r.at > String(mesAqui[k].at || ''))).map(([, r]) => ({ cliente: r.cliente, mes: r.mes, porque: r.porque || null, resumen: r.resumen || null, at: r.at }));
+    // each month's why and summary (D-238), part by part: each part (the why, the summary) goes with the newer of the two, by its
+    // own date (a part taken away too); a client that is (or comes) here; what is kept is what M.informe would keep (clean)
+    const mesAqui = Object.fromEntries(((await idbAll('meses')) || []).filter(r => r && r.cliente && r.mes).map(r => [mesClave(r.cliente, r.mes), r])), nada = () => {};
+    // a part's date: its own; a part never loaded has none (it never wins); a record without any part's date (hand-made, or older) goes by its at
+    const atDe = (r, parte) => { if (!r) return ''; const v = r[parte + 'At'] || (r.porqueAt || r.resumenAt ? '' : r.at); return v ? new Date(Date.parse(v)).toISOString() : ''; };
+    P.mesPut = [];
+    const mesArch = {}; (d.meses || []).forEach(r => { const k = mesClave(r.cliente, r.mes); (mesArch[k] = mesArch[k] || []).push(r); });
+    for (const [k, l] of Object.entries(mesArch)) {
+      const r0 = l[0]; if (!cids.has(r0.cliente)) continue;
+      const aqui = mesAqui[k] || null, n = { cliente: r0.cliente, mes: r0.mes, porque: aqui ? aqui.porque || null : null, resumen: aqui ? aqui.resumen || null : null };
+      if (aqui && aqui.porqueAt) n.porqueAt = aqui.porqueAt; if (aqui && aqui.resumenAt) n.resumenAt = aqui.resumenAt;
+      let cambia = false; const legado = !(aqui && (aqui.porqueAt || aqui.resumenAt)) && l.every(r => !r.porqueAt && !r.resumenAt);   // no part's date on either side: as they come
+      for (const parte of ['porque', 'resumen']) {
+        const de = l.reduce((a, r) => atDe(r, parte) > atDe(a, parte) ? r : a, l[0]);
+        if (aqui && atDe(de, parte) <= atDe(aqui, parte)) continue;
+        n[parte] = de[parte] == null ? null : parte === 'porque' ? mesPorque(de[parte], nada) : mesResumen(de[parte], de.mes, nada);
+        if (!legado) n[parte + 'At'] = atDe(de, parte); cambia = true;
+        if (legado) n.at = new Date(Date.parse(de.at)).toISOString();
+      }
+      if (!cambia) continue;
+      n.at = [aqui && new Date(Date.parse(aqui.at)).toISOString(), n.porqueAt, n.resumenAt, n.at].filter(Boolean).sort().pop();
+      P.mesPut.push(n);
+    }
     P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length;
     return P;
   }

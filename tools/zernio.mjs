@@ -44,7 +44,7 @@ async function call(method, path, { body, query, headers } = {}) {
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(60000)
   });
-  const text = await r.text();
+  const text = (await r.text()).split(key).join('[clave]');   // the key never goes out, not even cut by the slice below (D-239)
   let js = null; try { js = text ? JSON.parse(text) : {}; } catch (e) { /* not json */ }
   if (!r.ok) throw new Fail(`Zernio ${r.status}: ${(js && (js.error || js.message)) || text.slice(0, 300)}`, { http: r.status, ...(js && js.details ? { details: js.details } : {}), ...(js && js.existingPostId ? { existingPostId: js.existingPostId } : {}) });
   return js;
@@ -108,8 +108,10 @@ async function feedDe(accountId, desde, hasta) {
     const r = await call('GET', '/analytics', { query: { accountId, source: 'all', fromDate: masDias(desde, -1), toDate: masDias(hasta, 1), page, limit: 100 } });
     if (!cuenta) cuenta = (r.accounts || []).find(a => (a._id || a.id) === accountId) || null;
     for (const p of r.posts || []) {
-      const pl = (p.platforms || []).find(x => x && (x.accountId === accountId || (x.accountId && x.accountId._id === accountId))) || (p.platforms || [])[0] || {};
-      const url = p.platformPostUrl || pl.platformPostUrl || '';
+      const ps = p.platforms || [], idDe = x => x && x.accountId && (x.accountId._id || x.accountId);
+      let pl = ps.find(x => idDe(x) === accountId);
+      if (!pl) { if (ps.length === 1 && !idDe(ps[0])) pl = ps[0]; else if (!ps.length) pl = {}; else continue; }   // another account's post doesn't count
+      const url = pl.platformPostUrl || p.platformPostUrl || '';
       if (p.mediaProductType === 'STORY' || /\/stories\//.test(url)) continue;   // stories don't count
       if (p.status && p.status !== 'published') continue;
       const when = p.publishedAt || p.scheduledFor;

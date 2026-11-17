@@ -22,13 +22,13 @@
   const may = t => t.charAt(0).toUpperCase() + t.slice(1);
   const antes = m => { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return y + '-' + String(mo).padStart(2, '0'); };
   const num = (n, o) => Number(n).toLocaleString('es-ES', o);
-  const cifra = n => n >= 1e6 ? num(n / 1e6, { maximumFractionDigits: 1 }) + ' M' : n >= 1000 ? num(n / 1000, { maximumFractionDigits: 1 }) + ' mil' : num(n);
+  const cifra = n => n >= 999950 ? num(n / 1e6, { maximumFractionDigits: 1 }) + ' mill.' : n >= 1000 ? num(n / 1000, { maximumFractionDigits: 1 }) + ' mil' : num(n);   // never «1000 mil»
   const exacta = n => num(n);   // «1400», «11.200» (the RAE: no point with four figures)
   const corto = d => +d.slice(8, 10) + ' ' + nomMes(d).slice(0, 3);   // «3 oct»
   // the change against the month before: its text, its kind (sube / baja / igual / sin) and what it says in full
   function cambio(v, a, mAnt) {
     if (a == null) return { t: 'sin datos de ' + nomMes(mAnt), k: 'sin', l: `Sin datos de ${nomMes(mAnt)} para comparar` };
-    if (a === 0) return v ? { t: `antes, 0`, k: 'sin', l: `En ${nomMes(mAnt)}, 0` } : { t: 'igual', k: 'igual', l: `Igual que en ${nomMes(mAnt)}` };
+    if (a === 0) return v ? { t: 'frente a 0', k: 'sin', l: `En ${nomMes(mAnt)}, 0` } : { t: 'igual', k: 'igual', l: `Igual que en ${nomMes(mAnt)}` };
     const p = Math.round((v - a) / a * 100);
     if (!p) return { t: 'igual', k: 'igual', l: `Igual que en ${nomMes(mAnt)} (${exacta(a)})` };
     return { t: (p > 0 ? '+' : '−') + num(Math.abs(p)) + ' %', k: p > 0 ? 'sube' : 'baja', l: `${p > 0 ? '+' : '−'}${num(Math.abs(p))} % frente a ${nomMes(mAnt)} (${exacta(a)})` };
@@ -45,6 +45,11 @@
     return { pq, rs };
   }
   const listo = () => { const d = I() && I().mes; return !!(d && d.listo() && !d.mal()); };   // read (a failed reading is not «no data»)
+  // what each part drew, kept until the months change (here or in another tab) or the day does: a redraw without changes
+  // composes nothing again
+  let gen = 0; const MEMO = new Map();
+  const memo = (k, f) => (ctx) => { const cli = ctx && ctx.cliente, m = ctx && ctx.mes; if (!cli || !m || !listo()) return '';
+    const key = `${k}|${gen}|${hoy()}|${cli}|${m}`; if (MEMO.has(key)) return MEMO.get(key); if (MEMO.size > 60) MEMO.clear(); const h = f(ctx); MEMO.set(key, h); return h; };
 
   // ---------- the tab «Por qué este calendario» ----------
   function porqueHTML(ctx) {
@@ -63,16 +68,21 @@
     const max = Math.max(1, ...P.map(p => p.alcance)), best = P.reduce((a, p, i) => p.alcance > P[a].alcance ? i : a, 0);
     const alto = v => v ? Math.max(2, v / max * 100) : 0;   // % of the plot; a post with reach shows at least 2 px
     const nom = P[best].nombre.length > 26 ? P[best].nombre.slice(0, 25).trimEnd() + '…' : P[best].nombre;
-    const lado = best < n * 0.3 ? 'ini' : best > n * 0.7 - 1 && n > 2 ? 'fin' : 'medio';   // the best's label stays inside the chart
+    // where its column is and how long the label is (about 7.2 px a letter at 12 px, in a chart 320 px wide at least): centred if
+    // it fits, else from the column's left or right edge, so it never goes out of the chart
+    const f = (best + 0.5) / n, largo = (nom.length + 3 + cifra(P[best].alcance).length) * 7.2, cx = f * 320;
+    const lado = cx - largo / 2 >= 0 && cx + largo / 2 <= 320 ? 'medio' : f < 0.5 ? 'ini' : 'fin';
     const cols = P.map((p, i) => {
       const h = alto(p.alcance), tit = `${p.nombre} · ${p.tipo} · ${corto(p.fecha)} · ${exacta(p.alcance)} de alcance`;
-      const lab = i === best ? `<b class="if-v ${lado}" style="bottom:calc(${h.toFixed(1)}% + 6px)">${esc(nom)} · ${esc(cifra(p.alcance))}</b>` : '';
-      return `<span class="if-c${i === best ? ' top' : ''}" title="${esc(tit)}">${h ? `<i style="height:${h.toFixed(1)}%"></i>` : ''}${lab}</span>`;
+      const lab = i === best ? `<b class="if-v ${lado}">${esc(nom)} · ${esc(cifra(p.alcance))}</b>` : '';
+      const fecha = i === 0 || i === n - 1 ? `<em class="if-d ${n === 1 ? 'medio' : i ? 'fin' : 'ini'}">${esc(corto(p.fecha))}</em>` : '';
+      return `<span class="if-c${i === best ? ' top' : ''}" title="${esc(tit)}"><i style="height:${h.toFixed(1)}%">${lab}${fecha}</i></span>`;
     }).join('');
     const aria = `Alcance de cada publicación de ${nomMes(mes)}, ${n === 1 ? 'una publicación' : n + ' publicaciones'}; la de más alcance, ${P[best].nombre}, con ${exacta(P[best].alcance)}`;
     const tabla = `<div class="if-sr"><table><caption>Alcance de cada publicación de ${esc(nomMes(mes))}</caption><thead><tr><th>Publicación</th><th>Tipo</th><th>Fecha</th><th>Alcance</th></tr></thead><tbody>${P.map(p => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.tipo)}</td><td>${esc(corto(p.fecha))}</td><td>${esc(exacta(p.alcance))}</td></tr>`).join('')}</tbody></table></div>`;   // in a box: a table ignores width:1px
-    // HTML, not SVG: the columns keep their 24 px and the letters their 12 px at any width (an SVG would scale them)
-    return `<h3 class="if-sub">Alcance de cada publicación</h3><div class="if-ch" role="img" aria-label="${esc(aria)}"><div class="if-cols">${cols}</div><div class="if-ej"><span>${esc(corto(P[0].fecha))}</span>${n > 1 ? `<span>${esc(corto(P[n - 1].fecha))}</span>` : ''}</div></div>${tabla}`;
+    // HTML, not SVG: the columns keep their 24 px and the letters their 12 px at any width (an SVG would scale them); the best's
+    // label and the first and last dates hang from their column, so they follow it
+    return `<h3 class="if-sub">Alcance de cada publicación</h3><div class="if-ch" role="img" aria-label="${esc(aria)}"><div class="if-cols">${cols}</div></div>${tabla}`;
   }
   function tiposHTML(res) {
     const T = res.tipos || []; if (!T.length) return '';
@@ -101,7 +111,7 @@
   const MESES_OK = c => Object.values(c).some(x => x.anterior != null);
 
   // ---------- drawing again ----------
-  function pintar() { const r = I() && I().root && I().root(); if (r && r.classList.contains('client') && I().vc) I().vc.pintar(); }
+  function pintar() { gen++; const r = I() && I().root && I().root(); if (r && r.classList.contains('client') && I().vc) I().vc.pintar(); }
   let mesHoy = null;
   function alMinuto() { const h = hoy().slice(0, 7); if (mesHoy && h !== mesHoy) pintar(); mesHoy = h; }   // a new month in Madrid: «En camino» may change
 
@@ -110,22 +120,22 @@
   const esperar = () => listoP || (listoP = new Promise((res, rej) => { const t0 = Date.now(), t = setInterval(() => { if (I() && I().mes && I().vc && I().estilo) { clearInterval(t); res(); } else if (Date.now() - t0 > 30000) { clearInterval(t); rej(new Error('mesa.js sin meses')); } }, 50); }));
   M.informeUI = {
     version: VERSION,
-    porque: porqueHTML, comoFue: comoFueHTML,
+    porque: memo('pq', porqueHTML), comoFue: memo('cf', comoFueHTML),
     _off: () => { OFF.splice(0).forEach(f => f()); if (I() && I().vc) { I().vc.quitar('pestana', 'porque'); I().vc.quitar('lado', 'comofue'); } }
   };
   esperar().then(() => {
     I().estilo('mesa-if-css', ESTILO);
     on(document, 'mesa-meses', pintar);
     const t = setInterval(alMinuto, 60000); OFF.push(() => clearInterval(t)); mesHoy = hoy().slice(0, 7);
-    I().vc.poner('pestana', { id: 'porque', orden: 10, titulo: 'Por qué este calendario', html: porqueHTML });
-    I().vc.poner('lado', { id: 'comofue', orden: 20, html: comoFueHTML });
+    I().vc.poner('pestana', { id: 'porque', orden: 10, titulo: 'Por qué este calendario', html: M.informeUI.porque });
+    I().vc.poner('lado', { id: 'comofue', orden: 20, html: M.informeUI.comoFue });
     pintar();
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).informe = 'fallo'; });   // a mesa.js without 'meses' (an old cached one): the vista cliente of the 4.26
 
   // ---------- style (the mesa's tokens; light and dark come with them) ----------
   const ESTILO = `
-#mesa{--barra:#998F85}
-:root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{--barra:#9E9388}
+#mesa{--barra:#998F85;--barra-top:var(--acc)}
+:root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{--barra:#726960;--barra-top:var(--acc-ink)}
 #mesa .if-pq{display:flex;flex-direction:column;gap:10px;max-width:62ch;margin:0;font-size:14px;line-height:1.5;color:var(--ink-2)}
 #mesa .if-pq p{margin:0}#mesa .if-pq b{font-weight:600;color:var(--ink)}
 #mesa .if-camino{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r-md);background:var(--bg);color:var(--ink-2);font-size:14px;line-height:1.5}
@@ -142,22 +152,25 @@
 #mesa .if-f i{font-style:normal;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .if-f i.sube{color:var(--ok)}#mesa .if-f i.baja{color:var(--red)}
 #mesa .if-fr0{margin:10px 0 0;font-size:13px;color:var(--mute)}
-#mesa .if-sub{margin:18px 0 8px;font-size:13px;font-weight:600;color:var(--ink)}
-#mesa .if-ch{position:relative}
-#mesa .if-cols{display:flex;align-items:stretch;gap:2px;height:124px;padding-top:24px;box-sizing:border-box;border-bottom:1px solid var(--line)}
+#mesa .if-sub{margin:14px 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
+#mesa .if-ch{position:relative;padding-bottom:20px}
+#mesa .if-cols{display:flex;align-items:stretch;gap:4px;height:144px;padding-top:24px;box-sizing:border-box;border-bottom:1px solid var(--line)}
 #mesa .if-c{position:relative;flex:1 1 0;min-width:0;display:flex;align-items:flex-end;justify-content:center}
-#mesa .if-c i{display:block;width:100%;max-width:24px;border-radius:4px 4px 0 0;background:var(--barra);transition:background var(--d1) ease-out}
-#mesa .if-c.top i{background:var(--acc)}
+#mesa .if-c i{position:relative;display:block;width:100%;max-width:24px;border-radius:4px 4px 0 0;background:var(--barra);transition:background var(--d1) ease-out}
+#mesa .if-c.top i{background:var(--barra-top)}
 #mesa .if-c:hover i{background:var(--ink-2)}#mesa .if-c.top:hover i{background:var(--acc-hover)}
-#mesa .if-v{position:absolute;white-space:nowrap;font-size:12px;font-weight:600;line-height:1;color:var(--ink);pointer-events:none}
-#mesa .if-v.medio{left:50%;transform:translateX(-50%)}#mesa .if-v.ini{left:0}#mesa .if-v.fin{right:0}
-#mesa .if-ej{display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:var(--mute)}
+#mesa .if-v,#mesa .if-d{position:absolute;white-space:nowrap;font-size:12px;font-style:normal;line-height:1;pointer-events:none}
+#mesa .if-v{bottom:calc(100% + 6px);font-weight:600;color:var(--ink)}
+#mesa .if-d{top:calc(100% + 6px);color:var(--mute)}
+#mesa .if-v.medio,#mesa .if-d.medio{left:50%;transform:translateX(-50%)}#mesa .if-v.ini,#mesa .if-d.ini{left:0}#mesa .if-v.fin,#mesa .if-d.fin{right:0}
 #mesa .if-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
-#mesa .if-tp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px 10px;font-size:13px;color:var(--ink-2)}
-#mesa .if-tp i{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--barra)}
+#mesa .if-tp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 10px;max-width:460px;font-size:13px;color:var(--ink-2)}
+#mesa .if-tp i{position:relative;display:block;height:24px}
+#mesa .if-tp i::before{content:'';position:absolute;inset:7px 0;border-radius:0 4px 4px 0;background:var(--barra);transition:background var(--d1) ease-out}
+#mesa .if-tp i:hover::before{background:var(--ink-2)}
 #mesa .if-tp em{font-style:normal;text-align:right;color:var(--ink)}
-#mesa .if-frase{margin:16px 0 0;font-size:14px;line-height:1.5;color:var(--ink-2);max-width:62ch}
-@media (prefers-reduced-motion:reduce){#mesa .if-c i{transition:none}}
+#mesa .if-frase{margin:14px 0 0;font-size:14px;line-height:1.5;color:var(--ink-2);max-width:62ch}
+@media (prefers-reduced-motion:reduce){#mesa .if-c i,#mesa .if-tp i::before{transition:none}}
 `;
   (window.MESA_CARGA = window.MESA_CARGA || {}).informe = 'ok';
 })();

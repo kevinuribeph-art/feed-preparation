@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 16, V_IDB = 18;   // v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 17, V_IDB = 19;   // v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -12747,6 +12747,7 @@
     for (const f of (await M._in.idbAll('tfotos').catch(() => [])) || []) await M._in.idbDel('tfotos', f.id);   // las fotos de las sesiones (D-206)
     try { W.localStorage.removeItem('mesa-pp-hoja'); } catch (e) { /* */ }
     if (M.personal) { M.personal._test.olvidar(); if (M.personal.abierta()) await M.personal.render(); }
+    W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));   // the posts' calendar reads its sessions again (D-219)
   }
   const ppCifras = () => Object.fromEntries(qa('.pp-cifra').map(b => [b.dataset.k, +b.querySelector('b').textContent]));
   const ppGrupo = c => q(`.pp-grupo[data-cat="${c}"]`);
@@ -14204,10 +14205,10 @@
       // el repaso sin cambios no redibuja
       const antes = seHoja(); await M.personal.render(); await espera(80); ok(seHoja() === antes, 'el repaso sin cambios redibuja la hoja');
       // «Nuevo esporádico» del cliente de la hoja
-      seQ('[data-hj="cliente"]').dispatchEvent(new W.CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'nuevo' } })); await espera(60);
+      seQ('[data-hj="cli-mas"]').dispatchEvent(new W.CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'nuevo' } })); await espera(60);
       ok(q('.detail:not([hidden]) form.pp-espf'), '«Nuevo esporádico» de la hoja no pide el nombre');
       q('#pp-esp-n').value = 'Otro nombre'; q('.pp-espf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(250);
-      const e1 = (await M.personal.tareas()).find(k => k.tipo === 'esporadico'); igual((await seRec(r.id)).cliente, e1.id, 'la sesión no lleva el esporádico nuevo');
+      const e1 = (await M.personal.tareas()).find(k => k.tipo === 'esporadico'); igual((await seRec(r.id)).clientes, [e1.id], 'la sesión no lleva el esporádico nuevo');
       M.personal._p.cerrarCard(true); await espera(60);
       // «Pasar a mensual» con un nombre de mensual: se para
       const P = M.personal._p, now = new Date(M._in.ahora()).toISOString();
@@ -14254,7 +14255,7 @@
       q('[data-ns="clase"][data-k="foto"]').click(); igual(nom.value, 'Sesión de foto', 'el nombre no sigue al tipo');
       nom.value = 'Sesión de otoño'; nom.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
       q('[data-ns="clase"][data-k="video"]').click(); igual(nom.value, 'Sesión de otoño', 'el nombre escrito cambia con el tipo');
-      const cli = q('#pp-ns-cli'); ok(cli.querySelector('option[data-accion="nuevo"]'), 'sin «Nuevo esporádico»');
+      const cli = q('[data-ns="cli-mas"]'); ok(cli.querySelector('option[data-accion="nuevo"]'), 'sin «Nuevo esporádico»');
       ok([...cli.options].some(o => o.value === CLIENTE), 'sin los clientes mensuales');
       // cerrado sin crear: «/sesi» se queda
       M._in.closeDetail(); await espera(80);
@@ -14265,16 +14266,16 @@
       q('[data-ns="ojo"]').click(); q('[data-ns="clase"][data-k="video"]').click();
       const f = q('#pp-ns-fecha'); f.value = '2026-10-03'; f.dispatchEvent(new W.Event('change', { bubbles: true }));
       const h = q('#pp-ns-hora'); h.value = '10:30'; h.dispatchEvent(new W.Event('change', { bubbles: true }));
-      q('#pp-ns-cli').dispatchEvent(new W.CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'nuevo' } })); await espera(60);
+      q('[data-ns="cli-mas"]').dispatchEvent(new W.CustomEvent('mx-accion', { bubbles: true, detail: { accion: 'nuevo' } })); await espera(60);
       ok(dlg() && /Nuevo esporádico/.test(dlg().textContent), '«Nuevo esporádico» no pide el nombre');
       q('#pp-esp-n').value = 'Esporádico nuevo'; q('.pp-espf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(200);
       ok(dlg() && /Nueva sesión/.test(dlg().textContent), 'no vuelve a «Nueva sesión»');
       const esp = (await M.personal.tareas()).find(k => k.tipo === 'esporadico');
-      igual([q('#pp-ns-cli').value, q('[data-ns="ojo"]').getAttribute('aria-pressed'), q('[data-ns="clase"].on').dataset.k, q('#pp-ns-fecha').value], [esp.id, 'false', 'video', '2026-10-03'], 'lo elegido se pierde al volver');
+      igual([qa('[data-ns="cli-x"]').map(b => b.dataset.c).join(), q('[data-ns="ojo"]').getAttribute('aria-pressed'), q('[data-ns="clase"].on').dataset.k, q('#pp-ns-fecha').value], [esp.id, 'false', 'video', '2026-10-03'], 'lo elegido se pierde al volver');
       q('form.pp-ns').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(300);
       ok(seHoja(), 'después no se abre la hoja');
       const ses = (await M.personal.tareas()).find(k => k.tipo === 'sesion');
-      igual([ses.txt, ses.fecha, ses.hora, ses.cliente, ses.sesion.clase, ses.sesion.visible, ses.sesion.plantilla], ['Sesión de vídeo', '2026-10-03', '10:30', esp.id, 'video', false, 1], 'la sesión creada: ' + json(ses));
+      igual([ses.txt, ses.fecha, ses.hora, (ses.clientes || []).join(), ses.sesion.clase, ses.sesion.visible, ses.sesion.plantilla], ['Sesión de vídeo', '2026-10-03', '10:30', esp.id, 'video', false, 1], 'la sesión creada: ' + json(ses));
       igual(ses.sesion.apartados.map(a => a.id + (a.visible ? '' : '·')), ['orden', 'planos', 'fotos', 'mood', 'material·'], 'los apartados de Vídeo');
       igual(seAp(ses, 'planos').pestanas.map(p => p.nombre), ['Planos', 'Vídeos'], 'las pestañas de serie');
       const nota = (await M.personal.tareas()).find(k => k.tipo === 'nota');
@@ -14390,7 +14391,7 @@
       M.personal._p.cerrarCard(true); await espera(60); await ppClic('.pp-tabs [data-p="tareas"]').catch(() => {}); await M.personal.render();
       const lin = q(`.pp-tk[data-tid="${r.id}"]`); ok(lin && lin.querySelector('.pp-tses'), 'la sesión no sale en la lista con su icono');
       lin.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 60 })); await espera(40);
-      igual(qa('.pp-menu button').map(b => b.textContent), ['Quitar las fotos', 'Borrar sesión'], 'el menú de una sesión');
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Quitar las fotos', 'Duplicar sesión', 'Borrar sesión'], 'el menú de una sesión');   // «Duplicar sesión» desde D-221
       q('.pp-menu [data-a="sinfotos"]').click(); await espera(120);
       k = await seRec(r.id); ok(!(k.fotos || []).length && !seAp(k, 'mood').grupos[0].fotos.length, '«Quitar las fotos» no las quita de todo');
     } finally { paginaCerrada(); await sinTareas(); }
@@ -14414,7 +14415,7 @@
       ppTecla('z', { metaKey: true }); await espera(120); k = await seRec(r.id); igual(seAp(k, 'material').material.hechos.length, 0, '⌘Z no desmarca');
       // «Editar la lista»: el «⋯» de la hoja
       seQ('[data-hj="mas"]').click(); await espera(40);
-      igual(qa('.pp-menu button').map(b => b.textContent), ['Editar la lista de material', 'Borrar sesión'], 'el «⋯» de la hoja (sin fotos)');
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Editar plantillas', 'Duplicar sesión', 'Borrar sesión'], 'el «⋯» de la hoja (sin fotos)');   // «Editar plantillas» desde D-220; «Duplicar sesión» desde D-221
       q('.pp-menu [data-a="material"]').click(); await espera(80);
       ok(q('.detail:not([hidden]) form.pp-ml') && qa('.pp-ml-f').length === 7, '«Editar la lista» no abre la lista');
       q('[data-ml="mas"]').click(); await espera(30); const fs = qa('.pp-ml-f'), u = fs[fs.length - 1]; u.querySelector('.pp-ml-n').value = 'Rebotador'; u.querySelector('.pp-ml-fa').value = 'Luz';
@@ -14523,13 +14524,13 @@
       ok(M.personal.abierta(), 'la página se cierra');
       ok(!(await M.boards()).some(b => b.client === nuevo), 'el cliente nuevo tiene meses');
       const L = await M.personal.tareas();
-      igual([L.find(k => k.id === s.id).cliente, L.find(k => k.id === t.id).cliente, L.find(k => k.id === n.id).cliente], [nuevo, nuevo, nuevo], 'sus sesiones, tareas y notas no pasan');
+      igual([L.find(k => k.id === s.id).clientes.join(), L.find(k => k.id === t.id).cliente, L.find(k => k.id === n.id).cliente], [nuevo, nuevo, nuevo], 'sus sesiones, tareas y notas no pasan');
       const er = L.find(k => k.id === e.id); ok(er && er.pasado && er.pasado.cliente === nuevo, 'el registro no queda marcado');
       ok(!q(`[data-pp="esp"][data-id="${e.id}"]`), 'el esporádico pasado sigue entre los esporádicos');
       // un archivo antiguo no lo devuelve
       const x = await M.importData(viejo, { confirm: false }); ok(!x || !x.error, 'importar falla: ' + json(x));
       const L2 = await M.personal.tareas();
-      ok(L2.find(k => k.id === e.id).pasado && L2.find(k => k.id === s.id).cliente === nuevo, 'un archivo antiguo devuelve el esporádico');
+      ok(L2.find(k => k.id === e.id).pasado && L2.find(k => k.id === s.id).clientes.join() === nuevo, 'un archivo antiguo devuelve el esporádico');
     } finally { paginaCerrada(); await sinTareas(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
   });
 
@@ -14553,8 +14554,8 @@
       const k = await seRec(r.id); ok(k && k.fotos.length === 1 && !k.fotos[0].data && !k.fotos[0].blob, 'la sesión importada guarda la foto dentro');
       const f = await M._in.idbGet('tfotos', k.fotos[0].id); ok(f && f.blob && f.blob.size > 1000, 'la foto importada no vuelve a su almacén');
       igual((await M.material.ver()).length, 7, 'la lista importada');
-      const v = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', 17); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
-      igual(v, 'VersionError', 'una pestaña con la 4.21 abre la base de datos');
+      const v = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', V_IDB - 1); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
+      igual(v, 'VersionError', 'una pestaña con la versión anterior abre la base de datos');
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
@@ -14924,6 +14925,395 @@
       fr.style.width = '700px'; await hasta(() => W.innerWidth <= 720, 3000, 'la ventana estrecha'); await espera(350);
       ok(!seHoja().querySelector('[data-col="der"]') && parseFloat(W.getComputedStyle(seQ('.pp-hj-col')).paddingLeft) === 4, 'a 720 px lleva los 20 px o dos columnas');
     } finally { fr.style.width = w0; M.personal._p.lsSet('mesa-pp-hoja', ''); paginaCerrada(); await sinTareas(); }
+  });
+
+  // ---------- ajustes de la 4.22, lote B (D-217 a D-221) ----------
+  const dsElige = async v => { const m = seQ('[data-hj="cli-mas"]'); m.value = v; m.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150); };
+  const dsTxt = sel => { const g = M.controles.gemelo(seQ(sel)); return g && g.querySelector('.mx-t') ? g.querySelector('.mx-t').textContent : ''; };
+  prueba('DS1', 'Varios clientes (D-217): en la hoja una ficha por cliente (avatar, nombre y ×) y «+ Cliente» con Mensuales, Esporádicos y «Nuevo esporádico»; sin clientes, «Sin cliente»; añadir y quitar, un paso de ⌘Z cada uno; la sesión sale una vez en Avisos y en la Lista, con los dos nombres y el avatar del primero con «+N», en el filtro de cada uno y en la ficha del esporádico; el bloque mensual sigue contando tareas; «Borrar esporádico» apagado con una sesión compartida; «/tarea» toma el primero; «Pasar a mensual» cambia solo su parte; un archivo v16 entra con su cliente en la lista', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    let nuevo = null;
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, now = new Date(M._in.ahora()).toISOString(), hoy = M._in.hoy(), nom = M._in.CL.find(c => c.id === CLIENTE).name;
+      const e = { id: 'esds1', tipo: 'esporadico', txt: 'Estudio Norte', creada: now, at: now };
+      await P.hacer([{ id: e.id, despues: e }]);
+      const s = await M.sesiones._test.crear({ txt: 'Compartida', clase: 'foto', fecha: hoy, hora: '17:00' });
+      igual((await seRec(s.id)).clientes, [], 'una sesión nueva sin su lista de clientes');
+      await seAbrir(s.id);
+      igual(dsTxt('[data-hj="cli-mas"]'), 'Sin cliente', 'sin clientes no dice «Sin cliente»');
+      let mas = seQ('[data-hj="cli-mas"]');
+      ok([...mas.options].some(o => o.value === CLIENTE) && [...mas.options].some(o => o.value === e.id) && mas.querySelector('optgroup[label="Esporádicos"]') && mas.querySelector('option[data-accion="nuevo"]'), 'el desplegable sin mensuales, esporádicos o «Nuevo esporádico»');
+      await dsElige(CLIENTE); igual((await seRec(s.id)).clientes, [CLIENTE], 'el primer cliente');
+      await dsElige(e.id); igual((await seRec(s.id)).clientes, [CLIENTE, e.id], 'el segundo cliente');
+      igual(qa('.pp-ov:not(.sale) [data-hj="cli-x"]').map(b => b.dataset.c), [CLIENTE, e.id], 'una ficha por cliente');
+      ok(seHoja().querySelectorAll('.pp-hj-cl .pp-ava').length === 2 && /Estudio Norte/.test(seQ('.pp-hj-meta').textContent), 'las fichas sin avatar o nombre');
+      igual(dsTxt('[data-hj="cli-mas"]'), 'Cliente', '«+ Cliente» no dice «Cliente»');
+      mas = seQ('[data-hj="cli-mas"]'); ok(![...mas.options].some(o => o.value === CLIENTE || o.value === e.id), 'el desplegable ofrece los que ya están');
+      ok(!('cliente' in (await seRec(s.id))), 'la sesión guarda aún «cliente»');
+      await M.personal.deshacer(); await espera(120); igual((await seRec(s.id)).clientes, [CLIENTE], '⌘Z no quita el segundo');
+      await M.personal.rehacer(); await espera(120); igual((await seRec(s.id)).clientes, [CLIENTE, e.id], '⇧⌘Z no lo devuelve');
+      seQ(`[data-hj="cli-x"][data-c="${e.id}"]`).click(); await espera(150); igual((await seRec(s.id)).clientes, [CLIENTE], 'la × no lo quita');
+      await M.personal.deshacer(); await espera(120); igual((await seRec(s.id)).clientes, [CLIENTE, e.id], '⌘Z no devuelve al quitado');
+      // «/tarea» en un texto de la sesión: el primer cliente
+      P.comando('tarea', { texto: '', a: 0, b: 0, quitar: () => {} }, 'ap:orden'); await espera(80);
+      const bo = [...P.TK.values()].find(k => k._b); ok(bo && bo.cliente === CLIENTE && bo.fecha === hoy, '«/tarea» no toma el primer cliente: ' + json(bo && { c: bo.cliente, f: bo.fecha }));
+      P.cerrarCard(true);
+      // Avisos y Lista: una vez, con los dos nombres; el avatar del primero con «+1»
+      await M.personal.set({ avTareas: true, vista: 'lista', plg: { tareas: false, clientes: false, avisos: false } }); await espera(80);
+      const av = qa(`.pp-av[data-tid="${s.id}"]`); igual(av.length, 1, 'la sesión no sale una vez en Avisos');
+      ok(av[0] && av[0].textContent.includes(nom + ' · Estudio Norte'), 'Avisos sin los dos nombres: ' + (av[0] && av[0].textContent));
+      const li = qa(`.pp-tk[data-tid="${s.id}"]`); igual(li.length, 1, 'la sesión no sale una vez en la Lista');
+      ok(li[0] && li[0].querySelector('.pp-avn') && /\+1/.test(li[0].querySelector('.pp-avn').textContent) && li[0].querySelectorAll('.pp-ava').length === 1, 'la Lista sin el avatar del primero con «+1»');
+      // el filtro: cada uno la ve; el bloque mensual sigue sin contarla
+      ok(q(`.pp-tc[data-c="${CLIENTE}"]`) && q(`.pp-tc[data-c="${e.id}"]`), 'el filtro sin sus dos clientes');
+      for (const c of [CLIENTE, e.id]) { await M.personal.set({ tcli: c }); await espera(40); igual(qa(`.pp-tk[data-tid="${s.id}"]`).length, 1, 'el filtro de ' + c + ' no la enseña'); }
+      await M.personal.set({ tcli: null, avTareas: false });
+      const bq = q(`.pp-blq[data-c="${CLIENTE}"]`); ok(bq && !/tarea|sesi/.test(bq.querySelector('.pp-cuentas').textContent), 'el bloque mensual cuenta la sesión');
+      // el esporádico: su ficha la enseña y «Borrar esporádico» sigue apagado
+      ok(P.menuEsp(e.id)[0][3] === true, '«Borrar esporádico» encendido con una sesión compartida');
+      P.abrirCard(e.id); await espera(80);
+      const fi = q('.pp-ov:not(.sale) .pp-card.pp-es'); ok(fi && /Compartida/.test(fi.textContent), 'la ficha del esporádico no enseña la sesión');
+      // un archivo v16: la sesión entra con su cliente en la lista
+      P.cerrarCard(true);
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
+      d.v = 16; const sx = d.tareas.find(k => k.id === s.id); delete sx.clientes; sx.cliente = e.id; sx.at = new Date(Date.parse(now) + 6e4).toISOString();
+      const x = await M.importData(new W.Blob([JSON.stringify(d)], { type: 'application/json' }), { confirm: false }); ok(!x || !x.error, 'importar un v16 falla: ' + json(x));
+      const si = await seRec(s.id); igual([si.clientes, 'cliente' in si], [[e.id], false], 'un v16 no entra con su cliente en la lista');
+      await P.cambiar(s.id, y => { y.clientes = [CLIENTE, e.id]; return y; });
+      // «Pasar a mensual»: solo su parte
+      P.abrirCard(e.id); await espera(80); q('.pp-ov:not(.sale) [data-es="pasar"]').click(); await espera(60); q('[data-pp-pasar]').click();
+      await hasta(() => M._in.CL.some(c => c.name === 'Estudio Norte'), 4000, 'el cliente nuevo');
+      nuevo = M._in.CL.find(c => c.name === 'Estudio Norte').id; await espera(200);
+      igual((await seRec(s.id)).clientes, [CLIENTE, nuevo], '«Pasar a mensual» no cambia solo su parte');
+    } finally { paginaCerrada(); await sinTareas(); if (nuevo) await M.removeClient(nuevo).catch(() => {}); }
+  });
+
+  prueba('DS2', 'Fecha de fin (D-218): sin fin, la pieza como hoy y «– Fin» tras la hora al pasar; con hora, el fin es una hora después; sin hora, el día siguiente; la fecha de fin solo si es otro día; un fin antes del inicio no se acepta; mover el inicio (fecha, hora, «Reprogramar») conserva la duración; sin fecha no hay fin; la × lo quita; cada cambio, un paso de ⌘Z; con fin, «Mañana» el día antes, «Hoy» cada día y «Se ha pasado» desde el día siguiente al fin; en Semana y Mes en cada día y en la Lista una vez con el intervalo; «Nueva sesión» lo pide bajo «Fecha y hora»', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      relojEn('2026-10-01T09:00:00+02:00');
+      await paginaAbierta(); await seListo();
+      const s = await M.sesiones._test.crear({ txt: 'Larga', clase: 'foto', fecha: '2026-10-05', hora: '10:30', cliente: CLIENTE });
+      await seAbrir(s.id);
+      ok(seQ('.pp-hj-fh [data-hj="fin"]') && /– Fin/.test(seQ('[data-hj="fin"]').textContent), 'sin «– Fin» tras la hora');
+      ok(getComputedStyle(seQ('[data-hj="fin"]')).opacity === '0', '«– Fin» a la vista sin el ratón encima');
+      ok(!seHoja().querySelector('[data-hj="fin-hora"], [data-hj="fin-fecha"]'), 'sin fin, la pieza no es como hoy');
+      seQ('[data-hj="fin"]').click(); await espera(150);
+      igual((await seRec(s.id)).fin, { fecha: '2026-10-05', hora: '11:30' }, 'con hora, el fin no es una hora después');
+      ok(seQ('.pp-hj-ff').classList.contains('mismo') && seQ('[data-hj="fin-hora"]'), 'el mismo día, la fecha de fin a la vista');
+      await M.personal.deshacer(); await espera(120); ok(!(await seRec(s.id)).fin, '⌘Z no quita el fin');
+      await M.personal.rehacer(); await espera(120); ok((await seRec(s.id)).fin, '⇧⌘Z no lo devuelve');
+      const pon = async (k, v) => { const i = seQ(`[data-hj="${k}"]`); i.value = v; i.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150); };
+      await pon('fin-hora', '09:00'); igual((await seRec(s.id)).fin, { fecha: '2026-10-05', hora: '11:30' }, 'un fin antes del inicio se acepta');
+      igual(seQ('[data-hj="fin-hora"]').value, '11:30', 'el campo no vuelve al fin de antes');
+      await pon('fin-fecha', '2026-10-06'); igual((await seRec(s.id)).fin, { fecha: '2026-10-06', hora: '11:30' }, 'el fin a otro día');
+      ok(!seQ('.pp-hj-ff').classList.contains('mismo'), 'otro día, sin su fecha a la vista');
+      await pon('fecha', '2026-10-07'); igual((await seRec(s.id)).fin, { fecha: '2026-10-08', hora: '11:30' }, 'mover la fecha no conserva la duración');
+      await pon('hora', '12:00'); igual((await seRec(s.id)).fin, { fecha: '2026-10-08', hora: '13:00' }, 'mover la hora no conserva la duración');
+      await M.personal.deshacer(); await espera(120); igual((await seRec(s.id)).fin, { fecha: '2026-10-08', hora: '11:30' }, '⌘Z de mover la hora');
+      seQ('[data-hj="fin-x"]').click(); await espera(150); ok(!(await seRec(s.id)).fin, 'la × no quita el fin');
+      await M.personal.deshacer(); await espera(120); ok((await seRec(s.id)).fin, '⌘Z no devuelve el fin quitado');
+      await pon('fecha', ''); const sf = await seRec(s.id); ok(!sf.fecha && !sf.fin, 'sin fecha queda el fin'); ok(!seHoja().querySelector('[data-hj="fin"]'), '«– Fin» sin fecha');
+      await M.personal.deshacer(); await espera(120); igual([(await seRec(s.id)).fecha, (await seRec(s.id)).fin], ['2026-10-07', { fecha: '2026-10-08', hora: '11:30' }], '⌘Z no devuelve fecha y fin');
+      M.personal._p.cerrarCard(true);
+      // sin hora: el día siguiente, sin hora de fin
+      const t = await M.sesiones._test.crear({ txt: 'Sin hora', clase: 'foto', fecha: '2026-10-05' });
+      await seAbrir(t.id); seQ('[data-hj="fin"]').click(); await espera(150);
+      igual((await seRec(t.id)).fin, { fecha: '2026-10-06' }, 'sin hora, el fin no es el día siguiente'); ok(!seHoja().querySelector('[data-hj="fin-hora"]'), 'sin hora, el fin pide hora');
+      M.personal._p.cerrarCard(true); await M.personal.borrar(t.id);
+      // Avisos: «Mañana» el día antes, «Hoy» cada día, «Se ha pasado» desde el día siguiente al fin
+      await M.personal.set({ avTareas: true, plg: { tareas: false, clientes: false, avisos: false }, vista: 'lista' });
+      const en = async (dia, filtro) => { relojEn(dia + 'T09:00:00+02:00'); await M.personal.set({ filtro }); await M.personal.render(); await espera(60); return ppLineas(filtro === 'pasado' ? 'pasado' : 'hoy'); };
+      ok((await en('2026-10-06', 'man')).includes(s.id), 'el día antes no sale en «Mañana»');
+      ok((await en('2026-10-07', 'hoy')).includes(s.id), 'el primer día no sale en «Hoy»');
+      ok((await en('2026-10-08', 'hoy')).includes(s.id), 'el último día no sale en «Hoy»');
+      ok(!(await en('2026-10-08', 'pasado')).includes(s.id), 'el último día ya sale en «Se ha pasado»');
+      ok((await en('2026-10-09', 'pasado')).includes(s.id), 'el día siguiente al fin no sale en «Se ha pasado»');
+      // «Reprogramar» conserva la duración
+      await M.personal.set({ filtro: null }); await espera(60);
+      const rp = q(`.pp-av[data-tid="${s.id}"] [data-pp="reprog"]`); ok(rp, 'sin «Reprogramar»'); rp.click(); await espera(80);
+      const a = M.controles.abierto(); a.de.value = '2026-10-12'; a.de.dispatchEvent(new W.Event('change', { bubbles: true })); M.controles.cerrar(); await espera(150);
+      igual([(await seRec(s.id)).fecha, (await seRec(s.id)).fin], ['2026-10-12', { fecha: '2026-10-13', hora: '11:30' }], '«Reprogramar» no conserva la duración');
+      // Semana y Mes, en cada día; la Lista, una vez con el intervalo
+      relojEn('2026-10-12T09:00:00+02:00'); await M.personal.set({ avTareas: false, plg: { tareas: false, clientes: true, avisos: false }, vista: 'semana', tsem: 0 }); await espera(60);
+      igual(qa(`.pp-fi[data-tid="${s.id}"]`).length, 2, 'Semana: no sale en cada día');
+      await M.personal.set({ vista: 'mes', tmes: 0 }); await espera(60); igual(qa(`.pp-mt[data-tid="${s.id}"]`).length, 2, 'Mes: no sale en cada día');
+      await M.personal.set({ vista: 'lista' }); await espera(60); const li = qa(`.pp-tk[data-tid="${s.id}"]`);
+      ok(li.length === 1 && /10:30 – .+ · 11:30/.test(li[0].querySelector('.pp-tf').textContent), 'Lista: no sale una vez con el intervalo: ' + (li[0] && li[0].textContent));
+      // «Nueva sesión»: bajo «Fecha y hora»
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
+      ok(!q('.pp-ns-fin [data-ns="fin"]'), '«– Fin» sin fecha en «Nueva sesión»');
+      const f = q('#pp-ns-fecha'); f.value = '2026-10-20'; f.dispatchEvent(new W.Event('change', { bubbles: true })); const h = q('#pp-ns-hora'); h.value = '10:00'; h.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+      q('.pp-ns-fin [data-ns="fin"]').click(); await espera(60);
+      const fh = q('.pp-ns-fin [data-ns="fin-hora"]'); ok(fh && fh.value === '11:00', '«– Fin» de «Nueva sesión» no pone una hora después'); fh.value = '13:00'; fh.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(60);
+      q('form.pp-ns').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(300);
+      const nu = (await M.personal.tareas()).find(k => k.tipo === 'sesion' && k.fecha === '2026-10-20'); igual(nu && nu.fin, { fecha: '2026-10-20', hora: '13:00' }, '«Nueva sesión» no guarda el fin');
+    } finally { paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('DS3', 'La sesión en el calendario (D-219): en el tablero de cada cliente mensual de la sesión, un chip por día que dura (claqueta, nombre, la hora el primer día, azul pizarra, sin punto de estado); sin fecha, sin cliente o solo con esporádicos, en ninguno; no cuenta en Σ ni en el total ni se arrastra; en «Vista cliente» solo con el ojo abierto; su clic abre la hoja encima del tablero sin la página personal y al cerrarla se vuelve al chip; en «Vista cliente» la hoja, fija en «Ver como el cliente», sin «⋯» y con solo el cliente de ese tablero; el calendario se pone al día al cambiar una sesión', async () => {
+    await tablero([pub(1), pub(2, 'Reel', 9)]); await sinTareas();
+    const raiz = M._in.root();
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, now = new Date(M._in.ahora()).toISOString();
+      const e = { id: 'esds3', tipo: 'esporadico', txt: 'Villa de prueba', creada: now, at: now }; await P.hacer([{ id: e.id, despues: e }]);
+      const d1 = MES + '-06', d2 = MES + '-07';
+      const s1 = await M.sesiones._test.crear({ txt: 'Rodaje largo', clase: 'video', fecha: d1, hora: '10:30', fin: { fecha: d2, hora: '18:00' }, clientes: [CLIENTE, e.id] });
+      const s2 = await M.sesiones._test.crear({ txt: 'Oculta', clase: 'foto', fecha: MES + '-12', clientes: [CLIENTE], visible: false });
+      const s3 = await M.sesiones._test.crear({ txt: 'Sin fecha', clase: 'foto', clientes: [CLIENTE] });
+      const s4 = await M.sesiones._test.crear({ txt: 'Solo esporádico', clase: 'foto', fecha: MES + '-13', clientes: [e.id] });
+      const s5 = await M.sesiones._test.crear({ txt: 'Sin cliente', clase: 'foto', fecha: MES + '-14' });
+      paginaCerrada(); M._in.render(); await espera(60);
+      await hasta(() => qa('.side > .cal .chip[data-ses]').length >= 3, 4000, 'los chips de las sesiones');
+      const cs = id => qa(`.side > .cal .chip[data-ses="${id}"]`);
+      igual([cs(s1.id).length, cs(s2.id).length, cs(s3.id).length, cs(s4.id).length, cs(s5.id).length], [2, 1, 0, 0, 0], 'los chips de cada sesión');
+      igual(cs(s1.id).map(c => c.closest('.cday').dataset.day), [d1, d2], 'no sale en cada día que dura');
+      const c1 = cs(s1.id)[0];
+      ok(c1.classList.contains('ty-ses') && c1.querySelector('svg.cses') && !c1.querySelector('.edot, .eico, .cmk') && /Rodaje largo/.test(c1.textContent), 'el chip sin claqueta, nombre o con punto de estado');
+      igual([c1.querySelector('.ct') && c1.querySelector('.ct').textContent, !!cs(s1.id)[1].querySelector('.ct')], ['10:30', false], 'la hora, solo el primer día');
+      const bg = getComputedStyle(c1).backgroundColor; ok(bg !== getComputedStyle(q('.side > .cal .chip[data-slot]')).backgroundColor && /220, 228, 238|39, 50, 63/.test(bg), 'el chip sin su azul pizarra: ' + bg);
+      // no cuenta: Σ y el total solo las publicaciones; no se arrastra
+      igual(q('.side > .cal .ctotn').textContent, '2', 'el total cuenta las sesiones');
+      igual(qa('.side > .cal .cgrid > .ccnt:not(.ctotn):not(button)').reduce((n, x) => n + (+x.textContent || 0), 0), 2, 'Σ cuenta las sesiones');
+      const r0 = c1.getBoundingClientRect(), pe = (t, el, x, y) => el.dispatchEvent(new W.PointerEvent(t, { bubbles: true, clientX: x, clientY: y, pointerId: 9, button: 0, pointerType: 'mouse' }));
+      pe('pointerdown', c1, r0.left + 5, r0.top + 5); pe('pointermove', q('.side > .cal'), r0.left + 80, r0.top + 70); ok(!q('.cghost'), 'el chip de la sesión se arrastra'); pe('pointerup', q('.side > .cal'), r0.left + 80, r0.top + 70); await espera(450);
+      // su clic: la hoja encima del tablero, sin la página; al cerrarla, el chip
+      cs(s1.id)[0].click(); await hasta(() => seHoja(), 3000, 'la hoja');
+      ok(!M.personal.abierta() && raiz.classList.contains('pp-card-on') && q('.feed').offsetParent !== null, 'la hoja no se abre encima del tablero');
+      ok(seQ('[data-hj="vista"]') && seQ('[data-hj="mas"]') && seHoja().querySelectorAll('.pp-hj-cl').length === 2, 'en tu calendario, la hoja no es la de siempre');
+      // un cambio: la hoja y el calendario se ponen al día
+      await P.cambiar(s1.id, x => { x.txt = 'Rodaje de dos días'; return x; }); P.pintar(); await espera(120);
+      ok(/Rodaje de dos días/.test(seQ('.pp-hj-nom').textContent), 'la hoja no se pone al día');
+      await hasta(() => /Rodaje de dos días/.test((cs(s1.id)[0] || {}).textContent || ''), 3000, 'el chip al día');
+      ppTecla('Escape'); await espera(250);
+      ok(!seHoja() && !raiz.classList.contains('pp-card-on'), 'Esc no cierra la hoja encima del tablero');
+      ok(D.activeElement && D.activeElement.matches && D.activeElement.matches(`.chip[data-ses="${s1.id}"]`), 'el foco no vuelve al chip');
+      // Vista cliente: solo con el ojo abierto; la hoja fija en «Ver como el cliente»
+      q('.clientToggle').click(); await espera(150);
+      igual([cs(s1.id).length, cs(s2.id).length], [2, 0], 'en «Vista cliente» sale la sesión con el ojo cerrado');
+      cs(s1.id)[0].click(); await hasta(() => seHoja(), 3000, 'la hoja en «Vista cliente»');
+      ok(seHoja().classList.contains('vc') && !seHoja().querySelector('[data-hj="vista"], [data-hj="mas"], [data-hj="ojo"], .pp-ck'), 'en «Vista cliente» la hoja no está fija en «Ver como el cliente»');
+      ok(!/Villa de prueba/.test(seHoja().textContent) && seHoja().textContent.includes(NOMBRE), 'en «Vista cliente» se nombra a otro cliente');
+      ppTecla('Escape'); await espera(250); ok(!seHoja(), 'Esc no cierra la hoja de «Vista cliente»');
+      q('.clientToggle').click(); await espera(150);
+    } finally { if (raiz.classList.contains('client')) q('.clientToggle').click(); M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('DS4', 'Plantillas de equipo (D-220): la de serie se llama «Equipo completo» y va primera (también al importar un v16); encima de la barra, la fila de plantillas y «+ Guardar como plantilla»; elegir otra cambia la copia de la sesión y conserva lo marcado con el mismo nombre (un paso de ⌘Z); «+ Cosa» y la × tocan solo la sesión: un punto, «Guardar en …» y «Como plantilla nueva»; con más de 5, el desplegable; «Editar plantillas» las nombra, ordena, edita y borra (la de serie no) sin tocar las sesiones; MESA.material sigue sobre la de serie', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p, T = () => [...P.TK.values()].filter(t => t.tipo === 'material');
+      igual(P.TK.get('material').txt, 'Equipo completo', 'la de serie no se llama «Equipo completo»');
+      const r = await M.sesiones._test.crear({ txt: 'Con material', clase: 'fotovideo' });
+      igual(seAp(r, 'material').material.plantilla, 'material', 'una sesión nueva no guarda su plantilla');
+      await seAbrir(r.id);
+      const fila = () => qa('.pp-hj [data-ap="material"] .pp-ma-pls button').map(b => b.textContent.trim() + (b.classList.contains('on') ? '*' : ''));
+      igual(fila(), ['Equipo completo*'], 'la fila de plantillas');
+      ok(seQ('[data-hj="mat-nueva"]') && /Guardar como plantilla/.test(seQ('[data-hj="mat-nueva"]').textContent), 'sin «+ Guardar como plantilla»');
+      ok(seQ('.pp-ma-plr').compareDocumentPosition(seQ('.pp-ma-bar')) & 4, 'la fila no va encima de la barra');
+      // «+ Guardar como plantilla»: su nombre en el diálogo de la Mesa; la sesión la toma; un paso de ⌘Z
+      seQ('[data-hj="mat-nueva"]').click(); await espera(60);
+      q('#pp-pl-n').value = 'equipo completo'; q('.pp-plf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(80);
+      ok(!q('.pp-plf .ferr').hidden, 'acepta un nombre repetido');
+      q('#pp-pl-n').value = 'Exterior'; q('.pp-plf').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(200);
+      const ex = T().find(t => t.txt === 'Exterior'); ok(ex && ex.lista.length === 7, 'no se guarda la plantilla nueva');
+      igual(seAp(await seRec(r.id), 'material').material.plantilla, ex.id, 'la sesión no toma la plantilla nueva');
+      igual(fila(), ['Equipo completo', 'Exterior*'], 'la fila tras guardar');
+      // marcar, retocar: «+ Cosa» y la ×, solo en la sesión
+      const fi = n => qa('.pp-hj [data-ap="material"] .pp-ma-c').find(b => b.textContent === n);
+      fi('Cuerpo').click(); await espera(120);
+      seQ('[data-hj="mat-mas"][data-fam="Luz"]').click(); await espera(60);
+      const inp = seQ('[data-hj="mat-in"]'); inp.value = 'Rebotador'; naTecla(inp, 'Enter'); await espera(150);
+      ok(fi('Rebotador'), '«+ Cosa» no pone la cosa'); ok(seHoja().querySelector('[data-hj="mat-in"]'), 'Intro no deja escribir otra');
+      naTecla(seQ('[data-hj="mat-in"]'), 'Escape'); await espera(80);
+      seQ('.pp-ma-w [data-hj="mat-x"][data-m="' + fi('Disparador').dataset.m + '"]').click(); await espera(150);
+      let m = seAp(await seRec(r.id), 'material').material;
+      igual([m.retocada, m.lista.some(x => x.nombre === 'Rebotador'), m.lista.some(x => x.nombre === 'Disparador')], [true, true, false], 'retocar la sesión');
+      igual([T().find(t => t.id === ex.id).lista.length, P.TK.get('material').lista.length], [7, 7], 'retocar la sesión toca la plantilla');
+      ok(seQ('.pp-ma-pls button.on .pp-ma-pt') && /Con cambios en esta sesión/.test(seQ('.pp-ma-cmb').textContent) && /Guardar en Exterior/.test(seQ('[data-hj="mat-en"]').textContent) && /Como plantilla nueva/.test(seQ('.pp-ma-cmb [data-hj="mat-nueva"]').textContent), 'con cambios: sin el punto, «Guardar en …» o «Como plantilla nueva»');
+      await M.personal.deshacer(); await espera(120); ok(!seAp(await seRec(r.id), 'material').material.lista.some(x => x.nombre === 'Disparador') === false, '⌘Z no devuelve lo quitado');
+      await M.personal.rehacer(); await espera(120);
+      // «Guardar en Exterior»: la plantilla toma la lista de la sesión; un paso
+      seQ('[data-hj="mat-en"]').click(); await espera(200);
+      igual(T().find(t => t.id === ex.id).lista.map(x => x.nombre).sort(), ['Cuerpo', 'Foco', 'Luz de vídeo', 'Micro', 'Pie del foco', 'Rebotador', 'Revisar baterías'], '«Guardar en …» no guarda la lista de la sesión');
+      ok(!seAp(await seRec(r.id), 'material').material.retocada && !seHoja().querySelector('.pp-ma-cmb'), 'tras guardar sigue con cambios');
+      await M.personal.deshacer(); await espera(120); igual(T().find(t => t.id === ex.id).lista.length, 7, '⌘Z no devuelve la plantilla');
+      ok(seAp(await seRec(r.id), 'material').material.retocada, '⌘Z no devuelve los cambios de la sesión'); await M.personal.rehacer(); await espera(120);
+      // elegir otra: su lista; lo marcado con el mismo nombre sigue marcado; un paso de ⌘Z, sin pregunta
+      qa('.pp-hj .pp-ma-pls button').find(b => /Equipo completo/.test(b.textContent)).click(); await espera(150);
+      m = seAp(await seRec(r.id), 'material').material;
+      igual([m.plantilla, m.lista.length, m.lista.filter(x => m.hechos.includes(x.id)).map(x => x.nombre), !!m.retocada, !q('.detail:not([hidden])')], ['material', 7, ['Cuerpo'], false, true], 'elegir otra plantilla');
+      await M.personal.deshacer(); await espera(120); igual(seAp(await seRec(r.id), 'material').material.plantilla, ex.id, '⌘Z no devuelve la plantilla de antes');
+      // más de 5: el desplegable de la Mesa
+      const now = P.ahoraISO(); await P.hacer(['A', 'B', 'C', 'D'].map((n, i) => ({ id: 'mlds' + n, despues: { id: 'mlds' + n, tipo: 'material', txt: 'Plantilla ' + n, lista: [{ id: 'm' + n, nombre: 'Cosa ' + n, familia: 'Otros', tipo: 'ambas' }], orden: 10 + i, creada: now, at: now } })));
+      P.pintar(); await espera(120);
+      const sel = seQ('[data-hj="mat-plsel"]'); ok(sel && !seHoja().querySelector('.pp-ma-pls') && sel.options.length === 6 && sel.options[0].textContent === 'Equipo completo', 'con más de 5, sin el desplegable');
+      sel.value = 'mldsB'; sel.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150);
+      igual(seAp(await seRec(r.id), 'material').material.plantilla, 'mldsB', 'el desplegable no elige');
+      // «Editar plantillas»: nombrar, ordenar, borrar (la de serie no); las sesiones guardan su copia
+      seQ('[data-hj="mas"]').click(); await espera(40); ok(qa('.pp-menu button').some(b => b.textContent === 'Editar plantillas'), 'el «⋯» sin «Editar plantillas»');
+      q('.pp-menu [data-a="material"]').click(); await espera(80);
+      const tabs = () => qa('.pp-mpl-tabs button').map(b => b.textContent);
+      igual(tabs()[0], 'Equipo completo', 'la de serie no va primera'); ok(q('[data-ml="borrar"]') && (q('.pp-mpl-tabs button.on').textContent !== 'Equipo completo' || q('[data-ml="borrar"]').disabled), 'la de serie se borra');
+      qa('.pp-mpl-tabs button')[0].click(); await espera(60); ok(q('[data-ml="borrar"]').disabled, 'la de serie se borra');
+      q('.pp-mpl-n').value = 'Equipo de estudio';
+      qa('.pp-mpl-tabs button').find(b => b.textContent === 'Plantilla B').click(); await espera(60);
+      q('[data-ml="antes"]').click(); await espera(60); igual(tabs().slice(0, 4), ['Equipo de estudio', 'Exterior', 'Plantilla B', 'Plantilla A'], 'no se ordena o no conserva el nombre escrito');
+      q('[data-ml="borrar"]').click(); await espera(60);
+      q('form.pp-ml').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true })); await espera(200);
+      igual(T().sort((a, b) => (a.id === 'material' ? -1 : b.id === 'material' ? 1 : a.orden - b.orden)).map(t => t.txt), ['Equipo de estudio', 'Exterior', 'Plantilla A', 'Plantilla C', 'Plantilla D'], 'no se guardan nombre, orden y borrado');
+      m = seAp(await seRec(r.id), 'material').material; igual([m.plantilla, m.lista.map(x => x.nombre)], ['mldsB', ['Cosa B']], 'borrar una plantilla toca la sesión');
+      await M.personal.deshacer(); await espera(120); ok(T().some(t => t.id === 'mldsB') && P.TK.get('material').txt === 'Equipo completo', '⌘Z no devuelve las plantillas');
+      // MESA.material sigue sobre la de serie
+      igual((await M.material.ver()).length, 7, 'MESA.material.ver no lee la de serie');
+      P.cerrarCard(true);
+      // un v16: la lista de material se llama «Equipo completo»
+      const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()); d.v = 16;
+      const mr = d.tareas.find(t => t.id === 'material'); mr.txt = 'Material'; mr.at = new Date(Date.parse(now) + 6e4).toISOString(); d.tareas = d.tareas.filter(t => t.tipo !== 'material' || t.id === 'material');
+      await sinTareas(); const x = await M.importData(new W.Blob([JSON.stringify(d)], { type: 'application/json' }), { confirm: false }); ok(!x || !x.error, 'importar un v16 falla: ' + json(x));
+      igual((await M.personal.tareas()).find(t => t.id === 'material').txt, 'Equipo completo', 'un v16 no se llama «Equipo completo»');
+      const d17 = JSON.parse(await (await M.exportAll({ returnBlob: true })).text()); d17.tareas.push({ id: 'mlvacia', tipo: 'material', txt: ' ', lista: [] });
+      const y = await M.importData(new W.Blob([JSON.stringify(d17)], { type: 'application/json' }), { confirm: false }); ok(y && y.error, 'un v17 con una plantilla sin nombre se importa');
+    } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('DS5', '«Duplicar sesión» (D-221): en el «⋯» y el clic derecho de la hoja y en el clic derecho de su fila; copia entera (apartados y fotos, estas con ids nuevos en su almacén y en planos, grupos y tira); «Copia de …» sin fecha, hora, fin, clientes ni hecha, con el material sin marcar y de la misma plantilla; se abre su hoja; un paso de ⌘Z; borrar una foto de la copia no la quita de la otra', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p;
+      const r = await M.sesiones._test.crear({ txt: 'Original', clase: 'fotovideo', fecha: '2026-10-06', hora: '10:00', fin: { fecha: '2026-10-07', hora: '12:00' }, clientes: [CLIENTE] });
+      const f1 = 'tfds5a', f2 = 'tfds5b', blob = await (await foto('ds5.jpg', 900, 600)).arrayBuffer();
+      for (const id of [f1, f2]) await M._in.idbPut('tfotos', id, { id, w: 900, h: 600, blob: new W.Blob([blob], { type: 'image/jpeg' }), mini: new W.Blob([blob], { type: 'image/jpeg' }), t: Date.now() });
+      await P.cambiar(r.id, x => { x.hecha = new Date(M._in.ahora()).toISOString(); x.fotos = [{ id: f1, w: 900, h: 600 }, { id: f2, w: 900, h: 600 }];
+        const mo = seAp(x, 'mood'); mo.grupos = [{ id: 'g1', nombre: 'Luz', modo: 'linea', fotos: [f1, f2] }];
+        const pl = seAp(x, 'planos'); pl.pestanas[0].items = [{ id: 'i1', titulo: 'Plano', texto: 'Texto', fotos: [f2], enlaces: ['https://ejemplo.com'] }];
+        const ma = seAp(x, 'material').material; ma.hechos = [ma.lista[0].id]; seAp(x, 'orden').texto = 'Uno\nDos'; return x; });
+      await seAbrir(r.id);
+      seQ('[data-hj="mas"]').click(); await espera(40);
+      igual(qa('.pp-menu button').map(b => b.textContent), ['Quitar las fotos', 'Editar plantillas', 'Duplicar sesión', 'Borrar sesión'], 'el «⋯» de la hoja');
+      P.cerrarMenu();
+      seQ('.pp-hj-cab').dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 120 })); await espera(40);
+      ok(q('.pp-menu [data-a="duplicar"]'), 'el clic derecho de la hoja sin «Duplicar sesión»');
+      q('.pp-menu [data-a="duplicar"]').click(); await hasta(async () => (await M.personal.tareas()).filter(k => k.tipo === 'sesion').length === 2, 4000, 'la copia');
+      const L = await M.personal.tareas(), c = L.find(k => k.tipo === 'sesion' && k.id !== r.id), o = L.find(k => k.id === r.id);
+      igual([c.txt, c.fecha, c.hora, c.fin, c.clientes, c.hecha], ['Copia de Original', undefined, undefined, undefined, [], undefined], 'la copia lleva fecha, hora, fin, clientes o hecha');
+      const nf = c.fotos.map(f => f.id); ok(nf.length === 2 && !nf.includes(f1) && !nf.includes(f2), 'las fotos de la copia no tienen ids nuevos: ' + json(nf));
+      igual([seAp(c, 'mood').grupos[0].fotos, seAp(c, 'planos').pestanas[0].items[0].fotos], [nf, [nf[1]]], 'los grupos y planos de la copia no apuntan a sus fotos');
+      igual([seAp(c, 'orden').texto, seAp(c, 'planos').pestanas[0].items[0].enlaces, seAp(c, 'material').material.hechos, seAp(c, 'material').material.plantilla, seAp(c, 'material').material.lista.length], ['Uno\nDos', ['https://ejemplo.com'], [], 'material', 7], 'la copia no es entera o su material sigue marcado');
+      for (const id of nf) { const t = await M._in.idbGet('tfotos', id); ok(t && t.blob && t.blob.size === blob.byteLength, 'la foto copiada no está en su almacén'); }
+      igual([o.fotos.map(f => f.id), seAp(o, 'mood').grupos[0].fotos], [[f1, f2], [f1, f2]], 'la original cambia');
+      ok(seHoja() && P.CARD.id === c.id, 'no se abre la hoja de la copia');
+      ok(!JSON.stringify(c).includes('"blob"') && JSON.stringify(c).length < JSON.stringify(o).length + 200, 'la copia guarda las fotos dentro del registro');
+      // borrar una foto de la copia no la quita de la original
+      seQ('[data-hj="tira"]').click(); await espera(60);
+      seQ(`.pp-hj-tira [data-f="${nf[0]}"]`).dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })); await espera(40);
+      q('.pp-menu [data-a="borrar"]').click(); await espera(150);
+      igual([(await seRec(c.id)).fotos.length, (await seRec(r.id)).fotos.length], [1, 2], 'borrar una foto de la copia la quita de la otra');
+      await M.personal.deshacer(); await espera(120);
+      await M.personal.deshacer(); await espera(150); ok(!(await M.personal.tareas()).some(k => k.id === c.id), '⌘Z no quita la copia');
+      P.cerrarCard(true);
+      // el clic derecho de su fila
+      await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, vista: 'lista', ttodas: true, alcance: '1m' }); await espera(80);
+      const fila = q(`.pp-tk[data-tid="${r.id}"]`); ok(fila, 'la sesión no sale en la Lista');
+      fila.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 })); await espera(40);
+      ok(q('.pp-menu [data-a="duplicar"]'), 'el clic derecho de la fila sin «Duplicar sesión»'); P.cerrarMenu();
+    } finally { M._in.closeDetail(); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('DS6', 'Arreglos de la revisión (lote B): tras «– Fin» el foco va a la hora de fin; «/tarea» en la hoja encima del tablero abre la tarea encima del tablero; con la hoja encima, el tablero no recibe el foco (inert); su ⌘Z no deshace un paso de la página oculta; Esc que la cierra no vacía la elección de Descargar; una sesión de varios días vencida no sale otra vez hoy en Semana; quitar la hora del inicio no deja un fin vacío; MESA.material.cargar con la página cerrada conserva el nombre de la de serie (D-217 a D-220)', async () => {
+    await tablero([pub(1), pub(2, 'Foto', 9)]); await sinTareas();
+    const raiz = M._in.root();
+    try {
+      relojEn('2026-10-01T09:00:00+02:00');
+      await paginaAbierta(); await seListo(); await seLista();
+      const P = M.personal._p, d1 = MES + '-06';
+      const s = await M.sesiones._test.crear({ txt: 'Encima', clase: 'foto', fecha: d1, hora: '10:00', clientes: [CLIENTE] });
+      await seAbrir(s.id); seQ('[data-hj="fin"]').click(); await espera(200);
+      ok(D.activeElement && D.activeElement.closest && D.activeElement.closest('.mx-time') && D.activeElement.closest('.pp-hj-fh'), 'tras «– Fin» el foco no va a su hora');
+      // quitar la hora del inicio con un fin el mismo día: sin fin
+      const h = seQ('[data-hj="hora"]'); h.value = ''; h.dispatchEvent(new W.Event('change', { bubbles: true })); await espera(150);
+      ok(!(await seRec(s.id)).fin, 'quitar la hora deja un fin vacío');
+      P.cerrarCard(true);
+      // la de serie renombrada; con la página cerrada y su registro viejo en memoria, cargar conserva el nombre
+      await P.cambiar('material', x => { x.txt = 'Mi equipo'; return x; });
+      const tarea = await M.personal.tarea({ txt: 'Paso de la página' }); await M.personal.borrar(tarea.id);
+      paginaCerrada(); M._in.render(); await espera(60);
+      P.TK.set('material', { ...P.TK.get('material'), txt: 'Material' });   // lo que la pestaña tenía leído
+      await M.material.cargar([{ nombre: 'Otra cosa', familia: 'Luz' }]);
+      igual((await M.personal.tareas()).find(t => t.id === 'material').txt, 'Mi equipo', 'cargar con la página cerrada pisa el nombre de la de serie');
+      // la hoja encima del tablero: el tablero inert; ⌘Z no toca la página oculta; Esc no vacía Descargar
+      await hasta(() => q(`.side > .cal .chip[data-ses="${s.id}"]`), 4000, 'el chip');
+      if (M.descargar && M.descargar.elegir) M.descargar.elegir(q('.feed .grid .cell[data-slot]').dataset.slot);
+      const eleg0 = M.descargar && M.descargar.elegidas ? M.descargar.elegidas().length : null;
+      q(`.side > .cal .chip[data-ses="${s.id}"]`).click(); await hasta(() => seHoja(), 3000, 'la hoja');
+      ok(q('#mesa > .main').inert && q('#mesa > .bar').inert && q('#mesa > .appbar').inert, 'con la hoja encima, el tablero recibe el foco');
+      ppTecla('z', { metaKey: true }); await espera(150);
+      ok(!(await M.personal.tareas()).some(k => k.id === tarea.id), '⌘Z encima del tablero deshace un paso de la página oculta');
+      ppTecla('Escape'); await espera(250); ok(!seHoja() && !q('#mesa > .main').inert, 'Esc no cierra la hoja o el tablero sigue inert');
+      if (eleg0 != null) igual(M.descargar.elegidas().length, eleg0, 'Esc que cierra la hoja vacía la elección de Descargar');
+      // «/tarea» en la hoja encima del tablero: la tarea, también encima
+      q(`.side > .cal .chip[data-ses="${s.id}"]`).click(); await hasta(() => seHoja(), 3000, 'la hoja');
+      P.comando('tarea', { texto: '', a: 0, b: 0, quitar: () => {} }, 'ap:orden'); await espera(120);
+      ok(P.CARD && P.CARD.tablero && [...P.TK.values()].some(k => k._b) && raiz.classList.contains('pp-card-on'), '«/tarea» encima del tablero no abre la tarea');
+      P.cerrarCard(true); await espera(80);
+      // Semana: una sesión de varios días vencida, en sus días y no otra vez hoy
+      const v = await M.sesiones._test.crear({ txt: 'Vencida larga', clase: 'foto', fecha: '2026-09-28', fin: { fecha: '2026-09-29' }, clientes: [CLIENTE] });
+      await paginaAbierta(); await M.personal.set({ plg: { tareas: false, clientes: true, avisos: false }, vista: 'semana', tsem: 0 }); await espera(80);
+      igual(qa(`.pp-fi[data-tid="${v.id}"]`).map(f => f.closest('.pp-sd').querySelector('.pp-sh b').textContent), ['28', '29'], 'la vencida de varios días sale otra vez hoy');
+    } finally { M.personal._p.cerrarCard(true); paginaCerrada(); relojVuelve(); await sinTareas(); }
+  });
+
+  prueba('DS7', 'Arreglos de la revisión de dibujo (lote B): «– Fin» guarda su sitio y solo cambia su opacidad (nada se mueve al pasar); la × de una ficha de material es una insignia en su esquina (la ficha no se ensancha); «+ Cliente», «– Fin» y «+ Guardar como plantilla» con --acc-ink; lo que pasa a otra fila va siempre a la derecha; en «Vista cliente» las piezas sin sangría; «Nueva sesión» sin hueco bajo «Fecha y hora»; «Reducir movimiento» cubre las pulsaciones nuevas; «Antes» y «Después» con palabras en «Editar plantillas» (D-217 a D-220)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo(); await seLista();
+      const s = await M.sesiones._test.crear({ txt: 'Dibujo', clase: 'foto', fecha: MES + '-06', hora: '10:00', clientes: [CLIENTE] });
+      await seAbrir(s.id);
+      const fin = seQ('[data-hj="fin"]'), cs = getComputedStyle(fin);
+      ok(cs.opacity === '0' && cs.pointerEvents === 'none' && fin.getBoundingClientRect().width > 30, '«– Fin» no guarda su sitio: ' + fin.getBoundingClientRect().width);
+      ok(!/max-width/.test(cs.transitionProperty), '«– Fin» anima su ancho');
+      const acc = getComputedStyle(seQ('.pp-hj-clmas')).getPropertyValue('--acc-ink').trim(), rgb = h => { const d = W.document.createElement('i'); d.style.color = h; W.document.body.append(d); const c = getComputedStyle(d).color; d.remove(); return c; };
+      igual([cs.color, getComputedStyle(seQ('.pp-hj-clmas.con .mx-sel')).color], [rgb(acc), rgb(acc)], '«– Fin» o «+ Cliente» sin --acc-ink');
+      ok(getComputedStyle(seQ('.pp-hj-meta > .pp-hj-sp')).display === 'none' && getComputedStyle(seQ('.pp-hj-meta > .pp-hj-vc')).marginLeft !== '0px', 'lo que pasa a otra fila no va a la derecha');
+      // la × de una ficha: insignia en su esquina, la ficha no se ensancha
+      const x = seQ('[data-ap="material"] .pp-ma-x'), xs = getComputedStyle(x);
+      ok(parseFloat(xs.top) < 0 && parseFloat(xs.right) < 0, 'la × no va en la esquina');
+      const reglas = [...W.document.styleSheets].flatMap(h => { try { return [...h.cssRules].map(r => r.cssText); } catch (e) { return []; } }).join('\n');
+      ok(!/\.pp-ma-w:hover \.pp-ma-c/.test(reglas), 'la ficha se ensancha al pasar');
+      ok(/prefers-reduced-motion[\s\S]*\.pp-hj-fin:active[\s\S]*\.pp-ma-x:active/.test(reglas), '«Reducir movimiento» no cubre las pulsaciones nuevas');
+      ok(getComputedStyle(seQ('[data-ap="material"] .pp-ma-plr .pp-cmas')).color === rgb(acc), '«+ Guardar como plantilla» sin --acc-ink');
+      // «Editar plantillas»: «Antes» y «Después» con palabras
+      seQ('[data-hj="mas"]').click(); await espera(40); q('.pp-menu [data-a="material"]').click(); await espera(80);
+      igual(qa('.pp-mpl-b').map(b => b.textContent), ['Antes', 'Después'], '«Antes» y «Después» sin palabras'); M._in.closeDetail(); await espera(60);
+      M.personal._p.cerrarCard(true);
+      // «Nueva sesión» sin fecha: sin hueco bajo «Fecha y hora»
+      M.personal._p.EXT.sesion.nueva({ ctx: null, campo: 'nueva', desde: null }); await espera(80);
+      ok(getComputedStyle(q('.pp-ns-fin')).display === 'none', '«Nueva sesión» deja un hueco bajo «Fecha y hora»'); M._in.closeDetail(); await espera(60);
+      // «Vista cliente»: las piezas sin sangría
+      paginaCerrada(); M._in.render(); q('.clientToggle').click(); await espera(150);
+      await M.personal.abrirSesion(s.id, { vc: true, cli: CLIENTE }); await espera(150);
+      igual(getComputedStyle(seQ('.pp-hj-meta')).marginLeft, '0px', 'en «Vista cliente» las piezas van sangradas');
+      M.personal._p.cerrarCard(true); q('.clientToggle').click(); await espera(100);
+    } finally { if (M._in.root().classList.contains('client')) q('.clientToggle').click(); M._in.closeDetail(); M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('DS8', 'Segunda ronda de la revisión (lote B): una tarea abierta encima del tablero con «/tarea» se guarda mientras se escribe, como en la página (D-219)', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await seListo();
+      const P = M.personal._p, s = await M.sesiones._test.crear({ txt: 'Con tarea', clase: 'foto', fecha: MES + '-06', clientes: [CLIENTE] });
+      paginaCerrada(); M._in.render(); await espera(60);
+      await M.personal.abrirSesion(s.id, {}); await espera(120); ok(seHoja() && P.CARD.tablero, 'la hoja no se abre encima del tablero');
+      P.comando('tarea', { texto: '', a: 0, b: 0, quitar: () => {} }, 'ap:orden'); await espera(150);
+      const ct = q('.pp-ov:not(.sale) [data-pp="ct"]'); ok(ct && P.CARD.tablero, 'la tarea no se abre encima del tablero');
+      ct.textContent = 'Llamar al cliente'; ct.dispatchEvent(new W.InputEvent('input', { bubbles: true }));
+      await hasta(async () => (await M.personal.tareas()).some(k => k.tipo === 'tarea' && k.txt === 'Llamar al cliente'), 3000, 'que se guarde mientras se escribe');
+      ok(!P.CARD.cmdVolver, 'escrito el título, ⌘Z sigue volviendo a la hoja');
+    } finally { M.personal._p.cerrarCard(true); paginaCerrada(); await sinTareas(); }
   });
 
   // =====================================================================================================

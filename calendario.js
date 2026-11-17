@@ -38,11 +38,18 @@
 //   vencidas» in the header opens the window that lists the client's, those of its earlier boards too, by date, each with
 //   «Ya se publicó», «Reprogramar» and «Cancelar», one step of ⌘Z each. Nothing of it in the vista cliente; nothing of
 //   Zernio, captions or emails.
+//   Sessions (1.23, D-219, mesa ≥ 4.24): a session of the personal page (sesiones.js) with a date has a chip on each day of the
+//   board it lasts, in the board of each of its monthly clients — clapperboard, name and its time on its first day, slate blue,
+//   no state mark — dimmed on another month of the board as the posts' (D-153); always in Kevin's calendar and, in the vista
+//   cliente, only with the session's eye open. It never moves nor counts (Σ, the month's total, the step bar, the vencidas, «N
+//   cambiadas», «Revisar», Notion, Zernio, Descargar: they read the posts only); its click opens its sheet over the board (in
+//   the vista cliente, fixed in «Ver como el cliente»). Read from 'tareas' when the first board opens (also one the tab
+//   started in) and again after each change («mesa-tareas», also from another tab and after an import).
 (function calendarioBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.22';   // 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.23';   // 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado', LS_CNT = 'mesa-cal-recuento';
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -85,6 +92,29 @@
     + `<span class="cl"><span class="cn">${esc(X.shortLabel(p.name, p.type))}</span></span>${X.localTime(p.date) ? `<span class="ct">${esc(X.localTime(p.date))}</span>` : ''}</button>`;
   const when = (X, iso) => X.dOnly(iso) ? -1 : +X.localTime(iso).replace(':', '');   // a post without a time goes first, as in Notion
 
+  // ---------- the personal page's sessions (D-219): what a chip needs, read from 'tareas' ----------
+  let SES = null, sesFirma = '', sesLee = null;
+  const CLAQ = '<svg class="cses" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path vector-effect="non-scaling-stroke" d="m6.2 5.3 3.1 3.9"/><path vector-effect="non-scaling-stroke" d="m12.4 3.4 3.1 4"/><path vector-effect="non-scaling-stroke" d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>';
+  async function leerSes() {
+    if (sesLee) { sesLee.otra = true; return; }
+    const yo = sesLee = { otra: false };
+    try {
+      do {
+        yo.otra = false;
+        const X = I(), l = ((X && X.idbAll ? await X.idbAll('tareas').catch(() => []) : []) || []).filter(t => t && t.tipo === 'sesion' && t.id && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || ''));
+        const n = l.map(t => ({ id: t.id, txt: String(t.txt || ''), fecha: t.fecha, hora: /^\d{2}:\d{2}$/.test(t.hora || '') ? t.hora : '', fin: t.fin && /^\d{4}-\d{2}-\d{2}$/.test(t.fin.fecha || '') && t.fin.fecha > t.fecha ? t.fin.fecha : t.fecha,
+          clientes: Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : [], visible: !(t.sesion && t.sesion.visible === false), t: t }));
+        const f = JSON.stringify(n.map(({ t, ...x }) => [x, t.fin || null]));
+        if (f !== sesFirma || !SES) { sesFirma = f; SES = n; render(); }
+      } while (yo.otra);
+    } finally { if (sesLee === yo) sesLee = null; }
+  }
+  const alTareas = () => { if (SES || sesLee) leerSes(); };   // a session changed (here or in another tab); during the first reading, it reads again
+  function sesHTML(X, x, d) {
+    const P = M.personal && M.personal._p, cu = P && P.tramo ? P.tramo(x.t) : x.fecha + (x.hora ? ' ' + x.hora : ''), t = x.fecha === d ? x.hora : '';
+    return `<button type="button" class="chip ty-ses" data-ses="${esc(x.id)}" title="${esc(`Sesión · ${x.txt} · ${cu}`)}"><span class="cl">${CLAQ}<span class="cn">${esc(x.txt)}</span></span>${t ? `<span class="ct">${esc(t)}</span>` : ''}</button>`;
+  }
+
   function render() {
     if (mv && mv.on) { later = true; return; }   // a chip being moved: drawn again once it is let go
     const X = I(); if (!X || !X.shellReady || !X.shellReady()) return;
@@ -92,12 +122,19 @@
     const S = X.S; if (!S) { sec.hidden = true; return; }
     const client = root.classList.contains('client'), sp = span(X);
     if (view.key !== S.key || !sp.list.includes(view.m)) view = { key: S.key, m: mesInicial(X, sp) };
+    if (!SES && !sesLee) leerSes();            // the first board the tab opens (also one it started in); then each change says so (D-219)
     const m = view.m, [y, mo] = m.split('-').map(Number), today = X.hoy();
     // posts by day (sorted by time; a cancelled one is drawn crossed out, never in the vista cliente)
     const by = {};
     S.slots.forEach(s => { const d = X.localDay(s.date); if (d) (by[d] = by[d] || []).push({ s, t: when(X, s.date) }); });
     X.pastList(false).forEach(p => { const d = X.localDay(p.date); if (d && !S.slots.some(s => s.id === p.id)) (by[d] = by[d] || []).push({ p, t: when(X, p.date) }); });
     Object.values(by).forEach(a => a.sort((u, v) => u.t - v.t));
+    // the sessions of this board's client, a chip each day they last on the board's days; in the vista cliente, those it sees
+    const sd = {};
+    if (SES && S.client) for (const x of SES) {
+      if (!x.clientes.includes(S.client) || (client && !x.visible)) continue;
+      for (let d = x.fecha < sp.lo ? sp.lo : x.fecha, i = 0; d <= x.fin && d <= sp.hi && i < 400; d = addDays(d, 1), i++) (sd[d] = sd[d] || []).push({ x, t: x.fecha === d && x.hora ? +x.hora.replace(':', '') : -1 });
+    }
     const live = it => it.p || X.estadoDe(it.s) !== 'cancelado';       // what counts (and what the vista cliente shows)
     const first = `${m}-01`, start = addDays(first, -dow(first)), dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     const rows = Math.ceil((dow(first) + dim) / 7), cf = cntFolded();
@@ -113,7 +150,7 @@
         const cls = `cday${inM ? '' : ' out'}${d < sp.plo || d > sp.hi ? ' off' : d < sp.lo ? ' prevc' : inM ? '' : ' otromes'}${d === today ? ' today' : ''}`;
         const num = +d.slice(8) === 1 ? `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}` : String(+d.slice(8));
         body += `<div class="${cls}" data-day="${d}"><div class="dh"><span class="dn">${num}</span>${k > 1 && !client ? `<span class="dmany" title="${k} publicaciones este día">${k}</span>` : ''}</div>`
-          + items.map(it => it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
+          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
       }
       total += n;
       body += `<div class="ccnt${n ? '' : ' z'}" title="${n} publicaci${n === 1 ? 'ón' : 'ones'} esta semana en ${X.MONTHS[mo - 1]}">${cf ? '' : n}</div>`;
@@ -196,6 +233,7 @@
     }
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
+    if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S && X.S.client }); return; }   // its sheet over the board (D-219)
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
   }
@@ -521,6 +559,7 @@
 #mesa .chip.ty-foto{--cb:var(--ty-foto);--ci:var(--ty-foto-ink)}
 #mesa .chip.ty-carr{--cb:var(--ty-carr);--ci:var(--ty-carr-ink)}
 #mesa .chip.ty-trial{--cb:var(--ty-trial);--ci:var(--ty-trial-ink)}
+#mesa .chip.ty-ses{--cb:var(--ty-ses);--ci:var(--ty-ses-ink)}#mesa .chip .cses{flex:none;width:11px;height:11px}
 #mesa .cday.otromes .chip:not(.cx):not(.past):not(:hover):not(:focus-visible):not(.calhi){background:color-mix(in srgb,var(--cb) 45%,transparent);color:color-mix(in srgb,var(--ci) 55%,transparent)}
 #mesa .chip.past{background:var(--ty-past);color:var(--faint);cursor:pointer}
 #mesa .chip.cx{background:var(--ty-past);color:var(--faint)}#mesa .chip.cx .cn{text-decoration:line-through}
@@ -550,9 +589,10 @@
   }
   const ON = [['pointerover', onOver], ['click', onClick, false], ['dblclick', onDbl, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
+  document.addEventListener('mesa-tareas', alTareas);
   M.calendario = {
     version: VERSION, render, vencidas: abrirVencidas, cambios: abrirCambios,
-    _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); if (mv) onCancel(); }
+    _off: () => { ON.forEach(([t, f, c]) => document.removeEventListener(t, f, c !== false)); document.removeEventListener('mesa-tareas', alTareas); if (mv) onCancel(); }
   };
   render();                                     // the mesa may have drawn its board before this file arrived
   (window.MESA_CARGA = window.MESA_CARGA || {}).calendario = 'ok';   // it ran to the end: a module that throws while loading is told apart (D-115)

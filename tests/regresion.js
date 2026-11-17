@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 17, V_IDB = 19;   // v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 18, V_IDB = 20;   // v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -78,6 +78,7 @@
     if (M._test.olvidarDonde) M._test.olvidarDonde();
     if (M._test.ubBorrar) await M._test.ubBorrar();   // el catálogo de ubicaciones y las listas (D-124)
     if (M._test.perBorrar) await M._test.perBorrar();   // las listas de personas (D-130)
+    if (M._test.cobBorrarTodo) await M._test.cobBorrarTodo();   // los cobros, sus PDF y las cuotas (D-232)
   }
   // borrar el mes y su bandeja: como una mesa que no tiene ese tablero
   const sinMes = async key => { await M.purge(key); await M._test.borrarBandeja(CLIENTE); };
@@ -15748,6 +15749,102 @@
     } finally { W.matchMedia = mm0; try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } paginaCerrada(); relojVuelve(); await sinTareas(); }
   });
 
+
+  // ---------- ajustes de la 4.24, lote B: cobros (D-232 a D-237) ----------
+  const CB = () => M._in.cob;
+  // a PDF made here (a few bytes; it starts with %PDF-), and its SHA-256
+  const pdfDe = (txt = 'factura', extra = 0) => new W.Blob(['%PDF-1.4\n% ' + txt + '\n' + 'x'.repeat(extra) + '\n%%EOF\n'], { type: 'application/pdf' });
+  const shaDe = async b => [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', await b.arrayBuffer()))].map(x => x.toString(16).padStart(2, '0')).join('');
+  async function coCliente(cuota) {               // the test client with its fee (or none)
+    await M._in.editarCliente(CLIENTE, o => { const n = { ...o }; if (cuota) { n.cuota = cuota; n.cuotaAt = new Date().toISOString(); } else { delete n.cuota; delete n.cuotaAt; } return n; });
+    await M._in.loadClients(); await CB().leer(true);
+  }
+  prueba('CO1', 'Cobros, datos (D-232): IndexedDB 20 con «cobros» y «cfacturas»; MESA.cobros.cargar valida (todo o nada) y une por id y at; ver da su estado; adjuntar acepta un PDF (blob o base64) de hasta 10 MB; «⇅ Exportar» v18 → borrar → «Importar» devuelve los cobros y los PDF con los mismos bytes; una lápida no deja que un archivo viejo devuelva lo borrado; la cuota sobrevive a guardar el cliente, a un ⌘Z y a importar; un v17 se importa; un cliente con facturas no se elimina', async () => {
+    await tablero([pub(1)]);
+    // the stores
+    const st = await new Promise(res => { const o = W.indexedDB.open('mesa-feed'); o.onsuccess = () => { const x = { v: o.result.version, n: [...o.result.objectStoreNames] }; o.result.close(); res(x); }; o.onerror = () => res({}); });
+    igual(st.v, V_IDB, 'la versión de IndexedDB'); ok(st.n.includes('cobros') && st.n.includes('cfacturas'), 'faltan los almacenes: ' + json(st.n));
+    // cargar: all or nothing
+    let r = await M.cobros.cargar([{ cliente: CLIENTE, periodo: '2026-10', importe: '1.470,50', factura: 'T-1', emitida: '2026-10-15', vence: '2026-10-25' }, { cliente: 'nadie', periodo: '2026-10', importe: 1 }]);
+    ok(r.error && r.problemas && r.problemas.length === 1 && r.problemas[0].i === 1, 'cargar con un cliente desconocido no lo rechaza todo: ' + json(r));
+    igual(M.cobros.ver(CLIENTE).length, 0, 'cargar a medias guardó algo');
+    r = await M.cobros.cargar([{ cliente: CLIENTE, periodo: '2026-10', importe: 'doce', emitida: '2026-10-15' }]); ok(r.error, 'un importe no válido entra');
+    r = await M.cobros.cargar([{ cliente: CLIENTE, periodo: '2026-10', importe: 1, emitida: '15/10/2026' }]); ok(r.error, 'una fecha no válida entra');
+    r = await M.cobros.cargar([
+      { id: 'co-t1', cliente: CLIENTE, periodo: '2026-09', importe: 450, factura: 'T-0', emitida: '2026-09-15', vence: '2026-09-25', cobrada: '2026-09-23', at: '2026-09-23T10:00:00.000Z' },
+      { id: 'co-t2', cliente: CLIENTE, periodo: '2026-10', importe: '1.470,50', factura: 'T-1', emitida: '2026-10-15', vence: '2026-10-25', at: '2026-10-15T10:00:00.000Z' },
+      { id: 'co-t3', cliente: CLIENTE, periodo: '2026-11', importe: '450 €', factura: '', emitida: '2026-11-15', vence: '2026-11-25', at: '2026-10-15T10:00:00.000Z' }]);
+    ok(r.ok && r.nuevos === 3, 'cargar no guardó las tres: ' + json(r));
+    igual(M.cobros.ver(CLIENTE).find(x => x.id === 'co-t2').importe, 1470.5, 'el importe «1.470,50»');
+    // the states with the clock at 1 Oct: one paid, one issued later (sin emitir), …; and near midnight in Madrid
+    const est = () => Object.fromEntries(M.cobros.ver(CLIENTE).map(x => [x.id, x.estado + (x.diasRetraso ? ':' + x.diasRetraso : '')]).sort((a, b) => a[0].localeCompare(b[0])));
+    igual(est(), { 'co-t1': 'cobrada', 'co-t2': 'sinemitir', 'co-t3': 'sinemitir' }, 'los estados el 1 oct');
+    try {
+      relojEn('2026-10-25T23:59:00+01:00'); igual(est()['co-t2'], 'pendiente', 'el día que vence, a las 23:59 de Madrid');
+      relojEn('2026-10-26T00:01:00+01:00'); igual(est()['co-t2'], 'retrasada:1', 'al día siguiente de vencer, a las 00:01 de Madrid');
+      relojEn('2026-11-15T00:30:00+01:00'); igual(est()['co-t3'], 'pendiente', 'el día que se emite');
+      igual(CB().totales(), { cobrado: 0, pendiente: 1920.5, hay: true }, 'lo cobrado este mes y lo pendiente');
+    } finally { relojVuelve(); }
+    // join by at: an older version doesn't win, a newer one does
+    r = await M.cobros.cargar([{ id: 'co-t2', cliente: CLIENTE, periodo: '2026-10', importe: 1, at: '2026-01-01T00:00:00.000Z' }]); ok(r.ok && r.masRecientesAqui === 1, 'una versión vieja pisa: ' + json(r));
+    igual(M.cobros.ver(CLIENTE).find(x => x.id === 'co-t2').importe, 1470.5, 'la vieja ganó');
+    // adjuntar: blob and base64; only PDF, up to 10 MB
+    const p1 = pdfDe('una', 3000), h1 = await shaDe(p1);
+    r = await M.cobros.adjuntar('co-t1', p1, 'T-0.pdf'); ok(r.ok && r.pdf, 'adjuntar un blob: ' + json(r));
+    const b64 = W.btoa(String.fromCharCode(...new Uint8Array(await pdfDe('dos').arrayBuffer())));
+    r = await M.cobros.adjuntar('co-t2', b64, 'T-1.pdf'); ok(r.ok, 'adjuntar en base64: ' + json(r));
+    r = await M.cobros.adjuntar('co-t3', new W.Blob(['hola'], { type: 'application/pdf' })); ok(r.error && /PDF/.test(r.error), 'un archivo que no es PDF entra: ' + json(r));
+    r = await M.cobros.adjuntar('co-t3', new W.Blob(['%PDF-' + 'x'.repeat(10 * 1024 * 1024)])); ok(r.error && /10 MB/.test(r.error), 'un PDF de más de 10 MB entra: ' + json(r));
+    const pdf1 = M.cobros.ver(CLIENTE).find(x => x.id === 'co-t1').pdf, f1 = await M._in.idbGet('cfacturas', pdf1);
+    ok(f1 && f1.nombre === 'T-0.pdf' && f1.tam === p1.size && f1.tipo === 'application/pdf', 'cfacturas no guarda nombre, tamaño y tipo: ' + json({ ...f1, blob: !!(f1 && f1.blob) }));
+    igual(await shaDe(f1.blob), h1, 'los bytes del PDF guardado');
+    ok(!('blob' in (await M._in.idbGet('cobros', 'co-t1'))), 'el PDF va dentro del registro');
+    // the fee survives saving the client (Datos), a ⌘Z and an import
+    await coCliente({ importe: 450, dia: 15, plazo: 10 });
+    await M.updateClient(CLIENTE, { name: NOMBRE, handle: '', cycleDay: 1 });
+    igual((await M._in.idbGet('clients', CLIENTE)).cuota, { importe: 450, dia: 15, plazo: 10 }, 'guardar el cliente pierde la cuota');
+    await poner('r1', [await foto('co1.jpg')]); M._in.save(); await espera(30); tecla('z', { meta: true }); await espera(200);
+    igual((await M._in.idbGet('clients', CLIENTE)).cuota, { importe: 450, dia: 15, plazo: 10 }, 'un ⌘Z pierde la cuota');
+    // a deleted one: its tombstone
+    const del = await CB().borrar('co-t3'); ok(del && del.rec.id === 'co-t3', 'borrar no devuelve lo borrado');
+    ok((await M._in.idbGet('cobros', 'co-t3')).borrado, 'borrar no deja una lápida');
+    // export → delete → import
+    const blob = await M.exportAll({ returnBlob: true }), d = JSON.parse(await blob.text());
+    igual(d.v, V_ARCHIVO, 'la versión del archivo');
+    ok(d.cobros.length === 3 && d.cobros.find(x => x.id === 'co-t3').borrado, 'el archivo no lleva los cobros con su lápida: ' + json(d.cobros.map(x => x.id)));
+    igual(d.cfacturas.map(f => f.id).sort(), M.cobros.ver(CLIENTE).map(x => x.pdf).filter(Boolean).sort(), 'el archivo no lleva los PDF que se nombran');
+    ok(d.clients.find(c => c.id === CLIENTE).cuota.importe === 450, 'el archivo no lleva la cuota');
+    const antes = JSON.stringify(M.cobros.ver(CLIENTE).map(({ estado, diasRetraso, ...x }) => x)), shas = {};
+    for (const x of M.cobros.ver(CLIENTE)) if (x.pdf) shas[x.id] = await shaDe((await M._in.idbGet('cfacturas', x.pdf)).blob);
+    await M._test.cobBorrarTodo(); igual(M.cobros.ver(CLIENTE).length, 0, 'no se borraron');
+    let x = await M.importData(blob, { confirm: false }); ok(x && x.ok && x.cobros === 3, 'importar no trae los cobros: ' + json(x));
+    await CB().leer();
+    igual(JSON.stringify(M.cobros.ver(CLIENTE).map(({ estado, diasRetraso, ...y }) => y)), antes, 'los cobros importados no son los mismos');
+    for (const y of M.cobros.ver(CLIENTE)) if (y.pdf) igual(await shaDe((await M._in.idbGet('cfacturas', y.pdf)).blob), shas[y.id], 'los bytes del PDF importado de ' + y.id);
+    ok((await M._in.idbGet('cobros', 'co-t3')).borrado, 'la lápida no vuelve');
+    igual((await M._in.idbGet('clients', CLIENTE)).cuota, { importe: 450, dia: 15, plazo: 10 }, 'la cuota no vuelve al importar');
+    // an older file with the deleted one alive doesn't bring it back; nothing new is «nada»
+    const viejo = JSON.parse(JSON.stringify(d)); viejo.cobros = viejo.cobros.map(c => c.id === 'co-t3' ? { id: 'co-t3', cliente: CLIENTE, periodo: '2026-11', importe: 450, factura: '', emitida: '2026-11-15', vence: '2026-11-25', cobrada: '', pdf: '', concepto: '', at: '2026-10-15T10:00:00.000Z' } : c);
+    x = await M.importData(viejo, { confirm: false }); ok(x && x.ok && !x.cobros, 'un archivo viejo trae algo: ' + json(x));
+    ok((await M._in.idbGet('cobros', 'co-t3')).borrado, 'un archivo viejo devuelve lo borrado');
+    // a newer fee in the file wins; an older one doesn't
+    const nueva = JSON.parse(JSON.stringify(d)); const cn = nueva.clients.find(c => c.id === CLIENTE); cn.cuota = { importe: 500, dia: 1, plazo: 15 }; cn.cuotaAt = new Date(Date.now() + 60000).toISOString();
+    x = await M.importData(nueva, { confirm: false }); ok(x && x.ok, 'importar la cuota nueva');
+    igual((await M._in.idbGet('clients', CLIENTE)).cuota, { importe: 500, dia: 1, plazo: 15 }, 'la cuota más reciente no gana');
+    x = await M.importData(d, { confirm: false }); igual((await M._in.idbGet('clients', CLIENTE)).cuota.importe, 500, 'la cuota vieja pisa la nueva');
+    // a v17 still imports (no invoices)
+    const v17 = JSON.parse(JSON.stringify(d)); v17.v = 17; delete v17.cobros; delete v17.cfacturas; v17.clients.forEach(c => { delete c.cuota; delete c.cuotaAt; });
+    x = await M.importData(v17, { confirm: false }); ok(x && !x.error, 'un v17 no se importa: ' + json(x));
+    // an older version of the database is refused (a 4.25 tab stops)
+    const v = await new Promise(res => { const o = W.indexedDB.open('mesa-feed', V_IDB - 1); o.onsuccess = () => { o.result.close(); res('abrió'); }; o.onerror = () => res(o.error && o.error.name); o.onupgradeneeded = () => res('subió'); });
+    igual(v, 'VersionError', 'una pestaña con IndexedDB 19 abre la base de datos');
+    // a PDF goes when no invoice names it
+    const live = M.cobros.ver(CLIENTE).find(y => y.pdf);
+    await CB().guardar({ ...CB().get(live.id), pdf: '' }); ok(!(await M._in.idbGet('cfacturas', live.pdf)), 'un PDF que nadie nombra se queda');
+    // a client with invoices can't be removed
+    await sinMes(`${CLIENTE}-${MES}`);
+    const rm = await M.removeClient(CLIENTE); ok(typeof rm === 'string' && /factura/.test(rm), 'se elimina un cliente con facturas: ' + rm);
+  });
 
   // =====================================================================================================
   const filas = $('filas');

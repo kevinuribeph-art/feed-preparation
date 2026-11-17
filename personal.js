@@ -787,7 +787,7 @@
     clearTimeout(CARD.cierre);
     if (CARD.ed && !ya) { guardarCard(); if (!CARD) return; }   // what was written goes in first (an empty note has gone with its card)
     apagarCampos(); if (CARD.ext && CARD.ext.cerrar) CARD.ext.cerrar();
-    const o = ov, de = CARD.de; CARD = null; ov = null; soltarBorrador();
+    const o = ov, de = CARD.de; CARD = null; ov = null; soltarBorrador(); cerradaT = Date.now();
     if (ya || pocoMov()) o.remove(); else { o.classList.add('sale'); setTimeout(() => o.remove(), 130); }
     const b = de && page && page.querySelector(de); if (b) b.focus({ preventScroll: true });
     retomar();
@@ -1002,9 +1002,11 @@
     pintar();
     const n = page.querySelector('[data-pp="nueva"]'); if (n) n.focus();
   }
+  let cerradaT = 0;
   function alClic(e) {
     const X = I(); if (!X || !X.root) return;
     const root = X.root(); if (!root || !root.contains(e.target)) return;
+    if (e.detail >= 2 && !CARD && Date.now() - cerradaT < DBL + 200) { e.preventDefault(); e.stopPropagation(); return; }   // the second click of the double click that closed a card: never on what was under it (D-209)
     if (st.on && e.target.closest('.tabs [data-act="client"], .tab.add')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
     // a task or a note in small: a click opens it big (D-182); its checkbox and its photo, as before
@@ -1077,8 +1079,8 @@
   function alDobleClic(e) {
     if (CARD && enCard(e.target)) {            // writing, where it was double clicked (the double click that opened it: at the end)
       clearTimeout(CARD.cierre);
+      if (CARD.ampT && Date.now() - CARD.ampT < DBL) return;   // the second click of a double click on «Ampliar», now under it (a sheet too)
       if (CARD.ext) { if (CARD.ext.dbl) CARD.ext.dbl(e); return; }
-      if (CARD.ampT && Date.now() - CARD.ampT < DBL) return;   // the second click of a double click on «Ampliar», now under it
       if (e.target.closest('[data-pp="ampliar"], [data-pp="cerrar"], a.pp-ea, .pp-em.ca[data-ln]')) return;
       if (!CARD.ed && !e.target.closest('.pp-ck, [data-pp="foto"]')) editar(true, CARD.peq ? null : { x: e.clientX, y: e.clientY });
       return;
@@ -1576,7 +1578,7 @@
 #mesa .pp-card.nota .pp-cb:hover{background:var(--postit-3);color:var(--postit-ink)}
 /* read, a click writes where it is pressed (D-209): the text cursor says so; the date and the client open their control */
 #mesa .pp-card .pp-ct,#mesa .pp-card .pp-cn,#mesa .pp-card .pp-cd,#mesa .pp-csub > span{cursor:text}
-#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--faint)}#mesa .pp-cml.vacio:hover{color:var(--mute)}
+#mesa .pp-cml{cursor:pointer;border-radius:var(--r-xs)}#mesa .pp-cml:hover{color:var(--ink)}#mesa .pp-cml.vacio{color:var(--faint)}#mesa .pp-cml.vacio svg{color:inherit}#mesa .pp-cml.vacio:hover{color:var(--mute)}
 #mesa .pp-ov.amplia{padding:0;background:var(--bg);align-items:stretch;justify-content:stretch}
 #mesa .pp-ov.amplia .pp-card{width:100%;max-width:none;max-height:none;height:100%;min-height:0;border-radius:0;box-shadow:none;padding:44px 56px 48px}
 #mesa .pp-ov.amplia .pp-card.nota{padding:52px 64px 48px;background:var(--postit-2)}
@@ -1585,7 +1587,7 @@
 #mesa .pp-card.amplia > .pp-ch,#mesa .pp-card.amplia > .pp-cm,#mesa .pp-card.amplia > .pp-cfo{grid-column:1 / -1}
 #mesa .pp-card.amplia > .pp-cd{grid-column:1;margin-top:24px}
 #mesa .pp-card.amplia > .pp-cs{grid-column:2;margin:30px 0 0}
-#mesa .pp-card.amplia .pp-ct{font-size:26px}
+#mesa .pp-card.amplia .pp-ct{font-size:26px}#mesa .pp-card.amplia .pp-ch .pp-ck{margin-top:10px}
 #mesa .pp-card.amplia .pp-cn{font-size:16px}
 #mesa .pp-fpick{position:fixed;width:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 /* a task's photo, big */

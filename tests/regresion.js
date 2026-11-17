@@ -14606,17 +14606,22 @@
       const t2 = await M.personal.tarea({ txt: 'Sin nada' }); await M.personal._p.cambiar(t2.id, x => { x.detalles = 'Primera línea\nSegunda'; return x; }); await M.personal.render();
       ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260);
       ok(ppCard().querySelector('[data-pp="lfecha"].vacio') && ppCard().querySelector('[data-pp="lcli"].vacio'), 'sin fecha ni cliente no salen «Fecha» y «Cliente» en gris');
+      { const v = ppCard().querySelector('[data-pp="lfecha"].vacio'); igual(W.getComputedStyle(v.querySelector('svg')).color, W.getComputedStyle(v).color, 'el icono de «Fecha» vacía no va como su texto'); }
       const h0 = ppCard().getBoundingClientRect().height, cd0 = ppCard().querySelector('.pp-cd'), rr = cd0.getBoundingClientRect();
       ppRaton(cd0, 'click', 1, { clientX: rr.left + 20, clientY: rr.top + 12 }); await espera(40);
       ok(D.activeElement === ppCard().querySelector('[data-pp="cd"]') && Math.abs(ppCard().getBoundingClientRect().height - h0) < 2, 'un clic en «Detalles» de una tarea sin fecha ni cliente no escribe allí o la tarjeta cambia de alto: ' + json([D.activeElement && D.activeElement.dataset.pp, h0, ppCard().getBoundingClientRect().height]));
       ppTecla('Escape'); await espera(200);
       // widened, the buttons in line with the title's first line
       ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260); ppRaton(ppCard().querySelector('[data-pp="ampliar"]'), 'click', 1); await espera(80);
-      { const bq = ppCard().querySelector('.pp-cbs').getBoundingClientRect(), tq = ppCard().querySelector('[data-pp="ct"]').getBoundingClientRect(); ok(Math.abs((bq.top + bq.bottom) / 2 - (tq.top + 3 + 17)) < 4, 'ampliada, los botones no van en línea con el título: ' + json([bq.top, tq.top])); }
+      { const bq = ppCard().querySelector('.pp-cbs').getBoundingClientRect(), tq = ppCard().querySelector('[data-pp="ct"]').getBoundingClientRect(), kq = ppCard().querySelector('.pp-ch .pp-ck').getBoundingClientRect(); ok(Math.abs((bq.top + bq.bottom) / 2 - (tq.top + 3 + 17)) < 4, 'ampliada, los botones no van en línea con el título: ' + json([bq.top, tq.top]));
+        ok(Math.abs((kq.top + kq.bottom) / 2 - (tq.top + 3 + 17)) < 3, 'ampliada, la casilla no va en línea con el título: ' + json([kq.top, tq.top])); }
       ppTecla('Escape'); await espera(200);
       // the second click of the double click that opened it, on the ×: it stays open
       ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(40); ppRaton(ppCard().querySelector('[data-pp="cerrar"]'), 'click', 2); await espera(200);
       ok(ppCard(), 'el segundo clic de un doble clic en la × la cierra'); ppTecla('Escape'); await espera(200);
+      // a double click that closes it (outside): its second click never opens what was under it
+      ppRaton(q(`.pp-tk[data-tid="${t2.id}"] .pp-tt`), 'click', 1); await espera(260); ppRaton(q('.pp-ov:not(.sale)'), 'click', 1, { clientX: 5, clientY: 5 }); await espera(40);
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 2); await espera(200); ok(!ppCard(), 'el segundo clic del doble clic que la cerró abre lo de debajo');
       // una nota: ampliar y ×; un clic la escribe
       const n = await M.personal.tarea({ tipo: 'nota', txt: 'Una idea' }); await M.personal.render();
       ppRaton(q(`.pp-pt[data-nid="${n.id}"]`), 'click', 1); await espera(260);
@@ -14885,10 +14890,15 @@
       igual(on.querySelector('.pp-hj-n').textContent, '1/2', 'la cuenta');
       ok(Math.abs(on.querySelector('.pp-pl-tn').getBoundingClientRect().left - seQ('[data-ap="orden"] .pp-hj-pl b').getBoundingClientRect().left) < 1.5, 'la pestaña no empieza donde los demás títulos');
       ok(on.querySelector('.pp-hj-n').getBoundingClientRect().left - on.querySelector('.pp-pl-tn').getBoundingClientRect().right >= 5, 'la cuenta va pegada al nombre');
+      ok(seQ('[data-ap="planos"] .pp-hj-pl').getBoundingClientRect().right <= on.getBoundingClientRect().left + 0.5, 'la primera pestaña tapa el botón de plegar');
       igual(W.getComputedStyle(on, '::after').content, 'none', 'la elegida lleva raya');
       igual(cs(seQ('.pp-pl-tabs')).borderBottomWidth, '0px', 'hay línea debajo');
       igual([cs(on).color, cs(off).color], [tok('--ink'), tok('--faint')], 'la elegida no va en tinta o la otra no en --faint');
       ok(seQ('[data-hj="tab-mas"]'), 'sin «+»');
+      const x0 = on.querySelector('.pp-pl-tn').getBoundingClientRect().left; await espera(400); seDbl(on); await espera(80);   // past the double click that opened it
+      { const tn = seQ('.pp-pl-tn[contenteditable]'), cs = W.getComputedStyle(tn); ok(Math.abs(tn.getBoundingClientRect().left + parseFloat(cs.paddingLeft) - x0) < 1, 'al renombrar, el nombre de la pestaña salta: ' + json([x0, tn.getBoundingClientRect().left, cs.paddingLeft, cs.marginLeft, tn.parentNode.tagName, W.getComputedStyle(tn.parentNode).paddingLeft])); } M.personal._p.editar(false); await espera(80);
+      seQ('[data-hj="it-nuevo"]').click(); await espera(120);
+      ok(seQ('.pp-pl-ti.escribiendo').getBoundingClientRect().height >= 20, 'el título vacío de un plano nuevo encoge al escribir'); M.personal._p.editar(false); await espera(80);
       ppTecla('Escape'); await espera(200);
     } finally { paginaCerrada(); await sinTareas(); }
   });

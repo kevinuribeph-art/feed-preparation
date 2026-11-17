@@ -876,13 +876,15 @@
 #mesa .pp-hj .pp-fo{cursor:zoom-in}#mesa .pp-hj .pp-fo[draggable="true"]{cursor:grab}
 /* shots: tabs, each one with its references on the right */
 /* the tabs as the sections' titles (D-214, 7-A): the title's letter, its count as the sections', the other one in --faint */
-#mesa .pp-pl-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;margin-left:-14px}
+#mesa .pp-pl-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;margin-left:-6px}
+#mesa .pp-hj-pl:has(.pp-hj-sr){padding-right:0}
 #mesa .pp-pl-tab{display:inline-flex;align-items:baseline;gap:6px;border:0;background:none;padding:3px 8px 3px 6px;font:inherit;color:var(--faint);cursor:pointer;white-space:nowrap;border-radius:var(--r-pill);transition:color var(--d1) var(--ease),background var(--d1) var(--ease)}
 #mesa .pp-pl-tab .pp-pl-tn{font-size:var(--cx-tit-fs);font-weight:var(--cx-tit-fw);letter-spacing:var(--cx-tit-ls)}
 #mesa .pp-pl-tab .pp-hj-n{color:inherit}#mesa .pp-pl-tab:hover{background:var(--bg-2);color:var(--mute)}
 #mesa .pp-pl-tab.on{color:var(--ink)}#mesa .pp-pl-tab.on .pp-hj-n{color:var(--mute)}
-#mesa .pp-pl-tab:focus-visible{outline-offset:-2px}
-#mesa .pp-pl-tabs .pp-pl-tn.escribiendo{padding:0 4px}
+#mesa .pp-pl-tab:focus-visible,#mesa .pp-pl-mas:focus-visible{outline-offset:-2px}
+#mesa .pp-pl-tabs .pp-pl-tn.escribiendo{padding:2px 4px;margin:-2px -4px}
+#mesa .pp-pl-ti.escribiendo{min-height:22px}
 #mesa .pp-pl-mas{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}#mesa .pp-pl-mas svg{width:15px;height:15px}
 #mesa .pp-pl-items{display:flex;flex-direction:column}
 #mesa .pp-pl-it{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,auto);column-gap:8px;padding:14px 0 14px;border-bottom:1px solid var(--line2)}

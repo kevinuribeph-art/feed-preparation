@@ -1851,7 +1851,7 @@
       for (const [hx, hy] of asas(el, g)) { x.fillStyle = '#fff'; x.fillRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); x.strokeRect(hx * g.w / 2 - hs / 2, hy * g.h / 2 - hs / 2, hs, hs); }
     }
     if (el.lock && solo && !esFotoDz(el)) {    // Lucide's lock (D-215) on a white badge, as the handles, outside the corner: it never covers what is locked
-      const b = 18 * u, k = 12 * u / 24, fuera = g.cy - g.h / 2 - b - 4 * u >= 0; x.translate(-g.w / 2 + (fuera ? 0 : 6 * u), fuera ? -g.h / 2 - b - 4 * u : -g.h / 2 + 6 * u);   // at the top edge, inside its corner
+      const b = 18 * u, k = 12 * u / 24, fuera = !g.a && g.cy - g.h / 2 - b - 4 * u >= 0; x.translate(-g.w / 2 + (fuera ? 0 : 6 * u), fuera ? -g.h / 2 - b - 4 * u : -g.h / 2 + 6 * u);   // at the top edge, inside its corner
       x.beginPath(); x.roundRect(0, 0, b, b, 4 * u); x.fillStyle = '#fff'; x.fill(); x.lineWidth = u; x.stroke();
       x.translate(3 * u, 3 * u); x.scale(k, k); x.lineWidth = 1.33 * u / k; x.lineCap = 'round'; x.lineJoin = 'round';
       x.beginPath(); x.roundRect(3, 11, 18, 11, 2); x.stroke(); x.stroke(LB_LOCK);
@@ -2431,6 +2431,7 @@
   }
   function onWheel(e) {
     if (!E) return;
+    E.ultPuntero = performance.now();   // a menu closed by the wheel: the focus stays where it is
     menuCtx(false);
     if (E.crop && e.target === E.cv && E.sl.length) {   // framing a photo: the wheel or a pinch on the slide zooms the photo
       const el = compAt(E.i).els.find(x => x.id === E.crop); if (!el) return;
@@ -2632,7 +2633,7 @@
     if (!on) { E.cmDe = null; E.el.querySelectorAll('[data-lb="formas"][aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
     const dentro = !on && m.contains(document.activeElement);
     if (dentro) E.el.focus({ preventScroll: true });
-    if (!on && E.capaVuelve) { const s = E.capaVuelve; E.capaVuelve = null; if (dentro) requestAnimationFrame(() => { const r = E && E.el.querySelector(s), b = r && (r.querySelector('button') || r); if (b) b.focus({ preventScroll: true }); }); }   // closed with its keys or an order: back to the row
+    if (!on && E.capaVuelve) { const s = E.capaVuelve; E.capaVuelve = null; if (dentro && performance.now() - (E.ultPuntero || 0) > 400) requestAnimationFrame(() => { const r = E && !E.cmOn && E.el.querySelector(s), b = r && (r.querySelector('button') || r); if (b) b.focus({ preventScroll: true }); }); }   // closed with its keys or an order: back to the row
   }
 
   // ---------- a double click on a bar's row puts it back (Mesa más limpia) ----------
@@ -2831,7 +2832,7 @@
       }
       const e = x, at = `data-id="${esc(e.id)}"`;
       if (fijoDz(e))                            // the design's photo and «Diseño»: neither hidden nor locked; the photo stays at the bottom (D-193)
-        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}${esDz(e) ? ' tabindex="0"' : ''}>${asa(esDz(e))}<span class="lb-capn">${nombreEl(e)}</span></div>`;
+        return `<div class="lb-cap lb-capdz${ids.includes(e.id) ? ' on' : ''}" data-lb="cap" ${at}${esDz(e) ? ` tabindex="0" role="button" aria-pressed="${ids.includes(e.id)}"` : ''}>${asa(esDz(e))}<span class="lb-capn">${nombreEl(e)}</span></div>`;
       return `<div class="lb-cap${ids.includes(e.id) ? ' on' : ''}${e.oculto ? ' off' : ''}" data-lb="cap" ${at}>${asa()}${e.g ? '<span class="lb-capg" role="img" aria-label="En un grupo" title="En un grupo"></span>' : ''}<span class="lb-capn">${nombreEl(e)}</span>${ver(e, at)}`
         + `<button type="button" class="lb-ci${e.lock ? ' act' : ''}" data-lb="cap-lock" ${at} title="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-label="${e.lock ? 'Desbloquear' : 'Bloquear'}" aria-pressed="${!!e.lock}"></button></div>`;
     };
@@ -3694,7 +3695,7 @@
     el.querySelector('.lb-zv').addEventListener('dblclick', e => { e.preventDefault(); if (E && !E.busy) zoom(1); });   // the percentage: the whole slide, at 100 % («Ajustar» was, D-145)
     sc.addEventListener('dblclick', e => { if (!E || !gris(e) || E.busy || E.esp || !E.sl.length || escribiendo() || performance.now() - E.finEscr < 600) return; zoom(1); });
     sc.addEventListener('scroll', () => menuCtx(false));
-    el.addEventListener('pointerdown', e => { if (E && e.button === 2 && escribiendo()) E.ctxEscr = performance.now(); }, true);   // a right click while writing: the focus leaves the field before its menu
+    el.addEventListener('pointerdown', e => { if (E) E.ultPuntero = performance.now(); if (E && e.button === 2 && escribiendo()) E.ctxEscr = performance.now(); }, true);   // a right click while writing: the focus leaves the field before its menu
     el.addEventListener('contextmenu', onCtx);
     el.addEventListener('pointermove', e => { E && (E.ptr = { x: e.clientX, y: e.clientY }); }, true);
     el.addEventListener('pointerleave', () => { if (E) E.ptr = null; });
@@ -3748,7 +3749,7 @@
     }
     if (E.cmOn && !['Enter', 'Tab', ' ', 'Shift'].includes(e.key)) menuCtx(false);   // another key: the menu goes
     if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && t && t.closest && t.closest('.lb-caps .lb-cap')) { e.preventDefault(); menuCapa(t.closest('.lb-cap')); return; }
-    if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !e.altKey && t && t.matches && t.matches('.lb-caps .lb-cap[tabindex]')) { e.preventDefault(); t.click(); return; }   // a row with no buttons («Diseño»): chosen from the keyboard   // a row of «Capas» from the keyboard (D-215)
+    if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !e.altKey && t && t.matches && t.matches('.lb-caps .lb-cap[tabindex]')) { e.preventDefault(); if (!e.repeat) { t.click(); const r = E && E.el.querySelector('.lb-caps .lb-cap[tabindex]'); if (r) r.focus({ preventScroll: true }); } return; }   // a row with no buttons («Diseño»): chosen from the keyboard   // a row of «Capas» from the keyboard (D-215)
     const sola = !e.metaKey && !e.ctrlKey && !e.altKey, teclado = t && t !== E.el && t !== document.body && t.matches && t.matches(':focus-visible');
     if (e.key === ' ' && sola && !E.cmOn && !teclado && sobreGris()) { e.preventDefault(); if (!E.esp) { E.esp = true; mano(); } return; }   // space over the slide or the grey: the hand
     if (sola && !e.shiftKey && (k === 't' || k === 'r')) { if (E.sl.length && !e.repeat) { e.preventDefault(); if (k === 't') act('add-txt'); else act('add-forma', { dataset: { v: 'rect' } }); } return; }

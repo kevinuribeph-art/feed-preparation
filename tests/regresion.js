@@ -17219,7 +17219,7 @@
     }
     igual(malas, [], 'accesos a IndexedDB fuera de tx() (o la vía sin diario fuera de mesa.js)');
     igual(accesos, 6, 'los accesos crudos de mesa.js, todos en sus líneas «idb-crudo» (la apertura, la actualización de versión y txCon)');
-    igual(sin, 26, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256)');
+    igual(sin, 27, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256)');
     // dentro de una transacción con diario, una escritura por el almacén crudo (req.source): la guarda la ve
     const antes0 = djFugas.length;
     await M._in.xfer.tx('ubicaciones', 'readwrite', st => { const g = st.count(); g.onsuccess = () => { g.source.put({ id: 'ub-fuga2' }, 'ub-fuga2'); }; });
@@ -17742,8 +17742,36 @@
       ok(llamada === 1, 'no se llamó a la nube');
       ok(!W.localStorage.getItem('mesa-pending'), 'la copia sigue en localStorage');
       const b2 = await M._in.idbGet('boards', key), [l] = await M._in.nubeAlmacen.leerVarios([['boards', key]]);
-      ok(b2.slots[0].memo === 'de la copia NB4' && l.pendiente, 'la copia no entró en IndexedDB con su nota: ' + json({ memo: b2.slots[0].memo, nota: !!l.pendiente }));
+      ok(b2.slots[0].memo === 'de la copia NB4' && l.pendiente, 'la copia (de antes de la 4.32) no entró en IndexedDB con su nota: ' + json({ memo: b2.slots[0].memo, nota: !!l.pendiente }));
+      // desde la 4.32 la copia dice de qué guardado partió: sobre ese entra, aunque el reloj diga otra cosa
+      const b3 = await M._in.idbGet('boards', key);
+      W.localStorage.setItem('mesa-pending', JSON.stringify({ key, board: { ...copia, slots: copia.slots.map(x => ({ ...x, memo: 'sobre su base' })), savedAt: '2000-01-01T00:00:00.000Z' }, v: 5, base: b3.savedAt }));
+      await M._test.nubeAbrir();
+      ok((await M._in.idbGet('boards', key)).slots[0].memo === 'sobre su base', 'una copia sobre su guardado no entró (decidió el reloj)');
+      // si IndexedDB cambió desde entonces (una bajada, «Descartar», otra pestaña), espera en «quedó sin subir», con su valor
+      W.localStorage.setItem('mesa-pending', JSON.stringify({ key, board: { ...copia, slots: copia.slots.map(x => ({ ...x, memo: 'de otra base' })), savedAt: '2099-01-01T00:00:00.000Z' }, v: 5, base: 'otra-base' }));
+      await M._test.nubeAbrir();
+      ok((await M._in.idbGet('boards', key)).slots[0].memo === 'sobre su base', 'una copia de otra base pisó IndexedDB (por su hora)');
+      ok((await M._in.nubeAlmacen.sinSubir()).some(x => x.a === 'boards' && x.k === key && x.motivo === 'pendiente' && x.valor.slots[0].memo === 'de otra base'), 'la copia de otra base no quedó en «quedó sin subir»');
+      ok(!W.localStorage.getItem('mesa-pending'), 'la copia sigue en localStorage');
     } finally { M.nube._abrir = abrir0; W.localStorage.removeItem('mesa-pending'); await nbLimpiar(); }
+  });
+
+  prueba('NB9', 'Con la nube, abrir un mes que no cambió no escribe nada (D-253): abrirlo no es un cambio que subir (sin red, cada tablero mirado acabaría en «quedó sin subir»); apagada, como siempre', async () => {
+    await tablero([pub(1), pub(2)]); await M.flush();
+    const key = M.board().key;
+    try {
+      M._in.NUBE.activa = true;
+      await M.open(key); await espera(400);   // la nube, encendida desde que se abre (como al arrancar con ella)
+      await M._in.diario.vaciar();
+      await M.open(key); await espera(400);
+      const dj9 = await M._in.diario.leer(); ok(!dj9.length, 'abrir un mes sin cambios escribió en el diario: ' + json(dj9.map(e => [e.a, e.k])));
+      M._test.setMemo('r1', 'un cambio de verdad'); await M.flush();
+      ok((await M._in.nubeAlmacen.leerVarios([['boards', key]]))[0].pendiente, 'un cambio de verdad no se apuntó');
+      await M._in.diario.vaciar(); M._in.NUBE.activa = false;
+      await M.open(key); await espera(400);
+      ok((await M._in.diario.contar()) > 0, 'apagada, abrir dejó de guardar como siempre');
+    } finally { await nbLimpiar(); }
   });
 
   prueba('NB5', 'Una sola sesión (D-253): «Web del cliente» y la nube usan la misma instancia de Supa (dos se pisarían la renovación del token)', async () => {

@@ -753,18 +753,24 @@
   }
   const deDe = f => (M.files[f] && M.files[f].de) || metaDe.get(f) || null;   // the client that brought the photo (3.44 on)
   const ajena = (f, c) => { const d = deDe(f); return !!d && d !== c && CL.some(x => x.id === d); };
+  const BASE_IDB = new Map();   // board key → the savedAt of its copy in IndexedDB as this tab last read or wrote it (mesa-pending's «base», D-253)
+  // With the cloud, a save with nothing pending and nothing changed since the last write writes nothing (D-253): opening or leaving a
+  // month is not a change to upload (without network, every board looked at would end up in «quedó sin subir»). Off, as always.
+  const ESCRITO = new Map();   // board key → its body (no stamps), tray and folders as last written or read
+  const cuerpoNube = B => boardBody({ ...B, tray: undefined }) + '|' + JSON.stringify(B.tray || []) + '|' + JSON.stringify(B.carpetas || []);
   function guardar(B) {
     const { tray: _t, carpetas: _c, ...cuerpo } = B, b = JSON.parse(JSON.stringify(cuerpo)), c = B.client || boardClient(B), fuera = {};
+    const yaEscrito = () => { BASE_IDB.set(B.key, b.savedAt || null); if (NUBE.activa) ESCRITO.set(B.key, cuerpoNube(B)); };
     // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
     const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
-    if (!c) return idbPut('boards', B.key, b).then(parchea);
+    if (!c) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
       if (B.carpetas) st.bandejas.put({ client: c, tray, carpetas: B.carpetas, at: B.savedAt }, c);
       else { const g = st.bandejas.get(c); g.onsuccess = () => st.bandejas.put({ ...(g.result || {}), client: c, tray, at: B.savedAt }, c); }   // a board that doesn't hold them: the saved ones stay
       for (const o of Object.keys(fuera)) { const g = st.bandejas.get(o); g.onsuccess = () => { const r = g.result || { client: o, tray: [] }; r.tray = [...fuera[o].filter(f => !r.tray.includes(f)), ...r.tray]; r.at = B.savedAt; st.bandejas.put(r, o); }; }
-    }).then(parchea).then(() => {
+    }).then(parchea).then(yaEscrito).then(() => {
       const n = Object.values(fuera).flat();
       if (!n.length) return;
       B.tray = B.tray.filter(f => !n.includes(f));
@@ -842,13 +848,16 @@
     }, 250);
   }
   async function flushNow() {
+    const habia = !!(saveTimer || noteTimer || motTimer);
     clearTimeout(saveTimer); saveTimer = null;
     clearTimeout(noteTimer); noteTimer = null;
     clearTimeout(motTimer); motTimer = null;   // a cancellation's reason being typed: saved with the board
     if (!S || locked) return null;
     const B = S;
     alinearH(B);
-    track(B); marcaEspera(B); stamp(B); edited(B); B.savedAt = new Date().toISOString();
+    track(B); marcaEspera(B); stamp(B); edited(B);
+    if (NUBE.activa && !habia && ESCRITO.get(B.key) === cuerpoNube(B)) { setSave('Guardado'); return B.savedAt; }   // nothing to write (D-253)
+    B.savedAt = new Date().toISOString();
     await guardar(B);
     await pushShared(B);
     setSave('Guardado');
@@ -5093,7 +5102,7 @@
       if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer || motTimer)) return;
       stamp(S);
       S.savedAt = new Date().toISOString();
-      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 5 }));   // sync: survives a reload that kills the async write
+      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 5, base: BASE_IDB.has(S.key) ? BASE_IDB.get(S.key) : null }));   // sync: survives a reload that kills the async write; base: the copy it started from
       flushNow().catch(() => { /* */ });
     };
     document.addEventListener('visibilitychange', M._onHide); window.addEventListener('pagehide', M._onHide);
@@ -5968,6 +5977,7 @@
     const bandeja = await juntarBandeja(client);   // the client's tray, shared by all its months (D-041)
     const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
     const recCarp = await idbGet('bandejas', client);   // its folders; those of the copy a reload left in localStorage, if newer (D-069)
+    BASE_IDB.set(key, (saved && saved.savedAt) || null);   // the copy it starts from (with the cloud, always IndexedDB's)
     const carp0 = old.carpetas && String(old.savedAt || '') > String((recCarp && recCarp.at) || '') ? old.carpetas : recCarp && recCarp.carpetas;
     const cd = hasCd ? cdOf(cfg.cycleDay) : saved ? cdOf(saved.cycleDay) : cdOf(cl0.cycleDay);
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
@@ -6076,6 +6086,7 @@
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
+    if (NUBE.activa && saved && !saved.tray) ESCRITO.set(key, cuerpoNube({ ...saved, tray: (recCarp && recCarp.tray) || [], carpetas: carpetasBien(recCarp && recCarp.carpetas) }));   // what IndexedDB holds
     await flushNow();
     try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
@@ -6146,10 +6157,11 @@
       const p = pendienteLS();
       if (p && p.key && p.board) {
         const b = await idbGet('boards', p.key).catch(() => null);
-        if (String(p.board.savedAt || '') > String((b && b.savedAt) || '')) {
+        const enSuBase = 'base' in p ? ((b && b.savedAt) || null) === p.base : String(p.board.savedAt || '') > String((b && b.savedAt) || '');   // before 4.32: by its own clock, as always
+        if (enSuBase) {
           const n = !p.v && !('historias' in p.board) && b && hsDe(b).length ? { ...p.board, historias: b.historias } : p.board;
           await tx('boards', 'readwrite', st => st.put(n, p.key));
-        }
+        } else if ('base' in p && b) await nubeAlmacen.aparteValor('boards', p.key, p.board, 'pendiente');   // IndexedDB changed since: never by a clock
         localStorage.removeItem('mesa-pending');
       }
     } catch (e) { /* the copy stays in localStorage */ }
@@ -7600,6 +7612,7 @@
       }));
     },
     sinSubir: () => nubeLeer('x'),
+    aparteValor: (a, k, valor, motivo) => txSinDiario(NUBE_ST, 'readwrite', s => s.put(nubeAparte({ a, k, motivo }, valor), NX(a, k))),
     quitarSinSubir: claves => txSinDiario(NUBE_ST, 'readwrite', s => claves.forEach(([a, k]) => s.delete(NX(a, k)))),
     reponer: (a, k, valor) => tx(a, 'readwrite', s => (valor === undefined ? s.delete(k) : s.put(valor, k))),   // with its note: it goes up
     olvidar: () => txSinDiario(NUBE_ST, 'readwrite', s => { s.delete(nubeTodas('v')); const g = s.get('estado'); g.onsuccess = () => s.put({ ...(g.result || {}), cursor: 0, epoca: null }, 'estado'); }),

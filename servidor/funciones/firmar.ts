@@ -12,9 +12,7 @@ const TTL: Record<string, number> = { fotos: 600, facturas: 60 };
 const RUTA = /^[a-z0-9-]+\/[a-z0-9._-]+$/;
 
 // Solo el portal (y una copia de pruebas en este Mac) la llama desde un navegador; sin cabecera, el navegador no deja leerla.
-// La versión de prueba de Cloudflare (rama `subdominio`), solo mientras Kevin prueba antes de fusionar: se quita al fusionar.
-const PRUEBA = 'https://subdominio.uribevisuals-clientes.pages.dev';
-const PERMITIDO = (o: string | null) => !!o && (o === 'https://clientes.uribevisuals.studio' || o === PRUEBA || /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(o));
+const PERMITIDO = (o: string | null) => !!o && (o === 'https://clientes.uribevisuals.studio' || /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(o));
 const cors = (origen: string | null) => ({
   ...(PERMITIDO(origen) ? { 'Access-Control-Allow-Origin': origen as string } : {}),
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',

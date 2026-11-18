@@ -30,7 +30,7 @@
     if (!SB || SB._url !== p.url) {
       try { SB = window.Supa.crear({ url: p.url, publica: p.publica, clave: 'mesa-web-' + p.url.split('//')[1].split('.')[0] }); SB._url = p.url; }
       catch (e) { return null; }
-      SB.alCambiar(() => { st.dueno = null; st.servidor = null; st.cambios = null; if (I() && I().renderBar) I().renderBar(); pedirRepaso(); });
+      SB.alCambiar(() => { st.dueno = null; st.servidor = null; st.cambios = null; conv.clear(); RESP.clear(); HECHAS.clear(); if (I() && I().render) I().render(); pedirRepaso(); });
     }
     return SB;
   }
@@ -130,8 +130,8 @@
       cuota_cent: q ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null, _foto: c.foto || null };
     // Ningún texto que va a la web nombra a otro cliente (lecciones 82 y 84): si no, no se envía.
     const problemas = [], esporadicos = tareas.filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt).map(t => String(t.txt));
-    const textos = [...pubs.flatMap(p => [[`«${p.fila.nombre}»: nombre`, p.fila.nombre], [`«${p.fila.nombre}»: caption`, p.fila.caption]]),
-      ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}: concepto`, p.concepto || ''])];
+    const textos = [...pubs.flatMap(p => [[`«${p.fila.nombre}», nombre`, p.fila.nombre], [`«${p.fila.nombre}», caption`, p.fila.caption]]),
+      ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}, concepto`, p.concepto || ''])];
     mesesInfo.forEach(r => { (r.porque && r.porque.partes || []).forEach((q, i) => textos.push([`por qué de ${r.mes}`, q.t], [`por qué de ${r.mes}`, q.x]));
       if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
     X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
@@ -167,8 +167,13 @@
     if (!B || !c || !c.usuario() || st.enviando || X.locked) return;
     if (st.clave !== B.key) { st.clave = B.key; st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; leerConversacion().catch(() => null); }
     try {
+      if (st.dueno == null) { await esDueno(c); X.renderBar(); }
+      if (st.dueno === false) return;   // otra cuenta: la barra lo dice y no ofrece nada
       const pubs = await filas(B), firma = pubs.map(p => p.pid + p.version + p.fila.estado + p.fila.orden + p.fila.visible).join('|');
-      if (!st.servidor) { st.servidor = await leerServidor(B.client, B); st.firma = ''; }
+      if (!st.servidor) {
+        st.servidor = await leerServidor(B.client, B); st.firma = '';
+        const d = X.root().querySelector('.detail'); if (d && !d.hidden && d.querySelector('.webdel[data-sin-serv]')) pintarDetalle(d);
+      }
       if (I().S !== B) return;
       if (todo || st.extra == null || Date.now() - st.extraT > 30000) {   // leer tareas, informe y cobros, cada 30 s como mucho
         st.extraT = Date.now();
@@ -190,12 +195,13 @@
   function barra() {
     const c = sb(), X = I();
     if (!c || !X || !X.S || X.root().classList.contains('client')) return '';   // sin proyecto, o en «Vista cliente» (D-154)
-    if (!c.usuario()) return '<button type="button" class="mchip webbtn" data-web="entrar" title="Entra con tu correo para enviar a la web lo que ve el cliente">Web del cliente</button>';
-    if (st.enviando) return `<span class="mchip webbtn quieto" aria-live="polite" aria-busy="true">Enviando a la web…${st.enviando.total ? ` ${st.enviando.hechos}/${st.enviando.total}` : ''}</span>`;
-    if (st.error) return `<button type="button" class="mchip webbtn mal" data-web="repasar" title="${esc(st.error)}. Pulsa para volver a intentarlo">Web: no se pudo leer</button>`;
-    if (st.cambios == null) return '<span class="mchip webbtn quieto" aria-busy="true">Web: leyendo…</span>';
-    if (!st.cambios) return '<button type="button" class="mchip ghost webbtn" data-web="enviar" title="La web del cliente enseña lo mismo que este tablero. Pulsa para comprobarlo y enviar otra vez">Web: al día</button>';
-    return `<button type="button" class="mchip webbtn hay" data-web="enviar" title="Envía a la web del cliente lo que ha cambiado en este tablero">Web: ${st.cambios}<span class="lg"> ${st.cambios === 1 ? 'cambio' : 'cambios'}</span> sin enviar<span class="lg"> · Enviar</span></button>`;
+    if (!c.usuario()) return '<button type="button" class="mchip webbtn" data-web="entrar" title="Entra con tu correo para enviar a la web lo que ve el cliente"><span>Web del cliente</span></button>';
+    if (st.dueno === false) return '<button type="button" class="mchip webbtn mal" data-web="salir" title="Has entrado con una cuenta que no es la de Kevin en el servidor. Pulsa para salir"><span>Web: otra cuenta</span></button>';
+    if (st.enviando) return `<span class="mchip webbtn quieto" aria-live="polite" aria-busy="true"><span><span class="w2">Enviando a la web…</span><span class="w2n">Web…</span>${st.enviando.total ? ` ${st.enviando.hechos}/${st.enviando.total}` : ''}</span></span>`;
+    if (st.error) return `<button type="button" class="mchip webbtn mal" data-web="repasar" title="${esc(st.error)}. Pulsa para volver a intentarlo"><span>Web: <span class="w2">no se pudo leer</span><span class="w2n">error</span></span></button>`;
+    if (st.cambios == null) return '<span class="mchip webbtn quieto" aria-busy="true"><span>Web: leyendo…</span></span>';
+    if (!st.cambios) return '<button type="button" class="mchip ghost webbtn" data-web="enviar" title="La web del cliente enseña lo mismo que este tablero. Pulsa para comprobarlo y enviar otra vez"><span>Web: al día</span></button>';
+    return `<button type="button" class="mchip webbtn hay" data-web="enviar" title="Envía a la web del cliente lo que ha cambiado en este tablero (${st.cambios} ${st.cambios === 1 ? 'cambio' : 'cambios'})"><span>Web: ${st.cambios}<span class="w1"> ${st.cambios === 1 ? 'cambio' : 'cambios'}</span><span class="w2"> sin enviar</span><span class="w1"> · Enviar</span></span></button>`;
   }
 
   // ---------- Enviar ----------
@@ -304,7 +310,7 @@
       ? `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Mira tu correo</h3>
         <form class="form" data-webform="codigo" autocomplete="off"><p class="webp">Si ${esc(correo)} tiene acceso, te llega un código de 6 cifras. Vale 10 minutos.</p>
         <input type="hidden" name="correo" value="${esc(correo)}"><label for="web-cod">Código</label><input id="web-cod" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
-        <p class="ferr" hidden></p><div class="row"><button type="submit" class="btn">Entrar</button></div></form>`
+        <p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-web="entrar">Usar otro correo</button><button type="submit" class="btn">Entrar</button></div></form>`
       : `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Web del cliente</h3>
         <form class="form" data-webform="correo" autocomplete="off"><p class="webp">Entra con tu correo para enviar a la web lo que ven tus clientes y leer lo que contestan.</p>
         <label for="web-correo">Correo</label><input id="web-correo" name="correo" type="text" inputmode="email" autocomplete="email" maxlength="120" required>
@@ -344,6 +350,7 @@
     const a = b.dataset.web;
     if (a === 'entrar') dlgEntrar();
     else if (a === 'enviar') enviar();
+    else if (a === 'salir') M.web.salir();
     else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; I().renderBar(); pedirRepaso(); }
   }
 
@@ -353,57 +360,94 @@
   // se leen del servidor y se pintan con textContent; Kevin contesta y los marca resueltos desde la ventana de la publicación.
   const C_APR = 'id,cliente_id,pid,version,decision,motivo,diapositiva,autor_nombre,hora';
   const C_COM = 'id,cliente_id,pid,version,diapositiva,texto,autor_nombre,de_kevin,hora,resuelto';
-  const conv = new Map();   // cliente → { aprs, coms, visto, pidDe: Map slotId→pid, version: Map pid→versión local }
+  const conv = new Map();   // tablero → { clave, aprs, coms, visto, pidDe: Map slotId→pid, version: Map pid→versión local, slot: Map pid→publicación }
+  const HECHAS = new Set();  // decisiones ya tratadas en esta pestaña: no se vuelven a aplicar si no se pudo guardar lo leído
+  const ESTV = { aprobada: 'aprobado', cambios: 'noaprobado' };
   const borradores = new Map(), abiertos = new Set(); let foco = null;
+  // Los pid de los otros tableros del mismo cliente: lo nuevo de ellos se trata al abrirlos, y la marca de leído no los pasa.
+  async function pidsOtros(B) {
+    const out = [], cli = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1];
+    for (const b of (await I().idbAll('boards')) || []) if (b && b.key !== B.key && cli(b) === B.client) for (const s of b.slots || []) out.push(await pidDe(B.client, s.id));
+    return [...new Set(out)];
+  }
   async function leerConversacion(avisar = true) {
     const X = I(), B = X && X.S, c = sb(); if (!B || !c || !c.usuario() || X.locked) return null;
     if (!(await esDueno(c))) return null;
-    const cli = encodeURIComponent(B.client), clave = B.key;
-    const [aprs, coms, lec] = await Promise.all([c.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${cli}&order=hora.asc`),
-      c.leer(`comentarios?select=${C_COM}&cliente_id=eq.${cli}&order=hora.asc`), c.leer(`lecturas?select=visto_hasta&cliente_id=eq.${cli}`)]);
-    if (!X.S || X.S.key !== clave) return null;   // otro tablero mientras se leía
-    const pubs = await filas(B), antes = conv.get(B.client);
-    const C0 = { aprs: aprs || [], coms: coms || [], visto: (lec && lec[0] && lec[0].visto_hasta) || null,
-      pidDe: new Map(pubs.map(p => [p.s.id, p.pid])), version: new Map(pubs.map(p => [p.pid, p.version])), slot: new Map(pubs.map(p => [p.pid, p.s])) };
-    conv.set(B.client, C0);
-    // la última decisión nueva de cada publicación
-    const ult = new Map(); C0.aprs.filter(a => !C0.visto || a.hora > C0.visto).forEach(a => ult.set(a.pid, a));
-    const hechas = { aprobada: 0, cambios: 0, retirada: 0, vieja: 0 };
-    for (const a of ult.values()) {
-      const s = C0.slot.get(a.pid); if (!s) continue;
-      if (C0.version.get(a.pid) !== a.version) { hechas.vieja++; continue; }
-      const v = a.decision === 'aprobada' ? 'aprobado' : a.decision === 'cambios' ? 'noaprobado' : '', est = X.estadoDe(s);
+    const sigue = () => X.S === B && !X.locked;
+    const pubs = await filas(B); if (!sigue()) return null;   // otro tablero mientras se calculaba: nada se aplica a otro
+    const cli = encodeURIComponent(B.client), pids = pubs.map(p => p.pid), antes = conv.get(B.key);
+    const C0 = { clave: B.key, aprs: [], coms: [], visto: null, pidDe: new Map(pubs.map(p => [p.s.id, p.pid])), version: new Map(pubs.map(p => [p.pid, p.version])), slot: new Map(pubs.map(p => [p.pid, p.s])) };
+    if (pids.length) {
+      // solo lo de las publicaciones de este tablero, lo más nuevo primero (el servidor da 1000 filas como mucho)
+      const en = `&pid=in.(${pids.join(',')})`;
+      const [aprs, coms, lec] = await Promise.all([c.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${cli}${en}&order=hora.desc&limit=1000`),
+        c.leer(`comentarios?select=${C_COM}&cliente_id=eq.${cli}${en}&order=hora.desc&limit=1000`), c.leer(`lecturas?select=visto_hasta&cliente_id=eq.${cli}`)]);
+      if (!sigue()) return null;
+      C0.aprs = (aprs || []).reverse(); C0.coms = (coms || []).reverse(); C0.visto = (lec && lec[0] && lec[0].visto_hasta) || null;
+    }
+    conv.set(B.key, C0);
+    // la decisión nueva de cada publicación: solo si es de la versión de ahora y la Mesa la tiene «En revisión» o en el
+    // estado que puso la decisión anterior del cliente; si Kevin la movió después (Programado, Cancelado…), no se toca
+    const porPid = new Map(); C0.aprs.forEach(a => { if (!porPid.has(a.pid)) porPid.set(a.pid, []); porPid.get(a.pid).push(a); });
+    const aplicar = [], cuenta = { aprobada: 0, cambios: 0, retirada: 0 }, sinTocar = [], fallan = [];
+    for (const [pid, l] of porPid) {
+      const ult = l[l.length - 1], s = C0.slot.get(pid);
+      if (!s || HECHAS.has(ult.id) || (C0.visto && ult.hora <= C0.visto)) continue;
+      HECHAS.add(ult.id);
+      if (C0.version.get(pid) !== ult.version) continue;   // de una versión anterior: sale en la ventana, no cambia nada
+      const prev = l.slice(0, -1).reverse().find(a => a.version === ult.version), ePrev = prev ? ESTV[prev.decision] || '' : '';
+      const v = ESTV[ult.decision] || '', est = X.estadoDe(s);
       if (v && est === v) continue;
-      if (!v && !['aprobado', 'noaprobado'].includes(est)) continue;
-      if (!X.estadoWeb(s.id, v)) hechas[a.decision]++;
+      const puede = ult.decision === 'retirada' ? !!ePrev && est === ePrev : est === 'aprobar' || (!!ePrev && est === ePrev);
+      if (puede) aplicar.push({ s, v, a: ult }); else if (!(ult.decision === 'retirada' && est === 'aprobar')) sinTocar.push({ s, a: ult });
     }
-    const max = [...C0.aprs, ...C0.coms].reduce((m, x) => (x.hora > m ? x.hora : m), C0.visto || '');
-    if (max && max !== C0.visto) {
-      try { await c.insertar('lecturas', [{ cliente_id: B.client, visto_hasta: max }], { upsert: true, conflicto: 'user_id,cliente_id' }); C0.visto = max; } catch (e) { /* se vuelve a intentar en el siguiente repaso */ }
+    if (aplicar.length) {
+      const r = X.estadoWeb(aplicar.map(x => [x.s.id, x.v]));
+      r.forEach((why, i) => { if (why) { fallan.push(aplicar[i].a); HECHAS.delete(aplicar[i].a.id); } else cuenta[aplicar[i].a.decision]++; });
     }
-    const n = hechas.aprobada + hechas.cambios + hechas.retirada;
-    if (n && avisar) {
+    // la marca de leído (por cliente) llega hasta justo antes de lo primero sin tratar: lo nuevo de otro tablero o lo que falló
+    try {
+      if (pids.length) {
+        const otros = await pidsOtros(B); if (!sigue()) return null;
+        let lim = fallan.map(a => a.hora).sort()[0] || null;
+        if (otros.length) {
+          const fuera = `&pid=in.(${otros.join(',')})` + (C0.visto ? `&hora=gt.${encodeURIComponent(C0.visto)}` : '');
+          const [oa, oc] = await Promise.all([c.leer(`aprobaciones?select=hora&cliente_id=eq.${cli}${fuera}&order=hora.asc&limit=1`),
+            c.leer(`comentarios?select=hora&cliente_id=eq.${cli}&de_kevin=is.false${fuera}&order=hora.asc&limit=1`)]);
+          [oa && oa[0] && oa[0].hora, oc && oc[0] && oc[0].hora].filter(Boolean).forEach(h => { if (!lim || h < lim) lim = h; });
+        }
+        const max = [...C0.aprs, ...C0.coms].reduce((m, x) => ((!lim || x.hora < lim) && x.hora > m ? x.hora : m), C0.visto || '');
+        if (max && max !== C0.visto) { await c.insertar('lecturas', [{ cliente_id: B.client, visto_hasta: max }], { upsert: true, conflicto: 'user_id,cliente_id' }); C0.visto = max; olvidarRespuestas(B.client); }
+      }
+    } catch (e) { /* se vuelve a intentar en la siguiente lectura; lo ya aplicado no se repite (HECHAS) */ }
+    const n = cuenta.aprobada + cuenta.cambios + cuenta.retirada;
+    if ((n || sinTocar.length) && avisar && !X.root().classList.contains('client')) {
       const nom = (X.CL.find(x => x.id === B.client) || {}).name || B.client, pl = (k, u, p) => (k === 1 ? `1 ${u}` : `${k} ${p}`);
-      toast(`${nom}: ` + [hechas.aprobada && pl(hechas.aprobada, 'aprobada', 'aprobadas'), hechas.cambios && pl(hechas.cambios, 'con cambios pedidos', 'con cambios pedidos'), hechas.retirada && pl(hechas.retirada, 'decisión retirada', 'decisiones retiradas')].filter(Boolean).join(', ') + ' desde su web');
+      const hechas = [cuenta.aprobada && pl(cuenta.aprobada, 'aprobada', 'aprobadas'), cuenta.cambios && pl(cuenta.cambios, 'con cambios pedidos', 'con cambios pedidos'), cuenta.retirada && pl(cuenta.retirada, 'decisión retirada', 'decisiones retiradas')].filter(Boolean);
+      const s0 = sinTocar[0] && sinTocar[0].s, que = { aprobada: 'la aprobó', cambios: 'pidió cambios', retirada: 'retiró su decisión' };
+      const no = sinTocar.length === 1 ? `«${X.shortLabel(s0.name, s0.type)}»: ${que[sinTocar[0].a.decision]} en su web, pero ya la habías movido; no la he cambiado`
+        : sinTocar.length ? `${sinTocar.length} decisiones de su web sobre publicaciones que ya habías movido; no las he cambiado` : '';
+      toast(`${nom}: ` + [hechas.length ? hechas.join(', ') + ' desde su web' : '', no].filter(Boolean).join('. '));
     }
-    if (!antes || JSON.stringify([antes.aprs, antes.coms]) !== JSON.stringify([C0.aprs, C0.coms]) || n) {
+    if (!antes || antes.clave !== C0.clave || JSON.stringify([antes.aprs, antes.coms]) !== JSON.stringify([C0.aprs, C0.coms]) || n) {
       X.render();
       const d = X.root().querySelector('.detail');
       if (d && !d.hidden && d.dataset.slot && C0.pidDe.has(d.dataset.slot) && !d.dataset.dlg) X.refreshDetail();
     }
     return C0;
   }
-  const sinLeer = (cli, pid) => { const C0 = conv.get(cli); if (!C0) return 0; const l = lsG('mesa-web-leido:' + pid); return C0.coms.filter(x => x.pid === pid && !x.de_kevin && !x.resuelto && x.hora > l).length; };
+  const actual = () => { const X = I(), B = X && X.S, C0 = B && conv.get(B.key); return C0 && C0.clave === B.key ? C0 : null; };
+  const sinLeer = (C0, pid) => { const l = lsG('mesa-web-leido:' + pid); return C0.coms.filter(x => x.pid === pid && !x.de_kevin && !x.resuelto && x.hora > l).length; };
   // La marca de la casilla: comentarios del cliente sin leer (solo un número; el texto nunca entra en el HTML).
   function marca(s) {
-    const X = I(), B = X && X.S; if (!B || !sb() || X.root().classList.contains('client')) return '';
-    const C0 = conv.get(B.client), pid = C0 && C0.pidDe.get(s.id); if (!pid) return '';
-    const n = sinLeer(B.client, pid); if (!n) return '';
+    const X = I(), c = sb(); if (!X || !X.S || !c || !c.usuario() || st.dueno === false || X.root().classList.contains('client')) return '';
+    const C0 = actual(), pid = C0 && C0.pidDe.get(s.id); if (!pid) return '';
+    const n = sinLeer(C0, pid); if (!n) return '';
     return `<span class="webmk" title="${n === 1 ? '1 comentario del cliente sin leer' : n + ' comentarios del cliente sin leer'}">${ICO_MSG}${n}</span>`;
   }
   const ICO_MSG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>';
   function detalle(s) {
-    const X = I(), c = sb(); if (!c || !c.usuario() || !X.S || X.root().classList.contains('client')) return '';
+    const X = I(), c = sb(); if (!c || !c.usuario() || st.dueno === false || !X.S || X.root().classList.contains('client')) return '';
     return `<section class="webdel" data-web-slot="${esc(s.id)}" aria-label="Del cliente"></section>`;
   }
   function nodo(tag, at, ...kids) {
@@ -412,26 +456,28 @@
     for (const x of kids.flat()) if (x != null && x !== false) el.append(x.nodeType ? x : document.createTextNode(String(x)));
     return el;
   }
-  const cuando = iso => { const X = I(), d = X.localDay(iso), h = X.localTime(iso); return (d === X.hoy() ? 'hoy' : X.fmtDate(d)) + (h ? ', ' + h : ''); };
+  const cuando = iso => { const X = I(), d = X.localDay(iso), h = X.localTime(iso); return (d === X.hoy() ? 'hoy' : X.fmtDate(d)) + (h ? ' · ' + h : ''); };
   function pintarDetalle(d) {
     const sec = d && d.querySelector('.webdel'); if (!sec) return;
-    const X = I(), B = X.S, id = sec.dataset.webSlot, C0 = B && conv.get(B.client), pid = C0 && C0.pidDe.get(id);
-    if (!C0) { sec.append(nodo('h4', { class: 'webh', text: 'Del cliente' }), nodo('p', { class: 'webp', text: 'Leyendo lo que ha contestado…' })); leerConversacion().catch(() => {}); return; }
+    const X = I(), B = X.S, id = sec.dataset.webSlot, C0 = actual(), pid = C0 && C0.pidDe.get(id);
+    if (!C0) { sec.replaceChildren(nodo('h4', { class: 'webh', text: 'Del cliente' }), nodo('p', { class: 'webp', text: 'Leyendo lo que ha contestado…' })); leerConversacion().catch(() => {}); return; }
     const vAhora = C0.version.get(pid), serv = st.servidor && st.servidor.get(pid);
+    sec.toggleAttribute('data-sin-serv', !serv);   // se repinta cuando llega lo del servidor
     const aprs = C0.aprs.filter(a => a.pid === pid), coms = C0.coms.filter(x => x.pid === pid), ult = aprs[aprs.length - 1];
-    const sinL = sinLeer(B.client, pid);
+    const sinL = sinLeer(C0, pid);
     const items = [...coms.map(x => ({ t: x.hora, x })), ...aprs.filter(a => a.decision === 'cambios').map(a => ({ t: a.hora, a }))].sort((p, q) => p.t.localeCompare(q.t));
     const lista = nodo('ol', { class: 'webl' }, items.map(({ x, a }) => {
-      const r = x || a, vieja = r.version !== vAhora;
-      return nodo('li', { class: 'webcm' + (x && x.de_kevin ? ' kv' : '') },
-        nodo('span', { class: 'webq' }, nodo('b', { text: x && x.de_kevin ? 'Tú' : r.autor_nombre }), cuando(r.hora) + (a ? ' · pidió cambios' : '') + (vieja ? ' · de una versión anterior' : '') + (x && x.resuelto ? ' · resuelto' : '')),
+      const r = x || a, vieja = r.version !== vAhora, res = !!(x && x.resuelto);
+      return nodo('li', { class: 'webcm' + (x && x.de_kevin ? ' kv' : '') + (vieja || res ? ' res' : '') },
+        nodo('span', { class: 'webq' }, nodo('b', { text: x && x.de_kevin ? 'Tú' : r.autor_nombre }), ' · ' + cuando(r.hora) + (a ? ' · pidió cambios' : '') + (vieja ? ' · de una versión anterior' : '') + (res ? ' · resuelto' : '')),
         r.diapositiva ? nodo('span', { class: 'websl', text: 'Diapositiva ' + r.diapositiva }) : null,
         nodo('p', { text: x ? x.texto : a.motivo }),
-        x && !x.de_kevin && !x.resuelto ? nodo('button', { type: 'button', class: 'lnk webres', text: 'Marcar como resuelto', onclick: e => resolver(x, e.currentTarget) }) : null);
+        x && !x.de_kevin && !x.resuelto ? nodo('button', { type: 'button', class: 'lnk webres', text: 'Marcar como resuelto', onclick: e => resolver(x, e.currentTarget, d) }) : null);
     }));
-    const ta = nodo('textarea', { class: 'webta', rows: '2', placeholder: 'Responder al cliente…', 'aria-label': 'Responder al cliente', maxlength: '2000' });
+    const empieza = !items.length;   // sin conversación, Kevin la empieza
+    const ta = nodo('textarea', { class: 'webta', rows: '2', placeholder: empieza ? 'Escribe al cliente…' : 'Responder al cliente…', 'aria-label': empieza ? 'Escribir al cliente' : 'Responder al cliente', maxlength: '2000' });
     ta.value = borradores.get(pid) || '';
-    const env = nodo('button', { type: 'button', class: 'btn2 webenv', text: 'Responder', disabled: !ta.value.trim() });
+    const env = nodo('button', { type: 'button', class: 'btn2 webenv', text: empieza ? 'Enviar' : 'Responder', disabled: !ta.value.trim() });
     const err = nodo('p', { class: 'ferr', hidden: true });
     ta.addEventListener('input', () => { borradores.set(pid, ta.value); env.disabled = !ta.value.trim(); });
     ta.addEventListener('focus', () => { foco = pid; });
@@ -440,31 +486,72 @@
       const t = ta.value.trim(); if (!t || !serv) return; env.disabled = true; err.hidden = true;
       try {
         await sb().insertar('comentarios', [{ cliente_id: B.client, pid, version: serv.version, texto: t }]);
-        borradores.delete(pid); foco = null; await leerConversacion(false);
+        borradores.delete(pid); ta.value = ''; foco = pid;
+        await leerConversacion(false); pintarDetalle(d);   // su respuesta a la vista enseguida, con el foco en el campo
       } catch (e) { err.textContent = 'No se pudo enviar: ' + (e.message || e); err.hidden = false; env.disabled = false; }
     });
-    const estado = ult ? nodo('p', { class: 'webp' }, nodo('b', { text: ult.autor_nombre }), ' ' + ({ aprobada: 'la aprobó', cambios: 'pidió cambios', retirada: 'retiró su decisión' }[ult.decision]) + ' · ' + cuando(ult.hora) + (ult.version !== vAhora ? ' · era una versión anterior' : '')) : null;
+    // la última decisión arriba, salvo «pidió cambios», que ya va en la lista con su motivo
+    const estado = ult && ult.decision !== 'cambios' ? nodo('p', { class: 'webp' }, nodo('b', { text: ult.autor_nombre }), ' ' + ({ aprobada: 'la aprobó', retirada: 'retiró su decisión' }[ult.decision]) + ' · ' + cuando(ult.hora) + (ult.version !== vAhora ? ' · era una versión anterior' : '')) : null;
     // sin conversación, una línea: el cuadro de escribir sale al pedirlo (o si ya había un borrador)
     const abierto = items.length || ult || ta.value || abiertos.has(pid);
     if (!abierto) {
       sec.classList.add('vacia');
-      sec.replaceChildren(nodo('h4', { class: 'webh' }, 'Del cliente', nodo('span', { class: 'webq', text: 'Aún no ha dicho nada' })),
-        serv ? nodo('button', { type: 'button', class: 'lnk webabrir', text: 'Escribir al cliente', onclick: () => { abiertos.add(pid); foco = pid; pintarDetalle(d); } }) : null);
+      sec.replaceChildren(...[nodo('h4', { class: 'webh' }, 'Del cliente', nodo('span', { class: 'webq', text: 'Aún no ha dicho nada' })),
+        serv ? nodo('button', { type: 'button', class: 'lnk webabrir', text: 'Escribir al cliente', onclick: () => { abiertos.add(pid); foco = pid; pintarDetalle(d); } }) : null].filter(Boolean));
       return;
     }
     sec.classList.remove('vacia');
-    sec.replaceChildren(nodo('h4', { class: 'webh' }, 'Del cliente', sinL ? nodo('span', { class: 'webn', text: sinL === 1 ? '1 nueva' : sinL + ' nuevas' }) : null), estado,
+    sec.replaceChildren(...[nodo('h4', { class: 'webh' }, 'Del cliente', sinL ? nodo('span', { class: 'webn', text: sinL === 1 ? '1 nueva' : sinL + ' nuevas' }) : null), estado,
       items.length ? lista : null,
-      serv ? nodo('div', { class: 'webesc' }, ta, env) : nodo('p', { class: 'webp', text: 'Envía esta publicación a la web para poder contestar aquí.' }), err);
-    if (foco === pid) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+      serv ? nodo('div', { class: 'webesc' }, ta, env) : nodo('p', { class: 'webp', text: 'Envía esta publicación a la web para poder escribir aquí.' }), err].filter(Boolean));
+    if (items.length) lista.scrollTop = lista.scrollHeight;   // lo último, a la vista
+    if (foco === pid) { ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }
     const ult2 = coms.reduce((m, x) => (x.hora > m ? x.hora : m), '');
     if (ult2 && ult2 > lsG('mesa-web-leido:' + pid)) { lsS('mesa-web-leido:' + pid, ult2); setTimeout(() => X.renderFeed && X.renderFeed(), 0); }
   }
-  async function resolver(x, b) {
+  async function resolver(x, b, d) {
     b.disabled = true;
-    try { await sb().actualizar(`comentarios?id=eq.${encodeURIComponent(x.id)}`, { resuelto: new Date().toISOString() }); await leerConversacion(false); }
-    catch (e) { b.disabled = false; toast('No se pudo marcar como resuelto: ' + (e.message || e), { error: true }); }
+    try {
+      await sb().actualizar(`comentarios?id=eq.${encodeURIComponent(x.id)}`, { resuelto: new Date().toISOString() });
+      await leerConversacion(false); pintarDetalle(d);
+      const sig = d.querySelector('.webres') || d.querySelector('.webta'); if (sig) sig.focus({ preventScroll: true });   // el foco no se va detrás del diálogo
+    } catch (e) { b.disabled = false; toast('No se pudo marcar como resuelto: ' + (e.message || e), { error: true }); }
   }
+  // ---------- «Ha contestado» en la página personal (D-244) ----------
+  // Lo que los clientes han dicho desde su web y Kevin aún no ha visto (posterior a su marca de leído de ese cliente): la página
+  // personal lo pone en «Esperando al cliente». Se lee cada 2 minutos; al abrir el tablero del cliente queda leído.
+  const RESP = new Map();   // 'cliente|slotId' → 'aprobó' · 'pidió cambios' · 'retiró su decisión' · 'ha comentado'
+  function olvidarRespuestas(cli) {
+    let n = 0; for (const k of [...RESP.keys()]) if (k.startsWith(cli + '|')) { RESP.delete(k); n++; }
+    if (n && M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();
+  }
+  async function leerRespuestas() {
+    const X = I(), c = sb(); if (!X || !c || !c.usuario() || X.locked) return;
+    if (!(await esDueno(c))) return;
+    const desde = new Date(Date.now() - 60 * 864e5).toISOString();
+    const [aprs, coms, lec] = await Promise.all([c.leer(`aprobaciones?select=cliente_id,pid,version,decision,hora&hora=gt.${desde}&order=hora.asc`),
+      c.leer(`comentarios?select=cliente_id,pid,hora&de_kevin=is.false&resuelto=is.null&hora=gt.${desde}&order=hora.asc`), c.leer('lecturas?select=cliente_id,visto_hasta')]);
+    const visto = new Map((lec || []).map(r => [r.cliente_id, r.visto_hasta]));
+    const nuevo = new Map();   // 'cli|pid' → la última cosa nueva
+    for (const a of aprs || []) if (!visto.get(a.cliente_id) || a.hora > visto.get(a.cliente_id)) nuevo.set(a.cliente_id + '|' + a.pid, { ...a, dec: true });
+    for (const x of coms || []) { const k = x.cliente_id + '|' + x.pid, o = nuevo.get(k); if ((!visto.get(x.cliente_id) || x.hora > visto.get(x.cliente_id)) && (!o || x.hora > o.hora)) nuevo.set(k, x); }
+    const clis = new Set([...nuevo.values()].map(x => x.cliente_id)), out = new Map();
+    if (clis.size) {
+      for (const b of (await X.idbAll('boards')) || []) {
+        const cli = b && (b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1]); if (!clis.has(cli)) continue;
+        for (const s of b.slots || []) {
+          const x = nuevo.get(cli + '|' + await pidDe(cli, s.id)); if (!x) continue;
+          let t = 'ha comentado';
+          if (x.dec) { const v = (await fila(s, b, 0).catch(() => null) || {}).version; t = v === x.version ? { aprobada: 'aprobó', cambios: 'pidió cambios', retirada: 'retiró su decisión' }[x.decision] : 'ha contestado'; }
+          out.set(cli + '|' + s.id, t);
+        }
+      }
+    }
+    if (JSON.stringify([...out]) === JSON.stringify([...RESP])) return;
+    RESP.clear(); out.forEach((v, k) => RESP.set(k, v));
+    if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();
+  }
+  const contestado = (cli, id) => RESP.get(cli + '|' + id) || '';
   let listoP = null;
   const listo = () => listoP || (listoP = new Promise((res, rej) => {
     const t0 = Date.now(), t = setInterval(() => {
@@ -474,7 +561,7 @@
   }));
   let tic = 0, tic2 = 0;
   M.web = {
-    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion,
+    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
     entrar: () => dlgEntrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
@@ -485,12 +572,12 @@
   listo().then(() => {
     on(document, 'click', alClic, true);
     on(document, 'submit', alEnviarForm, true);
-    on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; pedirRepaso(); leerConversacion().catch(() => null); } });
+    on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; pedirRepaso(); leerConversacion().catch(() => null); leerRespuestas().catch(() => null); } });
     I().estilo('mesa-web-css', ESTILO);
     // Cada 3 s con la pestaña a la vista: si el tablero cambió, se vuelve a contar (solo huellas, sin imágenes).
     tic = setInterval(() => { if (!document.hidden && sb() && I().S) repaso().catch(() => { /* st.error */ }); }, 3000);
-    tic2 = setInterval(() => { if (!document.hidden && sb() && I().S) leerConversacion().catch(() => { /* el siguiente */ }); }, 120000);
-    I().renderBar(); pedirRepaso();
+    tic2 = setInterval(() => { if (document.hidden || !sb()) return; if (I().S) leerConversacion().catch(() => { /* el siguiente */ }); leerRespuestas().catch(() => { /* el siguiente */ }); }, 120000);
+    I().renderBar(); pedirRepaso(); leerRespuestas().catch(() => null);
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'fallo'; });
   const ESTILO = `#mesa .webbtn{white-space:nowrap;border-color:var(--line);color:var(--ink);font-weight:600}
 #mesa.client .webbtn,#mesa.client .webmk,#mesa.client .webdel{display:none}
@@ -499,27 +586,33 @@
 #mesa .mchip.webbtn.mal,#mesa .mchip.webbtn.mal:hover{color:var(--red)}
 #mesa .mchip.webbtn.ghost{border-color:transparent;color:var(--ink-2);font-weight:400}
 #mesa span.webbtn.quieto{pointer-events:none;border-color:transparent;background:var(--bg-2);color:var(--ink-2);font-weight:400;font-variant-numeric:tabular-nums}
-@media (max-width:720px){#mesa .webbtn .lg{display:none}}
+#mesa .webbtn .w2n{display:none}
+@media (max-width:1180px){#mesa .webbtn .w1{display:none}}
+@media (max-width:1000px){#mesa .webbtn .w2{display:none}#mesa .webbtn .w2n{display:inline}}
+#mesa .cell:has(.webmk) .lab{padding-right:44px}
 #mesa .detail[data-dlg="web"]{align-items:flex-start;padding-top:clamp(16px,10vh,96px)}
 #mesa #web-cod{max-width:14ch;font-variant-numeric:tabular-nums;letter-spacing:.2em}
 #mesa .webp{margin:0 0 12px;color:var(--mute);font-size:13px;line-height:1.5}
 #mesa .dlg .webl{margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.45;color:var(--ink-2)}
 #mesa .webdel{margin:0 0 14px;padding:12px 14px;border-radius:12px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
-#mesa .webdel.vacia{flex-direction:row;align-items:center;justify-content:space-between;padding:8px 14px;gap:12px}
+#mesa .webdel.vacia{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:8px 14px;gap:4px 12px}
+#mesa .webdel.vacia .webh,#mesa .webabrir{white-space:nowrap}
 #mesa .webdel.vacia .webh{font-weight:600}#mesa .webdel.vacia .webq{font-weight:400}
-#mesa .webabrir{font-size:12px;min-height:32px}
+#mesa .webabrir{font-size:12px;min-height:32px;padding:4px 0}
 #mesa .webh{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
 #mesa .webn{font-size:11px;font-weight:600;background:var(--acc);color:var(--on-acc);border-radius:999px;padding:1px 7px}
-#mesa .webdel .webp{margin:0}
-#mesa .webdel .webl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+#mesa .webdel .webp{margin:0}#mesa .webdel .webp b{color:var(--ink)}
+#mesa .webdel .webl{list-style:none;margin:0;padding:0 4px 0 0;display:flex;flex-direction:column;gap:10px;max-height:260px;overflow:auto;overscroll-behavior:contain}
 #mesa .webcm{display:flex;flex-direction:column;gap:2px}
-#mesa .webcm.kv{padding-left:10px;border-left:2px solid var(--line)}
+#mesa .webcm.kv{padding-left:10px;border-left:2px solid var(--line-strong)}
+#mesa .webcm.res p{color:var(--mute)}
 #mesa .webq{font-size:12px;color:var(--mute)}#mesa .webq b{color:var(--ink);font-weight:600}
 #mesa .webcm p{margin:0;font-size:13px;line-height:1.45;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
 #mesa .websl{align-self:flex-start;font-size:11px;background:var(--bg-2);border-radius:999px;padding:1px 8px;color:var(--ink-2)}
-#mesa .webres{align-self:flex-start;font-size:12px}
-#mesa .webesc{display:flex;gap:8px;align-items:flex-end}
-#mesa .webta{flex:1;min-height:52px;resize:vertical;border:1px solid var(--line-strong);border-radius:8px;background:var(--panel-2);color:var(--ink);padding:8px 10px;font:inherit;font-size:13px;line-height:1.4}
+#mesa .webres{align-self:flex-start;font-size:12px;padding:4px 0}
+#mesa .webesc{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;align-items:flex-end}
+#mesa .webta{flex:1 1 220px;min-height:52px;resize:vertical;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);color:var(--ink);padding:8px 10px;font:inherit;font-size:13px;line-height:1.4}
+#mesa .webta:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--ring)}
 #mesa .webmk{position:absolute;right:6px;bottom:6px;z-index:2;display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 7px 0 5px;border-radius:999px;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 #mesa .webmk svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}`;
   (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'ok';

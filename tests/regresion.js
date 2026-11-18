@@ -16813,7 +16813,11 @@
     const f0 = W.fetch, sv = wbServidor(f0.bind(W)); W.fetch = sv.fetch;
     W.localStorage.setItem('mesa-web-proyecto', JSON.stringify({ url: WB_URL, publica: 'sb_publishable_prueba' }));
     try { return await fn(sv); }
-    finally { const c = M.web._sb(); if (c) c._sesion(null); W.fetch = f0; W.localStorage.removeItem('mesa-web-proyecto'); M._in.renderBar(); }
+    finally {
+      const c = M.web._sb(); if (c) c._sesion(null); W.fetch = f0; W.localStorage.removeItem('mesa-web-proyecto');
+      Object.keys(W.localStorage).filter(k => /^mesa-web-(huella|leido):/.test(k)).forEach(k => W.localStorage.removeItem(k));   // cada prueba, como una Mesa que nunca envió
+      M._in.renderBar();
+    }
   }
   const wbSesion = () => M.web._sb()._sesion({ access_token: 'tok', refresh_token: 'ref', expires_in: 3600, user: { id: 'u-kevin', email: 'kevin@prueba.test' } });
 
@@ -16880,8 +16884,8 @@
     M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
     await conWeb(async sv => {
       wbSesion(); await M.web.repasar();
-      igual(M.web.estado().cambios, 2, 'al empezar');
-      ok(/2 cambios sin enviar · Enviar/.test((q('[data-web="enviar"]') || {}).textContent || ''), 'la barra');
+      igual(M.web.estado().cambios, 3, 'al empezar (las 2 publicaciones y el cliente)');
+      ok(/3 cambios sin enviar · Enviar/.test((q('[data-web="enviar"]') || {}).textContent || ''), 'la barra');
       ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
       igual(M.web.estado().cambios, 0, 'tras enviar');
       ok(/al día/.test((q('[data-web]') || {}).textContent || ''), 'la barra no dice «al día»');
@@ -17001,6 +17005,102 @@
       igual(M.web.marca(slot('r1')), '', 'en «Vista cliente», la marca');
       M._in.openDetail('r1'); await espera(80); ok(!q('.detail .webdel'), 'en «Vista cliente», la conversación');
       M._in.closeDetail(); await vistaCliente(false);
+    });
+  });
+
+  prueba('WB10', '«Ha contestado» (D-244): en «Esperando al cliente» de la página personal, lo que el cliente dijo en su web y Kevin aún no ha visto (aprobó, ha comentado); al leerlo desde su tablero, se va', async () => {
+    relojEn('2026-11-01T10:00:00+01:00');
+    try {
+      await tablero([pub(1, 'Foto', 5), pub(2, 'Foto', 6)]);
+      await porAprobar(['r1', 'r2'], 'wb10');
+      const pidDe = async id => [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', new TextEncoder().encode(CLIENTE + '|' + id)))].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+      await conWeb(async sv => {
+        wbSesion();
+        const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+        const [k1, k2] = [await pidDe('r1'), await pidDe('r2')], v1 = sv.db.publicaciones.find(x => x.pid === k1), v2 = sv.db.publicaciones.find(x => x.pid === k2);
+        ok(v1 && v2, 'las publicaciones no llegaron');
+        const hora = new Date(Date.now() + 1000).toISOString();
+        sv.db.aprobaciones.push({ id: 'a10', cliente_id: CLIENTE, pid: k1, version: v1.version, decision: 'aprobada', motivo: null, diapositiva: null, autor_nombre: 'Ana', hora });
+        sv.db.comentarios.push({ id: 'c10', cliente_id: CLIENTE, pid: k2, version: v2.version, diapositiva: null, texto: 'Hola', autor_nombre: 'Ana', de_kevin: false, hora, resuelto: null });
+        await M.web.leerRespuestas();
+        await paginaAbierta();
+        ok(/aprobó en su web/.test((q('.pp-av[data-slot="r1"]') || {}).textContent || ''), 'no dice que la aprobó en su web');
+        ok(/ha comentado en su web/.test((q('.pp-av[data-slot="r2"]') || {}).textContent || ''), 'no dice que ha comentado en su web');
+        paginaCerrada();
+        await M.web.leer(); await espera(40);
+        await paginaAbierta();
+        ok(!/en su web/.test((ppGrupo('espera') || {}).textContent || ''), 'sigue «en su web» después de leerlo en su tablero');
+        paginaCerrada();
+      });
+    } finally { relojVuelve(); }
+  });
+
+  const wbPid = async (cli, id) => [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', new TextEncoder().encode(cli + '|' + id)))].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+  const wbDecision = (sv, pid, version, decision, ms = 1000) => sv.db.aprobaciones.push({ id: 'a' + Math.random().toString(36).slice(2), cliente_id: CLIENTE, pid, version, decision, motivo: decision === 'cambios' ? 'otro plato' : null, diapositiva: null, autor_nombre: 'Ana', hora: new Date(Date.now() + ms).toISOString() });
+
+  prueba('WB11', 'Una decisión del cliente en otro tablero suyo no se pierde (revisión del lote 4): leer con otro tablero abierto no pasa su marca de leído por encima; al abrir aquel, se aplica', async () => {
+    await tablero([pub(1)]);
+    await porAprobar(['r1'], 'wb11');
+    await abrirMes([pub(7, 'Foto', 9, '2026-12')], '2026-12');
+    await porAprobar(['r7-2026-12'], 'wb11');
+    await M.flush();
+    await conWeb(async sv => {
+      wbSesion();
+      ok((await M.web.enviar()).ok, 'no se envió diciembre');
+      await M.open(`${CLIENTE}-${MES}`);
+      ok((await M.web.enviar()).ok, 'no se envió noviembre');
+      const k7 = await wbPid(CLIENTE, 'r7-2026-12'), v7 = sv.db.publicaciones.find(x => x.pid === k7);
+      wbDecision(sv, k7, v7.version, 'aprobada');
+      await M.web.leer();
+      const vis = (sv.db.lecturas[0] || {}).visto_hasta || '';
+      ok(!vis || vis < sv.db.aprobaciones[0].hora, 'la marca de leído pasó por encima de la decisión de otro tablero: ' + vis);
+      await M.open(`${CLIENTE}-2026-12`); await M.web.leer(); await espera(40);
+      igual(M._in.estadoDe(slot('r7-2026-12')), 'aprobado', 'al abrir su tablero, la aprobación no se aplicó');
+    });
+  });
+
+  prueba('WB12', 'La decisión del cliente no pisa lo que Kevin puso después (revisión del lote 4): si la canceló, sigue cancelada y lo dice; la de otra publicación en revisión sí entra', async () => {
+    await tablero([pub(1), pub(2)]);
+    await porAprobar(['r1', 'r2'], 'wb12');
+    await conWeb(async sv => {
+      wbSesion();
+      ok((await M.web.enviar()).ok, 'no se envió');
+      M.setEstado('r1', 'cancelado');
+      const [k1, k2] = [await wbPid(CLIENTE, 'r1'), await wbPid(CLIENTE, 'r2')];
+      wbDecision(sv, k1, sv.db.publicaciones.find(x => x.pid === k1).version, 'aprobada');
+      wbDecision(sv, k2, sv.db.publicaciones.find(x => x.pid === k2).version, 'aprobada');
+      await M.web.leer(); await espera(40);
+      igual(M._in.estadoDe(slot('r1')), 'cancelado', 'la aprobación del cliente pisó la cancelada');
+      igual(M._in.estadoDe(slot('r2')), 'aprobado', 'la otra no entró');
+      ok(qa('.toast').some(t => /ya la habías movido/.test(t.textContent)), 'no dijo que no la cambió: ' + qa('.toast').map(t => t.textContent).join(' | '));
+      await M.web.leer(); await espera(40);
+      igual(M._in.estadoDe(slot('r1')), 'cancelado', 'una segunda lectura la volvió a aplicar');
+    });
+  });
+
+  prueba('WB13', '⌘Z y ⇧⌘Z alrededor de una decisión del cliente (revisión del lote 4): deshacer y rehacer un paso de Kevin no la tocan, y «Del cliente» nunca dice «null»', async () => {
+    await tablero([pub(1), pub(2)]);
+    await porAprobar(['r1'], 'wb13');
+    await conWeb(async sv => {
+      wbSesion();
+      ok((await M.web.enviar()).ok, 'no se envió');
+      await poner('r2', [await foto('wb13-b.jpg')]);   // un paso de Kevin
+      M._test.undo(); await espera(40);
+      ok(!slot('r2').photos.length, 'el ⌘Z no quitó la foto');
+      const k1 = await wbPid(CLIENTE, 'r1');
+      wbDecision(sv, k1, sv.db.publicaciones.find(x => x.pid === k1).version, 'aprobada');
+      await M.web.leer(); await espera(40);
+      igual(M._in.estadoDe(slot('r1')), 'aprobado', 'la aprobación');
+      M._test.redo(); await espera(40);
+      ok(slot('r2').photos.length === 1, '⇧⌘Z no rehizo el paso de Kevin');
+      igual(M._in.estadoDe(slot('r1')), 'aprobado', '⇧⌘Z deshizo la decisión del cliente');
+      M._test.undo(); await espera(40);
+      ok(!slot('r2').photos.length, 'el ⌘Z no volvió a quitar la foto');
+      igual(M._in.estadoDe(slot('r1')), 'aprobado', 'un ⌘Z del paso de Kevin deshizo la decisión del cliente');
+      M._in.openDetail('r1'); await espera(80);
+      const sec = q('.detail .webdel');
+      ok(sec && /la aprobó/.test(sec.textContent) && !/null/.test(sec.textContent), '«Del cliente»: ' + (sec ? sec.textContent : 'sin sección'));
+      M._in.closeDetail();
     });
   });
 

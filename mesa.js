@@ -1975,23 +1975,31 @@
     if (p0) H.undo.forEach((st, k) => { if ((H.drop || 0) + k < z.a0) return; const o = st.slots.find(x => x.id === slotId); if (o && o.type === s.type && same(o.photos, p0)) amend(st); });   // the steps taken while it drew (from the one before the change, counted in the whole history) have the new type with the images of before: they get the new ones (D-176)
     H.curJ = JSON.stringify(H.cur);
   }
-  // The client's decision from its portal (D-244, web.js): it puts the state as Kevin would, but it is not a step of ⌘Z and no
-  // ⌘Z takes it away (lesson 87): the history's present takes it, and applyState keeps it while it is still the post's.
-  const WEB_EST = new Map();   // slotId → the state the client's decision put, as JSON (this tab only)
+  // The client's decisions from its portal (D-244, web.js): each puts the state as Kevin would, but none is a step of ⌘Z and
+  // no ⌘Z takes it away (lesson 87): the history's present and every step back take it; a step forward keeps Kevin's own
+  // later state (his ⇧⌘Z still redoes it). All of them, one save and one redraw.
   function estadoEnPaso(st, id, est) {   // a step's copy of a post with this state, in the key order editState writes
     const o = st && st.slots.find(x => x.id === id); if (!o) return;
     const { type, photos, note, date, memo, fmt, design, libre, guias, ubicacion, etiquetas, colaboradores } = o;
     st.slots[st.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(est ? { estado: { ...est } } : {}), ...(guias ? { guias } : {}),
       ...(ubicacion ? { ubicacion } : {}), ...(etiquetas ? { etiquetas } : {}), ...(colaboradores ? { colaboradores } : {}) };
   }
-  function estadoWeb(id, v) {
-    if (locked) return 'locked';
-    const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
-    const why = setEstado(id, v || null); if (why) return why;
-    WEB_EST.set(id, JSON.stringify(s.estado || null));
-    if (H.b === S && H.cur) { estadoEnPaso(H.cur, id, s.estado); H.curJ = JSON.stringify(H.cur); }
-    changed();
-    return '';
+  function estadoWeb(lista) {
+    if (locked) return lista.map(() => 'locked');
+    const out = lista.map(([id, v]) => {
+      const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
+      const j0 = JSON.stringify(s.estado || null);
+      const why = setEstado(id, v || null); if (why) return why;
+      if (H.b === S && H.cur) {
+        estadoEnPaso(H.cur, id, s.estado);
+        H.undo.forEach(st => estadoEnPaso(st, id, s.estado));
+        H.redo.forEach(st => { const o = st.slots.find(x => x.id === id); if (o && JSON.stringify(o.estado || null) === j0) estadoEnPaso(st, id, s.estado); });
+        H.curJ = JSON.stringify(H.cur);
+      }
+      return '';
+    });
+    if (out.some(x => !x)) changed();
+    return out;
   }
   function applyState(st) {
     const had = refsOf(S), has = f => !!M.files[f];
@@ -2004,10 +2012,7 @@
       if (o.fmt) s.fmt = o.fmt; else delete s.fmt;
       if (o.design) s.design = JSON.parse(JSON.stringify(o.design)); else delete s.design;
       if (o.libre) s.libre = JSON.parse(JSON.stringify(o.libre)); else delete s.libre;
-      const est0 = s.estado;
       if (o.estado) s.estado = { ...o.estado }; else delete s.estado;
-      const w = WEB_EST.get(s.id);   // the client's decision stays: no ⌘Z takes it away (D-244)
-      if (w && JSON.stringify(est0 || null) === w && JSON.stringify(s.estado || null) !== w) { if (est0) s.estado = est0; else delete s.estado; estadoEnPaso(st, s.id, est0); }
       if (o.guias) s.guias = JSON.parse(JSON.stringify(o.guias)); else delete s.guias;
       if (o.ubicacion) s.ubicacion = o.ubicacion; else delete s.ubicacion;   // its location: a step of ⌘Z (D-124)
       if (o.etiquetas) s.etiquetas = o.etiquetas.slice(); else delete s.etiquetas;   // its tags and collaborators, too (D-130)
@@ -2830,10 +2835,9 @@
     }
     // no avatar, name nor @ (D-157: the active tab names the client, «⋯» goes next to it) and no «+ Mes» (D-157:
     // a client without months says how to ask Claude for one)
-    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)"><span class="i-mas">+</span> Hueco</button>' : ''}</div><div class="spacer"></div>${stats}`
+    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)"><span class="i-mas">+</span> Hueco</button>' : ''}</div><div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
       + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S && M.descargar && M.descargar.barra ? M.descargar.barra() : '')   // «Descargar (n)» with posts chosen with ⌘+click (descargar.js, D-083)
-      + (S && M.web && M.web.barra ? M.web.barra() : '')   // «Web del cliente»: send what the client sees (web.js, D-241)
       + (S ? memoBtnHTML() : '')
       + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');

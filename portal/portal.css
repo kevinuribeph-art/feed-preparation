@@ -287,3 +287,12 @@ svg.i *{vector-effect:non-scaling-stroke}
   .ent{align-items:flex-start;padding-top:48px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.car-l{scroll-behavior:auto}}
+
+/* privacidad y aviso legal */
+.legalp{max-width:680px;margin:0 auto;padding:24px 16px 48px;font-size:15px;line-height:1.55;color:var(--ink-2)}
+.legalp h1{color:var(--ink);font-size:28px;line-height:1.15;font-weight:800;letter-spacing:-.015em;margin:8px 0 16px}
+.legalp h2{color:var(--ink);font-size:17px;font-weight:700;margin:28px 0 8px}
+.legalp p,.legalp ul{margin:0 0 12px}
+.legalp ul{padding-left:20px}
+.legalp .lnk{display:inline-flex;align-items:center}
+.legalp .nota{margin-top:32px;font-size:13px;color:var(--mute)}

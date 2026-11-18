@@ -4,6 +4,8 @@
 //   SUPABASE_ACCESS_TOKEN   token personal de la cuenta (aplicar el esquema y la configuración de la entrada)
 //   SUPABASE_PRUEBAS_REF, SUPABASE_PRUEBAS_PUBLICA, SUPABASE_PRUEBAS_SECRETA   proyecto de pruebas
 //   SUPABASE_REF, SUPABASE_PUBLICA, SUPABASE_SECRETA                           proyecto real
+//   SUPABASE_REAL_TOKEN     token limitado al proyecto real (si falta, SUPABASE_ACCESS_TOKEN)
+//   SMTP_USUARIO, SMTP_CLAVE   el buzón de Hostinger que envía los códigos (solo el proyecto real; smtp.hostinger.com:465)
 // Órdenes:
 //   node tools/web.mjs estado <pruebas|real>          comprueba que las claves llegan (sin enseñarlas)
 //   node tools/web.mjs esquema <pruebas|real>         aplica servidor/esquema.sql
@@ -39,7 +41,9 @@ function leerEnv() {
 }
 export const clave = n => (process.env[n] || leerEnv()[n] || '').trim();
 
-const SECRETOS = () => ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PRUEBAS_SECRETA', 'SUPABASE_SECRETA'].map(clave).filter(Boolean);
+const SECRETOS = () => ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_REAL_TOKEN', 'SUPABASE_PRUEBAS_SECRETA', 'SUPABASE_SECRETA', 'SMTP_CLAVE'].map(clave).filter(Boolean);
+// El token de gestión de cada proyecto: el real puede tener el suyo (cada token, limitado a un proyecto).
+const tokenDe = ref => (ref && ref === clave('SUPABASE_REF') && clave('SUPABASE_REAL_TOKEN')) || clave('SUPABASE_ACCESS_TOKEN');
 // Toda salida pasa por aquí antes de recortarse (lección 121).
 export const tapar = t => SECRETOS().reduce((s, k) => s.split(k).join('[clave]'), String(t));
 
@@ -79,7 +83,7 @@ export async function rest(P, ruta, { method = 'GET', apikey, token, body, prefe
 }
 
 export async function gestion(ruta, { method = 'GET', body } = {}) {
-  const t = clave('SUPABASE_ACCESS_TOKEN');
+  const t = tokenDe((String(ruta).match(/^projects\/([a-z0-9]+)\//) || [])[1]);
   if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
   return pedir(`https://api.supabase.com/v1/${ruta}`, { method, headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body });
 }
@@ -116,6 +120,12 @@ const ORDENES = {
     // Una contraseña puesta por un cliente sería una puerta más débil que el código: larga y con nueva verificación por correo.
     const base = { disable_signup: true, external_email_enabled: true, mailer_otp_exp: 600, mailer_otp_length: 6,
       password_min_length: 24, security_update_password_require_reauthentication: true };
+    // El proyecto real: su dirección, y el correo de los códigos desde el buzón de Hostinger del dominio.
+    if (cual === 'real') {
+      Object.assign(base, { site_url: 'https://clientes.uribevisuals.studio', uri_allow_list: 'https://clientes.uribevisuals.studio/**' });
+      const u = clave('SMTP_USUARIO'), k = clave('SMTP_CLAVE');
+      if (u && k) Object.assign(base, { smtp_host: 'smtp.hostinger.com', smtp_port: '465', smtp_user: u, smtp_pass: k, smtp_admin_email: u, smtp_sender_name: 'Uribe Visuals', smtp_max_frequency: 60 });
+    }
     const r = await gestion(`projects/${P.ref}/config/auth`, { method: 'PATCH', body: base });
     if (!r.ok) throw new Fallo(`la configuración no entró (${r.status}): ${r.text}`);
     // La plantilla del correo solo se puede cambiar con un SMTP propio (en el proyecto real, el buzón de Hostinger).
@@ -131,7 +141,7 @@ const ORDENES = {
     const fd = new FormData();
     fd.append('metadata', JSON.stringify({ name: 'firmar', entrypoint_path: 'firmar.ts', verify_jwt: true }));
     fd.append('file', new Blob([codigo], { type: 'application/typescript' }), 'firmar.ts');
-    const t = clave('SUPABASE_ACCESS_TOKEN'); if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
+    const t = tokenDe(P.ref); if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
     const r = await pedir(`https://api.supabase.com/v1/projects/${P.ref}/functions/deploy?slug=firmar`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd });
     if (!r.ok) throw new Fallo(`la función no se desplegó (${r.status}): ${r.text}`);
     return { proyecto: P.ref, funcion: 'firmar desplegada' };

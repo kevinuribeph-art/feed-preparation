@@ -54,7 +54,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   entorno o del `.env` junto al repo; ver los comandos en su cabecera.
 - La clave nunca va a `mesa.js`, a Notion, a un commit ni al chat. No muestres ni copies `.env`.
 - La mesa nunca ve la clave: pide URLs firmadas a `tools/zernio.mjs` y sube las fotos con `MESA.startZernio`.
-- Las de Supabase (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PRUEBAS_*`, `SUPABASE_*`) viven igual, solo en `.env`; las lee
+- Las de Supabase (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_REAL_TOKEN`, `SUPABASE_PRUEBAS_*`, `SUPABASE_*`) y las del buzón de los códigos (`SMTP_*`) viven igual, solo en `.env`; las lee
   `tools/web.mjs`. Solo la clave «publishable» puede ir en una página (está hecha para eso, con los permisos por fila).
 
 ## Qué no se toca

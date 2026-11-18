@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 // Prueba de aislamiento del portal de clientes (lecciones 81 y 136). Node 18+, sin dependencias.
-// Solo contra el proyecto de PRUEBAS de Supabase y con dos clientes inventados: nunca contra el real ni con datos reales.
-//   node tests/portal-aislamiento.mjs
+// Contra el proyecto de PRUEBAS de Supabase y con dos clientes inventados. Contra el real solo antes de dar de alta a ningún
+// cliente (se niega si ya hay alguno), para comprobar el proyecto recién montado (lote 5).
+//   node tests/portal-aislamiento.mjs [real]
 // Necesita en .env: SUPABASE_PRUEBAS_REF, SUPABASE_PRUEBAS_PUBLICA, SUPABASE_PRUEBAS_SECRETA; el esquema y la función
 // aplicados (`node tools/web.mjs esquema pruebas`, `node tools/web.mjs funciones pruebas`). Crea y borra sus propios
 // clientes, usuarios y archivos (también la fila de dueño de su Kevin inventado).
 import { createHash, randomBytes } from 'node:crypto';
 import { proyecto, rest, cab, pedir, tapar, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
 
-const P = proyecto('pruebas');
-if (!P.publica || !P.secreta) { console.error('faltan SUPABASE_PRUEBAS_PUBLICA o SUPABASE_PRUEBAS_SECRETA en .env'); process.exit(1); }
+const P = proyecto(process.argv[2] === 'real' ? 'real' : 'pruebas');
+if (!P.publica || !P.secreta) { console.error(`faltan las claves pública y secreta del proyecto ${P.cual} en .env`); process.exit(1); }
+if (P.cual === 'real') {
+  const r = await rest(P, 'clientes?select=id&limit=1', { apikey: P.secreta });
+  if (!r.ok || (r.json || []).length) { console.error(r.ok ? 'el proyecto real ya tiene clientes: esta prueba solo se pasa antes de dar de alta a nadie' : 'no se pudo leer el proyecto real: ' + r.status); process.exit(1); }
+}
 const S = P.secreta;
 const sha = t => createHash('sha256').update(t).digest('hex');
 const A = { id: 'prueba-norte', nombre: 'Cliente Prueba Norte', handle: 'prueba.norte' };

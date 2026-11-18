@@ -9,6 +9,8 @@
 //   node tools/web.mjs esquema <pruebas|real>         aplica servidor/esquema.sql
 //   node tools/web.mjs entrada <pruebas|real>         solo por invitación, código de 6 cifras que vale 10 min
 //   node tools/web.mjs dueno <pruebas|real> <correo>  marca ese usuario como Kevin (lo ve todo)
+//   node tools/web.mjs funciones <pruebas|real>       despliega servidor/funciones/firmar.ts (URL firmadas de lo que se puede ver)
+//   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -53,11 +55,13 @@ export function proyecto(cual) {
 export async function pedir(url, { method = 'GET', headers = {}, body } = {}) {
   let r;
   try {
-    r = await fetch(url, { method, headers, body: body === undefined ? undefined : (typeof body === 'string' || body instanceof Uint8Array ? body : JSON.stringify(body)) });
+    r = await fetch(url, { method, headers, body: body === undefined ? undefined : (typeof body === 'string' || body instanceof Uint8Array || body instanceof FormData ? body : JSON.stringify(body)) });
   } catch (e) { throw new Fallo('sin conexión: ' + tapar(e.message)); }
   const t = await r.text();
   let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { /* no es JSON */ }
-  return { ok: r.ok, status: r.status, json: j, text: tapar(t).slice(0, 400) };
+  // El JSON también sale tapado: una orden futura que lo imprima no puede sacar una clave (revisión del lote 1).
+  let jt = j; try { jt = t ? JSON.parse(tapar(t)) : null; } catch (e) { jt = j; }
+  return { ok: r.ok, status: r.status, json: jt, text: tapar(t).slice(0, 400) };
 }
 
 // Cabeceras de una clave: la nueva («sb_…») va solo en apikey; la antigua (JWT) también como Bearer.
@@ -109,7 +113,9 @@ const ORDENES = {
   async entrada(cual) {
     const P = proyecto(cual);
     const plantilla = '<p>Tu código para entrar en tu calendario de Uribe Visuals:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p><p>Vale 10 minutos. Si no lo has pedido tú, ignora este correo.</p>';
-    const base = { disable_signup: true, external_email_enabled: true, mailer_otp_exp: 600, mailer_otp_length: 6 };
+    // Una contraseña puesta por un cliente sería una puerta más débil que el código: larga y con nueva verificación por correo.
+    const base = { disable_signup: true, external_email_enabled: true, mailer_otp_exp: 600, mailer_otp_length: 6,
+      password_min_length: 24, security_update_password_require_reauthentication: true };
     const r = await gestion(`projects/${P.ref}/config/auth`, { method: 'PATCH', body: base });
     if (!r.ok) throw new Fallo(`la configuración no entró (${r.status}): ${r.text}`);
     // La plantilla del correo solo se puede cambiar con un SMTP propio (en el proyecto real, el buzón de Hostinger).
@@ -118,6 +124,39 @@ const ORDENES = {
     const correo = t.ok ? 'plantilla con el código puesta'
       : (t.json && t.json.error && t.json.error.code === 'entitlement_required') ? 'plantilla pendiente: necesita el SMTP propio' : `plantilla no entró (${t.status})`;
     return { proyecto: P.ref, entrada: 'solo por invitación, código de 6 cifras, 10 minutos', correo };
+  },
+  async funciones(cual) {
+    const P = proyecto(cual);
+    const codigo = readFileSync(join(AQUI, '..', 'servidor', 'funciones', 'firmar.ts'));
+    const fd = new FormData();
+    fd.append('metadata', JSON.stringify({ name: 'firmar', entrypoint_path: 'firmar.ts', verify_jwt: true }));
+    fd.append('file', new Blob([codigo], { type: 'application/typescript' }), 'firmar.ts');
+    const t = clave('SUPABASE_ACCESS_TOKEN'); if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
+    const r = await pedir(`https://api.supabase.com/v1/projects/${P.ref}/functions/deploy?slug=firmar`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd });
+    if (!r.ok) throw new Fallo(`la función no se desplegó (${r.status}): ${r.text}`);
+    return { proyecto: P.ref, funcion: 'firmar desplegada' };
+  },
+  async 'borrar-cliente'(cual, id) {
+    const P = proyecto(cual);
+    if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id || '')) throw new Fallo('falta el id del cliente');
+    if (!P.secreta) throw new Fallo('falta la clave secreta de ese proyecto en .env');
+    let n = 0;
+    for (const b of ['fotos', 'facturas']) {
+      for (;;) {
+        const l = await pedir(`${P.url}/storage/v1/object/list/${b}`, { method: 'POST', headers: { ...cab(P.secreta), 'Content-Type': 'application/json' }, body: { prefix: id, limit: 1000, offset: 0 } });
+        if (!l.ok) throw new Fallo(`no se pudo listar ${b} (${l.status}): ${l.text}`);
+        const rutas = (l.json || []).filter(x => x && x.name && x.id).map(x => `${id}/${x.name}`);
+        if (!rutas.length) break;
+        const d = await pedir(`${P.url}/storage/v1/object/${b}`, { method: 'DELETE', headers: { ...cab(P.secreta), 'Content-Type': 'application/json' }, body: { prefixes: rutas } });
+        if (!d.ok) throw new Fallo(`no se pudieron borrar archivos de ${b} (${d.status}): ${d.text}`);
+        n += rutas.length;
+      }
+    }
+    const lap = await rest(P, 'clientes_borrados?on_conflict=id', { method: 'POST', apikey: P.secreta, body: { id }, prefer: 'resolution=ignore-duplicates' });
+    if (!lap.ok) throw new Fallo(`no se pudo apuntar el id (${lap.status}): ${lap.text}`);
+    const r = await rest(P, `clientes?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', apikey: P.secreta });
+    if (!r.ok) throw new Fallo(`no se pudo borrar el cliente (${r.status}): ${r.text}`);
+    return { proyecto: P.ref, cliente: id, archivos_borrados: n, id_reservado: true };
   },
   async dueno(cual, correo) {
     const P = proyecto(cual);

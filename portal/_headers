@@ -1,0 +1,12 @@
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https://*.supabase.co; connect-src https://*.supabase.co; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-cache
+
+/fuentes/*
+  Cache-Control: public, max-age=31536000, immutable

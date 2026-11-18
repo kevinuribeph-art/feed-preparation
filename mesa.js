@@ -1975,6 +1975,24 @@
     if (p0) H.undo.forEach((st, k) => { if ((H.drop || 0) + k < z.a0) return; const o = st.slots.find(x => x.id === slotId); if (o && o.type === s.type && same(o.photos, p0)) amend(st); });   // the steps taken while it drew (from the one before the change, counted in the whole history) have the new type with the images of before: they get the new ones (D-176)
     H.curJ = JSON.stringify(H.cur);
   }
+  // The client's decision from its portal (D-244, web.js): it puts the state as Kevin would, but it is not a step of ⌘Z and no
+  // ⌘Z takes it away (lesson 87): the history's present takes it, and applyState keeps it while it is still the post's.
+  const WEB_EST = new Map();   // slotId → the state the client's decision put, as JSON (this tab only)
+  function estadoEnPaso(st, id, est) {   // a step's copy of a post with this state, in the key order editState writes
+    const o = st && st.slots.find(x => x.id === id); if (!o) return;
+    const { type, photos, note, date, memo, fmt, design, libre, guias, ubicacion, etiquetas, colaboradores } = o;
+    st.slots[st.slots.indexOf(o)] = { id, type, photos, note, date, ...(memo ? { memo } : {}), ...(fmt ? { fmt } : {}), ...(design ? { design } : {}), ...(libre ? { libre } : {}), ...(est ? { estado: { ...est } } : {}), ...(guias ? { guias } : {}),
+      ...(ubicacion ? { ubicacion } : {}), ...(etiquetas ? { etiquetas } : {}), ...(colaboradores ? { colaboradores } : {}) };
+  }
+  function estadoWeb(id, v) {
+    if (locked) return 'locked';
+    const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
+    const why = setEstado(id, v || null); if (why) return why;
+    WEB_EST.set(id, JSON.stringify(s.estado || null));
+    if (H.b === S && H.cur) { estadoEnPaso(H.cur, id, s.estado); H.curJ = JSON.stringify(H.cur); }
+    changed();
+    return '';
+  }
   function applyState(st) {
     const had = refsOf(S), has = f => !!M.files[f];
     const enZernio = new Map(hsDe(S).filter(h => h.zernio).map(h => [h.id, h]));   // Zernio's mark is Zernio's, never a step (D-097)
@@ -1986,7 +2004,10 @@
       if (o.fmt) s.fmt = o.fmt; else delete s.fmt;
       if (o.design) s.design = JSON.parse(JSON.stringify(o.design)); else delete s.design;
       if (o.libre) s.libre = JSON.parse(JSON.stringify(o.libre)); else delete s.libre;
+      const est0 = s.estado;
       if (o.estado) s.estado = { ...o.estado }; else delete s.estado;
+      const w = WEB_EST.get(s.id);   // the client's decision stays: no ⌘Z takes it away (D-244)
+      if (w && JSON.stringify(est0 || null) === w && JSON.stringify(s.estado || null) !== w) { if (est0) s.estado = est0; else delete s.estado; estadoEnPaso(st, s.id, est0); }
       if (o.guias) s.guias = JSON.parse(JSON.stringify(o.guias)); else delete s.guias;
       if (o.ubicacion) s.ubicacion = o.ubicacion; else delete s.ubicacion;   // its location: a step of ⌘Z (D-124)
       if (o.etiquetas) s.etiquetas = o.etiquetas.slice(); else delete s.etiquetas;   // its tags and collaborators, too (D-130)
@@ -3157,13 +3178,13 @@
     const lab = shortLabel(s.name, s.type), fd = esc(fmtDate(s.date)), when = marcasHTML(s) + (vencida(s) ? `<span class="vdate" title="Vencida: su fecha ya pasó">${fd}</span>` : fd);   // a vencida's date in a red pill (D-120)
     const icon = typeIcon(s.type, s.photos.length), pin = isPinned(s);
     if (!s.photos.length) {
-      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${IC.pin}</span>` : ''}${badgesHTML(s, pill)}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
+      return `<div class="cell empty" data-slot="${esc(s.id)}" title="${esc(s.name)}">${pin ? `<span class="ico pinned" title="Fijada">${IC.pin}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}<div class="ph"><span class="pico">${icon || ICON.photo}</span><b>${esc(lab)}</b><span>${when}</span></div>${postit(s)}</div>`;
     }
     const f = M.files[s.photos[0]] || {};
     const imgStyle = f.w ? rectStyle(f, gridRect(s.photos[0], s)) : '';
     const n = s.photos.length;
     const cnt = isCarousel(s.type) && (n > 1 || s.type === 'Carrusel') ? `<span class="cnt" title="${n} foto${n === 1 ? '' : 's'}">${n}<span class="cw"> foto${n === 1 ? '' : 's'}</span></span>` : '';
-    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
+    return `<div class="cell full" data-slot="${esc(s.id)}" title="${esc(s.name)}"><img class="crop" src="${f.thumbUrl || ''}" style="${imgStyle}" alt="">${pin ? `<span class="ico" title="Fijada">${IC.pin}</span>` : icon ? `<span class="ico">${icon}</span>` : ''}${badgesHTML(s, pill)}${M.web && M.web.marca ? M.web.marca(s) : ''}${cnt}<div class="lab">${postit(s)}<b>${esc(lab)}</b>${when}</div></div>`;
   }
   function fillerHTML(k) {
     const f = previewAt(k) && M.files[previewAt(k)], x = f ? 'Quitar la portada' : 'Quitar el hueco';
@@ -3893,12 +3914,13 @@
     d.innerHTML = `<div class="card post hascap" role="dialog" aria-label="${esc(s.name)}">
       <div class="pbody"><div class="phead"><div class="pe-top"><h3>${esc(s.name)}</h3>${pinB}</div><button class="x" data-act="close" title="Cerrar" aria-label="Cerrar">×</button>${edB ? `<div class="pe-fila pe-con"><div class="pe-in">${edB}<p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div></div>` : `<div class="pe-fila"><p>${whenHTML(s)}${typeHTML(s)}${estadoHTML(s)}${statusBadge(s)}</p></div>`}${pnotHTML(s)}${linkLine(s)}</div>
         <div class="pleft">${left}</div>
-        <div class="pright hascap">${dz}${peB}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption${sinNotion() ? '' : ', se sube a Notion'}</span></label>
+        <div class="pright hascap">${dz}${peB}${M.web && M.web.detalle ? M.web.detalle(s) : ''}<label class="nlab" for="nota-${esc(id)}">Contexto <span>· para el caption${sinNotion() ? '' : ', se sube a Notion'}</span></label>
           <textarea class="note" id="nota-${esc(id)}" data-slot="${esc(id)}" placeholder="Qué se ve, qué contar, tono…">${esc(s.note || '')}</textarea>
           <label class="nlab mlab" for="memo-${esc(id)}">Nota <span>· solo para ti, no se sube</span></label>
           <textarea class="memo" id="memo-${esc(id)}" data-slot="${esc(id)}" placeholder="Recordatorios, pendientes…">${esc(s.memo || '')}</textarea>
           ${capsHTML(s)}
           ${hint ? `<p class="muted" style="margin:10px 0 0">${hint}</p>` : ''}</div></div></div>`;
+    if (M.web && M.web.pintarDetalle) M.web.pintarDetalle(d);   // the client's conversation, drawn with textContent (D-244)
     if (M.controles && M.controles.mejorar) M.controles.mejorar(d);   // its own dropdowns, date and time before it is laid out: one layout, not two (D-135)
     d.querySelectorAll('.cpick .strip').forEach(minisPerezosas);   // «Cambiar portada» with a long tray (B8)
     if (d.hidden || d.dataset.slot !== id) clearToasts();
@@ -5565,10 +5587,10 @@
   // the words of a name that tell a client apart (3 letters or more, not a common word): «One LAB» → lab
   const MES_COMUNES = new Set('one the and los las del con por para que una uno cafe bar club casa shop tienda studio estudio hotel villa travel experiences ibiza surf coffee food'.split(' '));
   const mesPalabras = t => mesSinAcento(t).split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !MES_COMUNES.has(w));
-  function mesOtros(cli, textos, mal, esporadicos = []) {
+  function mesOtros(cli, textos, mal, esporadicos = [], noCuentan = []) {   // noCuentan: ids que no son «otro cliente» (la agencia, D-244)
     const yo = CL.find(c => c.id === cli) || {}, mios = [yo.name, yo.id, String(yo.handle || '').replace(/^@/, '')].filter(x => x && String(x).trim().length >= 3);
     const mias = new Set(mios.flatMap(mesPalabras)), quitarMio = v => mios.reduce((t, x) => t.replace(new RegExp('(^|[^a-z0-9_-])@?' + mesSinAcento(x).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^a-z0-9_-])', 'g'), '$1 '), v);   // its own name doesn't count (alone, never inside a longer id)
-    const otros = [...CL.filter(c => c.id !== cli).map(c => ({ c: c.name || c.id, xs: [c.name, c.id, String(c.handle || '').replace(/^@/, '')] })), ...esporadicos.map(e => ({ c: e, xs: [e] }))]
+    const otros = [...CL.filter(c => c.id !== cli && !noCuentan.includes(c.id)).map(c => ({ c: c.name || c.id, xs: [c.name, c.id, String(c.handle || '').replace(/^@/, '')] })), ...esporadicos.map(e => ({ c: e, xs: [e] }))]
       .flatMap(({ c, xs }) => [...xs.filter(x => x && String(x).trim().length >= 3).map(x => mesSinAcento(x).trim()), ...xs.flatMap(mesPalabras)].filter(x => !mias.has(x)).map(x => ({ c, x })));
     for (const [donde, t] of textos) {
       const v = quitarMio(mesSinAcento(t));
@@ -7212,7 +7234,7 @@
     nombreDistinto, nombreAviso,   // the carousel's name against its cover (D-129, mesa ≥ 4.00)
     elegirYa, ELIGE_MS,   // a question «1 / 2» answered: the chosen button in the accent, then it closes (D-194, mesa ≥ 4.20)
     hsDe, hNorm, adelantos, hProblemas, usoHistoria, askModoHistoria, tipoPost, hFecha, ts, isoDe, sameDate, inBoard, pick: () => sel, pickOff: () => { sel = null; render(); },   // for the stories (historias.js, mesa ≥ 3.53)
-    capFinal, cropSig, mesOtros   // what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
+    estadoWeb, capFinal, cropSig, mesOtros   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
   };
   M._test = {
     mesBorrarTodo: async () => { mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)

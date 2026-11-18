@@ -12,6 +12,8 @@
   const on = (t, ty, f, o) => { t.addEventListener(ty, f, o); OFF.push(() => t.removeEventListener(ty, f, o)); };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m, o) => I().toast(m, o);
+  const lsG = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+  const lsS = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
 
   // ---------- El proyecto ----------
   // El real se rellena al crearlo (lote 5: su URL y su clave «publishable», públicas por diseño). En una copia de pruebas
@@ -28,7 +30,7 @@
     if (!SB || SB._url !== p.url) {
       try { SB = window.Supa.crear({ url: p.url, publica: p.publica, clave: 'mesa-web-' + p.url.split('//')[1].split('.')[0] }); SB._url = p.url; }
       catch (e) { return null; }
-      SB.alCambiar(() => { st.dueno = null; st.servidor = null; pedirRepaso(); });
+      SB.alCambiar(() => { st.dueno = null; st.servidor = null; st.cambios = null; if (I() && I().renderBar) I().renderBar(); pedirRepaso(); });
     }
     return SB;
   }
@@ -38,7 +40,8 @@
   const ESTADO = { empezar: 'preparando', captions: 'preparando', aprobar: 'por_aprobar', noaprobado: 'cambios', aprobado: 'aprobada', programado: 'programada', publicado: 'publicada' };
   const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
   const sha = async t => hex(await crypto.subtle.digest('SHA-256', typeof t === 'string' ? new TextEncoder().encode(t) : t));
-  const pidDe = (cli, id) => sha(cli + '|' + id).then(h => h.slice(0, 16));
+  const PID = new Map();
+  const pidDe = async (cli, id) => { const k = cli + '|' + id; if (!PID.has(k)) PID.set(k, (await sha(k)).slice(0, 16)); return PID.get(k); };
   const mesNatural = iso => { const d = I().localDay(iso); return d ? d.slice(0, 7) : null; };
 
   // Una publicación tal como la ve el cliente, sin imágenes (las imágenes se sacan al enviar). `version` es la huella de su
@@ -94,14 +97,16 @@
 
   // ---------- El paquete del tablero abierto ----------
   // { cliente, publicaciones, sesiones, meses, pagos, problemas }. Sin imágenes; `enviar` las saca de lo que cambió.
-  async function paquete() {
-    const X = I(), B = X.S;
+  // La cuenta de la agencia no es «otro cliente»: sus créditos (@uribe.visuals) pueden salir en un caption (lección 84).
+  const AGENCIA = ['uribe'];
+  async function paquete(B0) {
+    const X = I(), B = B0 || X.S;
     if (!B) return { error: 'sin tablero abierto' };
     const cli = B.client, c = X.CL.find(x => x.id === cli) || {};
     const pubs = await filas(B);
     const meses = [...new Set([...pubs.map(p => p.fila.mes), ...X.boardMonths ? (X.boardMonths(B) || []) : []].filter(Boolean))].sort();
     const previo = meses.length ? X.addMonths(meses[0], -1) : null;
-    const tareas = await X.idbAll('tareas').catch(() => []);
+    const tareas = await X.idbAll('tareas');   // si falla, no se envía (una lectura fallida no es «sin sesiones»: lección 94)
     const ses = tareas.filter(t => t.tipo === 'sesion' && !(t.sesion && t.sesion.visible === false) && /^\d{4}-\d{2}-\d{2}$/.test(t.fecha || '')
       && (Array.isArray(t.clientes) ? t.clientes : t.cliente ? [t.cliente] : []).includes(cli) && meses.includes(t.fecha.slice(0, 7)))
       .map(t => {
@@ -115,8 +120,9 @@
       if (r && !r.error && (r.porque || r.resumen)) mesesInfo.push({ cliente_id: cli, mes: m, porque: r.porque || null, resumen: r.resumen || null });
     }
     if (X.cob && X.cob.leer) await X.cob.leer();
-    const cob = X.cob, vivos = cob ? cob.vivos(cli) : [];
-    const pagos = vivos.filter(r => +r.importe >= 0).map(r => ({ cliente_id: cli, id: String(r.id).slice(0, 80), periodo: /^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo : null,
+    const cob = X.cob, H = X.hoy(), vivos = cob ? cob.vivos(cli) : [];
+    // solo lo que enseña «Tus pagos»: pendientes, retrasados y cobrados; nunca un borrador sin emitir (D-237)
+    const pagos = vivos.filter(r => +r.importe >= 0 && ['pendiente', 'retrasada', 'cobrada'].includes(cob.estado(r, H).k)).map(r => ({ cliente_id: cli, id: String(r.id).slice(0, 80), periodo: /^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo : null,
       concepto: r.concepto ? String(r.concepto).slice(0, 120) : null, importe_cent: Math.round((+r.importe || 0) * 100), factura: r.factura ? String(r.factura).slice(0, 40) : null,
       emitida: r.emitida || null, vence: r.vence || null, cobrada: r.cobrada || null, _pdf: r.pdf || null }));
     const q = cob ? cob.cuota(c) : null, prox = cob && q ? cob.proxima(cli) : null;
@@ -126,44 +132,70 @@
     const problemas = [], esporadicos = tareas.filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt).map(t => String(t.txt));
     const textos = [...pubs.flatMap(p => [[`«${p.fila.nombre}»: nombre`, p.fila.nombre], [`«${p.fila.nombre}»: caption`, p.fila.caption]]),
       ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}: concepto`, p.concepto || ''])];
-    X.mesOtros(cli, textos, m => problemas.push(m), esporadicos);
-    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, pagos, problemas };
+    mesesInfo.forEach(r => { (r.porque && r.porque.partes || []).forEach((q, i) => textos.push([`por qué de ${r.mes}`, q.t], [`por qué de ${r.mes}`, q.x]));
+      if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
+    X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
+    const mesesQuitar = [previo, ...meses].filter(m => m && !mesesInfo.some(r => r.mes === m));
+    return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, problemas };
   }
 
   // ---------- Estado de la barra ----------
-  const st = { clave: '', servidor: null, cambios: null, enviando: null, error: '', dueno: null, firma: '', leyendo: null };
+  const st = { clave: '', servidor: null, cambios: null, enviando: null, error: '', dueno: null, firma: '', leyendo: null, extra: null, extraT: 0 };
   const IMG = new Map();   // «pid|firma de sus fotos» → sus imágenes ya enviadas en esta pestaña: un cambio de caption no las rehace
-  async function leerServidor(cli) {
+  async function leerServidor(cli, B) {
     const c = sb(); if (!c || !c.usuario()) return null;
-    const l = await c.leer(`publicaciones?cliente_id=eq.${encodeURIComponent(cli)}&select=pid,version,estado,orden,visible,mes,nombre,fecha,sin_hora,caption,tipo,imagenes`);
+    const ms = B ? [...new Set([...(I().boardMonths ? I().boardMonths(B) || [] : []), ...B.slots.map(s => mesNatural(s.date)).filter(Boolean)])] : [];
+    const l = await c.leer(`publicaciones?cliente_id=eq.${encodeURIComponent(cli)}&select=pid,version,estado,orden,visible,mes,nombre,fecha,sin_hora,caption,tipo,imagenes` + (ms.length ? `&mes=in.(${ms.map(m => `"${m}"`).join(',')})` : ''));
     return new Map((l || []).map(r => [r.pid, r]));
   }
   const igual = (p, r) => r && r.version === p.version && r.estado === p.fila.estado && r.orden === p.fila.orden && r.visible === p.fila.visible && r.mes === p.fila.mes;
-  async function repaso() {
+  // Las del servidor que se ven y ya no están en este tablero, salvo las de otro tablero del mismo cliente (un ciclo que
+  // comparte mes, D-153): esas son de aquel tablero.
+  async function sobranDe(B, pubs, serv) {
+    const quedan = new Set(pubs.map(p => p.pid)), cand = [...serv.values()].filter(r => r.visible && !quedan.has(r.pid));
+    if (!cand.length) return [];
+    const otros = new Set(), cli = b => b.client || (String(b.key || '').match(/^(.+)-\d{4}-\d{2}$/) || [])[1];
+    for (const b of (await I().idbAll('boards')) || []) if (b && b.key !== B.key && cli(b) === B.client) for (const s of b.slots || []) otros.add(await pidDe(B.client, s.id));
+    return cand.filter(r => !otros.has(r.pid)).map(r => r.pid);
+  }
+  // Lo que no es una publicación (cliente, sesiones, porqué y resumen, cobros) cuenta como un cambio si no es lo último
+  // que se envió desde aquí (su huella, por proyecto y tablero).
+  const claveHuella = B => { const c = sb(); return 'mesa-web-huella:' + (c ? c._url : '') + ':' + B.key; };
+  const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos]));
+  async function repaso(todo) {
     const X = I(), B = X && X.S, c = sb();
-    if (!B || !c || !c.usuario() || st.enviando) return;
-    if (st.clave !== B.key) { st.clave = B.key; st.servidor = null; st.cambios = null; st.firma = ''; }
+    if (!B || !c || !c.usuario() || st.enviando || X.locked) return;
+    if (st.clave !== B.key) { st.clave = B.key; st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; leerConversacion().catch(() => null); }
     try {
       const pubs = await filas(B), firma = pubs.map(p => p.pid + p.version + p.fila.estado + p.fila.orden + p.fila.visible).join('|');
-      if (!st.servidor) st.servidor = await leerServidor(B.client);
-      if (firma === st.firma && st.cambios != null) return;
-      st.firma = firma; st.error = '';
-      const n = pubs.filter(p => !igual(p, st.servidor.get(p.pid))).length;
-      if (n !== st.cambios) { st.cambios = n; X.renderBar(); }
+      if (!st.servidor) { st.servidor = await leerServidor(B.client, B); st.firma = ''; }
+      if (I().S !== B) return;
+      if (todo || st.extra == null || Date.now() - st.extraT > 30000) {   // leer tareas, informe y cobros, cada 30 s como mucho
+        st.extraT = Date.now();
+        const P = await paquete(B); if (I().S !== B) return;
+        const e = P.error ? 0 : (await huellaExtra(P)) === lsG(claveHuella(B)) ? 0 : 1;
+        if (e !== st.extra) { st.extra = e; st.firma = ''; }
+      }
+      const errorAntes = st.error; st.error = '';
+      if (firma === st.firma && st.cambios != null) { if (errorAntes) X.renderBar(); return; }
+      const sobran = await sobranDe(B, pubs, st.servidor); if (I().S !== B) return;
+      st.firma = firma;
+      const n = pubs.filter(p => !igual(p, st.servidor.get(p.pid))).length + sobran.length + st.extra;
+      if (n !== st.cambios || errorAntes) { st.cambios = n; X.renderBar(); }
     } catch (e) { const m = String(e.message || e); if (m !== st.error) { st.error = m; X.renderBar(); } }
   }
   let repasoT = 0;
-  const pedirRepaso = () => { clearTimeout(repasoT); repasoT = setTimeout(() => { repaso().catch(() => { /* lo dice st.error */ }); }, 300); };
+  const pedirRepaso = () => { clearTimeout(repasoT); repasoT = setTimeout(() => { repaso(true).catch(() => { /* lo dice st.error */ }); }, 300); };
 
   function barra() {
     const c = sb(), X = I();
     if (!c || !X || !X.S || X.root().classList.contains('client')) return '';   // sin proyecto, o en «Vista cliente» (D-154)
-    if (!c.usuario()) return '<button type="button" class="mchip ghost webbtn" data-web="entrar" title="Entra con tu correo para enviar a la web lo que ve el cliente">Web del cliente</button>';
-    if (st.enviando) return `<span class="mchip webbtn" aria-live="polite">Enviando a la web… ${st.enviando.hechos}/${st.enviando.total}</span>`;
-    if (st.error) return `<button type="button" class="mchip ghost webbtn mal" data-web="repasar" title="${esc(st.error)}">Web: no se pudo leer</button>`;
-    if (st.cambios == null) return '<span class="mchip ghost webbtn">Web del cliente</span>';
-    if (!st.cambios) return '<button type="button" class="mchip ghost webbtn" data-web="enviar" title="La web del cliente enseña lo mismo que este tablero. Enviar otra vez lo vuelve a comprobar">Web: al día</button>';
-    return `<button type="button" class="mchip webbtn hay" data-web="enviar" title="Envía a la web del cliente lo que ha cambiado en este tablero">Web: ${st.cambios} ${st.cambios === 1 ? 'cambio' : 'cambios'} sin enviar · Enviar</button>`;
+    if (!c.usuario()) return '<button type="button" class="mchip webbtn" data-web="entrar" title="Entra con tu correo para enviar a la web lo que ve el cliente">Web del cliente</button>';
+    if (st.enviando) return `<span class="mchip webbtn quieto" aria-live="polite" aria-busy="true">Enviando a la web…${st.enviando.total ? ` ${st.enviando.hechos}/${st.enviando.total}` : ''}</span>`;
+    if (st.error) return `<button type="button" class="mchip webbtn mal" data-web="repasar" title="${esc(st.error)}. Pulsa para volver a intentarlo">Web: no se pudo leer</button>`;
+    if (st.cambios == null) return '<span class="mchip webbtn quieto" aria-busy="true">Web: leyendo…</span>';
+    if (!st.cambios) return '<button type="button" class="mchip ghost webbtn" data-web="enviar" title="La web del cliente enseña lo mismo que este tablero. Pulsa para comprobarlo y enviar otra vez">Web: al día</button>';
+    return `<button type="button" class="mchip webbtn hay" data-web="enviar" title="Envía a la web del cliente lo que ha cambiado en este tablero">Web: ${st.cambios}<span class="lg"> ${st.cambios === 1 ? 'cambio' : 'cambios'}</span> sin enviar<span class="lg"> · Enviar</span></button>`;
   }
 
   // ---------- Enviar ----------
@@ -178,19 +210,23 @@
     if (!c) return { error: 'sin proyecto de la web' };
     if (!c.usuario()) { dlgEntrar(); return { error: 'sin sesión' }; }
     if (st.enviando) return { error: 'ya se está enviando' };
-    if (X.locked) return { error: 'esta pestaña está en pausa' };
-    const clave = B.key;
+    if (X.locked) { toast('Esta pestaña está en pausa: recárgala para enviar a la web', { error: true }); return { error: 'esta pestaña está en pausa' }; }
+    const cli = B.client, ce = encodeURIComponent(cli);
+    // Todo va al tablero con el que se pulsó «Enviar»: si se abre otro a mitad, se para (lo ya enviado queda bien enviado).
+    const sigue = () => { if (I().S !== B) throw new Error('cambiaste de tablero mientras se enviaba: vuelve a enviar este'); };
+    st.enviando = { hechos: 0, total: 0 }; X.renderBar();   // un envío a la vez desde el primer clic
     try {
       if (!(await esDueno(c))) throw new Error('esta cuenta no es la de Kevin en el servidor');
-      if (M.flush) await M.flush();
-      const P = await paquete();
+      await leerConversacion().catch(() => null); sigue();   // antes de enviar, lo que ha decidido el cliente (y su marca de leído)
+      if (M.flush) await M.flush(); sigue();
+      const P = await paquete(B); sigue();
       if (P.error) throw new Error(P.error);
       if (P.problemas.length) { dlgProblemas(P.problemas); return { error: 'nombra a otro cliente', problemas: P.problemas }; }
-      const serv = st.servidor && st.clave === clave ? st.servidor : await leerServidor(B.client);
+      const serv = st.servidor && st.clave === B.key ? st.servidor : await leerServidor(cli, B); sigue();
       const cambian = P.publicaciones.filter(p => p.fila.visible && (!serv.get(p.pid) || serv.get(p.pid).version !== p.version));
-      st.enviando = { hechos: 0, total: cambian.length + 1 }; X.renderBar();
+      st.enviando = { hechos: 0, total: cambian.length }; X.renderBar();
       // Foto del perfil del cliente y sus imágenes, sin repetir las que ya están (las rutas son la huella del contenido).
-      const ya = new Set(await c.listar('fotos', B.client).catch(() => []));
+      const ya = new Set(await c.listar('fotos', cli).catch(() => []));
       let subidas = 0;
       const subir = async (ruta, blob) => { const n = ruta.split('/').pop(); if (ya.has(n)) return; await c.subir('fotos', ruta, blob, 'image/jpeg'); ya.add(n); subidas++; };
       let foto = null;
@@ -198,12 +234,12 @@
         try {
           const blob = await X.getBlob(P.cliente._foto), f = M.files[P.cliente._foto] || {};
           const g = await lienzoA(blob, null, f.w || 400, f.h || 400, 240), h = await sha(await g.blob.arrayBuffer());
-          foto = `${B.client}/${h}.jpg`; await subir(foto, g.blob);
+          foto = `${cli}/${h}.jpg`; await subir(foto, g.blob);
         } catch (e) { foto = null; }   // sin foto de perfil, el portal pone sus iniciales
       }
-      const { _foto, ...cli } = P.cliente;
-      await c.insertar('clientes', [{ ...cli, foto }], { upsert: true, conflicto: 'id' });
-      st.enviando.hechos++; X.renderBar();
+      sigue();
+      const { _foto, ...cliente } = P.cliente;
+      await c.insertar('clientes', [{ ...cliente, foto }], { upsert: true, conflicto: 'id' });
       const imgs = new Map();
       for (const p of cambian) {
         const k = p.pid + '|' + p.firmaFotos;
@@ -214,39 +250,44 @@
         }
         imgs.set(p.pid, IMG.get(k));
         st.enviando.hechos++; X.renderBar();
+        sigue();
       }
       const filasPub = P.publicaciones.map(p => ({ ...p.fila, pid: p.pid, version: p.version,
         imagenes: imgs.get(p.pid) || (serv.get(p.pid) && serv.get(p.pid).version === p.version ? serv.get(p.pid).imagenes : []) }));
       if (filasPub.length) await c.insertar('publicaciones', filasPub, { upsert: true, conflicto: 'cliente_id,pid' });
       // Lo que ya no está en el tablero deja de verse (no se borra: guarda sus aprobaciones y comentarios).
-      const quedan = new Set(filasPub.map(f => f.pid));
-      const sobran = [...serv.values()].filter(r => P.mesesTablero.includes(r.mes) && r.visible && !quedan.has(r.pid)).map(r => r.pid);
-      if (sobran.length) await c.actualizar(`publicaciones?cliente_id=eq.${encodeURIComponent(B.client)}&pid=in.(${sobran.join(',')})`, { visible: false });
-      const mesesIn = P.mesesTablero.map(m => `"${m}"`).join(',');
-      if (P.mesesTablero.length) await c.borrar(`sesiones?cliente_id=eq.${encodeURIComponent(B.client)}&mes=in.(${mesesIn})`);
+      const sobran = await sobranDe(B, P.publicaciones, serv);
+      if (sobran.length) await c.actualizar(`publicaciones?cliente_id=eq.${ce}&pid=in.(${sobran.join(',')})`, { visible: false });
+      // Sesiones: primero las de ahora y después se quitan las que ya no están (si algo falla a medias, no se queda sin ninguna).
+      const enMeses = m => m.length ? `&mes=in.(${m.map(x => `"${x}"`).join(',')})` : '';
       if (P.sesiones.length) await c.insertar('sesiones', P.sesiones, { upsert: true, conflicto: 'cliente_id,id' });
+      if (P.mesesTablero.length) await c.borrar(`sesiones?cliente_id=eq.${ce}${enMeses(P.mesesTablero)}` + (P.sesiones.length ? `&id=not.in.(${P.sesiones.map(x => `"${x.id.replace(/"/g, '')}"`).join(',')})` : ''));
       if (P.meses.length) await c.insertar('meses', P.meses, { upsert: true, conflicto: 'cliente_id,mes' });
-      // Las facturas en PDF (D-237), en su carpeta privada; los cobros quitados aquí se quitan allí.
-      const yaPdf = new Set(await c.listar('facturas', B.client).catch(() => []));
-      const filasPago = [];
+      if (P.mesesQuitar.length) await c.borrar(`meses?cliente_id=eq.${ce}${enMeses(P.mesesQuitar)}`);
+      // Las facturas en PDF (D-237), en su carpeta privada y nombradas por su huella: un PDF cambiado es otro archivo.
+      const yaPdf = new Set(await c.listar('facturas', cli).catch(() => []));
+      const filasPago = [], usados = new Set();
       for (const { _pdf, ...p } of P.pagos) {
         let pdf = null;
         if (_pdf) {
           const r = await X.idbGet('cfacturas', _pdf).catch(() => null);
           if (r && r.blob) {
-            const n = (p.id.toLowerCase().replace(/[^a-z0-9._-]+/g, '-') || 'factura') + '.pdf';
-            if (!yaPdf.has(n)) await c.subir('facturas', `${B.client}/${n}`, r.blob, 'application/pdf');
-            pdf = `${B.client}/${n}`;
+            const n = (await sha(await r.blob.arrayBuffer())) + '.pdf';
+            if (!yaPdf.has(n)) { await c.subir('facturas', `${cli}/${n}`, r.blob, 'application/pdf'); yaPdf.add(n); }
+            pdf = `${cli}/${n}`; usados.add(n);
           }
         }
         filasPago.push({ ...p, pdf });
       }
       if (filasPago.length) await c.insertar('pagos', filasPago, { upsert: true, conflicto: 'cliente_id,id' });
       const ids = filasPago.map(p => `"${p.id.replace(/"/g, '')}"`).join(',');
-      await c.borrar(`pagos?cliente_id=eq.${encodeURIComponent(B.client)}` + (ids ? `&id=not.in.(${ids})` : ''));
-      st.servidor = await leerServidor(B.client); st.clave = B.key; st.firma = ''; st.cambios = null;
+      await c.borrar(`pagos?cliente_id=eq.${ce}` + (ids ? `&id=not.in.(${ids})` : ''));
+      const sueltos = [...yaPdf].filter(n => !usados.has(n)).map(n => `${cli}/${n}`);
+      if (sueltos.length) await c.quitar('facturas', sueltos).catch(() => null);   // los que ya no son de ningún cobro
+      lsS(claveHuella(B), await huellaExtra(P));
+      st.servidor = await leerServidor(cli, B); st.clave = B.key; st.firma = ''; st.cambios = null; st.extra = 0; st.extraT = Date.now(); st.error = '';
       toast(`Enviado a la web del cliente: ${filasPub.filter(f => f.visible).length} publicaciones`);
-      return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
+      return { ok: true, publicaciones: filasPub.filter(f => f.visible).length, ocultas: sobran.length, imagenes: [...imgs.values()].reduce((n, l) => n + l.length, 0), subidas };
     } catch (e) {
       const m = String(e.message || e);
       toast('No se pudo enviar a la web: ' + m, { error: true });
@@ -270,16 +311,17 @@
         <p class="ferr" hidden></p><div class="row"><button type="submit" class="btn">Enviarme el código</button></div></form>`);
   }
   function dlgProblemas(l) {
+    const corto = x => String(x).replace(/; el cliente lo ve.*$/, '');
     I().showDialog('web', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>No se ha enviado</h3>
-      <p class="webp">Hay textos que nombran a otro cliente. El cliente lo vería: cámbialos y vuelve a enviar.</p>
-      <ul class="webl">${l.slice(0, 12).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-      <div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div>`);
+      <p class="webp">Hay textos que nombran a otro cliente. El cliente lo vería: dilo sin su nombre (por ejemplo, «una colaboración») y vuelve a enviar.</p>
+      <ul class="webl">${l.slice(0, 12).map(x => `<li>${esc(corto(x))}</li>`).join('')}${l.length > 12 ? `<li>y ${l.length - 12} más</li>` : ''}</ul>
+      <div class="form"><div class="row"><button type="button" class="btn" data-act="close">Entendido</button></div></div>`);
   }
   async function alEnviarForm(e) {
     const f = e.target.closest && e.target.closest('form[data-webform]'); if (!f) return;
     e.preventDefault(); e.stopPropagation();
     const c = sb(), err = f.querySelector('.ferr'), btn = f.querySelector('button[type=submit]');
-    const mal = m => { err.textContent = m; err.hidden = false; btn.disabled = false; };
+    const mal = m => { m = String(m || 'No se pudo').trim(); m = m[0].toUpperCase() + m.slice(1); if (!/[.!?]$/.test(m)) m += '.'; err.textContent = m; err.hidden = false; btn.disabled = false; };
     if (!c) return mal('La web aún no tiene proyecto.');
     btn.disabled = true; err.hidden = true;
     try {
@@ -302,39 +344,183 @@
     const a = b.dataset.web;
     if (a === 'entrar') dlgEntrar();
     else if (a === 'enviar') enviar();
-    else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; pedirRepaso(); }
+    else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; I().renderBar(); pedirRepaso(); }
   }
 
+  // ---------- Lote 4: lo que contestan los clientes (D-244) ----------
+  // Las decisiones del cliente ponen el estado como lo pondría Kevin (Aprobado; No aprobado con su motivo en el servidor;
+  // retirada, el de sus datos), sin ser un paso de su ⌘Z (lección 87) y solo si son de la versión de ahora. Los comentarios
+  // se leen del servidor y se pintan con textContent; Kevin contesta y los marca resueltos desde la ventana de la publicación.
+  const C_APR = 'id,cliente_id,pid,version,decision,motivo,diapositiva,autor_nombre,hora';
+  const C_COM = 'id,cliente_id,pid,version,diapositiva,texto,autor_nombre,de_kevin,hora,resuelto';
+  const conv = new Map();   // cliente → { aprs, coms, visto, pidDe: Map slotId→pid, version: Map pid→versión local }
+  const borradores = new Map(), abiertos = new Set(); let foco = null;
+  async function leerConversacion(avisar = true) {
+    const X = I(), B = X && X.S, c = sb(); if (!B || !c || !c.usuario() || X.locked) return null;
+    if (!(await esDueno(c))) return null;
+    const cli = encodeURIComponent(B.client), clave = B.key;
+    const [aprs, coms, lec] = await Promise.all([c.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${cli}&order=hora.asc`),
+      c.leer(`comentarios?select=${C_COM}&cliente_id=eq.${cli}&order=hora.asc`), c.leer(`lecturas?select=visto_hasta&cliente_id=eq.${cli}`)]);
+    if (!X.S || X.S.key !== clave) return null;   // otro tablero mientras se leía
+    const pubs = await filas(B), antes = conv.get(B.client);
+    const C0 = { aprs: aprs || [], coms: coms || [], visto: (lec && lec[0] && lec[0].visto_hasta) || null,
+      pidDe: new Map(pubs.map(p => [p.s.id, p.pid])), version: new Map(pubs.map(p => [p.pid, p.version])), slot: new Map(pubs.map(p => [p.pid, p.s])) };
+    conv.set(B.client, C0);
+    // la última decisión nueva de cada publicación
+    const ult = new Map(); C0.aprs.filter(a => !C0.visto || a.hora > C0.visto).forEach(a => ult.set(a.pid, a));
+    const hechas = { aprobada: 0, cambios: 0, retirada: 0, vieja: 0 };
+    for (const a of ult.values()) {
+      const s = C0.slot.get(a.pid); if (!s) continue;
+      if (C0.version.get(a.pid) !== a.version) { hechas.vieja++; continue; }
+      const v = a.decision === 'aprobada' ? 'aprobado' : a.decision === 'cambios' ? 'noaprobado' : '', est = X.estadoDe(s);
+      if (v && est === v) continue;
+      if (!v && !['aprobado', 'noaprobado'].includes(est)) continue;
+      if (!X.estadoWeb(s.id, v)) hechas[a.decision]++;
+    }
+    const max = [...C0.aprs, ...C0.coms].reduce((m, x) => (x.hora > m ? x.hora : m), C0.visto || '');
+    if (max && max !== C0.visto) {
+      try { await c.insertar('lecturas', [{ cliente_id: B.client, visto_hasta: max }], { upsert: true, conflicto: 'user_id,cliente_id' }); C0.visto = max; } catch (e) { /* se vuelve a intentar en el siguiente repaso */ }
+    }
+    const n = hechas.aprobada + hechas.cambios + hechas.retirada;
+    if (n && avisar) {
+      const nom = (X.CL.find(x => x.id === B.client) || {}).name || B.client, pl = (k, u, p) => (k === 1 ? `1 ${u}` : `${k} ${p}`);
+      toast(`${nom}: ` + [hechas.aprobada && pl(hechas.aprobada, 'aprobada', 'aprobadas'), hechas.cambios && pl(hechas.cambios, 'con cambios pedidos', 'con cambios pedidos'), hechas.retirada && pl(hechas.retirada, 'decisión retirada', 'decisiones retiradas')].filter(Boolean).join(', ') + ' desde su web');
+    }
+    if (!antes || JSON.stringify([antes.aprs, antes.coms]) !== JSON.stringify([C0.aprs, C0.coms]) || n) {
+      X.render();
+      const d = X.root().querySelector('.detail');
+      if (d && !d.hidden && d.dataset.slot && C0.pidDe.has(d.dataset.slot) && !d.dataset.dlg) X.refreshDetail();
+    }
+    return C0;
+  }
+  const sinLeer = (cli, pid) => { const C0 = conv.get(cli); if (!C0) return 0; const l = lsG('mesa-web-leido:' + pid); return C0.coms.filter(x => x.pid === pid && !x.de_kevin && !x.resuelto && x.hora > l).length; };
+  // La marca de la casilla: comentarios del cliente sin leer (solo un número; el texto nunca entra en el HTML).
+  function marca(s) {
+    const X = I(), B = X && X.S; if (!B || !sb() || X.root().classList.contains('client')) return '';
+    const C0 = conv.get(B.client), pid = C0 && C0.pidDe.get(s.id); if (!pid) return '';
+    const n = sinLeer(B.client, pid); if (!n) return '';
+    return `<span class="webmk" title="${n === 1 ? '1 comentario del cliente sin leer' : n + ' comentarios del cliente sin leer'}">${ICO_MSG}${n}</span>`;
+  }
+  const ICO_MSG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>';
+  function detalle(s) {
+    const X = I(), c = sb(); if (!c || !c.usuario() || !X.S || X.root().classList.contains('client')) return '';
+    return `<section class="webdel" data-web-slot="${esc(s.id)}" aria-label="Del cliente"></section>`;
+  }
+  function nodo(tag, at, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(at || {})) { if (v == null || v === false) continue; if (k === 'class') el.className = v; else if (k === 'text') el.textContent = v; else if (k.startsWith('on')) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? '' : String(v)); }
+    for (const x of kids.flat()) if (x != null && x !== false) el.append(x.nodeType ? x : document.createTextNode(String(x)));
+    return el;
+  }
+  const cuando = iso => { const X = I(), d = X.localDay(iso), h = X.localTime(iso); return (d === X.hoy() ? 'hoy' : X.fmtDate(d)) + (h ? ', ' + h : ''); };
+  function pintarDetalle(d) {
+    const sec = d && d.querySelector('.webdel'); if (!sec) return;
+    const X = I(), B = X.S, id = sec.dataset.webSlot, C0 = B && conv.get(B.client), pid = C0 && C0.pidDe.get(id);
+    if (!C0) { sec.append(nodo('h4', { class: 'webh', text: 'Del cliente' }), nodo('p', { class: 'webp', text: 'Leyendo lo que ha contestado…' })); leerConversacion().catch(() => {}); return; }
+    const vAhora = C0.version.get(pid), serv = st.servidor && st.servidor.get(pid);
+    const aprs = C0.aprs.filter(a => a.pid === pid), coms = C0.coms.filter(x => x.pid === pid), ult = aprs[aprs.length - 1];
+    const sinL = sinLeer(B.client, pid);
+    const items = [...coms.map(x => ({ t: x.hora, x })), ...aprs.filter(a => a.decision === 'cambios').map(a => ({ t: a.hora, a }))].sort((p, q) => p.t.localeCompare(q.t));
+    const lista = nodo('ol', { class: 'webl' }, items.map(({ x, a }) => {
+      const r = x || a, vieja = r.version !== vAhora;
+      return nodo('li', { class: 'webcm' + (x && x.de_kevin ? ' kv' : '') },
+        nodo('span', { class: 'webq' }, nodo('b', { text: x && x.de_kevin ? 'Tú' : r.autor_nombre }), cuando(r.hora) + (a ? ' · pidió cambios' : '') + (vieja ? ' · de una versión anterior' : '') + (x && x.resuelto ? ' · resuelto' : '')),
+        r.diapositiva ? nodo('span', { class: 'websl', text: 'Diapositiva ' + r.diapositiva }) : null,
+        nodo('p', { text: x ? x.texto : a.motivo }),
+        x && !x.de_kevin && !x.resuelto ? nodo('button', { type: 'button', class: 'lnk webres', text: 'Marcar como resuelto', onclick: e => resolver(x, e.currentTarget) }) : null);
+    }));
+    const ta = nodo('textarea', { class: 'webta', rows: '2', placeholder: 'Responder al cliente…', 'aria-label': 'Responder al cliente', maxlength: '2000' });
+    ta.value = borradores.get(pid) || '';
+    const env = nodo('button', { type: 'button', class: 'btn2 webenv', text: 'Responder', disabled: !ta.value.trim() });
+    const err = nodo('p', { class: 'ferr', hidden: true });
+    ta.addEventListener('input', () => { borradores.set(pid, ta.value); env.disabled = !ta.value.trim(); });
+    ta.addEventListener('focus', () => { foco = pid; });
+    ta.addEventListener('blur', e => { if (e.relatedTarget) foco = null; });
+    env.addEventListener('click', async () => {
+      const t = ta.value.trim(); if (!t || !serv) return; env.disabled = true; err.hidden = true;
+      try {
+        await sb().insertar('comentarios', [{ cliente_id: B.client, pid, version: serv.version, texto: t }]);
+        borradores.delete(pid); foco = null; await leerConversacion(false);
+      } catch (e) { err.textContent = 'No se pudo enviar: ' + (e.message || e); err.hidden = false; env.disabled = false; }
+    });
+    const estado = ult ? nodo('p', { class: 'webp' }, nodo('b', { text: ult.autor_nombre }), ' ' + ({ aprobada: 'la aprobó', cambios: 'pidió cambios', retirada: 'retiró su decisión' }[ult.decision]) + ' · ' + cuando(ult.hora) + (ult.version !== vAhora ? ' · era una versión anterior' : '')) : null;
+    // sin conversación, una línea: el cuadro de escribir sale al pedirlo (o si ya había un borrador)
+    const abierto = items.length || ult || ta.value || abiertos.has(pid);
+    if (!abierto) {
+      sec.classList.add('vacia');
+      sec.replaceChildren(nodo('h4', { class: 'webh' }, 'Del cliente', nodo('span', { class: 'webq', text: 'Aún no ha dicho nada' })),
+        serv ? nodo('button', { type: 'button', class: 'lnk webabrir', text: 'Escribir al cliente', onclick: () => { abiertos.add(pid); foco = pid; pintarDetalle(d); } }) : null);
+      return;
+    }
+    sec.classList.remove('vacia');
+    sec.replaceChildren(nodo('h4', { class: 'webh' }, 'Del cliente', sinL ? nodo('span', { class: 'webn', text: sinL === 1 ? '1 nueva' : sinL + ' nuevas' }) : null), estado,
+      items.length ? lista : null,
+      serv ? nodo('div', { class: 'webesc' }, ta, env) : nodo('p', { class: 'webp', text: 'Envía esta publicación a la web para poder contestar aquí.' }), err);
+    if (foco === pid) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    const ult2 = coms.reduce((m, x) => (x.hora > m ? x.hora : m), '');
+    if (ult2 && ult2 > lsG('mesa-web-leido:' + pid)) { lsS('mesa-web-leido:' + pid, ult2); setTimeout(() => X.renderFeed && X.renderFeed(), 0); }
+  }
+  async function resolver(x, b) {
+    b.disabled = true;
+    try { await sb().actualizar(`comentarios?id=eq.${encodeURIComponent(x.id)}`, { resuelto: new Date().toISOString() }); await leerConversacion(false); }
+    catch (e) { b.disabled = false; toast('No se pudo marcar como resuelto: ' + (e.message || e), { error: true }); }
+  }
   let listoP = null;
   const listo = () => listoP || (listoP = new Promise((res, rej) => {
     const t0 = Date.now(), t = setInterval(() => {
-      if (window.Supa && I() && I().estilo && I().capFinal && I().mesOtros && I().cob) { clearInterval(t); res(); }
+      if (window.Supa && I() && I().estilo && I().capFinal && I().mesOtros && I().estadoWeb && I().cob) { clearInterval(t); res(); }
       else if (Date.now() - t0 > 30000) { clearInterval(t); rej(new Error('mesa.js o supa.js sin cargar')); }
     }, 50);
   }));
-  let tic = 0;
+  let tic = 0, tic2 = 0;
   M.web = {
-    version: VERSION, barra, enviar, paquete, listo,
+    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
     entrar: () => dlgEntrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
-    repasar: () => { st.servidor = null; st.firma = ''; return repaso(); },
+    repasar: () => { st.servidor = null; st.firma = ''; st.extra = null; return repaso(true); },
     _sb: () => sb(),
-    _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(tic); clearTimeout(repasoT); },
+    _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(tic); clearInterval(tic2); clearTimeout(repasoT); },
   };
   listo().then(() => {
     on(document, 'click', alClic, true);
     on(document, 'submit', alEnviarForm, true);
-    on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; pedirRepaso(); } });
+    on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; pedirRepaso(); leerConversacion().catch(() => null); } });
     I().estilo('mesa-web-css', ESTILO);
     // Cada 3 s con la pestaña a la vista: si el tablero cambió, se vuelve a contar (solo huellas, sin imágenes).
     tic = setInterval(() => { if (!document.hidden && sb() && I().S) repaso().catch(() => { /* st.error */ }); }, 3000);
+    tic2 = setInterval(() => { if (!document.hidden && sb() && I().S) leerConversacion().catch(() => { /* el siguiente */ }); }, 120000);
     I().renderBar(); pedirRepaso();
   }).catch(() => { (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'fallo'; });
-  const ESTILO = `#mesa .webbtn{white-space:nowrap}
-#mesa .webbtn.hay{background:var(--acc-soft);color:var(--acc-ink);border-color:transparent}
-#mesa .webbtn.mal{color:var(--red)}
-#mesa .webp{margin:0 0 12px;color:var(--ink-2);font-size:13px;line-height:1.45}
-#mesa .webl{margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.45;color:var(--ink-2)}`;
+  const ESTILO = `#mesa .webbtn{white-space:nowrap;border-color:var(--line);color:var(--ink);font-weight:600}
+#mesa.client .webbtn,#mesa.client .webmk,#mesa.client .webdel{display:none}
+#mesa .mchip.webbtn.hay{background:var(--acc-soft);color:var(--acc-ink);border-color:transparent}
+#mesa .mchip.webbtn.hay:hover{background:color-mix(in srgb,var(--acc-soft),var(--acc) 12%);border-color:transparent;color:var(--acc-ink)}
+#mesa .mchip.webbtn.mal,#mesa .mchip.webbtn.mal:hover{color:var(--red)}
+#mesa .mchip.webbtn.ghost{border-color:transparent;color:var(--ink-2);font-weight:400}
+#mesa span.webbtn.quieto{pointer-events:none;border-color:transparent;background:var(--bg-2);color:var(--ink-2);font-weight:400;font-variant-numeric:tabular-nums}
+@media (max-width:720px){#mesa .webbtn .lg{display:none}}
+#mesa .detail[data-dlg="web"]{align-items:flex-start;padding-top:clamp(16px,10vh,96px)}
+#mesa #web-cod{max-width:14ch;font-variant-numeric:tabular-nums;letter-spacing:.2em}
+#mesa .webp{margin:0 0 12px;color:var(--mute);font-size:13px;line-height:1.5}
+#mesa .dlg .webl{margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.45;color:var(--ink-2)}
+#mesa .webdel{margin:0 0 14px;padding:12px 14px;border-radius:12px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
+#mesa .webdel.vacia{flex-direction:row;align-items:center;justify-content:space-between;padding:8px 14px;gap:12px}
+#mesa .webdel.vacia .webh{font-weight:600}#mesa .webdel.vacia .webq{font-weight:400}
+#mesa .webabrir{font-size:12px;min-height:32px}
+#mesa .webh{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+#mesa .webn{font-size:11px;font-weight:600;background:var(--acc);color:var(--on-acc);border-radius:999px;padding:1px 7px}
+#mesa .webdel .webp{margin:0}
+#mesa .webdel .webl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+#mesa .webcm{display:flex;flex-direction:column;gap:2px}
+#mesa .webcm.kv{padding-left:10px;border-left:2px solid var(--line)}
+#mesa .webq{font-size:12px;color:var(--mute)}#mesa .webq b{color:var(--ink);font-weight:600}
+#mesa .webcm p{margin:0;font-size:13px;line-height:1.45;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+#mesa .websl{align-self:flex-start;font-size:11px;background:var(--bg-2);border-radius:999px;padding:1px 8px;color:var(--ink-2)}
+#mesa .webres{align-self:flex-start;font-size:12px}
+#mesa .webesc{display:flex;gap:8px;align-items:flex-end}
+#mesa .webta{flex:1;min-height:52px;resize:vertical;border:1px solid var(--line-strong);border-radius:8px;background:var(--panel-2);color:var(--ink);padding:8px 10px;font:inherit;font-size:13px;line-height:1.4}
+#mesa .webmk{position:absolute;right:6px;bottom:6px;z-index:2;display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 7px 0 5px;border-radius:999px;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+#mesa .webmk svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}`;
   (window.MESA_CARGA = window.MESA_CARGA || {}).web = 'ok';
 })();

@@ -16772,10 +16772,10 @@
   const WB_URL = 'https://pruebasfalsas.supabase.co';
   // Un servidor de mentira en memoria: lo que la Mesa envía queda en `db` y `archivos`; `fallar` simula la red caída.
   function wbServidor(f0) {
-    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [] }, archivos = new Map(), pedidos = [];
+    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [] }, archivos = new Map(), pedidos = [];
     const sv = { db, archivos, pedidos, fallar: false };
     const resp = (st, j) => new W.Response(j === undefined || st === 204 ? null : JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
-    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'] };
+    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'] };
     const lista = v => v.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, ''));
     const pasa = filtro => r => filtro.every(([k, v]) => {
       const i = v.indexOf('.'), op = v.slice(0, i), val = v.slice(i + 1);
@@ -16787,6 +16787,7 @@
     sv.fetch = async (url, op = {}) => {
       const u = new URL(String(url), location.href); if (u.origin !== WB_URL) return f0(url, op);
       if (sv.fallar) throw new TypeError('sin red (prueba)');
+      if (sv.lento) await new Promise(r => setTimeout(r, sv.lento));
       const met = (op.method || 'GET').toUpperCase(), ruta = u.pathname;
       let cuerpo = op.body; if (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) { /* tal cual */ } }
       pedidos.push({ met, ruta: ruta + u.search, cuerpo: cuerpo instanceof W.Blob ? '[archivo]' : cuerpo });
@@ -16795,10 +16796,12 @@
       if (m) { const pre = m[1] + '/' + cuerpo.prefix + '/'; return resp(200, [...archivos.keys()].filter(k => k.startsWith(pre)).map(k => ({ id: k, name: k.slice(pre.length) }))); }
       m = ruta.match(/^\/storage\/v1\/object\/(\w+)\/(.+)$/);
       if (m && met === 'POST') { archivos.set(m[1] + '/' + m[2], cuerpo); return resp(200, { Key: m[2] }); }
+      m = ruta.match(/^\/storage\/v1\/object\/(\w+)$/);
+      if (m && met === 'DELETE') { (cuerpo.prefixes || []).forEach(r => archivos.delete(m[1] + '/' + r)); return resp(200, []); }
       m = ruta.match(/^\/rest\/v1\/(\w+)$/); if (!m || !db[m[1]]) return resp(404, { message: 'ruta' });
       const t = m[1], f = pasa([...u.searchParams].filter(([k]) => !['select', 'on_conflict'].includes(k)));
       if (met === 'GET') return resp(200, db[t].filter(f));
-      if (met === 'POST') { for (const x of [].concat(cuerpo)) { const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
+      if (met === 'POST') { for (const x0 of [].concat(cuerpo)) { const x = t === 'comentarios' && !x0.id ? { id: 'k' + db.comentarios.length, hora: new Date().toISOString(), de_kevin: true, autor_nombre: 'Kevin', resuelto: null, diapositiva: null, ...x0 } : x0; const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
       if (met === 'PATCH') { db[t].filter(f).forEach(r => Object.assign(r, cuerpo)); return resp(204); }
       if (met === 'DELETE') { db[t] = db[t].filter(r => !f(r)); return resp(204); }
       return resp(405, {});
@@ -16900,6 +16903,104 @@
       await espera(50);
       ok(!qa('.webbtn').some(b => /Enviando/.test(b.textContent)), 'la barra se quedó en «Enviando…»');
       igual(sv.db.publicaciones.length, 0, 'llegó algo a medias');
+    });
+  });
+
+  prueba('WB6', 'Enviar va al tablero con el que se pulsó (revisión del lote 2): si se abre otro a mitad, se para, lo dice y no manda nada del otro', async () => {
+    await tablero([pub(1), pub(2)]);
+    await abrirMes([pub(9)], MES, CLIENTE2, NOMBRE2); await M.open(`${CLIENTE}-${MES}`);
+    await poner('r1', [await foto('wb6a.jpg', 3000, 2000)]); await poner('r2', [await foto('wb6b.jpg', 3000, 2000)]);
+    await conWeb(async sv => {
+      wbSesion(); sv.lento = 250;
+      const pr = M.web.enviar();
+      let r;
+      try { await M.open(`${CLIENTE2}-${MES}`); ok(M._in.S.client === CLIENTE2, 'no se abrió el otro tablero'); }
+      finally { r = await pr; }
+      ok(r.error && /cambiaste de tablero/.test(r.error), 'siguió enviando con otro tablero abierto: ' + json(r));
+      igual(sv.db.publicaciones.length, 0, 'llegaron publicaciones a medias');
+      ok(!json(sv.db).includes(CLIENTE2), 'llegó algo del otro tablero');
+      await espera(50); ok(!qa('.webbtn').some(b => /Enviando/.test(b.textContent)), 'la barra se quedó en «Enviando…»');
+    });
+  });
+
+  prueba('WB7', 'Cobros a la web (revisión del lote 2): solo los que ve el cliente (un borrador sin emitir no), cada PDF nombrado por su huella (uno cambiado es otro archivo y el viejo se quita); sesiones, porqué y cobros cuentan como cambio', async () => {
+    await tablero([pub(1)]);
+    let r = await M.cobros.cargar([{ id: 'wb-c1', cliente: CLIENTE, periodo: '2026-09', importe: 450, factura: 'W-1', emitida: '2026-09-05', vence: '2026-09-20' },
+      { id: 'wb-c2', cliente: CLIENTE, periodo: '2026-10', importe: 450 }]);
+    ok(r.ok, 'no se cargaron los cobros: ' + json(r));
+    const pa = pdfDe('primera', 2000), pb = pdfDe('segunda', 2100);
+    ok((await M.cobros.adjuntar('wb-c1', pa, 'W-1.pdf')).ok, 'no se adjuntó el PDF');
+    await conWeb(async sv => {
+      wbSesion();
+      r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
+      igual(sv.db.pagos.map(x => x.id).join(','), 'wb-c1', 'cobros enviados (el borrador sin emitir no)');
+      const ha = await shaDe(pa);
+      igual(sv.db.pagos[0].pdf, `${CLIENTE}/${ha}.pdf`, 'el PDF no va nombrado por su huella');
+      ok(sv.archivos.has(`facturas/${CLIENTE}/${ha}.pdf`), 'el PDF no está en su carpeta');
+      await M.web.repasar(); igual(M.web.estado().cambios, 0, 'tras enviar');
+      ok((await M.cobros.adjuntar('wb-c1', pb, 'W-1.pdf')).ok, 'no se cambió el PDF');
+      await M.web.repasar(); igual(M.web.estado().cambios, 1, 'un PDF cambiado no contó como cambio');
+      r = await M.web.enviar(); ok(r.ok, 'no se reenvió: ' + json(r));
+      const hb = await shaDe(pb);
+      igual(sv.db.pagos[0].pdf, `${CLIENTE}/${hb}.pdf`, 'el PDF nuevo no llegó con su nombre');
+      ok(sv.archivos.has(`facturas/${CLIENTE}/${hb}.pdf`) && !sv.archivos.has(`facturas/${CLIENTE}/${ha}.pdf`), 'el PDF viejo sigue en el almacén');
+    });
+  });
+
+  prueba('WB8', 'Lo que ya no está en el tablero deja de verse, salvo lo de otro tablero del mismo cliente que comparte mes (revisión del lote 2)', async () => {
+    await tablero([pub(1), pub(2)]);
+    await abrirMes([pub(7, 'Foto', 9)], '2026-12');   // otro tablero del mismo cliente con una publicación del mes de este (un ciclo)
+    await M.open(`${CLIENTE}-${MES}`);
+    const pid = async id => { const h = [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', new TextEncoder().encode(CLIENTE + '|' + id)))]; return h.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16); };
+    await conWeb(async sv => {
+      wbSesion();
+      ok((await M.web.enviar()).ok, 'no se envió');
+      const base = { cliente_id: CLIENTE, mes: MES, orden: 9, tipo: 'foto', nombre: 'x', fecha: null, sin_hora: false, caption: '', estado: 'preparando', visible: true, imagenes: [], version: 'v' };
+      const otra = await pid('r7');
+      sv.db.publicaciones.push({ ...base, pid: otra }, { ...base, pid: 'ffffffffffffffff' });
+      await M.web.repasar();
+      igual(M.web.estado().cambios, 1, 'contó la del otro tablero o no contó la que sobra');
+      const r = await M.web.enviar(); ok(r.ok && r.ocultas === 1, 'enviar: ' + json(r));
+      ok(sv.db.publicaciones.find(x => x.pid === 'ffffffffffffffff').visible === false, 'la que ya no está en ningún tablero sigue a la vista');
+      ok(sv.db.publicaciones.find(x => x.pid === otra).visible === true, 'escondió la del otro tablero');
+    });
+  });
+
+  prueba('WB9', 'Lo que decide el cliente en su web (D-244): su aprobación pone Aprobado en la Mesa sin ser un paso de ⌘Z; una de otra versión no; su comentario sale en la ventana como texto, con la marca en la casilla hasta leerlo; Kevin contesta', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('wb9.jpg')]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'uno' }, { tone: 'b', text: 'dos' }, { tone: 'c', text: 'tres' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    M.setEstado('r1', 'aprobar'); M.setEstado('r2', 'aprobar');
+    await conWeb(async sv => {
+      wbSesion();
+      const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+      const p1 = sv.db.publicaciones.find(x => x.caption === 'uno'), p2 = sv.db.publicaciones.find(x => x !== p1);
+      const hora = new Date(Date.now() + 1000).toISOString(), XSS = 'Me gusta <img src=x onerror="window.__wbxss=1"> así';
+      sv.db.aprobaciones.push({ id: 'a1', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, decision: 'aprobada', motivo: null, diapositiva: null, autor_nombre: 'Ana', hora },
+        { id: 'a2', cliente_id: CLIENTE, pid: p2.pid, version: 'otra-version', decision: 'aprobada', motivo: null, diapositiva: null, autor_nombre: 'Ana', hora });
+      sv.db.comentarios.push({ id: 'c1', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: XSS, autor_nombre: 'Ana', de_kevin: false, hora, resuelto: null });
+      const e2 = M._in.estadoDe(slot('r2'));
+      await M.web.leer(); await espera(60);
+      igual(M._in.estadoDe(slot('r1')), 'aprobado', 'la aprobación del cliente');
+      igual(M._in.estadoDe(slot('r2')), e2, 'una aprobación de otra versión cambió el estado');
+      await poner('r2', [await foto('wb9b.jpg')]);   // un paso de Kevin después de la decisión del cliente
+      ok(q('.cell[data-slot="r1"] .webmk'), 'la casilla no lleva la marca del comentario sin leer');
+      M._test.undo(); await espera(60);
+      igual(M._in.estadoDe(slot('r1')), 'aprobado', '⌘Z deshizo la decisión del cliente');
+      M._in.openDetail('r1'); await espera(80);
+      const sec = q('.detail .webdel');
+      ok(sec && sec.textContent.includes('<img src=x') && !sec.querySelector('img') && !W.__wbxss, 'el comentario no salió como texto: ' + (sec ? sec.innerHTML.slice(0, 200) : 'sin sección'));
+      const ta = sec.querySelector('.webta'); ta.value = 'Gracias, Ana'; ta.dispatchEvent(new W.Event('input'));
+      sec.querySelector('.webenv').click(); await hasta(() => sv.db.comentarios.some(x => x.de_kevin && x.texto === 'Gracias, Ana'), 3000, 'la respuesta');
+      ok(sv.db.comentarios.find(x => x.de_kevin).version === p1.version, 'la respuesta no va con la versión del servidor');
+      M._in.closeDetail(); await espera(80);
+      ok(!q('.cell[data-slot="r1"] .webmk'), 'tras leerlo, la casilla sigue con la marca');
+      ok(sv.db.lecturas.length === 1, 'sin su marca de leído en el servidor');
+      await vistaCliente(true); M._in.render(); await espera(60);
+      igual(M.web.marca(slot('r1')), '', 'en «Vista cliente», la marca');
+      M._in.openDetail('r1'); await espera(80); ok(!q('.detail .webdel'), 'en «Vista cliente», la conversación');
+      M._in.closeDetail(); await vistaCliente(false);
     });
   });
 

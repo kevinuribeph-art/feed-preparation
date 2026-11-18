@@ -127,7 +127,7 @@
   const WEB_REAL = { url: 'https://ipqeywhhuncpnqkvfxpn.supabase.co', publica: 'sb_publishable_Gqu_MN2jOnjKLp9aYkTjyg_hqWBqZ2E' };
   const WEB_LOCAL = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
   function proyectoWeb() {
-    if (WEB_LOCAL) { try { const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'); if (p && p.url && p.publica) return p; } catch (e) { /* sin almacenamiento */ } return null; }
+    if (WEB_LOCAL) { try { const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'); if (p && p.url && p.publica && p.url.replace(/\/$/, '') !== WEB_REAL.url) return p; } catch (e) { /* sin almacenamiento */ } return null; }
     return WEB_REAL.url && WEB_REAL.publica ? WEB_REAL : null;
   }
   let SUPA = null;
@@ -166,6 +166,7 @@
     return claiming;
   }
   async function lockHere() {
+    if (locked && held) { held(); held = null; }   // paused already (the cloud, a new version): the other tab needn't wait 4 s
     if (locked || locking) return;
     locking = true;
     try {
@@ -1057,8 +1058,8 @@
   const esRefNube = x => !!x && typeof x === 'object' && !Array.isArray(x) && typeof x.__blob === 'string';
   const pendienteRec = r => !!r && (esRefNube(r.blob) || esRefNube(r.thumb) || esRefNube(r.mini));
   let HUECO_B = null, HUECO_U = '';
-  function hueco() {                   // a flat paper-tone image of 4 × 5, the same for all (never revoked)
-    if (!HUECO_B) { const b = atob('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAFCAIAAADtz9qMAAAAEUlEQVR42mO4dvYQHDGQwQEAFp0v5QxEPfgAAAAASUVORK5CYII='); HUECO_B = new Blob([Uint8Array.from(b, c => c.charCodeAt(0))], { type: 'image/png' }); HUECO_U = URL.createObjectURL(HUECO_B); }
+  function hueco() {                   // a flat, half-transparent warm grey of 4 × 5 (reads on light and dark), the same for all (never revoked)
+    if (!HUECO_B) { const b = atob('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAFCAYAAABirU3bAAAAEklEQVR42mPoaShKQMYMVBAAADl/JVnImamVAAAAAElFTkSuQmCC'); HUECO_B = new Blob([Uint8Array.from(b, c => c.charCodeAt(0))], { type: 'image/png' }); HUECO_U = URL.createObjectURL(HUECO_B); }
     return HUECO_B;
   }
   function metaHueco(rec) {
@@ -2219,7 +2220,7 @@
   function delList(fn) { let l = []; try { l = JSON.parse(lsGet('mesa-del') || '[]'); } catch (e) { /* */ } if (!fn) return l; l = fn(l); lsSet('mesa-del', JSON.stringify(l)); return l; }
   // the automatic cleanups (the designs nobody uses, the list of deletes, the loose photos of the sessions): with the cloud on, only
   // once all of the server's data came down in this session; never with a download cut short (D-256)
-  const limpiezasOk = () => !NUBE.activa || NUBE.alDia;
+  const limpiezasOk = () => (!NUBE.activa && lsGet('mesa-nube') !== '1') || NUBE.alDia;   // activated here but nube.js didn't load: neither
   async function delSweep() {
     if (importing || !limpiezasOk()) return;   // a photo on its way to the tray is on the list until it gets there
     const l = delList(); if (!l.length) return;
@@ -2903,6 +2904,7 @@
     ponerTema(temaOscuro());
     mainMode = null;
     wire();
+    pintarPausaNube();                   // the cloud's pause, from the first frame (D-254)
     revisarPersistencia(true);           // the notice of storage that isn't kept (D-249)
     const q = toastQ.filter(t => Date.now() - t.at < 15000); toastQ = [];
     if (q.length) setTimeout(() => q.forEach(t => toast(t.msg, t.opt)), 0);
@@ -6118,7 +6120,7 @@
     await db().catch(() => { /* the calls below say why */ });   // first: an older tab is cut off before it is asked to save (claim)
     await claim();
     if (NUBE.activa) await nubeAbrir();   // the cloud: first down, then drawn (D-253)
-    else if (lsGet('mesa-nube') === '1') toast('La nube está activada en este navegador pero no ha cargado: esta Mesa no sube ni baja nada. Recarga la página.', { error: true, ms: 12000 });
+    else if (lsGet('mesa-nube') === '1') toast('La nube está activada en este navegador pero no puede funcionar (no ha cargado, o falta el proyecto): esta Mesa no sube ni baja nada. Recarga la página.', { error: true, ms: 12000 });
     await migrateLegacy();
     await loadClients();
     const last = lsGet('mesa-last');
@@ -6163,11 +6165,17 @@
   async function pausaNube(html) {
     if (M.diseno && M.diseno.volcar) { try { M.diseno.volcar(); } catch (e) { /* */ } }
     if (!locked) { try { await flushNow(); } catch (e) { /* */ } }
-    locked = true; NUBE.pausa = true; NUBE.alDia = false;   // paused: nothing writes, and no cleanup runs
-    if (!shellReady()) return;
+    locked = true; NUBE.pausa = true; NUBE.alDia = false; NUBE.pausaHtml = html || '';   // paused: nothing writes, and no cleanup runs
+    if (!shellReady()) return;   // buildShell paints it, at once (nothing can be written in between)
     root.querySelectorAll('.lock').forEach(x => x.remove());
     if (!html) return;
-    const o = document.createElement('div'); o.className = 'lock nubelock'; o.innerHTML = html; root.append(o);
+    pintarPausaNube();
+  }
+  function pintarPausaNube() {
+    if (!NUBE.pausa || !NUBE.pausaHtml || !shellReady()) return;
+    root.querySelectorAll('.nubelock').forEach(x => x.remove());
+    const o = document.createElement('div'); o.className = 'lock nubelock'; o.innerHTML = NUBE.pausaHtml; root.append(o);
+    const b = o.querySelector('.btn'); if (b) b.focus({ preventScroll: true });
   }
 
   // ---------- past posts from Notion (only when the previous month isn't in the mesa) ----------
@@ -7559,6 +7567,8 @@
       }));
       return out;
     },
+    conoce: a => ALMACENES.includes(a),
+    cuantosSinSubir: () => txSinDiario(NUBE_ST, 'readonly', s => s.count(nubeTodas('x'))),
     claves: a => ALMACENES.includes(a) ? txSinDiario(a, 'readonly', s => s.getAllKeys()) : Promise.resolve([]),
     conocidas: async a => { const out = {}; await txSinDiario(NUBE_ST, 'readonly', s => { const r = s.openCursor(nubeTodas('v', a)); r.onsuccess = () => { const c = r.result; if (!c) return; out[c.key[2]] = c.value; c.continue(); }; }); return out; },
     aplicar: async ({ escribir = [], saltar = [], aparte = [], cursor, epoca }) => {
@@ -7657,14 +7667,14 @@
     estadoWeb, capFinal, cropSig, mesOtros   // the client's decisions (D-244); what the client's web gets: the chosen caption, the crops' signature, no other client (web.js, D-241, mesa ≥ 4.28)
   };
   M._test = {
-    mesBorrarTodo: async () => { mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
-    cobBorrarTodo: async () => { cobGen++; await tx(['cobros', 'cfacturas'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); }); COB = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices and fees go (D-232)
+    mesBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); mesGen++; await tx('meses', 'readwrite', st => st.clear()); MES = new Map(); mesAvisar(false); },   // the battery's months (D-238)
+    cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; await tx(['cobros', 'cfacturas'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); }); COB = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices and fees go (D-232)
     reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
     versionNueva, claim, nubeAbrir,
     perBorrar: async () => { for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)
     setPersona: (slotId, campo, usuario, poner = true) => setPersona(slotId, campo, usuario, poner),
-    ubBorrar: async () => { await tx('ubicaciones', 'readwrite', st => st.clear()); for (const c of CL) if (c.ubicaciones) await editarCliente(c.id, o => { delete o.ubicaciones; delete o.ubicacionesAt; return o; }); await loadClients(); },   // the battery's places go (D-124)
+    ubBorrar: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); await tx('ubicaciones', 'readwrite', st => st.clear()); for (const c of CL) if (c.ubicaciones) await editarCliente(c.id, o => { delete o.ubicaciones; delete o.ubicacionesAt; return o; }); await loadClients(); },   // the battery's places go (D-124)
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
     setFmt: (slotId, fmt) => { cur = { slot: slotId, idx: 0 }; setFmt(slotId, fmt); },
     postRect: (fid, slotId) => postRect(fid, slot(slotId)), gridRect: (fid, slotId) => gridRect(fid, slot(slotId)),

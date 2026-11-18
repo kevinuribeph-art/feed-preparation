@@ -674,7 +674,10 @@ await grupo('NS5 sin red y cola', async () => {
     const r = await W.abrir(A2);
     ok(r && r.modo === 'local' && r.motivo === 'sin_conexion' && !A2.cli.llamadas.some(l => l.fn === 'mesa_turno_reclamar'), 'NS5.5 abrir sin red abre en «local» y no reclama', { r, A: resumen(A2) });
     A2.alm.escribirLocal('boards', 'l1', { n: 1 }); A2.alm.escribirLocal('boards', 'l2', { n: 2 });
-    await W.vivir(5, A2); A2.cli.red = false; await W.vivir(90, A2);
+    await W.vivir(5, A2);
+    // abierta sin red, la cola se cuenta igual (revisión del lote 3: decía «0 cambios en cola» toda la sesión)
+    ok(A2.n.estado().cola === 2 && A2.n.estado().fase === 'sin_conexion', 'NS5.5b sin turno ni red, el estado dice los cambios en cola', A2.n.estado());
+    A2.cli.red = false; await W.vivir(90, A2);
     ok(sv.valor('boards', 'l1')?.n === 1 && sv.valor('boards', 'l2')?.n === 2 && (await A2.alm.contarDiario()) === 0 && S.turno.numero === numero && S.turno.dispositivo === DA && !(await huboFase(A2, 'recargar')),
       'NS5.6 al volver la red, «tuyo» con el mismo número: sigue con el turno y sube', { A: resumen(A2), turno: S.turno });
   }

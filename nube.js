@@ -12,7 +12,7 @@
   const VERSION = '1.0';
 
   // ================= el núcleo =================
-  const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
+  const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
   const TIEMPOS = Object.freeze({ latido: 5000, calma: 3000, pideViva: 60, espera: 20000, primera: 4000, actividad: 60000, pedirCada: 3000,
     reintento: Object.freeze([5000, 10000, 20000, 40000, 60000]) });
   const AVISA = ['ajeno', 'ajeno_tope', 'dispositivo_nuevo', 'borrado_masivo'];
@@ -43,9 +43,9 @@
   // El valor tal como sube: cada Blob es una referencia «pendiente» (el lote 4 la llenará); lo que JSON cambiaría en silencio
   // (Map, Set, Date, ArrayBuffer…) es un error a la vista, nunca otra cosa subida.
   async function serializar(valor, huella) {
-    const h = huella || huellaPorOmision;
+    const h = huella || huellaPorOmision, blobs = [];   // el recorrido es síncrono (no cede el hilo por cada nodo); las huellas, después
     let sep = 0;
-    async function ir(x, ruta) {
+    function ir(x, ruta) {
       if (x === null) return null;
       const t = typeof x;
       if (t === 'string') return sanear(x);
@@ -54,26 +54,28 @@
       if (t === 'undefined') return undefined;
       if (t !== 'object') throw forma(`${t} en ${ruta}`);
       if (esBlob(x)) {
-        const r = { __blob: 'pendiente', sha256: await h(x, ruta), tam: x.size, tipo: sanear(x.type || '') };
+        const r = { __blob: 'pendiente', sha256: '', tam: x.size, tipo: sanear(x.type || '') };
         if (typeof x.name === 'string' && typeof x.lastModified === 'number') { r.nombre = sanear(x.name); r.fecha = x.lastModified; }
         sep += r.nombre != null ? 11 : 7;
+        blobs.push([r, x, ruta]);
         return r;
       }
       if (Array.isArray(x)) {
-        const o = [];
-        for (let i = 0; i < x.length; i++) { const v = await ir(x[i], ruta + '[' + i + ']'); o.push(v === undefined ? null : v); }
+        const o = new Array(x.length);
+        for (let i = 0; i < x.length; i++) { const v = ir(x[i], ruta + '[' + i + ']'); o[i] = v === undefined ? null : v; }
         if (o.length > 1) sep += o.length - 1;
         return o;
       }
       if (!plano(x)) throw forma(`${deQue(x)} en ${ruta}`);
       const o = {}; let n = 0;
-      for (const k of Object.keys(x)) { const v = await ir(x[k], ruta + '.' + k); if (v === undefined) continue; o[sanear(k)] = v; n++; }
+      for (const k of Object.keys(x)) { const v = ir(x[k], ruta + '.' + k); if (v === undefined) continue; o[sanear(k)] = v; n++; }
       if (n) sep += n + n - 1;   // un «:» por clave y una «,» entre ellas
       return o;
     }
-    const v = await ir(valor, 'el valor');
-    const bytes = bytesDe(JSON.stringify(v === undefined ? null : v));
-    return { valor: v === undefined ? null : v, bytes, jsonb: bytes + sep };
+    let v = ir(valor, 'el valor'); if (v === undefined) v = null;
+    for (const [r, b, ruta] of blobs) r.sha256 = await h(b, ruta);
+    const bytes = bytesDe(JSON.stringify(v));
+    return { valor: v, bytes, jsonb: bytes + sep };
   }
 
   // Lo bajado, salvo cada Blob de aquí donde lo bajado trae su referencia (mismo tamaño y tipo): las fotos solo están aquí.
@@ -107,6 +109,7 @@
     const ka = Object.keys(a).filter(k => a[k] !== undefined), kb = Object.keys(b).filter(k => b[k] !== undefined);
     return ka.length === kb.length && ka.every(k => Object.prototype.hasOwnProperty.call(b, k) && igual(a[k], b[k]));
   }
+  const conBlob = x => { if (esBlob(x)) return true; if (!x || typeof x !== 'object') return false; return Array.isArray(x) ? x.some(conBlob) : Object.keys(x).some(k => conBlob(x[k])); };
   const vNum = s => String(s || '0.0').split('.').map(n => parseInt(n, 10) || 0);
   const masNueva = (min, app) => { const [a1, a2] = vNum(min), [b1, b2] = vNum(app); return a1 > b1 || (a1 === b1 && a2 > b2); };
   const esRed = e => !!e && (!e.status || e.codigo === 'red' || e.status >= 500 || e.status === 408 || e.status === 429);
@@ -115,7 +118,7 @@
   function crear(o) {
     const S = o.servidor, A = o.almacen, R = o.reloj, D = o.dispositivo, APP = o.app, E = o.efectos || {};
     const H0 = o.huella || huellaPorOmision, HC = new Map();   // huellas de esta sesión: a|k|ruta|tamaño|tipo
-    const huellaDe = (a, k) => (b, ruta) => { const c = a + '\u0001' + k + '\u0001' + ruta + '\u0001' + b.size + '\u0001' + b.type; if (!HC.has(c)) HC.set(c, H0(b)); return HC.get(c); };
+    const huellaDe = (a, k) => (b, ruta) => { const c = a + '\u0001' + k + '\u0001' + ruta + '\u0001' + b.size + '\u0001' + b.type + '\u0001' + (b.lastModified || ''); if (!HC.has(c)) HC.set(c, H0(b)); return HC.get(c); };
     const st = { fase: 'apagada', turno: null, cursor: 0, epoca: null, cola: 0, sinSubir: 0, tiene: null, error: '', alDia: false };
     let conTurno = false, modoLocal = false, parado = false, ocupado = false, cediendo = false, subiendo = null, bajado = false;
     let ultCambio = -Infinity, ultLatido = -Infinity, colaLatida = -1, ultActividad = -Infinity, proximo = 0, reint = 0, enVuelo = null, AV = [];
@@ -130,7 +133,8 @@
       p.catch(() => { /* lo dice quien gana */ });
       return Promise.race([p, R.esperar(Math.max(0, ms)).then(() => { throw { status: 0, codigo: 'red', message: 'el servidor no contesta a tiempo', red: true, tope: true }; })]);
     }
-    async function contarSinSubir() { try { st.sinSubir = (await A.sinSubir()).length; } catch (e) { /* */ } }
+    async function contarSinSubir() { try { st.sinSubir = A.cuantosSinSubir ? await A.cuantosSinSubir() : (await A.sinSubir()).length; } catch (e) { /* */ } }
+    async function contarCola() { try { st.cola = await A.contarDiario(); } catch (e) { /* */ } }
 
     // ---------- estados de los que no se sale solo ----------
     async function pausar(info, f = 'pausada') {
@@ -175,7 +179,7 @@
       parado = false; conTurno = false; modoLocal = false; bajado = false; st.alDia = false; st.error = '';
       fase('abriendo');
       const t0 = R.ahora(), m = await A.meta();
-      st.cursor = m.cursor || 0; st.epoca = m.epoca || null; await contarSinSubir();
+      st.cursor = m.cursor || 0; st.epoca = m.epoca || null; await contarSinSubir(); await contarCola();
       let r;
       try { r = await conTope(llamar('mesa_turno_ver', { dispositivo: D }), TIEMPOS.primera); }
       catch (e) { return abrirLocal(e); }
@@ -195,14 +199,15 @@
         }
         st.turno = c.turno; orden = c.orden || 0;
       } else return abrirPausada(r.tiene);
-      try { await bajarTodo(orden, t0, otraEpoca); }
-      catch (e) { return e && e.rechazo ? abrirRechazo(e.rechazo) : abrirLocal(e); }
+      try { await bajarTodo(orden, r.tuyo ? null : t0, otraEpoca); }   // ya suyo (p. ej. tras «Recarga»): la red contesta, sin el tope de 4 s
+      catch (e) { if (e && e.vieja) { await vieja(); return { modo: 'vieja' }; } return e && e.rechazo ? abrirRechazo(e.rechazo) : abrirLocal(e); }
       conTurno = true; st.alDia = true; st.tiene = null;
       await A.ponerMeta({ turno: st.turno });
       fase('guardado');
       return { modo: 'turno' };
     }
-    function abrirLocal(e) {
+    async function abrirLocal(e) {
+      await contarCola();
       if (sinSesionE(e)) { fase('sin_sesion'); return { modo: 'sin_sesion' }; }
       modoLocal = true; st.error = (e && e.message) || 'sin conexión'; otroIntento(); fase('sin_conexion');
       return { modo: 'local', motivo: 'sin_conexion' };
@@ -222,7 +227,7 @@
       fase('bajando');
       let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0;
       for (;;) {
-        const p = llamar('mesa_bajar', { desde, limite: 500 });
+        const p = llamar('mesa_bajar', { desde, limite: primera ? 50 : 500 });   // la primera, pequeña: llega antes del tope
         const r = t0 != null && primera ? await conTope(p, TIEMPOS.primera - (R.ahora() - t0)) : await p;
         if (!r || r.ok !== true) {
           if (r && r.error && r.error.codigo === 'cursor' && !otraEpoca) { await olvidar(); desde = 0; otraEpoca = true; continue; }
@@ -240,6 +245,7 @@
     }
     // Lo bajado gana siempre; lo de aquí que no estaba arriba (con su nota en el diario y otra versión arriba) queda aparte.
     async function aplicarPagina(filas, hasta, epoca) {
+      if (A.conoce && filas.some(f => !A.conoce(f.almacen))) throw { vieja: true };   // un almacén que esta Mesa no conoce: la escribió una más nueva
       const L = filas.length ? await A.leerVarios(filas.map(f => [f.almacen, f.clave])) : [];
       const escribir = [], saltar = [], aparte = [];
       filas.forEach((f, i) => {
@@ -247,8 +253,10 @@
         if (conocida && f.version <= conocida.v) return;   // ya lo tiene (su propia escritura, o una página repetida)
         const mismo = f.borrado ? local === undefined : igual(local, f.valor);
         if (mismo) { saltar.push(ver); return; }
-        // lo escribió este mismo navegador y su respuesta se perdió: lo de aquí es lo último (va encima con esta versión)
-        if (pendiente && f.dispositivo === D) { saltar.push(ver); return; }
+        // lo escribió este mismo navegador y su respuesta se perdió (una versión justo sobre la que sabía): lo de aquí es lo último
+        if (pendiente && conocida && f.dispositivo === D && f.version === conocida.v + 1) { saltar.push(ver); return; }
+        // una lápida sobre fotos que solo están aquí (hasta el lote 4, arriba no hay bytes): no se borran, se apartan para Kevin
+        if (f.borrado && conBlob(local)) { aparte.push({ a: f.almacen, k: f.clave, valor: local, borrado: false, motivo: 'borrado_arriba', ficha: pendiente ? pendiente.v : null, ultima: f.version, de: f.dispositivo, turnoDe: f.turno }); saltar.push(ver); return; }
         if (pendiente) aparte.push({ a: f.almacen, k: f.clave, valor: local, borrado: local === undefined, motivo: 'bajada', ficha: pendiente.v, ultima: f.version, de: f.dispositivo, turnoDe: f.turno });
         escribir.push({ ...ver, valor: f.borrado ? null : unir(local, f.valor) });
       });
@@ -261,7 +269,11 @@
       if (parado || ocupado) return;
       ocupado = true;
       try {
-        if (modoLocal) { if (R.ahora() >= proximo) await reconectar(); return; }
+        if (modoLocal || st.fase === 'sin_sesion' || st.fase === 'recargar' || st.fase === 'pausada') {   // sin turno: la cola a la vista, también
+          const c0 = st.cola; await contarCola(); if (st.cola !== c0) avisar();
+          if (modoLocal && R.ahora() >= proximo) await reconectar();
+          return;
+        }
         if (!conTurno || cediendo) return;
         const cola = await A.contarDiario(); st.cola = cola;
         if (R.ahora() - ultLatido >= TIEMPOS.latido || cola !== colaLatida) {
@@ -270,7 +282,7 @@
         }
         if ((cola > 0 || enVuelo) && R.ahora() - ultCambio >= TIEMPOS.calma && R.ahora() >= proximo) await subir();
         if (conTurno && R.ahora() - ultActividad >= TIEMPOS.actividad) await leerActividad();
-        if (conTurno && !subiendo) { st.cola = await A.contarDiario(); fase(st.cola ? (st.fase === 'sin_conexion' ? 'sin_conexion' : 'guardado') : 'guardado'); }
+        if (conTurno && !subiendo && st.fase !== 'sin_conexion' && st.fase !== 'guardado') fase('guardado');
       } catch (e) { st.error = String((e && e.message) || e); avisar(); }
       finally { ocupado = false; }
     }
@@ -299,7 +311,7 @@
         st.turno = r.turno;
         if (!bajado) {
           let n;
-          try { n = await bajarTodo(0, null); } catch (e) { return e && e.rechazo ? trasRechazo(e.rechazo) : sinRed(e); }
+          try { n = await bajarTodo(0, null); } catch (e) { if (e && e.vieja) return vieja(); return e && e.rechazo ? trasRechazo(e.rechazo) : sinRed(e); }
           if (n) { modoLocal = false; fase('recargar'); return; }
         }
         modoLocal = false; conTurno = true; st.alDia = true; reint = 0; proximo = 0; st.error = ''; fase('guardado'); return;
@@ -370,7 +382,7 @@
       let v = null, med = { jsonb: 4 };
       if (valor !== undefined) {
         try { const s = await serializar(valor, huellaDe(a, k)); v = s.valor; med = s; }
-        catch (x) { fuera.push({ a, k, v: ficha, motivo: 'forma', mensaje: String((x && x.message) || x) }); return null; }
+        catch (x) { if (!x || x.codigo !== 'forma') throw x; fuera.push({ a, k, v: ficha, motivo: 'forma', mensaje: String((x && x.message) || x) }); return null; }
       }
       if (med.jsonb > TOPES.valor) { fuera.push({ a, k, v: ficha, motivo: 'tope', mensaje: `pesa ${Math.round(med.jsonb / 1e5) / 10} MB; el tope de un registro es 2 MB` }); return null; }
       return { c: { almacen: a, clave: k, base: conocida ? conocida.v : 0, valor: v }, ficha, tam: med.jsonb + bytesDe(a) + bytesDe(String(k)) + 64 };
@@ -431,7 +443,7 @@
           versiones.push({ a, k, v: x.version, o: x.orden, b: it.c.valor === null });
           if (it.ficha !== null) quitar.push({ a, k, v: it.ficha });
         } else if (x.estado === 'choque') {
-          if (x.dispositivo === D && x.turno === st.turno) versiones.push({ a, k, v: x.ultima, o: x.orden, b: !!x.borrado });   // la suya, sin respuesta: otra vez con esta base
+          if (x.dispositivo === D && x.turno === st.turno && it.c.base > 0) versiones.push({ a, k, v: x.ultima, o: x.orden, b: !!x.borrado });   // la suya, sin respuesta: otra vez con esta base
           else if (it.ficha !== null) aparte.push({ a, k, v: it.ficha, motivo: 'choque', ultima: x.ultima, de: x.dispositivo, turnoDe: x.turno });
         }
       });
@@ -448,8 +460,12 @@
         const k = locales[i], x = L[i] || {};
         const c = await cambioDe(a, k, x.valor, x.conocida || con[k] || null, x.pendiente ? x.pendiente.v : null, fuera); if (c) lista.push(c);
       }
-      for (const [k, c] of Object.entries(con)) if (c && !c.b && !aqui.has(String(k))) lista.push({ c: { almacen: a, clave: k, base: c.v, valor: null }, ficha: null, tam: 120 });
-      if (fuera.length) await A.apartar(fuera.filter(f => f.v !== null));
+      const vivas = Object.entries(con).filter(([, c]) => c && !c.b), lap = vivas.filter(([k]) => !aqui.has(String(k)));
+      // un vaciado que borraría muchos arriba (más de 20, o más de una décima parte de lo que se conoce) no sube solo: cada lápida
+      // espera en «quedó sin subir» a que Kevin la confirme con «Subir encima»
+      if (lap.length > Math.max(TOPES.masivo, Math.floor(vivas.length / 10))) fuera.push(...lap.map(([k]) => ({ a, k, v: null, motivo: 'masivo', mensaje: `un vaciado de ${a} borraría ${lap.length} registros arriba` })));
+      else for (const [k, c] of lap) lista.push({ c: { almacen: a, clave: k, base: c.v, valor: null }, ficha: null, tam: 120 });
+      if (fuera.length) await A.apartar(fuera);
       const tot = { subidos: 0, aparte: fuera.length };
       for (const lote of partir(lista)) { const r = await mandar(lote, true); tot.subidos += r.subidos || 0; tot.aparte += r.aparte || 0; if (r.parar) return { ...tot, ...r }; }
       await A.confirmar({ versiones: [], quitar: [{ a, k: null, v: m.v }] });
@@ -498,6 +514,7 @@
     async function subirEncima(claves) {
       if (!conTurno || !st.alDia) return { error: 'sin turno: usa la Mesa aquí antes' };
       const lista = (await A.sinSubir()).filter(x => esta(claves, x));
+      if (E.congelar) await E.congelar();   // lo que hay en memoria ya no se guarda encima: se escribe y se recarga
       for (const x of lista) {
         const [L] = await A.leerVarios([[x.a, x.k]]), con = L && L.conocida;
         await A.reponer(x.a, x.k, x.borrado ? undefined : x.valor);
@@ -513,9 +530,11 @@
     async function descartar(claves) {
       if (!conTurno || !st.alDia) return { error: 'sin turno: usa la Mesa aquí antes' };
       const lista = (await A.sinSubir()).filter(x => esta(claves, x)), escribir = [], quedan = [];
+      if (E.congelar) await E.congelar();
       for (const x of lista) {
         const [L] = await A.leerVarios([[x.a, x.k]]);
-        if (!L || L.pendiente || !L.conocida) continue;   // cambiado otra vez aquí, o nunca subió: lo de aquí se queda como está
+        if (!L || !L.conocida) { quedan.push(x); continue; }   // nunca subió: arriba no hay nada que dejar; se queda en la lista
+        if (L.pendiente) continue;   // cambiado otra vez aquí: lo de aquí se queda y sube
         const aquiLoApartado = x.borrado ? L.valor === undefined : igual(L.valor, x.valor);
         if (!aquiLoApartado) continue;                   // aquí ya está lo del servidor (lo trajo una bajada)
         let r;
@@ -594,14 +613,18 @@
     }
     return d;
   }
-  const DISP = dispositivo();
+  let DISP_ = null; const DISP0 = () => DISP_ || (DISP_ = dispositivo());
   function nombreDe(id) {
     if (!id) return 'otro ordenador';
+    const yo = lsG(DISP_K) || DISP_;
     const m = /^([a-z]+)-([a-z]+)-([0-9a-f]{4})/.exec(String(id));
-    if (id === DISP) return m && m[1] === 'mac' ? `Este Mac · ${NAV[m[2]] || m[2]}` : `Este ordenador${m ? ' · ' + (NAV[m[2]] || m[2]) : ''}`;
+    if (id === yo) return m && m[1] === 'mac' ? `Este Mac · ${NAV[m[2]] || m[2]}` : `Este ordenador${m ? ' · ' + (NAV[m[2]] || m[2]) : ''}`;
     return m ? `${SO[m[1]] || 'Ordenador'} · ${NAV[m[2]] || m[2]} (${m[3]})` : `otro ordenador (${String(id).slice(0, 8)})`;
   }
   const cuando = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return (d === X().hoy() ? '' : X().fmtDate(d) + ' ') + (h || ''); } catch (e) { return ''; } };
+  const cuandoCorto = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return d === X().hoy() ? esc(h) : `${esc(X().fmtDate(d, true))}<br>${esc(h)}`; } catch (e) { return ''; } };
+  // «desde las 10:02» hoy; «desde el mié, 18 nov a las 23:17» otro día (hora de Madrid)
+  const desde = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return d === X().hoy() ? `desde las ${h}` : `desde el ${X().fmtDate(d)}${h ? ' a las ' + h : ''}`; } catch (e) { return ''; } };
 
   // ---------- encendida o apagada ----------
   // Apagada salvo que Claude la active en este navegador (MESA.nube.activar, con el OK de Kevin): en la Mesa publicada contra el
@@ -617,8 +640,8 @@
       servidor: { rpc: (fn, args) => c.rpc(fn, args) },
       almacen: X().nubeAlmacen,
       reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) },
-      dispositivo: DISP, app: M.version,
-      efectos: { pausar, recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { ESTADO = e; pintar(); } }
+      dispositivo: DISP0(), app: M.version,
+      efectos: { pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { ESTADO = e; pintar(); } }
     });
     X().NUBE.alApuntar = () => N.cambio();
     return N;
@@ -630,8 +653,8 @@
   // M.boot lo llama antes de leer nada (mesa.js, nubeAbrir): primero bajar, después dibujar
   async function abrir() {
     const r = await nucleo().abrir();
-    if (r.modo === 'pausada') trasArmazon(() => pintarPausa());
-    else if (r.modo === 'vieja') trasArmazon(() => pausar({ motivo: 'vieja' }));
+    if (r.modo === 'pausada') pintarPausa();          // mesa.js lo pinta con el armazón, desde el primer momento
+    else if (r.modo === 'vieja') pausar({ motivo: 'vieja' });
     arrancarPulso();
     AVS = await X().nubeAlmacen.avisos().catch(() => []);
     return r;
@@ -645,12 +668,12 @@
     const quien = esc(nombreDe(info && info.dispositivo)), ed = X().xfer && X().xfer.edPendiente && X().xfer.edPendiente() ? ' El editor tenía cambios sin aplicar: se han perdido.' : '';
     if (info && info.motivo === 'vieja') return X().pausaNube(capa('Hay una versión nueva de la Mesa', `<p>Otro ordenador usa una versión más nueva: esta se ha pausado para no pisar sus datos. Recárgala para seguir: lo guardado no se pierde.</p>`, '<button type="button" class="btn" data-nube="recargar">Recargar</button>'));
     if (info && info.motivo === 'cede') return X().pausaNube(capa(`La Mesa pasa a ${quien}`, `<p class="nubeesp">Subiendo lo último que hiciste aquí…${ed}</p>`, ''));
-    return X().pausaNube(capa(`La Mesa está abierta en ${quien}`, `<p>Para no pisar sus cambios, esta se ha pausado.${ed} Lo que no se llegó a subir está en «Quedó sin subir».</p>`, '<button type="button" class="btn" data-nube="usar">Usar aquí</button>'));
+    return X().pausaNube(capa(`La Mesa está abierta en ${quien}`, `<p>Para no pisar sus cambios, esta se ha pausado.${ed} Lo que no se llegó a subir queda en «Quedó sin subir».</p>`, '<button type="button" class="btn2" data-nube="panel">Ver lo que quedó sin subir</button><button type="button" class="btn" data-nube="usar">Usar aquí</button>'));
   }
   function pintarPausa(extra) {
-    const t = ESTADO.tiene || {}, quien = esc(nombreDe(t.dispositivo)), desde = t.desde ? ` desde ${esc(cuando(t.desde))}` : '';
+    const t = ESTADO.tiene || {}, quien = esc(nombreDe(t.dispositivo)), dd = t.desde ? ' ' + esc(desde(t.desde)) : '';
     const p = extra || `<p>Solo se puede usar en un ordenador a la vez. Si la usas aquí, ${quien} sube lo que tenga y se pausa.</p>`;
-    X().pausaNube(capa(`La Mesa está abierta en ${quien}${desde}`, p, '<button type="button" class="btn" data-nube="usar">Usar aquí</button>'));
+    X().pausaNube(capa(`La Mesa está abierta en ${quien}${dd}`, p, (ESTADO.sinSubir ? `<button type="button" class="btn2" data-nube="panel">Quedó sin subir (${ESTADO.sinSubir})</button>` : '') + '<button type="button" class="btn" data-nube="usar">Usar aquí</button>'));
   }
   async function usarAqui() {
     const t = ESTADO.tiene || {}, quien = esc(nombreDe(t.dispositivo));
@@ -658,8 +681,8 @@
     const r = await nucleo().usarAqui();
     if (r.hecho) return;
     if (r.espera) {
-      const e = r.espera, n = e.cola || 0, h = e.latido ? cuando(e.latido) : '';
-      return X().pausaNube(capa(`${esc(nombreDe(e.dispositivo))} no contesta`, `<p>No contesta${h ? ' desde las ' + esc(h) : ''}; tenía ${n} ${n === 1 ? 'cambio' : 'cambios'} sin subir. Si la usas aquí, esos cambios se quedan en ese ordenador, en «Quedó sin subir».</p>`,
+      const e = r.espera, n = +e.cola || 0, h = e.latido ? desde(e.latido) : '';
+      return X().pausaNube(capa(`${esc(nombreDe(e.dispositivo))} no contesta`, `<p>No contesta${h ? ' ' + esc(h) : ''}; tenía ${n} ${n === 1 ? 'cambio' : 'cambios'} sin subir. Si la usas aquí, esos cambios se quedan en ese ordenador, en «Quedó sin subir».</p>`,
         `<button type="button" class="btn2" data-nube="usar">Esperar más</button><button type="button" class="btn" data-nube="forzar" data-visto="${esc(e.turno)}">Usarla aquí</button>`));
     }
     pintarPausa(`<p>${r.error === 'sin_conexion' ? 'Sin conexión: no se ha podido pedir. Vuelve a intentarlo.' : 'No se ha podido pedir (' + esc(r.error) + '). Vuelve a intentarlo.'}</p>`);
@@ -674,7 +697,7 @@
   function chipTexto(e) {
     const q = e.sinSubir ? ` · ${e.sinSubir} sin subir` : '';
     switch (e.fase) {
-      case 'guardado': return ['ok', e.cola ? `${e.cola} en cola` : 'Guardado', q];
+      case 'guardado': return [e.cola ? 'sube' : 'ok', e.cola ? `${e.cola} ${e.cola === 1 ? 'cambio' : 'cambios'} por subir` : 'En la nube', q];   // nunca «guardado» sin estarlo (y no dos «Guardado» en la cabecera)
       case 'subiendo': return ['sube', 'Subiendo…', q];
       case 'bajando': case 'abriendo': return ['sube', 'Bajando…', ''];
       case 'sin_conexion': return ['off', `Sin conexión · ${e.cola} ${e.cola === 1 ? 'cambio' : 'cambios'} en cola`, q];
@@ -687,32 +710,42 @@
       default: return null;
     }
   }
+  let PINTADO = '', PANEL = '';
   function pintar() {
-    const r = X().root && X().root(), b = r && r.querySelector('.appbar .nubest');
+    const r = X().root && X().root(); if (!r) return;
+    if (X().NUBE.activa) estilar();
+    const b = r.querySelector('.appbar .nubest');
     if (b) {
-      const t = X().NUBE.activa ? chipTexto(ESTADO) : null;
-      b.hidden = !t;
-      if (t) {
-        const txt = t[1] + t[2];
-        b.dataset.k = ESTADO.sinSubir ? 'aviso' : t[0];
-        if (b.textContent !== txt) b.innerHTML = `<span class="nubest-t">${esc(t[1])}</span>${t[2] ? `<span class="nubest-q">${esc(t[2])}</span>` : ''}`;
-        b.title = `${txt}. Este navegador: ${nombreDe(DISP)}. Pulsa para ver el estado${ESTADO.sinSubir ? ' y lo que quedó sin subir' : ''}.`;
-        b.setAttribute('aria-label', 'Nube: ' + txt);
+      const t = X().NUBE.activa ? chipTexto(ESTADO) : null, k = t ? (ESTADO.sinSubir ? 'aviso' : t[0]) : '', txt = t ? t[1] + t[2] : '';
+      const firma = k + '|' + txt;
+      if (firma !== PINTADO || b.hidden !== !t) {   // solo si cambia: el pulso de cada segundo no toca el DOM
+        PINTADO = firma; b.hidden = !t;
+        if (t) {
+          b.dataset.k = k;
+          b.innerHTML = `<span class="nubest-t">${esc(t[1])}</span>${t[2] ? `<span class="nubest-q">${esc(t[2])}</span>` : ''}`;
+          b.title = `${txt}. Este navegador: ${nombreDe(DISP0())}. Pulsa para ver el estado${ESTADO.sinSubir ? ' y lo que quedó sin subir' : ''}.`;
+          b.setAttribute('aria-label', 'Nube: ' + txt);
+        }
       }
     }
-    const dl = r && r.querySelector('.detail[data-dlg="nube"]:not([hidden])'); if (dl && !dl.contains(D.activeElement)) panel(true);
+    // el panel abierto, solo si cambia lo que enseña (y sin perder dónde estaba la lista)
+    const dl = r.querySelector('.detail[data-dlg="nube"]:not([hidden])'), pf = [ESTADO.fase, ESTADO.cola, ESTADO.sinSubir, ESTADO.error, ESTADO.alDia].join('|');
+    if (dl && pf !== PANEL && !dl.contains(D.activeElement)) panel(true);
     // la Mesa ya pasó a otro (tras subir lo último): su aviso, con «Usar aquí»
-    const lk = r && r.querySelector('.nubelock');
+    const lk = r.querySelector('.nubelock');
     if (X().NUBE.activa && ESTADO.fase === 'pausada' && lk && !lk.querySelector('[data-nube="usar"]') && !lk.querySelector('[data-nube="forzar"]')) pintarPausa();
+    // un aviso de actividad nuevo, en la página personal en esta misma sesión
+    if (X().NUBE.activa && (ESTADO.avisos || 0) !== AVS.length && !releyendo) { releyendo = true; X().nubeAlmacen.avisos().then(l => { AVS = l; releyendo = false; if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render(); }, () => { releyendo = false; }); }
   }
+  let releyendo = false;
 
   // ---------- el panel: estado y «quedó sin subir» ----------
   const ALM = { boards: 'Tablero', clients: 'Cliente', bandejas: 'Bandeja', files: 'Foto', tareas: 'Tarea o nota', tfotos: 'Foto de una sesión', cobros: 'Factura', cfacturas: 'PDF de una factura', meses: 'Por qué y cómo fue', ubicaciones: 'Ubicación' };
-  const MOTIVO = { turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa' };
+  const MOTIVO = { masivo: 'un vaciado lo borraría arriba: «Subir encima» confirma el borrado', borrado_arriba: 'otro ordenador lo borró, pero sus fotos solo están aquí', pendiente: 'la copia de una recarga, de antes de lo que llegó', turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa' };
   function etiqueta(x) {
     const v = x.valor || {}, cl = id => ((X().CL || []).find(c => c.id === id) || {}).name || id;
     let t = '';
-    if (x.a === 'boards') { const m = /^(.+)-(\d{4}-\d{2})$/.exec(String(x.k)); t = m ? `${cl(m[1])} · ${m[2]}` : x.k; }
+    if (x.a === 'boards') { const m = /^(.+)-(\d{4}-\d{2})$/.exec(String(x.k)); t = m ? `${cl(m[1])} · ${X().monthLabel ? X().monthLabel(m[2]) : m[2]}` : x.k; }
     else if (x.a === 'clients') t = v.name || x.k;
     else if (x.a === 'bandejas') t = cl(x.k);
     else if (x.a === 'files') t = v.name || x.k;
@@ -728,15 +761,20 @@
     const e = ESTADO, t = chipTexto(e) || ['', 'Apagada', ''];
     const filas = l.map(x => `<li class="nubefila"><div><b>${esc(etiqueta(x))}</b><span>${esc(MOTIVO[x.motivo] || x.motivo)}${x.mensaje ? ': ' + esc(x.mensaje) : ''}${x.de ? ' · ' + esc(nombreDe(x.de)) : ''}${x.t ? ' · ' + esc(cuando(new Date(x.t).toISOString())) : ''}</span></div>`
       + (n && e.alDia ? `<span class="nubeacc"><button type="button" class="lnk" data-nube="descartar" data-a="${esc(x.a)}" data-k="${esc(x.k)}">Descartar</button><button type="button" class="lnk" data-nube="encima" data-a="${esc(x.a)}" data-k="${esc(x.k)}">Subir encima</button></span>` : '') + '</li>').join('');
+    PANEL = [e.fase, e.cola, e.sinSubir, e.error, e.alDia].join('|');
+    const falta = e.fase === 'sin_conexion' ? ' Para subirlo o descartarlo, espera a tener conexión.' : e.fase === 'recargar' || e.fase === 'vieja' ? ' Para subirlo o descartarlo, recarga antes.' : ' Para subirlo o descartarlo, usa antes la Mesa aquí.';
     const html = `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Nube</h3>
-      <p class="nubep"><b>${esc(t[1])}</b>${e.cola && e.fase !== 'sin_conexion' ? ` · ${e.cola} ${e.cola === 1 ? 'cambio' : 'cambios'} en cola` : ''}. Este navegador: ${esc(nombreDe(DISP))}.${e.error ? ' Último error: ' + esc(e.error) + '.' : ''}</p>
-      ${l.length ? `<h4 class="nubeh">Quedó sin subir <span>${l.length}</span></h4><p class="nubep">Lo hiciste aquí y no llegó al servidor. «Subir encima» lo sube sobre lo que hay allí (lo de allí queda en su historial); «Descartar» deja lo del servidor.${n && e.alDia ? '' : ' Para subirlo o descartarlo, usa antes la Mesa aquí.'}</p><ul class="nubel">${filas}</ul>` : ''}
+      <p class="nubep"><b>${esc(t[1])}</b>${e.cola && e.fase !== 'sin_conexion' ? ` · ${e.cola} ${e.cola === 1 ? 'cambio' : 'cambios'} en cola` : ''}. Este navegador: ${esc(nombreDe(DISP0()))}.${e.error ? ' Último error: ' + esc(e.error) + '.' : ''}</p>
+      ${l.length ? `<h4 class="nubeh">Quedó sin subir <span>${l.length}</span></h4><p class="nubep">Lo hiciste aquí y no llegó al servidor. «Subir encima» lo sube sobre lo que hay allí (lo de allí queda en su historial); «Descartar» deja lo del servidor.${n && e.alDia ? '' : falta}</p><ul class="nubel">${filas}</ul>` : ''}
       <div class="form"><div class="row">${l.length > 1 && n && e.alDia ? '<button type="button" class="btn2" data-nube="descartar-todo">Descartar todo</button><button type="button" class="btn2" data-nube="encima-todo">Subir todo encima</button>' : ''}${e.fase === 'sin_sesion' ? '<button type="button" class="btn" data-nube="entrar">Entrar</button>' : e.fase === 'recargar' || e.fase === 'vieja' ? '<button type="button" class="btn" data-nube="recargar">Recargar</button>' : '<button type="button" class="btn" data-act="close">Cerrar</button>'}</div></div>`;
-    if (repintar) { const d = X().root().querySelector('.detail[data-dlg="nube"] .card'); if (d) d.innerHTML = html; return; }
+    if (repintar) { const d = X().root().querySelector('.detail[data-dlg="nube"] .card'); if (d) { const ul = d.querySelector('.nubel'), y = ul ? ul.scrollTop : 0; d.innerHTML = html; const u2 = d.querySelector('.nubel'); if (u2) u2.scrollTop = y; } return; }
     X().showDialog('nube', html);
   }
   async function reconciliar(que, todo, b) {
     const l = await X().nubeAlmacen.sinSubir(), claves = todo ? l.map(x => [x.a, x.k]) : [[b.dataset.a, b.dataset.k]];
+    const solos = ['bajada', 'masivo', 'borrado_arriba'], c2 = todo ? l.filter(x => !solos.includes(x.motivo)).map(x => [x.a, x.k]) : claves;   // esos, de uno en uno
+    if (todo && que === 'encima') claves.splice(0, claves.length, ...c2);
+    if (!claves.length) { X().toast('Lo que queda se sube de uno en uno: míralo antes en la lista.'); return; }
     const r = que === 'encima' ? await nucleo().subirEncima(claves) : await nucleo().descartar(claves);
     if (r && r.error) X().toast('No se ha podido: ' + r.error, { error: true });
   }
@@ -749,13 +787,15 @@
     if (f.tipo === 'ajeno_tope') return ['Muchas llamadas de cuentas que no son la tuya', `${d.en_un_minuto || 'más de 60'} en un minuto; todas rechazadas`];
     if (f.tipo === 'dispositivo_nuevo') return ['La Mesa se abrió en un ordenador nuevo', quien];
     if (f.tipo === 'borrado_masivo') return [`Se borraron ${d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${n} ${ALM[a] ? ALM[a].toLowerCase() : a}`).join(', '), quien].filter(Boolean).join(' · ')];
-    return ['El servidor rechazó un lote', [d.codigo ? `«${d.codigo}»${d.http ? ' (' + d.http + ')' : ''}` : '', quien].filter(Boolean).join(' · ')];
+    const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor' };
+    return ['El servidor rechazó un lote', [POR[d.codigo] || (d.codigo ? 'código ' + d.codigo : ''), quien].filter(Boolean).join(' · ')];
   }
   function avisosHTML() {
     if (!X().NUBE.activa || !AVS.length) return '';
+    const mas = AVS.length > 8 ? `<p class="pp-sub nubemas">y ${AVS.length - 8} más: «Visto» en estos para ver los siguientes</p>` : '';
     const l = AVS.slice(-8).reverse().map(f => { const [t, x] = avisoTexto(f);
-      return `<div class="pp-av nubeav" data-av="${esc(f.id)}"><span class="pp-avs"></span><span class="pp-cu">${esc(cuando(f.hora))}</span><span class="pp-afoto vacia nubeico" aria-hidden="true"></span><span class="pp-nm"><b>${esc(t)}</b></span><span class="pp-est">${esc(x)}</span><button type="button" class="lnk nubevisto" data-nube="visto" data-id="${esc(f.id)}" aria-label="Marcar como visto: ${esc(t)}">Visto</button></div>`; }).join('');
-    return `<section class="pp-grupo" data-cat="nube"><h3 class="pp-gt">Nube <span>${AVS.length}</span></h3><div class="pp-lista">${l}</div></section>`;
+      return `<div class="pp-av nubeav" data-av="${esc(f.id)}" title="${esc(t + (x ? ' · ' + x : ''))}"><span class="pp-avs"></span><span class="pp-cu">${cuandoCorto(f.hora)}</span><span class="pp-afoto vacia nubeico" aria-hidden="true"></span><span class="pp-nm"><b>${esc(t)}</b></span><span class="pp-est">${esc(x)}</span><button type="button" class="lnk nubevisto" data-nube="visto" data-id="${esc(f.id)}" aria-label="Marcar como visto: ${esc(t)}">Visto</button></div>`; }).join('');
+    return `<section class="pp-grupo" data-cat="nube"><h3 class="pp-gt">Nube <span>${AVS.length}</span></h3><div class="pp-lista">${l}${mas}</div></section>`;
   }
   async function visto(id) {
     await nucleo().marcarVisto(isNaN(+id) ? id : +id);
@@ -789,7 +829,7 @@
       if (!sb().usuario()) return { error: 'sin sesión: entra antes con «Web del cliente»' };
       lsS(ACTIVA, '1'); try { if (M.flush) await M.flush(); } catch (e) { /* */ }
       setTimeout(() => G.location.reload(), 50);
-      return { ok: true, recargando: true, dispositivo: DISP };
+      return { ok: true, recargando: true, dispositivo: DISP0() };
     },
     // La apaga: sube lo que pueda, suelta el turno y deja de hacer nada; el diario sigue apuntando (D-250).
     desactivar: async () => {
@@ -799,26 +839,27 @@
     },
     estado: async () => {
       const e = N ? N.estado() : { fase: 'apagada' };
-      return { activa: X().NUBE.activa, dispositivo: DISP, nombre: nombreDe(DISP), modo: X().NUBE.modo, ...e,
+      return { activa: X().NUBE.activa, dispositivo: X().NUBE.activa ? DISP0() : lsG(DISP_K) || null, nombre: X().NUBE.activa ? nombreDe(DISP0()) : null, modo: X().NUBE.modo, ...e,
         sinSubirLista: (await X().nubeAlmacen.sinSubir().catch(() => [])).map(x => ({ almacen: x.a, clave: x.k, motivo: x.motivo, mensaje: x.mensaje, borrado: x.borrado })), avisos: AVS.length };
     },
-    avisosHTML, avisos: () => AVS.slice(), nombreDe,
+    avisosHTML, avisos: () => AVS.slice(), avisosN: () => (X().NUBE.activa ? AVS.length : 0), nombreDe,
     _abrir: abrir, _nucleo: () => N, _panel: panel,
     // solo para la batería: el estado pintado, los avisos releídos y un núcleo con un servidor de mentira (nunca la red)
-    _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; pintar(); },
-    _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); return AVS.length; },
-    _con: servidor => { N = null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP, app: M.version, efectos: { pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } } }); X().NUBE.alApuntar = () => N.cambio(); return N; },
+    _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
+    _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); estilar(); return AVS.length; },
+    _con: servidor => { N = null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, efectos: { pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } } }); X().NUBE.alApuntar = () => N.cambio(); return N; },
     _soltar: () => { clearInterval(pulso); N = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
-  if (sb()) sb().alCambiar(u => { if (u && N && ESTADO.fase === 'sin_sesion') N.reintentar(); });
-  trasArmazon(() => { X().estilo('mesa-nube-css', ESTILO); pintar(); });
+  if (X().NUBE.activa) { sb().alCambiar(u => { if (u && N && ESTADO.fase === 'sin_sesion') N.reintentar(); }); trasArmazon(() => pintar()); }
+  function estilar() { if (!D.getElementById('mesa-nube-css')) X().estilo('mesa-nube-css', ESTILO); }
   (G.MESA_CARGA = G.MESA_CARGA || {}).nube = 'ok';
   const ICO = d => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E${d.replace(/<path d='/g, "%3Cpath vector-effect='non-scaling-stroke' d='").replace(/'\/>/g, "'/%3E").replace(/<circle /g, "%3Ccircle vector-effect='non-scaling-stroke' ").replace(/<line /g, "%3Cline vector-effect='non-scaling-stroke' ")}%3C/svg%3E")`;
   const I_OK = ICO("<path d='m17 15-5.5 5.5L9 18'/><path d='M5 17.743A7 7 0 1 1 15.71 10h1.79a4.5 4.5 0 0 1 1.5 8.742'/>");
   const I_SUBE = ICO("<path d='M12 13v8'/><path d='M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'/><path d='m8 17 4-4 4 4'/>");
   const I_OFF = ICO("<path d='m2 2 20 20'/><path d='M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193'/><path d='M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07'/>");
   const I_PAUSA = ICO("<circle cx='12' cy='12' r='10'/><line x1='10' x2='10' y1='15' y2='9'/><line x1='14' x2='14' y1='15' y2='9'/>");
+  const I_ALERTA = ICO("<path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/><path d='M12 9v4'/><path d='M12 17h.01'/>");
   const I_ESCUDO = ICO("<path d='M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z'/><path d='M12 8v4'/><path d='M12 16h.01'/>");
   const ESTILO = `#mesa .nubest{flex:none;align-self:center;display:inline-flex;align-items:center;gap:6px;height:28px;max-width:340px;margin:0 2px 0 4px;padding:0 10px 0 8px;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
 #mesa .nubest[hidden]{display:none}
@@ -828,7 +869,8 @@
 #mesa .nubest[data-k="off"]::before{-webkit-mask-image:${I_OFF};mask-image:${I_OFF}}
 #mesa .nubest[data-k="pausa"]::before{-webkit-mask-image:${I_PAUSA};mask-image:${I_PAUSA}}
 #mesa .nubest:is([data-k="off"],[data-k="pausa"],[data-k="aviso"]){color:var(--ink-2)}
-#mesa .nubest[data-k="aviso"]::before{background:var(--chg);-webkit-mask-image:${I_PAUSA};mask-image:${I_PAUSA}}
+#mesa .nubest[data-k="aviso"]::before{background:var(--chg);-webkit-mask-image:${I_ALERTA};mask-image:${I_ALERTA}}
+#mesa .detail[data-dlg="nube"]{z-index:21}
 #mesa .nubest .nubest-t{overflow:hidden;text-overflow:ellipsis}#mesa .nubest .nubest-q{color:var(--red);font-weight:600}
 @media (max-width:1100px){#mesa .nubest{max-width:200px}#mesa .nubest[data-k="ok"] .nubest-t{display:none}#mesa .nubest[data-k="ok"]{padding:0 8px}}
 @media (max-width:760px){#mesa .nubest .nubest-t{display:none}#mesa .nubest{padding:0 8px}}
@@ -840,7 +882,8 @@
 #mesa .nubefila{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
 #mesa .nubefila div{display:flex;flex-direction:column;gap:2px;min-width:0}#mesa .nubefila b{font-weight:600;color:var(--ink);overflow-wrap:anywhere}#mesa .nubefila span{color:var(--mute);font-size:12px}
 #mesa .nubeacc{display:flex;gap:12px;flex:none}#mesa .nubeacc .lnk{font-size:12px;min-height:32px}
-#mesa .pp-av.nubeav{grid-template-columns:28px 42px 32px minmax(0,1fr) auto;background:var(--chg-soft)}
+#mesa .pp-av.nubeav{grid-template-columns:28px 42px 32px minmax(0,1fr) auto;background:var(--chg-soft);cursor:default}
+#mesa .pp-av.nubeav .pp-cu{line-height:1.25}#mesa .nubemas{margin:6px 10px 0}
 #mesa .pp-av.nubeav .nubevisto{grid-column:5;grid-row:1 / span 2;font-size:12px;min-height:32px;padding:4px 6px}
 #mesa .pp-av.nubeav .pp-cu{color:var(--chg);font-weight:600}
 #mesa .nubeico::before{content:'';width:16px;height:16px;background:var(--chg);-webkit-mask:${I_ESCUDO} center/contain no-repeat;mask:${I_ESCUDO} center/contain no-repeat}`;

@@ -17219,7 +17219,7 @@
     }
     igual(malas, [], 'accesos a IndexedDB fuera de tx() (o la vía sin diario fuera de mesa.js)');
     igual(accesos, 6, 'los accesos crudos de mesa.js, todos en sus líneas «idb-crudo» (la apertura, la actualización de versión y txCon)');
-    igual(sin, 25, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256)');
+    igual(sin, 26, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256)');
     // dentro de una transacción con diario, una escritura por el almacén crudo (req.source): la guarda la ve
     const antes0 = djFugas.length;
     await M._in.xfer.tx('ubicaciones', 'readwrite', st => { const g = st.count(); g.onsuccess = () => { g.source.put({ id: 'ub-fuga2' }, 'ub-fuga2'); }; });
@@ -17757,7 +17757,8 @@
     const chip = () => q('.appbar .nubest');
     try {
       M._in.NUBE.activa = true;
-      M.nube._estado({ fase: 'guardado' }); ok(chip() && !chip().hidden && chip().textContent === 'Guardado', 'guardado: ' + (chip() && chip().textContent));
+      M.nube._estado({ fase: 'guardado' }); ok(chip() && !chip().hidden && chip().textContent === 'En la nube', 'al día: ' + (chip() && chip().textContent));
+      M.nube._estado({ fase: 'guardado', cola: 4 }); igual(chip().textContent, '4 cambios por subir', 'con cambios esperando la calma, nunca «guardado»');
       M.nube._estado({ fase: 'sin_conexion', cola: 3 }); igual(chip().textContent, 'Sin conexión · 3 cambios en cola', 'sin conexión');
       M.nube._estado({ fase: 'pausada', tiene: { dispositivo: 'mac-chrome-1a2b3c4d5e6f7a8b' } }); igual(chip().textContent, 'Pausada: abierta en Mac · Chrome (1a2b)', 'pausada');
       M.nube._estado({ fase: 'subiendo', sinSubir: 2 }); igual(chip().textContent, 'Subiendo… · 2 sin subir', 'subiendo con lo que quedó sin subir');
@@ -17854,9 +17855,10 @@
     ok(!/<[a-z][^>]*\son[a-z]+\s*=/i.test(sin), 'index.html tiene un manejador on…=');
     const srcs = [...sin.matchAll(/<script([^>]*)\ssrc="([^"?]+)/g)].map(m => ({ s: m[2], async: /\sasync\b/.test(m[1]) }));
     const i = n => srcs.findIndex(x => x.s === n);
-    ok(i('tema.js') >= 0 && i('tema.js') < i('mesa.js') && i('mesa.js') < i('arranque.js') && i('arranque.js') < i('vigia.js') && i('vigia.js') < i('kits/motor.js'), 'el orden de tema, mesa, arranque y vigilante: ' + srcs.map(x => x.s).join(', '));
-    ok(['tema.js', 'mesa.js', 'arranque.js', 'vigia.js'].every(n => srcs[i(n)] && !srcs[i(n)].async), 'tema, mesa, arranque o vigilante con async');
-    ok(/tema\.js/.test(head), 'tema.js fuera del <head> (el oscuro sin destello)');
+    // el vigilante, nada más empezar: oye también si no llega supa.js o nube.js (D-252)
+    ok(i('tema.js') >= 0 && i('tema.js') < i('vigia.js') && i('vigia.js') < i('mesa.js') && i('mesa.js') < i('portal/supa.js') && i('portal/supa.js') < i('nube.js') && i('nube.js') < i('arranque.js') && i('arranque.js') < i('kits/motor.js'), 'el orden de tema, vigilante, mesa, supa, nube y arranque: ' + srcs.map(x => x.s).join(', '));
+    ok(['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'nube.js', 'arranque.js'].every(n => srcs[i(n)] && !srcs[i(n)].async), 'tema, vigilante, mesa, supa, nube o arranque con async');
+    ok(/tema\.js/.test(head) && /vigia\.js/.test(head), 'tema.js o vigia.js fuera del <head> (el oscuro sin destello)');
     ok(D.querySelector('meta[http-equiv="Content-Security-Policy"]'), 'la Mesa de la batería sin su CSP');
     // un módulo que no llega: su <script> da error y el vigilante lo marca «fallo» (antes, su onerror=)
     const C = W.MESA_CARGA, antes = C.revisar, s = D.createElement('script');

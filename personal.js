@@ -538,7 +538,7 @@
   const caben = () => Math.max(1, Math.floor((anchoClientes() + 8) / 188));
   function pagina(R) {
     const pl = st.plg, cols = Math.max(1, Math.min(st.fila, R.filas.length || 1, caben()));
-    const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.man + R.cifras.espera + R.cifras.falta, nE = esps().length;
+    const nTar = enLista().filter(k => !k.hecha).length, nAv = R.cifras.pasado + R.cifras.hoy + R.cifras.man + R.cifras.espera + R.cifras.falta + (M.nube && M.nube.avisosN ? M.nube.avisosN() : 0), nE = esps().length;
     const P = [
       { k: 'tareas', t: 'Tareas', n: nTar, cls: 'pp-tareas', extra: segVista, html: () => tareasHTML(R) },
       { k: 'clientes', t: 'Clientes', n: R.filas.length, sinN: true, cls: 'pp-clientes', extra: segFila, tras: () => segCli(R.filas.length, nE), medio: ingresos,

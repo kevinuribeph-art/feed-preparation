@@ -208,7 +208,13 @@ async function main() {
   w = web('mesa-version', APP); ok(w.ok && /"ahora": "4\.10"/.test(w.out), 'tools/web.mjs mesa-version pone la mínima', w.out);
 
   console.log('Turno en dos fases');
-  let r = await K('mesa_turno_pedir', { dispositivo: DA, app: APP });
+  // ver (esquema 3, lote 3): la misma respuesta que pedir y sin apuntar nada (quien abre la Mesa pregunta antes de pedirla)
+  const turnoAntes = (await sql('select numero, dispositivo, pide, pide_ultima from mesa.turno where id'))[0];
+  let r = await K('mesa_turno_ver', { dispositivo: DB });
+  ok(bien(r) && Number.isInteger(r.json.turno) && 'libre' in r.json && 'tiene' in r.json && 'pide' in r.json && r.json.epoca === EPOCA && r.json.version_minima, 'ver dice el turno, quién lo tiene, quién lo pide y la época', r.text);
+  ok(JSON.stringify((await sql('select numero, dispositivo, pide, pide_ultima from mesa.turno where id'))[0]) === JSON.stringify(turnoAntes), 'ver no apunta nada en el turno');
+  r = await K('mesa_turno_ver', { dispositivo: 'x' }); ok(rech(r, 'forma', 400), 'ver con un dispositivo mal escrito: rechazo «forma»', r.text);
+  r = await K('mesa_turno_pedir', { dispositivo: DA, app: APP });
   const t0 = r.json && r.json.turno;
   ok(bien(r) && Number.isInteger(t0) && Math.abs(Date.parse(r.json.hora) - Date.now()) < 120000 && r.json.epoca === EPOCA, 'pedir dice el turno, la hora del servidor y la época', r.text);
   r = await reclamar(DA, t0, !r.json.libre);
@@ -527,6 +533,7 @@ async function main() {
 
   console.log('Nadie más que Kevin: funciones');
   const llamadas = [
+    ['mesa_turno_ver', { dispositivo: DB }],
     ['mesa_turno_pedir', { dispositivo: DB, app: APP }],
     ['mesa_turno_latido', { dispositivo: DA, turno: T, app: APP, cola: 0 }],
     ['mesa_turno_reclamar', { dispositivo: DB, visto: T, app: APP, forzar: true }],
@@ -550,7 +557,7 @@ async function main() {
   ok(rech(r, 'permiso', 403) && (await cuantasAct(`tipo = 'ajeno' and usuario = '${un}'`)) === 0 && (await cuantasAct(`tipo = 'ajeno_tope'`)) === 1,
     'con 60 en el último minuto entre todos, ya no se apuntan más: una sola fila «ajeno_tope»', `${await cuantasAct(`tipo = 'ajeno_tope'`)}`);
   await borrarAct(`a.dispositivo = 'prueba-falso-${RUN}' or (a.tipo = 'ajeno_tope' and a.id > ${A0})`);
-  r = await NAD('mesa_escribir', llamadas[4][1]);
+  r = await NAD('mesa_escribir', llamadas.find(x => x[0] === 'mesa_escribir')[1]);
   ok(rech(r, 'permiso', 403) && (await cuantasAct(`tipo = 'ajeno' and usuario = '${un}'`)) === 1, 'alguien con sesión que no es miembro de nada: «permiso» y su fila');
   const quince = await Promise.all(Array.from({ length: 15 }, () => NAD('mesa_bajar', { desde: 0 })));
   ok(quince.every(y => rech(y, 'permiso', 403)) && (await cuantasAct(`tipo = 'ajeno' and usuario = '${un}'`)) === 10, '15 llamadas a la vez: el tope de 10 por minuto se cumple igual');
@@ -604,8 +611,8 @@ async function main() {
   console.log('Catálogo (solo lectura)');
   const fns = await sql(`select p.proname, p.prosecdef, coalesce(p.proconfig::text, '') as conf, coalesce(p.proacl::text, '') as acl, count(*) over (partition by p.proname) as firmas
     from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.proname like 'mesa\\_%'`);
-  const siete = ['mesa_turno_pedir', 'mesa_turno_latido', 'mesa_turno_reclamar', 'mesa_turno_soltar', 'mesa_escribir', 'mesa_bajar', 'mesa_actividad'];
-  ok(fns.length === 7 && siete.every(f => fns.some(y => y.proname === f)) && fns.every(y => +y.firmas === 1), 'las 7 funciones mesa_*, una sola firma cada una', JSON.stringify(fns.map(y => y.proname)));
+  const siete = ['mesa_turno_ver', 'mesa_turno_pedir', 'mesa_turno_latido', 'mesa_turno_reclamar', 'mesa_turno_soltar', 'mesa_escribir', 'mesa_bajar', 'mesa_actividad'];   // ocho desde el esquema 3 (ver, lote 3)
+  ok(fns.length === 8 && siete.every(f => fns.some(y => y.proname === f)) && fns.every(y => +y.firmas === 1), 'las 8 funciones mesa_*, una sola firma cada una', JSON.stringify(fns.map(y => y.proname)));
   ok(fns.every(y => y.prosecdef && y.conf === '{"search_path=\\"\\""}'), "todas security definer con search_path=''", JSON.stringify(fns.map(y => y.conf)));
   ok(fns.every(y => !/(^|[{,])(anon)?=X/.test(y.acl) && /authenticated=X/.test(y.acl)), 'ninguna ejecutable por anon ni por PUBLIC; sí por authenticated', JSON.stringify(fns.map(y => y.acl)));
   const usos = await sql(`with roles(rol) as (values ('anon'), ('authenticated'), ('service_role'), ('authenticator')),

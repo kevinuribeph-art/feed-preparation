@@ -7,13 +7,18 @@
 // aplicados (`node tools/web.mjs esquema pruebas`, `node tools/web.mjs funciones pruebas`). Crea y borra sus propios
 // clientes, usuarios y archivos (también la fila de dueño de su Kevin inventado).
 import { createHash, randomBytes } from 'node:crypto';
-import { proyecto, rest, cab, pedir, tapar, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
+import { proyecto, rest, cab, pedir, gestion, tapar, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
 
 const P = proyecto(process.argv[2] === 'real' ? 'real' : 'pruebas');
 if (!P.publica || !P.secreta) { console.error(`faltan las claves pública y secreta del proyecto ${P.cual} en .env`); process.exit(1); }
 if (P.cual === 'real') {
   const r = await rest(P, 'clientes?select=id&limit=1', { apikey: P.secreta });
   if (!r.ok || (r.json || []).length) { console.error(r.ok ? 'el proyecto real ya tiene clientes: esta prueba solo se pasa antes de dar de alta a nadie' : 'no se pudo leer el proyecto real: ' + r.status); process.exit(1); }
+  // Ni si ya hay una Mesa en el servidor (lote 2 del traspaso C): no se crea un dueño temporal donde ya hay datos de Kevin.
+  const q = async query => { const g = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query } }); if (!g.ok || !Array.isArray(g.json)) { console.error('no se pudo mirar si hay una Mesa en el real: ' + g.status); process.exit(1); } return g.json[0]; };
+  if ((await q(`select to_regclass('mesa.registros') is not null as hay`)).hay && (await q('select exists (select 1 from mesa.registros) as hay')).hay) {
+    console.error('el proyecto real ya tiene una Mesa (mesa.registros con filas): esta prueba no corre ahí'); process.exit(1);
+  }
 }
 const S = P.secreta;
 const sha = t => createHash('sha256').update(t).digest('hex');
@@ -50,7 +55,7 @@ async function usuario(correo) {
   return r.json.id;
 }
 async function entrar(correo) {
-  const r = await pedir(`${P.url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { ...cab(P.publica), 'Content-Type': 'application/json' }, body: { email: correo, password: CLAVE } });
+  const r = await pedir(`${P.url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { ...cab(P.publica), 'Content-Type': 'application/json' }, body: { email: correo, password: CLAVE }, dejar: ['access_token'] });
   if (!r.ok) throw new Fallo('no se pudo entrar como ' + correo + ': ' + r.text);
   return r.json.access_token;
 }

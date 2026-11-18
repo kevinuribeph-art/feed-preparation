@@ -4,7 +4,7 @@
   'use strict';
   var C = function () { return (window.MESA_CARGA = window.MESA_CARGA || {}); };
   // un módulo que llega pero lanza mientras se ejecuta es «fallo», como uno que no llega (D-115): cada uno dice «ok» al final
-  var CORRE = /\/(?:kits\/)?(motor|diseno|libre|calendario|revisar|historias|carpetas|descargar|controles|personal|escritura|sesiones|cobros|informe|web|copia)\.js(?:\?|$)/;
+  var CORRE = /\/(?:kits\/)?(motor|diseno|libre|calendario|revisar|historias|carpetas|descargar|controles|personal|escritura|sesiones|cobros|informe|web|copia|nube)\.js(?:\?|$)/;
   // uno que no llega: el error de su <script>, que no sube, se oye aquí en la captura (era su `onerror=`)
   var LLEGA = /\/(?:kits\/|portal\/)?(motor|diseno|libre|calendario|revisar|historias|carpetas|descargar|controles|personal|escritura|sesiones|cobros|informe|web|copia|supa|nube)\.js(?:\?|$)/;
   window.addEventListener('error', function (e) {

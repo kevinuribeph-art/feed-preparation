@@ -15,6 +15,7 @@
 //   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
 //   node tools/web.mjs mesa <pruebas|real>            aplica servidor/mesa.sql (la Mesa en el servidor; después de `esquema`)
 //   node tools/web.mjs mesa-version <pruebas|real> <x.yy>   la versión mínima de la Mesa que puede escribir (4.9 < 4.10)
+//   node tools/web.mjs actividad <pruebas|real> [días]   la actividad de la Mesa en el servidor (7 días si no se dice; hasta 90)
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -196,6 +197,22 @@ const ORDENES = {
     const f = r.ok && Array.isArray(r.json) && r.json[0];
     if (!f) throw new Fallo(`no se pudo poner (${r.status}): ${r.text}`);
     return { proyecto: P.ref, version_minima: { antes: f.antes, ahora: f.ahora } };
+  },
+  // Lo que apunta `mesa.actividad`: llamadas de quien no es Kevin, rechazos, choques, ordenadores nuevos y borrados masivos.
+  // Las 500 más recientes de esos días, con la hora de Madrid y quién (Kevin, el correo de un cliente o nadie). Nunca valores.
+  async actividad(cual, dias = '7') {
+    const P = proyecto(cual);
+    if (!/^[0-9]{1,2}$/.test(String(dias)) || +dias < 1 || +dias > 90) throw new Fallo('los días, de 1 a 90');
+    const q = `select a.id, to_char(a.hora at time zone 'Europe/Madrid', 'YYYY-MM-DD HH24:MI:SS') as hora, a.tipo,
+        case when a.usuario is null then ''
+             when exists (select 1 from public.duenos d where d.user_id = a.usuario) then 'Kevin'
+             else coalesce((select u.email from auth.users u where u.id = a.usuario), 'usuario ' || left(a.usuario::text, 8)) end as quien,
+        coalesce(a.dispositivo, '') as dispositivo, a.detalle::text as detalle
+      from mesa.actividad a where a.hora > now() - interval '${+dias} days' order by a.id desc limit 500`;
+    const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query: q } });
+    if (!r.ok || !Array.isArray(r.json)) throw new Fallo(`no se pudo leer la actividad (${r.status}): ${r.text}`);
+    return { proyecto: P.ref, dias: +dias, filas: r.json.length,
+      actividad: r.json.map(f => [f.hora, f.tipo, f.quien || '—', f.dispositivo, f.detalle].filter(Boolean).join(' · ')) };
   },
   async dueno(cual, correo) {
     const P = proyecto(cual);

@@ -274,8 +274,9 @@ end $$;
 -- tiene que venir siempre (un `valor` que falta no se toma por borrado).
 -- Rechaza el lote entero (nada escrito): sin permiso (42501), mal formado o con un registro repetido (PT400), demasiado
 -- grande (PT413), app más vieja que la mínima (PT426), turno que no es el vigente (PT423).
--- Cada cambio, por orden: `ok` (escrito: versión y número de orden nuevos), `igual` (nada que hacer: el mismo valor, o borrar
--- lo que no está vivo) o `choque` (su base no es la última: dice cuál es, si está borrado y su número de orden).
+-- Cada cambio, por orden: `ok` (escrito: versión y número de orden nuevos), `igual` (nada que hacer: ya tiene ese valor, sea
+-- cual sea la base, o se borra lo que no está vivo; así repetir un lote cuya respuesta se perdió no choca) o `choque` (su base
+-- no es la última: dice cuál es, si está borrado y su número de orden).
 -- Antes de pisar un registro vivo, su valor pasa al historial si el último guardado de ese registro tiene más de 5 minutos,
 -- y siempre al borrarlo.
 create or replace function public.mesa_escribir(dispositivo text, turno bigint, app text, cambios jsonb) returns jsonb
@@ -347,12 +348,13 @@ begin
         values (v_alm, v_cla, v_val, 1, v_ord, v_app, v_yo, now(), null);
         v_res := v_res || jsonb_build_object('almacen', v_alm, 'clave', v_cla, 'estado', 'ok', 'version', 1, 'orden', v_ord);
       end if;
+    elsif (v_val is null and r.valor is null) or v_val = r.valor then
+      -- Ya está como se pide, sea cual sea la base: repetir un lote cuya respuesta se perdió no choca consigo mismo.
+      v_res := v_res || jsonb_build_object('almacen', v_alm, 'clave', v_cla, 'estado', 'igual', 'version', r.version);
     elsif not (v_base = r.version or (r.valor is null and v_base = 0)) then
       -- Su base no es la última (un registro vivo solo se pisa con su versión; una lápida, también como nuevo).
       v_res := v_res || jsonb_build_object('almacen', v_alm, 'clave', v_cla, 'estado', 'choque', 'ultima', r.version,
                                            'borrado', r.valor is null, 'orden', r.orden);
-    elsif (v_val is null and r.valor is null) or v_val = r.valor then
-      v_res := v_res || jsonb_build_object('almacen', v_alm, 'clave', v_cla, 'estado', 'igual', 'version', r.version);
     else
       if r.valor is not null and (v_val is null or not exists (
             select 1 from mesa.historial h where h.almacen = v_alm and h.clave = v_cla and h.guardada > now() - interval '5 minutes')) then

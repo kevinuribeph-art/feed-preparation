@@ -184,6 +184,13 @@ async function main() {
   let c = await contador();
   r = await esc(DA, T, [cambio('k1', 2, { t: 'uno-b' })]); x = porClave(r);
   ok(r.ok && x.k1.estado === 'igual' && x.k1.version === 2 && (await contador()) === c, 'el mismo valor: «igual», sin versión ni número nuevo', r.text);
+  const repetido = [cambio('k1', 2, { t: 'uno-c' }), cambio('k6', null, { t: 'seis' })];
+  r = await esc(DA, T, repetido); x = porClave(r);
+  ok(r.ok && x.k1.estado === 'ok' && x.k1.version === 3 && x.k6.estado === 'ok', 'un lote que entra…', r.text);
+  c = await contador();
+  r = await esc(DA, T, repetido); x = porClave(r);
+  ok(r.ok && x.k1.estado === 'igual' && x.k1.version === 3 && x.k6.estado === 'igual' && x.k6.version === 1 && (await contador()) === c,
+    '…repetido porque su respuesta se perdió: «igual», no choca consigo mismo', r.text);
 
   console.log('Versión mínima');
   w = web('mesa-version', '4.9'); ok(w.ok, 'mínima 4.9', w.out);
@@ -305,13 +312,13 @@ async function main() {
     ['mesa_turno_latido', { dispositivo: DA, turno: T, app: APP, cola: 0 }],
     ['mesa_turno_reclamar', { dispositivo: DB, visto: T, app: APP }],
     ['mesa_turno_soltar', { dispositivo: DA, turno: T }],
-    ['mesa_escribir', { dispositivo: DA, turno: T, app: APP, cambios: [cambio('intruso', null, 1), cambio('k1', 2, { t: 'pisado' })] }],
+    ['mesa_escribir', { dispositivo: DA, turno: T, app: APP, cambios: [cambio('intruso', null, 1), cambio('k1', 3, { t: 'pisado' })] }],
     ['mesa_bajar', { desde: 0 }],
   ];
   for (const [quien, f] of [['la clienta', A], ['la clave pública', N]])
     for (const [fn, args] of llamadas) { r = await f(fn, args); ok(!r.ok && es(r, 401, 403, 404), `${quien}: ${fn} no`, `${r.status} ${r.text}`); }
   s = (await sql('select dispositivo, numero, pide from mesa.turno where id'))[0];
-  ok(s.dispositivo === DA && +s.numero === T && !(await fila('intruso')) && (await fila('k1')).valor.t === 'uno-b', 'el turno y los registros siguen como estaban');
+  ok(s.dispositivo === DA && +s.numero === T && !(await fila('intruso')) && (await fila('k1')).valor.t === 'uno-c', 'el turno y los registros siguen como estaban');
 
   console.log('Nadie más que Kevin: esquema por REST');
   const g = await gestion(`projects/${P.ref}/postgrest`);   // su respuesta lleva secretos: solo se mira db_schema
@@ -353,7 +360,7 @@ async function main() {
 
   console.log('Rastros de Kevin en lo que reciben la clienta y la clave pública');
   const todo = ajeno.join('\n');
-  for (const v of [PRE, SECRETO, 'uno-b', DA, DB]) ok(!todo.includes(v), `nada de «${v.length > 20 ? v.slice(0, 12) + '…' : v}»`);
+  for (const v of [PRE, SECRETO, 'uno-c', DA, DB]) ok(!todo.includes(v), `nada de «${v.length > 20 ? v.slice(0, 12) + '…' : v}»`);
 }
 
 main().catch(e => { fallos++; console.error(tapar(e instanceof Fallo ? e.message : (e.stack || e))); })

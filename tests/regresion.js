@@ -17105,6 +17105,28 @@
     });
   });
 
+  prueba('WB14', 'La agencia (uribe) se envía aunque sus textos nombren a otro cliente (D-245): su web solo la ve Kevin; a otro cliente se le sigue parando (WB3)', async () => {
+    await abrirMes([pub(9)], MES, CLIENTE2, NOMBRE2);
+    await abrirMes([pub(1)], MES, 'uribe', 'Uribe Visuals');
+    try {
+      const lc = M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'Fotos para ' + NOMBRE2 }, { tone: 'b', text: 'b' }, { tone: 'c', text: 'c' }] }], { force: true });
+      ok(/cargado|sustituido/.test((lc[0] || {}).result), 'no se cargó el caption: ' + json(lc));
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+      await conWeb(async sv => {
+        wbSesion();
+        const r = await M.web.enviar();
+        ok(!r.error, 'no se envió la cuenta de la agencia: ' + json(r));
+        ok(sv.db.publicaciones.some(p => p.cliente_id === 'uribe' && (p.caption || '') === 'Fotos para ' + NOMBRE2), 'no llegó su caption con el nombre del otro cliente: ' + json(sv.db.publicaciones));
+      });
+    } finally {
+      await tablero([pub(1)]); await M.flush();
+      for (const id of ['uribe', CLIENTE2]) {
+        await M.purge(`${id}-${MES}`);
+        if ((await M.clients()).some(c => c.id === id)) igual(await M.removeClient(id), true, 'no se borró el cliente de prueba ' + id);
+      }
+    }
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

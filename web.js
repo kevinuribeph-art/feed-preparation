@@ -134,7 +134,8 @@
       ...ses.map(x => [`sesión «${x.nombre}»`, x.nombre]), ...pagos.map(p => [`cobro ${p.factura || p.periodo || ''}, concepto`, p.concepto || ''])];
     mesesInfo.forEach(r => { (r.porque && r.porque.partes || []).forEach((q, i) => textos.push([`por qué de ${r.mes}`, q.t], [`por qué de ${r.mes}`, q.x]));
       if (r.resumen) { (r.resumen.posts || []).forEach(q => textos.push([`resumen de ${r.mes}`, q.nombre])); textos.push([`resumen de ${r.mes}`, r.resumen.frase || '']); } });
-    X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
+    // La propia agencia no pasa esta comprobación: sus captions enseñan trabajos para clientes y su web solo la ve Kevin (D-245).
+    if (!AGENCIA.includes(cli)) X.mesOtros(cli, textos, m => problemas.push(m), esporadicos, AGENCIA.filter(a => a !== cli));
     const mesesQuitar = [previo, ...meses].filter(m => m && !mesesInfo.some(r => r.mes === m));
     return { cliente, publicaciones: pubs, sesiones: ses, meses: mesesInfo, mesesTablero: meses, mesesQuitar, pagos, problemas };
   }

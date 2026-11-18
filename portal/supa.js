@@ -76,7 +76,8 @@
           .then(function () { return true; }, function (e) {
             if (e.status === 429) throw new SupaError('demasiados intentos: espera un minuto', 429, 'espera');
             if (e.status === 0) throw e;
-            return true;
+            if (e.status >= 500) throw new SupaError('no se pudo enviar el código: inténtalo en un momento', e.status, 'servidor');
+            return true;   // un correo sin acceso no se distingue de uno con acceso
           });
       },
       verificarCodigo: function (correo, codigo) {
@@ -108,9 +109,14 @@
         return conToken('/storage/v1/object/' + bucket + '/' + ruta, { metodo: 'POST', cuerpo: blob, tipo: tipo || blob.type, espera: 60000 })
           .then(function () { return true; }, function (e) { if (e.status === 409 || /exist|duplicate/i.test(e.message)) return true; throw e; });
       },
+      // Los nombres de una carpeta, por páginas de 1000.
       listar: function (bucket, prefijo) {
-        return conToken('/storage/v1/object/list/' + bucket, { metodo: 'POST', json: { prefix: prefijo, limit: 1000, offset: 0 } })
-          .then(function (l) { return (l || []).map(function (x) { return x.name; }); });
+        var out = [];
+        function pagina(desde) {
+          return conToken('/storage/v1/object/list/' + bucket, { metodo: 'POST', json: { prefix: prefijo, limit: 1000, offset: desde } })
+            .then(function (l) { (l || []).forEach(function (x) { out.push(x.name); }); return (l || []).length === 1000 ? pagina(desde + 1000) : out; });
+        }
+        return pagina(0);
       },
       quitar: function (bucket, rutas) { return conToken('/storage/v1/object/' + bucket, { metodo: 'DELETE', json: { prefixes: rutas } }); },
       // URL firmadas de varias rutas a la vez, por la función `firmar` del servidor: {ruta: url}. Solo salen las que usa algo

@@ -14,6 +14,7 @@
   const C_APR = 'id,cliente_id,pid,version,decision,motivo,diapositiva,autor_nombre,hora';
   const C_COM = 'id,cliente_id,pid,version,diapositiva,texto,autor_nombre,de_kevin,hora,resuelto';
   const ESTADO = { preparando: ['En preparación', 'pr'], por_aprobar: ['Por aprobar', 'ap'], aprobada: ['Aprobada', 'ok'], cambios: ['Pediste cambios', 'cb'], programada: ['Programada', 'ok'], publicada: ['Publicada', 'ok'] };
+  const visto = p => (p.estado === 'programada' && p.fecha && Date.parse(p.fecha) <= Date.now() ? { ...p, estado: 'publicada' } : p);
   const TIPO = { foto: 'Foto', carrusel: 'Carrusel', reel: 'Reel', collab_reel: 'Collab', trial_reel: 'Reel' };
 
   // ---------- pequeñas herramientas ----------
@@ -58,12 +59,13 @@
   const lsSet = (k, v) => { try { if (v == null || v === '') localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
   let toastT = 0;
   function toast(t) { clearTimeout(toastT); document.querySelectorAll('.toast').forEach(x => x.remove()); const el = h('div', { class: 'toast', role: 'status', text: t }); document.body.append(el); toastT = setTimeout(() => el.remove(), 4000); }
-  const msgError = e => !e ? 'No se pudo.' : e.codigo === 'red' ? 'Sin conexión: inténtalo otra vez.' : e.status === 409 ? (e.message || 'Ha cambiado: vuelve a mirarla.') : e.status === 429 ? (e.message || 'Demasiados intentos: espera un minuto.') : e.status === 401 ? 'Tu sesión ha caducado: vuelve a entrar.' : (e.message || 'No se pudo.');
+  const frase = t => { t = String(t || '').trim(); if (!t) return 'No se pudo.'; t = t[0].toUpperCase() + t.slice(1); return /[.!?]$/.test(t) ? t : t + '.'; };
+  const msgError = e => !e ? 'No se pudo.' : e.codigo === 'red' ? 'Sin conexión: inténtalo otra vez.' : e.codigo === 'codigo' ? 'Ese código no vale o ha caducado. Pide otro.' : e.status === 409 ? frase(e.message || 'Ha cambiado: vuelve a mirarla') : e.status === 429 ? frase(e.message || 'Demasiados intentos: espera un minuto') : e.status === 401 ? 'Tu sesión ha caducado: vuelve a entrar.' : frase(e.message);
 
   // ---------- servidor ----------
   let S = null;
   try { S = window.Supa.crear({ url: CFG.url, publica: CFG.publica, clave: 'portal-sesion' }); } catch (e) { S = null; }
-  const st = { clientes: [], cli: null, d: null, mes: null, tab: 'cal', urls: new Map(), cargando: false, error: '', abierta: null };
+  const st = { clientes: [], cli: null, d: null, mes: null, tab: 'cal', urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0 };
 
   async function cargarClientes() {
     const mios = await S.leer('miembros?select=cliente_id,nombre');
@@ -72,17 +74,22 @@
     const l = await S.leer(`clientes?select=id,nombre,handle,foto,cuota_cent,proxima_emision&id=in.(${ids.map(encodeURIComponent).join(',')})`);
     return (l || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
-  async function cargarDatos(cli) {
-    const c = encodeURIComponent(cli);
-    const [pubs, ses, meses, pagos, aprs, coms] = await Promise.all([
+  async function cargarDatos(cli, antes) {
+    const c = encodeURIComponent(cli), prev = antes || {};
+    const pide = [
       S.leer(`publicaciones?select=${C_PUB}&cliente_id=eq.${c}&order=mes.desc,orden.asc`),
+      S.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${c}&order=hora.asc`),
+      S.leer(`comentarios?select=${C_COM}&cliente_id=eq.${c}&order=hora.asc`),
       S.leer(`sesiones?select=id,mes,nombre,inicio,fin,sin_hora&cliente_id=eq.${c}`),
       S.leer(`meses?select=mes,porque,resumen&cliente_id=eq.${c}`),
       S.leer(`pagos?select=id,periodo,concepto,importe_cent,factura,emitida,vence,cobrada,pdf&cliente_id=eq.${c}`),
-      S.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${c}&order=hora.asc`),
-      S.leer(`comentarios?select=${C_COM}&cliente_id=eq.${c}&order=hora.asc`),
-    ]);
-    return { pubs: pubs || [], ses: ses || [], meses: meses || [], pagos: pagos || [], aprs: aprs || [], coms: coms || [] };
+    ];
+    const r = await Promise.allSettled(pide);
+    const mal = r.find(x => x.status === 'rejected');
+    if (mal && (mal.reason.status === 401 || mal.reason.codigo === 'sesion')) throw mal.reason;
+    if (r.slice(0, 3).some(x => x.status === 'rejected')) throw r.slice(0, 3).find(x => x.status === 'rejected').reason;   // sin publicaciones ni conversación, no se pinta
+    const v = (i, k) => (r[i].status === 'fulfilled' ? r[i].value || [] : prev[k] || []);   // un panel que falla se queda como estaba
+    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos') };
   }
   // URL firmadas (10 minutos): se piden juntas y se guardan hasta un minuto antes de caducar.
   async function urls(rutas, bucket = 'fotos') {
@@ -95,8 +102,9 @@
   }
 
   // ---------- entrada ----------
-  function pintarEntrada(paso, correo, error) {
-    st.d = null;
+  function pintarEntrada(paso, correo, error, tecleado) {
+    st.d = null; st.urls.clear(); cerrar(true);
+    document.querySelectorAll('.dlg,.velo,.toast').forEach(x => x.remove());
     const err = error ? h('p', { class: 'err', id: 'ent-err' }, ico('alert'), error) : null;
     if (paso !== 'codigo') {
       const inp = h('input', { id: 'e-correo', type: 'email', autocomplete: 'email', inputmode: 'email', required: true, value: correo || '' });
@@ -104,22 +112,22 @@
         e.preventDefault(); const v = inp.value.trim().toLowerCase();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return pintarEntrada('correo', v, 'Ese correo no parece bien escrito.');
         const b = form.querySelector('button'); b.disabled = true;
-        try { await S.pedirCodigo(v); lsSet('portal-correo', v); pintarEntrada('codigo', v); } catch (x) { pintarEntrada('correo', v, msgError(x)); }
+        try { await S.pedirCodigo(v); st.codigoEn = Date.now(); lsSet('portal-correo', v); pintarEntrada('codigo', v); } catch (x) { pintarEntrada('correo', v, msgError(x)); }
       } },
         h('div', { class: 'ent-m', text: 'Uribe Visuals' }), h('h1', { text: 'Tu calendario de Instagram' }),
         h('p', { text: 'Escribe el correo con el que trabajamos y te mandamos un código para entrar.' }),
         h('label', { for: 'e-correo', text: 'Correo' }), inp, err, h('button', { class: 'btn p', type: 'submit', text: 'Enviarme el código' }),
-        h('p', { class: 'legal', text: 'Privacidad · Aviso legal' }));
+        h('p', { class: 'legal' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' })));
       app.replaceChildren(h('div', { class: 'ent' }, form)); inp.focus();
       return;
     }
-    const cod = h('input', { id: 'e-cod', class: 'cod' + (error ? ' mal' : ''), inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8', required: true, 'aria-describedby': error ? 'ent-err' : null });
-    let quedan = 60; const reenviar = h('button', { class: 'lnk', type: 'button', disabled: true, text: 'Reenviar en 1:00', onclick: async () => { try { await S.pedirCodigo(correo); pintarEntrada('codigo', correo); } catch (x) { pintarEntrada('codigo', correo, msgError(x)); } } });
-    const t = setInterval(() => { if (!reenviar.isConnected) return clearInterval(t); quedan--; if (quedan <= 0) { clearInterval(t); reenviar.disabled = false; reenviar.textContent = 'Reenviar código'; } else reenviar.textContent = `Reenviar en 0:${String(quedan).padStart(2, '0')}`; }, 1000);
-    if (error) { quedan = 0; reenviar.disabled = false; reenviar.textContent = 'Reenviar código'; }
+    const cod = h('input', { id: 'e-cod', class: 'cod' + (error ? ' mal' : ''), inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8', required: true, 'aria-describedby': error ? 'ent-err' : null, value: tecleado || '' });
+    let quedan = Math.max(0, 60 - Math.floor((Date.now() - st.codigoEn) / 1000));
+    const reenviar = h('button', { class: 'lnk', type: 'button', disabled: quedan > 0, text: quedan > 0 ? `Reenviar en 0:${String(quedan).padStart(2, '0')}` : 'Reenviar código', onclick: async () => { try { await S.pedirCodigo(correo); st.codigoEn = Date.now(); pintarEntrada('codigo', correo); } catch (x) { pintarEntrada('codigo', correo, msgError(x)); } } });
+    const t = setInterval(() => { if (!reenviar.isConnected) return clearInterval(t); quedan = Math.max(0, 60 - Math.floor((Date.now() - st.codigoEn) / 1000)); if (quedan <= 0) { clearInterval(t); reenviar.disabled = false; reenviar.textContent = 'Reenviar código'; } else reenviar.textContent = `Reenviar en 0:${String(quedan).padStart(2, '0')}`; }, 1000);
     const form = h('form', { class: 'ent-c', novalidate: true, onsubmit: async e => {
       e.preventDefault(); const b = form.querySelector('button[type=submit]'); b.disabled = true;
-      try { await S.verificarCodigo(correo, cod.value); await arrancar(); } catch (x) { pintarEntrada('codigo', correo, msgError(x)); }
+      try { await S.verificarCodigo(correo, cod.value); await arrancar(); } catch (x) { pintarEntrada('codigo', correo, msgError(x), cod.value); }
     } },
       h('div', { class: 'ent-m', text: 'Uribe Visuals' }), h('h1', { text: 'Mira tu correo' }),
       h('p', { text: `Si ${correo} está dado de alta, te llega un código de 6 cifras. Vale 10 minutos.` }),
@@ -150,7 +158,8 @@
       if (!st.clientes.length) { pintarSinCliente(); return; }
       const pref = lsGet('portal-cliente');
       st.cli = (st.clientes.find(c => c.id === pref) || st.clientes[0]).id;
-      st.d = await cargarDatos(st.cli); st.mes = mesInicial(); st.error = '';
+      const n = ++st.carga, d = await cargarDatos(st.cli); if (n !== st.carga) return;
+      st.d = d; st.mes = mesInicial(); st.error = '';
       pintar();
     } catch (e) {
       if (e.status === 401 || e.codigo === 'sesion') return pintarEntrada('correo', lsGet('portal-correo') || '', 'Tu sesión ha caducado: vuelve a entrar.');
@@ -165,13 +174,16 @@
     app.replaceChildren(h('div', { class: 'pv' }, h('div', { class: 'aviso mal', role: 'alert' }, h('div', { class: 't' }, h('b', { text: 'No se pudo cargar tu calendario' }), h('span', { text: t })),
       h('button', { class: 'btn s', type: 'button', text: 'Reintentar', onclick: arrancar }))));
   }
-  async function salir() { await S.salir(); st.urls.clear(); st.d = null; lsSet('portal-cliente', null); pintarEntrada('correo', lsGet('portal-correo') || ''); }
+  async function salir() {
+    try { Object.keys(localStorage).filter(k => /^portal-(borrador|motivo)-/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) { /* sin almacenamiento */ }
+    await S.salir(); st.urls.clear(); st.d = null; lsSet('portal-cliente', null); pintarEntrada('correo', lsGet('portal-correo') || '');
+  }
 
   function pintar() {
     const cli = st.clientes.find(c => c.id === st.cli), meses = mesesDisponibles();
     const top = h('header', { class: 'pv-top' },
       h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, st.clientes.map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
-        onclick: async () => { if (c.id === st.cli) return; st.cli = c.id; lsSet('portal-cliente', c.id); st.d = await cargarDatos(c.id).catch(e => { pintarError(msgError(e)); return null; }); if (st.d) { st.mes = mesInicial(); pintar(); } } }))),
+        onclick: async () => { if (c.id === st.cli) return; st.cli = c.id; lsSet('portal-cliente', c.id); const n = ++st.carga; cerrar(true); const d = await cargarDatos(c.id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; }); if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); } } }))),
       h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' })),
       meses.length > 1 ? h('nav', { class: 'pv-meses', 'aria-label': 'Meses' }, meses.map(m => h('button', { type: 'button', class: 'pv-mes' + (m === st.mes ? ' on' : ''), 'aria-pressed': String(m === st.mes), text: mesCorto(m), onclick: () => { st.mes = m; pintar(); } }))) : null);
     const pend = pendientes();
@@ -179,14 +191,15 @@
       h('div', { class: 't' }, h('b', { text: pend.length === 1 ? 'Una publicación espera tu visto bueno' : `${pend.length} publicaciones esperan tu visto bueno` }),
         h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
       h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
-    const cols = h('div', { class: 'cols' }, pintarFeed(), pintarCentro(), h('div', { class: 'lado' }, pintarPagos(cli), pintarComoFue()));
-    const pie = h('footer', { class: 'pie' }, h('span', { text: 'Privacidad' }), h('span', { text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
+    const cols = h('div', { class: 'cols' }, pintarFeed(), seguro(pintarCentro), h('div', { class: 'lado' }, seguro(() => pintarPagos(cli)), seguro(pintarComoFue)));
+    const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
     const y = window.scrollY;
     app.replaceChildren(h('div', { class: 'pv' }, top, aviso, cols, pie));
     window.scrollTo(0, y);
     pintarMinis();
   }
 
+  function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
   function marca(p) {
     if (p.estado === 'por_aprobar') return h('span', { class: 'mk', title: 'Por aprobar' }, h('i'), h('span', { class: 'sr', text: 'Por aprobar' }));
     if (['aprobada', 'programada', 'publicada'].includes(p.estado)) return h('span', { class: 'mk ok' }, ico('check'), h('span', { class: 'sr', text: ESTADO[p.estado][0] }));
@@ -204,7 +217,7 @@
         n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
     };
     const mA = MESES[+mesAntes(st.mes).slice(5, 7) - 1];
-    const celdas = [...ahora.map(p => celda(p)), ...antes.map((p, i) => celda(p, i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '. · publicado'] : null))];
+    const celdas = [...ahora.map(p => celda(p)), ...antes.map((p, i) => celda(p, i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '.'] : null))];
     return h('section', { class: 'feedw', 'aria-label': 'Tu feed' },
       celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }),
       celdas.length ? h('ul', { class: 'leyenda', 'aria-label': 'Qué significa cada marca' },
@@ -212,18 +225,23 @@
         h('li', {}, h('span', { class: 'mk ok', 'aria-hidden': 'true' }, ico('check')), 'Aprobada'),
         h('li', {}, h('span', { class: 'mk cb', 'aria-hidden': 'true' }, ico('pen')), 'Pediste cambios')) : null);
   }
+  async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
+    const i = e.currentTarget, r = i.dataset.ruta || i.dataset.grande; if (!r || i.dataset.otra) return;
+    i.dataset.otra = '1'; st.urls.delete(r);
+    try { const m = await urls([r]); if (m[r] && i.isConnected) i.src = m[r]; } catch (x) { /* se queda el hueco */ }
+  }
   async function pintarMinis() {
     const imgs = [...app.querySelectorAll('img[data-ruta]')], rutas = imgs.map(i => i.dataset.ruta);
     if (!rutas.length) return;
     try {
       const m = await urls(rutas);
-      for (const i of imgs) if (m[i.dataset.ruta] && i.isConnected) i.src = m[i.dataset.ruta];
+      for (const i of imgs) if (m[i.dataset.ruta] && i.isConnected) { i.src = m[i.dataset.ruta]; i.addEventListener('error', otraVez, { once: true }); }
     } catch (e) { /* sin fotos: los huecos se quedan; el siguiente repaso lo vuelve a intentar */ }
   }
 
   function chip(p) {
     const est = p.estado === 'por_aprobar' ? h('i', { class: 'a', 'aria-hidden': 'true' }) : ['aprobada', 'programada', 'publicada'].includes(p.estado) ? ico('check') : p.estado === 'cambios' ? ico('pen') : null;
-    return h('button', { type: 'button', class: 'chip ' + p.tipo, onclick: () => abrir(p.pid), 'aria-label': `${p.nombre} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}` },
+    return h('button', { type: 'button', class: 'chip ' + p.tipo, 'data-pid': p.pid, onclick: () => abrir(p.pid), 'aria-label': `${p.nombre} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}` },
       h('span', { class: 'r' }, h('span', { class: 't', text: p.nombre }), est), p.sin_hora || !p.fecha ? null : h('small', { text: horaDe(p.fecha) }));
   }
   const chipSes = x => h('span', { class: 'chip ses' }, h('span', { class: 'r' }, h('span', { class: 't', text: x.nombre })), x.sin_hora ? null : h('small', { text: horaDe(x.inicio) }));
@@ -232,20 +250,22 @@
     const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), pubs = delMes(m).filter(p => p.fecha), ses = st.d.ses.filter(x => x.mes === m);
     const deDia = d => [...pubs.filter(p => diaDe(p.fecha) === d).map(p => [p.fecha, chip(p)]), ...ses.filter(x => diaDe(x.inicio) === d).map(x => [x.inicio, chipSes(x)])].sort((a, b) => a[0].localeCompare(b[0])).map(x => x[1]);
     const celdas = [];
-    for (let i = 0; i < lun; i++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }));
+    const diasAntes = new Date(Date.UTC(y, mo - 1, 0)).getUTCDate();
+    for (let i = 0; i < lun; i++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: String(diasAntes - lun + 1 + i) })));
     for (let d = 1; d <= dias; d++) { const dia = `${m}-${String(d).padStart(2, '0')}`; celdas.push(h('div', { class: 'dia' + (dia === H ? ' hoy' : '') }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo - 1].slice(0, 3)}` : String(d) }), deDia(dia))); }
-    while (celdas.length % 7) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }));
+    for (let d = 1; celdas.length % 7; d++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo % 12].slice(0, 3)}` : String(d) })));
     const grid = h('div', { class: 'cal', role: 'grid', 'aria-label': 'Calendario de ' + MESES[mo - 1] }, ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => h('span', { class: 'dn', 'aria-hidden': 'true', text: x })), celdas);
     // lista por semanas (a 390): de lunes a domingo
     const items = [...pubs.map(p => ({ t: p.fecha, p })), ...ses.map(x => ({ t: x.inicio, x }))].sort((a, b) => a.t.localeCompare(b.t));
     const lista = h('ol', { class: 'agenda' }); let semAnt = null;
     for (const it of items) {
       const dia = diaDe(it.t), dd = new Date(dia + 'T12:00:00Z'), w = (dd.getUTCDay() + 6) % 7, lunes = new Date(dd - w * 864e5).toISOString().slice(0, 10), dom = new Date(dd.getTime() + (6 - w) * 864e5).toISOString().slice(0, 10);
-      if (lunes !== semAnt) { semAnt = lunes; lista.append(h('li', { class: 'sem', text: `${diaCorto(lunes)} – ${diaCorto(dom)}` })); }
+      if (lunes !== semAnt) { semAnt = lunes; const n = Math.floor((+dia.slice(8) + lun - 1) / 7) + 1, mismo = lunes.slice(5, 7) === dom.slice(5, 7);
+        lista.append(h('li', { class: 'sem', text: `Semana ${n} · ${mismo ? +lunes.slice(8) : diaCorto(lunes)} – ${diaCorto(dom)}` })); }
       const est = it.p ? (it.p.estado === 'por_aprobar' ? h('span', { class: 'dot', 'aria-hidden': 'true' }) : ['aprobada', 'programada', 'publicada'].includes(it.p.estado) ? ico('check', 'ok') : it.p.estado === 'cambios' ? ico('pen', 'cb') : null) : null;
       const hora = it.p ? (it.p.sin_hora ? '' : horaDe(it.p.fecha)) : (it.x.sin_hora ? '' : horaDe(it.x.inicio));
       const cont = [h('span', { class: 'd' }, h('b', { text: String(+dia.slice(8)) }), h('span', { text: dsem(dia).slice(0, 3) })), h('span', { class: 'c ' + (it.p ? it.p.tipo : 'ses'), text: it.p ? it.p.nombre : it.x.nombre }), h('span', { class: 'h', text: hora }), h('span', { class: 's' }, est)];
-      lista.append(h('li', {}, it.p ? h('button', { type: 'button', class: 'ag', onclick: () => abrir(it.p.pid), 'aria-label': `${it.p.nombre} · ${fechaPub(it.p)} · ${ESTADO[it.p.estado][0]}` }, cont) : h('div', { class: 'ag' }, cont)));
+      lista.append(h('li', {}, it.p ? h('button', { type: 'button', class: 'ag', 'data-pid': it.p.pid, onclick: () => abrir(it.p.pid), 'aria-label': `${it.p.nombre} · ${fechaPub(it.p)} · ${ESTADO[it.p.estado][0]}` }, cont) : h('div', { class: 'ag' }, cont)));
     }
     if (!items.length) lista.append(h('li', {}, h('p', { class: 'vacio', text: 'Este mes aún no tiene nada en el calendario.' })));
     return [h('div', { class: 'cal-h', text: may(MESES[mo - 1]) + ' ' + y }), grid, lista];
@@ -274,7 +294,8 @@
   function pintarPagos(cli) {
     const P = st.d.pagos; if (!P.length && !(cli && cli.cuota_cent)) return null;
     const H = hoy(), clave = r => r.emitida || (r.periodo ? r.periodo + '-01' : '') || r.vence || '';
-    const filas = [...P].sort((a, b) => clave(b).localeCompare(clave(a)) || String(b.id).localeCompare(String(a.id)));
+    const grupo = r => (r.cobrada ? 3 : !r.emitida || r.emitida > H ? 2 : r.vence && r.vence < H ? 0 : 1);
+    const filas = [...P].sort((a, b) => grupo(a) - grupo(b) || (grupo(a) < 2 ? (a.vence || '').localeCompare(b.vence || '') : clave(b).localeCompare(clave(a))) || String(b.id).localeCompare(String(a.id)));
     const deber = filas.filter(r => !r.cobrada && r.emitida && r.emitida <= H), venc = deber.filter(r => r.vence && r.vence < H).length;
     const fila = r => {
       const [t, k, i, cuando] = estadoPago(r, H), titulo = (r.periodo ? may(MESES[+r.periodo.slice(5, 7) - 1]) : (r.concepto || 'Factura')) + ' · ' + eur(r.importe_cent);
@@ -289,8 +310,9 @@
       filas.slice(0, 6).map(fila), prox);
   }
   async function abrirPdf(ruta) {
-    const w = window.open('', '_blank', 'noopener');   // abierta ya con el toque: si no, el móvil la bloquea
-    try { const m = await urls([ruta], 'facturas'); if (!m[ruta]) throw new Error('no se pudo abrir la factura'); if (w) w.location = m[ruta]; else location.href = m[ruta]; }
+    const w = window.open('', '_blank');   // abierta ya con el toque: si no, el móvil la bloquea («noopener» la devuelve nula)
+    if (w) { try { w.opener = null; } catch (e) { /* ya sin opener */ } }
+    try { const m = await urls([ruta], 'facturas'); if (!m[ruta]) throw new Error('no se pudo abrir la factura'); if (w) w.location.replace(m[ruta]); else location.href = m[ruta]; }
     catch (e) { if (w) w.close(); toast(msgError(e)); }
   }
   function pintarComoFue() {
@@ -308,10 +330,11 @@
       return h('div', {}, h('span', { text: t }), h('b', { text: cifra(v) }), h('em', { class: d.k, text: d.t }));
     });
     const P = res.posts || [], max = Math.max(1, ...P.map(x => x.alcance)), best = P.reduce((a, x, i) => x.alcance > P[a].alcance ? i : a, 0);
-    const dato = h('p', { class: 'dato', 'aria-live': 'polite' });
-    const ver = i => { const x = P[i]; dato.textContent = `${x.nombre} · ${x.tipo} · ${diaCorto(x.fecha)} · ${num(x.alcance)} de alcance`; barras.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i))); };
+    const dato = h('p', { class: 'dato ayuda', 'aria-live': 'polite', text: 'Toca una barra para ver su dato.' });
+    const ver = i => { const x = P[i]; dato.classList.remove('ayuda'); dato.textContent = `${x.nombre} · ${x.tipo} · ${diaCorto(x.fecha)} · ${num(x.alcance)} de alcance`; barras.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === i))); };
     const barras = h('div', { class: 'barras', role: 'group', 'aria-label': `Alcance de cada publicación de ${MESES[+p.slice(5, 7) - 1]}: toca una para ver su dato` });
     barras.style.setProperty('--g', P.length > 40 ? '0.5px' : P.length > 24 ? '1px' : '2px');
+    barras.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && !e.buttons) return; const r = barras.getBoundingClientRect(); ver(Math.min(P.length - 1, Math.max(0, Math.floor((e.clientX - r.left) / Math.max(1, r.width) * P.length)))); });
     P.forEach((x, i) => {
       const bar = h('i'); bar.style.height = (x.alcance ? Math.max(2, x.alcance / max * 100) : 0).toFixed(1) + '%';
       if (i === best) { const lado = P.length === 1 ? 'medio' : i < P.length / 3 ? 'ini' : i > P.length * 2 / 3 ? 'fin' : 'medio'; bar.append(h('em', { class: 'lb ' + lado, text: (x.nombre.length > 26 ? x.nombre.slice(0, 25).trimEnd() + '…' : x.nombre) + ' · ' + cifra(x.alcance) })); }
@@ -331,17 +354,19 @@
   function abrir(pid) {
     const p = st.d.pubs.find(x => x.pid === pid && x.visible); if (!p) return;
     cerrar(true);
-    st.abierta = { pid, slide: 1, origen: document.activeElement };
+    st.abierta = { pid, slide: 1, origen: document.activeElement, version: null, tog: null };
     const velo = h('div', { class: 'velo', onclick: () => cerrar() });
     const hoja = h('section', { class: 'hoja', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'h-pub', tabindex: '-1' });
-    document.body.append(velo, hoja); document.body.style.overflow = 'hidden';
+    document.body.append(velo, hoja); document.body.style.overflow = 'hidden'; document.body.classList.add('con-hoja');
     pintarHoja(true);
     hoja.focus();
   }
   function cerrar(sinFoco) {
-    document.querySelectorAll('.velo,.hoja,.dlg').forEach(x => x.remove()); document.body.style.overflow = '';
-    const o = st.abierta && st.abierta.origen; st.abierta = null;
-    if (!sinFoco && o && o.isConnected) o.focus();
+    document.querySelectorAll('.velo,.hoja,.dlg').forEach(x => x.remove()); document.body.style.overflow = ''; document.body.classList.remove('con-hoja');
+    const A = st.abierta; st.abierta = null; if (!A || sinFoco) return;
+    // la casilla de origen pudo rehacerse mientras estaba abierta: se busca la de esa publicación que se vea
+    const o = A.origen && A.origen.isConnected ? A.origen : [...document.querySelectorAll(`[data-pid="${A.pid}"]`)].find(x => x.offsetParent);
+    if (o) o.focus();
   }
   function pintarHoja(nueva) {
     const A = st.abierta, hoja = document.querySelector('.hoja'); if (!A || !hoja) return;
@@ -350,7 +375,9 @@
     const ultimaMia = [...aprs].reverse().find(a => a.decision !== 'retirada');
     // si ya existe, solo se rehacen las partes (el campo de escribir no se toca mientras se escribe: lección 92)
     let escr = hoja.querySelector('.escr');
-    const ig = nueva || !hoja.querySelector('.ig') ? pintarIg(p, cli) : hoja.querySelector('.ig');
+    const otraVersion = !nueva && A.version && A.version !== p.version;
+    if (otraVersion) { A.slide = 1; A.tog = null; }
+    const ig = nueva || otraVersion || !hoja.querySelector('.ig') ? pintarIg(p, cli) : hoja.querySelector('.ig');
     const hilo = h('ol', {}, [
       ...coms.map(c => ({ t: c.hora, el: h('li', { class: 'cm' + (c.de_kevin ? ' kv' : '') }, h('span', { class: 'q' }, h('b', { text: c.autor_nombre }), cuando(c.hora), c.version !== p.version ? ' · de una versión anterior' : ''),
         c.diapositiva ? h('span', { class: 'sl', text: 'Diapositiva ' + c.diapositiva }) : null, h('p', { text: c.texto })) })),
@@ -364,31 +391,40 @@
       const tog = h('button', { type: 'button', class: 'tog', 'aria-pressed': 'false', hidden: true }, ico('check'), h('span'));
       const err = h('p', { class: 'err-p', role: 'alert', hidden: true });
       ta.addEventListener('input', () => { lsSet('portal-borrador-' + p.pid, ta.value); env.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; });
-      tog.addEventListener('click', () => tog.setAttribute('aria-pressed', String(tog.getAttribute('aria-pressed') !== 'true')));
+      tog.addEventListener('click', () => { const v = tog.getAttribute('aria-pressed') !== 'true'; tog.setAttribute('aria-pressed', String(v)); if (st.abierta) st.abierta.tog = v; });
       env.addEventListener('click', async () => {
         const t = ta.value.trim(); if (!t) return; env.disabled = true; err.hidden = true;
         try {
           const dia = tog.hidden || tog.getAttribute('aria-pressed') !== 'true' ? null : st.abierta.slide;
-          const fila = await S.insertar(`comentarios?select=${C_COM}`, [{ cliente_id: st.cli, pid: p.pid, version: p.version, diapositiva: dia, texto: t }], { devolver: true });
-          st.d.coms.push(...(fila || [])); ta.value = ''; lsSet('portal-borrador-' + p.pid, null); ta.style.height = '';
+          st.gen++;
+          const fila = await S.insertar(`comentarios?select=${C_COM}`, [{ cliente_id: st.cli, pid: p.pid, version: (st.abierta && st.abierta.version) || p.version, diapositiva: dia, texto: t }], { devolver: true });
+          st.gen++; st.d.coms.push(...(fila || [])); ta.value = ''; lsSet('portal-borrador-' + p.pid, null); ta.style.height = '';
           pintarHoja(); pintar();
-        } catch (e) { err.textContent = msgError(e); err.hidden = false; env.disabled = false; }
+        } catch (e) { err.textContent = msgError(e); err.hidden = false; env.disabled = false; if (e.status === 409) await refrescar(true); }
       });
       escr = h('div', { class: 'escr' }, tog, h('div', { class: 'fila' }, ta, env), err);
     }
     const tog = escr.querySelector('.tog'), nImg = p.imagenes.length;
     tog.hidden = nImg < 2; tog.lastChild.textContent = 'Sobre la diapositiva ' + A.slide;
-    if (nueva) tog.setAttribute('aria-pressed', 'false');
+    if (nueva || otraVersion) tog.setAttribute('aria-pressed', 'false');
     const cambiado = ultimaMia && ultimaMia.version !== p.version;
-    const dl = h('div', { class: 'dl' },
-      h('div', { class: 'dl-h' }, h('h2', { id: 'h-pub', text: p.nombre }), h('p', { text: fechaPub(p) }), pildora(p, ultimaMia)),
-      h('div', { class: 'dl-b' }, cambiado ? h('p', { class: 'cambio' }, ico('hist'), 'Ha cambiado después de tu última decisión: míralo otra vez.') : null,
-        h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), coms.length || aprs.some(a => a.decision === 'cambios') ? hilo : h('p', { class: 'vacio', text: 'Aún no hay comentarios. Si algo no te encaja, dilo aquí.' }), escr)),
-      acciones(p, ultimaMia));
-    const x = h('button', { type: 'button', class: 'hoja-x', 'aria-label': 'Cerrar', onclick: () => cerrar() }, ico('x'));
-    if (nueva) hoja.replaceChildren(x, ig, dl);
-    else { const viejo = hoja.querySelector('.dl'); viejo.replaceWith(dl); }
-    if (nueva) mostrarImagenes(p);
+    const cab = h('div', { class: 'dl-h' }, h('h2', { id: 'h-pub', text: p.nombre }), h('p', { text: fechaPub(p) }), pildora(p, ultimaMia));
+    const aviso = otraVersion ? h('p', { class: 'cambio', role: 'status' }, ico('hist'), 'Kevin acaba de cambiarla: esto es lo nuevo.')
+      : cambiado ? h('p', { class: 'cambio' }, ico('hist'), 'Ha cambiado después de tu última decisión: míralo otra vez.') : null;
+    const lista = coms.length || aprs.some(a => a.decision === 'cambios') ? hilo : h('p', { class: 'vacio', text: 'Aún no hay comentarios. Si algo no te encaja, dilo aquí.' });
+    const acc = acciones(p, ultimaMia), dl0 = hoja.querySelector('.dl');
+    A.version = p.version;
+    if (nueva || !dl0) {
+      const x = h('button', { type: 'button', class: 'hoja-x', 'aria-label': 'Cerrar', onclick: () => cerrar() }, ico('x'));
+      hoja.replaceChildren(x, ig, h('div', { class: 'dl' }, cab, h('div', { class: 'dl-b' }, aviso, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista, escr)), acc));
+    } else {   // solo cambia lo que cambió; el campo de escribir se queda donde está, con su foco
+      if (otraVersion) hoja.querySelector('.ig').replaceWith(ig);
+      dl0.querySelector('.dl-h').replaceWith(cab);
+      const b = dl0.querySelector('.dl-b'); b.querySelector(':scope > .cambio')?.remove(); if (aviso) b.prepend(aviso);
+      b.querySelector('.hilo > ol, .hilo > p.vacio').replaceWith(lista);
+      dl0.querySelector('.acc').replaceWith(acc);
+    }
+    if (nueva || otraVersion) mostrarImagenes(p);
   }
   function pildora(p, ultima) {
     const [t, k] = ESTADO[p.estado];
@@ -397,7 +433,7 @@
   }
   function siguientePendiente(pid) { const l = pendientes().filter(x => x.pid !== pid); return l[0] || null; }
   function acciones(p, ultima) {
-    const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', text: 'Siguiente por aprobar →', onclick: () => abrir(sig.pid) }) : null;
+    const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', onclick: () => abrir(sig.pid) }, 'Siguiente por aprobar', ico('right')) : null;
     if (p.estado === 'por_aprobar') return h('div', { class: 'acc' },
       h('button', { type: 'button', class: 'btn s', onclick: () => pedirCambios(p) }, ico('pen'), 'Pedir cambios'),
       h('button', { type: 'button', class: 'btn p', onclick: e => decidir(p, 'aprobada', null, null, e.currentTarget) }, ico('check'), 'Aprobar'));
@@ -408,32 +444,45 @@
     const txt = { preparando: 'Aún la estamos preparando: te avisaremos para que la apruebes.', programada: 'Ya está programada.', publicada: 'Ya está publicada.' }[p.estado];
     return h('div', { class: 'acc' }, h('p', { class: 'vacio', text: txt }), sigBtn);
   }
-  async function decidir(p, decision, motivo, diapositiva, boton) {
+  async function decidir(p0, decision, motivo, diapositiva, boton) {
     if (boton) boton.disabled = true;
+    const pid = p0.pid, A = st.abierta, version = A && A.pid === pid && A.version ? A.version : p0.version;   // lo que tiene delante
     try {
-      const fila = await S.insertar(`aprobaciones?select=${C_APR}`, [{ cliente_id: st.cli, pid: p.pid, version: p.version, decision, motivo, diapositiva }], { devolver: true });
+      st.gen++;
+      const fila = await S.insertar(`aprobaciones?select=${C_APR}`, [{ cliente_id: st.cli, pid, version, decision, motivo, diapositiva }], { devolver: true });
+      st.gen++;
       st.d.aprs.push(...(fila || []));
-      p.estado = decision === 'aprobada' ? 'aprobada' : decision === 'cambios' ? 'cambios' : 'por_aprobar';
+      const p = st.d.pubs.find(x => x.pid === pid);   // un repaso pudo traer otra lista mientras tanto (lección 97)
+      if (p) p.estado = decision === 'aprobada' ? 'aprobada' : decision === 'cambios' ? 'cambios' : 'por_aprobar';
       toast(decision === 'aprobada' ? 'Aprobada. Queda lista para programar.' : decision === 'cambios' ? 'Enviado: Kevin verá lo que cambiarías.' : 'Hecho: vuelve a esperar tu decisión.');
       pintar(); pintarHoja();
       return true;
     } catch (e) {
       toast(msgError(e)); if (boton && boton.isConnected) boton.disabled = false;
-      if (e.status === 409) await refrescar();
+      if (e.status === 409) { document.querySelectorAll('.dlg,.velo.alto').forEach(x => x.remove()); await refrescar(true); }
       return false;
     }
   }
   function pedirCambios(p) {
-    const ta = h('textarea', { 'aria-label': 'Qué cambiarías', maxlength: '2000' }), enviar = h('button', { type: 'button', class: 'btn p', text: 'Enviar', disabled: true });
+    const clave = 'portal-motivo-' + p.pid, origen = document.activeElement;
+    const ta = h('textarea', { 'aria-label': 'Qué cambiarías', maxlength: '2000' }), enviar = h('button', { type: 'button', class: 'btn p', text: 'Enviar' });
+    ta.value = lsGet(clave) || ''; enviar.disabled = !ta.value.trim();
     const tog = p.imagenes.length > 1 ? h('button', { type: 'button', class: 'tog', 'aria-pressed': String(st.abierta.slide > 1) }, ico('check'), 'Sobre la diapositiva ' + st.abierta.slide) : null;
     if (tog) tog.addEventListener('click', () => tog.setAttribute('aria-pressed', String(tog.getAttribute('aria-pressed') !== 'true')));
-    ta.addEventListener('input', () => { enviar.disabled = !ta.value.trim(); });
-    const velo = h('div', { class: 'velo alto' }), quitar = () => { velo.remove(); dlg.remove(); };
+    ta.addEventListener('input', () => { enviar.disabled = !ta.value.trim(); lsSet(clave, ta.value); });
+    const velo = h('div', { class: 'velo alto' });
+    const quitar = () => {
+      velo.remove(); dlg.remove();
+      if (st.sucio) { st.sucio = false; pintar(); pintarHoja(); }   // lo que llegó mientras estaba abierto
+      const o = origen && origen.isConnected ? origen : document.querySelector('.hoja .acc .btn.s') || document.querySelector('.hoja');
+      if (o) o.focus();
+    };
     const dlg = h('section', { class: 'dlg', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'h-camb' },
       h('h2', { id: 'h-camb', text: '¿Qué cambiarías?' }), h('p', { text: `${p.nombre} · ${fechaPub(p)}. Kevin lo verá en su Mesa.` }), tog, ta,
       h('div', { class: 'fila' }, h('button', { type: 'button', class: 'btn q', text: 'Cancelar', onclick: quitar }), enviar));
+    dlg._quitar = quitar;
     velo.addEventListener('click', quitar);
-    enviar.addEventListener('click', async () => { const ok = await decidir(p, 'cambios', ta.value.trim(), tog && tog.getAttribute('aria-pressed') === 'true' ? st.abierta.slide : null, enviar); if (ok) quitar(); });
+    enviar.addEventListener('click', async () => { const ok = await decidir(p, 'cambios', ta.value.trim(), tog && tog.getAttribute('aria-pressed') === 'true' ? st.abierta.slide : null, enviar); if (ok) { lsSet(clave, null); quitar(); } });
     document.body.append(velo, dlg); ta.focus();
   }
   function pintarIg(p, cli) {
@@ -451,7 +500,7 @@
       const i = Math.round(lista.scrollLeft / Math.max(1, lista.clientWidth)) + 1; if (!st.abierta || i === st.abierta.slide) return;
       st.abierta.slide = i; n.textContent = `${i} / ${p.imagenes.length}`; [...dots.children].forEach((d, j) => d.className = j === i - 1 ? 'on' : '');
       ant.hidden = i <= 1; sig.hidden = i >= p.imagenes.length;
-      const tog = document.querySelector('.hoja .escr .tog'); if (tog) { tog.lastChild.textContent = 'Sobre la diapositiva ' + i; tog.setAttribute('aria-pressed', String(i > 1)); }
+      const tog = document.querySelector('.hoja .escr .tog'); if (tog) { tog.lastChild.textContent = 'Sobre la diapositiva ' + i; if (st.abierta.tog == null) tog.setAttribute('aria-pressed', String(i > 1)); }
     }, { passive: true });
     lista.addEventListener('keydown', e => { if (e.key === 'ArrowRight') { e.preventDefault(); ir(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); ir(-1); } });
     return h('div', { class: 'ig' },
@@ -461,28 +510,41 @@
   }
   async function mostrarImagenes(p) {
     const imgs = [...document.querySelectorAll('.hoja img[data-grande]')]; if (!imgs.length) return;
-    try { const m = await urls(imgs.map(i => i.dataset.grande)); for (const i of imgs) if (m[i.dataset.grande] && i.isConnected) i.src = m[i.dataset.grande]; }
+    try { const m = await urls(imgs.map(i => i.dataset.grande)); for (const i of imgs) if (m[i.dataset.grande] && i.isConnected) { i.src = m[i.dataset.grande]; i.addEventListener('error', otraVez, { once: true }); } }
     catch (e) { toast('No se pudieron cargar las imágenes: ' + msgError(e)); }
   }
 
   // ---------- repaso: lo nuevo, sin cerrar ni borrar lo que se escribe ----------
-  async function refrescar() {
-    if (!S || !S.usuario() || !st.cli || document.hidden) return;
+  async function refrescar(forzar) {
+    if (!S || !S.usuario() || !st.cli || (document.hidden && !forzar)) return;
+    const gen = st.gen, n = st.carga, cli = st.cli;
     try {
-      const d = await cargarDatos(st.cli), antes = JSON.stringify(st.d);
-      if (JSON.stringify(d) === antes) return;
+      const d = await cargarDatos(cli, st.d);
+      if (gen !== st.gen || n !== st.carga || cli !== st.cli) return;   // algo se escribió o se cambió de cuenta mientras se leía: lo leído ya es viejo
+      if (!forzar && JSON.stringify(d) === JSON.stringify(st.d)) return;
       st.d = d; if (!mesesDisponibles().includes(st.mes)) st.mes = mesInicial();
-      if (!document.querySelector('.dlg')) { pintar(); pintarHoja(); }
+      if (document.querySelector('.dlg')) { st.sucio = true; return; }   // se repinta al cerrar el diálogo
+      st.sucio = false; pintar(); pintarHoja();
     } catch (e) { if (e.status === 401 || e.codigo === 'sesion') pintarEntrada('correo', lsGet('portal-correo') || '', 'Tu sesión ha caducado: vuelve a entrar.'); }
   }
-  setInterval(refrescar, 60000);
+  setInterval(() => refrescar(), 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescar(); });
   document.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {   // el foco no sale del diálogo de encima
+      const top = document.querySelector('.dlg') || document.querySelector('.hoja'); if (!top) return;
+      const f = [...top.querySelectorAll('button,textarea,input,[tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
+      return;
+    }
     if (e.key !== 'Escape') return;
-    const d = document.querySelector('.dlg'); if (d) { d.remove(); document.querySelector('.velo.alto')?.remove(); return; }
+    const d = document.querySelector('.dlg'); if (d) { if (d._quitar) d._quitar(); else { d.remove(); document.querySelector('.velo.alto')?.remove(); } return; }
     if (st.abierta) cerrar();
   });
   if (S) S.alCambiar(u => { if (!u && st.d) pintarEntrada('correo', lsGet('portal-correo') || ''); });
+  if (window.visualViewport) { const vv = window.visualViewport, kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) + 'px'); vv.addEventListener('resize', kb); vv.addEventListener('scroll', kb); }
   window.PORTAL = { version: V, _st: st, refrescar };
   arrancar();
 })();

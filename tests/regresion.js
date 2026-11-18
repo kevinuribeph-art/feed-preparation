@@ -16827,7 +16827,8 @@
     const out = [];
     for (const b of bs) { const f = await conDescarga(async cap => { b.click(); await hasta(() => cap(), 3000, 'la descarga'); }); ok(f && f.blob.size, 'sin descarga'); out.push(f); }
     igual(qa('.detail[data-dlg="copia"] .cp-s.ok').length, bs.length, 'el ✓ de cada archivo descargado');
-    ok(/descargados?/.test(q('.detail[data-dlg="copia"] .cp-pie').textContent), 'el pie no cuenta lo descargado');
+    ok(/lanzados?: comprueba en el SSD/.test(q('.detail[data-dlg="copia"] .cp-pie').textContent), 'el pie no cuenta lo lanzado ni pide comprobarlo: ' + q('.detail[data-dlg="copia"] .cp-pie').textContent);
+    ok(qa('.detail[data-dlg="copia"] .cp-s.ok').every(s => /Descarga lanzada/.test(s.textContent)), 'una fila dice que está guardada');
     M._in.closeDetail();
     return out;
   }
@@ -16873,7 +16874,11 @@
       const vacia = await cpFoto(); ok(Object.values(vacia).every(l => !l.length), 'la mesa no quedó vacía');
       const r = await M.importData(cpArchivos(ar.slice().reverse()), { confirm: false });
       ok(r && r.ok && !r.error, 'no se importó: ' + json(r));
+      const aviso = qa('.toasts > *').map(t => t.textContent).join(' | ');
+      ok(/Importada: .*2 meses nuevos.*\d+ fotos nuevas.*carpetas? nuevas? en la bandeja/.test(aviso), 'el aviso final no dice lo que trajo la copia: ' + aviso);
       igual(await cpFoto(), antes, 'la mesa restaurada');
+      const mc = M._in.mes.get(CLIENTE, '2026-11');   // lo que la pestaña tiene leído (la «Vista cliente», «Tus pagos», Avisos)
+      ok(M.cobros.ver(CLIENTE).some(x => x.id === 'co-cp1') && mc && mc.porque, 'los cobros o el porqué restaurados no se ven sin recargar');
       // y vuelve a abrirse: el mes con sus fotos y su bandeja con sus carpetas
       await M.open(`${CLIENTE}-${MES}`);
       ok(slot('r1').photos.length === 1 && M.carpetas().some(c => c.name === 'Elegidas' && c.fotos === 1), 'el mes abierto no tiene lo suyo');
@@ -16907,8 +16912,10 @@
       const bj = await M._in.idbGet('bandejas', CLIENTE);
       ok(bj.carpetas.some(c => c.name === 'Elegidas' && c.files.includes(fcarp)) && bj.tray.includes(fcarp) && await M._in.idbGet('files', fcarp), 'Elegidas no volvió con su foto: ' + json({ fcarp, carpetas: bj.carpetas, copia: r.copia }));
       ok(r.copia && r.copia.carpetas === 1 && r.copia.mejoradas === 1, 'lo que cuenta la copia: ' + json(r.copia));
-      // dos copias: la ubicación usada por el cliente, cambiada entre las dos; solo el general de la segunda
-      await M._in.idbPut('ubicaciones', (await M._in.idbAll('ubicaciones')).find(u => u.nombre === 'Lugar de la copia').id, { ...(await M._in.idbAll('ubicaciones')).find(u => u.nombre === 'Lugar de la copia'), nombre: 'Lugar corregido', at: new Date().toISOString() });
+      // dos copias: la ubicación usada por el cliente, cambiada entre las dos con una fecha más vieja; solo el general de la
+      // segunda: gana la de fecha más reciente (la primera), no la copia más nueva
+      const ub = (await M._in.idbAll('ubicaciones')).find(u => u.nombre === 'Lugar de la copia');
+      await M._in.idbPut('ubicaciones', ub.id, { ...ub, nombre: 'Lugar viejo', at: '2020-01-01T00:00:00.000Z' });
       await espera(1100);   // otra hora en el nombre y en exportadaEl
       const ar2 = await cpExportar(), gen2 = ar2.find(a => /-general\.tar$/.test(a.name)), cli1 = ar1.find(a => a.name.endsWith(`-${CLIENTE}.tar`));
       const finales = [];
@@ -16918,7 +16925,11 @@
         finales.push(await cpFoto());
       }
       igual(finales[1], finales[0], 'el orden de los archivos cambia el resultado');
-      ok(finales[0].ubicaciones.some(([, u]) => u.nombre === 'Lugar corregido') && !finales[0].ubicaciones.some(([, u]) => u.nombre === 'Lugar de la copia'), 'no ganó la copia más reciente');
+      ok(finales[0].ubicaciones.some(([, u]) => u.nombre === 'Lugar de la copia') && !finales[0].ubicaciones.some(([, u]) => u.nombre === 'Lugar viejo'), 'no ganó la de fecha más reciente');
+      const cli2 = ar2.find(a => a.name.endsWith(`-${CLIENTE}.tar`)), f0 = await cpFoto();
+      const rd = await M.importData(cpArchivos([cli1, cli2]), { confirm: false }); M._in.closeDetail();
+      ok(rd && rd.error && /dos copias distintas/.test(rd.error), 'dos copias del mismo cliente se mezclan: ' + json(rd));
+      igual(await cpFoto(), f0, 'dos copias del mismo cliente tocaron algo');
     } finally { await cpFin(); }
   });
 
@@ -16945,6 +16956,12 @@
       const h = new Uint8Array(512); h.set(u.subarray(0, 512)); h.set(new TextEncoder().encode(mn.length.toString(8).padStart(11, '0') + '\0'), 124); h.set(new TextEncoder().encode('        '), 148);
       let sum = 0; for (let i = 0; i < 512; i++) sum += h[i]; h.set(new TextEncoder().encode(sum.toString(8).padStart(6, '0') + '\0 '), 148);
       await prueba1([new W.File([h, mn, new Uint8Array((512 - mn.length % 512) % 512), new Uint8Array(1024)], 'nueva.tar')], /más nueva/, 'una copia más nueva');
+      const roto = new TextEncoder().encode('{"format":"mesa-copia","v":1,'), h2 = new Uint8Array(512); h2.set(h);
+      h2.set(new TextEncoder().encode(roto.length.toString(8).padStart(11, '0') + '\0'), 124); h2.set(new TextEncoder().encode('        '), 148);
+      let s2 = 0; for (let i = 0; i < 512; i++) s2 += h2[i]; h2.set(new TextEncoder().encode(s2.toString(8).padStart(6, '0') + '\0 '), 148);
+      await prueba1([new W.File([h2, roto, new Uint8Array((512 - roto.length % 512) % 512), new Uint8Array(1024)], 'rota.tar')], /está dañado/, 'un manifiesto roto');
+      const rj = await M.importData({ format: 'mesa-feed', v: 19, clients: [], boards: [{ key: 'sin-mes', slots: [] }], files: {}, copia: { raw: {} } }, { confirm: false }); M._in.closeDetail();
+      ok(rj && rj.error, 'un .json que dice «copia» se salta sus comprobaciones: ' + json(rj)); igual(await cpFoto(), antes, 'un .json con «copia» tocó algo');
       // todas, en otro orden: restauran
       await M._test.vaciarTodo();
       const r = await M.importData(cpArchivos([...ar].reverse()), { confirm: false }); ok(r && r.ok, 'no se importó: ' + json(r));
@@ -16961,24 +16978,35 @@
       const bc = q('.detail[data-dlg="copia-leer"] [data-cp="parar"]'); ok(bc, 'sin «Cancelar» al comprobar'); bc.click();
       const r1 = await p1; ok(r1 && r1.cancelled, 'no se canceló al comprobar: ' + json(r1));
       igual(await cpFoto(), antes, 'cancelar al comprobar tocó algo');
-      // 2. mientras se escribe: en una mesa vacía, «Cancelar» cuando va por el tercer archivo
+      // 2. mientras se escribe: en una mesa vacía, «Cancelar» en cuanto empieza a guardar
       await M._test.vaciarTodo();
       const det = q('.detail'); let clic = false;
-      const mo = new W.MutationObserver(() => { const p = det.querySelector('.xprog'), b = det.querySelector('.xparar'); if (!clic && p && b && /Guardando 3 de/.test(p.textContent)) { clic = true; b.click(); } });
+      const mo = new W.MutationObserver(() => { const p = det.querySelector('.xprog'), b = det.querySelector('.xparar'); if (!clic && p && b && /Guardando \d+ de/.test(p.textContent)) { clic = true; b.click(); } });
       mo.observe(det, { childList: true, subtree: true, characterData: true });
       let aviso = '';
       const r2 = await M.importData(cpArchivos(ar), { confirm: false }).finally(() => mo.disconnect());
       aviso = r2.parada || '';
       ok(clic && r2.cancelled && r2.copia && r2.copia.parada, 'no se paró al escribir: ' + json(r2));
-      ok(/se guardaron \d+ de \d+ archivos, cada uno entero con su registro/.test(aviso) && /No se han importado los meses/.test(aviso), 'el aviso no lo dice: ' + aviso);
+      ok(/se guard(ó 1 archivo entero|aron \d+ archivos enteros) de \d+/.test(aviso) && /No se han importado los meses/.test(aviso), 'el aviso no lo dice: ' + aviso);
       const ahora = await cpFoto(), n = r2.copia.hechos;
-      ok(n >= 3 && n < r2.copia.total, 'paró en ' + n + ' de ' + r2.copia.total);
+      ok(n >= 1 && n < r2.copia.total, 'paró en ' + n + ' de ' + r2.copia.total);
       igual(ahora.files.length + ahora.tfotos.length + ahora.cfacturas.length, n, 'los archivos guardados');
       const de = Object.fromEntries([...antes.files, ...antes.tfotos, ...antes.cfacturas].map(([k, v]) => [k, v]));
       for (const [k, v] of [...ahora.files, ...ahora.tfotos, ...ahora.cfacturas]) igual(v, de[k], 'un archivo a medias: ' + k);
       ok(['boards', 'clients', 'bandejas', 'tareas', 'cobros', 'meses', 'ubicaciones'].every(s => !ahora[s].length), 'entraron registros tras cancelar');
-      // y la copia entera después termina
-      const r3 = await M.importData(cpArchivos(ar), { confirm: false }); ok(r3 && r3.ok, 'no terminó: ' + json(r3));
+      // cerrar (Esc) tras el último archivo, con «Cancelar» ya apagado: los registros entran todos (nada se queda a medias)
+      await M._test.vaciarTodo();
+      let clic2 = false, apagado = null; const mo2 = new W.MutationObserver(() => { const p = det.querySelector('.xprog'), b = det.querySelector('.xparar'), m = p && /Guardando (\d+) de (\d+)/.exec(p.textContent); if (!clic2 && b && m && m[1] === m[2]) { clic2 = true; apagado = b.disabled; M._in.closeDetail(); } });
+      mo2.observe(det, { childList: true, subtree: true, characterData: true });
+      const r4 = await M.importData(cpArchivos(ar), { confirm: false }).finally(() => mo2.disconnect());
+      ok(clic2 && apagado && r4.ok && !r4.cancelled, 'cerrar con los archivos ya dentro paró los registros (o «Cancelar» seguía vivo): ' + json({ apagado, r: r4 }));
+      igual(await cpFoto(), antes, 'cerrar tras el último archivo dejó la mesa a medias');
+      await M._test.vaciarTodo();
+      // y la copia entera después termina; mientras escribe, abrir un mes no puede (lo de memoria pisaría lo importado)
+      let abrir = null; const mo3 = new W.MutationObserver(() => { if (!abrir && det.querySelector('.xprog')) abrir = M.open(`${CLIENTE}-${MES}`); });
+      mo3.observe(det, { childList: true, subtree: true, characterData: true });
+      const r3 = await M.importData(cpArchivos(ar), { confirm: false }).finally(() => mo3.disconnect()); ok(r3 && r3.ok, 'no terminó: ' + json(r3));
+      ok(abrir && (await abrir).error && /importando/.test((await abrir).error), 'se abrió un mes mientras se importaba: ' + json(abrir && await abrir));
       igual(await cpFoto(), antes, 'la mesa tras terminar');
     } finally { await cpFin(); }
   });
@@ -16994,9 +17022,16 @@
       const cs = W.getComputedStyle(b, '::before'); ok(/i-alerta|svg/.test(cs.maskImage || cs.webkitMaskImage || '') || cs.content !== 'none', 'sin icono');
       b.click(); await espera(30);
       const d = q('.detail[data-dlg="xfer"]'); ok(d, '«Haz una copia» no abre ⇅');
+      ok(D.activeElement && D.activeElement.dataset.act === 'xfer-todo', 'el foco no va a «Exportar todo»');
+      ok(d.querySelector('[data-act="xfer-todo"]').closest('.form .row'), '«Exportar todo» no va en su fila como los otros botones');
       ok(d.querySelector('.xaviso') && d.querySelector('[data-act="xfer-todo"]'), 'sin la explicación o sin «Exportar todo»');
       const inp = d.querySelector('.xferin'); ok(inp.multiple && /\.tar/.test(inp.accept), 'Importar no acepta varios .tar');
       M._in.closeDetail();
+      // nunca en la «Vista cliente» (D-227): ni se ve ni abre ⇅
+      const vc = q('.clientToggle'); ok(vc, 'sin «Vista cliente»'); if (!vc.checked) vc.click(); await espera(60);
+      igual(W.getComputedStyle(q('.appbar .persist')).display, 'none', 'el aviso sale en la «Vista cliente»');
+      q('.appbar .persist').click(); await espera(30); ok(!q('.detail[data-dlg="xfer"]'), '⇅ se abre en la «Vista cliente»');
+      vc.click(); await espera(60);
       st.persisted = async () => true;
       await M._test.persistencia(false);
       ok(q('.appbar .persist').hidden, 'el aviso sale con almacenamiento persistente');
@@ -17004,6 +17039,53 @@
       ok(!q('.detail[data-dlg="xfer"] .xaviso'), 'la explicación sale con almacenamiento persistente');
       M._in.closeDetail();
     } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
+  });
+
+  prueba('CP7', 'Lo que se ve de «Exportar todo» (D-249, arreglos de la revisión): en oscuro se ven las líneas entre filas; un doble clic descarga una vez; cerrar mientras se prepara no da error y suelta la mesa; cerrar con archivos sin descargar lo dice; un cliente que no se pudo preparar se reintenta; el diálogo de escribir una copia se cierra como «Cancelar»; la confirmación dice «Importar la copia»', async () => {
+    await cpSembrar();
+    const sub = W.crypto.subtle, dig = sub.digest;
+    try {
+      // en oscuro, la línea de cada fila no es del color de la tarjeta
+      W.document.documentElement.dataset.theme = 'dark';
+      let r = await M.copia.exportar(); ok(r && r.ok, 'no se preparó');
+      const f1 = q('.detail[data-dlg="copia"] .cp-f'), card = q('.detail[data-dlg="copia"] .card');
+      ok(W.getComputedStyle(f1).borderTopColor !== W.getComputedStyle(card).backgroundColor, 'en oscuro la línea es del color de la tarjeta');
+      delete W.document.documentElement.dataset.theme;
+      igual(W.getComputedStyle(q('.detail[data-dlg="copia"] .cp-pie')).fontSize, '12px', 'el pie no va a 12 px');
+      // un doble clic: una descarga
+      let n = 0; const A = W.HTMLAnchorElement.prototype, ck = A.click; A.click = function () { if (this.download) n++; else ck.call(this); };
+      try { const b = q('.detail[data-dlg="copia"] [data-cp="bajar"]'); b.dispatchEvent(new W.MouseEvent('click', { bubbles: true, detail: 1 })); b.dispatchEvent(new W.MouseEvent('click', { bubbles: true, detail: 2 })); b.click(); await espera(30); }
+      finally { A.click = ck; }
+      igual(n, 1, 'un doble clic descarga más de una vez');
+      // cerrar con archivos listos sin descargar: lo dice
+      M._in.closeDetail(); await espera(60);
+      ok(qa('.toasts > *').some(t => /sin descargar: «Exportar todo» los vuelve a preparar/.test(t.textContent)), 'cerrar con archivos sin descargar no lo dice');
+      ok(!M._in.xfer.ocupado(), 'la mesa se queda ocupada');
+      // cerrar mientras se lee la mesa: sin error, la mesa libre
+      M._in.clearToasts && M._in.clearToasts();
+      const p = M.copia.exportar(); M._in.closeDetail(); r = await p;
+      ok(r && r.cancelled && !qa('.toasts > *').some(t => /No se pudo|Cannot|null/.test(t.textContent)) && !M._in.xfer.ocupado(), 'cerrar a mitad da error o deja la mesa ocupada: ' + json(r));
+      // un cliente que no se pudo preparar: «Reintentar»
+      sub.digest = function (al, x) { return ArrayBuffer.isView(x) ? Promise.reject(new W.DOMException('a propósito', 'OperationError')) : dig.call(sub, al, x); };
+      r = await M.copia.exportar();
+      const mal = qa('.detail[data-dlg="copia"] .cp-s.mal'); ok(mal.length >= 1 && /No se pudo preparar: el navegador dio un error/.test(mal[0].textContent), 'un fallo no se dice: ' + json(r));
+      sub.digest = dig;
+      const fila = mal[0].closest('.cp-f'), ja = fila.dataset.a, rb = fila.querySelector('button'); igual(rb.textContent, 'Reintentar', 'sin «Reintentar»'); rb.click();
+      await hasta(() => !q(`.detail[data-dlg="copia"] .cp-f[data-a="${ja}"] .cp-s.mal`) && q(`.detail[data-dlg="copia"] .cp-f[data-a="${ja}"] button:not([disabled])`), 8000, 'que se prepare al reintentar');
+      M._in.closeDetail(); await espera(60);
+      // la confirmación de una copia y su escritura: cerrar es «Cancelar»
+      const ar = await cpExportar();
+      const pc = M.importData(cpArchivos(ar));
+      await hasta(() => q('.detail[data-dlg="xfer-confirm"]'), 15000, 'la confirmación');
+      igual(q('.detail[data-dlg="xfer-confirm"] h3').textContent, 'Importar la copia', 'el título de la confirmación');
+      M._in.closeDetail(); ok((await pc).cancelled, 'cerrar la confirmación importa');
+      await M._test.vaciarTodo();
+      const det = q('.detail'); let cerrado = false;
+      const mo = new W.MutationObserver(() => { const pr = det.querySelector('.xprog'); if (!cerrado && pr && /Guardando \d+ de/.test(pr.textContent)) { cerrado = true; M._in.closeDetail(); } });
+      mo.observe(det, { childList: true, subtree: true, characterData: true });
+      const r2 = await M.importData(cpArchivos(ar), { confirm: false }).finally(() => mo.disconnect());
+      ok(cerrado && r2.cancelled && r2.copia && r2.copia.parada, 'cerrar el diálogo de escribir no la para: ' + json(r2));
+    } finally { sub.digest = dig; delete W.document.documentElement.dataset.theme; await cpFin(); }
   });
 
   prueba('CP6', 'Guarda (D-249): la base de datos no tiene ningún almacén que «Exportar todo» no conozca: cada almacén de datos viaja en la copia', async () => {

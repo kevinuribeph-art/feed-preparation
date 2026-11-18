@@ -84,10 +84,14 @@
     else if (v && typeof v === 'object' && !(v instanceof Date)) for (const k of Object.keys(v)) blobsEn(v[k], out);
     return out;
   }
-  // a blob that can't be read: a photo's record stays out; in any other record the blob is left empty (and counted)
+  // a blob that can't be read: a photo whose image can't be read stays out (its thumbnail alone: the photo is its own, as a
+  // reduced one's); in any other record the blob is left empty (and counted)
   function sinMalos(n, v, malos) {
     if (!malos.size) return v;
-    if (n === 'files' || n === 'tfotos' || n === 'cfacturas') return [...blobsEn(v, new Set())].some(b => malos.has(b)) ? undefined : v;
+    if (n === 'files' || n === 'tfotos' || n === 'cfacturas') {
+      if (v && v.blob instanceof Blob && !malos.has(v.blob) && [v.thumb, v.mini].some(b => malos.has(b))) { const o = { ...v }; if (malos.has(o.thumb)) o.thumb = o.blob; if (malos.has(o.mini)) o.mini = o.blob; return [...blobsEn(o, new Set())].some(b => malos.has(b)) ? undefined : o; }
+      return [...blobsEn(v, new Set())].some(b => malos.has(b)) ? undefined : v;
+    }
     const lim = x => x instanceof Blob ? (malos.has(x) ? null : x) : Array.isArray(x) ? x.map(lim) : x && typeof x === 'object' && !(x instanceof Date) ? Object.fromEntries(Object.entries(x).map(([k, y]) => [k, lim(y)])) : x;
     return lim(v);
   }
@@ -145,13 +149,16 @@
 
   // ---------- «Exportar todo» ----------
   let EXP = null;                      // the dialog's state while it is open
+  // a browser's error said in words (its message is in English)
+  const errTxt = err => { const n = err && err.name; return n === 'NotReadableError' || n === 'NotFoundError' ? 'un archivo guardado no se pudo leer' : n === 'QuotaExceededError' ? 'el navegador se quedó sin sitio' : 'el navegador dio un error'; };
   async function exportar() {
-    if (EXP) return;
+    if (EXP) return { error: '«Exportar todo» ya está abierto.' };
     const e = X().empezar('export'); if (e) { I().toast(e, { ms: 7000 }); return { error: e }; }
-    const st = EXP = { parar: false, filas: [], urls: [], copia: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)), at: new Date(), suelto: false };
+    if (X().edPendiente && X().edPendiente()) I().toast('El editor tiene cambios sin aplicar: no van en la copia. Aplícalos y vuelve a exportar si los quieres.', { ms: 9000 });
+    const st = EXP = { parar: false, urls: [], copia: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)), at: new Date(), suelto: false, cache: new WeakMap() };
     const soltar = () => { if (!st.suelto) { st.suelto = true; X().acabar(); } };
     try {
-      dibujar(st, true);
+      dibujar(st);
       await X().pendientes();
       const R = await instantanea();
       if (st.parar) return { cancelled: true };
@@ -159,20 +166,20 @@
       // clients first, in the tabs' order, the general file last
       st.ambitos.sort((a, b) => (a.tipo === 'general') - (b.tipo === 'general'));
       st.ambitos.forEach(a => { a.estado = 'cola'; a.bytes = 0; const vistos = new Set(); for (const n of Object.keys(a.recs)) for (const [, v] of a.recs[n]) blobsEn(v, vistos); vistos.forEach(b => { a.bytes += b.size; }); });
-      dibujar(st);
-      const cache = new WeakMap();
-      for (const a of st.ambitos) {
-        if (st.parar) break;
-        a.estado = 'prep'; a.pct = 0; pintarFila(st, a);
-        try { await preparar(st, a, cache); a.estado = 'listo'; }
-        catch (err) { if (st.parar) break; a.estado = 'fallo'; a.error = String((err && err.message) || err); }
-        dibujar(st);
-      }
-      return { ok: !st.parar, archivos: st.filas.length };
+      if (st.cerrado) return { cancelled: true };
+      lista(st);
+      for (const a of st.ambitos) { if (st.parar) break; await prepararUno(st, a); }
+      return st.parar ? { cancelled: true } : { ok: !st.ambitos.some(a => a.estado === 'fallo'), archivos: st.ambitos.flatMap(a => a.partes || []).length };
     } catch (err) {
-      const m = 'No se pudo preparar la copia: ' + String((err && err.message) || err);
-      if (EXP === st) cerrarExp(st); I().toast(m, { ms: 9000 }); return { error: m };
+      const m = `No se pudo preparar la copia: ${errTxt(err)}.`;
+      if (EXP === st) { cerrarExp(st, true); I().closeDetail(); } I().toast(m, { ms: 9000 }); return { error: m };
     } finally { soltar(); }
+  }
+  async function prepararUno(st, a) {
+    a.estado = 'prep'; a.pct = 0; a.error = null; pintarFila(st, a);
+    try { await preparar(st, a, st.cache); a.estado = 'listo'; }
+    catch (err) { if (st.parar) return; a.estado = 'fallo'; a.error = errTxt(err); }
+    pintarFila(st, a);
   }
   // a client (or the general file): its blobs hashed, its records as text, its parts made
   async function preparar(st, a, cache) {
@@ -188,17 +195,17 @@
     }
     const sha = new Map([...todos].filter(b => !malos.has(b)).map(b => [b, cache.get(b)]));
     const almacenes = {}, porSha = new Map();
-    let fuera = 0;
+    let fuera = 0; const sinNombre = [];
     for (const n of A) {
       almacenes[n] = [];
       for (const [k, v0] of a.recs[n]) {
-        const v = sinMalos(n, v0, malos); if (v === undefined) { fuera++; continue; }
-        if (v !== v0) fuera++;
+        const v = sinMalos(n, v0, malos); if (v === undefined) { fuera++; sinNombre.push(String((v0 && (v0.name || v0.nombre)) || k)); continue; }
+        if (v !== v0 && !(v && v0 && v.blob === v0.blob)) fuera++;
         blobsEn(v, new Set()).forEach(b => { const h = sha.get(b); if (h && !porSha.has(h)) porSha.set(h, b); });
         almacenes[n].push([codificar(k, sha), codificar(v, sha)]);
       }
     }
-    a.fuera = fuera;
+    a.fuera = fuera; a.fueraN = sinNombre;
     const datos = enc.encode(JSON.stringify({ format: FORMATO + '-datos', v: V, almacenes }));
     const hDatos = await huellaDe(datos);
     const entradas = [...porSha].map(([h, b]) => ({ nombre: `archivos/${h}.${EXT[b.type] || 'bin'}`, sha256: h, tam: b.size, blob: b }));
@@ -217,7 +224,7 @@
       q.entradas.forEach(e => trozos.push(cabecera(e.nombre, e.tam, mt), e.blob, relleno(e.tam)));
       trozos.push(new Uint8Array(1024));
       const blob = new Blob(trozos, { type: 'application/x-tar' });
-      return { i: i + 1, n: partes.length, blob, nombre: nombreArchivo(st, a, i + 1, partes.length), hecho: 0 };
+      return { i: i + 1, n: partes.length, blob, nombre: nombreArchivo(st, a, i + 1, partes.length), hecho: 0, ult: 0 };
     });
   }
   const dos = n => String(n).padStart(2, '0');
@@ -225,74 +232,87 @@
     const d = st.at, slug = a.tipo === 'general' ? 'general' : String(a.id).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'cliente';
     return `mesa-copia-${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}-${dos(d.getHours())}${dos(d.getMinutes())}-${slug}${n > 1 ? `-parte-${i}-de-${n}` : ''}.tar`;
   }
-  // each file from its own click (never several downloads at once)
+  // each file from its own click (never several downloads at once). The browser only says it took it: whether the save dialog
+  // saved it, the page can't know, so the row says «Descarga lanzada» and the foot asks to check the SSD
   function descargar(st, a, p) {
-    if (!p || !p.blob) return;
+    if (!p || !p.blob || Date.now() - p.ult < 1500) return;   // a double click is one download (lesson 57)
     if (!p.url) { p.url = URL.createObjectURL(p.blob); st.urls.push(p.url); }
     const el = document.createElement('a'); el.href = p.url; el.download = p.nombre; el.hidden = true; document.body.append(el); el.click(); el.remove();
-    p.hecho++; pintarFila(st, a); pie(st);
+    p.hecho++; p.ult = Date.now(); pintarFila(st, a); pie(st);
   }
 
   // ---------- the dialog ----------
-  const etiqueta = (a, p) => esc(a.nombre) + (p && p.n > 1 ? ` <span>· parte ${p.i} de ${p.n}</span>` : '');
   function estadoDe(a, p) {
-    if (a.estado === 'fallo') return { t: 'No se pudo preparar: ' + a.error, k: 'mal' };
-    if (p && p.hecho) return { t: `${peso(p.blob.size)} · Descargado${p.hecho > 1 ? ` (${p.hecho} veces)` : ''}`, k: 'ok' };
-    if (p) return { t: `${peso(p.blob.size)} · Listo${a.fuera ? ` · ${n_(a.fuera)} ${a.fuera === 1 ? 'archivo no se pudo leer' : 'archivos no se pudieron leer'}: no ${a.fuera === 1 ? 'va' : 'van'}` : ''}`, k: a.fuera ? 'aviso' : '' };
+    if (a.estado === 'fallo') return { t: `No se pudo preparar: ${a.error}.`, k: 'mal' };
+    if (p && p.hecho) return { t: `${peso(p.blob.size)} · Descarga lanzada${p.hecho > 1 ? ` (${n_(p.hecho)} veces)` : ''}`, k: 'ok' };
+    if (p) return { t: `${peso(p.blob.size)} · Listo${a.fuera ? ` · sin ${n_(a.fuera)} ${a.fuera === 1 ? 'archivo que no se pudo leer' : 'archivos que no se pudieron leer'}${(a.fueraN || []).length ? ` (${a.fueraN.slice(0, 3).join(', ')}${a.fueraN.length > 3 ? '…' : ''})` : ''}` : ''}`, k: a.fuera ? 'aviso' : '' };
     if (a.estado === 'prep') return { t: `${peso(a.bytes)} · Preparando${a.pct ? ` ${a.pct} %` : '…'}`, k: '' };
     return { t: `${peso(a.bytes)} · En cola`, k: '' };
   }
+  const nombreFila = (a, p) => a.nombre + (p && p.n > 1 ? `, parte ${p.i} de ${p.n}` : '');
+  const boton = (a, p) => a.estado === 'fallo' ? { t: 'Reintentar', l: 'Preparar otra vez ' + a.nombre, on: true } : { t: p && p.hecho ? 'Otra vez' : 'Descargar', l: (p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + nombreFila(a, p), on: !!p };
   function filaHTML(a, p, j) {
-    const e = estadoDe(a, p), listo = !!p, q = p ? `${a.nombre}${p.n > 1 ? `, parte ${p.i} de ${p.n}` : ''}` : a.nombre;
-    return `<li class="cp-f" data-a="${j}"${p ? ` data-p="${p.i}"` : ''}><span class="cp-q"><span class="cp-n">${etiqueta(a, p)}</span><span class="cp-s ${e.k}">${esc(e.t)}</span></span>`
-      + `<button type="button" class="btn2" data-cp="bajar"${listo ? '' : ' disabled'} aria-label="${esc((p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + q)}">${p && p.hecho ? 'Otra vez' : 'Descargar'}</button></li>`;
+    const e = estadoDe(a, p), b = boton(a, p);
+    return `<li class="cp-f" data-a="${j}"${p ? ` data-p="${p.i}"` : ''}><span class="cp-q"><span class="cp-n"><span class="cp-nm">${esc(a.nombre)}</span>${p && p.n > 1 ? `<span class="cp-pt">· parte ${p.i} de ${p.n}</span>` : ''}</span><span class="cp-s ${e.k}">${esc(e.t)}</span></span>`
+      + `<button type="button" class="btn2" data-cp="bajar"${b.on ? '' : ' disabled'} aria-label="${esc(b.l)}">${b.t}</button></li>`;
   }
+  const filasDe = (a, j) => (a.partes ? a.partes.map(p => filaHTML(a, p, j)) : [filaHTML(a, null, j)]).join('');
   function pie(st) {
-    const el = st.dlg && st.dlg.querySelector('.cp-pie'); if (!el) return;
+    const el = vivo(st) && st.dlg.querySelector('.cp-pie'); if (!el) return;
     const ps = (st.ambitos || []).flatMap(a => a.partes || []), hechos = ps.filter(p => p.hecho).length;
-    const prep = (st.ambitos || []).some(a => a.estado === 'cola' || a.estado === 'prep');
-    el.textContent = !st.ambitos ? 'Leyendo la mesa…' : `${n_(ps.length)} ${ps.length === 1 ? 'archivo' : 'archivos'}${prep ? ' listos de momento' : ''} · ${n_(hechos)} ${hechos === 1 ? 'descargado' : 'descargados'}`;
+    const prep = (st.ambitos || []).filter(a => a.estado === 'cola' || a.estado === 'prep').length, filas = ps.length + prep;
+    const t = !st.ambitos ? '' : prep ? `Preparando: ${n_(ps.length)} de ${n_(filas)} listos · ${n_(hechos)} ${hechos === 1 ? 'lanzado' : 'lanzados'}`
+      : !hechos ? `${n_(ps.length)} ${ps.length === 1 ? 'archivo' : 'archivos'}`
+      : `${n_(hechos)} de ${n_(ps.length)} ${ps.length === 1 ? 'archivo lanzado' : 'archivos lanzados'}: comprueba en el SSD que están${hechos > 1 ? ' todos' : ''} y con su tamaño.`;
+    if (el.textContent !== t) el.textContent = t;
   }
-  function dibujar(st, primero) {
-    const html = !st.ambitos ? '<li class="cp-f"><span class="cp-q"><span class="cp-s">Leyendo la mesa…</span></span></li>'
-      : st.ambitos.map((a, j) => (a.partes ? a.partes.map(p => filaHTML(a, p, j)).join('') : filaHTML(a, null, j))).join('');
-    if (primero || !st.dlg || !st.dlg.isConnected) {
-      I().showDialog('copia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar todo</h3>`
-        + '<p>Un archivo por cliente y uno general, con las fotos a su tamaño original. Descarga cada uno con su botón y guárdalos juntos en el SSD: «Importar…» los lee todos a la vez.</p>'
-        + `<ul class="cp-l">${html}</ul><p class="cp-pie" aria-live="polite"></p>`);
-      const d = I().root().querySelector('.detail'); st.dlg = d;
-      // on this dialog's card: the .detail stays for the next dialogs
-      d.querySelector('.card').addEventListener('click', ev => { const b = ev.target.closest('[data-cp="bajar"]'); if (!b || b.disabled) return; const li = b.closest('.cp-f'), a = st.ambitos && st.ambitos[+li.dataset.a]; if (a) descargar(st, a, (a.partes || []).find(p => p.i === +li.dataset.p)); });
-      st.mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'copia') cerrarExp(st); });
-      st.mo.observe(d, { attributes: true, attributeFilter: ['hidden', 'data-dlg'] });
-      const x = d.querySelector('.card > .x'); if (x) x.focus();
-    } else {
-      const l = st.dlg.querySelector('.cp-l'), foco = document.activeElement && l.contains(document.activeElement) ? document.activeElement.closest('.cp-f') : null;
-      const clave = foco && (foco.dataset.a + '|' + (foco.dataset.p || ''));
-      l.innerHTML = html;
-      if (clave) { const [ja, jp] = clave.split('|'), b = l.querySelector(`.cp-f[data-a="${ja}"]${jp ? `[data-p="${jp}"]` : ''} button`) || l.querySelector(`.cp-f[data-a="${ja}"] button`); if (b) b.focus(); }
-    }
+  const vivo = st => !st.cerrado && st.dlg && st.dlg.isConnected && st.dlg.dataset.dlg === 'copia' && !!st.dlg.querySelector('.cp-l');
+  function dibujar(st) {
+    I().showDialog('copia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar todo</h3>`
+      + '<p>Guarda todos los archivos juntos en el SSD: «Importar…» los lee a la vez.</p>'
+      + '<ul class="cp-l"><li class="cp-f"><span class="cp-q"><span class="cp-s">Leyendo la mesa…</span></span></li></ul><p class="cp-pie" aria-live="polite"></p>');
+    const d = I().root().querySelector('.detail'); st.dlg = d;
+    // on this dialog's card: the .detail stays for the next dialogs
+    d.querySelector('.card').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-cp="bajar"]'); if (!b || b.disabled || ev.detail > 1) return;
+      const li = b.closest('.cp-f'), a = st.ambitos && st.ambitos[+li.dataset.a]; if (!a) return;
+      if (a.estado === 'fallo') { prepararUno(st, a); return; }
+      descargar(st, a, (a.partes || []).find(p => p.i === +li.dataset.p));
+    });
+    st.mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'copia') cerrarExp(st); });
+    st.mo.observe(d, { attributes: true, attributeFilter: ['hidden', 'data-dlg'] });
+    const x = d.querySelector('.card > .x'); if (x) x.focus();
+  }
+  function lista(st) {
+    if (!vivo(st)) return;
+    st.dlg.querySelector('.cp-l').innerHTML = st.ambitos.map(filasDe).join('');
     pie(st);
   }
-  // only what changed in a row: its line of state and its button (no list redrawn while hashing)
+  // only what changed: a row's line of state and its button; a client that split in parts, only its rows (nothing else moves)
   function pintarFila(st, a) {
-    if (!st.dlg || !st.dlg.isConnected) return;
-    const j = st.ambitos.indexOf(a);
-    const filas = [...st.dlg.querySelectorAll(`.cp-f[data-a="${j}"]`)];
-    if ((a.partes ? a.partes.length : 1) !== filas.length) { dibujar(st); return; }
-    filas.forEach(li => {
-      const p = a.partes && a.partes.find(x => x.i === +li.dataset.p), e = estadoDe(a, p), s = li.querySelector('.cp-s'), b = li.querySelector('button');
-      if (s.textContent !== e.t) s.textContent = e.t; s.className = 'cp-s ' + e.k;
-      b.disabled = !p; const t = p && p.hecho ? 'Otra vez' : 'Descargar'; if (b.textContent !== t) b.textContent = t;
-      b.setAttribute('aria-label', (p && p.hecho ? 'Descargar otra vez ' : 'Descargar ') + a.nombre + (p && p.n > 1 ? `, parte ${p.i} de ${p.n}` : ''));
+    if (!vivo(st) || !st.ambitos) return;
+    const j = st.ambitos.indexOf(a), filas = [...st.dlg.querySelectorAll(`.cp-f[data-a="${j}"]`)];
+    if (!filas.length) return;
+    if ((a.partes ? a.partes.length : 1) !== filas.length || (!!a.partes !== !!filas[0].dataset.p)) {   // its parts made (or another number of them): its rows anew
+      const foco = filas.some(li => li.contains(document.activeElement));
+      filas[0].insertAdjacentHTML('beforebegin', filasDe(a, j)); filas.forEach(li => li.remove());
+      if (foco) { const b = st.dlg.querySelector(`.cp-f[data-a="${j}"] button`); if (b) b.focus(); }
+    } else filas.forEach(li => {
+      const p = a.partes && a.partes.find(x => x.i === +li.dataset.p), e = estadoDe(a, p), s = li.querySelector('.cp-s'), bt = li.querySelector('button'), b = boton(a, p);
+      if (s.textContent !== e.t) s.textContent = e.t; if (s.className !== 'cp-s ' + e.k) s.className = 'cp-s ' + e.k;
+      bt.disabled = !b.on; if (bt.textContent !== b.t) bt.textContent = b.t; bt.setAttribute('aria-label', b.l);
     });
+    pie(st);
   }
-  function cerrarExp(st) {
+  function cerrarExp(st, sinAviso) {
     if (st.cerrado) return; st.cerrado = true; st.parar = true;
     if (st.mo) st.mo.disconnect();
     if (EXP === st) EXP = null;
     const urls = st.urls.slice(); setTimeout(() => urls.forEach(u => URL.revokeObjectURL(u)), 30 * 60000);   // a download the app's dialog still holds keeps its file
     if (!st.suelto) { st.suelto = true; X().acabar(); }
+    // closed with files ready that never went: said, not lost in silence (they are made again in a moment)
+    const faltan = (st.ambitos || []).flatMap(a => a.partes || []).filter(p => !p.hecho).length;
+    if (!sinAviso && faltan) I().toast(`${faltan === 1 ? 'Ha quedado 1 archivo' : `Han quedado ${n_(faltan)} archivos`} de la copia sin descargar: «Exportar todo» los vuelve a preparar.`, { ms: 9000 });
   }
 
   // ---------- «Importar…» of a copy ----------
@@ -300,8 +320,8 @@
     if (f.size < 1536 || (await f.slice(257, 262).text()) !== 'ustar') return { mal: 'no' };   // not a tar (a .json, a photo…)
     const h = await leerCab(f, 0);
     if (h.mal || h.fin || h.nombre !== MANIFIESTO || h.tam > 64 * 1048576) return { mal: h.mal === 'cortado' ? 'cortado' : 'no' };
-    let m; try { m = JSON.parse(dec.decode(await f.slice(h.datos, h.datos + h.tam).arrayBuffer())); } catch (e) { return { mal: 'no' }; }
-    if (!m || m.format !== FORMATO) return { mal: 'no' };
+    let m; try { m = JSON.parse(dec.decode(await f.slice(h.datos, h.datos + h.tam).arrayBuffer())); } catch (e) { return { mal: 'danado' }; }
+    if (!m || m.format !== FORMATO) return { mal: m && typeof m.format === 'string' && m.format.startsWith(FORMATO) ? 'danado' : 'no' };
     if (!(m.v >= 1) || m.v > V || !(m.idb >= 1) || m.idb > X().IDB) return { mal: 'nueva', m };
     if (typeof m.copia !== 'string' || !m.copia || !(m.parte >= 1) || !(m.partes >= m.parte) || !m.ambito || !Array.isArray(m.archivos) || (m.parte === 1 && !(m.datos && m.datos.sha256))) return { mal: 'danado' };
     return { m, sig: h.sig };
@@ -313,22 +333,26 @@
     const e = X().empezar('import'); if (e) { avisoImp(null, e); return { error: e }; }
     const st = IMP = { parar: false, suelto: false };
     const soltar = () => { if (!st.suelto) { st.suelto = true; X().acabar(); } };
-    const fallo = m => { avisoImp(st, m + (/importado/.test(m) ? '' : ' No se ha importado nada.')); return { error: m }; };
+    const fallo = m => { avisoImp(st, m); return { error: m }; };
     try {
-      if (!(window.crypto && crypto.subtle)) return fallo('Este navegador no puede comprobar la copia (sin crypto.subtle).');
+      if (!(window.crypto && crypto.subtle)) return fallo('Este navegador no puede comprobar las huellas de la copia.');
       dibujarImp(st);
       // 1. what each file is
       const leidos = [];
       for (const f of files) {
         const r = await leerManifiesto(f);
-        if (r.mal === 'nueva') return fallo(`«${f.name || 'archivo'}» viene de una versión más nueva de la Mesa: actualízala antes de importarla.`);
+        if (r.mal === 'nueva') return fallo(`«${f.name || 'archivo'}» viene de una versión más nueva de la Mesa: recarga la página para tener la última y vuelve a importarla.`);
         if (r.mal === 'cortado') return fallo(`«${f.name || 'archivo'}» está cortado: ¿terminó de copiarse?`);
+        if (r.mal === 'danado') return fallo(`«${f.name || 'archivo'}» está dañado: no se puede leer su manifiesto.`);
         if (r.mal) return fallo(`«${f.name || 'archivo'}» no es una copia de «Exportar todo».${/\.json$/i.test(f.name || '') ? ' Un archivo .json se importa solo, sin los .tar.' : ''}`);
         leidos.push({ f, ...r });
       }
       // 2. every part of each file: none missing, none twice with something else
-      const grupos = new Map();
+      const grupos = new Map(), deAmbito = new Map();
       for (const x of leidos) {
+        const ka = x.m.ambito.tipo === 'general' ? '' : 'c:' + x.m.ambito.id, otra = deAmbito.get(ka);
+        if (otra && otra !== x.m.copia) return fallo(`Has elegido dos copias distintas de «${nomAmb(x.m)}»: impórtalas de una en una (la segunda se une con lo que trajo la primera, con las reglas de siempre).`);
+        deAmbito.set(ka, x.m.copia);
         const k = x.m.copia + '|' + (x.m.ambito.tipo === 'general' ? '' : 'c:' + x.m.ambito.id);
         if (!grupos.has(k)) grupos.set(k, { m: x.m, partes: new Map() });
         const g = grupos.get(k), ya = g.partes.get(x.m.parte);
@@ -378,8 +402,8 @@
           if (!Array.isArray(l)) return fallo(`«${x.f.name}» está dañado: no se pueden leer sus datos.`);
           for (const par of l) {
             if (!Array.isArray(par) || par.length !== 2 || typeof par[0] !== 'string') return fallo(`«${x.f.name}» está dañado: no se pueden leer sus datos.`);
-            const k = n + '\u0000' + par[0], ya = elegido.get(k);
-            if (!ya || mayor(orden, ya.orden)) elegido.set(k, { n, k: par[0], v: par[1], orden });
+            const k = n + '\u0000' + par[0], ya = elegido.get(k), nu = { n, k: par[0], v: par[1], orden };
+            if (!ya || gana(nu, ya)) elegido.set(k, nu);
           }
         }
       }
@@ -391,8 +415,8 @@
         return typeof r.nombre === 'string' && typeof File !== 'undefined' ? new File([b], r.nombre, { type: r.tipo || '', lastModified: +r.lm || 0 }) : b;
       };
       const raw = Object.fromEntries(X().ALMACENES.map(n => [n, new Map()]));
-      for (const e2 of elegido.values()) raw[e2.n].set(e2.k, decodificar(e2.v, blobDe));
-      if (falta) return fallo('La copia está incompleta: falta un archivo que nombran sus datos.');
+      for (const e2 of elegido.values()) { const mismo = new Map(); raw[e2.n].set(e2.k, decodificar(e2.v, r => { const k = r.sha + '|' + (r.nombre || '') + '|' + (r.tipo || ''); if (!mismo.has(k)) mismo.set(k, blobDe(r)); return mismo.get(k); })); }
+      if (falta) return fallo('La copia está incompleta: le falta uno de sus archivos.');
       const vals = n => [...raw[n].values()];
       const ambitos = [...grupos.values()].map(g => g.m), nc = ambitos.filter(m => m.ambito.tipo !== 'general').length, gen = ambitos.some(m => m.ambito.tipo === 'general');
       const bytes = [...donde.values()].reduce((s, w) => s + w.tam, 0), fecha = ambitos.map(m => String(m.exportadaEl || '')).sort().pop();
@@ -416,15 +440,24 @@
       return await M.importData(d, opts);
     } catch (err) {
       const q = err && (err.name === 'NotReadableError' || err.name === 'NotFoundError');
-      return fallo(q ? 'No se pudo leer un archivo de la copia: ¿sigue donde estaba (el SSD conectado)?' : 'No se pudo leer la copia: ' + String((err && err.message) || err));
+      return fallo(q ? 'No se pudo leer un archivo de la copia: ¿sigue donde estaba (el SSD conectado)?' : `No se pudo leer la copia: ${errTxt(err)}.`);
     } finally { soltar(); if (IMP === st) IMP = null; }
   }
   const mayor = (a, b) => { for (let i = 0; i < a.length; i++) { if (a[i] > b[i]) return true; if (a[i] < b[i]) return false; } return false; };
+  // two files of different copies with the same record: a full photo over a reduced one (D-017), the newer `at` (as «Importar»),
+  // then the newest copy; never the order the files were chosen in
+  function gana(a, b) {
+    if (a.n === 'files') { const ra = !!(a.v && a.v.reduced), rb = !!(b.v && b.v.reduced); if (ra !== rb) return rb; }
+    const at = x => (x.v && typeof x.v.at === 'string' ? x.v.at : '');
+    if (at(a) !== at(b)) return at(a) > at(b);
+    return mayor(a.orden, b.orden);
+  }
   function parada(st) { cerrarImp(st); I().toast('Importación cancelada mientras se comprobaba la copia: no se ha importado nada.', { ms: 7000 }); return { cancelled: true }; }
   function dibujarImp(st) {
     I().showDialog('copia-leer', '<h3>Importar la copia</h3><p class="cp-prog" aria-live="polite">Leyendo los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2" data-cp="parar">Cancelar</button></div></div>');
     const d = I().root().querySelector('.detail'); st.dlg = d;
-    d.querySelector('[data-cp="parar"]').addEventListener('click', () => { st.parar = true; });
+    const bp = d.querySelector('[data-cp="parar"]');
+    bp.addEventListener('click', () => { st.parar = true; bp.disabled = true; bp.textContent = 'Parando…'; });
     st.mo = new MutationObserver(() => { if (d.hidden || d.dataset.dlg !== 'copia-leer') { st.parar = true; if (st.mo) st.mo.disconnect(); } });
     st.mo.observe(d, { attributes: true, attributeFilter: ['hidden', 'data-dlg'] });
     d.querySelector('[data-cp="parar"]').focus();
@@ -436,28 +469,31 @@
     if (st && st.mo) st.mo.disconnect();
     const d = st && st.dlg;
     if (d && d.isConnected && !d.hidden && d.dataset.dlg === 'copia-leer') {
-      I().showDialog('copia-leer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>No se ha importado la copia</h3><p class="cp-err">${esc(m)}</p>`);
-      const x = I().root().querySelector('.detail .card > .x'); if (x) x.focus();
-    } else I().toast(m, { ms: 9000 });
+      I().showDialog('copia-leer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3 id="cp-err-t">No se ha importado la copia</h3><p class="cp-err" role="alert">${esc(m)}</p>`);
+      const c = I().root().querySelector('.detail .card'); if (c) c.setAttribute('aria-labelledby', 'cp-err-t');
+      const x = c && c.querySelector('.x'); if (x) x.focus();
+    } else I().toast(m + ' No se ha importado nada.', { ms: 9000 });
   }
 
   // ---------- its look (the mesa's tokens, D-131 to D-174) ----------
   I().estilo('copia-css', `
+#mesa .detail[data-dlg="copia"]{align-items:flex-start;padding-top:clamp(16px,10vh,96px)}
 #mesa .detail[data-dlg="copia"] .card.dlg{max-width:520px;width:min(520px,100%)}
-#mesa .cp-l{list-style:none;margin:6px 0 10px;padding:0;max-height:min(52vh,440px);overflow:auto}
-#mesa .cp-f{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line2)}
-#mesa .cp-f:last-child{border-bottom:1px solid var(--line2)}
+#mesa .cp-l{list-style:none;margin:6px -4px 10px;padding:0 4px;max-height:min(52vh,440px);overflow:auto}
+#mesa .cp-f{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+#mesa .cp-f:last-child{border-bottom:1px solid var(--line)}
 #mesa .cp-q{flex:1;min-width:0}
-#mesa .cp-n{display:block;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#mesa .cp-n span{font-weight:400;color:var(--mute)}
+#mesa .cp-n{display:flex;gap:4px;min-width:0;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap}
+#mesa .cp-nm{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#mesa .cp-pt{flex:none;font-weight:400;color:var(--mute)}
 #mesa .cp-s{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
-#mesa .cp-s.ok{color:var(--ok)}
-#mesa .cp-s.ok::before{content:'';flex:none;width:13px;height:13px;background:currentColor;-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
+#mesa .cp-s.ok{color:var(--ink-2)}
+#mesa .cp-s.ok::before{content:'';flex:none;width:13px;height:13px;background:var(--ok);-webkit-mask:var(--i-check) center/contain no-repeat;mask:var(--i-check) center/contain no-repeat}
 #mesa .cp-s.aviso{color:var(--chg)}#mesa .cp-s.mal{color:var(--red)}
 #mesa .cp-f .btn2{flex:none;min-width:96px}
-#mesa .cp-pie{margin:0;font-size:12px;color:var(--mute)}
-#mesa .cp-prog{font-variant-numeric:tabular-nums}
-#mesa .cp-err{color:var(--ink-2)}
+#mesa .card>p.cp-pie{margin:0;font-size:12px;color:var(--mute)}#mesa .card>p.cp-pie:empty{display:none}
+#mesa .card>p.cp-prog{font-variant-numeric:tabular-nums}
+#mesa .card>p.cp-err{color:var(--ink-2)}
 `);
 
   M.copia = {

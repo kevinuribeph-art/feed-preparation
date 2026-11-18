@@ -2296,9 +2296,11 @@
 #mesa .tab.on.hasedit{padding-right:3px}
 #mesa .appbar .xfer{align-self:center}
 #mesa .persist{flex:none;align-self:center;display:inline-flex;align-items:center;gap:6px;height:28px;margin:0 2px 0 4px;padding:0 10px 0 8px;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
-#mesa .persist:hover{background:var(--bg-2);color:var(--ink)}#mesa .persist[hidden]{display:none}
+#mesa .persist:hover{background:var(--bg-2);color:var(--ink)}#mesa .persist:active{transform:scale(.97)}#mesa .persist[hidden]{display:none}
+@media (max-width:1100px){#mesa .persist{padding:0 8px;height:30px}#mesa .persist .persist-t{display:none}}
+@media (prefers-reduced-motion:reduce){#mesa .persist:active{transform:none}}
 #mesa .persist::before{content:'';flex:none;width:14px;height:14px;background:var(--chg);-webkit-mask:var(--i-alerta) center/contain no-repeat;mask:var(--i-alerta) center/contain no-repeat}
-#mesa .xtodo{margin-top:16px;padding-top:14px;border-top:1px solid var(--line2)}#mesa .xtodo p{margin:0 0 10px}#mesa .xtodo b{font-weight:600;color:var(--ink)}
+#mesa .xtodo{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}#mesa .xtodo p{margin:0 0 10px}#mesa .xtodo b{font-weight:600;color:var(--ink)}
 #mesa .xaviso{display:flex;gap:8px;font-size:12.5px;color:var(--ink-2)}#mesa .xaviso::before{content:'';flex:none;width:14px;height:14px;margin-top:2px;background:var(--chg);-webkit-mask:var(--i-alerta) center/contain no-repeat;mask:var(--i-alerta) center/contain no-repeat}
 #mesa .xprog{font-variant-numeric:tabular-nums}
 #mesa .save{flex:none;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap;padding-left:6px}#mesa .save.err{color:var(--red)}
@@ -2709,7 +2711,7 @@
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
-#mesa.client .tab.add,#mesa.client .appbar .xfer,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}
+#mesa.client .tab.add,#mesa.client .appbar .xfer,#mesa.client .appbar .persist,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}
 #mesa.client .tabs .tab:not(.on){display:none}#mesa.client .appbar .brand{visibility:hidden}   /* only its own tab (D-227); no logo, its place kept (D-228) */#mesa.client .tab.on.hasedit{padding-right:13px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
@@ -2721,7 +2723,6 @@
 #mesa .brand span{display:none}
 #mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.on.hasedit{padding-right:2px}#mesa .tab.add{padding:0 9px;font-size:12.5px;height:30px}#mesa.client .tab.on.hasedit{padding-right:10px}
 #mesa .save{font-size:11.5px}
-#mesa .persist{padding:0 8px;height:30px}#mesa .persist .persist-t{display:none}
 #mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
 #mesa .mgrp{flex:1 1 0;min-width:190px;flex-wrap:nowrap}
@@ -2773,7 +2774,7 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}</div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo"><span class="i-mas">+</span> Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button type="button" class="persist" data-act="xfer" hidden title="Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz «Exportar todo» y guarda los archivos en el SSD." aria-label="Los datos no están protegidos en este navegador: haz una copia completa"><span class="persist-t">Haz una copia</span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}</div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo"><span class="i-mas">+</span> Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button type="button" class="persist" data-act="xfer-copia" hidden title="Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz «Exportar todo» y guarda los archivos en el SSD." aria-label="Los datos no están protegidos en este navegador: haz una copia completa"><span class="persist-t">Haz una copia</span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -4437,6 +4438,7 @@
     clearTimeout(saveT); if (msg === 'Guardado' && !err) saveT = setTimeout(() => { const x = shellReady() && root.querySelector('.save'); if (x && x.textContent === 'Guardado') x.textContent = ''; }, 2000);
   }
   function busyGuard() {
+    if (importEscribe) { toast('Espera: se está importando la mesa.'); return true; }   // D-249
     if (uploadsBusy()) { toast('Espera a que termine la subida de fotos.'); return true; }
     if (importing) { toast('Espera a que terminen de prepararse las fotos.'); return true; }
     return false;
@@ -5009,7 +5011,7 @@
     else if (act === 'howmonth') dlgHowMonth();
     else if (act === 'addfiller') setFillers(fillersOf() + 1);
     else if (act === 'delfiller') delFiller(+a.dataset.k);
-    else if (act === 'xfer') dlgXfer();
+    else if (act === 'xfer' || act === 'xfer-copia') { if (!root.classList.contains('client')) dlgXfer(act === 'xfer-copia'); }   // never in the vista cliente (D-227); from the notice, on «Exportar todo» (D-249)
     else if (act === 'tema') cambiarTema();
     else if (act === 'cambios') { if (M.calendario && M.calendario.cambios) M.calendario.cambios(); else toast((window.MESA_CARGA || {}).calendario === 'fallo' ? 'No se pudo cargar el calendario (calendario.js): recarga la página.' : 'Cargando la lista… Vuelve a pulsar en un momento.'); }   // the changed ones (D-126)
     else if (act === 'revisar') { if (M.revisar && M.revisar.ver) M.revisar.ver(); else toast((window.MESA_CARGA || {}).revisar === 'fallo' ? 'No se pudo cargar la revisión (revisar.js): recarga la página.' : 'Cargando la revisión… Vuelve a pulsar «Revisar» en un momento.'); }
@@ -6444,7 +6446,7 @@
   // v:2 = boards may carry captions (s.caption): a mesa older than that refuses the file instead of dropping them; v:1 files
   // (no captions) import as always.
   const XF_SHORT = 1080;
-  let xferRun = null, xferAsk = null;
+  let xferRun = null, xferAsk = null, importEscribe = false;   // importEscribe: an import is writing (nothing opens a month meanwhile)
   const nOf = (n, a, b) => `${n} ${n === 1 ? a : b}`;
   const b64of = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => { const s = String(r.result); res(s.slice(s.indexOf(',') + 1)); }; r.onerror = () => rej(r.error || new Error('no se pudo leer')); r.readAsDataURL(blob); });
   function blobOf(b64, type) { const s = atob(b64), n = s.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type }); }
@@ -6765,13 +6767,15 @@
     for (const id of await copiaMejoran(d)) l.push({ n: 'files', k: id, v: raw.files.get(id), mejora: true });
     let i = 0;
     for (const x of l) {
-      if (parar.pedido) return { parada: true, hechos: i, total: l.length };
+      if (parar.pedido || locked) return { parada: true, otra: locked, hechos: i, total: l.length };
       avance(i, l.length);
-      await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && o.reduced)) st.put(x.v, x.k); }; });
+      try { await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && o.reduced)) st.put(x.v, x.k); }; }); }
+      catch (e) { return { parada: true, error: e, hechos: i, total: l.length }; }   // the SSD unplugged, the disk full: what went in stays, whole
       if (x.n === 'files') soltarArchivo(x.k);
       i++;
     }
     avance(i, l.length);
+    if (parar.pedido || locked) return { parada: true, otra: locked, hechos: i, total: l.length };   // «Cancelar» after the last file: no records either
     for (const n of ['clients', 'ubicaciones', 'tareas', 'cobros', 'meses', 'bandejas', 'boards']) {
       const lr = [...(raw[n] || [])]; if (!lr.length) continue;
       await tx(n, 'readwrite', st => lr.forEach(([k, v]) => { const g = st.count(k); g.onsuccess = () => { if (!g.result) st.put(v, k); }; }));
@@ -6842,6 +6846,10 @@
       P.trayAdd && `${nOf(P.trayAdd, 'foto entra', 'fotos entran')} en la bandeja`].filter(Boolean).join(', ')
       || (P.newPast.length ? nOf(P.newPast.length, 'miniatura del mes anterior', 'miniaturas del mes anterior') : '');
   }
+  // what a copy of «Exportar todo» brings besides what xferWhat says (D-249): its files, as they were
+  const copiaTrae = C => [C.fotos && nOf(C.fotos, 'foto nueva', 'fotos nuevas'), C.mejoran && `${nOf(C.mejoran, 'foto vuelve', 'fotos vuelven')} a su tamaño original`,
+    C.carpetas && `${nOf(C.carpetas, 'carpeta nueva', 'carpetas nuevas')} en la bandeja`, C.sesion && nOf(C.sesion, 'foto de sesión', 'fotos de sesiones'), C.pdf && nOf(C.pdf, 'PDF de factura', 'PDF de facturas'),
+    C.miniaturas && nOf(C.miniaturas, 'miniatura del mes anterior', 'miniaturas del mes anterior')].filter(Boolean).join(', ');
   function xferSummaryHTML(d, P) {
     const st = {}; P.add.forEach(b => { st[b.key] = 'nuevo'; }); P.upd.forEach(b => { st[b.key] = 'se actualiza'; }); P.newer.forEach(b => { st[b.key] = 'más reciente aquí'; }); P.same.forEach(b => { st[b.key] = 'igual'; });
     const names = {}; [...d.clients, ...P.clients].forEach(c => { names[c.id] = c.name || c.id; });
@@ -6852,13 +6860,10 @@
     const fl = Object.values(d.files), red = fl.filter(f => f.reduced).length, C = P.copia;
     const info = d.copia ? `Copia completa del ${esc(fmtDate(d.exportedAt))} · ${esc(d.copia.info || '')}`   // «Exportar todo» (D-249)
       : `Exportado el ${esc(fmtDate(d.exportedAt))} · ${nOf(fl.length, 'foto', 'fotos')}${red ? ` (${red === fl.length ? 'todas' : red} a 1080 px)` : ''}`;
-    const extra = C ? [C.fotos && nOf(C.fotos, 'foto nueva', 'fotos nuevas'), C.mejoran && `${nOf(C.mejoran, 'foto vuelve', 'fotos vuelven')} a su tamaño original`,
-      C.carpetas && `${nOf(C.carpetas, 'carpeta nueva', 'carpetas nuevas')} en la bandeja`, C.sesion && nOf(C.sesion, 'foto de sesión', 'fotos de sesiones'), C.pdf && nOf(C.pdf, 'PDF de factura', 'PDF de facturas'),
-      C.miniaturas && nOf(C.miniaturas, 'miniatura del mes anterior', 'miniaturas del mes anterior')].filter(Boolean).join(', ')
-      : P.newFiles.length ? nOf(P.newFiles.length, 'foto nueva', 'fotos nuevas') : '';
+    const extra = C ? copiaTrae(C) : P.newFiles.length ? nOf(P.newFiles.length, 'foto nueva', 'fotos nuevas') : '';
     const what = P.nothing ? 'Nada que importar: todo lo de este archivo ya está aquí, igual o más reciente.'
       : `Al importar: ${[xferWhat(P), extra].filter(Boolean).join(C ? ', ' : ' · ')}. No se borra nada de este Mac.`;
-    return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Importar la mesa</h3><p>${info}</p><ul class="xsum">${rows || '<li>Sin meses</li>'}</ul><p class="xwhat">${esc(what)}</p>`
+    return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${d.copia ? 'Importar la copia' : 'Importar la mesa'}</h3><p>${info}</p><ul class="xsum">${rows || '<li>Sin meses</li>'}</ul><p class="xwhat">${esc(what)}</p>`
       + (P.nothing ? '' : '<div class="form"><div class="row"><button type="button" class="btn" data-act="xfer-go">Importar</button></div></div>');   // no «Cerrar» nor «Cancelar»: the × (D-155)
   }
   // resolves true on «Importar», false when the dialog goes away any other way (×, Cancelar, Esc, backdrop)
@@ -6877,7 +6882,7 @@
     const d = shellReady() && root.querySelector('.detail');
     const e = d && !d.hidden && d.dataset.dlg === 'xfer' && d.querySelector('.ferr');
     if (e) { e.textContent = m; e.hidden = false; return; }
-    if (d && !d.hidden && /^xfer/.test(d.dataset.dlg || '')) closeDetail();
+    if (d && !d.hidden && /^(xfer|copia)/.test(d.dataset.dlg || '')) closeDetail();
     toast(m, { ms: 8000 });
   }
   // «Exportar todo»'s copy (D-249): a .tar (ustar) per client and one general. copia.js reads it in parts, checks every hash and
@@ -6902,7 +6907,8 @@
     xferRun = 'import';
     let cleared = false, back = null;
     const reopen = async () => {
-      if (!cleared) return; cleared = false;
+      if (!cleared) return; cleared = false; importEscribe = false;
+      if (locked) return;                  // another tab took the mesa: it opens its own (this one doesn't claim it back, D-249)
       if (shellReady()) closeDetail();
       await loadClients();
       if (back.key && (await idbGet('boards', back.key))) await M.open(back.key);
@@ -6914,6 +6920,7 @@
       setBusy('imp', 'Leyendo el archivo…');
       try { if (src instanceof Blob) d = await src.text(); if (typeof d === 'string') d = JSON.parse(d); }
       catch (e) { return fail('No se puede leer el archivo: no es una exportación de la mesa o está incompleto (¿terminó de copiarse?).'); }
+      if (d && d.copia && !(d.copia.raw && d.copia.raw.files instanceof Map)) d = { ...d, copia: undefined };   // a .json can't be a copy: it goes by xferCheck
       const why = d && d.copia ? null : xferCheck(d); if (why) return fail(why);   // a copy: copia.js checked every hash and its form
       await addQ; await flushPending();
       let P = await xferPlan(d);
@@ -6957,28 +6964,44 @@
         return res;
       }
       const parar = { pedido: false };            // a copy's «Cancelar» while it writes (D-249)
+      let P0 = null;                               // a copy: the plan before its files went in (what the final notice tells)
       if (d.copia) {                               // a copy brings GB: is there room? (asked before anything is written)
-        const e = await navigator.storage.estimate().catch(() => ({})), falta = P.copia.bytes;
+        const e = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => ({})) : {}, falta = P.copia.bytes;
         if (e.quota && e.usage != null && e.quota - e.usage < falta + 104857600) return fail(`No hay espacio en el navegador para la copia: necesita ${pesoTxt(falta)} y quedan ${pesoTxt(Math.max(0, e.quota - e.usage))}. Libera espacio en el disco. No se ha importado nada.`);
       }
-      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3>Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando las fotos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div>'
+      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3>Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando los archivos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div>'
         : '<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p>');
       const bP = d.copia && shellReady() && root.querySelector('.detail .xparar');
-      if (bP) bP.addEventListener('click', () => { parar.pedido = true; bP.disabled = true; bP.textContent = 'Parando…'; });
+      let enRegistros = false;                    // the files are in: the records go together, nothing stops them now
+      const pararYa = () => { if (enRegistros) return; parar.pedido = true; if (bP && bP.isConnected) { bP.disabled = true; bP.textContent = 'Parando…'; } };
+      let moP = null;
+      if (bP) {
+        bP.addEventListener('click', pararYa); bP.focus();
+        const dd = root.querySelector('.detail');   // Esc or a click outside close it: the same as «Cancelar»
+        moP = new MutationObserver(() => { if (dd.hidden || dd.dataset.dlg !== 'xfer-busy') { moP.disconnect(); pararYa(); } });
+        moP.observe(dd, { attributes: true, attributeFilter: ['hidden', 'data-dlg'] });
+      }
       setBusy('imp', 'Guardando la mesa importada…');
       back = { key: S && S.key, client: curClient };
       clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
-      S = null; PB = null; cleared = true;         // nothing in memory may overwrite what is written now
+      S = null; PB = null; cleared = true; importEscribe = true;   // nothing in memory may overwrite what is written now
       if (d.copia) {                               // what isn't here goes in as it was: the files first, one by one, then the records
-        const pr = root && root.querySelector('.detail .xprog');
-        const c = await copiaCrudo(d, parar, (i, n) => { if (pr && pr.isConnected) pr.textContent = `Guardando ${i.toLocaleString('es-ES')} de ${nOf(n, 'archivo', 'archivos')}…`; setBusy('imp', `Guardando ${i}/${n} archivos de la copia…`); });
+        const pr = root && root.querySelector('.detail .xprog'); let ultP = 0;
+        const c = await copiaCrudo(d, parar, (i, n) => {
+          if (i >= n) { enRegistros = true; if (bP && bP.isConnected) bP.disabled = true; }
+          if (Date.now() - ultP < 150 && i < n) return; ultP = Date.now();
+          const k = Math.min(i + 1, n).toLocaleString('es-ES'), t = n ? `Guardando ${k} de ${n.toLocaleString('es-ES')} ${n === 1 ? 'archivo' : 'archivos'}…` : 'Guardando los meses y los registros…';
+          if (pr && pr.isConnected) pr.textContent = t; setBusy('imp', t);
+        });
+        if (moP) moP.disconnect();
         res.copia = c;
         if (c.parada) {
-          const m = `Importación parada: ${c.hechos === 1 ? 'se guardó 1' : `se guardaron ${c.hechos.toLocaleString('es-ES')}`} de ${nOf(c.total, 'archivo', 'archivos')}, cada uno entero con su registro. No se han importado los meses, los clientes ni las tareas: vuelve a importar la copia para terminar.`;
+          const por = c.otra ? ' porque la Mesa se abrió en otra pestaña' : c.error ? (c.error.name === 'QuotaExceededError' || /quota/i.test(String(c.error.message)) ? ' porque el navegador se quedó sin sitio' : c.error.name === 'NotReadableError' || c.error.name === 'NotFoundError' ? ' porque un archivo de la copia no se pudo leer (¿sigue conectado el SSD?)' : ' por un error del navegador') : '';
+          const m = `Importación parada${por}: ${c.hechos === 1 ? 'se guardó 1 archivo entero' : `se guardaron ${c.hechos.toLocaleString('es-ES')} archivos enteros`} de ${c.total.toLocaleString('es-ES')}. No se han importado los meses, los clientes ni las tareas: vuelve a importar la copia para terminar (lo ya guardado no se repite).`;
           res.cancelled = true; res.parada = m; setBusy('imp', null); await reopen(); toast(m, { ms: 12000 }); return res;
         }
         if (bP && bP.isConnected) bP.disabled = true;   // the records: a moment, and they go together
-        P = await xferPlan(d);                     // the rest merges as always, over what is here now
+        P0 = P; P = await xferPlan(d);             // the rest merges as always, over what is here now
         for (const id of P.kitFiles) { const r = d.copia.raw.files && d.copia.raw.files.get(id); if (r) got[id] = r; }
       }
       for (const id of [...new Set([...P.newFiles, ...P.kitFiles])]) if (got[id]) {  // photos first: a board never points at a photo that isn't here
@@ -6997,7 +7020,7 @@
         const ls = l.map(t => t.tipo === 'sesion' && Array.isArray(t.fotos) ? { ...t, fotos: t.fotos.map(f => ({ id: f.id, w: f.w, h: f.h })) } : t);
         if (ls.length) await tx('tareas', 'readwrite', st => ls.forEach(t => st.put(t, t.id))); res.tareas = l.length; }
       for (const c of P.notUpd || []) await editarCliente(c.id, o => { const n = { ...o, notionAt: c.notionAt }; if (c.notion === false) n.notion = false; else delete n.notion; return n; });
-      { const pdfs = Object.values(gotPdf), aqui = id => (P.cobAqui || {})[id], tiene = pid => !!pid && (!!gotPdf[pid] || (P.pdfAqui && P.pdfAqui.has(pid))), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: !r.pdf || tiene(r.pdf) ? r.pdf || '' : (aqui(r.id) && !aqui(r.id).borrado && tiene(aqui(r.id).pdf) ? aqui(r.id).pdf : '') });   // a PDF the file names but doesn't bring: the one here stays   // D-232: the PDFs first, then the invoices that name them
+      { const pdfs = Object.values(gotPdf).filter(f => !d.copia || (P.pdfPut || []).some(x => x.id === f.id)), aqui = id => (P.cobAqui || {})[id], tiene = pid => !!pid && (!!gotPdf[pid] || (P.pdfAqui && P.pdfAqui.has(pid))), co = (P.cobPut || []).map(r => r.borrado ? { id: r.id, cliente: r.cliente, borrado: true, at: r.at } : { ...r, pdf: !r.pdf || tiene(r.pdf) ? r.pdf || '' : (aqui(r.id) && !aqui(r.id).borrado && tiene(aqui(r.id).pdf) ? aqui(r.id).pdf : '') });   // a PDF the file names but doesn't bring: the one here stays   // D-232: the PDFs first, then the invoices that name them
         if (pdfs.length) await tx('cfacturas', 'readwrite', st => pdfs.forEach(f => st.put(f, f.id)));
         if (co.length) { await tx('cobros', 'readwrite', st => co.forEach(r => st.put(r, r.id))); res.cobros = co.length; } }
       if ((P.mesPut || []).length) {   // D-238: over what is stored now, part by part (a load made while this was confirmed stays if newer)
@@ -7034,18 +7057,19 @@
       try { const pend = pendienteLS(); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
       await reopen();
-      if ((P.cobPut || []).length || (P.cuotaUpd || []).length || (P.pdfPut || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }   // D-232: here and the other tabs
-      if ((P.mesPut || []).length) { await mesLeer(true); mesAvisar(true); }   // D-238: here and the other tabs
+      if (d.copia || (P.cobPut || []).length || (P.cuotaUpd || []).length || (P.pdfPut || []).length) { await cobLeer(true); await cobPdfBarrer(); cobAvisar(true); }   // D-232: here and the other tabs (a copy wrote them as they were, D-249)
+      if (d.copia || (P.mesPut || []).length) { await mesLeer(true); mesAvisar(true); }   // D-238: here and the other tabs
+      if (d.copia) { try { document.dispatchEvent(new CustomEvent('mesa-tareas')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ } }   // its tasks and sessions
       try { await sweepDesigns(true); } catch (e) { /* only housekeeping */ }   // rendered images the imported months replaced
-      const k = P.newer.length;
-      toast('Importada: ' + [xferWhat({ ...P, same: [], newer: [] }), res.photos && nOf(res.photos, 'foto', 'fotos'), P.vueltas && (P.vueltas === 1 ? '1 foto que solo usaba este Mac ha vuelto a la bandeja' : `${P.vueltas} fotos que solo usaba este Mac han vuelto a la bandeja`), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
+      const PA = P0 || P, k = PA.newer.length;   // a copy: what its plan said before its files went in
+      toast('Importada: ' + [xferWhat({ ...PA, same: [], newer: [] }), PA.copia && copiaTrae(PA.copia), res.photos && nOf(res.photos, 'foto', 'fotos'), P.vueltas && (P.vueltas === 1 ? '1 foto que solo usaba este Mac ha vuelto a la bandeja' : `${P.vueltas} fotos que solo usaba este Mac han vuelto a la bandeja`), k && `${k} se ${k === 1 ? 'queda' : 'quedan'} como estaba${k === 1 ? '' : 'n'} (más reciente${k === 1 ? '' : 's'} aquí)`].filter(Boolean).join(' · ') + '.', { ms: 8000 });
       return res;
     } catch (e) {
       const q = e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)));
       return fail(q ? 'El navegador no tiene espacio para importar las fotos. Libera espacio y vuelve a intentarlo.' : 'No se pudo importar: ' + String((e && e.message) || e));
     } finally {
-      xferRun = null; setBusy('imp', null);
       if (cleared) { try { await reopen(); } catch (e) { /* */ } }
+      importEscribe = false; xferRun = null; setBusy('imp', null);
     }
   };
   // the export went out with empty photo holes: where each one is (client, month, post and slide), never a block (D-037)
@@ -7056,18 +7080,18 @@
       + `<ul class="xsum">${hs.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(cn(h.client))}, ${esc(monthLabel(h.month))}</span></li>`).join('')}</ul>`);
     focoX();                             // no «Entendido» (D-155): the ×
   }
-  function dlgXfer() {
+  function dlgXfer(copia) {            // copia: from the notice of storage that isn't kept, the focus on «Exportar todo» (D-249)
     showDialog('xfer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar la mesa a otro Mac</h3><p>Se exportan todos los clientes y meses, con las fotos a 1080 px.</p>`   // D-156 and D-155
       + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'
       // «Exportar todo» (D-249): the whole mesa at its original size, a file per client and one general; «Importar…» reads them too
       + '<div class="xtodo"><p><b>Copia completa.</b> Las fotos a su tamaño original y las carpetas de la bandeja, en un archivo por cliente y uno general. Guárdalos juntos en el SSD.</p>'
       + (persistida === false ? '<p class="xaviso">Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz una copia completa de vez en cuando.</p>' : '')
-      + '<div class="row"><button type="button" class="btn2" data-act="xfer-todo">Exportar todo</button></div></div>'
+      + '<div class="form"><div class="row"><button type="button" class="btn2" data-act="xfer-todo">Exportar todo</button></div></div></div>'
       + '<input type="file" class="xferin" accept=".json,.tar,application/json,application/x-tar" multiple hidden>');
     const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
     // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
     inp.addEventListener('change', () => { const fs = [...(inp.files || [])]; inp.value = ''; if (!fs.length) return; M.importData(fs.length === 1 && !/\.tar$/i.test(fs[0].name) ? fs[0] : fs); });
-    d.querySelector('[data-act="xfer-export"]').focus();
+    d.querySelector(copia ? '[data-act="xfer-todo"]' : '[data-act="xfer-export"]').focus();
   }
   // Storage this browser may delete when the disk fills (not «persistent»): a discreet notice in the header, always while it
   // lasts, that opens ⇅ with «Exportar todo» (D-249). The mesa asks for it on each opening (M.init) and here
@@ -7327,7 +7351,9 @@
   };
   // a board switch in progress (the designer refuses to open meanwhile: its board is about to go away)
   let switching = 0;
-  for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => { switching++; try { return await f(...a); } finally { switching--; } }; }
+  for (const k of ['openClient', 'open', 'init']) { const f = M[k]; M[k] = async (...a) => {
+    if (importEscribe) { const m = 'Espera: se está importando la mesa.'; toast(m); return k === 'init' ? Promise.reject(new Error(m)) : { error: m }; }   // what is in memory would overwrite what the import writes (D-249)
+    switching++; try { return await f(...a); } finally { switching--; } }; }
   // internal bridge for the designer (diseno.js): the open board and the mesa's own helpers (getters for what changes)
   // ---------- the vista cliente's structure (D-230) ----------
   // Besides the feed and the calendar, the vista cliente has tabs over the calendar («Calendario» and the parts of 'pestana')
@@ -7355,10 +7381,10 @@
       // a board as it is (a newer copy a reload left in localStorage, without the tray and folders, which live in 'bandejas')
       newest: (k, b) => { const n = newest(k, b); if (n === b) return b; const { tray, carpetas, ...c } = n; return JSON.parse(JSON.stringify(c)); },
       empezar: tipo => locked ? 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes.' : xferRun ? 'Espera: ya se está exportando o importando la mesa.'
-        : tipo === 'import' && (uploadsBusy() || subida || importing) ? 'Espera a que termine la subida de fotos.' : (xferRun = tipo, null),
+        : (uploadsBusy() || subida || importing) ? 'Espera a que termine la subida de fotos.' : (xferRun = tipo, null),
       acabar: () => { xferRun = null; }, ocupado: () => xferRun,
       pendientes: async () => { await addQ; await flushPending(); },
-      get locked() { return locked; }
+      get locked() { return locked; }, edPendiente
     },
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
     mes: { leer: mesLeer, listo: () => !!MES, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js); listo once read: while it reads again, what was read stays (nothing jumps)

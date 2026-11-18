@@ -7952,7 +7952,7 @@
   prueba('M52', 'Cada módulo dice que cargó entero (MESA_CARGA «ok»), y uno que lanza un error al ejecutarse queda en «fallo» y no en «Cargando…» (D-115)', async () => {
     await tablero([pub(1)]);
     const C = () => W.MESA_CARGA || {};
-    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar', 'controles', 'escritura', 'sesiones'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
+    await hasta(() => ['motor', 'diseno', 'libre', 'calendario', 'revisar', 'historias', 'carpetas', 'descargar', 'controles', 'escritura', 'sesiones', 'web'].every(k => C()[k] === 'ok'), 6000, 'todos los módulos en «ok»: ' + json(C()));
     // un módulo que llega pero falla al ejecutarse: el aviso de la mesa (index.html) lo marca «fallo»
     W.dispatchEvent(new W.ErrorEvent('error', { message: 'roto', filename: location.origin + '/revisar.js?v=9', error: new Error('roto') }));
     igual(C().revisar, 'ok', 'un error después de cargar marcó «fallo» a un módulo que ya estaba');
@@ -16768,6 +16768,141 @@
     Object.keys(localStorage).forEach(k => { if (!(k in f)) localStorage.removeItem(k); });
     Object.entries(f).forEach(([k, v]) => { if (localStorage.getItem(k) !== v) localStorage.setItem(k, v); });
   }
+  // ---------- portal de clientes, lote 2: «Web del cliente» (D-241) ----------
+  const WB_URL = 'https://pruebasfalsas.supabase.co';
+  // Un servidor de mentira en memoria: lo que la Mesa envía queda en `db` y `archivos`; `fallar` simula la red caída.
+  function wbServidor(f0) {
+    const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [] }, archivos = new Map(), pedidos = [];
+    const sv = { db, archivos, pedidos, fallar: false };
+    const resp = (st, j) => new W.Response(j === undefined || st === 204 ? null : JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
+    const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'] };
+    const lista = v => v.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, ''));
+    const pasa = filtro => r => filtro.every(([k, v]) => {
+      const i = v.indexOf('.'), op = v.slice(0, i), val = v.slice(i + 1);
+      if (op === 'eq') return String(r[k]) === val;
+      if (op === 'in') return lista(val).includes(String(r[k]));
+      if (op === 'not' && val.startsWith('in.')) return !lista(val.slice(3)).includes(String(r[k]));
+      return true;
+    });
+    sv.fetch = async (url, op = {}) => {
+      const u = new URL(String(url), location.href); if (u.origin !== WB_URL) return f0(url, op);
+      if (sv.fallar) throw new TypeError('sin red (prueba)');
+      const met = (op.method || 'GET').toUpperCase(), ruta = u.pathname;
+      let cuerpo = op.body; if (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) { /* tal cual */ } }
+      pedidos.push({ met, ruta: ruta + u.search, cuerpo: cuerpo instanceof W.Blob ? '[archivo]' : cuerpo });
+      if (ruta === '/rest/v1/rpc/es_dueno') return resp(200, true);
+      let m = ruta.match(/^\/storage\/v1\/object\/list\/(\w+)$/);
+      if (m) { const pre = m[1] + '/' + cuerpo.prefix + '/'; return resp(200, [...archivos.keys()].filter(k => k.startsWith(pre)).map(k => ({ id: k, name: k.slice(pre.length) }))); }
+      m = ruta.match(/^\/storage\/v1\/object\/(\w+)\/(.+)$/);
+      if (m && met === 'POST') { archivos.set(m[1] + '/' + m[2], cuerpo); return resp(200, { Key: m[2] }); }
+      m = ruta.match(/^\/rest\/v1\/(\w+)$/); if (!m || !db[m[1]]) return resp(404, { message: 'ruta' });
+      const t = m[1], f = pasa([...u.searchParams].filter(([k]) => !['select', 'on_conflict'].includes(k)));
+      if (met === 'GET') return resp(200, db[t].filter(f));
+      if (met === 'POST') { for (const x of [].concat(cuerpo)) { const i = db[t].findIndex(r => CLAVE[t].every(k => r[k] === x[k])); if (i >= 0) db[t][i] = { ...db[t][i], ...x }; else db[t].push({ ...x }); } return resp(201); }
+      if (met === 'PATCH') { db[t].filter(f).forEach(r => Object.assign(r, cuerpo)); return resp(204); }
+      if (met === 'DELETE') { db[t] = db[t].filter(r => !f(r)); return resp(204); }
+      return resp(405, {});
+    };
+    return sv;
+  }
+  async function conWeb(fn) {
+    await hasta(() => M.web && M.web.listo, 8000, 'web.js'); await M.web.listo();
+    const f0 = W.fetch, sv = wbServidor(f0.bind(W)); W.fetch = sv.fetch;
+    W.localStorage.setItem('mesa-web-proyecto', JSON.stringify({ url: WB_URL, publica: 'sb_publishable_prueba' }));
+    try { return await fn(sv); }
+    finally { const c = M.web._sb(); if (c) c._sesion(null); W.fetch = f0; W.localStorage.removeItem('mesa-web-proyecto'); M._in.renderBar(); }
+  }
+  const wbSesion = () => M.web._sb()._sesion({ access_token: 'tok', refresh_token: 'ref', expires_in: 3600, user: { id: 'u-kevin', email: 'kevin@prueba.test' } });
+
+  prueba('WB1', 'Web del cliente (D-241): sin proyecto, nada en la barra; con proyecto y sin sesión, «Web del cliente», que abre su diálogo de entrar; en «Vista cliente», nada', async () => {
+    await tablero([pub(1), pub(2)]);
+    await hasta(() => M.web, 8000, 'web.js');
+    M._in.renderBar(); ok(!q('[data-web]'), 'sin proyecto salió algo en la barra');
+    await conWeb(async () => {
+      M._in.renderBar();
+      const b = q('[data-web="entrar"]'); ok(b && b.textContent === 'Web del cliente', 'sin sesión no salió «Web del cliente»');
+      b.click(); await espera(60); ok(q('.detail [data-webform="correo"]'), 'no se abrió el diálogo de entrar');
+      M._in.closeDetail();
+      await vistaCliente(true); M._in.renderBar(); ok(!q('[data-web]'), 'en «Vista cliente» salió el botón');
+      await vistaCliente(false);
+    });
+  });
+
+  prueba('WB2', 'Enviar (D-241, lección 81): llega lo que ve el cliente y nada más (sin la Nota, el contexto, los captions sin elegir, los ids de la Mesa ni nombres de archivo); caption elegido, estado del cliente, orden del feed y una cancelada oculta; imágenes recortadas a 1440 y 480 px como mucho, nombradas por su huella', async () => {
+    await tablero([pub(1), pub(2), pub(3, 'Carrusel'), pub(4)]);
+    await poner('r1', [await foto('wb-uno.jpg', 2400, 1600)]);
+    await poner('r3', [await foto('wb-c1.jpg', 1200, 1500), await foto('wb-c2.jpg', 1200, 1500)]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'ELEGIDO-WB' }, { tone: 'b', text: 'SIN-ELEGIR-1' }, { tone: 'c', text: 'SIN-ELEGIR-2' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 }, memo: 'NOTA-WB', note: 'CONTEXTO-WB' });
+    M.setEstado('r4', 'cancelado');
+    await conWeb(async sv => {
+      wbSesion();
+      const r = await M.web.enviar(); ok(r.ok, 'no se envió: ' + json(r));
+      const todo = json(sv.db) + json(sv.pedidos);
+      for (const x of ['NOTA-WB', 'CONTEXTO-WB', 'SIN-ELEGIR-1', 'SIN-ELEGIR-2', 'wb-uno', 'wb-c1', '"r1"', '"r2"', '"r3"', '"r4"', NOMBRE2]) ok(!todo.includes(x), `llegó «${x}» a la web`);
+      const p = sv.db.publicaciones; igual(p.length, 4, 'publicaciones enviadas');
+      const p1 = p.find(x => x.caption === 'ELEGIDO-WB');
+      ok(p1 && /^[0-9a-f]{16}$/.test(p1.pid) && /^[0-9a-f]{64}$/.test(p1.version) && p1.tipo === 'foto' && p1.mes === MES, 'la publicación con el caption elegido: ' + json(p1));
+      igual(p.filter(x => !x.visible).length, 1, 'la cancelada no quedó oculta');
+      ok(p.filter(x => x.visible).every(x => ['preparando', 'por_aprobar', 'aprobada', 'cambios', 'programada', 'publicada'].includes(x.estado)), 'un estado que el cliente no conoce');
+      const ims = p.flatMap(x => x.imagenes);
+      igual(ims.length, 3, 'imágenes (1 foto + 2 del carrusel)');
+      ok(ims.every(im => new RegExp(`^${CLIENTE}/[0-9a-f]{64}\\.jpg$`).test(im.ruta) && im.mini === im.ruta.replace(/\.jpg$/, '-m.jpg') && Math.max(im.an, im.al) <= 1440), 'rutas o tamaños raros: ' + json(ims));
+      const i1 = p1.imagenes[0], r1 = M._in.postRect(slot('r1').photos[0], M._in.S.slots.find(x => x.id === 'r1'));
+      ok(Math.abs(i1.an / i1.al - r1.w / r1.h) < 0.02, 'la foto no salió con el recorte de la publicación (el de Instagram): ' + json([i1, r1]));
+      ok(ims.every(im => sv.archivos.has('fotos/' + im.ruta) && sv.archivos.has('fotos/' + im.mini)), 'falta una imagen en el almacén');
+      igual(sv.db.clientes.length === 1 && sv.db.clientes[0].id, CLIENTE, 'el cliente');
+    });
+  });
+
+  prueba('WB3', 'Un texto que va a la web y nombra a otro cliente no se envía (lecciones 82 y 84): dice dónde y no manda ninguna publicación', async () => {
+    await abrirMes([pub(9)], MES, CLIENTE2, NOMBRE2);
+    await tablero([pub(1)]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'Una colaboración con ' + NOMBRE2 }, { tone: 'b', text: 'b' }, { tone: 'c', text: 'c' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    await conWeb(async sv => {
+      wbSesion();
+      const r = await M.web.enviar();
+      ok(r.error && (r.problemas || []).some(x => /caption/.test(x)), 'se envió un caption que nombra a otro cliente: ' + json(r));
+      igual(sv.db.publicaciones.length, 0, 'llegaron publicaciones');
+      ok(/No se ha enviado/.test((q('.detail .card') || {}).textContent || ''), 'no lo dijo');
+      M._in.closeDetail();
+    });
+  });
+
+  prueba('WB4', '«Web: N cambios sin enviar» (D-241): todas al empezar, «al día» tras enviar; la Nota no cuenta, el caption elegido sí; reenviar no vuelve a subir imágenes', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('wb4.jpg')]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'uno' }, { tone: 'b', text: 'dos' }, { tone: 'c', text: 'tres' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } });
+    await conWeb(async sv => {
+      wbSesion(); await M.web.repasar();
+      igual(M.web.estado().cambios, 2, 'al empezar');
+      ok(/2 cambios sin enviar · Enviar/.test((q('[data-web="enviar"]') || {}).textContent || ''), 'la barra');
+      ok((await M.web.enviar()).ok, 'no se envió'); await M.web.repasar();
+      igual(M.web.estado().cambios, 0, 'tras enviar');
+      ok(/al día/.test((q('[data-web]') || {}).textContent || ''), 'la barra no dice «al día»');
+      M._test.setSlot('r1', { memo: 'otra nota' }); await M.web.repasar();
+      igual(M.web.estado().cambios, 0, 'la Nota contó como cambio');
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 1 } }); await M.web.repasar();
+      igual(M.web.estado().cambios, 1, 'el caption elegido no contó');
+      const n0 = sv.archivos.size, r = await M.web.enviar();
+      ok(r.ok && r.subidas === 0 && sv.archivos.size === n0, 'reenviar volvió a subir imágenes: ' + json(r));
+      igual(sv.db.publicaciones.find(x => x.caption === 'dos') ? 1 : 0, 1, 'el caption nuevo no llegó');
+    });
+  });
+
+  prueba('WB5', 'Sin red (D-241, lección 95): enviar lo dice, la barra no se queda en «Enviando…» y no llega nada a medias', async () => {
+    await tablero([pub(1)]);
+    await conWeb(async sv => {
+      wbSesion(); sv.fallar = true;
+      const r = await M.web.enviar(); ok(r.error, 'sin red dijo que se envió');
+      await espera(50);
+      ok(!qa('.webbtn').some(b => /Enviando/.test(b.textContent)), 'la barra se quedó en «Enviando…»');
+      igual(sv.db.publicaciones.length, 0, 'llegó algo a medias');
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

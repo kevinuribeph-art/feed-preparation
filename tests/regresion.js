@@ -17099,6 +17099,21 @@
   });
 
   // ---------- el diario de cambios (D-250) ----------
+  // la guarda: cada escritura que la mesa hace en IndexedDB, vista desde los métodos nativos, pasó por el envoltorio de tx() (o es
+  // del propio diario, o de una transacción sin diario a propósito, o de la actualización de versión, que apunta a mano); la que
+  // no, es una fuga. Se instala al empezar la batería y se mira en DJ2 y al terminar
+  const djFugas = [];
+  function djGuarda() {
+    if (!M._test.djHecha || W.__djGuarda) return; W.__djGuarda = true;
+    const vigila = (proto, metodos, txDe, almDe) => metodos.forEach(m => { const f = proto[m]; if (!f) return;
+      proto[m] = function (...a) {
+        const r = f.apply(this, a), t = txDe(this), st = almDe(this), pila = String(new Error().stack || '').split('\n').slice(2, 5).map(x => x.trim()).join(' < ');
+        W.queueMicrotask(() => { if (!M._test.djHecha(r) && st !== 'diario' && !M._test.djSin(t) && t.mode !== 'versionchange') djFugas.push(`${m} en ${st}: ${pila}`); });
+        return r;
+      }; });
+    vigila(W.IDBObjectStore.prototype, ['put', 'add', 'delete', 'clear'], o => o.transaction, o => o.name);
+    vigila(W.IDBCursor.prototype, ['update', 'delete'], c => c.source.transaction, c => c.source.name);
+  }
   const djLeer = async () => (await M._in.diario.leer()) || [];
   const djHay = (l, a, k) => l.some(e => e.a === a && (k === undefined ? true : k === null ? e.k == null : e.k === k));
 
@@ -17147,6 +17162,28 @@
     await M._in.idbDel('ubicaciones', 'ub-dj4'); await M._in.diario.vaciar();
   });
 
+  prueba('DJ2', 'Guarda del diario (D-250): en el código, solo mesa.js abre la base de datos y sus transacciones, y cada línea que lo hace lleva su marca «idb-crudo»; en lo que va de batería, ninguna escritura vista desde los métodos nativos de IndexedDB se hizo fuera del envoltorio de tx()', async () => {
+    const ix = await (await W.fetch('index.html?dj=' + Date.now())).text(), mods = [...ix.matchAll(/<script[^>]*\ssrc="([^"?]+)/g)].map(m => m[1]);   // the mesa empties the body: its modules, from index.html
+    ok(mods.includes('mesa.js') && mods.includes('copia.js') && mods.length >= 17, 'los módulos de index.html: ' + mods.join(', '));
+    const malas = [];
+    let marcas = 0;
+    for (const m of mods) {
+      const t = await (await W.fetch(m + '?dj=' + Date.now())).text();
+      t.split('\n').forEach((l, i) => { const acceso = /indexedDB\.open|\.transaction\(|\.objectStore\(|\btransaction\.objectStore\b/.test(l); if (m === 'mesa.js' && /idb-crudo/.test(l)) marcas++; else if (acceso) malas.push(`${m}:${i + 1}`); });
+    }
+    igual(malas, [], 'accesos a IndexedDB fuera de tx()');
+    igual(marcas, 6, 'las líneas marcadas «idb-crudo» de mesa.js (la apertura, la actualización de versión y txCon)');
+    // y una escritura nueva que se saltara el envoltorio, la guarda la ve
+    const antes = djFugas.length;
+    const dbx = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    try { await new Promise((res, rej) => { const t = dbx.transaction('ubicaciones', 'readwrite'); t.objectStore('ubicaciones').put({ id: 'ub-fuga' }, 'ub-fuga'); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+    finally { dbx.close(); }
+    await espera(10);
+    ok(djFugas.length === antes + 1 && /put en ubicaciones/.test(djFugas[djFugas.length - 1]), 'la guarda no ve una escritura sin diario');
+    djFugas.pop(); await M._in.diario.sinDiario('ubicaciones', 'readwrite', st => st.delete('ub-fuga'));
+    igual(djFugas, [], 'escrituras fuera del diario en lo que va de batería');
+  });
+
   async function preparar() {
     const fr = $('mesa');
     await new Promise(r => { fr.onload = r; fr.src = '../index.html?regresion=' + Date.now(); });
@@ -17154,6 +17191,7 @@
     await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in && W.MESA.revisar && W.MESA.diseno, 15000, 'que carguen mesa.js, libre.js, revisar.js y diseno.js');
     M = W.MESA;
     if (M._test.reloj) M._test.reloj(RELOJ_PRUEBAS);
+    djGuarda();                                     // the journal's guard watches every test, also after a test reloads the mesa (D-250)
     await hasta(() => M.carpetasUI, 15000, 'carpetas.js');
     M.cfg.margenSubida = 0;                         // el cupo de un Chrome sin ventana es pequeño: el margen se prueba aparte (C16, C17)
     // index.html lanza MESA.boot() sin esperarlo: termina cuando la mesa tiene su armazón y no está cambiando de tablero

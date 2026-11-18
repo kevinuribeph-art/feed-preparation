@@ -124,7 +124,7 @@ const ORDENES = {
     if (cual === 'real') {
       Object.assign(base, { site_url: 'https://clientes.uribevisuals.studio', uri_allow_list: 'https://clientes.uribevisuals.studio/**' });
       const u = clave('SMTP_USUARIO'), k = clave('SMTP_CLAVE');
-      if (u && k) Object.assign(base, { smtp_host: 'smtp.hostinger.com', smtp_port: '465', smtp_user: u, smtp_pass: k, smtp_admin_email: u, smtp_sender_name: 'Uribe Visuals', smtp_max_frequency: 60 });
+      if (u && k) Object.assign(base, { smtp_host: 'smtp.hostinger.com', smtp_port: '465', smtp_user: u, smtp_pass: k, smtp_admin_email: u, smtp_sender_name: 'Uribe Visuals', smtp_max_frequency: 60, rate_limit_email_sent: 30 });   // 30 códigos por hora en todo el portal (D-247; por defecto, 2)
     }
     const r = await gestion(`projects/${P.ref}/config/auth`, { method: 'PATCH', body: base });
     if (!r.ok) throw new Fallo(`la configuración no entró (${r.status}): ${r.text}`);

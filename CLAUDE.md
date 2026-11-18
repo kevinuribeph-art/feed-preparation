@@ -43,6 +43,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.
 - Cada fallo corregido suma su prueba en `tests/regresion.js`.
 - `tools/zernio.mjs resumen` tiene su prueba aparte, sin red ni clave de verdad: `node tests/zernio-resumen.mjs`.
+- El aviso de los códigos de entrada de `portal/supa.js`, también sin red: `node tests/portal-supa.mjs`.
 - El aislamiento del portal tiene su prueba contra el proyecto de pruebas de Supabase, nunca el real:
   `node tests/portal-aislamiento.mjs`. Antes de cada PR que toque el servidor, el portal o lo que la Mesa envía, entera en verde.
 - No sirvas la carpeta del repo: expondría `.env`, y el servidor de preview no puede leer carpetas

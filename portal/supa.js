@@ -3,7 +3,7 @@
 // La sesión vive en localStorage bajo `clave` (por origen); nunca se escribe en consola ni en avisos.
 (function () {
   'use strict';
-  var V = '1.0';
+  var V = '1.1';
 
   function SupaError(mensaje, status, codigo) { this.name = 'SupaError'; this.message = mensaje; this.status = status || 0; this.codigo = codigo || ''; }
   SupaError.prototype = Object.create(Error.prototype);
@@ -74,7 +74,10 @@
       pedirCodigo: function (correo) {
         return pedir('/auth/v1/otp', { metodo: 'POST', json: { email: correo, create_user: false } })
           .then(function () { return true; }, function (e) {
-            if (e.status === 429) throw new SupaError('demasiados intentos: espera un minuto', 429, 'espera');
+            if (e.status === 429) {   // un código por minuto y correo («after N seconds»), o el tope de códigos por hora de todo el portal (D-247)
+              var s = /after (\d+) second/i.exec(e.message);
+              throw new SupaError(s ? 'acabas de pedir uno: espera ' + s[1] + ' segundos y pide otro' : 'se han pedido muchos códigos en poco tiempo: inténtalo dentro de un rato', 429, 'espera');
+            }
             if (e.status === 0) throw e;
             if (e.status >= 500) throw new SupaError('no se pudo enviar el código: inténtalo en un momento', e.status, 'servidor');
             return true;   // un correo sin acceso no se distingue de uno con acceso

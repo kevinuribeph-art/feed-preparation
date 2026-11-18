@@ -12765,7 +12765,7 @@
       await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
       W = $('mesa').contentWindow; D = W.document;
       await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
-      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS);
+      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); djGuarda();
       await hasta(() => M.personal.abierta(), 4000, 'que arranque en la página');
       ok(M._in.root().classList.contains('pp-on') && q('.pp:not([hidden])'), 'la página no está a la vista');
       igual(W.getComputedStyle(q('.main')).display, 'none', 'el tablero se ve detrás');
@@ -12781,7 +12781,7 @@
       await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
       W = $('mesa').contentWindow; D = W.document;
       await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
-      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); await espera(150);
+      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); djGuarda(); await espera(150);
       ok(!M.personal.abierta(), 'al recargar dentro de un cliente se abrió la página');
       igual(M._in.curClient, CLIENTE, 'no volvió al cliente');
       // el logo la abre, como al entrar
@@ -13560,7 +13560,7 @@
       await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
       W = $('mesa').contentWindow; D = W.document;
       await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
-      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS);
+      M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); djGuarda();
       await hasta(() => M.personal.abierta(), 4000, 'que arranque en la página');
       await M.personal.render();
       await hasta(() => { const i = q(`.pp-blq[data-c="${CLIENTE}"] .pp-ava img`); return i && i.complete && i.naturalWidth > 0; }, 4000, 'la foto en la página tras recargar');
@@ -17102,22 +17102,51 @@
   // la guarda: cada escritura que la mesa hace en IndexedDB, vista desde los métodos nativos, pasó por el envoltorio de tx() (o es
   // del propio diario, o de una transacción sin diario a propósito, o de la actualización de versión, que apunta a mano); la que
   // no, es una fuga. Se instala al empezar la batería y se mira en DJ2 y al terminar
+  // each transaction of the mesa's base keeps its writes (store, key) and its journal's notes; when it completes, each write needs
+  // its note [store, key] or [store] in that same transaction: «it went through the wrapper» isn't enough, «it left its note» is
   const djFugas = [];
   function djGuarda() {
-    if (!M._test.djHecha || W.__djGuarda) return; W.__djGuarda = true;
-    const vigila = (proto, metodos, txDe, almDe) => metodos.forEach(m => { const f = proto[m]; if (!f) return;
+    if (!M._test.djSin || W.__djGuarda) return; W.__djGuarda = true;
+    const POR = new W.WeakMap(), kj = k => { try { return JSON.stringify(k); } catch (e) { return String(k); } };
+    const de = t => { let x = POR.get(t); if (!x) { x = { esc: [], notas: new Set() }; POR.set(t, x);
+      t.addEventListener('complete', () => { if (t.mode === 'versionchange' || M._test.djSin(t)) return;
+        for (const w of x.esc) if (!x.notas.has(w.a + '|' + w.k) && !x.notas.has(w.a + '|*')) djFugas.push(`${w.m} en ${w.a} sin su nota: ${w.pila}`); }); }
+      return x; };
+    const vigila = (proto, metodos, almDe, claveDe) => metodos.forEach(m => { const f = proto[m]; if (!f) return;
       proto[m] = function (...a) {
-        const r = f.apply(this, a), t = txDe(this), st = almDe(this), pila = String(new Error().stack || '').split('\n').slice(2, 5).map(x => x.trim()).join(' < ');
-        W.queueMicrotask(() => { if (!M._test.djHecha(r) && st !== 'diario' && !M._test.djSin(t) && t.mode !== 'versionchange') djFugas.push(`${m} en ${st}: ${pila}`); });
+        const st = almDe(this), t = st.transaction, r = f.apply(this, a);
+        if (t.db.name !== 'mesa-feed') return r;
+        const x = de(t);
+        if (st.name === 'diario') { if (m === 'put') { const k = a[1]; x.notas.add(k.length === 1 ? k[0] + '|*' : k[0] + '|' + kj(k[1])); } }
+        else { const k = claveDe(this, m, a); if (k !== null) x.esc.push({ m, a: st.name, k: k === '*' ? '*' : kj(k), pila: String(new Error().stack || '').split('\n').slice(2, 5).map(s => s.trim()).join(' < ') }); }
         return r;
       }; });
-    vigila(W.IDBObjectStore.prototype, ['put', 'add', 'delete', 'clear'], o => o.transaction, o => o.name);
-    vigila(W.IDBCursor.prototype, ['update', 'delete'], c => c.source.transaction, c => c.source.name);
+    const llaves = W.IDBObjectStore.prototype.getAllKeys, rango = q => q instanceof W.IDBKeyRange || q instanceof IDBKeyRange;
+    const borrar = W.IDBObjectStore.prototype.delete;
+    W.IDBObjectStore.prototype.delete = function (q) {   // a range: each key it removes needs its own note
+      if (rango(q) && this.transaction.db.name === 'mesa-feed' && this.name !== 'diario') {
+        const x = de(this.transaction), g = llaves.call(this, q), a = this.name;
+        g.onsuccess = () => g.result.forEach(k => x.esc.push({ m: 'delete por rango', a, k: kj(k), pila: '' }));
+        return borrar.call(this, q);
+      }
+      return borrar.call(this, q);
+    };
+    vigila(W.IDBObjectStore.prototype, ['put', 'add', 'delete', 'clear'], o => o, (o, m, a) => m === 'clear' ? '*' : m === 'delete' ? (rango(a[0]) ? null : a[0]) : a[1]);
+    vigila(W.IDBCursor.prototype, ['update', 'delete'], c => c.source.objectStore || c.source, c => c.primaryKey);
+  }
+  // the journal empty at the end, and no write without its note (DJ3 and the battery's own end)
+  async function djLimpiar() {   // empties it first, always; then says what was wrong
+    await espera(20);
+    const fugas = djFugas.splice(0);
+    let queda = 0;
+    if (M._in.diario) { await M._in.diario.vaciar(); queda = (await M._in.diario.leer()).length; }
+    if (fugas.length) throw new Error(`escrituras sin su nota en el diario: ${fugas.length} (${fugas.slice(0, 2).join(' | ')})`);
+    if (queda) throw new Error('el diario no quedó vacío');
   }
   const djLeer = async () => (await M._in.diario.leer()) || [];
   const djHay = (l, a, k) => l.some(e => e.a === a && (k === undefined ? true : k === null ? e.k == null : e.k === k));
 
-  prueba('DJ1', 'El diario de cambios (D-250): cada tipo de escritura apunta su almacén y su clave en la misma transacción (put, add, delete, un put dentro de onsuccess, varios almacenes a la vez, el update y el delete de un cursor), un borrado por rango y un vaciado apuntan «todo el almacén otra vez»; una transacción que se aborta no deja nota; la vía sin diario no deja rastro; nunca el valor', async () => {
+  prueba('DJ1', 'El diario de cambios (D-250): cada tipo de escritura apunta su almacén y su clave en la misma transacción (put, add, delete, un put dentro de onsuccess, varios almacenes a la vez, el update y el delete de un cursor), un borrado por rango apunta cada clave que borra y un vaciado «todo el almacén otra vez»; una transacción que se aborta no deja ni el cambio ni la nota; tx() no admite el diario en su ámbito; la vía sin diario no deja rastro; nunca el valor', async () => {
     await tablero([pub(1), pub(2)]); await M.flush();
     await M._in.diario.vaciar(); igual(await djLeer(), [], 'el diario no se vació');
     // fotos (idbPut), la bandeja y el tablero (una transacción de dos almacenes, put en onsuccess)
@@ -17131,22 +17160,35 @@
     await M._in.editarCliente(CLIENTE, o => ({ ...o, handle: 'dj.uno' }));
     ok(djHay(await djLeer(), 'clients', CLIENTE), 'editarCliente no se apunta');
     await M._in.diario.vaciar();
-    await M._in.editarCliente(CLIENTE, () => { throw new Error('a propósito'); }).catch(() => null);
-    ok(!djHay(await djLeer(), 'clients'), 'una transacción abortada deja nota');
+    await M._in.xfer.tx('clients', 'readwrite', st => { st.put({ id: 'dj-abortado', name: 'x' }, 'dj-abortado'); st.transaction.abort(); }).catch(() => null);
+    ok(!djHay(await djLeer(), 'clients', 'dj-abortado') && !(await M._in.idbGet('clients', 'dj-abortado')), 'una transacción abortada tras escribir deja su nota (o su cambio)');
     // add, delete, cursor (update y delete), por rango y clear, con tx como lo usan los módulos
     const X = M._in.xfer;
     await X.tx('ubicaciones', 'readwrite', st => { st.add({ id: 'ub-dj1', nombre: 'Dj', locationId: '1', at: '' }, 'ub-dj1'); st.put({ id: 'ub-dj2', nombre: 'Dj2', locationId: '2', at: '' }, 'ub-dj2'); });
-    await M._in.idbDel('ubicaciones', 'ub-dj2');
-    l = await djLeer(); ok(djHay(l, 'ubicaciones', 'ub-dj1') && djHay(l, 'ubicaciones', 'ub-dj2'), 'add o delete no se apuntan');
+    l = await djLeer(); ok(djHay(l, 'ubicaciones', 'ub-dj1') && djHay(l, 'ubicaciones', 'ub-dj2'), 'add o put no se apuntan');
     await M._in.diario.vaciar();
-    await X.tx('boards', 'readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.key === `${CLIENTE}-${MES}`) c.update({ ...c.value, dj: 1 }); c.continue(); }; });
-    ok(djHay(await djLeer(), 'boards', `${CLIENTE}-${MES}`), 'el update de un cursor no se apunta');
+    await M._in.idbDel('ubicaciones', 'ub-dj2');
+    igual((await djLeer()).map(e => [e.a, e.k]), [['ubicaciones', 'ub-dj2']], 'un delete no se apunta (solo)');
+    await M._in.diario.vaciar();
+    await X.tx('ubicaciones', 'readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.key === 'ub-dj1') c.update({ ...c.value, nombre: 'Dj cursor' }); c.continue(); }; });
+    igual((await djLeer()).map(e => [e.a, e.k]), [['ubicaciones', 'ub-dj1']], 'el update de un cursor no se apunta (solo)');
+    await M._in.diario.vaciar();
     await X.tx('ubicaciones', 'readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.key === 'ub-dj1') c.delete(); c.continue(); }; });
     ok(djHay(await djLeer(), 'ubicaciones', 'ub-dj1') && !(await M._in.idbGet('ubicaciones', 'ub-dj1')), 'el delete de un cursor no se apunta');
+    // por rango: cada clave que borra, ni más ni «todo el almacén» (el lote 3 borraría arriba lo que aquí falta)
+    const mk = [`${CLIENTE}|2026-10`, `${CLIENTE}|2026-11`], otro = `${CLIENTE2}|2026-11`;
+    await X.tx('meses', 'readwrite', st => [...mk, otro].forEach(k => st.put({ porque: 'dj', at: 1 }, k)));
     await M._in.diario.vaciar();
     await X.tx('meses', 'readwrite', st => st.delete(W.IDBKeyRange.bound(CLIENTE + '|', CLIENTE + '|￿')));
+    igual((await djLeer()).map(e => [e.a, e.k]).sort(), mk.map(k => ['meses', k]), 'un borrado por rango no apunta justo lo que borra');
+    ok(await M._in.idbGet('meses', otro), 'el rango borró de más');
+    await M._in.idbDel('meses', otro);
+    await M._in.diario.vaciar();
     await M._test.ubBorrar();
-    l = await djLeer(); ok(djHay(l, 'meses', null) && djHay(l, 'ubicaciones', null), 'un borrado por rango o un vaciado no apuntan el almacén entero: ' + json(l.map(e => [e.a, e.k])));
+    l = await djLeer(); ok(djHay(l, 'ubicaciones', null), 'un vaciado no apunta el almacén entero: ' + json(l.map(e => [e.a, e.k])));
+    // tx() con el diario en su ámbito: se niega (una escritura así no apuntaría nada)
+    let no = null; await X.tx(['ubicaciones', 'diario'], 'readwrite', st => st.ubicaciones.put({ id: 'ub-dj5' }, 'ub-dj5')).catch(e => { no = e; });
+    ok(no && /diario/.test(no.message) && !(await M._in.idbGet('ubicaciones', 'ub-dj5')), 'tx() escribe con el diario en su ámbito');
     // la vía sin diario (lote 3): no deja rastro
     await M._in.diario.vaciar();
     await M._in.diario.sinDiario('ubicaciones', 'readwrite', st => st.put({ id: 'ub-dj3', nombre: 'Del servidor', locationId: '3', at: '' }, 'ub-dj3'));
@@ -17165,31 +17207,48 @@
   prueba('DJ2', 'Guarda del diario (D-250): en el código, solo mesa.js abre la base de datos y sus transacciones, y cada línea que lo hace lleva su marca «idb-crudo»; en lo que va de batería, ninguna escritura vista desde los métodos nativos de IndexedDB se hizo fuera del envoltorio de tx()', async () => {
     const ix = await (await W.fetch('index.html?dj=' + Date.now())).text(), mods = [...ix.matchAll(/<script[^>]*\ssrc="([^"?]+)/g)].map(m => m[1]);   // the mesa empties the body: its modules, from index.html
     ok(mods.includes('mesa.js') && mods.includes('copia.js') && mods.length >= 17, 'los módulos de index.html: ' + mods.join(', '));
-    const malas = [];
-    let marcas = 0;
+    const malas = [], ACCESO = /indexedDB\s*\.\s*(open|deleteDatabase)|\.\s*transaction\s*\(|\[\s*['"`]transaction['"`]\s*\]|\.\s*objectStore\s*\(|\.\s*source\s*\.\s*(put|add|delete|clear)\b|\bIDBDatabase\b|\bIDBObjectStore\b/g;
+    let accesos = 0, sin = 0;
     for (const m of mods) {
       const t = await (await W.fetch(m + '?dj=' + Date.now())).text();
-      t.split('\n').forEach((l, i) => { const acceso = /indexedDB\.open|\.transaction\(|\.objectStore\(|\btransaction\.objectStore\b/.test(l); if (m === 'mesa.js' && /idb-crudo/.test(l)) marcas++; else if (acceso) malas.push(`${m}:${i + 1}`); });
+      t.split('\n').forEach((l, i) => {
+        const n = (l.match(ACCESO) || []).length;
+        if (m === 'mesa.js' && /idb-crudo/.test(l)) accesos += n; else if (n) malas.push(`${m}:${i + 1}`);
+        if (/\b(txS|s)inDiario\b/.test(l)) { if (m === 'mesa.js') sin++; else malas.push(`${m}:${i + 1} (sinDiario)`); }
+      });
     }
-    igual(malas, [], 'accesos a IndexedDB fuera de tx()');
-    igual(marcas, 6, 'las líneas marcadas «idb-crudo» de mesa.js (la apertura, la actualización de versión y txCon)');
+    igual(malas, [], 'accesos a IndexedDB fuera de tx() (o la vía sin diario fuera de mesa.js)');
+    igual(accesos, 6, 'los accesos crudos de mesa.js, todos en sus líneas «idb-crudo» (la apertura, la actualización de versión y txCon)');
+    igual(sin, 8, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario; el lote 3 sumará las suyas aquí)');
+    // dentro de una transacción con diario, una escritura por el almacén crudo (req.source): la guarda la ve
+    const antes0 = djFugas.length;
+    await M._in.xfer.tx('ubicaciones', 'readwrite', st => { const g = st.count(); g.onsuccess = () => { g.source.put({ id: 'ub-fuga2' }, 'ub-fuga2'); }; });
+    await espera(10);
+    ok(djFugas.length === antes0 + 1 && /put en ubicaciones sin su nota/.test(djFugas[djFugas.length - 1]), 'la guarda no ve una escritura sin su nota dentro de una transacción con diario: ' + json(djFugas.slice(antes0)));
+    djFugas.pop(); await M._in.diario.sinDiario('ubicaciones', 'readwrite', st => st.delete('ub-fuga2'));
     // y una escritura nueva que se saltara el envoltorio, la guarda la ve
     const antes = djFugas.length;
     const dbx = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     try { await new Promise((res, rej) => { const t = dbx.transaction('ubicaciones', 'readwrite'); t.objectStore('ubicaciones').put({ id: 'ub-fuga' }, 'ub-fuga'); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
     finally { dbx.close(); }
     await espera(10);
-    ok(djFugas.length === antes + 1 && /put en ubicaciones/.test(djFugas[djFugas.length - 1]), 'la guarda no ve una escritura sin diario');
+    ok(djFugas.length === antes + 1 && /put en ubicaciones sin su nota/.test(djFugas[djFugas.length - 1]), 'la guarda no ve una escritura sin diario');
     djFugas.pop(); await M._in.diario.sinDiario('ubicaciones', 'readwrite', st => st.delete('ub-fuga'));
-    igual(djFugas, [], 'escrituras fuera del diario en lo que va de batería');
+    igual(djFugas, [], 'escrituras sin su nota en el diario en lo que va de batería');
   });
 
   prueba('DJ3', 'La batería no deja basura en el diario (D-250): lo que escribe se apunta, «vaciar» lo deja vacío y la batería lo vacía (y lo comprueba) al terminar', async () => {
     await tablero([pub(1)]); await M.flush();
     ok((await djLeer()).length > 0, 'lo escrito no está en el diario');
-    await M._in.diario.vaciar();
+    await djLimpiar();
     igual(await djLeer(), [], 'vaciar no lo deja vacío');
-    ok(/diario/.test(String(pasar)), 'la batería no vacía el diario al terminar');
+    // con una escritura sin su nota, djLimpiar falla y aun así deja el diario vacío
+    await M._in.idbPut('ubicaciones', 'ub-dj6', { id: 'ub-dj6' }); djFugas.push('una fuga de prueba');
+    let fallo = null; await djLimpiar().catch(e => { fallo = e; });
+    ok(fallo && /fuga de prueba/.test(fallo.message), 'djLimpiar no avisa de una escritura sin su nota');
+    igual(await djLeer(), [], 'djLimpiar no vacía el diario cuando algo falla');
+    await M._in.idbDel('ubicaciones', 'ub-dj6'); await djLimpiar();
+    ok(/djLimpiar\(\)/.test(String(pasar)), 'la batería no vacía el diario al terminar');
   });
 
   async function preparar() {
@@ -17620,11 +17679,9 @@
         if ((await M.clients()).some(c => c.id === CLIENTE2)) { const r2 = await M.removeClient(CLIENTE2); ok(r2 === true, 'no se pudo borrar el segundo cliente de prueba: ' + r2); }
         ok(!(await M._in.idbAll('bandejas')).some(x => DE_PRUEBA(x.client)), 'quedó la bandeja de un cliente de prueba');
         if (M.ubicaciones) ok(!(await M._in.idbAll('ubicaciones')).length, 'quedaron ubicaciones de prueba en el catálogo');
-        // the journal (D-250): no write escaped it, and the battery leaves nothing in it (lot 3 would upload it)
-        await espera(20);
-        ok(!djFugas.length, `escrituras fuera del diario: ${djFugas.length} (${djFugas.slice(0, 2).join(' | ')})`);
-        if (M._in.diario) { await M._in.diario.vaciar(); ok(!(await M._in.diario.leer()).length, 'el diario no quedó vacío'); }
       } catch (e) { res.limpieza = String((e && e.message) || e); }
+      // the journal (D-250), also when the cleanup failed: emptied, and no write without its note (lot 3 would upload it)
+      try { await djLimpiar(); } catch (e) { res.limpieza = (res.limpieza ? res.limpieza + ' · ' : '') + String((e && e.message) || e); }
     }
     if (listo && !res.fallan && !res.limpieza) {     // sin fallos, la mesa de prueba se cierra (suelta el bloqueo de otras pestañas)
       await new Promise(r => { $('mesa').onload = r; $('mesa').src = 'about:blank'; });

@@ -233,38 +233,50 @@
   // Every write in IndexedDB goes through tx(): a transaction that writes has the journal ('diario') in its scope and each store it
   // gets is wrapped, so the journal notes «store + key that changed» (never the value) in that same transaction: a change and its
   // note are kept or lost together. put, add and delete note their key; a cursor's update and delete, the cursor's; a delete by
-  // range and clear note «this whole store again» (its key: [store]). The journal's entry {a: store, k: key | null, t: when (this
-  // clock, only to wait for quiet), v: a token that changes with each new note}; its key [store, key] (one per record). Nothing
-  // goes to the journal from the journal itself. txSinDiario writes without it: only for what comes down from the server (lot 3)
-  // and the journal's own work. The battery checks that no write escapes (DJ2) and empties it at the end (DJ3).
-  const DJ_HECHAS = new WeakSet(), SIN_DIARIO = new WeakSet();   // the requests made through the wrapper, the transactions without journal (the battery's guard)
+  // range, each key it removes (read just before, in the same transaction); clear, «this whole store again» (its key: [store]).
+  // The journal's entry {a: store, k: key | null, t: when (this clock, only to wait for quiet), v: a token that changes with each
+  // new note}; its key [store, key] (one per record). Nothing goes to the journal from the journal itself: tx() refuses a scope
+  // with it. txSinDiario writes without it: only for what comes down from the server (lot 3) and the journal's own work. The
+  // battery checks that every write of a transaction left its note in it (DJ2) and empties the journal at the end (DJ3).
+  const SIN_DIARIO = new WeakSet();   // the transactions without journal (txSinDiario): the battery's guard lets them be
   let djN = 0;
-  const djV = () => (++djN).toString(36) + Math.random().toString(36).slice(2, 8);
+  const djV = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + (++djN).toString(36) + Math.random().toString(36).slice(2));   // never the same twice: quitar() trusts it
   function apuntar(dj, almacen, clave) {
     if (almacen === DIARIO) return;
     const todo = clave == null;
-    try { DJ_HECHAS.add(dj.put({ a: almacen, k: todo ? null : clave, t: Date.now(), v: djV() }, todo ? [almacen] : [almacen, clave])); }
-    catch (e) { if (!todo) apuntar(dj, almacen, null); }   // a key the journal can't hold: the whole store, again
+    try { dj.put({ a: almacen, k: todo ? null : clave, t: Date.now(), v: djV() }, todo ? [almacen] : [almacen, clave]); }
+    catch (e) {
+      if (!todo) apuntar(dj, almacen, null);   // a key the journal can't hold: the whole store, again
+      else { try { dj.transaction.abort(); } catch (e2) { /* already over */ } }   // no note at all: the change goes too (never one without the other)
+    }
   }
   // a cursor of a store that writes: its update and delete note its key (patched on the cursor itself before the caller sees it)
   function cursorConDiario(req, n, dj) {
-    req.addEventListener('success', () => {
+    req.addEventListener('success', () => {   // capture: before any listener of the caller
       const c = req.result; if (!c || c.__dj) return;
       const up = c.update, del = c.delete; c.__dj = true;
-      if (up) c.update = v => { const r = up.call(c, v); DJ_HECHAS.add(r); apuntar(dj, n, c.primaryKey); return r; };
-      c.delete = () => { const r = del.call(c); DJ_HECHAS.add(r); apuntar(dj, n, c.primaryKey); return r; };
-    });
+      if (up) c.update = v => { const r = up.call(c, v); apuntar(dj, n, c.primaryKey); return r; };
+      c.delete = () => { const r = del.call(c); apuntar(dj, n, c.primaryKey); return r; };
+    }, true);
     return req;
   }
   function conDiario(o, n, dj) {
-    const hecha = r => { DJ_HECHAS.add(r); return r; };
     const propios = {
-      put: (v, k) => { const r = hecha(o.put(v, k)); apuntar(dj, n, k); return r; },
-      add: (v, k) => { const r = hecha(o.add(v, k)); apuntar(dj, n, k); return r; },
-      delete: q => { const r = hecha(o.delete(q)); apuntar(dj, n, q instanceof IDBKeyRange ? null : q); return r; },
-      clear: () => { const r = hecha(o.clear()); apuntar(dj, n, null); return r; },
+      put: (v, k) => { const r = o.put(v, k); apuntar(dj, n, k); return r; },
+      add: (v, k) => { const r = o.add(v, k); apuntar(dj, n, k); return r; },
+      delete: q => {
+        if (!(q instanceof IDBKeyRange)) { const r = o.delete(q); apuntar(dj, n, q); return r; }
+        // a range: the keys it removes, read just before in the same transaction, each with its note (never «the whole store»:
+        // lot 3 would compare the whole store with the server and could delete there what this browser lacks)
+        const g = o.getAllKeys(q);
+        g.onsuccess = () => g.result.forEach(k => apuntar(dj, n, k));
+        g.onerror = e => { e.preventDefault(); e.stopPropagation(); apuntar(dj, n, null); };
+        return o.delete(q);
+      },
+      clear: () => { const r = o.clear(); apuntar(dj, n, null); return r; },
       openCursor: (...a) => cursorConDiario(o.openCursor(...a), n, dj),
-      openKeyCursor: (...a) => cursorConDiario(o.openKeyCursor(...a), n, dj)
+      openKeyCursor: (...a) => cursorConDiario(o.openKeyCursor(...a), n, dj),
+      index: () => { throw new Error('La Mesa no usa índices: un cursor de índice escribiría sin diario (D-250).'); }
     };
     return new Proxy(o, { get: (t, p) => { if (Object.prototype.hasOwnProperty.call(propios, p)) return propios[p]; const v = Reflect.get(t, p, t); return typeof v === 'function' ? v.bind(t) : v; } });
   }
@@ -274,7 +286,8 @@
     if (mode === 'readwrite' && [].concat(store).includes('boards')) tablerosP = null;   // a write: the boards read for an opening go (A4)
     const d = await db();
     return new Promise((res, rej) => {
-      const ns = [...new Set([].concat(store))], dj0 = diario && !ns.includes(DIARIO);
+      const ns = [...new Set([].concat(store))], dj0 = diario;
+      if (dj0 && ns.includes(DIARIO)) return rej(new Error('El diario no se escribe con tx(): solo con M._in.diario (D-250).'));
       const t = d.transaction(dj0 ? [...ns, DIARIO] : ns, mode);   /* idb-crudo: the only transaction */
       if (mode === 'readwrite' && !dj0) SIN_DIARIO.add(t);
       const dj = dj0 ? t.objectStore(DIARIO) : null;   /* idb-crudo: the journal */
@@ -7499,8 +7512,8 @@
     capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
   };
   M._test.removeFile = removeFile;
-  M._test.persistencia = pedir => revisarPersistencia(!!pedir);
-  M._test.djHecha = r => DJ_HECHAS.has(r); M._test.djSin = t => SIN_DIARIO.has(t);   // the battery's guard: a write the journal saw, a transaction without it (D-250)   // the notice of storage that isn't kept (D-249)
+  M._test.persistencia = pedir => revisarPersistencia(!!pedir);   // the notice of storage that isn't kept (D-249)
+  M._test.djSin = t => SIN_DIARIO.has(t);   // the battery's guard: a transaction without journal on purpose (D-250)
   M._test.vaciarTodo = async () => {   // every store empty, as a new browser (D-249: «Exportar todo» → empty → «Importar»)
     clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; S = null; PB = null;
     await tx(ALMACENES, 'readwrite', o => ALMACENES.forEach(n => o[n].clear()));

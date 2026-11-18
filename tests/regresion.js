@@ -16742,6 +16742,257 @@
     filas.append(tr); return tr;
   }
   const MAX_MS = 120000;                           // una prueba colgada (un aviso que nunca se contesta) falla en vez de parar la batería
+  // ---------- «Exportar todo» y su importación (D-249) ----------
+  const sha256 = async u => [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', u))].map(x => x.toString(16).padStart(2, '0')).join('');
+  const cpIdDe = nombre => Object.keys(M.files).find(k => M.files[k] && M.files[k].name === nombre);
+  const cpISO = '2026-10-02T09:00:00.000Z';
+  // la mesa de prueba con un poco de todo: dos clientes, carpetas y «Historias», una ubicación usada y otra suelta, una tarea con
+  // foto, una nota sin cliente, una sesión de un mensual y otra de un esporádico con sus fotos, cobros con su PDF y una lápida,
+  // el porqué de un mes, una foto que nada usa y una miniatura del mes anterior que nadie nombra
+  async function cpSembrar() {
+    await hasta(() => M.copia && M.personal, 8000, 'copia.js y personal.js');
+    await tablero([pub(1), pub(2, 'Carrusel'), pub(3)]); await sinTareas();
+    await poner('r1', [await foto('cp-a.jpg', 1600, 2000, '#7a4a9c')]);
+    await poner('r2', [await foto('cp-b.jpg'), await foto('cp-c.jpg', 1500, 1200, '#3c6e4a')]);
+    await M.addFiles([await foto('cp-t.jpg', 900, 900, '#9c6a4a'), await foto('cp-h.jpg', 800, 1000, '#4a8a9c'), await foto('cp-carp.jpg', 1000, 800, '#6a4a2c')]);
+    const car = M.crearCarpeta('Verano'), sub = M.crearCarpeta('Elegidas', car.id);
+    M._in.trayMover({ files: [cpIdDe('cp-carp.jpg')] }, sub.id, null);
+    M._in.trayMover({ files: [cpIdDe('cp-h.jpg')] }, 'historias', null);
+    ok((await M.ubicaciones.cargar(CLIENTE, [{ nombre: 'Lugar de la copia', locationId: '120000000000001' }])).ok, 'la ubicación');
+    await M._in.idbPut('ubicaciones', 'ub-cp-suelta', { id: 'ub-cp-suelta', nombre: 'Lugar suelto', locationId: '120000000000009', at: cpISO });
+    const t = await M.personal.tarea({ txt: 'Tarea con foto', fecha: '2026-11-20', cliente: CLIENTE });
+    const g = await M.personal._test.rebajar(await foto('cp-tarea.jpg', 800, 600));
+    await M._in.idbPut('tareas', t.id, { ...t, fotos: [g] });
+    await M.personal.tarea({ tipo: 'nota', txt: 'Nota sin cliente' });
+    const tf = async (id, ses, n) => { const b = await foto(n, 640, 480, '#2a5a7a'); await M._in.idbPut('tfotos', id, { id, w: 640, h: 480, blob: b, mini: await foto('mini-' + n, 64, 48), sesion: ses, t: 1 }); };
+    await M._in.idbPut('tareas', 'es-cp1', { id: 'es-cp1', tipo: 'esporadico', txt: 'Esporádico de la copia', creada: cpISO, at: cpISO });
+    await M._in.idbPut('tareas', 'ss-cp1', { id: 'ss-cp1', tipo: 'sesion', txt: 'Sesión mensual', creada: cpISO, at: cpISO, clientes: [CLIENTE, 'es-cp1'], fecha: '2026-11-21', sesion: { clase: 'foto', visible: true, plantilla: 1, apartados: [] }, fotos: [{ id: 'tf-cp1', w: 640, h: 480 }] });
+    await M._in.idbPut('tareas', 'ss-cp2', { id: 'ss-cp2', tipo: 'sesion', txt: 'Sesión esporádica', creada: cpISO, at: cpISO, clientes: ['es-cp1'], fecha: '2026-11-22', sesion: { clase: 'foto', visible: false, plantilla: 1, apartados: [] }, fotos: [{ id: 'tf-cp2', w: 640, h: 480 }] });
+    await tf('tf-cp1', 'ss-cp1', 'cp-ses1.jpg'); await tf('tf-cp2', 'ss-cp2', 'cp-ses2.jpg');
+    ok((await M.cobros.cargar([{ id: 'co-cp1', cliente: CLIENTE, periodo: '2026-10', importe: 500, factura: 'T-1', emitida: '2026-10-05', vence: '2026-10-20', cobrada: '2026-10-10' }])).ok, 'el cobro');
+    ok((await M.cobros.adjuntar('co-cp1', pdfDe('copia', 2000), 'T-1.pdf')).ok, 'el PDF');
+    await M._in.idbPut('cobros', 'co-cp2', { id: 'co-cp2', cliente: 'es-cp1', periodo: 'ss-cp2', importe: 120, emitida: '2026-10-05', vence: '2026-10-20', cobrada: '', pdf: '', at: cpISO });
+    await M._in.idbPut('cobros', 'co-cp3', { id: 'co-cp3', cliente: CLIENTE, borrado: true, at: cpISO });
+    ok((await M.informe.cargar(CLIENTE, '2026-11', { porque: IF_PQ })).ok, 'el porqué');
+    const sb = await foto('cp-suelta.jpg', 700, 700);
+    await M._in.idbPut('files', 'f-cp-suelta', { name: 'cp-suelta.jpg', size: sb.size, type: 'image/jpeg', w: 700, h: 700, lastModified: 0, blob: sb, thumb: sb, de: CLIENTE });
+    await M._in.idbPut('files', 'past:np-cp-suelta', { thumb: await foto('cp-past.jpg', 320, 400), w: 320, h: 400 });
+    await M.flush();
+    // el segundo cliente, con su mes
+    const r2 = await M.init({ client: CLIENTE2, clientName: NOMBRE2, month: MES, slots: [pub(5)], past: [], force: true });
+    ok(r2 && r2.key, 'el mes del otro cliente');
+    await poner('r5', [await foto('cp-d.jpg', 1200, 1200, '#8a2a4a')]);
+    await M.flush();
+  }
+  // todo lo guardado, almacén a almacén: un blob por su huella, su tipo y, si es un File, su nombre y su fecha; sin las horas de
+  // guardado (savedAt de un mes y at de una bandeja) ni el orden de las claves de un registro (un mes que se guarda al abrirse)
+  async function cpPlano(v, n) {
+    if (v instanceof W.Blob) return { blob: await shaDe(v), tipo: v.type, tam: v.size, ...(v instanceof W.File ? { nombre: v.name, lm: v.lastModified } : {}) };
+    if (Array.isArray(v)) { const o = []; for (const x of v) o.push(await cpPlano(x)); return o; }
+    if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v).sort()) { if ((n === 'boards' && k === 'savedAt') || (n === 'bandejas' && k === 'at')) continue; o[k] = await cpPlano(v[k]); } return o; }
+    return v;
+  }
+  async function cpFoto() {
+    const out = {};
+    for (const n of M._in.xfer.ALMACENES) {
+      let ks = [], vs = [];
+      await M._in.xfer.tx(n, 'readonly', st => { const a = st.getAllKeys(), b = st.getAll(); a.onsuccess = () => { ks = a.result; }; b.onsuccess = () => { vs = b.result; }; });
+      const l = []; for (let i = 0; i < ks.length; i++) l.push([ks[i], await cpPlano(vs[i], n)]);
+      out[n] = l;
+    }
+    return out;
+  }
+  // un .tar leído a mano (sin copia.js): [{nombre, tam, datos}] por sus cabeceras ustar, con la suma de cada cabecera comprobada
+  async function cpTar(blob) {
+    const b = new Uint8Array(await blob.arrayBuffer()), out = [], dec = new TextDecoder();
+    let o = 0;
+    for (;;) {
+      const h = b.subarray(o, o + 512); if (h.length < 512) throw new Error('el tar se corta');
+      if (h.every(x => !x)) break;
+      const s = (a, z) => { let e = a; while (e < z && h[e]) e++; return dec.decode(h.subarray(a, e)); };
+      igual(s(257, 262), 'ustar', 'una cabecera ustar');
+      let sum = 0; for (let i = 0; i < 512; i++) sum += i >= 148 && i < 156 ? 32 : h[i];
+      igual(parseInt(s(148, 156).trim(), 8), sum, 'la suma de una cabecera');
+      const tam = parseInt(s(124, 136).trim(), 8);
+      out.push({ nombre: s(0, 100), tam, datos: b.slice(o + 512, o + 512 + tam) });
+      o += 512 + Math.ceil(tam / 512) * 512;
+    }
+    return out;
+  }
+  const cpJson = u => JSON.parse(new TextDecoder().decode(u));
+  // «Exportar todo» con sus botones: cada archivo de su propio clic, como en el navegador de la app
+  async function cpExportar() {
+    const r = await M.copia.exportar(); ok(r && r.ok, 'no se preparó la copia: ' + json(r));
+    const bs = qa('.detail[data-dlg="copia"] [data-cp="bajar"]'); ok(bs.length && bs.every(b => !b.disabled), 'los botones de descarga');
+    const out = [];
+    for (const b of bs) { const f = await conDescarga(async cap => { b.click(); await hasta(() => cap(), 3000, 'la descarga'); }); ok(f && f.blob.size, 'sin descarga'); out.push(f); }
+    igual(qa('.detail[data-dlg="copia"] .cp-s.ok').length, bs.length, 'el ✓ de cada archivo descargado');
+    ok(/descargados?/.test(q('.detail[data-dlg="copia"] .cp-pie').textContent), 'el pie no cuenta lo descargado');
+    M._in.closeDetail();
+    return out;
+  }
+  const cpArchivos = l => l.map(a => new W.File([a.blob], a.name, { type: 'application/x-tar' }));
+  async function cpFin() {
+    try { M._in.closeDetail(); } catch (e) { /* */ }
+    if (M.copia) M.copia._test.parteMax(0);
+    await M._test.vaciarTodo(); await sinTareas();
+    await tablero([pub(1)]);             // el cliente de prueba vuelve a estar, como lo deja cada prueba
+  }
+
+  prueba('CP1', '«Exportar todo» (D-249): un .tar por cliente y uno general, con su manifiesto, la huella de cada archivo y sin base64; vaciar la mesa e «Importar» todos a la vez (en otro orden) deja cada registro igual (sin las horas de guardado) y cada archivo con la misma huella: carpetas, «Historias», fotos de tareas y sesiones, PDF, lápidas, meses, una foto que nada usa', async () => {
+    await cpSembrar();
+    try {
+      const antes = await cpFoto();
+      ok(antes.files.length >= 9 && antes.tfotos.length === 2 && antes.cfacturas.length === 1 && antes.meses.length === 1, 'la mesa de prueba no tiene de todo: ' + json(Object.fromEntries(Object.entries(antes).map(([k, v]) => [k, v.length]))));
+      const ar = await cpExportar();
+      const nom = ar.map(a => a.name.replace(/^mesa-copia-\d{4}-\d{2}-\d{2}-\d{4}-/, ''));
+      igual(nom.slice().sort(), [CLIENTE + '.tar', CLIENTE2 + '.tar', 'general.tar'].sort(), 'un archivo por cliente y uno general');
+      const tars = {};
+      for (const a of ar) {
+        const es = await cpTar(a.blob), man = cpJson(es[0].datos), k = a.name.replace(/^mesa-copia-\d{4}-\d{2}-\d{2}-\d{4}-/, '').replace(/\.tar$/, '');
+        igual(es[0].nombre, 'manifiesto.json', 'el manifiesto primero');
+        igual([man.format, man.v, man.parte, man.partes, man.idb], ['mesa-copia', 1, 1, 1, M._in.xfer.IDB], 'la cabecera del manifiesto');
+        igual(es[1].nombre, 'datos.json', 'los datos después');
+        igual(await sha256(es[1].datos), man.datos.sha256, 'la huella de los datos');
+        const dt = new TextDecoder().decode(es[1].datos);
+        ok(!/[A-Za-z0-9+/=]{1500,}/.test(dt), 'los datos llevan base64');
+        igual(es.slice(2).map(e => e.nombre), man.archivos.map(x => x.nombre), 'los archivos del manifiesto');
+        for (const [i, e] of es.slice(2).entries()) { const h = await sha256(e.datos); igual(h, man.archivos[i].sha256, 'la huella de ' + e.nombre); ok(e.nombre.startsWith('archivos/' + h + '.'), 'el nombre de ' + e.nombre); }
+        tars[k] = { man, d: JSON.parse(dt) };
+      }
+      const de = (k, n) => tars[k].d.almacenes[n].map(p => p[0]);
+      ok(M._in.xfer.ALMACENES.every(n => Array.isArray(tars.general.d.almacenes[n])), 'falta un almacén en los datos');
+      ok(de(CLIENTE, 'tareas').includes('ss-cp1') && de('general', 'tareas').includes('ss-cp2') && de('general', 'tareas').includes('es-cp1') && !de(CLIENTE, 'tareas').includes('ss-cp2'), 'las sesiones donde no tocan');
+      ok(de(CLIENTE, 'tfotos').includes('tf-cp1') && de('general', 'tfotos').includes('tf-cp2'), 'las fotos de las sesiones');
+      ok(de('general', 'ubicaciones').length === 2 && de(CLIENTE, 'ubicaciones').length === 1 && !de(CLIENTE2, 'ubicaciones').length, 'las ubicaciones');
+      ok(de(CLIENTE, 'cobros').includes('co-cp1') && de(CLIENTE, 'cobros').includes('co-cp3') && de('general', 'cobros').includes('co-cp2') && de(CLIENTE, 'cfacturas').length === 1, 'los cobros y su PDF');
+      ok(de(CLIENTE, 'files').includes('f-cp-suelta') && de('general', 'files').includes('past:np-cp-suelta') && de(CLIENTE2, 'files').length === 1 && de(CLIENTE2, 'boards').length === 1, 'las fotos de cada cliente');
+      ok(de(CLIENTE, 'bandejas').length === 1 && tars[CLIENTE].d.almacenes.bandejas[0][1].carpetas.some(c => c.name === 'Elegidas'), 'la bandeja con sus carpetas');
+      // vacía, como otro navegador
+      await M._test.vaciarTodo();
+      const vacia = await cpFoto(); ok(Object.values(vacia).every(l => !l.length), 'la mesa no quedó vacía');
+      const r = await M.importData(cpArchivos(ar.slice().reverse()), { confirm: false });
+      ok(r && r.ok && !r.error, 'no se importó: ' + json(r));
+      igual(await cpFoto(), antes, 'la mesa restaurada');
+      // y vuelve a abrirse: el mes con sus fotos y su bandeja con sus carpetas
+      await M.open(`${CLIENTE}-${MES}`);
+      ok(slot('r1').photos.length === 1 && M.carpetas().some(c => c.name === 'Elegidas' && c.fotos === 1), 'el mes abierto no tiene lo suyo');
+      igual(await cpFoto(), antes, 'abrir el mes cambió algo');
+    } finally { await cpFin(); }
+  });
+
+  prueba('CP2', '«Importar» una copia sobre una mesa con cosas (D-249) une como siempre: un mes más reciente aquí se queda, una foto reducida a 1080 px vuelve a su original, una carpeta que falta vuelve y no se borra nada de aquí; dos copias con la misma ubicación: gana la más reciente sea cual sea el orden', async () => {
+    await cpSembrar();
+    try {
+      const ar1 = await cpExportar();
+      // aquí, después de la copia: una nota en r1 (el mes, más reciente aquí), una tarea nueva, «Elegidas» quitada
+      await M.open(`${CLIENTE}-${MES}`);
+      M._test.setNote('r1', 'Más reciente aquí'); await M.flush();
+      const t = await M.personal.tarea({ txt: 'Solo aquí' });
+      const el = M.carpetas().find(c => c.name === 'Elegidas'), fcarp = cpIdDe('cp-carp.jpg'); ok(el && fcarp, 'Elegidas');
+      ok((await M.borrarCarpeta(el.id)).ok !== false, 'borrar Elegidas'); await M.flush();
+      // la foto cp-b, como la dejaría una importación de un .json: reducida
+      const fb = cpIdDe('cp-b.jpg'), orig = await M._in.idbGet('files', fb);
+      const red = await foto('cp-b-1080.jpg', 1080, 1350);
+      await M._in.idbPut('files', fb, { ...orig, blob: red, thumb: red, size: red.size, w: 1080, h: 1350, reduced: true });
+      M._in.soltarArchivo(fb);
+      const r = await M.importData(cpArchivos(ar1), { confirm: false });
+      ok(r && r.ok, 'no se importó: ' + json(r));
+      ok(r.boards.keptNewer.includes(`${CLIENTE}-${MES}`), 'el mes más reciente aquí no se quedó: ' + json(r.boards));
+      const b = (await M._in.idbAll('boards')).find(x => x.key === `${CLIENTE}-${MES}`);
+      ok(JSON.stringify(b).includes('Más reciente aquí'), 'se perdió la nota de aquí');
+      const nf = await M._in.idbGet('files', fb);
+      ok(!nf.reduced && nf.blob.size === orig.blob.size && await shaDe(nf.blob) === await shaDe(orig.blob), 'la foto reducida no volvió a su original');
+      ok((await M.personal.tareas()).some(x => x.id === t.id), 'se borró la tarea de aquí');
+      const bj = await M._in.idbGet('bandejas', CLIENTE);
+      ok(bj.carpetas.some(c => c.name === 'Elegidas' && c.files.includes(fcarp)) && bj.tray.includes(fcarp) && await M._in.idbGet('files', fcarp), 'Elegidas no volvió con su foto: ' + json({ fcarp, carpetas: bj.carpetas, copia: r.copia }));
+      ok(r.copia && r.copia.carpetas === 1 && r.copia.mejoradas === 1, 'lo que cuenta la copia: ' + json(r.copia));
+      // dos copias: la ubicación usada por el cliente, cambiada entre las dos; solo el general de la segunda
+      await M._in.idbPut('ubicaciones', (await M._in.idbAll('ubicaciones')).find(u => u.nombre === 'Lugar de la copia').id, { ...(await M._in.idbAll('ubicaciones')).find(u => u.nombre === 'Lugar de la copia'), nombre: 'Lugar corregido', at: new Date().toISOString() });
+      await espera(1100);   // otra hora en el nombre y en exportadaEl
+      const ar2 = await cpExportar(), gen2 = ar2.find(a => /-general\.tar$/.test(a.name)), cli1 = ar1.find(a => a.name.endsWith(`-${CLIENTE}.tar`));
+      const finales = [];
+      for (const orden of [[cli1, gen2], [gen2, cli1]]) {
+        await M._test.vaciarTodo();
+        ok((await M.importData(cpArchivos(orden), { confirm: false })).ok, 'no se importó en un orden');
+        finales.push(await cpFoto());
+      }
+      igual(finales[1], finales[0], 'el orden de los archivos cambia el resultado');
+      ok(finales[0].ubicaciones.some(([, u]) => u.nombre === 'Lugar corregido') && !finales[0].ubicaciones.some(([, u]) => u.nombre === 'Lugar de la copia'), 'no ganó la copia más reciente');
+    } finally { await cpFin(); }
+  });
+
+  prueba('CP3', 'Una copia en partes (D-249): sobre 2 GB se parte (aquí, con un tope pequeño), cada parte con su nombre «parte i de n»; todas en cualquier orden restauran; si falta una, una cortada, una con un byte cambiado, un .json mezclado o una de una Mesa más nueva se rechazan diciendo por qué y sin tocar nada', async () => {
+    await cpSembrar();
+    try {
+      M.copia._test.parteMax(60000);
+      const ar = await cpExportar(), cli = ar.filter(a => a.name.includes(`-${CLIENTE}-parte-`));
+      ok(cli.length >= 3, 'no se partió: ' + ar.map(a => a.name).join(', '));
+      const n = cli.length;
+      ok(cli.every((a, i) => a.name.endsWith(`-parte-${i + 1}-de-${n}.tar`)), 'los nombres de las partes');
+      for (const a of cli) { const es = await cpTar(a.blob), m = cpJson(es[0].datos); ok(m.partes === n && (a.blob.size <= 60000 || es.length === 2 + (m.parte === 1 ? 1 : 0)), 'una parte pasa del tope: ' + a.blob.size); }
+      const antes = await cpFoto();
+      const prueba1 = async (lista, re, que) => { const r = await M.importData(lista, { confirm: false }); ok(r && r.error && re.test(r.error), `${que}: ${json(r)}`); igual(await cpFoto(), antes, `${que} tocó algo`); M._in.closeDetail(); };
+      await prueba1(cpArchivos(cli.filter((a, i) => i !== 1)), new RegExp(`Falta la parte 2 de ${n}`), 'falta una parte');
+      const corta = cli.map((a, i) => i === n - 1 ? { name: a.name, blob: a.blob.slice(0, a.blob.size - 700) } : a);
+      await prueba1(cpArchivos(corta), /cortado|dañado/, 'una parte cortada');
+      const u = new Uint8Array(await cli[n - 1].blob.arrayBuffer()), es = await cpTar(cli[n - 1].blob);
+      const off = 512 + Math.ceil(es[0].tam / 512) * 512 + 512 + 7; u[off] ^= 0xff;   // un byte del primer archivo de la última parte
+      await prueba1(cpArchivos(cli.map((a, i) => i === n - 1 ? { name: a.name, blob: new W.Blob([u]) } : a)), /huella/, 'un byte cambiado');
+      await prueba1([...cpArchivos(cli), new W.File(['{"format":"mesa-feed","v":19}'], 'mesa.json')], /no es una copia/, 'un .json mezclado');
+      // una de una Mesa más nueva
+      const m0 = cpJson(es[0].datos), mn = new TextEncoder().encode(JSON.stringify({ ...m0, v: 99 }));
+      const h = new Uint8Array(512); h.set(u.subarray(0, 512)); h.set(new TextEncoder().encode(mn.length.toString(8).padStart(11, '0') + '\0'), 124); h.set(new TextEncoder().encode('        '), 148);
+      let sum = 0; for (let i = 0; i < 512; i++) sum += h[i]; h.set(new TextEncoder().encode(sum.toString(8).padStart(6, '0') + '\0 '), 148);
+      await prueba1([new W.File([h, mn, new Uint8Array((512 - mn.length % 512) % 512), new Uint8Array(1024)], 'nueva.tar')], /más nueva/, 'una copia más nueva');
+      // todas, en otro orden: restauran
+      await M._test.vaciarTodo();
+      const r = await M.importData(cpArchivos([...ar].reverse()), { confirm: false }); ok(r && r.ok, 'no se importó: ' + json(r));
+      igual(await cpFoto(), antes, 'la mesa restaurada desde las partes');
+    } finally { await cpFin(); }
+  });
+
+  prueba('CP4', 'Cancelar (D-249): mientras se comprueba la copia no toca nada; mientras se escribe, para entre dos archivos, cada uno entero con su registro, sin meses, clientes ni tareas, y lo dice', async () => {
+    await cpSembrar();
+    try {
+      const ar = await cpExportar(), antes = await cpFoto();
+      // 1. mientras se comprueba
+      const p1 = M.importData(cpArchivos(ar), { confirm: false });
+      const bc = q('.detail[data-dlg="copia-leer"] [data-cp="parar"]'); ok(bc, 'sin «Cancelar» al comprobar'); bc.click();
+      const r1 = await p1; ok(r1 && r1.cancelled, 'no se canceló al comprobar: ' + json(r1));
+      igual(await cpFoto(), antes, 'cancelar al comprobar tocó algo');
+      // 2. mientras se escribe: en una mesa vacía, «Cancelar» cuando va por el tercer archivo
+      await M._test.vaciarTodo();
+      const det = q('.detail'); let clic = false;
+      const mo = new W.MutationObserver(() => { const p = det.querySelector('.xprog'), b = det.querySelector('.xparar'); if (!clic && p && b && /Guardando 3 de/.test(p.textContent)) { clic = true; b.click(); } });
+      mo.observe(det, { childList: true, subtree: true, characterData: true });
+      let aviso = '';
+      const r2 = await M.importData(cpArchivos(ar), { confirm: false }).finally(() => mo.disconnect());
+      aviso = r2.parada || '';
+      ok(clic && r2.cancelled && r2.copia && r2.copia.parada, 'no se paró al escribir: ' + json(r2));
+      ok(/se guardaron \d+ de \d+ archivos, cada uno entero con su registro/.test(aviso) && /No se han importado los meses/.test(aviso), 'el aviso no lo dice: ' + aviso);
+      const ahora = await cpFoto(), n = r2.copia.hechos;
+      ok(n >= 3 && n < r2.copia.total, 'paró en ' + n + ' de ' + r2.copia.total);
+      igual(ahora.files.length + ahora.tfotos.length + ahora.cfacturas.length, n, 'los archivos guardados');
+      const de = Object.fromEntries([...antes.files, ...antes.tfotos, ...antes.cfacturas].map(([k, v]) => [k, v]));
+      for (const [k, v] of [...ahora.files, ...ahora.tfotos, ...ahora.cfacturas]) igual(v, de[k], 'un archivo a medias: ' + k);
+      ok(['boards', 'clients', 'bandejas', 'tareas', 'cobros', 'meses', 'ubicaciones'].every(s => !ahora[s].length), 'entraron registros tras cancelar');
+      // y la copia entera después termina
+      const r3 = await M.importData(cpArchivos(ar), { confirm: false }); ok(r3 && r3.ok, 'no terminó: ' + json(r3));
+      igual(await cpFoto(), antes, 'la mesa tras terminar');
+    } finally { await cpFin(); }
+  });
+
+  prueba('CP6', 'Guarda (D-249): la base de datos no tiene ningún almacén que «Exportar todo» no conozca: cada almacén de datos viaja en la copia', async () => {
+    await tablero([pub(1)]);
+    const dbx = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    try {
+      const hay = [...dbx.objectStoreNames].sort(), sabe = [...M._in.xfer.ALMACENES, ...(M._in.xfer.NO_VIAJAN || [])].sort();
+      igual(hay, sabe, 'los almacenes de la base de datos');
+      ok(!(M._in.xfer.NO_VIAJAN || []).some(n => M._in.xfer.ALMACENES.includes(n)), 'un almacén viaja y no viaja');
+    } finally { dbx.close(); }
+  });
+
   async function preparar() {
     const fr = $('mesa');
     await new Promise(r => { fr.onload = r; fr.src = '../index.html?regresion=' + Date.now(); });

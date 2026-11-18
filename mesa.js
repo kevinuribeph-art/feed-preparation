@@ -161,6 +161,8 @@
   }
 
   // ---------- IndexedDB ----------
+  // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249)
+  const IDB_V = 21, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses'];
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -196,9 +198,9 @@
       // a client may keep its monthly fee (`cuota`, D-232); an older tab would drop them on an import or a save of the client.
       // 21 (mesa 4.27): + 'meses', one record per client and month (key 'cliente|AAAA-MM'): the month's why and how the month
       // before went, for the vista cliente, loaded by Claude (D-238); an older tab would drop them on an import.
-      const r = indexedDB.open('mesa-feed', 21);
+      const r = indexedDB.open('mesa-feed', IDB_V);
       r.onupgradeneeded = e => {
-        const d = r.result; for (const n of ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
+        const d = r.result; for (const n of ALMACENES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
         if (e.oldVersion >= 15 && e.oldVersion < 19) r.transaction.objectStore('tareas').openCursor().onsuccess = ev => { const c = ev.target.result; if (!c) return; const n = tareaAl17(c.value); if (n !== c.value) c.update(n); c.continue(); };
       };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
@@ -2292,6 +2294,8 @@
 #mesa .tabs .tedit{align-self:stretch;height:auto;width:28px;border-radius:0;border-bottom:2px solid var(--acc)}
 #mesa .tab.on.hasedit{padding-right:3px}
 #mesa .appbar .xfer{align-self:center}
+#mesa .xtodo{margin-top:16px;padding-top:14px;border-top:1px solid var(--line2)}#mesa .xtodo p{margin:0 0 10px}#mesa .xtodo b{font-weight:600;color:var(--ink)}
+#mesa .xprog{font-variant-numeric:tabular-nums}
 #mesa .save{flex:none;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap;padding-left:6px}#mesa .save.err{color:var(--red)}
 /* ===== Barra del mes ===== */
 #mesa .bar{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;padding:10px 20px 18px;background:var(--bg)}
@@ -5009,6 +5013,7 @@
       else if (M.libre && M.libre.abrir) M.libre.abrir(id, k); else waitLibre(id, k);
     }
     else if (act === 'xfer-export') { closeDetail(); M.exportAll(); }   // no await before the save picker: it needs the click
+    else if (act === 'xfer-todo') { if (M.copia && M.copia.exportar) M.copia.exportar(); else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.'); }   // D-249
     else if (act === 'xfer-import') { const i = root.querySelector('.detail .xferin'); if (i) i.click(); }
     else if (act === 'xfer-go') { if (xferAsk) xferAsk(true); }
     else if (act === 'editar') { if (M.libre && M.libre.abrir) M.libre.abrir(a.dataset.slot, +a.dataset.k || 0); else waitLibre(a.dataset.slot, +a.dataset.k || 0); }
@@ -6714,8 +6719,81 @@
       n.at = [aqui && new Date(Date.parse(aqui.at)).toISOString(), n.porqueAt, n.resumenAt, n.at].filter(Boolean).sort().pop();
       P.mesPut.push(n);
     }
-    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length;
+    if (d.copia) {                       // «Exportar todo»'s copy (D-249): what it brings that isn't here, as it was (counted for the summary)
+      const raw = d.copia.raw, tam = v => [v && v.blob, v && v.thumb, v && v.mini].reduce((n, b) => n + (b instanceof Blob ? b.size : 0), 0);
+      const C = P.copia = { fotos: 0, miniaturas: 0, sesion: 0, pdf: 0, mejoran: 0, carpetas: 0, bytes: 0 };
+      const tf = new Set(((await allKeys('tfotos').catch(() => [])) || []));
+      for (const [k, v] of raw.files || []) { const past = k.startsWith('past:'); if (past ? P.past.has(k.slice(5)) : P.files.has(k)) continue; if (past) C.miniaturas++; else C.fotos++; C.bytes += tam(v); }
+      for (const [k, v] of raw.tfotos || []) if (!tf.has(k)) { C.sesion++; C.bytes += tam(v); }
+      for (const [k, v] of raw.cfacturas || []) if (!pdfAqui.has(k)) { C.pdf++; C.bytes += tam(v); }
+      const mej = await copiaMejoran(d); C.mejoran = mej.length; mej.forEach(id => { C.bytes += tam(raw.files.get(id)); });
+      const bAqui = Object.fromEntries(((await idbAll('bandejas')) || []).filter(r => r && r.client).map(r => [r.client, r]));
+      for (const r of raw.bandejas ? raw.bandejas.values() : []) {
+        if (!r || !r.client) continue;
+        const ids = new Set(bAqui[r.client] ? carpetasBien(bAqui[r.client].carpetas).map(c => c.id) : []);
+        C.carpetas += carpetasBien(r.carpetas).filter(c => !ids.has(c.id) && (!c.fija || c.files.length)).length;
+      }
+      C.hay = !!(C.fotos || C.miniaturas || C.sesion || C.pdf || C.mejoran || C.carpetas);
+    }
+    P.nothing = !P.put.length && !P.newClients.length && !P.newFiles.length && !P.newPast.length && !P.kitUpd.length && !P.libUpd.length && !P.fotoUpd.length && !P.capKeep.length && !P.trayAdd && !P.ubPut.length && !P.ubLista.length && !P.perLista.length && !P.notUpd.length && !P.tarPut.length && !P.cuotaUpd.length && !P.cobPut.length && !P.pdfPut.length && !P.mesPut.length && !(P.copia && P.copia.hay);
     return P;
+  }
+  // «Exportar todo»'s copy (D-249): the photos here that an import reduced to 1080 px and whose full one the copy brings
+  async function copiaMejoran(d) {
+    const raw = d.copia.raw.files; if (!raw || !raw.size) return [];
+    const red = new Set();
+    await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.value && c.value.reduced) red.add(String(c.key)); c.continue(); }; });
+    return [...raw].filter(([k, v]) => red.has(k) && v && !v.reduced && v.blob instanceof Blob).map(([k]) => k);
+  }
+  // what isn't here goes in as it was (D-249): the files, the sessions' photos and the invoices' PDFs first, one by one, each one
+  // whole with its record (a «Cancelar» stops between two), a photo reduced here takes its full one; then the records, store by
+  // store, only where nothing is (what is here merges as always, after). avance(i, n) says how far
+  async function copiaCrudo(d, parar, avance) {
+    const raw = d.copia.raw, l = [];
+    for (const n of ['files', 'tfotos', 'cfacturas']) {
+      const aqui = new Set(((await tx(n, 'readonly', s => s.getAllKeys())) || []).map(String));
+      for (const [k, v] of raw[n] || []) if (!aqui.has(k)) l.push({ n, k, v });
+    }
+    for (const id of await copiaMejoran(d)) l.push({ n: 'files', k: id, v: raw.files.get(id), mejora: true });
+    let i = 0;
+    for (const x of l) {
+      if (parar.pedido) return { parada: true, hechos: i, total: l.length };
+      avance(i, l.length);
+      await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && o.reduced)) st.put(x.v, x.k); }; });
+      if (x.n === 'files') soltarArchivo(x.k);
+      i++;
+    }
+    avance(i, l.length);
+    for (const n of ['clients', 'ubicaciones', 'tareas', 'cobros', 'meses', 'bandejas', 'boards']) {
+      const lr = [...(raw[n] || [])]; if (!lr.length) continue;
+      await tx(n, 'readwrite', st => lr.forEach(([k, v]) => { const g = st.count(k); g.onsuccess = () => { if (!g.result) st.put(v, k); }; }));
+    }
+    return { hechos: i, total: l.length, mejoradas: l.filter(x => x.mejora).length };
+  }
+  // the folders of a tray that was here (D-249, «Importar» brings the folders now): the copy's folders it lacks and, in those it
+  // has, the photos it lacks that aren't in another folder here (the tray's root already took them, P.trays). Nothing goes out
+  // (D-041). Returns how many folders came in
+  async function copiaCarpetas(d) {
+    let n = 0;
+    for (const r of d.copia.raw.bandejas ? [...d.copia.raw.bandejas.values()] : []) {
+      if (!r || !r.client || !Array.isArray(r.carpetas)) continue;
+      await tx('bandejas', 'readwrite', st => { const g = st.get(r.client); g.onsuccess = () => {
+        const o = g.result; if (!o) return;
+        const out = carpetasBien(o.carpetas).map(c => ({ ...c, files: c.files.slice() })), por = new Map(out.map(c => [c.id, c])), nuevas = [];
+        const ya = enCarpetas(out);         // a photo in a folder is in the tray too (`tray`): it never goes into a second folder here
+        let cambia = false;
+        for (const c of carpetasBien(r.carpetas)) {
+          const fs = c.files.filter(f => typeof f === 'string' && !ya.has(f)); fs.forEach(f => ya.add(f));
+          const aqui = por.get(c.id);
+          if (!aqui) { if (c.fija && !fs.length) continue; const nc = { ...c, files: fs }; out.push(nc); por.set(c.id, nc); nuevas.push(nc); cambia = true; }
+          else if (fs.length) { aqui.files.push(...fs); cambia = true; }
+        }
+        nuevas.forEach(c => { if (c.parent && !por.has(c.parent)) c.parent = null; });   // a folder whose parent didn't come goes to the root
+        n += nuevas.length;
+        if (cambia) st.put({ ...o, carpetas: out, at: new Date().toISOString() }, r.client);   // newer than a copy of the board a reload left (its folders would win on opening)
+      }; });
+    }
+    return n;
   }
   // captions are never lost between Macs: whichever copy of a board is kept (b), a batch (known by its `at`) that only the
   // other copy (o) has goes to b's earlier batches (all of o's, if b's post has none); the latest upload record wins
@@ -6763,10 +6841,15 @@
     const byC = {}; d.boards.slice().sort((a, b) => mOf(a).localeCompare(mOf(b))).forEach(b => { const c = boardClient(b) || '?'; (byC[c] = byC[c] || []).push(b); });
     const rows = Object.entries(byC).map(([c, bs]) => `<li><b>${esc(names[c] || c)}</b>${P.newClients.some(x => x.id === c) ? ' <span>· cliente nuevo</span>' : ''}<br>`
       + bs.map(b => `${esc(rangeLabel(mOf(b), b.span, true, b.cycleDay))} <span>· ${st[b.key]}</span>`).join(', ') + '</li>').join('');
-    const fl = Object.values(d.files), red = fl.filter(f => f.reduced).length;
-    const info = `Exportado el ${esc(fmtDate(d.exportedAt))} · ${nOf(fl.length, 'foto', 'fotos')}${red ? ` (${red === fl.length ? 'todas' : red} a 1080 px)` : ''}`;
+    const fl = Object.values(d.files), red = fl.filter(f => f.reduced).length, C = P.copia;
+    const info = d.copia ? `Copia completa del ${esc(fmtDate(d.exportedAt))} · ${esc(d.copia.info || '')}`   // «Exportar todo» (D-249)
+      : `Exportado el ${esc(fmtDate(d.exportedAt))} · ${nOf(fl.length, 'foto', 'fotos')}${red ? ` (${red === fl.length ? 'todas' : red} a 1080 px)` : ''}`;
+    const extra = C ? [C.fotos && nOf(C.fotos, 'foto nueva', 'fotos nuevas'), C.mejoran && `${nOf(C.mejoran, 'foto vuelve', 'fotos vuelven')} a su tamaño original`,
+      C.carpetas && `${nOf(C.carpetas, 'carpeta nueva', 'carpetas nuevas')} en la bandeja`, C.sesion && nOf(C.sesion, 'foto de sesión', 'fotos de sesiones'), C.pdf && nOf(C.pdf, 'PDF de factura', 'PDF de facturas'),
+      C.miniaturas && nOf(C.miniaturas, 'miniatura del mes anterior', 'miniaturas del mes anterior')].filter(Boolean).join(', ')
+      : P.newFiles.length ? nOf(P.newFiles.length, 'foto nueva', 'fotos nuevas') : '';
     const what = P.nothing ? 'Nada que importar: todo lo de este archivo ya está aquí, igual o más reciente.'
-      : `Al importar: ${xferWhat(P)}${P.newFiles.length ? ` · ${nOf(P.newFiles.length, 'foto nueva', 'fotos nuevas')}` : ''}. No se borra nada de este Mac.`;
+      : `Al importar: ${[xferWhat(P), extra].filter(Boolean).join(C ? ', ' : ' · ')}. No se borra nada de este Mac.`;
     return `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Importar la mesa</h3><p>${info}</p><ul class="xsum">${rows || '<li>Sin meses</li>'}</ul><p class="xwhat">${esc(what)}</p>`
       + (P.nothing ? '' : '<div class="form"><div class="row"><button type="button" class="btn" data-act="xfer-go">Importar</button></div></div>');   // no «Cerrar» nor «Cancelar»: the × (D-155)
   }
@@ -6789,9 +6872,20 @@
     if (d && !d.hidden && /^xfer/.test(d.dataset.dlg || '')) closeDetail();
     toast(m, { ms: 8000 });
   }
-  // src: File | Blob | JSON text | parsed object; opts.confirm: false skips the confirmation dialog
+  // «Exportar todo»'s copy (D-249): a .tar (ustar) per client and one general. copia.js reads it in parts, checks every hash and
+  // comes back here with it as a parsed object whose blobs are slices of the files (d.copia: {raw: {store: Map(key → value)},
+  // info}); it merges as any import: what isn't here goes in as it was (each photo whole with its record), what is here by the
+  // rules of always (the newer wins, a full photo is never replaced by a reduced one, a reduced one by its full one is)
+  const esTar = async b => { try { return b.size >= 512 && (await b.slice(257, 262).text()) === 'ustar'; } catch (e) { return false; } };
+  const datoBlob = (x, type) => x instanceof Blob ? x : blobOf(x, type);   // a copy's blob is already a Blob; a .json's, base64
+  // src: File | Blob | JSON text | parsed object | several .tar of «Exportar todo» (an array); opts.confirm: false skips the
+  // confirmation dialog
   M.importData = async (src, opts = {}) => {
     const fail = m => { xferErr(m); return { error: m }; };
+    if (!(src && src.copia) && (Array.isArray(src) || (src instanceof Blob && await esTar(src)))) {
+      if (M.copia && M.copia.importar) return M.copia.importar([].concat(src), opts);
+      return fail((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.');
+    }
     if (locked) return fail('La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes de importar.');
     if (xferRun) return fail('Espera: ya se está exportando o importando la mesa.');
     if (uploadsBusy()) return fail('Espera a que termine la subida de fotos.');
@@ -6812,11 +6906,11 @@
       setBusy('imp', 'Leyendo el archivo…');
       try { if (src instanceof Blob) d = await src.text(); if (typeof d === 'string') d = JSON.parse(d); }
       catch (e) { return fail('No se puede leer el archivo: no es una exportación de la mesa o está incompleto (¿terminó de copiarse?).'); }
-      const why = xferCheck(d); if (why) return fail(why);
+      const why = d && d.copia ? null : xferCheck(d); if (why) return fail(why);   // a copy: copia.js checked every hash and its form
       await addQ; await flushPending();
       let P = await xferPlan(d);
       // photos and thumbnails decoded before anything is written: a damaged file changes nothing
-      const got = {}, gotPast = {}, need = Object.keys(d.files).filter(id => !P.files.has(id) || P.kitFiles.includes(id));
+      const got = {}, gotPast = {}, need = d.copia ? [] : Object.keys(d.files).filter(id => !P.files.has(id) || P.kitFiles.includes(id));   // a copy: its photos go in as they are, after the confirmation
       let i = 0;
       for (const id of need) {
         setBusy('imp', `Preparando ${++i}/${need.length} fotos…`);
@@ -6833,12 +6927,12 @@
       for (const pid of P.newPast) { const p = d.past[pid]; try { gotPast[pid] = { thumb: blobOf(p.thumb, 'image/jpeg'), w: +p.w || 0, h: +p.h || 0 }; } catch (e) { /* only a preview */ } }
       const gotTar = {};                   // the tasks' photos (D-180), read before anything is written
       for (const t of P.tarPut) {
-        try { gotTar[t.id] = { ...tareaAl17(t), ...(t.fotos ? { fotos: t.fotos.map(f => ({ id: f.id, w: +f.w || 0, h: +f.h || 0, blob: blobOf(f.data, 'image/jpeg'), ...(typeof f.mini === 'string' && f.mini ? { mini: blobOf(f.mini, 'image/jpeg') } : {}) })) } : {}) }; }
+        try { gotTar[t.id] = d.copia ? tareaAl17(t) : { ...tareaAl17(t), ...(t.fotos ? { fotos: t.fotos.map(f => ({ id: f.id, w: +f.w || 0, h: +f.h || 0, blob: blobOf(f.data, 'image/jpeg'), ...(typeof f.mini === 'string' && f.mini ? { mini: blobOf(f.mini, 'image/jpeg') } : {}) })) } : {}) }; }   // a copy's task as it was, its photos' blobs inside
         catch (e) { return fail('El archivo está dañado: no se puede leer la foto de una tarea. No se ha importado nada.'); }
       }
       const gotPdf = {};                   // the invoices' PDFs (D-232), read before anything is written, with their bytes
       for (const f of P.pdfPut || []) {
-        try { gotPdf[f.id] = { id: f.id, nombre: String(f.nombre || 'factura.pdf').slice(0, 120), tam: 0, tipo: 'application/pdf', blob: blobOf(f.data, 'application/pdf') }; gotPdf[f.id].tam = gotPdf[f.id].blob.size; }
+        try { gotPdf[f.id] = { id: f.id, nombre: String(f.nombre || 'factura.pdf').slice(0, 120), tam: 0, tipo: 'application/pdf', blob: datoBlob(f.data, 'application/pdf') }; gotPdf[f.id].tam = gotPdf[f.id].blob.size; }
         catch (e) { return fail('El archivo está dañado: no se puede leer el PDF de una factura. No se ha importado nada.'); }
       }
       setBusy('imp', null);
@@ -6854,11 +6948,31 @@
         toast('Nada que importar: ya tenías todo igual o más reciente.', { ms: 6000 });
         return res;
       }
-      if (shellReady()) showDialog('xfer-busy', '<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p>');
+      const parar = { pedido: false };            // a copy's «Cancelar» while it writes (D-249)
+      if (d.copia) {                               // a copy brings GB: is there room? (asked before anything is written)
+        const e = await navigator.storage.estimate().catch(() => ({})), falta = P.copia.bytes;
+        if (e.quota && e.usage != null && e.quota - e.usage < falta + 104857600) return fail(`No hay espacio en el navegador para la copia: necesita ${pesoTxt(falta)} y quedan ${pesoTxt(Math.max(0, e.quota - e.usage))}. Libera espacio en el disco. No se ha importado nada.`);
+      }
+      if (shellReady()) showDialog('xfer-busy', d.copia ? '<h3>Importando la copia…</h3><p class="xprog" aria-live="polite">Guardando las fotos…</p><div class="form"><div class="row"><button type="button" class="btn2 xparar">Cancelar</button></div></div>'
+        : '<h3>Importando la mesa…</h3><p>Un momento: se están guardando los meses y las fotos.</p>');
+      const bP = d.copia && shellReady() && root.querySelector('.detail .xparar');
+      if (bP) bP.addEventListener('click', () => { parar.pedido = true; bP.disabled = true; bP.textContent = 'Parando…'; });
       setBusy('imp', 'Guardando la mesa importada…');
       back = { key: S && S.key, client: curClient };
       clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null;
       S = null; PB = null; cleared = true;         // nothing in memory may overwrite what is written now
+      if (d.copia) {                               // what isn't here goes in as it was: the files first, one by one, then the records
+        const pr = root && root.querySelector('.detail .xprog');
+        const c = await copiaCrudo(d, parar, (i, n) => { if (pr && pr.isConnected) pr.textContent = `Guardando ${i.toLocaleString('es-ES')} de ${nOf(n, 'archivo', 'archivos')}…`; setBusy('imp', `Guardando ${i}/${n} archivos de la copia…`); });
+        res.copia = c;
+        if (c.parada) {
+          const m = `Importación parada: ${c.hechos === 1 ? 'se guardó 1' : `se guardaron ${c.hechos.toLocaleString('es-ES')}`} de ${nOf(c.total, 'archivo', 'archivos')}, cada uno entero con su registro. No se han importado los meses, los clientes ni las tareas: vuelve a importar la copia para terminar.`;
+          res.cancelled = true; res.parada = m; setBusy('imp', null); await reopen(); toast(m, { ms: 12000 }); return res;
+        }
+        if (bP && bP.isConnected) bP.disabled = true;   // the records: a moment, and they go together
+        P = await xferPlan(d);                     // the rest merges as always, over what is here now
+        for (const id of P.kitFiles) { const r = d.copia.raw.files && d.copia.raw.files.get(id); if (r) got[id] = r; }
+      }
       for (const id of [...new Set([...P.newFiles, ...P.kitFiles])]) if (got[id]) {  // photos first: a board never points at a photo that isn't here
         await idbPut('files', id, got[id]); res.photos++;
         soltarArchivo(id);
@@ -6907,6 +7021,7 @@
           o.tray = r.vuelta || String(r.at) > String(o.at || '') ? [...add, ...o.tray] : [...o.tray, ...add]; st.put(o, r.client);
         }; });
       }
+      if (d.copia) res.copia.carpetas = await copiaCarpetas(d);   // the folders a tray here lacks (D-249)
       for (const c of new Set([...P.put.map(boardClient), ...P.trays.map(r => r.client)])) if (c) await juntarBandeja(c);   // a file from before 3.44: its months' trays
       try { const pend = pendienteLS(); if (pend && writes.some(b => b.key === pend.key)) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }
       setBusy('imp', null);
@@ -6936,9 +7051,13 @@
   function dlgXfer() {
     showDialog('xfer', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Pasar la mesa a otro Mac</h3><p>Se exportan todos los clientes y meses, con las fotos a 1080 px.</p>`   // D-156 and D-155
       + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'
-      + '<input type="file" class="xferin" accept=".json,application/json" hidden>');
+      // «Exportar todo» (D-249): the whole mesa at its original size, a file per client and one general; «Importar…» reads them too
+      + '<div class="xtodo"><p><b>Copia completa.</b> Las fotos a su tamaño original y las carpetas de la bandeja, en un archivo por cliente y uno general. Guárdalos juntos en el SSD.</p>'
+      + '<div class="row"><button type="button" class="btn2" data-act="xfer-todo">Exportar todo</button></div></div>'
+      + '<input type="file" class="xferin" accept=".json,.tar,application/json,application/x-tar" multiple hidden>');
     const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
-    inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; inp.value = ''; if (f) M.importData(f); });
+    // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
+    inp.addEventListener('change', () => { const fs = [...(inp.files || [])]; inp.value = ''; if (!fs.length) return; M.importData(fs.length === 1 && !/\.tar$/i.test(fs[0].name) ? fs[0] : fs); });
     d.querySelector('[data-act="xfer-export"]').focus();
   }
 
@@ -7210,6 +7329,17 @@
   };
   M._in = {
     vc: VC,
+    // «Exportar todo» and its import (copia.js, D-249): the stores, one read of all of them, and the lock of export / import
+    xfer: {
+      IDB: IDB_V, ALMACENES, NO_VIAJAN: [], tx, boardClient, refsTodo, kitRef, enCarpetas, carpetasBien,
+      // a board as it is (a newer copy a reload left in localStorage, without the tray and folders, which live in 'bandejas')
+      newest: (k, b) => { const n = newest(k, b); if (n === b) return b; const { tray, carpetas, ...c } = n; return JSON.parse(JSON.stringify(c)); },
+      empezar: tipo => locked ? 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes.' : xferRun ? 'Espera: ya se está exportando o importando la mesa.'
+        : tipo === 'import' && (uploadsBusy() || subida || importing) ? 'Espera a que termine la subida de fotos.' : (xferRun = tipo, null),
+      acabar: () => { xferRun = null; }, ocupado: () => xferRun,
+      pendientes: async () => { await addQ; await flushPending(); },
+      get locked() { return locked; }
+    },
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
     mes: { leer: mesLeer, listo: () => !!MES, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js); listo once read: while it reads again, what was read stays (nothing jumps)
     cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
@@ -7263,6 +7393,14 @@
     capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
   };
   M._test.removeFile = removeFile;
+  M._test.vaciarTodo = async () => {   // every store empty, as a new browser (D-249: «Exportar todo» → empty → «Importar»)
+    clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; S = null; PB = null;
+    await tx(ALMACENES, 'readwrite', o => ALMACENES.forEach(n => o[n].clear()));
+    try { localStorage.removeItem('mesa-pending'); localStorage.removeItem('mesa-del'); } catch (e) { /* */ }
+    for (const id of Object.keys(M.files)) soltarArchivo(id);
+    cobGen++; COB = new Map(); mesGen++; MES = new Map();
+    await loadClients();
+  };
   M._test.vaciarClip = () => { trayClip = null; };
   M._test.olvidarDonde = () => { donde.clear(); };   // each test starts as a mesa just loaded: no folder seen yet (D-092)
   M._test.borrarBandeja = async c => {  // the battery starts each test with an empty tray: months no longer take it away (D-072)

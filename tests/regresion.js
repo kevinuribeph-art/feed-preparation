@@ -16983,6 +16983,29 @@
     } finally { await cpFin(); }
   });
 
+  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249): un aviso discreto y fijo en la cabecera, «Haz una copia», abre ⇅ con la explicación y «Exportar todo»; con almacenamiento persistente no sale; ⇅ acepta varios .tar', async () => {
+    await tablero([pub(1)]);
+    const st = W.navigator.storage;
+    try {
+      st.persisted = async () => false; st.persist = async () => false;
+      await M._test.persistencia(true);
+      const b = q('.appbar .persist'); ok(b && !b.hidden && /Haz una copia/.test(b.textContent), 'sin el aviso');
+      ok(/si el disco se llena, puede borrarlos/.test(b.title), 'el title no lo explica');
+      const cs = W.getComputedStyle(b, '::before'); ok(/i-alerta|svg/.test(cs.maskImage || cs.webkitMaskImage || '') || cs.content !== 'none', 'sin icono');
+      b.click(); await espera(30);
+      const d = q('.detail[data-dlg="xfer"]'); ok(d, '«Haz una copia» no abre ⇅');
+      ok(d.querySelector('.xaviso') && d.querySelector('[data-act="xfer-todo"]'), 'sin la explicación o sin «Exportar todo»');
+      const inp = d.querySelector('.xferin'); ok(inp.multiple && /\.tar/.test(inp.accept), 'Importar no acepta varios .tar');
+      M._in.closeDetail();
+      st.persisted = async () => true;
+      await M._test.persistencia(false);
+      ok(q('.appbar .persist').hidden, 'el aviso sale con almacenamiento persistente');
+      q('.ibtn.xfer').click(); await espera(30);
+      ok(!q('.detail[data-dlg="xfer"] .xaviso'), 'la explicación sale con almacenamiento persistente');
+      M._in.closeDetail();
+    } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
+  });
+
   prueba('CP6', 'Guarda (D-249): la base de datos no tiene ningún almacén que «Exportar todo» no conozca: cada almacén de datos viaja en la copia', async () => {
     await tablero([pub(1)]);
     const dbx = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });

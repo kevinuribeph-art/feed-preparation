@@ -2239,6 +2239,7 @@
 --i-a-down:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M3.5 13h6'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m2 16 4.5-9 4.5 9'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M18 7v9'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m14 12 4 4 4-4'/%3E%3C/svg%3E");
 --i-a-up:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M3.5 13h6'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m2 16 4.5-9 4.5 9'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M18 16V7'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m14 11 4-4 4 4'/%3E%3C/svg%3E");
 --i-rect:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect vector-effect='non-scaling-stroke' width='12' height='20' x='6' y='2' rx='2'/%3E%3C/svg%3E");
+--i-alerta:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M12 9v4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M12 17h.01'/%3E%3C/svg%3E");
 --i-trazo:1.33px}
 /* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
 :root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{color-scheme:dark;
@@ -2294,7 +2295,11 @@
 #mesa .tabs .tedit{align-self:stretch;height:auto;width:28px;border-radius:0;border-bottom:2px solid var(--acc)}
 #mesa .tab.on.hasedit{padding-right:3px}
 #mesa .appbar .xfer{align-self:center}
+#mesa .persist{flex:none;align-self:center;display:inline-flex;align-items:center;gap:6px;height:28px;margin:0 2px 0 4px;padding:0 10px 0 8px;border:0;border-radius:var(--r-pill);background:none;color:var(--mute);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}
+#mesa .persist:hover{background:var(--bg-2);color:var(--ink)}#mesa .persist[hidden]{display:none}
+#mesa .persist::before{content:'';flex:none;width:14px;height:14px;background:var(--chg);-webkit-mask:var(--i-alerta) center/contain no-repeat;mask:var(--i-alerta) center/contain no-repeat}
 #mesa .xtodo{margin-top:16px;padding-top:14px;border-top:1px solid var(--line2)}#mesa .xtodo p{margin:0 0 10px}#mesa .xtodo b{font-weight:600;color:var(--ink)}
+#mesa .xaviso{display:flex;gap:8px;font-size:12.5px;color:var(--ink-2)}#mesa .xaviso::before{content:'';flex:none;width:14px;height:14px;margin-top:2px;background:var(--chg);-webkit-mask:var(--i-alerta) center/contain no-repeat;mask:var(--i-alerta) center/contain no-repeat}
 #mesa .xprog{font-variant-numeric:tabular-nums}
 #mesa .save{flex:none;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap;padding-left:6px}#mesa .save.err{color:var(--red)}
 /* ===== Barra del mes ===== */
@@ -2716,6 +2721,7 @@
 #mesa .brand span{display:none}
 #mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.on.hasedit{padding-right:2px}#mesa .tab.add{padding:0 9px;font-size:12.5px;height:30px}#mesa.client .tab.on.hasedit{padding-right:10px}
 #mesa .save{font-size:11.5px}
+#mesa .persist{padding:0 8px;height:30px}#mesa .persist .persist-t{display:none}
 #mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
 #mesa .mgrp{flex:1 1 0;min-width:190px;flex-wrap:nowrap}
@@ -2767,13 +2773,14 @@
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}</div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo"><span class="i-mas">+</span> Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand">${IC.grid}</div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo"><span class="i-mas">+</span> Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button type="button" class="persist" data-act="xfer" hidden title="Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz «Exportar todo» y guarda los archivos en el SSD." aria-label="Los datos no están protegidos en este navegador: haz una copia completa"><span class="persist-t">Haz una copia</span></button><button class="ibtn xfer" data-act="xfer" title="Exportar / importar la mesa (para pasarla a otro Mac)" aria-label="Exportar o importar la mesa">⇅</button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
     ponerTema(temaOscuro());
     mainMode = null;
     wire();
+    revisarPersistencia(true);           // the notice of storage that isn't kept (D-249)
     const q = toastQ.filter(t => Date.now() - t.at < 15000); toastQ = [];
     if (q.length) setTimeout(() => q.forEach(t => toast(t.msg, t.opt)), 0);
   }
@@ -5844,6 +5851,7 @@
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
     try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
     if (!shellReady()) buildShell(); else closeDetail();
+    pintarPersistencia();                // D-249
     setSave('Cargando…');
     await importShared(cfg.slots, old, key);
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
@@ -7053,12 +7061,24 @@
       + '<div class="form"><p class="ferr" hidden></p><div class="row"><button type="button" class="btn2" data-act="xfer-import">Importar…</button><button type="button" class="btn" data-act="xfer-export">Exportar</button></div></div>'
       // «Exportar todo» (D-249): the whole mesa at its original size, a file per client and one general; «Importar…» reads them too
       + '<div class="xtodo"><p><b>Copia completa.</b> Las fotos a su tamaño original y las carpetas de la bandeja, en un archivo por cliente y uno general. Guárdalos juntos en el SSD.</p>'
+      + (persistida === false ? '<p class="xaviso">Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz una copia completa de vez en cuando.</p>' : '')
       + '<div class="row"><button type="button" class="btn2" data-act="xfer-todo">Exportar todo</button></div></div>'
       + '<input type="file" class="xferin" accept=".json,.tar,application/json,application/x-tar" multiple hidden>');
     const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
     // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
     inp.addEventListener('change', () => { const fs = [...(inp.files || [])]; inp.value = ''; if (!fs.length) return; M.importData(fs.length === 1 && !/\.tar$/i.test(fs[0].name) ? fs[0] : fs); });
     d.querySelector('[data-act="xfer-export"]').focus();
+  }
+  // Storage this browser may delete when the disk fills (not «persistent»): a discreet notice in the header, always while it
+  // lasts, that opens ⇅ with «Exportar todo» (D-249). The mesa asks for it on each opening (M.init) and here
+  async function revisarPersistencia(pedir) {
+    const st = navigator.storage;
+    try { if (st && st.persisted) persistida = await st.persisted(); } catch (e) { /* unknown */ }
+    if (pedir && persistida === false && st && st.persist) { try { persistida = await st.persist(); } catch (e) { /* stays */ } }
+    pintarPersistencia();
+  }
+  function pintarPersistencia() {
+    const b = shellReady() && root.querySelector('.appbar .persist'); if (b) b.hidden = persistida !== false;
   }
 
   // ---------- status / housekeeping ----------
@@ -7393,6 +7413,7 @@
     capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
   };
   M._test.removeFile = removeFile;
+  M._test.persistencia = pedir => revisarPersistencia(!!pedir);   // the notice of storage that isn't kept (D-249)
   M._test.vaciarTodo = async () => {   // every store empty, as a new browser (D-249: «Exportar todo» → empty → «Importar»)
     clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; S = null; PB = null;
     await tx(ALMACENES, 'readwrite', o => ALMACENES.forEach(n => o[n].clear()));

@@ -63,6 +63,8 @@ create table if not exists mesa.turno (
   check ((pide is null) = (pide_desde is null))
 );
 insert into mesa.turno (id) values (true) on conflict (id) do nothing;
+-- La última vez que quien la pide volvió a pedirla: una petición que nadie renueva es de alguien que se fue.
+alter table mesa.turno add column if not exists pide_ultima timestamptz;
 
 -- Un registro por cada (almacén, clave) de IndexedDB. Las claves son texto: en la 4.29 todas lo son (ids y «cliente|AAAA-MM»).
 create table if not exists mesa.registros (
@@ -153,6 +155,8 @@ create or replace function mesa.turno_json(t mesa.turno, yo text) returns jsonb
       'dispositivo', t.pide,
       'desde', t.pide_desde,
       'hace', floor(extract(epoch from now() - t.pide_desde))::bigint,
+      'ultima', coalesce(t.pide_ultima, t.pide_desde),
+      'ultima_hace', floor(extract(epoch from now() - coalesce(t.pide_ultima, t.pide_desde)))::bigint,
       'tuyo', t.pide = yo) end,
     'orden', t.orden,
     'version_minima', (select x.version_minima from mesa.ajustes x where x.id),
@@ -167,8 +171,9 @@ revoke all on function mesa.version_num(text), mesa.comprobar(text, text), mesa.
 -- suelta (`mesa_turno_soltar`); el que llega la reclama (`mesa_turno_reclamar`) con el número que vio. Si el que la tiene no
 -- contesta, el que llega puede reclamarla igual (lo decide la Mesa): desde ese momento el turno viejo ya no escribe.
 
--- Pedir la Mesa: apunta quién la pide y desde cuándo (pedirla otra vez no cambia ese «desde»). No cambia quién la tiene.
--- Sirve también para ver el turno: quien ya la tiene recibe `tuyo` y su número.
+-- Pedir la Mesa: apunta quién la pide y desde cuándo (pedirla otra vez no cambia ese «desde», pero sí `ultima`: quien la
+-- tiene sabe así si quien la pidió sigue esperando). No cambia quién la tiene. Sirve también para ver el turno: quien ya la
+-- tiene recibe `tuyo` y su número.
 create or replace function public.mesa_turno_pedir(dispositivo text, app text) returns jsonb
   language plpgsql volatile security definer set search_path = '' as $$
 #variable_conflict use_column
@@ -179,8 +184,10 @@ begin
   if not public.es_dueno() then raise exception 'sin permiso' using errcode = '42501'; end if;
   perform mesa.comprobar(v_yo, mesa_turno_pedir.app);
   select * into t from mesa.turno where id for update;
-  if t.dispositivo is distinct from v_yo and t.pide is distinct from v_yo then
-    update mesa.turno set pide = v_yo, pide_desde = now() where id returning * into t;
+  if t.dispositivo is distinct from v_yo then
+    update mesa.turno
+       set pide = v_yo, pide_desde = case when pide = v_yo then pide_desde else now() end, pide_ultima = now()
+     where id returning * into t;
   end if;
   return mesa.turno_json(t, v_yo);
 end $$;
@@ -231,7 +238,8 @@ begin
     update mesa.turno
        set numero = numero + 1, dispositivo = v_yo, desde = now(), latido = now(), cola = 0, cola_desde = null,
            pide = case when pide = v_yo then null else pide end,
-           pide_desde = case when pide = v_yo then null else pide_desde end
+           pide_desde = case when pide = v_yo then null else pide_desde end,
+           pide_ultima = case when pide = v_yo then null else pide_ultima end
      where id returning * into t;
   end if;
   return mesa.turno_json(t, v_yo);

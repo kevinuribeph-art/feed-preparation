@@ -102,9 +102,9 @@ async function restaurar() {
   if (!FOTO) return;
   const t = { ...FOTO.t };
   if (/^prueba-/.test(t.dispositivo || '')) Object.assign(t, { dispositivo: null, desde: null, latido: null, cola: null, cola_desde: null });
-  if (/^prueba-/.test(t.pide || '')) Object.assign(t, { pide: null, pide_desde: null });
-  await sql(`update mesa.turno x set (numero, dispositivo, desde, latido, cola, cola_desde, pide, pide_desde) =
-    (select s.numero, s.dispositivo, s.desde, s.latido, s.cola, s.cola_desde, s.pide, s.pide_desde
+  if (/^prueba-/.test(t.pide || '')) Object.assign(t, { pide: null, pide_desde: null, pide_ultima: null });
+  await sql(`update mesa.turno x set (numero, dispositivo, desde, latido, cola, cola_desde, pide, pide_desde, pide_ultima) =
+    (select s.numero, s.dispositivo, s.desde, s.latido, s.cola, s.cola_desde, s.pide, s.pide_desde, s.pide_ultima
        from jsonb_populate_record(null::mesa.turno, '${JSON.stringify(t).replace(/'/g, "''")}'::jsonb) s) where x.id`);
   if (/^[0-9]{1,4}\.[0-9]{1,4}$/.test(FOTO.v)) await sql(`update mesa.ajustes set version_minima = '${FOTO.v}' where id`);
 }
@@ -144,6 +144,7 @@ async function main() {
   await espera(1100);
   r = await K('mesa_turno_pedir', { dispositivo: DB, app: APP });
   ok(r.ok && r.json.pide.desde === pideDesde && r.json.pide.hace >= 1, 'pedirla otra vez no cambia desde cuándo; la edad la cuenta el servidor', r.text);
+  ok(r.ok && r.json.pide.ultima !== pideDesde && r.json.pide.ultima_hace === 0, 'pero sí cuándo la pidió por última vez (sigue esperando)', r.text);
   r = await K('mesa_turno_latido', { dispositivo: DA, turno: n1, app: APP, cola: 3 });
   ok(r.ok && r.json.tuyo && r.json.pide && r.json.pide.dispositivo === DB && r.json.tiene.cola === 3 && r.json.tiene.cola_desde && r.json.tiene.latido_hace <= 5,
     'el latido de A ve la petición de B y apunta su cola con la hora del servidor', r.text);

@@ -161,8 +161,9 @@
   }
 
   // ---------- IndexedDB ----------
-  // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249)
-  const IDB_V = 21, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses'];
+  // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249); and the journal of changes, which is
+  // this browser's (D-250)
+  const IDB_V = 22, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses'], DIARIO = 'diario';
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -198,10 +199,14 @@
       // a client may keep its monthly fee (`cuota`, D-232); an older tab would drop them on an import or a save of the client.
       // 21 (mesa 4.27): + 'meses', one record per client and month (key 'cliente|AAAA-MM'): the month's why and how the month
       // before went, for the vista cliente, loaded by Claude (D-238); an older tab would drop them on an import.
-      const r = indexedDB.open('mesa-feed', IDB_V);
+      // 22 (mesa 4.31): + 'diario', the journal of changes (D-250): which record of which store changed, in the same transaction
+      // as the change, for the server (traspaso C); an older tab would write without it, and those changes would never go up.
+      const r = indexedDB.open('mesa-feed', IDB_V);   /* idb-crudo: the only opening */
       r.onupgradeneeded = e => {
-        const d = r.result; for (const n of ALMACENES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
-        if (e.oldVersion >= 15 && e.oldVersion < 19) r.transaction.objectStore('tareas').openCursor().onsuccess = ev => { const c = ev.target.result; if (!c) return; const n = tareaAl17(c.value); if (n !== c.value) c.update(n); c.continue(); };
+        const d = r.result; for (const n of [...ALMACENES, DIARIO]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
+        // the sessions saved before the 4.24 (D-217), once; each one it changes, in the journal (this is the version's own transaction)
+        if (e.oldVersion >= 15 && e.oldVersion < 19) { const t = r.transaction, dj = t.objectStore(DIARIO);   /* idb-crudo: the upgrade */
+          t.objectStore('tareas').openCursor().onsuccess = ev => { const c = ev.target.result; if (!c) return; const n = tareaAl17(c.value); if (n !== c.value) { c.update(n); apuntar(dj, 'tareas', c.primaryKey); } c.continue(); }; }   /* idb-crudo: the upgrade */
       };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
@@ -224,12 +229,57 @@
   // first (not in a paused tab, whose notice already said it)
   function edPendiente() { try { return !!(M.libre && M.libre.abierto && M.libre.abierto() && M.libre.pendiente && M.libre.pendiente()); } catch (e) { return false; } }
   window.addEventListener('beforeunload', e => { if (locked || !edPendiente()) return; e.preventDefault(); e.returnValue = ''; });
-  async function tx(store, mode, fn) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
+  // ---------- the journal of changes (D-250) ----------
+  // Every write in IndexedDB goes through tx(): a transaction that writes has the journal ('diario') in its scope and each store it
+  // gets is wrapped, so the journal notes «store + key that changed» (never the value) in that same transaction: a change and its
+  // note are kept or lost together. put, add and delete note their key; a cursor's update and delete, the cursor's; a delete by
+  // range and clear note «this whole store again» (its key: [store]). The journal's entry {a: store, k: key | null, t: when (this
+  // clock, only to wait for quiet), v: a token that changes with each new note}; its key [store, key] (one per record). Nothing
+  // goes to the journal from the journal itself. txSinDiario writes without it: only for what comes down from the server (lot 3)
+  // and the journal's own work. The battery checks that no write escapes (DJ2) and empties it at the end (DJ3).
+  const DJ_HECHAS = new WeakSet(), SIN_DIARIO = new WeakSet();   // the requests made through the wrapper, the transactions without journal (the battery's guard)
+  let djN = 0;
+  const djV = () => (++djN).toString(36) + Math.random().toString(36).slice(2, 8);
+  function apuntar(dj, almacen, clave) {
+    if (almacen === DIARIO) return;
+    const todo = clave == null;
+    try { DJ_HECHAS.add(dj.put({ a: almacen, k: todo ? null : clave, t: Date.now(), v: djV() }, todo ? [almacen] : [almacen, clave])); }
+    catch (e) { if (!todo) apuntar(dj, almacen, null); }   // a key the journal can't hold: the whole store, again
+  }
+  // a cursor of a store that writes: its update and delete note its key (patched on the cursor itself before the caller sees it)
+  function cursorConDiario(req, n, dj) {
+    req.addEventListener('success', () => {
+      const c = req.result; if (!c || c.__dj) return;
+      const up = c.update, del = c.delete; c.__dj = true;
+      if (up) c.update = v => { const r = up.call(c, v); DJ_HECHAS.add(r); apuntar(dj, n, c.primaryKey); return r; };
+      c.delete = () => { const r = del.call(c); DJ_HECHAS.add(r); apuntar(dj, n, c.primaryKey); return r; };
+    });
+    return req;
+  }
+  function conDiario(o, n, dj) {
+    const hecha = r => { DJ_HECHAS.add(r); return r; };
+    const propios = {
+      put: (v, k) => { const r = hecha(o.put(v, k)); apuntar(dj, n, k); return r; },
+      add: (v, k) => { const r = hecha(o.add(v, k)); apuntar(dj, n, k); return r; },
+      delete: q => { const r = hecha(o.delete(q)); apuntar(dj, n, q instanceof IDBKeyRange ? null : q); return r; },
+      clear: () => { const r = hecha(o.clear()); apuntar(dj, n, null); return r; },
+      openCursor: (...a) => cursorConDiario(o.openCursor(...a), n, dj),
+      openKeyCursor: (...a) => cursorConDiario(o.openKeyCursor(...a), n, dj)
+    };
+    return new Proxy(o, { get: (t, p) => { if (Object.prototype.hasOwnProperty.call(propios, p)) return propios[p]; const v = Reflect.get(t, p, t); return typeof v === 'function' ? v.bind(t) : v; } });
+  }
+  const tx = (store, mode, fn) => txCon(store, mode, fn, mode === 'readwrite');
+  const txSinDiario = (store, mode, fn) => txCon(store, mode, fn, false);
+  async function txCon(store, mode, fn, diario) {   // store: a name, or several (fn gets {name: objectStore}: one transaction for all)
     if (mode === 'readwrite' && [].concat(store).includes('boards')) tablerosP = null;   // a write: the boards read for an opening go (A4)
     const d = await db();
     return new Promise((res, rej) => {
-      const t = d.transaction(store, mode);
-      const req = fn(Array.isArray(store) ? Object.fromEntries(store.map(n => [n, t.objectStore(n)])) : t.objectStore(store));
+      const ns = [...new Set([].concat(store))], dj0 = diario && !ns.includes(DIARIO);
+      const t = d.transaction(dj0 ? [...ns, DIARIO] : ns, mode);   /* idb-crudo: the only transaction */
+      if (mode === 'readwrite' && !dj0) SIN_DIARIO.add(t);
+      const dj = dj0 ? t.objectStore(DIARIO) : null;   /* idb-crudo: the journal */
+      const st = n => { const o = t.objectStore(n); /* idb-crudo: wrapped here */ return dj ? conDiario(o, n, dj) : o; };
+      const req = fn(Array.isArray(store) ? Object.fromEntries(store.map(n => [n, st(n)])) : st(store));
       let out;
       if (req) req.onsuccess = () => { out = req.result; };
       t.oncomplete = () => res(out);
@@ -7375,9 +7425,19 @@
   };
   M._in = {
     vc: VC,
+    // the journal of changes (D-250): what changed since it was emptied, for the server (lot 3). leer() gives its entries
+    // [{a, k, t, v}] (k null: the whole store again); quitar(entries) takes out those whose token didn't change since they were
+    // read; vaciar() empties it; sinDiario is tx without the journal, only for what comes down from the server
+    diario: {
+      NOMBRE: DIARIO,
+      leer: () => txSinDiario(DIARIO, 'readonly', s => s.getAll()),
+      quitar: l => txSinDiario(DIARIO, 'readwrite', s => (l || []).forEach(e => { const k = e.k == null ? [e.a] : [e.a, e.k], g = s.get(k); g.onsuccess = () => { if (g.result && g.result.v === e.v) s.delete(k); }; })),
+      vaciar: () => txSinDiario(DIARIO, 'readwrite', s => s.clear()),
+      sinDiario: txSinDiario
+    },
     // «Exportar todo» and its import (copia.js, D-249): the stores, one read of all of them, and the lock of export / import
     xfer: {
-      IDB: IDB_V, ALMACENES, NO_VIAJAN: [], tx, boardClient, refsTodo, kitRef, enCarpetas, carpetasBien,
+      IDB: IDB_V, ALMACENES, NO_VIAJAN: [DIARIO], tx, boardClient, refsTodo, kitRef, enCarpetas, carpetasBien,
       // a board as it is (a newer copy a reload left in localStorage, without the tray and folders, which live in 'bandejas')
       newest: (k, b) => { const n = newest(k, b); if (n === b) return b; const { tray, carpetas, ...c } = n; return JSON.parse(JSON.stringify(c)); },
       empezar: tipo => locked ? 'La mesa está abierta en otra pestaña: pulsa «Usar aquí» antes.' : xferRun ? 'Espera: ya se está exportando o importando la mesa.'
@@ -7439,7 +7499,8 @@
     capLoad: (id, options, basis) => { const s = S && S.slots.find(x => x.id === id); if (s) { capLoad(s, options, basis); changed(); } }
   };
   M._test.removeFile = removeFile;
-  M._test.persistencia = pedir => revisarPersistencia(!!pedir);   // the notice of storage that isn't kept (D-249)
+  M._test.persistencia = pedir => revisarPersistencia(!!pedir);
+  M._test.djHecha = r => DJ_HECHAS.has(r); M._test.djSin = t => SIN_DIARIO.has(t);   // the battery's guard: a write the journal saw, a transaction without it (D-250)   // the notice of storage that isn't kept (D-249)
   M._test.vaciarTodo = async () => {   // every store empty, as a new browser (D-249: «Exportar todo» → empty → «Importar»)
     clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; S = null; PB = null;
     await tx(ALMACENES, 'readwrite', o => ALMACENES.forEach(n => o[n].clear()));

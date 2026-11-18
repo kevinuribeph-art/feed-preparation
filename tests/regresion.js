@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 19, V_IDB = 21;   // v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 19, V_IDB = 22;   // IndexedDB 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -17096,6 +17096,55 @@
       igual(hay, sabe, 'los almacenes de la base de datos');
       ok(!(M._in.xfer.NO_VIAJAN || []).some(n => M._in.xfer.ALMACENES.includes(n)), 'un almacén viaja y no viaja');
     } finally { dbx.close(); }
+  });
+
+  // ---------- el diario de cambios (D-250) ----------
+  const djLeer = async () => (await M._in.diario.leer()) || [];
+  const djHay = (l, a, k) => l.some(e => e.a === a && (k === undefined ? true : k === null ? e.k == null : e.k === k));
+
+  prueba('DJ1', 'El diario de cambios (D-250): cada tipo de escritura apunta su almacén y su clave en la misma transacción (put, add, delete, un put dentro de onsuccess, varios almacenes a la vez, el update y el delete de un cursor), un borrado por rango y un vaciado apuntan «todo el almacén otra vez»; una transacción que se aborta no deja nota; la vía sin diario no deja rastro; nunca el valor', async () => {
+    await tablero([pub(1), pub(2)]); await M.flush();
+    await M._in.diario.vaciar(); igual(await djLeer(), [], 'el diario no se vació');
+    // fotos (idbPut), la bandeja y el tablero (una transacción de dos almacenes, put en onsuccess)
+    const [f] = await poner('r1', [await foto('dj1.jpg')]); await M.flush();
+    let l = await djLeer();
+    ok(djHay(l, 'files', f) && djHay(l, 'boards', `${CLIENTE}-${MES}`) && djHay(l, 'bandejas', CLIENTE), 'falta la foto, el tablero o la bandeja: ' + json(l.map(e => [e.a, e.k])));
+    ok(l.every(e => typeof e.t === 'number' && typeof e.v === 'string' && e.v && Object.keys(e).sort().join() === 'a,k,t,v'), 'una entrada no tiene la forma {a, k, t, v}: ' + json(l[0]));
+    ok(!JSON.stringify(l).includes('dj1.jpg'), 'el diario guarda valores');
+    // editarCliente: get y put dentro de onsuccess; abortado: sin nota
+    await M._in.diario.vaciar();
+    await M._in.editarCliente(CLIENTE, o => ({ ...o, handle: 'dj.uno' }));
+    ok(djHay(await djLeer(), 'clients', CLIENTE), 'editarCliente no se apunta');
+    await M._in.diario.vaciar();
+    await M._in.editarCliente(CLIENTE, () => { throw new Error('a propósito'); }).catch(() => null);
+    ok(!djHay(await djLeer(), 'clients'), 'una transacción abortada deja nota');
+    // add, delete, cursor (update y delete), por rango y clear, con tx como lo usan los módulos
+    const X = M._in.xfer;
+    await X.tx('ubicaciones', 'readwrite', st => { st.add({ id: 'ub-dj1', nombre: 'Dj', locationId: '1', at: '' }, 'ub-dj1'); st.put({ id: 'ub-dj2', nombre: 'Dj2', locationId: '2', at: '' }, 'ub-dj2'); });
+    await M._in.idbDel('ubicaciones', 'ub-dj2');
+    l = await djLeer(); ok(djHay(l, 'ubicaciones', 'ub-dj1') && djHay(l, 'ubicaciones', 'ub-dj2'), 'add o delete no se apuntan');
+    await M._in.diario.vaciar();
+    await X.tx('boards', 'readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.key === `${CLIENTE}-${MES}`) c.update({ ...c.value, dj: 1 }); c.continue(); }; });
+    ok(djHay(await djLeer(), 'boards', `${CLIENTE}-${MES}`), 'el update de un cursor no se apunta');
+    await X.tx('ubicaciones', 'readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.key === 'ub-dj1') c.delete(); c.continue(); }; });
+    ok(djHay(await djLeer(), 'ubicaciones', 'ub-dj1') && !(await M._in.idbGet('ubicaciones', 'ub-dj1')), 'el delete de un cursor no se apunta');
+    await M._in.diario.vaciar();
+    await X.tx('meses', 'readwrite', st => st.delete(W.IDBKeyRange.bound(CLIENTE + '|', CLIENTE + '|￿')));
+    await M._test.ubBorrar();
+    l = await djLeer(); ok(djHay(l, 'meses', null) && djHay(l, 'ubicaciones', null), 'un borrado por rango o un vaciado no apuntan el almacén entero: ' + json(l.map(e => [e.a, e.k])));
+    // la vía sin diario (lote 3): no deja rastro
+    await M._in.diario.vaciar();
+    await M._in.diario.sinDiario('ubicaciones', 'readwrite', st => st.put({ id: 'ub-dj3', nombre: 'Del servidor', locationId: '3', at: '' }, 'ub-dj3'));
+    igual(await djLeer(), [], 'la vía sin diario deja rastro');
+    await M._in.diario.sinDiario('ubicaciones', 'readwrite', st => st.delete('ub-dj3'));
+    // quitar: solo lo que no cambió desde que se leyó
+    await M._in.idbPut('ubicaciones', 'ub-dj4', { id: 'ub-dj4', nombre: 'Cuatro', locationId: '4', at: '' });
+    const vista = await djLeer();
+    await M._in.idbPut('ubicaciones', 'ub-dj4', { id: 'ub-dj4', nombre: 'Cuatro otra vez', locationId: '4', at: '' });
+    await M._in.diario.quitar(vista);
+    ok(djHay(await djLeer(), 'ubicaciones', 'ub-dj4'), 'quitar se lleva una nota que cambió después de leerla');
+    await M._in.diario.quitar(await djLeer()); igual(await djLeer(), [], 'quitar no se lleva lo leído');
+    await M._in.idbDel('ubicaciones', 'ub-dj4'); await M._in.diario.vaciar();
   });
 
   async function preparar() {

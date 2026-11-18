@@ -13,8 +13,12 @@
 //   node tools/web.mjs dueno <pruebas|real> <correo>  marca ese usuario como Kevin (lo ve todo)
 //   node tools/web.mjs funciones <pruebas|real>       despliega servidor/funciones/firmar.ts (URL firmadas de lo que se puede ver)
 //   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
-//   node tools/web.mjs mesa <pruebas|real>            aplica servidor/mesa.sql (la Mesa en el servidor; después de `esquema`)
+//   node tools/web.mjs mesa <pruebas|real> [--si]     aplica servidor/mesa.sql (la Mesa en el servidor; después de `esquema`).
+//                                                     En el real, solo con --si. Nunca uno más viejo que el aplicado, ni si la
+//                                                     API expone el esquema mesa
 //   node tools/web.mjs mesa-version <pruebas|real> <x.yy>   la versión mínima de la Mesa que puede escribir (4.9 < 4.10)
+//   node tools/web.mjs mesa-epoca <pruebas|real> [--si]     época nueva, tras restaurar una copia de la base: las Mesas vuelven a
+//                                                     bajar todo desde 0 (en el real, solo con --si)
 //   node tools/web.mjs actividad <pruebas|real> [días]   la actividad de la Mesa en el servidor (7 días si no se dice; hasta 90)
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -59,16 +63,30 @@ export function proyecto(cual) {
   return { cual, ref, url: `https://${ref}.supabase.co`, publica, secreta };
 }
 
-export async function pedir(url, { method = 'GET', headers = {}, body } = {}) {
+// Lo que se tapa en una respuesta JSON, además de los valores de .env: el valor de cualquier campo con uno de estos nombres
+// (p. ej. el `jwt_secret` que devuelve la API de gestión, que .env no conoce).
+const SENSIBLE = /secret|pass|token|key|jwt/i;
+export function taparJson(v, dejar = []) {
+  if (Array.isArray(v)) return v.map(x => taparJson(x, dejar));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) =>
+    [k, SENSIBLE.test(k) && !dejar.includes(k) && x !== null && x !== '' ? '[clave]' : taparJson(x, dejar)]));
+  if (typeof v === 'string') return tapar(v);
+  if (typeof v === 'number' && tapar(String(v)) !== String(v)) return '[clave]';   // una clave solo de cifras, como número
+  return v;
+}
+
+// Una petición. Su JSON y su texto salen siempre tapados (revisiones de los lotes 1 y 2): cada texto pasa por tapar() y el valor
+// de un campo sensible por su nombre se sustituye, salvo los que pida quien llama con `dejar` (p. ej. el `access_token` de un
+// usuario inventado de las pruebas). Nunca se devuelve el JSON sin tapar.
+export async function pedir(url, { method = 'GET', headers = {}, body, dejar = [] } = {}) {
   let r;
   try {
     r = await fetch(url, { method, headers, body: body === undefined ? undefined : (typeof body === 'string' || body instanceof Uint8Array || body instanceof FormData ? body : JSON.stringify(body)) });
   } catch (e) { throw new Fallo('sin conexión: ' + tapar(e.message)); }
   const t = await r.text();
-  let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { /* no es JSON */ }
-  // El JSON también sale tapado: una orden futura que lo imprima no puede sacar una clave (revisión del lote 1).
-  let jt = j; try { jt = t ? JSON.parse(tapar(t)) : null; } catch (e) { jt = j; }
-  return { ok: r.ok, status: r.status, json: jt, text: tapar(t).slice(0, 400) };
+  let j, esJson = false; try { j = t ? JSON.parse(t) : null; esJson = !!t; } catch (e) { j = null; }
+  const jt = esJson ? taparJson(j, dejar) : null;
+  return { ok: r.ok, status: r.status, json: jt, text: (esJson ? JSON.stringify(jt) : tapar(t)).slice(0, 400) };
 }
 
 // Cabeceras de una clave: la nueva («sb_…») va solo en apikey; la antigua (JWT) también como Bearer.
@@ -101,6 +119,12 @@ export async function usuarioPorCorreo(P, correo) {
     if (us.length < 100) return null;
   }
   return null;
+}
+
+async function sqlDe(P, query) {
+  const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query } });
+  if (!r.ok || !Array.isArray(r.json)) throw new Fallo(`la consulta no entró (${r.status}): ${r.text}`);
+  return r.json;
 }
 
 const ORDENES = {
@@ -173,11 +197,24 @@ const ORDENES = {
   },
   // La Mesa en el servidor (traspaso C, lote 2). Antes de aplicar, que el límite por archivo del almacén `mesa` quepa en el
   // global del proyecto (el global no se cambia desde aquí).
-  async mesa(cual) {
+  async mesa(cual, ...op) {
     const P = proyecto(cual);
+    if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real solo con --si (y con el OK de Kevin)');
     const sql = readFileSync(join(AQUI, '..', 'servidor', 'mesa.sql'), 'utf8');
+    const ver = +((sql.match(/v_archivo constant integer := (\d+);/) || [])[1] || 0);
+    if (!ver) throw new Fallo('no encuentro la versión del esquema (v_archivo) en servidor/mesa.sql');
     const lim = +((sql.match(/\('mesa', 'mesa', false, (\d+),/) || [])[1] || 0);
     if (!lim) throw new Fallo('no encuentro el límite del almacén mesa en servidor/mesa.sql');
+    // La API no puede exponer el esquema mesa. Su configuración lleva secretos: solo se mira db_schema y no se imprime.
+    const pg = await gestion(`projects/${P.ref}/postgrest`);
+    const expuestos = pg.ok && pg.json && typeof pg.json.db_schema === 'string' ? pg.json.db_schema.split(',').map(x => x.trim()) : null;
+    if (!expuestos) throw new Fallo(`no se pudo leer qué esquemas expone la API (${pg.status})`);
+    if (expuestos.includes('mesa')) throw new Fallo('la API expone el esquema mesa: quítalo de «Exposed schemas» antes de aplicar');
+    // Nunca un mesa.sql más viejo que el aplicado (el propio archivo también se niega).
+    let aplicada = 0;
+    if ((await sqlDe(P, `select to_regclass('mesa.ajustes') is not null as hay`))[0].hay)
+      aplicada = +(await sqlDe(P, `select coalesce((to_jsonb(a) ->> 'esquema')::integer, 0) as v from mesa.ajustes a where a.id`))[0].v || 0;
+    if (aplicada > ver) throw new Fallo(`este mesa.sql (esquema ${ver}) es más viejo que el aplicado (${aplicada}): no se aplica`);
     const g = await gestion(`projects/${P.ref}/config/storage`);
     const global = g.ok && g.json && +g.json.fileSizeLimit;
     if (!global) throw new Fallo(`no se pudo leer el límite global de archivos del proyecto (${g.status})`);
@@ -185,7 +222,17 @@ const ORDENES = {
     if (lim > global) throw new Fallo(`el almacén mesa pide ${mb(lim)} por archivo y el proyecto permite ${mb(global)}: baja el de mesa.sql o sube el global en el panel`);
     const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query: sql } });
     if (!r.ok) throw new Fallo(`mesa.sql no entró (${r.status}): ${r.text}`);
-    return { proyecto: P.ref, mesa: 'aplicado', archivo_maximo: mb(lim), global: mb(global) };
+    return { proyecto: P.ref, mesa: 'aplicado', esquema: { antes: aplicada, ahora: ver }, archivo_maximo: mb(lim), global: mb(global) };
+  },
+  // Tras restaurar una copia de la base (Supabase), los cursores y las versiones que guarda cada Mesa ya no valen: una época
+  // nueva hace que bajen todo desde 0.
+  async 'mesa-epoca'(cual, ...op) {
+    const P = proyecto(cual);
+    if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real solo con --si (tras restaurar una copia)');
+    const f = (await sqlDe(P, `with a as (select epoca from mesa.ajustes where id)
+      update mesa.ajustes set epoca = gen_random_uuid() where id returning (select epoca from a) as antes, epoca as ahora`))[0];
+    if (!f) throw new Fallo('no hay mesa.ajustes: aplica antes mesa.sql');
+    return { proyecto: P.ref, epoca: { antes: f.antes, ahora: f.ahora } };
   },
   async 'mesa-version'(cual, v) {
     const P = proyecto(cual);
@@ -205,14 +252,21 @@ const ORDENES = {
     if (!/^[0-9]{1,2}$/.test(String(dias)) || +dias < 1 || +dias > 90) throw new Fallo('los días, de 1 a 90');
     const q = `select a.id, to_char(a.hora at time zone 'Europe/Madrid', 'YYYY-MM-DD HH24:MI:SS') as hora, a.tipo,
         case when a.usuario is null then ''
-             when exists (select 1 from public.duenos d where d.user_id = a.usuario) then 'Kevin'
-             else coalesce((select u.email from auth.users u where u.id = a.usuario), 'usuario ' || left(a.usuario::text, 8)) end as quien,
+             else coalesce((select u.email from auth.users u where u.id = a.usuario), 'usuario ' || left(a.usuario::text, 8))
+               || case when exists (select 1 from public.duenos d where d.user_id = a.usuario) then ' (dueño)' else '' end end as quien,
         coalesce(a.dispositivo, '') as dispositivo, a.detalle::text as detalle
       from mesa.actividad a where a.hora > now() - interval '${+dias} days' order by a.id desc limit 500`;
-    const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query: q } });
-    if (!r.ok || !Array.isArray(r.json)) throw new Fallo(`no se pudo leer la actividad (${r.status}): ${r.text}`);
-    return { proyecto: P.ref, dias: +dias, filas: r.json.length,
-      actividad: r.json.map(f => [f.hora, f.tipo, f.quien || '—', f.dispositivo, f.detalle].filter(Boolean).join(' · ')) };
+    const filas = await sqlDe(P, q);
+    // Quién puede usar la Mesa: más de un dueño, o un dueño que además es miembro de un cliente, se avisa.
+    const d = (await sqlDe(P, `select (select count(*) from public.duenos) as n,
+        (select string_agg(coalesce(u.email, d.user_id::text), ', ' order by u.email) from public.duenos d left join auth.users u on u.id = d.user_id) as quienes,
+        (select string_agg(distinct coalesce(u.email, d.user_id::text) || ' → ' || m.cliente_id, ', ') from public.duenos d
+           join public.miembros m on m.user_id = d.user_id left join auth.users u on u.id = d.user_id) as mixtos`))[0];
+    const avisos = [];
+    if (+d.n > 1) avisos.push(`hay ${d.n} dueños (pueden usar la Mesa): ${d.quienes}`);
+    if (d.mixtos) avisos.push(`un dueño es además miembro de un cliente: ${d.mixtos}`);
+    return { proyecto: P.ref, dias: +dias, filas: filas.length, ...(avisos.length ? { avisos } : {}),
+      actividad: filas.map(f => [f.hora, f.tipo, f.quien || '—', f.dispositivo, f.detalle].filter(Boolean).join(' · ')) };
   },
   async dueno(cual, correo) {
     const P = proyecto(cual);

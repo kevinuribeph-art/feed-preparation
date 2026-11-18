@@ -17184,6 +17184,14 @@
     igual(djFugas, [], 'escrituras fuera del diario en lo que va de batería');
   });
 
+  prueba('DJ3', 'La batería no deja basura en el diario (D-250): lo que escribe se apunta, «vaciar» lo deja vacío y la batería lo vacía (y lo comprueba) al terminar', async () => {
+    await tablero([pub(1)]); await M.flush();
+    ok((await djLeer()).length > 0, 'lo escrito no está en el diario');
+    await M._in.diario.vaciar();
+    igual(await djLeer(), [], 'vaciar no lo deja vacío');
+    ok(/diario/.test(String(pasar)), 'la batería no vacía el diario al terminar');
+  });
+
   async function preparar() {
     const fr = $('mesa');
     await new Promise(r => { fr.onload = r; fr.src = '../index.html?regresion=' + Date.now(); });
@@ -17612,6 +17620,10 @@
         if ((await M.clients()).some(c => c.id === CLIENTE2)) { const r2 = await M.removeClient(CLIENTE2); ok(r2 === true, 'no se pudo borrar el segundo cliente de prueba: ' + r2); }
         ok(!(await M._in.idbAll('bandejas')).some(x => DE_PRUEBA(x.client)), 'quedó la bandeja de un cliente de prueba');
         if (M.ubicaciones) ok(!(await M._in.idbAll('ubicaciones')).length, 'quedaron ubicaciones de prueba en el catálogo');
+        // the journal (D-250): no write escaped it, and the battery leaves nothing in it (lot 3 would upload it)
+        await espera(20);
+        ok(!djFugas.length, `escrituras fuera del diario: ${djFugas.length} (${djFugas.slice(0, 2).join(' | ')})`);
+        if (M._in.diario) { await M._in.diario.vaciar(); ok(!(await M._in.diario.leer()).length, 'el diario no quedó vacío'); }
       } catch (e) { res.limpieza = String((e && e.message) || e); }
     }
     if (listo && !res.fallan && !res.limpieza) {     // sin fallos, la mesa de prueba se cierra (suelta el bloqueo de otras pestañas)

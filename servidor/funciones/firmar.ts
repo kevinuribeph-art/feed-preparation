@@ -11,8 +11,10 @@ const SECRETA = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || nuevas('SUPABASE_SE
 const TTL: Record<string, number> = { fotos: 600, facturas: 60 };
 const RUTA = /^[a-z0-9-]+\/[a-z0-9._-]+$/;
 
+// Solo el portal (y una copia de pruebas en este Mac) la llama desde un navegador; sin cabecera, el navegador no deja leerla.
+const PERMITIDO = (o: string | null) => !!o && (o === 'https://clientes.uribevisuals.studio' || /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(o));
 const cors = (origen: string | null) => ({
-  'Access-Control-Allow-Origin': origen ?? '*',
+  ...(PERMITIDO(origen) ? { 'Access-Control-Allow-Origin': origen as string } : {}),
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Vary': 'Origin',
@@ -31,25 +33,35 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return responder({ error: 'método' }, 405, origen);
   const auth = req.headers.get('authorization') ?? '';
   if (!/^Bearer \S+$/.test(auth)) return responder({ error: 'sin sesión' }, 401, origen);
-  let pedido: { bucket?: string; rutas?: unknown };
+  let pedido: { bucket?: unknown; rutas?: unknown };
   try { pedido = await req.json(); } catch { return responder({ error: 'cuerpo' }, 400, origen); }
+  if (!pedido || typeof pedido !== 'object' || Array.isArray(pedido)) return responder({ error: 'cuerpo' }, 400, origen);
   const bucket = String(pedido.bucket ?? '');
-  const rutas = Array.isArray(pedido.rutas) ? pedido.rutas.filter((r): r is string => typeof r === 'string' && RUTA.test(r)).slice(0, 100) : [];
-  if (!TTL[bucket] || !rutas.length) return responder({ error: 'pedido' }, 400, origen);
+  if (!Object.hasOwn(TTL, bucket) || !Array.isArray(pedido.rutas)) return responder({ error: 'pedido' }, 400, origen);
+  if (pedido.rutas.length > 100) return responder({ error: 'como mucho 100 rutas por petición' }, 413, origen);
+  const rutas = pedido.rutas.filter((r): r is string => typeof r === 'string' && RUTA.test(r));
+  if (!rutas.length) return responder({ error: 'pedido' }, 400, origen);
 
-  // Lo que esta persona puede ver, preguntado con su sesión: los permisos por fila deciden.
-  const como = (ruta: string) => fetch(`${URL_P}/rest/v1/${ruta}`, { headers: cab(PUBLICA, auth) });
+  // Lo que esta persona puede ver, preguntado con su sesión: los permisos por fila deciden. Por páginas de 1000 filas.
+  const todas = async (ruta: string): Promise<Record<string, unknown>[] | number> => {
+    const out: Record<string, unknown>[] = [];
+    for (let desde = 0; ; desde += 1000) {
+      const r = await fetch(`${URL_P}/rest/v1/${ruta}&limit=1000&offset=${desde}`, { headers: cab(PUBLICA, auth) });
+      if (!r.ok) return r.status === 401 ? 401 : 403;
+      const l = await r.json(); out.push(...l); if (l.length < 1000) return out;
+    }
+  };
   const puede = new Set<string>();
   try {
     if (bucket === 'fotos') {
-      const [p, c] = await Promise.all([como('publicaciones?select=imagenes&visible=is.true'), como('clientes?select=foto')]);
-      if (!p.ok || !c.ok) return responder({ error: 'sin permiso' }, p.status === 401 || c.status === 401 ? 401 : 403, origen);
-      for (const fila of await p.json()) for (const im of fila.imagenes ?? []) { if (im?.ruta) puede.add(im.ruta); if (im?.mini) puede.add(im.mini); }
-      for (const fila of await c.json()) if (fila.foto) puede.add(fila.foto);
+      const [p, c] = await Promise.all([todas('publicaciones?select=imagenes&visible=is.true'), todas('clientes?select=foto')]);
+      if (typeof p === 'number' || typeof c === 'number') return responder({ error: 'sin permiso' }, p === 401 || c === 401 ? 401 : 403, origen);
+      for (const fila of p) for (const im of (fila.imagenes as { ruta?: string; mini?: string }[]) ?? []) { if (im?.ruta) puede.add(im.ruta); if (im?.mini) puede.add(im.mini); }
+      for (const fila of c) if (fila.foto) puede.add(String(fila.foto));
     } else {
-      const p = await como('pagos?select=pdf');
-      if (!p.ok) return responder({ error: 'sin permiso' }, p.status === 401 ? 401 : 403, origen);
-      for (const fila of await p.json()) if (fila.pdf) puede.add(fila.pdf);
+      const p = await todas('pagos?select=pdf');
+      if (typeof p === 'number') return responder({ error: 'sin permiso' }, p === 401 ? 401 : 403, origen);
+      for (const fila of p) if (fila.pdf) puede.add(String(fila.pdf));
     }
   } catch { return responder({ error: 'no se pudo comprobar' }, 502, origen); }
 

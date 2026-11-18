@@ -55,10 +55,10 @@ create table if not exists public.publicaciones (
   version    text not null check (version ~ '^[0-9a-f]{64}$'),
   visible    boolean not null default true,
   enviada    timestamptz not null default now(),
-  -- Hasta qué hora había leído Kevin las decisiones del cliente cuando envió (lo pone la Mesa; el cliente no lo ve).
-  vistas_hasta timestamptz,
   primary key (cliente_id, pid)
 );
+-- La marca de lo leído por Kevin vive en `lecturas` (un upsert con ella en la publicación no podía leer su propia columna).
+alter table public.publicaciones drop column if exists vistas_hasta;
 create index if not exists publicaciones_mes on public.publicaciones (cliente_id, mes);
 
 create table if not exists public.sesiones (
@@ -183,6 +183,8 @@ declare
   n integer;
 begin
   if yo is null then raise exception 'sin permiso' using errcode = '42501'; end if;
+  -- una escritura a la vez por persona: el tope cuenta también lo que entra en paralelo
+  perform pg_advisory_xact_lock(hashtextextended(yo::text, 0));
   new.id := gen_random_uuid();
   new.hora := now();
   new.autor := yo;
@@ -251,7 +253,8 @@ begin
      and old.estado in ('aprobada', 'cambios', 'por_aprobar')
      and exists (select 1 from public.aprobaciones a
                   where a.cliente_id = new.cliente_id and a.pid = new.pid and a.version = new.version
-                    and a.hora > coalesce(new.vistas_hasta, '-infinity'::timestamptz)) then
+                    and a.hora > coalesce((select l.visto_hasta from public.lecturas l
+                                            where l.user_id = auth.uid() and l.cliente_id = new.cliente_id), '-infinity'::timestamptz)) then
     new.estado := old.estado;
   end if;
   return new;
@@ -263,6 +266,9 @@ create or replace function public.comprobar_comentario() returns trigger
 begin
   if not (public.es_dueno() or public.es_miembro(new.cliente_id)) then raise exception 'sin permiso' using errcode = '42501'; end if;
   if not public.puede_ver(new.cliente_id, new.pid) then raise exception 'publicación no encontrada' using errcode = 'PT404'; end if;
+  if not exists (select 1 from public.publicaciones p where p.cliente_id = new.cliente_id and p.pid = new.pid and p.version = new.version) then
+    raise exception 'la publicación ha cambiado: vuelve a mirarla' using errcode = 'PT409';
+  end if;
   return new;
 end $$;
 
@@ -294,8 +300,25 @@ drop trigger if exists comentarios_1_comprobar on public.comentarios;
 drop trigger if exists comentarios_2_firmar on public.comentarios;
 create trigger comentarios_1_comprobar before insert on public.comentarios for each row execute function public.comprobar_comentario();
 create trigger comentarios_2_firmar before insert on public.comentarios for each row execute function public.firmar();
+-- Un cliente borrado, por cualquier vía, deja su id reservado; un id no se cambia (heredaría archivos y facturas de otro).
+create or replace function public.cliente_borrado() returns trigger
+  language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.clientes_borrados (id) values (old.id) on conflict (id) do nothing;
+  return null;
+end $$;
+create or replace function public.cliente_mismo_id() returns trigger
+  language plpgsql set search_path = '' as $$
+begin
+  if new.id <> old.id then raise exception 'el id de un cliente no se cambia' using errcode = 'PT409'; end if;
+  return new;
+end $$;
 drop trigger if exists clientes_nuevo on public.clientes;
 create trigger clientes_nuevo before insert on public.clientes for each row execute function public.cliente_nuevo();
+drop trigger if exists clientes_borrado on public.clientes;
+create trigger clientes_borrado after delete on public.clientes for each row execute function public.cliente_borrado();
+drop trigger if exists clientes_mismo_id on public.clientes;
+create trigger clientes_mismo_id before update on public.clientes for each row execute function public.cliente_mismo_id();
 
 -- ───────────────────────── Permisos por fila ─────────────────────────
 
@@ -319,7 +342,9 @@ revoke all on public.duenos, public.clientes, public.clientes_borrados, public.m
 grant all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
   public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas to service_role;
 grant select on public.duenos, public.miembros to authenticated;
-grant select, insert, update, delete on public.clientes, public.sesiones, public.meses, public.pagos to authenticated;
+-- Kevin no borra clientes desde la página: se borran con `tools/web.mjs borrar-cliente` (antes sus archivos).
+grant select, insert, update on public.clientes to authenticated;
+grant select, insert, update, delete on public.sesiones, public.meses, public.pagos to authenticated;
 -- Publicaciones: Kevin escribe todo; nadie lee `vistas_hasta` (es solo una marca de sus envíos).
 grant insert, update, delete on public.publicaciones to authenticated;
 grant select (cliente_id, pid, mes, orden, tipo, nombre, fecha, sin_hora, caption, imagenes, estado, version, visible, enviada)

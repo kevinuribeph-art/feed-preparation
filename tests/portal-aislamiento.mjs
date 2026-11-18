@@ -57,9 +57,8 @@ async function subir(bucket, ruta, bytes, tipo) {
 }
 const firmarFn = (tk, bucket, rutas) => pedir(`${P.url}/functions/v1/firmar`, { method: 'POST', headers: { ...cab(P.publica, tk || undefined), 'Content-Type': 'application/json' }, body: { bucket, rutas } });
 async function limpiar() {
-  await servicio(`clientes?id=in.(${A.id},${B.id})`, { method: 'DELETE' });
-  await servicio(`clientes?id=eq.${BORRADO}`, { method: 'DELETE' });
-  await servicio(`clientes_borrados?id=eq.${BORRADO}`, { method: 'DELETE' });
+  await servicio(`clientes?id=in.(${A.id},${B.id},${BORRADO})`, { method: 'DELETE' });
+  await servicio(`clientes_borrados?id=in.(${A.id},${B.id},${BORRADO})`, { method: 'DELETE' });   // la reserva de los inventados
   for (const [b, rutas] of [['fotos', [FA, FAH, FB]], ['facturas', [PDFB]]])
     await pedir(`${P.url}/storage/v1/object/${b}`, { method: 'DELETE', headers: { ...cab(S), 'Content-Type': 'application/json' }, body: { prefixes: rutas } });
   for (const c of Object.values(CORREO)) {
@@ -103,7 +102,7 @@ async function main() {
   ok(r.ok && r.json.length === 3 && r.json.every(x => x.cliente_id === A.id), 'Ana ve solo sus 3 publicaciones visibles', r.text);
   r = await a(`publicaciones?select=${C_PUB}&cliente_id=eq.${B.id}`); ok(r.ok && r.json.length === 0, 'pidiendo las de Sur por id, nada', r.text);
   r = await a(`publicaciones?select=${C_PUB}&pid=eq.${PAH}`); ok(r.ok && r.json.length === 0, 'una oculta no se ve', r.text);
-  r = await a('publicaciones?select=vistas_hasta'); ok(es(r, 401, 403), 'la marca de envío de Kevin no se lee', r.text);
+  r = await a('publicaciones?select=vistas_hasta'); ok(es(r, 400, 401, 403), 'la marca de lo leído de Kevin no está en la publicación', r.text);
   r = await a('comentarios?select=autor'); ok(es(r, 401, 403), 'el uuid del autor no se lee', r.text);
   for (const t of ['clientes', 'pagos', 'meses', 'sesiones']) {
     r = await a(`${t}?select=*`); ok(r.ok && r.json.every(x => (x.cliente_id || x.id) === A.id), `${t}: solo de su cliente`, r.text);
@@ -186,8 +185,18 @@ async function main() {
   r = await apr({ cliente_id: B.id, pid: PB1, version: VB1, decision: 'aprobada' }, kk); ok(es(r, 403), 'Kevin no aprueba en nombre del cliente', r.text);
   r = await k(`publicaciones?cliente_id=eq.${A.id}&pid=eq.${PA1}`, { method: 'DELETE' }); ok(!r.ok, 'borrar una publicación con decisiones no se lleva su historial', r.text);
   await servicio('clientes', { method: 'POST', body: { id: BORRADO, nombre: 'Cliente Prueba Borrado' } });
-  await servicio('clientes_borrados', { method: 'POST', body: { id: BORRADO } }); await servicio(`clientes?id=eq.${BORRADO}`, { method: 'DELETE' });
-  r = await servicio('clientes', { method: 'POST', body: { id: BORRADO, nombre: 'Otro con el mismo id' } }); ok(es(r, 409), 'un id de cliente borrado no se vuelve a usar', r.text);
+  r = await k(`clientes?id=eq.${BORRADO}`, { method: 'DELETE' }); ok(!r.ok, 'Kevin no borra un cliente desde la página (se borra con tools/web.mjs)', r.text);
+  r = await k(`clientes?id=eq.${BORRADO}`, { method: 'PATCH', body: { id: 'prueba-otro-id' } }); ok(es(r, 409), 'el id de un cliente no se cambia', r.text);
+  await servicio(`clientes?id=eq.${BORRADO}`, { method: 'DELETE' });
+  r = await servicio('clientes', { method: 'POST', body: { id: BORRADO, nombre: 'Otro con el mismo id' } }); ok(es(r, 409), 'un id de cliente borrado (por cualquier vía) no se vuelve a usar', r.text);
+  r = await a('comentarios', { method: 'POST', body: { cliente_id: A.id, pid: PA3, version: sha('nunca'), texto: 'versión inventada' } }); ok(es(r, 409), 'un comentario sobre una versión que no es la vigente: 409', r.text);
+  r = await firmarFn(ka, '__proto__', [FA]); ok(es(r, 400), 'la función no acepta un bucket raro', r.text);
+  r = await firmarFn(ka, 'fotos', Array.from({ length: 101 }, () => FA)); ok(es(r, 413), 'ni más de 100 rutas', r.text);
+  r = await pedir(`${P.url}/functions/v1/firmar`, { method: 'POST', headers: { ...cab(P.publica, ka), 'Content-Type': 'application/json' }, body: 'null' }); ok(es(r, 400), 'ni un cuerpo vacío', r.text);
+  const prev = await fetch(`${P.url}/functions/v1/firmar`, { method: 'OPTIONS', headers: { Origin: 'https://malo.example', 'Access-Control-Request-Method': 'POST' } });
+  ok(!prev.headers.get('access-control-allow-origin'), 'la función no abre CORS a otro origen', prev.headers.get('access-control-allow-origin'));
+  const prev2 = await fetch(`${P.url}/functions/v1/firmar`, { method: 'OPTIONS', headers: { Origin: 'https://clientes.uribevisuals.studio', 'Access-Control-Request-Method': 'POST' } });
+  ok(prev2.headers.get('access-control-allow-origin') === 'https://clientes.uribevisuals.studio', 'y sí al portal', prev2.headers.get('access-control-allow-origin'));
 
   console.log('Rastros de otro cliente en lo que recibe Ana');
   const todo = vistoComoA.join('\n');

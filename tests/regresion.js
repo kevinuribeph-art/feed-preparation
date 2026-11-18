@@ -168,7 +168,7 @@
       ok(dialogos === 0, 'en la app Claude se abrió el diálogo de guardar');
       ok(r && r.ok && r.via === 'descarga' && cap, 'en la app Claude no hizo una descarga normal: ' + json(r));
       ok(/^mesa-de-trabajo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/.test(cap.name), 'nombre de archivo: ' + cap.name);
-      const blob = await (await W.fetch(cap.href)).blob();
+      const blob = await (await fetch(cap.href)).blob();
       ok(blob.size > 1000, `archivo vacío o casi (${blob.size} bytes)`);
       const d = JSON.parse(await blob.text());
       ok(d.format === 'mesa-feed' && d.boards.some(b => b.key === `${CLIENTE}-${MES}`), 'el archivo no trae el tablero de prueba');
@@ -655,7 +655,7 @@
     await abrirEditor('r1'); accion('sl-add'); compDe(ed().i).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
     const f0 = W.fetch; W.fetch = async () => { throw new TypeError('sin red (prueba)'); };   // ninguna subida sale de aquí
     try {
-      const it = (fileId, slotId) => ({ fileId, slotId, url: 'http://127.0.0.1:9/subir', auth: 'prueba' });
+      const it = (fileId, slotId) => ({ fileId, slotId, url: location.origin + '/tests/no-hay-subida', auth: 'prueba' });   // a URL the Mesa's CSP allows that answers 404 (D-252)
       const r1 = slot('r1').photos;
       ok(q('.detail:not([hidden])[data-slot="r1"]'), 'tras «Aplicar» no quedó abierta la publicación');   // con algo abierto, no se lo cierra: una nota
       M.startUpload(r1.map(f => it(f, 'r1')));
@@ -3316,7 +3316,7 @@
       await pulsar('[data-act="xfer"]'); await pulsar('[data-act="xfer-export"]');
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
-      const d = JSON.parse(await (await (await W.fetch(cap.href)).blob()).text());
+      const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
       const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`), s1 = b && b.slots.find(x => x.id === 'r1');
       ok(s1 && s1.photos.length === 3 && Object.values(s1.libre.slides).some(c => c.els.some(e => e.t === 'hueco')), 'el archivo no lleva la publicación con su hueco tal cual');
       const txt = dl.textContent;
@@ -5287,7 +5287,7 @@
     const A = W.HTMLAnchorElement.prototype, click = A.click; let cap = null;
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try { await fn(() => cap); } finally { A.click = click; }
-    return cap ? { name: cap.name, blob: await (await W.fetch(cap.href)).blob() } : null;
+    return cap ? { name: cap.name, blob: await (await fetch(cap.href)).blob() } : null;
   }
   async function descargarYa(opts = {}) {
     const d = await hasta(() => ventanaDl(), 3000, 'la ventana de descarga');
@@ -17637,6 +17637,71 @@
     }
   });
 
+  // ---------- la CSP de la Mesa (D-252) ----------
+  prueba('CS1', 'La CSP de la Mesa (D-252): un <meta> lo primero del <head>, script-src \'self\' sin \'unsafe-inline\' ni \'unsafe-eval\'; ni un <script> en línea ni un manejador on…= en index.html; tema, arranque y vigilante en archivos, sin async y en su orden; un módulo que no llega sigue siendo «fallo»', async () => {
+    const html = await (await W.fetch('index.html?cs=' + Date.now(), { cache: 'no-store' })).text(), sin = html.replace(/<!--[\s\S]*?-->/g, '');
+    const head = sin.slice(sin.indexOf('<head>') + 6, sin.indexOf('</head>')).trim();
+    ok(/^<meta http-equiv="Content-Security-Policy" content="[^"]+">/.test(head), 'la CSP no es lo primero del <head>: ' + head.slice(0, 80));
+    const csp = (/http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(sin) || [])[1] || '';
+    const d = Object.fromEntries(csp.split(';').map(x => x.trim().split(/\s+/)).filter(x => x[0]).map(([k, ...v]) => [k, v]));
+    igual(d['script-src'], ["'self'"], 'script-src');
+    ok(!/unsafe-eval|unsafe-hashes|strict-dynamic|'nonce-|'sha256-/.test(csp), 'la CSP abre algo más para los scripts: ' + csp);
+    igual(d['default-src'], ["'none'"], 'default-src');
+    for (const k of ['object-src', 'base-uri', 'form-action']) igual(d[k], ["'none'"], k);
+    igual(d['style-src'], ["'self'", "'unsafe-inline'"], 'style-src (los style= de las plantillas: límite conocido)');
+    igual(d['font-src'], ["'self'"], 'font-src');
+    ok(['\'self\'', 'https://*.supabase.co'].every(x => (d['connect-src'] || []).includes(x)), 'connect-src sin la Mesa o sin el servidor: ' + d['connect-src']);
+    ok(['\'self\'', 'blob:', 'data:', 'https://*.supabase.co'].every(x => (d['img-src'] || []).includes(x)), 'img-src: ' + d['img-src']);
+    ok(!(d['connect-src'] || []).concat(d['img-src'] || []).some(x => x === '*' || x === 'https:' || x === 'http:'), 'la CSP deja ir a cualquier sitio');
+    ok(!/<script(?![^>]*\ssrc=)[^>]*>/i.test(sin), 'index.html tiene un <script> en línea');
+    ok(!/<[a-z][^>]*\son[a-z]+\s*=/i.test(sin), 'index.html tiene un manejador on…=');
+    const srcs = [...sin.matchAll(/<script([^>]*)\ssrc="([^"?]+)/g)].map(m => ({ s: m[2], async: /\sasync\b/.test(m[1]) }));
+    const i = n => srcs.findIndex(x => x.s === n);
+    ok(i('tema.js') >= 0 && i('tema.js') < i('mesa.js') && i('mesa.js') < i('arranque.js') && i('arranque.js') < i('vigia.js') && i('vigia.js') < i('kits/motor.js'), 'el orden de tema, mesa, arranque y vigilante: ' + srcs.map(x => x.s).join(', '));
+    ok(['tema.js', 'mesa.js', 'arranque.js', 'vigia.js'].every(n => srcs[i(n)] && !srcs[i(n)].async), 'tema, mesa, arranque o vigilante con async');
+    ok(/tema\.js/.test(head), 'tema.js fuera del <head> (el oscuro sin destello)');
+    ok(D.querySelector('meta[http-equiv="Content-Security-Policy"]'), 'la Mesa de la batería sin su CSP');
+    // un módulo que no llega: su <script> da error y el vigilante lo marca «fallo» (antes, su onerror=)
+    const C = W.MESA_CARGA, antes = C.revisar, s = D.createElement('script');
+    s.src = 'tests/no-existe/revisar.js?cs=' + Date.now();
+    try {
+      D.head.append(s);
+      await hasta(() => C.revisar === 'fallo', 4000, 'que un módulo que no llega quede en «fallo»');
+    } finally { s.remove(); C.revisar = antes; }
+  });
+
+  prueba('CS2', 'Nada escrito por un cliente ejecuta código en la Mesa (D-252): un <img src=x onerror=…> en un caption, una Nota, el nombre de un cliente y un comentario del cliente bajado del servidor no corre; y uno que se colara en el HTML lo para la CSP y lo dice', async () => {
+    await tablero([pub(1), pub(2)]);
+    W.__csxss = 0;
+    const X = n => `<img src=x onerror="window.__csxss=${n}">`, nombre0 = (await M.clients()).find(c => c.id === CLIENTE).name;
+    try {
+      M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'uno ' + X(1) }, { tone: 'b', text: 'dos' }, { tone: 'c', text: 'tres' }] }]);
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 }, memo: 'nota ' + X(2) });
+      await M.updateClient(CLIENTE, { name: 'Ana ' + X(3) }); await M._in.loadClients(); M._in.render();
+      M._in.openDetail('r1'); await espera(150); M._in.closeDetail();
+      if (M.personal) { await M.personal.abrir(); await espera(150); M.personal.cerrar(); }
+      await conWeb(async sv => {
+        wbSesion();
+        const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+        const p1 = sv.db.publicaciones.find(x => x.caption && x.caption.startsWith('uno'));
+        sv.db.comentarios.push({ id: 'cs1', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: 'hola ' + X(4), autor_nombre: 'Ana ' + X(5), de_kevin: false, hora: new Date(Date.now() + 1000).toISOString(), resuelto: null });
+        await M.web.leer(); M._in.openDetail('r1'); await espera(200); M._in.closeDetail();
+      });
+      await espera(200);
+      igual(W.__csxss, 0, 'un texto escrito por un cliente ejecutó código');
+      // si algún día un texto se colara en el HTML sin escapar, la CSP no deja correr su manejador, y lo dice
+      W.MESA_CSP = [];
+      const caja = D.createElement('div'); caja.innerHTML = X(9); D.body.append(caja);
+      await hasta(() => (W.MESA_CSP || []).length, 3000, 'el aviso de la CSP').catch(() => null);
+      await espera(100); caja.remove();
+      igual(W.__csxss, 0, 'un manejador en línea colado en el HTML corrió: la CSP no lo paró');
+      ok((W.MESA_CSP || []).some(v => /^script-src/.test(v.d)), 'la CSP no dijo lo que bloqueó: ' + json(W.MESA_CSP));
+    } finally {
+      W.MESA_CSP = [];
+      await M.updateClient(CLIENTE, { name: nombre0 }); await M._in.loadClients(); M._in.render();
+    }
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -17657,9 +17722,11 @@
         $('resumen').textContent = `Pasando ${t.id}…`;
         let err = null, reloj;
         try { W.sessionStorage.removeItem('mesa-pp-tareas'); } catch (e) { /* */ }   // Tareas folded as each test starts (D-225)
+        try { W.MESA_CSP = []; } catch (e) { /* */ }   // lo que la CSP bloquea durante la prueba (D-252): ninguna puede chocar con ella
         try { await Promise.race([t.fn(), new Promise((_, no) => { reloj = setTimeout(() => no(new Error(`sin terminar en ${MAX_MS / 1000} s`)), MAX_MS); })]); }
         catch (e) { err = e; }
         finally { clearTimeout(reloj); }
+        try { const v = W.MESA_CSP || []; if (!err && v.length) err = new Error('la CSP de la Mesa bloqueó: ' + JSON.stringify(v.slice(0, 3))); } catch (e) { /* */ }
         try { if (M.libre.abierto()) M.libre.cerrar(); M._in.closeDetail(); } catch (e) { /* */ }
         const ms = Math.round(performance.now() - t0);
         tr.className = err ? 'mal' : 'ok'; tr.querySelector('.r').textContent = err ? 'falla' : 'pasa';

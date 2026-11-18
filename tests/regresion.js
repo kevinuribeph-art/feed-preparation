@@ -16825,6 +16825,7 @@
     await tablero([pub(1), pub(2)]);
     await hasta(() => M.web, 8000, 'web.js');
     M._in.renderBar(); ok(!q('[data-web]'), 'sin proyecto salió algo en la barra');
+    ok(!M.web._sb(), 'en una copia de este Mac sin proyecto de pruebas se usó el real');
     await conWeb(async () => {
       M._in.renderBar();
       const b = q('[data-web="entrar"]'); ok(b && b.textContent === 'Web del cliente', 'sin sesión no salió «Web del cliente»');

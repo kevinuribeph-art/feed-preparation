@@ -17,11 +17,11 @@
 
   // ---------- El proyecto ----------
   // El real se rellena al crearlo (lote 5: su URL y su clave «publishable», públicas por diseño). En una copia de pruebas
-  // servida en este Mac (127.0.0.1) manda la que diga `localStorage['mesa-web-proyecto']`; en cualquier otro sitio, nunca.
-  const REAL = { url: '', publica: '' };
+  // servida en este Mac (127.0.0.1) manda la que diga `localStorage['mesa-web-proyecto']` y nunca el real; fuera de este Mac, siempre el real.
+  const REAL = { url: 'https://ipqeywhhuncpnqkvfxpn.supabase.co', publica: 'sb_publishable_Gqu_MN2jOnjKLp9aYkTjyg_hqWBqZ2E' };
   const LOCAL = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
   function proyecto() {
-    if (LOCAL) { try { const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'); if (p && p.url && p.publica) return p; } catch (e) { /* sin almacenamiento */ } }
+    if (LOCAL) { try { const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'); if (p && p.url && p.publica) return p; } catch (e) { /* sin almacenamiento */ } return null; }
     return REAL.url && REAL.publica ? REAL : null;
   }
   let SB = null;

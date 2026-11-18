@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.1';
+  const V = '1.2';
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -102,6 +102,11 @@
   }
 
   // ---------- entrada ----------
+  // tu logo (tinta en claro, papel en oscuro), el contenido centrado y «Privacidad · Aviso legal» abajo del todo (D-248)
+  const logo = () => h('div', { class: 'ent-m' }, h('picture', {}, h('source', { srcset: 'marca/logo-paper.svg', media: '(prefers-color-scheme: dark)' }),
+    h('img', { src: 'marca/logo-ink.svg', alt: 'Uribe Visuals', width: '163', height: '64' })));
+  const legal = () => h('footer', { class: 'legal' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }));
+  const entrada = c => h('div', { class: 'ent' }, c, legal());
   function pintarEntrada(paso, correo, error, tecleado) {
     st.d = null; st.urls.clear(); cerrar(true);
     document.querySelectorAll('.dlg,.velo,.toast').forEach(x => x.remove());
@@ -114,26 +119,25 @@
         const b = form.querySelector('button'); b.disabled = true;
         try { await S.pedirCodigo(v); st.codigoEn = Date.now(); lsSet('portal-correo', v); pintarEntrada('codigo', v); } catch (x) { pintarEntrada('correo', v, msgError(x)); }
       } },
-        h('div', { class: 'ent-m', text: 'Uribe Visuals' }), h('h1', { text: 'Tu calendario de Instagram' }),
+        logo(), h('h1', { text: 'Tu calendario de Instagram' }),
         h('p', { text: 'Escribe el correo con el que trabajamos y te mandamos un código para entrar.' }),
-        h('label', { for: 'e-correo', text: 'Correo' }), inp, err, h('button', { class: 'btn p', type: 'submit', text: 'Enviarme el código' }),
-        h('p', { class: 'legal' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' })));
-      app.replaceChildren(h('div', { class: 'ent' }, form)); inp.focus();
+        h('label', { for: 'e-correo', text: 'Correo' }), inp, err, h('button', { class: 'btn p', type: 'submit', text: 'Enviarme el código' }));
+      app.replaceChildren(entrada(form)); inp.focus();
       return;
     }
     const cod = h('input', { id: 'e-cod', class: 'cod' + (error ? ' mal' : ''), inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8', required: true, 'aria-describedby': error ? 'ent-err' : null, value: tecleado || '' });
     let quedan = Math.max(0, 60 - Math.floor((Date.now() - st.codigoEn) / 1000));
-    const reenviar = h('button', { class: 'lnk', type: 'button', disabled: quedan > 0, text: quedan > 0 ? `Reenviar en 0:${String(quedan).padStart(2, '0')}` : 'Reenviar código', onclick: async () => { try { await S.pedirCodigo(correo); st.codigoEn = Date.now(); pintarEntrada('codigo', correo); } catch (x) { pintarEntrada('codigo', correo, msgError(x)); } } });
-    const t = setInterval(() => { if (!reenviar.isConnected) return clearInterval(t); quedan = Math.max(0, 60 - Math.floor((Date.now() - st.codigoEn) / 1000)); if (quedan <= 0) { clearInterval(t); reenviar.disabled = false; reenviar.textContent = 'Reenviar código'; } else reenviar.textContent = `Reenviar en 0:${String(quedan).padStart(2, '0')}`; }, 1000);
+    const reenviar = h('button', { class: 'lnk', type: 'button', disabled: quedan > 0, text: quedan > 0 ? `Reenviar en ${Math.floor(quedan / 60)}:${String(quedan % 60).padStart(2, '0')}` : 'Reenviar código', onclick: async () => { try { await S.pedirCodigo(correo); st.codigoEn = Date.now(); pintarEntrada('codigo', correo); } catch (x) { pintarEntrada('codigo', correo, msgError(x)); } } });
+    const t = setInterval(() => { if (!reenviar.isConnected) return clearInterval(t); quedan = Math.max(0, 60 - Math.floor((Date.now() - st.codigoEn) / 1000)); if (quedan <= 0) { clearInterval(t); reenviar.disabled = false; reenviar.textContent = 'Reenviar código'; } else reenviar.textContent = `Reenviar en ${Math.floor(quedan / 60)}:${String(quedan % 60).padStart(2, '0')}`; }, 1000);
     const form = h('form', { class: 'ent-c', novalidate: true, onsubmit: async e => {
       e.preventDefault(); const b = form.querySelector('button[type=submit]'); b.disabled = true;
       try { await S.verificarCodigo(correo, cod.value); await arrancar(); } catch (x) { pintarEntrada('codigo', correo, msgError(x), cod.value); }
     } },
-      h('div', { class: 'ent-m', text: 'Uribe Visuals' }), h('h1', { text: 'Mira tu correo' }),
+      logo(), h('h1', { text: 'Mira tu correo' }),
       h('p', { text: `Si ${correo} está dado de alta, te llega un código de 6 cifras. Vale 10 minutos.` }),
       h('label', { for: 'e-cod', text: 'Código' }), cod, err, h('button', { class: 'btn p', type: 'submit', text: 'Entrar' }),
       h('div', { class: 'otros' }, reenviar, h('button', { class: 'lnk', type: 'button', text: 'Usar otro correo', onclick: () => pintarEntrada('correo', correo) })));
-    app.replaceChildren(h('div', { class: 'ent' }, form)); cod.focus();
+    app.replaceChildren(entrada(form)); cod.focus();
   }
 
   // ---------- su vista ----------
@@ -167,7 +171,7 @@
     }
   }
   function pintarSinCliente() {
-    app.replaceChildren(h('div', { class: 'ent' }, h('div', { class: 'ent-c' }, h('div', { class: 'ent-m', text: 'Uribe Visuals' }), h('h1', { text: 'Aún no hay nada que enseñarte' }),
+    app.replaceChildren(entrada(h('div', { class: 'ent-c' }, logo(), h('h1', { text: 'Aún no hay nada que enseñarte' }),
       h('p', { text: 'Tu acceso todavía no tiene ningún calendario. Escríbele a Kevin.' }), h('button', { class: 'btn s', type: 'button', text: 'Salir', onclick: salir }))));
   }
   function pintarError(t) {
@@ -202,12 +206,6 @@
   }
 
   function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
-  function marca(p) {
-    if (p.estado === 'por_aprobar') return h('span', { class: 'mk', title: 'Por aprobar' }, h('i'), h('span', { class: 'sr', text: 'Por aprobar' }));
-    if (['aprobada', 'programada', 'publicada'].includes(p.estado)) return h('span', { class: 'mk ok' }, ico('check'), h('span', { class: 'sr', text: ESTADO[p.estado][0] }));
-    if (p.estado === 'cambios') return h('span', { class: 'mk cb' }, ico('pen'), h('span', { class: 'sr', text: 'Pediste cambios' }));
-    return null;
-  }
   function pintarFeed() {
     const ahora = delMes(st.mes), antes = delMes(mesAntes(st.mes)).filter(p => p.estado === 'publicada' || p.estado === 'programada');
     const celda = (p, rotulo) => {
@@ -215,17 +213,13 @@
       return h('button', { type: 'button', class: 'cel' + (im ? '' : ' vacia'), 'data-pid': p.pid, 'aria-label': `${TIPO[p.tipo] || 'Publicación'} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}`, onclick: () => abrir(p.pid) },
         im ? h('img', { alt: '', 'data-ruta': im.mini, loading: 'lazy', decoding: 'async' }) : h('span', { class: 'pre', text: p.estado === 'preparando' ? 'En preparación' : 'Sin imagen aún' }),
         p.tipo === 'carrusel' ? h('span', { class: 'ty' }, ico('copy')) : /reel/.test(p.tipo) ? h('span', { class: 'ty' }, ico('clap')) : null,
-        rotulo ? h('span', { class: 'pub' }, h('span', { class: 'l', text: rotulo[0] }), h('span', { class: 'c', text: rotulo[1] })) : null, marca(p),
+        rotulo ? h('span', { class: 'pub' }, h('span', { class: 'l', text: rotulo[0] }), h('span', { class: 'c', text: rotulo[1] })) : null,
         n ? h('span', { class: 'nc' }, ico('msg'), String(n), h('span', { class: 'sr', text: n === 1 ? ' comentario' : ' comentarios' })) : null);
     };
     const mA = MESES[+mesAntes(st.mes).slice(5, 7) - 1];
     const celdas = [...ahora.map(p => celda(p)), ...antes.map((p, i) => celda(p, i === 0 ? [may(mA.slice(0, 3)) + '. · publicado', may(mA.slice(0, 3)) + '.'] : null))];
     return h('section', { class: 'feedw', 'aria-label': 'Tu feed' },
-      celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }),
-      celdas.length ? h('ul', { class: 'leyenda', 'aria-label': 'Qué significa cada marca' },
-        h('li', {}, h('span', { class: 'mk', 'aria-hidden': 'true' }, h('i')), 'Por aprobar'),
-        h('li', {}, h('span', { class: 'mk ok', 'aria-hidden': 'true' }, ico('check')), 'Aprobada'),
-        h('li', {}, h('span', { class: 'mk cb', 'aria-hidden': 'true' }, ico('pen')), 'Pediste cambios')) : null);
+      celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }));
   }
   async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
     const i = e.currentTarget, r = i.dataset.ruta || i.dataset.grande; if (!r || i.dataset.otra) return;

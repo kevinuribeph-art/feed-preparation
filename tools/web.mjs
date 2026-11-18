@@ -13,6 +13,8 @@
 //   node tools/web.mjs dueno <pruebas|real> <correo>  marca ese usuario como Kevin (lo ve todo)
 //   node tools/web.mjs funciones <pruebas|real>       despliega servidor/funciones/firmar.ts (URL firmadas de lo que se puede ver)
 //   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
+//   node tools/web.mjs mesa <pruebas|real>            aplica servidor/mesa.sql (la Mesa en el servidor; después de `esquema`)
+//   node tools/web.mjs mesa-version <pruebas|real> <x.yy>   la versión mínima de la Mesa que puede escribir (4.9 < 4.10)
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -167,6 +169,33 @@ const ORDENES = {
     const r = await rest(P, `clientes?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', apikey: P.secreta });
     if (!r.ok) throw new Fallo(`no se pudo borrar el cliente (${r.status}): ${r.text}`);
     return { proyecto: P.ref, cliente: id, archivos_borrados: n, id_reservado: true };
+  },
+  // La Mesa en el servidor (traspaso C, lote 2). Antes de aplicar, que el límite por archivo del almacén `mesa` quepa en el
+  // global del proyecto (el global no se cambia desde aquí).
+  async mesa(cual) {
+    const P = proyecto(cual);
+    const sql = readFileSync(join(AQUI, '..', 'servidor', 'mesa.sql'), 'utf8');
+    const lim = +((sql.match(/\('mesa', 'mesa', false, (\d+),/) || [])[1] || 0);
+    if (!lim) throw new Fallo('no encuentro el límite del almacén mesa en servidor/mesa.sql');
+    const g = await gestion(`projects/${P.ref}/config/storage`);
+    const global = g.ok && g.json && +g.json.fileSizeLimit;
+    if (!global) throw new Fallo(`no se pudo leer el límite global de archivos del proyecto (${g.status})`);
+    const mb = n => Math.round(n / 1048576) + ' MB';
+    if (lim > global) throw new Fallo(`el almacén mesa pide ${mb(lim)} por archivo y el proyecto permite ${mb(global)}: baja el de mesa.sql o sube el global en el panel`);
+    const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query: sql } });
+    if (!r.ok) throw new Fallo(`mesa.sql no entró (${r.status}): ${r.text}`);
+    return { proyecto: P.ref, mesa: 'aplicado', archivo_maximo: mb(lim), global: mb(global) };
+  },
+  async 'mesa-version'(cual, v) {
+    const P = proyecto(cual);
+    if (!/^[0-9]{1,4}\.[0-9]{1,4}$/.test(v || '')) throw new Fallo('la versión mínima, como «4.31»');
+    const q = `with a as (select version_minima from mesa.ajustes where id)
+      update mesa.ajustes set version_minima = '${v}', cambiada = now() where id
+      returning (select version_minima from a) as antes, version_minima as ahora`;
+    const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query: q } });
+    const f = r.ok && Array.isArray(r.json) && r.json[0];
+    if (!f) throw new Fallo(`no se pudo poner (${r.status}): ${r.text}`);
+    return { proyecto: P.ref, version_minima: { antes: f.antes, ahora: f.ahora } };
   },
   async dueno(cual, correo) {
     const P = proyecto(cual);

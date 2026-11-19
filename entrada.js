@@ -1,4 +1,4 @@
-// entrada.js · 1.0 · la entrada de la Mesa (D-262): correo y contraseña en cada ventana o pestaña nueva, el código de la app
+// entrada.js · 1.1 · la entrada de la Mesa (D-262): correo y contraseña en cada ventana o pestaña nueva, el código de la app
 // (TOTP, Contraseñas de Apple) la primera vez en cada ordenador y a los 30 días, el alta (contraseña y QR), «¿Olvidaste tu
 // contraseña?» y la pantalla de carga mientras baja la Mesa. Sin proyecto (las copias de 127.0.0.1, la batería) no hace nada.
 // La sesión del servidor se guarda en este navegador cifrada con la contraseña (PBKDF2 SHA-256 de 1.000.000 vueltas y
@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var G = typeof window !== 'undefined' ? window : globalThis;
-  var V = '1.0', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
+  var V = '1.1', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
 
   // ================= el núcleo (sin DOM): cifrado, la sesión guardada y qué pedir =================
   var enc = new TextEncoder(), dec = new TextDecoder();
@@ -420,6 +420,16 @@
   async function migrar() {
     var c = X.supa && X.supa(); var u = c && c.usuario();
     if (!u) { E.modo = 'nuevo'; return entrarNuevo({}); }
+    // 1.1: si la cuenta ya tiene su código (el alta se hizo en otro navegador) o la sesión de antes ya no vale (al poner la
+    // contraseña, Supabase cierra las demás sesiones), no hay nada que configurar: entrar con la contraseña y el código.
+    var fs = null;
+    try { fs = await c.factores(); }
+    catch (e) { if (red(e)) return 'ahora-no'; fs = null; }   // sin red: como hasta hoy, con lo de aquí
+    if (!fs || fs.some(function (f) { return f.verificado; })) {
+      E.modo = 'nuevo';
+      lsS('mesa-web-' + REF, null);   // la de antes, en claro: fuera (ya no sirve o ya hay entrada nueva)
+      return entrarNuevo({ correo: u.email, aviso: fs ? 'Tu cuenta ya tiene su código' : 'Tu sesión se cerró: entra otra vez' });
+    }
     var r = await nuevaContrasena(c, { titulo: 'Configura tu entrada', dato: 'Paso 1 de 2 · solo esta vez', correo: u.email, ahoraNo: true, nota: 'Desde ahora entrarás con esta contraseña y el código de tu app (Contraseñas). Mientras no lo hagas, tu Mesa abre como hasta hoy.' });
     if (r.accion === 'ahora-no') return 'ahora-no';
     if (r.accion === 'reautenticar') return porCorreo(u.email, 'primera');   // con una sesión fresca del correo, lo mismo

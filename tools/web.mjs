@@ -257,6 +257,7 @@ const ORDENES = {
     let u = await usuarioPorCorreo(P, correo);
     if (op.includes('quitar')) {
       if (!u) throw new Fallo('ese correo no tiene usuario en el proyecto');
+      if (!/^[0-9a-f-]{36}$/.test(u.id)) throw new Fallo('id de usuario raro: paro');
       const r = await servicio(`miembros?user_id=eq.${u.id}&observa=is.true`, { method: 'DELETE', prefer: 'return=representation' });
       if (!r.ok) throw new Fallo(`no se pudo quitar (${r.status}): ${r.text}`);
       return { proyecto: P.ref, cuenta: correo, quitados: (r.json || []).length, siguiente: 'ya no mira ningún cliente; la cuenta sigue (bórrala en Supabase si no se usa)' };

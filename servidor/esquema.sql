@@ -5,6 +5,8 @@
 -- Reglas (plan.md, lecciones 81, 86, 88, 89, 118, 136, y la revisión del lote 1):
 --   · El cliente solo ve filas de los clientes de los que es miembro, y de una publicación solo si es visible; Kevin
 --     (tabla `duenos`) lo ve todo.
+--   · Kevin además necesita, con el interruptor `exigir_codigo` encendido, un código de su app de los últimos 30 días en la
+--     sesión (`aal2`, D-262). Los clientes no: siguen entrando con su código por correo.
 --   · El cliente solo escribe aprobaciones y comentarios, en su nombre, con la hora del servidor y con tope por minuto.
 --   · Aprobaciones y comentarios solo se añaden; nadie los borra, salvo al borrar un cliente entero.
 --   · Los archivos no se abren desde fuera: los firma la función `firmar` (servidor/funciones/firmar.ts) con caducidad fija
@@ -153,10 +155,62 @@ create table if not exists public.lecturas (
 -- ───────────────────────── Quién es quién ─────────────────────────
 -- security definer: leen `duenos` y `miembros` sin que sus propias políticas entren en bucle.
 
-create or replace function public.es_dueno() returns boolean
+-- La entrada de Kevin (D-262): además de ser la cuenta dueña, un código de su app (TOTP, `aal2`) de hace menos de 30 días
+-- en la sesión, si el interruptor `exigir_codigo` está encendido. El interruptor solo lo cambia `tools/web.mjs codigo` (con la
+-- clave secreta): nadie con sesión lo lee ni lo escribe. Al aplicar este archivo se crea apagado y nunca se toca después.
+create table if not exists public.ajustes_entrada (
+  id            boolean primary key default true check (id),
+  exigir_codigo boolean not null default false,
+  cambiado      timestamptz not null default now()
+);
+insert into public.ajustes_entrada (id) values (true) on conflict (id) do nothing;
+
+-- La cuenta dueña (lo que hasta D-262 era `es_dueno()`): sin mirar el código.
+create or replace function public.dueno_cuenta() returns boolean
   language sql stable security definer set search_path = '' as $$
   select exists (select 1 from public.duenos d where d.user_id = (select auth.uid()));
 $$;
+
+-- La hora del último código de la app en la sesión (null si no hay): el `amr` del token, que pone Supabase y renovar no
+-- cambia; un código nuevo en la misma sesión la pone al día. Cuenta la hora del servidor, nunca la del aparato.
+create or replace function public.hora_codigo() returns timestamptz
+  language sql stable set search_path = '' as $$
+  select case when coalesce((select auth.jwt()) ->> 'aal', '') = 'aal2'
+               and jsonb_typeof((select auth.jwt()) -> 'amr') = 'array' then
+    (select to_timestamp(max((e ->> 'timestamp')::bigint))
+       from jsonb_array_elements((select auth.jwt()) -> 'amr') e
+      where jsonb_typeof(e) = 'object' and e ->> 'method' = 'totp' and (e ->> 'timestamp') ~ '^[0-9]{1,12}$')
+  end;
+$$;
+
+create or replace function public.codigo_reciente() returns boolean
+  language sql stable set search_path = '' as $$
+  select coalesce(public.hora_codigo() > now() - interval '30 days', false);
+$$;
+
+-- Kevin: la cuenta dueña y, con el interruptor encendido, un código de los últimos 30 días. Lo piden las políticas del
+-- portal, las del almacén `mesa`, las `mesa_*` (después de `dueno_cuenta()`, para decir «falta el código») y `zernio`.
+create or replace function public.es_dueno() returns boolean
+  language sql stable security definer set search_path = '' as $$
+  select public.dueno_cuenta()
+     and (not coalesce((select a.exigir_codigo from public.ajustes_entrada a where a.id), false) or public.codigo_reciente());
+$$;
+
+-- Quién eres para la Mesa (D-262): si eres la cuenta dueña y, solo entonces, si el código vale, hasta cuándo y si se exige.
+-- La entrada y `zernio` lo usan para decir «falta el código» en vez de «sin permiso».
+create or replace function public.mesa_yo() returns jsonb
+  language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_hora timestamptz;
+begin
+  if not public.dueno_cuenta() then return jsonb_build_object('ok', true, 'dueno', false); end if;
+  v_hora := public.hora_codigo();
+  return jsonb_build_object('ok', true, 'dueno', true, 'valido', public.es_dueno(),
+    'exige', coalesce((select a.exigir_codigo from public.ajustes_entrada a where a.id), false),
+    'codigo', v_hora is not null and v_hora > now() - interval '30 days',
+    'codigo_hasta', case when v_hora is not null then v_hora + interval '30 days' end,
+    'ahora', now());
+end $$;
 
 create or replace function public.es_miembro(c text) returns boolean
   language sql stable security definer set search_path = '' as $$
@@ -333,14 +387,15 @@ alter table public.pagos             enable row level security;
 alter table public.aprobaciones      enable row level security;
 alter table public.comentarios       enable row level security;
 alter table public.lecturas          enable row level security;
+alter table public.ajustes_entrada   enable row level security;   -- sin políticas: nadie con sesión lo ve (D-262)
 
 -- Nada para quien no ha entrado; lo que puede intentar quien ha entrado (las políticas deciden sobre qué filas).
 revoke all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
-  public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas from anon, authenticated;
+  public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada from anon, authenticated;
 -- La clave secreta (solo en .env de Kevin) lo puede todo: altas, bajas y las pruebas. Explícito porque el proyecto se crea
 -- sin «Automatically expose new tables».
 grant all on public.duenos, public.clientes, public.clientes_borrados, public.miembros, public.publicaciones, public.sesiones,
-  public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas to service_role;
+  public.meses, public.pagos, public.aprobaciones, public.comentarios, public.lecturas, public.ajustes_entrada to service_role;
 grant select on public.duenos, public.miembros to authenticated;
 -- Kevin no borra clientes desde la página: se borran con `tools/web.mjs borrar-cliente` (antes sus archivos).
 grant select, insert, update on public.clientes to authenticated;
@@ -358,6 +413,8 @@ grant update (resuelto) on public.comentarios to authenticated;
 grant select, insert, update on public.lecturas to authenticated;
 revoke execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text) from public, anon;
 grant execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text) to authenticated;
+revoke execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() from public, anon;
+grant execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() to authenticated;
 
 drop policy if exists duenos_ver on public.duenos;
 create policy duenos_ver on public.duenos for select to authenticated using (user_id = (select auth.uid()));

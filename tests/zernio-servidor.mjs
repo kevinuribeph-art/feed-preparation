@@ -20,6 +20,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { proyecto, rest, cab, pedir, gestion, tapar, clave, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
+import { conCodigo } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
 
 if (process.argv.slice(2).some(a => a !== 'pruebas')) { console.error('esta prueba solo corre contra el proyecto de pruebas'); process.exit(1); }
 const P = proyecto('pruebas');
@@ -230,7 +231,7 @@ async function main() {
     const s = await servicio(t, { method: 'POST', body: filas, prefer: 'resolution=merge-duplicates' });
     if (!s.ok) throw new Fallo(`no se pudo sembrar ${t}: ${s.status} ${s.text}`);
   }
-  const kk = await entrar(CORREO.k), ka = await entrar(CORREO.a), kn = await entrar(CORREO.n);
+  const kk = (await conCodigo(P, await entrar(CORREO.k))).access_token, ka = await entrar(CORREO.a), kn = await entrar(CORREO.n);
   const K = (c, o) => llamar(kk, c, o);
   // La función recién desplegada puede tardar en leer los secretos nuevos: se espera a que Kevin pida una URL.
   for (let i = 0; i < 30; i++) { r = await K({ orden: 'presign' }); if (bien(r)) break; await espera(2000); }

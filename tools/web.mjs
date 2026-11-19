@@ -9,7 +9,14 @@
 // Órdenes:
 //   node tools/web.mjs estado <pruebas|real>          comprueba que las claves llegan (sin enseñarlas)
 //   node tools/web.mjs esquema <pruebas|real>         aplica servidor/esquema.sql
-//   node tools/web.mjs entrada <pruebas|real>         solo por invitación, código de 6 cifras que vale 10 min
+//   node tools/web.mjs entrada <pruebas|real>         solo por invitación, código de 6 cifras que vale 10 min; contraseñas de
+//                                                     20 como mínimo y el código de app (TOTP) activado (D-262)
+//   node tools/web.mjs codigo <pruebas|real> [si|no] [--si]   el interruptor que pide a Kevin el código de su app de los últimos
+//                                                     30 días (D-262); sin si/no, enseña cómo está. En el real, cambiarlo solo con --si
+//   node tools/web.mjs rescate <pruebas|real> <correo> [--si]   perdidos el iPhone y el Mac (o la contraseña y la app): quita los
+//                                                     factores de esa cuenta, cierra todas sus sesiones y le pone una contraseña al
+//                                                     azar que nadie ve; vuelve a entrar con un código por correo y hace el alta.
+//                                                     En el real, solo con --si
 //   node tools/web.mjs dueno <pruebas|real> <correo>  marca ese usuario como Kevin (lo ve todo)
 //   node tools/web.mjs funciones <pruebas|real>       despliega servidor/funciones/firmar.ts (URL firmadas de lo que se puede ver)
 //   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
@@ -168,8 +175,10 @@ const ORDENES = {
     const P = proyecto(cual);
     const plantilla = '<p>Tu código para entrar en tu calendario de Uribe Visuals:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p><p>Vale 10 minutos. Si no lo has pedido tú, ignora este correo.</p>';
     // Una contraseña puesta por un cliente sería una puerta más débil que el código: larga y con nueva verificación por correo.
+    // 20 (D-262): las que genera Contraseñas de Apple. El código de app (TOTP) de la entrada de Kevin, activado de forma explícita.
     const base = { disable_signup: true, external_email_enabled: true, mailer_otp_exp: 600, mailer_otp_length: 6,
-      password_min_length: 24, security_update_password_require_reauthentication: true };
+      password_min_length: 20, security_update_password_require_reauthentication: true,
+      mfa_totp_enroll_enabled: true, mfa_totp_verify_enabled: true };
     // El proyecto real: su dirección, y el correo de los códigos desde el buzón de Hostinger del dominio.
     if (cual === 'real') {
       Object.assign(base, { site_url: 'https://clientes.uribevisuals.studio', uri_allow_list: 'https://clientes.uribevisuals.studio/**' });
@@ -183,7 +192,50 @@ const ORDENES = {
       body: { mailer_subjects_magic_link: 'Tu código para entrar', mailer_templates_magic_link_content: plantilla } });
     const correo = t.ok ? 'plantilla con el código puesta'
       : (t.json && t.json.error && t.json.error.code === 'entitlement_required') ? 'plantilla pendiente: necesita el SMTP propio' : `plantilla no entró (${t.status})`;
-    return { proyecto: P.ref, entrada: 'solo por invitación, código de 6 cifras, 10 minutos', correo };
+    // Comprobado después, de la propia configuración (el PATCH puede contestar bien y no guardar un campo).
+    const v = await fetch(`https://api.supabase.com/v1/projects/${P.ref}/config/auth`, { headers: { Authorization: 'Bearer ' + tokenDe(P.ref) } })
+      .then(r => r.ok ? r.json() : null).catch(() => null);
+    const app = v && v.mfa_totp_enroll_enabled === true && v.mfa_totp_verify_enabled === true ? 'activado' : 'SIN ACTIVAR: míralo';
+    const minimo = v ? v.password_min_length : '?';
+    return { proyecto: P.ref, entrada: 'solo por invitación, código de 6 cifras, 10 minutos', correo, codigo_app: app, contrasena_minima: minimo };
+  },
+  // El interruptor del código de la app (D-262). Apagado al aplicar el esquema; se enciende cuando Kevin ya tiene contraseña y
+  // código (si no, se quedaría fuera). Apagarlo es la vuelta atrás: al momento, sin tocar datos.
+  async codigo(cual, ...op) {
+    const P = proyecto(cual), que = op.find(x => x === 'si' || x === 'no');
+    if (op.some(x => x !== 'si' && x !== 'no' && x !== '--si')) throw new Fallo('di «si», «no» o nada (para ver cómo está)');
+    if (que && cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real, cambiarlo solo con --si (y con el OK de Kevin)');
+    const sql = que
+      ? `update public.ajustes_entrada set exigir_codigo = ${que === 'si'}, cambiado = now() where id returning exigir_codigo, cambiado;`
+      : 'select exigir_codigo, cambiado from public.ajustes_entrada where id;';
+    const f = await sqlDe(P, sql);
+    if (!f.length) throw new Fallo('falta public.ajustes_entrada: aplica antes servidor/esquema.sql');
+    return { proyecto: P.ref, exigir_codigo: f[0].exigir_codigo ? 'sí: Kevin necesita el código de su app de los últimos 30 días' : 'no', cambiado: f[0].cambiado };
+  },
+  // Rescate (D-262): sin factores, sin sesiones abiertas y con una contraseña al azar que nadie ve. Esa cuenta vuelve a entrar
+  // con un código por correo y hace el alta (contraseña nueva y QR). Mientras, su correo basta para entrar: hacerlo enseguida.
+  async rescate(cual, correo, ...op) {
+    const P = proyecto(cual);
+    if (!correo || !/^[^@\s]+@[^@\s]+$/.test(correo)) throw new Fallo('falta el correo de la cuenta');
+    if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real, solo con --si (y con el OK de Kevin)');
+    if (!P.secreta) throw new Fallo('falta la clave secreta de ese proyecto en .env');
+    const u = await usuarioPorCorreo(P, correo);
+    if (!u) throw new Fallo('ese correo no tiene usuario en el proyecto');
+    if (!/^[0-9a-f-]{36}$/.test(u.id)) throw new Fallo('id de usuario raro: paro');
+    const adm = (r, o = {}) => pedir(`${P.url}/auth/v1/admin/${r}`, { method: o.method || 'GET', headers: { ...cab(P.secreta), 'Content-Type': 'application/json' }, body: o.body });
+    const factores = ((await adm(`users/${u.id}`)).json || {}).factors || [];
+    for (const f of factores) {
+      const r = await adm(`users/${u.id}/factors/${f.id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Fallo(`no se pudo quitar un factor (${r.status}): ${r.text}`);
+    }
+    const r = await adm(`users/${u.id}`, { method: 'PUT', body: { password: randomBytes(32).toString('base64url') } });   // nunca se imprime
+    if (!r.ok) throw new Fallo(`no se pudo cambiar la contraseña (${r.status}): ${r.text}`);
+    await sqlDe(P, `delete from auth.sessions where user_id = '${u.id}';`);
+    const [q] = await sqlDe(P, `select (select count(*) from auth.sessions where user_id = '${u.id}')::int as sesiones,
+      (select count(*) from auth.mfa_factors where user_id = '${u.id}')::int as factores,
+      exists (select 1 from public.duenos where user_id = '${u.id}') as dueno;`);
+    return { proyecto: P.ref, cuenta: correo, dueno: q.dueno ? 'sí' : 'no', factores_quitados: factores.length, factores_quedan: q.factores,
+      sesiones_abiertas: q.sesiones, contrasena: 'una al azar que nadie ve', siguiente: 'entrar con un código por correo y hacer el alta' };
   },
   async funciones(cual) {
     const P = proyecto(cual);

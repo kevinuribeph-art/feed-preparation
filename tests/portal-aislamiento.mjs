@@ -8,6 +8,7 @@
 // clientes, usuarios y archivos (también la fila de dueño de su Kevin inventado).
 import { createHash, randomBytes } from 'node:crypto';
 import { proyecto, rest, cab, pedir, gestion, tapar, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
+import { conCodigo } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
 
 const P = proyecto(process.argv[2] === 'real' ? 'real' : 'pruebas');
 if (!P.publica || !P.secreta) { console.error(`faltan las claves pública y secreta del proyecto ${P.cual} en .env`); process.exit(1); }
@@ -100,7 +101,7 @@ async function main() {
     if (!r.ok) throw new Fallo(`no se pudo sembrar ${t}: ${r.status} ${r.text}`);
   }
   for (const [b, ruta, bytes, tipo] of [['fotos', FA, JPG, 'image/jpeg'], ['fotos', FAH, JPG, 'image/jpeg'], ['fotos', FB, JPG, 'image/jpeg'], ['facturas', PDFB, PDF, 'application/pdf']]) await subir(b, ruta, bytes, tipo);
-  const kb = await entrar(CORREO.b), ka = await entrar(CORREO.a), kk = await entrar(CORREO.k);
+  const kb = await entrar(CORREO.b), ka = await entrar(CORREO.a), kk = (await conCodigo(P, await entrar(CORREO.k))).access_token;   // con el código de su app (D-262)
   const sem = async (tk, body) => { const r = await rest(P, 'comentarios', { method: 'POST', token: tk, body }); if (!r.ok) throw new Fallo('no se pudo sembrar un comentario: ' + r.text); };
   await sem(kb, { cliente_id: B.id, pid: PB1, version: VB1, texto: 'Comentario de Prueba Sur' });
   await sem(ka, { cliente_id: A.id, pid: PAH, version: VAH, texto: 'Comentario en la oculta' });

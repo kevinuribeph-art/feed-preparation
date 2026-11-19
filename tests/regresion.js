@@ -17384,7 +17384,7 @@
   // Un servidor de mentira en memoria: lo que la Mesa envía queda en `db` y `archivos`; `fallar` simula la red caída.
   function wbServidor(f0) {
     const db = { clientes: [], publicaciones: [], sesiones: [], meses: [], pagos: [], aprobaciones: [], comentarios: [], lecturas: [] }, archivos = new Map(), pedidos = [];
-    const sv = { db, archivos, pedidos, fallar: false };
+    const sv = { db, archivos, pedidos, fallar: false, f0 };   // f0: the frame's own fetch (another frame, D-267: its own)
     const resp = (st, j) => new W.Response(j === undefined || st === 204 ? null : JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
     const CLAVE = { clientes: ['id'], publicaciones: ['cliente_id', 'pid'], sesiones: ['cliente_id', 'id'], meses: ['cliente_id', 'mes'], pagos: ['cliente_id', 'id'], aprobaciones: ['id'], comentarios: ['id'], lecturas: ['cliente_id'] };
     const lista = v => v.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, ''));
@@ -17396,7 +17396,7 @@
       return true;
     });
     sv.fetch = async (url, op = {}) => {
-      const u = new URL(String(url), location.href); if (u.origin !== WB_URL) return f0(url, op);
+      const u = new URL(String(url), location.href); if (u.origin !== WB_URL) return sv.f0(url, op);
       if (sv.fallar) throw new TypeError('sin red (prueba)');
       if (sv.lento) await new Promise(r => setTimeout(r, sv.lento));
       const met = (op.method || 'GET').toUpperCase(), ruta = u.pathname;
@@ -17421,11 +17421,12 @@
   }
   async function conWeb(fn) {
     await hasta(() => M.web && M.web.listo, 8000, 'web.js'); await M.web.listo();
-    const f0 = W.fetch, sv = wbServidor(f0.bind(W)); W.fetch = sv.fetch;
+    const W0 = W, f0 = W.fetch, sv = wbServidor(f0.bind(W)); W.fetch = sv.fetch;
+    sv.enMarco = () => { const n = W.fetch; sv.f0 = n.bind(W); sv.nativo = n; W.fetch = sv.fetch; };   // the same server in the frame loaded since (D-267)
     W.localStorage.setItem('mesa-web-proyecto', JSON.stringify({ url: WB_URL, publica: 'sb_publishable_prueba' }));
     try { return await fn(sv); }
     finally {
-      const c = M.web._sb(); if (c) c._sesion(null); W.fetch = f0; W.localStorage.removeItem('mesa-web-proyecto');
+      const c = M.web._sb(); if (c) c._sesion(null); W.fetch = W === W0 ? f0 : sv.nativo || W.fetch; W.localStorage.removeItem('mesa-web-proyecto');
       Object.keys(W.localStorage).filter(k => /^mesa-web-(huella|leido):/.test(k)).forEach(k => W.localStorage.removeItem(k));   // cada prueba, como una Mesa que nunca envió
       M._in.renderBar();
     }
@@ -18628,6 +18629,48 @@
         M._in.NUBE.pausa = false; await M._test.claim();
       });
     } finally { await sinTareas(); }
+  });
+
+  prueba('MV10', 'El móvil lee lo que dijo el cliente y le contesta (D-267, D-244, R2): ve su decisión y sus comentarios y contesta en su web sin coger la Mesa; nunca aplica la decisión (estadoWeb) ni escribe la marca de leído del Mac (lecturas); después el Mac la aplica como siempre', async () => {
+    const key = await tableroMovil();
+    M._test.setSlot('r2', { caption: { ...slot('r2').caption, pick: 0 } });
+    await M.flush();
+    await conWeb(async sv => {
+      wbSesion();
+      const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+      const p2 = sv.db.publicaciones.find(x => x.caption === 'uno 2'); ok(p2, 'no está r2 en el servidor');
+      const ahora = Date.now();
+      sv.db.aprobaciones.push({ id: 'mv10-a', cliente_id: CLIENTE, pid: p2.pid, version: p2.version, decision: 'cambios', motivo: 'Otra foto, por favor', diapositiva: null, autor_nombre: 'Ana', hora: new Date(ahora + 1000).toISOString() });
+      sv.db.comentarios.push({ id: 'mv10-c', cliente_id: CLIENTE, pid: p2.pid, version: p2.version, diapositiva: 2, texto: 'La segunda no me convence', autor_nombre: 'Ana', de_kevin: false, hora: new Date(ahora + 2000).toISOString(), resuelto: null });
+      await enMovil(async () => {
+        sv.enMarco(); wbSesion();
+        const v = await M._in.movil.mirar(key), est0 = v.posts.find(p => p.id === 'r2').estado.k;
+        let ew = 0; const ew0 = M._in.estadoWeb; M._in.estadoWeb = (...a) => { ew++; return ew0(...a); };
+        igual(await M.web.leer(), null, 'leerConversacion corre en el móvil');   // la del Mac aplica decisiones y escribe «leído»: nunca aquí
+        M.web._sb()._sesion({ access_token: 'tok2', refresh_token: 'ref2', expires_in: 3600, user: { id: 'u-kevin', email: 'kevin@prueba.test' } });   // una sesión que se renueva no arranca nada
+        await espera(500);
+        const n0 = sv.pedidos.length, antes = await leerTodo();
+        const c = await M.web.conversacion(M._in.S), x = c && c.porSlot.r2;
+        ok(x && x.decision && x.decision.tipo === 'cambios' && x.decision.motivo === 'Otra foto, por favor', 'no se ve la decisión: ' + json(x));
+        igual(x.items.map(i => [i.de, i.texto, i.diapositiva]), [['cliente', 'Otra foto, por favor', null], ['cliente', 'La segunda no me convence', 2]], 'lo que dijo');
+        ok(x.puedeEscribir && x.sinLeer === 1, 'escribir o sin leer: ' + json(x));
+        await M._in.pausaNube('');                                       // el Mac tiene la Mesa: contestar no la necesita
+        igual(await M.web.contestar(M._in.S, 'r2', 'Vale, la cambio'), { ok: true }, 'no contestó');
+        ok(sv.db.comentarios.some(k => k.texto === 'Vale, la cambio' && k.pid === p2.pid && k.version === p2.version), 'la respuesta no llegó');
+        await M.web.leerRespuestas();
+        igual(M.web.contestado(CLIENTE, 'r2'), 'ha comentado', 'leerRespuestas no corre en el móvil con la Mesa del Mac');
+        M.web.leido(x.pid, x.ultima);
+        igual((await M.web.conversacion(M._in.S)).porSlot.r2.sinLeer, 0, 'la marca de leído de este aparato');
+        igual(ew, 0, 'el móvil aplicó una decisión del cliente');
+        ok(!sv.pedidos.slice(n0).some(p => /\/lecturas/.test(p.ruta) && p.met !== 'GET'), 'el móvil escribió la marca de leído del Mac');
+        ok((await leerTodo()) === antes, 'leer y contestar cambió la Mesa');
+        igual(M._in.movil.vista().posts.find(p => p.id === 'r2').estado.k, est0, 'el estado cambió en el móvil');
+        M._in.NUBE.pausa = false; await M._test.claim(); W.fetch = sv.nativo;
+      });
+      sv.enMarco(); wbSesion();
+      await M.web.leer();
+      igual(M._in.estadoDe(slot('r2')), 'noaprobado', 'el Mac no aplicó la decisión después');
+    });
   });
 
   async function pasar() {

@@ -9,6 +9,7 @@
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
+  const MOVIL = document.documentElement.hasAttribute('data-movil');   // the iPhone (D-267): it reads and replies, nothing else
   const on = (t, ty, f, o) => { t.addEventListener(ty, f, o); OFF.push(() => t.removeEventListener(ty, f, o)); };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m, o) => I().toast(m, o);
@@ -23,7 +24,7 @@
     const c = I() && I().supa ? I().supa() : null;
     if (c !== SB) {
       SB = c;
-      if (SB) SB.alCambiar(() => { if (SB !== c) return; st.dueno = null; st.servidor = null; st.cambios = null; conv.clear(); RESP.clear(); HECHAS.clear(); if (I() && I().render) I().render(); pedirRepaso(); });
+      if (SB) SB.alCambiar(() => { if (SB !== c) return; st.dueno = null; st.servidor = null; st.cambios = null; conv.clear(); RESP.clear(); HECHAS.clear(); if (MOVIL) return; if (I() && I().render) I().render(); pedirRepaso(); });   // on the iPhone a session that changes only empties what was read
     }
     return SB;
   }
@@ -158,7 +159,7 @@
   const huellaExtra = P => sha(JSON.stringify([P.cliente, P.sesiones, P.meses, P.mesesQuitar, P.pagos]));
   async function repaso(todo) {
     const X = I(), B = X && X.S, c = sb();
-    if (!B || !c || !c.usuario() || st.enviando || X.locked) return;
+    if (MOVIL || !B || !c || !c.usuario() || st.enviando || X.locked) return;
     if (st.clave !== B.key) { st.clave = B.key; st.servidor = null; st.cambios = null; st.firma = ''; st.extra = null; leerConversacion().catch(() => null); }
     try {
       if (st.dueno == null) { await esDueno(c); X.renderBar(); }
@@ -367,7 +368,7 @@
     return [...new Set(out)];
   }
   async function leerConversacion(avisar = true) {
-    const X = I(), B = X && X.S, c = sb(); if (!B || !c || !c.usuario() || X.locked) return null;
+    const X = I(), B = X && X.S, c = sb(); if (MOVIL || !B || !c || !c.usuario() || X.locked) return null;   // it applies decisions and writes the Mac's «leído»: never on the iPhone (R2)
     if (!(await esDueno(c))) return null;
     const sigue = () => X.S === B && !X.locked;
     const pubs = await filas(B); if (!sigue()) return null;   // otro tablero mientras se calculaba: nada se aplica a otro
@@ -522,7 +523,7 @@
     if (n && M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();
   }
   async function leerRespuestas() {
-    const X = I(), c = sb(); if (!X || !c || !c.usuario() || X.locked) return;
+    const X = I(), c = sb(); if (!X || !c || !c.usuario() || (X.locked && !MOVIL)) return;   // the iPhone reads while the Mac has the Mesa (it only reads, D-267)
     if (!(await esDueno(c))) return;
     const desde = new Date(Date.now() - 60 * 864e5).toISOString();
     const [aprs, coms, lec] = await Promise.all([c.leer(`aprobaciones?select=cliente_id,pid,version,decision,hora&hora=gt.${desde}&order=hora.asc`),
@@ -548,6 +549,42 @@
     if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render();
   }
   const contestado = (cli, id) => RESP.get(cli + '|' + id) || '';
+  // ---------- the iPhone (D-267): read and reply, nothing else ----------
+  // A board's decisions and comments as they are on the server, for the phone: never estadoWeb (the Mac applies them, D-244)
+  // nor `lecturas` (the Mac's «leído»: with it the Mac would skip decisions). The phone's own «leído», in its localStorage.
+  async function conversacion(B) {
+    const c = sb(); if (!B || !c || !c.usuario()) return null;
+    if (!(await esDueno(c))) return null;
+    const pubs = await filas(B), cli = encodeURIComponent(B.client), porSlot = {};
+    if (!pubs.length) return { porSlot };
+    const en = `&pid=in.(${pubs.map(p => p.pid).join(',')})`;
+    const [aprs, coms, serv] = await Promise.all([c.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${cli}${en}&order=hora.desc&limit=1000`),
+      c.leer(`comentarios?select=${C_COM}&cliente_id=eq.${cli}${en}&order=hora.desc&limit=1000`), leerServidor(B.client, B)]);
+    const A = (aprs || []).slice().reverse(), C = (coms || []).slice().reverse();
+    for (const p of pubs) {
+      const a = A.filter(x => x.pid === p.pid), cs = C.filter(x => x.pid === p.pid), ult = a[a.length - 1], sv = serv && serv.get(p.pid), leido = lsG('mesa-web-leido:' + p.pid);
+      const items = [...cs.map(x => ({ t: x.hora, x })), ...a.filter(z => z.decision === 'cambios').map(z => ({ t: z.hora, a: z }))].sort((u, v) => u.t.localeCompare(v.t))
+        .map(({ x, a: z }) => { const r = x || z; return { id: r.id, de: x && x.de_kevin ? 'tu' : 'cliente', autor: x && x.de_kevin ? 'Tú' : r.autor_nombre || '', hora: r.hora, texto: x ? x.texto : z.motivo || '', diapositiva: r.diapositiva || null, vieja: r.version !== p.version, resuelto: !!(x && x.resuelto), pidioCambios: !x }; });
+      porSlot[p.s.id] = { pid: p.pid, version: p.version, decision: ult ? { tipo: ult.decision, autor: ult.autor_nombre || '', hora: ult.hora, motivo: ult.motivo || '', vieja: ult.version !== p.version } : null,
+        items, sinLeer: cs.filter(x => !x.de_kevin && !x.resuelto && x.hora > leido).length, ultima: cs.reduce((m, x) => (x.hora > m ? x.hora : m), ''), puedeEscribir: !!sv };
+    }
+    return { porSlot };
+  }
+  async function contestar(B, slotId, texto) {   // to the client's web, with Kevin's session; the Mesa isn't taken (D-267)
+    const c = sb(), t = String(texto || '').trim();
+    if (!t) return { error: 'Escribe algo para el cliente.' };
+    if (t.length > 2000) return { error: 'Como mucho 2.000 caracteres.' };
+    if (!B || !c || !c.usuario()) return { error: 'Sin sesión: entra otra vez.' };
+    if (!(await esDueno(c))) return { error: 'Esta cuenta no es la de la Mesa.' };
+    if (!B.slots.some(x => x.id === slotId)) return { error: 'Esa publicación ya no está.' };
+    try {
+      const pid = await pidDe(B.client, slotId), sv = ((await leerServidor(B.client, B)) || new Map()).get(pid);
+      if (!sv) return { error: 'Envía esta publicación a la web desde el Mac para poder escribir aquí.' };
+      await c.insertar('comentarios', [{ cliente_id: B.client, pid, version: sv.version, texto: t }]);
+      return { ok: true };
+    } catch (e) { return { error: 'No se pudo enviar: ' + ((e && e.message) || e) }; }
+  }
+  const leido = (pid, hora) => { if (pid && hora && hora > lsG('mesa-web-leido:' + pid)) lsS('mesa-web-leido:' + pid, hora); };
   let listoP = null;
   const listo = () => listoP || (listoP = new Promise((res, rej) => {
     const t0 = Date.now(), t = setInterval(() => {
@@ -557,7 +594,7 @@
   }));
   let tic = 0, tic2 = 0;
   M.web = {
-    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas,
+    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas, conversacion, contestar, leido,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
     entrar: () => entrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },

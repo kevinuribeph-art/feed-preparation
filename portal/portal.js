@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.2';
+  const V = '1.3';   // 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -186,6 +186,7 @@
   function pintar() {
     const cli = st.clientes.find(c => c.id === st.cli), meses = mesesDisponibles();
     const top = h('header', { class: 'pv-top' },
+      h('img', { class: 'pv-marca', src: 'marca/monograma.svg', alt: 'Uribe Visuals', width: '24', height: '24' }),   // la marca, sin pulsar (D-264)
       h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, st.clientes.map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
         onclick: async () => { if (c.id === st.cli) return; st.cli = c.id; lsSet('portal-cliente', c.id); const n = ++st.carga; cerrar(true); const d = await cargarDatos(c.id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; }); if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); } } }))),
       h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' })),

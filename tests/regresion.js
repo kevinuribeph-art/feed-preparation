@@ -15554,7 +15554,7 @@
     } finally { await vistaCliente(false); try { M.personal._p.cerrarCard(true); } catch (e) { /* */ } await M.updateClient(CLIENTE, { handle: '' }); await M.updateClient(CLIENTE2, { handle: '' }); await sinTareas(); }
   });
 
-  prueba('AV7', 'Sin lo que no se usa (D-228): en «Vista cliente», sin «Feed / Historias» en un mes sin historias que vea (y de «Historias» vuelve a «Feed»), sin el logo (su sitio se queda), sin «Total de <mes>», sin «Editar» en la previsualización, sin ‹ › sin otro mes; en la hoja, sin apartados vacíos («Aún sin detalles» si no queda ninguno), sin pestañas de Planos ni grupos vacíos, y el separador quieto; en mi vista, todo como estaba', async () => {
+  prueba('AV7', 'Sin lo que no se usa (D-228): en «Vista cliente», sin «Feed / Historias» en un mes sin historias que vea (y de «Historias» vuelve a «Feed»), sin el símbolo de la Mesa (en su sitio, el monograma: D-264), sin «Total de <mes>», sin «Editar» en la previsualización, sin ‹ › sin otro mes; en la hoja, sin apartados vacíos («Aún sin detalles» si no queda ninguno), sin pestañas de Planos ni grupos vacíos, y el separador quieto; en mi vista, todo como estaba', async () => {
     await sinTareas(); await tablero([pub(1), pub(2)]);
     await M.init({ client: CLIENTE, clientName: NOMBRE, month: '2026-12', slots: [pub(9, 'Foto', 3, '2026-12')], past: [], force: true }); await M.flush();
     await M.open(`${CLIENTE}-${MES}`); await espera(100);
@@ -15565,7 +15565,7 @@
       await vistaCliente(true);
       ok(q('.bar .hvsw'), 'con una historia diseñada no sale «Feed / Historias»');
       // logo: hidden, its place kept
-      const lg = q('.appbar .brand'); ok(lg && W.getComputedStyle(lg).visibility === 'hidden' && lg.getBoundingClientRect().width > 10, 'el logo se ve o pierde su sitio');
+      const lg = q('.appbar .brand'); ok(lg && W.getComputedStyle(lg.querySelector('svg')).display === 'none' && lg.getBoundingClientRect().width > 10, 'el símbolo se ve o pierde su sitio');   // el monograma, en MO1 (D-264)
       // no total, no ‹ › with one month
       ok(!q('.side > .cal .ctot'), 'sale «Total de …»');
       ok(!q('.side > .cal .cnav button'), 'salen ‹ › sin otro mes en el tablero');
@@ -17100,6 +17100,29 @@
     try { tecla('Escape', { en: D.activeElement }); await espera(20); } finally { D.removeEventListener('keydown', oy); }
     ok(!q('.cp-copias'), 'Esc no lo cierra'); ok(D.activeElement === mcLogo(), 'el foco no vuelve al símbolo'); ok(!llego, 'el Esc llegó al tablero');
     tecla('ContextMenu', { en: mcLogo() }); await espera(20); ok(q('.cp-copias'), 'la tecla de menú no lo abre'); mcCerrar(); await espera(20);
+  });
+
+  prueba('MO1', 'En «Vista cliente», el monograma de Uribe Visuals (terracota, 24 px) en el sitio del símbolo, sin pulsar: sin cursor, ayuda ni foco, y su clic no abre nada; igual en oscuro; fuera de la vista, el símbolo de siempre (D-264)', async () => {
+    await tablero([pub(1)]); await hasta(() => M.personal, 8000, 'personal.js'); paginaCerrada(); await espera(20);
+    const mono = () => q('.appbar .brand .mono');
+    ok(mono() && /portal\/marca\/monograma\.svg$/.test(mono().getAttribute('src')) && mono().alt === 'Uribe Visuals', 'sin el monograma o con otro archivo: ' + (mono() && mono().outerHTML));
+    igual(W.getComputedStyle(mono()).display, 'none', 'el monograma sale fuera de «Vista cliente»');
+    ok(W.getComputedStyle(q('.appbar .brand svg')).display !== 'none', 'falta el símbolo fuera de «Vista cliente»');
+    const ver = async osc => {
+      const h = D.documentElement; if (osc) h.dataset.theme = 'dark'; else delete h.dataset.theme; await espera(20);   // sin tocar la preferencia guardada
+      await conCliente(async () => {
+        const b = mcLogo(), m = mono(), r = m.getBoundingClientRect(), cs = W.getComputedStyle(b);
+        ok(W.getComputedStyle(m).display !== 'none' && W.getComputedStyle(b).visibility !== 'hidden', 'no se ve el monograma' + (osc ? ' en oscuro' : ''));
+        igual([Math.round(r.width), Math.round(r.height)], [24, 24], 'el tamaño del monograma');
+        await hasta(() => m.complete && m.naturalWidth > 0, 3000, 'que cargue el monograma');
+        igual(W.getComputedStyle(b.querySelector('svg')).display, 'none', 'el símbolo sigue en «Vista cliente»');
+        igual([cs.pointerEvents, b.title || '', b.tabIndex], ['none', '', -1], 'el monograma invita a pulsarlo');
+        const t = q('.tabs .tab.on').getBoundingClientRect(); ok(Math.abs(t.left - r.right - 22) <= 1, 'no está a 22 px del nombre: ' + (t.left - r.right));
+        b.click(); await espera(30); ok(!M.personal.abierta(), 'su clic abre la página');
+      });
+    };
+    const t0 = D.documentElement.dataset.theme;
+    try { await ver(false); await ver(true); } finally { if (t0) D.documentElement.dataset.theme = t0; else delete D.documentElement.dataset.theme; }
   });
 
   prueba('CP7', 'Lo que se ve de «Exportar todo» (D-249, arreglos de la revisión): en oscuro se ven las líneas entre filas; un doble clic descarga una vez; cerrar mientras se prepara no da error y suelta la mesa; cerrar con archivos sin descargar lo dice; un cliente que no se pudo preparar se reintenta; el diálogo de escribir una copia se cierra como «Cancelar»; la confirmación dice «Importar la copia»', async () => {

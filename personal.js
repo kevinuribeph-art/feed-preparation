@@ -711,7 +711,10 @@
   async function nuevaTarea(o = {}) {
     const txt = String(o.txt || '').trim(), tipo = o.tipo === 'nota' ? 'nota' : 'tarea';
     if (!txt && tipo === 'tarea') return null;
-    const now = ahoraISO(), r = { id: nuevoId(tipo === 'nota' ? 'nt' : 'tk'), tipo, txt, creada: now, at: now };
+    // an id given (the iPhone's operation, D-267): made once — done again, the one already made
+    const id0 = typeof o.id === 'string' && /^(tk|nt)[a-z0-9]{6,24}$/.test(o.id) ? o.id : null;
+    if (id0 && TK.has(id0)) return copia(TK.get(id0));
+    const now = ahoraISO(), r = { id: id0 || nuevoId(tipo === 'nota' ? 'nt' : 'tk'), tipo, txt, creada: now, at: now };
     if (o.fecha && /^\d{4}-\d{2}-\d{2}$/.test(o.fecha) && tipo === 'tarea') r.fecha = o.fecha;
     if (o.cliente && cliDe(o.cliente)) r.cliente = o.cliente;
     if (Array.isArray(o.fotos) && o.fotos.length && tipo === 'tarea') r.fotos = o.fotos.slice();
@@ -1476,6 +1479,7 @@
     datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = { modo: st.modo, desp: st.desp, avTareas: st.avTareas }; Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
     lista: async () => { await cargarTK(); return listaMovil(); },
     valor: async id => { await cargarTK(); const r = TK.get(id); return r && !r._b ? copia(r) : null; },
+    nuevoId: tipo => nuevoId(tipo === 'nota' ? 'nt' : 'tk'),   // a task's id before it is made (the iPhone's operation, D-267)
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),

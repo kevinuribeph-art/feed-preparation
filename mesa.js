@@ -119,6 +119,9 @@
   // the Mesa on the iPhone (movil.html, D-267): <html data-movil>. The core without the desk: never its shell, nothing written on its
   // own (only what Kevin touches, M._in.movil.operar), its notices to the phone's face. Fixed at load: index.html never has it.
   const MOVIL = !!(document.documentElement && document.documentElement.hasAttribute('data-movil'));
+  // on the iPhone nothing writes until it holds the Mesa (the cloud's turn, lot 2): paused from the start, whatever the cloud says
+  let movilTurno = false;
+  if (MOVIL) locked = true;
   // the cloud (nube.js, lot 3 of the traspaso, D-253): off unless activated in this browser; nube.js turns `activa` on at load.
   // While the server's data comes down (`bajando`), nothing that notes in the journal writes; `alDia` once it all came down in this
   // session (the automatic cleanups wait for it); `alApuntar`, its hook after each write that noted.
@@ -165,7 +168,7 @@
     });
   }
   function claim() {
-    locked = !!NUBE.pausa;   // the cloud's pause (D-254) holds over a tab's claim: another computer has the Mesa
+    locked = MOVIL ? !movilTurno : !!NUBE.pausa;   // the cloud's pause (D-254) holds over a tab's claim: another computer has the Mesa; the iPhone, until it holds it
     if (bc) { try { bc.postMessage({ t: 'claim', id: TAB }); } catch (e) { /* */ } }
     if (root) root.querySelectorAll('.lock:not(.nubelock)').forEach(o => o.remove());
     if (held || !(navigator.locks && navigator.locks.request)) return Promise.resolve();
@@ -249,14 +252,15 @@
       };
       r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
-      r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady()) toast(m); else if (document.body) document.body.textContent = m; };
+      r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady() || MOVIL) toast(m, { error: true }); else if (document.body) document.body.textContent = m; };
     });
     return dbp;
   }
   // Another tab opened a newer mesa, whose data this code must not touch: it stops here, without saving, until it is reloaded
   function versionNueva() {
-    locked = true;
+    locked = true; movilTurno = false;
     if (held) { held(); held = null; }   // the new tab needn't wait for this one
+    if (MOVIL) { const f = MOVIL_IN.alVersion; if (f) { try { f(); } catch (e) { /* the phone's face */ } } return; }   // never over the phone's page (D-267)
     const m = 'Hay una versión nueva de la mesa';
     if (!shellReady()) { if (document.body) document.body.textContent = m + ': recarga esta pestaña.'; return; }
     root.querySelectorAll('.lock').forEach(x => x.remove());
@@ -6080,10 +6084,10 @@
       if (o.type && o.type !== ont && n.type === ont) r.type = o.type;   // a type changed here stays pending until Notion has it
       if (o.fmt) r.fmt = o.fmt;
       if (o.memo) r.memo = o.memo;
-      if (o.design && !borradorVacio(o)) r.design = o.design;   // an empty design never applied is not kept (D-090)
+      if (o.design && (MIRA || !borradorVacio(o))) r.design = o.design;   // an empty design never applied is not kept (D-090); to look, everything as it is
       if (o.libre) r.libre = o.libre;
       if (o.caption) r.caption = o.caption;
-      if (o.estado) r.estado = o.estado.v === 'programado' && !('fecha' in o.estado) ? { ...o.estado, fecha: o.date ?? null } : o.estado;   // a Programada from before 3.92: the date it has now is the one scheduled (D-120)
+      if (o.estado) r.estado = !MIRA && o.estado.v === 'programado' && !('fecha' in o.estado) ? { ...o.estado, fecha: o.date ?? null } : o.estado;   // a Programada from before 3.92: the date it has now is the one scheduled (D-120)
       if (o.guias) r.guias = o.guias;
       if (o.ubicacion) r.ubicacion = o.ubicacion;   // the location chosen here (D-124): Notion doesn't have it
       if (o.etiquetas) r.etiquetas = o.etiquetas;   // nor the tags and collaborators (D-130)
@@ -6118,11 +6122,10 @@
       ...(!cfg.reopen ? { notionAt: new Date().toISOString() } : old.notionAt ? { notionAt: old.notionAt } : {}),
       savedAt: old.savedAt || null, editedAt: old.editedAt || old.savedAt || null
     };
-    holdOrphans(wonIds);   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
-    renumber();
+    if (!MIRA) { holdOrphans(wonIds); renumber(); }   // a rename whose date change is already in Notion stays pending (not the posts Notion won)
     sortSlots();
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
-    alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
+    if (!MIRA) alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
     // to look (D-267): only the month's own photos (their sizes decide the crops' signature, so «Aprobado»); never the tray's
     const ids = MIRA ? [...new Set([...S.slots.flatMap(s => s.photos), ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])]
       : [...new Set([...S.tray, ...enCarpetas(S.carpetas), ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
@@ -6240,7 +6243,8 @@
         fecha: fecha(s.date), mes: mesDe(s, S), estado: { k: e, txt: estTxt(e), ico: estIco(e, ' aria-hidden="true"') },
         tocaria: publicaSola(s, t) ? 'publicado' : null, vencida: vencida(s, t), motivo: motivoDe(s), retrasada: retrasada(s),
         publicada: e === 'publicado', programada: e === 'programado', fotos: publishList(s).slice(), portada: publishList(s)[0] || null,
-        captions: c && c.options.length ? { pick: c.pick, texto: c.text, estado: c.state, opciones: c.options.map(o => ({ n: o.n, tono: o.tone, texto: o.text, original: o.original, editada: o.edited })) } : null,
+        // the options by their index (k, 0–2), as operar takes them; the Mac shows them as 1–3
+        captions: c && c.options.length ? { pick: c.pick == null ? null : c.pick - 1, texto: c.text, estado: c.state, opciones: c.options.map(o => ({ k: o.n - 1, tono: o.tone, texto: o.text, original: o.original, editada: o.edited })) } : null,
         contexto: noteOf(s), nota: memoOf(s), colab: sharedWith(s)
       };
     });
@@ -6249,6 +6253,10 @@
       meses: mesesDe(S).map(m => { const p = pasoDe(S, m); return { m, etiqueta: rangeLabel(m, 1, false, curCd()), paso: { k: p, txt: (PASOS.find(x => x[0] === p) || [p, p])[1] } }; }),
       posts, historias };
   }
+  // one thing at a time: what is looked at, read again and written never cross (an opening of B can't land between the read
+  // of A and its write)
+  let colaMovil = Promise.resolve();
+  const enFila = f => { const p = colaMovil.then(() => f()); colaMovil = p.catch(() => null); return p; };
   async function mirarMovil(key) {
     const r = await M.open(key, { mirar: true });
     if (typeof r === 'string') return { error: r };
@@ -6257,8 +6265,9 @@
   }
   async function releerMovil() {   // after what came down (lot 2): every cache this page read, then the board on view again
     await loadClients();
-    try { await cobLeer(); } catch (e) { /* the invoices say it in Hoy */ }
-    try { await mesLeer(); } catch (e) { /* */ }
+    try { await cobLeer(true); } catch (e) { /* the invoices say it in Hoy */ }
+    try { await mesLeer(true); } catch (e) { /* */ }
+    try { if (M.personal && M.personal._p) await M.personal._p.cargarTK(); } catch (e) { /* */ }
     if (S && S.key) return mirarMovil(S.key);
     return null;
   }
@@ -6272,7 +6281,9 @@
     const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
     const c = capOf(s);
     if (op.campo === 'fecha') return { v: s.date || null };
-    if (op.campo === 'estado') return { v: s.estado ? { v: s.estado.v, motivo: String(s.estado.motivo || '') } : null };
+    // the state as it was decided and what it was decided on (aprobSig): a caption, photo or context changed on the Mac since
+    // makes it another post — Kevin sees both before it is approved (review R4)
+    if (op.campo === 'estado') return { v: { v: (s.estado && s.estado.v) || null, motivo: String((s.estado && s.estado.motivo) || ''), sig: aprobSig(s) } };
     if (op.campo === 'capElegir') return { v: c ? { at: c.at || null, pick: c.pick ?? null } : null };
     if (op.campo === 'capTexto') { const k = op.valor && op.valor.k; return { v: c && k >= 0 && k < 3 ? { at: c.at || null, texto: c.text[k] } : null }; }
     return { error: 'campo no válido' };
@@ -6282,8 +6293,8 @@
     if (locked) return { error: 'sin turno' };
     if (op && (op.campo === 'tarea' || op.campo === 'tareaNueva')) {   // a task or a note (personal.js, D-180): its own store, written at once
       if (!M.personal) return { error: 'sin tareas' };
-      if (op.campo === 'tarea') return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: 'no se pudo marcar' };
-      const o = op.valor || {}, r = await M.personal.tarea({ txt: o.txt, tipo: o.tipo === 'nota' ? 'nota' : 'tarea', ...(o.fecha ? { fecha: o.fecha } : {}), ...(o.cliente ? { cliente: o.cliente } : {}) });
+      if (op.campo === 'tarea') { if (!(await M.personal.valor(op.slot))) return { error: 'no existe' }; return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: 'no se pudo marcar' }; }   // read again first: never over what the Mac changed in it
+      const o = op.valor || {}, r = await M.personal.tarea({ txt: o.txt, tipo: o.tipo === 'nota' ? 'nota' : 'tarea', ...(o.id ? { id: o.id } : {}), ...(o.fecha ? { fecha: o.fecha } : {}), ...(o.cliente ? { cliente: o.cliente } : {}) });   // its id comes with the operation: done twice, it is made once
       return r ? { ok: true, id: r.id, avisos: [] } : { error: o.tipo === 'nota' ? 'no se pudo crear la nota' : 'una tarea necesita un texto' };
     }
     if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
@@ -6319,7 +6330,25 @@
     const ms = boardMonths(), cd = curCd();
     return { desde: cycleStart(ms[0], cd), hasta: cycleEnd(ms[ms.length - 1], cd), meses: ms.slice() };
   }
-  const MOVIL_IN = { activo: MOVIL, alAviso: null, mirar: mirarMovil, vista: vistaMovil, releer: releerMovil, valor: valorMovil, operar: operarMovil, estadosPosibles: estadosMovil, dias: diasMovil };
+  // aplicar(op): the whole of one operation, in the queue — the board opened, the field compared with what Kevin saw and, if it is
+  // the same (or op.forzar), written. Another value now: {choque: {visto, ahora, valor}}, nothing written; its own value: done.
+  const mismo = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null) || (typeof a === 'string' && typeof b === 'string' && sameDate(a, b));
+  async function aplicarMovil(op) {
+    if (locked) return { error: 'sin turno' };
+    if (op.key && (!S || S.key !== op.key)) { const v = await mirarMovil(op.key); if (v && v.error) return v; }
+    if (op.campo === 'tareaNueva') { if (op.valor && op.valor.id && M.personal && (await M.personal.valor(op.valor.id))) return { ok: true, ya: true, id: op.valor.id, avisos: [] }; return operarMovil(op); }
+    const a = await valorMovil(op); if (a.error) return a;
+    if (!op.forzar && 'visto' in op && !mismo(a.v, op.visto)) {
+      const fin = op.campo === 'tarea' ? { hecha: !!(op.valor && op.valor.hecha) } : null;
+      if (fin && mismo(a.v, fin)) return { ok: true, ya: true, avisos: [] };   // the Mac did the same: nothing to do
+      return { choque: { visto: op.visto, ahora: a.v, valor: op.valor } };
+    }
+    return operarMovil(op);
+  }
+  const turnoMovil = v => { movilTurno = !!v; if (MOVIL) locked = !v; return movilTurno; };   // the cloud's glue (lot 2): it holds the Mesa, or not
+  const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, releer: () => enFila(releerMovil),
+    valor: op => enFila(() => valorMovil(op)), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil,
+    get conTurno() { return movilTurno; } };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
   if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {
     const f = M[k];

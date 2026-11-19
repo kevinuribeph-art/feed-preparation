@@ -18492,7 +18492,7 @@
       for (const m of mac) {
         const p = v.posts.find(x => x.id === m.id); ok(p, 'falta ' + m.id);
         igual([p.estado.k, p.vencida, p.fotos, p.fecha.dia, p.fecha.hora], [m.e, m.venc, m.fotos, m.dia, m.hora], 'distinto del escritorio en ' + m.id);
-        igual(p.captions ? [p.captions.pick, p.captions.texto, p.captions.opciones.map(o => o.texto)] : null, m.caps && m.caps.options.length ? [m.caps.pick, m.caps.text, m.caps.options.map(o => o.text)] : null, 'captions distintos en ' + m.id);
+        igual(p.captions ? [p.captions.pick, p.captions.texto, p.captions.opciones.map(o => [o.k, o.texto])] : null, m.caps && m.caps.options.length ? [m.caps.pick == null ? null : m.caps.pick - 1, m.caps.text, m.caps.options.map(o => [o.n - 1, o.text])] : null, 'captions distintos en ' + m.id);
       }
       igual(v.meses[0].paso.k, paso, 'el paso del mes');
     });
@@ -18519,9 +18519,12 @@
     for (const y of b.slots) { const x = ida[y.id] || {}; for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) if (!['at'].includes(k) && JSON.stringify(x[k]) !== JSON.stringify(y[k])) out.push(y.id + '.' + k); }
     return out.sort();
   }
-  prueba('MV4', 'Las operaciones del móvil (D-267, R3): elegir y retocar un caption, cambiar el estado (con su motivo) y la fecha escriben solo ese campo de esa publicación (la fecha, también los nombres que renumera, como en el Mac), con su nota en el diario y sin tocar la bandeja', async () => {
+  prueba('MV4', 'Las operaciones del móvil (D-267, R3): elegir y retocar un caption, cambiar el estado (con su motivo) y la fecha escriben solo ese campo de esa publicación (la fecha, también los nombres que renumera, como en el Mac), con su nota en el diario y sin tocar la bandeja; nada de lo que el Mac limpiaría al abrir (D-090) viaja con ellas', async () => {
     const key = await tableroMovil();
     await enMovil(async () => {
+      const rec = await M._in.idbGet('boards', key), r4 = rec.slots.find(s => s.id === 'r4');
+      r4.design = { slides: [{ tipo: 'portada' }] }; await M._in.idbPut('boards', key, rec);   // un diseño vacío sin aplicar (D-090): el móvil no lo limpia
+      M._in.movil.turno(true);
       await M._in.movil.mirar(key);
       const paso = async (op, esperado) => {
         const a = await M._in.idbGet('boards', key), esc = contarEscrituras(), dj0 = await djN();
@@ -18537,26 +18540,31 @@
       igual(b.slots.find(s => s.id === 'r2').caption.pick, 2, 'no se eligió el caption');
       b = await paso({ slot: 'r2', campo: 'capTexto', valor: { k: 2, texto: 'tres retocado' } }, ['r2.caption']);
       igual(b.slots.find(s => s.id === 'r2').caption.text[2], 'tres retocado', 'no se retocó');
-      b = await paso({ slot: 'r4', campo: 'estado', valor: { v: 'cancelado', motivo: 'no hace falta' } }, ['r4.estado']);
-      igual(b.slots.find(s => s.id === 'r4').estado, { v: 'cancelado', motivo: 'no hace falta' }, 'el motivo de la cancelada');
+      b = await paso({ slot: 'r3', campo: 'estado', valor: { v: 'cancelado', motivo: 'no hace falta' } }, ['r3.estado']);
+      igual(b.slots.find(s => s.id === 'r3').estado, { v: 'cancelado', motivo: 'no hace falta' }, 'el motivo de la cancelada');
       const iso = M._in.madridISO('2026-11-10', '18:30');
       b = await paso({ slot: 'r1', campo: 'fecha', valor: iso }, ['r1.date']);
       ok(M._in.sameDate(b.slots.find(s => s.id === 'r1').date, iso), 'no cambió la fecha');
       igual((await M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' })).v.pick, 2, 'valor() no dice lo que hay');
+      igual((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r4').design, { slides: [{ tipo: 'portada' }] }, 'el diseño vacío de r4 se limpió con otra operación');
+      M._in.movil.turno(false);
     });
   });
 
-  prueba('MV5', 'Sin la Mesa el móvil no escribe (D-267): con la Mesa en pausa (otro aparato la tiene) operar dice «sin turno» y no escribe nada', async () => {
+  prueba('MV5', 'Sin la Mesa el móvil no escribe (D-267): empieza en pausa y solo su turno la quita (no la quita reclamar la pestaña); operar, aplicar, M.setEstado y las tareas no escriben nada', async () => {
     const key = await tableroMovil();
     await enMovil(async () => {
       await M._in.movil.mirar(key);
-      await M._in.pausaNube('');
+      ok(M._in.locked && !M._in.movil.conTurno, 'el móvil empieza con la Mesa: debe empezar en pausa');
+      await M._test.claim();                                              // una pestaña que se reclama sigue en pausa sin la Mesa
+      ok(M._in.locked, 'claim quitó la pausa del móvil');
       const esc = contarEscrituras();
-      const r = await M._in.movil.operar({ key, slot: 'r2', campo: 'capElegir', valor: 0 });
-      igual(r, { error: 'sin turno' }, 'operó sin la Mesa');
+      igual(await M._in.movil.operar({ key, slot: 'r2', campo: 'capElegir', valor: 0 }), { error: 'sin turno' }, 'operó sin la Mesa');
+      igual(await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 0 }), { error: 'sin turno' }, 'aplicó sin la Mesa');
+      ok((M.setEstado('r2', 'cancelado') || {}).error, 'M.setEstado escribió sin la Mesa');
+      ok(!(await M.personal.tarea({ txt: 'sin la Mesa' })), 'personal.js creó una tarea sin la Mesa');
       await espera(400);
       igual(esc.total, 0, 'escribió sin la Mesa: ' + esc.de.join(', '));
-      M._in.NUBE.pausa = false; await M._test.claim();
     });
   });
 
@@ -18565,12 +18573,14 @@
     ok(!M.setEstado('r2', 'publicado')[0].error, 'no se publicó r2');
     await M.flush();
     await enMovil(async () => {
+      M._in.movil.turno(true);
       await M._in.movil.mirar(key);
       igual(await M._in.movil.operar({ key, slot: 'r2', campo: 'fecha', valor: M._in.madridISO('2026-11-12', '10:00') }), { error: 'publicada' }, 'una Publicada se movió');
       const r = await M._in.movil.operar({ key, slot: 'r3', campo: 'fecha', valor: M._in.madridISO('2026-11-12', '10:00') });
       ok(r.ok && r.avisos.some(m => /Zernio/.test(m)), 'mover una Programada no avisó de Zernio: ' + json(r));
       igual(await M._in.movil.operar({ key, slot: 'r1', campo: 'fecha', valor: M._in.madridISO('2027-02-12', '10:00') }), { error: 'fuera de la mesa' }, 'entró una fecha fuera de la mesa');
       const d = M._in.movil.dias(key); igual([d.desde, d.hasta], ['2026-11-01', '2026-11-30'], 'los días que se pueden elegir');
+      M._in.movil.turno(false);
     });
   });
 
@@ -18583,7 +18593,9 @@
       igual(l.map(x => x.ok), [true, false, false, true, true, true], 'cuáles se pueden (r4 sin foto)');
       igual(l[0].k, 'empezar', '«según sus datos» de r4');
       ok(l[0].actual && !l.slice(1).some(x => x.actual), 'el actual');
+      M._in.movil.turno(true);
       igual(await M._in.movil.operar({ key, slot: 'r4', campo: 'estado', valor: { v: 'aprobado' } }), { error: l[1].porque }, 'aprobar sin foto no dio el mismo porqué');
+      M._in.movil.turno(false);
       ok(/falta la foto/.test(l[1].porque), 'el porqué: ' + l[1].porque);
       const l1 = M._in.movil.estadosPosibles(key, 'r1');
       ok(l1.find(x => x.v === 'aprobado').actual, 'r1 Aprobada no sale como la actual');
@@ -18618,15 +18630,15 @@
     try {
       const t = await M.personal.tarea({ txt: 'Revisar los captions', fecha: '2026-11-05' });
       await enMovil(async () => {
+        M._in.movil.turno(true);
         igual(await M._in.movil.valor({ campo: 'tarea', slot: t.id }), { v: { hecha: false } }, 'valor de la tarea');
         ok((await M._in.movil.operar({ campo: 'tarea', slot: t.id, valor: { hecha: true } })).ok, 'no se marcó');
         ok((await M._in.idbGet('tareas', t.id)).hecha, 'no quedó hecha en su almacén');
         const n = await M._in.movil.operar({ campo: 'tareaNueva', valor: { txt: 'Ideas para diciembre', tipo: 'nota' } });
         ok(n.ok && (await M._in.idbGet('tareas', n.id)).tipo === 'nota', 'no se creó la nota: ' + json(n));
         igual((await M._in.movil.operar({ campo: 'tareaNueva', valor: { txt: '  ' } })).error, 'una tarea necesita un texto', 'una tarea vacía');
-        await M._in.pausaNube('');
+        M._in.movil.turno(false);
         igual(await M._in.movil.operar({ campo: 'tarea', slot: t.id, valor: { hecha: false } }), { error: 'sin turno' }, 'sin la Mesa marcó');
-        M._in.NUBE.pausa = false; await M._test.claim();
       });
     } finally { await sinTareas(); }
   });
@@ -18665,11 +18677,48 @@
         ok(!sv.pedidos.slice(n0).some(p => /\/lecturas/.test(p.ruta) && p.met !== 'GET'), 'el móvil escribió la marca de leído del Mac');
         ok((await leerTodo()) === antes, 'leer y contestar cambió la Mesa');
         igual(M._in.movil.vista().posts.find(p => p.id === 'r2').estado.k, est0, 'el estado cambió en el móvil');
-        M._in.NUBE.pausa = false; await M._test.claim(); W.fetch = sv.nativo;
+        W.fetch = sv.nativo;
       });
       sv.enMarco(); wbSesion();
       await M.web.leer();
       igual(M._in.estadoDe(slot('r2')), 'noaprobado', 'el Mac no aplicó la decisión después');
+    });
+  });
+
+  prueba('MV13', 'Una operación entera del móvil (D-267, R3; revisión R4): aplicar abre su tablero, compara el campo con lo que Kevin vio y solo entonces escribe; si el Mac lo cambió, «choque» con los dos valores y nada escrito (también aprobar algo cuyo caption cambió); forzar lo escribe; una tarea nueva repetida se crea una vez', async () => {
+    const key = await tableroMovil();
+    M._test.setSlot('r2', { caption: { ...slot('r2').caption, pick: 0 } }); await M.flush();
+    await enMovil(async () => {
+      M._in.movil.turno(true);
+      await M._in.movil.mirar(key);
+      const v0 = await M._in.movil.valor({ key, slot: 'r2', campo: 'estado' });
+      // el Mac cambia el caption elegido de r2 entretanto (así lo ve una bajada)
+      const rec = await M._in.idbGet('boards', key); rec.slots.find(s => s.id === 'r2').caption.pick = 1; await M._in.idbPut('boards', key, rec);
+      await M._in.movil.releer();
+      const a = await M._in.movil.aplicar({ key, slot: 'r2', campo: 'estado', valor: { v: 'aprobado' }, visto: v0.v });
+      ok(a.choque && a.choque.ahora.sig !== a.choque.visto.sig, 'aprobó lo que Kevin no vio: ' + json(a));
+      ok(!(await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2').estado, 'el choque escribió');
+      ok((await M._in.movil.aplicar({ key, slot: 'r2', campo: 'estado', valor: { v: 'aprobado' }, visto: v0.v, forzar: true })).ok, 'forzar no escribió');
+      igual(M._in.estadoDe((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2')), 'aprobado', 'forzar no aprobó');
+      const vf = (await M._in.movil.valor({ key, slot: 'r1', campo: 'fecha' })).v;
+      ok((await M._in.movil.aplicar({ key, slot: 'r1', campo: 'fecha', valor: M._in.madridISO('2026-11-12', '09:00'), visto: vf })).ok, 'la fecha con lo visto igual');
+      const id = M.personal.nuevoId('tarea');
+      const n1 = await M._in.movil.aplicar({ campo: 'tareaNueva', valor: { id, txt: 'Una vez' } }), n2 = await M._in.movil.aplicar({ campo: 'tareaNueva', valor: { id, txt: 'Una vez' } });
+      ok(n1.ok && n2.ok && n2.ya, 'la tarea repetida: ' + json([n1, n2]));
+      igual((await M._in.idbAll('tareas')).filter(t => t.txt === 'Una vez').length, 1, 'la tarea se creó dos veces');
+      M._in.movil.turno(false);
+    });
+    await sinTareas();
+  });
+
+  prueba('MV14', 'Los avisos que paraban la Mesa no borran la cara del móvil (D-267; revisión R14): «Hay una versión nueva» va a su oyente y deja el móvil en pausa, sin tocar el <body>', async () => {
+    await tableroMovil();
+    await enMovil(async () => {
+      let v = 0; M._in.movil.alVersion = () => { v++; };
+      M._in.movil.turno(true);
+      M._test.versionNueva();
+      igual([v, M._in.locked, M._in.movil.conTurno], [1, true, false], 'la versión nueva no llegó a la cara o no paró el móvil');
+      ok(D.getElementById('arnes'), 'la versión nueva borró la página del móvil');
     });
   });
 

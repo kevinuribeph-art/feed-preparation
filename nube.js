@@ -9,7 +9,7 @@
 // Apagada (lo normal hasta la mudanza, lote 5) no hace nada: ni red ni temporizadores.
 (function (G) {
   'use strict';
-  const VERSION = '1.1';
+  const VERSION = '1.2';   // 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
@@ -192,6 +192,7 @@
       if (c === 'turno') return perdido({ dispositivo: er.dispositivo || null });
       if (c === 'app') return vieja();
       if (c === 'permiso') { conTurno = false; modoLocal = false; return fase('otra_cuenta'); }
+      if (c === 'verificacion') { conTurno = false; modoLocal = false; return fase('sin_codigo'); }   // pasaron los 30 días del código de la app (D-262): nada se aparta, espera
       st.error = er.mensaje || (r ? 'respuesta sin «ok»' : 'sin respuesta'); otroIntento(); avisar();
     }
     function sinRed(e) {
@@ -225,7 +226,8 @@
       catch (e) { return abrirLocal(e); }
       if (!r || r.ok !== true) return abrirRechazo(r);
       if (masNueva(r.version_minima, APP)) { await vieja(); return { modo: 'vieja' }; }
-      if (traer && !(r.orden > 0)) { fase('apagada'); return { modo: 'vacia' }; }   // arriba no hay Mesa: se sube desde el primer ordenador (la mudanza)
+      if (traer && !(r.orden > 0)) { fase('apagada'); return { modo: 'vacia' }; }
+      st.total = +r.total || 0;   // los registros vivos de arriba (esquema 4): el «de N» de la pantalla de carga (D-262)   // arriba no hay Mesa: se sube desde el primer ordenador (la mudanza)
       let otraEpoca = false;
       if (st.epoca && r.epoca && r.epoca !== st.epoca) { await olvidar(); otraEpoca = true; }   // se restauró una copia del servidor
       let orden = 0;
@@ -239,7 +241,14 @@
           return abrirRechazo(c);
         }
         st.turno = c.turno; orden = c.orden || 0;
-      } else return abrirPausada(r.tiene);
+      } else {
+        if (traer) {   // un ordenador nuevo (D-262): baja la Mesa aunque otro la tenga abierta; se queda en pausa, sin escribir arriba (D-254)
+          try { await bajarTodo(0, t0, otraEpoca, TIEMPOS.primera, true); await trasTraer(); traerPend = false; }
+          catch (e) { if (e && e.vieja) { await vieja(); return { modo: 'vieja' }; } return e && e.rechazo ? abrirRechazo(e.rechazo) : abrirLocal(e); }
+          return { ...(await abrirPausada(r.tiene)), traido: true };
+        }
+        return abrirPausada(r.tiene);
+      }
       try { await bajarTodo(orden, t0, otraEpoca, r.tuyo ? TIEMPOS.primeraSuya : TIEMPOS.primera, traer); if (traer) { await trasTraer(); traerPend = false; } }   // ya suya (tras «Recarga»): la red contesta; un tope más largo
       catch (e) {
         if (e && e.vieja) { if (!r.tuyo) { try { await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); } catch (x) { /* */ } } await vieja(); return { modo: 'vieja' }; }   // la tomó al abrir: la suelta, que no espere quien tiene la nueva
@@ -260,6 +269,7 @@
       const c = r && r.error && r.error.codigo;
       if (c === 'app') { await vieja(); return { modo: 'vieja' }; }
       if (c === 'permiso') { fase('otra_cuenta'); return { modo: 'otra_cuenta' }; }
+      if (c === 'verificacion') { fase('sin_codigo'); return { modo: 'sin_codigo' }; }   // D-262: abre con lo de aquí, sin escribir arriba
       return abrirLocal({ message: (r && r.error && r.error.mensaje) || 'respuesta sin «ok»' });
     }
     async function abrirPausada(t) {
@@ -269,7 +279,9 @@
     async function olvidar() { await A.olvidar(); st.cursor = 0; st.epoca = null; }
     async function bajarTodo(ordenMin, t0, yaOlvidada, tope = TIEMPOS.primera, traer = false) {
       fase('bajando');
-      let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null;
+      let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null, hechos = 0;
+      const avance = () => { try { if (E.avance) E.avance(hechos, st.total || 0); } catch (e) { /* la pantalla de carga no para la bajada */ } };
+      avance();
       const pedirPag = (d, lim) => { const q = llamar('mesa_bajar', { desde: d, limite: lim }); q.catch(() => { /* se mira al esperarla */ }); return q; };
       for (;;) {
         // la primera, entera si la red ya contestó deprisa; si no, pequeña, para que llegue antes del tope
@@ -284,6 +296,7 @@
         const fin = !r.mas && (r.hasta >= (ordenMin || 0) || !(r.filas || []).length);
         if (!fin) sig = pedirPag(r.hasta, 500);   // la siguiente se pide mientras esta se escribe (el cursor solo avanza al escribirla)
         nuevos += await aplicarPagina(r.filas || [], r.hasta, r.epoca, traer);
+        hechos += (r.filas || []).length; avance();
         st.cursor = r.hasta; st.epoca = r.epoca || st.epoca; desde = r.hasta; primera = false;
         if (fin) break;
       }
@@ -340,7 +353,7 @@
       if (parado || ocupado) return;
       ocupado = true;
       try {
-        if (modoLocal || st.fase === 'sin_sesion' || st.fase === 'recargar' || st.fase === 'pausada') {   // sin turno: la cola a la vista, también
+        if (modoLocal || st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'recargar' || st.fase === 'pausada') {   // sin turno: la cola a la vista, también
           const c0 = st.cola; await contarCola(); if (st.cola !== c0) avisar();
           if (modoLocal && R.ahora() >= proximo) await reconectar();
           return;
@@ -789,7 +802,7 @@
       leerActividad,
       conTurno: () => conTurno,
       // la sesión volvió (Kevin entró otra vez): como al volver la red, sin reclamar a mitad
-      reintentar: () => { if (!conTurno && (st.fase === 'sin_sesion' || st.fase === 'sin_conexion')) { modoLocal = true; proximo = 0; reint = 0; } },
+      reintentar: () => { if (!conTurno && (st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'sin_conexion')) { modoLocal = true; proximo = 0; reint = 0; } },
       parar: async () => {
         if (conTurno) { try { await subir({ todo: true }); } catch (e) { /* */ } try { await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); } catch (e) { /* */ } }
         parado = true; conTurno = false; modoLocal = false; fase('apagada');
@@ -850,7 +863,8 @@
       almacen: X().nubeAlmacen,
       reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) },
       dispositivo: DISP0(), app: M.version, archivo: archivoHook, ceder: () => new Promise(r => setTimeout(r, 0)),
-      efectos: { pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { ESTADO = e; pintar(); } }
+      efectos: { pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { const antes = ESTADO && ESTADO.fase; ESTADO = e; pintar(); if (e.fase === 'sin_codigo' && antes !== 'sin_codigo' && M.entrada) M.entrada.pedirCodigo(); },   // solo al pasar a «falta el código» («Más tarde» se respeta)
+        avance: (h, t) => { if (M.entrada && M.entrada.avance) M.entrada.avance(h, t); } }
     });
     X().NUBE.alApuntar = () => N.cambio();
     return N;
@@ -868,7 +882,7 @@
       trasArmazon(() => X().toast('Tu Mesa aún no está en el servidor: se sube desde el ordenador principal. Este navegador sigue como estaba.', { error: true }));
       return { modo: 'local', motivo: 'vacia' };
     }
-    if (traer && r.modo === 'turno') { lsS(TRAER, null); lsS(VERIF, '1'); }
+    if (traer && (r.modo === 'turno' || r.traido)) { lsS(TRAER, null); lsS(VERIF, '1'); }   // traída (también en pausa: otro ordenador la tiene, D-262)
     if (traer && r.modo === 'local') {   // traer tu Mesa necesita conexión: no se deja escribir sobre una Mesa a medio traer
       X().pausaNube(capa('Tu Mesa aún no ha llegado', '<p>Para traerla hace falta conexión. Recarga cuando vuelva: lo de este navegador sigue apartado y sin tocar.</p>', '<button type="button" class="btn" data-nube="recargar">Recargar</button>'));
       arrancarPulso(); return r;
@@ -1156,14 +1170,16 @@
       case 'esperando': return ['sube', `Esperando a ${nombreDe(e.tiene && e.tiene.dispositivo)}…`, ''];
       case 'recargar': return ['aviso', 'Recarga para bajar lo último', q];
       case 'vieja': return ['aviso', 'Versión vieja: recarga', ''];
-      case 'sin_sesion': return ['off', 'Nube: entra con tu correo', q];
+      case 'sin_sesion': return ['off', entradaActiva() ? 'Nube: entra otra vez' : 'Nube: entra con tu correo', q];
+      case 'sin_codigo': return ['aviso', 'Nube: falta el código de tu app', q];
       case 'otra_cuenta': return ['aviso', 'Nube: esta cuenta no es la tuya', ''];
       default: return null;
     }
   }
   let PINTADO = '', PANEL = '', PINTADO_EL = null, TODO = null;
   // «Entrar y traer tu Mesa» (lote 4): en un navegador sin la nube, con proyecto (nunca en «Vista cliente»: lo oculta su CSS)
-  const conTraer = () => !X().NUBE.activa && !!sb() && !lsG(TRAER);
+  const entradaActiva = () => !!(M.entrada && M.entrada.modo && M.entrada.modo !== 'sin_proyecto');
+  const conTraer = () => !X().NUBE.activa && !!sb() && !lsG(TRAER) && !entradaActiva();   // con la entrada (D-262) no hay botón: se trae al entrar
   const conTraerCab = () => conTraer() && !((X().CL || []).length);   // en la cabecera solo en un navegador sin Mesa; con datos, en ⇅
   X().NUBE.traerHTML = () => (conTraer() ? '<div class="xtodo"><p><b>Tu Mesa del servidor.</b> Tráela a este navegador: lo que tenga aquí se aparta, no se sube ni se borra.</p><div class="form"><div class="row"><button type="button" class="btn2" data-nube="traer">Entrar y traer tu Mesa</button></div></div></div>' : '');
   function pintar() {
@@ -1322,11 +1338,11 @@
     const b = e.target.closest && e.target.closest('[data-nube]'); if (!b) return;
     e.preventDefault(); e.stopPropagation();
     const a = b.dataset.nube;
-    if (a === 'panel') panel();
+    if (a === 'panel') { if (ESTADO.fase === 'sin_codigo' && M.entrada) M.entrada.pedirCodigo(); else panel(); }
     else if (a === 'usar') usarAqui();
     else if (a === 'forzar') forzar(b.dataset.visto);
     else if (a === 'recargar') G.location.reload();
-    else if (a === 'entrar') { if (M.web && M.web.entrar) M.web.entrar(); }
+    else if (a === 'entrar') { if (entradaActiva()) G.location.reload(); else if (M.web && M.web.entrar) M.web.entrar(); }
     else if (a === 'visto') visto(b.dataset.id);
     else if (a === 'encima' || a === 'descartar') reconciliar(a, false, b);
     else if (a === 'encima-todo') reconciliar('encima', true, b);
@@ -1388,7 +1404,7 @@
     _soltar: () => { clearInterval(pulso); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
-  if (X().NUBE.activa) { sb().alCambiar(u => { if (u && N && ESTADO.fase === 'sin_sesion') N.reintentar(); }); trasArmazon(() => pintar()); }
+  if (X().NUBE.activa) { sb().alCambiar(u => { const n = sb().nivel && sb().nivel(); if (u && N && (ESTADO.fase === 'sin_sesion' || (ESTADO.fase === 'sin_codigo' && n && n.aal === 'aal2'))) N.reintentar(); }); trasArmazon(() => pintar()); }
   else if (conTraer()) trasArmazon(() => pintar());   // (solo se ve en la cabecera si este navegador no tiene Mesa)
   function estilar() { if (!D.getElementById('mesa-nube-css')) X().estilo('mesa-nube-css', ESTILO); }
   (G.MESA_CARGA = G.MESA_CARGA || {}).nube = 'ok';

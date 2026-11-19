@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.2';   // 1.2: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is never enlarged (D-259)
+  const VERSION = '1.3';   // 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -208,7 +208,7 @@
     const X = I(), B = X && X.S, c = sb();
     if (!B) return { error: 'sin tablero abierto' };
     if (!c) return { error: 'sin proyecto de la web' };
-    if (!c.usuario()) { dlgEntrar(); return { error: 'sin sesión' }; }
+    if (!c.usuario()) { entrar(); return { error: 'sin sesión' }; }
     if (st.enviando) return { error: 'ya se está enviando' };
     if (X.locked) { toast('Esta pestaña está en pausa: recárgala para enviar a la web', { error: true }); return { error: 'esta pestaña está en pausa' }; }
     const cli = B.client, ce = encodeURIComponent(cli);
@@ -298,6 +298,8 @@
   }
 
   // ---------- Diálogos ----------
+  // Sin sesión: con la entrada de la Mesa (D-262), a su entrada (recargar: contraseña y, si toca, el código); sin ella, el código.
+  function entrar() { if (M.entrada && M.entrada.modo && M.entrada.modo !== 'sin_proyecto') { location.reload(); return; } dlgEntrar(); }
   function dlgEntrar(paso, correo) {
     const X = I();
     X.showDialog('web', paso === 'codigo'
@@ -342,7 +344,7 @@
     const b = e.target.closest && e.target.closest('[data-web]'); if (!b) return;
     e.preventDefault(); e.stopPropagation();
     const a = b.dataset.web;
-    if (a === 'entrar') dlgEntrar();
+    if (a === 'entrar') entrar();
     else if (a === 'enviar') enviar();
     else if (a === 'salir') M.web.salir();
     else if (a === 'repasar') { st.error = ''; st.servidor = null; st.firma = ''; st.extra = null; st.cambios = null; I().renderBar(); pedirRepaso(); }
@@ -557,7 +559,7 @@
   M.web = {
     version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
-    entrar: () => dlgEntrar(),
+    entrar: () => entrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },
     repasar: () => { st.servidor = null; st.firma = ''; st.extra = null; return repaso(true); },
     _sb: () => sb(),

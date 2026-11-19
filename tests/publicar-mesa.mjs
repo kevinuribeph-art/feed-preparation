@@ -19,12 +19,12 @@ try {
   const D = join(tmp, 'salida');
   execFileSync('sh', [join(RAIZ, 'tools', 'publicar-mesa.sh'), D], { stdio: 'pipe' });
   const html = readFileSync(join(RAIZ, 'index.html'), 'utf8');
-  const pide = [...html.matchAll(/src="([^"?]+)/g)].map(m => m[1]).concat('nube-fotos.js');
+  const pide = [...html.matchAll(/src="([^"?]+)/g)].map(m => m[1]).concat('nube-fotos.js', 'portal/marca/logo-ink.svg', 'portal/marca/logo-paper.svg');   // y el logo de la entrada (D-262)
   const faltan = pide.filter(f => !existsSync(join(D, f)));
-  ok(!faltan.length && existsSync(join(D, 'index.html')) && existsSync(join(D, 'kits', 'motor.js')), 'PM1 la copia lleva index.html, cada script que pide, el worker de las fotos y los kits', faltan.join(', '));
+  ok(!faltan.length && existsSync(join(D, 'index.html')) && existsSync(join(D, 'kits', 'motor.js')), 'PM1 la copia lleva index.html, cada script que pide, el worker de las fotos, el logo de la entrada y los kits', faltan.join(', '));
   const iguales = pide.filter(f => existsSync(join(D, f)) && readFileSync(join(D, f), 'utf8') === readFileSync(join(RAIZ, f), 'utf8'));
   ok(iguales.length === pide.length, 'PM1 los archivos van tal cual (los mismos bytes)', `${iguales.length} de ${pide.length}`);
-  const lista = todos(D), malos = lista.filter(f => /^(tools|tests|servidor|\.claude|\.git)\//.test(f) || /\.md$/.test(f) || /(^|\/)\.env/.test(f) || /^portal\/(?!supa\.js$)/.test(f));
+  const lista = todos(D), malos = lista.filter(f => /^(tools|tests|servidor|\.claude|\.git)\//.test(f) || /\.md$/.test(f) || /(^|\/)\.env/.test(f) || /^portal\/(?!supa\.js$|marca\/logo-(ink|paper)\.svg$)/.test(f));
   ok(!malos.length, 'PM2 nada que no sea de la Mesa (herramientas, pruebas, servidor, notas, .env, el resto del portal)', malos.slice(0, 5).join(', '));
   const cab = readFileSync(join(D, '_headers'), 'utf8'), csp = (/Content-Security-Policy" content="([^"]*)/.exec(html) || [])[1];
   const linea = (/^\s*Content-Security-Policy: (.*)$/m.exec(cab) || [])[1];
@@ -37,6 +37,7 @@ try {
   for (const f of readdirSync(RAIZ)) if (/\.(js|html)$/.test(f)) cpSync(join(RAIZ, f), join(R2, f));
   cpSync(join(RAIZ, 'kits'), join(R2, 'kits'), { recursive: true }); cpSync(join(RAIZ, 'tools'), join(R2, 'tools'), { recursive: true });
   cpSync(join(RAIZ, 'portal', 'supa.js'), join(R2, 'portal', 'supa.js'));
+  for (const l of ['logo-ink.svg', 'logo-paper.svg']) cpSync(join(RAIZ, 'portal', 'marca', l), join(R2, 'portal', 'marca', l));
   unlinkSync(join(R2, 'nube-fotos.js'));
   let paro = false, msg = '';
   try { execFileSync('sh', [join(R2, 'tools', 'publicar-mesa.sh'), join(tmp, 'salida2')], { stdio: 'pipe' }); } catch (e) { paro = e.status !== 0; msg = String(e.stderr || ''); }

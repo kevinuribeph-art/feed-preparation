@@ -65,17 +65,21 @@ const forma = (m: string) => new Rechazo('forma', 400, m);
 const objeto = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
 const corto = (v: unknown) => String(v).slice(0, 40);
 
-// Solo Kevin: `es_dueno()` con la sesión de quien llama. Un cliente del portal, alguien sin cliente o sin sesión: sin datos.
+// Solo Kevin: `mesa_yo()` con la sesión de quien llama (D-262): la cuenta dueña y, con el interruptor encendido, un código de su
+// app de los últimos 30 días (`valido`, lo mismo que `es_dueno()`). Kevin sin código: `verificacion`. Un cliente del portal,
+// alguien sin cliente o sin sesión: `permiso` o `sesion`, sin datos.
 async function soloKevin(auth: string) {
   if (!/^Bearer [A-Za-z0-9._-]+$/.test(auth)) throw new Rechazo('sesion', 401, 'sin sesión');
   let r: Response;
   try {
-    r = await fetch(`${URL_P}/rest/v1/rpc/es_dueno`, { method: 'POST', headers: { ...cab(PUBLICA, auth), 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10000) });
+    r = await fetch(`${URL_P}/rest/v1/rpc/mesa_yo`, { method: 'POST', headers: { ...cab(PUBLICA, auth), 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10000) });
   } catch { throw new Rechazo('servidor', 502, 'no se pudo comprobar la sesión'); }
   if (r.status === 401) throw new Rechazo('sesion', 401, 'sin sesión');
   if (r.status === 403) throw new Rechazo('permiso', 403, 'sin permiso');
   if (!r.ok) throw new Rechazo('servidor', 502, 'no se pudo comprobar la sesión');
-  if ((await r.json().catch(() => null)) !== true) throw new Rechazo('permiso', 403, 'sin permiso');
+  const yo = await r.json().catch(() => null);
+  if (!objeto(yo) || yo.dueno !== true) throw new Rechazo('permiso', 403, 'sin permiso');
+  if (yo.valido !== true) throw new Rechazo('verificacion', 401, 'falta el código de tu app: escríbelo para seguir');
 }
 
 // Una llamada a Zernio. Lo que contesta se tapa antes de leerlo o recortarlo.

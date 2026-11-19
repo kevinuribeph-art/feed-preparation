@@ -18152,8 +18152,8 @@
     const srcs = [...sin.matchAll(/<script([^>]*)\ssrc="([^"?]+)/g)].map(m => ({ s: m[2], async: /\sasync\b/.test(m[1]) }));
     const i = n => srcs.findIndex(x => x.s === n);
     // el vigilante, nada más empezar: oye también si no llega supa.js o nube.js (D-252)
-    ok(i('tema.js') >= 0 && i('tema.js') < i('vigia.js') && i('vigia.js') < i('mesa.js') && i('mesa.js') < i('portal/supa.js') && i('portal/supa.js') < i('nube.js') && i('nube.js') < i('arranque.js') && i('arranque.js') < i('kits/motor.js'), 'el orden de tema, vigilante, mesa, supa, nube y arranque: ' + srcs.map(x => x.s).join(', '));
-    ok(['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'nube.js', 'arranque.js'].every(n => srcs[i(n)] && !srcs[i(n)].async), 'tema, vigilante, mesa, supa, nube o arranque con async');
+    ok(i('tema.js') >= 0 && i('tema.js') < i('vigia.js') && i('vigia.js') < i('mesa.js') && i('mesa.js') < i('portal/supa.js') && i('portal/supa.js') < i('entrada.js') && i('entrada.js') < i('nube.js') && i('nube.js') < i('arranque.js') && i('arranque.js') < i('kits/motor.js'), 'el orden de tema, vigilante, mesa, supa, nube y arranque: ' + srcs.map(x => x.s).join(', '));
+    ok(['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'arranque.js'].every(n => srcs[i(n)] && !srcs[i(n)].async), 'tema, vigilante, mesa, supa, entrada, nube o arranque con async');   // entrada.js (D-262): decide dónde vive la sesión antes que la nube
     ok(/tema\.js/.test(head) && /vigia\.js/.test(head), 'tema.js o vigia.js fuera del <head> (el oscuro sin destello)');
     ok(D.querySelector('meta[http-equiv="Content-Security-Policy"]'), 'la Mesa de la batería sin su CSP');
     // un módulo que no llega: su <script> da error y el vigilante lo marca «fallo» (antes, su onerror=)
@@ -18163,6 +18163,98 @@
       D.head.append(s);
       await hasta(() => C.revisar === 'fallo', 4000, 'que un módulo que no llega quede en «fallo»');
     } finally { s.remove(); C.revisar = antes; }
+  });
+
+  prueba('EN1', 'La entrada (D-262) sin proyecto no hace nada: en una copia de este Mac (127.0.0.1) sin `mesa-web-proyecto` la Mesa abre como siempre, sin capa ni almacén de sesión, y abrir() contesta enseguida', async () => {
+    const E = M.entrada;
+    ok(E && E.version === '1.0', 'falta MESA.entrada');
+    igual(E.modo, 'sin_proyecto', 'modo');
+    ok(!D.getElementById('mesa-entrada'), 'hay capa de entrada en una Mesa sin proyecto');
+    ok(!M._in.almacenSesion, 'almacén de sesión sin proyecto');
+    const t0 = performance.now(); igual(await E.abrir(), 'sin_proyecto', 'abrir()'); ok(performance.now() - t0 < 50, 'abrir() tarda sin proyecto');
+    E.cargaDurante(); await espera(500); ok(!D.getElementById('mesa-entrada'), 'la pantalla de carga sale sin proyecto'); E.cargaFin();
+  });
+
+  prueba('EN2', 'La sesión guardada cifrada (D-262): con la contraseña se abre y sin ella no; nunca en claro; renovar la vuelve a cifrar con la llave de la pestaña; una pestaña nueva no la abre sin contraseña; «la sesión ya no vale» la borra', async () => {
+    const N = W.EntradaNucleo, mapa = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m }; };
+    const ls = mapa(), ss = mapa(), ss2 = mapa(), PW = 'una-contraseña-de-veinte-o-más';
+    const ses = n => ({ access_token: 'x.' + btoa(JSON.stringify({ aal: 'aal2', amr: [{ method: 'totp', timestamp: Math.floor(Date.now() / 1000) }] })).replace(/=+$/, '') + '.y', refresh_token: 'refresco-' + n, expires_at: 9e9, user: { id: 'u1', email: 'k@ejemplo.test' } });
+    const A = N.almacenCifrado({ ref: 'prueba', ls, ss });
+    await A.nueva(PW, ses(1));
+    const b = A.guardada();
+    ok(b && b.correo === 'k@ejemplo.test' && b.it === 1000000 && b.dato && b.vence > Date.now() + 29 * 864e5, 'la guardada sin correo, vueltas, dato o fecha del código: ' + JSON.stringify(b && { ...b, dato: !!b.dato }));
+    ok(!ls._m.get(A.CLAVES.BLOB).includes('refresco') && !ls._m.get(A.CLAVES.BLOB).includes('access_token'), 'la sesión guardada va en claro');
+    ok(A.abierta() && A.leer().refresh_token === 'refresco-1', 'la pestaña que entró no la tiene abierta');
+    A.guardar(ses(2)); await A.esperar();
+    const B = N.almacenCifrado({ ref: 'prueba', ls, ss: ss2 });   // otra pestaña: la misma guardada, otra sessionStorage
+    ok(!B.abierta() && B.leer() === null, 'una pestaña nueva la tiene abierta sin contraseña');
+    let mal = false; try { await B.desbloquear('no-es-esta-contraseña-de-veinte'); } catch (e) { mal = true; }
+    ok(mal && !B.abierta(), 'una contraseña que no es la abre');
+    const s2 = await B.desbloquear(PW);
+    igual(s2.refresh_token, 'refresco-2', 'la renovada (cifrada con la llave de la pestaña que renovó)');
+    ss._m.set(A.CLAVES.SES, JSON.stringify(ses(1)));   // la primera pestaña se quedó atrás: al recargar manda la guardada
+    ok(await A.sincronizar() && A.leer().refresh_token === 'refresco-2', 'recargar no toma la guardada');
+    // revisión: recargar pone al día también la instancia de Supa (si no, renovaría con un refresh token viejo)
+    let oido = null; A.oir(x => { oido = x; });
+    ss._m.set(A.CLAVES.SES, JSON.stringify(ses(1))); await A.sincronizar();
+    igual(oido && oido.refresh_token, 'refresco-2', 'recargar no avisa a la instancia de Supa');
+    // revisión: otra entrada en este navegador (otra sal): la pestaña vieja ni la borra ni la usa
+    const ss3 = mapa(), C = N.almacenCifrado({ ref: 'prueba', ls, ss: ss3 });
+    await C.nueva('otra-contraseña-de-veinte-o-más', ses(3));
+    A.guardar(null);
+    ok(ls._m.has(A.CLAVES.BLOB) && C.abierta(), 'una pestaña vieja borra la guardada de una entrada más nueva');
+    ss._m.set(A.CLAVES.LLAVE, ss2._m.get(A.CLAVES.LLAVE)); ss._m.set(A.CLAVES.SES, JSON.stringify(ses(2)));   // la vieja, «abierta» con la sal de antes
+    ok(!(await A.sincronizar()) && !A.abierta(), 'una pestaña con la sal de antes sigue abierta al recargar');
+    C.guardar(null);
+    ok(!ls._m.has(A.CLAVES.BLOB) && !C.abierta(), '«la sesión ya no vale» no borra la guardada ni la de la pestaña');
+  });
+
+  prueba('EN3', 'Cuándo pide el código la entrada (D-262): sin aal2, sin código o a los 29 días del último (un día antes que el servidor, para que no caduque con la Mesa abierta)', async () => {
+    const N = W.EntradaNucleo, ahora = Date.parse('2026-11-20T10:00:00Z'), hace = d => ({ aal: 'aal2', totp: Math.floor((ahora - d * 864e5) / 1000) });
+    ok(N.pideCodigo(null, ahora) && N.pideCodigo({ aal: 'aal1', totp: null }, ahora) && N.pideCodigo({ aal: 'aal2', totp: null }, ahora), 'sin sesión, aal1 o sin código no lo pide');
+    ok(!N.pideCodigo(hace(0), ahora) && !N.pideCodigo(hace(28.9), ahora), 'lo pide antes de los 29 días');
+    ok(N.pideCodigo(hace(29), ahora) && N.pideCodigo(hace(31), ahora), 'no lo pide a los 29 o 31 días');
+    igual(N.venceCodigo(hace(1)), ahora - 864e5 + 30 * 864e5, 'vence a los 30 días del código');
+    const n = N.nivelDe('x.' + btoa(JSON.stringify({ aal: 'aal2', amr: [{ method: 'password', timestamp: 5 }, { method: 'totp', timestamp: 9 }] })).replace(/=+$/, '') + '.y');
+    ok(n && n.aal === 'aal2' && n.totp === 9, 'nivelDe no lee aal y la hora del código: ' + JSON.stringify(n));
+  });
+
+  prueba('EN4', 'Las pantallas de la entrada (D-262): cada campo con su etiqueta y su autocompletado (correo, contraseña, contraseña nueva, código de un solo uso), «¿Olvidaste tu contraseña?» al lado de la contraseña, el dato debajo del título (nunca encima), el QR como imagen', async () => {
+    const E = M.entrada, P = { entrar: { correo: 'k@ejemplo.test', vence: Date.parse('2026-12-19T12:00:00Z') }, nuevo: {}, correo: { correo: 'k@ejemplo.test' }, pedirCorreo: { titulo: '¿Olvidaste tu contraseña?' }, codigo: {}, contrasena: { titulo: 'Crea tu contraseña', dato: 'Paso 1 de 2' }, qr: { qr: '<svg xmlns="http://www.w3.org/2000/svg"/>', clave: 'ABCDEFGHIJKLMNOP' }, mensaje: { titulo: 'x', texto: 'y' } };
+    try {
+      for (const [n, o] of Object.entries(P)) {
+        const c = E._test.pantalla(n, o);
+        ok(c && c.id === 'mesa-entrada' && c.querySelector('h1'), n + ': sin capa o sin título');
+        for (const i of c.querySelectorAll('input:not([hidden])')) ok(i.id ? c.querySelector(`label[for="${i.id}"]`) : i.getAttribute('aria-label'), `${n}: un campo sin etiqueta`);
+        const h = c.querySelector('h1'), dato = c.querySelector('.dato');
+        if (dato) ok(h.compareDocumentPosition(dato) & Node.DOCUMENT_POSITION_FOLLOWING, n + ': el dato encima del título (antetítulo)');
+        ok(![...c.querySelectorAll('*')].some(x => x !== h && (x.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) && W.getComputedStyle(x).textTransform === 'uppercase'), n + ': algo en mayúsculas encima del título');
+      }
+      let c = E._test.pantalla('entrar', P.entrar);
+      ok(c.querySelector('input[type=password][autocomplete="current-password"]') && c.querySelector('[autocomplete="username"]'), 'entrar: sin autocompletado de usuario y contraseña');
+      ok(c.querySelector('.lrow [data-accion="olvido"]') && /Olvidaste/.test(c.querySelector('.lrow').textContent), 'entrar: sin «¿Olvidaste tu contraseña?» junto a «Contraseña»');
+      ok(/19 de diciembre/.test(c.textContent), 'entrar: no dice cuándo pedirá el código');
+      c = E._test.pantalla('nuevo', {}); ok(c.querySelector('[data-accion="olvido"]') && c.querySelector('[data-accion="primera"]'), 'nuevo: sin «¿Olvidaste?» o sin la primera vez por correo');
+      c = E._test.pantalla('contrasena', P.contrasena); ok(c.querySelectorAll('input[type=password][autocomplete="new-password"]').length === 2, 'contrasena: sin autocompletado de contraseña nueva');
+      c = E._test.pantalla('codigo', {}); ok(c.querySelector('input[autocomplete="one-time-code"][inputmode="numeric"]'), 'codigo: sin código de un solo uso');
+      c = E._test.pantalla('qr', P.qr); ok(/^data:image\/svg\+xml/.test(c.querySelector('.qr img').getAttribute('src')) && /ABCD EFGH IJKL MNOP/.test(c.querySelector('.clave code').textContent), 'qr: sin la imagen o sin la clave en grupos de 4');
+    } finally { E._test.quitar(); }
+  });
+
+  prueba('EN5', 'La pantalla de carga (D-262, la B): el monograma se llena con lo que baja y dice «Bajando tu Mesa · N de M»; sin movimiento con «Reducir movimiento»; al terminar se va', async () => {
+    const E = M.entrada;
+    try {
+      const c = E._test.pantalla('carga'); E.carga = true;
+      ok(c.classList.contains('carga') && c.querySelector('.mono svg') && /Uribe Visuals/.test(c.textContent) && c.querySelector('[role=status]'), 'sin monograma, marca o estado');
+      E.avance(640, 1609);
+      igual(c.querySelector('.avance').textContent, 'Bajando tu Mesa · 640 de ' + (1609).toLocaleString('es-ES'), 'el avance (las cifras como el resto de la Mesa)');
+      ok(/^inset\(60\.2%( 0(px)?){1,3}\)$/.test(c.querySelector('.ll').style.clipPath), 'el cuadrado no se llena con lo bajado: ' + c.querySelector('.ll').style.clipPath);
+      E.avance(12000, 11609); igual(c.querySelector('.avance').textContent, 'Bajando tu Mesa · 12.000 de 12.000', 'más de los que había (lápidas): nunca «N de M» con N > M');
+      const css = (D.getElementById('mesa-entrada-css') || {}).textContent || '';
+      ok(/@media \(prefers-reduced-motion:reduce\)\{#mesa-entrada,#mesa-entrada \.mono \.ll\{transition:none\}\}/.test(css), 'sin la regla de «Reducir movimiento»');
+      E.cargaFin(); await espera(400);
+      ok(!D.getElementById('mesa-entrada'), 'la pantalla de carga no se va');
+    } finally { E._test.quitar(); E.carga = false; }
   });
 
   prueba('CS2', 'Nada escrito por un cliente ejecuta código en la Mesa (D-252): un <img src=x onerror=…> en un caption, una Nota, el nombre de un cliente y un comentario del cliente bajado del servidor no corre; y uno que se colara en el HTML lo para la CSP y lo dice', async () => {

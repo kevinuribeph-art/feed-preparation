@@ -162,7 +162,8 @@ function servidorSimulado(reloj) {
     return { ok: true, turno: T.numero, tuyo: T.dispositivo != null && T.dispositivo === d, libre: T.dispositivo == null,
       tiene: T.dispositivo == null ? null : { dispositivo: T.dispositivo, desde: iso(T.desde), latido: iso(T.latido), latido_hace: hace(T.latido), cola: T.cola, cola_desde: iso(T.cola_desde), cola_hace: hace(T.cola_desde) },
       pide: T.pide == null ? null : { dispositivo: T.pide, desde: iso(T.pide_desde), hace: hace(T.pide_desde), ultima: iso(T.pide_ultima), ultima_hace: hace(T.pide_ultima), tuyo: T.pide === d },
-      orden: T.orden, version_minima: S.version_minima, epoca: S.epoca, hora: iso(ahora()) };
+      orden: T.orden, version_minima: S.version_minima, epoca: S.epoca, hora: iso(ahora()),
+      total: [...S.registros.values()].filter(x => x.valor != null).length };   // esquema 4 (D-262): los registros vivos
   }
   const F = {
     mesa_turno_ver({ dispositivo: d }) { return DISP_RE.test(d || '') ? respTurno(d) : forma('mesa_turno_ver', d); },
@@ -292,7 +293,7 @@ function servidorSimulado(reloj) {
     },
     cliente(nombre) {   // la red de un ordenador: fallos, registro de llamadas y congelado
       const c = {
-        nombre, red: false, colgar: false, permiso: false, sinSesion: false, fallos: [], llamadas: [], blobs: 0, congelado: false, deshielo: [],
+        nombre, red: false, colgar: false, permiso: false, sinSesion: false, sinCodigo: false, fallos: [], llamadas: [], blobs: 0, congelado: false, deshielo: [],
         descongelar() { c.congelado = false; c.deshielo.splice(0).forEach(f => f()); },
         async rpc(fn, args) {
           if (c.congelado) await new Promise(r => c.deshielo.push(r));
@@ -313,6 +314,7 @@ function servidorSimulado(reloj) {
           if (fn === 'mesa_escribir' && Array.isArray(reg.args.cambios) && reg.args.cambios.some(x => x && S.malas.has(K(x.almacen, x.clave)))) lanzar(400, '22P05', 'unsupported Unicode escape sequence (simulado)');
           let r;
           if (c.permiso) { anotar('ajeno', reg.args.dispositivo, { funcion: fn }); r = { ok: false, error: { codigo: 'permiso', http: 403, mensaje: 'sin permiso' } }; }
+          else if (c.sinCodigo) r = rech(fn, reg.args.dispositivo, 'verificacion', 401, 'falta el código de tu app (simulado)');   // D-262
           else if (!F[fn]) lanzar(404, 'PGRST202', 'función desconocida: ' + fn);
           else r = F[fn](reg.args);
           reg.resp = r;
@@ -406,7 +408,8 @@ function efectosEspia(reloj, hooks) {
   const e = { pausas: [], recargas: 0, estados: [],
     async pausar(info) { e.pausas.push({ ...(info || {}), t: reloj.t }); if (hooks.pausar) await hooks.pausar(info || {}); },
     recargar() { e.recargas++; },
-    estado(x) { e.estados.push(x && typeof x === 'object' ? { ...x } : x); } };
+    estado(x) { e.estados.push(x && typeof x === 'object' ? { ...x } : x); },
+    avance(h, t) { (e.avances = e.avances || []).push([h, t]); } };
   return e;
 }
 
@@ -1069,6 +1072,32 @@ await grupo('NS15 traer la Mesa a un aparato que no es el primero', async () => 
   const W2 = mundo(), C = W2.nodo(DC); C.alm.sembrar({ registros: [['boards', 'x', { n: 1 }]] });
   const r2 = await W2.correr(() => C.n.abrir({ traer: true }), { paso: 500, max: 40 });
   ok(r2.valor && r2.valor.modo === 'vacia' && !W2.srv.S.turno.dispositivo && C.alm.tiene('boards', 'x'), 'NS15.7 con el servidor vacío no se enciende ni toma la Mesa (se sube desde el primero)', r2.valor);
+});
+
+await grupo('NS16 la entrada (D-262): «falta el código», el avance de la bajada y un ordenador nuevo con la Mesa abierta en otro', async () => {
+  // sin el código de la app al abrir: abre con lo de aquí, sin escribir arriba ni apartar nada
+  const W = mundo(), A0 = W.nodo(DA); A0.cli.sinCodigo = true; A0.alm.sembrar({ registros: [['boards', 'mio', { n: 1 }]], notas: [['boards', 'mio']] });
+  const r0 = await W.abrir(A0);
+  ok(r0 && r0.modo === 'sin_codigo' && (await fase(A0)) === 'sin_codigo' && !escrituras(A0).length && !(await A0.alm.sinSubir()).length && !W.S.turno.dispositivo, 'NS16.1 sin código al abrir: «sin_codigo», sin turno ni escrituras, nada aparte', { r0, r: resumen(A0) });
+  // con turno, el código caduca a mitad: la cola espera (nada aparte), no se reintenta sin parar, y con el código sigue
+  const { W: W2, A, sv } = await conTurno();
+  A.cli.sinCodigo = true; A.alm.escribirLocal('boards', 'b1', { n: 1 });
+  await W2.vivir(15, A);
+  const n1 = A.cli.llamadas.length; await W2.vivir(20, A); const n2 = A.cli.llamadas.length;
+  ok((await fase(A)) === 'sin_codigo' && (await noPerdido(A.alm, 'boards', 'b1')) && !(await A.alm.sinSubir()).length, 'NS16.2 a mitad: «sin_codigo», el cambio espera en el diario y nada va aparte', { fase: await fase(A), r: resumen(A) });
+  ok(n2 - n1 <= 2, 'NS16.3 … y no llama sin parar mientras falta el código', { llamadas: n2 - n1, r: resumen(A) });
+  A.cli.sinCodigo = false; A.n.reintentar();
+  ok(await W2.hasta(async () => sv.vivo('boards', 'b1'), { tics: [A], max: 60 }), 'NS16.4 con el código, reintentar sube lo que esperaba', resumen(A));
+  // el avance: registros bajados de los que hay arriba
+  const B = W2.nodo(DB); for (let i = 0; i < 30; i++) A.alm.escribirLocal('boards', 'x' + i, { n: i });
+  await W2.hasta(async () => sv.vivo('boards', 'x29'), { tics: [A], max: 60 });
+  const total = [...W2.S.registros.values()].filter(x => x.valor != null).length;
+  // un ordenador nuevo con la Mesa abierta en A: la baja entera y se queda en pausa, sin escribir arriba (D-254)
+  const e0 = escrituras(B).length, rB = await W2.correr(() => B.n.abrir({ traer: true }), { paso: 500, max: 60, tics: [A] });
+  const av = B.efectos.avances || [], ult = av[av.length - 1] || [];
+  ok(rB.valor && rB.valor.modo === 'pausada' && rB.valor.traido === true && W2.S.turno.dispositivo === DA && escrituras(B).length === e0, 'NS16.5 traer con la Mesa en otro: baja y queda en pausa, sin tomar el turno ni escribir', { r: rB.valor, turno: W2.S.turno.dispositivo });
+  ok(B.alm.ver('boards', 'x29') && B.alm.ver('boards', 'x29').n === 29 && B.alm.ver('boards', 'b1'), 'NS16.6 … con todo lo de arriba', resumen(B));
+  ok(av.length >= 2 && av[0][0] === 0 && ult[1] === total && ult[0] >= total, 'NS16.7 el avance empieza en 0 y acaba en el total de arriba', { av, total });
 });
 
 console.log('NS0 al final');

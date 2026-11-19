@@ -22,7 +22,9 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   más adelante, la Mesa en su propia carpeta, como el portal, y sin esta copia.
 - `index.html` lleva la CSP de la Mesa en un `<meta>` (D-252: ningún script en línea ni manejador `on…=`; todo script es un
   archivo) y carga, sin async, `tema.js` (el tema oscuro antes de pintar), `mesa.js` (núcleo, expone `window.MESA`),
-  `portal/supa.js` (la sesión de Supabase: una sola instancia para toda la Mesa, `MESA._in.supa`), `nube.js` (la nube: sube
+  `portal/supa.js` (la sesión de Supabase: una sola instancia para toda la Mesa, `MESA._in.supa`), `entrada.js` (la entrada, D-262:
+  contraseña en cada ventana nueva, el código de la app a los 30 días, el alta, «¿Olvidaste?» y la pantalla de carga; guarda la
+  sesión cifrada con la contraseña; va antes que la nube, que crea la sesión al cargar), `nube.js` (la nube: sube
   por detrás cada cambio del diario y, al abrir, baja lo último antes de dibujar; una Mesa a la vez entre ordenadores; apagada
   salvo que se active en un navegador, D-253 a D-257; con ella, las fotos suben y bajan con su worker `nube-fotos.js`, D-259), `arranque.js` (abre la Mesa) y `vigia.js` (marca los módulos que no
   cargan y avisa de lo que bloquea la CSP); y, en async, `kits/motor.js` (motor de
@@ -36,7 +38,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   `nube` (IndexedDB 23).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
-  `mesa-version`, `mesa-epoca`, `actividad`) y la función `zernio` del servidor (`zernio`, D-261). Solo en local.
+  `mesa-version`, `mesa-epoca`, `actividad`), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:
+  el interruptor del código de su app; `rescate`: quitar su código y sus sesiones si pierde el iPhone y el Mac; D-262). Solo en local.
 - `servidor/funciones/zernio.ts`: función de Supabase que hace lo de `presign`, `schedule`, `posts` y `update` de
   `tools/zernio.mjs` con la clave como secreto del proyecto, solo para la sesión de Kevin (D-261). `zernio-falso.ts`, su Zernio
   simulado, solo en el proyecto de pruebas.
@@ -49,7 +52,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   página lo pide y falta, la copia se para y Cloudflare no publica).
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
   `index.html`, los dos iguales. Si cambias `nube-fotos.js` (el worker de las fotos), sube `FOTOS_V` en `nube.js` y el `?v=` de
-  `nube.js`. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
+  `nube.js`. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `entrada.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
   su `?v=` en `index.html`. Sin esto el navegador sigue sirviendo la versión en caché.
 - Si un tablero empieza a guardar algo que el código anterior no conoce, sube también la versión de IndexedDB en `db()`: si no, una pestaña antigua lo pisa (D-060).
 - Si subes la versión de IndexedDB, tras comprobar con curl que Pages sirve la nueva, sube la mínima del servidor a esa versión
@@ -62,7 +65,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Nunca abras las URL publicadas (`github.io` ni `mesa.uribevisuals.studio`) en el navegador integrado de Claude para probar:
   ahí están los datos reales de Kevin.
   Ábrela solo para lo que Kevin pida hacer en su mesa.
-- Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `nube-fotos.js`, `mesa.js`, `diseno.js`,
+- Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `entrada.js`, `nube.js`, `nube-fotos.js`, `mesa.js`, `diseno.js`,
   `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
 - Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
@@ -78,6 +81,10 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   `node tests/portal-aislamiento.mjs`. Antes de cada PR que toque el servidor, el portal o lo que la Mesa envía, entera en verde.
 - El servidor de la Mesa (esquema `mesa`, D-251), igual, contra el proyecto de pruebas y nunca el real: `node tests/mesa-servidor.mjs`
   (necesita `node tools/web.mjs mesa pruebas` aplicado). Antes de cada PR que toque `servidor/mesa.sql`, entera en verde.
+- La entrada de la Mesa en el servidor (D-262: el código de la app, el interruptor `exigir_codigo`, «¿Olvidaste?» y el rescate),
+  contra el proyecto de pruebas y nunca el real: `node tests/entrada-servidor.mjs` (deja el interruptor como estaba). Los Kevin
+  inventados de las pruebas del servidor entran con el código de su app (`tests/codigo-app.mjs`). Antes de cada PR que toque
+  `servidor/esquema.sql`, `servidor/mesa.sql`, la entrada o `tools/web.mjs`, entera en verde.
 - La función `zernio` (D-261), contra el proyecto de pruebas y un Zernio simulado, nunca el real ni la clave real:
   `node tests/zernio-servidor.mjs` (la despliega en pruebas y deja sus secretos como estaban). Antes de cada PR que toque
   `servidor/funciones/zernio*.ts` o la orden `zernio` de `tools/web.mjs`, entera en verde, con `mesa-servidor` y `portal-aislamiento`.

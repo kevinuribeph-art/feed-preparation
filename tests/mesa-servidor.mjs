@@ -19,6 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { proyecto, rest, cab, pedir, gestion, tapar, clave, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
+import { conCodigo } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
 
 if (process.argv.slice(2).some(a => a !== 'pruebas')) { console.error('esta prueba solo corre contra el proyecto de pruebas'); process.exit(1); }
 const P = proyecto('pruebas');
@@ -200,7 +201,7 @@ async function main() {
     const r = await servicio(t, { method: 'POST', body: filas, prefer: 'resolution=merge-duplicates' });
     if (!r.ok) throw new Fallo(`no se pudo sembrar ${t}: ${r.status} ${r.text}`);
   }
-  const kk = await entrar(CORREO.k), ka = await entrar(CORREO.a), kn = await entrar(CORREO.n);
+  const kk = (await conCodigo(P, await entrar(CORREO.k))).access_token, ka = await entrar(CORREO.a), kn = await entrar(CORREO.n);
   const K = rpcDe(kk), A = rpcDe(ka, true), NAD = rpcDe(kn, true), N = rpcDe(null, true);
   const esc = (d, t, cambios, app = APP, reescanear) => K('mesa_escribir', { dispositivo: d, turno: t, app, cambios, ...(reescanear === undefined ? {} : { reescanear }) });
   const reclamar = (d, visto, forzar) => K('mesa_turno_reclamar', { dispositivo: d, visto, app: APP, ...(forzar === undefined ? {} : { forzar }) });
@@ -612,7 +613,8 @@ async function main() {
   const fns = await sql(`select p.proname, p.prosecdef, coalesce(p.proconfig::text, '') as conf, coalesce(p.proacl::text, '') as acl, count(*) over (partition by p.proname) as firmas
     from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'public' and p.proname like 'mesa\\_%'`);
   const siete = ['mesa_turno_ver', 'mesa_turno_pedir', 'mesa_turno_latido', 'mesa_turno_reclamar', 'mesa_turno_soltar', 'mesa_escribir', 'mesa_bajar', 'mesa_actividad'];   // ocho desde el esquema 3 (ver, lote 3)
-  ok(fns.length === 8 && siete.every(f => fns.some(y => y.proname === f)) && fns.every(y => +y.firmas === 1), 'las 8 funciones mesa_*, una sola firma cada una', JSON.stringify(fns.map(y => y.proname)));
+  // y `mesa_yo`, de esquema.sql (D-262): quién eres para la Mesa y hasta cuándo vale tu código
+  ok(fns.length === 9 && [...siete, 'mesa_yo'].every(f => fns.some(y => y.proname === f)) && fns.every(y => +y.firmas === 1), 'las 8 funciones mesa_* y mesa_yo, una sola firma cada una', JSON.stringify(fns.map(y => y.proname)));
   ok(fns.every(y => y.prosecdef && y.conf === '{"search_path=\\"\\""}'), "todas security definer con search_path=''", JSON.stringify(fns.map(y => y.conf)));
   ok(fns.every(y => !/(^|[{,])(anon)?=X/.test(y.acl) && /authenticated=X/.test(y.acl)), 'ninguna ejecutable por anon ni por PUBLIC; sí por authenticated', JSON.stringify(fns.map(y => y.acl)));
   const usos = await sql(`with roles(rol) as (values ('anon'), ('authenticated'), ('service_role'), ('authenticator')),

@@ -13,7 +13,8 @@
 -- llamar). Lleva su versión (`v_archivo`, abajo): súbela en cada cambio; un archivo más viejo que el aplicado no se aplica.
 --
 -- Reglas (plan: «Lo que guarda el servidor», «Reglas para construirlo»; lecciones 88, 89, 94, 118, 120, 121, 136):
---   · Solo Kevin (`public.duenos`). Cada función `mesa_*` empieza comprobando `es_dueno()`. El esquema `mesa` no se expone en
+--   · Solo Kevin (`public.duenos`). Cada función `mesa_*` empieza comprobando `dueno_cuenta()` (si no, «ajeno») y después
+--     `es_dueno()`, que con el interruptor encendido pide además el código de su app (si no, el rechazo `verificacion`, D-262). El esquema `mesa` no se expone en
 --     la API (no está en los esquemas de PostgREST) y nadie más que su dueño lo usa; las funciones son la única puerta.
 --   · La hora la pone el servidor (`now()`), nunca el aparato; las respuestas dan la hora del servidor y las edades en
 --     segundos, para que el cliente no use su reloj.
@@ -41,11 +42,11 @@
 
 do $$
 declare
-  v_archivo constant integer := 3;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3)
+  v_archivo constant integer := 4;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3). 4: el código de la app y `total` (D-262)
   v_aplicada integer := 0;
 begin
-  if to_regprocedure('public.es_dueno()') is null then
-    raise exception 'falta servidor/esquema.sql: aplícalo antes (node tools/web.mjs esquema …)';
+  if to_regprocedure('public.es_dueno()') is null or to_regprocedure('public.dueno_cuenta()') is null then
+    raise exception 'falta servidor/esquema.sql (con dueno_cuenta, D-262): aplícalo antes (node tools/web.mjs esquema …)';
   end if;
   if to_regclass('mesa.ajustes') is not null then
     select coalesce((to_jsonb(a) ->> 'esquema')::integer, 0) into v_aplicada from mesa.ajustes a where a.id;
@@ -274,6 +275,14 @@ begin
   return mesa.rechazo('permiso', 403, 'sin permiso');
 end $$;
 
+-- Kevin sin un código de su app de los últimos 30 días (D-262): su propio rechazo, `verificacion`, nunca «ajeno». Se apunta
+-- como cualquier rechazo (uno por minuto, dispositivo y función): sin el código, alguien con su contraseña también llega aquí.
+create or replace function mesa.sin_codigo(p_fn text, p_disp text) returns jsonb
+  language plpgsql volatile set search_path = '' as $$
+begin
+  return mesa.rechazar(p_fn, p_disp, mesa.rechazo('verificacion', 401, 'falta el código de tu app: escríbelo para seguir'));
+end $$;
+
 -- El dispositivo y la versión de la app: forma y mínima. Null si valen; si no, el rechazo (sin apuntar: lo hace quien llama).
 create or replace function mesa.validar(d text, a text) returns jsonb
   language plpgsql stable set search_path = '' as $$
@@ -322,7 +331,7 @@ create or replace function mesa.turno_json(t mesa.turno, yo text) returns jsonb
 $$;
 
 revoke all on function mesa.version_num(text), mesa.app_ok(text), mesa.epoca(), mesa.rechazo(text, integer, text, jsonb),
-  mesa.apuntar(text, text, jsonb), mesa.rechazar(text, text, jsonb, jsonb), mesa.ajeno(text, text), mesa.validar(text, text),
+  mesa.apuntar(text, text, jsonb), mesa.rechazar(text, text, jsonb, jsonb), mesa.ajeno(text, text), mesa.sin_codigo(text, text), mesa.validar(text, text),
   mesa.hace(timestamptz), mesa.turno_json(mesa.turno, text), mesa.actividad_fija() from public, anon, authenticated, service_role;
 
 -- ───────────────────────── El turno, en dos fases ─────────────────────────
@@ -341,7 +350,8 @@ declare
   v_err jsonb;
   t mesa.turno;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_turno_pedir', v_yo); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_turno_pedir', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_turno_pedir', v_yo); end if;
   v_err := mesa.validar(v_yo, mesa_turno_pedir.app);
   if v_err is not null then
     return mesa.rechazar('mesa_turno_pedir', v_yo, v_err, jsonb_strip_nulls(jsonb_build_object('app', mesa.app_ok(mesa_turno_pedir.app))));
@@ -365,12 +375,14 @@ declare
   v_yo text := mesa_turno_ver.dispositivo;
   t mesa.turno;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_turno_ver', v_yo); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_turno_ver', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_turno_ver', v_yo); end if;
   if v_yo is null or v_yo !~ '^[A-Za-z0-9_-]{8,64}$' then
     return mesa.rechazar('mesa_turno_ver', v_yo, mesa.rechazo('forma', 400, 'dispositivo no válido: de 8 a 64 letras, cifras, - o _'));
   end if;
   select * into t from mesa.turno where id;
-  return mesa.turno_json(t, v_yo);
+  -- `total`: cuántos registros vivos hay arriba (el «N de M» de la pantalla de carga, D-262)
+  return mesa.turno_json(t, v_yo) || jsonb_build_object('total', (select count(*) from mesa.registros r where r.borrado is null));
 end $$;
 
 -- El latido del que tiene la Mesa: su hora (del servidor), cuántos cambios tiene en cola y, desde el primer latido con cola
@@ -386,7 +398,8 @@ declare
   v_err jsonb;
   t mesa.turno;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_turno_latido', v_yo); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_turno_latido', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_turno_latido', v_yo); end if;
   v_err := mesa.validar(v_yo, mesa_turno_latido.app);
   if v_err is null and (v_turno is null or v_cola is null or v_cola < 0) then v_err := mesa.rechazo('forma', 400, 'turno y cola: dos números'); end if;
   if v_err is not null then return mesa.rechazar('mesa_turno_latido', v_yo, v_err, v_det); end if;
@@ -424,7 +437,8 @@ declare
   t mesa.turno;
   t0 mesa.turno;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_turno_reclamar', v_yo); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_turno_reclamar', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_turno_reclamar', v_yo); end if;
   v_err := mesa.validar(v_yo, mesa_turno_reclamar.app);
   if v_err is null and v_visto is null then v_err := mesa.rechazo('forma', 400, 'visto: el número de turno que se vio'); end if;
   if v_err is not null then return mesa.rechazar('mesa_turno_reclamar', v_yo, v_err, v_det); end if;
@@ -470,7 +484,8 @@ declare
   v_turno bigint := mesa_turno_soltar.turno;
   t mesa.turno;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_turno_soltar', v_yo); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_turno_soltar', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_turno_soltar', v_yo); end if;
   if v_yo is null or v_yo !~ '^[A-Za-z0-9_-]{8,64}$' or v_turno is null then
     return mesa.rechazar('mesa_turno_soltar', v_yo, mesa.rechazo('forma', 400, 'dispositivo y turno'));
   end if;
@@ -540,7 +555,8 @@ declare
   v_por_alm jsonb := '{}'::jsonb;
   v_muestra jsonb[] := '{}';
 begin
-  if not public.es_dueno() then return mesa.ajeno(v_fn, v_yo); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno(v_fn, v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo(v_fn, v_yo); end if;
   v_det := jsonb_strip_nulls(jsonb_build_object('app', mesa.app_ok(v_app), 'turno', v_turno, 'reescanear', v_resc,
                               'cambios', case when jsonb_typeof(v_cambios) = 'array' then jsonb_array_length(v_cambios) end));
   v_err := mesa.validar(v_yo, v_app);
@@ -684,7 +700,8 @@ declare
   v_hasta bigint;
   v_mas boolean := false;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_bajar', null); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_bajar', null); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_bajar', null); end if;
   if v_desde is null or v_desde < 0 then
     return mesa.rechazar('mesa_bajar', null, mesa.rechazo('forma', 400, 'desde: un número de orden desde 0'));
   end if;
@@ -724,7 +741,8 @@ declare
   v_filas jsonb;
   v_hasta bigint;
 begin
-  if not public.es_dueno() then return mesa.ajeno('mesa_actividad', null); end if;
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_actividad', null); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_actividad', null); end if;
   if v_desde is null or v_desde < 0 then
     return mesa.rechazar('mesa_actividad', null, mesa.rechazo('forma', 400, 'desde: un id desde 0'));
   end if;

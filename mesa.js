@@ -7351,7 +7351,7 @@
     if (persistida === false) el.setAttribute('aria-describedby', 'cp-copias-nota');
     el.addEventListener('click', e => {
       const b = e.target.closest('button[data-copia]'); if (!b) return;
-      const a = b.dataset.copia; cerrarCopias(false);
+      const a = b.dataset.copia; cerrarCopias(true);   // the focus back on the symbol (the review)
       if (a === 'exportar') M.exportAll();   // no await before the save picker: it needs the click
       else if (a === 'todo') { if (M.copia && M.copia.exportar) M.copia.exportar(); else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.'); }   // D-249
       else if (a === 'importar') elegirImportar();

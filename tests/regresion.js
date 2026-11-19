@@ -17071,7 +17071,7 @@
     M.importData = src => { log.push(['importar', Array.isArray(src) ? src.map(f => f.name) : src.name]); return Promise.resolve({}); };
     IP.click = function () { if (this.type === 'file' && this.classList.contains('xferin')) { inp = this; log.push('elegir'); } else clk.call(this); };
     try {
-      mcElegir('Exportar'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');
+      mcLogo().focus(); mcElegir('Exportar'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir'); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
       mcElegir('Exportar todo'); await espera(20);
       mcElegir('Importar…'); await espera(20);
       igual(log, ['exportar', 'todo', 'elegir'], 'lo que hizo cada opción');

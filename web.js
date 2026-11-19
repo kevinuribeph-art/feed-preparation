@@ -565,7 +565,7 @@
     _sb: () => sb(),
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(tic); clearInterval(tic2); clearTimeout(repasoT); },
   };
-  listo().then(() => {
+  if (!document.documentElement.hasAttribute('data-movil')) listo().then(() => {   // the iPhone (D-267): no start of its own; it only reads and replies
     on(document, 'click', alClic, true);
     on(document, 'submit', alEnviarForm, true);
     on(document, 'visibilitychange', () => { if (!document.hidden) { st.servidor = null; st.firma = ''; st.extra = null; pedirRepaso(); leerConversacion().catch(() => null); leerRespuestas().catch(() => null); } });

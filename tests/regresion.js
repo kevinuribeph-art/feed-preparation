@@ -18389,6 +18389,58 @@
     }
   });
 
+  // ---------- la Mesa en el móvil (D-267) ----------
+  // El núcleo en modo móvil se prueba en tests/movil-nucleo.html (<html data-movil>, sin movil.js), en el mismo marco: mismo
+  // origen, misma IndexedDB. Lo que se prepara con la Mesa del escritorio se mira después desde el núcleo del móvil.
+  const fr$ = () => $('mesa');
+  async function aMarco(url, listo, que) {
+    await new Promise(r => { fr$().onload = r; fr$().src = url + (url.includes('?') ? '&' : '?') + 'regresion=' + Date.now(); });
+    W = fr$().contentWindow; D = W.document;
+    await hasta(listo, 15000, que);
+    M = W.MESA; if (M._test && M._test.reloj) M._test.reloj(RELOJ_PRUEBAS); djGuarda();
+  }
+  // escrituras nativas de IndexedDB en el marco (todas: también el diario), para «mirar no escribe» (R1, lección 138)
+  function contarEscrituras() {
+    const n = { total: 0, de: [] }, P = W.IDBObjectStore.prototype, C = W.IDBCursor.prototype;
+    const ojo = (proto, ms, alm) => ms.forEach(m => { const f = proto[m]; proto[m] = function (...a) { const st = alm(this); if (st.transaction.db.name === 'mesa-feed') { n.total++; n.de.push(m + ' ' + st.name); } return f.apply(this, a); }; });
+    ojo(P, ['put', 'add', 'delete', 'clear'], o => o); ojo(C, ['update', 'delete'], c => c.source.objectStore || c.source);
+    return n;
+  }
+  async function enMovil(fn) {
+    try {
+      await M.flush();
+      await aMarco('movil-nucleo.html', () => W.MESA && W.MESA._in && W.MESA._in.movil && W.MESA.personal && W.MESA.web && W.MESA.nube !== undefined, 'el núcleo del móvil');
+      return await fn();
+    } finally {
+      await aMarco('../index.html', () => W.MESA && W.MESA.status && W.MESA.libre && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 'la mesa de vuelta');
+      M.cfg.margenSubida = 0;
+      await hasta(() => M.personal || (W.MESA_CARGA || {}).personal === 'fallo', 15000, 'personal.js').catch(() => null);
+      if (M.personal) M.personal.cerrar();
+    }
+  }
+
+  prueba('MV1', 'La Mesa en el móvil (D-267): con <html data-movil> el núcleo carga sin dibujar el escritorio; boot, init, open y openClient no lo abren; la página personal no se monta, web.js no arranca y nada se escribe; los avisos van a la cara del móvil', async () => {
+    await tablero([pub(1), pub(2, 'Carrusel')]);
+    const key = M.status().key;
+    await enMovil(async () => {
+      const esc = contarEscrituras();
+      ok(M._in.movil && M._in.movil.activo === true, 'el núcleo no sabe que es el móvil');
+      ok(!D.getElementById('mesa') && D.getElementById('arnes'), 'se dibujó el escritorio o se vació el <body>');
+      for (const [k, a] of [['boot'], ['init', { client: CLIENTE, month: MES, slots: [pub(1)] }], ['open', key], ['openClient', CLIENTE]]) {
+        const r = await M[k](a); ok(r && /móvil/.test(r.error || ''), `${k} no dijo «móvil»: ${json(r)}`);
+      }
+      await espera(400);
+      ok(!D.getElementById('mesa'), 'algo abrió el escritorio');
+      ok(!D.querySelector('.pp') && !(M.personal.abierta && M.personal.abierta()), 'la página personal se montó');
+      ok(!D.getElementById('mesa-web-css'), 'web.js arrancó (su estilo)');
+      igual(esc.total, 0, 'el núcleo del móvil escribió por su cuenta: ' + esc.de.join(', '));
+      const vistos = []; M._in.movil.alAviso = (m, o) => vistos.push(m);
+      M._in.toast('hola móvil');
+      igual(vistos, ['hola móvil'], 'el aviso no llegó a la cara del móvil');
+    });
+    ok(M._in.shellReady() && M.status().key, 'la Mesa del escritorio no volvió');
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

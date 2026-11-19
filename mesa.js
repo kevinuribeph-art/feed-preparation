@@ -116,6 +116,9 @@
   let downOnBackdrop = false;
   const TAB = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   let locked = false;    // another tab/window took over: this one stops saving
+  // the Mesa on the iPhone (movil.html, D-267): <html data-movil>. The core without the desk: never its shell, nothing written on its
+  // own (only what Kevin touches, M._in.movil.operar), its notices to the phone's face. Fixed at load: index.html never has it.
+  const MOVIL = !!(document.documentElement && document.documentElement.hasAttribute('data-movil'));
   // the cloud (nube.js, lot 3 of the traspaso, D-253): off unless activated in this browser; nube.js turns `activa` on at load.
   // While the server's data comes down (`bajando`), nothing that notes in the journal writes; `alDia` once it all came down in this
   // session (the automatic cleanups wait for it); `alApuntar`, its hook after each write that noted.
@@ -4605,6 +4608,7 @@
   // ---------- messages ----------
   function clearToasts() { if (shellReady()) root.querySelectorAll('.toasts .toast:not([data-queda])').forEach(t => t.remove()); }   // a notice with queda stays over the window that opens next (D-127)
   function toast(msg, opt) {
+    if (MOVIL) { const f = M._in && M._in.movil && M._in.movil.alAviso; if (f) { try { f(msg, opt || {}); } catch (e) { /* the phone's face */ } } return; }   // the phone shows its own notices (D-267)
     if (!shellReady()) { toastQ.push({ msg, opt, at: Date.now() }); toastQ = toastQ.slice(-3); return; }
     const box = root.querySelector('.toasts');
     const key = (opt && opt.key) || msg;   // the same message replaces the previous one, unless it has its own key
@@ -6206,6 +6210,13 @@
     return M.status();
   };
   M.init = conTableros(M.init); M.open = conTableros(M.open); M.boot = conTableros(M.boot); M.openClient = conTableros(M.openClient);   // the boards read once per opening (A4)
+  // ---------- the iPhone's core (D-267) ----------
+  const MOVIL_IN = { activo: MOVIL, alAviso: null };
+  // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
+  if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {
+    const f = M[k];
+    M[k] = function (a, o) { return (k === 'init' && a && a.mirar) || (k === 'open' && o && o.mirar) ? f.apply(this, arguments) : Promise.resolve({ error: 'móvil: la Mesa del móvil no abre el escritorio' }); };
+  }
 
   // ---------- the cloud at opening (lot 3, D-253) ----------
   // Before anything is read to draw: a copy a reload left in localStorage goes into IndexedDB with its note (this browser's clock
@@ -7797,6 +7808,7 @@
     quitarAviso: id => txSinDiario(NUBE_ST, 'readwrite', s => s.delete(['av', id]))
   };
   M._in = {
+    movil: MOVIL_IN,   // the iPhone's core (D-267)
     AYUDA_LOGO, copias: { abrir: abrirCopias, cerrar: () => cerrarCopias(false) },   // the symbol's help and the copies' menu (D-263)
     vc: VC,
     // the cloud (lot 3, D-253 to D-257): its switch and state, its store, its pause; what hasn't arrived (D-256)

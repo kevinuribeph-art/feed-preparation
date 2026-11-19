@@ -1814,6 +1814,7 @@
 `;
   // the mesa never waits for this file: this file waits for the mesa's shell (put in the body when the mesa opens)
   (function esperarShell() {
+    if (document.documentElement.hasAttribute('data-movil')) return;   // the iPhone (D-267): no page, only its sums and its tasks
     const listo = () => { const X = I(); return !!(X && X.shellReady && X.shellReady() && X.idbAll && X.estilo); };
     if (listo()) return montar();
     let t = 0; const mo = new MutationObserver(() => { if (listo()) { mo.disconnect(); clearInterval(t); montar(); } });

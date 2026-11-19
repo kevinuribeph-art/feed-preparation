@@ -32,7 +32,8 @@ S._sesion({ access_token: 't', refresh_token: 'r', expires_in: 3600, user: { id:
 const subir = async (status, cuerpo) => { respuesta = { status, cuerpo }; try { return { ok: await S.subir('mesa', 'files/x.jpg', { size: 1, type: 'image/jpeg' }, 'image/jpeg') }; } catch (e) { return { e }; } };
 const a = await subir(409, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' }), b = await subir(400, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' });
 const c = await subir(400, { statusCode: '400', error: 'InvalidKey', message: 'Object with that key does not exist yet' }), d = await subir(403, { message: 'new row violates row-level security policy' });
-ok(a.ok === true && b.ok === true && c.e && c.e.status === 400 && d.e && d.e.status === 403, 'PS5 subir: solo un 409 (o su cuerpo) cuenta como subido', JSON.stringify([a, b, c.e && c.e.message, d.e && d.e.message]));
+const e2 = await subir(400, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists', code: 'KeyAlreadyExists' });   // lo que contesta el Storage de Supabase (comprobado en pruebas, 19/11/2026)
+ok(a.ok === true && b.ok === true && e2.ok === true && c.e && c.e.status === 400 && d.e && d.e.status === 403, 'PS5 subir: solo un 409 (o su cuerpo «Duplicate» / statusCode 409) cuenta como subido', JSON.stringify([a, b, e2, c.e && c.e.message, d.e && d.e.message]));
 respuesta = { status: 200, blob: { size: 3, type: 'image/jpeg', bytes: 'abc' } };
 const f = await S.archivo('mesa', 'files/x.jpg'), u = pedidos[pedidos.length - 1];
 ok(f && f.bytes === 'abc' && /\/storage\/v1\/object\/authenticated\/mesa\/files\/x\.jpg$/.test(u.u) && /Bearer t$/.test(u.o.headers.Authorization), 'PS6 archivo() pide la ruta con la sesión y da sus bytes', u && u.u);

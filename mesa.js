@@ -1011,6 +1011,7 @@
   async function loadClients() {
     CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
     UB = Object.fromEntries(((await idbAll('ubicaciones')) || []).filter(u => u && u.id).map(u => [u.id, u]));   // the locations' catalog (D-124)
+    if (NUBE.repintar) { try { NUBE.repintar(); } catch (e) { /* */ } }   // «Entrar y traer tu Mesa» in the header only while there is no Mesa (lot 4)
     return CL;
   }
   async function refreshMonths() {
@@ -1078,6 +1079,19 @@
     if (out) return out;
     throw new Error(`supera ${Math.round(max / 1048576)} MB incluso recortada`);
   }
+  // Lot 4: the original dropped again in a computer that only had its working copy (or not even it): it takes its place, without
+  // the mark. The record is the same (it goes up as the same reference: nothing new up there).
+  async function conOriginal(id, f) {
+    const x = M.files[id]; if (!x || !(x.copia || x.pendiente) || x.size !== f.size) return;
+    const r = await idbGet('files', id).catch(() => null); if (!r) return;
+    const ref = r.copia && r.copia.ref ? r.copia.ref : esRefNube(r.blob) ? r.blob : null;
+    if (!ref || ref.tam !== f.size || (ref.tipo || '') !== (f.type || '')) return;
+    if (NUBE.huellaDe) { try { if ((await NUBE.huellaDe(f)) !== ref.sha256) return; } catch (e) { return; } }   // la misma foto, por su huella
+    const { copia, ...resto } = r, n = { ...resto, blob: f };
+    if (esRefNube(r.thumb)) { try { n.thumb = (await makeThumb(f)).thumb; } catch (e) { return; } }
+    try { await idbPut('files', id, n); } catch (e) { return; }   // sin sitio: se queda la copia (las demás fotos siguen)
+    fotoLlego(id, n); delete x.copia; delete x.pendiente; M.blobs[id] = f;
+  }
   // ---------- what hasn't arrived from the server (D-256) ----------
   // A record that came down from the server holds, where a photo goes, a reference «pendiente» ({__blob, sha256, tam, tipo}: lot 4
   // brings the photos). It counts as present, drawn with a placeholder; nothing deletes it nor drops it from where it's used.
@@ -1097,6 +1111,7 @@
     const o = { name: (rec && rec.name) || 'Foto que aún no ha llegado', size: (rec && rec.size) || 0, type: (rec && rec.type) || 'image/jpeg', w: (rec && rec.w) || 1080, h: (rec && rec.h) || 1350, pendiente: true, thumbUrl: urlHueco(id) };
     if (rec && rec.design) o.design = true; if (rec && rec.de) o.de = rec.de; if (rec && rec.reduced) o.reduced = true;
     if (rec && esRefNube(rec.blob) && rec.blob.trabajo) o.copia = { w: rec.blob.trabajo.w, h: rec.blob.trabajo.h, falta: true };   // what will come down is a copy
+    else if (rec && rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h };   // its copy is here, its thumbnail not yet
     return o;
   }
   // What M.files keeps of a stored photo. A tray can hold thousands (D-069): the URL of its thumbnail is made the first time
@@ -1112,6 +1127,7 @@
     return o;
   }
   async function loadThumbs(ids) {
+    if (NUBE.pedirMini) for (const id of new Set(ids)) if (URL_HUECO.has(id)) NUBE.pedirMini(id);   // still a placeholder: asked again (lot 4)
     const faltan = [...new Set(ids)].filter(id => !M.files[id]), missing = [];
     for (let i = 0; i < faltan.length; i += 200) {
       const trozo = faltan.slice(i, i + 200), recs = {};
@@ -1131,11 +1147,18 @@
   // every <img> showing its placeholder takes the thumbnail in place (once per frame, all that arrived together): nothing is
   // drawn again, so nothing that is being dragged or written is lost.
   const LLEGAN = new Map(); let llegaRaf = 0;
+  function pastLlego(id, rec) {         // a thumbnail of the previous month (past:) that came down (lot 4)
+    if (!rec || !(rec.thumb instanceof Blob) || M.pastThumbs[id]) return;
+    M.pastBlobs[id] = rec.thumb; M.pastThumbs[id] = URL.createObjectURL(rec.thumb);
+    if (S && (S.past || []).some(p => p.id === id)) { clearTimeout(pastLlego.t); pastLlego.t = setTimeout(() => { try { renderFeed(); } catch (e) { /* */ } }, 300); }
+  }
   function fotoLlego(id, rec) {
     if (!rec || !M.files[id]) return;
     const antes = URL_HUECO.get(id);
-    if (rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }
+    if (antes && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail arrived
+    else if (!esRefNube(rec.blob)) { const o = M.files[id]; delete o.pendiente; if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h }; else delete o.copia; }   // its photo arrived: the same thumbnail and URL
     if (rec.blob && !esRefNube(rec.blob)) { M.blobs[id] = rec.blob; if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; } }
+    if (M.libre && M.libre.miniLlego) { try { M.libre.miniLlego(id); } catch (e) { /* */ } }
     if (antes && M.files[id].thumbUrl !== antes) { LLEGAN.set(antes, M.files[id].thumbUrl); URL_HUECO.delete(id); }
     if (!llegaRaf && LLEGAN.size) llegaRaf = requestAnimationFrame(() => {
       llegaRaf = 0; const l = new Map(LLEGAN); LLEGAN.clear();
@@ -1401,7 +1424,9 @@
   // a photo shown with ✓ (D-041) that is in a publication of this board goes into another as a copy, the same photo under
   // a new id: a photo is in one post only, each with its own crop (as importing it again, D-022)
   async function copiaFoto(f) {
-    const r = await idbGet('files', f).catch(() => null); if (!r || !r.thumb || !S || !M.files[f]) return null;
+    const r = await idbGet('files', f).catch(() => null);
+    if (r && esRefNube(r.thumb)) { toast('Esa foto aún no ha llegado a este ordenador: espera a ver su miniatura.'); return null; }   // lot 4
+    if (!r || !(r.thumb instanceof Blob) || !S || !M.files[f]) return null;
     const id = newId(), c = S.client;
     await idbPut('files', id, { ...r, de: c });
     M.files[id] = { ...M.files[f], de: c, thumbUrl: URL.createObjectURL(r.thumb) };
@@ -1454,10 +1479,10 @@
         const same = Object.keys(M.files).filter(id => M.files[id].name === f.name && M.files[id].size === f.size && !M.files[id].design);
         if (cid) {                     // into a folder the same photo of this client is the same file, used or not: its bytes are never written twice
           const ya = same.find(id => M.files[id].de === B.client || (!M.files[id].de && refs.has(id))) || usoIdsO.get(fkey(f.name, f.size));   // another client's keeps its own (D-041)
-          if (ya) { if (!got.includes(ya)) got.push(ya); continue; }
+          if (ya) { await conOriginal(ya, f); if (!got.includes(ya)) got.push(ya); continue; }
         }
         const inTray = same.find(id => B.tray.includes(id) || fresh.includes(id));
-        if (inTray) { if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
+        if (inTray) { await conOriginal(inTray, f); if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
         const dup = same.find(id => !refs.has(id) && M.files[id].de === B.client);   // another client's photo keeps its own
         let decoded = false;
         try {
@@ -5551,7 +5576,7 @@
   }
   async function cobPdfCopia(pid) {                     // a PDF with its bytes in memory (for «Deshacer»), or null
     if (!pid) return null;
-    try { const f = await idbGet('cfacturas', pid); return f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null; } catch (e) { return null; }
+    try { const f = await idbGet('cfacturas', pid); if (f && esRefNube(f.blob)) return { ...f }; return f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null; } catch (e) { return null; }   // one that hasn't come down (lot 4): its reference
   }
   async function cobPdfVolver(id, f) {                  // «Deshacer» of a PDF taken away or replaced: that one again
     if (!f) return null; await cobLeer(); const r = COB.get(id); if (!r || r.borrado) return null;
@@ -6111,7 +6136,7 @@
     for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
-      if (rec && rec.thumb) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }
+      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }   // still up there (lot 4): it comes down behind (pastLlego)
     }
     buildPrev(old.prev);
     S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
@@ -6331,7 +6356,7 @@
       U[fid] = { state: 'pending', slotId: s ? s.id : hz ? hz.id : null, sig };
       jobs.push({ dn, fid, url: it.url, auth: it.auth, publicUrl: it.publicUrl, rect, sig, gen, slotId: s ? s.id : null, name: s && s.photos.includes(fid) && (M.files[fid] || {}).design ? dName(s, fid) : null });
     }
-    if (soloCopiaN) toast(`${soloCopiaN === 1 ? 'Una foto solo tiene' : soloCopiaN + ' fotos solo tienen'} aquí su copia de 2560 px: no se ${soloCopiaN === 1 ? 'sube' : 'suben'} a ${D.label} sin decirlo (el original está en otro ordenador).`, { error: true, ms: 9000 });
+    if (soloCopiaN) toast(`${soloCopiaN === 1 ? 'Una foto solo tiene' : soloCopiaN + ' fotos solo tienen'} aquí su copia de 2560 px: no se ${soloCopiaN === 1 ? 'sube' : 'suben'} a ${D.label}. Súbela${soloCopiaN === 1 ? '' : 's'} desde el Mac que tiene el original, o pide a Claude que suba la copia.`, { error: true, ms: 9000 });
     if (jobs.length) {
       UP.total += jobs.length; UP.label = D.label; busyUpload();
       const q = jobs.slice();
@@ -6777,7 +6802,7 @@
       parts.push('},"past":{'); sep = '';
       let past = 0;
       for (const k of (await allKeys('files')).filter(k => k.startsWith('past:'))) {
-        const r = await idbGet('files', k); if (!r || !r.thumb) continue;
+        const r = await idbGet('files', k); if (!r || !(r.thumb instanceof Blob)) continue;   // one that hasn't come down (lot 4) stays out
         parts.push(new Blob([sep + JSON.stringify(k.slice(5)) + ':{"w":' + (+r.w || 0) + ',"h":' + (+r.h || 0) + ',"thumb":"', await b64of(r.thumb), '"}']));
         sep = ','; past++;
       }
@@ -6983,7 +7008,8 @@
     // reduced, a working copy, or still up there (lot 4: a photo that came down without its bytes): the copy's original takes its place
     const red = new Map();
     await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const v = c.value; if (v && (v.reduced || v.copia || esRefNube(v.blob))) red.set(String(c.key), v); c.continue(); }; });
-    return [...raw].filter(([k, v]) => { const o = red.get(k); return o && v && !v.reduced && !v.copia && v.blob instanceof Blob && (!esRefNube(o.blob) || (o.blob.tam === v.blob.size && (o.blob.tipo || '') === (v.blob.type || ''))); }).map(([k]) => k);
+    const misma = (r, b) => !!r && r.tam === b.size && (r.tipo || '') === (b.type || '');   // a copy or a reference only takes the same photo (lot 4)
+    return [...raw].filter(([k, v]) => { const o = red.get(k); return o && v && !v.reduced && !v.copia && v.blob instanceof Blob && (esRefNube(o.blob) ? misma(o.blob, v.blob) : o.copia ? misma(o.copia.ref, v.blob) : true); }).map(([k]) => k);
   }
   // what isn't here goes in as it was (D-249): the files, the sessions' photos and the invoices' PDFs first, one by one, each one
   // whole with its record (a «Cancelar» stops between two), a photo reduced here takes its full one; then the records, store by
@@ -6999,7 +7025,7 @@
     for (const x of l) {
       if (parar.pedido || locked) return { parada: true, otra: locked, hechos: i, total: l.length };
       avance(i, l.length);
-      try { await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && (o.reduced || o.copia || esRefNube(o.blob)))) st.put(x.v, x.k); }; }); }
+      try { await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && (o.reduced || o.copia || esRefNube(o.blob)))) { st.put(x.v, x.k); if (o && (o.copia || esRefNube(o.blob))) x.verif = true; } }; }); }
       catch (e) { return { parada: true, error: e, hechos: i, total: l.length }; }   // the SSD unplugged, the disk full: what went in stays, whole
       if (x.n === 'files') soltarArchivo(x.k);
       i++;
@@ -7011,7 +7037,7 @@
       await tx(n, 'readwrite', st => lr.forEach(([k, v]) => { const g = st.count(k); g.onsuccess = () => { if (!g.result) st.put(v, k); }; }));
     }
     const mejoradas = l.filter(x => x.mejora).length;
-    if (mejoradas && NUBE.activa) lsSet('mesa-nube-verificar', '1');   // an original over a copy or a reference: its hash is checked at the next opening (lot 4)
+    if (l.some(x => x.verif) && NUBE.activa) lsSet('mesa-nube-verificar', '1');   // an original over a copy or a reference: its hash, checked at the next opening   // an original over a copy or a reference: its hash is checked at the next opening (lot 4)
     return { hechos: i, total: l.length, mejoradas };
   }
   // the folders of a tray that was here (D-249, «Importar» brings the folders now): the copy's folders it lacks and, in those it
@@ -7319,6 +7345,7 @@
       + '<div class="xtodo"><p><b>Copia completa.</b> Las fotos a su tamaño original y las carpetas de la bandeja, en un archivo por cliente y uno general. Guárdalos juntos en el SSD.</p>'
       + (persistida === false ? '<p class="xaviso">Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz una copia completa de vez en cuando.</p>' : '')
       + '<div class="form"><div class="row"><button type="button" class="btn2" data-act="xfer-todo">Exportar todo</button></div></div></div>'
+      + (NUBE.traerHTML ? NUBE.traerHTML() : '')   // «Entrar y traer tu Mesa» (lot 4), in a browser without the cloud
       + '<input type="file" class="xferin" accept=".json,.tar,application/json,application/x-tar" multiple hidden>');
     const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
     // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
@@ -7662,7 +7689,10 @@
     aplicar: async ({ escribir = [], saltar = [], aparte = [], cursor, epoca, refs = [] }) => {
       const ns = [...new Set([...escribir, ...aparte].map(x => x.a))].filter(n => ALMACENES.includes(n));
       await txSinDiario([...ns, DIARIO, NUBE_ST], 'readwrite', o => {
-        for (const r of refs) if (r && r.sha256 && r.ruta) o[NUBE_ST].put({ ruta: r.ruta, ...(r.trabajo ? { trabajo: r.trabajo } : {}) }, ['s', r.sha256]);   // already up: never again (lot 4)
+        for (const r of refs) if (r && r.sha256 && r.ruta) {
+          o[NUBE_ST].put({ ruta: r.ruta, ...(r.trabajo ? { trabajo: r.trabajo } : {}) }, ['s', r.sha256]);   // already up: never again (lot 4)
+          if (r.a && r.k != null && r.donde) o[NUBE_ST].put({ sha256: r.sha256 }, ['r', r.a, r.k, r.donde]);   // what is up there in that place (to check a Blob kept here)
+        }
         for (const x of aparte) {   // this browser's value, kept before what came down replaces it; its note goes (it's in the list)
           o[NUBE_ST].put(nubeAparte(x, x.valor), NX(x.a, x.k));
           const g = o[DIARIO].get([x.a, x.k]); g.onsuccess = () => { if (g.result && (x.ficha == null || g.result.v === x.ficha)) o[DIARIO].delete([x.a, x.k]); };
@@ -7714,6 +7744,10 @@
       return out;
     },
     ponerHuella: (a, k, ruta, x) => txSinDiario(NUBE_ST, 'readwrite', s => s.put(x, ['h', a, k, ruta])),
+    // ['r', store, key, path] → {sha256}: the original's hash up there in that place of that record (from the last download)
+    refsArriba: async a => { const out = new Map(); await txSinDiario(NUBE_ST, 'readonly', s => { const r = s.openCursor(nubeTodas('r', a)); r.onsuccess = () => { const c = r.result; if (!c) return; const k = c.key[2]; if (!out.has(k)) out.set(k, {}); out.get(k)[c.key[3]] = c.value.sha256; c.continue(); }; }); return out; },
+    enDiario: async (a, k) => !!(await txSinDiario(DIARIO, 'readonly', s => s.get([a, k]))),
+    yaApartado: async (a, k) => !!(await txSinDiario(NUBE_ST, 'readonly', s => s.get(NX(a, k)))),
     ponerSubido: (sha, x) => txSinDiario(NUBE_ST, 'readwrite', s => s.put(x, ['s', sha])),
     // A file that came down: in its place in the record, if the record still has the same reference there (no journal: it is
     // already up). marca: a working copy's mark {w, h} (only a files record's photo). Gives the record written, or null.
@@ -7726,7 +7760,8 @@
       return out;
     },
     // what of a store still waits up there: [[key, path, reference]]
-    refsPendientes: async a => { const out = []; await txSinDiario(a, 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; for (const [ruta, ref] of refsCon(c.value)) out.push([c.key, ruta, ref]); c.continue(); }; }); return out; },
+    ponerEnRuta,
+    refsPendientes: async (a, prefijo) => { const out = []; await txSinDiario(a, 'readonly', st => { const r = st.openCursor(prefijo ? IDBKeyRange.bound(prefijo, prefijo + '\uffff') : undefined); r.onsuccess = () => { const c = r.result; if (!c) return; for (const [ruta, ref] of refsCon(c.value)) out.push([c.key, ruta, ref]); c.continue(); }; }); return out; },
     // the Blobs of a store here that came down with a reference of the same size and type (after «traer»: their hash is checked)
     blobsDe: async a => { const out = []; await txSinDiario(a, 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const v = c.value; if (!(v && v.copia)) blobsCon(v, 'el valor', (ruta, b) => out.push([c.key, ruta, b])); c.continue(); }; }); return out; },
     ponerAvisos: filas => txSinDiario(NUBE_ST, 'readwrite', s => filas.forEach(f => s.put(f, ['av', f.id]))),
@@ -7735,7 +7770,7 @@
   M._in = {
     vc: VC,
     // the cloud (lot 3, D-253 to D-257): its switch and state, its store, its pause; what hasn't arrived (D-256)
-    NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb, fotoLlego, refsCon,
+    NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb, fotoLlego, pastLlego, refsCon,
     // the journal of changes (D-250): what changed since it was emptied, for the server (lot 3). leer() gives its entries
     // [{a, k, t, v}] (k null: the whole store again); quitar(entries) takes out those whose token didn't change since they were
     // read; vaciar() empties it; sinDiario is tx without the journal, only for what comes down from the server
@@ -7760,7 +7795,7 @@
     },
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
     mes: { leer: mesLeer, listo: () => !!MES, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js); listo once read: while it reads again, what was read stays (nothing jumps)
-    cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
+    cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales, pdfCopia: cobPdfCopia,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES },

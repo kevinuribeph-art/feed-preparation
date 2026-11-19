@@ -96,10 +96,10 @@
     return 0;
   }
   // Las referencias con ruta de un valor bajado (para el registro de lo que ya está arriba: `almacen.aplicar({refs})`)
-  function refsDe(v, out = []) {
-    if (esRef(v)) { if (v.ruta) out.push({ sha256: v.sha256, tam: v.tam, tipo: v.tipo, ruta: v.ruta, ...(v.trabajo ? { trabajo: { ...v.trabajo } } : {}) }); return out; }
-    if (Array.isArray(v)) { for (const x of v) refsDe(x, out); return out; }
-    if (v && typeof v === 'object') for (const k of Object.keys(v)) refsDe(v[k], out);
+  function refsDe(v, out = [], donde = 'el valor') {
+    if (esRef(v)) { if (v.ruta) out.push({ sha256: v.sha256, tam: v.tam, tipo: v.tipo, ruta: v.ruta, donde, ...(v.trabajo ? { trabajo: { ...v.trabajo } } : {}) }); return out; }
+    if (Array.isArray(v)) { v.forEach((x, i) => refsDe(x, out, donde + '[' + i + ']')); return out; }
+    if (v && typeof v === 'object') for (const k of Object.keys(v)) refsDe(v[k], out, donde + '.' + k);
     return out;
   }
 
@@ -146,6 +146,8 @@
     // Lote 4: con `o.archivo(a, k, ruta, blob, {esperar})` cada Blob da {sha256, ruta, trabajo?} (sus bytes ya están en el almacén
     // `mesa`) o null (aún no: el registro espera en el diario); con `esperar`, espera a que suban (ceder y subirTodo)
     const ARCH = typeof o.archivo === 'function' ? o.archivo : null;
+    const soltarHilo = typeof o.ceder === 'function' ? o.ceder : () => Promise.resolve();   // soltar el hilo de vez en cuando en una pasada larga (la Mesa: setTimeout 0)
+    const CON_ARCH = new Set(['files', 'tfotos', 'cfacturas', 'tareas']);
     const huellaDe = (a, k, esperar, valor) => (b, ruta) => {
       if (ARCH) return ARCH(a, k, ruta, b, { esperar: !!esperar, valor });
       const c = a + '\u0001' + k + '\u0001' + ruta + '\u0001' + b.size + '\u0001' + b.type + '\u0001' + (b.lastModified || ''); if (!HC.has(c)) HC.set(c, H0(b).catch(e => { HC.delete(c); throw e; })); return HC.get(c);
@@ -295,7 +297,7 @@
       if (A.conoce && filas.some(f => !A.conoce(f.almacen))) throw { vieja: true };   // un almacén que esta Mesa no conoce: la escribió una más nueva
       const L = filas.length ? await A.leerVarios(filas.map(f => [f.almacen, f.clave])) : [];
       const escribir = [], saltar = [], aparte = [], refs = [];
-      for (const f of filas) if (!f.borrado) refsDe(f.valor, refs);   // lo que ya está arriba: no se vuelve a subir
+      for (const f of filas) if (!f.borrado) for (const r of refsDe(f.valor)) refs.push({ ...r, a: f.almacen, k: f.clave });   // lo que ya está arriba: no se vuelve a subir
       filas.forEach((f, i) => {
         const { valor: local, pendiente, conocida } = L[i] || {}, ver = { a: f.almacen, k: f.clave, v: f.version, o: f.orden, b: !!f.borrado };
         if (conocida && f.version <= conocida.v) return;   // ya lo tiene (su propia escritura, o una página repetida)
@@ -398,13 +400,17 @@
         await pausar({ motivo: 'cede', dispositivo: pide.dispositivo }, 'subiendo'); conTurno = true;
         // mientras sube (las fotos pueden tardar), sigue latiendo: quien la pide ve que contesta y cuánto le queda
         (async () => { while (cediendo && !parado) { await R.esperar(TIEMPOS.latido); if (!cediendo || parado) break; try { await llamar('mesa_turno_latido', { dispositivo: D, turno: st.turno, app: APP, cola: await A.contarDiario() }); } catch (e) { /* sin red: ya reintenta la subida */ } } })();
-        let antes = -1;
+        let antes = -1, quietas = 0;
         for (let vuelta = 0; !parado; vuelta++) {
           const r = await subir({ todo: true });
           if (r.parar && !r.sinRed) return;   // la perdió entretanto (la forzaron) o la app es vieja
-          if (r.sinRed || r.esperando) { await R.esperar(TIEMPOS.reintento[Math.min(vuelta, TIEMPOS.reintento.length - 1)]); continue; }   // sin red, o fotos que no pudieron subir: otra vez
           const n = await A.contarDiario();
           if (!n) break;
+          if (r.sinRed || r.esperando) {   // sin red, o fotos que no pudieron subir: otra vez; tras 8 vueltas sin avance, lo que queda va aparte
+            quietas = r.esperando && !r.sinRed && n === antes ? quietas + 1 : 0; antes = n;   // sin red se espera siempre (como antes)
+            if (quietas >= 8) { await apartarDiario('cede'); break; }
+            await R.esperar(TIEMPOS.reintento[Math.min(vuelta, TIEMPOS.reintento.length - 1)]); continue;
+          }
           if (n === antes) { await apartarDiario('cede'); break; }   // lo que ya no sube (una marca sin poder reescanear)
           antes = n;
         }
@@ -436,14 +442,19 @@
         const pag = await A.diario({ despues, n: TOPES.cambios }); if (!pag.length) break;
         const u = pag[pag.length - 1]; despues = u.k == null ? [u.a] : [u.a, u.k];
         marcas.push(...pag.filter(e => e.k == null));
-        const ents = pag.filter(e => e.k != null); if (!ents.length) continue;
-        const L = await A.leerVarios(ents.map(e => [e.a, e.k])), lista = [], fuera = [];
-        for (let i = 0; i < ents.length; i++) {
-          const e = ents[i], { valor, conocida } = L[i] || {};
-          const x = await cambioDe(e.a, e.k, valor, conocida, e.v, fuera, esperar); if (x) lista.push(x);
+        const ents0 = pag.filter(e => e.k != null); if (!ents0.length) continue;
+        // lo que no lleva archivos sube antes: un caption no espera a las huellas de las fotos de su misma página
+        for (const ents of [ents0.filter(e => !CON_ARCH.has(e.a)), ents0.filter(e => CON_ARCH.has(e.a))]) {
+          if (!ents.length) continue;
+          const L = await A.leerVarios(ents.map(e => [e.a, e.k])), lista = [], fuera = [];
+          for (let i = 0; i < ents.length; i++) {
+            if (i && i % 50 === 0) await soltarHilo();
+            const e = ents[i], { valor, conocida } = L[i] || {};
+            const x = await cambioDe(e.a, e.k, valor, conocida, e.v, fuera, esperar); if (x) lista.push(x);
+          }
+          if (fuera.length) { await A.apartar(fuera); tot.aparte += fuera.length; }
+          for (const lote of partir(lista)) { const r = suma(await mandar(lote, false)); if (r.parar) return { ...tot, ...r }; }
         }
-        if (fuera.length) { await A.apartar(fuera); tot.aparte += fuera.length; }
-        for (const lote of partir(lista)) { const r = suma(await mandar(lote, false)); if (r.parar) return { ...tot, ...r }; }
       }
       if (st.alDia) for (const m of marcas) { const r = suma(await reescanear(m)); if (r.parar) return { ...tot, ...r }; }
       await contarSinSubir();
@@ -677,15 +688,16 @@
       for (const a of await almacenes()) { const ks = await A.claves(a); listas.push([a, ks]); tot.total += ks.length; }
       const avisa = () => { tot.segundos = Math.round((R.ahora() - t0) / 1000); try { if (op.progreso) op.progreso({ ...tot }); } catch (e) { /* */ } };
       avisa();
-      const enviar = async lote => {
+      const enviar = async lote => {   // lote null: el que quedó en vuelo
         for (let vuelta = 0; ; vuelta++) {
-          const r = enVuelo ? await mandar(enVuelo.lote, enVuelo.resc, enVuelo.args) : await mandar(lote, false);
+          const r = (vuelta || !lote) && enVuelo ? await mandar(enVuelo.lote, enVuelo.resc, enVuelo.args) : lote ? await mandar(lote, false) : { escritos: 0 };
           if (!r.parar) { tot.subidos += r.escritos || 0; tot.aparte += r.aparte || 0; return true; }
           if (!r.sinRed || vuelta >= 6 || parado) return false;
           await R.esperar(TIEMPOS.reintento[Math.min(vuelta, TIEMPOS.reintento.length - 1)]);
           if (!enVuelo) return true;   // la respuesta llegó en otra vuelta
         }
       };
+      if (enVuelo && !(await enviar(null))) { avisa(); return { ...tot, cortado: true, sinRed: st.fase === 'sin_conexion' }; }   // el lote que quedó en vuelo de antes, primero
       for (const [a, ks] of listas) {
         for (let i = 0; i < ks.length; i += TROZO) {
           if (parado || !conTurno) return { ...tot, cortado: true };
@@ -694,6 +706,7 @@
             const x = L[j] || {};
             if (x.valor === undefined) { tot.hechos++; return; }   // ya no está (lo quitó una limpieza entretanto)
             if (x.conocida && !x.conocida.b && !x.pendiente) { tot.saltados++; tot.hechos++; return; }   // arriba con esta versión
+            if (x.conocida && x.conocida.b && !x.pendiente) { tot.saltados++; tot.hechos++; return; }   // borrado arriba y aquí sin cambiar (apartado, «borrado_arriba»): no se resucita
             cand.push([k, x]);
           });
           const antes = esperandoN;
@@ -768,7 +781,7 @@
     return {
       abrir, tic, subir, usarAqui, forzar, subirEncima, descartar, estado, subirTodo, comprobar, traerFila,
       // una foto acabó de subir: lo que la esperaba, en la siguiente vuelta
-      archivosListos: () => { proximoFotos = 0; },
+      archivosListos: () => { proximoFotos = Math.min(proximoFotos, ultSubida + 5000); },   // como mucho una pasada adelantada cada 5 s
       cambio: () => { ultCambio = R.ahora(); },
       avisos: async () => { AV = await A.avisos(); return AV; },
       marcarVisto: async id => { await A.quitarAviso(id); AV = await A.avisos(); avisar(); },
@@ -836,7 +849,7 @@
       servidor: { rpc: (fn, args) => c.rpc(fn, args) },
       almacen: X().nubeAlmacen,
       reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) },
-      dispositivo: DISP0(), app: M.version, archivo: archivoHook,
+      dispositivo: DISP0(), app: M.version, archivo: archivoHook, ceder: () => new Promise(r => setTimeout(r, 0)),
       efectos: { pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { ESTADO = e; pintar(); } }
     });
     X().NUBE.alApuntar = () => N.cambio();
@@ -856,6 +869,10 @@
       return { modo: 'local', motivo: 'vacia' };
     }
     if (traer && r.modo === 'turno') { lsS(TRAER, null); lsS(VERIF, '1'); }
+    if (traer && r.modo === 'local') {   // traer tu Mesa necesita conexión: no se deja escribir sobre una Mesa a medio traer
+      X().pausaNube(capa('Tu Mesa aún no ha llegado', '<p>Para traerla hace falta conexión. Recarga cuando vuelva: lo de este navegador sigue apartado y sin tocar.</p>', '<button type="button" class="btn" data-nube="recargar">Recargar</button>'));
+      arrancarPulso(); return r;
+    }
     if (r.modo === 'pausada') pintarPausa();          // mesa.js lo pinta con el armazón, desde el primer momento
     else if (r.modo === 'vieja') pausar({ motivo: 'vieja' });
     arrancarPulso();
@@ -871,7 +888,7 @@
   // cada Blob al serializar). La foto de un registro de `files` de más de 2560 px sube como copia de trabajo (hecha en el worker,
   // nunca guardada aquí); lo demás, tal cual. La cola sale del diario: lo que no subió vuelve a pedirse en la siguiente vuelta.
   // Bajar (en otro aparato): la miniatura al verse, la foto al pedirla (getBlob), lo pequeño (sesiones, tareas, PDF) por detrás.
-  const FOTOS_V = '1.0', LARGO = 2560, MAX_ARCHIVO = 25 * 1048576, PAR_SUBIR = 3, PAR_BAJAR = 4;
+  const FOTOS_V = '1.1', LARGO = 2560, MAX_ARCHIVO = 25 * 1048576, PAR_SUBIR = 3, PAR_BAJAR = 4;
   const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif', 'application/pdf': 'pdf' };
   const errA = (m, codigo) => Object.assign(new Error(m), { codigo });
   let ALM_TEST = null; const AL = () => ALM_TEST || sb();   // el almacén de archivos (la batería pone uno de mentira: nunca la red)
@@ -893,14 +910,22 @@
     if (m.op === 'huella') return { sha256: await huella(m.blob) };
     const bmp = await G.createImageBitmap(m.blob, { imageOrientation: 'from-image' });
     const cw = Math.max(1, Math.round(bmp.width * Math.min(1, LARGO / Math.max(bmp.width, bmp.height)))), ch = Math.max(1, Math.round(bmp.height * cw / bmp.width));
+    const alfa = /^image\/(png|webp)$/.test(m.blob.type || ''), t = alfa ? 'image/webp' : 'image/jpeg';   // con transparencia, en WebP (o PNG): sin fondo blanco
     const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(cw, ch) : Object.assign(D.createElement('canvas'), { width: cw, height: ch }), x = c.getContext('2d');
-    x.fillStyle = '#fff'; x.fillRect(0, 0, cw, ch); x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, cw, ch); bmp.close();
-    const out = c.convertToBlob ? await c.convertToBlob({ type: 'image/jpeg', quality: 0.9 }) : await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    if (!alfa) { x.fillStyle = '#fff'; x.fillRect(0, 0, cw, ch); } x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, cw, ch); bmp.close();
+    const out = c.convertToBlob ? await c.convertToBlob({ type: t, quality: 0.9 }) : await new Promise(r => c.toBlob(r, t, 0.9));
     return { copia: out, w: cw, h: ch, sha256: await huella(out) };
   }
-  function trabajo(m) {
-    const w = wk(); if (!w) return enHilo(m);
-    return new Promise((res, rej) => { const id = ++wkN; WKP.set(id, { res, rej }); w.postMessage({ ...m, id }); }).catch(e => (WK === false ? enHilo(m) : Promise.reject(e)));
+  // como mucho 2 a la vez en el worker (cada una lee entera una foto de hasta 30 MB): la mudanza pide 40 huellas de golpe
+  let wkVan = 0; const WKQ = [];
+  const wkTurno = prisa => (wkVan < 2 ? (wkVan++, Promise.resolve()) : new Promise(r => (prisa ? WKQ.unshift(r) : WKQ.push(r))));
+  const wkSuelta = () => { const f = WKQ.shift(); if (f) f(); else wkVan--; };
+  async function trabajo(m, prisa) {
+    await wkTurno(prisa);
+    try {
+      const w = wk(); if (!w) return await enHilo(m);
+      return await new Promise((res, rej) => { const id = ++wkN; WKP.set(id, { res, rej }); w.postMessage({ ...m, id }); }).catch(e => (WK === false ? enHilo(m) : Promise.reject(e)));
+    } finally { wkSuelta(); }
   }
   // ---- el registro de lo que ya está arriba (almacén `nube`: 'h' huellas de aquí, 's' originales subidos) ----
   const HU = new Map(), SUBIDOS = new Map(), HP = new Map(), FALLOS = new Map(); let REG = null;
@@ -916,22 +941,23 @@
     })().finally(() => HP.delete(ck)));
     return HP.get(ck);
   }
-  const necesitaCopia = (a, k, ruta, b, v) => a === 'files' && ruta === 'el valor.blob' && !!v && !v.design && !v.logo && !/^(kit-|perfil-|past:)/.test(String(k))
+  const necesitaCopia = (a, k, ruta, b, v) => a === 'files' && ruta === 'el valor.blob' && !!v && !v.design && !v.logo && !/^past:/.test(String(k))
     && /^image\//.test(b.type || '') && (Math.max(+v.w || 0, +v.h || 0) > LARGO || b.size > 24e6);
   // ---- la cola de subida ----
   const COLA = new Map(); let activos = 0;
   const FOTOS = { subidas: 0, bajadas: 0, error: '' };
-  function encolar(sha, a, b, copia, v) {
-    let j = COLA.get(sha); if (j) return j;
-    j = { sha, a, blob: b, copia, w: v && +v.w, h: v && +v.h }; j.promesa = new Promise((res, rej) => { j.res = res; j.rej = rej; }); j.promesa.catch(() => { /* lo mira quien espera */ });
-    COLA.set(sha, j); correr(); pintar(); return j;
+  const fotosEnCola = () => { let n = 0; for (const j of COLA.values()) if (j.foto) n++; return n; };
+  function encolar(sha, a, b, copia, v, foto) {
+    const ck = sha + (copia ? '|c' : ''); let j = COLA.get(ck); if (j) return j;
+    j = { sha, ck, a, blob: b, copia, foto, w: v && +v.w, h: v && +v.h }; j.promesa = new Promise((res, rej) => { j.res = res; j.rej = rej; }); j.promesa.catch(() => { /* lo mira quien espera */ });
+    COLA.set(ck, j); correr(); pintar(); return j;
   }
-  function correr() { for (const j of COLA.values()) { if (activos >= PAR_SUBIR) break; if (j.va) continue; j.va = true; activos++; subirUno(j).finally(() => { activos--; COLA.delete(j.sha); correr(); pintar(); }); } }
+  function correr() { for (const j of COLA.values()) { if (activos >= PAR_SUBIR) break; if (j.va) continue; j.va = true; activos++; subirUno(j).finally(() => { activos--; COLA.delete(j.ck); correr(); pintar(); }); } }
   async function subirArchivo(ruta, cuerpo, tipo) {
     for (let i = 0; ; i++) {
       try { await AL().subir('mesa', ruta, cuerpo, tipo); return; }
       catch (e) {
-        const red = !e.status || e.status >= 500 || e.status === 408 || e.status === 429 || e.status === 401 || e.codigo === 'sesion' || e.codigo === 'red';
+        const red = !e.status || e.status >= 500 || e.status === 408 || e.status === 429 || e.status === 401 || e.status === 403 || e.codigo === 'sesion' || e.codigo === 'red' || /jwt|unauthori|token|signature|row-level security/i.test(String(e.message || ''));   // la sesión o los permisos: se reintenta; nunca se aparta la foto por eso
         if (!red) throw errA(`el almacén no lo admite (${e.status}${e.message ? ': ' + String(e.message).slice(0, 120) : ''})`, 'archivo');
         if (i >= 4) throw errA(e.message || 'sin conexión', 'red');
         await dormir([2000, 5000, 10000, 20000][i]);
@@ -942,7 +968,7 @@
     try {
       let cuerpo = j.blob, tipo = j.blob.type || '', sha = j.sha, trab = null;
       if (j.copia) {
-        try { const r = await trabajo({ op: 'copia', blob: j.blob, w: j.w, h: j.h }); cuerpo = r.copia; tipo = 'image/jpeg'; sha = r.sha256; trab = { sha256: sha, tam: cuerpo.size, tipo, w: r.w, h: r.h }; }
+        try { const r = await trabajo({ op: 'copia', blob: j.blob, w: j.w, h: j.h }); cuerpo = r.copia; tipo = r.copia.type || 'image/jpeg'; sha = r.sha256; trab = { sha256: sha, tam: cuerpo.size, tipo, w: r.w, h: r.h }; }
         catch (e) { if (!(EXT[tipo] && j.blob.size <= MAX_ARCHIVO)) throw errA('no se puede leer para hacer su copia de 2560 px', 'archivo'); }   // sin poder decodificarla (p. ej. HEIC), tal cual si cabe
       }
       if (!EXT[tipo]) throw errA(`un archivo ${tipo || 'sin tipo'} no se puede subir`, 'archivo');
@@ -954,7 +980,7 @@
       FOTOS.subidas++; FOTOS.error = ''; j.res({ sha256: j.sha, ...x });
       if (N && N.archivosListos) N.archivosListos();
     } catch (e) {
-      if (e.codigo === 'archivo') FALLOS.set(j.sha, e); else FOTOS.error = e.message || 'sin conexión';
+      if (e.codigo === 'archivo') FALLOS.set(j.ck, e); else FOTOS.error = e.message || 'sin conexión';
       j.rej(e.codigo ? e : errA(e.message || String(e), 'red'));
     }
   }
@@ -964,19 +990,20 @@
     await registro();
     const sha = await huellaLocal(a, k, ruta, b);
     const s0 = SUBIDOS.get(sha); if (s0) return { sha256: sha, ...s0 };
-    if (FALLOS.has(sha)) throw FALLOS.get(sha);
-    const j = encolar(sha, a, b, necesitaCopia(a, k, ruta, b, valor), valor);
+    const cp = necesitaCopia(a, k, ruta, b, valor), ck = sha + (cp ? '|c' : '');
+    if (FALLOS.has(ck)) throw FALLOS.get(ck);
+    const j = encolar(sha, a, b, cp, valor, (a === 'files' && ruta === 'el valor.blob' && !(valor && (valor.design || valor.logo))) || (a === 'tfotos' && ruta === 'el valor.blob'));
     return esperar ? j.promesa : null;
   }
   // ---- bajar ----
   let bajando = 0; const ESPERAN = [], BAJ = new Map();
-  const turnoBajar = () => (bajando < PAR_BAJAR ? (bajando++, Promise.resolve()) : new Promise(r => ESPERAN.push(r)));
+  const turnoBajar = prisa => (bajando < PAR_BAJAR ? (bajando++, Promise.resolve()) : new Promise(r => (prisa ? ESPERAN.unshift(r) : ESPERAN.push(r))));   // la foto que se abre pasa delante de las miniaturas
   const soltarBajar = () => { const f = ESPERAN.shift(); if (f) f(); else bajando--; };
-  function bajarArchivo(ref) {
+  function bajarArchivo(ref, prisa) {
     if (!ref || !ref.ruta || !AL() || !X().NUBE.activa) return Promise.reject(new Error('esta foto aún no ha llegado a este ordenador'));
     if (BAJ.has(ref.ruta)) return BAJ.get(ref.ruta);
     const p = (async () => {
-      await turnoBajar();
+      await turnoBajar(prisa);
       try {
         let b = null;
         for (let i = 0; ; i++) {
@@ -985,7 +1012,7 @@
         }
         const t = ref.trabajo ? ref.trabajo.tipo : ref.tipo, esperado = ref.trabajo ? ref.trabajo.sha256 : ref.sha256;
         const out = !ref.trabajo && ref.nombre ? new File([b], ref.nombre, { type: t, lastModified: +ref.fecha || 0 }) : b.type === t ? b : new Blob([b], { type: t });
-        if ((await trabajo({ op: 'huella', blob: out })).sha256 !== esperado) throw new Error('lo que llegó no coincide con su huella');
+        if ((await trabajo({ op: 'huella', blob: out }, prisa)).sha256 !== esperado) throw new Error('lo que llegó no coincide con su huella');
         FOTOS.bajadas++; return out;
       } finally { soltarBajar(); }
     })();
@@ -999,8 +1026,19 @@
       const rec = await X().idbGet('files', id); const ref = rec && rec.thumb;
       if (!X().esRefNube(ref) || !ref.ruta) return;
       const b = await bajarArchivo(ref), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.thumb', ref.sha256, b, null);
-      if (n) X().fotoLlego(id, n);
+      if (n) X().fotoLlego(id, (await X().idbGet('files', id)) || n);   // releído: un Blob en disco, no el de la red en memoria
     })().catch(() => { /* se vuelve a pedir la próxima vez que se vea */ }).finally(() => MINIS.delete(id)));
+  }
+  // un Blob de aquí que es el original de esa huella (la misma foto bajo otro id, p. ej. llevada a otro post en el otro ordenador)
+  async function originalAqui(sha, tam, tipo) {
+    await registro();
+    for (const [c, x] of HU) {
+      if (x.sha256 !== sha || x.tam !== tam || (x.tipo || '') !== (tipo || '')) continue;
+      const [a, k, ruta] = c.split('\u0001'); if (a !== 'files' || ruta !== 'el valor.blob') continue;
+      const r = await X().idbGet('files', k).catch(() => null);
+      if (r && r.blob instanceof Blob && !r.copia && r.blob.size === tam) return r.blob;
+    }
+    return null;
   }
   const FOTOS_EN = new Map();
   function traerFoto(id) {
@@ -1008,9 +1046,12 @@
     const p = (async () => {
       const rec = await X().idbGet('files', id), ref = rec && rec.blob;
       if (!X().esRefNube(ref)) return rec && rec.blob;
-      const b = await bajarArchivo(ref), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.blob', ref.sha256, b, ref.trabajo ? { w: ref.trabajo.w, h: ref.trabajo.h } : null);
-      if (n) X().fotoLlego(id, n);
-      return n ? n.blob : b;
+      const o = await originalAqui(ref.sha256, ref.tam, ref.tipo);
+      if (o) { const n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.blob', ref.sha256, o, null); const r2 = n ? (await X().idbGet('files', id)) || n : null; if (r2) { X().fotoLlego(id, r2); return r2.blob; } }
+      const b = await bajarArchivo(ref, true), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.blob', ref.sha256, b, ref.trabajo ? { w: ref.trabajo.w, h: ref.trabajo.h } : null);
+      const r2 = n ? (await X().idbGet('files', id)) || n : null;   // releído: un Blob en disco, no el de la red en memoria
+      if (r2) X().fotoLlego(id, r2);
+      return r2 ? r2.blob : b;
     })();
     FOTOS_EN.set(id, p); p.then(() => FOTOS_EN.delete(id), () => FOTOS_EN.delete(id));
     return p;
@@ -1021,9 +1062,10 @@
     if (RESTO) return RESTO;
     RESTO = (async () => {
       let n = 0;
-      for (const a of ['tfotos', 'tareas', 'cfacturas']) {
-        const l = await X().nubeAlmacen.refsPendientes(a).catch(() => []);
-        await Promise.all(l.map(async ([k, ruta, ref]) => { try { const b = await bajarArchivo(ref); if (await X().nubeAlmacen.ponerArchivo(a, k, ruta, ref.sha256, b, null)) n++; } catch (e) { /* la próxima vez */ } }));
+      for (const a of ['tfotos', 'tareas', 'cfacturas', 'files']) {
+        let l = await X().nubeAlmacen.refsPendientes(a, a === 'files' ? 'past:' : null).catch(() => []);   // de las fotos, solo las miniaturas del mes anterior
+        if (a === 'files') l = l.filter(([k]) => /^past:/.test(String(k)));   // de las fotos, solo las miniaturas del mes anterior (las demás, al verse)
+        await Promise.all(l.map(async ([k, ruta, ref]) => { try { const b = await bajarArchivo(ref); const r = await X().nubeAlmacen.ponerArchivo(a, k, ruta, ref.sha256, b, null); if (r) { n++; if (a === 'files' && X().pastLlego) X().pastLlego(String(k).slice(5), await X().idbGet('files', k)); } } catch (e) { /* la próxima vez */ } }));
       }
       if (n) { try { D.dispatchEvent(new CustomEvent('mesa-tareas')); D.dispatchEvent(new CustomEvent('mesa-nube-fotos')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ } }
       return n;
@@ -1032,23 +1074,41 @@
   }
   // Tras «Entrar y traer tu Mesa»: cada Blob de aquí que se quedó por tener el tamaño y el tipo de su referencia tiene que tener
   // también su huella; si no, lo de aquí se aparta («antes») y vuelve lo de arriba.
+  // Cada Blob que se quedó aquí por tener el tamaño y el tipo de la referencia bajada (al traer la Mesa, o un original importado
+  // sobre una copia) se compara con la huella de arriba en ese mismo sitio. Solo si no coincide: lo de aquí se aparta (una vez por
+  // registro, sin pisar nada ya apartado) y vuelve lo de arriba. Lo que tiene cambios de aquí en el diario no se toca: sube.
   async function verificarOriginales() {
-    await registro(); let malos = 0;
+    let malos = 0, pendiente = false;
+    const enRuta = (v, ruta) => { let x = v; for (const p of String(ruta).replace(/^el valor/, '').match(/[^.[\]]+/g) || []) { if (x == null || typeof x !== 'object') return undefined; x = x[/^\d+$/.test(p) && Array.isArray(x) ? +p : p]; } return x; };
     for (const a of ['files', 'tfotos', 'cfacturas', 'tareas']) {
-      for (const [k, ruta, b] of await X().nubeAlmacen.blobsDe(a)) {
-        let sha; try { sha = await huellaLocal(a, k, ruta, b); } catch (e) { continue; }
-        if (SUBIDOS.has(sha)) continue;
+      const arriba = await X().nubeAlmacen.refsArriba(a), porClave = new Map();
+      for (const [k, ruta, b] of await X().nubeAlmacen.blobsDe(a)) { const s = arriba.get(k); if (s && s[ruta]) { if (!porClave.has(k)) porClave.set(k, []); porClave.get(k).push([ruta, b, s[ruta]]); } }
+      for (const [k, l] of porClave) {
+        const mal = [];
+        for (const [ruta, b, sha] of l) { let h; try { h = await huellaLocal(a, k, ruta, b); } catch (e) { pendiente = true; continue; } if (h !== sha) mal.push(ruta); }
+        if (!mal.length || (await X().nubeAlmacen.enDiario(a, k))) continue;   // con cambios de aquí por subir: no se toca
         const f = N && N.traerFila ? await N.traerFila(a, k) : null;
-        if (!f || f.borrado || !X().refsCon(f.valor).some(([r]) => r === ruta)) continue;   // arriba no lleva referencia ahí: es un Blob de aquí que todavía no subió
-        await X().nubeAlmacen.apartar([{ a, k, v: null, motivo: 'antes', mensaje: 'el mismo tamaño que arriba, pero otra huella' }]);
-        await X().nubeAlmacen.aplicar({ escribir: [{ a, k, v: f.version, o: f.orden, b: false, valor: f.valor }], saltar: [], aparte: [], refs: [] });
-        malos++;
+        if (!f) { pendiente = true; continue; }   // sin respuesta: se vuelve a comprobar al abrir
+        if (f.borrado) continue;
+        const [L] = await X().nubeAlmacen.leerVarios([[a, k]]);   // lo de aquí, como sube (sin la marca)
+        let v = await X().idbGet(a, k); if (!v) continue;
+        if (!(await X().nubeAlmacen.yaApartado(a, k))) await X().nubeAlmacen.apartar([{ a, k, v: null, motivo: 'huella' }]);   // lo de aquí, guardado aparte una vez
+        for (const ruta of mal) { const r = enRuta(f.valor, ruta); if (r) v = X().nubeAlmacen.ponerEnRuta(v, ruta, { ...r }); }   // solo los sitios que no coinciden vuelven a la referencia de arriba
+        await X().nubeAlmacen.aplicar({ escribir: [{ a, k, v: f.version, o: f.orden, b: false, valor: v }], saltar: [], aparte: [], refs: [] });
+        if (a === 'files' && M.files[k]) {   // lo que la Mesa abierta sabe de esa foto: otra vez arriba (sin cambiar su miniatura a la vista)
+          const r2 = await X().idbGet(a, k), o = M.files[k];
+          if (r2 && X().esRefNube(r2.blob)) { o.pendiente = true; if (r2.blob.trabajo) o.copia = { w: r2.blob.trabajo.w, h: r2.blob.trabajo.h, falta: true }; delete M.blobs[k]; }
+        }
+        void L; malos++;
       }
     }
-    lsS(VERIF, null);
+    if (malos) { try { D.dispatchEvent(new CustomEvent('mesa-tareas')); D.dispatchEvent(new CustomEvent('mesa-nube-fotos')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ } }
+    if (!pendiente) lsS(VERIF, null);
     return malos;
   }
   X().NUBE.pedirMini = id => pedirMini(id);
+  X().NUBE.repintar = () => pintar();
+  X().NUBE.huellaDe = b => trabajo({ op: 'huella', blob: b }).then(r => r.sha256);
   X().NUBE.traerFoto = id => traerFoto(id);
 
   // ---------- la pausa: otro ordenador tiene la Mesa ----------
@@ -1057,7 +1117,7 @@
     X().NUBE.modo = info && info.motivo === 'vieja' ? 'vieja' : 'pausada';
     const quien = esc(nombreDe(info && info.dispositivo)), ed = X().xfer && X().xfer.edPendiente && X().xfer.edPendiente() ? ' El editor tenía cambios sin aplicar: se han perdido.' : '';
     if (info && info.motivo === 'vieja') return X().pausaNube(capa('Hay una versión nueva de la Mesa', `<p>Otro ordenador usa una versión más nueva: esta se ha pausado para no pisar sus datos. Recárgala para seguir: lo guardado no se pierde.</p>`, '<button type="button" class="btn" data-nube="recargar">Recargar</button>'));
-    if (info && info.motivo === 'cede') return X().pausaNube(capa(`La Mesa pasa a ${quien}`, `<p class="nubeesp">Subiendo lo último que hiciste aquí…${ed}</p>`, ''));
+    if (info && info.motivo === 'cede') { const nf = fotosEnCola(); return X().pausaNube(capa(`La Mesa pasa a ${quien}`, `<p class="nubeesp" data-cede="1"><span>Subiendo lo último que hiciste aquí${nf ? ` (${nf} ${nf === 1 ? 'foto' : 'fotos'})` : ''}…</span>${ed}</p>`, '')); }
     return X().pausaNube(capa(`La Mesa está abierta en ${quien}`, `<p>Para no pisar sus cambios, esta se ha pausado.${ed} Lo que no se llegó a subir queda en «Quedó sin subir».</p>`, '<button type="button" class="btn2" data-nube="panel">Ver lo que quedó sin subir</button><button type="button" class="btn" data-nube="usar">Usar aquí</button>'));
   }
   function pintarPausa(extra) {
@@ -1085,11 +1145,11 @@
 
   // ---------- el estado, a la vista y discreto, en la cabecera ----------
   function chipTexto(e) {
-    const q = e.sinSubir ? ` · ${e.sinSubir} sin subir` : '', nf = COLA.size;
+    const q = e.sinSubir ? ` · ${e.sinSubir} sin subir` : '', nf = fotosEnCola();
     if (TODO && (e.fase === 'subiendo' || e.fase === 'guardado')) return ['sube', `Subiendo todo · ${(TODO.hechos || 0).toLocaleString('es-ES')} de ${(TODO.total || 0).toLocaleString('es-ES')}`, q];
     switch (e.fase) {
       case 'guardado': return [e.cola || nf ? 'sube' : 'ok', nf ? `Subiendo ${nf} ${nf === 1 ? 'foto' : 'fotos'}` : e.cola ? `${e.cola} ${e.cola === 1 ? 'cambio' : 'cambios'} por subir` : 'En la nube', q];   // nunca «guardado» sin estarlo (y no dos «Guardado» en la cabecera)
-      case 'subiendo': return ['sube', nf ? `Subiendo ${nf} ${nf === 1 ? 'foto' : 'fotos'}…` : 'Subiendo…', q];
+      case 'subiendo': return ['sube', nf ? `Subiendo ${nf} ${nf === 1 ? 'foto' : 'fotos'}` : 'Subiendo…', q];   // el mismo texto en las dos fases: no parpadea
       case 'bajando': case 'abriendo': return ['sube', 'Bajando…', ''];
       case 'sin_conexion': return ['off', `Sin conexión · ${e.cola} ${e.cola === 1 ? 'cambio' : 'cambios'} en cola`, q];
       case 'pausada': return ['pausa', `Pausada: abierta en ${nombreDe(e.tiene && e.tiene.dispositivo)}`, q];
@@ -1104,12 +1164,14 @@
   let PINTADO = '', PANEL = '', PINTADO_EL = null, TODO = null;
   // «Entrar y traer tu Mesa» (lote 4): en un navegador sin la nube, con proyecto (nunca en «Vista cliente»: lo oculta su CSS)
   const conTraer = () => !X().NUBE.activa && !!sb() && !lsG(TRAER);
+  const conTraerCab = () => conTraer() && !((X().CL || []).length);   // en la cabecera solo en un navegador sin Mesa; con datos, en ⇅
+  X().NUBE.traerHTML = () => (conTraer() ? '<div class="xtodo"><p><b>Tu Mesa del servidor.</b> Tráela a este navegador: lo que tenga aquí se aparta, no se sube ni se borra.</p><div class="form"><div class="row"><button type="button" class="btn2" data-nube="traer">Entrar y traer tu Mesa</button></div></div></div>' : '');
   function pintar() {
     const r = X().root && X().root(); if (!r) return;
-    if (X().NUBE.activa || conTraer()) estilar();
+    if (X().NUBE.activa || conTraerCab()) estilar();
     const b = r.querySelector('.appbar .nubest');
     if (b) {
-      const t = X().NUBE.activa ? chipTexto(ESTADO) : conTraer() ? ['traer', 'Entrar y traer tu Mesa', ''] : null, k = t ? (ESTADO.sinSubir && X().NUBE.activa ? 'aviso' : t[0]) : '', txt = t ? t[1] + t[2] : '';
+      const t = X().NUBE.activa ? chipTexto(ESTADO) : conTraerCab() ? ['traer', 'Entrar y traer tu Mesa', ''] : null, k = t ? (ESTADO.sinSubir && X().NUBE.activa ? 'aviso' : t[0]) : '', txt = t ? t[1] + t[2] : '';
       const firma = k + '|' + txt;
       if (firma !== PINTADO || b !== PINTADO_EL || b.hidden !== !t) {   // solo si cambia: el pulso de cada segundo no toca el DOM
         PINTADO = firma; PINTADO_EL = b; b.hidden = !t;
@@ -1127,6 +1189,8 @@
     if (dl && pf !== PANEL && !dl.contains(D.activeElement)) panel(true);
     // la Mesa ya pasó a otro (tras subir lo último): su aviso, con «Usar aquí»
     const lk = r.querySelector('.nubelock');
+    const esp = lk && ESTADO.fase === 'subiendo' && lk.querySelector('.nubeesp[data-cede]');   // al ceder: cuántas fotos quedan, al día
+    if (esp) { const nf = fotosEnCola(); esp.firstChild.textContent = `Subiendo lo último que hiciste aquí${nf ? ` (${nf} ${nf === 1 ? 'foto' : 'fotos'})` : ''}…`; }
     if (X().NUBE.activa && ESTADO.fase === 'pausada' && lk && !lk.querySelector('[data-nube="usar"]') && !lk.querySelector('[data-nube="forzar"]')) pintarPausa();
     // un aviso de actividad nuevo, en la página personal en esta misma sesión
     if (X().NUBE.activa && (ESTADO.avisos || 0) !== AVS.length && !releyendo) { releyendo = true; X().nubeAlmacen.avisos().then(l => { AVS = l; releyendo = false; if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render(); }, () => { releyendo = false; }); }
@@ -1135,7 +1199,7 @@
 
   // ---------- el panel: estado y «quedó sin subir» ----------
   const ALM = { boards: 'Tablero', clients: 'Cliente', bandejas: 'Bandeja', files: 'Foto', tareas: 'Tarea o nota', tfotos: 'Foto de una sesión', cobros: 'Factura', cfacturas: 'PDF de una factura', meses: 'Por qué y cómo fue', ubicaciones: 'Ubicación' };
-  const MOTIVO = { ilegible: 'sus fotos no se pueden leer en este navegador', masivo: 'un vaciado lo borraría arriba: «Subir encima» confirma el borrado', borrado_arriba: 'otro ordenador lo borró, pero sus fotos solo están aquí', pendiente: 'la copia de una recarga, de antes de lo que llegó', turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa' };
+  const MOTIVO = { ilegible: 'sus fotos no se pueden leer en este navegador', masivo: 'un vaciado lo borraría arriba: «Subir encima» confirma el borrado', borrado_arriba: 'otro ordenador lo borró, pero sus fotos solo están aquí', pendiente: 'la copia de una recarga, de antes de lo que llegó', turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa', antes: 'lo tenía este navegador antes de traer tu Mesa; no se ha subido', huella: 'el mismo tamaño que arriba, pero no es la misma foto: vuelve la de arriba', archivo: 'un archivo que el servidor no admite' };
   function etiqueta(x) {
     const v = x.valor || {}, cl = id => ((X().CL || []).find(c => c.id === id) || {}).name || id;
     let t = '';
@@ -1166,7 +1230,7 @@
   }
   async function reconciliar(que, todo, b) {
     const l = await X().nubeAlmacen.sinSubir(), claves = todo ? l.map(x => [x.a, x.k]) : [[b.dataset.a, b.dataset.k]];
-    const solos = ['bajada', 'masivo', 'borrado_arriba', 'pendiente'], c2 = todo ? l.filter(x => !solos.includes(x.motivo)).map(x => [x.a, x.k]) : claves;   // esos, de uno en uno
+    const solos = ['bajada', 'masivo', 'borrado_arriba', 'pendiente', 'antes', 'huella'], c2 = todo ? l.filter(x => !solos.includes(x.motivo)).map(x => [x.a, x.k]) : claves;   // esos, de uno en uno
     if (todo) claves.splice(0, claves.length, ...c2);
     if (!claves.length) { X().toast('Lo que queda se sube de uno en uno: míralo antes en la lista.'); return; }
     let r;
@@ -1205,7 +1269,7 @@
   // Entra con el correo (la misma sesión que «Web del cliente»), mira que arriba haya una Mesa, cuenta lo que este navegador ya
   // tiene y, con su sí, enciende la nube en modo «traer»: al recargar, lo de aquí se aparta (no sube ni se borra) y se baja todo.
   function dlgTraer(paso, correo, error) {
-    const er = error ? `<p class="ferr">${esc(error)}</p>` : '<p class="ferr" hidden></p>';
+    const er = error ? `<p class="ferr" role="alert">${esc(error)}</p>` : '<p class="ferr" role="alert" hidden></p>';
     if (paso === 'codigo') return X().showDialog('nube', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Mira tu correo</h3>
       <form class="form" data-nubeform="codigo" autocomplete="off"><p class="nubep">Si ${esc(correo)} tiene acceso, te llega un código de 6 cifras. Vale 10 minutos.</p>
       <input type="hidden" name="correo" value="${esc(correo)}"><label for="nube-cod">Código</label><input id="nube-cod" name="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
@@ -1225,6 +1289,7 @@
     const nC = (X().CL || []).length, nF = (await X().nubeAlmacen.claves('files').catch(() => [])).length, nT = (await X().nubeAlmacen.claves('tareas').catch(() => [])).length;
     const hay = nC + nF + nT > 0, que = [nC && `${nC} ${nC === 1 ? 'cliente' : 'clientes'}`, nF && `${nF.toLocaleString('es-ES')} ${nF === 1 ? 'foto' : 'fotos'}`, nT && `${nT} ${nT === 1 ? 'tarea o nota' : 'tareas y notas'}`].filter(Boolean).join(', ');
     const enOtro = r.tiene && r.tiene.dispositivo ? `<p class="nubep">Ahora está abierta en ${esc(nombreDe(r.tiene.dispositivo))}: al traerla, la pedirás aquí y ese ordenador subirá lo suyo y se pausará.</p>` : '';
+    setTimeout(() => { const b = D.querySelector('.detail:not([hidden]) [data-nube="traer-si"]'); if (b) b.focus(); }, 0);
     X().showDialog('nube', capaDlg('Traer tu Mesa aquí', (hay ? `<p class="nubep">Este navegador ya tiene una Mesa (${esc(que)}). <b>Lo de aquí se aparta</b>: no se sube ni se borra, y queda en «Nube → Quedó sin subir» para mirarlo. Las fotos que sean las mismas que arriba se quedan como originales.</p>` : '<p class="nubep">Se baja tu Mesa entera; las fotos, cuando las veas.</p>') + enOtro,
       '<button type="button" class="btn2" data-act="close">Cancelar</button><button type="button" class="btn" data-nube="traer-si">Traer tu Mesa</button>'));
   }
@@ -1307,8 +1372,8 @@
       if (!X().NUBE.activa || !N) return { error: 'la nube no está encendida en este navegador' };
       return N.comprobar({ rutas: async () => { const s = new Set(); for (const a of ['files', 'tfotos', 'cfacturas', 'tareas']) for (const n of await AL().listar('mesa', a)) s.add(a + '/' + n); return s; } });
     },
-    fotos: () => ({ enCola: COLA.size, subidas: FOTOS.subidas, bajadas: FOTOS.bajadas, error: FOTOS.error, fallos: FALLOS.size }),
-    _traerResto: () => traerResto(), _verificar: () => verificarOriginales(), _traer: () => traerEmpezar(),
+    fotos: () => ({ enCola: COLA.size, fotos: fotosEnCola(), subidas: FOTOS.subidas, bajadas: FOTOS.bajadas, error: FOTOS.error, fallos: FALLOS.size, porque: [...new Set([...FALLOS.values()].map(e => e.message))].slice(0, 3) }),
+    _traerResto: () => traerResto(), _verificar: () => verificarOriginales(), _traer: () => traerEmpezar(), _copia: (blob, w, h) => trabajo({ op: 'copia', blob, w, h }),
     estado: async () => {
       const e = N ? N.estado() : { fase: 'apagada' };
       return { activa: X().NUBE.activa, dispositivo: X().NUBE.activa ? DISP0() : lsG(DISP_K) || null, nombre: X().NUBE.activa ? nombreDe(DISP0()) : null, modo: X().NUBE.modo, ...e,
@@ -1324,7 +1389,7 @@
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
   if (X().NUBE.activa) { sb().alCambiar(u => { if (u && N && ESTADO.fase === 'sin_sesion') N.reintentar(); }); trasArmazon(() => pintar()); }
-  else if (conTraer()) trasArmazon(() => pintar());
+  else if (conTraer()) trasArmazon(() => pintar());   // (solo se ve en la cabecera si este navegador no tiene Mesa)
   function estilar() { if (!D.getElementById('mesa-nube-css')) X().estilo('mesa-nube-css', ESTILO); }
   (G.MESA_CARGA = G.MESA_CARGA || {}).nube = 'ok';
   const ICO = d => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E${d.replace(/<path d='/g, "%3Cpath vector-effect='non-scaling-stroke' d='").replace(/'\/>/g, "'/%3E").replace(/<circle /g, "%3Ccircle vector-effect='non-scaling-stroke' ").replace(/<line /g, "%3Cline vector-effect='non-scaling-stroke' ")}%3C/svg%3E")`;
@@ -1349,7 +1414,7 @@
 #mesa .detail[data-dlg="nube"]{z-index:21}
 #mesa .nubest .nubest-t{overflow:hidden;text-overflow:ellipsis}#mesa .nubest .nubest-q{color:var(--red);font-weight:600}
 @media (max-width:1100px){#mesa .nubest{max-width:200px}#mesa .nubest[data-k="ok"] .nubest-t{display:none}#mesa .nubest[data-k="ok"]{padding:0 8px}}
-@media (max-width:760px){#mesa .nubest .nubest-t{display:none}#mesa .nubest{padding:0 8px}}
+@media (max-width:760px){#mesa .nubest:not([data-k="traer"]) .nubest-t{display:none}#mesa .nubest{padding:0 8px}}
 @media (prefers-reduced-motion:reduce){#mesa .nubest:active{transform:none}}
 #mesa .nubedlg .nubeesp{color:var(--mute)}
 #mesa .dlg .nubep{margin:0 0 12px;color:var(--mute);font-size:13px;line-height:1.5}#mesa .dlg .nubep b{color:var(--ink);font-weight:600}

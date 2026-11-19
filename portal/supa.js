@@ -5,7 +5,7 @@
   'use strict';
   var V = '1.2';
 
-  function SupaError(mensaje, status, codigo) { this.name = 'SupaError'; this.message = mensaje; this.status = status || 0; this.codigo = codigo || ''; }
+  function SupaError(mensaje, status, codigo, detalle) { this.name = 'SupaError'; this.message = mensaje; this.status = status || 0; this.codigo = codigo || ''; this.statusCode = detalle && detalle.statusCode != null ? String(detalle.statusCode) : ''; this.error = detalle && typeof detalle.error === 'string' ? detalle.error : ''; }
   SupaError.prototype = Object.create(Error.prototype);
 
   function guardado(k) { try { var t = localStorage.getItem(k); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
@@ -41,7 +41,7 @@
             var j = null; try { j = txt ? JSON.parse(txt) : null; } catch (e) { /* no es JSON */ }
             if (!r.ok) {
               var m = (j && (j.msg || j.message || j.error_description || j.error)) || ('error ' + r.status);
-              throw new SupaError(String(m).slice(0, 300), r.status, (j && (j.error_code || j.code || j.statusCode)) || '');
+              throw new SupaError(String(m).slice(0, 300), r.status, (j && (j.error_code || j.code || j.statusCode)) || '', j);
             }
             return j;
           });
@@ -113,7 +113,7 @@
       // con `statusCode` 409, «Duplicate»), nunca otro error cuyo texto diga «exist».
       subir: function (bucket, ruta, blob, tipo) {
         return conToken('/storage/v1/object/' + bucket + '/' + ruta, { metodo: 'POST', cuerpo: blob, tipo: tipo || blob.type, espera: 120000 })
-          .then(function () { return true; }, function (e) { if (e.status === 409 || String(e.codigo) === '409') return true; throw e; });
+          .then(function () { return true; }, function (e) { if (e.status === 409 || String(e.codigo) === '409' || e.statusCode === '409' || /^duplicate$/i.test(e.error) || e.codigo === 'KeyAlreadyExists') return true; throw e; });
       },
       // Los bytes de un archivo privado, con la sesión (la Mesa, lote 4): Blob.
       archivo: function (bucket, ruta) {

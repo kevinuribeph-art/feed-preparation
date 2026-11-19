@@ -196,11 +196,11 @@
     const tg = card.querySelector('.dl-op[aria-label="Textos"]'), o = { textos: !tg || tg.hidden || val(card, 'dl-txt') !== 'sin', ancho: val(card, 'dl-res') || 'orig' };
     if (o.ancho === 'orig' && card.dataset.conCopia !== '1') {   // one line, and go on with the copy or stop
       const n = sel.filter(x => fotosDe(x.s, x.f).some(id => (M.files[id] || {}).copia)).length, er = card.querySelector('.dl-err');
-      if (n) { er.innerHTML = `${n === 1 ? 'Una pieza usa' : n + ' piezas usan'} una foto de la que aquí solo está la copia de 2560 px: «Original» sale a ese tamaño (el original está en otro ordenador). <button type="button" class="lnk" data-dl="concopia">Seguir con la copia</button>`; er.hidden = false; return; }
+      if (n) { er.style.color = 'var(--ink-2)'; er.innerHTML = `${n === 1 ? 'Una pieza usa' : n + ' piezas usan'} una foto de la que aquí solo está la copia de 2560 px: «Original» sale a ese tamaño (el original está en otro ordenador). <button type="button" class="lnk" data-dl="concopia">Seguir con la copia</button>`; er.hidden = false; return; }
     }
     const det = X.root().querySelector('.detail'), mio = job = { card };
     const parar = () => job !== mio || !card.isConnected || det.hidden || det.dataset.dlg !== 'descargar';
-    const prog = card.querySelector('.dl-prog'), bar = prog.querySelector('i'), pt = prog.querySelector('.dl-pt'), err = card.querySelector('.dl-err');
+    const prog = card.querySelector('.dl-prog'), bar = prog.querySelector('i'), pt = prog.querySelector('.dl-pt'), err = card.querySelector('.dl-err'); err.style.color = '';   // an error again in its colour (the copy's line was a notice)
     const paso = (k, t) => { bar.style.width = (100 * k / (sel.length + (sel.length > 1 ? 1 : 0))).toFixed(1) + '%'; pt.textContent = t; };
     card.querySelectorAll('input, [data-dl]').forEach(x => { x.disabled = true; });
     prog.hidden = false; err.hidden = true; card.classList.add('dl-run');

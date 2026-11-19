@@ -17219,7 +17219,7 @@
     }
     igual(malas, [], 'accesos a IndexedDB fuera de tx() (o la vía sin diario fuera de mesa.js)');
     igual(accesos, 6, 'los accesos crudos de mesa.js, todos en sus líneas «idb-crudo» (la apertura, la actualización de versión y txCon)');
-    igual(sin, 33, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256; el lote 4: el registro de los archivos y las fotos que bajan, D-259)');
+    igual(sin, 36, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256; el lote 4: el registro de los archivos, lo que hay arriba en cada sitio y las fotos que bajan, D-259)');
     // dentro de una transacción con diario, una escritura por el almacén crudo (req.source): la guarda la ve
     const antes0 = djFugas.length;
     await M._in.xfer.tx('ubicaciones', 'readwrite', st => { const g = st.count(); g.onsuccess = () => { g.source.put({ id: 'ub-fuga2' }, 'ub-fuga2'); }; });
@@ -17910,13 +17910,13 @@
   }
   const ftEncender = async F => { M._in.NUBE.activa = true; await M._in.diario.vaciar(); const n = M.nube._con(F.sv, F.al), r = await n.abrir(); igual(r.modo, 'turno', 'abrir con el turno'); M._in.NUBE.alDia = true; return n; };
   // un registro que bajó de otro ordenador con sus referencias (la copia de trabajo y la miniatura, ya en el almacén de mentira)
-  async function ftBajada(F, id, { w = 6000, h = 4000, nombre = id + '.jpg' } = {}) {
+  async function ftBajada(F, id, { w = 6000, h = 4000, nombre = id + '.jpg', tam = 25000000, sha = 'ab'.repeat(32) } = {}) {
     const k = 2560 / Math.max(w, h), cw = Math.round(w * k), ch = Math.round(h * k), copia = await ftJpeg(cw, ch), mini = await ftJpeg(Math.round(cw / 4), Math.round(ch / 4), '#3c4a7a');
-    const sc = await ftHuella(copia), sm = await ftHuella(mini), so = 'ab'.repeat(32);
+    const sc = await ftHuella(copia), sm = await ftHuella(mini), so = sha;
     F.arch.set(`files/${sc}.jpg`, copia); F.arch.set(`files/${sm}.jpg`, mini);
-    const ref = { __blob: 'pendiente', sha256: so, tam: 25000000, tipo: 'image/jpeg', nombre, fecha: 1, ruta: `files/${sc}.jpg`, trabajo: { sha256: sc, tam: copia.size, tipo: 'image/jpeg', w: cw, h: ch } };
+    const ref = { __blob: 'pendiente', sha256: so, tam, tipo: 'image/jpeg', nombre, fecha: 1, ruta: `files/${sc}.jpg`, trabajo: { sha256: sc, tam: copia.size, tipo: 'image/jpeg', w: cw, h: ch } };
     const refM = { __blob: 'pendiente', sha256: sm, tam: mini.size, tipo: 'image/jpeg', ruta: `files/${sm}.jpg` };
-    const rec = { name: nombre, size: 25000000, type: 'image/jpeg', w, h, lastModified: 1, blob: ref, thumb: refM };
+    const rec = { name: nombre, size: tam, type: 'image/jpeg', w, h, lastModified: 1, blob: ref, thumb: refM };
     await M._in.nubeAlmacen.aplicar({ escribir: [{ a: 'files', k: id, valor: rec, v: 1, o: 1 }], refs: [ref, refM] });
     return { rec, ref, refM, copia, cw, ch };
   }
@@ -18036,20 +18036,100 @@
     } finally { await ftFin(id ? [id] : []); }
   });
 
-  prueba('FT6', '«Entrar y traer tu Mesa» (D-259): en un navegador sin la nube y con proyecto, en la cabecera y nunca en «Vista cliente»; activar() no sube lo de aquí si arriba ya hay una Mesa; apartar «antes» saca un registro de la Mesa y lo guarda en «quedó sin subir»', async () => {
+  prueba('FT6', '«Entrar y traer tu Mesa» (D-259): en un navegador sin la nube y con proyecto, en ⇅ (en la cabecera, solo sin Mesa) y nunca en «Vista cliente»; activar() no sube lo de aquí si arriba ya hay una Mesa; apartar «antes» saca un registro de la Mesa y lo guarda en «quedó sin subir»', async () => {
     await tablero([pub(1)]);
     const S0 = M._in.supa, sb = { usuario: () => ({ id: 'u', email: 'k@prueba.test' }), alCambiar: () => () => {}, rpc: async () => ({ ok: true, orden: 7, turno: 1, tuyo: false, libre: true, tiene: null, epoca: 'e', version_minima: '0.0' }) };
     try {
       M._in.supa = () => sb; M._in.NUBE.activa = false;
       M.nube._estado({ fase: 'apagada' });
       const b = q('.appbar .nubest');
-      ok(b && !b.hidden && b.dataset.k === 'traer' && /Entrar y traer tu Mesa/.test(b.textContent) && b.dataset.nube === 'traer', 'no está en la cabecera: ' + (b && b.outerHTML.slice(0, 200)));
-      const vc = q('.clientToggle'); if (vc && !vc.checked) vc.click(); await espera(60); igual(W.getComputedStyle(b).display, 'none', 'se ve en «Vista cliente»'); if (vc && vc.checked) vc.click(); await espera(30);
+      ok(b && b.hidden, 'con una Mesa con clientes sale en la cabecera (solo en un navegador sin Mesa): ' + (b && b.outerHTML.slice(0, 200)));
+      q('.appbar [data-act="xfer"]').click(); await espera(80);
+      const t = q('.detail:not([hidden])[data-dlg="xfer"] [data-nube="traer"]');
+      ok(t && /Entrar y traer tu Mesa/.test(t.textContent), 'no está en ⇅'); M._in.closeDetail();
+      const vc = q('.clientToggle'); if (vc && !vc.checked) vc.click(); await espera(60); ok(!q('.appbar .nubest:not([hidden])') || W.getComputedStyle(b).display === 'none', 'se ve en «Vista cliente»'); if (vc && vc.checked) vc.click(); await espera(30);
       const r = await M.nube.activar(); ok(r && r.error && /Entrar y traer/.test(r.error), 'activar() sobre una Mesa que ya está arriba: ' + json(r));
       await M._in.idbPut('ubicaciones', 'ub-ft6', { id: 'ub-ft6', nombre: 'De antes' });
       await M._in.nubeAlmacen.apartar([{ a: 'ubicaciones', k: 'ub-ft6', v: null, motivo: 'antes', quitar: true }]);
       ok(!(await M._in.idbGet('ubicaciones', 'ub-ft6')) && (await M._in.nubeAlmacen.sinSubir()).some(x => x.k === 'ub-ft6' && x.motivo === 'antes' && x.valor.nombre === 'De antes'), 'apartar «antes» no la sacó o la perdió');
     } finally { M._in.supa = S0; M.nube._estado({ fase: 'apagada' }); await nbLimpiar(['ub-ft6']); await M._in.diario.vaciar(); }
+  });
+
+  prueba('FT7', 'Lo que aún no ha llegado no rompe nada (D-259, revisiones): una miniatura del mes anterior (past:) por bajar no impide abrir el mes y llega por detrás; «Quedó sin subir» explica lo de antes y no lo sube todo de un clic; un PDF por bajar deja «Deshacer»', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), mini = await ftJpeg(400, 500, '#4a6a3c'), sm = await ftHuella(mini);
+    try {
+      await ftEncender(F); F.arch.set(`files/${sm}.jpg`, mini);
+      M._in.S.past = [{ id: 'pft7', name: 'Foto pasada', date: '2026-10-28T12:00:00.000+01:00', type: 'Foto' }]; M._in.changed(); await M.flush();
+      const ref = { __blob: 'pendiente', sha256: sm, tam: mini.size, tipo: 'image/jpeg', ruta: `files/${sm}.jpg` };
+      await M._in.nubeAlmacen.aplicar({ escribir: [{ a: 'files', k: 'past:pft7', valor: { thumb: ref, w: 400, h: 500 }, v: 1, o: 1 }], refs: [ref] });
+      delete M.pastThumbs.pft7; let e = null;
+      try { await M.open(M.board().key); } catch (x) { e = x; }
+      ok(!e && M.board() && (M._in.S.past || []).some(p => p.id === 'pft7') && !M.pastThumbs.pft7, 'abrir el mes con una miniatura pasada por bajar falló: ' + json({ e: e && e.message, past: M._in.S.past }));
+      await M.nube._traerResto(); await hasta(() => M.pastThumbs.pft7, 8000, 'que llegue la miniatura pasada');
+      await M._in.nubeAlmacen.apartar([{ a: 'ubicaciones', k: 'ub-ft7a', v: null, motivo: 'antes' }, { a: 'ubicaciones', k: 'ub-ft7b', v: null, motivo: 'antes' }]);
+      await M.nube._panel(); const d = q('.detail:not([hidden])[data-dlg="nube"]');
+      ok(d && /antes de traer tu Mesa/.test(d.textContent), 'la lista no explica lo de antes: ' + (d && d.textContent.slice(0, 300)));
+      const b = d.querySelector('[data-nube="encima-todo"]'); if (b) { b.click(); await espera(300); }
+      ok((await M._in.nubeAlmacen.sinSubir()).filter(x => x.motivo === 'antes').length === 2, '«Subir todo encima» subió lo de antes de un clic');
+      M._in.closeDetail();
+      // un PDF que aún no ha llegado: quitarlo y «Deshacer» lo devuelve (su referencia)
+      const cf = { id: 'cf-ft7', nombre: 'f.pdf', tam: 9, tipo: 'application/pdf', blob: { __blob: 'pendiente', sha256: 'cd'.repeat(32), tam: 9, tipo: 'application/pdf', ruta: 'cfacturas/x.pdf' } };
+      await M._in.nubeAlmacen.aplicar({ escribir: [{ a: 'cfacturas', k: 'cf-ft7', valor: cf, v: 1, o: 1 }] });
+      const g = await M._in.cob.pdfCopia('cf-ft7').catch(() => 'no hay');
+      ok(g === 'no hay' || (g && g.blob && g.blob.__blob), '«Deshacer» de un PDF por bajar no guarda su referencia: ' + json(g));
+    } finally { M._in.S.past = []; M._in.changed(); await M.flush(); await ftFin(['past:pft7']); await M._in.diario.sinDiario('cfacturas', 'readwrite', s => s.delete('cf-ft7')); await M._in.diario.vaciar(); }
+  });
+
+  prueba('FT8', 'El original de aquí antes que la copia (D-259, revisiones): una foto que llega con la huella de un original que este ordenador ya tiene (otra id) toma ese original sin bajar nada ni marcarla; soltar otra vez el original sobre una copia la sustituye y quita la marca', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(); let id = null;
+    try {
+      const n = await ftEncender(F);
+      const f = await foto('ft8.jpg', 3200, 2000); await M.addFiles([f]); await M.flush();
+      id = Object.keys(M.files).find(k => M.files[k].name === 'ft8.jpg');
+      await hasta(async () => { await n.tic(); return !!F.valor('files', id); }, 40000, 'que suba');
+      const v = F.valor('files', id), n0 = F.llamadas.length;
+      await M._in.nubeAlmacen.aplicar({ escribir: [{ a: 'files', k: 'fft8b', valor: { ...v, de: CLIENTE }, v: 1, o: 99 }] });
+      let pedidas = 0; const a0 = F.al.archivo; F.al.archivo = async (...x) => { pedidas++; return a0(...x); };
+      const b = await M._in.getBlob('fft8b'), r = await M._in.idbGet('files', 'fft8b');
+      F.al.archivo = a0;
+      ok(b && b.size === f.size && !r.copia && pedidas === 0, 'bajó la copia teniendo aquí el original: ' + json({ size: b && b.size, copia: !!r.copia, pedidas }));
+      void n0;
+      // soltar el original sobre una copia de otra
+      const orig = await foto('ft8c.jpg', 3200, 2000, '#6a3c4a');
+      const { ref } = await ftBajada(F, 'fft8c', { w: 3200, h: 2000, nombre: 'ft8c.jpg', tam: orig.size, sha: await ftHuella(orig) });
+      await M._in.loadThumbs(['fft8c']); M._in.S.tray.unshift('fft8c'); M._in.changed(); await M.flush();
+      await M._in.getBlob('fft8c');
+      const antes8 = json({ mf: M.files.fft8c, tray: M.board().tray.includes('fft8c'), carpeta: M._in.trayCarpeta, osize: orig.size, otype: orig.type, oname: orig.name });
+      const got8 = await M.addFiles([orig]); await M.flush(); await espera(300);
+      ok(JSON.parse(antes8).mf.copia, 'sin su copia antes de soltar el original: ' + antes8);
+      const r3 = await M._in.idbGet('files', 'fft8c');
+      ok(r3 && !r3.copia && r3.blob.size === ref.tam && M.files.fft8c && !M.files.fft8c.copia, 'el original soltado otra vez no sustituyó a la copia: ' + json({ copia: r3 && !!r3.copia, size: r3 && r3.blob.size, got8 }) + ' · ' + antes8);
+    } finally { M._in.S.tray = M._in.S.tray.filter(x => x !== 'fft8c'); M._in.changed(); await M.flush(); await ftFin([id, 'fft8b', 'fft8c'].filter(Boolean)); }
+  });
+
+  prueba('FT9', 'La huella de lo que se quedó al traer (D-259, revisiones): se compara con la de arriba en ese mismo sitio; si no coincide, lo de aquí se aparta una vez y vuelve lo de arriba en ese sitio; si coincide, o si tiene cambios de aquí por subir, no se toca', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), ids = ['fft9a', 'fft9b', 'fft9c'];
+    try {
+      await ftEncender(F);
+      const bueno = await foto('ft9.jpg', 1200, 900), malo = new W.File([new Uint8Array(bueno.size)], 'ft9.jpg', { type: 'image/jpeg', lastModified: 1 }), hb = await ftHuella(bueno);
+      const mini = await ftJpeg(300, 225), sm = await ftHuella(mini); F.arch.set(`files/${sm}.jpg`, mini); F.arch.set(`files/${hb}.jpg`, bueno);
+      const ref = { __blob: 'pendiente', sha256: hb, tam: bueno.size, tipo: 'image/jpeg', nombre: 'ft9.jpg', fecha: 1, ruta: `files/${hb}.jpg` }, refM = { __blob: 'pendiente', sha256: sm, tam: mini.size, tipo: 'image/jpeg', ruta: `files/${sm}.jpg` };
+      const arriba = { name: 'ft9.jpg', size: bueno.size, type: 'image/jpeg', w: 1200, h: 900, lastModified: 1, blob: ref, thumb: refM };
+      for (const [k, i] of [['fft9a', 1], ['fft9b', 2], ['fft9c', 3]]) F.reg.set('files|' + k, { almacen: 'files', clave: k, valor: arriba, version: 1, orden: i, borrado: false, dispositivo: 'mac-chrome-0000aaaabbbbcccc', turno: 1 });
+      const refsR = ids.map(k => ({ ...ref, a: 'files', k, donde: 'el valor.blob' }));
+      await M._in.nubeAlmacen.aplicar({ escribir: ids.map((k, i) => ({ a: 'files', k, valor: { ...arriba, blob: k === 'fft9a' ? bueno : malo, thumb: mini }, v: 1, o: i + 1 })), refs: refsR });
+      await M._in.idbPut('files', 'fft9c', { ...arriba, blob: malo, thumb: mini, de: CLIENTE });   // un cambio de aquí por subir
+      const m = await M.nube._verificar();
+      const [a, b, c] = await Promise.all(ids.map(k => M._in.idbGet('files', k)));
+      const ss = await M._in.nubeAlmacen.sinSubir();
+      ok(m === 1 && a.blob instanceof W.Blob && M._in.esRefNube(b.blob) && c.blob instanceof W.Blob && ss.filter(x => x.k === 'fft9b' && x.motivo === 'huella').length === 1 && !ss.some(x => x.k === 'fft9a' || x.k === 'fft9c'), 'la comprobación de huellas: ' + json({ m, a: a.blob instanceof W.Blob, b: M._in.esRefNube(b.blob), c: c.blob instanceof W.Blob, ss: ss.map(x => x.k + ':' + x.motivo) }));
+      const png = await new Promise(r => { const v = D.createElement('canvas'); v.width = 3000; v.height = 2000; const x = v.getContext('2d'); x.fillStyle = 'rgba(200,40,40,0.4)'; x.fillRect(0, 0, 1500, 2000); v.toBlob(r, 'image/png'); });
+      const cp = await M.nube._copia(png, 3000, 2000), bm = await W.createImageBitmap(cp.copia), cv = D.createElement('canvas'); cv.width = 4; cv.height = 4; const cx = cv.getContext('2d'); cx.drawImage(bm, 2500, 1000, 4, 4, 0, 0, 4, 4); const al = cx.getImageData(0, 0, 1, 1).data[3]; bm.close();
+      ok(cp.w === 2560 && /webp|png/.test(cp.copia.type) && al === 0, 'la copia de un PNG con transparencia la perdió: ' + json({ t: cp.copia.type, w: cp.w, al }));
+    } finally { await ftFin(ids); }
   });
 
   prueba('CS1', 'La CSP de la Mesa (D-252): un <meta> lo primero del <head>, script-src \'self\' sin \'unsafe-inline\' ni \'unsafe-eval\'; ni un <script> en línea ni un manejador on…= en index.html; tema, arranque y vigilante en archivos, sin async y en su orden; un módulo que no llega sigue siendo «fallo»', async () => {

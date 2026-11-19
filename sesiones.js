@@ -887,7 +887,7 @@
     const r0 = P.TK.get(id); if (!r0 || r0.tipo !== 'sesion' || !P.puede()) return;
     const X = I(), now = P.ahoraISO(), nid = P.nuevoId('ss'), mapa = new Map(), fotos = [];
     for (const f of r0.fotos || []) {
-      const o = await X.idbGet('tfotos', f.id).catch(() => null); if (!o || !(o.blob instanceof Blob) || !(o.mini instanceof Blob)) continue;
+      const o = await X.idbGet('tfotos', f.id).catch(() => null); if (!o || !o.blob) continue;   // one that hasn't come down (lot 4) goes with its reference: it comes down later
       const fid = P.nuevoId('tf'); const { suelta, ...g } = o;
       await X.idbPut('tfotos', fid, { ...g, id: fid, sesion: nid, t: Date.now() }); mapa.set(f.id, fid); fotos.push({ ...f, id: fid });
     }

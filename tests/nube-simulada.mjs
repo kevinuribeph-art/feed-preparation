@@ -1011,6 +1011,22 @@ await grupo('NS13 subirTodo', async () => {
   C.alm.escribirLocal('boards', 'nuevo', { n: 1 });
   const zz = await pr; await W3.vivir(8, C);
   ok(zz.valor && !solapado && W3.srv.vivo('boards', 'nuevo'), 'NS13.7 un solo lote en vuelo: el diario sube después', { solapado });
+  // lo borrado arriba que aquí se quedó aparte («borrado_arriba») no se resucita
+  const W4 = mundo(), F4 = archivosSimulados(), E = W4.nodo(DA, { archivo: F4.hook });
+  E.alm.sembrar({ registros: [['tareas', 'conFoto', { txt: 't', fotos: [{ id: 'x', blob: foto('foto de tarea grande !!') }] }]] });
+  await W4.abrir(E); await W4.correr(() => E.n.subirTodo(), { tics: [E], max: 100 });
+  W4.srv.sembrar('tareas', 'conFoto', null, { dispositivo: DB, turno: 9 });
+  await W4.correr(() => E.n.parar(), { max: 20 }); const E2 = W4.nodo(DA, { alm: E.alm, archivo: F4.hook }); await W4.abrir(E2);
+  const yaAparte = (await E2.alm.sinSubir()).some(x => x.k === 'conFoto' && x.motivo === 'borrado_arriba');
+  const t9 = await W4.correr(() => E2.n.subirTodo(), { tics: [E2], max: 100 });
+  ok(yaAparte && W4.srv.borrado('tareas', 'conFoto') && t9.valor && !t9.valor.cortado, 'NS13.8 subirTodo no resucita lo que otro borró arriba y aquí espera aparte', { yaAparte, borrado: W4.srv.borrado('tareas', 'conFoto'), v: t9.valor });
+  // un lote que quedó en vuelo antes de subirTodo se manda, y el primer trozo propio también
+  const W5 = mundo(), G = W5.nodo(DB);
+  G.alm.sembrar({ registros: [...Array(10).keys()].map(i => ['meses', 'q' + i, { i }]) }); await W5.abrir(G);
+  G.alm.escribirLocal('boards', 'envuelo', { n: 1 }); G.cli.fallos.push({ fn: 'mesa_escribir', modo: 'perder' });
+  await W5.vivir(6, G);
+  const t10 = await W5.correr(() => G.n.subirTodo({ trozo: 5 }), { tics: [G], max: 100 });
+  ok(t10.valor && !t10.valor.cortado && W5.srv.vivo('boards', 'envuelo') && [...Array(10).keys()].every(i => W5.srv.vivo('meses', 'q' + i)), 'NS13.9 un lote en vuelo de antes se manda y no se come el primer trozo de subirTodo', { v: t10.valor, faltan: [...Array(10).keys()].filter(i => !W5.srv.vivo('meses', 'q' + i)) });
 });
 
 await grupo('NS14 comprobar', async () => {
@@ -1049,7 +1065,7 @@ await grupo('NS15 traer la Mesa a un aparato que no es el primero', async () => 
   ok(esBlobN(B.alm.ver('files', 'f1').blob) && B.alm.ver('files', 'f1').blob.size === 22 && !ss.some(x => x.k === 'f1' || x.k === 'igual'), 'NS15.4 la foto importada con el mismo tamaño y tipo se queda como original; lo igual, ni aparte', ss.map(x => x.k));
   await W.vivir(10, B);
   ok(!(await B.alm.contarDiario()) && escrituras(B).length === e0 && !sv.vivo('boards', 'viejo') && sv.valor('boards', 'cambia').n === 2, 'NS15.5 después, nada de lo de antes sube solo', { cola: await B.alm.contarDiario() });
-  ok((B.alm.espia.refs || []).some(x => x.sha256 === sha('la foto del original 1') && x.ruta), 'NS15.6 las referencias bajadas se apuntan (lo que ya está arriba no se vuelve a subir)');
+  ok((B.alm.espia.refs || []).some(x => x.sha256 === sha('la foto del original 1') && x.ruta && x.a === 'files' && x.k === 'f1' && x.donde === 'el valor.blob'), 'NS15.6 las referencias bajadas se apuntan con su sitio (lo que ya está arriba no se vuelve a subir; la huella se comprueba en su sitio)', (B.alm.espia.refs || []).slice(0, 2));
   const W2 = mundo(), C = W2.nodo(DC); C.alm.sembrar({ registros: [['boards', 'x', { n: 1 }]] });
   const r2 = await W2.correr(() => C.n.abrir({ traer: true }), { paso: 500, max: 40 });
   ok(r2.valor && r2.valor.modo === 'vacia' && !W2.srv.S.turno.dispositivo && C.alm.tiene('boards', 'x'), 'NS15.7 con el servidor vacío no se enciende ni toma la Mesa (se sube desde el primero)', r2.valor);

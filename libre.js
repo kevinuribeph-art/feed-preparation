@@ -4514,7 +4514,7 @@
   // the photos the open session has or can bring back with its ⌘Z, applied or not: deleting a tray's folder leaves them (D-070)
   const fotosSesion = () => { if (!E) return []; const out = new Set(); for (const m of [JSON.stringify(E.sl), ...E.hist.undo, ...E.hist.redo, ...E.previas.values()].join('').matchAll(/"(?:src|key)":"([^"]+)"/g)) out.add(m[1]); return [...out]; };
   const trayLote = () => (E ? { files: E.trSel.slice(), carpetas: (E.trCar || []).slice() } : { files: [], carpetas: [] });
-  M.libre = { version: VERSION, abrir, fotosHistoria: id => enHistoria(((I().S && I().S.historias) || []).find(h => h.id === id)), fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, pendiente: () => pendiente(), aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
+  M.libre = { version: VERSION, abrir, miniLlego: id => { const m = E && E.bmMini.get(id); if (m) { if (m.im && m.im.close) m.im.close(); E.bmMini.delete(id); pedir(); } }, fotosHistoria: id => enHistoria(((I().S && I().S.historias) || []).find(h => h.id === id)), fondosKit, fotosSesion, trayLote, cerrar: () => cerrar(), sync, abierto: () => !!E, pendiente: () => pendiente(), aplicando: () => APL > 0, aplicar: () => aplicar(), casilla, redibujar, migrar, _ed: () => E, bandeja: () => { if (E) bandeja(); },
     rev: { medida, numTxt, numAMano, NUM_RE },   // «Revisar» (revisar.js)
     hist: { pintar: pintarHistoria, altoDe, OUT_W },   // a story designed from outside (historias.js, D-062)
     pieza: (comp, W, H) => dibujar(comp, W, H),   // a slide drawn at any size, as a JPEG Blob: «Descargar» (descargar.js, D-083)

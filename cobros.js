@@ -194,7 +194,7 @@
   }
   async function quitar(btn) {
     const f = filaDe(btn), r = f && C().get(f.dataset.id); if (!r || !r.pdf) return;
-    let g = null; try { const x = await I().idbGet('cfacturas', r.pdf); if (x && x.blob instanceof Blob) g = { ...x, blob: new Blob([await x.blob.arrayBuffer()], { type: 'application/pdf' }) }; } catch (e) { /* */ }   // its bytes, for «Deshacer»
+    let g = null; try { const x = await I().idbGet('cfacturas', r.pdf); if (x && x.blob instanceof Blob) g = { ...x, blob: new Blob([await x.blob.arrayBuffer()], { type: 'application/pdf' }) }; else if (x && x.blob) g = { ...x }; } catch (e) { /* */ }   // its bytes, for «Deshacer»
     if (!(await guardar(r.id, { pdf: '' }))) return;
     enfocar(`tr.co-f[data-id="${r.id}"] [data-co="subir"]`);
     toast('PDF quitado.', { action: 'Deshacer', ms: UNDO, onAction: async () => { try { await C().pdfVolver(r.id, g); } catch (e) { fallo(e); } } });

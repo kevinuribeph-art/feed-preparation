@@ -18441,6 +18441,77 @@
     ok(M._in.shellReady() && M.status().key, 'la Mesa del escritorio no volvió');
   });
 
+  // un tablero con lo que el Mac haría solo al abrirlo: una Programada cuya hora pasó, un diseño vacío sin aplicar (D-090), una
+  // Aprobada con una foto horizontal sin recorte guardado (su firma depende de las medidas) y una con su caption elegido
+  async function tableroMovil() {
+    await tablero([pub(1), pub(2, 'Carrusel'), pub(3), pub(4, 'Reel')]);
+    await poner('r1', [await foto('mv-h.jpg', 1600, 1000, '#7a4a3c')]);
+    await poner('r3', [await foto('mv-v.jpg', 1200, 1500, '#3c6a7a')]);
+    await poner('r2', [await foto('mv-c1.jpg'), await foto('mv-c2.jpg', 1200, 1500, '#556b2f')]);
+    M.loadCaptions([1, 2, 3].map(n => ({ slotId: 'r' + n, options: [{ tone: 'Cercano', text: 'uno ' + n }, { tone: 'Profesional', text: 'dos ' + n }, { tone: 'Poético', text: 'tres ' + n }] })));
+    for (const n of [1, 3]) M._test.setSlot('r' + n, { caption: { ...slot('r' + n).caption, pick: 1 } });
+    ok(!M.setEstado('r1', 'aprobado')[0].error, 'no se aprobó r1');
+    ok(!M.setEstado('r3', 'programado')[0].error, 'no se programó r3');
+    await M.flush();
+    return M.status().key;
+  }
+  const leerTodo = async () => { const o = {}; for (const a of ['boards', 'clients', 'bandejas', 'files', 'tareas']) o[a] = await M._in.idbAll(a); return JSON.stringify(o, (k, v) => (v instanceof W.Blob ? 'blob:' + v.size : v)); };
+  const djN = async () => (await M._in.diario.leer()).length;
+
+  prueba('MV2', 'Mirar no escribe (D-267, R1): abrir un tablero en el móvil con una Programada cuya hora pasó, un diseño vacío sin aplicar (D-090) y un carrusel sin formato guardado no escribe nada: ni IndexedDB, ni el diario, ni localStorage; lo que «tocaría» (Publicado) se enseña sin guardarlo', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      const rec = await M._in.idbGet('boards', key), r2 = rec.slots.find(s => s.id === 'r2');
+      r2.design = { slides: [{ tipo: 'portada' }] }; delete r2.fmt;             // como lo dejaría una Mesa vieja: el Mac lo arreglaría al abrir
+      await M._in.idbPut('boards', key, rec);
+      M._test.reloj(Date.parse('2026-11-20T10:00:00+01:00'));                  // r3 (5 nov, Programada) ya pasó su hora
+      const antes = await leerTodo(), dj0 = await djN(), ls0 = JSON.stringify(W.localStorage), esc = contarEscrituras();
+      const v = await M._in.movil.mirar(key);
+      await espera(300);
+      igual(esc.total, 0, 'mirar escribió: ' + esc.de.join(', '));
+      igual(await djN(), dj0, 'mirar apuntó en el diario');
+      ok((await leerTodo()) === antes, 'IndexedDB cambió al mirar');
+      igual(JSON.stringify(W.localStorage), ls0, 'mirar escribió en localStorage');
+      const p3 = v.posts.find(p => p.id === 'r3');
+      igual([p3.estado.k, p3.tocaria], ['programado', 'publicado'], 'la Programada pasada: se guarda como está y se enseña lo que tocaría');
+      ok(!D.getElementById('mesa'), 'mirar dibujó el escritorio');
+    });
+  });
+
+  prueba('MV3', 'Lo que enseña el móvil sale del núcleo (D-267): estado, vencida, paso, captions, fotos y fecha de cada publicación son los mismos que calcula la Mesa del escritorio del mismo tablero (también una Aprobada cuya firma depende de las medidas de su foto)', async () => {
+    const key = await tableroMovil();
+    const X = M._in, t = Date.parse('2026-11-20T10:00:00+01:00'); M._test.reloj(t);
+    const mac = M.board().slots.map(s => ({ id: s.id, e: X.estadoDe(s), venc: X.vencida(s, t), caps: M.captions(s.id)[0], fotos: X.publishList(s), dia: X.localDay(s.date), hora: X.localTime(s.date) }));
+    const paso = X.pasoDe(X.S, MES);
+    M._test.reloj(RELOJ_PRUEBAS);
+    igual(mac.find(x => x.id === 'r1').e, 'aprobado', 'el escritorio no tiene r1 como Aprobada');
+    await enMovil(async () => {
+      M._test.reloj(t);
+      const v = await M._in.movil.mirar(key);
+      for (const m of mac) {
+        const p = v.posts.find(x => x.id === m.id); ok(p, 'falta ' + m.id);
+        igual([p.estado.k, p.vencida, p.fotos, p.fecha.dia, p.fecha.hora], [m.e, m.venc, m.fotos, m.dia, m.hora], 'distinto del escritorio en ' + m.id);
+        igual(p.captions ? [p.captions.pick, p.captions.texto, p.captions.opciones.map(o => o.texto)] : null, m.caps && m.caps.options.length ? [m.caps.pick, m.caps.text, m.caps.options.map(o => o.text)] : null, 'captions distintos en ' + m.id);
+      }
+      igual(v.meses[0].paso.k, paso, 'el paso del mes');
+    });
+  });
+
+  prueba('MV12', 'El móvil relee lo bajado (D-267, lección 148): lo que cambia en IndexedDB por debajo (como al bajar de la nube) sale al releer, en el tablero a la vista y en los clientes', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      await M._in.movil.mirar(key);
+      const rec = await M._in.idbGet('boards', key); rec.slots.find(s => s.id === 'r1').note = 'contexto bajado'; await M._in.idbPut('boards', key, rec);
+      const c = await M._in.idbGet('clients', CLIENTE); await M._in.idbPut('clients', CLIENTE, { ...c, name: 'Cliente bajado' });
+      igual(M._in.movil.vista().posts.find(p => p.id === 'r1').contexto, '', 'la vista cambió sin releer');
+      const v = await M._in.movil.releer();
+      igual(v.posts.find(p => p.id === 'r1').contexto, 'contexto bajado', 'releer no trajo el tablero');
+      igual(M._in.CL.find(x => x.id === CLIENTE).name, 'Cliente bajado', 'releer no trajo los clientes');
+      await M._in.idbPut('clients', CLIENTE, c);
+    });
+    await M._in.loadClients();
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

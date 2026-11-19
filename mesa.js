@@ -605,7 +605,7 @@
   }
   // A carousel keeps the format it had when it got its first photo, so reordering never flips it silently.
   function normalize() {
-    if (!S) return;
+    if (!S || MOVIL) return;   // the iPhone writes only what Kevin touches (D-267): no default format (its sizes may not be here), no tray dedup
     trayUnica(S);
     S.slots.forEach(s => {
       if (!isCarousel(s.type)) { delete s.fmt; return; }
@@ -6006,9 +6006,12 @@
   // months: how many months the board prepares from `month` (default: the saved board's, else 1); key = client-month.
   // Legacy cfg {key, handle, title, slots, past} still works: the client is derived from the key.
   M.init = async (cfg) => {
+    // mirar (the iPhone, D-267): the board as the Mac would open it, in memory only — every write of an opening is left out
+    // (claim, the client's record, its tray, the shell, localStorage, the save, the sweeps, the vencidas, the notices)
+    const MIRA = !!(cfg && cfg.mirar);
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
     if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
-    await claim();
+    if (!MIRA) await claim();
     await addQ;
     if (subida) await subida.paso.catch(() => null);   // a photo being written goes first: the upload waits while the board changes (D-074)
     cfg = { ...cfg, slots: cfg.slots || [], past: cfg.past || [] };
@@ -6021,7 +6024,7 @@
     const askedClient = client;
     let cl0 = CL.find(c => c.id === client);
     if (!cl0) {
-      if (cfg.createClient === false) throw new Error(`no existe el cliente ${client}`);
+      if (cfg.createClient === false || MIRA) throw new Error(`no existe el cliente ${client}`);
       const t = String(cfg.title || '');
       const name = cfg.clientName || (t.includes(' · ') ? t.split(' · ')[0].trim() : '') || client;
       cl0 = await M.addClient({ id: client, name, handle: cfg.handle || '' });
@@ -6037,8 +6040,8 @@
     }
     if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('month debe ser YYYY-MM');
     const key = cfg.key && client === askedClient ? cfg.key : `${client}-${month}`;
-    if (S) { try { await flushNow(); } catch (e) { /* ignore */ } }
-    const bandeja = await juntarBandeja(client);   // the client's tray, shared by all its months (D-041)
+    if (S && !MIRA) { try { await flushNow(); } catch (e) { /* ignore */ } }
+    const bandeja = MIRA ? (((await idbGet('bandejas', client)) || {}).tray || []).slice() : await juntarBandeja(client);   // the client's tray, shared by all its months (D-041); to look, as it is saved
     const saved = newest(key, await idbGet('boards', key)), old = saved || { slots: [], tray: [] };
     const recCarp = await idbGet('bandejas', client);   // its folders; those of the copy a reload left in localStorage, if newer (D-069)
     BASE_IDB.set(key, (saved && saved.savedAt) || null);   // the copy it starts from (with the cloud, always IndexedDB's)
@@ -6047,11 +6050,11 @@
     const span = cfg.months != null ? +cfg.months : (old.span || 1);
     const why = cfg.force ? null : dropCheck(old, cfg.slots, month, span, cd);
     if (why) throw new Error(why);
-    if (hasCd && !cfg.reopen && cl0.cycleDay !== cd) { await editarCliente(client, c => c.cycleDay === cd ? null : { ...c, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
+    if (hasCd && !cfg.reopen && !MIRA && cl0.cycleDay !== cd) { await editarCliente(client, c => c.cycleDay === cd ? null : { ...c, cycleDay: cd }); await loadClients(); }   // the latest cycle day given (not a reopened board's own) is the client's
     if (pd) pdCancel();
     sel = null; drag = null; pendingRender = false; noteTimer = null; cur = { slot: null, idx: 0 }; memoEdit = null;
     try { if (navigator.storage && navigator.storage.persist) persistida = await navigator.storage.persist(); } catch (e) { /* ignore */ }
-    if (!shellReady()) buildShell(); else closeDetail();
+    if (MOVIL) { /* no shell on the iPhone */ } else if (!shellReady()) buildShell(); else closeDetail();
     setSave('Cargando…');
     await importShared(cfg.slots, old, key);
     const oldById = Object.fromEntries((old.slots || []).map(s => [s.id, s]));
@@ -6113,24 +6116,26 @@
     sortSlots();
     const oldPrevOwn = (old.prev || []).filter(p => p.own).flatMap(p => p.photos || []);
     alinearH(S);                       // a post that changed while this board was closed (Notion, a collab): its stories follow
-    const ids = [...new Set([...S.tray, ...enCarpetas(S.carpetas), ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
-    const missing = await loadThumbs(ids);
+    // to look (D-267): only the month's own photos (their sizes decide the crops' signature, so «Aprobado»); never the tray's
+    const ids = MIRA ? [...new Set([...S.slots.flatMap(s => s.photos), ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])]
+      : [...new Set([...S.tray, ...enCarpetas(S.carpetas), ...S.slots.flatMap(s => s.photos), ...oldPrevOwn, ...previewsOf(S), ...hsDe(S).flatMap(h => h.photos || [])])];
+    const missing = MIRA ? (await loadThumbs(ids), []) : await loadThumbs(ids);   // to look, nothing is taken out of the board
     if (missing.length) { const no = new Set(missing); S.carpetas.forEach(c => { c.files = c.files.filter(f => !no.has(f)); }); }
     if (missing.length && S.previews) setPreviews(S.previews.map(f => (missing.includes(f) ? null : f)));
     await loadThumbs([...new Set(S.slots.flatMap(dSrc))]);   // a design's photos too: its cover can move to another post (the designer says if one is missing)
     if (missing.length) { S.tray = S.tray.filter(x => !missing.includes(x)); S.slots.forEach(s => { s.photos = s.photos.filter(x => !missing.includes(x)); }); }
-    S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...aBandeja(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
+    if (!MIRA) S.slots.forEach(s => { if (!isMulti(s.type) && s.photos.length > 1) { S.tray.unshift(...aBandeja(s.photos.slice(1).filter(f => !dOut(s).includes(f)))); s.photos = s.photos.slice(0, 1); } });
     S.tray = aBandeja(S.tray);         // an image the editor drew that a mesa before 3.83 left hidden in the tray (D-101)
     { const enPost = new Set(S.slots.flatMap(s => s.photos)); S.tray = [...new Set(S.tray)].filter(id => !enPost.has(id)); }
-    libresDeCarpetas(S, (await idbAll('boards')) || []);
+    if (!MIRA) libresDeCarpetas(S, (await idbAll('boards')) || []);
     normalize();
     // previous month: the same client's board (1–3 months) that covers it — newest if several — only its posts of that month
     const rangeOf = b => { const k2 = String(b.key || '').match(/^(.+)-(\d{4}-\d{2})$/); return { c: b.client || (k2 && k2[1]), m: b.month || (k2 && k2[2]) }; };
     PB = ((await idbAll('boards')) || []).filter(b => { const r = rangeOf(b); return b.key !== key && r.c === client && r.m && monthsOf(r.m, b.span).includes(pm) && cdOf(b.cycleDay) === cd; })
       .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0] || null;
     if (PB) PB = { ...PB, slots: (PB.slots || []).filter(s => cycleOf(s.date, cd) === pm && !S.slots.some(x => x.id === s.id)) };   // a post of this board (moved) shows once
-    if (PB) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
-    for (const p of S.past) {
+    if (PB && !MIRA) await loadThumbs([...new Set(PB.slots.flatMap(s => publishList(s)))]);
+    if (!MIRA) for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
       if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }   // still up there (lot 4): it comes down behind (pastLlego)
@@ -6140,17 +6145,20 @@
     { const own = new Set(S.prev.filter(p => p.own).flatMap(p => p.photos)); S.tray = S.tray.filter(id => !own.has(id)); }
     { const kept = refsOf(S); (old.prev || []).filter(p => p.own).forEach(p => (p.photos || []).forEach(f => { if (M.files[f] && !kept.has(f)) { S.tray.push(f); kept.add(f); } })); }
     sharedInit(oldById, base);
-    pestCargar(client);                // its tabs, as they were left in this browser (D-076)
+    if (!MIRA) pestCargar(client);     // its tabs, as they were left in this browser (D-076)
     curClient = client;
-    lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
-    let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
-    lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+    if (!MIRA) {
+      lsSet('mesa-last', key); lsSet('mesa-lastClient', client);
+      let lastBy = {}; try { lastBy = JSON.parse(lsGet('mesa-lastByClient') || '{}'); } catch (e) { /* */ }
+      lastBy[client] = key; lsSet('mesa-lastByClient', JSON.stringify(lastBy));
+    }
     if (M.libre && M.libre.migrar) M.libre.migrar(S);   // old drawn photo holes become the editor's hole element (libre ≥ 1.9)
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
-    if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
+    if (deadRenders.length && !MIRA) delList(l => [...new Set([...l, ...deadRenders])]);
     if (NUBE.activa && saved && !(Array.isArray(saved.tray) && saved.tray.length)) ESCRITO.set(key, cuerpoNube({ ...saved, tray: (recCarp && recCarp.tray) || [], carpetas: carpetasBien(recCarp && recCarp.carpetas) }));   // what IndexedDB holds
     else ESCRITO.delete(key);
+    if (MIRA) { await refreshMonths(); return M.status(); }   // to look: nothing saved, swept, published on its own nor told (D-267)
     await flushNow();
     try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
@@ -6167,15 +6175,16 @@
     return M.status();
   };
 
-  M.open = async key => {
-    if (S) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
-    await migrateLegacy();
+  M.open = async (key, o = {}) => {
+    const MIRA = !!(o && o.mirar);   // the iPhone (D-267): to look, without writing
+    if (S && !MIRA) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
+    if (!MIRA) await migrateLegacy();
     const b = newest(key, await idbGet('boards', key));        // cfg (Notion values included) from the copy init uses
     if (!b) return 'no existe';
     const km = String(b.key || key).match(/^(.+)-(\d{4}-\d{2})$/);
     const client = b.client || (km ? km[1] : key), month = b.month || (km ? km[2] : null);
     const t = String(b.title || '');
-    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [] });
+    return M.init({ key, client, month, months: b.span || 1, cycleDay: cdOf(b.cycleDay), reopen: true, clientName: t.includes(' · ') ? t.split(' · ')[0].trim() : null, handle: b.handle || '', slots: (b.slots || []).map(({ id, name, type, date, notionName, notionDate, notionType }) => ({ id, name: notionName ?? name, type: notionType ?? type, date: notionDate ?? date })), past: b.past || [], ...(MIRA ? { mirar: true } : {}) });
   };
   async function migrateLegacy() {
     const all = (await idbAll('boards')) || [];
@@ -6211,7 +6220,42 @@
   };
   M.init = conTableros(M.init); M.open = conTableros(M.open); M.boot = conTableros(M.boot); M.openClient = conTableros(M.openClient);   // the boards read once per opening (A4)
   // ---------- the iPhone's core (D-267) ----------
-  const MOVIL_IN = { activo: MOVIL, alAviso: null };
+  // The phone never computes a rule of its own: what it shows of a board comes from here, with the same functions the Mac uses.
+  const estTxt = e => (ESTADOS.find(x => x[0] === e) || [e, e])[1];
+  function vistaMovil() {
+    if (!S) return null;
+    const t = ahora(), caps = new Map(M.captions(S.slots.map(s => s.id)).map(c => [c.slotId, c]));
+    const fecha = d => { const dia = d ? localDay(d) : null, sin = !!d && dOnly(d); return { iso: d || null, dia, hora: d && !sin ? localTime(d) : '', sinHora: sin }; };
+    const posts = S.slots.map(s => {
+      const e = estadoDe(s), tp = tipoPost(s), c = caps.get(s.id) || null;
+      return {
+        id: s.id, nombre: s.name, corto: shortLabel(s.name, s.type), tipo: { k: s.type, txt: isReel(s.type) ? s.type : tp.txt, ico: tp.ico, reel: isReel(s.type) },
+        fecha: fecha(s.date), mes: mesDe(s, S), estado: { k: e, txt: estTxt(e), ico: estIco(e, ' aria-hidden="true"') },
+        tocaria: publicaSola(s, t) ? 'publicado' : null, vencida: vencida(s, t), motivo: motivoDe(s), retrasada: retrasada(s),
+        publicada: e === 'publicado', programada: e === 'programado', fotos: publishList(s).slice(), portada: publishList(s)[0] || null,
+        captions: c && c.options.length ? { pick: c.pick, texto: c.text, estado: c.state, opciones: c.options.map(o => ({ n: o.n, tono: o.tone, texto: o.text, original: o.original, editada: o.edited })) } : null,
+        contexto: noteOf(s), nota: memoOf(s), colab: sharedWith(s)
+      };
+    });
+    const historias = hsDe(S).map((h, j) => ({ id: (h && h.id) || S.key + '|' + j, nombre: h.name || '', fecha: fecha(h.date), img: (h.photos || [])[0] || null, programada: !!h.zernio, cancelada: !!h.cancelada, post: h.post || null }));
+    return { key: S.key, client: S.client, month: S.month, span: S.span || 1, hoy: madParts(t).day,
+      meses: mesesDe(S).map(m => { const p = pasoDe(S, m); return { m, etiqueta: rangeLabel(m, 1, false, curCd()), paso: { k: p, txt: (PASOS.find(x => x[0] === p) || [p, p])[1] } }; }),
+      posts, historias };
+  }
+  async function mirarMovil(key) {
+    const r = await M.open(key, { mirar: true });
+    if (typeof r === 'string') return { error: r };
+    if (r && r.error) return r;
+    return vistaMovil();
+  }
+  async function releerMovil() {   // after what came down (lot 2): every cache this page read, then the board on view again
+    await loadClients();
+    try { await cobLeer(); } catch (e) { /* the invoices say it in Hoy */ }
+    try { await mesLeer(); } catch (e) { /* */ }
+    if (S && S.key) return mirarMovil(S.key);
+    return null;
+  }
+  const MOVIL_IN = { activo: MOVIL, alAviso: null, mirar: mirarMovil, vista: vistaMovil, releer: releerMovil };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
   if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {
     const f = M[k];

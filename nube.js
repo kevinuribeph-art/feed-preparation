@@ -142,6 +142,12 @@
 
   function crear(o) {
     const S = o.servidor, A = o.almacen, R = o.reloj, D = o.dispositivo, APP = o.app, E = o.efectos || {};
+    // the iPhone (D-268): it never takes the Mesa by opening it; it looks (downloads in the pause), takes it to write what Kevin
+    // touched, uploads without the calm and lets it go; nothing reloads. Off (the Mac), everything as before.
+    const MOVIL = !!o.movil, CALMA = MOVIL ? 0 : TIEMPOS.calma;
+    let mirandoP = null, tomando = false, retenido = false, soltando = null, vistoA = null;
+    // whoever has the Mesa has said nothing for 20 s: «no contesta» at once (Mac and phone); a holder with no beat known waits as before
+    const callado = t => !!t && t.latido_hace != null && t.latido_hace >= TIEMPOS.espera / 1000;
     const H0 = o.huella || huellaPorOmision, HC = new Map();   // huellas de esta sesión: a|k|ruta|tamaño|tipo
     // Lote 4: con `o.archivo(a, k, ruta, blob, {esperar})` cada Blob da {sha256, ruta, trabajo?} (sus bytes ya están en el almacén
     // `mesa`) o null (aún no: el registro espera en el diario); con `esperar`, espera a que suban (ceder y subirTodo)
@@ -179,10 +185,10 @@
     }
     const vieja = () => pausar({ motivo: 'vieja' }, 'vieja');
     async function perdido(info) {
-      if (st.fase === 'pausada' && !conTurno) return;
+      if ((st.fase === 'pausada' || st.fase === 'mirando') && !conTurno) return;
       conTurno = false; modoLocal = false;
       st.tiene = info && info.dispositivo ? { dispositivo: info.dispositivo } : st.tiene;
-      fase('pausada');
+      fase(MOVIL ? 'mirando' : 'pausada');
       try { if (E.pausar) await E.pausar({ motivo: 'perdido', dispositivo: info && info.dispositivo }); } catch (e) { /* */ }
       await apartarDiario('turno');   // nada sube encima de quien la tiene ahora: Kevin decide en «quedó sin subir»
       avisar();
@@ -227,7 +233,8 @@
       if (!r || r.ok !== true) return abrirRechazo(r);
       if (masNueva(r.version_minima, APP)) { await vieja(); return { modo: 'vieja' }; }
       if (traer && !(r.orden > 0)) { fase('apagada'); return { modo: 'vacia' }; }
-      st.total = +r.total || 0;   // los registros vivos de arriba (esquema 4): el «de N» de la pantalla de carga (D-262)   // arriba no hay Mesa: se sube desde el primer ordenador (la mudanza)
+      st.total = +r.total || 0;
+      if (MOVIL && !r.tuyo) return abrirMovil(r, t0, traer);   // the phone never takes it by opening (D-268)   // los registros vivos de arriba (esquema 4): el «de N» de la pantalla de carga (D-262)   // arriba no hay Mesa: se sube desde el primer ordenador (la mudanza)
       let otraEpoca = false;
       if (st.epoca && r.epoca && r.epoca !== st.epoca) { await olvidar(); otraEpoca = true; }   // se restauró una copia del servidor
       let orden = 0;
@@ -262,6 +269,7 @@
     async function abrirLocal(e) {
       await contarCola();
       if (sinSesionE(e)) { fase('sin_sesion'); return { modo: 'sin_sesion' }; }
+      if (MOVIL) { st.error = (e && e.message) || 'sin conexión'; fase('sin_conexion'); return { modo: 'local', motivo: 'sin_conexion' }; }   // the phone tries again by looking, never reconnecting to take it
       modoLocal = true; st.error = (e && e.message) || 'sin conexión'; otroIntento(); fase('sin_conexion');
       return { modo: 'local', motivo: 'sin_conexion' };
     }
@@ -272,13 +280,26 @@
       if (c === 'verificacion') { fase('sin_codigo'); return { modo: 'sin_codigo' }; }   // D-262: abre con lo de aquí, sin escribir arriba
       return abrirLocal({ message: (r && r.error && r.error.mensaje) || 'respuesta sin «ok»' });
     }
+    // The phone opens looking: a device that never came down (traer) comes down whole first, without taking it (D-262 without the
+    // turn); otherwise the face draws what it has at once and looks behind (lesson 156: the first page's 4 s lie on slow 4G).
+    async function abrirMovil(r, t0, traer) {
+      st.tiene = r.tiene || null;
+      if (traer) {
+        try { await bajarTodo(0, t0, false, TIEMPOS.primera, true); await trasTraer(); traerPend = false; }
+        catch (e) { if (e && e.vieja) { await vieja(); return { modo: 'vieja' }; } return e && e.rechazo ? abrirRechazo(e.rechazo) : abrirLocal(e); }
+        vistoA = R.ahora(); fase('mirando');
+        return { modo: 'mirando', tiene: st.tiene, traido: true };
+      }
+      fase('mirando');
+      return { modo: 'mirando', tiene: st.tiene };
+    }
     async function abrirPausada(t) {
       st.tiene = t || null; fase('pausada');
       return { modo: 'pausada', tiene: st.tiene };
     }
     async function olvidar() { await A.olvidar(); st.cursor = 0; st.epoca = null; }
-    async function bajarTodo(ordenMin, t0, yaOlvidada, tope = TIEMPOS.primera, traer = false) {
-      fase('bajando');
+    async function bajarTodo(ordenMin, t0, yaOlvidada, tope = TIEMPOS.primera, traer = false, quieto = false) {
+      if (!quieto) fase('bajando');   // the phone's look every 45 s doesn't blink «Bajando…» (D-268)
       let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null, hechos = 0;
       const avance = () => { try { if (E.avance) E.avance(hechos, st.total || 0); } catch (e) { /* la pantalla de carga no para la bajada */ } };
       avance();
@@ -353,7 +374,7 @@
       if (parado || ocupado) return;
       ocupado = true;
       try {
-        if (modoLocal || st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'recargar' || st.fase === 'pausada') {   // sin turno: la cola a la vista, también
+        if (modoLocal || st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'recargar' || st.fase === 'pausada' || st.fase === 'mirando') {   // sin turno: la cola a la vista, también
           const c0 = st.cola; await contarCola(); if (st.cola !== c0) avisar();
           if (modoLocal && R.ahora() >= proximo) await reconectar();
           return;
@@ -364,7 +385,9 @@
           if (R.ahora() < proximo && st.fase === 'sin_conexion') return;
           if (!(await latir(cola))) return;
         }
-        if (!todoEnMarcha && (cola > 0 || enVuelo) && R.ahora() - ultCambio >= TIEMPOS.calma && R.ahora() >= proximo && (R.ahora() >= proximoFotos || ultCambio > ultSubida)) await subir();
+        if (!todoEnMarcha && (cola > 0 || enVuelo) && R.ahora() - ultCambio >= CALMA && R.ahora() >= proximo && (R.ahora() >= proximoFotos || ultCambio > ultSubida)) await subir();
+        // the phone lets it go once all is up and it isn't applying anything (D-268); another device can take it at once
+        if (MOVIL && conTurno && !retenido && !soltando && !subiendo && !enVuelo && !cediendo && st.fase !== 'sin_conexion' && !(await A.contarDiario())) { await soltar(); return; }
         if (conTurno && R.ahora() - ultActividad >= TIEMPOS.actividad) await leerActividad();
         if (conTurno && !subiendo && st.fase !== 'sin_conexion' && st.fase !== 'guardado') fase('guardado');
       } catch (e) { st.error = String((e && e.message) || e); avisar(); }
@@ -410,6 +433,7 @@
       if (cediendo) return;
       cediendo = true;
       try {
+        if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* its write is in the journal or not at all */ } }   // the phone's write in flight first (R7)
         await pausar({ motivo: 'cede', dispositivo: pide.dispositivo }, 'subiendo'); conTurno = true;
         // mientras sube (las fotos pueden tardar), sigue latiendo: quien la pide ve que contesta y cuánto le queda
         (async () => { while (cediendo && !parado) { await R.esperar(TIEMPOS.latido); if (!cediendo || parado) break; try { await llamar('mesa_turno_latido', { dispositivo: D, turno: st.turno, app: APP, cola: await A.contarDiario() }); } catch (e) { /* sin red: ya reintenta la subida */ } } })();
@@ -434,7 +458,8 @@
           if ((r && r.ok) || (r && r.error && r.error.codigo === 'turno')) break;
           await R.esperar(TIEMPOS.reintento[Math.min(vuelta, TIEMPOS.reintento.length - 1)]);
         }
-        conTurno = false; st.tiene = { dispositivo: pide.dispositivo }; fase('pausada');
+        conTurno = false; st.tiene = { dispositivo: pide.dispositivo }; fase(MOVIL ? 'mirando' : 'pausada');
+        if (MOVIL && E.soltada) { try { await E.soltada(); } catch (e) { /* */ } }
       } finally { cediendo = false; }
     }
 
@@ -597,7 +622,7 @@
           await trasRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
         }
         st.tiene = r.tiene || null; avisar();
-        if (R.ahora() - t0 >= TIEMPOS.espera) {
+        if (R.ahora() - t0 >= TIEMPOS.espera || callado(r.tiene)) {
           const t = r.tiene || {};
           return { espera: { dispositivo: t.dispositivo || null, desde: t.desde || null, latido: t.latido || null, latido_hace: t.latido_hace == null ? null : t.latido_hace, cola: t.cola || 0, turno: r.turno } };
         }
@@ -609,9 +634,118 @@
       let c;
       try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto, app: APP, forzar: true }); }
       catch (e) { return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
-      if (c && c.ok) { if (E.recargar) E.recargar(); return { hecho: true }; }
+      if (c && c.ok) { if (MOVIL) return entrar(c.turno, c.orden || 0); if (E.recargar) E.recargar(); return { hecho: true }; }
       if (c && c.error && c.error.codigo === 'turno_cambiado') return { otraVez: true };
       await trasRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
+    }
+
+    // ---------- the phone (D-268): look, take, let go ----------
+    // mirar(): without the Mesa, what changed comes down (never while it has it). The journal of a phone that wrote and lost the
+    // Mesa before uploading goes to «quedó sin subir» (Kevin decides, D-255); if the Mesa is still its own, it goes up.
+    function mirar() {
+      if (!MOVIL || parado) return Promise.resolve({ nuevos: 0 });
+      if (conTurno || tomando || cediendo || soltando) return Promise.resolve({ nuevos: 0, ocupado: true });
+      if (mirandoP) return mirandoP;
+      mirandoP = (async () => {
+        let r;
+        try { r = await llamar('mesa_turno_ver', { dispositivo: D }); }
+        catch (e) { sinRed(e); return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
+        if (!r || r.ok !== true) { await abrirRechazo(r); return { error: (r && r.error && r.error.codigo) || 'sin respuesta' }; }
+        if (masNueva(r.version_minima, APP)) { await vieja(); return { error: 'app' }; }
+        st.total = +r.total || st.total || 0; reint = 0; proximo = 0; st.error = '';
+        if (r.tuyo) {   // it was its own (closed or frozen while it had it): what is in the journal goes up, and the pulse lets it go
+          const m = await A.meta();
+          if (r.turno === m.turno) { retenido = false; return entrar(r.turno, 0).then(x => ({ nuevos: 0, ...x, tuyo: true })); }
+        }
+        if (await A.contarDiario()) await apartarDiario('turno');
+        st.tiene = r.tuyo ? null : r.tiene || null;
+        let n = 0;
+        try { n = await bajarTodo(0, null, false, undefined, false, true); }
+        catch (e) { if (e && e.vieja) { await vieja(); return { error: 'app' }; } if (e && e.rechazo) { await abrirRechazo(e.rechazo); return { error: 'rechazo' }; } sinRed(e); return { error: 'sin_conexion' }; }
+        vistoA = R.ahora(); fase('mirando'); avisar();
+        if (n && E.releido) { try { await E.releido(n); } catch (e) { /* the face draws what there is */ } }
+        return { nuevos: n, tiene: st.tiene };
+      })().finally(() => { mirandoP = null; });
+      return mirandoP;
+    }
+    // The Mesa is its own: what changed comes down first (so what Kevin saw is compared with the latest), nothing reloads.
+    async function entrar(turno, orden) {
+      st.turno = turno;
+      try { await bajarTodo(orden, null, false, undefined, false, true); }
+      catch (e) {
+        try { await llamar('mesa_turno_soltar', { dispositivo: D, turno }); } catch (x) { /* */ }
+        if (e && e.vieja) { await vieja(); return { error: 'app' }; }
+        fase('mirando'); return { error: e && e.rechazo ? (e.rechazo.error && e.rechazo.error.codigo) || 'rechazo' : 'sin_conexion' };
+      }
+      conTurno = true; st.alDia = true; st.tiene = null; reint = 0; proximo = 0; st.error = ''; ultLatido = R.ahora(); colaLatida = -1; vistoA = R.ahora();
+      await A.ponerMeta({ turno });
+      fase('guardado');
+      if (E.tomada) { try { await E.tomada(); } catch (e) { /* */ } }
+      return { hecho: true };
+    }
+    // tomar(): to write what Kevin touched. Free: at once. Someone else's: it asks every 3 s while the other uploads and lets go;
+    // {espera} after 20 s, or at once if the other has said nothing for 20 s. retenido until the face says so (retener(false)).
+    async function tomar() {
+      if (!MOVIL) return { error: 'solo en el móvil' };
+      if (conTurno) { retenido = true; return { hecho: true }; }
+      if (mirandoP) await mirandoP.catch(() => null);
+      if (tomando) return { error: 'ocupado' };
+      tomando = true; retenido = true;
+      try {
+        const t0 = R.ahora();
+        for (;;) {
+          let r;
+          try { r = await llamar('mesa_turno_pedir', { dispositivo: D, app: APP }); }
+          catch (e) { retenido = false; return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
+          if (!r || r.ok !== true) { retenido = false; await abrirRechazo(r); return { error: (r && r.error && r.error.codigo) || 'sin respuesta' }; }
+          if (masNueva(r.version_minima, APP)) { retenido = false; await vieja(); return { error: 'app' }; }
+          const dentro = async (t, o) => { const x = await entrar(t, o); if (!x.hecho) retenido = false; return x; };
+          if (r.tuyo) return dentro(r.turno, 0);
+          if (r.libre) {
+            let c;
+            try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto: r.turno, app: APP, forzar: false }); }
+            catch (e) { retenido = false; return { error: 'sin_conexion' }; }
+            if (c && c.ok) return dentro(c.turno, c.orden || 0);
+            if (c && c.error && c.error.codigo === 'turno') continue;   // another came first: keep asking
+            retenido = false; await abrirRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
+          }
+          st.tiene = r.tiene || null; avisar();
+          if (R.ahora() - t0 >= TIEMPOS.espera || callado(r.tiene)) {
+            const t = r.tiene || {};
+            return { espera: { dispositivo: t.dispositivo || null, desde: t.desde || null, latido: t.latido || null, latido_hace: t.latido_hace == null ? null : t.latido_hace, cola: t.cola || 0, turno: r.turno } };
+          }
+          await R.esperar(TIEMPOS.pedirCada);
+          if (parado) { retenido = false; return { error: 'parada' }; }
+        }
+      } finally { tomando = false; }
+    }
+    // soltar(): what is in the journal goes up (no calm) and the Mesa is let go; the operation in flight writes first (R7).
+    // Without network it waits with the Mesa (nothing aside, lesson 152): the pulse tries again.
+    function soltar() {
+      if (!conTurno) { retenido = false; return Promise.resolve({ hecho: true }); }
+      if (soltando) return soltando;
+      soltando = (async () => {
+        retenido = false;
+        if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* */ } }
+        let antes = -1;
+        for (let vuelta = 0; conTurno && !parado; vuelta++) {
+          const r = await subir({ todo: true });
+          if (r.parar && !r.sinRed) return { error: 'perdida' };
+          const n = await A.contarDiario(); if (!n) break;
+          if (r.sinRed || r.esperando) return { error: r.sinRed ? 'sin_conexion' : 'esperando', cola: n };
+          if (n === antes) { await apartarDiario('cede'); break; }
+          antes = n;
+        }
+        if (!conTurno) return { hecho: true };
+        let r;
+        try { r = await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); }
+        catch (e) { return { error: 'sin_conexion' }; }
+        if (!(r && (r.ok || (r.error && r.error.codigo === 'turno')))) return { error: (r && r.error && r.error.codigo) || 'sin respuesta' };
+        conTurno = false; fase('mirando');
+        if (E.soltada) { try { await E.soltada(); } catch (e) { /* */ } }
+        return { hecho: true };
+      })().finally(() => { soltando = null; });
+      return soltando;
     }
 
     // ---------- «quedó sin subir» ----------
@@ -790,9 +924,10 @@
       return f && f.almacen === a && String(f.clave) === String(k) ? f : null;
     }
 
-    function estado() { return { fase: st.fase, turno: st.turno, cursor: st.cursor, epoca: st.epoca, cola: st.cola, sinSubir: st.sinSubir, tiene: st.tiene, error: st.error, alDia: st.alDia, avisos: AV.length, esperando: st.esperando || 0, todo: todoEnMarcha }; }
+    function estado() { return { movil: MOVIL, vistoA, retenido, fase: st.fase, turno: st.turno, cursor: st.cursor, epoca: st.epoca, cola: st.cola, sinSubir: st.sinSubir, tiene: st.tiene, error: st.error, alDia: st.alDia, avisos: AV.length, esperando: st.esperando || 0, todo: todoEnMarcha }; }
     return {
       abrir, tic, subir, usarAqui, forzar, subirEncima, descartar, estado, subirTodo, comprobar, traerFila,
+      mirar, tomar, soltar, retener: v => { retenido = !!v; },   // the phone (D-268)
       // una foto acabó de subir: lo que la esperaba, en la siguiente vuelta
       archivosListos: () => { proximoFotos = Math.min(proximoFotos, ultSubida + 5000); },   // como mucho una pasada adelantada cada 5 s
       cambio: () => { ultCambio = R.ahora(); },

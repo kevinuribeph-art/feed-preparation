@@ -409,7 +409,12 @@ function efectosEspia(reloj, hooks) {
     async pausar(info) { e.pausas.push({ ...(info || {}), t: reloj.t }); if (hooks.pausar) await hooks.pausar(info || {}); },
     recargar() { e.recargas++; },
     estado(x) { e.estados.push(x && typeof x === 'object' ? { ...x } : x); },
-    avance(h, t) { (e.avances = e.avances || []).push([h, t]); } };
+    avance(h, t) { (e.avances = e.avances || []).push([h, t]); },
+    // the phone (D-268): it took the Mesa, let it go, something came down, the write in flight
+    async tomada() { e.tomadas = (e.tomadas || 0) + 1; if (hooks.tomada) await hooks.tomada(); },
+    async soltada() { e.soltadas = (e.soltadas || 0) + 1; if (hooks.soltada) await hooks.soltada(); },
+    async releido(n) { (e.releidos = e.releidos || []).push(n); },
+    async antesDeSoltar() { e.antes = (e.antes || 0) + 1; if (hooks.antesDeSoltar) await hooks.antesDeSoltar(); } };
   return e;
 }
 
@@ -417,10 +422,10 @@ let semilla = 0;
 function mundo() {
   const reloj = relojFalso(), srv = servidorSimulado(reloj);
   const W = { reloj, srv, S: srv.S };
-  W.nodo = (disp, { alm = almacenSimulado(reloj), hooks = {}, archivo } = {}) => {
+  W.nodo = (disp, { alm = almacenSimulado(reloj), hooks = {}, archivo, movil } = {}) => {
     const dueno = 'nodo' + ++semilla, cli = srv.cliente(dueno), efectos = efectosEspia(reloj, hooks);
     const nucleo = N.crear({ servidor: { rpc: (fn, args) => cli.rpc(fn, args) }, almacen: alm, reloj: { ahora: () => reloj.t, esperar: ms => reloj.esperar(ms, dueno) },
-      dispositivo: disp, app: APP, huella, efectos, ...(archivo ? { archivo } : {}) });
+      dispositivo: disp, app: APP, huella, efectos, ...(archivo ? { archivo } : {}), ...(movil ? { movil: true } : {}) });
     alm.nucleo = nucleo;
     const x = { disp, alm, cli, efectos, n: nucleo, dueno, errores: [], congelado: false };
     x.congelar = () => { x.congelado = true; reloj.congelar(dueno); cli.congelado = true; };
@@ -512,8 +517,8 @@ await grupo('NS2 latido y forzar', async () => {
   let r = await W.abrir(B);
   const tB = W.reloj.t, u = await W.correr(() => B.n.usarAqui(), { tics: [B], max: 60 });
   const esp = u.valor && u.valor.espera;
-  ok(esp && esp.dispositivo === DA && esp.cola === S.turno.cola && mismaHora(esp.latido, S.turno.latido) && typeof esp.latido_hace === 'number' && u.ms >= ESPERA - 1000 && u.ms <= ESPERA + 5000,
-    `NS2.2 A no contesta: usarAqui() devuelve {espera} a los ${ESPERA / 1000} s con el latido y la cola que A dijo por última vez`, { u, turno: S.turno, abrir: r });
+  ok(esp && esp.dispositivo === DA && esp.cola === S.turno.cola && mismaHora(esp.latido, S.turno.latido) && typeof esp.latido_hace === 'number' && (u.ms >= ESPERA - 1000 || esp.latido_hace >= ESPERA / 1000) && u.ms <= ESPERA + 5000,
+    `NS2.2 A no contesta: usarAqui() devuelve {espera} a los ${ESPERA / 1000} s (o en cuanto A lleva ${ESPERA / 1000} s callado, D-268) con el latido y la cola que A dijo por última vez`, { u, turno: S.turno, abrir: r });
   const visto = S.turno.numero, tForzado = W.reloj.t;
   const f = await W.correr(() => B.n.forzar(visto), { tics: [B], max: 20 });
   const fz = S.actividad.find(x => x.tipo === 'turno_forzado');
@@ -1098,6 +1103,96 @@ await grupo('NS16 la entrada (D-262): «falta el código», el avance de la baja
   ok(rB.valor && rB.valor.modo === 'pausada' && rB.valor.traido === true && W2.S.turno.dispositivo === DA && escrituras(B).length === e0, 'NS16.5 traer con la Mesa en otro: baja y queda en pausa, sin tomar el turno ni escribir', { r: rB.valor, turno: W2.S.turno.dispositivo });
   ok(B.alm.ver('boards', 'x29') && B.alm.ver('boards', 'x29').n === 29 && B.alm.ver('boards', 'b1'), 'NS16.6 … con todo lo de arriba', resumen(B));
   ok(av.length >= 2 && av[0][0] === 0 && ult[1] === total && ult[0] >= total, 'NS16.7 el avance empieza en 0 y acaba en el total de arriba', { av, total });
+});
+
+// ── La Mesa en el móvil (D-268): mirar en pausa, coger sin recargar, subir sin calma y soltar ──
+const DM = 'iphone-inicio-0123456789abcdef';
+const reclamos = x => x.cli.llamadas.filter(l => l.fn === 'mesa_turno_reclamar');
+await grupo('NS17 el móvil mira sin coger la Mesa', async () => {
+  // libre: abrir no la reclama (ni la pide)
+  const W = mundo(), M1 = W.nodo(DM, { movil: true });
+  const r = await W.abrir(M1);
+  ok(r && r.modo === 'mirando' && !reclamos(M1).length && !M1.cli.llamadas.some(l => l.fn === 'mesa_turno_pedir') && !W.S.turno.dispositivo, 'NS17.1 abrir con la Mesa libre no la coge', { r, ll: resumen(M1) });
+  // traer (aparato vacío): baja todo sin cogerla
+  const { W: W2, A, sv } = await conTurno();
+  A.alm.escribirLocal('boards', 'b1', { n: 1 }); await W2.hasta(async () => sv.vivo('boards', 'b1'), { tics: [A], max: 30 });
+  const M2 = W2.nodo(DM, { movil: true }), e0 = escrituras(M2).length;
+  const rt = await W2.correr(() => M2.n.abrir({ traer: true }), { paso: 500, max: 60, tics: [A] });
+  ok(rt.valor && rt.valor.modo === 'mirando' && rt.valor.traido === true && M2.alm.ver('boards', 'b1') && !reclamos(M2).length && W2.S.turno.dispositivo === DA && escrituras(M2).length === e0, 'NS17.2 traer en el móvil: baja todo y no coge la Mesa', { rt, ll: resumen(M2) });
+  // mirar: lo que el Mac cambia llega, sin coger la Mesa ni escribir, y sin pasar por «bajando»
+  A.alm.escribirLocal('boards', 'b2', { n: 2 }); await W2.hasta(async () => sv.vivo('boards', 'b2'), { tics: [A], max: 30 });
+  const n0 = M2.efectos.estados.length, m = await W2.correr(() => M2.n.mirar(), { tics: [A], max: 20 });
+  ok(m.valor && m.valor.nuevos >= 1 && M2.alm.ver('boards', 'b2') && (M2.efectos.releidos || []).length >= 1 && !reclamos(M2).length && W2.S.turno.dispositivo === DA, 'NS17.3 mirar baja lo nuevo y lo dice (releido), sin coger la Mesa', { m, ll: resumen(M2) });
+  ok(!M2.efectos.estados.slice(n0).some(e => e && e.fase === 'bajando') && (await fase(M2)) === 'mirando', 'NS17.4 mirar no parpadea «Bajando…»', M2.efectos.estados.slice(n0).map(e => e && e.fase));
+  ok(!(await M2.alm.contarDiario()) && escrituras(M2).length === e0, 'NS17.5 mirar deja el diario vacío y no escribe arriba', resumen(M2));
+  // un rechazo que no conoce: lo dice y no llama sin parar
+  M2.cli.sinCodigo = true; const c0 = M2.cli.llamadas.length; await W2.correr(() => M2.n.mirar(), { tics: [A], max: 10 }); await W2.vivir(20, M2);
+  ok((await fase(M2)) === 'sin_codigo' && M2.cli.llamadas.length - c0 <= 2, 'NS17.6 sin el código de la app, mirar lo dice y no insiste', { f: await fase(M2), n: M2.cli.llamadas.length - c0 });
+});
+
+await grupo('NS18 el móvil coge la Mesa sin recargar, sube sin calma y la suelta', async () => {
+  // libre: tomar la coge al momento, baja antes y no recarga
+  const { W, A, sv } = await conTurno();
+  A.alm.escribirLocal('boards', 'b1', { n: 1 }); await W.hasta(async () => sv.vivo('boards', 'b1'), { tics: [A], max: 30 });
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  // el Mac vivo: tomar espera a que ceda (latido) y entra sin recargar, con lo último bajado
+  A.alm.escribirLocal('boards', 'b3', { n: 3 });
+  const t = await W.correr(() => M1.n.tomar(), { tics: [A, M1], max: 40 });
+  ok(t.valor && t.valor.hecho && W.S.turno.dispositivo === DM && M1.efectos.recargas === 0 && (M1.efectos.tomadas || 0) === 1 && t.ms <= 12000, 'NS18.1 con el Mac vivo, tomar espera a que suba y suelte, y entra sin recargar', { t, ll: resumen(M1) });
+  ok(M1.alm.ver('boards', 'b3') && M1.alm.ver('boards', 'b3').n === 3, 'NS18.2 … con lo que el Mac subió al ceder ya bajado', resumen(M1));
+  // retenido: con la cola vacía no la suelta mientras aplica
+  await W.vivir(6, M1);
+  ok(W.S.turno.dispositivo === DM, 'NS18.3 retenido: no la suelta mientras el móvil aplica sus operaciones', resumen(M1));
+  // escribe, sube sin calma y la suelta solo
+  M1.alm.escribirLocal('boards', 'm1', { de: 'movil' }); M1.n.cambio(); M1.n.retener(false);
+  const t0 = W.reloj.t; const subio = await W.hasta(async () => sv.vivo('boards', 'm1') && !W.S.turno.dispositivo, { tics: [M1], max: 20 });
+  ok(subio && W.reloj.t - t0 <= 3000 && (M1.efectos.soltadas || 0) >= 1 && (await fase(M1)) === 'mirando', 'NS18.4 sube sin los 3 s de calma y suelta la Mesa en cuanto ha subido', { ms: W.reloj.t - t0, ll: resumen(M1), turno: W.S.turno });
+  // el Mac la recupera con «Usar aquí» sin esperar: está libre
+  const u = await W.correr(() => A.n.usarAqui(), { tics: [A, M1], max: 10 });
+  ok(u.valor && u.valor.hecho && W.S.turno.dispositivo === DA, 'NS18.5 el Mac la recupera con «Usar aquí» al momento', { u });
+});
+
+await grupo('NS19 «no contesta» al momento, soltar al irse y perderla a mitad', async () => {
+  // el Mac callado ≥ 20 s: el móvil y otro Mac lo saben al momento
+  const { W, A } = await conTurno();
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  A.congelar(); await W.vivir(25, M1);
+  const t = await W.correr(() => M1.n.tomar(), { tics: [M1], max: 30 });
+  ok(t.valor && t.valor.espera && t.valor.espera.dispositivo === DA && t.ms <= 2000, 'NS19.1 el que la tiene lleva 20 s callado: «no contesta» al momento en el móvil', { t });
+  const C = W.nodo(DC); await W.abrir(C);
+  const u = await W.correr(() => C.n.usarAqui(), { tics: [C], max: 30 });
+  ok(u.valor && u.valor.espera && u.ms <= 2000, 'NS19.2 … y en el Mac («Usar aquí»)', { u });
+  // forzar en el móvil: sin recargar
+  const f = await W.correr(() => M1.n.forzar(W.S.turno.numero), { tics: [M1], max: 20 });
+  ok(f.valor && f.valor.hecho && W.S.turno.dispositivo === DM && M1.efectos.recargas === 0, 'NS19.3 forzar en el móvil coge la Mesa sin recargar', { f });
+  // soltar al irse con la cola llena: la sube y la suelta aunque esté retenido
+  M1.alm.escribirLocal('boards', 'm2', { n: 2 }); M1.n.retener(true);
+  const s = await W.correr(() => M1.n.soltar(), { tics: [M1], max: 20 });
+  ok(s.valor && s.valor.hecho && W.srv.vivo('boards', 'm2') && !W.S.turno.dispositivo, 'NS19.4 soltar (al pasar a segundo plano) sube lo que hay y la suelta', { s, ll: resumen(M1) });
+  // perderla a mitad: escribe, se congela, otro la fuerza; al volver, lo suyo va a «quedó sin subir» y sigue mirando
+  const t2 = await W.correr(() => M1.n.tomar(), { tics: [M1], max: 20 }); ok(t2.valor && t2.valor.hecho, 'NS19.5 la vuelve a coger', t2);
+  M1.alm.escribirLocal('boards', 'm3', { n: 3 }); M1.congelar();
+  await W.vivir(25, C);
+  const u2 = await W.correr(() => C.n.usarAqui(), { tics: [C], max: 30 });
+  await W.correr(() => C.n.forzar(W.S.turno.numero), { tics: [C], max: 20 });
+  M1.descongelar(); await W.vivir(10, M1, C);
+  const ss = await M1.alm.sinSubir();
+  ok(u2.valor && u2.valor.espera && W.S.turno.dispositivo === DC && ss.some(x => x.a === 'boards' && x.k === 'm3' && x.motivo === 'turno') && (await fase(M1)) === 'mirando' && !W.srv.vivo('boards', 'm3'), 'NS19.6 la perdió a mitad: lo suyo va a «quedó sin subir», nada sube encima y sigue mirando', { ss, f: await fase(M1), ll: resumen(M1) });
+  // ceder espera a la escritura en vuelo (antesDeSoltar) antes de subir
+  const { W: W3, A: A3, sv: sv3 } = await conTurno();
+  let M3; M3 = W3.nodo(DM, { movil: true, hooks: { antesDeSoltar: async () => { M3.alm.escribirLocal('boards', 'vuelo', { n: 1 }); } } }); await W3.abrir(M3);
+  await W3.correr(() => M3.n.tomar(), { tics: [A3, M3], max: 40 });
+  const u3 = await W3.correr(() => A3.n.usarAqui(), { tics: [A3, M3], max: 40 });
+  ok(u3.valor && u3.valor.hecho !== undefined && M3.efectos.antes >= 1 && sv3.vivo('boards', 'vuelo'), 'NS19.7 al ceder, la escritura en vuelo del móvil va antes y sube', { u3, antes: M3.efectos.antes, ll: resumen(M3) });
+});
+
+await grupo('NS20 el móvil vuelve con la Mesa aún suya', async () => {
+  const W = mundo(), M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  const t = await W.correr(() => M1.n.tomar(), { tics: [M1], max: 20 }); ok(t.valor && t.valor.hecho, 'NS20.0 la coge', t);
+  M1.alm.escribirLocal('boards', 'm4', { n: 4 }); M1.matar();   // la app se cierra con un cambio escrito y sin subir
+  const M2 = W.nodo(DM, { movil: true, alm: M1.alm }); await W.abrir(M2);
+  const m = await W.correr(() => M2.n.mirar(), { tics: [M2], max: 20 });
+  ok(await W.hasta(async () => W.srv.vivo('boards', 'm4') && !W.S.turno.dispositivo, { tics: [M2], max: 20 }), 'NS20.1 al volver, lo que escribió sube y suelta la Mesa (seguía siendo suya)', { m, ll: resumen(M2) });
 });
 
 console.log('NS0 al final');

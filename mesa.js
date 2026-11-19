@@ -120,7 +120,7 @@
   // own (only what Kevin touches, M._in.movil.operar), its notices to the phone's face. Fixed at load: index.html never has it.
   const MOVIL = !!(document.documentElement && document.documentElement.hasAttribute('data-movil'));
   // on the iPhone nothing writes until it holds the Mesa (the cloud's turn, lot 2): paused from the start, whatever the cloud says
-  let movilTurno = false;
+  let movilTurno = false, movilParada = false;   // parada: another tab of the phone took over, or a newer Mesa: never unlocked again here
   if (MOVIL) locked = true;
   // the cloud (nube.js, lot 3 of the traspaso, D-253): off unless activated in this browser; nube.js turns `activa` on at load.
   // While the server's data comes down (`bajando`), nothing that notes in the journal writes; `alDia` once it all came down in this
@@ -179,7 +179,7 @@
   }
   async function lockHere() {
     if (MOVIL) {   // the phone (D-268): another tab of this iPhone took over; this one stops (it writes nothing, its cloud sleeps)
-      movilTurno = false; locked = true; if (held) { held(); held = null; }
+      movilTurno = false; movilParada = true; locked = true; if (held) { held(); held = null; }
       try { if (M.nube && M.nube._dormir) M.nube._dormir(); } catch (e) { /* */ }
       const f = MOVIL_IN.alPestana; if (f) { try { f(); } catch (e) { /* */ } }
       return;
@@ -264,7 +264,7 @@
   }
   // Another tab opened a newer mesa, whose data this code must not touch: it stops here, without saving, until it is reloaded
   function versionNueva() {
-    locked = true; movilTurno = false;
+    locked = true; movilTurno = false; movilParada = true;
     if (held) { held(); held = null; }   // the new tab needn't wait for this one
     if (MOVIL) { const f = MOVIL_IN.alVersion; if (f) { try { f(); } catch (e) { /* the phone's face */ } } return; }   // never over the phone's page (D-267)
     const m = 'Hay una versión nueva de la mesa';
@@ -980,6 +980,7 @@
   async function pushShared(B) {
     if (SIG.b !== B || !SIG.dirty.size) return;
     const ids = [...SIG.dirty]; SIG.dirty.clear();
+    if (MOVIL) return pushSharedMovil(B, ids);
     const by = {}, cOf = {}, gone = [], srcRefs = refsOf(B), myC = B.client || boardClient(B);
     ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); cOf[x.key] = x.client || boardClient(x); }));
     const keys = Object.keys(by), otros = [...new Set(keys.map(k => cOf[k]))].filter(Boolean);
@@ -1015,6 +1016,16 @@
     if (mia && S && (S.client || boardClient(S)) === myC) { renderTray(); save(); }   // this client's tray changed through another of its boards
     if (gone.length) { dropIdx(gone); renderFeed(); }
     if (B === S && Object.keys(by).some(k => MB.some(m => m.key === k))) { await refreshMonths(); renderBar(); }
+  }
+  // the phone (D-267): a collab's other boards get the shared fields of the posts it changed, and nothing else (no tray, no save)
+  async function pushSharedMovil(B, ids) {
+    const by = {}; ids.forEach(id => (IDX[id] || []).forEach(x => { (by[x.key] = by[x.key] || []).push(id); }));
+    const keys = Object.keys(by); if (!keys.length) return;
+    await tx(['boards'], 'readwrite', st => { for (const k of keys) { const g = st.boards.get(k); g.onsuccess = () => {
+      const ob = g.result; if (!ob) return; let hit = false;
+      for (const id of by[k]) { const s = B.slots.find(x => x.id === id), o = (ob.slots || []).find(x => x.id === id); if (!s || !o) continue; copyShared(o, ob, s, B); hit = true; }
+      if (hit) { alinearH(ob); ob.editedAt = new Date().toISOString(); st.boards.put(ob, k); }
+    }; } });
   }
   function dropIdx(keys) { for (const id of Object.keys(IDX)) { IDX[id] = IDX[id].filter(x => !keys.includes(x.key)); if (!IDX[id].length) delete IDX[id]; } }
   function sharedWith(s) {         // the other clients whose boards have this publication (a collab)
@@ -6029,7 +6040,7 @@ ${TK_FUENTES}
   M.init = async (cfg) => {
     // mirar (the iPhone, D-267): the board as the Mac would open it, in memory only — every write of an opening is left out
     // (claim, the client's record, its tray, the shell, localStorage, the save, the sweeps, the vencidas, the notices)
-    const MIRA = !!(cfg && cfg.mirar);
+    const MIRA = MOVIL && !!(cfg && cfg.mirar);
     if (prevDispose) { try { await prevDispose(); } catch (e) { /* */ } prevDispose = null; }
     if (uploadsBusy() || importing) return { error: 'ocupada: espera a que termine la subida o la importación' };
     if (!MIRA) await claim();
@@ -6196,7 +6207,7 @@ ${TK_FUENTES}
   };
 
   M.open = async (key, o = {}) => {
-    const MIRA = !!(o && o.mirar);   // the iPhone (D-267): to look, without writing
+    const MIRA = MOVIL && !!(o && o.mirar);   // the iPhone (D-267): to look, without writing
     if (S && !MIRA) { try { await flushNow(); } catch (e) { /* */ } }   // its linked slots reach the board being opened first
     if (!MIRA) await migrateLegacy();
     const b = newest(key, await idbGet('boards', key));        // cfg (Notion values included) from the copy init uses
@@ -6258,7 +6269,7 @@ ${TK_FUENTES}
         contexto: noteOf(s), nota: memoOf(s), colab: sharedWith(s)
       };
     });
-    const historias = hsDe(S).map((h, j) => ({ id: (h && h.id) || S.key + '|' + j, nombre: h.name || '', fecha: fecha(h.date), img: (h.photos || [])[0] || null, programada: !!h.zernio, cancelada: !!h.cancelada, post: h.post || null }));
+    const historias = hsDe(S).map((h, j) => ({ id: (h && h.id) || S.key + '|' + j, nombre: h.name || '', fecha: fecha(h.date), img: (h.photos || [])[0] || null, programada: !!h.zernio, cancelada: !!h.cancelada, post: h.slotId || null }));
     return { key: S.key, client: S.client, month: S.month, span: S.span || 1, hoy: madParts(t).day,
       meses: mesesDe(S).map(m => { const p = pasoDe(S, m); return { m, etiqueta: rangeLabel(m, 1, false, curCd()), paso: { k: p, txt: (PASOS.find(x => x[0] === p) || [p, p])[1] } }; }),
       posts, historias };
@@ -6268,9 +6279,9 @@ ${TK_FUENTES}
   let colaMovil = Promise.resolve();
   const enFila = f => { const p = colaMovil.then(() => f()); colaMovil = p.catch(() => null); return p; };
   async function mirarMovil(key) {
+    if (!MOVIL) return { error: 'solo en el móvil' };
     const r = await M.open(key, { mirar: true });
-    if (typeof r === 'string') return { error: r };
-    if (r && r.error) return r;
+    if (typeof r === 'string' || (r && r.error)) { if (S && S.key === key) { S = null; PB = null; } return { error: typeof r === 'string' ? r : r.error }; }   // gone: nothing of it stays in memory to be written
     return vistaMovil();
   }
   async function releerMovil() {   // after what came down (lot 2): every cache this page read, then the board on view again
@@ -6284,9 +6295,12 @@ ${TK_FUENTES}
   // What Kevin touches on the phone: one field of one post, with the value he saw, applied with the Mac's own functions (D-267).
   // valor(op) is that field now (to compare with what was seen); operar(op) writes it at once (journal included) with the Mesa
   // taken (not locked); each warning the change gives (D-103) comes back in `avisos`.
-  const capOfId = id => { const s = S && S.slots.find(x => x.id === id); return s ? capOf(s) : null; };
-  async function valorMovil(op) {
-    if (op && op.campo === 'tarea') { const r = M.personal ? await M.personal.valor(op.slot) : null; return r ? { v: { hecha: !!r.hecha } } : { error: 'no existe' }; }
+  // What Kevin touches on the phone: one field of one post, with the value he saw (D-267). The board is always opened again from
+  // IndexedDB first (what came down is the latest), the change is applied with the Mac's own functions and the board is written as
+  // a PATCH: only the posts that changed (and the stories that follow them), read and written in one transaction, never the board
+  // held in memory (looking leaves out what the phone doesn't draw, as the previous month's own photos).
+  const kOk = k => Number.isInteger(k) && k >= 0 && k < 3;
+  function valorMovil(op) {   // synchronous on the open board; aplicar opens it first
     if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
     const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
     const c = capOf(s);
@@ -6295,8 +6309,43 @@ ${TK_FUENTES}
     // makes it another post — Kevin sees both before it is approved (review R4)
     if (op.campo === 'estado') return { v: { v: (s.estado && s.estado.v) || null, motivo: String((s.estado && s.estado.motivo) || ''), sig: aprobSig(s) } };
     if (op.campo === 'capElegir') return { v: c ? { at: c.at || null, pick: c.pick ?? null } : null };
-    if (op.campo === 'capTexto') { const k = op.valor && op.valor.k; return { v: c && k >= 0 && k < 3 ? { at: c.at || null, texto: c.text[k] } : null }; }
+    if (op.campo === 'capTexto') { const k = op.valor && op.valor.k; return { v: c && kOk(k) ? { at: c.at || null, texto: c.text[k] } : null }; }
     return { error: 'campo no válido' };
+  }
+  async function valorAsync(op) {
+    if (op && op.campo === 'tarea') { const r = M.personal ? await M.personal.valor(op.slot) : null; return r ? { v: { hecha: !!r.hecha } } : { error: 'no existe' }; }
+    if (op && op.key && (!S || S.key !== op.key)) { const v = await mirarMovil(op.key); if (v && v.error) return v; }
+    return valorMovil(op);
+  }
+  // the date as the core builds it: a Madrid day, or a day and a time of Madrid ({dia, hora}); never a time without its zone
+  function isoMovil(v) {
+    if (v && typeof v === 'object') return /^\d{4}-\d{2}-\d{2}$/.test(v.dia || '') ? (v.hora ? (/^\d{2}:\d{2}$/.test(v.hora) ? madridISO(v.dia, v.hora) : null) : v.dia) : null;
+    const t = String(v || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    return /T\d{2}:\d{2}/.test(t) && /(Z|[+-]\d{2}:?\d{2})$/.test(t) ? t : null;
+  }
+  // the patch: the posts whose content changed and the stories of those posts, into the record as it is stored now
+  async function parcheMovil(B, antes, hAntes) {
+    const cambia = B.slots.filter(x => JSON.stringify(x) !== antes.get(x.id)), ids = new Set(cambia.map(x => x.id));
+    const hs = hsDe(B).filter(h => h && h.id && ids.has(h.slotId) && JSON.stringify(h) !== hAntes.get(h.id));   // the stories of the posts touched (alinearH), no other
+    if (!cambia.length && !hs.length) return 0;
+    let falta = false;
+    const now = new Date().toISOString();
+    await tx(['boards'], 'readwrite', st => {
+      const g = st.boards.get(B.key);
+      g.onsuccess = () => {
+        const r = g.result; if (!r || !Array.isArray(r.slots)) { falta = true; return; }
+        const copia = o => JSON.parse(JSON.stringify(o));
+        for (const x of cambia) { const i = r.slots.findIndex(y => y.id === x.id); if (i >= 0) r.slots[i] = copia(x); else r.slots.push(copia(x)); }
+        if (hs.length) { r.historias = Array.isArray(r.historias) ? r.historias : []; for (const h of hs) { const i = r.historias.findIndex(y => y && y.id === h.id); if (i >= 0) r.historias[i] = copia(h); else r.historias.push(copia(h)); } }
+        if (B.esperaDesde && !r.esperaDesde) r.esperaDesde = B.esperaDesde;
+        r.editedAt = now; r.savedAt = now;
+        st.boards.put(r, B.key);
+      };
+    });
+    if (falta) throw new Error('el tablero ya no está');
+    BASE_IDB.set(B.key, now);
+    return cambia.length + hs.length;
   }
   async function operarMovil(op) {
     if (!MOVIL) return { error: 'solo en el móvil' };
@@ -6304,35 +6353,49 @@ ${TK_FUENTES}
     if (op && (op.campo === 'tarea' || op.campo === 'tareaNueva')) {   // a task or a note (personal.js, D-180): its own store, written at once
       if (!M.personal) return { error: 'sin tareas' };
       if (op.campo === 'tarea') { if (!(await M.personal.valor(op.slot))) return { error: 'no existe' }; return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: 'no se pudo marcar' }; }   // read again first: never over what the Mac changed in it
-      const o = op.valor || {}, r = await M.personal.tarea({ txt: o.txt, tipo: o.tipo === 'nota' ? 'nota' : 'tarea', ...(o.id ? { id: o.id } : {}), ...(o.fecha ? { fecha: o.fecha } : {}), ...(o.cliente ? { cliente: o.cliente } : {}) });   // its id comes with the operation: done twice, it is made once
+      const o = op.valor || {};
+      if (o.id != null && !(typeof o.id === 'string' && /^(tk|nt)[a-z0-9]{6,24}$/.test(o.id))) return { error: 'id de tarea no válido' };
+      const r = await M.personal.tarea({ txt: o.txt, tipo: o.tipo === 'nota' ? 'nota' : 'tarea', ...(o.id ? { id: o.id } : {}), ...(o.fecha ? { fecha: o.fecha } : {}), ...(o.cliente ? { cliente: o.cliente } : {}) });   // its id comes with the operation: done twice, it is made once
       return r ? { ok: true, id: r.id, avisos: [] } : { error: o.tipo === 'nota' ? 'no se pudo crear la nota' : 'una tarea necesita un texto' };
     }
-    if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
+    const v0 = await mirarMovil(op && op.key); if (!v0 || v0.error) return v0 && v0.error ? v0 : { error: 'no existe' };   // always from what is stored now
     const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
+    const antes = new Map(S.slots.map(x => [x.id, JSON.stringify(x)])), hAntes = new Map(hsDe(S).filter(h => h && h.id).map(h => [h.id, JSON.stringify(h)]));
     const avisos = [], cara = MOVIL_IN.alAviso; MOVIL_IN.alAviso = m => avisos.push(m);
     let why = '';
     try {
-      if (op.campo === 'fecha') { const r = setDate(op.slot, op.valor); if (r !== true) why = r; }
+      if (op.campo === 'fecha') {
+        const iso = isoMovil(op.valor);
+        if (!iso) why = 'fecha no válida';
+        else if (publicaSola(s, ahora())) why = 'publicada';   // its moment came: it is Publicada for the Mac (D-120), it doesn't move
+        else { const r = setDate(op.slot, iso); if (r !== true) why = r; }
+      }
       else if (op.campo === 'estado') { const v = op.valor ? op.valor.v ?? null : null, r = M.setEstado(op.slot, v, op.valor && op.valor.motivo != null && v === 'cancelado' ? { motivo: op.valor.motivo } : {})[0]; if (r && r.error) why = r.error; }
       else if (op.campo === 'capElegir') {
         const c = capOf(s), k = op.valor; if (!c) why = 'sin captions';
         else if (k == null) { if (c.pick != null) unsetCapPick(op.slot, c.pick); }
-        else if (!(k >= 0 && k < 3)) why = 'caption no válido'; else setCapPick(op.slot, k);
+        else if (!kOk(k)) why = 'caption no válido'; else setCapPick(op.slot, k);
       } else if (op.campo === 'capTexto') {
-        const c = capOf(s), k = op.valor && op.valor.k; if (!c || !(k >= 0 && k < 3)) why = 'caption no válido'; else setCapText(op.slot, k, String(op.valor.texto ?? ''));
+        const c = capOf(s), k = op.valor && op.valor.k; if (!c || !kOk(k)) why = 'caption no válido'; else setCapText(op.slot, k, String(op.valor.texto ?? ''));
       } else why = 'campo no válido';
     } finally { MOVIL_IN.alAviso = cara; }
-    if (why) return { error: why };
-    await flushNow();   // now, not in 250 ms: with its note in the journal, the cloud takes it up (lot 2)
+    // none of the desk's whole-board saves: the timers the functions above set go, and the patch is written here
+    clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; clearTimeout(motTimer); motTimer = null;
+    if (why) { await mirarMovil(op.key); return { error: why }; }
+    try {
+      alinearH(S); marcaEspera(S); stamp(S);
+      await parcheMovil(S, antes, hAntes);
+      await pushShared(S);   // a collab's other board: only its shared fields, never a tray (D-267)
+    } catch (e) { await mirarMovil(op.key).catch(() => null); return { error: 'no se pudo guardar: ' + ((e && e.message) || e) }; }
     return { ok: true, avisos };
   }
   // the states the phone's sheet offers (the v3: «según sus datos» and the five chosen by hand), each with why it can't be
   function estadosMovil(key, slot) {
     const s = S && S.key === key && S.slots.find(x => x.id === slot); if (!s) return [];
-    const a = estadoAuto(s), e = estadoDe(s);
+    const a = estadoAuto(s), e = estadoDe(s), auto = !(s.estado && MANUAL.includes(s.estado.v)) || e !== s.estado.v;
     return [null, 'aprobado', 'noaprobado', 'programado', 'publicado', 'cancelado'].map(v => {
       const k = v || a, porque = porqueNoEstado(s, v);
-      return { v, k, txt: estTxt(k), ico: estIco(k, ' aria-hidden="true"'), ok: !porque, porque, actual: v == null ? !(s.estado && MANUAL.includes(s.estado.v)) : !!(s.estado && s.estado.v === v) && e === v };
+      return { v, k, txt: estTxt(k), ico: estIco(k, ' aria-hidden="true"'), ok: !porque, porque, actual: v == null ? auto : !auto && s.estado.v === v };
     });
   }
   function diasMovil(key) {   // the days a post of this board can move to (inBoard), as its cycles
@@ -6340,17 +6403,28 @@ ${TK_FUENTES}
     const ms = boardMonths(), cd = curCd();
     return { desde: cycleStart(ms[0], cd), hasta: cycleEnd(ms[ms.length - 1], cd), meses: ms.slice() };
   }
-  // aplicar(op): the whole of one operation, in the queue — the board opened, the field compared with what Kevin saw and, if it is
-  // the same (or op.forzar), written. Another value now: {choque: {visto, ahora, valor}}, nothing written; its own value: done.
+  // aplicar(op): the whole of one operation, in the queue — the board opened again from what is stored, the field compared with what
+  // Kevin saw and, if it is the same (or op.forzar), written as a patch. Another value now: {choque: {visto, ahora, valor}}; the same
+  // value Kevin wants: done (nothing to write). Without what he saw, nothing (only forzar writes blind).
   const mismo = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null) || (typeof a === 'string' && typeof b === 'string' && sameDate(a, b));
+  function finalDe(op, a) {   // what the field would hold once applied, to tell «the Mac did the same»
+    if (op.campo === 'tarea') return { hecha: !!(op.valor && op.valor.hecha) };
+    if (op.campo === 'fecha') return isoMovil(op.valor);
+    if (op.campo === 'estado') return a && a.v ? { ...a.v, v: (op.valor && op.valor.v) ?? null, motivo: op.valor && op.valor.v === 'cancelado' ? String(op.valor.motivo || '') : '' } : undefined;
+    if (op.campo === 'capElegir') return a && a.v ? { at: a.v.at, pick: op.valor ?? null } : undefined;
+    if (op.campo === 'capTexto') return a && a.v ? { at: a.v.at, texto: String((op.valor && op.valor.texto) ?? '') } : undefined;
+    return undefined;
+  }
   async function aplicarMovil(op) {
+    if (!MOVIL) return { error: 'solo en el móvil' };
     if (locked) return { error: 'sin turno' };
-    if (op.key && (!S || S.key !== op.key)) { const v = await mirarMovil(op.key); if (v && v.error) return v; }
+    if (!op || !op.campo) return { error: 'campo no válido' };
     if (op.campo === 'tareaNueva') { if (op.valor && op.valor.id && M.personal && (await M.personal.valor(op.valor.id))) return { ok: true, ya: true, id: op.valor.id, avisos: [] }; return operarMovil(op); }
-    const a = await valorMovil(op); if (a.error) return a;
-    if (!op.forzar && 'visto' in op && !mismo(a.v, op.visto)) {
-      const fin = op.campo === 'tarea' ? { hecha: !!(op.valor && op.valor.hecha) } : null;
-      if (fin && mismo(a.v, fin)) return { ok: true, ya: true, avisos: [] };   // the Mac did the same: nothing to do
+    if (!op.forzar && !('visto' in op)) return { error: 'sin lo visto' };
+    const a = await valorAsync(op); if (a.error) return a;
+    if (!op.forzar && !mismo(a.v, op.visto)) {
+      const fin = finalDe(op, a);
+      if (fin !== undefined && mismo(op.campo === 'estado' && a.v ? { v: a.v.v, motivo: a.v.motivo } : a.v, op.campo === 'estado' && fin ? { v: fin.v, motivo: fin.motivo } : fin)) return { ok: true, ya: true, avisos: [] };   // the Mac did the same: nothing to do
       return { choque: { visto: op.visto, ahora: a.v, valor: op.valor } };
     }
     return operarMovil(op);
@@ -6368,9 +6442,9 @@ ${TK_FUENTES}
     try { await mesLeer(true); } catch (e) { /* */ }
     return { modo: NUBE.activa ? NUBE.modo || 'local' : 'sin_nube' };
   }
-  const turnoMovil = v => { movilTurno = !!v; if (MOVIL) locked = !v; return movilTurno; };   // the cloud's glue (lot 2): it holds the Mesa, or not
-  const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, releer: () => enFila(releerMovil),
-    valor: op => enFila(() => valorMovil(op)), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil, tokens: tokensMovil, TOKENS: { claro: TK_CLARO, oscuro: TK_OSCURO, fuentes: TK_FUENTES },
+  const turnoMovil = v => { if (v && (movilParada || !MOVIL)) return false; movilTurno = !!v; if (MOVIL) locked = !v; return movilTurno; };   // the cloud's glue (lot 2): it holds the Mesa, or not
+  const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, releer: () => (MOVIL ? enFila(releerMovil) : Promise.resolve({ error: 'solo en el móvil' })),
+    valor: op => (MOVIL ? enFila(() => valorAsync(op)) : Promise.resolve({ error: 'solo en el móvil' })), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil, tokens: tokensMovil, TOKENS: { claro: TK_CLARO, oscuro: TK_OSCURO, fuentes: TK_FUENTES },
     get conTurno() { return movilTurno; }, abrir: abrirMovil, esperar: () => colaMovil, reclamar: () => claim(), alPestana: null };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
   if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {

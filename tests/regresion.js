@@ -18514,8 +18514,10 @@
   });
 
   // lo que cambió de un tablero guardado a otro: [id de publicación, campo] (los sellos del guardado, fuera)
-  function cambiosEntre(a, b) {
+  function cambiosEntre(a, b) {   // el registro entero: cada campo del tablero y de cada publicación (los sellos del guardado, fuera)
     const out = [], ida = Object.fromEntries(a.slots.map(x => [x.id, x]));
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (!['slots', 'savedAt', 'editedAt'].includes(k) && JSON.stringify(a[k]) !== JSON.stringify(b[k])) out.push('tablero.' + k);
+    if (a.slots.length !== b.slots.length) out.push('tablero.slots');
     for (const y of b.slots) { const x = ida[y.id] || {}; for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) if (!['at'].includes(k) && JSON.stringify(x[k]) !== JSON.stringify(y[k])) out.push(y.id + '.' + k); }
     return out.sort();
   }
@@ -18523,7 +18525,10 @@
     const key = await tableroMovil();
     await enMovil(async () => {
       const rec = await M._in.idbGet('boards', key), r4 = rec.slots.find(s => s.id === 'r4');
-      r4.design = { slides: [{ tipo: 'portada' }] }; await M._in.idbPut('boards', key, rec);   // un diseño vacío sin aplicar (D-090): el móvil no lo limpia
+      r4.design = { slides: [{ tipo: 'portada' }] };   // un diseño vacío sin aplicar (D-090): el móvil no lo limpia
+      rec.prev = [{ id: 'mv4-prev', own: true, photos: ['f-mv4-prev'], name: 'Foto del mes anterior' }];   // lo que mirar no carga: nunca se pierde al guardar
+      rec.tray = ['f-mv4-vieja'];                                                                              // una bandeja de antes de la 3.44
+      await M._in.idbPut('boards', key, rec);
       M._in.movil.turno(true);
       await M._in.movil.mirar(key);
       const paso = async (op, esperado) => {
@@ -18532,7 +18537,8 @@
         const b = await M._in.idbGet('boards', key), cam = cambiosEntre(a, b);
         ok(esperado.every(x => cam.includes(x)), `${op.campo}: no cambió lo esperado: ${cam.join(', ')}`);
         ok(cam.every(x => esperado.includes(x) || x === op.slot + '.esperaCliente' || (op.campo === 'fecha' && /\.(name|hold)$/.test(x))), `${op.campo} cambió más de la cuenta: ${cam.join(', ')}`);   // desde cuándo espera al cliente (D-180) sigue a su estado, como en el Mac
-        ok(esc.de.every(w => / (boards|diario)$/.test(w)), `${op.campo} escribió fuera del tablero: ${esc.de.join(', ')}`);
+        ok(esc.de.length && esc.de.every(w => / (boards|diario)$/.test(w)), `${op.campo} escribió fuera del tablero: ${esc.de.join(', ')}`);
+        igual([b.prev, b.tray], [[{ id: 'mv4-prev', own: true, photos: ['f-mv4-prev'], name: 'Foto del mes anterior' }], ['f-mv4-vieja']], `${op.campo} perdió lo que mirar no carga`);
         ok((await djN()) > dj0 || (await M._in.diario.leer()).some(e => e.a === 'boards' && e.k === key), `${op.campo} sin su nota en el diario`);
         return b;
       };
@@ -18701,7 +18707,18 @@
       ok((await M._in.movil.aplicar({ key, slot: 'r2', campo: 'estado', valor: { v: 'aprobado' }, visto: v0.v, forzar: true })).ok, 'forzar no escribió');
       igual(M._in.estadoDe((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2')), 'aprobado', 'forzar no aprobó');
       const vf = (await M._in.movil.valor({ key, slot: 'r1', campo: 'fecha' })).v;
-      ok((await M._in.movil.aplicar({ key, slot: 'r1', campo: 'fecha', valor: M._in.madridISO('2026-11-12', '09:00'), visto: vf })).ok, 'la fecha con lo visto igual');
+      ok((await M._in.movil.aplicar({ key, slot: 'r1', campo: 'fecha', valor: { dia: '2026-11-12', hora: '09:00' }, visto: vf })).ok, 'la fecha con lo visto igual');
+      // el Mac cambia el contexto de r1 por debajo (una bajada sin releer): una operación en r2 no lo pisa (se abre el tablero guardado)
+      const rec2 = await M._in.idbGet('boards', key); rec2.slots.find(s => s.id === 'r1').note = 'del Mac'; await M._in.idbPut('boards', key, rec2);
+      const vc = (await M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' })).v;
+      ok((await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 2, visto: vc })).ok, 'elegir en r2');
+      igual((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').note, 'del Mac', 'una operación en r2 pisó lo que el Mac cambió en r1');
+      // sin lo visto no escribe; lo mismo que ya hizo el Mac, hecho sin choque; una fecha sin su zona no entra
+      igual(await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 0 }), { error: 'sin lo visto' }, 'aplicó sin lo visto');
+      const ya = await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 2, visto: { at: vc.at, pick: 0 } });
+      ok(ya.ok && ya.ya, 'el Mac ya puso lo mismo: ' + json(ya));
+      const sinZona = await M._in.movil.aplicar({ key, slot: 'r1', campo: 'fecha', valor: '2026-11-13T10:00', visto: (await M._in.movil.valor({ key, slot: 'r1', campo: 'fecha' })).v });
+      igual(sinZona, { error: 'fecha no válida' }, 'una hora sin zona entró');
       const id = M.personal.nuevoId('tarea');
       const n1 = await M._in.movil.aplicar({ campo: 'tareaNueva', valor: { id, txt: 'Una vez' } }), n2 = await M._in.movil.aplicar({ campo: 'tareaNueva', valor: { id, txt: 'Una vez' } });
       ok(n1.ok && n2.ok && n2.ya, 'la tarea repetida: ' + json([n1, n2]));

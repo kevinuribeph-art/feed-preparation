@@ -1476,7 +1476,7 @@
     // a session's sheet over the board, from the posts' calendar (D-219): {de, vc, cli}
     abrirSesion: async (id, o = {}) => { if (!EXT.sesion) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; return abrirCard(id, { ...o, tablero: !st.on }); },
     // o (the iPhone, D-267): the period and the «Tareas» switch to sum with, without changing this page's own
-    datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = { modo: st.modo, desp: st.desp, avTareas: st.avTareas }; Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
+    datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = Object.fromEntries(Object.keys(o).map(k => [k, st[k]])); Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
     lista: async () => { await cargarTK(); return listaMovil(); },
     valor: async id => { await cargarTK(); const r = TK.get(id); return r && !r._b ? copia(r) : null; },
     nuevoId: tipo => nuevoId(tipo === 'nota' ? 'nt' : 'tk'),   // a task's id before it is made (the iPhone's operation, D-267)

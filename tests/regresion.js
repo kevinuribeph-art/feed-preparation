@@ -18823,6 +18823,38 @@
     ok(/La Mesa se abrió en un aparato nuevo/.test(fuente) && !/se abrió en un ordenador nuevo/.test(fuente), 'el aviso del Mac aún dice «ordenador nuevo»');
   });
 
+  prueba('MV17', 'movil.html carga lo suyo y nada más (D-269): la lista cerrada de scripts, la misma CSP que index.html con manifest-src, el manifiesto con sus iconos y el icono del iPhone', async () => {
+    const tx = async u => (await W.fetch(u + '?mv17=' + Date.now(), { cache: 'no-store' })).text();
+    const mv = await tx('movil.html'), ix = await tx('index.html');
+    const scripts = [...mv.matchAll(/<script[^>]*\ssrc="([^"?]+)/g)].map(m => m[1]);
+    igual(scripts, ['vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'movil.js'], 'los scripts de movil.html');
+    ok(!/<script(?![^>]*\ssrc=)[^>]*>/.test(mv.replace(/<!--[\s\S]*?-->/g, '')) && !/\son[a-z]+\s*=/.test(mv.replace(/<!--[\s\S]*?-->/g, '')), 'movil.html con un script en línea o un manejador');
+    ok(!/\basync\b/.test(scripts.join(' ')) && !/<script async/.test(mv), 'un script async en movil.html');
+    const csp = t => (t.match(/Content-Security-Policy" content="([^"]*)"/) || [])[1];
+    igual(csp(mv), csp(ix), 'la CSP de movil.html no es la de index.html');
+    ok(/manifest-src 'self'/.test(csp(ix)), 'la CSP sin manifest-src');
+    ok(/<html lang="es" data-movil>/.test(mv) && /viewport-fit=cover/.test(mv) && /<link rel="manifest" href="movil\.webmanifest">/.test(mv) && /apple-touch-icon" href="portal\/marca\/icono-180\.png"/.test(mv), 'la cabecera de movil.html');
+    const man = JSON.parse(await tx('movil.webmanifest'));
+    igual([man.start_url, man.display, man.short_name], ['movil.html', 'standalone', 'Mesa'], 'el manifiesto');
+    for (const i of man.icons) ok((await W.fetch(i.src, { cache: 'no-store' })).ok, 'falta el icono ' + i.src);
+  });
+
+  prueba('MV18', 'La dirección de siempre lleva a movil.html solo en un iPhone (D-269): un iPhone o un iPod sí; un iPad (iPadOS dice ser un Mac), el Mac, Chrome y la app de Claude, no; y la marca para mesa.js la dice tema.js', async () => {
+    const f = W.MESA_MOVIL_UA; ok(typeof f === 'function', 'tema.js no da MESA_MOVIL_UA');
+    const ua = {
+      iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+      inicio: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      ipod: 'Mozilla/5.0 (iPod touch; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      ipad: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+      ipadViejo: 'Mozilla/5.0 (iPad; CPU OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      claude: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/1.0.0 Chrome/131.0.0.0 Electron/33.0.0 Safari/537.36' };
+    igual(Object.fromEntries(Object.entries(ua).map(([k, v]) => [k, f(v)])), { iphone: true, inicio: true, ipod: true, ipad: false, ipadViejo: false, mac: false, claude: false }, 'qué agente va al móvil');
+    ok(!W.MESA_A_MOVIL, 'la marca está puesta en el Mac');
+    const mesa = await (await W.fetch('mesa.js?mv18=' + Date.now(), { cache: 'no-store' })).text(), arr = await (await W.fetch('arranque.js?mv18=' + Date.now(), { cache: 'no-store' })).text();
+    ok(/\(function mesaBoot\(\) \{\n\s*if \(window\.MESA_A_MOVIL\) return;/.test(mesa) && /if \(window\.MESA_A_MOVIL\) return;/.test(arr), 'mesa.js o arranque.js no paran con la marca');
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

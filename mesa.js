@@ -67,6 +67,7 @@
 // v3.61: the tray's tabs and the folders' menu (D-076).
 // v3.62: moving and copying in the tray (D-077).
 (function mesaBoot() {
+  if (window.MESA_A_MOVIL) return;   // an iPhone is on its way to movil.html (tema.js, D-269): nothing opens here, not even IndexedDB
   const M = window.MESA = window.MESA || {};
   let prevDispose = typeof M._dispose === 'function' ? M._dispose : null;   // previous instance on this page
   // a question «1 / 2» being answered (elegirYa, D-194): no click nor key does anything. Registered before any other listener,

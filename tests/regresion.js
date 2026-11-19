@@ -18823,6 +18823,56 @@
     ok(/La Mesa se abrió en un aparato nuevo/.test(fuente) && !/se abrió en un ordenador nuevo/.test(fuente), 'el aviso del Mac aún dice «ordenador nuevo»');
   });
 
+  // la segunda revisión de los lotes 1–2 (D-267): lo visto contra lo guardado, las historias que hNorm mueve y la Mesa perdida a mitad
+  prueba('MV20', 'Lo que Kevin vio se compara siempre con lo guardado (D-267, R3; revisión 2, punto 1): otra tanda de captions bajada al coger la Mesa, sin releer, da «choque»; nunca elige en una tanda que no vio', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      M._in.movil.turno(true);
+      await M._in.movil.mirar(key);
+      const visto = (await M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' })).v;
+      const rec = await M._in.idbGet('boards', key), c = rec.slots.find(s => s.id === 'r2').caption;   // la bajada: IndexedDB cambia, la memoria no
+      c.old = [...(c.old || []), { tones: c.tones, orig: c.orig, text: c.text, pick: c.pick, at: c.at, until: '2026-11-01T09:00:00.000Z' }];
+      c.at = '2026-11-01T09:00:00.000Z'; c.orig = ['otra uno', 'otra dos', 'otra tres']; c.text = c.orig.slice(); c.pick = null;
+      await M._in.idbPut('boards', key, rec);
+      const a = await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 1, visto });
+      ok(a.choque && a.choque.ahora.at === '2026-11-01T09:00:00.000Z', 'eligió en una tanda que Kevin no vio: ' + json(a));
+      igual((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2').caption.pick ?? null, null, 'el choque escribió');
+      M._in.movil.turno(false);
+    });
+  });
+
+  prueba('MV21', 'El parche escribe toda historia que la operación cambió (D-267; revisión 2, punto 4): mover una publicación lleva su historia a un minuto ocupado y la otra historia del día, que hNorm aparta, también se guarda', async () => {
+    const key = await tableroMovil();
+    await hasta(() => M.libre && M.hs && M.cargarHistorias, 6000, 'historias.js');
+    const r = await M.cargarHistorias([{ date: '2026-11-03T13:00:00+01:00', order: 1, slotId: 'r1', note: 'De la 1.1' }, { date: '2026-11-04T13:00:30+01:00', order: 1, note: 'Suelta del día 4' }]);
+    igual(r.map(x => x.result), ['creada', 'creada'], 'las historias de prueba'); await M.flush();
+    await enMovil(async () => {
+      M._in.movil.turno(true);
+      const vf = (await M._in.movil.valor({ key, slot: 'r1', campo: 'fecha' })).v;
+      const a = await M._in.movil.aplicar({ key, slot: 'r1', campo: 'fecha', valor: { dia: '2026-11-04', hora: '12:00' }, visto: vf });
+      ok(a.ok, 'no movió la publicación: ' + json(a));
+      const mem = M._in.S.historias.map(h => [h.note, h.date]).sort(), idb = (await M._in.idbGet('boards', key)).historias.map(h => [h.note, h.date]).sort();
+      igual(idb, mem, 'el registro no tiene las historias como quedaron');
+      const min = idb.filter(([, d]) => M._in.localDay(d) === '2026-11-04').map(([, d]) => M._in.localTime(d));
+      igual(new Set(min).size, min.length, 'dos historias del día 4 en el mismo minuto: ' + min.join(', '));
+      M._in.movil.turno(false);
+    });
+  });
+
+  prueba('MV22', 'Si la Mesa se va a otro aparato mientras se aplica, no se escribe nada (D-267; revisión 2, punto 6): «sin turno» y el tablero como estaba', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      M._in.movil.turno(true);
+      await M._in.movil.mirar(key);
+      const vf = (await M._in.movil.valor({ key, slot: 'r1', campo: 'fecha' })).v;
+      const P = W.IDBObjectStore.prototype, get0 = P.get; let n = 0;
+      P.get = function (...x) { if (this.name === 'boards' && ++n === 2) M._in.movil.turno(false); return get0.apply(this, x); };   // el Mac la fuerza justo tras abrir el tablero
+      let a; try { a = await M._in.movil.aplicar({ key, slot: 'r1', campo: 'fecha', valor: { dia: '2026-11-12', hora: '09:00' }, visto: vf }); } finally { P.get = get0; }
+      igual(a, { error: 'sin turno' }, 'se aplicó sin la Mesa');
+      igual((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date, vf, 'el tablero cambió sin la Mesa');
+    });
+  });
+
   // la cara del móvil (lote 3, D-269): movil.html entero en el marco, al tamaño de un iPhone
   async function enMovilPagina(fn, { w = 390, h = 844 } = {}) {
     const marco = fr$(), w0 = marco.style.width, h0 = marco.style.height;

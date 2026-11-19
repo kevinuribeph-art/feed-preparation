@@ -145,7 +145,7 @@
     // the iPhone (D-268): it never takes the Mesa by opening it; it looks (downloads in the pause), takes it to write what Kevin
     // touched, uploads without the calm and lets it go; nothing reloads. Off (the Mac), everything as before.
     const MOVIL = !!o.movil, CALMA = MOVIL ? 0 : TIEMPOS.calma;
-    let mirandoP = null, tomando = false, retenido = false, soltando = null, vistoA = null, irse = false;
+    let mirandoP = null, tomando = false, retenido = false, soltando = null, vistoA = null, irse = false, irseTras = false, entrando = false, forzando = false;
     // whoever has the Mesa has said nothing for 20 s: «no contesta» at once (Mac and phone); a holder with no beat known waits as before
     const callado = t => !!t && t.latido_hace != null && t.latido_hace >= TIEMPOS.espera / 1000;
     const H0 = o.huella || huellaPorOmision, HC = new Map();   // huellas de esta sesión: a|k|ruta|tamaño|tipo
@@ -638,7 +638,13 @@
       }
     }
     async function forzar(visto) {
-      if (MOVIL) { if (mirandoP) await mirandoP.catch(() => null); retenido = true; }   // not while a look comes down; held for the face
+      if (!MOVIL) return forzarYa(visto);
+      if (forzando) return { error: 'ocupado' };
+      forzando = true;   // a look that starts meanwhile waits: it never enters nor lets go (review 2, point 3)
+      try { if (mirandoP) await mirandoP.catch(() => null); retenido = true; return await forzarYa(visto); }   // held for the face
+      finally { forzando = false; }
+    }
+    async function forzarYa(visto) {
       let c;
       try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto, app: APP, forzar: true }); }
       catch (e) { return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
@@ -653,7 +659,7 @@
     // Mesa before uploading goes to «quedó sin subir» (Kevin decides, D-255); if the Mesa is still its own, it goes up.
     function mirar() {
       if (!MOVIL || parado) return Promise.resolve({ nuevos: 0 });
-      if (conTurno || tomando || cediendo || soltando) return Promise.resolve({ nuevos: 0, ocupado: true });
+      if (conTurno || tomando || cediendo || soltando || entrando || forzando) return Promise.resolve({ nuevos: 0, ocupado: true });
       if (mirandoP) return mirandoP;
       mirandoP = (async () => {
         let r;
@@ -661,7 +667,7 @@
         catch (e) { sinRed(e); return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
         if (!r || r.ok !== true) { await abrirRechazo(r); return { error: (r && r.error && r.error.codigo) || 'sin respuesta' }; }
         if (masNueva(r.version_minima, APP)) { await vieja(); return { error: 'app' }; }
-        if (conTurno || tomando || soltando || cediendo || parado) return { nuevos: 0, ocupado: true };   // the turn changed meanwhile: nothing of a look
+        if (conTurno || tomando || soltando || cediendo || entrando || forzando || parado) return { nuevos: 0, ocupado: true };   // the turn changed meanwhile: nothing of a look
         st.total = +r.total || st.total || 0; reint = 0; proximo = 0; st.error = '';
         if (r.tuyo) { retenido = false; return entrar(r.turno, 0).then(x => ({ nuevos: 0, ...x, tuyo: true })); }   // its own (closed or frozen with it): up, and let go
         if (traerPend) {   // a first coming down that stopped half way: whole, as at opening (nothing of here goes up)
@@ -682,8 +688,13 @@
     }
     // The Mesa is its own: what changed comes down first (so what Kevin saw is compared with the latest), nothing reloads.
     async function entrar(turno, orden) {
+      entrando = true;
+      try { return await entrarYa(turno, orden); } finally { entrando = false; }
+    }
+    async function entrarYa(turno, orden) {
       st.turno = turno; await A.ponerMeta({ turno });   // known at once: a phone closed now knows it is its own when it comes back
-      try { await bajarTodo(orden, null, false, undefined, false, true); }
+      let n = 0;
+      try { n = await bajarTodo(orden, null, false, undefined, false, true); }
       catch (e) {
         try { await llamar('mesa_turno_soltar', { dispositivo: D, turno }); } catch (x) { /* the next look finds it its own and lets it go */ }
         if (e && e.vieja) { await vieja(); return { error: 'app' }; }
@@ -692,14 +703,17 @@
       st.alDia = true; st.tiene = null; reint = 0; proximo = 0; st.error = ''; ultLatido = R.ahora(); colaLatida = -1; vistoA = R.ahora();
       ponerTurno(true);
       fase('guardado');
+      if (n && E.releido) { try { await E.releido(n); } catch (e) { /* the face draws what there is */ } }   // what came down, on the screen
       return { hecho: true };
     }
     // tomar(): to write what Kevin touched. Free: at once. Someone else's: it asks every 3 s while the other uploads and lets go;
     // {espera} after 20 s, or at once if the other has said nothing for 20 s. retenido until the face says so (retener(false)).
     async function tomar(op = {}) {
       if (!MOVIL) return { error: 'solo en el móvil' };
+      if (tomando) return { error: 'ocupado' };
+      retenido = true;   // a release of the pulse in flight stops here (it would let go and take it again)
       if (soltando) await soltando.catch(() => null);   // letting it go: done first, then asked again (never «done» over a release)
-      while (cediendo && !parado) await R.esperar(250);
+      while ((cediendo || entrando || forzando) && !parado) await R.esperar(250);
       if (mirandoP) await mirandoP.catch(() => null);
       if (conTurno) { retenido = true; try { const p = E.tomada && E.tomada(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* */ } return { hecho: true }; }   // its own: the Mesa unlocked (after «Subir encima», for instance)
       if (tomando) return { error: 'ocupado' };
@@ -713,12 +727,12 @@
           if (!r || r.ok !== true) { retenido = false; await abrirRechazo(r); return { error: (r && r.error && r.error.codigo) || 'sin respuesta' }; }
           if (masNueva(r.version_minima, APP)) { retenido = false; await vieja(); return { error: 'app' }; }
           const dentro = async (t, o) => { const x = await entrar(t, o); if (!x.hecho) retenido = false; return x; };
-          if (r.tuyo) return dentro(r.turno, 0);
+          if (r.tuyo) return await dentro(r.turno, 0);
           if (r.libre) {
             let c;
             try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto: r.turno, app: APP, forzar: false }); }
             catch (e) { retenido = false; return { error: 'sin_conexion' }; }
-            if (c && c.ok) { await A.ponerMeta({ turno: c.turno }); return dentro(c.turno, c.orden || 0); }
+            if (c && c.ok) { await A.ponerMeta({ turno: c.turno }); return await dentro(c.turno, c.orden || 0); }
             if (c && c.error && c.error.codigo === 'turno') continue;   // another came first: keep asking
             retenido = false; await abrirRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
           }
@@ -730,7 +744,7 @@
           await R.esperar(TIEMPOS.pedirCada);
           if (parado) { retenido = false; return { error: 'parada' }; }
         }
-      } finally { tomando = false; if (irse) { irse = false; if (conTurno) soltar().catch(() => {}); } }   // gone to the background while taking it
+      } finally { tomando = false; if (irse) { irse = false; if (conTurno) { if (retenido) irseTras = true; else soltar().catch(() => {}); } } }   // gone to the background while taking it: once the face lets it go
     }
     // going to the background: with the Mesa, up and let go; while taking it, as soon as it is taken
     function pedirIrse() { if (conTurno) return soltar(); if (tomando) irse = true; return Promise.resolve({ hecho: true }); }
@@ -739,6 +753,7 @@
     // op.auto (the pulse): it stops if the face takes it again meanwhile (retenido), and never clears that
     function soltar(op = {}) {
       const auto = !!op.auto;
+      if (parado) return Promise.resolve({ error: 'parada' });   // a sleeping core never lets go a Mesa another tab took (review 2, point 7)
       if (!conTurno) { if (!auto) retenido = false; return Promise.resolve({ hecho: true }); }
       if (soltando) return soltando;
       soltando = (async () => {
@@ -746,18 +761,31 @@
         const otraVez = () => auto && retenido;
         if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* */ } }
         if (otraVez()) return { cancelado: true };
-        let antes = -1;
-        for (let vuelta = 0; conTurno && !parado; vuelta++) {
-          const r = await subir({ todo: true });
-          if (r.parar && !r.sinRed) return { error: 'perdida' };
-          const n = await A.contarDiario(); if (!n) break;
-          if (r.sinRed || r.esperando) return { error: r.sinRed ? 'sin_conexion' : 'esperando', cola: n };
-          if (n === antes) { await apartarDiario('cede'); break; }
-          antes = n;
-          if (otraVez()) return { cancelado: true };
-        }
+        const subirCola = async corta => {   // the journal up; null once empty, or what to answer
+          let antes = -1;
+          for (let vuelta = 0; conTurno && !parado; vuelta++) {
+            const r = await subir({ todo: true });
+            if (r.parar && !r.sinRed) return { error: 'perdida' };
+            const n = await A.contarDiario(); if (!n) return null;
+            if (r.sinRed || r.esperando) return { error: r.sinRed ? 'sin_conexion' : 'esperando', cola: n };
+            if (n === antes) { await apartarDiario('cede'); return null; }
+            antes = n;
+            if (!corta && otraVez()) return { cancelado: true };
+          }
+          return null;
+        };
+        let x = await subirCola(false); if (x) return x;
         if (!conTurno) return { hecho: true };
         if (otraVez()) return { cancelado: true };
+        // the last step (review 2, point 2): the phone's Mesa locked first, the face's write in flight waited and the journal
+        // counted again — a write that slipped in after the upload goes up before the turn is let go, never aside. From here it
+        // isn't cancelled: the face that takes it again waits for this release (or unlocks it, if it stops before letting go)
+        if (MOVIL && E.congelar) {
+          try { await E.congelar(); } catch (e) { /* */ }
+          if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* */ } }
+          if (await A.contarDiario()) { x = await subirCola(true); if (x) return x; }
+          if (!conTurno) return { hecho: true };
+        }
         let r;
         try { r = await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); }
         catch (e) { return { error: 'sin_conexion' }; }
@@ -947,7 +975,7 @@
     function estado() { return { movil: MOVIL, vistoA, retenido, fase: st.fase, turno: st.turno, cursor: st.cursor, epoca: st.epoca, cola: st.cola, sinSubir: st.sinSubir, tiene: st.tiene, error: st.error, alDia: st.alDia, avisos: AV.length, esperando: st.esperando || 0, todo: todoEnMarcha }; }
     return {
       abrir, tic, subir, usarAqui, forzar, subirEncima, descartar, estado, subirTodo, comprobar, traerFila,
-      mirar, tomar, soltar, pedirIrse, retener: v => { retenido = !!v; },   // the phone (D-268)
+      mirar, tomar, soltar, pedirIrse, retener: v => { retenido = !!v; if (!v && irseTras) { irseTras = false; if (conTurno) soltar().catch(() => {}); } },   // the phone (D-268); gone to the background while taking it: let go once the face is done
       dormir: () => { parado = true; },   // another tab of this phone took over: nothing more from this one (never releases its Mesa)
       // una foto acabó de subir: lo que la esperaba, en la siguiente vuelta
       archivosListos: () => { proximoFotos = Math.min(proximoFotos, ultSubida + 5000); },   // como mucho una pasada adelantada cada 5 s
@@ -1597,9 +1625,9 @@
     avisosHTML, avisos: () => AVS.slice(), avisosN: () => (X().NUBE.activa ? AVS.length : 0), nombreDe,
     // the phone (D-268): look, take the Mesa, let it go, force it without reloading; its face hears every state and change
     mirar: () => (N && !DORMIDA ? N.mirar() : Promise.resolve({ error: 'apagada' })), tomar: op => (N && !DORMIDA ? N.tomar(op) : Promise.resolve({ error: 'apagada' })),
-    soltar: () => (N ? N.soltar() : Promise.resolve({ hecho: true })), retener: v => { if (N) N.retener(v); },
-    forzarAqui: visto => (N ? N.forzar(+visto) : Promise.resolve({ error: 'apagada' })),
-    subirEncima: claves => (N ? N.subirEncima(claves) : Promise.resolve({ error: 'apagada' })), descartar: claves => (N ? N.descartar(claves) : Promise.resolve({ error: 'apagada' })),
+    soltar: () => (N && !DORMIDA ? N.soltar() : Promise.resolve(DORMIDA ? { error: 'dormida' } : { hecho: true })), retener: v => { if (N && !DORMIDA) N.retener(v); },
+    forzarAqui: visto => (N && !DORMIDA ? N.forzar(+visto) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),   // a sleeping tab touches nothing (review 2, point 7)
+    subirEncima: claves => (N && !DORMIDA ? N.subirEncima(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })), descartar: claves => (N && !DORMIDA ? N.descartar(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),
     sinSubir: () => X().nubeAlmacen.sinSubir(), estadoYa: () => (N ? N.estado() : { fase: 'apagada' }), conTurno: () => !!(N && N.conTurno()),
     alEstado: f => { CARA.add(f); return () => CARA.delete(f); },
     _dormir: () => { DORMIDA = true; clearInterval(pulso); clearInterval(mirarT); if (N && N.dormir) N.dormir(); },   // another tab of this phone took over: this one does nothing more (it never lets the Mesa go: it is the same device)

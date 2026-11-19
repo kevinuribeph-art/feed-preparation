@@ -6318,7 +6318,8 @@ ${TK_FUENTES}
   }
   async function valorAsync(op) {
     if (op && op.campo === 'tarea') { const r = M.personal ? await M.personal.valor(op.slot) : null; return r ? { v: { hecha: !!r.hecha } } : { error: 'no existe' }; }
-    if (op && op.key && (!S || S.key !== op.key)) { const v = await mirarMovil(op.key); if (v && v.error) return v; }
+    // always from what is stored now: a download of the cloud (entrar) may have changed it without reading it again (review 2, point 1)
+    if (op && op.key) { const v = await mirarMovil(op.key); if (v && v.error) return v; }
     return valorMovil(op);
   }
   // the date as the core builds it: a Madrid day, or a day and a time of Madrid ({dia, hora}); never a time without its zone
@@ -6330,8 +6331,10 @@ ${TK_FUENTES}
   }
   // the patch: the posts whose content changed and the stories of those posts, into the record as it is stored now
   async function parcheMovil(B, antes, hAntes) {
-    const cambia = B.slots.filter(x => JSON.stringify(x) !== antes.get(x.id)), ids = new Set(cambia.map(x => x.id));
-    const hs = hsDe(B).filter(h => h && h.id && ids.has(h.slotId) && JSON.stringify(h) !== hAntes.get(h.id));   // the stories of the posts touched (alinearH), no other
+    const cambia = B.slots.filter(x => JSON.stringify(x) !== antes.get(x.id));
+    // every story this operation changed: those of the posts touched and those hNorm spaced on their day (review 2, point 4);
+    // B has just come from IndexedDB, so any difference is this operation's
+    const hs = hsDe(B).filter(h => h && h.id && JSON.stringify(h) !== hAntes.get(h.id));
     if (!cambia.length && !hs.length) return 0;
     let falta = false;
     const now = new Date().toISOString();
@@ -6388,6 +6391,7 @@ ${TK_FUENTES}
     if (why) { await mirarMovil(op.key); return { error: why }; }
     try {
       alinearH(S); marcaEspera(S); stamp(S);
+      if (locked) { await mirarMovil(op.key).catch(() => null); return { error: 'sin turno' }; }   // the Mesa went to another device meanwhile (review 2, point 6)
       await parcheMovil(S, antes, hAntes);
       await pushShared(S);   // a collab's other board: only its shared fields, never a tray (D-267)
     } catch (e) { await mirarMovil(op.key).catch(() => null); return { error: 'no se pudo guardar: ' + ((e && e.message) || e) }; }

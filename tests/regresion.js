@@ -119,6 +119,12 @@
     const e = new W.KeyboardEvent('keydown', { key, code: o.code ?? '', metaKey: !!o.meta, altKey: !!o.alt, shiftKey: !!o.shift, ctrlKey: !!o.ctrl, bubbles: true, cancelable: true });
     (o.en || D.body).dispatchEvent(e);
   }
+  // el menú de copias: clic derecho en el símbolo de la cabecera (D-263)
+  const mcLogo = () => q('.appbar .brand');
+  const mcAbrir = () => { const b = mcLogo(), r = b.getBoundingClientRect(); b.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2, view: W })); return q('.cpmenu.cp-copias'); };
+  const mcCerrar = () => tecla('Escape', { en: D.activeElement || D.body });
+  const mcItems = m => [...m.querySelectorAll('[role="menuitem"]')].map(b => b.firstChild.textContent.trim());
+  const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
   const compDe = i => { const x = ed().sl[i]; return x.comp || x.raw; };
   const elegir = el => { ed().sel = el.id; ed().mas = []; };
   // tamaño de la diapositiva abierta en px de salida (1440 de ancho), por su formato; no se usa E.sz, que es el del último
@@ -3313,7 +3319,7 @@
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try {
       W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
-      await pulsar('[data-act="xfer"]'); await pulsar('[data-act="xfer-export"]');
+      mcElegir('Exportar'); await espera(30);   // el menú de copias del símbolo (D-263)
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
       const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
@@ -10318,7 +10324,7 @@
     const b = q('.appbar .ibtn.tema'), bar = q('.appbar').getBoundingClientRect(), r = b.getBoundingClientRect();
     ok(!b.querySelector('.tg-s'), 'quedan las estrellas');
     ok(b.querySelector('.tg-k'), 'falta el sol / la luna');
-    const c = (r.top + r.bottom) / 2, cb = (bar.top + bar.bottom) / 2, ca = (q('.appbar .xfer').getBoundingClientRect().top + q('.appbar .xfer').getBoundingClientRect().bottom) / 2;
+    const s = q('.appbar .brand svg').getBoundingClientRect(), c = (r.top + r.bottom) / 2, cb = (bar.top + bar.bottom) / 2, ca = (s.top + s.bottom) / 2;   // sin ⇅ (D-263): con el símbolo
     ok(Math.abs(c - cb) < 1.5 && Math.abs(c - ca) < 1.5, `no va centrado: ${c} frente a ${cb} y ${ca}`);
   }
 
@@ -10875,9 +10881,9 @@
     await abrirEditor(id); accion('sl-add'); compDe(ed().i).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
   }
 
-  prueba('LZ1', '«Vista cliente» no enseña «+ Cliente», «⇅», «⋯», «+ Hueco» ni «Guardado»; «No se pudo guardar» sí; al quitarla vuelven (D-154)', async () => {
+  prueba('LZ1', '«Vista cliente» no enseña «+ Cliente», «⋯», «+ Hueco» ni «Guardado» (ni «⇅», que ya no está, D-263); «No se pudo guardar» sí; al quitarla vuelven (D-154)', async () => {
     await tablero([pub(1), pub(2)]);
-    const P = ['.appbar .tab.add', '.appbar .xfer', '.tabs .tedit', '.bar [data-act="addfiller"]'];
+    const P = ['.appbar .tab.add', '.tabs .tedit', '.bar [data-act="addfiller"]'];   // sin ⇅ (D-263)
     P.forEach(s => ok(seVe(s), 'no sale sin la vista cliente: ' + s));
     q('.save').classList.remove('err'); q('.save').textContent = 'Guardado';
     await conCliente(async () => {
@@ -10904,15 +10910,15 @@
     ok(/No queda ninguna/.test(dialogo().textContent), 'la lista vacía: ' + dialogo().textContent); sinBoton('la lista de cambiadas vacía'); M._in.closeDetail();
   });
 
-  prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», «⇅», «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
+  prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», el menú de copias (antes ⇅, D-263), «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2)]);
     await poner('r1', [await foto('lz3-a.jpg'), await foto('lz3-b.jpg')]);
     await pulsar('[data-act="newclient"]'); let t = dialogo().textContent;
     ok(!/pestaña vacía|día del mes,/.test(t) && /\(1-28\)/.test(t), 'Nuevo cliente: ' + t); M._in.closeDetail();
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); t = dialogo().textContent;
     ok(!/la de su Instagram|día del mes/.test(t) && /Foto de perfil/.test(t) && /\(1-28; los meses ya cargados conservan el suyo\)/.test(t), 'Editar cliente: ' + t); M._in.closeDetail();
-    await pulsar('.appbar .xfer'); t = dialogo().textContent;
-    ok(!/En el otro Mac/.test(t) && /fotos a 1080 px/.test(t), '⇅: ' + t); M._in.closeDetail();
+    t = mcAbrir().textContent;   // el menú de copias (D-263) dice lo que decía ⇅
+    ok(!/En el otro Mac/.test(t) && /fotos a 1080 px/.test(t), 'copias: ' + t); mcCerrar();
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); t = dialogo().textContent;
     ok(!/En la bandeja de este cliente/.test(t), 'Nueva carpeta: ' + t); M._in.closeDetail();
     M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas'); M._in.closeDetail();
@@ -10999,13 +11005,12 @@
     }
   });
 
-  prueba('LZ11', 'Sin «Cancelar» junto al botón principal: Nuevo cliente, Editar cliente, ⇅, Nueva carpeta, Borrar la carpeta, el bloqueo del mes anterior, «Ya usada» y Descargar fotos; el foco, en la × donde estaba en «Cancelar» o en la página (D-155)', async () => {
+  prueba('LZ11', 'Sin «Cancelar» junto al botón principal: Nuevo cliente, Editar cliente, Nueva carpeta, Borrar la carpeta, el bloqueo del mes anterior, «Ya usada» y Descargar fotos; el foco, en la × donde estaba en «Cancelar» o en la página (D-155)', async () => {
     await limpiar();
     const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [{ id: 'lz11-p', name: 'Foto 0.1', type: 'Foto', date: '2026-10-05T12:00:00.000+02:00' }], force: true });
     ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero: ' + json(r));
     await pulsar('[data-act="newclient"]'); sinBoton('Nuevo cliente'); M._in.closeDetail();
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); sinBoton('Editar cliente'); M._in.closeDetail();
-    await pulsar('.appbar .xfer'); sinBoton('⇅'); M._in.closeDetail();
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); sinBoton('Nueva carpeta'); M._in.closeDetail();
     const c = M.crearCarpeta('LZ11'); M.pedirBorrarCarpeta(c.id);
     await hasta(() => q('.detail [data-act="carpeta-borrar"]'), 2000, 'Borrar la carpeta'); sinBoton('Borrar la carpeta'); focoEnX('Borrar la carpeta'); M._in.closeDetail();
@@ -12770,7 +12775,7 @@
       ok(M._in.root().classList.contains('pp-on') && q('.pp:not([hidden])'), 'la página no está a la vista');
       igual(W.getComputedStyle(q('.main')).display, 'none', 'el tablero se ve detrás');
       const logo = q('.appbar .brand');
-      igual([logo.tagName, logo.title, logo.getAttribute('aria-current')], ['BUTTON', 'Página personal', 'page'], 'el logo');
+      igual([logo.tagName, logo.title, logo.getAttribute('aria-label'), logo.getAttribute('aria-current')], ['BUTTON', 'Clic: tu página · Clic derecho: copias', 'Página personal', 'page'], 'el logo');   // la ayuda del clic derecho (D-263)
       ok(W.getComputedStyle(q('.appbar .tema')).display !== 'none', 'claro / oscuro no sale con la página');
       // una pestaña de cliente la cierra (la del cliente abierto también)
       q(`.tabs [data-act="client"][data-id="${CLIENTE}"]`).click(); await espera(60);
@@ -17011,34 +17016,90 @@
     } finally { await cpFin(); }
   });
 
-  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249): un aviso discreto y fijo en la cabecera, «Haz una copia», abre ⇅ con la explicación y «Exportar todo»; con almacenamiento persistente no sale; ⇅ acepta varios .tar', async () => {
+  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249, D-263): nada en la cabecera; el menú de copias del símbolo lo explica al pie y nombra «Exportar todo»; con almacenamiento persistente no sale', async () => {
     await tablero([pub(1)]);
     const st = W.navigator.storage;
     try {
       st.persisted = async () => false; st.persist = async () => false;
       await M._test.persistencia(true);
-      const b = q('.appbar .persist'); ok(b && !b.hidden && /Haz una copia/.test(b.textContent), 'sin el aviso');
-      ok(/si el disco se llena, puede borrarlos/.test(b.title), 'el title no lo explica');
-      const cs = W.getComputedStyle(b, '::before'); ok(/i-alerta|svg/.test(cs.maskImage || cs.webkitMaskImage || '') || cs.content !== 'none', 'sin icono');
-      b.click(); await espera(30);
-      const d = q('.detail[data-dlg="xfer"]'); ok(d, '«Haz una copia» no abre ⇅');
-      ok(D.activeElement && D.activeElement.dataset.act === 'xfer-todo', 'el foco no va a «Exportar todo»');
-      ok(d.querySelector('[data-act="xfer-todo"]').closest('.form .row'), '«Exportar todo» no va en su fila como los otros botones');
-      ok(d.querySelector('.xaviso') && d.querySelector('[data-act="xfer-todo"]'), 'sin la explicación o sin «Exportar todo»');
-      const inp = d.querySelector('.xferin'); ok(inp.multiple && /\.tar/.test(inp.accept), 'Importar no acepta varios .tar');
-      M._in.closeDetail();
-      // nunca en la «Vista cliente» (D-227): ni se ve ni abre ⇅
-      const vc = q('.clientToggle'); ok(vc, 'sin «Vista cliente»'); if (!vc.checked) vc.click(); await espera(60);
-      igual(W.getComputedStyle(q('.appbar .persist')).display, 'none', 'el aviso sale en la «Vista cliente»');
-      q('.appbar .persist').click(); await espera(30); ok(!q('.detail[data-dlg="xfer"]'), '⇅ se abre en la «Vista cliente»');
-      vc.click(); await espera(60);
+      ok(!q('.appbar .persist') && !qa('.appbar button').some(b => /Haz una copia/.test(b.textContent)), 'sigue «Haz una copia» en la cabecera');
+      let m = mcAbrir(); ok(m, 'sin el menú de copias');
+      const n = m.querySelector('.nota');
+      ok(n && /si el disco se llena, puede borrarlos/.test(n.textContent) && /Exportar todo/.test(n.textContent), 'sin el aviso al pie: ' + (n && n.textContent));
+      ok(m.lastElementChild === n && m.getAttribute('aria-describedby') === n.id, 'el aviso no va al pie o el menú no lo nombra');
+      mcCerrar(); await espera(20);
       st.persisted = async () => true;
       await M._test.persistencia(false);
-      ok(q('.appbar .persist').hidden, 'el aviso sale con almacenamiento persistente');
-      q('.ibtn.xfer').click(); await espera(30);
-      ok(!q('.detail[data-dlg="xfer"] .xaviso'), 'la explicación sale con almacenamiento persistente');
-      M._in.closeDetail();
+      m = mcAbrir(); ok(m && !m.querySelector('.nota'), 'el aviso sale con almacenamiento persistente'); mcCerrar();
     } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
+  });
+
+  prueba('MC1', 'Sin «⇅» ni «Haz una copia» en la cabecera; el símbolo dice «Clic: tu página · Clic derecho: copias»; su clic abre la página personal y su clic derecho el menú de copias (Exportar · Exportar todo · Importar…), sin abrir la página ni una ventana; un clic fuera lo cierra; en «Vista cliente», nada (D-263)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.personal, 8000, 'personal.js');
+    ok(!q('.appbar .xfer') && !q('.appbar [data-act="xfer"]') && !qa('.appbar button').some(b => b.textContent.trim() === '⇅'), 'sigue «⇅» en la cabecera');
+    ok(!q('.appbar .persist'), 'sigue «Haz una copia» en la cabecera');
+    const b = mcLogo();
+    igual([b.tagName, b.title, b.getAttribute('aria-label')], ['BUTTON', 'Clic: tu página · Clic derecho: copias', 'Página personal'], 'el símbolo');
+    paginaCerrada(); await espera(20);
+    const m = mcAbrir(); ok(m, 'el clic derecho no abre el menú de copias');
+    igual(mcItems(m), ['Exportar', 'Exportar todo', 'Importar…'], 'lo que ofrece el menú');
+    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Todos los clientes, con las fotos a 1080 px', 'La copia completa, a su tamaño original', 'Un .json o los .tar de la copia completa'], 'su segunda línea');
+    ok(!M.personal.abierta(), 'el clic derecho abrió la página personal');
+    ok(!q('.detail:not([hidden])'), 'el clic derecho abrió una ventana');
+    igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Exportar', 'el foco no va a la primera');
+    const r = m.getBoundingClientRect(); ok(r.right <= W.innerWidth && r.bottom <= W.innerHeight && r.left >= 0 && r.top >= 0, 'el menú se sale de la ventana');
+    q('.bar').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true })); await espera(20);
+    ok(!q('.cp-copias'), 'un clic fuera no lo cierra');
+    mcLogo().click(); await M.personal.render(); ok(M.personal.abierta(), 'el clic ya no abre la página');
+    ok(mcAbrir(), 'con la página abierta no sale el menú'); mcCerrar(); await espera(20); ok(!q('.cp-copias'), 'Esc no lo cierra');
+    paginaCerrada(); await espera(20);
+    await conCliente(async () => {
+      mcLogo().dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 30, clientY: 20, view: W })); await espera(20);
+      ok(!q('.cp-copias'), 'en «Vista cliente» sale el menú de copias');
+    });
+  });
+
+  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: Exportar exporta, Exportar todo hace la copia completa, Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
+    await tablero([pub(1)]);
+    await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
+    const ex = M.exportAll, cx = M.copia.exportar, im = M.importData, IP = W.HTMLInputElement.prototype, clk = IP.click;
+    const log = []; let inp = null;
+    M.exportAll = () => { log.push('exportar'); return Promise.resolve({}); };
+    M.copia.exportar = () => { log.push('todo'); return Promise.resolve({}); };
+    M.importData = src => { log.push(['importar', Array.isArray(src) ? src.map(f => f.name) : src.name]); return Promise.resolve({}); };
+    IP.click = function () { if (this.type === 'file' && this.classList.contains('xferin')) { inp = this; log.push('elegir'); } else clk.call(this); };
+    try {
+      mcElegir('Exportar'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');
+      mcElegir('Exportar todo'); await espera(20);
+      mcElegir('Importar…'); await espera(20);
+      igual(log, ['exportar', 'todo', 'elegir'], 'lo que hizo cada opción');
+      ok(inp && inp.multiple && /\.json/.test(inp.accept) && /\.tar/.test(inp.accept), 'Importar no acepta un .json o varios .tar');
+      const pon = fs => { const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
+      pon([new W.File(['{}'], 'mesa.json', { type: 'application/json' })]); await espera(20);
+      pon([new W.File(['a'], 'mesa-uno.tar'), new W.File(['b'], 'mesa-general.tar')]); await espera(20);
+      igual(log.slice(3), [['importar', 'mesa.json'], ['importar', ['mesa-uno.tar', 'mesa-general.tar']]], 'lo que llegó a importar');
+      igual(inp.value, '', 'el campo no se vacía (elegir lo mismo otra vez no haría nada)');
+    } finally { M.exportAll = ex; M.copia.exportar = cx; M.importData = im; IP.click = clk; }
+  });
+
+  prueba('MC3', 'El menú de copias con el teclado: ⇧F10 o la tecla de menú en el símbolo lo abren bajo él con el foco en «Exportar», ↑ ↓ lo recorren en círculo, Esc lo cierra y devuelve el foco al símbolo sin llegar al tablero (D-263)', async () => {
+    await tablero([pub(1)]); await hasta(() => M.personal, 8000, 'personal.js'); paginaCerrada(); await espera(20);
+    const b = mcLogo(); b.focus();
+    tecla('F10', { shift: true, en: b }); await espera(20);
+    const m = q('.cp-copias'); ok(m, '⇧F10 no abre el menú');
+    const r = m.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    ok(r.top >= rb.bottom - 2 && Math.abs(r.left - rb.left) < 12, 'desde el teclado no sale bajo el símbolo: ' + json([r.left, r.top, rb.left, rb.bottom]));
+    const foco = () => D.activeElement && D.activeElement.firstChild && D.activeElement.firstChild.textContent.trim();
+    igual(foco(), 'Exportar', 'el foco al abrir');
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar todo', '↓');
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Importar…', '↓ otra vez');
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar', '↓ no vuelve arriba');
+    tecla('ArrowUp', { en: D.activeElement }); igual(foco(), 'Importar…', '↑ no va al último');
+    let llego = false; const oy = () => { llego = true; }; D.addEventListener('keydown', oy);
+    try { tecla('Escape', { en: D.activeElement }); await espera(20); } finally { D.removeEventListener('keydown', oy); }
+    ok(!q('.cp-copias'), 'Esc no lo cierra'); ok(D.activeElement === mcLogo(), 'el foco no vuelve al símbolo'); ok(!llego, 'el Esc llegó al tablero');
+    tecla('ContextMenu', { en: mcLogo() }); await espera(20); ok(q('.cp-copias'), 'la tecla de menú no lo abre'); mcCerrar(); await espera(20);
   });
 
   prueba('CP7', 'Lo que se ve de «Exportar todo» (D-249, arreglos de la revisión): en oscuro se ven las líneas entre filas; un doble clic descarga una vez; cerrar mientras se prepara no da error y suelta la mesa; cerrar con archivos sin descargar lo dice; un cliente que no se pudo preparar se reintenta; el diálogo de escribir una copia se cierra como «Cancelar»; la confirmación dice «Importar la copia»', async () => {
@@ -18036,7 +18097,7 @@
     } finally { await ftFin(id ? [id] : []); }
   });
 
-  prueba('FT6', '«Entrar y traer tu Mesa» (D-259): en un navegador sin la nube y con proyecto, en ⇅ (en la cabecera, solo sin Mesa) y nunca en «Vista cliente»; activar() no sube lo de aquí si arriba ya hay una Mesa; apartar «antes» saca un registro de la Mesa y lo guarda en «quedó sin subir»', async () => {
+  prueba('FT6', '«Entrar y traer tu Mesa» (D-259): en un navegador sin la nube y con proyecto, en la cabecera solo sin Mesa, nunca en el menú de copias (D-263: con la entrada de D-262 ya no hace falta) ni en «Vista cliente»; activar() no sube lo de aquí si arriba ya hay una Mesa; apartar «antes» saca un registro de la Mesa y lo guarda en «quedó sin subir»', async () => {
     await tablero([pub(1)]);
     const S0 = M._in.supa, sb = { usuario: () => ({ id: 'u', email: 'k@prueba.test' }), alCambiar: () => () => {}, rpc: async () => ({ ok: true, orden: 7, turno: 1, tuyo: false, libre: true, tiene: null, epoca: 'e', version_minima: '0.0' }) };
     try {
@@ -18044,9 +18105,8 @@
       M.nube._estado({ fase: 'apagada' });
       const b = q('.appbar .nubest');
       ok(b && b.hidden, 'con una Mesa con clientes sale en la cabecera (solo en un navegador sin Mesa): ' + (b && b.outerHTML.slice(0, 200)));
-      q('.appbar [data-act="xfer"]').click(); await espera(80);
-      const t = q('.detail:not([hidden])[data-dlg="xfer"] [data-nube="traer"]');
-      ok(t && /Entrar y traer tu Mesa/.test(t.textContent), 'no está en ⇅'); M._in.closeDetail();
+      const mc = mcAbrir(); ok(mc, 'sin el menú de copias');
+      ok(!mc.querySelector('[data-nube="traer"]') && !/Entrar y traer/.test(mc.textContent), 'el menú de copias ofrece «Entrar y traer tu Mesa»'); mcCerrar(); await espera(20);
       const vc = q('.clientToggle'); if (vc && !vc.checked) vc.click(); await espera(60); ok(!q('.appbar .nubest:not([hidden])') || W.getComputedStyle(b).display === 'none', 'se ve en «Vista cliente»'); if (vc && vc.checked) vc.click(); await espera(30);
       const r = await M.nube.activar(); ok(r && r.error && /Entrar y traer/.test(r.error), 'activar() sobre una Mesa que ya está arriba: ' + json(r));
       await M._in.idbPut('ubicaciones', 'ub-ft6', { id: 'ub-ft6', nombre: 'De antes' });

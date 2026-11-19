@@ -15,12 +15,15 @@ cp portal/supa.js "$D/portal/"                    # del portal, solo su cliente 
 # y de su marca, lo que pide la Mesa: el logo de la entrada (D-262) y el monograma de «Vista cliente» (D-264)
 MARCA="portal/marca/logo-ink.svg portal/marca/logo-paper.svg portal/marca/monograma.svg"
 mkdir -p "$D/portal/marca"; for m in $MARCA; do cp "$m" "$D/portal/marca/"; done
+# los iconos de la pestaña y del iPhone (D-265): lo que piden los <link rel="icon"> y <link rel="apple-touch-icon"> de index.html
+ICONOS=$(grep -oE '<link rel="(icon|apple-touch-icon)"[^>]*' index.html | grep -oE 'href="[^"?]*' | sed 's/^href="//')
+for i in $ICONOS; do if [ -f "$i" ]; then mkdir -p "$D/$(dirname "$i")"; cp "$i" "$D/$i"; fi; done
 # las cabeceras: la CSP es la del <meta> de index.html (D-252), la misma, más «frame-ancestors 'none'», que un <meta> no admite
 CSP=$(grep -o 'Content-Security-Policy" content="[^"]*' index.html | sed 's/^Content-Security-Policy" content="//')
 [ -n "$CSP" ] || { echo "publicar-mesa: index.html sin su CSP" >&2; exit 1; }
 sed "s|{CSP}|$CSP|" tools/mesa.headers > "$D/_headers"
-# cada script que pide la página y el worker de las fotos (no está en la página: lo crea nube.js)
-for s in $(grep -o 'src="[^"?]*' index.html | sed 's/^src="//') nube-fotos.js $MARCA; do
+# cada script que pide la página, el worker de las fotos (no está en la página: lo crea nube.js), la marca y los iconos
+for s in $(grep -o 'src="[^"?]*' index.html | sed 's/^src="//') nube-fotos.js $MARCA $ICONOS; do
   [ -f "$D/$s" ] || { echo "publicar-mesa: falta $s" >&2; exit 1; }
 done
 # nada que no sea de la Mesa

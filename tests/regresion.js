@@ -12054,9 +12054,10 @@
     } finally { caja.remove(); M.libre.cerrar(); }
   });
 
-  prueba('AJ5', 'Sin petición de /favicon.ico en cada carga: un icono vacío en la página, sin icono visible (D-176)', async () => {
+  prueba('AJ5', 'Sin petición de /favicon.ico en cada carga: la página dice su icono (D-176; desde D-265, el de la marca, ver IC1)', async () => {
     const html = await (await W.fetch('index.html', { cache: 'no-store' })).text();
-    ok(/<link rel="icon" href="data:,">/.test(html), 'index.html sin el icono vacío');
+    const hs = [...html.matchAll(/<link rel="icon"[^>]*href="([^"]+)"/g)].map(m => m[1]);
+    ok(hs.length && hs.every(h => !/(^|\/)favicon\.ico$/.test(h)), 'index.html sin su icono o con /favicon.ico: ' + hs.join(', '));
   });
 
   prueba('AJ6', 'Campos de los diálogos con letra de 13 px, como el resto (D-176)', async () => {
@@ -17123,6 +17124,22 @@
     };
     const t0 = D.documentElement.dataset.theme;
     try { await ver(false); await ver(true); } finally { if (t0) D.documentElement.dataset.theme = t0; else delete D.documentElement.dataset.theme; }
+  });
+
+  prueba('IC1', 'El icono de Uribe Visuals (D-265): la Mesa y las páginas del portal piden el monograma en SVG, un PNG de 32 px y el de 180 px para el iPhone, todos de portal/marca y que cargan; ninguna lleva el icono vacío', async () => {
+    const paginas = [['../index.html', '../'], ['../portal/index.html', '../portal/'], ['../portal/privacidad.html', '../portal/'], ['../portal/aviso-legal.html', '../portal/']];
+    for (const [url, base] of paginas) {
+      const doc = new DOMParser().parseFromString(await (await fetch(url, { cache: 'no-store' })).text(), 'text/html');
+      const ls = [...doc.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')].map(l => ({ rel: l.getAttribute('rel'), href: l.getAttribute('href'), type: l.getAttribute('type') || '', sizes: l.getAttribute('sizes') || '' }));
+      ok(!ls.some(l => /^data:/.test(l.href)), url + ' sigue con el icono vacío');
+      const svg = ls.find(l => l.rel === 'icon' && l.type === 'image/svg+xml'), png = ls.find(l => l.rel === 'icon' && l.sizes === '32x32'), ap = ls.find(l => l.rel === 'apple-touch-icon');
+      ok(svg && png && ap, url + ' sin sus tres iconos: ' + json(ls));
+      for (const [l, px] of [[svg, 0], [png, 32], [ap, 180]]) {
+        ok(/(^|\/)marca\/(monograma\.svg|icono-(32|180)\.png)$/.test(l.href), url + ' pide un icono fuera de portal/marca: ' + l.href);
+        const r = await fetch(base + l.href, { cache: 'no-store' }); ok(r.ok, url + ': no carga ' + l.href);
+        if (px) { const b = await createImageBitmap(await r.blob()); igual([b.width, b.height], [px, px], url + ': el tamaño de ' + l.href); }
+      }
+    }
   });
 
   prueba('CP7', 'Lo que se ve de «Exportar todo» (D-249, arreglos de la revisión): en oscuro se ven las líneas entre filas; un doble clic descarga una vez; cerrar mientras se prepara no da error y suelta la mesa; cerrar con archivos sin descargar lo dice; un cliente que no se pudo preparar se reintenta; el diálogo de escribir una copia se cierra como «Cancelar»; la confirmación dice «Importar la copia»', async () => {

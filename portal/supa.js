@@ -3,7 +3,7 @@
 // La sesión vive en localStorage bajo `clave` (por origen); nunca se escribe en consola ni en avisos.
 (function () {
   'use strict';
-  var V = '1.1';
+  var V = '1.2';
 
   function SupaError(mensaje, status, codigo) { this.name = 'SupaError'; this.message = mensaje; this.status = status || 0; this.codigo = codigo || ''; }
   SupaError.prototype = Object.create(Error.prototype);
@@ -31,10 +31,12 @@
       if (op.tipo) h['Content-Type'] = op.tipo;
       if (op.prefer) h.Prefer = op.prefer;
       if (op.upsert) h['x-upsert'] = 'true';
+      if (op.binario) h.Accept = '*/*';
       var ctl = typeof AbortController === 'function' ? new AbortController() : null, t = ctl && setTimeout(function () { ctl.abort(); }, op.espera || 20000);
       return fetch(url + ruta, { method: op.metodo || 'GET', headers: h, body: op.json !== undefined ? JSON.stringify(op.json) : op.cuerpo, signal: ctl && ctl.signal })
         .then(function (r) {
           if (t) clearTimeout(t);
+          if (op.binario && r.ok) return r.blob();   // un archivo (la Mesa, lote 4): sus bytes tal cual
           return r.text().then(function (txt) {
             var j = null; try { j = txt ? JSON.parse(txt) : null; } catch (e) { /* no es JSON */ }
             if (!r.ok) {
@@ -107,10 +109,15 @@
       actualizar: function (ruta, campos, op) { return conToken('/rest/v1/' + ruta, { metodo: 'PATCH', json: campos, prefer: op && op.devolver ? 'return=representation' : 'return=minimal' }); },
       borrar: function (ruta) { return conToken('/rest/v1/' + ruta, { metodo: 'DELETE' }); },
       rpc: function (fn, args) { return conToken('/rest/v1/rpc/' + fn, { metodo: 'POST', json: args || {} }); },
-      // Archivos. Una ruta ya existente cuenta como subida (los nombres son la huella del contenido).
+      // Archivos. Una ruta ya existente cuenta como subida (los nombres son la huella del contenido): solo el 409 (o un cuerpo
+      // con `statusCode` 409, «Duplicate»), nunca otro error cuyo texto diga «exist».
       subir: function (bucket, ruta, blob, tipo) {
-        return conToken('/storage/v1/object/' + bucket + '/' + ruta, { metodo: 'POST', cuerpo: blob, tipo: tipo || blob.type, espera: 60000 })
-          .then(function () { return true; }, function (e) { if (e.status === 409 || /exist|duplicate/i.test(e.message)) return true; throw e; });
+        return conToken('/storage/v1/object/' + bucket + '/' + ruta, { metodo: 'POST', cuerpo: blob, tipo: tipo || blob.type, espera: 120000 })
+          .then(function () { return true; }, function (e) { if (e.status === 409 || String(e.codigo) === '409') return true; throw e; });
+      },
+      // Los bytes de un archivo privado, con la sesión (la Mesa, lote 4): Blob.
+      archivo: function (bucket, ruta) {
+        return conToken('/storage/v1/object/authenticated/' + bucket + '/' + ruta, { binario: true, espera: 120000 });
       },
       // Los nombres de una carpeta, por páginas de 1000.
       listar: function (bucket, prefijo) {

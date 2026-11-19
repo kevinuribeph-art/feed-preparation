@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 19, V_IDB = 23;   // IndexedDB 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 19, V_IDB = 24;   // IndexedDB 24 desde la 4.33 (la marca «copia» de una foto que bajó como copia de trabajo, D-259); 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -17219,7 +17219,7 @@
     }
     igual(malas, [], 'accesos a IndexedDB fuera de tx() (o la vía sin diario fuera de mesa.js)');
     igual(accesos, 6, 'los accesos crudos de mesa.js, todos en sus líneas «idb-crudo» (la apertura, la actualización de versión y txCon)');
-    igual(sin, 27, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256)');
+    igual(sin, 33, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256; el lote 4: el registro de los archivos y las fotos que bajan, D-259)');
     // dentro de una transacción con diario, una escritura por el almacén crudo (req.source): la guarda la ve
     const antes0 = djFugas.length;
     await M._in.xfer.tx('ubicaciones', 'readwrite', st => { const g = st.count(); g.onsuccess = () => { g.source.put({ id: 'ub-fuga2' }, 'ub-fuga2'); }; });
@@ -17882,6 +17882,143 @@
   });
 
   // ---------- la CSP de la Mesa (D-252) ----------
+  // ---------- las fotos de la nube, lote 4 del traspaso (D-259) ----------
+  const ftHuella = async b => [...new Uint8Array(await W.crypto.subtle.digest('SHA-256', await b.arrayBuffer()))].map(x => x.toString(16).padStart(2, '0')).join('');
+  async function ftJpeg(w, h, color = '#7a4a3c') {
+    const c = D.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.fillRect(0, 0, w / 3, h / 3);
+    return new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+  }
+  // un servidor y un almacén de archivos de mentira (nunca la red): registros por número de orden, un turno, archivos en memoria
+  function ftMundo() {
+    const reg = new Map(), arch = new Map(), llamadas = [], subidas = []; let orden = 0, turno = 0, tiene = null;
+    const base = () => ({ ok: true, epoca: 'e-ft', hora: new Date().toISOString(), version_minima: '0.0' });
+    const T = d => ({ ...base(), turno, tuyo: !!tiene && tiene === d, libre: !tiene, tiene: tiene ? { dispositivo: tiene } : null, pide: null, orden });
+    const sv = { rpc: async (fn, a) => {
+      llamadas.push(fn);
+      if (fn === 'mesa_turno_ver' || fn === 'mesa_turno_latido' || fn === 'mesa_turno_pedir') return T(a.dispositivo);
+      if (fn === 'mesa_turno_reclamar') { if (tiene && tiene !== a.dispositivo) return { ok: false, error: { codigo: 'turno', http: 423 } }; if (tiene !== a.dispositivo) { tiene = a.dispositivo; turno++; } return T(a.dispositivo); }
+      if (fn === 'mesa_turno_soltar') { tiene = null; return T(a.dispositivo); }
+      if (fn === 'mesa_bajar') { const l = [...reg.values()].filter(x => x.orden > a.desde).sort((x, y) => x.orden - y.orden), p = l.slice(0, a.limite || 500); return { ...base(), filas: JSON.parse(JSON.stringify(p)), hasta: p.length ? p[p.length - 1].orden : orden, mas: l.length > p.length, orden }; }
+      if (fn === 'mesa_actividad') return { ...base(), filas: [], hasta: a.desde, mas: false };
+      if (fn === 'mesa_escribir') return { ...base(), turno, orden, resultados: a.cambios.map(c => { const k = c.almacen + '|' + c.clave, v = reg.get(k), nv = (v ? v.version : 0) + 1; orden++; reg.set(k, { almacen: c.almacen, clave: c.clave, valor: JSON.parse(JSON.stringify(c.valor)), version: nv, orden, borrado: c.valor === null, dispositivo: a.dispositivo, turno }); return { almacen: c.almacen, clave: c.clave, estado: 'ok', version: nv, orden }; }) };
+      return { ok: false, error: { codigo: 'forma', http: 400 } };
+    } };
+    const al = { subir: async (b, ruta, blob, tipo) => { subidas.push(ruta); arch.set(ruta, new W.Blob([await blob.arrayBuffer()], { type: tipo })); return true; },
+      archivo: async (b, ruta) => { if (!arch.has(ruta)) throw Object.assign(new Error('no está'), { status: 404 }); return arch.get(ruta); },
+      listar: async (b, pref) => [...arch.keys()].filter(k => k.startsWith(pref + '/')).map(k => k.slice(pref.length + 1)) };
+    return { sv, al, reg, arch, llamadas, subidas, valor: (a, k) => (reg.get(a + '|' + k) || {}).valor };
+  }
+  const ftEncender = async F => { M._in.NUBE.activa = true; await M._in.diario.vaciar(); const n = M.nube._con(F.sv, F.al), r = await n.abrir(); igual(r.modo, 'turno', 'abrir con el turno'); M._in.NUBE.alDia = true; return n; };
+  // un registro que bajó de otro ordenador con sus referencias (la copia de trabajo y la miniatura, ya en el almacén de mentira)
+  async function ftBajada(F, id, { w = 6000, h = 4000, nombre = id + '.jpg' } = {}) {
+    const k = 2560 / Math.max(w, h), cw = Math.round(w * k), ch = Math.round(h * k), copia = await ftJpeg(cw, ch), mini = await ftJpeg(Math.round(cw / 4), Math.round(ch / 4), '#3c4a7a');
+    const sc = await ftHuella(copia), sm = await ftHuella(mini), so = 'ab'.repeat(32);
+    F.arch.set(`files/${sc}.jpg`, copia); F.arch.set(`files/${sm}.jpg`, mini);
+    const ref = { __blob: 'pendiente', sha256: so, tam: 25000000, tipo: 'image/jpeg', nombre, fecha: 1, ruta: `files/${sc}.jpg`, trabajo: { sha256: sc, tam: copia.size, tipo: 'image/jpeg', w: cw, h: ch } };
+    const refM = { __blob: 'pendiente', sha256: sm, tam: mini.size, tipo: 'image/jpeg', ruta: `files/${sm}.jpg` };
+    const rec = { name: nombre, size: 25000000, type: 'image/jpeg', w, h, lastModified: 1, blob: ref, thumb: refM };
+    await M._in.nubeAlmacen.aplicar({ escribir: [{ a: 'files', k: id, valor: rec, v: 1, o: 1 }], refs: [ref, refM] });
+    return { rec, ref, refM, copia, cw, ch };
+  }
+  const ftFin = async ids => { await nbLimpiar(); await M._in.diario.sinDiario('files', 'readwrite', s => ids.forEach(k => s.delete(k))); ids.forEach(f => M._in.soltarArchivo(f)); await M._in.diario.vaciar(); };
+
+  prueba('FT1', 'Con la nube apagada no se hace ninguna copia ni sale nada (D-259): añadir una foto grande no crea el worker, no encola, no apunta huellas y no llama al almacén', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), W0 = W.Worker; let nw = 0;
+    W.Worker = function (...a) { nw++; return new W0(...a); };
+    try {
+      M._in.NUBE.activa = false;
+      await M.addFiles([await foto('ft1.jpg', 3200, 2000)]); await M.flush(); await espera(1500);
+      igual(nw, 0, 'se creó el worker de las fotos'); igual(M.nube.fotos().enCola, 0, 'algo en la cola de fotos');
+      igual((await M._in.nubeAlmacen.registro()).h.length, 0, 'se apuntó la huella de una foto');
+      igual(F.subidas.length + F.llamadas.length, 0, 'salió algo al almacén o al servidor');
+    } finally { W.Worker = W0; await nbLimpiar(); await M._in.diario.vaciar(); }
+  });
+
+  prueba('FT2', 'Las fotos suben solas con la nube (D-259): su copia de 2560 px y su miniatura van al almacén; el registro sube después, con la ruta y con la huella y el tamaño del original; aquí el original no cambia y nada de la copia se guarda', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(); let id = null;
+    try {
+      const n = await ftEncender(F);
+      const f = await foto('ft2.jpg', 3200, 2000); await M.addFiles([f]); await M.flush();
+      id = Object.keys(M.files).find(k => M.files[k].name === 'ft2.jpg'); ok(id, 'la foto no entró');
+      const r0 = await M._in.idbGet('files', id), h0 = await ftHuella(r0.blob);
+      await hasta(async () => { await n.tic(); return !!F.valor('files', id); }, 40000, 'que suba el registro de la foto');
+      const v = F.valor('files', id);
+      ok(v.blob.ruta && v.blob.trabajo && v.blob.trabajo.w === 2560 && v.blob.trabajo.h === 1600 && v.blob.tam === f.size && v.blob.sha256 === h0, 'la referencia de la foto: ' + json(v.blob));
+      const c = F.arch.get(v.blob.ruta), bmp = await W.createImageBitmap(c);
+      ok(bmp.width === 2560 && bmp.height === 1600 && c.type === 'image/jpeg' && (await ftHuella(c)) === v.blob.trabajo.sha256, 'la copia de trabajo arriba: ' + bmp.width + '×' + bmp.height); bmp.close();
+      ok(v.thumb.ruta && F.arch.has(v.thumb.ruta) && !v.thumb.trabajo && v.thumb.sha256 === (await ftHuella(r0.thumb)), 'la miniatura sube tal cual: ' + json(v.thumb));
+      ok(F.subidas.indexOf(v.blob.ruta) >= 0 && F.llamadas.lastIndexOf('mesa_escribir') > -1, 'el orden: primero los archivos');
+      const r1 = await M._in.idbGet('files', id);
+      ok(!r1.copia && r1.blob.size === f.size && (await ftHuella(r1.blob)) === h0, 'el original de aquí cambió');
+      igual(await M._in.diario.contar(), 0, 'quedó algo en el diario');
+      const n0 = F.subidas.length; await M._in.idbPut('files', id, { ...r1, de: CLIENTE }); await espera(3200); await n.tic(); await hasta(async () => { await n.tic(); return F.valor('files', id).de === CLIENTE; }, 15000, 'que suba el cambio');
+      igual(F.subidas.length, n0, 'cambiar el registro volvió a subir sus archivos');
+    } finally { await ftFin(id ? [id] : []); }
+  });
+
+  prueba('FT3', 'En otro aparato la foto baja cuando se ve (D-259): la miniatura al verla (la casilla cambia en su sitio, sin redibujar), la copia al pedirla, con la marca «copia» y sus medidas reales, sin diario; lo que sube de ella es la referencia del original y otra versión bajada conserva la copia', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), id = 'fft3';
+    try {
+      await ftEncender(F);
+      const { ref, cw, ch } = await ftBajada(F, id);
+      M._test.setSlot('r1', { photos: [id] }); await M.flush(); M._in.soltarArchivo(id); await M._in.diario.vaciar();
+      const d0 = await M._in.diario.contar();
+      await M.open(M.board().key);
+      const img0 = celda('r1') && celda('r1').querySelector('img');
+      await hasta(() => M.files[id] && !M.files[id].pendiente === false && M.thumbBlobs[id] && M.thumbBlobs[id].size > 100, 15000, 'que baje la miniatura');
+      await hasta(() => { const i = celda('r1') && celda('r1').querySelector('img'); return i && i.getAttribute('src') === M.files[id].thumbUrl; }, 5000, 'que la casilla enseñe la miniatura');
+      ok(img0 && img0.isConnected, 'la casilla se volvió a dibujar entera');
+      ok(M.files[id].pendiente && M.files[id].copia && M.files[id].copia.falta, 'la foto aún arriba: ' + json(M.files[id]));
+      const b = await M._in.getBlob(id), bmp = await W.createImageBitmap(b); ok(bmp.width === cw && bmp.height === ch, 'la copia bajada: ' + bmp.width + '×' + bmp.height); bmp.close();
+      const rec = await M._in.idbGet('files', id);
+      ok(rec.copia && rec.copia.w === cw && rec.copia.h === ch && rec.copia.ref.sha256 === ref.sha256 && rec.w === 6000 && rec.size === 25000000, 'el registro con su marca: ' + json({ copia: rec.copia, w: rec.w, size: rec.size }));
+      ok(M.files[id].copia && !M.files[id].copia.falta && M.files[id].copia.w === cw && !M.files[id].pendiente, 'lo que sabe la Mesa: ' + json(M.files[id]));
+      const dj = (await M._in.diario.leer()).filter(e => e.a === 'files' || e.a === 'tfotos');
+      igual(dj.map(e => e.a + '/' + e.k), [], 'bajar la miniatura o la copia se apuntó en el diario (antes: ' + d0 + ')');
+      const [L] = await M._in.nubeAlmacen.leerVarios([['files', id]]);
+      ok(!('copia' in L.valor) && L.valor.blob.sha256 === ref.sha256 && L.valor.blob.ruta === ref.ruta && L.valor.blob.trabajo, 'lo que sube de ella no es la referencia del original: ' + json(L.valor.blob));
+      await M._in.nubeAlmacen.aplicar({ escribir: [{ a: 'files', k: id, valor: { ...(F.valor('files', id) || {}), name: 'otra.jpg', size: 25000000, type: 'image/jpeg', w: 6000, h: 4000, blob: ref, thumb: (await M._in.idbGet('files', id)).thumb }, v: 2, o: 2 }] });
+      const r2 = await M._in.idbGet('files', id);
+      ok(r2.name === 'otra.jpg' && r2.copia && r2.blob instanceof W.Blob && r2.blob.size === b.size, 'otra versión bajada perdió la copia: ' + json({ name: r2.name, copia: !!r2.copia }));
+    } finally { M._test.setSlot('r1', { photos: [] }); await M.flush(); await ftFin([id]); }
+  });
+
+  prueba('FT5', 'subirTodo y comprobar (D-259): sube todos los almacenes (también lo de antes del diario), con sus fotos; repetirlo no sube nada; comprobar da verde con todo arriba y rojo si falta un archivo', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(); let id = null;
+    try {
+      await M.addFiles([await foto('ft5.jpg', 3000, 2000)]); await M.flush();
+      id = Object.keys(M.files).find(k => M.files[k].name === 'ft5.jpg');
+      await M._in.diario.vaciar();   // como lo de antes de la 4.31: sin nota
+      const n = await ftEncender(F); void n;
+      const r = await M.nube.subirTodo();
+      ok(r && !r.error && !r.cortado && r.subidos > 0 && F.valor('files', id) && F.valor('files', id).blob.ruta && F.valor('boards', M.board().key), 'subirTodo: ' + json(r));
+      const r2 = await M.nube.subirTodo(); igual(r2.subidos, 0, 'repetirlo subió otra vez');
+      let c = await M.nube.comprobar(); ok(c.verde && c.registros.aqui === c.registros.iguales && !('valor' in c), 'comprobar: ' + json(c));
+      F.arch.delete(F.valor('files', id).blob.ruta);
+      c = await M.nube.comprobar(); ok(!c.verde && c.archivos.faltan === 1, 'un archivo que falta no se ve: ' + json(c));
+    } finally { await ftFin(id ? [id] : []); }
+  });
+
+  prueba('FT6', '«Entrar y traer tu Mesa» (D-259): en un navegador sin la nube y con proyecto, en la cabecera y nunca en «Vista cliente»; activar() no sube lo de aquí si arriba ya hay una Mesa; apartar «antes» saca un registro de la Mesa y lo guarda en «quedó sin subir»', async () => {
+    await tablero([pub(1)]);
+    const S0 = M._in.supa, sb = { usuario: () => ({ id: 'u', email: 'k@prueba.test' }), alCambiar: () => () => {}, rpc: async () => ({ ok: true, orden: 7, turno: 1, tuyo: false, libre: true, tiene: null, epoca: 'e', version_minima: '0.0' }) };
+    try {
+      M._in.supa = () => sb; M._in.NUBE.activa = false;
+      M.nube._estado({ fase: 'apagada' });
+      const b = q('.appbar .nubest');
+      ok(b && !b.hidden && b.dataset.k === 'traer' && /Entrar y traer tu Mesa/.test(b.textContent) && b.dataset.nube === 'traer', 'no está en la cabecera: ' + (b && b.outerHTML.slice(0, 200)));
+      const vc = q('.clientToggle'); if (vc && !vc.checked) vc.click(); await espera(60); igual(W.getComputedStyle(b).display, 'none', 'se ve en «Vista cliente»'); if (vc && vc.checked) vc.click(); await espera(30);
+      const r = await M.nube.activar(); ok(r && r.error && /Entrar y traer/.test(r.error), 'activar() sobre una Mesa que ya está arriba: ' + json(r));
+      await M._in.idbPut('ubicaciones', 'ub-ft6', { id: 'ub-ft6', nombre: 'De antes' });
+      await M._in.nubeAlmacen.apartar([{ a: 'ubicaciones', k: 'ub-ft6', v: null, motivo: 'antes', quitar: true }]);
+      ok(!(await M._in.idbGet('ubicaciones', 'ub-ft6')) && (await M._in.nubeAlmacen.sinSubir()).some(x => x.k === 'ub-ft6' && x.motivo === 'antes' && x.valor.nombre === 'De antes'), 'apartar «antes» no la sacó o la perdió');
+    } finally { M._in.supa = S0; M.nube._estado({ fase: 'apagada' }); await nbLimpiar(['ub-ft6']); await M._in.diario.vaciar(); }
+  });
+
   prueba('CS1', 'La CSP de la Mesa (D-252): un <meta> lo primero del <head>, script-src \'self\' sin \'unsafe-inline\' ni \'unsafe-eval\'; ni un <script> en línea ni un manejador on…= en index.html; tema, arranque y vigilante en archivos, sin async y en su orden; un módulo que no llega sigue siendo «fallo»', async () => {
     const html = await (await W.fetch('index.html?cs=' + Date.now(), { cache: 'no-store' })).text(), sin = html.replace(/<!--[\s\S]*?-->/g, '');
     const head = sin.slice(sin.indexOf('<head>') + 6, sin.indexOf('</head>')).trim();

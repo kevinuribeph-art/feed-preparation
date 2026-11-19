@@ -351,8 +351,8 @@ function almacenSimulado(reloj) {
     },
     async claves(a) { return [...de(a).keys()]; },
     async conocidas(a) { const o = {}; for (const [kk, x] of vers) { const [aa, k] = JSON.parse(kk); if (aa === a) o[k] = { ...x }; } return o; },
-    async aplicar({ escribir = [], saltar = [], aparte = [], cursor, epoca } = {}) {
-      A.espia.aplicar++;
+    async aplicar({ escribir = [], saltar = [], aparte = [], cursor, epoca, refs = [] } = {}) {
+      A.espia.aplicar++; A.espia.refs = (A.espia.refs || []).concat(refs);
       for (const e of aparte) {
         const { ficha: f, ...resto } = e;
         sinSubir.set(KD(e.a, e.k), { ...resto, valor: copia(e.valor), t: reloj.t });
@@ -373,7 +373,8 @@ function almacenSimulado(reloj) {
       for (const e of lista) {
         const { v, ...resto } = e, cur = e.k == null ? undefined : de(e.a).get(e.k);
         sinSubir.set(KD(e.a, e.k), { ...resto, valor: copia(cur), borrado: e.k != null && cur === undefined, t: reloj.t });
-        const d = diario.get(KD(e.a, e.k)); if (d && (v === undefined || d.v === v)) diario.delete(KD(e.a, e.k));
+        if (e.quitar && e.k != null) de(e.a).delete(e.k);   // lote 4: apartado y fuera de la Mesa («antes»)
+        const d = diario.get(KD(e.a, e.k)); if (d && (v === undefined || v === null || d.v === v)) diario.delete(KD(e.a, e.k));
       }
     },
     async sinSubir() { return [...sinSubir.values()].map(x => ({ ...x, valor: copia(x.valor) })); },
@@ -413,10 +414,10 @@ let semilla = 0;
 function mundo() {
   const reloj = relojFalso(), srv = servidorSimulado(reloj);
   const W = { reloj, srv, S: srv.S };
-  W.nodo = (disp, { alm = almacenSimulado(reloj), hooks = {} } = {}) => {
+  W.nodo = (disp, { alm = almacenSimulado(reloj), hooks = {}, archivo } = {}) => {
     const dueno = 'nodo' + ++semilla, cli = srv.cliente(dueno), efectos = efectosEspia(reloj, hooks);
     const nucleo = N.crear({ servidor: { rpc: (fn, args) => cli.rpc(fn, args) }, almacen: alm, reloj: { ahora: () => reloj.t, esperar: ms => reloj.esperar(ms, dueno) },
-      dispositivo: disp, app: APP, huella, efectos });
+      dispositivo: disp, app: APP, huella, efectos, ...(archivo ? { archivo } : {}) });
     alm.nucleo = nucleo;
     const x = { disp, alm, cli, efectos, n: nucleo, dueno, errores: [], congelado: false };
     x.congelar = () => { x.congelado = true; reloj.congelar(dueno); cli.congelado = true; };
@@ -930,6 +931,128 @@ await grupo('NS11 segunda ronda de revisión', async () => {
     const ss = await A.alm.sinSubir();
     ok([...Array(10).keys()].every(i => sv.vivo('boards', 'v' + i)) && ss.filter(e => e.motivo === 'masivo').length === 10, 'NS11.4 vaciar un almacén pequeño entero no borra arriba: cada lápida espera a Kevin («masivo»)', { ss: ss.length });
   }
+});
+
+
+// ── Lote 4: fotos ──
+// Un almacén de archivos simulado: «sube» cuando la prueba lo dice; la copia de trabajo, otra huella y otra ruta.
+function archivosSimulados() {
+  const F = { listos: new Set(), subidas: [], esperas: [], malos: new Set(), red: false, rutas: new Set() };
+  F.hook = async (a, k, ruta, blob, { esperar }) => {
+    const sh = sha(Buffer.from(await blob.arrayBuffer()));
+    if (F.malos.has(sh)) throw Object.assign(new Error('el almacén no admite este archivo (simulado)'), { codigo: 'archivo' });
+    const grande = a === 'files' && ruta === 'el valor.blob' && blob.size > 10;
+    const r = grande ? { sha256: sh, ruta: 'files/' + sha('copia:' + sh) + '.jpg', trabajo: { sha256: sha('copia:' + sh), tam: 5, tipo: 'image/jpeg', w: 2560, h: 1707 } } : { sha256: sh, ruta: a + '/' + sh + '.jpg' };
+    if (F.listos.has(sh)) return r;
+    F.subidas.push(sh);
+    if (esperar) { if (F.red) throw Object.assign(new Error('sin conexión (simulado)'), { codigo: 'red' }); F.listos.add(sh); F.rutas.add(r.ruta); return r; }
+    return null;
+  };
+  F.subirTodas = () => { for (const sh of F.subidas) F.listos.add(sh); };
+  return F;
+}
+const foto = (t, tipo = 'image/jpeg') => new Blob([t], { type: tipo });
+
+await grupo('NS12 fotos: el registro espera a sus archivos', async () => {
+  const F = archivosSimulados(), W = mundo(), sv = W.srv;
+  const A = W.nodo(DA, { archivo: F.hook }); const r = await W.abrir(A); if (!r || r.modo !== 'turno') throw new Error('sin turno');
+  A.alm.escribirLocal('files', 'f1', { name: 'uno.jpg', size: 30, w: 6000, h: 4000, blob: foto('una foto grande de 30 b.'), thumb: foto('mini') });
+  A.alm.escribirLocal('boards', 'b1', { slots: ['f1'] });
+  await W.vivir(12, A);
+  ok(sv.vivo('boards', 'b1') && !sv.reg('files', 'f1') && A.alm.enDiario('files', 'f1'), 'NS12.1 sin sus archivos arriba, la foto espera en el diario (lo demás sube)', { b1: sv.reg('boards', 'b1'), f1: sv.reg('files', 'f1') });
+  ok(!(await A.alm.sinSubir()).length, 'NS12.2 … y no va a «quedó sin subir» ni cuenta como ilegible');
+  const llamadas0 = escrituras(A).length; await W.vivir(10, A);
+  ok(escrituras(A).length === llamadas0, 'NS12.3 mientras espera no se reintenta cada segundo', { antes: llamadas0, despues: escrituras(A).length });
+  F.subirTodas(); A.n.archivosListos(); await W.vivir(6, A);
+  const v = sv.valor('files', 'f1') || {};
+  ok(v.blob && v.blob.ruta && v.blob.trabajo && v.blob.tam === Buffer.byteLength('una foto grande de 30 b.') && v.blob.sha256 === sha('una foto grande de 30 b.') && v.thumb && /^files\//.test(v.thumb.ruta) && !v.thumb.trabajo, 'NS12.4 al subir sus archivos sube con su ruta: la copia de trabajo aparte, tamaño y huella del original', v);
+  ok(!A.alm.enDiario('files', 'f1'), 'NS12.5 … y su nota sale del diario');
+  A.alm.escribirLocal('files', 'f2', { name: 'mala.jpg', blob: foto('no admitida') }); F.malos.add(sha('no admitida'));
+  await W.vivir(8, A);
+  const ss = await A.alm.sinSubir();
+  ok(ss.some(e => e.k === 'f2' && e.motivo === 'archivo') && !sv.reg('files', 'f2'), 'NS12.6 un archivo que el almacén no admite va aparte («archivo»), sin subir el registro', ss);
+  const s1 = await N.serializar({ b: foto('abc') }, async () => ({ sha256: sha('abc'), ruta: 'files/x.jpg', trabajo: { sha256: sha('c'), tam: 1, tipo: 'image/jpeg', w: 2, h: 3 } }));
+  ok(s1.jsonb === jsonbDe(s1.valor) && s1.valor.b.ruta === 'files/x.jpg', 'NS12.7 serializar mide como jsonb la referencia con ruta y copia', { jsonb: s1.jsonb, esperado: jsonbDe(s1.valor) });
+  let err = null; try { await N.serializar({ b: foto('abc') }, async () => null); } catch (e) { err = e; }
+  ok(err && err.codigo === 'esperando', 'NS12.8 serializar sin archivos arriba lanza «esperando» (nunca una referencia sin ruta)', err && err.codigo);
+});
+
+await grupo('NS13 subirTodo', async () => {
+  const F = archivosSimulados(), W = mundo(), sv = W.srv;
+  const A = W.nodo(DA, { archivo: F.hook });
+  // lo de antes del diario (sin nota) y algo con nota
+  A.alm.sembrar({ registros: [...Array(60).keys()].map(i => ['boards', 'b' + i, { n: i }]).concat([...Array(5).keys()].map(i => ['files', 'f' + i, { name: 'f' + i, blob: foto('foto número ' + i + ' grande'), thumb: foto('m' + i) }])), notas: [['clients', 'c1']] });
+  A.alm.sembrar({ registros: [['clients', 'c1', { name: 'Cliente' }]] });
+  const r = await W.abrir(A); if (!r || r.modo !== 'turno') throw new Error('sin turno');
+  let prog = 0;
+  const x = await W.correr(() => A.n.subirTodo({ trozo: 25, progreso: () => { prog++; } }), { tics: [A], max: 200 });
+  const v = x.valor || {};
+  ok(!x.error && v.total === 66 && v.subidos === 66 && sv.vivo('boards', 'b59') && sv.vivo('files', 'f4') && sv.vivo('clients', 'c1'), 'NS13.1 sube todo, también lo de antes del diario', { v, e: x.error && String(x.error.stack) });
+  ok(prog >= 3 && !(await A.alm.contarDiario()), 'NS13.2 da su avance y vacía del diario lo que cubrió', { prog, cola: await A.alm.contarDiario() });
+  const n0 = escrituras(A).length, x2 = await W.correr(() => A.n.subirTodo(), { tics: [A], max: 100 });
+  ok(x2.valor && x2.valor.saltados === 66 && escrituras(A).length === n0, 'NS13.3 repetirlo no sube nada otra vez (salta lo ya subido con esa versión)', x2.valor);
+  ok(sv.valor('files', 'f0').blob.ruta && F.subidas.filter(h => h === sha('foto número 0 grande')).length === 1, 'NS13.4 cada foto sube una vez');
+  // cortado a mitad: sin red tras unos lotes, después otra vez
+  const W2 = mundo(), sv2 = W2.srv, F2 = archivosSimulados(), B = W2.nodo(DB, { archivo: F2.hook });
+  B.alm.sembrar({ registros: [...Array(120).keys()].map(i => ['tareas', 't' + i, { txt: 'tarea ' + i }]) });
+  await W2.abrir(B);
+  let lotes = 0; B.cli.fallos.push({ fn: 'mesa_escribir', saltar: 2, modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' }, { fn: 'mesa_escribir', modo: 'red' });
+  const y = await W2.correr(() => B.n.subirTodo({ trozo: 30 }), { tics: [B], max: 400 });
+  const arriba1 = [...Array(120).keys()].filter(i => sv2.vivo('tareas', 't' + i)).length;
+  ok(y.valor && y.valor.cortado && arriba1 > 0 && arriba1 < 120, 'NS13.5 sin red a mitad se para y lo dice (cortado)', { v: y.valor, arriba1 });
+  const z = await W2.correr(() => B.n.subirTodo({ trozo: 30 }), { tics: [B], max: 400 });
+  const arriba2 = [...Array(120).keys()].filter(i => sv2.vivo('tareas', 't' + i)).length, vers = [...Array(120).keys()].every(i => sv2.reg('tareas', 't' + i) && sv2.reg('tareas', 't' + i).version === 1);
+  ok(z.valor && !z.valor.cortado && arriba2 === 120 && vers && z.valor.saltados >= arriba1, 'NS13.6 retomado, sube lo que faltaba sin duplicar (versión 1 en todos)', { v: z.valor, arriba2, vers });
+  // mientras corre, el diario espera
+  const W3 = mundo(), F3 = archivosSimulados(), C = W3.nodo(DC, { archivo: F3.hook });
+  C.alm.sembrar({ registros: [...Array(50).keys()].map(i => ['meses', 'm' + i, { i }]) }); await W3.abrir(C);
+  let solapado = false, enCurso = 0; const rpc0 = C.cli.rpc; C.cli.rpc = async (fn, a) => { if (fn === 'mesa_escribir') { if (enCurso) solapado = true; enCurso++; try { return await rpc0(fn, a); } finally { enCurso--; } } return rpc0(fn, a); };
+  const pr = W3.correr(() => C.n.subirTodo({ trozo: 10 }), { tics: [C], max: 200 });
+  C.alm.escribirLocal('boards', 'nuevo', { n: 1 });
+  const zz = await pr; await W3.vivir(8, C);
+  ok(zz.valor && !solapado && W3.srv.vivo('boards', 'nuevo'), 'NS13.7 un solo lote en vuelo: el diario sube después', { solapado });
+});
+
+await grupo('NS14 comprobar', async () => {
+  const F = archivosSimulados(), W = mundo(), sv = W.srv, A = W.nodo(DA, { archivo: F.hook });
+  A.alm.sembrar({ registros: [['boards', 'b1', { n: 1 }], ['files', 'f1', { name: 'f1', blob: foto('foto grande f1 !!'), thumb: foto('t1') }]] });
+  await W.abrir(A); await W.correr(() => A.n.subirTodo(), { tics: [A], max: 100 });
+  const rutas = async () => new Set(F.rutas);
+  let c = (await W.correr(() => A.n.comprobar({ rutas }), { max: 50 })).valor || {};
+  ok(c.verde && c.registros.aqui === 2 && c.registros.iguales === 2 && c.archivos.referencias === 2 && !c.deMas, 'NS14.1 verde con todo arriba, con su versión y sus archivos', c);
+  sv.sembrar('boards', 'sobra', { n: 9 });
+  c = (await W.correr(() => A.n.comprobar({ rutas }), { max: 50 })).valor || {};
+  ok(c.verde && c.deMas === 1, 'NS14.2 lo que arriba tiene de más se cuenta sin fallar', c);
+  A.alm.sembrar({ registros: [['boards', 'b1', { n: 2 }]] });
+  F.rutas.delete([...F.rutas][0]);
+  A.alm.sembrar({ registros: [['meses', 'solo-aqui', { x: 1 }]] });
+  c = (await W.correr(() => A.n.comprobar({ rutas }), { max: 50 })).valor || {};
+  ok(!c.verde && c.faltan === 1 && c.distintos === 1 && c.archivos.faltan === 1 && c.muestra.faltan[0] === 'meses/solo-aqui', 'NS14.3 rojo con un registro que falta, uno distinto y un archivo sin su ruta', c);
+  ok(typeof c.segundos === 'number' && !('valor' in c), 'NS14.4 devuelve solo un resumen');
+});
+
+await grupo('NS15 traer la Mesa a un aparato que no es el primero', async () => {
+  const F = archivosSimulados(), W = mundo(), sv = W.srv;
+  // el primero ya subió su Mesa
+  const A = W.nodo(DA, { archivo: F.hook });
+  A.alm.sembrar({ registros: [['boards', 'igual', { n: 1 }], ['boards', 'cambia', { n: 2 }], ['files', 'f1', { name: 'f1', blob: foto('la foto del original 1'), thumb: foto('m1') }]] });
+  await W.abrir(A); await W.correr(() => A.n.subirTodo(), { tics: [A], max: 100 }); await W.correr(() => A.n.parar(), { max: 30 });
+  // B: un perfil con datos viejos y con la misma foto importada
+  const B = W.nodo(DB, { archivo: F.hook });
+  B.alm.sembrar({ registros: [['boards', 'igual', { n: 1 }], ['boards', 'cambia', { n: 1 }], ['boards', 'viejo', { n: 0 }], ['files', 'f1', { name: 'f1', blob: foto('la foto del original 1'), thumb: foto('m1') }]], notas: [['boards', 'viejo']] });
+  const e0 = escrituras(B).length;
+  const r = await W.correr(() => B.n.abrir({ traer: true }), { paso: 500, max: 60 });
+  const ss = await B.alm.sinSubir();
+  ok(r.valor && r.valor.modo === 'turno' && escrituras(B).length === e0, 'NS15.1 se enciende con turno sin subir nada suyo', { r: r.valor, esc: escrituras(B).length - e0 });
+  ok(B.alm.ver('boards', 'cambia').n === 2 && ss.some(x => x.k === 'cambia' && x.motivo === 'antes'), 'NS15.2 lo que arriba es distinto: gana lo de arriba y lo de aquí queda aparte («antes»)', ss);
+  ok(!B.alm.tiene('boards', 'viejo') && ss.some(x => x.k === 'viejo' && x.motivo === 'antes' && x.valor && x.valor.n === 0), 'NS15.3 lo que arriba no está sale de la Mesa y queda aparte (no se borra)', ss);
+  ok(esBlobN(B.alm.ver('files', 'f1').blob) && B.alm.ver('files', 'f1').blob.size === 22 && !ss.some(x => x.k === 'f1' || x.k === 'igual'), 'NS15.4 la foto importada con el mismo tamaño y tipo se queda como original; lo igual, ni aparte', ss.map(x => x.k));
+  await W.vivir(10, B);
+  ok(!(await B.alm.contarDiario()) && escrituras(B).length === e0 && !sv.vivo('boards', 'viejo') && sv.valor('boards', 'cambia').n === 2, 'NS15.5 después, nada de lo de antes sube solo', { cola: await B.alm.contarDiario() });
+  ok((B.alm.espia.refs || []).some(x => x.sha256 === sha('la foto del original 1') && x.ruta), 'NS15.6 las referencias bajadas se apuntan (lo que ya está arriba no se vuelve a subir)');
+  const W2 = mundo(), C = W2.nodo(DC); C.alm.sembrar({ registros: [['boards', 'x', { n: 1 }]] });
+  const r2 = await W2.correr(() => C.n.abrir({ traer: true }), { paso: 500, max: 40 });
+  ok(r2.valor && r2.valor.modo === 'vacia' && !W2.srv.S.turno.dispositivo && C.alm.tiene('boards', 'x'), 'NS15.7 con el servidor vacío no se enciende ni toma la Mesa (se sube desde el primero)', r2.valor);
 });
 
 console.log('NS0 al final');

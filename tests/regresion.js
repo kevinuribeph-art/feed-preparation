@@ -18167,7 +18167,7 @@
 
   prueba('EN1', 'La entrada (D-262) sin proyecto no hace nada: en una copia de este Mac (127.0.0.1) sin `mesa-web-proyecto` la Mesa abre como siempre, sin capa ni almacén de sesión, y abrir() contesta enseguida', async () => {
     const E = M.entrada;
-    ok(E && E.version === '1.0', 'falta MESA.entrada');
+    ok(E && E.version === '1.1', 'falta MESA.entrada');
     igual(E.modo, 'sin_proyecto', 'modo');
     ok(!D.getElementById('mesa-entrada'), 'hay capa de entrada en una Mesa sin proyecto');
     ok(!M._in.almacenSesion, 'almacén de sesión sin proyecto');

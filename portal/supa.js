@@ -1,9 +1,10 @@
 // Cliente mínimo de Supabase, sin dependencias (D-241): entrada con código por correo, datos y archivos privados.
-// Lo usan el portal de clientes (portal/) y la Mesa de Kevin (web.js). Expone `window.Supa.crear({url, publica, clave})`.
-// La sesión vive en localStorage bajo `clave` (por origen); nunca se escribe en consola ni en avisos.
+// Lo usan el portal de clientes (portal/) y la Mesa de Kevin (web.js). Expone `window.Supa.crear({url, publica, clave, almacen})`.
+// La sesión vive en localStorage bajo `clave` (por origen), o donde diga `almacen` ({leer, guardar, oir}: la Mesa la guarda
+// cifrada, D-262); nunca se escribe en consola ni en avisos. La Mesa entra además con contraseña y el código de su app (TOTP).
 (function () {
   'use strict';
-  var V = '1.2';
+  var V = '1.3';
 
   function SupaError(mensaje, status, codigo, detalle) { this.name = 'SupaError'; this.message = mensaje; this.status = status || 0; this.codigo = codigo || ''; this.statusCode = detalle && detalle.statusCode != null ? String(detalle.statusCode) : ''; this.error = detalle && typeof detalle.error === 'string' ? detalle.error : ''; }
   SupaError.prototype = Object.create(Error.prototype);
@@ -11,17 +12,26 @@
   function guardado(k) { try { var t = localStorage.getItem(k); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
   function guardar(k, v) { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) { /* sin almacenamiento: la sesión dura lo que la pestaña */ } }
 
+  // Lo que dice el token de la sesión (sin comprobar su firma: solo para decidir qué pedir; quien decide es el servidor).
+  function leerToken(tk) {
+    try { var b = String(tk).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); }
+    catch (e) { return null; }
+  }
+
   function crear(o) {
     if (!o || !/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(String(o.url || '').replace(/\/$/, ''))) throw new SupaError('proyecto sin configurar', 0, 'config');
     var url = o.url.replace(/\/$/, ''), publica = o.publica, clave = o.clave || ('supa-' + url.split('//')[1].split('.')[0]);
-    var ses = guardado(clave), renovando = null, oyentes = [];
+    // Dónde vive la sesión: por defecto, localStorage bajo `clave` (el portal); la Mesa da el suyo (D-262).
+    var alm = o.almacen || { leer: function () { return guardado(clave); }, guardar: function (s) { guardar(clave, s); },
+      oir: function (f) { try { window.addEventListener('storage', function (e) { if (e.key === clave) f(guardado(clave)); }); } catch (e) { /* sin ventana (pruebas) */ } } };
+    var ses = alm.leer(), renovando = null, oyentes = [];
 
     function avisar() { oyentes.slice().forEach(function (f) { try { f(ses ? { id: ses.user.id, email: ses.user.email } : null); } catch (e) { /* un oyente roto no para a los demás */ } }); }
     function ponerSesion(s) {
       ses = s && s.access_token ? { access_token: s.access_token, refresh_token: s.refresh_token, expires_at: s.expires_at || (Math.floor(Date.now() / 1000) + (s.expires_in || 3600)), user: { id: s.user.id, email: s.user.email } } : null;
-      guardar(clave, ses); avisar();
+      alm.guardar(ses); avisar();
     }
-    try { window.addEventListener('storage', function (e) { if (e.key === clave) { ses = guardado(clave); avisar(); } }); } catch (e) { /* sin ventana (pruebas) */ }
+    alm.oir(function (s) { ses = s || null; avisar(); });   // otra pestaña la renovó o la quitó
 
     function pedir(ruta, op) {
       op = op || {};
@@ -55,6 +65,9 @@
     function token() {
       if (!ses) return Promise.reject(new SupaError('sin sesión', 401, 'sesion'));
       if (ses.expires_at - Date.now() / 1000 > 60) return Promise.resolve(ses.access_token);
+      // otra pestaña pudo renovarla ya: la más nueva del almacén, antes de renovar con un refresh token que ya no vale (D-262)
+      var fresca = null; try { fresca = alm.leer(); } catch (e) { fresca = null; }
+      if (fresca && fresca.refresh_token && fresca.refresh_token !== ses.refresh_token && fresca.expires_at >= ses.expires_at) { ses = fresca; if (ses.expires_at - Date.now() / 1000 > 60) return Promise.resolve(ses.access_token); }
       if (!renovando) {
         var rt = ses.refresh_token;
         renovando = pedir('/auth/v1/token?grant_type=refresh_token', { metodo: 'POST', json: { refresh_token: rt } })
@@ -93,11 +106,74 @@
             throw new SupaError('ese código no vale o ha caducado', e.status, 'codigo');
           });
       },
+      // ---- La entrada de la Mesa (D-262): contraseña y el código de la app (TOTP). El portal no los usa. ----
+      entrarConContrasena: function (correo, contrasena) {
+        return pedir('/auth/v1/token?grant_type=password', { metodo: 'POST', json: { email: correo, password: contrasena } })
+          .then(function (s) { ponerSesion(s); return api.usuario(); }, function (e) {
+            if (e.status === 429) throw new SupaError('demasiados intentos: espera un rato', 429, 'espera');
+            if (e.status === 0) throw e;
+            if (e.status === 400 || e.status === 401 || e.status === 422) throw new SupaError('el correo o la contraseña no son correctos', e.status, 'credenciales');
+            throw new SupaError('no se pudo entrar: inténtalo en un momento', e.status, 'servidor');
+          });
+      },
+      // Lo que dice la sesión de ahora: nivel (aal1 / aal2) y la hora (s) del último código de la app, o null.
+      nivel: function () {
+        var c = ses && leerToken(ses.access_token); if (!c) return null;
+        var t = null; (Array.isArray(c.amr) ? c.amr : []).forEach(function (e) { if (e && e.method === 'totp' && +e.timestamp > (t || 0)) t = +e.timestamp; });
+        return { aal: c.aal || 'aal1', totp: t, sesion: c.session_id || null };
+      },
+      // La sesión con un token vigente (renueva si hace falta) y su nivel.
+      vigente: function () { return token().then(function () { return api.nivel(); }); },
+      factores: function () {
+        return conToken('/auth/v1/user').then(function (u) {
+          return ((u && u.factors) || []).filter(function (f) { return f.factor_type === 'totp'; }).map(function (f) { return { id: f.id, verificado: f.status === 'verified', nombre: f.friendly_name || '' }; });
+        });
+      },
+      // Alta del código en la app: quita antes los que se quedaron sin verificar (un alta a medias) y da el QR (SVG) y la clave.
+      altaApp: function (op) {
+        op = op || {};
+        return api.factores().then(function (l) {
+          return l.filter(function (f) { return !f.verificado; }).reduce(function (p, f) { return p.then(function () { return conToken('/auth/v1/factors/' + f.id, { metodo: 'DELETE' }); }); }, Promise.resolve());
+        }).then(function () {
+          return conToken('/auth/v1/factors', { metodo: 'POST', json: { factor_type: 'totp', issuer: op.emisor || 'Mesa Uribe Visuals', friendly_name: op.nombre || 'Contraseñas' } });
+        }).then(function (f) { return { id: f.id, qr: f.totp && f.totp.qr_code, clave: f.totp && f.totp.secret, uri: f.totp && f.totp.uri }; }, function (e) {
+          if (e.status === 0) throw e;
+          if (e.status === 403 || e.status === 422) throw new SupaError('esta cuenta ya tiene su código: entra con él', e.status, 'nivel');
+          throw e;
+        });
+      },
+      // Escribe el código de la app en la sesión de ahora: sale `aal2` (y la hora del código, al día).
+      verificarApp: function (factorId, codigo) {
+        var c = String(codigo || '').replace(/\D/g, '');
+        return conToken('/auth/v1/factors/' + factorId + '/challenge', { metodo: 'POST', json: {} })
+          .then(function (ch) { return conToken('/auth/v1/factors/' + factorId + '/verify', { metodo: 'POST', json: { challenge_id: ch.id, code: c } }); })
+          .then(function (s) { ponerSesion(Object.assign({ user: ses && ses.user }, s)); return api.nivel(); }, function (e) {
+            if (e.status === 429) throw new SupaError('demasiados intentos: espera un rato', 429, 'espera');
+            if (e.status === 0) throw e;
+            if (e.status === 400 || e.status === 422) throw new SupaError('ese código no vale: escribe el que se ve ahora en la app', e.status, 'codigo');
+            throw e;
+          });
+      },
+      // Contraseña nueva (alta, «¿Olvidaste?»). Con el código de la app activo, Supabase la pide en una sesión `aal2`.
+      ponerContrasena: function (nueva) {
+        return conToken('/auth/v1/user', { metodo: 'PUT', json: { password: nueva } }).then(function () { return true; }, function (e) {
+          if (e.status === 0) throw e;
+          var c = String(e.codigo || '');
+          if (c === 'weak_password' || /password/i.test(e.message) && e.status === 422) throw new SupaError('la contraseña es demasiado corta: al menos 20 caracteres', e.status, 'debil');
+          if (c === 'insufficient_aal') throw new SupaError('falta el código de tu app', e.status, 'nivel');
+          if (c === 'reauthentication_needed') throw new SupaError('hace falta confirmar con un código por correo', e.status, 'reautenticar');
+          if (c === 'same_password') throw new SupaError('es la misma que ya tenías', e.status, 'igual');
+          throw e;
+        });
+      },
+      // Cierra las sesiones de esta cuenta en los demás ordenadores (esta sigue).
+      salirOtros: function () { return conToken('/auth/v1/logout?scope=others', { metodo: 'POST' }).then(function () { return true; }); },
       // Solo para las pruebas: una sesión obtenida fuera (Node, contraseña de un usuario inventado del proyecto de pruebas).
       _sesion: function (s) { ponerSesion(s); },
-      salir: function () {
+      // Salir. Sin nada, como siempre (todas las sesiones de la cuenta); con 'local', solo esta (la Mesa: «Otra cuenta», D-262).
+      salir: function (alcance) {
         var tk = ses && ses.access_token; ponerSesion(null);
-        return tk ? pedir('/auth/v1/logout', { metodo: 'POST', token: tk }).catch(function () { return null; }) : Promise.resolve(null);
+        return tk ? pedir('/auth/v1/logout' + (alcance === 'local' ? '?scope=local' : ''), { metodo: 'POST', token: tk }).catch(function () { return null; }) : Promise.resolve(null);
       },
       leer: function (ruta) { return conToken('/rest/v1/' + ruta); },
       insertar: function (tabla, filas, op) {

@@ -18512,6 +18512,83 @@
     await M._in.loadClients();
   });
 
+  // lo que cambió de un tablero guardado a otro: [id de publicación, campo] (los sellos del guardado, fuera)
+  function cambiosEntre(a, b) {
+    const out = [], ida = Object.fromEntries(a.slots.map(x => [x.id, x]));
+    for (const y of b.slots) { const x = ida[y.id] || {}; for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) if (!['at'].includes(k) && JSON.stringify(x[k]) !== JSON.stringify(y[k])) out.push(y.id + '.' + k); }
+    return out.sort();
+  }
+  prueba('MV4', 'Las operaciones del móvil (D-267, R3): elegir y retocar un caption, cambiar el estado (con su motivo) y la fecha escriben solo ese campo de esa publicación (la fecha, también los nombres que renumera, como en el Mac), con su nota en el diario y sin tocar la bandeja', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      await M._in.movil.mirar(key);
+      const paso = async (op, esperado) => {
+        const a = await M._in.idbGet('boards', key), esc = contarEscrituras(), dj0 = await djN();
+        const r = await M._in.movil.operar({ key, ...op }); ok(r && r.ok, `${op.campo} no se aplicó: ${json(r)}`);
+        const b = await M._in.idbGet('boards', key), cam = cambiosEntre(a, b);
+        ok(esperado.every(x => cam.includes(x)), `${op.campo}: no cambió lo esperado: ${cam.join(', ')}`);
+        ok(cam.every(x => esperado.includes(x) || x === op.slot + '.esperaCliente' || (op.campo === 'fecha' && /\.(name|hold)$/.test(x))), `${op.campo} cambió más de la cuenta: ${cam.join(', ')}`);   // desde cuándo espera al cliente (D-180) sigue a su estado, como en el Mac
+        ok(esc.de.every(w => / (boards|diario)$/.test(w)), `${op.campo} escribió fuera del tablero: ${esc.de.join(', ')}`);
+        ok((await djN()) > dj0 || (await M._in.diario.leer()).some(e => e.a === 'boards' && e.k === key), `${op.campo} sin su nota en el diario`);
+        return b;
+      };
+      let b = await paso({ slot: 'r2', campo: 'capElegir', valor: 2 }, ['r2.caption']);
+      igual(b.slots.find(s => s.id === 'r2').caption.pick, 2, 'no se eligió el caption');
+      b = await paso({ slot: 'r2', campo: 'capTexto', valor: { k: 2, texto: 'tres retocado' } }, ['r2.caption']);
+      igual(b.slots.find(s => s.id === 'r2').caption.text[2], 'tres retocado', 'no se retocó');
+      b = await paso({ slot: 'r4', campo: 'estado', valor: { v: 'cancelado', motivo: 'no hace falta' } }, ['r4.estado']);
+      igual(b.slots.find(s => s.id === 'r4').estado, { v: 'cancelado', motivo: 'no hace falta' }, 'el motivo de la cancelada');
+      const iso = M._in.madridISO('2026-11-10', '18:30');
+      b = await paso({ slot: 'r1', campo: 'fecha', valor: iso }, ['r1.date']);
+      ok(M._in.sameDate(b.slots.find(s => s.id === 'r1').date, iso), 'no cambió la fecha');
+      igual(M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' }).v.pick, 2, 'valor() no dice lo que hay');
+    });
+  });
+
+  prueba('MV5', 'Sin la Mesa el móvil no escribe (D-267): con la Mesa en pausa (otro aparato la tiene) operar dice «sin turno» y no escribe nada', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      await M._in.movil.mirar(key);
+      await M._in.pausaNube('');
+      const esc = contarEscrituras();
+      const r = await M._in.movil.operar({ key, slot: 'r2', campo: 'capElegir', valor: 0 });
+      igual(r, { error: 'sin turno' }, 'operó sin la Mesa');
+      await espera(400);
+      igual(esc.total, 0, 'escribió sin la Mesa: ' + esc.de.join(', '));
+      M._in.NUBE.pausa = false; await M._test.claim();
+    });
+  });
+
+  prueba('MV6', 'Las reglas de la fecha valen en el móvil (D-267, D-103): una Publicada no se mueve, mover una Programada avisa de Zernio y fuera de la mesa no entra', async () => {
+    const key = await tableroMovil();
+    ok(!M.setEstado('r2', 'publicado')[0].error, 'no se publicó r2');
+    await M.flush();
+    await enMovil(async () => {
+      await M._in.movil.mirar(key);
+      igual(await M._in.movil.operar({ key, slot: 'r2', campo: 'fecha', valor: M._in.madridISO('2026-11-12', '10:00') }), { error: 'publicada' }, 'una Publicada se movió');
+      const r = await M._in.movil.operar({ key, slot: 'r3', campo: 'fecha', valor: M._in.madridISO('2026-11-12', '10:00') });
+      ok(r.ok && r.avisos.some(m => /Zernio/.test(m)), 'mover una Programada no avisó de Zernio: ' + json(r));
+      igual(await M._in.movil.operar({ key, slot: 'r1', campo: 'fecha', valor: M._in.madridISO('2027-02-12', '10:00') }), { error: 'fuera de la mesa' }, 'entró una fecha fuera de la mesa');
+      const d = M._in.movil.dias(key); igual([d.desde, d.hasta], ['2026-11-01', '2026-11-30'], 'los días que se pueden elegir');
+    });
+  });
+
+  prueba('MV7', 'Los estados que ofrece el móvil (D-267, D-082, D-192): «según sus datos» y los cinco a mano, con el mismo porqué que da la Mesa; los que no puede tomar fallan con ese porqué', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      await M._in.movil.mirar(key);
+      const l = M._in.movil.estadosPosibles(key, 'r4');
+      igual(l.map(x => x.v), [null, 'aprobado', 'noaprobado', 'programado', 'publicado', 'cancelado'], 'los estados');
+      igual(l.map(x => x.ok), [true, false, false, true, true, true], 'cuáles se pueden (r4 sin foto)');
+      igual(l[0].k, 'empezar', '«según sus datos» de r4');
+      ok(l[0].actual && !l.slice(1).some(x => x.actual), 'el actual');
+      igual(await M._in.movil.operar({ key, slot: 'r4', campo: 'estado', valor: { v: 'aprobado' } }), { error: l[1].porque }, 'aprobar sin foto no dio el mismo porqué');
+      ok(/falta la foto/.test(l[1].porque), 'el porqué: ' + l[1].porque);
+      const l1 = M._in.movil.estadosPosibles(key, 'r1');
+      ok(l1.find(x => x.v === 'aprobado').actual, 'r1 Aprobada no sale como la actual');
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

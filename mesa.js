@@ -782,7 +782,7 @@
     };
     // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
     const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
-    if (!c) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);
+    if (!c || MOVIL) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);   // the iPhone never writes a tray (D-267)
     const tray = (B.tray || []).filter(f => { if (!ajena(f, c)) return true; (fuera[deDe(f)] = fuera[deDe(f)] || []).push(f); return false; });
     return tx(['boards', 'bandejas'], 'readwrite', st => {
       st.boards.put(b, B.key);
@@ -873,6 +873,7 @@
     clearTimeout(motTimer); motTimer = null;   // a cancellation's reason being typed: saved with the board
     if (!S || locked) return null;
     const B = S;
+    if (MOVIL && !habia) return B.savedAt;   // the iPhone writes only what Kevin touched (a change pending), never an opening (D-267)
     alinearH(B);
     track(B); marcaEspera(B); stamp(B); edited(B);
     if (NUBE.activa && !habia && ESCRITO.get(B.key) === cuerpoNube(B)) { setSave('Guardado'); return B.savedAt; }   // nothing to write (D-253)
@@ -3156,13 +3157,19 @@
   const motivoDe = s => s && s.estado && s.estado.v === 'cancelado' ? String(s.estado.motivo || '').trim() : '';   // why it was cancelled (optional)
   // v: one of MANUAL, or null (back to the one its data gives). Returns why it can't be, or ''. A cancelled post cancelled
   // again keeps its reason; o.motivo sets it (only for «Cancelado»).
-  function setEstado(id, v, o = {}) {
-    const s = S && S.slots.find(x => x.id === id); if (!s) return 'no existe';
+  // why a post can't take that state ('' if it can): setEstado and the iPhone's sheet ask the same (D-267)
+  function porqueNoEstado(s, v, o = {}) {
+    if (!s) return 'no existe';
     if (v != null && !MANUAL.includes(v) && !RETRASO.includes(v)) return 'estado no válido';
     const a = estadoAuto(s);
     if (FIRMADO.includes(v) && a !== 'aprobar') return (v === 'aprobado' ? 'para aprobarla' : 'para marcarla como no aprobada') + (a === 'empezar' ? ' le falta la foto' : capVacio(s) ? ' su caption está vacío' : ' le falta elegir el caption');
     if (RETRASO.includes(v) && ORD_AUTO[v] > ORD_AUTO[a]) return `para ponerla en ${v === 'aprobar' ? 'revisión' : 'Captions'}` + (a === 'empezar' ? ' le falta la foto' : capVacio(s) ? ' su caption está vacío' : ' le falta elegir el caption');   // only back, never past its data (D-085)
     if (o.motivo != null && v !== 'cancelado') return 'solo una cancelada lleva motivo';
+    return '';
+  }
+  function setEstado(id, v, o = {}) {
+    const s = S && S.slots.find(x => x.id === id), why = porqueNoEstado(s, v, o); if (why) return why;
+    const a = estadoAuto(s);
     const mot = o.motivo != null ? String(o.motivo).trim() : motivoDe(s);
     if (v && RETRASO.includes(v) && v === a && !retenida(s) && !(PASO_DE[estadoDe(s)] > ORD_AUTO[a])) v = null;   // the state its data gives: let go, as the post's view does (D-085)
     if (v) s.estado = FIRMADO.includes(v) ? { v, sig: aprobSig(s) } : v === 'cancelado' && mot ? { v, motivo: mot } : v === 'programado' ? { v, fecha: s.date ?? null, firma: progSig(s), ...(yaPaso(s) ? { tarde: true } : {}) } : { v }; else delete s.estado;   // a Programada keeps the date it was scheduled for; marked once its moment passed, it never passes on its own (D-120)
@@ -6255,7 +6262,57 @@
     if (S && S.key) return mirarMovil(S.key);
     return null;
   }
-  const MOVIL_IN = { activo: MOVIL, alAviso: null, mirar: mirarMovil, vista: vistaMovil, releer: releerMovil };
+  // What Kevin touches on the phone: one field of one post, with the value he saw, applied with the Mac's own functions (D-267).
+  // valor(op) is that field now (to compare with what was seen); operar(op) writes it at once (journal included) with the Mesa
+  // taken (not locked); each warning the change gives (D-103) comes back in `avisos`.
+  const capOfId = id => { const s = S && S.slots.find(x => x.id === id); return s ? capOf(s) : null; };
+  function valorMovil(op) {
+    if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
+    const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
+    const c = capOf(s);
+    if (op.campo === 'fecha') return { v: s.date || null };
+    if (op.campo === 'estado') return { v: s.estado ? { v: s.estado.v, motivo: String(s.estado.motivo || '') } : null };
+    if (op.campo === 'capElegir') return { v: c ? { at: c.at || null, pick: c.pick ?? null } : null };
+    if (op.campo === 'capTexto') { const k = op.valor && op.valor.k; return { v: c && k >= 0 && k < 3 ? { at: c.at || null, texto: c.text[k] } : null }; }
+    return { error: 'campo no válido' };
+  }
+  async function operarMovil(op) {
+    if (!MOVIL) return { error: 'solo en el móvil' };
+    if (locked) return { error: 'sin turno' };
+    if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
+    const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
+    const avisos = [], cara = MOVIL_IN.alAviso; MOVIL_IN.alAviso = m => avisos.push(m);
+    let why = '';
+    try {
+      if (op.campo === 'fecha') { const r = setDate(op.slot, op.valor); if (r !== true) why = r; }
+      else if (op.campo === 'estado') { const v = op.valor ? op.valor.v ?? null : null, r = M.setEstado(op.slot, v, op.valor && op.valor.motivo != null && v === 'cancelado' ? { motivo: op.valor.motivo } : {})[0]; if (r && r.error) why = r.error; }
+      else if (op.campo === 'capElegir') {
+        const c = capOf(s), k = op.valor; if (!c) why = 'sin captions';
+        else if (k == null) { if (c.pick != null) unsetCapPick(op.slot, c.pick); }
+        else if (!(k >= 0 && k < 3)) why = 'caption no válido'; else setCapPick(op.slot, k);
+      } else if (op.campo === 'capTexto') {
+        const c = capOf(s), k = op.valor && op.valor.k; if (!c || !(k >= 0 && k < 3)) why = 'caption no válido'; else setCapText(op.slot, k, String(op.valor.texto ?? ''));
+      } else why = 'campo no válido';
+    } finally { MOVIL_IN.alAviso = cara; }
+    if (why) return { error: why };
+    await flushNow();   // now, not in 250 ms: with its note in the journal, the cloud takes it up (lot 2)
+    return { ok: true, avisos };
+  }
+  // the states the phone's sheet offers (the v3: «según sus datos» and the five chosen by hand), each with why it can't be
+  function estadosMovil(key, slot) {
+    const s = S && S.key === key && S.slots.find(x => x.id === slot); if (!s) return [];
+    const a = estadoAuto(s), e = estadoDe(s);
+    return [null, 'aprobado', 'noaprobado', 'programado', 'publicado', 'cancelado'].map(v => {
+      const k = v || a, porque = porqueNoEstado(s, v);
+      return { v, k, txt: estTxt(k), ico: estIco(k, ' aria-hidden="true"'), ok: !porque, porque, actual: v == null ? !(s.estado && MANUAL.includes(s.estado.v)) : !!(s.estado && s.estado.v === v) && e === v };
+    });
+  }
+  function diasMovil(key) {   // the days a post of this board can move to (inBoard), as its cycles
+    if (!S || S.key !== key) return null;
+    const ms = boardMonths(), cd = curCd();
+    return { desde: cycleStart(ms[0], cd), hasta: cycleEnd(ms[ms.length - 1], cd), meses: ms.slice() };
+  }
+  const MOVIL_IN = { activo: MOVIL, alAviso: null, mirar: mirarMovil, vista: vistaMovil, releer: releerMovil, valor: valorMovil, operar: operarMovil, estadosPosibles: estadosMovil, dias: diasMovil };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
   if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {
     const f = M[k];

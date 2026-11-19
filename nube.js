@@ -1059,7 +1059,7 @@
     const r = await nucleo().abrir({ traer });
     if (r.modo === 'vacia') {
       lsS(ACTIVA, null); lsS(TRAER, null); X().NUBE.activa = false; X().NUBE.alApuntar = null; N = null; ESTADO = { fase: 'apagada' };
-      X().toast('Tu Mesa aún no está en el servidor: se sube desde el Mac.', { error: true });
+      X().toast('Tu Mesa aún no está en el servidor: se sube desde el escritorio.', { error: true });
       return { modo: 'local', motivo: 'vacia' };
     }
     if (traer && r.traido) lsS(TRAER, null);

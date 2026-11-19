@@ -579,7 +579,7 @@
     if (!B.slots.some(x => x.id === slotId)) return { error: 'Esa publicación ya no está.' };
     try {
       const pid = await pidDe(B.client, slotId), sv = ((await leerServidor(B.client, B)) || new Map()).get(pid);
-      if (!sv) return { error: 'Envía esta publicación a la web desde el Mac para poder escribir aquí.' };
+      if (!sv) return { error: 'Envía esta publicación a la web desde el escritorio para poder escribir aquí.' };
       await c.insertar('comentarios', [{ cliente_id: B.client, pid, version: sv.version, texto: t }]);
       return { ok: true };
     } catch (e) { return { error: 'No se pudo enviar: ' + ((e && e.message) || e) }; }

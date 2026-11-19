@@ -1187,6 +1187,7 @@
     if (rec.blob && !esRefNube(rec.blob)) { M.blobs[id] = rec.blob; if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; } }
     if (M.libre && M.libre.miniLlego) { try { M.libre.miniLlego(id); } catch (e) { /* */ } }
     if (antes && M.files[id].thumbUrl !== antes) { LLEGAN.set(antes, M.files[id].thumbUrl); URL_HUECO.delete(id); }
+    if (MOVIL) { try { document.dispatchEvent(new CustomEvent('mesa-foto-llego', { detail: { id } })); } catch (e) { /* */ } }   // the phone draws its own minis (D-269)
     if (!llegaRaf && LLEGAN.size) llegaRaf = requestAnimationFrame(() => {
       llegaRaf = 0; const l = new Map(LLEGAN); LLEGAN.clear();
       if (root) for (const im of root.querySelectorAll('img')) { const n = l.get(im.getAttribute('src')); if (n) im.setAttribute('src', n); }
@@ -6265,6 +6266,8 @@ ${TK_FUENTES}
         fecha: fecha(s.date), mes: mesDe(s, S), estado: { k: e, txt: estTxt(e), ico: estIco(e, ' aria-hidden="true"') },
         tocaria: publicaSola(s, t) ? 'publicado' : null, vencida: vencida(s, t), motivo: motivoDe(s), retrasada: retrasada(s),
         publicada: e === 'publicado', programada: e === 'programado', fotos: publishList(s).slice(), portada: publishList(s)[0] || null,
+        // each photo as it is published (its crop, from 0 to 1 of the photo, and its proportion): the phone draws exactly that
+        recortes: publishList(s).map(fid => { const f = dims(fid), r = postRect(fid, s); return f.w && f.h ? { x: r.x / f.w, y: r.y / f.h, w: r.w / f.w, h: r.h / f.h, ratio: r.w / r.h } : null; }),
         // the options by their index (k, 0–2), as operar takes them; the Mac shows them as 1–3
         captions: c && c.options.length ? { pick: c.pick == null ? null : c.pick - 1, texto: c.text, estado: c.state, opciones: c.options.map(o => ({ k: o.n - 1, tono: o.tone, texto: o.text, original: o.original, editada: o.edited })) } : null,
         contexto: noteOf(s), nota: memoOf(s), colab: sharedWith(s)

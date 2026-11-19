@@ -18823,6 +18823,31 @@
     ok(/La Mesa se abrió en un aparato nuevo/.test(fuente) && !/se abrió en un ordenador nuevo/.test(fuente), 'el aviso del Mac aún dice «ordenador nuevo»');
   });
 
+  // la cara del móvil (lote 3, D-269): movil.html entero en el marco, al tamaño de un iPhone
+  async function enMovilPagina(fn, { w = 390, h = 844 } = {}) {
+    const marco = fr$(), w0 = marco.style.width, h0 = marco.style.height;
+    try {
+      await M.flush();
+      marco.style.width = w + 'px'; marco.style.height = h + 'px';
+      await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden && W.document.querySelector('#movil .titulo,#movil .lugar'), 'la cara del móvil');
+      return await fn();
+    } finally {
+      marco.style.width = w0; marco.style.height = h0;
+      await aMarco('../index.html', () => W.MESA && W.MESA.status && W.MESA.libre && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 'la mesa de vuelta');
+      M.cfg.margenSubida = 0;
+      await hasta(() => M.personal || (W.MESA_CARGA || {}).personal === 'fallo', 15000, 'personal.js').catch(() => null);
+      if (M.personal) M.personal.cerrar();
+    }
+  }
+  const irMovil = async (h, que) => { W.location.hash = h; await hasta(() => W.document.querySelector(que), 6000, 'la pantalla ' + h); await espera(150); };
+  // la zona que se toca de un control: su caja más lo que su ::after la agranda (el dibujo no crece, D-269)
+  function diana(el) {
+    const r = el.getBoundingClientRect(), a = W.getComputedStyle(el, '::after');
+    let t = 0, b = 0, l = 0, d = 0;
+    if (a.content && a.content !== 'none' && a.position === 'absolute') { t = -parseFloat(a.top) || 0; b = -parseFloat(a.bottom) || 0; l = -parseFloat(a.left) || 0; d = -parseFloat(a.right) || 0; }
+    return { w: r.width + l + d, h: r.height + t + b };
+  }
+
   prueba('MV17', 'movil.html carga lo suyo y nada más (D-269): la lista cerrada de scripts, la misma CSP que index.html con manifest-src, el manifiesto con sus iconos y el icono del iPhone', async () => {
     const tx = async u => (await W.fetch(u + '?mv17=' + Date.now(), { cache: 'no-store' })).text();
     const mv = await tx('movil.html'), ix = await tx('index.html');
@@ -18853,6 +18878,36 @@
     ok(!W.MESA_A_MOVIL, 'la marca está puesta en el Mac');
     const mesa = await (await W.fetch('mesa.js?mv18=' + Date.now(), { cache: 'no-store' })).text(), arr = await (await W.fetch('arranque.js?mv18=' + Date.now(), { cache: 'no-store' })).text();
     ok(/\(function mesaBoot\(\) \{\n\s*if \(window\.MESA_A_MOVIL\) return;/.test(mesa) && /if \(window\.MESA_A_MOVIL\) return;/.test(arr), 'mesa.js o arranque.js no paran con la marca');
+  });
+
+  prueba('MV19', 'La cara del móvil (D-269): Hoy suma lo del núcleo; ninguna pantalla dice «ordenador» ni «Mac»; ningún campo de menos de 16 px ni diana de menos de 44; la publicación enseña sus fotos con su recorte y su caption; sin red, los cambios se apagan y dicen por qué', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const MV = W.MESA; await MV.movil.releer();   // con el reloj de la batería (aMarco lo pone tras cargar)
+      const R = await MV.personal.datos({ modo: 'semana', desp: 0, avTareas: true });
+      await hasta(() => W.document.querySelector('#movil .cifras'), 6000, 'las cifras'); await espera(200);
+      igual([...W.document.querySelectorAll('#movil .cifra .v')].map(x => +x.textContent), ['pasado', 'hoy', 'man', 'espera', 'falta'].map(k => R.cifras[k] || 0), 'las cifras de Hoy no son las del núcleo');
+      const textos = [], malos = [];
+      const mira = nombre => {
+        const raiz = W.document.getElementById('movil'); textos.push([nombre, raiz.innerText]);
+        raiz.querySelectorAll('input,textarea,select').forEach(i => { if (parseFloat(W.getComputedStyle(i).fontSize) < 16) malos.push(`${nombre}: un campo a ${W.getComputedStyle(i).fontSize}`); });
+        raiz.querySelectorAll('button:not([disabled]),[role=button],a[href]').forEach(b => { const r = b.getBoundingClientRect(); if (!r.width || !r.height) return; const d = diana(b); if (d.w < 44 - 0.5 || d.h < 44 - 0.5) malos.push(`${nombre}: ${b.className || b.tagName} ${Math.round(d.w)}×${Math.round(d.h)}`); });
+      };
+      mira('hoy');
+      for (const [h, q] of [['#clientes', '.clis'], ['#tareas', '.nueva'], [`#mes/${key}/lista`, '.dia'], [`#mes/${key}/cal`, '.cal'], [`#mes/${key}/hist`, '.seg'], [`#pub/${key}/r2`, '.car'], [`#cap/${key}/r2`, '.op']]) { await irMovil(h, '#movil ' + q); mira(h); }
+      const dice = textos.filter(([, t]) => /ordenador|\bMac\b/i.test(t)).map(([n, t]) => n + ': «' + (t.match(/.{0,30}(ordenador|\bMac\b).{0,30}/i) || [''])[0] + '»');
+      ok(!dice.length, 'el móvil dice «ordenador» o «Mac»: ' + dice.join(' · '));
+      ok(!malos.length, 'campos o dianas pequeños: ' + malos.slice(0, 8).join(' · '));
+      await irMovil(`#pub/${key}/r2`, '#movil .car');
+      const lams = W.document.querySelectorAll('#movil .car .lam');
+      igual(lams.length, 2, 'las fotos del carrusel');
+      ok(JSON.parse(lams[0].querySelector('img.mi').dataset.r).w > 0, 'la foto sin su recorte');
+      ok(/uno 2|dos 2|tres 2|Sin elegir/.test(W.document.querySelector('#movil .cap').innerText), 'el caption');
+      // sin red: los cambios se apagan y lo dicen
+      W.dispatchEvent(new W.Event('offline')); await espera(200);
+      ok(W.document.querySelector('#movil [data-a="fecha"]').disabled && W.document.querySelector('#movil [data-a="estado"]').disabled && /Sin conexión: no se puede cambiar/.test(W.document.getElementById('movil').innerText), 'sin red se puede cambiar');
+      W.dispatchEvent(new W.Event('online'));
+    });
   });
 
   async function pasar() {

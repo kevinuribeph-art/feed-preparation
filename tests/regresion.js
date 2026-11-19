@@ -18733,6 +18733,79 @@
     ok(t.startsWith('#movil{' + T.claro + '}') && t.includes(':root[data-theme="dark"] #movil,#movil[data-theme="dark"]{' + T.oscuro + '}'), 'tokens(sel)');
   });
 
+  // un servidor de la Mesa de mentira para el móvil (D-268): el turno lo tiene «el Mac» hasta que lo suelta; lo que se escribe, en memoria
+  function srvMovil(key) {
+    const reg = new Map(), llamadas = [], base = () => ({ ok: true, epoca: 'e-mv', hora: new Date().toISOString(), version_minima: '0.0' });
+    let turno = 1, tiene = 'mac-claude-00000000000000aa', orden = 0, cede = false;
+    const T = d => ({ ...base(), turno, tuyo: tiene === d, libre: !tiene, tiene: tiene ? { dispositivo: tiene, desde: new Date().toISOString(), latido: new Date().toISOString(), latido_hace: 1, cola: 0 } : null, pide: null, orden, total: reg.size });
+    const sv = { reg, llamadas, mac: () => tiene, soltarMac: () => { tiene = null; }, cederAlPedir: v => { cede = v; },
+      escribirMac: (almacen, clave, valor) => { orden++; const v = reg.get(almacen + '|' + clave); reg.set(almacen + '|' + clave, { almacen, clave, valor, version: (v ? v.version : 0) + 1, orden, dispositivo: 'mac-claude-00000000000000aa', turno, borrado: false }); },
+      rpc: async (fn, a) => {
+        llamadas.push(fn);
+        if (fn === 'mesa_turno_ver' || fn === 'mesa_turno_latido') return T(a.dispositivo);
+        if (fn === 'mesa_turno_pedir') { if (cede && tiene && tiene !== a.dispositivo) tiene = null; return T(a.dispositivo); }
+        if (fn === 'mesa_turno_reclamar') { if (tiene && tiene !== a.dispositivo && !a.forzar) return { ok: false, error: { codigo: 'turno', http: 423 } }; tiene = a.dispositivo; turno++; return { ...T(a.dispositivo), orden }; }
+        if (fn === 'mesa_turno_soltar') { if (tiene === a.dispositivo) tiene = null; return base(); }
+        if (fn === 'mesa_bajar') { const l = [...reg.values()].filter(x => x.orden > a.desde).sort((x, y) => x.orden - y.orden), p = l.slice(0, a.limite || 500); return { ...base(), filas: p, hasta: p.length ? p[p.length - 1].orden : Math.max(a.desde, orden), mas: l.length > p.length }; }
+        if (fn === 'mesa_actividad') return { ...base(), filas: [], hasta: a.desde, mas: false };
+        if (fn === 'mesa_escribir') {
+          if (tiene !== a.dispositivo) return { ok: false, error: { codigo: 'turno', http: 423 }, epoca: 'e-mv' };
+          return { ...base(), turno, orden, resultados: a.cambios.map(c => { const k = c.almacen + '|' + c.clave, v = reg.get(k), nv = (v ? v.version : 0) + 1; orden++; reg.set(k, { almacen: c.almacen, clave: c.clave, valor: JSON.parse(JSON.stringify(c.valor)), version: nv, orden, dispositivo: a.dispositivo, turno, borrado: c.valor == null }); return { almacen: c.almacen, clave: c.clave, estado: 'ok', version: nv, orden }; }) };
+        }
+        return { ok: false, error: { codigo: 'forma', http: 400 } };
+      } };
+    return sv;
+  }
+
+  prueba('MV15', 'El móvil con la nube (D-268): abre mirando sin coger la Mesa (la tiene el Mac); mirar baja lo que el Mac cambia y la vista lo enseña; coger la Mesa no recarga y quita la pausa; una operación sube sin calma y la Mesa se suelta sola, sin bandejas', async () => {
+    const key = await tableroMovil();
+    await enMovil(async () => {
+      const sv = srvMovil(key);
+      await M._in.movil.mirar(key);
+      M._in.NUBE.activa = true; await M._in.diario.vaciar();
+      const n = M.nube._con(sv), eventos = []; M.nube.alEstado(t => eventos.push(t));
+      const r = await n.abrir();
+      igual([r.modo, sv.llamadas.includes('mesa_turno_reclamar'), M._in.locked, M._in.movil.conTurno], ['mirando', false, true, false], 'abrir en el móvil');
+      // el Mac cambia el contexto de r1: mirar lo baja y la vista lo enseña
+      const rec = await M._in.idbGet('boards', key); rec.slots.find(s => s.id === 'r1').note = 'contexto del Mac';
+      sv.escribirMac('boards', key, rec);
+      const m = await n.mirar();
+      ok(m.nuevos >= 1 && eventos.includes('releido'), 'mirar no bajó ni releyó: ' + json(m));
+      igual(M._in.movil.vista().posts.find(p => p.id === 'r1').contexto, 'contexto del Mac', 'la vista no enseña lo bajado');
+      igual(await M._in.diario.contar(), 0, 'mirar apuntó en el diario');
+      // coger la Mesa: el Mac cede al pedirla; sin recargar
+      sv.cederAlPedir(true);
+      const t = await n.tomar();
+      ok(t.hecho && M._in.movil.conTurno && !M._in.locked && !n._recargas, 'tomar: ' + json(t));
+      const esc = contarEscrituras(), v0 = await M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' });
+      const a = await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 1, visto: v0.v });
+      ok(a.ok, 'no se aplicó: ' + json(a));
+      ok(esc.de.every(w => / (boards|diario|nube)$/.test(w)), 'escribió fuera del tablero: ' + esc.de.join(', '));
+      n.retener(false);
+      await hasta(async () => { await n.tic(); return !sv.mac() && !M._in.movil.conTurno; }, 8000, 'que suba y suelte la Mesa').catch(e => { throw new Error(e.message + ' · ' + json(n.estado()) + ' · ' + sv.llamadas.slice(-12).join(',') + ' · diario ' + json(M._in.movil.conTurno)); });
+      const arriba = sv.reg.get('boards|' + key);
+      igual(arriba && arriba.valor.slots.find(s => s.id === 'r2').caption.pick, 1, 'lo que subió');
+      ok(sv.llamadas.includes('mesa_turno_soltar') && M._in.locked, 'no soltó la Mesa o no volvió la pausa');
+      M.nube._soltar(); M._in.NUBE.activa = false;
+    });
+  });
+
+  prueba('MV16', 'El aparato del móvil se llama por lo que es (D-268): «iPhone · pantalla de inicio», nunca «ordenador» en el móvil; otra pestaña del mismo iPhone que lo coge deja esta parada sin escribir', async () => {
+    await tableroMovil();
+    await enMovil(async () => {
+      igual(M.nube.nombreDe('iphone-inicio-0123456789abcdef'), 'iPhone · pantalla de inicio (0123)', 'el nombre del iPhone');
+      igual(M.nube.nombreDe('iphone-safari-0123456789abcdef'), 'iPhone · Safari (0123)', 'el de Safari');
+      igual(M.nube.nombreDe(null), 'otro aparato', 'sin nombre, en el móvil');
+      igual(M.nube.nombreDe('mac-claude-00000000000000aa'), 'Mac · app Claude (0000)', 'el Mac, como lo llama la nube');
+      let p = 0; M._in.movil.alPestana = () => { p++; };
+      const bc = new BroadcastChannel('mesa-feed'); bc.postMessage({ t: 'claim', id: 'otra-pestana' }); bc.close();
+      await hasta(() => p > 0, 3000, 'el aviso de otra pestaña');
+      ok(M._in.locked && !M._in.movil.conTurno && D.getElementById('arnes'), 'otra pestaña no paró el móvil o borró su página');
+    });
+    const fuente = await (await W.fetch('nube.js?mv16=' + Date.now(), { cache: 'no-store' })).text();
+    ok(/La Mesa se abrió en un aparato nuevo/.test(fuente) && !/se abrió en un ordenador nuevo/.test(fuente), 'el aviso del Mac no dice «aparato nuevo»');
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

@@ -949,6 +949,8 @@
   if (!G.MESA || !G.document) return;
   // ================= el pegamento (la Mesa) =================
   const M = G.MESA, X = () => M._in, D = G.document;
+  // the Mesa on the iPhone (movil.html, <html data-movil>, D-268): it looks, takes the Mesa to write and lets it go; no shell
+  const MOVIL_G = !!(D.documentElement && D.documentElement.hasAttribute('data-movil'));
   if (M.nube && M.nube._off) { try { M.nube._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const lsG = k => { try { return G.localStorage.getItem(k) || ''; } catch (e) { return ''; } };
   const lsS = (k, v) => { try { if (v == null) G.localStorage.removeItem(k); else G.localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
@@ -958,25 +960,29 @@
 
   // ---------- este navegador: un dispositivo ----------
   // Un id por perfil de navegador (localStorage, por origen), legible: «mac-claude-9f86d0818…» → «Mac · app Claude (9f86)».
-  const SO = { mac: 'Mac', win: 'Windows', ios: 'iPhone o iPad', android: 'Android', linux: 'Linux', eq: 'Ordenador' };
-  const NAV = { claude: 'app Claude', chrome: 'Chrome', safari: 'Safari', firefox: 'Firefox', edge: 'Edge', nav: 'navegador' };
+  const SO = { mac: 'Mac', win: 'Windows', ios: 'iPhone o iPad', iphone: 'iPhone', android: 'Android', linux: 'Linux', eq: 'Ordenador' };
+  const NAV = { claude: 'app Claude', chrome: 'Chrome', safari: 'Safari', firefox: 'Firefox', edge: 'Edge', nav: 'navegador', inicio: 'pantalla de inicio' };
+  // the iPhone's own (D-268): «iPhone · pantalla de inicio» opened from its icon, «iPhone · Safari» in Safari (each keeps its own data)
+  const deInicio = () => { try { return G.navigator.standalone === true || !!(G.matchMedia && G.matchMedia('(display-mode: standalone)').matches); } catch (e) { return false; } };
   function dispositivo() {
     let d = lsG(DISP_K);
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(d)) {
       const ua = (G.navigator && G.navigator.userAgent) || '';
-      const so = /iPhone|iPad/.test(ua) ? 'ios' : /Mac/.test(ua) ? 'mac' : /Windows/.test(ua) ? 'win' : /Android/.test(ua) ? 'android' : /Linux/.test(ua) ? 'linux' : 'eq';
-      const nav = /Claude\//.test(ua) ? 'claude' : /Edg\//.test(ua) ? 'edge' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'nav';
+      const iph = MOVIL_G || /iPhone|iPod/.test(ua);
+      const so = iph ? 'iphone' : /iPad/.test(ua) ? 'ios' : /Mac/.test(ua) ? 'mac' : /Windows/.test(ua) ? 'win' : /Android/.test(ua) ? 'android' : /Linux/.test(ua) ? 'linux' : 'eq';
+      const nav = iph ? (deInicio() ? 'inicio' : 'safari') : /Claude\//.test(ua) ? 'claude' : /Edg\//.test(ua) ? 'edge' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'nav';
       d = `${so}-${nav}-${hex(G.crypto.getRandomValues(new Uint8Array(8)))}`; lsS(DISP_K, d);
     }
     return d;
   }
   let DISP_ = null; const DISP0 = () => DISP_ || (DISP_ = dispositivo());
   function nombreDe(id) {
-    if (!id) return 'otro ordenador';
+    const otro = MOVIL_G ? 'otro aparato' : 'otro ordenador';   // the phone never says «ordenador» by hand (D-268)
+    if (!id) return otro;
     const yo = lsG(DISP_K) || DISP_;
     const m = /^([a-z]+)-([a-z]+)-([0-9a-f]{4})/.exec(String(id));
-    if (id === yo) return m && m[1] === 'mac' ? `Este Mac · ${NAV[m[2]] || m[2]}` : `Este ordenador${m ? ' · ' + (NAV[m[2]] || m[2]) : ''}`;
-    return m ? `${SO[m[1]] || 'Ordenador'} · ${NAV[m[2]] || m[2]} (${m[3]})` : `otro ordenador (${String(id).slice(0, 8)})`;
+    if (id === yo) return m && (m[1] === 'mac' || m[1] === 'iphone') ? `Este ${SO[m[1]]} · ${NAV[m[2]] || m[2]}` : `Este ${MOVIL_G ? 'aparato' : 'ordenador'}${m ? ' · ' + (NAV[m[2]] || m[2]) : ''}`;
+    return m ? `${SO[m[1]] || (MOVIL_G ? 'Aparato' : 'Ordenador')} · ${NAV[m[2]] || m[2]} (${m[3]})` : `${otro} (${String(id).slice(0, 8)})`;
   }
   const cuando = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return (d === X().hoy() ? '' : X().fmtDate(d) + ' ') + (h || ''); } catch (e) { return ''; } };
   const cuandoCorto = iso => { try { const d = X().localDay(iso), h = X().localTime(iso); return d === X().hoy() ? esc(h) : `${esc(X().fmtDate(d, true))}<br>${esc(h)}`; } catch (e) { return ''; } };
@@ -990,6 +996,19 @@
   const encendida = () => lsG(ACTIVA) === '1' && !!sb();
   X().NUBE.activa = encendida();
   let N = null, ESTADO = { fase: 'apagada' }, pulso = 0, AVS = [];
+  // the phone's effects (D-268): its pause is its lock (M._in.movil.turno), nothing reloads (what came down is read again), and the
+  // face hears each state; the write in flight goes first (the core's queue)
+  const CARA = new Set();
+  const aCara = (t, d) => { for (const f of CARA) { try { f(t, d); } catch (e) { /* a face that fails doesn't stop the cloud */ } } };
+  const efectosMovil = base => ({ ...base,
+    pausar: async info => { X().movil.turno(false); if (info && info.motivo === 'vieja') { const f = X().movil.alVersion; if (f) f(); } aCara('pausa', info || {}); },
+    congelar: async () => { X().movil.turno(false); },
+    recargar: () => { X().movil.releer().then(() => aCara('releido', {}), () => {}); },
+    tomada: async () => { X().movil.turno(true); aCara('tomada', {}); },
+    soltada: async () => { X().movil.turno(false); aCara('soltada', {}); },
+    releido: async n => { await X().movil.releer(); aCara('releido', { n }); },
+    antesDeSoltar: () => X().movil.esperar(),
+    estado: e => { ESTADO = e; aCara('estado', e); } });   // no desk chip nor its code dialog: the face draws both
   function nucleo() {
     if (N) return N;
     const c = sb();
@@ -997,20 +1016,44 @@
       servidor: { rpc: (fn, args) => c.rpc(fn, args) },
       almacen: X().nubeAlmacen,
       reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) },
-      dispositivo: DISP0(), app: M.version, archivo: archivoHook, ceder: () => new Promise(r => setTimeout(r, 0)),
-      efectos: { pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { const antes = ESTADO && ESTADO.fase; ESTADO = e; pintar(); if (e.fase === 'sin_codigo' && antes !== 'sin_codigo' && M.entrada) M.entrada.pedirCodigo(); },   // solo al pasar a «falta el código» («Más tarde» se respeta)
-        avance: (h, t) => { if (M.entrada && M.entrada.avance) M.entrada.avance(h, t); } }
+      dispositivo: DISP0(), app: M.version, archivo: archivoHook, ceder: () => new Promise(r => setTimeout(r, 0)), movil: MOVIL_G,
+      efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, congelar: () => X().pausaNube(null), recargar: () => { try { G.location.reload(); } catch (e) { /* */ } }, estado: e => { const antes = ESTADO && ESTADO.fase; ESTADO = e; pintar(); if (e.fase === 'sin_codigo' && antes !== 'sin_codigo' && M.entrada) M.entrada.pedirCodigo(); },   // solo al pasar a «falta el código» («Más tarde» se respeta)
+        avance: (h, t) => { if (M.entrada && M.entrada.avance) M.entrada.avance(h, t); } })
     });
     X().NUBE.alApuntar = () => N.cambio();
     return N;
   }
   function arrancarPulso() {
     clearInterval(pulso);
-    pulso = setInterval(() => { if (N && !X().locked) N.tic().catch(() => { /* lo dice su estado */ }); }, 1000);
+    pulso = setInterval(() => { if (N && (!X().locked || MOVIL_G)) N.tic().catch(() => { /* lo dice su estado */ }); }, 1000);   // the phone is «locked» while it looks: its pulse goes on (D-268)
   }
   // M.boot lo llama antes de leer nada (mesa.js, nubeAbrir): primero bajar, después dibujar
+  // the phone (D-268): open looking; then look at once (the face already drew what it has), every 45 s with the screen in front,
+  // on coming back and with the network back; going away with the Mesa, let it go. Never traerResto nor verificarOriginales: each
+  // thing comes down when it is seen, and the phone never keeps an original to check.
+  let mirarT = 0;
+  const mirarYa = () => { if (N && D.visibilityState === 'visible') N.mirar().catch(() => { /* its state says it */ }); };
+  const soltarYa = () => { if (N && N.conTurno()) N.soltar().catch(() => { /* the next time */ }); };
+  async function abrirMovil(traer) {
+    const r = await nucleo().abrir({ traer });
+    if (r.modo === 'vacia') {
+      lsS(ACTIVA, null); lsS(TRAER, null); X().NUBE.activa = false; X().NUBE.alApuntar = null; N = null; ESTADO = { fase: 'apagada' };
+      X().toast('Tu Mesa aún no está en el servidor: se sube desde el Mac.', { error: true });
+      return { modo: 'local', motivo: 'vacia' };
+    }
+    if (traer && r.traido) lsS(TRAER, null);
+    if (r.modo === 'vieja') { const f = X().movil.alVersion; if (f) f(); }
+    arrancarPulso();
+    clearInterval(mirarT); mirarT = setInterval(mirarYa, 45000);
+    on(D, 'visibilitychange', () => { if (D.visibilityState === 'visible') mirarYa(); else soltarYa(); });
+    on(G, 'pageshow', mirarYa); on(G, 'online', mirarYa); on(G, 'pagehide', soltarYa);
+    if (!r.traido && r.modo === 'mirando') setTimeout(mirarYa, 0);
+    AVS = await nucleo().avisos().catch(() => []);
+    return r;
+  }
   async function abrir() {
     const traer = lsG(TRAER) === '1';
+    if (MOVIL_G) return abrirMovil(traer);
     const r = await nucleo().abrir({ traer });
     if (r.modo === 'vacia') {   // arriba no hay Mesa todavía: este navegador se queda como estaba, apagado (nada subió ni se apartó)
       lsS(ACTIVA, null); lsS(TRAER, null); X().NUBE.activa = false; X().NUBE.alApuntar = null; N = null; ESTADO = { fase: 'apagada' };
@@ -1396,7 +1439,7 @@
     const d = f.detalle || {}, quien = f.dispositivo ? nombreDe(f.dispositivo) : '';
     if (f.tipo === 'ajeno') return ['Una cuenta que no es la tuya intentó entrar en la Mesa', `quiso ${FN[d.funcion] || d.funcion || 'algo'}; el servidor lo rechazó`];
     if (f.tipo === 'ajeno_tope') return ['Muchas llamadas de cuentas que no son la tuya', `${d.en_un_minuto || 'más de 60'} en un minuto; todas rechazadas`];
-    if (f.tipo === 'dispositivo_nuevo') return ['La Mesa se abrió en un ordenador nuevo', quien];
+    if (f.tipo === 'dispositivo_nuevo') return ['La Mesa se abrió en un aparato nuevo', quien];   // an iPhone too (D-268)
     const PL = { files: ['foto', 'fotos'], boards: ['tablero', 'tableros'], clients: ['cliente', 'clientes'], bandejas: ['bandeja', 'bandejas'], tareas: ['tarea o nota', 'tareas o notas'], tfotos: ['foto de sesión', 'fotos de sesiones'], cobros: ['factura', 'facturas'], cfacturas: ['PDF', 'PDF'], meses: ['mes', 'meses'], ubicaciones: ['ubicación', 'ubicaciones'] };
     if (f.tipo === 'borrado_masivo') return [`Se borraron ${+d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${+n || 0} ${PL[a] ? PL[a][+n === 1 ? 0 : 1] : a}`).join(', '), quien].filter(Boolean).join(' · ')];
     const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor' };
@@ -1531,11 +1574,19 @@
         sinSubirLista: (await X().nubeAlmacen.sinSubir().catch(() => [])).map(x => ({ almacen: x.a, clave: x.k, motivo: x.motivo, mensaje: x.mensaje, borrado: x.borrado })), avisos: AVS.length };
     },
     avisosHTML, avisos: () => AVS.slice(), avisosN: () => (X().NUBE.activa ? AVS.length : 0), nombreDe,
+    // the phone (D-268): look, take the Mesa, let it go, force it without reloading; its face hears every state and change
+    mirar: () => (N ? N.mirar() : Promise.resolve({ error: 'apagada' })), tomar: () => (N ? N.tomar() : Promise.resolve({ error: 'apagada' })),
+    soltar: () => (N ? N.soltar() : Promise.resolve({ hecho: true })), retener: v => { if (N) N.retener(v); },
+    forzarAqui: visto => (N ? N.forzar(+visto) : Promise.resolve({ error: 'apagada' })),
+    subirEncima: claves => (N ? N.subirEncima(claves) : Promise.resolve({ error: 'apagada' })), descartar: claves => (N ? N.descartar(claves) : Promise.resolve({ error: 'apagada' })),
+    sinSubir: () => X().nubeAlmacen.sinSubir(), estadoYa: () => (N ? N.estado() : { fase: 'apagada' }), conTurno: () => !!(N && N.conTurno()),
+    alEstado: f => { CARA.add(f); return () => CARA.delete(f); },
+    _dormir: () => { clearInterval(pulso); clearInterval(mirarT); },   // another tab of this phone took over: this one does nothing more
     _abrir: abrir, _nucleo: () => N, _panel: panel,
     // solo para la batería: el estado pintado, los avisos releídos y un núcleo con un servidor de mentira (nunca la red)
     _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
     _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); estilar(); return AVS.length; },
-    _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, efectos: { pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } } }); X().NUBE.alApuntar = () => N.cambio(); return N; },
+    _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, movil: MOVIL_G, efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } }) }); X().NUBE.alApuntar = () => N.cambio(); return N; },
     _soltar: () => { clearInterval(pulso); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };

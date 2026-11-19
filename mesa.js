@@ -178,6 +178,12 @@
     return claiming;
   }
   async function lockHere() {
+    if (MOVIL) {   // the phone (D-268): another tab of this iPhone took over; this one stops (it writes nothing, its cloud sleeps)
+      movilTurno = false; locked = true; if (held) { held(); held = null; }
+      try { if (M.nube && M.nube._dormir) M.nube._dormir(); } catch (e) { /* */ }
+      const f = MOVIL_IN.alPestana; if (f) { try { f(); } catch (e) { /* */ } }
+      return;
+    }
     if (locked && held) { held(); held = null; }   // paused already (the cloud, a new version): the other tab needn't wait 4 s
     if (locked || locking) return;
     locking = true;
@@ -250,7 +256,7 @@
         if (e.oldVersion >= 15 && e.oldVersion < 19) { const t = r.transaction, dj = t.objectStore(DIARIO);   /* idb-crudo: the upgrade */
           t.objectStore('tareas').openCursor().onsuccess = ev => { const c = ev.target.result; if (!c) return; const n = tareaAl17(c.value); if (n !== c.value) { c.update(n); apuntar(dj, 'tareas', c.primaryKey); } c.continue(); }; }   /* idb-crudo: the upgrade */
       };
-      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; res(d); };
+      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; d.onclose = () => { if (dbConn === d) { dbp = null; dbConn = null; } }; res(d); };   // closed by the system (iOS after a suspension, D-268): the next call opens it again
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
       r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady() || MOVIL) toast(m, { error: true }); else if (document.body) document.body.textContent = m; };
     });
@@ -6351,10 +6357,21 @@ ${TK_FUENTES}
   }
   // the Mesa's tokens and font under another selector (the phone's root): the same text the desk uses, never copied (D-267)
   const tokensMovil = sel => `${sel}{${TK_CLARO}}\n:root[data-theme="dark"] ${sel},${sel}[data-theme="dark"]{${TK_OSCURO}}\n${TK_FUENTES}`;
+  // abrir(): the phone's start (movil.js, after the sign-in): the database, this tab's lock, the cloud (looking, D-268) and what the
+  // pages read; never the desk. {modo} is the cloud's (mirando, turno, local, sin_sesion, sin_codigo, otra_cuenta, vieja, sin_nube)
+  async function abrirMovil() {
+    await db();
+    await claim();
+    if (NUBE.activa) await nubeAbrir();
+    await loadClients();
+    try { await cobLeer(true); } catch (e) { /* Hoy says it */ }
+    try { await mesLeer(true); } catch (e) { /* */ }
+    return { modo: NUBE.activa ? NUBE.modo || 'local' : 'sin_nube' };
+  }
   const turnoMovil = v => { movilTurno = !!v; if (MOVIL) locked = !v; return movilTurno; };   // the cloud's glue (lot 2): it holds the Mesa, or not
   const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, releer: () => enFila(releerMovil),
     valor: op => enFila(() => valorMovil(op)), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil, tokens: tokensMovil, TOKENS: { claro: TK_CLARO, oscuro: TK_OSCURO, fuentes: TK_FUENTES },
-    get conTurno() { return movilTurno; } };
+    get conTurno() { return movilTurno; }, abrir: abrirMovil, esperar: () => colaMovil, reclamar: () => claim(), alPestana: null };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
   if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {
     const f = M[k];
@@ -6367,7 +6384,7 @@ ${TK_FUENTES}
   // that notes writes; then the caches read before (invoices, months, tasks) read again. What comes down always wins; what was
   // only here and collided waits in «quedó sin subir».
   async function nubeAbrir() {
-    try {
+    if (!MOVIL) try {   // the phone never leaves a copy in localStorage (D-267)
       const p = pendienteLS();
       if (p && p.key && p.board) {
         const b = await idbGet('boards', p.key).catch(() => null);
@@ -6381,7 +6398,7 @@ ${TK_FUENTES}
     } catch (e) { /* the copy stays in localStorage */ }
     if (!(M.nube && M.nube._abrir)) { NUBE.modo = 'sin_modulo'; return; }   // nube.js didn't load: this browser's Mesa, nothing up or down
     let fin = null; NUBE.bajando = new Promise(r => { fin = r; });
-    try { const r = await M.nube._abrir(); NUBE.modo = (r && r.modo) || 'local'; NUBE.alDia = NUBE.modo === 'turno'; if (NUBE.modo === 'pausada' || NUBE.modo === 'vieja') { NUBE.pausa = true; locked = true; } }
+    try { const r = await M.nube._abrir(); NUBE.modo = (r && r.modo) || 'local'; NUBE.alDia = NUBE.modo === 'turno'; if (NUBE.modo === 'pausada' || NUBE.modo === 'vieja' || NUBE.modo === 'mirando') { NUBE.pausa = true; locked = true; } }
     catch (e) { NUBE.modo = 'local'; console.warn('nube:', e); }
     finally { NUBE.bajando = null; fin(); }
     try { await cobLeer(true); await mesLeer(true); document.dispatchEvent(new CustomEvent('mesa-tareas')); const b = new BroadcastChannel('mesa-personal'); b.postMessage({ t: 'tareas' }); b.close(); } catch (e) { /* */ }

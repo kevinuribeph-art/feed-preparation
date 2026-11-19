@@ -20,7 +20,14 @@
 //   node tools/web.mjs mesa-epoca <pruebas|real> [--si]     época nueva, tras restaurar una copia de la base: las Mesas vuelven a
 //                                                     bajar todo desde 0 (en el real, solo con --si)
 //   node tools/web.mjs actividad <pruebas|real> [días]   la actividad de la Mesa en el servidor (7 días si no se dice; hasta 90)
+//   node tools/web.mjs zernio <pruebas|real> [--si]   despliega servidor/funciones/zernio.ts (Zernio desde el servidor, solo Kevin) y
+//                                                     pone sus secretos ZERNIO_API_KEY y ZERNIO_BASE. En el real, solo con --si: la
+//                                                     clave de .env (ZERNIO_API_KEY, nunca se enseña) y la dirección real de Zernio.
+//                                                     En pruebas NUNCA la clave real: una inventada (ZERNIO_PRUEBAS_CLAVE, que empieza
+//                                                     por «falsa-», o una nueva) y el Zernio simulado servidor/funciones/zernio-falso.ts,
+//                                                     que solo se despliega ahí
 import { readFileSync, existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -48,7 +55,7 @@ function leerEnv() {
 }
 export const clave = n => (process.env[n] || leerEnv()[n] || '').trim();
 
-const SECRETOS = () => ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_REAL_TOKEN', 'SUPABASE_PRUEBAS_SECRETA', 'SUPABASE_SECRETA', 'SMTP_CLAVE'].map(clave).filter(Boolean);
+const SECRETOS = () => ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_REAL_TOKEN', 'SUPABASE_PRUEBAS_SECRETA', 'SUPABASE_SECRETA', 'SMTP_CLAVE', 'ZERNIO_API_KEY', 'ZERNIO_PRUEBAS_CLAVE'].map(clave).filter(Boolean);
 // El token de gestión de cada proyecto: el real puede tener el suyo (cada token, limitado a un proyecto).
 const tokenDe = ref => (ref && ref === clave('SUPABASE_REF') && clave('SUPABASE_REAL_TOKEN')) || clave('SUPABASE_ACCESS_TOKEN');
 // Toda salida pasa por aquí antes de recortarse (lección 121).
@@ -121,6 +128,22 @@ export async function usuarioPorCorreo(P, correo) {
   return null;
 }
 
+// Despliega servidor/funciones/<slug>.ts con la API de gestión. `verify_jwt`: la pasarela rechaza lo que no trae un JWT del proyecto.
+async function desplegar(P, slug, verifyJwt) {
+  const archivo = slug + '.ts';
+  const codigo = readFileSync(join(AQUI, '..', 'servidor', 'funciones', archivo));
+  const fd = new FormData();
+  fd.append('metadata', JSON.stringify({ name: slug, entrypoint_path: archivo, verify_jwt: verifyJwt }));
+  fd.append('file', new Blob([codigo], { type: 'application/typescript' }), archivo);
+  const t = tokenDe(P.ref); if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
+  const r = await pedir(`https://api.supabase.com/v1/projects/${P.ref}/functions/deploy?slug=${slug}`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd });
+  if (!r.ok) throw new Fallo(`la función ${slug} no se desplegó (${r.status}): ${r.text}`);
+}
+
+// Zernio desde el servidor (traspaso C, lote 6).
+const ZERNIO_REAL = 'https://zernio.com/api/v1';           // la de tools/zernio.mjs
+const CLAVE_FALSA = /^falsa-[A-Za-z0-9_-]{16,}$/;          // la única forma de clave que va al proyecto de pruebas
+
 async function sqlDe(P, query) {
   const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query } });
   if (!r.ok || !Array.isArray(r.json)) throw new Fallo(`la consulta no entró (${r.status}): ${r.text}`);
@@ -164,14 +187,48 @@ const ORDENES = {
   },
   async funciones(cual) {
     const P = proyecto(cual);
-    const codigo = readFileSync(join(AQUI, '..', 'servidor', 'funciones', 'firmar.ts'));
-    const fd = new FormData();
-    fd.append('metadata', JSON.stringify({ name: 'firmar', entrypoint_path: 'firmar.ts', verify_jwt: true }));
-    fd.append('file', new Blob([codigo], { type: 'application/typescript' }), 'firmar.ts');
-    const t = tokenDe(P.ref); if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
-    const r = await pedir(`https://api.supabase.com/v1/projects/${P.ref}/functions/deploy?slug=firmar`, { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd });
-    if (!r.ok) throw new Fallo(`la función no se desplegó (${r.status}): ${r.text}`);
+    await desplegar(P, 'firmar', true);
     return { proyecto: P.ref, funcion: 'firmar desplegada' };
+  },
+  // Zernio desde el servidor (lote 6). Los secretos van antes que la función, para que la desplegada ya los lea. La clave no se
+  // imprime nunca: ni aquí ni en un error (tapar() la conoce, y la inventada se quita a mano de lo que conteste la API).
+  async zernio(cual, ...op) {
+    const P = proyecto(cual);
+    if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real solo con --si (y con el OK de Kevin)');
+    let k, base;
+    if (cual === 'real') {
+      if (P.ref === clave('SUPABASE_PRUEBAS_REF')) throw new Fallo('el proyecto real es el de pruebas: la clave de Zernio no va ahí');
+      k = clave('ZERNIO_API_KEY');
+      if (!k) throw new Fallo('falta ZERNIO_API_KEY en .env');
+      if (CLAVE_FALSA.test(k)) throw new Fallo('ZERNIO_API_KEY es una clave inventada de pruebas: no va al real');
+      base = ZERNIO_REAL;
+    } else {
+      if (P.ref === clave('SUPABASE_REF')) throw new Fallo('el proyecto de pruebas es el real: no se despliega ahí el Zernio simulado');
+      // Nunca la clave real: una inventada.
+      const dada = clave('ZERNIO_PRUEBAS_CLAVE');
+      if (dada && !CLAVE_FALSA.test(dada)) throw new Fallo('ZERNIO_PRUEBAS_CLAVE tiene que ser inventada: «falsa-» y al menos 16 letras o cifras');
+      k = dada || 'falsa-' + randomBytes(16).toString('hex');
+      base = `${P.url}/functions/v1/zernio-falso`;
+    }
+    const sin = t => tapar(t).split(k).join('[clave]');
+    // ZERNIO_CORS_LOCAL: una copia en 127.0.0.1 / localhost puede llamarla solo en pruebas.
+    const s = await gestion(`projects/${P.ref}/secrets`, { method: 'POST', body: [{ name: 'ZERNIO_API_KEY', value: k }, { name: 'ZERNIO_BASE', value: base },
+      { name: 'ZERNIO_CORS_LOCAL', value: cual === 'pruebas' ? '1' : '0' }] });
+    if (!s.ok) throw new Fallo(sin(`los secretos no entraron (${s.status}): ${s.text}`));
+    if (cual === 'pruebas') await desplegar(P, 'zernio-falso', false);   // el simulado, solo aquí: lo llama la función por su secreto
+    await desplegar(P, 'zernio', true);
+    // Comprobación con la clave pública y sin sesión: la pasarela la deja pasar (la clave pública vale como JWT anónimo) y la
+    // función contesta `sesion`. Recién desplegada puede tardar unos segundos en contestar.
+    let r = null;
+    for (let i = 0; i < 15; i++) {
+      if (i) await new Promise(f => setTimeout(f, 2000));
+      r = await pedir(`${P.url}/functions/v1/zernio`, { method: 'POST', headers: { ...cab(P.publica || ''), 'Content-Type': 'application/json' }, body: { orden: 'posts' } });
+      if (r.status === 401 || (r.json && r.json.ok === false && r.json.error && r.json.error.codigo === 'sesion')) break;
+    }
+    const rechazada = r && (r.status === 401 || (r.json && r.json.error && r.json.error.codigo === 'sesion'));
+    return { proyecto: P.ref, funcion: 'zernio desplegada', ...(cual === 'pruebas' ? { simulado: 'zernio-falso desplegada' } : {}),
+      secretos: { ZERNIO_API_KEY: cual === 'real' ? 'la de .env (no se enseña)' : 'inventada (no se enseña)', ZERNIO_BASE: base },
+      sin_sesion: rechazada ? 'rechazada' : `contestó ${r && r.status}: mírala` };
   },
   async 'borrar-cliente'(cual, id) {
     const P = proyecto(cual);

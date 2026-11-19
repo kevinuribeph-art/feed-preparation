@@ -36,7 +36,10 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   `nube` (IndexedDB 23).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
-  `mesa-version`, `mesa-epoca`, `actividad`). Solo en local.
+  `mesa-version`, `mesa-epoca`, `actividad`) y la función `zernio` del servidor (`zernio`, D-261). Solo en local.
+- `servidor/funciones/zernio.ts`: función de Supabase que hace lo de `presign`, `schedule`, `posts` y `update` de
+  `tools/zernio.mjs` con la clave como secreto del proyecto, solo para la sesión de Kevin (D-261). `zernio-falso.ts`, su Zernio
+  simulado, solo en el proyecto de pruebas.
 - `mesa.js` pesa unos 300 KB: busca con grep en vez de leerlo entero. Una función nueva grande va
   en su propio archivo, como `libre.js`.
 
@@ -75,13 +78,18 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   `node tests/portal-aislamiento.mjs`. Antes de cada PR que toque el servidor, el portal o lo que la Mesa envía, entera en verde.
 - El servidor de la Mesa (esquema `mesa`, D-251), igual, contra el proyecto de pruebas y nunca el real: `node tests/mesa-servidor.mjs`
   (necesita `node tools/web.mjs mesa pruebas` aplicado). Antes de cada PR que toque `servidor/mesa.sql`, entera en verde.
+- La función `zernio` (D-261), contra el proyecto de pruebas y un Zernio simulado, nunca el real ni la clave real:
+  `node tests/zernio-servidor.mjs` (la despliega en pruebas y deja sus secretos como estaban). Antes de cada PR que toque
+  `servidor/funciones/zernio*.ts` o la orden `zernio` de `tools/web.mjs`, entera en verde, con `mesa-servidor` y `portal-aislamiento`.
 - No sirvas la carpeta del repo: expondría `.env`, y el servidor de preview no puede leer carpetas
   protegidas de macOS (Escritorio, Documentos).
 - Datos de prueba: una exportación de la mesa (⇅ → Exportar) o un tablero de prueba nuevo.
 
 ## Zernio y `.env`
 - `ZERNIO_API_KEY` vive solo en `.env` (fuera de git, permisos 600). `tools/zernio.mjs` la lee del
-  entorno o del `.env` junto al repo; ver los comandos en su cabecera.
+  entorno o del `.env` junto al repo; ver los comandos en su cabecera. Con D-261 vive también como secreto de la función
+  `zernio` del proyecto real (la pone `node tools/web.mjs zernio real --si`, con el OK de Kevin); al proyecto de pruebas nunca va
+  la real.
 - La clave nunca va a `mesa.js`, a Notion, a un commit ni al chat. No muestres ni copies `.env`.
 - La mesa nunca ve la clave: pide URLs firmadas a `tools/zernio.mjs` y sube las fotos con `MESA.startZernio`.
 - Las de Supabase (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_REAL_TOKEN`, `SUPABASE_PRUEBAS_*`, `SUPABASE_*`) y las del buzón de los códigos (`SMTP_*`) viven igual, solo en `.env`; las lee

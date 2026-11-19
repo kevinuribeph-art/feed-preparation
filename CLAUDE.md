@@ -2,7 +2,9 @@
 
 App web estática para preparar el feed mensual de Instagram: tablero de publicaciones,
 diseñador de carruseles y editor libre de diapositivas.
-Publicada con GitHub Pages: https://kevinuribeph-art.github.io/feed-preparation/
+Publicada con GitHub Pages: https://kevinuribeph-art.github.io/feed-preparation/ y, para la mudanza al servidor (traspaso C),
+también en https://mesa.uribevisuals.studio (Cloudflare Pages, D-260). Tras la mudanza vive en el dominio; `github.io` se cierra
+con el OK de Kevin.
 
 **Este repo es público.** Nada de datos de clientes, credenciales ni flujos internos en archivos
 rastreados. Las notas privadas van en `CLAUDE.local.md` (ignorado por git).
@@ -14,7 +16,10 @@ como decisión nueva y marca la otra como sustituida. Toda petición que cambie 
 DECISIONES.md en el mismo PR, choque o no con algo.
 
 ## Stack
-- HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual.
+- HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual. Única excepción
+  (D-260): para el dominio, Cloudflare Pages corre `sh tools/publicar-mesa.sh`, que **copia** a `_mesa/` solo los archivos de la
+  Mesa (sin transformarlos) con sus cabeceras (`tools/mesa.headers`; la CSP sale del `<meta>` de `index.html`). Pendiente (Kevin):
+  más adelante, la Mesa en su propia carpeta, como el portal, y sin esta copia.
 - `index.html` lleva la CSP de la Mesa en un `<meta>` (D-252: ningún script en línea ni manejador `on…=`; todo script es un
   archivo) y carga, sin async, `tema.js` (el tema oscuro antes de pintar), `mesa.js` (núcleo, expone `window.MESA`),
   `portal/supa.js` (la sesión de Supabase: una sola instancia para toda la Mesa, `MESA._in.supa`), `nube.js` (la nube: sube
@@ -36,7 +41,9 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   en su propio archivo, como `libre.js`.
 
 ## Publicar
-- Pages publica desde `main`. Cada cambio va en una rama y entra por PR.
+- GitHub Pages y Cloudflare Pages (`mesa.uribevisuals.studio`) publican desde `main`. Cada cambio va en una rama y entra por PR.
+- Un archivo nuevo de la Mesa fuera de la raíz (`*.js`, `index.html`) o de `kits/` se añade a `tools/publicar-mesa.sh` (si la
+  página lo pide y falta, la copia se para y Cloudflare no publica).
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
   `index.html`, los dos iguales. Si cambias `nube-fotos.js` (el worker de las fotos), sube `FOTOS_V` en `nube.js` y el `?v=` de
   `nube.js`. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
@@ -45,10 +52,12 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Si subes la versión de IndexedDB, tras comprobar con curl que Pages sirve la nueva, sube la mínima del servidor a esa versión
   de la Mesa (`node tools/web.mjs mesa-version real <x.yy>`): una Mesa más vieja deja de bajar y subir y pide recargar (D-060
   entre ordenadores, D-257).
-- Tras publicar, comprueba con `curl` que Pages sirve los archivos nuevos.
+- Tras publicar, comprueba con `curl` que las dos direcciones sirven los archivos nuevos y, en `mesa.uribevisuals.studio`, sus
+  cabeceras (`curl -sI`) y que no sirve `tools/`, `tests/`, `servidor/` ni los `.md`.
 
 ## Probar
-- Nunca abras la URL publicada en el navegador integrado de Claude para probar: ahí están los datos reales de Kevin.
+- Nunca abras las URL publicadas (`github.io` ni `mesa.uribevisuals.studio`) en el navegador integrado de Claude para probar:
+  ahí están los datos reales de Kevin.
   Ábrela solo para lo que Kevin pida hacer en su mesa.
 - Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `nube-fotos.js`, `mesa.js`, `diseno.js`,
   `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
@@ -60,6 +69,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - El núcleo de la nube (`nube.js`: turno, versiones, páginas, cola, reescanear y reconciliar; las fotos, `subirTodo`, `comprobar`
   y «traer»), sin red, con un servidor, un almacén y un reloj simulados: `node tests/nube-simulada.mjs`. Antes de cada PR que toque `nube.js`, entera en verde.
 - El aviso de los códigos de entrada de `portal/supa.js` y sus archivos (subir solo con el 409, bajar), también sin red: `node tests/portal-supa.mjs`.
+- La copia que publica el dominio (`tools/publicar-mesa.sh`: lo que lleva, lo que no y sus cabeceras), sin red:
+  `node tests/publicar-mesa.mjs`. Antes de cada PR que toque `index.html`, la CSP, los archivos de la Mesa o la copia.
 - El aislamiento del portal tiene su prueba contra el proyecto de pruebas de Supabase, nunca el real:
   `node tests/portal-aislamiento.mjs`. Antes de cada PR que toque el servidor, el portal o lo que la Mesa envía, entera en verde.
 - El servidor de la Mesa (esquema `mesa`, D-251), igual, contra el proyecto de pruebas y nunca el real: `node tests/mesa-servidor.mjs`

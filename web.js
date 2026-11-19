@@ -1,11 +1,11 @@
-// web.js · Enviar a la web del cliente (D-241, lote 2 del portal). Mesa ≥ 4.28.
+// web.js · Enviar a la web del cliente (D-241, lote 2 del portal). Mesa ≥ 4.32 (1.1: la sesión, la misma instancia de Supa que la nube, D-253).
 // Desde el tablero abierto, Kevin envía al servidor un paquete por cliente y mes con lo que ve el cliente en su portal, ya
 // filtrado aquí (lección 81): nunca la Nota, el contexto, los captions sin elegir, nombres de archivo, ids de Notion ni nada
 // de otros clientes. La sesión de Kevin la lleva `portal/supa.js`; las aprobaciones y comentarios se leen en el lote 4.
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -15,22 +15,15 @@
   const lsG = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
   const lsS = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
 
-  // ---------- El proyecto ----------
-  // El real se rellena al crearlo (lote 5: su URL y su clave «publishable», públicas por diseño). En una copia de pruebas
-  // servida en este Mac (127.0.0.1) manda la que diga `localStorage['mesa-web-proyecto']` y nunca el real; fuera de este Mac, siempre el real.
-  const REAL = { url: 'https://ipqeywhhuncpnqkvfxpn.supabase.co', publica: 'sb_publishable_Gqu_MN2jOnjKLp9aYkTjyg_hqWBqZ2E' };
-  const LOCAL = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
-  function proyecto() {
-    if (LOCAL) { try { const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'); if (p && p.url && p.publica) return p; } catch (e) { /* sin almacenamiento */ } return null; }
-    return REAL.url && REAL.publica ? REAL : null;
-  }
+  // ---------- El proyecto y la sesión ----------
+  // La misma instancia de Supa que la nube (D-253): la da mesa.js (`MESA._in.supa`), con el proyecto real fuera de este Mac y, en
+  // una copia de pruebas servida aquí (127.0.0.1), el de `localStorage['mesa-web-proyecto']`, nunca el real.
   let SB = null;
   function sb() {
-    const p = proyecto(); if (!p || !window.Supa) return null;
-    if (!SB || SB._url !== p.url) {
-      try { SB = window.Supa.crear({ url: p.url, publica: p.publica, clave: 'mesa-web-' + p.url.split('//')[1].split('.')[0] }); SB._url = p.url; }
-      catch (e) { return null; }
-      SB.alCambiar(() => { st.dueno = null; st.servidor = null; st.cambios = null; conv.clear(); RESP.clear(); HECHAS.clear(); if (I() && I().render) I().render(); pedirRepaso(); });
+    const c = I() && I().supa ? I().supa() : null;
+    if (c !== SB) {
+      SB = c;
+      if (SB) SB.alCambiar(() => { if (SB !== c) return; st.dueno = null; st.servidor = null; st.cambios = null; conv.clear(); RESP.clear(); HECHAS.clear(); if (I() && I().render) I().render(); pedirRepaso(); });
     }
     return SB;
   }

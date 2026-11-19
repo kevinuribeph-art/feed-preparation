@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
-  const VERSION = '1.4';   // 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
+  const VERSION = '1.5';   // 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];
@@ -130,6 +130,7 @@
   async function limpiar() {
     try {
       const X = I(), usadas = new Set();
+      if (X.limpiezasOk && !X.limpiezasOk()) return;   // with the cloud, only once all of the server's data came down (D-256)
       for (const t of (await X.idbAll('tareas')) || []) if (t && t.tipo === 'sesion') for (const f of t.fotos || []) if (f && f.id) usadas.add(f.id);
       const t0 = Date.now() - 36e5, dia = Date.now() - 864e5;   // never one put a moment ago; never one loose since less than a day
       for (const f of (await X.idbAll('tfotos')) || []) {

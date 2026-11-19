@@ -41,7 +41,7 @@
 
 do $$
 declare
-  v_archivo constant integer := 2;   -- la versión de este archivo (súbela en cada cambio)
+  v_archivo constant integer := 3;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3)
   v_aplicada integer := 0;
 begin
   if to_regprocedure('public.es_dueno()') is null then
@@ -352,6 +352,24 @@ begin
        set pide = v_yo, pide_desde = case when pide = v_yo then pide_desde else now() end, pide_ultima = now()
      where id returning * into t;
   end if;
+  return mesa.turno_json(t, v_yo);
+end $$;
+
+-- Ver la Mesa sin pedirla (esquema 3, lote 3 del traspaso): quien abre la Mesa mira quién la tiene antes de pedirla («La Mesa
+-- está abierta en <A> desde <hora>. ¿Usarla aquí?»). La misma respuesta que pedir; no apunta nada (salvo la fila «ajeno» de
+-- quien no es Kevin) ni mira la versión de la app (lo miran pedir, latido, reclamar y escribir).
+create or replace function public.mesa_turno_ver(dispositivo text) returns jsonb
+  language plpgsql volatile security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_yo text := mesa_turno_ver.dispositivo;
+  t mesa.turno;
+begin
+  if not public.es_dueno() then return mesa.ajeno('mesa_turno_ver', v_yo); end if;
+  if v_yo is null or v_yo !~ '^[A-Za-z0-9_-]{8,64}$' then
+    return mesa.rechazar('mesa_turno_ver', v_yo, mesa.rechazo('forma', 400, 'dispositivo no válido: de 8 a 64 letras, cifras, - o _'));
+  end if;
+  select * into t from mesa.turno where id;
   return mesa.turno_json(t, v_yo);
 end $$;
 
@@ -720,11 +738,11 @@ begin
 end $$;
 
 -- Solo Kevin, con sesión: nada para quien no ha entrado (sin sesión no llega a la función y no deja fila).
-revoke all on function public.mesa_turno_pedir(text, text), public.mesa_turno_latido(text, bigint, text, integer),
+revoke all on function public.mesa_turno_ver(text), public.mesa_turno_pedir(text, text), public.mesa_turno_latido(text, bigint, text, integer),
   public.mesa_turno_reclamar(text, bigint, text, boolean), public.mesa_turno_soltar(text, bigint),
   public.mesa_escribir(text, bigint, text, jsonb, boolean), public.mesa_bajar(bigint, integer),
   public.mesa_actividad(bigint, integer) from public, anon;
-grant execute on function public.mesa_turno_pedir(text, text), public.mesa_turno_latido(text, bigint, text, integer),
+grant execute on function public.mesa_turno_ver(text), public.mesa_turno_pedir(text, text), public.mesa_turno_latido(text, bigint, text, integer),
   public.mesa_turno_reclamar(text, bigint, text, boolean), public.mesa_turno_soltar(text, bigint),
   public.mesa_escribir(text, bigint, text, jsonb, boolean), public.mesa_bajar(bigint, integer),
   public.mesa_actividad(bigint, integer) to authenticated;

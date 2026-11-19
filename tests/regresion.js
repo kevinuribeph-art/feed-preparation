@@ -13,7 +13,7 @@
   }
 
   const CLIENTE = 'prueba-regresion', NOMBRE = 'Cliente de prueba', MES = '2026-11';
-  const V_ARCHIVO = 19, V_IDB = 22;   // IndexedDB 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
+  const V_ARCHIVO = 19, V_IDB = 23;   // IndexedDB 23 desde la 4.32 (la nube, almacén 'nube', D-253); 22 desde la 4.31 (el diario de cambios, D-250); v19 y 21 desde la 4.27 (el porqué y cómo fue de cada mes, el almacén 'meses', D-238); v18 y 20 desde la 4.26 (cobros y sus facturas en PDF, la cuota de un cliente, D-232); v17 y 19 desde la 4.24 (varios clientes, fin y plantillas de material de una sesión, D-217 a D-220); v16 y 18 desde la 4.22 (sesiones, esporádicos, material y el almacén 'tfotos', D-206 a D-208); la versión del archivo de «⇅ Exportar» y la de IndexedDB: v8 y 10 desde la 3.91 (D-119); v9 y 11 desde la 3.92 (D-120); v10 y 12 desde la 3.95 (D-124); v11 y 13 desde la 4.01 (D-130); v12 y 14 desde la 4.15 (D-179); v13 y 15 desde la 4.16 (D-180); v14 y 16 desde la 4.17 (D-183); v15 y 17 desde la 4.19 (D-193)
   // la batería va con el reloj de la mesa parado antes de sus fechas (noviembre de 2026): nada vence ni pasa solo a Publicado
   // salvo en las pruebas que lo adelantan (D-120)
   const RELOJ_PRUEBAS = Date.parse('2026-10-01T10:00:00+02:00');
@@ -168,7 +168,7 @@
       ok(dialogos === 0, 'en la app Claude se abrió el diálogo de guardar');
       ok(r && r.ok && r.via === 'descarga' && cap, 'en la app Claude no hizo una descarga normal: ' + json(r));
       ok(/^mesa-de-trabajo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/.test(cap.name), 'nombre de archivo: ' + cap.name);
-      const blob = await (await W.fetch(cap.href)).blob();
+      const blob = await (await fetch(cap.href)).blob();
       ok(blob.size > 1000, `archivo vacío o casi (${blob.size} bytes)`);
       const d = JSON.parse(await blob.text());
       ok(d.format === 'mesa-feed' && d.boards.some(b => b.key === `${CLIENTE}-${MES}`), 'el archivo no trae el tablero de prueba');
@@ -655,7 +655,7 @@
     await abrirEditor('r1'); accion('sl-add'); compDe(ed().i).els.push(huecoEl('hx', 0.1, 0.1, 0.8, 0.8)); await aplicarEditor();
     const f0 = W.fetch; W.fetch = async () => { throw new TypeError('sin red (prueba)'); };   // ninguna subida sale de aquí
     try {
-      const it = (fileId, slotId) => ({ fileId, slotId, url: 'http://127.0.0.1:9/subir', auth: 'prueba' });
+      const it = (fileId, slotId) => ({ fileId, slotId, url: location.origin + '/tests/no-hay-subida', auth: 'prueba' });   // a URL the Mesa's CSP allows that answers 404 (D-252)
       const r1 = slot('r1').photos;
       ok(q('.detail:not([hidden])[data-slot="r1"]'), 'tras «Aplicar» no quedó abierta la publicación');   // con algo abierto, no se lo cierra: una nota
       M.startUpload(r1.map(f => it(f, 'r1')));
@@ -3316,7 +3316,7 @@
       await pulsar('[data-act="xfer"]'); await pulsar('[data-act="xfer-export"]');
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
-      const d = JSON.parse(await (await (await W.fetch(cap.href)).blob()).text());
+      const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
       const b = d.boards.find(x => x.key === `${CLIENTE}-${MES}`), s1 = b && b.slots.find(x => x.id === 'r1');
       ok(s1 && s1.photos.length === 3 && Object.values(s1.libre.slides).some(c => c.els.some(e => e.t === 'hueco')), 'el archivo no lleva la publicación con su hueco tal cual');
       const txt = dl.textContent;
@@ -5287,7 +5287,7 @@
     const A = W.HTMLAnchorElement.prototype, click = A.click; let cap = null;
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try { await fn(() => cap); } finally { A.click = click; }
-    return cap ? { name: cap.name, blob: await (await W.fetch(cap.href)).blob() } : null;
+    return cap ? { name: cap.name, blob: await (await fetch(cap.href)).blob() } : null;
   }
   async function descargarYa(opts = {}) {
     const d = await hasta(() => ventanaDl(), 3000, 'la ventana de descarga');
@@ -17219,7 +17219,7 @@
     }
     igual(malas, [], 'accesos a IndexedDB fuera de tx() (o la vía sin diario fuera de mesa.js)');
     igual(accesos, 6, 'los accesos crudos de mesa.js, todos en sus líneas «idb-crudo» (la apertura, la actualización de versión y txCon)');
-    igual(sin, 8, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario; el lote 3 sumará las suyas aquí)');
+    igual(sin, 27, 'las líneas de mesa.js que nombran la vía sin diario (sus comentarios, su definición y M._in.diario: 8; el lote 3, a sabiendas: el almacén de la nube, lo que baja del servidor y los borrados de archivos solo de aquí, D-253 y D-256)');
     // dentro de una transacción con diario, una escritura por el almacén crudo (req.source): la guarda la ve
     const antes0 = djFugas.length;
     await M._in.xfer.tx('ubicaciones', 'readwrite', st => { const g = st.count(); g.onsuccess = () => { g.source.put({ id: 'ub-fuga2' }, 'ub-fuga2'); }; });
@@ -17637,6 +17637,316 @@
     }
   });
 
+  // ---------- la nube, lote 3 del traspaso (D-253 a D-257) ----------
+  const nbLimpiar = async (ubs = []) => {
+    const N = M._in.NUBE; N.activa = false; N.bajando = null; N.modo = null; N.alDia = false;
+    if (M.nube && M.nube._soltar) M.nube._soltar();
+    await M._in.diario.sinDiario('nube', 'readwrite', s => s.clear());
+    if (ubs.length) await M._in.diario.sinDiario('ubicaciones', 'readwrite', s => ubs.forEach(k => s.delete(k)));
+  };
+  prueba('NB1', 'La nube apagada (D-253): sin activarla, la Mesa no llama al servidor de la Mesa ni con un proyecto y una sesión puestos; el diario sigue apuntando; nada de la nube a la vista', async () => {
+    await tablero([pub(1), pub(2)]);
+    ok(M.nube && M.nube.version && M._in.NUBE, 'nube.js no cargó');
+    igual(M._in.NUBE.activa, false, 'la nube encendida sin activarla');
+    await conWeb(async () => {
+      wbSesion();
+      const f1 = W.fetch, pedidos = []; W.fetch = (u, o) => { pedidos.push(String(u)); return f1(u, o); };
+      try {
+        await poner('r1', [await foto('nb1.jpg')]); M.setEstado('r1', 'aprobar'); await M.flush();
+        await espera(4500);   // más que la calma de la nube
+        ok(!pedidos.some(u => /\/rpc\/mesa_/.test(u)), 'la Mesa llamó al servidor de la Mesa: ' + pedidos.filter(u => /mesa_/.test(u)).join(', '));
+        ok((await M._in.diario.contar()) > 0, 'el diario no apuntó');
+        M._in.render(); ok(!q('.appbar .nubest:not([hidden])'), 'el estado de la nube a la vista');
+        igual((await M.nube.estado()).fase, 'apagada', 'el estado');
+      } finally { W.fetch = f1; }
+    });
+  });
+
+  prueba('NB2', 'Nada se borra por no haber llegado (D-256): una foto con su referencia «pendiente» cuenta como presente, con su marcador; ni abrir el mes, ni quitarla, ni los barridos la borran; con la nube, una foto que el tablero nombra y aquí no está no se quita, y un borrado de archivo no sube', async () => {
+    await tablero([pub(1), pub(2)]);
+    const A = M._in.nubeAlmacen, ref = (c, t) => ({ __blob: 'pendiente', sha256: c.repeat(64), tam: t, tipo: 'image/jpeg' });
+    const rec = { name: 'nb2.jpg', size: 4321, type: 'image/jpeg', w: 1200, h: 1500, lastModified: 1, blob: ref('a', 4321), thumb: ref('b', 321) };
+    const d0 = await M._in.diario.contar(), ids = ['fnb2', 'fnb2d', 'fnb2n', 'fnb2x'];
+    try {
+      await A.aplicar({ escribir: [{ a: 'files', k: 'fnb2', valor: rec, v: 1, o: 1 }, { a: 'files', k: 'fnb2d', valor: { ...rec, name: 'nb2d.jpg', design: true }, v: 1, o: 2 }] });
+      igual(await M._in.diario.contar(), d0, 'lo bajado se apuntó en el diario');
+      M._in.S.tray.unshift('fnb2'); M._in.changed(); await M.flush();
+      ids.forEach(f => M._in.soltarArchivo(f));
+      await M.open(M.board().key); await espera(100);
+      ok(M.board().tray.includes('fnb2'), 'abrir el mes la quitó de la bandeja');
+      ok(M.files.fnb2 && M.files.fnb2.pendiente && M.files.fnb2.w === 1200 && /^blob:/.test(M.files.fnb2.thumbUrl), 'sin su marcador: ' + json(M.files.fnb2));
+      let e = null; await M._in.getBlob('fnb2').catch(x => { e = x; }); ok(e && /no ha llegado/.test(e.message), 'pedir su foto no dice que no ha llegado: ' + (e && e.message));
+      M._in.S.tray = M._in.S.tray.filter(f => f !== 'fnb2'); M._in.changed(); await M.flush();
+      await M._in.deleteIfUnused('fnb2'); await M._in.sweepDesigns(true);
+      ok(await M._in.idbGet('files', 'fnb2'), 'borrar si nadie la usa borró una foto que no ha llegado');
+      ok(await M._in.idbGet('files', 'fnb2d'), 'el barrido de diseños borró uno que no ha llegado');
+      // con la nube: una foto que nombra el tablero y aquí no está, ni se quita ni falla; borrar un archivo no sube
+      M._in.NUBE.activa = true; M._in.NUBE.alDia = true;
+      await M._in.idbPut('files', 'fnb2n', { name: 'nb2n.jpg', size: 10, type: 'image/jpeg', w: 10, h: 10, blob: new W.Blob(['x']), thumb: new W.Blob(['x']) });
+      ok((await A.leerVarios([['files', 'fnb2n']]))[0].pendiente, 'una foto nueva sin su nota');
+      await M._in.idbDel('files', 'fnb2n');
+      const [n2] = await A.leerVarios([['files', 'fnb2n']]);
+      ok(!n2.valor && !n2.pendiente, 'con la nube, borrar un archivo dejó una nota para subir el borrado: ' + json(n2));
+      M._test.setSlot('r2', { photos: ['fnb2x'] }); await M.flush(); M._in.soltarArchivo('fnb2x');
+      await M.open(M.board().key); await espera(100);
+      igual(slot('r2').photos, ['fnb2x'], 'con la nube, abrir el mes quitó una foto que aún no ha llegado');
+      ok(M.files.fnb2x && M.files.fnb2x.pendiente, 'sin su marcador');
+    } finally {
+      M._test.setSlot('r2', { photos: [] }); await M.flush();
+      await nbLimpiar();
+      await M._in.diario.sinDiario('files', 'readwrite', s => ids.forEach(k => s.delete(k))); ids.forEach(f => M._in.soltarArchivo(f));
+    }
+  });
+
+  prueba('NB3', 'El almacén de la nube (D-253): lo bajado se escribe sin diario, con su versión y el cursor en la misma transacción; lo de aquí que choca pasa a «quedó sin subir» con su valor y sale del diario; confirmar quita solo lo que no volvió a cambiar; mientras baja, nada que apunta escribe', async () => {
+    await tablero([pub(1)]);
+    const A = M._in.nubeAlmacen, U = k => ['ubicaciones', k], ubs = ['ub-nb3a', 'ub-nb3b', 'ub-nb3c', 'ub-nb3d'];
+    try {
+      await M._in.idbPut('ubicaciones', 'ub-nb3a', { id: 'ub-nb3a', nombre: 'Aquí', at: 'x' });
+      let [l] = await A.leerVarios([U('ub-nb3a')]);
+      ok(l.valor && l.valor.nombre === 'Aquí' && l.pendiente && !l.conocida, 'leerVarios: ' + json(l));
+      await A.aplicar({ escribir: [{ a: 'ubicaciones', k: 'ub-nb3a', valor: { id: 'ub-nb3a', nombre: 'Del servidor', at: 'y' }, v: 4, o: 40 }, { a: 'ubicaciones', k: 'ub-nb3b', valor: { id: 'ub-nb3b', nombre: 'Nueva' }, v: 1, o: 41 }],
+        aparte: [{ a: 'ubicaciones', k: 'ub-nb3a', valor: l.valor, motivo: 'bajada', ficha: l.pendiente.v, ultima: 4 }], cursor: 41, epoca: 'e-nb3' });
+      [l] = await A.leerVarios([U('ub-nb3a')]);
+      ok(l.valor.nombre === 'Del servidor' && !l.pendiente && l.conocida.v === 4 && l.conocida.o === 40, 'aplicar: ' + json(l));
+      ok(!(await A.leerVarios([U('ub-nb3b')]))[0].pendiente, 'lo bajado nuevo se apuntó en el diario');
+      ok((await A.sinSubir()).some(x => x.k === 'ub-nb3a' && x.valor.nombre === 'Aquí' && x.motivo === 'bajada'), 'lo de aquí no quedó aparte: ' + json(await A.sinSubir()));
+      const m = await A.meta(); ok(m.cursor === 41 && m.epoca === 'e-nb3', 'el cursor y la época: ' + json(m));
+      await M._in.idbPut('ubicaciones', 'ub-nb3b', { id: 'ub-nb3b', nombre: 'Cambio' });
+      let [c] = await A.leerVarios([U('ub-nb3b')]); const ficha = c.pendiente.v;
+      await M._in.idbPut('ubicaciones', 'ub-nb3b', { id: 'ub-nb3b', nombre: 'Otro cambio' });   // cambia otra vez mientras «sube»
+      await A.confirmar({ versiones: [{ a: 'ubicaciones', k: 'ub-nb3b', v: 2 }], quitar: [{ a: 'ubicaciones', k: 'ub-nb3b', v: ficha }] });
+      [c] = await A.leerVarios([U('ub-nb3b')]);
+      ok(c.pendiente && c.conocida.v === 2 && c.conocida.o === 41, 'confirmar quitó lo que volvió a cambiar, o perdió el orden: ' + json(c));
+      await A.apartar([{ a: 'ubicaciones', k: 'ub-nb3b', motivo: 'turno' }]);
+      [c] = await A.leerVarios([U('ub-nb3b')]);
+      ok(!c.pendiente && (await A.sinSubir()).some(x => x.k === 'ub-nb3b' && x.valor.nombre === 'Otro cambio' && x.motivo === 'turno'), 'apartar: ' + json(c));
+      let fin = null, hecho = false; M._in.NUBE.bajando = new Promise(r => { fin = r; });
+      const p = M._in.idbPut('ubicaciones', 'ub-nb3c', { id: 'ub-nb3c' }).then(() => { hecho = true; });
+      await A.aplicar({ escribir: [{ a: 'ubicaciones', k: 'ub-nb3d', valor: { id: 'ub-nb3d' }, v: 1, o: 42 }] });   // lo que baja, sí
+      await espera(150); ok(!hecho, 'una escritura con diario no esperó a la bajada');
+      M._in.NUBE.bajando = null; fin(); await p; ok(hecho, 'la escritura no siguió tras la bajada');
+    } finally { await nbLimpiar(ubs); }
+  });
+
+  prueba('NB4', 'Con la nube, una copia que dejó una recarga (mesa-pending) entra en IndexedDB con su nota antes de bajar, y nunca gana por la hora del aparato (D-253)', async () => {
+    await tablero([pub(1)]); await M.flush();
+    const key = M.board().key, b = await M._in.idbGet('boards', key), abrir0 = M.nube._abrir;
+    const copia = { ...b, slots: b.slots.map(x => ({ ...x, memo: 'de la copia NB4' })), savedAt: new Date(Date.parse(b.savedAt) + 60000).toISOString() };
+    try {
+      M._in.NUBE.activa = true;
+      W.localStorage.setItem('mesa-pending', JSON.stringify({ key, board: copia, v: 5 }));
+      igual(M._in.xfer.newest(key, b), b, 'con la nube, la copia de localStorage ganó por la hora del aparato');
+      let llamada = 0; M.nube._abrir = async () => { llamada++; return { modo: 'local' }; };
+      await M._test.nubeAbrir();
+      ok(llamada === 1, 'no se llamó a la nube');
+      ok(!W.localStorage.getItem('mesa-pending'), 'la copia sigue en localStorage');
+      const b2 = await M._in.idbGet('boards', key), [l] = await M._in.nubeAlmacen.leerVarios([['boards', key]]);
+      ok(b2.slots[0].memo === 'de la copia NB4' && l.pendiente, 'la copia (de antes de la 4.32) no entró en IndexedDB con su nota: ' + json({ memo: b2.slots[0].memo, nota: !!l.pendiente }));
+      // desde la 4.32 la copia dice de qué guardado partió: sobre ese entra, aunque el reloj diga otra cosa
+      const b3 = await M._in.idbGet('boards', key);
+      W.localStorage.setItem('mesa-pending', JSON.stringify({ key, board: { ...copia, slots: copia.slots.map(x => ({ ...x, memo: 'sobre su base' })), savedAt: '2000-01-01T00:00:00.000Z' }, v: 5, base: b3.savedAt }));
+      await M._test.nubeAbrir();
+      ok((await M._in.idbGet('boards', key)).slots[0].memo === 'sobre su base', 'una copia sobre su guardado no entró (decidió el reloj)');
+      // si IndexedDB cambió desde entonces (una bajada, «Descartar», otra pestaña), espera en «quedó sin subir», con su valor
+      W.localStorage.setItem('mesa-pending', JSON.stringify({ key, board: { ...copia, slots: copia.slots.map(x => ({ ...x, memo: 'de otra base' })), savedAt: '2099-01-01T00:00:00.000Z' }, v: 5, base: 'otra-base' }));
+      await M._test.nubeAbrir();
+      ok((await M._in.idbGet('boards', key)).slots[0].memo === 'sobre su base', 'una copia de otra base pisó IndexedDB (por su hora)');
+      ok((await M._in.nubeAlmacen.sinSubir()).some(x => x.a === 'boards' && x.k === key && x.motivo === 'pendiente' && x.valor.slots[0].memo === 'de otra base'), 'la copia de otra base no quedó en «quedó sin subir»');
+      ok(!W.localStorage.getItem('mesa-pending'), 'la copia sigue en localStorage');
+    } finally { M.nube._abrir = abrir0; W.localStorage.removeItem('mesa-pending'); await nbLimpiar(); }
+  });
+
+  prueba('NB10', 'Con la nube, la copia que deja ocultar la pestaña (mesa-pending) se quita en cuanto ese guardado llega a IndexedDB: una recarga más tarde no la toma por perdida ni la aparta (revisión del lote 3)', async () => {
+    await tablero([pub(1)]);
+    const key = M.board().key, abrir0 = M.nube._abrir;
+    try {
+      M._in.NUBE.activa = true; await M.open(key); await espera(300);
+      M._test.setMemo('r1', 'antes de ocultar');   // un guardado pendiente
+      M._onHide({ type: 'pagehide' });
+      ok(W.localStorage.getItem('mesa-pending'), 'ocultar con un guardado pendiente no dejó su copia');
+      await M.flush(); await espera(100);
+      ok(!W.localStorage.getItem('mesa-pending'), 'la copia sigue en localStorage después de guardarse');
+      M._test.setMemo('r1', 'después'); await M.flush();
+      M.nube._abrir = async () => ({ modo: 'local' }); await M._test.nubeAbrir();
+      igual((await M._in.nubeAlmacen.sinSubir()).filter(x => x.motivo === 'pendiente').length, 0, 'una recarga más tarde apartó una copia vieja');
+      igual((await M._in.idbGet('boards', key)).slots[0].memo, 'después', 'la copia vieja volvió');
+    } finally { M.nube._abrir = abrir0; W.localStorage.removeItem('mesa-pending'); await nbLimpiar(); }
+  });
+
+  prueba('NB9', 'Con la nube, abrir un mes que no cambió no escribe nada (D-253): abrirlo no es un cambio que subir (sin red, cada tablero mirado acabaría en «quedó sin subir»); apagada, como siempre', async () => {
+    await tablero([pub(1), pub(2)]); await M.flush();
+    const key = M.board().key;
+    try {
+      M._in.NUBE.activa = true;
+      await M.open(key); await espera(400);   // la nube, encendida desde que se abre (como al arrancar con ella)
+      await M._in.diario.vaciar();
+      await M.open(key); await espera(400);
+      const dj9 = await M._in.diario.leer();
+      ok(!dj9.length, 'abrir un mes sin cambios escribió en el diario: ' + json(dj9.map(e => [e.a, e.k])));
+      M._test.setMemo('r1', 'un cambio de verdad'); await M.flush();
+      ok((await M._in.nubeAlmacen.leerVarios([['boards', key]]))[0].pendiente, 'un cambio de verdad no se apuntó');
+      await M._in.diario.vaciar(); M._in.NUBE.activa = false;
+      await M.open(key); await espera(400);
+      ok((await M._in.diario.contar()) > 0, 'apagada, abrir dejó de guardar como siempre');
+    } finally { await nbLimpiar(); }
+  });
+
+  prueba('NB5', 'Una sola sesión (D-253): «Web del cliente» y la nube usan la misma instancia de Supa (dos se pisarían la renovación del token)', async () => {
+    await tablero([pub(1)]);
+    ok(M._in.supa, 'mesa.js no da la instancia');
+    await conWeb(async () => { const a = M._in.supa(); ok(a && a === M.web._sb() && a === M._in.supa(), 'dos instancias de Supa'); });
+  });
+
+  prueba('NB6', 'El estado de la nube, a la vista y discreto (D-253, D-255): en la cabecera, «Guardado», «Subiendo…», «Sin conexión · N cambios en cola» o «Pausada: abierta en <dispositivo>» con su icono; nada en «Vista cliente»; su panel enseña lo que quedó sin subir', async () => {
+    await tablero([pub(1)]);
+    const chip = () => q('.appbar .nubest');
+    try {
+      M._in.NUBE.activa = true;
+      M.nube._estado({ fase: 'guardado' }); ok(chip() && !chip().hidden && chip().textContent === 'En la nube', 'al día: ' + (chip() && chip().textContent));
+      M.nube._estado({ fase: 'guardado', cola: 4 }); igual(chip().textContent, '4 cambios por subir', 'con cambios esperando la calma, nunca «guardado»');
+      M.nube._estado({ fase: 'sin_conexion', cola: 3 }); igual(chip().textContent, 'Sin conexión · 3 cambios en cola', 'sin conexión');
+      M.nube._estado({ fase: 'pausada', tiene: { dispositivo: 'mac-chrome-1a2b3c4d5e6f7a8b' } }); igual(chip().textContent, 'Pausada: abierta en Mac · Chrome (1a2b)', 'pausada');
+      M.nube._estado({ fase: 'subiendo', sinSubir: 2 }); igual(chip().textContent, 'Subiendo… · 2 sin subir', 'subiendo con lo que quedó sin subir');
+      const be = W.getComputedStyle(chip(), '::before'); ok(/url\(/.test(be.maskImage || be.webkitMaskImage || ''), 'sin su icono');
+      await vistaCliente(true); igual(W.getComputedStyle(chip()).display, 'none', 'en «Vista cliente»'); await vistaCliente(false);
+      await M._in.idbPut('ubicaciones', 'ub-nb6', { id: 'ub-nb6', nombre: 'Cala Nb6' });
+      await M._in.nubeAlmacen.apartar([{ a: 'ubicaciones', k: 'ub-nb6', motivo: 'choque', de: 'mac-chrome-1a2b3c4d5e6f7a8b' }]);
+      await M.nube._panel(); await espera(80);
+      const d = q('.detail[data-dlg="nube"]');
+      ok(d && /Quedó sin subir/.test(d.textContent) && /Ubicación «Cala Nb6»/.test(d.textContent) && /otro ordenador lo cambió antes/.test(d.textContent), 'el panel: ' + (d && d.textContent.slice(0, 300)));
+      ok(!d.querySelector('[data-nube="encima"]') && /usa antes la Mesa aquí/.test(d.textContent), 'sin turno ofrece subir encima');
+      M._in.closeDetail();
+    } finally { await nbLimpiar(['ub-nb6']); M._in.render(); }
+  });
+
+  prueba('NB7', 'Los avisos de actividad (D-257): con la nube encendida salen primero en «Avisos» de la página personal, una línea cada uno con su hora y su dispositivo, y «Visto» los quita; apagada, nada', async () => {
+    await tablero([pub(1)]);
+    const A = M._in.nubeAlmacen, hora = new Date(M._in.ahora() - 3600e3).toISOString();
+    try {
+      await A.ponerAvisos([{ id: 9001, hora, tipo: 'ajeno', dispositivo: null, detalle: { funcion: 'mesa_bajar' } },
+        { id: 9002, hora, tipo: 'borrado_masivo', dispositivo: 'mac-chrome-1a2b3c4d5e6f7a8b', detalle: { cuantos: 24, almacenes: { files: 24 } } }]);
+      await M.nube._releerAvisos();
+      await M.personal.abrir(); await espera(200);
+      ok(!q('.pp-grupo[data-cat="nube"]'), 'apagada salen avisos de la nube');
+      M._in.NUBE.activa = true; await M.personal.render(); await espera(200);
+      const g = q('.pp-grupo[data-cat="nube"]');
+      ok(g && g.querySelectorAll('.nubeav').length === 2 && /Una cuenta que no es la tuya/.test(g.textContent) && /Se borraron 24 registros/.test(g.textContent) && /Mac · Chrome \(1a2b\)/.test(g.textContent), 'los avisos: ' + (g ? g.textContent.slice(0, 300) : 'ninguno'));
+      ok(q('.pp-grupo') === g, 'no van primero');
+      g.querySelector('[data-nube="visto"][data-id="9001"]').click();
+      await hasta(() => qa('.nubeav').length === 1, 3000, 'que «Visto» lo quite');
+      igual((await A.avisos()).map(x => x.id), [9002], 'lo que queda guardado');
+    } finally { await nbLimpiar(); if (M.personal) M.personal.cerrar(); }
+  });
+
+  prueba('NB8', 'Bajar y subir con un servidor de mentira (D-253, D-255): al abrir mira el turno sin pedirlo, lo reclama libre y baja por páginas, sin diario; un cambio de aquí sube tras la calma con su versión base y sale del diario; un 200 con «ok: false» no se da por guardado', async () => {
+    await tablero([pub(1)]);
+    const ubs = Array.from({ length: 7 }, (_, i) => 'ub-nb8' + i), llamadas = [];
+    const reg = new Map(ubs.slice(0, 6).map((k, i) => [k, { almacen: 'ubicaciones', clave: k, valor: { id: k, nombre: 'Servidor ' + i }, version: 1, orden: i + 1, borrado: false, dispositivo: 'mac-chrome-9999aaaabbbbcccc', turno: 1 }]));
+    let orden = 6, turno = 1, tiene = null, rechazo = null;
+    const sv = { rpc: async (fn, a) => {
+      llamadas.push(fn);
+      const base = { ok: true, epoca: 'e-nb8', hora: new Date().toISOString(), version_minima: '0.0' };
+      const T = () => ({ ...base, turno, tuyo: tiene === a.dispositivo, libre: !tiene, tiene: tiene ? { dispositivo: tiene } : null, pide: null, orden });
+      if (fn === 'mesa_turno_ver' || fn === 'mesa_turno_latido') return T();
+      if (fn === 'mesa_turno_reclamar') { if (tiene && tiene !== a.dispositivo) return { ok: false, error: { codigo: 'turno', http: 423 } }; tiene = a.dispositivo; turno++; return T(); }
+      if (fn === 'mesa_bajar') { const l = [...reg.values()].filter(x => x.orden > a.desde).sort((x, y) => x.orden - y.orden), p = l.slice(0, 2); return { ...base, filas: p, hasta: p.length ? p[p.length - 1].orden : orden, mas: l.length > 2, orden }; }
+      if (fn === 'mesa_actividad') return { ...base, filas: [], hasta: a.desde, mas: false };
+      if (fn === 'mesa_escribir') {
+        if (rechazo) return { ok: false, error: rechazo, epoca: 'e-nb8' };
+        return { ...base, turno, orden, resultados: a.cambios.map(c => { const v = reg.get(c.clave), nv = (v ? v.version : 0) + 1; orden++; reg.set(c.clave, { almacen: c.almacen, clave: c.clave, valor: c.valor, version: nv, orden, borrado: c.valor === null }); return { almacen: c.almacen, clave: c.clave, estado: 'ok', version: nv, orden }; }) };
+      }
+      return { ok: false, error: { codigo: 'forma', http: 400 } };
+    } };
+    try {
+      await M._in.diario.vaciar();
+      const n = M.nube._con(sv), r = await n.abrir();
+      igual(r.modo, 'turno', 'abrir'); igual(llamadas.slice(0, 2), ['mesa_turno_ver', 'mesa_turno_reclamar'], 'mirar el turno antes de reclamarlo');
+      ok(llamadas.filter(x => x === 'mesa_bajar').length >= 3, 'no bajó por páginas: ' + llamadas.join(', '));
+      const L = await M._in.nubeAlmacen.leerVarios(ubs.slice(0, 6).map(k => ['ubicaciones', k]));
+      ok(L.every((x, i) => x.valor && x.valor.nombre === 'Servidor ' + i && !x.pendiente && x.conocida.v === 1), 'lo bajado: ' + json(L.map(x => [x.valor && x.valor.nombre, !!x.pendiente])));
+      igual(await M._in.diario.contar(), 0, 'lo bajado se apuntó en el diario');
+      await M._in.idbPut('ubicaciones', 'ub-nb80', { id: 'ub-nb80', nombre: 'Cambiada aquí' });
+      rechazo = { codigo: 'turno', http: 423 }; await espera(3200); llamadas.length = 0;
+      rechazo = { codigo: 'forma', http: 400, mensaje: 'prueba' };
+      await n.tic();
+      ok(llamadas.includes('mesa_escribir'), 'no subió tras la calma: ' + llamadas.join(', '));
+      ok((await M._in.diario.contar()) === 0 ? (await M._in.nubeAlmacen.sinSubir()).some(x => x.k === 'ub-nb80') : true, 'un «ok: false» se dio por guardado sin quedar sin subir');
+      igual(reg.get('ub-nb80').valor.nombre, 'Servidor 0', 'un rechazo escribió en el servidor');
+      await M._in.nubeAlmacen.quitarSinSubir([['ubicaciones', 'ub-nb80']]);
+      rechazo = null; await M._in.idbPut('ubicaciones', 'ub-nb80', { id: 'ub-nb80', nombre: 'Cambiada otra vez' });
+      await espera(3200); await n.tic();
+      ok(reg.get('ub-nb80').valor.nombre === 'Cambiada otra vez' && reg.get('ub-nb80').version === 2, 'el cambio no subió con su base: ' + json(reg.get('ub-nb80')));
+      igual(await M._in.diario.contar(), 0, 'lo subido sigue en el diario');
+    } finally { await nbLimpiar(ubs); }
+  });
+
+  // ---------- la CSP de la Mesa (D-252) ----------
+  prueba('CS1', 'La CSP de la Mesa (D-252): un <meta> lo primero del <head>, script-src \'self\' sin \'unsafe-inline\' ni \'unsafe-eval\'; ni un <script> en línea ni un manejador on…= en index.html; tema, arranque y vigilante en archivos, sin async y en su orden; un módulo que no llega sigue siendo «fallo»', async () => {
+    const html = await (await W.fetch('index.html?cs=' + Date.now(), { cache: 'no-store' })).text(), sin = html.replace(/<!--[\s\S]*?-->/g, '');
+    const head = sin.slice(sin.indexOf('<head>') + 6, sin.indexOf('</head>')).trim();
+    ok(/^<meta http-equiv="Content-Security-Policy" content="[^"]+">/.test(head), 'la CSP no es lo primero del <head>: ' + head.slice(0, 80));
+    const csp = (/http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(sin) || [])[1] || '';
+    const d = Object.fromEntries(csp.split(';').map(x => x.trim().split(/\s+/)).filter(x => x[0]).map(([k, ...v]) => [k, v]));
+    igual(d['script-src'], ["'self'"], 'script-src');
+    ok(!/unsafe-eval|unsafe-hashes|strict-dynamic|'nonce-|'sha256-/.test(csp), 'la CSP abre algo más para los scripts: ' + csp);
+    igual(d['default-src'], ["'none'"], 'default-src');
+    for (const k of ['object-src', 'base-uri', 'form-action']) igual(d[k], ["'none'"], k);
+    igual(d['style-src'], ["'self'", "'unsafe-inline'"], 'style-src (los style= de las plantillas: límite conocido)');
+    igual(d['font-src'], ["'self'"], 'font-src');
+    ok(['\'self\'', 'https://*.supabase.co'].every(x => (d['connect-src'] || []).includes(x)), 'connect-src sin la Mesa o sin el servidor: ' + d['connect-src']);
+    ok(['\'self\'', 'blob:', 'data:', 'https://*.supabase.co'].every(x => (d['img-src'] || []).includes(x)), 'img-src: ' + d['img-src']);
+    ok(!(d['connect-src'] || []).concat(d['img-src'] || []).some(x => x === '*' || x === 'https:' || x === 'http:'), 'la CSP deja ir a cualquier sitio');
+    ok(!/<script(?![^>]*\ssrc=)[^>]*>/i.test(sin), 'index.html tiene un <script> en línea');
+    ok(!/<[a-z][^>]*\son[a-z]+\s*=/i.test(sin), 'index.html tiene un manejador on…=');
+    const srcs = [...sin.matchAll(/<script([^>]*)\ssrc="([^"?]+)/g)].map(m => ({ s: m[2], async: /\sasync\b/.test(m[1]) }));
+    const i = n => srcs.findIndex(x => x.s === n);
+    // el vigilante, nada más empezar: oye también si no llega supa.js o nube.js (D-252)
+    ok(i('tema.js') >= 0 && i('tema.js') < i('vigia.js') && i('vigia.js') < i('mesa.js') && i('mesa.js') < i('portal/supa.js') && i('portal/supa.js') < i('nube.js') && i('nube.js') < i('arranque.js') && i('arranque.js') < i('kits/motor.js'), 'el orden de tema, vigilante, mesa, supa, nube y arranque: ' + srcs.map(x => x.s).join(', '));
+    ok(['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'nube.js', 'arranque.js'].every(n => srcs[i(n)] && !srcs[i(n)].async), 'tema, vigilante, mesa, supa, nube o arranque con async');
+    ok(/tema\.js/.test(head) && /vigia\.js/.test(head), 'tema.js o vigia.js fuera del <head> (el oscuro sin destello)');
+    ok(D.querySelector('meta[http-equiv="Content-Security-Policy"]'), 'la Mesa de la batería sin su CSP');
+    // un módulo que no llega: su <script> da error y el vigilante lo marca «fallo» (antes, su onerror=)
+    const C = W.MESA_CARGA, antes = C.revisar, s = D.createElement('script');
+    s.src = 'tests/no-existe/revisar.js?cs=' + Date.now();
+    try {
+      D.head.append(s);
+      await hasta(() => C.revisar === 'fallo', 4000, 'que un módulo que no llega quede en «fallo»');
+    } finally { s.remove(); C.revisar = antes; }
+  });
+
+  prueba('CS2', 'Nada escrito por un cliente ejecuta código en la Mesa (D-252): un <img src=x onerror=…> en un caption, una Nota, el nombre de un cliente y un comentario del cliente bajado del servidor no corre; y uno que se colara en el HTML lo para la CSP y lo dice', async () => {
+    await tablero([pub(1), pub(2)]);
+    W.__csxss = 0;
+    const X = n => `<img src=x onerror="window.__csxss=${n}">`, nombre0 = (await M.clients()).find(c => c.id === CLIENTE).name;
+    try {
+      M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'uno ' + X(1) }, { tone: 'b', text: 'dos' }, { tone: 'c', text: 'tres' }] }]);
+      M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 }, memo: 'nota ' + X(2) });
+      await M.updateClient(CLIENTE, { name: 'Ana ' + X(3) }); await M._in.loadClients(); M._in.render();
+      M._in.openDetail('r1'); await espera(150); M._in.closeDetail();
+      if (M.personal) { await M.personal.abrir(); await espera(150); M.personal.cerrar(); }
+      await conWeb(async sv => {
+        wbSesion();
+        const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+        const p1 = sv.db.publicaciones.find(x => x.caption && x.caption.startsWith('uno'));
+        sv.db.comentarios.push({ id: 'cs1', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: 'hola ' + X(4), autor_nombre: 'Ana ' + X(5), de_kevin: false, hora: new Date(Date.now() + 1000).toISOString(), resuelto: null });
+        await M.web.leer(); M._in.openDetail('r1'); await espera(200); M._in.closeDetail();
+      });
+      await espera(200);
+      igual(W.__csxss, 0, 'un texto escrito por un cliente ejecutó código');
+      // si algún día un texto se colara en el HTML sin escapar, la CSP no deja correr su manejador, y lo dice
+      W.MESA_CSP = [];
+      const caja = D.createElement('div'); caja.innerHTML = X(9); D.body.append(caja);
+      await hasta(() => (W.MESA_CSP || []).length, 3000, 'el aviso de la CSP').catch(() => null);
+      await espera(100); caja.remove();
+      igual(W.__csxss, 0, 'un manejador en línea colado en el HTML corrió: la CSP no lo paró');
+      ok((W.MESA_CSP || []).some(v => /^script-src/.test(v.d)), 'la CSP no dijo lo que bloqueó: ' + json(W.MESA_CSP));
+    } finally {
+      W.MESA_CSP = [];
+      await M.updateClient(CLIENTE, { name: nombre0 }); await M._in.loadClients(); M._in.render();
+    }
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -17657,9 +17967,11 @@
         $('resumen').textContent = `Pasando ${t.id}…`;
         let err = null, reloj;
         try { W.sessionStorage.removeItem('mesa-pp-tareas'); } catch (e) { /* */ }   // Tareas folded as each test starts (D-225)
+        try { W.MESA_CSP = []; } catch (e) { /* */ }   // lo que la CSP bloquea durante la prueba (D-252): ninguna puede chocar con ella
         try { await Promise.race([t.fn(), new Promise((_, no) => { reloj = setTimeout(() => no(new Error(`sin terminar en ${MAX_MS / 1000} s`)), MAX_MS); })]); }
         catch (e) { err = e; }
         finally { clearTimeout(reloj); }
+        try { const v = W.MESA_CSP || []; if (!err && v.length) err = new Error('la CSP de la Mesa bloqueó: ' + JSON.stringify(v.slice(0, 3))); } catch (e) { /* */ }
         try { if (M.libre.abierto()) M.libre.cerrar(); M._in.closeDetail(); } catch (e) { /* */ }
         const ms = Math.round(performance.now() - t0);
         tr.className = err ? 'mal' : 'ok'; tr.querySelector('.r').textContent = err ? 'falla' : 'pasa';

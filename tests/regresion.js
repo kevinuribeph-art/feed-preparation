@@ -18793,7 +18793,7 @@
       // coger la Mesa: el Mac cede al pedirla; sin recargar
       sv.cederAlPedir(true);
       const t = await n.tomar();
-      ok(t.hecho && M._in.movil.conTurno && !M._in.locked && !n._recargas, 'tomar: ' + json(t));
+      ok(t.hecho && M._in.movil.conTurno && !M._in.locked && W.location.hash !== '#recargado', 'tomar: ' + json(t));
       const esc = contarEscrituras(), v0 = await M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' });
       const a = await M._in.movil.aplicar({ key, slot: 'r2', campo: 'capElegir', valor: 1, visto: v0.v });
       ok(a.ok, 'no se aplicó: ' + json(a));
@@ -18820,7 +18820,7 @@
       ok(M._in.locked && !M._in.movil.conTurno && D.getElementById('arnes'), 'otra pestaña no paró el móvil o borró su página');
     });
     const fuente = await (await W.fetch('nube.js?mv16=' + Date.now(), { cache: 'no-store' })).text();
-    ok(/La Mesa se abrió en un aparato nuevo/.test(fuente) && !/se abrió en un ordenador nuevo/.test(fuente), 'el aviso del Mac no dice «aparato nuevo»');
+    ok(/La Mesa se abrió en un aparato nuevo/.test(fuente) && !/se abrió en un ordenador nuevo/.test(fuente), 'el aviso del Mac aún dice «ordenador nuevo»');
   });
 
   async function pasar() {

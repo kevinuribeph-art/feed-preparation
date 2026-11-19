@@ -145,7 +145,7 @@
     // the iPhone (D-268): it never takes the Mesa by opening it; it looks (downloads in the pause), takes it to write what Kevin
     // touched, uploads without the calm and lets it go; nothing reloads. Off (the Mac), everything as before.
     const MOVIL = !!o.movil, CALMA = MOVIL ? 0 : TIEMPOS.calma;
-    let mirandoP = null, tomando = false, retenido = false, soltando = null, vistoA = null;
+    let mirandoP = null, tomando = false, retenido = false, soltando = null, vistoA = null, irse = false;
     // whoever has the Mesa has said nothing for 20 s: «no contesta» at once (Mac and phone); a holder with no beat known waits as before
     const callado = t => !!t && t.latido_hace != null && t.latido_hace >= TIEMPOS.espera / 1000;
     const H0 = o.huella || huellaPorOmision, HC = new Map();   // huellas de esta sesión: a|k|ruta|tamaño|tipo
@@ -161,6 +161,13 @@
     const ILEGIBLE = new Map();   // a|k → intentos fallidos de leer sus fotos (un Blob que IndexedDB ya no puede leer)
     const st = { fase: 'apagada', turno: null, cursor: 0, epoca: null, cola: 0, sinSubir: 0, tiene: null, error: '', alDia: false };
     let conTurno = false, modoLocal = false, parado = false, ocupado = false, cediendo = false, subiendo = null, bajado = false, todoEnMarcha = false;
+    // the turn as the phone's Mesa sees it (D-268): every change goes through here, so mesa.js is unlocked exactly while the core holds
+    // it (E.tomada) and locked again the moment it doesn't (E.soltada), whatever took it away (lost, no session, no code, another epoch)
+    const ponerTurno = v => {
+      if (conTurno === v) return; conTurno = v;
+      if (!MOVIL) return;
+      try { const p = v ? E.tomada && E.tomada() : E.soltada && E.soltada(); if (p && p.catch) p.catch(() => { /* */ }); } catch (e) { /* the face doesn't stop the cloud */ }
+    };
     let ultSubida = -Infinity, proximoFotos = 0, esperandoN = 0, traerPend = false;   // fotos: un registro que espera sus archivos no se reintenta cada segundo
     let ultCambio = -Infinity, ultLatido = -Infinity, colaLatida = -1, ultActividad = -Infinity, proximo = 0, reint = 0, enVuelo = null, AV = [];
     const avisar = () => { try { if (E.estado) E.estado(estado()); } catch (e) { /* un oyente roto no para la nube */ } };
@@ -179,14 +186,14 @@
 
     // ---------- estados de los que no se sale solo ----------
     async function pausar(info, f = 'pausada') {
-      conTurno = false; modoLocal = false;
+      ponerTurno(false); modoLocal = false;
       fase(f);
       try { if (E.pausar) await E.pausar(info); } catch (e) { /* la pausa de la Mesa no para la nube */ }
     }
     const vieja = () => pausar({ motivo: 'vieja' }, 'vieja');
     async function perdido(info) {
       if ((st.fase === 'pausada' || st.fase === 'mirando') && !conTurno) return;
-      conTurno = false; modoLocal = false;
+      ponerTurno(false); modoLocal = false; retenido = false;
       st.tiene = info && info.dispositivo ? { dispositivo: info.dispositivo } : st.tiene;
       fase(MOVIL ? 'mirando' : 'pausada');
       try { if (E.pausar) await E.pausar({ motivo: 'perdido', dispositivo: info && info.dispositivo }); } catch (e) { /* */ }
@@ -197,12 +204,12 @@
       const er = (r && r.error) || {}, c = er.codigo;
       if (c === 'turno') return perdido({ dispositivo: er.dispositivo || null });
       if (c === 'app') return vieja();
-      if (c === 'permiso') { conTurno = false; modoLocal = false; return fase('otra_cuenta'); }
-      if (c === 'verificacion') { conTurno = false; modoLocal = false; return fase('sin_codigo'); }   // pasaron los 30 días del código de la app (D-262): nada se aparta, espera
+      if (c === 'permiso') { ponerTurno(false); modoLocal = false; return fase('otra_cuenta'); }
+      if (c === 'verificacion') { ponerTurno(false); modoLocal = false; return fase('sin_codigo'); }   // pasaron los 30 días del código de la app (D-262): nada se aparta, espera
       st.error = er.mensaje || (r ? 'respuesta sin «ok»' : 'sin respuesta'); otroIntento(); avisar();
     }
     function sinRed(e) {
-      if (sinSesionE(e)) { conTurno = false; modoLocal = false; fase('sin_sesion'); return false; }
+      if (sinSesionE(e)) { ponerTurno(false); modoLocal = false; fase('sin_sesion'); return false; }
       st.error = e && e.message || 'sin conexión'; otroIntento(); fase('sin_conexion'); return false;
     }
     async function apartarDiario(motivo) {
@@ -234,7 +241,8 @@
       if (masNueva(r.version_minima, APP)) { await vieja(); return { modo: 'vieja' }; }
       if (traer && !(r.orden > 0)) { fase('apagada'); return { modo: 'vacia' }; }
       st.total = +r.total || 0;
-      if (MOVIL && !r.tuyo) return abrirMovil(r, t0, traer);   // the phone never takes it by opening (D-268)   // los registros vivos de arriba (esquema 4): el «de N» de la pantalla de carga (D-262)   // arriba no hay Mesa: se sube desde el primer ordenador (la mudanza)
+      if (MOVIL && !r.tuyo) return abrirMovil(r, t0, traer);   // the phone never takes it by opening (D-268)
+      if (MOVIL) { retenido = false; const x = await entrar(r.turno, 0); return x.hecho ? { modo: 'turno' } : abrirLocal({ message: x.error || 'sin conexión' }); }   // still its own (closed with it): up, and let go   // los registros vivos de arriba (esquema 4): el «de N» de la pantalla de carga (D-262)   // arriba no hay Mesa: se sube desde el primer ordenador (la mudanza)
       let otraEpoca = false;
       if (st.epoca && r.epoca && r.epoca !== st.epoca) { await olvidar(); otraEpoca = true; }   // se restauró una copia del servidor
       let orden = 0;
@@ -387,7 +395,7 @@
         }
         if (!todoEnMarcha && (cola > 0 || enVuelo) && R.ahora() - ultCambio >= CALMA && R.ahora() >= proximo && (R.ahora() >= proximoFotos || ultCambio > ultSubida)) await subir();
         // the phone lets it go once all is up and it isn't applying anything (D-268); another device can take it at once
-        if (MOVIL && conTurno && !retenido && !soltando && !subiendo && !enVuelo && !cediendo && st.fase !== 'sin_conexion' && !(await A.contarDiario())) { await soltar(); return; }
+        if (MOVIL && conTurno && !retenido && !soltando && !subiendo && !enVuelo && !cediendo && !tomando && st.fase !== 'sin_conexion' && !(await A.contarDiario()) && !retenido) { await soltar({ auto: true }); return; }
         if (conTurno && R.ahora() - ultActividad >= TIEMPOS.actividad) await leerActividad();
         if (conTurno && !subiendo && st.fase !== 'sin_conexion' && st.fase !== 'guardado') fase('guardado');
       } catch (e) { st.error = String((e && e.message) || e); avisar(); }
@@ -458,8 +466,7 @@
           if ((r && r.ok) || (r && r.error && r.error.codigo === 'turno')) break;
           await R.esperar(TIEMPOS.reintento[Math.min(vuelta, TIEMPOS.reintento.length - 1)]);
         }
-        conTurno = false; st.tiene = { dispositivo: pide.dispositivo }; fase(MOVIL ? 'mirando' : 'pausada');
-        if (MOVIL && E.soltada) { try { await E.soltada(); } catch (e) { /* */ } }
+        ponerTurno(false); retenido = false; st.tiene = { dispositivo: pide.dispositivo }; fase(MOVIL ? 'mirando' : 'pausada');
       } finally { cediendo = false; }
     }
 
@@ -564,7 +571,7 @@
         if (c === 'forma') return porMitades(lote, resc, 'forma', er.mensaje);
         await trasRechazo(r); return { parar: true };
       }
-      if (r.epoca && st.epoca && r.epoca !== st.epoca) { conTurno = false; fase('recargar'); return { parar: true }; }   // se restauró una copia del servidor
+      if (r.epoca && st.epoca && r.epoca !== st.epoca) { ponerTurno(false); fase(MOVIL ? 'mirando' : 'recargar'); return { parar: true }; }   // the phone: the next look comes down again from the start   // se restauró una copia del servidor
       const versiones = [], quitar = [], aparte = [];
       (r.resultados || []).forEach((x, i) => {
         const it = lote[i]; if (!it || !x) return;
@@ -603,7 +610,7 @@
     }
 
     // ---------- pasar el turno ----------
-    async function usarAqui() {
+    async function usarAqui(op = {}) {
       fase('esperando');
       const t0 = R.ahora();
       for (;;) {
@@ -622,7 +629,7 @@
           await trasRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
         }
         st.tiene = r.tiene || null; avisar();
-        if (R.ahora() - t0 >= TIEMPOS.espera || callado(r.tiene)) {
+        if (R.ahora() - t0 >= TIEMPOS.espera || (callado(r.tiene) && !op.esperar)) {   // «Esperar más» waits the 20 s
           const t = r.tiene || {};
           return { espera: { dispositivo: t.dispositivo || null, desde: t.desde || null, latido: t.latido || null, latido_hace: t.latido_hace == null ? null : t.latido_hace, cola: t.cola || 0, turno: r.turno } };
         }
@@ -631,10 +638,12 @@
       }
     }
     async function forzar(visto) {
+      if (MOVIL) { if (mirandoP) await mirandoP.catch(() => null); retenido = true; }   // not while a look comes down; held for the face
       let c;
       try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto, app: APP, forzar: true }); }
       catch (e) { return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
-      if (c && c.ok) { if (MOVIL) return entrar(c.turno, c.orden || 0); if (E.recargar) E.recargar(); return { hecho: true }; }
+      if (c && c.ok) { if (MOVIL) { await A.ponerMeta({ turno: c.turno }); const x = await entrar(c.turno, c.orden || 0); if (!x.hecho) retenido = false; return x; } if (E.recargar) E.recargar(); return { hecho: true }; }
+      if (MOVIL) retenido = false;
       if (c && c.error && c.error.codigo === 'turno_cambiado') return { otraVez: true };
       await trasRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
     }
@@ -652,16 +661,19 @@
         catch (e) { sinRed(e); return { error: sinSesionE(e) ? 'sin_sesion' : 'sin_conexion' }; }
         if (!r || r.ok !== true) { await abrirRechazo(r); return { error: (r && r.error && r.error.codigo) || 'sin respuesta' }; }
         if (masNueva(r.version_minima, APP)) { await vieja(); return { error: 'app' }; }
+        if (conTurno || tomando || soltando || cediendo || parado) return { nuevos: 0, ocupado: true };   // the turn changed meanwhile: nothing of a look
         st.total = +r.total || st.total || 0; reint = 0; proximo = 0; st.error = '';
-        if (r.tuyo) {   // it was its own (closed or frozen while it had it): what is in the journal goes up, and the pulse lets it go
-          const m = await A.meta();
-          if (r.turno === m.turno) { retenido = false; return entrar(r.turno, 0).then(x => ({ nuevos: 0, ...x, tuyo: true })); }
+        if (r.tuyo) { retenido = false; return entrar(r.turno, 0).then(x => ({ nuevos: 0, ...x, tuyo: true })); }   // its own (closed or frozen with it): up, and let go
+        if (traerPend) {   // a first coming down that stopped half way: whole, as at opening (nothing of here goes up)
+          try { const n0 = await bajarTodo(0, null, false, undefined, true, true); await trasTraer(); traerPend = false; vistoA = R.ahora(); fase('mirando'); avisar(); if (E.releido) { try { await E.releido(n0); } catch (e) { /* */ } } return { nuevos: n0, traido: true }; }
+          catch (e) { sinRed(e); return { error: 'sin_conexion' }; }
         }
         if (await A.contarDiario()) await apartarDiario('turno');
-        st.tiene = r.tuyo ? null : r.tiene || null;
+        st.tiene = r.tiene || null;
         let n = 0;
         try { n = await bajarTodo(0, null, false, undefined, false, true); }
         catch (e) { if (e && e.vieja) { await vieja(); return { error: 'app' }; } if (e && e.rechazo) { await abrirRechazo(e.rechazo); return { error: 'rechazo' }; } sinRed(e); return { error: 'sin_conexion' }; }
+        if (conTurno) return { nuevos: n };
         vistoA = R.ahora(); fase('mirando'); avisar();
         if (n && E.releido) { try { await E.releido(n); } catch (e) { /* the face draws what there is */ } }
         return { nuevos: n, tiene: st.tiene };
@@ -670,25 +682,26 @@
     }
     // The Mesa is its own: what changed comes down first (so what Kevin saw is compared with the latest), nothing reloads.
     async function entrar(turno, orden) {
-      st.turno = turno;
+      st.turno = turno; await A.ponerMeta({ turno });   // known at once: a phone closed now knows it is its own when it comes back
       try { await bajarTodo(orden, null, false, undefined, false, true); }
       catch (e) {
-        try { await llamar('mesa_turno_soltar', { dispositivo: D, turno }); } catch (x) { /* */ }
+        try { await llamar('mesa_turno_soltar', { dispositivo: D, turno }); } catch (x) { /* the next look finds it its own and lets it go */ }
         if (e && e.vieja) { await vieja(); return { error: 'app' }; }
         fase('mirando'); return { error: e && e.rechazo ? (e.rechazo.error && e.rechazo.error.codigo) || 'rechazo' : 'sin_conexion' };
       }
-      conTurno = true; st.alDia = true; st.tiene = null; reint = 0; proximo = 0; st.error = ''; ultLatido = R.ahora(); colaLatida = -1; vistoA = R.ahora();
-      await A.ponerMeta({ turno });
+      st.alDia = true; st.tiene = null; reint = 0; proximo = 0; st.error = ''; ultLatido = R.ahora(); colaLatida = -1; vistoA = R.ahora();
+      ponerTurno(true);
       fase('guardado');
-      if (E.tomada) { try { await E.tomada(); } catch (e) { /* */ } }
       return { hecho: true };
     }
     // tomar(): to write what Kevin touched. Free: at once. Someone else's: it asks every 3 s while the other uploads and lets go;
     // {espera} after 20 s, or at once if the other has said nothing for 20 s. retenido until the face says so (retener(false)).
-    async function tomar() {
+    async function tomar(op = {}) {
       if (!MOVIL) return { error: 'solo en el móvil' };
-      if (conTurno) { retenido = true; return { hecho: true }; }
+      if (soltando) await soltando.catch(() => null);   // letting it go: done first, then asked again (never «done» over a release)
+      while (cediendo && !parado) await R.esperar(250);
       if (mirandoP) await mirandoP.catch(() => null);
+      if (conTurno) { retenido = true; try { const p = E.tomada && E.tomada(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* */ } return { hecho: true }; }   // its own: the Mesa unlocked (after «Subir encima», for instance)
       if (tomando) return { error: 'ocupado' };
       tomando = true; retenido = true;
       try {
@@ -705,28 +718,34 @@
             let c;
             try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto: r.turno, app: APP, forzar: false }); }
             catch (e) { retenido = false; return { error: 'sin_conexion' }; }
-            if (c && c.ok) return dentro(c.turno, c.orden || 0);
+            if (c && c.ok) { await A.ponerMeta({ turno: c.turno }); return dentro(c.turno, c.orden || 0); }
             if (c && c.error && c.error.codigo === 'turno') continue;   // another came first: keep asking
             retenido = false; await abrirRechazo(c); return { error: (c && c.error && c.error.codigo) || 'sin respuesta' };
           }
           st.tiene = r.tiene || null; avisar();
-          if (R.ahora() - t0 >= TIEMPOS.espera || callado(r.tiene)) {
-            const t = r.tiene || {};
+          if (R.ahora() - t0 >= TIEMPOS.espera || (callado(r.tiene) && !op.esperar)) {
+            const t = r.tiene || {}; retenido = false;
             return { espera: { dispositivo: t.dispositivo || null, desde: t.desde || null, latido: t.latido || null, latido_hace: t.latido_hace == null ? null : t.latido_hace, cola: t.cola || 0, turno: r.turno } };
           }
           await R.esperar(TIEMPOS.pedirCada);
           if (parado) { retenido = false; return { error: 'parada' }; }
         }
-      } finally { tomando = false; }
+      } finally { tomando = false; if (irse) { irse = false; if (conTurno) soltar().catch(() => {}); } }   // gone to the background while taking it
     }
+    // going to the background: with the Mesa, up and let go; while taking it, as soon as it is taken
+    function pedirIrse() { if (conTurno) return soltar(); if (tomando) irse = true; return Promise.resolve({ hecho: true }); }
     // soltar(): what is in the journal goes up (no calm) and the Mesa is let go; the operation in flight writes first (R7).
     // Without network it waits with the Mesa (nothing aside, lesson 152): the pulse tries again.
-    function soltar() {
-      if (!conTurno) { retenido = false; return Promise.resolve({ hecho: true }); }
+    // op.auto (the pulse): it stops if the face takes it again meanwhile (retenido), and never clears that
+    function soltar(op = {}) {
+      const auto = !!op.auto;
+      if (!conTurno) { if (!auto) retenido = false; return Promise.resolve({ hecho: true }); }
       if (soltando) return soltando;
       soltando = (async () => {
-        retenido = false;
+        if (!auto) retenido = false;
+        const otraVez = () => auto && retenido;
         if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* */ } }
+        if (otraVez()) return { cancelado: true };
         let antes = -1;
         for (let vuelta = 0; conTurno && !parado; vuelta++) {
           const r = await subir({ todo: true });
@@ -735,14 +754,15 @@
           if (r.sinRed || r.esperando) return { error: r.sinRed ? 'sin_conexion' : 'esperando', cola: n };
           if (n === antes) { await apartarDiario('cede'); break; }
           antes = n;
+          if (otraVez()) return { cancelado: true };
         }
         if (!conTurno) return { hecho: true };
+        if (otraVez()) return { cancelado: true };
         let r;
         try { r = await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); }
         catch (e) { return { error: 'sin_conexion' }; }
         if (!(r && (r.ok || (r.error && r.error.codigo === 'turno')))) return { error: (r && r.error && r.error.codigo) || 'sin respuesta' };
-        conTurno = false; fase('mirando');
-        if (E.soltada) { try { await E.soltada(); } catch (e) { /* */ } }
+        ponerTurno(false); fase('mirando');
         return { hecho: true };
       })().finally(() => { soltando = null; });
       return soltando;
@@ -927,7 +947,8 @@
     function estado() { return { movil: MOVIL, vistoA, retenido, fase: st.fase, turno: st.turno, cursor: st.cursor, epoca: st.epoca, cola: st.cola, sinSubir: st.sinSubir, tiene: st.tiene, error: st.error, alDia: st.alDia, avisos: AV.length, esperando: st.esperando || 0, todo: todoEnMarcha }; }
     return {
       abrir, tic, subir, usarAqui, forzar, subirEncima, descartar, estado, subirTodo, comprobar, traerFila,
-      mirar, tomar, soltar, retener: v => { retenido = !!v; },   // the phone (D-268)
+      mirar, tomar, soltar, pedirIrse, retener: v => { retenido = !!v; },   // the phone (D-268)
+      dormir: () => { parado = true; },   // another tab of this phone took over: nothing more from this one (never releases its Mesa)
       // una foto acabó de subir: lo que la esperaba, en la siguiente vuelta
       archivosListos: () => { proximoFotos = Math.min(proximoFotos, ultSubida + 5000); },   // como mucho una pasada adelantada cada 5 s
       cambio: () => { ultCambio = R.ahora(); },
@@ -937,7 +958,7 @@
       leerActividad,
       conTurno: () => conTurno,
       // la sesión volvió (Kevin entró otra vez): como al volver la red, sin reclamar a mitad
-      reintentar: () => { if (!conTurno && (st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'sin_conexion')) { modoLocal = true; proximo = 0; reint = 0; } },
+      reintentar: () => { if (!conTurno && (st.fase === 'sin_sesion' || st.fase === 'sin_codigo' || st.fase === 'sin_conexion')) { proximo = 0; reint = 0; if (MOVIL) { fase('mirando'); return; } modoLocal = true; } },   // the phone tries again by looking (D-268)
       parar: async () => {
         if (conTurno) { try { await subir({ todo: true }); } catch (e) { /* */ } try { await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); } catch (e) { /* */ } }
         parado = true; conTurno = false; modoLocal = false; fase('apagada');
@@ -968,7 +989,7 @@
     let d = lsG(DISP_K);
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(d)) {
       const ua = (G.navigator && G.navigator.userAgent) || '';
-      const iph = MOVIL_G || /iPhone|iPod/.test(ua);
+      const iph = /iPhone|iPod/.test(ua) || (MOVIL_G && !/iPad|Macintosh|Windows|Android|Linux/.test(ua));
       const so = iph ? 'iphone' : /iPad/.test(ua) ? 'ios' : /Mac/.test(ua) ? 'mac' : /Windows/.test(ua) ? 'win' : /Android/.test(ua) ? 'android' : /Linux/.test(ua) ? 'linux' : 'eq';
       const nav = iph ? (deInicio() ? 'inicio' : 'safari') : /Claude\//.test(ua) ? 'claude' : /Edg\//.test(ua) ? 'edge' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\//.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'nav';
       d = `${so}-${nav}-${hex(G.crypto.getRandomValues(new Uint8Array(8)))}`; lsS(DISP_K, d);
@@ -1008,7 +1029,7 @@
     soltada: async () => { X().movil.turno(false); aCara('soltada', {}); },
     releido: async n => { await X().movil.releer(); aCara('releido', { n }); },
     antesDeSoltar: () => X().movil.esperar(),
-    estado: e => { ESTADO = e; aCara('estado', e); } });   // no desk chip nor its code dialog: the face draws both
+    estado: e => { ESTADO = e; aCara('estado', e); if ((e.avisos || 0) !== AVS.length && N) N.avisos().then(l => { AVS = l; aCara('avisos', { n: l.length }); }, () => {}); } });   // no desk chip nor its code dialog: the face draws both
   function nucleo() {
     if (N) return N;
     const c = sb();
@@ -1031,9 +1052,9 @@
   // the phone (D-268): open looking; then look at once (the face already drew what it has), every 45 s with the screen in front,
   // on coming back and with the network back; going away with the Mesa, let it go. Never traerResto nor verificarOriginales: each
   // thing comes down when it is seen, and the phone never keeps an original to check.
-  let mirarT = 0;
-  const mirarYa = () => { if (N && D.visibilityState === 'visible') N.mirar().catch(() => { /* its state says it */ }); };
-  const soltarYa = () => { if (N && N.conTurno()) N.soltar().catch(() => { /* the next time */ }); };
+  let mirarT = 0, DORMIDA = false, OYENDO = false;
+  const mirarYa = () => { if (N && !DORMIDA && D.visibilityState === 'visible') N.mirar().then(r => { if (r && r.traido) lsS(TRAER, null); }, () => { /* its state says it */ }); };
+  const soltarYa = () => { if (N && !DORMIDA) N.pedirIrse().catch(() => { /* the next time */ }); };
   async function abrirMovil(traer) {
     const r = await nucleo().abrir({ traer });
     if (r.modo === 'vacia') {
@@ -1045,8 +1066,7 @@
     if (r.modo === 'vieja') { const f = X().movil.alVersion; if (f) f(); }
     arrancarPulso();
     clearInterval(mirarT); mirarT = setInterval(mirarYa, 45000);
-    on(D, 'visibilitychange', () => { if (D.visibilityState === 'visible') mirarYa(); else soltarYa(); });
-    on(G, 'pageshow', mirarYa); on(G, 'online', mirarYa); on(G, 'pagehide', soltarYa);
+    if (!OYENDO) { OYENDO = true; on(D, 'visibilitychange', () => { if (D.visibilityState === 'visible') mirarYa(); else soltarYa(); }); on(G, 'pageshow', mirarYa); on(G, 'online', mirarYa); on(G, 'pagehide', soltarYa); }
     if (!r.traido && r.modo === 'mirando') setTimeout(mirarYa, 0);
     AVS = await nucleo().avisos().catch(() => []);
     return r;
@@ -1317,15 +1337,15 @@
     const p = extra || `<p>Solo se puede usar en un ordenador a la vez. Si la usas aquí, ${quien} sube lo que tenga y se pausa.</p>`;
     X().pausaNube(capa(`La Mesa está abierta en ${quien}${dd}`, p, (ESTADO.sinSubir ? `<button type="button" class="btn2" data-nube="panel">Quedó sin subir (${ESTADO.sinSubir})</button>` : '') + '<button type="button" class="btn" data-nube="usar">Usar aquí</button>'));
   }
-  async function usarAqui() {
+  async function usarAqui(op) {
     const t = ESTADO.tiene || {}, quien = esc(nombreDe(t.dispositivo));
     X().pausaNube(capa(`Pidiendo la Mesa a ${quien}`, `<p class="nubeesp">Esperando a que suba sus cambios y la suelte…</p>`, ''));
-    const r = await nucleo().usarAqui();
+    const r = await nucleo().usarAqui(op || {});
     if (r.hecho) return;
     if (r.espera) {
       const e = r.espera, n = +e.cola || 0, h = e.latido ? desde(e.latido) : '';
       return X().pausaNube(capa(`${esc(nombreDe(e.dispositivo))} no contesta`, `<p>No contesta${h ? ' ' + esc(h) : ''}; tenía ${n} ${n === 1 ? 'cambio' : 'cambios'} sin subir. Si la usas aquí, esos cambios se quedan en ese ordenador, en «Quedó sin subir».</p>`,
-        `<button type="button" class="btn2" data-nube="usar">Esperar más</button><button type="button" class="btn" data-nube="forzar" data-visto="${esc(e.turno)}">Usarla aquí</button>`));
+        `<button type="button" class="btn2" data-nube="esperar">Esperar más</button><button type="button" class="btn" data-nube="forzar" data-visto="${esc(e.turno)}">Usarla aquí</button>`));
     }
     pintarPausa(`<p>${r.error === 'sin_conexion' ? 'Sin conexión: no se ha podido pedir. Vuelve a intentarlo.' : 'No se ha podido pedir (' + esc(r.error) + '). Vuelve a intentarlo.'}</p>`);
   }
@@ -1385,7 +1405,7 @@
     const lk = r.querySelector('.nubelock');
     const esp = lk && ESTADO.fase === 'subiendo' && lk.querySelector('.nubeesp[data-cede]');   // al ceder: cuántas fotos quedan, al día
     if (esp) { const nf = fotosEnCola(); esp.firstChild.textContent = `Subiendo lo último que hiciste aquí${nf ? ` (${nf} ${nf === 1 ? 'foto' : 'fotos'})` : ''}…`; }
-    if (X().NUBE.activa && ESTADO.fase === 'pausada' && lk && !lk.querySelector('[data-nube="usar"]') && !lk.querySelector('[data-nube="forzar"]')) pintarPausa();
+    if (X().NUBE.activa && ESTADO.fase === 'pausada' && lk && !lk.querySelector('[data-nube="usar"]') && !lk.querySelector('[data-nube="esperar"]') && !lk.querySelector('[data-nube="forzar"]')) pintarPausa();
     // un aviso de actividad nuevo, en la página personal en esta misma sesión
     if (X().NUBE.activa && (ESTADO.avisos || 0) !== AVS.length && !releyendo) { releyendo = true; X().nubeAlmacen.avisos().then(l => { AVS = l; releyendo = false; if (M.personal && M.personal.abierta && M.personal.abierta()) M.personal.render(); }, () => { releyendo = false; }); }
   }
@@ -1518,6 +1538,7 @@
     const a = b.dataset.nube;
     if (a === 'panel') { if (ESTADO.fase === 'sin_codigo' && M.entrada) M.entrada.pedirCodigo(); else panel(); }
     else if (a === 'usar') usarAqui();
+    else if (a === 'esperar') usarAqui({ esperar: true });   // «Esperar más»: the 20 s, also with the other quiet (D-268)
     else if (a === 'forzar') forzar(b.dataset.visto);
     else if (a === 'recargar') G.location.reload();
     else if (a === 'entrar') { if (entradaActiva()) G.location.reload(); else if (M.web && M.web.entrar) M.web.entrar(); }
@@ -1575,13 +1596,13 @@
     },
     avisosHTML, avisos: () => AVS.slice(), avisosN: () => (X().NUBE.activa ? AVS.length : 0), nombreDe,
     // the phone (D-268): look, take the Mesa, let it go, force it without reloading; its face hears every state and change
-    mirar: () => (N ? N.mirar() : Promise.resolve({ error: 'apagada' })), tomar: () => (N ? N.tomar() : Promise.resolve({ error: 'apagada' })),
+    mirar: () => (N && !DORMIDA ? N.mirar() : Promise.resolve({ error: 'apagada' })), tomar: op => (N && !DORMIDA ? N.tomar(op) : Promise.resolve({ error: 'apagada' })),
     soltar: () => (N ? N.soltar() : Promise.resolve({ hecho: true })), retener: v => { if (N) N.retener(v); },
     forzarAqui: visto => (N ? N.forzar(+visto) : Promise.resolve({ error: 'apagada' })),
     subirEncima: claves => (N ? N.subirEncima(claves) : Promise.resolve({ error: 'apagada' })), descartar: claves => (N ? N.descartar(claves) : Promise.resolve({ error: 'apagada' })),
     sinSubir: () => X().nubeAlmacen.sinSubir(), estadoYa: () => (N ? N.estado() : { fase: 'apagada' }), conTurno: () => !!(N && N.conTurno()),
     alEstado: f => { CARA.add(f); return () => CARA.delete(f); },
-    _dormir: () => { clearInterval(pulso); clearInterval(mirarT); },   // another tab of this phone took over: this one does nothing more
+    _dormir: () => { DORMIDA = true; clearInterval(pulso); clearInterval(mirarT); if (N && N.dormir) N.dormir(); },   // another tab of this phone took over: this one does nothing more (it never lets the Mesa go: it is the same device)
     _abrir: abrir, _nucleo: () => N, _panel: panel,
     // solo para la batería: el estado pintado, los avisos releídos y un núcleo con un servidor de mentira (nunca la red)
     _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
@@ -1590,8 +1611,8 @@
     _soltar: () => { clearInterval(pulso); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
-  if (X().NUBE.activa) { sb().alCambiar(u => { const n = sb().nivel && sb().nivel(); if (u && N && (ESTADO.fase === 'sin_sesion' || (ESTADO.fase === 'sin_codigo' && n && n.aal === 'aal2'))) N.reintentar(); }); trasArmazon(() => pintar()); }
-  else if (conTraer()) trasArmazon(() => pintar());   // (solo se ve en la cabecera si este navegador no tiene Mesa)
+  if (X().NUBE.activa) { sb().alCambiar(u => { const n = sb().nivel && sb().nivel(); if (u && N && (ESTADO.fase === 'sin_sesion' || (ESTADO.fase === 'sin_codigo' && n && n.aal === 'aal2'))) N.reintentar(); }); if (!MOVIL_G) trasArmazon(() => pintar()); }
+  else if (conTraer() && !MOVIL_G) trasArmazon(() => pintar());   // (solo se ve en la cabecera si este navegador no tiene Mesa; el móvil no tiene cabecera)
   function estilar() { if (!D.getElementById('mesa-nube-css')) X().estilo('mesa-nube-css', ESTILO); }
   (G.MESA_CARGA = G.MESA_CARGA || {}).nube = 'ok';
   const ICO = d => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E${d.replace(/<path d='/g, "%3Cpath vector-effect='non-scaling-stroke' d='").replace(/'\/>/g, "'/%3E").replace(/<circle /g, "%3Ccircle vector-effect='non-scaling-stroke' ").replace(/<line /g, "%3Cline vector-effect='non-scaling-stroke' ")}%3C/svg%3E")`;

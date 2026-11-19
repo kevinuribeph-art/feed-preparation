@@ -256,7 +256,7 @@
         if (e.oldVersion >= 15 && e.oldVersion < 19) { const t = r.transaction, dj = t.objectStore(DIARIO);   /* idb-crudo: the upgrade */
           t.objectStore('tareas').openCursor().onsuccess = ev => { const c = ev.target.result; if (!c) return; const n = tareaAl17(c.value); if (n !== c.value) { c.update(n); apuntar(dj, 'tareas', c.primaryKey); } c.continue(); }; }   /* idb-crudo: the upgrade */
       };
-      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; d.onclose = () => { if (dbConn === d) { dbp = null; dbConn = null; } }; res(d); };   // closed by the system (iOS after a suspension, D-268): the next call opens it again
+      r.onsuccess = () => { const d = r.result; dbConn = d; d.onversionchange = () => { try { d.close(); } catch (e) { /* */ } dbp = null; dbConn = null; versionNueva(); }; if (MOVIL) d.onclose = () => { if (dbConn === d) { dbp = null; dbConn = null; } }; res(d); };   // closed by the system (iOS after a suspension, D-268): the next call opens it again
       r.onerror = () => { dbp = null; if (r.error && r.error.name === 'VersionError') versionNueva(); rej(r.error); };
       r.onblocked = () => { const m = 'Hay otra copia de la mesa abierta con una versión anterior. Ciérrala o recarga esta página.'; if (shellReady() || MOVIL) toast(m, { error: true }); else if (document.body) document.body.textContent = m; };
     });

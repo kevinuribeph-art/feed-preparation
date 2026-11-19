@@ -18,7 +18,7 @@
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
   const ENG = () => window.DisenoMotor;
-  const VERSION = '1.26';   // 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
+  const VERSION = '1.27';   // 1.27: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded at its real size, never enlarged, and the small-photo warning counts its real pixels; the final photo fixed from it is what it is, without the mark (D-259). 1.26: an open section with a double click folds 0.2 s after a mouse click (D-200). 1.25: the «Diseño» panel's titles without a datum, a double click on a title puts it back (D-197); <br> as line breaks in its fields (D-198); a section's inside never wider than the panel (D-195). 1.24: the editor's «Diseño» layer (D-193): a slide's free layers and one let go from the kit, drawn here; the panel shared with the editor; a design is no longer opened by «Editar …» to add a photo.   // 1.23: the panel folds as the editor's, one section open at a time and the last one remembered, with no grey explanations (D-177). 1.21: without _sustituir, which nothing used (D-167). 1.20: «+ Diapositiva» on one line at every width (D-166). 1.19: the panel's double clicks, without «Auto» and «Centrar»; the post view's reference after an apply (D-159, D-164, D-165)
   const FMTS = { v45: '4:5', v34: '3:4', h: 'Horizontal' };
   const TIPOS_CAR = ['portada', 'ficha', 'final'];
   const TIPO_LABEL = { portada: 'Portada', ficha: 'Ficha', final: 'Final', reel: 'Portada de reel' };
@@ -200,8 +200,8 @@
       const { kit, raw } = await engineKit(s.design.kit || S.client);
       const fin = await finalReady(raw), src = effSrc(s.design.slides[i], fin);
       if (n !== VI.n || !src || !M.files[src]) return false;
-      const f = M.files[src], sc = Math.min(1, 2400 / Math.max(f.w, f.h)), blob = await I().getBlob(src);
-      const bmp = await createImageBitmap(blob, sc < 1 ? { imageOrientation: 'from-image', resizeWidth: Math.max(1, Math.round(f.w * sc)), resizeHeight: Math.max(1, Math.round(f.h * sc)), resizeQuality: 'high' } : { imageOrientation: 'from-image' });
+      const f = M.files[src], rl = real(f), sc = Math.min(1, 2400 / Math.max(rl.w, rl.h)), blob = await I().getBlob(src);
+      const bmp = await createImageBitmap(blob, sc < 1 ? { imageOrientation: 'from-image', resizeWidth: Math.max(1, Math.round(rl.w * sc)), resizeHeight: Math.max(1, Math.round(rl.h * sc)), resizeQuality: 'high' } : { imageOrientation: 'from-image' });
       if (n !== VI.n) { bmp.close(); return false; }
       Object.assign(VI, { kit, fin, src, bmp, sz: sizeOf(kit, s.design, fin), ready: true });
       const c0 = (I().S.crops || {})[src]; VI.base = marcoVista(); VI.crop0 = c0 ? { ...c0 } : null;
@@ -484,8 +484,8 @@
     let blob0;
     try { blob0 = await I().getBlob(src); } catch (e) { throw sl.tipo === 'final' ? new DzError(NO_FINAL, i) : faltaError(s, [i]); }
     // the photo decoded at the px the slide uses, never more than the original (D-116): the same image, less memory
-    const r = rectOf(src, sz.W, sz.H), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' };
-    if (usa < 1) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
+    const r = rectOf(src, sz.W, sz.H), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' }, rl = real(f);
+    if (usa < 1 && f.w * usa < rl.w) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }   // a working copy is never enlarged (lot 4)
     const bmp = await createImageBitmap(blob0, oo);
     try {
       const k = bmp.width / f.w, rc = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k };
@@ -714,12 +714,18 @@
     return { ok: true, override: clone(c.kit), kit: deepMerge(base, c.kit) };
   }
 
+  // the size of the pixels this computer has of a photo: its working copy's (lot 4, D-259) or the original's
+  const real = f => (f && f.copia && f.copia.w ? { w: f.copia.w, h: f.copia.h } : { w: (f && f.w) || 1, h: (f && f.h) || 1 });
   // The client's fixed final photo: a copy of that mesa photo in the protected file 'kit-<clientId>-final'.
   async function fijarFinal(clientId, fileId) {
     await rawKit(clientId);
     const c = await I().idbGet('clients', clientId); need(c, 'No existe ese cliente.');
-    const rec = await I().idbGet('files', fileId); need(rec && rec.blob, 'Esa foto no está en la mesa.');
-    const id = await putFinal(clientId, { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, lastModified: rec.lastModified || 0, blob: rec.blob, thumb: rec.thumb, ...(rec.reduced ? { reduced: true } : {}) });
+    let rec = await I().idbGet('files', fileId); need(rec && rec.blob, 'Esa foto no está en la mesa.');
+    if (I().esRefNube && (I().esRefNube(rec.blob) || I().esRefNube(rec.thumb))) { await I().getBlob(fileId); rec = await I().idbGet('files', fileId); need(rec && rec.blob && !I().esRefNube(rec.blob) && !I().esRefNube(rec.thumb), 'Esa foto aún no ha llegado a este ordenador.'); }   // lot 4: brought first
+    // a working copy (lot 4) is what it is: the final photo keeps its own size and never the mark
+    const cp = rec.copia && rec.copia.w ? rec.copia : null;
+    const id = await putFinal(clientId, cp ? { name: String(rec.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', size: rec.blob.size, type: rec.blob.type || 'image/jpeg', w: cp.w, h: cp.h, lastModified: rec.lastModified || 0, blob: rec.blob, thumb: rec.thumb }
+      : { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h, lastModified: rec.lastModified || 0, blob: rec.blob, thumb: rec.thumb, ...(rec.reduced ? { reduced: true } : {}) });
     return { ok: true, fileId: id, name: nameOf(id) };
   }
   async function fijarFinalArchivo(clientId, file) {   // a photo dropped on the editor (not added to the tray)
@@ -1235,7 +1241,7 @@
     while (E && E.dec < 2 && E.q.length) {
       const src = E.q.shift(), ent = E.bm.get(src), f = M.files[src];
       if (!ent || ent.busy || !f || (ent.bmp && ent.s >= ent.want - 1e-6)) continue;
-      const s = ent.want, o = s >= 1 ? { imageOrientation: 'from-image' }
+      const s = ent.want, o = s >= 1 || f.w * s >= real(f).w ? { imageOrientation: 'from-image' }   // a working copy is never enlarged (lot 4)
         : { imageOrientation: 'from-image', resizeWidth: Math.max(1, Math.round(f.w * s)), resizeHeight: Math.max(1, Math.round(f.h * s)), resizeQuality: 'high' };
       ent.busy = true; E.dec++;
       I().getBlob(src).then(b => createImageBitmap(b, o))
@@ -1281,7 +1287,7 @@
       else if (bmp && (!capa || capa.s < Math.min(sn, E.bm.get(src).s) - 1e-6)) {        // first layer, or a sharper one
         const k = bmp.width / f.w;
         capa = ENG().capaFoto(bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, W, H);
-        capa.s = E.bm.get(src).s; capa.origen = { w: r.w, h: r.h, bw: f.w, bh: f.h };   // the photo's own pixels, whatever the decoded size
+        const kr = real(f).w / f.w; capa.s = E.bm.get(src).s; capa.origen = { w: r.w * kr, h: r.h * kr, bw: real(f).w, bh: real(f).h };   // the photo's own pixels here, whatever the decoded size (a working copy's, lot 4)
       }
       else if (!capa) return null;
     }
@@ -1854,7 +1860,7 @@
   async function enFoto(kit, src, crop, sz) {
     const f = src && M.files[src]; if (!f) return capaPlana(kit, sz);
     const r = I().rectFor(f.w, f.h, sz.W / sz.H, crop || {}), usa = Math.min(1, Math.max(sz.W / r.w, sz.H / r.h)), oo = { imageOrientation: 'from-image' };
-    if (usa < 1) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
+    if (usa < 1 && f.w * usa < real(f).w) { oo.resizeQuality = 'high'; if (f.w >= f.h) oo.resizeWidth = Math.max(1, Math.round(f.w * usa)); else oo.resizeHeight = Math.max(1, Math.round(f.h * usa)); }
     const bmp = await createImageBitmap(await I().getBlob(src), oo);
     try { const k = bmp.width / f.w; return ENG().capaFoto(bmp, { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k }, sz.W, sz.H); } finally { bmp.close(); }
   }

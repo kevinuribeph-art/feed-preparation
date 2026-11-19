@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
-  const VERSION = '1.5';   // 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
+  const VERSION = '1.6';   // 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
   const OFF = [];
@@ -97,7 +97,7 @@
   const FB = new Map();                        // photo id -> a promise of {rec, mini (url)}
   const BM = new Map();                        // 'id@WxH' -> ImageBitmap decoded at that size
   function foto(id) {                          // read once: every caller waits for the same reading
-    if (!FB.has(id)) FB.set(id, (async () => { const o = { rec: null, mini: '' }; try { o.rec = await I().idbGet('tfotos', id); if (o.rec && o.rec.mini) o.mini = URL.createObjectURL(o.rec.mini); } catch (e) { /* gone */ } return o; })());
+    if (!FB.has(id)) FB.set(id, (async () => { const o = { rec: null, mini: '' }; try { o.rec = await I().idbGet('tfotos', id); if (o.rec && !(o.rec.blob instanceof Blob)) { FB.delete(id); o.rec = null; } else if (o.rec && o.rec.mini instanceof Blob) o.mini = URL.createObjectURL(o.rec.mini); } catch (e) { /* gone */ } return o; })());
     return FB.get(id);
   }
   function soltarFotos() { FB.forEach(p => p.then(o => { if (o.mini) URL.revokeObjectURL(o.mini); })); FB.clear(); BM.forEach(b => { try { b.close(); } catch (e) { /* */ } }); BM.clear(); }
@@ -596,7 +596,7 @@
   }
   function verFoto(id) {                       // a session's photo big, in the mesa's dialog (Esc, the × or a click outside close it)
     foto(id).then(o => {
-      if (!o.rec || !o.rec.blob) return;
+      if (!o.rec || !(o.rec.blob instanceof Blob)) return;
       const X = I(), u = URL.createObjectURL(o.rec.blob), r = rec();
       X.showDialog('pp-foto', `<button class="x" data-act="close" aria-label="Cerrar">×</button><div class="tvwrap"><img class="tvimg" src="${u}" alt=""></div><div class="tvbar"><span class="tvname"><b>${P.esc(r ? r.txt : '')}</b> · ${o.rec.w}×${o.rec.h}</span></div>`);
       const det = X.root().querySelector('.detail');
@@ -887,7 +887,7 @@
     const r0 = P.TK.get(id); if (!r0 || r0.tipo !== 'sesion' || !P.puede()) return;
     const X = I(), now = P.ahoraISO(), nid = P.nuevoId('ss'), mapa = new Map(), fotos = [];
     for (const f of r0.fotos || []) {
-      const o = await X.idbGet('tfotos', f.id).catch(() => null); if (!o || !o.blob) continue;
+      const o = await X.idbGet('tfotos', f.id).catch(() => null); if (!o || !(o.blob instanceof Blob) || !(o.mini instanceof Blob)) continue;
       const fid = P.nuevoId('tf'); const { suelta, ...g } = o;
       await X.idbPut('tfotos', fid, { ...g, id: fid, sesion: nid, t: Date.now() }); mapa.set(f.id, fid); fotos.push({ ...f, id: fid });
     }

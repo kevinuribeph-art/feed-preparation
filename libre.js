@@ -107,7 +107,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.65';   // 1.65: «Capas» with a handle, Lucide's eye, lock and link, seen on hover, chosen or with the focus, and the order in each row's right click; Lucide's lock on the canvas (D-215). 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
+  const VERSION = '1.66';   // 1.66: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is decoded and measured at its real size, never enlarged; a big zoom on it says so once (D-259). 1.65: «Capas» with a handle, Lucide's eye, lock and link, seen on hover, chosen or with the focus, and the order in each row's right click; Lucide's lock on the canvas (D-215). 1.64: the «1 / 2» questions with their key drawn (D-199); an open section with a double click folds 0.2 s after a mouse click (D-200); the right-click menus only with what does something (D-201). 1.63: the «1 / 2» question's answer in terracotta (D-194); «Capas» within the panel (D-195); the design's actions in the right-click and «⋯» (D-196); the «Diseño» panel's titles alone, a double click puts them back, the engine's warnings in the title of «Texto» (D-197); <br> as line breaks (D-198). 1.62: a designed post opens in layers, «Diseño» is a layer of the slide, «Soltar del kit» / «Volver al diseño», applying keeps the design (D-193).   // 1.61: the veil and the texture are layers of «Capas»: chosen, moved (▲ ▼, ⌘] ⌘[, dragged, as every layer, which can be dragged now), hidden and deleted; what was saved before stays where it is (D-185). 1.60: «Barra de progreso», Visto and Aspa in «+ Forma» (D-179). 1.59: the second click of the double click that opened the editor is not the editor's; ▲ ▼ of «Capas» and × of «Plantillas» as Lucide icons (D-175); «Medidas exactas» like «Girar» and no message when a ⌘Z undoes a type change's drawing (D-176); «Elegir foto» without its grey explanation (D-177); «Desliza →», Comillas and «Número en círculo» in «+ Forma» (D-178). 1.57: «Girar»'s field and title say the real angle and a double click chooses it; no message when a ⌘Z pressed while a drop was drawn undid it (D-166). 1.56: without the floating bar (its actions in an element's right-click menu), «+ Forma», «⋯» with «Vista previa» and «Guías», the bars' double click, the state pill in the foot (D-163 to D-165). 1.55: an element's panel in folding sections, one open at a time, the last one opened remembered by kind (D-149); the tray's tab in use in the accent, no path in text, its row as wide as there is room (D-151). 1.54: «+ Diapositiva», header with the name alone, section titles alone at 21 px, no «Ajustar» (D-139–D-141, D-145), «Libres» (D-146)
   const OUT_W = 1440;                          // width of a rendered slide (the most Instagram keeps; the app shows 1080)
   const PX = 1080 / OUT_W;                     // the panel speaks in pixels of a 1080-wide slide
   const VIEW_LONG = 2560;                      // a photo's working size in the editor (long side); the original only with a strong zoom (D-116)
@@ -747,11 +747,15 @@
     const f = M.files[src], L = f ? Math.max(f.w, f.h) : 0, b = E.bm.get(src);
     const quiere = need && L ? need * L : VIEW_LONG;   // need: drawn px per px of the original, so need × L = the long side wanted
     if (L && !trabajo && quiere <= MINI_LONG * 1.05) return b && b.im ? b : miniImg(src);
-    const obj = !L ? 0 : quiere > VIEW_LONG * 1.05 ? L : Math.min(L, VIEW_LONG);
+    const Lr = largoReal(f) || L;   // only a working copy here (lot 4): never more than its own pixels
+    if (f && f.copia && trabajo && quiere > Lr * 1.15 && !E.avisoCopia) { E.avisoCopia = true; I().toast('Con este zoom ves la copia de 2560 px de esta foto: el original está en otro ordenador. Lo que apliques sale con la copia.', { ms: 8000 }); }
+    const obj = !L ? 0 : quiere > VIEW_LONG * 1.05 ? Lr : Math.min(Lr, VIEW_LONG);
     if (!b || (!b.err && (b.pide || 0) < obj && (b.long || 0) < obj)) pedirFoto(src, obj, false);
     const r = E.bm.get(src);
     return r && r.im ? r : (L ? miniImg(src) : null);
   }
+  // the long side of the pixels this computer really has of a photo: its working copy's (lot 4, D-259) or the original's
+  const largoReal = f => (!f ? 0 : f.copia && f.copia.w ? Math.max(f.copia.w, f.copia.h) : Math.max(f.w || 0, f.h || 0));
   function miniImg(src) {
     const m = E.bmMini.get(src); if (m) return m.im ? m : null;
     const rec = { im: null, mini: true }; E.bmMini.set(src, rec);
@@ -774,7 +778,7 @@
   async function decodificar({ src, rec, obj, mini }) {
     const owner = E; owner.decoding++;
     try {
-      const f = M.files[src], L = f ? Math.max(f.w, f.h) : 0;
+      const f = M.files[src], L = largoReal(f);
       let blob = null, largo = obj;
       if (mini) { blob = M.thumbBlobs[src] || ((await I().idbGet('files', src).catch(() => null)) || {}).thumb || null; largo = MINI_LONG; }
       if (!blob) blob = await I().getBlob(src);
@@ -1094,8 +1098,8 @@
       const usa = new Map(), seco = document.createElement('canvas'); seco.width = seco.height = 1;
       FUERA = SALIDA = true; try { drawComp(seco.getContext('2d'), comp, W, H, (f, need) => { usa.set(f, Math.max(usa.get(f) || 0, need || 1)); return null; }, 1, false); } finally { FUERA = SALIDA = false; }
       for (const [f, need] of usa) {
-        const r = M.files[f], L = r ? Math.max(r.w, r.h) : 0, largo = L ? Math.max(1, Math.round(Math.min(1, need) * L)) : 0, o = { imageOrientation: 'from-image' };
-        if (r && largo < L) { o.resizeQuality = 'high'; if (r.w >= r.h) o.resizeWidth = largo; else o.resizeHeight = largo; }
+        const r = M.files[f], L = r ? Math.max(r.w, r.h) : 0, Lr = largoReal(r), largo = L ? Math.min(Lr, Math.max(1, Math.round(Math.min(1, need) * L))) : 0, o = { imageOrientation: 'from-image' };   // a working copy is never enlarged (lot 4)
+        if (r && largo < Lr) { o.resizeQuality = 'high'; if (r.w >= r.h) o.resizeWidth = largo; else o.resizeHeight = largo; }
         cache.set(f, { im: await createImageBitmap(await I().getBlob(f), o) });
       }
   }
@@ -3111,7 +3115,7 @@
     if (!E.sl.length) return;
     const el = selIds().length === 1 ? selEl() : null, src = el && el.t === 'foto' && el.src && M.files[el.src] ? el.src : null, f = src && M.files[src];
     const fv = E.fv = document.createElement('div'); fv.className = 'lb-fv'; fv.setAttribute('role', 'dialog'); fv.setAttribute('aria-label', f ? 'La foto, en grande' : 'La diapositiva, en grande');
-    fv.innerHTML = `<span class="lb-fvt">${f ? `${esc(f.name || 'Foto')} · ${f.w} × ${f.h} px, entera` : `Diapositiva ${E.i + 1}`} · Esc o F para cerrar</span>${f ? '<img alt="">' : '<canvas></canvas>'}`;
+    fv.innerHTML = `<span class="lb-fvt">${f ? `${esc(f.name || 'Foto')} · ${f.copia ? `copia de ${f.copia.w} × ${f.copia.h} px (el original, en otro ordenador)` : `${f.w} × ${f.h} px`}, entera` : `Diapositiva ${E.i + 1}`} · Esc o F para cerrar</span>${f ? '<img alt="">' : '<canvas></canvas>'}`;
     E.el.append(fv);
     if (f) { const owner = E; I().getBlob(src).then(b => { if (E !== owner || E.fv !== fv || !b) return; E.fvUrl = URL.createObjectURL(b); fv.querySelector('img').src = E.fvUrl; }).catch(() => {}); }
     else { E.fvI = E.i; window.addEventListener('resize', fvDibujar); fvDibujar(); }
@@ -4483,8 +4487,8 @@
   async function medida(el, W, H) {
     if (el.t === 'foto') {
       const f = el.src && M.files[el.src]; if (!f || !f.w) return null;
-      const ib = hueco(el, el.w * W, el.h * H), sr = srcRect(el, f.w, f.h, ib.w, ib.h);
-      return ib.w > 0 && sr.w > 0 ? { px: sr.w * W / ib.w } : null;
+      const ib = hueco(el, el.w * W, el.h * H), sr = srcRect(el, f.w, f.h, ib.w, ib.h), k = f.copia && f.copia.w ? f.copia.w / f.w : 1;   // a working copy: its real pixels (lot 4)
+      return ib.w > 0 && sr.w > 0 ? { px: sr.w * k * W / ib.w } : null;
     }
     if (el.t !== 'texto') return null;
     if (el.font && el.font.file) await fuente(el.font).p.catch(() => {});   // its own font, or what «Aplicar» falls back to

@@ -17986,6 +17986,39 @@
     } finally { M._test.setSlot('r1', { photos: [] }); await M.flush(); await ftFin([id]); }
   });
 
+  prueba('FT4', 'Lo que necesita el original avisa (D-259): con solo la copia, «Revisar», el editor y el plan miden sus píxeles reales; Notion y Zernio no se suben sin «conCopia»; «Descargar» en «Original» lo dice en una línea y sigue con la copia; la foto final del kit no hereda la marca', async () => {
+    await tablero([pub(1)]);
+    const F = ftMundo(), id = 'fft4';
+    try {
+      await ftEncender(F);
+      const { cw } = await ftBajada(F, id);
+      M._test.setSlot('r1', { photos: [id] }); await M.flush(); M._in.soltarArchivo(id); await M.open(M.board().key);
+      await M._in.getBlob(id); await hasta(() => M.files[id] && M.files[id].copia && !M.files[id].copia.falta, 8000, 'la copia');
+      const pf = ((M.plan().find(p => p.slotId === 'r1') || {}).files || [])[0] || {};
+      ok(pf.soloCopia && +String(pf.recorte).split('x')[0] <= cw, 'el plan no lo dice: ' + json(pf));
+      const st = M.startUpload([{ fileId: id, url: 'http://127.0.0.1:9/nada', auth: 'x' }]);
+      ok(JSON.stringify(st).includes('copia de 2560'), 'Notion sube la copia sin decirlo: ' + json(st));
+      await M._in.esperar(() => M.libre && M.libre.rev, 'libre');
+      const el = { t: 'foto', src: id, x: 0, y: 0, w: 1, h: 1 };
+      const m1 = await M.libre.rev.medida(el, 1080, 720), cp = M.files[id].copia; delete M.files[id].copia;
+      const m2 = await M.libre.rev.medida(el, 1080, 720); M.files[id].copia = cp;
+      ok(m1 && m2 && Math.abs(m1.px / m2.px - cw / 6000) < 0.01, 'el editor mide la copia con los píxeles del original: ' + json([m1, m2]));
+      const pz = await M.descargar._pieza(slot('r1'), id, { textos: true, ancho: 'orig' });
+      ok(pz.w <= cw + 1, '«Original» amplía la copia: ' + pz.w);
+      clicCelda('r1', true); M.descargar.abrir();
+      const d = await hasta(() => ventanaDl(), 3000, 'la ventana de descarga');
+      d.querySelector('input[name="dl-res"][value="orig"]').click(); d.querySelector('[data-dl="ir"]').click();
+      const er = d.querySelector('.dl-err'); ok(er && !er.hidden && /copia de 2560/.test(er.textContent) && er.querySelector('[data-dl="concopia"]'), 'no avisa en una línea: ' + (er && er.textContent));
+      const r = await conDescarga(async cap => { er.querySelector('[data-dl="concopia"]').click(); await hasta(() => cap() || !ventanaDl(), 30000, 'la descarga'); await hasta(() => cap(), 3000, 'el archivo'); });
+      const bm = await W.createImageBitmap(r.blob); ok(bm.width <= cw + 1, 'la descarga con la copia amplió: ' + bm.width); bm.close();
+      M.descargar.vaciar && M.descargar.vaciar();
+      const fr = await conKitPrueba(() => M.diseno.fijarFinal(CLIENTE, id)), kf = fr && fr.fileId ? await M._in.idbGet('files', fr.fileId) : null;
+      ok(fr && fr.ok, 'fijarFinal: ' + json(fr));
+      ok(kf && !kf.copia && kf.w === cw && kf.size === kf.blob.size, 'la foto final heredó la marca o las medidas del original: ' + json({ copia: kf && kf.copia, w: kf && kf.w, size: kf && kf.size }));
+      if (fr && fr.fileId) await M._in.diario.sinDiario('files', 'readwrite', s => s.delete(fr.fileId)); await M._in.editarCliente(CLIENTE, c => { if (c.kit && c.kit.final) delete c.kit.final; return c; });
+    } finally { if (ventanaDl()) M._in.closeDetail(); M._test.setSlot('r1', { photos: [] }); await M.flush(); await ftFin([id]); }
+  });
+
   prueba('FT5', 'subirTodo y comprobar (D-259): sube todos los almacenes (también lo de antes del diario), con sus fotos; repetirlo no sube nada; comprobar da verde con todo arriba y rojo si falta un archivo', async () => {
     await tablero([pub(1)]);
     const F = ftMundo(); let id = null;

@@ -14,7 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.7';   // 1.7: Esc that closes a session's sheet over the board keeps the choice (D-219). 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
+  const VERSION = '1.8';   // 1.8: «Original» of a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) says so in a line and goes on with the copy or stops; never enlarged, never «the very file» (D-259). 1.7: Esc that closes a session's sheet over the board keeps the choice (D-219). 1.5: «Con textos / Solo la foto» only with a ticked piece with texts; no «Cancelar» nor help texts (D-155, D-156, D-162)
   if (M.descargar && M.descargar._off) { try { M.descargar._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, nOf } = M._in;   // the mesa's own helpers
   const MAX_PX = 36e6;                         // «Original» never goes over 36 MP (a canvas that big still draws everywhere)
@@ -102,9 +102,9 @@
   async function jpeg(c) { const b = await new Promise((res, rej) => c.toBlob(x => x ? res(x) : rej(new Error('no se pudo hacer el JPEG')), 'image/jpeg', 0.92)); c.width = c.height = 0; return b; }
   // a rectangle of a stored photo (in the mesa's measures), w px wide; the very file when nothing changes
   async function recorte(fid, r, ancho) {
-    const X = I(), f = M.files[fid], blob = await X.getBlob(fid);
-    const W = tope(ancho === 'orig' ? r.w : +ancho, r.h / r.w), H = Math.max(1, Math.round(W * r.h / r.w));
-    if (r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && W === f.w && blob.type === 'image/jpeg') return { blob, w: f.w, h: f.h };
+    const X = I(), f = M.files[fid], blob = await X.getBlob(fid), kc = f.copia && f.copia.w ? f.copia.w / f.w : 1;   // a working copy (lot 4): its real pixels
+    const W = tope(ancho === 'orig' ? r.w * kc : +ancho, r.h / r.w), H = Math.max(1, Math.round(W * r.h / r.w));
+    if (!f.copia && r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && W === f.w && blob.type === 'image/jpeg') return { blob, w: f.w, h: f.h };
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     try {
       const k = bmp.width / f.w, c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -180,6 +180,13 @@
     setTimeout(() => URL.revokeObjectURL(u), 120000);
   }
 
+  // the photos a piece is made of: a working copy only here (lot 4, D-259) changes what «Original» can give
+  function fotosDe(s, fid) {
+    const X = I(), comp = X.lComp(s, fid), f = M.files[fid] || {};
+    if (comp) return (comp.els || []).filter(e => e && !e.oculto && e.t === 'foto' && e.src).map(e => e.src);
+    if (f.design) { const d = s.design, k = d && d.out ? d.out.indexOf(fid) : -1; return k >= 0 && d.slides[k] && d.slides[k].src ? [d.slides[k].src] : []; }
+    return [fid];
+  }
   // ---------- the download: one piece at a time ----------
   let job = null;
   async function ir(card) {
@@ -187,6 +194,10 @@
     const sel = [...card.querySelectorAll('.dl-pz input:checked')].map(i => ({ s: B.slots.find(x => x.id === i.dataset.slot), f: i.dataset.f, i: +i.dataset.i })).filter(x => x.s);
     if (!sel.length) return;
     const tg = card.querySelector('.dl-op[aria-label="Textos"]'), o = { textos: !tg || tg.hidden || val(card, 'dl-txt') !== 'sin', ancho: val(card, 'dl-res') || 'orig' };
+    if (o.ancho === 'orig' && card.dataset.conCopia !== '1') {   // one line, and go on with the copy or stop
+      const n = sel.filter(x => fotosDe(x.s, x.f).some(id => (M.files[id] || {}).copia)).length, er = card.querySelector('.dl-err');
+      if (n) { er.innerHTML = `${n === 1 ? 'Una pieza usa' : n + ' piezas usan'} una foto de la que aquí solo está la copia de 2560 px: «Original» sale a ese tamaño (el original está en otro ordenador). <button type="button" class="lnk" data-dl="concopia">Seguir con la copia</button>`; er.hidden = false; return; }
+    }
     const det = X.root().querySelector('.detail'), mio = job = { card };
     const parar = () => job !== mio || !card.isConnected || det.hidden || det.dataset.dlg !== 'descargar';
     const prog = card.querySelector('.dl-prog'), bar = prog.querySelector('i'), pt = prog.querySelector('.dl-pt'), err = card.querySelector('.dl-err');
@@ -230,6 +241,7 @@
       const a = b.dataset.dl, card = b.closest('.card.dlg');
       if (a === 'abrir') abrir();
       else if (a === 'ir' && card) ir(card);
+      else if (a === 'concopia' && card) { card.dataset.conCopia = '1'; ir(card); }
       else if (a === 'todas' && card) { const ins = [...card.querySelectorAll(`.dl-pz input[data-slot="${cssq(b.dataset.slot)}"]`)], on = ins.some(i => i.checked); ins.forEach(i => { i.checked = !on; }); resumen(card); }
       return;
     }

@@ -35,7 +35,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.17';   // 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
+  const VERSION = '1.18';   // 1.18: the story's photo big through getBlob: in another computer it comes down if it hasn't yet (lot 4 of the traspaso, D-259). 1.17: in the vista cliente, no «Feed / Historias» in a month without a story it sees, and back to «Feed» (D-228). 1.16: the posts' hours without tabular figures (D-175). 1.14: no «N historias en este mes» when there are some (D-156)
   if (M.hs && M.hs._off) { try { M.hs._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const { esc, cssq, utc } = M._in;   // the mesa's own helpers
   const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -430,8 +430,8 @@
     const X = I(), hueco = () => X.root().querySelector('.detail[data-dlg="historia"] .hv-big img'), im = hueco(); if (!im) return;
     const fid = im.dataset.f;
     if (GRANDES.has(fid)) { const u = GRANDES.get(fid); GRANDES.delete(fid); GRANDES.set(fid, u); return; }
-    const r = await X.idbGet('files', fid).catch(() => null); if (!r || !r.blob || GRANDES.has(fid)) return;
-    GRANDES.set(fid, URL.createObjectURL(r.blob));
+    const b = await X.getBlob(fid).catch(() => null); if (!b || GRANDES.has(fid)) return;   // with the cloud, it comes down if it isn't here yet (lot 4)
+    GRANDES.set(fid, URL.createObjectURL(b));
     if (GRANDES.size > 6) { const [k, u] = GRANDES.entries().next().value; URL.revokeObjectURL(u); GRANDES.delete(k); }
     const i2 = hueco(); if (i2 && i2.dataset.f === fid) i2.src = GRANDES.get(fid);
   }

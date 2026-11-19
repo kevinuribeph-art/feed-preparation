@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.1';
+  const VERSION = '1.2';   // 1.2: a photo that is only a working copy of 2560 px here (lot 4 of the traspaso) is never enlarged (D-259)
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];
@@ -63,9 +63,9 @@
   }
 
   // ---------- Imágenes: recortadas como en el feed, a 1440 y a 480 px, nombradas por su huella ----------
-  async function lienzoA(blob, rect, w, h, lado) {
+  async function lienzoA(blob, rect, w, h, lado, kMax = 1) {   // kMax: a working copy's real pixels per px of the original (lot 4): never enlarged
     const r = rect || { x: 0, y: 0, w, h };
-    const k = Math.min(1, lado / Math.max(r.w, r.h));
+    const k = Math.min(1, kMax, lado / Math.max(r.w, r.h));
     const bmp = await createImageBitmap(blob, { resizeWidth: Math.max(1, Math.round(w * k)), resizeHeight: Math.max(1, Math.round(h * k)), resizeQuality: 'high' });
     const cw = Math.max(1, Math.round(r.w * k)), ch = Math.max(1, Math.round(r.h * k));
     const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
@@ -81,7 +81,7 @@
     for (const fid of X.publishList(s)) {
       const f = M.files[fid]; if (!f) throw new Error(`falta una foto de «${X.shortLabel(s.name, s.type)}» en esta Mesa`);
       const blob = await X.getBlob(fid), rect = f.design ? null : X.postRect(fid, s, B);
-      const g = await lienzoA(blob, rect, f.w, f.h, 1440), m = await lienzoA(g.blob, null, g.w, g.h, 480);
+      const g = await lienzoA(blob, rect, f.w, f.h, 1440, f.copia && f.copia.w ? f.copia.w / f.w : 1), m = await lienzoA(g.blob, null, g.w, g.h, 480);
       const h = await sha(await g.blob.arrayBuffer());
       out.push({ ruta: `${B.client}/${h}.jpg`, mini: `${B.client}/${h}-m.jpg`, an: g.w, al: g.h, _g: g.blob, _m: m.blob });
     }
@@ -271,7 +271,7 @@
         let pdf = null;
         if (_pdf) {
           const r = await X.idbGet('cfacturas', _pdf).catch(() => null);
-          if (r && r.blob) {
+          if (r && r.blob instanceof Blob) {   // a PDF that hasn't come down yet (lot 4) goes on the next send
             const n = (await sha(await r.blob.arrayBuffer())) + '.pdf';
             if (!yaPdf.has(n)) { await c.subir('facturas', `${cli}/${n}`, r.blob, 'application/pdf'); yaPdf.add(n); }
             pdf = `${cli}/${n}`; usados.add(n);

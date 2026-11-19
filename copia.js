@@ -12,7 +12,7 @@
 (function copiaBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   const I = () => M._in, X = () => M._in.xfer;
   if (M.copia && M.copia._off) { try { M.copia._off(); } catch (e) { /* */ } }
   const FORMATO = 'mesa-copia', V = 1;
@@ -155,6 +155,8 @@
     if (EXP) return { error: '«Exportar todo» ya está abierto.' };
     const e = X().empezar('export'); if (e) { I().toast(e, { ms: 7000 }); return { error: e }; }
     if (X().edPendiente && X().edPendiente()) I().toast('El editor tiene cambios sin aplicar: no van en la copia. Aplícalos y vuelve a exportar si los quieres.', { ms: 9000 });
+    // lot 4 (D-259): in a computer that only has working copies (or not even them), this copy can't carry those originals: it says so
+    if (I().NUBE && I().NUBE.activa) { try { const l = await I().idbAll('files'), n = l.filter(v => v && (v.copia || (I().esRefNube && I().esRefNube(v.blob)))).length; if (n) I().toast(`En este ordenador ${n === 1 ? 'una foto solo tiene' : n.toLocaleString('es-ES') + ' fotos solo tienen'} su copia de 2560 px o aún no ha${n === 1 ? '' : 'n'} llegado: esta copia no lleva ${n === 1 ? 'su original' : 'sus originales'}. La copia completa se hace en el Mac que los tiene.`, { ms: 12000 }); } catch (e) { /* */ } }
     const st = EXP = { parar: false, urls: [], copia: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)), at: new Date(), suelto: false, cache: new WeakMap() };
     const soltar = () => { if (!st.suelto) { st.suelto = true; X().acabar(); } };
     try {
@@ -447,7 +449,7 @@
   // two files of different copies with the same record: a full photo over a reduced one (D-017), the newer `at` (as «Importar»),
   // then the newest copy; never the order the files were chosen in
   function gana(a, b) {
-    if (a.n === 'files') { const ra = !!(a.v && a.v.reduced), rb = !!(b.v && b.v.reduced); if (ra !== rb) return rb; }
+    if (a.n === 'files') { const ra = !!(a.v && (a.v.reduced || a.v.copia)), rb = !!(b.v && (b.v.reduced || b.v.copia)); if (ra !== rb) return rb; }   // a working copy (lot 4) loses as a reduced one
     const at = x => (x.v && typeof x.v.at === 'string' ? x.v.at : '');
     if (at(a) !== at(b)) return at(a) > at(b);
     return mayor(a.orden, b.orden);

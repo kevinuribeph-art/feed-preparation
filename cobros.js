@@ -7,7 +7,7 @@
 (function cobrosBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: a PDF that hasn't come down from the server yet (lot 4 of the traspaso) says so (D-259)
   const I = () => M._in, C = () => M._in.cob, P = () => (M.personal && M.personal._p) || null;
   if (M.cobrosUI && M.cobrosUI._off) { try { M.cobrosUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -194,7 +194,7 @@
   }
   async function quitar(btn) {
     const f = filaDe(btn), r = f && C().get(f.dataset.id); if (!r || !r.pdf) return;
-    let g = null; try { const x = await I().idbGet('cfacturas', r.pdf); if (x && x.blob) g = { ...x, blob: new Blob([await x.blob.arrayBuffer()], { type: 'application/pdf' }) }; } catch (e) { /* */ }   // its bytes, for «Deshacer»
+    let g = null; try { const x = await I().idbGet('cfacturas', r.pdf); if (x && x.blob instanceof Blob) g = { ...x, blob: new Blob([await x.blob.arrayBuffer()], { type: 'application/pdf' }) }; else if (x && x.blob) g = { ...x }; } catch (e) { /* */ }   // its bytes, for «Deshacer»
     if (!(await guardar(r.id, { pdf: '' }))) return;
     enfocar(`tr.co-f[data-id="${r.id}"] [data-co="subir"]`);
     toast('PDF quitado.', { action: 'Deshacer', ms: UNDO, onAction: async () => { try { await C().pdfVolver(r.id, g); } catch (e) { fallo(e); } } });
@@ -211,7 +211,7 @@
   async function descargar(id, comoCliente) {
     const r = C().get(id); if (!r || !r.pdf) return;
     let f = null; try { f = await I().idbGet('cfacturas', r.pdf); } catch (e) { /* */ }
-    if (!f || !f.blob) { toast('Ese PDF ya no está en este navegador.'); return; }
+    if (!f || !(f.blob instanceof Blob)) { toast(f && f.blob ? 'Ese PDF aún no ha llegado a este ordenador: llega en un momento.' : 'Ese PDF ya no está en este navegador.'); return; }
     const h = hoy(), nom = (r.factura ? 'Factura ' + r.factura : 'Factura de ' + (C().MES.test(r.periodo || '') ? mesTxt(r.periodo, h) : C().nombre(r, h))).replace(/[\\/:*?"<>|]+/g, '-') + '.pdf';
     const url = URL.createObjectURL(f.blob), a = document.createElement('a');
     a.href = url; a.download = nom; a.hidden = true; document.body.append(a); a.click(); a.remove();

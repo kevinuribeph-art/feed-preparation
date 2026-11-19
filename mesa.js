@@ -73,7 +73,7 @@
   // so it runs first, also before the editor's own keys
   let eligiendo = false;
   { const para = e => { if (eligiendo) { e.preventDefault(); e.stopImmediatePropagation(); } }; ['pointerdown', 'mousedown', 'click', 'dblclick', 'auxclick', 'contextmenu', 'keydown', 'keypress'].forEach(t => window.addEventListener(t, para, true)); }
-  M.version = '4.32'; // 4.32: the cloud, lot 3 of the traspaso — with nube.js on (only when activated in a browser), the Mesa downloads what changed on the server before drawing and uploads each change of the journal behind, one Mesa open at a time across computers (the turn, in two phases), nothing lost without network (D-253 to D-257); a CSP in index.html: no inline script nor on…= handler (D-252); IndexedDB 23. 4.31: the journal of changes — every write in IndexedDB notes «this record of this store changed» (never its value) in a new store 'diario', in the same transaction; a delete by range, each key it removes; a clear, «this whole store again»; a way without it for what comes down from the server (lot 3); IndexedDB 22 (D-250). 4.30: «Exportar todo» in ⇅ — the whole mesa at its original size, a .tar per client and one general, each file with its SHA-256, in parts over 2 GB, each from its own click; «Importar…» reads them in parts, checks every hash, refuses a damaged or incomplete set without touching anything and merges as always (copia.js 1.0, D-249); a discreet notice when the browser doesn't keep the storage (D-249). 4.29: el aviso de demasiados códigos dice cuánto esperar (portal/supa.js 1.1, D-247). 4.28: portal de clientes, lote 2 — «Web del cliente» en la barra del mes envía al servidor lo que ve el cliente (web.js, portal/supa.js, D-241). 4.27: point 9 of the 4.24's adjustments — each client's month's why and how the month before went, loaded by Claude (MESA.informe) into a new store 'meses' (IndexedDB 21, file v19, D-238); `tools/zernio.mjs resumen`, read only, the per-post figures of a month and of the one before (D-239); in the vista cliente, the tab «Por qué este calendario» and «Cómo fue <mes anterior>» under «Tus pagos», following the calendar's month, «En camino» when they're still to come (informe.js 1.0, D-240). 4.26: the payments of each client, lot B of the 4.24's adjustments — one record per invoice ('cobros') and its PDF apart ('cfacturas'), a tombstone for a deleted one, a monthly client's fee; their states with Madrid's day (D-232); «Editar cliente» of any client, over the personal page, with «Datos · Cobros» (D-233); a sporadic client's payments in its file (D-234); each client's most urgent payment under its block and the sums in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Tus pagos» in the vista cliente (D-237); IndexedDB 20, file v18, M.cobros (cobros.js 1.0, personal 1.7, sesiones 1.4). 4.25: the personal page's adjustments of the 4.24, lot A — today's posts not scheduled stand out from tomorrow's (D-222); the page, a card and a session's sheet change in place only what changed: no blink, no entrance again, no photo drawn again (D-223); widen and reduce drawn in the ×'s box (D-224); Tareas folded or open as this tab left it (D-225); a session stands out in Lista, Semana and Mes (D-226); the vista cliente shows only its client (D-227) and nothing unused — no «Feed / Historias» without stories it sees, no logo, no total, no «Editar», no ‹ › without another month, no empty sections in a session's sheet, its separator still (D-228); no Σ anywhere (D-229); its structure, tabs over the calendar and a right column, ready for their content (M._in.vc, D-230); the reviews' pending points (D-231) (personal 1.6, sesiones 1.3, calendario 1.24, historias 1.17, controles 1.6). 4.24: the personal page's adjustments, lot B — a session has several clients, a chip each and «+ Cliente», shown once wherever it goes (D-217); a session's end, «– Fin», kept when its start moves, and its days in Avisos, Semana and Mes (D-218); a session's chip in each of its monthly clients' boards' calendar, which opens its sheet over the board, fixed in «Ver como el cliente» in the vista cliente (calendario 1.23, D-219); several named templates of material, «Equipo completo» by default, and a session retouched apart (D-220); «Duplicar sesión» (D-221); IndexedDB 19, file v17 (personal 1.5, sesiones 1.2, descargar 1.7). 4.23: the personal page's adjustments, lot A — a click on what an open card shows writes there, Esc and a click outside close it also writing, the eye, widen and × at the top right (D-209); a session's sheet widens (D-210); the mood board in columns as wide as a cell of the feed (D-211); a figure for today and another for tomorrow in Avisos (D-212); one thin terracotta line on what is written (D-213); the shots' tabs as the sections' titles (D-214); «Capas» with a handle, Lucide's eye, lock and link and the order in each row's right click (libre 1.65, D-215); the sheet's right column 20 px more inside (D-216) (personal 1.4, sesiones 1.1). 4.22: quick writing in the personal page's notes and details (escritura.js, D-202–D-205); its sessions and sporadic clients (D-206, D-207). 4.21: the editor's «1 / 2» questions with their key drawn, as the mesa's (D-199); a mouse click on an open title that has a double click folds it 0.2 s later, so a double click never folds it (D-200); the right-click menus offer only what does something — «Diseño» and its photo, a designed carousel's grey, a reel's «⋯», the tray's «Pegar» (D-201) (libre 1.64, diseño 1.26, carpetas 1.5). 4.20: design-in-layers adjustments — the «1 / 2» question hugs its key and word and the chosen answer turns terracotta before it closes (D-194); «Capas» no longer sticks out of the panel (D-195); «Restablecer ajustes» and «Soltar del kit» go to the right-click and «⋯» menus, «Volver al diseño» too (D-196); the «Diseño» panel's titles without a grey datum, a double click on a title puts it back to 100 % or Auto, the engine's warnings in the title of «Texto» (D-197); <br> seen as line breaks in the text fields (D-198) (libre 1.63, diseño 1.25). 4.19: a designed carousel or reel cover opens in EDITAR in layers — its «Foto» and its «Diseño», drawn by the engine — to retouch texts, place, size, photo and free layers, keeping the design on «Aplicar»; «Soltar del kit» / «Volver al diseño»; IndexedDB 17, file v15 (libre 1.62, diseño 1.24, motor 1.7, D-193). 4.18: the title «Calendario» at the size of «Bandeja» (D-186); «Usa Notion» says Conectado / Desconectado (D-187); a task without a date (D-188); No aprobado and Cancelado in the bar only when there is one (D-189); the personal page marks what is not scheduled (D-190); «Por aprobar» and «Aprobado» are seen as «En revisión» and «Por programar» (D-191); the month's step goes on and back on its own, an empty chosen caption doesn't count (D-192). 4.17: the personal page counts the reels left to schedule in «Falta programar», «se programa a mano» (personal 1.1, D-181); a task or a note opens big with a click and is written in with a double click, a task's date and client change there (D-182); a task has details and subtasks, a thin bar «2/5» also in small, IndexedDB 16, file v14 (D-183); «Usa Notion» in «Editar cliente»: off, nothing compares with Notion nor invites to upload, and a Programada says what changed since it was programmed (calendario 1.21, D-184); the editor's veil and texture are layers of «Capas», and every layer can be dragged there (libre 1.61, D-185). 4.16: the personal page (personal.js 1.0, D-180): the logo opens a page with every client — what went past, what goes out today and tomorrow, what waits for the client and what is left to schedule, each client's two months and week, tasks and notes; the mesa starts on it; IndexedDB 15 (+ 'tareas'), file v13; a post keeps since when it waits for the client; the hidden board takes no keys. 4.15: the editor's «Barra de progreso», Visto and Aspa (D-179): IndexedDB 14, file v12. 4.14: client tabs measure what they did with 13.5 px letters (D-175); no /favicon.ico, dialog fields at 13 px, a ⌘Z pressed while a type change redraws waits for it (D-176). 4.13: the aesthetic review (D-168 to D-174): one icon stroke (Lucide, non-scaling, 1.33 px), no character as an icon, one look for sliders, radios, heights and menus, one rule per state, type within the scale and the weights the font has, motion tokens for folding and dropdowns, less stroke. 4.12: without M.showOut and M.diseno._sustituir, which nothing used (D-167). 4.11: five faults of the 4.10 (D-166): the tray photo's title says a click shows it big; no «Arrastra las miniaturas…» on a designed post; the designer's «+ Diapositiva» on one line; «Girar»'s field and title say the real angle, a double click chooses it; a ⌘Z pressed while a drop is drawn waits for it. 4.10: «Mesa más limpia», 46 propuestas: fuera botones y textos que repetían algo a la vista, y dobles clics que vuelven al valor de siempre (D-154 a D-165). 4.09: in the posts' calendar, the days of another month of the board that show in the month seen are dimmed as the previous month's, their chips muted in their type's colour and working as the others (calendario 1.17, D-153). 4.08: no row over the feed — the range and its count are in the month's chip, the previous month in its franja and its label, which is now its only lock, with a Lucide lock and its count in its title; «Abrir notas» is an icon in the month's bar (D-152). 4.07: an element's panel in the editor folds like a slide's, one section open at a time, the last one opened remembered by kind of element (libre 1.55, D-149); the dropdowns' lists with their text where the closed field's starts and the ✓ on the right (controles 1.2, D-150); the tray's tab in use in the colour of «Añadir fotos», saying its folder (the fixed one too), no path in text, the whole path in its title (D-151). 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
+  M.version = '4.33'; // 4.33: the cloud's photos, lot 4 of the traspaso — with the cloud on, each photo's working copy of 2560 px (made in a worker, never kept here) and its thumbnail go up behind, the rest as it is; a record goes up once its files are up; in another computer the thumbnail comes down when seen and the photo when opened, marked `copia` (its real size, never sent up); what needs the original (Descargar «Original», Notion, Zernio, a big zoom) says so; «Entrar y traer tu Mesa»; MESA.nube.subirTodo and comprobar for the move; IndexedDB 24 (D-259). 4.32: the cloud, lot 3 of the traspaso — with nube.js on (only when activated in a browser), the Mesa downloads what changed on the server before drawing and uploads each change of the journal behind, one Mesa open at a time across computers (the turn, in two phases), nothing lost without network (D-253 to D-257); a CSP in index.html: no inline script nor on…= handler (D-252); IndexedDB 23. 4.31: the journal of changes — every write in IndexedDB notes «this record of this store changed» (never its value) in a new store 'diario', in the same transaction; a delete by range, each key it removes; a clear, «this whole store again»; a way without it for what comes down from the server (lot 3); IndexedDB 22 (D-250). 4.30: «Exportar todo» in ⇅ — the whole mesa at its original size, a .tar per client and one general, each file with its SHA-256, in parts over 2 GB, each from its own click; «Importar…» reads them in parts, checks every hash, refuses a damaged or incomplete set without touching anything and merges as always (copia.js 1.0, D-249); a discreet notice when the browser doesn't keep the storage (D-249). 4.29: el aviso de demasiados códigos dice cuánto esperar (portal/supa.js 1.1, D-247). 4.28: portal de clientes, lote 2 — «Web del cliente» en la barra del mes envía al servidor lo que ve el cliente (web.js, portal/supa.js, D-241). 4.27: point 9 of the 4.24's adjustments — each client's month's why and how the month before went, loaded by Claude (MESA.informe) into a new store 'meses' (IndexedDB 21, file v19, D-238); `tools/zernio.mjs resumen`, read only, the per-post figures of a month and of the one before (D-239); in the vista cliente, the tab «Por qué este calendario» and «Cómo fue <mes anterior>» under «Tus pagos», following the calendar's month, «En camino» when they're still to come (informe.js 1.0, D-240). 4.26: the payments of each client, lot B of the 4.24's adjustments — one record per invoice ('cobros') and its PDF apart ('cfacturas'), a tombstone for a deleted one, a monthly client's fee; their states with Madrid's day (D-232); «Editar cliente» of any client, over the personal page, with «Datos · Cobros» (D-233); a sporadic client's payments in its file (D-234); each client's most urgent payment under its block and the sums in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Tus pagos» in the vista cliente (D-237); IndexedDB 20, file v18, M.cobros (cobros.js 1.0, personal 1.7, sesiones 1.4). 4.25: the personal page's adjustments of the 4.24, lot A — today's posts not scheduled stand out from tomorrow's (D-222); the page, a card and a session's sheet change in place only what changed: no blink, no entrance again, no photo drawn again (D-223); widen and reduce drawn in the ×'s box (D-224); Tareas folded or open as this tab left it (D-225); a session stands out in Lista, Semana and Mes (D-226); the vista cliente shows only its client (D-227) and nothing unused — no «Feed / Historias» without stories it sees, no logo, no total, no «Editar», no ‹ › without another month, no empty sections in a session's sheet, its separator still (D-228); no Σ anywhere (D-229); its structure, tabs over the calendar and a right column, ready for their content (M._in.vc, D-230); the reviews' pending points (D-231) (personal 1.6, sesiones 1.3, calendario 1.24, historias 1.17, controles 1.6). 4.24: the personal page's adjustments, lot B — a session has several clients, a chip each and «+ Cliente», shown once wherever it goes (D-217); a session's end, «– Fin», kept when its start moves, and its days in Avisos, Semana and Mes (D-218); a session's chip in each of its monthly clients' boards' calendar, which opens its sheet over the board, fixed in «Ver como el cliente» in the vista cliente (calendario 1.23, D-219); several named templates of material, «Equipo completo» by default, and a session retouched apart (D-220); «Duplicar sesión» (D-221); IndexedDB 19, file v17 (personal 1.5, sesiones 1.2, descargar 1.7). 4.23: the personal page's adjustments, lot A — a click on what an open card shows writes there, Esc and a click outside close it also writing, the eye, widen and × at the top right (D-209); a session's sheet widens (D-210); the mood board in columns as wide as a cell of the feed (D-211); a figure for today and another for tomorrow in Avisos (D-212); one thin terracotta line on what is written (D-213); the shots' tabs as the sections' titles (D-214); «Capas» with a handle, Lucide's eye, lock and link and the order in each row's right click (libre 1.65, D-215); the sheet's right column 20 px more inside (D-216) (personal 1.4, sesiones 1.1). 4.22: quick writing in the personal page's notes and details (escritura.js, D-202–D-205); its sessions and sporadic clients (D-206, D-207). 4.21: the editor's «1 / 2» questions with their key drawn, as the mesa's (D-199); a mouse click on an open title that has a double click folds it 0.2 s later, so a double click never folds it (D-200); the right-click menus offer only what does something — «Diseño» and its photo, a designed carousel's grey, a reel's «⋯», the tray's «Pegar» (D-201) (libre 1.64, diseño 1.26, carpetas 1.5). 4.20: design-in-layers adjustments — the «1 / 2» question hugs its key and word and the chosen answer turns terracotta before it closes (D-194); «Capas» no longer sticks out of the panel (D-195); «Restablecer ajustes» and «Soltar del kit» go to the right-click and «⋯» menus, «Volver al diseño» too (D-196); the «Diseño» panel's titles without a grey datum, a double click on a title puts it back to 100 % or Auto, the engine's warnings in the title of «Texto» (D-197); <br> seen as line breaks in the text fields (D-198) (libre 1.63, diseño 1.25). 4.19: a designed carousel or reel cover opens in EDITAR in layers — its «Foto» and its «Diseño», drawn by the engine — to retouch texts, place, size, photo and free layers, keeping the design on «Aplicar»; «Soltar del kit» / «Volver al diseño»; IndexedDB 17, file v15 (libre 1.62, diseño 1.24, motor 1.7, D-193). 4.18: the title «Calendario» at the size of «Bandeja» (D-186); «Usa Notion» says Conectado / Desconectado (D-187); a task without a date (D-188); No aprobado and Cancelado in the bar only when there is one (D-189); the personal page marks what is not scheduled (D-190); «Por aprobar» and «Aprobado» are seen as «En revisión» and «Por programar» (D-191); the month's step goes on and back on its own, an empty chosen caption doesn't count (D-192). 4.17: the personal page counts the reels left to schedule in «Falta programar», «se programa a mano» (personal 1.1, D-181); a task or a note opens big with a click and is written in with a double click, a task's date and client change there (D-182); a task has details and subtasks, a thin bar «2/5» also in small, IndexedDB 16, file v14 (D-183); «Usa Notion» in «Editar cliente»: off, nothing compares with Notion nor invites to upload, and a Programada says what changed since it was programmed (calendario 1.21, D-184); the editor's veil and texture are layers of «Capas», and every layer can be dragged there (libre 1.61, D-185). 4.16: the personal page (personal.js 1.0, D-180): the logo opens a page with every client — what went past, what goes out today and tomorrow, what waits for the client and what is left to schedule, each client's two months and week, tasks and notes; the mesa starts on it; IndexedDB 15 (+ 'tareas'), file v13; a post keeps since when it waits for the client; the hidden board takes no keys. 4.15: the editor's «Barra de progreso», Visto and Aspa (D-179): IndexedDB 14, file v12. 4.14: client tabs measure what they did with 13.5 px letters (D-175); no /favicon.ico, dialog fields at 13 px, a ⌘Z pressed while a type change redraws waits for it (D-176). 4.13: the aesthetic review (D-168 to D-174): one icon stroke (Lucide, non-scaling, 1.33 px), no character as an icon, one look for sliders, radios, heights and menus, one rule per state, type within the scale and the weights the font has, motion tokens for folding and dropdowns, less stroke. 4.12: without M.showOut and M.diseno._sustituir, which nothing used (D-167). 4.11: five faults of the 4.10 (D-166): the tray photo's title says a click shows it big; no «Arrastra las miniaturas…» on a designed post; the designer's «+ Diapositiva» on one line; «Girar»'s field and title say the real angle, a double click chooses it; a ⌘Z pressed while a drop is drawn waits for it. 4.10: «Mesa más limpia», 46 propuestas: fuera botones y textos que repetían algo a la vista, y dobles clics que vuelven al valor de siempre (D-154 a D-165). 4.09: in the posts' calendar, the days of another month of the board that show in the month seen are dimmed as the previous month's, their chips muted in their type's colour and working as the others (calendario 1.17, D-153). 4.08: no row over the feed — the range and its count are in the month's chip, the previous month in its franja and its label, which is now its only lock, with a Lucide lock and its count in its title; «Abrir notas» is an icon in the month's bar (D-152). 4.07: an element's panel in the editor folds like a slide's, one section open at a time, the last one opened remembered by kind of element (libre 1.55, D-149); the dropdowns' lists with their text where the closed field's starts and the ✓ on the right (controles 1.2, D-150); the tray's tab in use in the colour of «Añadir fotos», saying its folder (the fixed one too), no path in text, the whole path in its title (D-151). 4.06: the posts' calendar with the look of the date's, sharing its tokens (D-147); the right column shared by the tray and the calendar with a separator, the tray folds and, both folded, two tabs (D-148). 4.05: eight interface adjustments — «+ Diapositiva» (D-139); the editor's header with the name alone (D-140); section titles alone, 21 px (D-141); the post window's header with «Fijar» left of the × and EDITAR, its main button, Ubicación alone on its row (D-142); the light / dark switch centred, without stars (D-143); one «N cambiadas» (D-144); no «Ajustar», double click on the percentage (D-145); «Libres» (D-146). 4.04: 4.04: seven interface changes — no help texts that say nothing new (D-133); a pill switch for light / dark that marks the mode in use (D-134); the mesa's own dropdowns, dates and times, controles.js (D-135, D-136); the editor's slide panel in folding sections and the calendar's fold with the same movement (D-137); the post's window in two columns, its head beside the × (D-138); 4.03: dark mode — a moon / sun button in the header, left of ⇅, switches the interface between light and dark; remembered in this browser (localStorage «mesa-tema»), never in a board nor in «⇅ Exportar»; starts light; other tabs follow; the images that go out don't change (libre 1.52, D-132). 4.02: visual redesign with the Uribe Visuals brand — one block of colour tokens, Schibsted Grotesk for the interface, Lucide line icons, paper tones for hierarchy and terracotta as the only accent; no change of behaviour, texts, data, IndexedDB, export or output images (libre 1.51, diseño 1.18, calendario 1.13, revisar 1.7, historias 1.12, descargar 1.4, D-131). 4.01: each Foto, Carrusel and Reel may tag people (up to 20) and have collaborators (up to 3), chosen in its window under the location's row from its client's closed list of people (in a collab, both clients'), loaded by Claude with M.personas once each account is checked; plan() gives them for Zernio; a step of ⌘Z, linked in collabs; IndexedDB 13, export v11 (D-130). 4.00: «Revisar» and M.diseno.cargar warn when the carousel's name (the footer of its cards and final) has a word or a figure its cover's title doesn't (diseño 1.17, revisar 1.6, D-129). 3.99: the final slide stays the last in the designer (▲ ▼, «Deshacer», cargar), and reloading a design's texts gives the old final's adjustments to the new final, never to a card; one client's kit centres its final (diseño 1.16, D-128). 3.98: a photo whose tray mark is orange (used only as filling) goes in without asking, with a light notice that names its use; blue, already in this post, in a story or used with no mark, the usual window; in a batch, one notice for the orange ones and the list for the rest; in the mesa and in the editor (libre 1.50, D-127). 3.97: «N cambiadas» and «N con fecha nueva» of the month's bar open one list of those posts, by date, with what changed; its name opens the post (calendario 1.12, D-126). 3.96: ← → in the designer go to the previous and next slide, as ↑ ↓ (diseño 1.15, D-125). 3.95: each post (Foto, Carrusel, Reel) may have a location, chosen in its window from its client's closed list (in a collab, both clients' lists); one catalog for every client, loaded by Claude with M.ubicaciones; the Facebook Page id goes to Zernio with «programa»; a step of ⌘Z, linked in collabs; IndexedDB 12, export v10 (D-124). 3.94: «Editar …» of a design with a photo missing opens the designer on it, with a notice that names every missing one, instead of an error; the cell keeps its images until «Aplicar a la casilla» (diseño 1.14, libre 1.49, D-123). 3.93: the tray's ✓ tells a cover (blue: dark this month or later, middle last month, light two months ago) from a filling photo (orange), counted from the open board's month; three months ago or more a use no longer counts and the photo is free again; one mark per photo, its title says the use that decides it; a filter «Libres para portada» between «Sin usar» and «Todas» (libre 1.48, D-122). 3.92: opening a client opens its board that holds today and the calendar its month; a Programada passes on its own to Publicado once its time comes, unless it moved after it was scheduled; the vencidas are marked, listed and solved from a window, also those of the client's earlier boards, each one a step of ⌘Z; IndexedDB 11, export v9 (calendario 1.11, D-120, D-121). 3.91: each month of a board has its own step: the calendar's bar is the one of the month it shows, going on carries and lists only that month's posts and «Revisar» looks at that month and its stories; the step saved before goes to the board's first month; IndexedDB 10, export v8 (calendario 1.10, revisar 1.5, D-119). 3.90: the pinch over the tray moves its size slider, in the mesa and in the editor, and the photo under the pointer keeps its place (libre 1.47, D-118). 3.89: audit close, lot 6 (performance and memory) — the editor decodes each photo at the size it needs, only the slide and its neighbours at 2560 px (libre 1.46, D-116); opening a month reads the boards once; a story applied again lets its old image go (D-117); «Cambiar portada» loads thumbnails as they're seen; the editor's history keeps summaries; one ⌘Z copy per save; a month is drawn before its kits arrive; the designer decodes at the size it uses and the engine lets go of its canvases (diseño 1.13, motor 1.6). 3.88: 3.88: audit close, lot 5 (cleanup, no change of behaviour) — one wait for the async modules, one way to put a module's style sheet, mesa-pending read in one place, files let go always by soltarArchivo, the editor's deletes and tray returns in one place each (aBandeja), the loose helpers taken from M._in. 3.87: 3.87: audit close, lot 4 (cheap ones) — a button or a form that fails says so (D-113); ⌘1 / ⌘2 don't answer «Sustituir / Añadir» (D-114); each module says it loaded whole and one that throws while loading is «fallo» (D-115; every module's version goes up); a designed slide's zoom moved before its view is ready goes back; cssq uses window.CSS.escape. 3.86: 3.86: audit close, lot 3 (stories and editing) — sorting a day's stories never moves one in Zernio nor takes one to the next day (D-110); the kit's accent counts for designs with a footer or a final (diseño 1.10, D-111); a field of the post window being typed in is never rebuilt from outside (D-112). 3.85: 3.85: audit close, lot 2 (data) — the client's record changes in one transaction and the editor's client saves go one at a time (D-106); story templates deleted stay deleted with a new kit version, IndexedDB 9 (historias 1.9, D-107); the designer converts on arrival a design whose type changed in Notion (diseño 1.9, D-108); a story date with no zone is Madrid's time (D-109). 3.84: 3.84: audit close, lot 1 (Kevin's decisions) — template 25 says which one goes, with «Deshacer» (libre 1.42, D-102); moving a scheduled post warns that Zernio keeps the old time and a published one doesn't move (calendario 1.7, D-103); deleting a client deletes its logos and final photo nobody else uses (D-104); a photo filling a hole keeps its corners and shadow (D-105). 3.83: 3.83: delicate fixes — ⌘Z never takes away nor brings back Zernio's mark on a story, and a story now in Zernio never goes with a step (D-097); a post that had no time, or loses it, moves its stories by whole days and each keeps its time (D-098); a pause says when the editor had changes not applied, and with them a reload or closing the tab asks first (libre.js 1.41, D-099); importing a newer month puts back in the tray the photos only this Mac used (D-100); an image the editor drew never goes to the tray, its photos do (D-101). 3.82: audit, lot 6 — the designer keeps the kit it read when the network fails and writes nothing from a paused tab; the engine never starts a line with ©, ® or ™ and splits Catalan words by their syllables (diseño 1.8, motor 1.4, D-096)
 
   const TZ = 'Europe/Madrid';
   const THUMB_LONG = 1600;                               // px, long side of on-screen thumbnails
@@ -193,7 +193,7 @@
   // ---------- IndexedDB ----------
   // the stores of the mesa's data: all of them travel in «Exportar todo» (copia.js, D-249); and the journal of changes, which is
   // this browser's (D-250)
-  const IDB_V = 23, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses'], DIARIO = 'diario', NUBE_ST = 'nube';
+  const IDB_V = 24, ALMACENES = ['files', 'boards', 'clients', 'bandejas', 'ubicaciones', 'tareas', 'tfotos', 'cobros', 'cfacturas', 'meses'], DIARIO = 'diario', NUBE_ST = 'nube';
   let dbp = null, dbConn = null;
   function db() {
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -234,6 +234,9 @@
       // 23 (mesa 4.32): + 'nube', what this browser knows of the server (D-253): its cursor and epoch, the version of each record
       // it downloaded or uploaded, «quedó sin subir» and the activity notices; and a record may hold a reference to a photo that
       // hasn't arrived yet (`__blob`), which an older tab would try to draw and would delete as missing.
+      // 24 (mesa 4.33): the photos of the cloud (lot 4, D-259): a photo that came down may be a working copy of 2560 px, marked
+      // `copia: {w, h, ref}` (its real size and the original's reference), never sent up; an older tab would take it for the
+      // original (sending it up as the original, or to Notion and Zernio without a word). And in 'nube', the record of what is up.
       const r = indexedDB.open('mesa-feed', IDB_V);   /* idb-crudo: the only opening */
       r.onupgradeneeded = e => {
         const d = r.result; for (const n of [...ALMACENES, DIARIO, NUBE_ST]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n);
@@ -1008,6 +1011,7 @@
   async function loadClients() {
     CL = ((await idbAll('clients')) || []).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
     UB = Object.fromEntries(((await idbAll('ubicaciones')) || []).filter(u => u && u.id).map(u => [u.id, u]));   // the locations' catalog (D-124)
+    if (NUBE.repintar) { try { NUBE.repintar(); } catch (e) { /* */ } }   // «Entrar y traer tu Mesa» in the header only while there is no Mesa (lot 4)
     return CL;
   }
   async function refreshMonths() {
@@ -1056,13 +1060,16 @@
   async function getBlob(id) {
     if (M.blobs[id]) return M.blobs[id];
     const rec = await idbGet('files', id);
-    if (rec && esRefNube(rec.blob)) throw new Error('esta foto aún no ha llegado a este ordenador');   // D-256 (lot 4 brings it)
+    if (rec && esRefNube(rec.blob)) {   // D-256: it came down without its photo; lot 4 brings it (a working copy of 2560 px, or the file itself)
+      if (NUBE.traerFoto && rec.blob.ruta) { const b = await NUBE.traerFoto(id); if (b) return (M.blobs[id] = b); }
+      throw new Error('esta foto aún no ha llegado a este ordenador');
+    }
     if (!rec || !rec.blob) throw new Error(NUBE.activa && M.files[id] && M.files[id].pendiente ? 'esta foto aún no ha llegado a este ordenador' : 'foto no encontrada en la mesa');
     return (M.blobs[id] = rec.blob);
   }
   async function cropBlob(blob, fid, r, max = MAX_UPLOAD, shrink = false) {
     const f = M.files[fid];
-    if (r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && blob.type === 'image/jpeg' && blob.size <= max) return { blob, w: f.w, h: f.h, original: true };
+    if (!f.copia && r.x < 1 && r.y < 1 && Math.abs(r.w - f.w) < 1 && Math.abs(r.h - f.h) < 1 && blob.type === 'image/jpeg' && blob.size <= max) return { blob, w: f.w, h: f.h, original: true };   // a working copy is never «the original» (lot 4)
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     const k = bmp.width / f.w;
     const c = document.createElement('canvas'); c.width = Math.round(r.w * k); c.height = Math.round(r.h * k);
@@ -1071,6 +1078,19 @@
     const out = await toJpeg(c, max, [0.93, 0.9, 0.85, 0.8], shrink);
     if (out) return out;
     throw new Error(`supera ${Math.round(max / 1048576)} MB incluso recortada`);
+  }
+  // Lot 4: the original dropped again in a computer that only had its working copy (or not even it): it takes its place, without
+  // the mark. The record is the same (it goes up as the same reference: nothing new up there).
+  async function conOriginal(id, f) {
+    const x = M.files[id]; if (!x || !(x.copia || x.pendiente) || x.size !== f.size) return;
+    const r = await idbGet('files', id).catch(() => null); if (!r) return;
+    const ref = r.copia && r.copia.ref ? r.copia.ref : esRefNube(r.blob) ? r.blob : null;
+    if (!ref || ref.tam !== f.size || (ref.tipo || '') !== (f.type || '')) return;
+    if (NUBE.huellaDe) { try { if ((await NUBE.huellaDe(f)) !== ref.sha256) return; } catch (e) { return; } }   // la misma foto, por su huella
+    const { copia, ...resto } = r, n = { ...resto, blob: f };
+    if (esRefNube(r.thumb)) { try { n.thumb = (await makeThumb(f)).thumb; } catch (e) { return; } }
+    try { await idbPut('files', id, n); } catch (e) { return; }   // sin sitio: se queda la copia (las demás fotos siguen)
+    fotoLlego(id, n); delete x.copia; delete x.pendiente; M.blobs[id] = f;
   }
   // ---------- what hasn't arrived from the server (D-256) ----------
   // A record that came down from the server holds, where a photo goes, a reference «pendiente» ({__blob, sha256, tam, tipo}: lot 4
@@ -1083,10 +1103,15 @@
     if (!HUECO_B) { const b = atob('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAFCAYAAABirU3bAAAAEklEQVR42mPoaShKQMYMVBAAADl/JVnImamVAAAAAElFTkSuQmCC'); HUECO_B = new Blob([Uint8Array.from(b, c => c.charCodeAt(0))], { type: 'image/png' }); HUECO_U = URL.createObjectURL(HUECO_B); }
     return HUECO_B;
   }
-  function metaHueco(rec) {
-    hueco();
-    const o = { name: (rec && rec.name) || 'Foto que aún no ha llegado', size: (rec && rec.size) || 0, type: (rec && rec.type) || 'image/jpeg', w: (rec && rec.w) || 1080, h: (rec && rec.h) || 1350, pendiente: true, thumbUrl: HUECO_U };
+  // Each pending photo has its own URL of the placeholder (the same bytes): when its thumbnail arrives (lot 4), every <img> that
+  // shows it changes its src in place, without drawing anything again (fotoLlego).
+  const URL_HUECO = new Map();
+  const urlHueco = id => { hueco(); if (!id) return HUECO_U; let u = URL_HUECO.get(id); if (!u) { u = URL.createObjectURL(HUECO_B); URL_HUECO.set(id, u); } return u; };
+  function metaHueco(rec, id) {
+    const o = { name: (rec && rec.name) || 'Foto que aún no ha llegado', size: (rec && rec.size) || 0, type: (rec && rec.type) || 'image/jpeg', w: (rec && rec.w) || 1080, h: (rec && rec.h) || 1350, pendiente: true, thumbUrl: urlHueco(id) };
     if (rec && rec.design) o.design = true; if (rec && rec.de) o.de = rec.de; if (rec && rec.reduced) o.reduced = true;
+    if (rec && esRefNube(rec.blob) && rec.blob.trabajo) o.copia = { w: rec.blob.trabajo.w, h: rec.blob.trabajo.h, falta: true };   // what will come down is a copy
+    else if (rec && rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h };   // its copy is here, its thumbnail not yet
     return o;
   }
   // What M.files keeps of a stored photo. A tray can hold thousands (D-069): the URL of its thumbnail is made the first time
@@ -1095,10 +1120,14 @@
   function metaArchivo(rec, thumb) {
     const o = { name: rec.name, size: rec.size, type: rec.type, w: rec.w, h: rec.h };
     if (rec.reduced) o.reduced = true; if (rec.design) o.design = true; if (rec.de) o.de = rec.de;
+    // lot 4: only a working copy here (its real size), or the photo itself still up there (its thumbnail already came down)
+    if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h };
+    else if (esRefNube(rec.blob)) { o.pendiente = true; if (rec.blob.trabajo) o.copia = { w: rec.blob.trabajo.w, h: rec.blob.trabajo.h, falta: true }; }
     Object.defineProperty(o, 'thumbUrl', { enumerable: true, configurable: true, get() { let u = URLS_MINI.get(o); if (!u) { u = URL.createObjectURL(thumb); URLS_MINI.set(o, u); } return u; }, set(v) { URLS_MINI.set(o, v); } });
     return o;
   }
   async function loadThumbs(ids) {
+    if (NUBE.pedirMini) for (const id of new Set(ids)) if (URL_HUECO.has(id)) NUBE.pedirMini(id);   // still a placeholder: asked again (lot 4)
     const faltan = [...new Set(ids)].filter(id => !M.files[id]), missing = [];
     for (let i = 0; i < faltan.length; i += 200) {
       const trozo = faltan.slice(i, i + 200), recs = {};
@@ -1106,13 +1135,36 @@
       for (const id of trozo) {
         if (M.files[id]) continue;
         const rec = recs[id];
-        if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec); M.thumbBlobs[id] = hueco(); }   // came down without its photo yet (D-256)
-        else if (rec && rec.thumb) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }
-        else if (NUBE.activa && !fijo(id)) { M.files[id] = metaHueco(null); M.thumbBlobs[id] = hueco(); }   // with the cloud, never «missing»: it may not have arrived
+        if (rec && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail is here (its photo may still be up: lot 4)
+        else if (rec && pendienteRec(rec)) { M.files[id] = metaHueco(rec, id); M.thumbBlobs[id] = hueco(); if (NUBE.pedirMini) NUBE.pedirMini(id); }   // came down without its photo yet (D-256); its thumbnail comes now (lot 4)
+        else if (NUBE.activa && !fijo(id)) { M.files[id] = metaHueco(null, id); M.thumbBlobs[id] = hueco(); }   // with the cloud, never «missing»: it may not have arrived
         else missing.push(id);
       }
     }
     return missing;
+  }
+  // Lot 4: a photo's thumbnail or its photo came down (nube.js wrote it without the journal). What M.files keeps changes, and
+  // every <img> showing its placeholder takes the thumbnail in place (once per frame, all that arrived together): nothing is
+  // drawn again, so nothing that is being dragged or written is lost.
+  const LLEGAN = new Map(); let llegaRaf = 0;
+  function pastLlego(id, rec) {         // a thumbnail of the previous month (past:) that came down (lot 4)
+    if (!rec || !(rec.thumb instanceof Blob) || M.pastThumbs[id]) return;
+    M.pastBlobs[id] = rec.thumb; M.pastThumbs[id] = URL.createObjectURL(rec.thumb);
+    if (S && (S.past || []).some(p => p.id === id)) { clearTimeout(pastLlego.t); pastLlego.t = setTimeout(() => { try { renderFeed(); } catch (e) { /* */ } }, 300); }
+  }
+  function fotoLlego(id, rec) {
+    if (!rec || !M.files[id]) return;
+    const antes = URL_HUECO.get(id);
+    if (antes && rec.thumb && !esRefNube(rec.thumb)) { M.files[id] = metaArchivo(rec, rec.thumb); M.thumbBlobs[id] = rec.thumb; }   // its thumbnail arrived
+    else if (!esRefNube(rec.blob)) { const o = M.files[id]; delete o.pendiente; if (rec.copia && rec.copia.w) o.copia = { w: rec.copia.w, h: rec.copia.h }; else delete o.copia; }   // its photo arrived: the same thumbnail and URL
+    if (rec.blob && !esRefNube(rec.blob)) { M.blobs[id] = rec.blob; if (M.bigUrls && M.bigUrls[id]) { URL.revokeObjectURL(M.bigUrls[id]); delete M.bigUrls[id]; } }
+    if (M.libre && M.libre.miniLlego) { try { M.libre.miniLlego(id); } catch (e) { /* */ } }
+    if (antes && M.files[id].thumbUrl !== antes) { LLEGAN.set(antes, M.files[id].thumbUrl); URL_HUECO.delete(id); }
+    if (!llegaRaf && LLEGAN.size) llegaRaf = requestAnimationFrame(() => {
+      llegaRaf = 0; const l = new Map(LLEGAN); LLEGAN.clear();
+      if (root) for (const im of root.querySelectorAll('img')) { const n = l.get(im.getAttribute('src')); if (n) im.setAttribute('src', n); }
+      setTimeout(() => l.forEach((n, v) => URL.revokeObjectURL(v)), 2000);
+    });
   }
 
   // ---------- the carousel's name against its cover (D-129) ----------
@@ -1372,7 +1424,9 @@
   // a photo shown with ✓ (D-041) that is in a publication of this board goes into another as a copy, the same photo under
   // a new id: a photo is in one post only, each with its own crop (as importing it again, D-022)
   async function copiaFoto(f) {
-    const r = await idbGet('files', f).catch(() => null); if (!r || !r.thumb || !S || !M.files[f]) return null;
+    const r = await idbGet('files', f).catch(() => null);
+    if (r && esRefNube(r.thumb)) { toast('Esa foto aún no ha llegado a este ordenador: espera a ver su miniatura.'); return null; }   // lot 4
+    if (!r || !(r.thumb instanceof Blob) || !S || !M.files[f]) return null;
     const id = newId(), c = S.client;
     await idbPut('files', id, { ...r, de: c });
     M.files[id] = { ...M.files[f], de: c, thumbUrl: URL.createObjectURL(r.thumb) };
@@ -1425,10 +1479,10 @@
         const same = Object.keys(M.files).filter(id => M.files[id].name === f.name && M.files[id].size === f.size && !M.files[id].design);
         if (cid) {                     // into a folder the same photo of this client is the same file, used or not: its bytes are never written twice
           const ya = same.find(id => M.files[id].de === B.client || (!M.files[id].de && refs.has(id))) || usoIdsO.get(fkey(f.name, f.size));   // another client's keeps its own (D-041)
-          if (ya) { if (!got.includes(ya)) got.push(ya); continue; }
+          if (ya) { await conOriginal(ya, f); if (!got.includes(ya)) got.push(ya); continue; }
         }
         const inTray = same.find(id => B.tray.includes(id) || fresh.includes(id));
-        if (inTray) { if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
+        if (inTray) { await conOriginal(inTray, f); if (!got.includes(inTray)) got.push(inTray); if (!into && !(opts && opts.tray)) toast(`${f.name} ya está en la bandeja.`); continue; }
         const dup = same.find(id => !refs.has(id) && M.files[id].de === B.client);   // another client's photo keeps its own
         let decoded = false;
         try {
@@ -4048,7 +4102,7 @@
       // no dots over the photo (D-156): the strip right below marks the same one
       const nav = n > 1 ? `<button class="nav prev" data-act="prev" title="Anterior" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="next" title="Siguiente" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button>` : '';
       const strip = n > 1 ? `<div class="strip">${s.photos.map((p, k) => `<button class="th ${k === idx ? 'on' : ''}" data-act="pick" data-k="${k}" title="${esc((M.files[p] || {}).name || '')}"><img src="${(M.files[p] || {}).thumbUrl || ''}" alt="">${k === 0 && (foto || car) ? '<span>Portada</span>' : ''}</button>`).join('')}</div>` : '';
-      const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : ''}</span>`
+      const acts = `<div class="pacts"><span class="fname">${esc(fd && (car || reel) ? dName(s, fid) : (M.files[fid] || {}).name || '')}${(M.files[fid] || {}).reduced ? ' · 1080 px' : (M.files[fid] || {}).copia ? ' · copia de 2560 px' : ''}</span>`
         + (car || reel ? `<button data-act="pickcover" data-slot="${esc(id)}" aria-expanded="${pickOpen === id}">Cambiar portada</button>` : '')
         + (fd && s.design && (car || reel) ? (car ? `<span class="muted">Las demás diapositivas se cambian en «Editar»</span>` : '') : `<button data-act="unpick" data-slot="${esc(id)}" data-k="${idx}">Quitar</button>`) + '</div>';
       const tr = S.tray.filter(f => M.files[f]);
@@ -5522,7 +5576,7 @@
   }
   async function cobPdfCopia(pid) {                     // a PDF with its bytes in memory (for «Deshacer»), or null
     if (!pid) return null;
-    try { const f = await idbGet('cfacturas', pid); return f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null; } catch (e) { return null; }
+    try { const f = await idbGet('cfacturas', pid); if (f && esRefNube(f.blob)) return { ...f }; return f && f.blob ? { ...f, blob: new Blob([await f.blob.arrayBuffer()], { type: f.tipo || 'application/pdf' }) } : null; } catch (e) { return null; }   // one that hasn't come down (lot 4): its reference
   }
   async function cobPdfVolver(id, f) {                  // «Deshacer» of a PDF taken away or replaced: that one again
     if (!f) return null; await cobLeer(); const r = COB.get(id); if (!r || r.borrado) return null;
@@ -6082,7 +6136,7 @@
     for (const p of S.past) {
       if (M.pastThumbs[p.id]) continue;
       const rec = await idbGet('files', 'past:' + p.id);
-      if (rec && rec.thumb) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }
+      if (rec && rec.thumb instanceof Blob) { M.pastBlobs[p.id] = rec.thumb; M.pastThumbs[p.id] = URL.createObjectURL(rec.thumb); }   // still up there (lot 4): it comes down behind (pastLlego)
     }
     buildPrev(old.prev);
     S.prevUnlocked = !!old.prevUnlocked; prevOnce = false; pendingUnlock = null;
@@ -6249,7 +6303,8 @@
       files: pub.map(id => {
         const f = M.files[id] || {};
         if (f.design) return { fileId: id, name: dName(s, id), mb: +((f.size || 0) / 1048576).toFixed(1), formato: `diseño ${f.w}x${f.h}`, recorte: f.w + 'x' + f.h };   // uploaded as rendered
-        const r = postRect(id, s); return { fileId: id, name: f.name, mb: +((f.size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 9:16' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w) + 'x' + Math.round(r.h), ...(f.reduced ? { reducida: true } : {}) };
+        const r = postRect(id, s), kc = f.copia && f.w ? f.copia.w / f.w : 1;   // only a working copy here (lot 4): its real pixels, and it says so
+        return { fileId: id, name: f.name, mb: +((f.size || 0) / 1048576).toFixed(1), formato: isReel(s.type) ? 'portada 9:16' : FMT_LABEL[cropOf(id, s).fmt], recorte: Math.round(r.w * kc) + 'x' + Math.round(r.h * kc), ...(f.reduced ? { reducida: true } : {}), ...(f.copia ? { soloCopia: '2560 px: el original está en otro ordenador' } : {}) };
       }),
       alternatives: s.photos.length - pub.length,
       note: noteOf(s),
@@ -6280,7 +6335,7 @@
     if (locked) return { error: 'locked: la mesa está abierta en otra pestaña; pulsa «Usar aquí» o vuelve a abrirla' };
     revAuto(dn === 'zernio' ? 'programa' : 'sube', items);
     const D = DEST[dn], U = D.store(), B = S;
-    const jobs = [];
+    const jobs = []; let soloCopiaN = 0;
     for (const it of items || []) {
       const fid = it.fileId, k = D.key(fid);
       const s = B && (it.slotId ? B.slots.find(x => x.id === it.slotId) : B.slots.find(x => publishList(x).includes(fid)));
@@ -6295,11 +6350,13 @@
       }
       if (s && huecosVacios(s).length) { U[fid] = { state: 'error', err: 'la publicación tiene un hueco de foto vacío: llénalo en el editor antes de subirla' }; continue; }   // D-035
       if (dn === 'zernio' && !it.publicUrl) { U[fid] = { state: 'error', err: 'falta publicUrl (la da tools/zernio.mjs presign junto a url)' }; continue; }
+      if ((M.files[fid] || {}).copia && !(M.files[fid] || {}).design && it.conCopia !== true) { U[fid] = { state: 'error', soloCopia: true, err: 'en este ordenador solo está su copia de 2560 px: súbela desde el ordenador que tiene el original, o repite con conCopia: true para subir la copia' }; soloCopiaN++; continue; }   // lot 4 (D-259): nothing goes out with the copy without saying it
       const rect = it.crop !== false && !hz && !(M.files[fid] || {}).design ? postRect(fid, s, B) : null;   // a design output goes up exactly as rendered
       const sig = s ? fileSig(fid, s, B) : null;
       U[fid] = { state: 'pending', slotId: s ? s.id : hz ? hz.id : null, sig };
       jobs.push({ dn, fid, url: it.url, auth: it.auth, publicUrl: it.publicUrl, rect, sig, gen, slotId: s ? s.id : null, name: s && s.photos.includes(fid) && (M.files[fid] || {}).design ? dName(s, fid) : null });
     }
+    if (soloCopiaN) toast(`${soloCopiaN === 1 ? 'Una foto solo tiene' : soloCopiaN + ' fotos solo tienen'} aquí su copia de 2560 px: no se ${soloCopiaN === 1 ? 'sube' : 'suben'} a ${D.label}. Súbela${soloCopiaN === 1 ? '' : 's'} desde el Mac que tiene el original, o pide a Claude que suba la copia.`, { error: true, ms: 9000 });
     if (jobs.length) {
       UP.total += jobs.length; UP.label = D.label; busyUpload();
       const q = jobs.slice();
@@ -6658,8 +6715,10 @@
     return w > h ? { w: n, h: XF_SHORT } : { w: XF_SHORT, h: w === h ? XF_SHORT : n };
   }
   async function xferPhoto(rec) {        // the copy that travels: already reduced / small ones as they are
-    const same = { blob: rec.blob, type: rec.type, name: rec.name, w: rec.w, h: rec.h, reduced: !!rec.reduced };
-    if (rec.reduced || rec.logo || !xferDims(rec.w, rec.h)) return same;   // a logo travels as it is (PNG with its transparency, ≤ 1600 px)
+    const cp = rec.copia && rec.copia.w ? rec.copia : null;   // only a working copy here (lot 4): it travels as what it is, never as the original
+    const same = cp ? { blob: rec.blob, type: rec.blob.type || 'image/jpeg', name: String(rec.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', w: cp.w, h: cp.h, reduced: true }
+      : { blob: rec.blob, type: rec.type, name: rec.name, w: rec.w, h: rec.h, reduced: !!rec.reduced };
+    if (rec.reduced || rec.logo || !xferDims(cp ? cp.w : rec.w, cp ? cp.h : rec.h)) return same;   // a logo travels as it is (PNG with its transparency, ≤ 1600 px)
     const bmp = await createImageBitmap(rec.blob, { imageOrientation: 'from-image' });
     try {
       const t = xferDims(bmp.width, bmp.height); if (!t) return same;
@@ -6743,7 +6802,7 @@
       parts.push('},"past":{'); sep = '';
       let past = 0;
       for (const k of (await allKeys('files')).filter(k => k.startsWith('past:'))) {
-        const r = await idbGet('files', k); if (!r || !r.thumb) continue;
+        const r = await idbGet('files', k); if (!r || !(r.thumb instanceof Blob)) continue;   // one that hasn't come down (lot 4) stays out
         parts.push(new Blob([sep + JSON.stringify(k.slice(5)) + ':{"w":' + (+r.w || 0) + ',"h":' + (+r.h || 0) + ',"thumb":"', await b64of(r.thumb), '"}']));
         sep = ','; past++;
       }
@@ -6946,9 +7005,11 @@
   // «Exportar todo»'s copy (D-249): the photos here that an import reduced to 1080 px and whose full one the copy brings
   async function copiaMejoran(d) {
     const raw = d.copia.raw.files; if (!raw || !raw.size) return [];
-    const red = new Set();
-    await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (c.value && c.value.reduced) red.add(String(c.key)); c.continue(); }; });
-    return [...raw].filter(([k, v]) => red.has(k) && v && !v.reduced && v.blob instanceof Blob).map(([k]) => k);
+    // reduced, a working copy, or still up there (lot 4: a photo that came down without its bytes): the copy's original takes its place
+    const red = new Map();
+    await tx('files', 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const v = c.value; if (v && (v.reduced || v.copia || esRefNube(v.blob))) red.set(String(c.key), v); c.continue(); }; });
+    const misma = (r, b) => !!r && r.tam === b.size && (r.tipo || '') === (b.type || '');   // a copy or a reference only takes the same photo (lot 4)
+    return [...raw].filter(([k, v]) => { const o = red.get(k); return o && v && !v.reduced && !v.copia && v.blob instanceof Blob && (esRefNube(o.blob) ? misma(o.blob, v.blob) : o.copia ? misma(o.copia.ref, v.blob) : true); }).map(([k]) => k);
   }
   // what isn't here goes in as it was (D-249): the files, the sessions' photos and the invoices' PDFs first, one by one, each one
   // whole with its record (a «Cancelar» stops between two), a photo reduced here takes its full one; then the records, store by
@@ -6964,7 +7025,7 @@
     for (const x of l) {
       if (parar.pedido || locked) return { parada: true, otra: locked, hechos: i, total: l.length };
       avance(i, l.length);
-      try { await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && o.reduced)) st.put(x.v, x.k); }; }); }
+      try { await tx(x.n, 'readwrite', st => { const g = st.get(x.k); g.onsuccess = () => { const o = g.result; if (o === undefined || (x.mejora && o && (o.reduced || o.copia || esRefNube(o.blob)))) { st.put(x.v, x.k); if (o && (o.copia || esRefNube(o.blob))) x.verif = true; } }; }); }
       catch (e) { return { parada: true, error: e, hechos: i, total: l.length }; }   // the SSD unplugged, the disk full: what went in stays, whole
       if (x.n === 'files') soltarArchivo(x.k);
       i++;
@@ -6975,7 +7036,9 @@
       const lr = [...(raw[n] || [])]; if (!lr.length) continue;
       await tx(n, 'readwrite', st => lr.forEach(([k, v]) => { const g = st.count(k); g.onsuccess = () => { if (!g.result) st.put(v, k); }; }));
     }
-    return { hechos: i, total: l.length, mejoradas: l.filter(x => x.mejora).length };
+    const mejoradas = l.filter(x => x.mejora).length;
+    if (l.some(x => x.verif) && NUBE.activa) lsSet('mesa-nube-verificar', '1');   // an original over a copy or a reference: its hash, checked at the next opening   // an original over a copy or a reference: its hash is checked at the next opening (lot 4)
+    return { hechos: i, total: l.length, mejoradas };
   }
   // the folders of a tray that was here (D-249, «Importar» brings the folders now): the copy's folders it lacks and, in those it
   // has, the photos it lacks that aren't in another folder here (the tray's root already took them, P.trays). Nothing goes out
@@ -7282,6 +7345,7 @@
       + '<div class="xtodo"><p><b>Copia completa.</b> Las fotos a su tamaño original y las carpetas de la bandeja, en un archivo por cliente y uno general. Guárdalos juntos en el SSD.</p>'
       + (persistida === false ? '<p class="xaviso">Este navegador no garantiza conservar los datos de la Mesa: si el disco se llena, puede borrarlos. Haz una copia completa de vez en cuando.</p>' : '')
       + '<div class="form"><div class="row"><button type="button" class="btn2" data-act="xfer-todo">Exportar todo</button></div></div></div>'
+      + (NUBE.traerHTML ? NUBE.traerHTML() : '')   // «Entrar y traer tu Mesa» (lot 4), in a browser without the cloud
       + '<input type="file" class="xferin" accept=".json,.tar,application/json,application/x-tar" multiple hidden>');
     const d = root.querySelector('.detail'), inp = d.querySelector('.xferin');
     // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
@@ -7577,7 +7641,32 @@
   const nubeAparte = (x, valor) => ({ a: x.a, k: x.k, valor, borrado: valor === undefined, motivo: x.motivo || '', mensaje: x.mensaje || '', ultima: x.ultima == null ? null : x.ultima, de: x.de == null ? null : x.de, turnoDe: x.turnoDe == null ? null : x.turnoDe, t: Date.now() });
   const nubeTodas = (p, ...a) => IDBKeyRange.bound([p, ...a], [p, ...a, []]);
   const nubeLeer = (p, ...a) => txSinDiario(NUBE_ST, 'readonly', s => s.getAll(nubeTodas(p, ...a)));
+  // Lot 4 (D-259): a photo that came down as a working copy keeps `copia: {w, h, ref}` (its real size, and the reference of the
+  // original it stands for), which never goes up: what goes up for it is that reference. Path inside a value as the core
+  // writes it ('el valor.blob', 'el valor.fotos[2].mini').
+  const paraSubir = (a, v) => (a === 'files' && v && v.copia && v.copia.ref && !esRefNube(v.blob) ? (({ copia, ...r }) => ({ ...r, blob: { ...copia.ref } }))(v) : v);
+  const pasos = ruta => { const out = []; String(ruta).replace(/^el valor/, '').replace(/\.([^.[\]]+)|\[(\d+)\]/g, (m, k, i) => { out.push(k != null ? k : +i); return ''; }); return out; };
+  const enRuta = (v, ruta) => { let x = v; for (const p of pasos(ruta)) { if (x == null || typeof x !== 'object') return undefined; x = x[p]; } return x; };
+  function ponerEnRuta(v, ruta, nuevo) {
+    const ps = pasos(ruta); if (!ps.length) return nuevo;
+    const raiz = Array.isArray(v) ? v.slice() : { ...v }; let x = raiz;
+    for (let i = 0; i < ps.length - 1; i++) { const h = x[ps[i]]; x[ps[i]] = Array.isArray(h) ? h.slice() : { ...h }; x = x[ps[i]]; }
+    x[ps[ps.length - 1]] = nuevo; return raiz;
+  }
+  // every reference of a value, with its path ('el valor.blob'…)
+  function refsCon(v, ruta = 'el valor', out = []) {
+    if (esRefNube(v)) { out.push([ruta, v]); return out; }
+    if (Array.isArray(v)) v.forEach((x, i) => refsCon(x, ruta + '[' + i + ']', out));
+    else if (v && typeof v === 'object' && !(v instanceof Blob)) for (const k of Object.keys(v)) refsCon(v[k], ruta + '.' + k, out);
+    return out;
+  }
+  function blobsCon(v, ruta, f) {
+    if (v instanceof Blob) { f(ruta, v); return; }
+    if (Array.isArray(v)) v.forEach((x, i) => blobsCon(x, ruta + '[' + i + ']', f));
+    else if (v && typeof v === 'object' && !esRefNube(v)) for (const k of Object.keys(v)) blobsCon(v[k], ruta + '.' + k, f);
+  }
   const nubeAlmacen = {
+    almacenes: () => ALMACENES.slice(),
     meta: async () => ({ epoca: null, cursor: 0, turno: null, actividad: null, ...((await txSinDiario(NUBE_ST, 'readonly', s => s.get('estado'))) || {}) }),
     ponerMeta: parcial => txSinDiario(NUBE_ST, 'readwrite', s => { const g = s.get('estado'); g.onsuccess = () => s.put({ ...(g.result || {}), ...parcial }, 'estado'); }),
     diario: ({ despues, n } = {}) => txSinDiario(DIARIO, 'readonly', s => s.getAll(despues ? IDBKeyRange.lowerBound(despues, true) : undefined, n || undefined)),
@@ -7587,7 +7676,7 @@
       if (!claves.length) return out;
       const ns = [...new Set(claves.map(c => c[0]))].filter(n => ALMACENES.includes(n));
       await txSinDiario([...ns, DIARIO, NUBE_ST], 'readonly', o => claves.forEach(([a, k], i) => {
-        if (o[a]) { const g = o[a].get(k); g.onsuccess = () => { out[i].valor = g.result; }; }
+        if (o[a]) { const g = o[a].get(k); g.onsuccess = () => { out[i].valor = paraSubir(a, g.result); }; }
         const p = o[DIARIO].get([a, k]); p.onsuccess = () => { out[i].pendiente = p.result || null; };
         const v = o[NUBE_ST].get(NV(a, k)); v.onsuccess = () => { out[i].conocida = v.result || null; };
       }));
@@ -7597,15 +7686,24 @@
     cuantosSinSubir: () => txSinDiario(NUBE_ST, 'readonly', s => s.count(nubeTodas('x'))),
     claves: a => ALMACENES.includes(a) ? txSinDiario(a, 'readonly', s => s.getAllKeys()) : Promise.resolve([]),
     conocidas: async a => { const out = {}; await txSinDiario(NUBE_ST, 'readonly', s => { const r = s.openCursor(nubeTodas('v', a)); r.onsuccess = () => { const c = r.result; if (!c) return; out[c.key[2]] = c.value; c.continue(); }; }); return out; },
-    aplicar: async ({ escribir = [], saltar = [], aparte = [], cursor, epoca }) => {
+    aplicar: async ({ escribir = [], saltar = [], aparte = [], cursor, epoca, refs = [] }) => {
       const ns = [...new Set([...escribir, ...aparte].map(x => x.a))].filter(n => ALMACENES.includes(n));
       await txSinDiario([...ns, DIARIO, NUBE_ST], 'readwrite', o => {
+        for (const r of refs) if (r && r.sha256 && r.ruta) {
+          o[NUBE_ST].put({ ruta: r.ruta, ...(r.trabajo ? { trabajo: r.trabajo } : {}) }, ['s', r.sha256]);   // already up: never again (lot 4)
+          if (r.a && r.k != null && r.donde) o[NUBE_ST].put({ sha256: r.sha256 }, ['r', r.a, r.k, r.donde]);   // what is up there in that place (to check a Blob kept here)
+        }
         for (const x of aparte) {   // this browser's value, kept before what came down replaces it; its note goes (it's in the list)
           o[NUBE_ST].put(nubeAparte(x, x.valor), NX(x.a, x.k));
           const g = o[DIARIO].get([x.a, x.k]); g.onsuccess = () => { if (g.result && (x.ficha == null || g.result.v === x.ficha)) o[DIARIO].delete([x.a, x.k]); };
         }
         for (const x of escribir) {
-          if (o[x.a]) { if (x.valor === null || x.valor === undefined) o[x.a].delete(x.k); else o[x.a].put(x.valor, x.k); }
+          if (o[x.a]) {
+            if (x.valor === null || x.valor === undefined) o[x.a].delete(x.k);
+            else if (x.a === 'files' && esRefNube(x.valor.blob)) {   // a working copy that came down stays while it stands for the same original (lot 4)
+              const g = o[x.a].get(x.k); g.onsuccess = () => { const c = g.result; o[x.a].put(c && c.copia && c.copia.ref && c.copia.ref.sha256 === x.valor.blob.sha256 && !esRefNube(c.blob) ? { ...x.valor, blob: c.blob, copia: c.copia } : x.valor, x.k); };
+            } else o[x.a].put(x.valor, x.k);
+          }
           o[NUBE_ST].put({ v: x.v, o: x.o, b: !!x.b }, NV(x.a, x.k));
         }
         for (const x of saltar) o[NUBE_ST].put({ v: x.v, o: x.o, b: !!x.b }, NV(x.a, x.k));
@@ -7621,7 +7719,7 @@
       const ns = [...new Set(lista.map(x => x.a))].filter(n => ALMACENES.includes(n));
       await txSinDiario([...ns, DIARIO, NUBE_ST], 'readwrite', o => lista.forEach(x => {
         const poner = v => o[NUBE_ST].put(nubeAparte(x, v), NX(x.a, x.k));
-        if (o[x.a]) { const g = o[x.a].get(x.k); g.onsuccess = () => poner(g.result); } else poner(undefined);
+        if (o[x.a]) { const g = o[x.a].get(x.k); g.onsuccess = () => { poner(g.result); if (x.quitar && g.result !== undefined) o[x.a].delete(x.k); }; } else poner(undefined);   // quitar: aside and out of the Mesa (lot 4, «antes»)
         const d = o[DIARIO].get([x.a, x.k]); d.onsuccess = () => { if (d.result && (x.v == null || d.result.v === x.v)) o[DIARIO].delete([x.a, x.k]); };
       }));
     },
@@ -7634,13 +7732,45 @@
       const g = o[a].getAllKeys(); g.onsuccess = () => g.result.forEach(k => { const v = o[NUBE_ST].get(NV(a, k)); v.onsuccess = () => { if (!v.result) apuntar(o[DIARIO], a, k); }; });
     })),
     avisos: async () => (await nubeLeer('av')).sort((x, y) => x.id - y.id),
+    // ---- lot 4: the record of the files (D-259) ----
+    // ['h', store, key, path] → {tam, tipo, fecha, sha256}: the hash of a Blob here (not hashed again after a reload);
+    // ['s', sha256] → {ruta, trabajo?}: an original whose bytes (or working copy) are up in the store `mesa`.
+    registro: async () => {
+      const out = { h: [], s: [] };
+      await txSinDiario(NUBE_ST, 'readonly', s => {
+        const h = s.openCursor(nubeTodas('h')); h.onsuccess = () => { const c = h.result; if (!c) return; out.h.push([c.key.slice(1), c.value]); c.continue(); };
+        const t = s.openCursor(nubeTodas('s')); t.onsuccess = () => { const c = t.result; if (!c) return; out.s.push([c.key[1], c.value]); c.continue(); };
+      });
+      return out;
+    },
+    ponerHuella: (a, k, ruta, x) => txSinDiario(NUBE_ST, 'readwrite', s => s.put(x, ['h', a, k, ruta])),
+    // ['r', store, key, path] → {sha256}: the original's hash up there in that place of that record (from the last download)
+    refsArriba: async a => { const out = new Map(); await txSinDiario(NUBE_ST, 'readonly', s => { const r = s.openCursor(nubeTodas('r', a)); r.onsuccess = () => { const c = r.result; if (!c) return; const k = c.key[2]; if (!out.has(k)) out.set(k, {}); out.get(k)[c.key[3]] = c.value.sha256; c.continue(); }; }); return out; },
+    enDiario: async (a, k) => !!(await txSinDiario(DIARIO, 'readonly', s => s.get([a, k]))),
+    yaApartado: async (a, k) => !!(await txSinDiario(NUBE_ST, 'readonly', s => s.get(NX(a, k)))),
+    ponerSubido: (sha, x) => txSinDiario(NUBE_ST, 'readwrite', s => s.put(x, ['s', sha])),
+    // A file that came down: in its place in the record, if the record still has the same reference there (no journal: it is
+    // already up). marca: a working copy's mark {w, h} (only a files record's photo). Gives the record written, or null.
+    ponerArchivo: async (a, k, ruta, sha, blob, marca) => {
+      let out = null;
+      await txSinDiario(a, 'readwrite', st => { const g = st.get(k); g.onsuccess = () => {
+        const v = g.result, r = v && enRuta(v, ruta); if (!esRefNube(r) || r.sha256 !== sha) return;
+        let n = ponerEnRuta(v, ruta, blob); if (marca) n = { ...n, copia: { w: marca.w, h: marca.h, ref: { ...r } } };
+        st.put(n, k); out = n; }; });
+      return out;
+    },
+    // what of a store still waits up there: [[key, path, reference]]
+    ponerEnRuta,
+    refsPendientes: async (a, prefijo) => { const out = []; await txSinDiario(a, 'readonly', st => { const r = st.openCursor(prefijo ? IDBKeyRange.bound(prefijo, prefijo + '\uffff') : undefined); r.onsuccess = () => { const c = r.result; if (!c) return; for (const [ruta, ref] of refsCon(c.value)) out.push([c.key, ruta, ref]); c.continue(); }; }); return out; },
+    // the Blobs of a store here that came down with a reference of the same size and type (after «traer»: their hash is checked)
+    blobsDe: async a => { const out = []; await txSinDiario(a, 'readonly', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const v = c.value; if (!(v && v.copia)) blobsCon(v, 'el valor', (ruta, b) => out.push([c.key, ruta, b])); c.continue(); }; }); return out; },
     ponerAvisos: filas => txSinDiario(NUBE_ST, 'readwrite', s => filas.forEach(f => s.put(f, ['av', f.id]))),
     quitarAviso: id => txSinDiario(NUBE_ST, 'readwrite', s => s.delete(['av', id]))
   };
   M._in = {
     vc: VC,
     // the cloud (lot 3, D-253 to D-257): its switch and state, its store, its pause; what hasn't arrived (D-256)
-    NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb,
+    NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb, fotoLlego, pastLlego, refsCon,
     // the journal of changes (D-250): what changed since it was emptied, for the server (lot 3). leer() gives its entries
     // [{a, k, t, v}] (k null: the whole store again); quitar(entries) takes out those whose token didn't change since they were
     // read; vaciar() empties it; sinDiario is tx without the journal, only for what comes down from the server
@@ -7665,7 +7795,7 @@
     },
     // the invoices (D-232, mesa ≥ 4.26): read once per tab, their states, sums and writes; for cobros.js, personal.js and sesiones.js
     mes: { leer: mesLeer, listo: () => !!MES, mal: () => mesMal, get: (c, m) => MES ? MES.get(mesClave(c, m)) || null : null, deCliente: infDe, MESES: COB_MESES },   // D-238 (informe.js); listo once read: while it reads again, what was read stays (nothing jumps)
-    cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales,
+    cob: { leer: cobLeer, vivos: cobVivos, get: id => COB && COB.get(id), estado: cobEstado, cuota: cuotaDe, fechas: cobFechas, proxima: cobProxima, urgente: cobUrgente, totales: cobTotales, pdfCopia: cobPdfCopia,
       orden: cobOrden, clave: cobClave, eur: cobEur, importe: cobImporte, corto: cobCorto, nombre: cobNombre, MESES: COB_MESES, dia: cobDia, masDias: cobMasDias, difDias: cobDias,
       dlgCliente: async (cid, tab) => { await loadClientPhotos(); return dlgEditClient(cid, tab); },   // «Editar cliente» of any client, in its tab (D-233)
       guardar: cobGuardar, parche: cobParche, pdfVolver: cobPdfVolver, borrar: cobBorrar, devolver: cobDevolver, pdfPoner: cobPdfPoner, pdfValido: cobPdfValido, pdfLibre: cobPdfLibre, nuevoId: cobId, cuotaGuardar, cuotaTxt, avisar: cobAvisar, MES: COB_MES },

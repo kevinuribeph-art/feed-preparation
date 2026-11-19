@@ -4,7 +4,9 @@
 // error, ni en un registro (se tapa todo lo que llega de Zernio antes de recortarlo, lección 121, y otra vez al responder).
 // Solo Kevin: la sesión del que llama (la pasarela comprueba el JWT) y `public.es_dueno()`, preguntado con esa misma sesión.
 // Las mismas guardas que el script, algo más estrictas: una fecha programada con menos de 10 minutos de margen se rechaza, y
-// nada que publique ya (`publishNow` en cualquier sitio y a cualquier valor, ni otro campo «publicar ahora»).
+// nada que publique ya (`publishNow` en cualquier sitio y a cualquier valor, ni otro campo «publicar ahora»); un post o un cambio
+// solo con los campos que mandan las skills (lista blanca); y un `update` solo sobre un post programado o en borrador cuya hora,
+// si el cambio no trae otra, tiene margen.
 // La dirección de Zernio, del secreto `ZERNIO_BASE` (por omisión, la real); en el proyecto de pruebas apunta a `zernio-falso`.
 // La aplica `node tools/web.mjs zernio <pruebas|real> [--si]`.
 //   POST /functions/v1/zernio  { orden: 'presign', n }          → { ok: true, urls: [{ uploadUrl, publicUrl, expiresIn }] }
@@ -33,9 +35,11 @@ const tapar = (t: string) => {
   return t.split(CLAVE).join('[clave]').split(enJson).join('[clave]');
 };
 
-// La Mesa la llama desde su origen; y una copia de pruebas en este Mac. El portal de clientes no la usa.
-const PERMITIDO = (o: string | null) => !!o && (o === 'https://mesa.uribevisuals.studio' || o === 'https://kevinuribeph-art.github.io'
-  || /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(o));
+// La Mesa la llama desde su origen; una copia en este Mac, solo en el proyecto de pruebas (`ZERNIO_CORS_LOCAL`, que pone
+// tools/web.mjs). Ni el portal de clientes (no la usa) ni `github.io`: ese origen lo comparte cualquier web de Pages de la cuenta.
+const LOCAL = (Deno.env.get('ZERNIO_CORS_LOCAL') ?? '').trim() === '1';
+const PERMITIDO = (o: string | null) => !!o && (o === 'https://mesa.uribevisuals.studio'
+  || (LOCAL && /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(o)));
 const cors = (origen: string | null) => ({
   ...(PERMITIDO(origen) ? { 'Access-Control-Allow-Origin': origen as string } : {}),
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
@@ -92,10 +96,13 @@ async function zernio(metodo: string, ruta: string, o: { cuerpo?: unknown; consu
   // deno-lint-ignore no-explicit-any
   let js: any = null; try { js = texto ? JSON.parse(texto) : {}; } catch { /* no es JSON */ }
   if (!r.ok) {
-    const dice = js && typeof (js.error || js.message) === 'string' ? js.error || js.message : texto.slice(0, 300);
-    const detalles = js && js.details !== undefined && JSON.stringify(js.details).length <= 2000 ? { details: js.details } : {};
+    // Lo leído del JSON se tapa otra vez antes de recortarlo: Zernio podría escribir la clave con escapes (\uXXXX), que el texto
+    // crudo no deja ver y JSON.parse sí deshace.
+    const dice = tapar(js && typeof (js.error || js.message) === 'string' ? js.error || js.message : texto.slice(0, 300));
+    const det = js && js.details !== undefined ? tapar(JSON.stringify(js.details)) : '';
+    const detalles = det && det.length <= 2000 ? { details: JSON.parse(det) } : {};
     throw new Rechazo('zernio', 502, `Zernio ${r.status}: ${dice}`.slice(0, 500), { zernio: r.status, ...detalles,
-      ...(js && typeof js.existingPostId === 'string' ? { existingPostId: js.existingPostId } : {}) });
+      ...(js && typeof js.existingPostId === 'string' ? { existingPostId: tapar(js.existingPostId).slice(0, 64) } : {}) });
   }
   if (!objeto(js)) throw new Rechazo('zernio', 502, 'Zernio contestó algo que no se entiende');
   return js;
@@ -121,6 +128,50 @@ function instante(t: string): number {
   if (m[7] !== 'Z' && (+m[8] > 14 || +m[9] > 59)) return NaN;
   return Date.parse(t);
 }
+
+// Lista blanca: un post o un cambio solo lleva los campos que mandan las skills (feed-preparation y diseno-historias) y con su
+// forma; cualquier otro (un `status`, una hora con otro nombre, un campo de cola…) se rechaza antes de llegar a Zernio, así nada
+// que Zernio entienda como «publicar ya» pasa por un nombre que la función no conoce. Las horas y el borrador los mira
+// comprobarTiempos.
+type Regla = (v: unknown, donde: string) => void;
+const libre: Regla = () => {};
+const texto = (max: number, re?: RegExp): Regla => (v, d) => {
+  if (typeof v !== 'string' || v.length > max || (re && !re.test(v))) throw forma(`${d} está mal escrito`);
+};
+const fraccion: Regla = (v, d) => { if (typeof v !== 'number' || !(v >= 0 && v <= 1)) throw forma(`${d}: un número de 0 a 1`); };
+const indice: Regla = (v, d) => { if (!Number.isInteger(v) || (v as number) < 0 || (v as number) > 19) throw forma(`${d}: la diapositiva, de 0 a 19`); };
+const lista = (r: Regla, max: number): Regla => (v, d) => {
+  if (!Array.isArray(v) || v.length > max) throw forma(`${d}: una lista (como mucho ${max})`);
+  v.forEach((x, i) => r(x, `${d}[${i}]`));
+};
+const campos = (c: Record<string, Regla>): Regla => (v, d) => {
+  if (!objeto(v)) throw forma(`${d}: un objeto`);
+  for (const [k, x] of Object.entries(v)) {
+    if (!Object.hasOwn(c, k)) throw forma(`«${corto(k)}» no va en ${d} (${Object.keys(c).join(', ')})`);
+    c[k](x, `${d}.${k}`);
+  }
+};
+const USUARIO = /^[A-Za-z0-9._]+$/;
+const metadatos: Regla = (v, d) => {   // las marcas de la Mesa (mesaSlot, mesaStory, mesaClient), solo texto
+  if (!objeto(v)) throw forma(`${d}: un objeto`);
+  for (const [k, x] of Object.entries(v)) {
+    if (!/^mesa[A-Za-z]{1,30}$/.test(k)) throw forma(`«${corto(k)}» no va en ${d} (mesaSlot, mesaStory, mesaClient)`);
+    texto(200)(x, `${d}.${k}`);
+  }
+};
+const POST = campos({
+  content: texto(10000),
+  mediaItems: lista(campos({ type: texto(10, /^(image|video)$/), url: texto(2000, /^https:\/\/[^\s]+$/) }), 20),
+  platforms: lista(campos({
+    platform: texto(30, /^[a-z_]+$/), accountId: texto(64, /^[A-Za-z0-9]+$/), scheduledFor: libre,
+    platformSpecificData: campos({
+      contentType: texto(10, /^story$/), locationId: texto(40, /^\d+$/),
+      userTags: lista(campos({ username: texto(64, USUARIO), x: fraccion, y: fraccion, mediaIndex: indice }), 20),
+      collaborators: lista(texto(64, USUARIO), 10),
+    }),
+  }), 5),
+  scheduledFor: libre, timezone: texto(64, /^[A-Za-z0-9_+\-/]+$/), isDraft: libre, metadata: metadatos,
+});
 
 // La guarda que importa: nada sale ya por accidente (tools/zernio.mjs `checkTiming`, más estricta: también con isDraft se mira cada
 // fecha que venga, un scheduledFor null o vacío no vale, la fecha es ISO estricta y un borrador solo deja de serlo con su fecha).
@@ -187,6 +238,7 @@ const ORDENES: Record<string, { campos: string[]; hacer: (p: Record<string, unkn
   schedule: { campos: ['post'], async hacer(p) {
     const b = p.post;
     if (!objeto(b)) throw forma('post: el JSON del post, como el de tools/zernio.mjs schedule');
+    POST(b, 'post');
     comprobarTiempos(b, true);
     // el mismo cuerpo, la misma clave: un reintento tras un corte devuelve el post ya creado en vez de uno segundo
     const r = await zernio('POST', '/posts', { cuerpo: b, cabeceras: { 'idempotency-key': await sha256(JSON.stringify(b)) } });
@@ -206,8 +258,10 @@ const ORDENES: Record<string, { campos: string[]; hacer: (p: Record<string, unkn
     for (let page = 1; ; page++) {
       const r = await zernio('GET', '/posts', { consulta: { page, limit: 100, ...consulta } });
       todos.push(...(Array.isArray(r.posts) ? r.posts : []));
-      if (!r.pagination || page >= (+r.pagination.pages || 1)) break;
-      if (page >= MAX_PAGINAS) throw new Rechazo('tope', 413, `más de ${MAX_PAGINAS * 100} posts: estrecha los filtros (account, status, from, to)`);
+      const paginas = r.pagination ? (+r.pagination.pages || 1) : 1;
+      // en cuanto Zernio dice que hay más de 50 páginas, sin pedirlas: estrechar los filtros
+      if (paginas > MAX_PAGINAS) throw new Rechazo('tope', 413, `más de ${MAX_PAGINAS * 100} posts: estrecha los filtros (account, status, from, to)`);
+      if (page >= paginas) break;
     }
     return { posts: todos.map(slim) };
   } },
@@ -215,7 +269,19 @@ const ORDENES: Record<string, { campos: string[]; hacer: (p: Record<string, unkn
     if (typeof p.id !== 'string' || !ID.test(p.id)) throw forma('id: el id del post en Zernio');
     const b = p.patch;
     if (!objeto(b)) throw forma('patch: lo que cambia del post');
+    POST(b, 'patch');
     comprobarTiempos(b, false);
+    // Solo un post programado o en borrador; y uno que se queda con su hora (el cambio no trae otra ni lo deja en borrador),
+    // solo si esa hora tiene margen: editar uno fallido, a punto de salir o ya pasado podría publicarlo en el acto.
+    const actual = await zernio('GET', '/posts/' + encodeURIComponent(p.id));
+    const ya = objeto(actual.post) ? actual.post : actual;
+    const estado = typeof ya.status === 'string' ? ya.status : '';
+    if (estado !== 'scheduled' && estado !== 'draft') throw new Rechazo('estado', 409, `el post está «${corto(estado || '?')}»: solo se cambia uno programado o en borrador`);
+    const borrador = b.isDraft === true || (estado === 'draft' && b.isDraft === undefined);
+    if (!b.scheduledFor && !borrador) {
+      const ms = typeof ya.scheduledFor === 'string' ? Date.parse(ya.scheduledFor) : NaN;   // la de Zernio: su formato
+      if (!(ms >= Date.now() + MARGEN_MS)) throw new Rechazo('margen', 400, `el post sale «${corto(ya.scheduledFor)}»: falta menos de ${MARGEN_MS / 60000} min o ya pasó; manda también un scheduledFor con margen`);
+    }
     const r = await zernio('PUT', '/posts/' + encodeURIComponent(p.id), { cuerpo: b });
     return { post: slim(r.post || r) };
   } },

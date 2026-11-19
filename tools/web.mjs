@@ -197,6 +197,7 @@ const ORDENES = {
     if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real solo con --si (y con el OK de Kevin)');
     let k, base;
     if (cual === 'real') {
+      if (P.ref === clave('SUPABASE_PRUEBAS_REF')) throw new Fallo('el proyecto real es el de pruebas: la clave de Zernio no va ahí');
       k = clave('ZERNIO_API_KEY');
       if (!k) throw new Fallo('falta ZERNIO_API_KEY en .env');
       if (CLAVE_FALSA.test(k)) throw new Fallo('ZERNIO_API_KEY es una clave inventada de pruebas: no va al real');
@@ -210,7 +211,9 @@ const ORDENES = {
       base = `${P.url}/functions/v1/zernio-falso`;
     }
     const sin = t => tapar(t).split(k).join('[clave]');
-    const s = await gestion(`projects/${P.ref}/secrets`, { method: 'POST', body: [{ name: 'ZERNIO_API_KEY', value: k }, { name: 'ZERNIO_BASE', value: base }] });
+    // ZERNIO_CORS_LOCAL: una copia en 127.0.0.1 / localhost puede llamarla solo en pruebas.
+    const s = await gestion(`projects/${P.ref}/secrets`, { method: 'POST', body: [{ name: 'ZERNIO_API_KEY', value: k }, { name: 'ZERNIO_BASE', value: base },
+      { name: 'ZERNIO_CORS_LOCAL', value: cual === 'pruebas' ? '1' : '0' }] });
     if (!s.ok) throw new Fallo(sin(`los secretos no entraron (${s.status}): ${s.text}`));
     if (cual === 'pruebas') await desplegar(P, 'zernio-falso', false);   // el simulado, solo aquí: lo llama la función por su secreto
     await desplegar(P, 'zernio', true);

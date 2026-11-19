@@ -7,7 +7,11 @@
 // Para probar que la función tapa la clave, un `content` con:
 //   «repite-clave»  contesta un error 400 largo que la repite justo donde un recorte de 300 caracteres la partiría;
 //   «eco-clave»     crea el post y lo devuelve con la cabecera recibida en `metadata.falso.auth`;
-//   «duplicado»     contesta 409 con `existingPostId`, como Zernio con un post repetido.
+//   «duplicado»     contesta 409 con `existingPostId`, como Zernio con un post repetido;
+//   «clave-escapada» contesta un error 400 con la clave escrita con escapes \uXXXX, donde el recorte de 500 la partiría;
+//   «redirige»      contesta 302 a sí mismo (la función no sigue redirecciones).
+// `GET /posts/<id>` da su estado por el principio del id (publicado…, fallido…, pronto… a 5 min, borrador…; si no, programado
+// para mañana), y `GET /posts` con la cuenta «muchas», 999 páginas.
 // Una clave equivocada recibe 401, como en Zernio.
 
 const CLAVE = (Deno.env.get('ZERNIO_API_KEY') ?? '').trim();
@@ -29,6 +33,13 @@ Deno.serve(async (req) => {
     idempotencia: req.headers.get('idempotency-key') };
   const contenido = cuerpo && typeof cuerpo.content === 'string' ? cuerpo.content : '';
   if (contenido.includes('repite-clave')) return json({ error: 'x'.repeat(290) + ' ' + auth + ' ' + 'y'.repeat(200) }, 400);
+  // la clave escrita con escapes \uXXXX (el texto crudo no la deja ver; JSON.parse sí), justo donde el recorte de 500 la partiría
+  if (contenido.includes('clave-escapada')) {
+    const esc = [...auth].map((c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+    return new Response(`{"error":"${'x'.repeat(460)} ${esc} ${'y'.repeat(100)}"}`, { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
+  // una redirección a esta misma dirección: si la función la siguiera, llegaría a GET /posts y contestaría bien
+  if (contenido.includes('redirige')) return new Response(null, { status: 302, headers: { Location: '?redirigido=1' } });
   if (contenido.includes('duplicado')) return json({ error: 'A post with this content already exists', existingPostId: 'f'.repeat(24) }, 409);
   if (contenido.includes('eco-clave')) recibido.auth = auth;
 
@@ -46,11 +57,20 @@ Deno.serve(async (req) => {
       publicUrl: `https://falso.invalid/media/${nombre}`, expiresIn: 3600 });
   }
   if (req.method === 'POST' && ruta === '/posts') return json({ post: post(id24(), cuerpo) }, 201);
-  if (req.method === 'GET' && ruta === '/posts') {   // dos páginas, un post en cada una
+  if (req.method === 'GET' && ruta === '/posts') {   // dos páginas, un post en cada una; la cuenta «muchas», 999 páginas
     const page = Math.max(1, +(u.searchParams.get('page') ?? 1) || 1);
+    if (u.searchParams.get('accountId') === 'muchas') return json({ posts: [], pagination: { page, pages: 999, total: 99900 } });
     return json({ posts: page <= 2 ? [post('0'.repeat(23) + page, { content: 'falso ' + page })] : [], pagination: { page, pages: 2, total: 2 } });
   }
   const m = ruta.match(/^\/posts\/([^/]+)$/);
+  // Un post por su id: el estado y la hora salen del principio del id (publicado…, fallido…, pronto… a 5 minutos, borrador…);
+  // cualquier otro, programado para mañana.
+  if (req.method === 'GET' && m) {
+    const id = decodeURIComponent(m[1]);
+    const [status, cuando] = id.startsWith('publicado') ? ['published', -60] : id.startsWith('fallido') ? ['failed', -60]
+      : id.startsWith('pronto') ? ['scheduled', 5] : id.startsWith('borrador') ? ['draft', null] : ['scheduled', 24 * 60];
+    return json({ post: { ...post(id, {}), status, scheduledFor: cuando === null ? null : new Date(Date.now() + cuando * 60000).toISOString() } });
+  }
   if (req.method === 'PUT' && m) return json({ post: post(decodeURIComponent(m[1]), cuerpo) });
   return json({ error: 'Not found' }, 404);
 });

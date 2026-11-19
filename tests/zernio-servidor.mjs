@@ -37,7 +37,7 @@ const CLI = { id: 'prueba-zernio', nombre: 'Cliente Prueba Zernio' };
 const CORREO = { k: 'kevin@zernio-pruebas.test', a: 'ana@zernio-pruebas.test', n: 'nadie@zernio-pruebas.test' };
 const CLAVE = 'Pr-' + randomBytes(16).toString('hex');            // solo para estos usuarios inventados; no se imprime
 const CUENTA = 'a'.repeat(24), OTRO = 'b'.repeat(24);             // ids de Zernio inventados
-const SLUGS = ['zernio', 'zernio-falso'], SECRETOS = ['ZERNIO_API_KEY', 'ZERNIO_BASE'];
+const SLUGS = ['zernio', 'zernio-falso'], SECRETOS = ['ZERNIO_API_KEY', 'ZERNIO_BASE', 'ZERNIO_CORS_LOCAL'];
 
 let fallos = 0, n = 0;
 const ver = t => tapar(String(t)).split(CZ).join('[clave]');
@@ -93,6 +93,8 @@ function pruebaOrdenSinRed() {
   const vb = sec && Array.isArray(sec.cuerpo) && (sec.cuerpo.find(x => x.name === 'ZERNIO_BASE') || {}).value;
   ok(o.codigo === 0 && sec && vk !== CEN && /^falsa-[0-9a-f]{32}$/.test(vk || ''), 'pruebas: pone una clave inventada nueva, nunca ZERNIO_API_KEY', o.out);
   ok(vb === `https://${FREF.pruebas}.supabase.co/functions/v1/zernio-falso`, 'pruebas: ZERNIO_BASE apunta al Zernio simulado de ese proyecto', vb);
+  const vl = sec && Array.isArray(sec.cuerpo) && (sec.cuerpo.find(x => x.name === 'ZERNIO_CORS_LOCAL') || {}).value;
+  ok(vl === '1', 'pruebas: ZERNIO_CORS_LOCAL 1 (una copia en 127.0.0.1 o localhost puede llamarla)', vl);
   ok(dep.join() === 'zernio-falso:false,zernio:true', 'pruebas: despliega el simulado (sin JWT) y la función (con JWT), después de los secretos', dep.join());
   ok(!o.out.includes(vk || '@@') && !o.out.includes(CEN) && /"ZERNIO_BASE"/.test(o.out), 'y no enseña la clave');
   o = ordenSinRed(['pruebas'], { ZERNIO_PRUEBAS_CLAVE: CZ });
@@ -108,12 +110,14 @@ function pruebaOrdenSinRed() {
   o = ordenSinRed(['real', '--si'], { ZERNIO_API_KEY: CEN });
   sec = (o.reg || []).find(e => /\/secrets$/.test(e.url));
   dep = (o.reg || []).filter(e => /functions\/deploy/.test(e.url)).map(e => `${e.meta.name}:${e.meta.verify_jwt}`);
-  ok(o.codigo === 0 && sec && igual(sec.cuerpo, [{ name: 'ZERNIO_API_KEY', value: CEN }, { name: 'ZERNIO_BASE', value: 'https://zernio.com/api/v1' }]) && sec.url.includes(FREF.real),
-    'real con --si: la clave de ZERNIO_API_KEY y la dirección real de Zernio', o.out);
+  ok(o.codigo === 0 && sec && igual(sec.cuerpo, [{ name: 'ZERNIO_API_KEY', value: CEN }, { name: 'ZERNIO_BASE', value: 'https://zernio.com/api/v1' }, { name: 'ZERNIO_CORS_LOCAL', value: '0' }]) && sec.url.includes(FREF.real),
+    'real con --si: la clave de ZERNIO_API_KEY, la dirección real de Zernio y sin CORS para 127.0.0.1 ni localhost', o.out);
   ok(dep.join() === 'zernio:true', 'real: solo la función, nunca el simulado', dep.join());
   ok(!o.out.includes(CEN), 'real: no enseña la clave');
   o = ordenSinRed(['real', '--si'], { ZERNIO_API_KEY: 'falsa-' + randomBytes(16).toString('hex') });
   ok(o.codigo !== 0 && /inventada/.test(o.out) && o.reg && o.reg.length === 0, 'real: una clave inventada de pruebas no va al real', o.out);
+  o = ordenSinRed(['real', '--si'], { ZERNIO_API_KEY: CEN, SUPABASE_REF: FREF.pruebas });
+  ok(o.codigo !== 0 && /pruebas/.test(o.out) && o.reg && o.reg.length === 0 && !o.out.includes(CEN), 'real: si el proyecto real es el de pruebas, la clave no va ahí y no pide nada', o.out);
   o = ordenSinRed(['real'], {});
   ok(o.codigo !== 0 && o.reg && o.reg.length === 0, 'real sin --si, sin clave: tampoco');
   o = ordenSinRed(['real', '--si'], { ZERNIO_API_KEY: CEN }, 'la API repite la clave ' + CEN + ' en su error');
@@ -158,7 +162,8 @@ async function limpiarUsuarios() {
 }
 async function quitarLoNuevo() {
   if (!ANTES) return;
-  const sobra = SECRETOS.filter(x => !ANTES.secretos.includes(x));
+  const ahora = await nombres();   // solo los que hay: borrar un secreto que no existe hace fallar el borrado entero
+  const sobra = SECRETOS.filter(x => !ANTES.secretos.includes(x) && ahora.secretos.includes(x));
   if (sobra.length) { const r = await gestion(`projects/${P.ref}/secrets`, { method: 'DELETE', body: sobra }); if (!r.ok) throw new Fallo(`no se pudieron quitar los secretos (${r.status}): ${r.text}`); }
   for (const slug of SLUGS.filter(x => !ANTES.funciones.includes(x))) {
     const r = await gestion(`projects/${P.ref}/functions/${slug}`, { method: 'DELETE' });
@@ -280,6 +285,15 @@ async function main() {
     ['publicar_ya', 'postNow', { postNow: true }],
     ['publicar_ya', 'sendImmediately', { sendImmediately: true }],
     ['publicar_ya', 'publishNow con una fecha con margen', { publishNow: true, scheduledFor: enMin(120) }],
+    ['forma', 'un campo que no está en la lista blanca (status)', { status: 'published' }],
+    ['forma', 'una hora con otro nombre dentro de platformSpecificData', { platforms: [{ ...post.platforms[0], platformSpecificData: { scheduledAt: enMin(120) } }] }],
+    ['forma', 'un campo desconocido en una plataforma', { platforms: [{ ...post.platforms[0], queue: true }] }],
+    ['forma', 'otro tipo de contenido que historia', { platforms: [{ ...post.platforms[0], platformSpecificData: { contentType: 'reels' } }] }],
+    ['forma', 'metadata con otra clave', { metadata: { cola: 'x' } }],
+    ['forma', 'metadata con un objeto dentro', { metadata: { mesaSlot: { a: 1 } } }],
+    ['forma', 'una foto por http', { mediaItems: [{ type: 'image', url: 'http://falso.invalid/a.jpg' }] }],
+    ['forma', 'una foto con un campo de más', { mediaItems: [{ type: 'image', url: 'https://falso.invalid/a.jpg', publish: 'now' }] }],
+    ['forma', 'una etiqueta fuera de la foto', { platforms: [{ ...post.platforms[0], platformSpecificData: { userTags: [{ username: 'prueba.uno', x: 2, y: 0.5 }] } }] }],
   ];
   for (const [codigo, txt, cambio] of casos) {
     const b = { ...post, content: 'rechazo ' + RUN, ...cambio };
@@ -289,6 +303,13 @@ async function main() {
   }
   r = await K({ orden: 'schedule', post, publishNow: true });
   ok(rech(r, 'publicar_ya', 400), 'publishNow fuera del post (en el pedido): rechazo «publicar_ya»', r.text);
+  const historia = { mediaItems: [{ type: 'image', url: 'https://falso.invalid/media/h.jpg' }], scheduledFor: enMin(90), timezone: 'Europe/Madrid',
+    platforms: [{ platform: 'instagram', accountId: CUENTA, platformSpecificData: { contentType: 'story' } }], metadata: { mesaStory: 'h-' + RUN, mesaClient: CLI.id } };
+  r = await K({ orden: 'schedule', post: historia });
+  ok(bien(r) && igual(falso(r).cuerpo, historia), 'una historia como la manda diseno-historias (contentType story, sin content, con metadata): pasa tal cual', r.text);
+  const conMarca = { ...post, metadata: { mesaSlot: 's-' + RUN, mesaClient: CLI.id } };
+  r = await K({ orden: 'schedule', post: conMarca });
+  ok(bien(r) && igual(falso(r).cuerpo, conMarca), 'un post con metadata.mesaSlot, como lo manda feed-preparation: pasa tal cual', r.text);
   r = await K({ orden: 'schedule', post: [post] });
   ok(rech(r, 'forma', 400), 'un post que no es un objeto: rechazo «forma»', r.text);
 
@@ -323,7 +344,21 @@ async function main() {
     ['forma', 'un id con barras', { id: OTRO + '/retry', patch: { content: 'x' } }],
     ['forma', 'sin id', { patch: { content: 'x' } }],
     ['forma', 'sin patch', { id: OTRO }],
+    ['forma', 'un campo que no está en la lista blanca (status)', { id: OTRO, patch: { status: 'scheduled' } }],
   ]) { r = await K({ orden: 'update', ...pedido }); ok(rech(r, codigo, 400), `update con ${txt}: rechazo «${codigo}»`, r.text); }
+  // Antes de cambiar, el post: solo uno programado o en borrador, y con margen si se queda con su hora.
+  for (const id of ['publicado1', 'fallido1']) {
+    r = await K({ orden: 'update', id, patch: { content: 'x ' + RUN } });
+    ok(rech(r, 'estado', 409) && !r.json.post, `update de un post ${id.replace(/1$/, '')} (no programado ni borrador): rechazo «estado»`, r.text);
+  }
+  r = await K({ orden: 'update', id: 'pronto1', patch: { content: 'x ' + RUN } });
+  ok(rech(r, 'margen', 400), 'update sin fecha de un post que sale en 5 minutos: rechazo «margen»', r.text);
+  r = await K({ orden: 'update', id: 'pronto1', patch: { content: 'x ' + RUN, scheduledFor: enMin(60) } });
+  ok(bien(r) && falso(r).metodo === 'PUT', 'el mismo con una hora nueva con margen: pasa', r.text);
+  r = await K({ orden: 'update', id: 'pronto1', patch: { isDraft: true } });
+  ok(bien(r) && igual(falso(r).cuerpo, { isDraft: true }), 'o pasándolo a borrador: pasa', r.text);
+  r = await K({ orden: 'update', id: 'borrador1', patch: { content: 'x ' + RUN } });
+  ok(bien(r) && falso(r).metodo === 'PUT', 'update del texto de un borrador sin hora: pasa (sigue en borrador)', r.text);
 
   console.log('Kevin: errores de Zernio y la clave');
   r = await K({ orden: 'schedule', post: { ...post, content: 'duplicado ' + RUN } });
@@ -334,6 +369,12 @@ async function main() {
   ok(!fugaDe(r.text), 'tapada antes de recortar: ni entera ni cortada a mitad (lección 121)');
   r = await K({ orden: 'schedule', post: { ...post, content: 'eco-clave ' + RUN } });
   ok(bien(r) && falso(r).auth === 'Bearer [clave]' && !fugaDe(r.text), 'una respuesta de Zernio que trae la clave (aquí, su eco) llega tapada', r.text);
+  r = await K({ orden: 'schedule', post: { ...post, content: 'clave-escapada ' + RUN } });
+  ok(rech(r, 'zernio', 502) && r.json.error.mensaje.includes('[clave]') && !fugaDe(r.text), 'un error con la clave escrita con escapes (\\uXXXX), donde el recorte la partiría: tapada, ni a trozos', r.text);
+  r = await K({ orden: 'schedule', post: { ...post, content: 'redirige ' + RUN } });
+  ok(rech(r, 'zernio', 502) && !r.json.post, 'una redirección de Zernio no se sigue (la clave no va a otra dirección): rechazo «zernio»', r.text);
+  r = await K({ orden: 'posts', filtros: { account: 'muchas' } });
+  ok(rech(r, 'tope', 413), 'posts con más de 50 páginas: rechazo «tope»', r.text);
 
   console.log('Kevin: pedidos mal hechos');
   for (const [codigo, txt, cuerpo] of [['cuerpo', 'un cuerpo que no es JSON', 'hola'], ['cuerpo', 'una lista', '[1]'], ['orden', 'sin orden', {}], ['orden', 'una orden desconocida', { orden: 'delete', id: OTRO }],
@@ -346,12 +387,12 @@ async function main() {
 
   console.log('CORS');
   const pre = async o => (await fetch(FN, { method: 'OPTIONS', headers: { Origin: o, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, apikey, content-type' } })).headers.get('access-control-allow-origin');
-  for (const o of ['https://mesa.uribevisuals.studio', 'https://kevinuribeph-art.github.io', 'http://127.0.0.1:9999', 'http://localhost:8080'])
-    ok((await pre(o)) === o, `deja llamarla desde ${o}`);
-  for (const o of ['https://clientes.uribevisuals.studio', 'https://malo.example', 'http://127.0.0.1.malo.example:80', 'https://kevinuribeph-art.github.io.malo.example'])
+  for (const o of ['https://mesa.uribevisuals.studio', 'http://127.0.0.1:9999', 'http://localhost:8080'])
+    ok((await pre(o)) === o, `deja llamarla desde ${o}${/^http:/.test(o) ? ' (en pruebas)' : ''}`);
+  for (const o of ['https://kevinuribeph-art.github.io', 'https://clientes.uribevisuals.studio', 'https://malo.example', 'http://127.0.0.1.malo.example:80', 'https://mesa.uribevisuals.studio.malo.example'])
     ok((await pre(o)) === null, `no desde ${o}`);
-  r = await K({ orden: 'presign' }, { origen: 'https://kevinuribeph-art.github.io' });
-  ok(bien(r) && r.acao === 'https://kevinuribeph-art.github.io', 'y la respuesta de verdad lleva su permiso', String(r.acao));
+  r = await K({ orden: 'presign' }, { origen: 'https://mesa.uribevisuals.studio' });
+  ok(bien(r) && r.acao === 'https://mesa.uribevisuals.studio', 'y la respuesta de verdad lleva su permiso', String(r.acao));
 
   console.log('Los demás: un rechazo sin datos');
   const SIN_PERMISO = { ok: false, error: { codigo: 'permiso', http: 403, mensaje: 'sin permiso' } };

@@ -225,18 +225,23 @@
     async function olvidar() { await A.olvidar(); st.cursor = 0; st.epoca = null; }
     async function bajarTodo(ordenMin, t0, yaOlvidada) {
       fase('bajando');
-      let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0;
+      let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null;
+      const pedirPag = (d, lim) => { const q = llamar('mesa_bajar', { desde: d, limite: lim }); q.catch(() => { /* se mira al esperarla */ }); return q; };
       for (;;) {
-        const p = llamar('mesa_bajar', { desde, limite: primera ? 50 : 500 });   // la primera, pequeña: llega antes del tope
+        // la primera, entera si la red ya contestó deprisa; si no, pequeña, para que llegue antes del tope
+        const p = sig || pedirPag(desde, primera && t0 != null && R.ahora() - t0 > 1000 ? 100 : 500);
+        sig = null;
         const r = t0 != null && primera ? await conTope(p, TIEMPOS.primera - (R.ahora() - t0)) : await p;
         if (!r || r.ok !== true) {
           if (r && r.error && r.error.codigo === 'cursor' && !otraEpoca) { await olvidar(); desde = 0; otraEpoca = true; continue; }
           throw { rechazo: r };
         }
         if (st.epoca && r.epoca && r.epoca !== st.epoca && !otraEpoca) { await olvidar(); desde = 0; otraEpoca = true; continue; }
+        const fin = !r.mas && (r.hasta >= (ordenMin || 0) || !(r.filas || []).length);
+        if (!fin) sig = pedirPag(r.hasta, 500);   // la siguiente se pide mientras esta se escribe (el cursor solo avanza al escribirla)
         nuevos += await aplicarPagina(r.filas || [], r.hasta, r.epoca);
         st.cursor = r.hasta; st.epoca = r.epoca || st.epoca; desde = r.hasta; primera = false;
-        if (!r.mas && (r.hasta >= (ordenMin || 0) || !(r.filas || []).length)) break;
+        if (fin) break;
       }
       if (otraEpoca) await A.apuntarSinVersion();   // lo de aquí que no está arriba, para subirlo como nuevo
       bajado = true;

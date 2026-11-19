@@ -19,7 +19,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   archivo) y carga, sin async, `tema.js` (el tema oscuro antes de pintar), `mesa.js` (núcleo, expone `window.MESA`),
   `portal/supa.js` (la sesión de Supabase: una sola instancia para toda la Mesa, `MESA._in.supa`), `nube.js` (la nube: sube
   por detrás cada cambio del diario y, al abrir, baja lo último antes de dibujar; una Mesa a la vez entre ordenadores; apagada
-  salvo que se active en un navegador, D-253 a D-257), `arranque.js` (abre la Mesa) y `vigia.js` (marca los módulos que no
+  salvo que se active en un navegador, D-253 a D-257; con ella, las fotos suben y bajan con su worker `nube-fotos.js`, D-259), `arranque.js` (abre la Mesa) y `vigia.js` (marca los módulos que no
   cargan y avisa de lo que bloquea la CSP); y, en async, `kits/motor.js` (motor de
   diseño), `diseno.js` (diseñador), `libre.js` (editor de diapositivas), `calendario.js` (calendario), `revisar.js` (revisión antes de subir o programar), `historias.js` (historias de Instagram), `carpetas.js` (subir y crear carpetas en la bandeja), `descargar.js` (descargar fotos de las publicaciones elegidas con ⌘+clic), `controles.js` (desplegables, fecha y hora propios de la Mesa: el `<select>` o el `<input>` nativo sigue oculto como fuente de verdad) y `personal.js` (la página personal que abre el logo: avisos, clientes, tareas y notas) `escritura.js` (escritura rápida de la página personal: marcas y menú «/») y `sesiones.js` (sesiones y clientes esporádicos de la página personal; sus fotos, en el almacén `tfotos`) y `cobros.js` (la pestaña «Cobros» de «Editar cliente», la tabla de facturas y «Tus pagos» de la «Vista cliente»; los datos, en `mesa.js`: almacenes `cobros` y `cfacturas`) e `informe.js` (en la «Vista cliente», el porqué del mes y cómo fue el anterior; los datos, en `mesa.js`: almacén `meses` y `MESA.informe`) y `web.js` («Web del cliente»: envía al servidor del portal lo que ve el cliente, D-241; habla con él con `portal/supa.js`, que comparte con el portal) y `copia.js` («Exportar todo»: la copia completa, un `.tar` por cliente y uno general a tamaño original, y su importación por partes, D-249). La mesa nunca espera a los async; `portal/supa.js` y `nube.js` van sin async porque la nube baja antes de dibujar (D-253).
 - `kits/<marca>.json` + `kits/fonts/`: kits de marca para el diseñador y el editor.
@@ -38,7 +38,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 ## Publicar
 - Pages publica desde `main`. Cada cambio va en una rama y entra por PR.
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
-  `index.html`, los dos iguales. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
+  `index.html`, los dos iguales. Si cambias `nube-fotos.js` (el worker de las fotos), sube `FOTOS_V` en `nube.js` y el `?v=` de
+  `nube.js`. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
   su `?v=` en `index.html`. Sin esto el navegador sigue sirviendo la versión en caché.
 - Si un tablero empieza a guardar algo que el código anterior no conoce, sube también la versión de IndexedDB en `db()`: si no, una pestaña antigua lo pisa (D-060).
 - Si subes la versión de IndexedDB, tras comprobar con curl que Pages sirve la nueva, sube la mínima del servidor a esa versión
@@ -49,16 +50,16 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 ## Probar
 - Nunca abras la URL publicada en el navegador integrado de Claude para probar: ahí están los datos reales de Kevin.
   Ábrela solo para lo que Kevin pida hacer en su mesa.
-- Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `mesa.js`, `diseno.js`,
+- Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `nube.js`, `nube-fotos.js`, `mesa.js`, `diseno.js`,
   `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
 - Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
   («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.
 - Cada fallo corregido suma su prueba en `tests/regresion.js`.
 - `tools/zernio.mjs resumen` tiene su prueba aparte, sin red ni clave de verdad: `node tests/zernio-resumen.mjs`.
-- El núcleo de la nube (`nube.js`: turno, versiones, páginas, cola, reescanear y reconciliar), sin red, con un servidor, un
-  almacén y un reloj simulados: `node tests/nube-simulada.mjs`. Antes de cada PR que toque `nube.js`, entera en verde.
-- El aviso de los códigos de entrada de `portal/supa.js`, también sin red: `node tests/portal-supa.mjs`.
+- El núcleo de la nube (`nube.js`: turno, versiones, páginas, cola, reescanear y reconciliar; las fotos, `subirTodo`, `comprobar`
+  y «traer»), sin red, con un servidor, un almacén y un reloj simulados: `node tests/nube-simulada.mjs`. Antes de cada PR que toque `nube.js`, entera en verde.
+- El aviso de los códigos de entrada de `portal/supa.js` y sus archivos (subir solo con el 409, bajar), también sin red: `node tests/portal-supa.mjs`.
 - El aislamiento del portal tiene su prueba contra el proyecto de pruebas de Supabase, nunca el real:
   `node tests/portal-aislamiento.mjs`. Antes de cada PR que toque el servidor, el portal o lo que la Mesa envía, entera en verde.
 - El servidor de la Mesa (esquema `mesa`, D-251), igual, contra el proyecto de pruebas y nunca el real: `node tests/mesa-servidor.mjs`

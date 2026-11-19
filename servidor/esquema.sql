@@ -8,6 +8,8 @@
 --   · Kevin además necesita, con el interruptor `exigir_codigo` encendido, un código de su app de los últimos 30 días en la
 --     sesión (`aal2`, D-262). Los clientes no: siguen entrando con su código por correo.
 --   · El cliente solo escribe aprobaciones y comentarios, en su nombre, con la hora del servidor y con tope por minuto.
+--   · Una cuenta que solo mira (`miembros.observa`, D-266) ve lo mismo que el cliente y no escribe nada: ni aprueba, ni pide
+--     cambios, ni comenta. Su fila llega sola a cada cliente nuevo.
 --   · Aprobaciones y comentarios solo se añaden; nadie los borra, salvo al borrar un cliente entero.
 --   · Los archivos no se abren desde fuera: los firma la función `firmar` (servidor/funciones/firmar.ts) con caducidad fija
 --     y solo si los usa algo que ese cliente puede ver.
@@ -41,6 +43,8 @@ create table if not exists public.miembros (
   nombre     text not null check (char_length(btrim(nombre)) between 1 and 60),
   primary key (user_id, cliente_id)
 );
+-- Solo mirar (D-266): ve ese cliente como lo ve él, sin decidir ni comentar. Se da de alta con `tools/web.mjs observador`.
+alter table public.miembros add column if not exists observa boolean not null default false;
 
 create table if not exists public.publicaciones (
   cliente_id text not null references public.clientes on delete cascade,
@@ -217,6 +221,12 @@ create or replace function public.es_miembro(c text) returns boolean
   select exists (select 1 from public.miembros m where m.user_id = (select auth.uid()) and m.cliente_id = c);
 $$;
 
+-- Quien decide por un cliente: un miembro que no solo mira (D-266). Aprobar, pedir cambios y comentar lo piden.
+create or replace function public.puede_decidir(c text) returns boolean
+  language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.miembros m where m.user_id = (select auth.uid()) and m.cliente_id = c and not m.observa);
+$$;
+
 -- Una publicación que el cliente puede ver: suya y visible (Kevin, todas).
 create or replace function public.puede_ver(c text, p text) returns boolean
   language sql stable security definer set search_path = '' as $$
@@ -268,6 +278,7 @@ declare
   p public.publicaciones;
 begin
   if not public.es_miembro(new.cliente_id) then raise exception 'sin permiso' using errcode = '42501'; end if;
+  if not public.puede_decidir(new.cliente_id) then raise exception 'esta cuenta solo mira' using errcode = 'PT403'; end if;   -- D-266
   select * into p from public.publicaciones where cliente_id = new.cliente_id and pid = new.pid for update;
   if not found or not p.visible then raise exception 'publicación no encontrada' using errcode = 'PT404'; end if;
   if p.version <> new.version then raise exception 'la publicación ha cambiado: vuelve a mirarla' using errcode = 'PT409'; end if;
@@ -319,6 +330,7 @@ create or replace function public.comprobar_comentario() returns trigger
   language plpgsql security definer set search_path = '' as $$
 begin
   if not (public.es_dueno() or public.es_miembro(new.cliente_id)) then raise exception 'sin permiso' using errcode = '42501'; end if;
+  if not public.es_dueno() and not public.puede_decidir(new.cliente_id) then raise exception 'esta cuenta solo mira' using errcode = 'PT403'; end if;   -- D-266
   if not public.puede_ver(new.cliente_id, new.pid) then raise exception 'publicación no encontrada' using errcode = 'PT404'; end if;
   if not exists (select 1 from public.publicaciones p where p.cliente_id = new.cliente_id and p.pid = new.pid and p.version = new.version) then
     raise exception 'la publicación ha cambiado: vuelve a mirarla' using errcode = 'PT409';
@@ -334,6 +346,16 @@ begin
     raise exception 'ese id de cliente ya se usó y se borró' using errcode = 'PT409';
   end if;
   return new;
+end $$;
+
+-- Un cliente nuevo: cada cuenta que solo mira lo ve también, con el nombre que ya tiene (D-266).
+create or replace function public.cliente_observadores() returns trigger
+  language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.miembros (user_id, cliente_id, nombre, observa)
+  select distinct on (m.user_id) m.user_id, new.id, m.nombre, true from public.miembros m where m.observa order by m.user_id, m.nombre
+  on conflict (user_id, cliente_id) do nothing;
+  return null;
 end $$;
 
 drop trigger if exists aprobaciones_firmar on public.aprobaciones;
@@ -369,6 +391,8 @@ begin
 end $$;
 drop trigger if exists clientes_nuevo on public.clientes;
 create trigger clientes_nuevo before insert on public.clientes for each row execute function public.cliente_nuevo();
+drop trigger if exists clientes_observadores on public.clientes;
+create trigger clientes_observadores after insert on public.clientes for each row execute function public.cliente_observadores();
 drop trigger if exists clientes_borrado on public.clientes;
 create trigger clientes_borrado after delete on public.clientes for each row execute function public.cliente_borrado();
 drop trigger if exists clientes_mismo_id on public.clientes;
@@ -411,8 +435,8 @@ grant select (id, cliente_id, pid, version, diapositiva, texto, autor_nombre, de
 grant insert (cliente_id, pid, version, diapositiva, texto) on public.comentarios to authenticated;
 grant update (resuelto) on public.comentarios to authenticated;
 grant select, insert, update on public.lecturas to authenticated;
-revoke execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text) from public, anon;
-grant execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text) to authenticated;
+revoke execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) from public, anon;
+grant execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) to authenticated;
 revoke execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() from public, anon;
 grant execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() to authenticated;
 
@@ -462,17 +486,17 @@ create policy pagos_kevin on public.pagos for all to authenticated
 drop policy if exists aprobaciones_ver on public.aprobaciones;
 create policy aprobaciones_ver on public.aprobaciones for select to authenticated
   using (public.puede_ver(cliente_id, pid));
--- Solo los clientes aprueban: Kevin aprueba en su Mesa.
+-- Solo los clientes aprueban: Kevin aprueba en su Mesa; una cuenta que solo mira, tampoco (D-266).
 drop policy if exists aprobaciones_cliente on public.aprobaciones;
 create policy aprobaciones_cliente on public.aprobaciones for insert to authenticated
-  with check (public.es_miembro(cliente_id));
+  with check (public.puede_decidir(cliente_id));
 
 drop policy if exists comentarios_ver on public.comentarios;
 create policy comentarios_ver on public.comentarios for select to authenticated
   using (public.puede_ver(cliente_id, pid));
 drop policy if exists comentarios_escribir on public.comentarios;
 create policy comentarios_escribir on public.comentarios for insert to authenticated
-  with check (public.puede_ver(cliente_id, pid));
+  with check (public.puede_ver(cliente_id, pid) and ((select public.es_dueno()) or public.puede_decidir(cliente_id)));
 drop policy if exists comentarios_resolver on public.comentarios;
 create policy comentarios_resolver on public.comentarios for update to authenticated
   using ((select public.es_dueno())) with check ((select public.es_dueno()));

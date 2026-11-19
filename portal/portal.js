@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.3';   // 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.4';   // 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -65,10 +65,16 @@
   // ---------- servidor ----------
   let S = null;
   try { S = window.Supa.crear({ url: CFG.url, publica: CFG.publica, clave: 'portal-sesion' }); } catch (e) { S = null; }
-  const st = { clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0 };
+  const POR = 'Solo mirar: con esta cuenta no se aprueba, no se piden cambios ni se comenta.';   // D-266
+  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0 };
 
   async function cargarClientes() {
-    const mios = await S.leer('miembros?select=cliente_id,nombre');
+    // `observa` (D-266): una cuenta que solo mira; un servidor que aún no la tiene contesta 400 y se lee como siempre
+    let mios;
+    try { mios = await S.leer('miembros?select=cliente_id,nombre,observa'); }
+    catch (e) { if (e.status !== 400) throw e; mios = await S.leer('miembros?select=cliente_id,nombre'); }
+    st.observa = new Set((mios || []).filter(m => m.observa === true).map(m => m.cliente_id));
+    st.todoMira = !!(mios || []).length && (mios || []).every(m => m.observa === true);
     const ids = [...new Set((mios || []).map(m => m.cliente_id))];
     if (!ids.length) return [];
     const l = await S.leer(`clientes?select=id,nombre,handle,foto,cuota_cent,proxima_emision&id=in.(${ids.map(encodeURIComponent).join(',')})`);
@@ -187,8 +193,9 @@
     const cli = st.clientes.find(c => c.id === st.cli), meses = mesesDisponibles();
     const top = h('header', { class: 'pv-top' },
       h('img', { class: 'pv-marca', src: 'marca/monograma.svg', alt: 'Uribe Visuals', width: '24', height: '24' }),   // la marca, sin pulsar (D-264)
-      h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, st.clientes.map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
-        onclick: async () => { if (c.id === st.cli) return; st.cli = c.id; lsSet('portal-cliente', c.id); const n = ++st.carga; cerrar(true); const d = await cargarDatos(c.id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; }); if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); } } }))),
+      // la cuenta que solo mira ve, como el cliente, solo su nombre; cambia de cliente en la tira (D-266)
+      h('nav', { class: 'pv-clis', 'aria-label': 'Tus cuentas' }, (st.todoMira ? st.clientes.filter(c => c.id === st.cli) : st.clientes).map(c => h('button', { type: 'button', class: 'pv-cli' + (c.id === st.cli ? ' on' : ''), 'aria-current': c.id === st.cli ? 'page' : null, text: c.nombre,
+        onclick: () => irA(c.id) }))),
       h('button', { type: 'button', class: 'pv-salir', onclick: salir, 'aria-label': 'Salir' }, ico('out'), h('span', { class: 'tx', text: 'Salir' })),
       meses.length > 1 ? h('nav', { class: 'pv-meses', 'aria-label': 'Meses' }, meses.map(m => h('button', { type: 'button', class: 'pv-mes' + (m === st.mes ? ' on' : ''), 'aria-pressed': String(m === st.mes), text: mesCorto(m), onclick: () => { st.mes = m; pintar(); } }))) : null);
     const pend = pendientes();
@@ -200,12 +207,23 @@
     const lado = [seguro(() => pintarPagos(cli)), seguro(pintarComoFue)].filter(Boolean);
     const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
+    const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
+      h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
+      st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
+      st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null;
     const y = window.scrollY;
-    app.replaceChildren(h('div', { class: 'pv' }, top, aviso, cols, pie));
+    app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
     window.scrollTo(0, y);
     pintarMinis();
   }
 
+  async function irA(id) {
+    if (id === st.cli) return;
+    st.cli = id; lsSet('portal-cliente', id); const n = ++st.carga; cerrar(true);
+    const d = await cargarDatos(id).catch(e => { if (n === st.carga) pintarError(msgError(e)); return null; });
+    if (d && n === st.carga) { st.d = d; st.mes = mesInicial(); pintar(); }
+  }
+  const soloMira = () => st.observa.has(st.cli);   // D-266
   function seguro(f) { try { return f(); } catch (e) { if (window.console) console.error(e); return null; } }
   function pintarFeed() {
     const ahora = delMes(st.mes), antes = delMes(mesAntes(st.mes)).filter(p => p.estado === 'publicada' || p.estado === 'programada');
@@ -386,15 +404,16 @@
         a.diapositiva ? h('span', { class: 'sl', text: 'Diapositiva ' + a.diapositiva }) : null, h('p', { text: a.motivo })) })),
     ].sort((x, y) => x.t.localeCompare(y.t)).map(x => x.el));
     if (!escr) {
-      const ta = h('textarea', { rows: '1', placeholder: 'Escribe un comentario…', 'aria-label': 'Comentario', maxlength: '2000' });
-      ta.value = borrador(p.pid);
-      const env = h('button', { type: 'button', class: 'env', 'aria-label': 'Enviar comentario', disabled: !ta.value.trim() }, ico('send'));
+      const mira = soloMira();   // la cuenta que solo mira: el campo y el botón, apagados en su sitio (D-266)
+      const ta = h('textarea', { rows: '1', placeholder: mira ? 'Solo mirar: aquí no se comenta' : 'Escribe un comentario…', 'aria-label': 'Comentario', maxlength: '2000', disabled: mira, title: mira ? POR : null });
+      if (!mira) ta.value = borrador(p.pid);
+      const env = h('button', { type: 'button', class: 'env', 'aria-label': 'Enviar comentario', disabled: mira || !ta.value.trim(), title: mira ? POR : null }, ico('send'));
       const tog = h('button', { type: 'button', class: 'tog', 'aria-pressed': 'false', hidden: true }, ico('check'), h('span'));
       const err = h('p', { class: 'err-p', role: 'alert', hidden: true });
-      ta.addEventListener('input', () => { lsSet('portal-borrador-' + p.pid, ta.value); env.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; });
+      ta.addEventListener('input', () => { if (soloMira()) return; lsSet('portal-borrador-' + p.pid, ta.value); env.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; });
       tog.addEventListener('click', () => { const v = tog.getAttribute('aria-pressed') !== 'true'; tog.setAttribute('aria-pressed', String(v)); if (st.abierta) st.abierta.tog = v; });
       env.addEventListener('click', async () => {
-        const t = ta.value.trim(); if (!t) return; env.disabled = true; err.hidden = true;
+        const t = ta.value.trim(); if (!t || soloMira()) return; env.disabled = true; err.hidden = true;
         try {
           const dia = tog.hidden || tog.getAttribute('aria-pressed') !== 'true' ? null : st.abierta.slide;
           st.gen++;
@@ -412,7 +431,7 @@
     const cab = h('div', { class: 'dl-h' }, h('h2', { id: 'h-pub', text: p.nombre }), h('p', { text: fechaPub(p) }), pildora(p, ultimaMia));
     const aviso = otraVersion ? h('p', { class: 'cambio', role: 'status' }, ico('hist'), 'Kevin acaba de cambiarla: esto es lo nuevo.')
       : cambiado ? h('p', { class: 'cambio' }, ico('hist'), 'Ha cambiado después de tu última decisión: míralo otra vez.') : null;
-    const lista = coms.length || aprs.some(a => a.decision === 'cambios') ? hilo : h('p', { class: 'vacio', text: 'Aún no hay comentarios. Si algo no te encaja, dilo aquí.' });
+    const lista = coms.length || aprs.some(a => a.decision === 'cambios') ? hilo : h('p', { class: 'vacio', text: soloMira() ? 'Aún no hay comentarios.' : 'Aún no hay comentarios. Si algo no te encaja, dilo aquí.' });
     const acc = acciones(p, ultimaMia), dl0 = hoja.querySelector('.dl');
     A.version = p.version;
     if (nueva || !dl0) {
@@ -434,6 +453,15 @@
   }
   function siguientePendiente(pid) { const l = pendientes().filter(x => x.pid !== pid); return l[0] || null; }
   function acciones(p, ultima) {
+    const a = accionesDe(p, ultima);
+    if (soloMira()) {   // D-266: los botones en su sitio, apagados, y una línea que dice por qué (el «Siguiente por aprobar» sigue)
+      const bs = [...a.querySelectorAll('.btn')];
+      bs.forEach(b => { b.disabled = true; b.title = POR; });
+      if (bs.length) a.append(h('p', { class: 'por', text: POR }));
+    }
+    return a;
+  }
+  function accionesDe(p, ultima) {
     const sig = siguientePendiente(p.pid), sigBtn = sig ? h('button', { type: 'button', class: 'lnk sig', onclick: () => abrir(sig.pid) }, 'Siguiente por aprobar', ico('right')) : null;
     if (p.estado === 'por_aprobar') return h('div', { class: 'acc' },
       h('button', { type: 'button', class: 'btn s', onclick: () => pedirCambios(p) }, ico('pen'), 'Pedir cambios'),

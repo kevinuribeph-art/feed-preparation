@@ -18,6 +18,11 @@
 //                                                     azar que nadie ve; vuelve a entrar con un código por correo y hace el alta.
 //                                                     En el real, solo con --si
 //   node tools/web.mjs dueno <pruebas|real> <correo>  marca ese usuario como Kevin (lo ve todo)
+//   node tools/web.mjs observador <pruebas|real> <correo> [quitar] [--nombre=…] [--si]   una cuenta del portal que solo mira
+//                                                     (D-266): ve cada cliente, también los que vengan, como lo ve él, sin aprobar,
+//                                                     pedir cambios ni comentar; entra con un código por correo. La crea si no existe
+//                                                     (sin contraseña). «quitar» le quita lo que mira (la cuenta se queda). En el
+//                                                     real, solo con --si. Antes, `esquema` con la columna `observa`
 //   node tools/web.mjs funciones <pruebas|real>       despliega servidor/funciones/firmar.ts (URL firmadas de lo que se puede ver)
 //   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
 //   node tools/web.mjs mesa <pruebas|real> [--si]     aplica servidor/mesa.sql (la Mesa en el servidor; después de `esquema`).
@@ -236,6 +241,49 @@ const ORDENES = {
       exists (select 1 from public.duenos where user_id = '${u.id}') as dueno;`);
     return { proyecto: P.ref, cuenta: correo, dueno: q.dueno ? 'sí' : 'no', factores_quitados: factores.length, factores_quedan: q.factores,
       sesiones_abiertas: q.sesiones, contrasena: 'una al azar que nadie ve', siguiente: 'entrar con un código por correo y hacer el alta' };
+  },
+  // Solo mirar (D-266). Una fila de `miembros` con `observa` por cliente; las de los clientes nuevos las pone el servidor.
+  async observador(cual, correo, ...op) {
+    const P = proyecto(cual);
+    if (!correo || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new Fallo('falta el correo de la cuenta');
+    if (op.some(x => x !== 'quitar' && x !== '--si' && !x.startsWith('--nombre='))) throw new Fallo('di «quitar», «--nombre=…», «--si» o nada');
+    if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real, solo con --si (y con el OK de Kevin)');
+    if (!P.secreta) throw new Fallo('falta la clave secreta de ese proyecto en .env');
+    const nombre = ((op.find(x => x.startsWith('--nombre=')) || '').slice(9) || 'Solo mirar').trim();
+    if (nombre.length < 1 || nombre.length > 60) throw new Fallo('el nombre, de 1 a 60 letras');
+    const servicio = (ruta, o = {}) => rest(P, ruta, { ...o, apikey: P.secreta });
+    const col = await servicio('miembros?select=observa&limit=1');
+    if (!col.ok) throw new Fallo(`el servidor aún no tiene «observa» (${col.status}): aplica antes \`node tools/web.mjs esquema ${cual}\``);
+    let u = await usuarioPorCorreo(P, correo);
+    if (op.includes('quitar')) {
+      if (!u) throw new Fallo('ese correo no tiene usuario en el proyecto');
+      if (!/^[0-9a-f-]{36}$/.test(u.id)) throw new Fallo('id de usuario raro: paro');
+      const r = await servicio(`miembros?user_id=eq.${u.id}&observa=is.true`, { method: 'DELETE', prefer: 'return=representation' });
+      if (!r.ok) throw new Fallo(`no se pudo quitar (${r.status}): ${r.text}`);
+      return { proyecto: P.ref, cuenta: correo, quitados: (r.json || []).length, siguiente: 'ya no mira ningún cliente; la cuenta sigue (bórrala en Supabase si no se usa)' };
+    }
+    let creada = false;
+    if (!u) {
+      const r = await pedir(`${P.url}/auth/v1/admin/users`, { method: 'POST', headers: { ...cab(P.secreta), 'Content-Type': 'application/json' }, body: { email: correo, email_confirm: true } });
+      if (!r.ok) throw new Fallo(`no se pudo crear la cuenta (${r.status}): ${r.text}`);
+      u = r.json; creada = true;
+    }
+    if (!/^[0-9a-f-]{36}$/.test(u.id)) throw new Fallo('id de usuario raro: paro');
+    const d = await servicio(`duenos?user_id=eq.${u.id}&select=user_id`);
+    if (!d.ok || (d.json || []).length) throw new Fallo(d.ok ? 'esa cuenta es la de Kevin (dueño): ya lo ve todo y aprueba en su Mesa' : `no se pudo mirar si es dueño (${d.status})`);
+    const cl = await servicio('clientes?select=id&order=id');
+    if (!cl.ok) throw new Fallo(`no se pudieron leer los clientes (${cl.status}): ${cl.text}`);
+    const ya = await servicio(`miembros?user_id=eq.${u.id}&select=cliente_id,observa`);
+    const decide = (ya.json || []).filter(m => !m.observa).map(m => m.cliente_id);
+    const filas = (cl.json || []).map(c => ({ user_id: u.id, cliente_id: c.id, nombre, observa: true }));
+    if (filas.length) {
+      const r = await servicio('miembros?on_conflict=user_id,cliente_id', { method: 'POST', body: filas, prefer: 'resolution=ignore-duplicates' });
+      if (!r.ok) throw new Fallo(`no se pudo dar de alta (${r.status}): ${r.text}`);
+    }
+    const mira = await servicio(`miembros?user_id=eq.${u.id}&observa=is.true&select=cliente_id`);
+    return { proyecto: P.ref, cuenta: correo, creada: creada ? 'sí, sin contraseña' : 'ya existía', mira: (mira.json || []).length, de: (cl.json || []).length,
+      ...(decide.length ? { aviso: `en ${decide.join(', ')} es un miembro que decide: ahí no solo mira` } : {}),
+      entrada: 'en el portal, con un código por correo, como los clientes', nuevos: 'cada cliente nuevo le llega solo' };
   },
   async funciones(cual) {
     const P = proyecto(cual);

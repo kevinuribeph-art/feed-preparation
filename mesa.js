@@ -2396,9 +2396,8 @@
   function touchPrev(s) { if (isPrev(s) && !s.own && s.base && M.files[s.base]) setPrevImg(s, { f: s.base, B: PB }); }
 
   // ---------- rendering ----------
-  const CSS = `
-/* ===== Tokens (el único sitio con colores de la interfaz; las imágenes que salen no los usan) ===== */
-#mesa{color-scheme:light;
+  // the interface's tokens, light and dark, and its font: one source for the desk (CSS) and the iPhone (M._in.movil.tokens, D-267)
+  const TK_CLARO = `color-scheme:light;
 --paper:#F4EFE8;--ink:#16110E;--terracota:#B2503A;--brass:#B8813F;
 --bg:#F4EFE8;--bg-2:#EDE6DC;--bg-3:#E4DBCE;--panel:#FBF9F6;--panel-2:#FFFFFF;
 --ink-2:#4A4038;--mute:#6E635A;--faint:#A39A90;--on-ink:#F4EFE8;
@@ -2447,9 +2446,8 @@
 --i-a-up:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='M3.5 13h6'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m2 16 4.5-9 4.5 9'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M18 16V7'/%3E%3Cpath vector-effect='non-scaling-stroke' d='m14 11 4-4 4 4'/%3E%3C/svg%3E");
 --i-rect:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect vector-effect='non-scaling-stroke' width='12' height='20' x='6' y='2' rx='2'/%3E%3C/svg%3E");
 --i-alerta:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M12 9v4'/%3E%3Cpath vector-effect='non-scaling-stroke' d='M12 17h.01'/%3E%3C/svg%3E");
---i-trazo:1.33px}
-/* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
-:root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{color-scheme:dark;
+--i-trazo:1.33px`;
+  const TK_OSCURO = `color-scheme:dark;
 --bg:#15110E;--bg-2:#29221D;--bg-3:#352D26;--panel:#1E1915;--panel-2:#2F2822;
 --ink:#F1EBE3;--ink-2:#D3C9BD;--mute:#A89C8F;--faint:#7A6F64;--on-ink:#16110E;
 --line:#3D352E;--line2:#2F2822;--line-strong:#574C42;
@@ -2466,10 +2464,16 @@
 --shadow-xs:0 1px 2px rgba(0,0,0,.4);--shadow-sm:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
 --shadow-md:0 6px 18px -6px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4);--shadow-lg:0 24px 60px -18px rgba(0,0,0,.75),0 8px 20px -10px rgba(0,0,0,.55);
 --shadow-stage:0 4px 22px rgba(0,0,0,.55);
---chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A89C8F' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
-@font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
+--chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A89C8F' stroke-width='1.33' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath vector-effect='non-scaling-stroke' d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
+  const TK_FUENTES = `@font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-SemiBold.woff2") format("woff2");font-weight:600;font-display:swap}
-@font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-ExtraBold.woff2") format("woff2");font-weight:800;font-display:swap}
+@font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-ExtraBold.woff2") format("woff2");font-weight:800;font-display:swap}`;
+  const CSS = `
+/* ===== Tokens (el único sitio con colores de la interfaz; las imágenes que salen no los usan) ===== */
+#mesa{${TK_CLARO}}
+/* modo oscuro (D-132): los mismos tokens en oscuro; los de las fotos, Instagram y las marcas sobre foto no cambian */
+:root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{${TK_OSCURO}}
+${TK_FUENTES}
 /* ===== Base ===== */
 #mesa{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:13px/1.4 var(--font);font-kerning:normal;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;caret-color:var(--acc);scrollbar-color:var(--line-strong) transparent}
 #mesa *{box-sizing:border-box}
@@ -6345,9 +6349,11 @@
     }
     return operarMovil(op);
   }
+  // the Mesa's tokens and font under another selector (the phone's root): the same text the desk uses, never copied (D-267)
+  const tokensMovil = sel => `${sel}{${TK_CLARO}}\n:root[data-theme="dark"] ${sel},${sel}[data-theme="dark"]{${TK_OSCURO}}\n${TK_FUENTES}`;
   const turnoMovil = v => { movilTurno = !!v; if (MOVIL) locked = !v; return movilTurno; };   // the cloud's glue (lot 2): it holds the Mesa, or not
   const MOVIL_IN = { activo: MOVIL, alAviso: null, alVersion: null, mirar: k => enFila(() => mirarMovil(k)), vista: vistaMovil, releer: () => enFila(releerMovil),
-    valor: op => enFila(() => valorMovil(op)), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil,
+    valor: op => enFila(() => valorMovil(op)), operar: op => enFila(() => operarMovil(op)), aplicar: op => enFila(() => aplicarMovil(op)), estadosPosibles: estadosMovil, dias: diasMovil, turno: turnoMovil, tokens: tokensMovil, TOKENS: { claro: TK_CLARO, oscuro: TK_OSCURO, fuentes: TK_FUENTES },
     get conTurno() { return movilTurno; } };
   // on the iPhone (D-267) the desk never opens: only a board to look at (M.open(key, {mirar: true}), lot 1), through the phone's core
   if (MOVIL) for (const k of ['boot', 'init', 'open', 'openClient']) {

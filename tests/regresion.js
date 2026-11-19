@@ -18722,6 +18722,17 @@
     });
   });
 
+  prueba('MV11', 'Los colores y la letra del móvil son los de la Mesa (D-267): los tokens claro y oscuro y las fuentes que da el núcleo están tal cual en la hoja de estilo del escritorio, y tokens(sel) los pone bajo otro selector', async () => {
+    await tablero([pub(1)]);
+    const css = [...D.querySelectorAll('style')].map(x => x.textContent).join('\n'), T = M._in.movil.TOKENS;
+    ok(T.claro.length > 2000 && /--acc:#B2503A/.test(T.claro) && /--bg:#15110E/.test(T.oscuro) && /SchibstedGrotesk-SemiBold/.test(T.fuentes), 'los tokens del núcleo');
+    ok(css.includes('#mesa{' + T.claro + '}'), 'los tokens claros no son los del escritorio');
+    ok(css.includes(':root[data-theme="dark"] #mesa,#mesa[data-theme="dark"]{' + T.oscuro + '}'), 'los oscuros no son los del escritorio');
+    ok(css.includes(T.fuentes), 'las fuentes no son las del escritorio');
+    const t = M._in.movil.tokens('#movil');
+    ok(t.startsWith('#movil{' + T.claro + '}') && t.includes(':root[data-theme="dark"] #movil,#movil[data-theme="dark"]{' + T.oscuro + '}'), 'tokens(sel)');
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

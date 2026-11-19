@@ -77,7 +77,7 @@ const mismaHora = (x, t) => x === iso(t) || x === t || (typeof x === 'string' &&
 const esBlobN = x => x != null && typeof x === 'object' && typeof x.size === 'number' && typeof x.type === 'string' && typeof x.arrayBuffer === 'function';
 const sha = b => createHash('sha256').update(b).digest('hex');
 let enVuelo = 0;
-const huella = async b => { enVuelo++; try { return sha(Buffer.from(await b.arrayBuffer())); } finally { enVuelo--; } };
+const huella = async b => { enVuelo++; try { if (b.type === 'image/x-ilegible') throw Object.assign(new Error('no se puede leer'), { name: 'NotReadableError' }); return sha(Buffer.from(await b.arrayBuffer())); } finally { enVuelo--; } };   // un Blob que IndexedDB ya no puede leer (NS11)
 const refDe = (texto, tipo = 'image/jpeg') => ({ __blob: 'pendiente', sha256: sha(Buffer.from(texto)), tam: Buffer.byteLength(texto), tipo });
 // texto canónico sin orden de claves; Blob y referencia, iguales con el mismo tamaño y tipo (para comparar almacenes)
 const canon = v => {
@@ -903,6 +903,33 @@ await grupo('NS10 avisos', async () => {
   ok(!av.includes(id.ajeno) && av.includes(id.masivo) && !A.alm.avisosYa().includes(id.ajeno), 'NS10.4 marcarVisto quita ese aviso (y solo ese)', { av, almacen: A.alm.avisosYa() });
   const ult = lec.filter(okResp).pop();
   ok(ult && A.alm.metaYa().actividad === ult.resp.hasta, 'NS10.5 se guarda el último «hasta» leído', { meta: A.alm.metaYa(), hasta: ult && ult.resp.hasta });
+});
+
+await grupo('NS11 segunda ronda de revisión', async () => {
+  {
+    const { W, A } = await conTurno();
+    await W.vivir(6, A);
+    A.alm.escribirLocal('boards', 'c1', { n: 1 });
+    await W.vivir(1, A);
+    ok(A.n.estado().cola === 1, 'NS11.1 con turno, un cambio sale en el estado antes de la calma (nunca «al día» con cambios esperando)', A.n.estado());
+  }
+  {
+    const { W, A, sv } = await conTurno();
+    const roto = new Blob(['xxxxxxxxxx'], { type: 'image/x-ilegible' });
+    A.alm.escribirLocal('files', 'roto', { nombre: 'roto.jpg', blob: roto });
+    A.alm.escribirLocal('boards', 'sigue', { n: 2 });
+    await W.vivir(40, A);
+    const ss = await A.alm.sinSubir();
+    ok(sv.valor('boards', 'sigue')?.n === 2, 'NS11.2 una foto que no se puede leer no atasca lo demás', sv.reg('boards', 'sigue'));
+    ok(ss.some(e => e.k === 'roto' && e.motivo === 'ilegible') && !sv.reg('files', 'roto'), 'NS11.3 … y tras varios intentos queda aparte («ilegible»), sin subir', ss);
+  }
+  {
+    const { W, A, sv } = await conTurno(W => { for (let i = 0; i < 10; i++) W.srv.sembrar('boards', 'v' + i, { n: i }); });
+    A.alm.vaciarLocal('boards');
+    await W.vivir(15, A);
+    const ss = await A.alm.sinSubir();
+    ok([...Array(10).keys()].every(i => sv.vivo('boards', 'v' + i)) && ss.filter(e => e.motivo === 'masivo').length === 10, 'NS11.4 vaciar un almacén pequeño entero no borra arriba: cada lápida espera a Kevin («masivo»)', { ss: ss.length });
+  }
 });
 
 console.log('NS0 al final');

@@ -13,7 +13,7 @@
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
-  const TIEMPOS = Object.freeze({ latido: 5000, calma: 3000, pideViva: 60, espera: 20000, primera: 4000, actividad: 60000, pedirCada: 3000,
+  const TIEMPOS = Object.freeze({ latido: 5000, calma: 3000, pideViva: 60, espera: 20000, primera: 4000, primeraSuya: 15000, actividad: 60000, pedirCada: 3000,
     reintento: Object.freeze([5000, 10000, 20000, 40000, 60000]) });
   const AVISA = ['ajeno', 'ajeno_tope', 'dispositivo_nuevo', 'borrado_masivo'];
   const esAviso = f => !!f && (AVISA.includes(f.tipo) || (f.tipo === 'rechazo' && !!f.detalle && f.detalle.funcion === 'mesa_escribir'));
@@ -118,7 +118,8 @@
   function crear(o) {
     const S = o.servidor, A = o.almacen, R = o.reloj, D = o.dispositivo, APP = o.app, E = o.efectos || {};
     const H0 = o.huella || huellaPorOmision, HC = new Map();   // huellas de esta sesión: a|k|ruta|tamaño|tipo
-    const huellaDe = (a, k) => (b, ruta) => { const c = a + '\u0001' + k + '\u0001' + ruta + '\u0001' + b.size + '\u0001' + b.type + '\u0001' + (b.lastModified || ''); if (!HC.has(c)) HC.set(c, H0(b)); return HC.get(c); };
+    const huellaDe = (a, k) => (b, ruta) => { const c = a + '\u0001' + k + '\u0001' + ruta + '\u0001' + b.size + '\u0001' + b.type + '\u0001' + (b.lastModified || ''); if (!HC.has(c)) HC.set(c, H0(b).catch(e => { HC.delete(c); throw e; })); return HC.get(c); };
+    const ILEGIBLE = new Map();   // a|k → intentos fallidos de leer sus fotos (un Blob que IndexedDB ya no puede leer)
     const st = { fase: 'apagada', turno: null, cursor: 0, epoca: null, cola: 0, sinSubir: 0, tiene: null, error: '', alDia: false };
     let conTurno = false, modoLocal = false, parado = false, ocupado = false, cediendo = false, subiendo = null, bajado = false;
     let ultCambio = -Infinity, ultLatido = -Infinity, colaLatida = -1, ultActividad = -Infinity, proximo = 0, reint = 0, enVuelo = null, AV = [];
@@ -199,8 +200,11 @@
         }
         st.turno = c.turno; orden = c.orden || 0;
       } else return abrirPausada(r.tiene);
-      try { await bajarTodo(orden, r.tuyo ? null : t0, otraEpoca); }   // ya suyo (p. ej. tras «Recarga»): la red contesta, sin el tope de 4 s
-      catch (e) { if (e && e.vieja) { await vieja(); return { modo: 'vieja' }; } return e && e.rechazo ? abrirRechazo(e.rechazo) : abrirLocal(e); }
+      try { await bajarTodo(orden, t0, otraEpoca, r.tuyo ? TIEMPOS.primeraSuya : TIEMPOS.primera); }   // ya suya (tras «Recarga»): la red contesta; un tope más largo
+      catch (e) {
+        if (e && e.vieja) { if (!r.tuyo) { try { await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); } catch (x) { /* */ } } await vieja(); return { modo: 'vieja' }; }   // la tomó al abrir: la suelta, que no espere quien tiene la nueva
+        return e && e.rechazo ? abrirRechazo(e.rechazo) : abrirLocal(e);
+      }
       conTurno = true; st.alDia = true; st.tiene = null;
       await A.ponerMeta({ turno: st.turno });
       fase('guardado');
@@ -223,7 +227,7 @@
       return { modo: 'pausada', tiene: st.tiene };
     }
     async function olvidar() { await A.olvidar(); st.cursor = 0; st.epoca = null; }
-    async function bajarTodo(ordenMin, t0, yaOlvidada) {
+    async function bajarTodo(ordenMin, t0, yaOlvidada, tope = TIEMPOS.primera) {
       fase('bajando');
       let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null;
       const pedirPag = (d, lim) => { const q = llamar('mesa_bajar', { desde: d, limite: lim }); q.catch(() => { /* se mira al esperarla */ }); return q; };
@@ -231,7 +235,7 @@
         // la primera, entera si la red ya contestó deprisa; si no, pequeña, para que llegue antes del tope
         const p = sig || pedirPag(desde, primera && t0 != null && R.ahora() - t0 > 1000 ? 100 : 500);
         sig = null;
-        const r = t0 != null && primera ? await conTope(p, TIEMPOS.primera - (R.ahora() - t0)) : await p;
+        const r = t0 != null && primera ? await conTope(p, tope - (R.ahora() - t0)) : await p;
         if (!r || r.ok !== true) {
           if (r && r.error && r.error.codigo === 'cursor' && !otraEpoca) { await olvidar(); desde = 0; otraEpoca = true; continue; }
           throw { rechazo: r };
@@ -280,7 +284,7 @@
           return;
         }
         if (!conTurno || cediendo) return;
-        const cola = await A.contarDiario(); st.cola = cola;
+        const cola = await A.contarDiario(); if (cola !== st.cola) { st.cola = cola; avisar(); }   // el estado nunca dice «al día» con cambios esperando
         if (R.ahora() - ultLatido >= TIEMPOS.latido || cola !== colaLatida) {
           if (R.ahora() < proximo && st.fase === 'sin_conexion') return;
           if (!(await latir(cola))) return;
@@ -387,7 +391,13 @@
       let v = null, med = { jsonb: 4 };
       if (valor !== undefined) {
         try { const s = await serializar(valor, huellaDe(a, k)); v = s.valor; med = s; }
-        catch (x) { if (!x || x.codigo !== 'forma') throw x; fuera.push({ a, k, v: ficha, motivo: 'forma', mensaje: String((x && x.message) || x) }); return null; }
+        catch (x) {
+          if (x && x.codigo === 'forma') { fuera.push({ a, k, v: ficha, motivo: 'forma', mensaje: String(x.message || x) }); return null; }
+          // no se pudo leer (una foto que IndexedDB ya no tiene): este se queda en el diario y los demás siguen; al tercer intento, aparte
+          const n = (ILEGIBLE.get(a + '|' + k) || 0) + 1; ILEGIBLE.set(a + '|' + k, n);
+          if (n >= 3) { ILEGIBLE.delete(a + '|' + k); fuera.push({ a, k, v: ficha, motivo: 'ilegible', mensaje: String((x && x.message) || x) }); }
+          return null;
+        }
       }
       if (med.jsonb > TOPES.valor) { fuera.push({ a, k, v: ficha, motivo: 'tope', mensaje: `pesa ${Math.round(med.jsonb / 1e5) / 10} MB; el tope de un registro es 2 MB` }); return null; }
       return { c: { almacen: a, clave: k, base: conocida ? conocida.v : 0, valor: v }, ficha, tam: med.jsonb + bytesDe(a) + bytesDe(String(k)) + 64 };
@@ -466,9 +476,9 @@
         const c = await cambioDe(a, k, x.valor, x.conocida || con[k] || null, x.pendiente ? x.pendiente.v : null, fuera); if (c) lista.push(c);
       }
       const vivas = Object.entries(con).filter(([, c]) => c && !c.b), lap = vivas.filter(([k]) => !aqui.has(String(k)));
-      // un vaciado que borraría muchos arriba (más de 20, o más de una décima parte de lo que se conoce) no sube solo: cada lápida
+      // un vaciado que borraría muchos arriba (más de 20, o más de 2 que sean más de una décima parte de lo que se conoce) no sube solo: cada lápida
       // espera en «quedó sin subir» a que Kevin la confirme con «Subir encima»
-      if (lap.length > Math.max(TOPES.masivo, Math.floor(vivas.length / 10))) fuera.push(...lap.map(([k]) => ({ a, k, v: null, motivo: 'masivo', mensaje: `un vaciado de ${a} borraría ${lap.length} registros arriba` })));
+      if (lap.length > TOPES.masivo || (lap.length > 2 && lap.length * 10 > vivas.length)) fuera.push(...lap.map(([k]) => ({ a, k, v: null, motivo: 'masivo', mensaje: `un vaciado de ${a} borraría ${lap.length} registros arriba` })));
       else for (const [k, c] of lap) lista.push({ c: { almacen: a, clave: k, base: c.v, valor: null }, ficha: null, tam: 120 });
       if (fuera.length) await A.apartar(fuera);
       const tot = { subidos: 0, aparte: fuera.length };
@@ -520,17 +530,18 @@
       if (!conTurno || !st.alDia) return { error: 'sin turno: usa la Mesa aquí antes' };
       const lista = (await A.sinSubir()).filter(x => esta(claves, x));
       if (E.congelar) await E.congelar();   // lo que hay en memoria ya no se guarda encima: se escribe y se recarga
-      for (const x of lista) {
-        const [L] = await A.leerVarios([[x.a, x.k]]), con = L && L.conocida;
-        await A.reponer(x.a, x.k, x.borrado ? undefined : x.valor);
-        const base = Math.max(con ? con.v : 0, x.ultima || 0);   // la última del servidor que se sabe: la siguiente subida la pisa
-        await A.confirmar({ versiones: [{ a: x.a, k: x.k, v: base, o: con ? con.o : undefined, b: !!(con && con.b) }], quitar: [] });
-      }
-      await A.quitarSinSubir(lista.map(x => [x.a, x.k]));
-      ultCambio = -Infinity; await subir({ todo: true });
-      await contarSinSubir();
-      if (E.recargar) E.recargar();
-      return { hecho: lista.length };
+      try {
+        for (const x of lista) {
+          const [L] = await A.leerVarios([[x.a, x.k]]), con = L && L.conocida;
+          await A.reponer(x.a, x.k, x.borrado ? undefined : x.valor);
+          const base = Math.max(con ? con.v : 0, x.ultima || 0);   // la última del servidor que se sabe: la siguiente subida la pisa
+          await A.confirmar({ versiones: [{ a: x.a, k: x.k, v: base, o: con ? con.o : undefined, b: !!(con && con.b) }], quitar: [] });
+        }
+        await A.quitarSinSubir(lista.map(x => [x.a, x.k]));
+        ultCambio = -Infinity; await subir({ todo: true });
+        await contarSinSubir();
+        return { hecho: lista.length };
+      } finally { if (E.recargar) E.recargar(); }   // también si algo falla: la Mesa no se queda congelada
     }
     async function descartar(claves) {
       if (!conTurno || !st.alDia) return { error: 'sin turno: usa la Mesa aquí antes' };
@@ -549,11 +560,12 @@
         if (!f || f.almacen !== x.a || String(f.clave) !== String(x.k)) { quedan.push(x); continue; }   // cambió arriba: se baja al recargar
         escribir.push({ a: f.almacen, k: f.clave, v: f.version, o: f.orden, b: !!f.borrado, valor: f.borrado ? null : unir(L.valor, f.valor) });
       }
-      if (escribir.length) await A.aplicar({ escribir, saltar: [], aparte: [], cursor: st.cursor, epoca: st.epoca });
-      await A.quitarSinSubir(lista.filter(x => !quedan.includes(x)).map(x => [x.a, x.k]));
-      await contarSinSubir();
-      if (E.recargar) E.recargar();
-      return { hecho: lista.length - quedan.length, quedan: quedan.length };
+      try {
+        if (escribir.length) await A.aplicar({ escribir, saltar: [], aparte: [], cursor: st.cursor, epoca: st.epoca });
+        await A.quitarSinSubir(lista.filter(x => !quedan.includes(x)).map(x => [x.a, x.k]));
+        await contarSinSubir();
+        return { hecho: lista.length - quedan.length, quedan: quedan.length };
+      } finally { if (E.recargar) E.recargar(); }
     }
 
     // ---------- avisos de actividad (lote 2): como mucho uno cada minuto ----------
@@ -661,7 +673,7 @@
     if (r.modo === 'pausada') pintarPausa();          // mesa.js lo pinta con el armazón, desde el primer momento
     else if (r.modo === 'vieja') pausar({ motivo: 'vieja' });
     arrancarPulso();
-    AVS = await X().nubeAlmacen.avisos().catch(() => []);
+    AVS = await nucleo().avisos().catch(() => []);   // el núcleo y la página cuentan los mismos
     return r;
   }
   function trasArmazon(f) { const t0 = Date.now(), t = setInterval(() => { if (X().shellReady() || Date.now() - t0 > 30000) { clearInterval(t); try { f(); } catch (e) { /* */ } } }, 100); }
@@ -715,7 +727,7 @@
       default: return null;
     }
   }
-  let PINTADO = '', PANEL = '';
+  let PINTADO = '', PANEL = '', PINTADO_EL = null;
   function pintar() {
     const r = X().root && X().root(); if (!r) return;
     if (X().NUBE.activa) estilar();
@@ -723,8 +735,8 @@
     if (b) {
       const t = X().NUBE.activa ? chipTexto(ESTADO) : null, k = t ? (ESTADO.sinSubir ? 'aviso' : t[0]) : '', txt = t ? t[1] + t[2] : '';
       const firma = k + '|' + txt;
-      if (firma !== PINTADO || b.hidden !== !t) {   // solo si cambia: el pulso de cada segundo no toca el DOM
-        PINTADO = firma; b.hidden = !t;
+      if (firma !== PINTADO || b !== PINTADO_EL || b.hidden !== !t) {   // solo si cambia: el pulso de cada segundo no toca el DOM
+        PINTADO = firma; PINTADO_EL = b; b.hidden = !t;
         if (t) {
           b.dataset.k = k;
           b.innerHTML = `<span class="nubest-t">${esc(t[1])}</span>${t[2] ? `<span class="nubest-q">${esc(t[2])}</span>` : ''}`;
@@ -746,7 +758,7 @@
 
   // ---------- el panel: estado y «quedó sin subir» ----------
   const ALM = { boards: 'Tablero', clients: 'Cliente', bandejas: 'Bandeja', files: 'Foto', tareas: 'Tarea o nota', tfotos: 'Foto de una sesión', cobros: 'Factura', cfacturas: 'PDF de una factura', meses: 'Por qué y cómo fue', ubicaciones: 'Ubicación' };
-  const MOTIVO = { masivo: 'un vaciado lo borraría arriba: «Subir encima» confirma el borrado', borrado_arriba: 'otro ordenador lo borró, pero sus fotos solo están aquí', pendiente: 'la copia de una recarga, de antes de lo que llegó', turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa' };
+  const MOTIVO = { ilegible: 'sus fotos no se pueden leer en este navegador', masivo: 'un vaciado lo borraría arriba: «Subir encima» confirma el borrado', borrado_arriba: 'otro ordenador lo borró, pero sus fotos solo están aquí', pendiente: 'la copia de una recarga, de antes de lo que llegó', turno: 'la Mesa pasó a otro ordenador antes de subirlo', choque: 'otro ordenador lo cambió antes', bajada: 'al abrir llegó otra versión del servidor', tope: 'pasa del tope de un registro', forma: 'no se puede subir', texto: 'tiene un texto que el servidor no admite', cede: 'no se pudo subir antes de pasar la Mesa' };
   function etiqueta(x) {
     const v = x.valor || {}, cl = id => ((X().CL || []).find(c => c.id === id) || {}).name || id;
     let t = '';
@@ -777,11 +789,13 @@
   }
   async function reconciliar(que, todo, b) {
     const l = await X().nubeAlmacen.sinSubir(), claves = todo ? l.map(x => [x.a, x.k]) : [[b.dataset.a, b.dataset.k]];
-    const solos = ['bajada', 'masivo', 'borrado_arriba'], c2 = todo ? l.filter(x => !solos.includes(x.motivo)).map(x => [x.a, x.k]) : claves;   // esos, de uno en uno
-    if (todo && que === 'encima') claves.splice(0, claves.length, ...c2);
+    const solos = ['bajada', 'masivo', 'borrado_arriba', 'pendiente'], c2 = todo ? l.filter(x => !solos.includes(x.motivo)).map(x => [x.a, x.k]) : claves;   // esos, de uno en uno
+    if (todo) claves.splice(0, claves.length, ...c2);
     if (!claves.length) { X().toast('Lo que queda se sube de uno en uno: míralo antes en la lista.'); return; }
-    const r = que === 'encima' ? await nucleo().subirEncima(claves) : await nucleo().descartar(claves);
-    if (r && r.error) X().toast('No se ha podido: ' + r.error, { error: true });
+    let r;
+    try { r = que === 'encima' ? await nucleo().subirEncima(claves) : await nucleo().descartar(claves); }
+    catch (e) { r = { error: String((e && e.message) || e) }; }
+    if (r && r.error) X().toast('No se ha podido: ' + r.error + '. Recarga la Mesa.', { error: true });
   }
 
   // ---------- los avisos de actividad, en «Avisos» de la página personal (D-257) ----------
@@ -791,7 +805,8 @@
     if (f.tipo === 'ajeno') return ['Una cuenta que no es la tuya intentó entrar en la Mesa', `quiso ${FN[d.funcion] || d.funcion || 'algo'}; el servidor lo rechazó`];
     if (f.tipo === 'ajeno_tope') return ['Muchas llamadas de cuentas que no son la tuya', `${d.en_un_minuto || 'más de 60'} en un minuto; todas rechazadas`];
     if (f.tipo === 'dispositivo_nuevo') return ['La Mesa se abrió en un ordenador nuevo', quien];
-    if (f.tipo === 'borrado_masivo') return [`Se borraron ${d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${n} ${ALM[a] ? ALM[a].toLowerCase() : a}`).join(', '), quien].filter(Boolean).join(' · ')];
+    const PL = { files: ['foto', 'fotos'], boards: ['tablero', 'tableros'], clients: ['cliente', 'clientes'], bandejas: ['bandeja', 'bandejas'], tareas: ['tarea o nota', 'tareas o notas'], tfotos: ['foto de sesión', 'fotos de sesiones'], cobros: ['factura', 'facturas'], cfacturas: ['PDF', 'PDF'], meses: ['mes', 'meses'], ubicaciones: ['ubicación', 'ubicaciones'] };
+    if (f.tipo === 'borrado_masivo') return [`Se borraron ${+d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${+n || 0} ${PL[a] ? PL[a][+n === 1 ? 0 : 1] : a}`).join(', '), quien].filter(Boolean).join(' · ')];
     const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor' };
     return ['El servidor rechazó un lote', [POR[d.codigo] || (d.codigo ? 'código ' + d.codigo : ''), quien].filter(Boolean).join(' · ')];
   }

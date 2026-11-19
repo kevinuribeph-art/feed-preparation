@@ -17757,6 +17757,23 @@
     } finally { M.nube._abrir = abrir0; W.localStorage.removeItem('mesa-pending'); await nbLimpiar(); }
   });
 
+  prueba('NB10', 'Con la nube, la copia que deja ocultar la pestaña (mesa-pending) se quita en cuanto ese guardado llega a IndexedDB: una recarga más tarde no la toma por perdida ni la aparta (revisión del lote 3)', async () => {
+    await tablero([pub(1)]);
+    const key = M.board().key, abrir0 = M.nube._abrir;
+    try {
+      M._in.NUBE.activa = true; await M.open(key); await espera(300);
+      M._test.setMemo('r1', 'antes de ocultar');   // un guardado pendiente
+      M._onHide({ type: 'pagehide' });
+      ok(W.localStorage.getItem('mesa-pending'), 'ocultar con un guardado pendiente no dejó su copia');
+      await M.flush(); await espera(100);
+      ok(!W.localStorage.getItem('mesa-pending'), 'la copia sigue en localStorage después de guardarse');
+      M._test.setMemo('r1', 'después'); await M.flush();
+      M.nube._abrir = async () => ({ modo: 'local' }); await M._test.nubeAbrir();
+      igual((await M._in.nubeAlmacen.sinSubir()).filter(x => x.motivo === 'pendiente').length, 0, 'una recarga más tarde apartó una copia vieja');
+      igual((await M._in.idbGet('boards', key)).slots[0].memo, 'después', 'la copia vieja volvió');
+    } finally { M.nube._abrir = abrir0; W.localStorage.removeItem('mesa-pending'); await nbLimpiar(); }
+  });
+
   prueba('NB9', 'Con la nube, abrir un mes que no cambió no escribe nada (D-253): abrirlo no es un cambio que subir (sin red, cada tablero mirado acabaría en «quedó sin subir»); apagada, como siempre', async () => {
     await tablero([pub(1), pub(2)]); await M.flush();
     const key = M.board().key;
@@ -17765,7 +17782,8 @@
       await M.open(key); await espera(400);   // la nube, encendida desde que se abre (como al arrancar con ella)
       await M._in.diario.vaciar();
       await M.open(key); await espera(400);
-      const dj9 = await M._in.diario.leer(); ok(!dj9.length, 'abrir un mes sin cambios escribió en el diario: ' + json(dj9.map(e => [e.a, e.k])));
+      const dj9 = await M._in.diario.leer();
+      ok(!dj9.length, 'abrir un mes sin cambios escribió en el diario: ' + json(dj9.map(e => [e.a, e.k])));
       M._test.setMemo('r1', 'un cambio de verdad'); await M.flush();
       ok((await M._in.nubeAlmacen.leerVarios([['boards', key]]))[0].pendiente, 'un cambio de verdad no se apuntó');
       await M._in.diario.vaciar(); M._in.NUBE.activa = false;

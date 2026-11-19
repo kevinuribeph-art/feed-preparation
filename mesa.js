@@ -127,7 +127,13 @@
   const WEB_REAL = { url: 'https://ipqeywhhuncpnqkvfxpn.supabase.co', publica: 'sb_publishable_Gqu_MN2jOnjKLp9aYkTjyg_hqWBqZ2E' };
   const WEB_LOCAL = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
   function proyectoWeb() {
-    if (WEB_LOCAL) { try { const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'); if (p && p.url && p.publica && p.url.replace(/\/$/, '') !== WEB_REAL.url) return p; } catch (e) { /* sin almacenamiento */ } return null; }
+    if (WEB_LOCAL) {
+      try {
+        const p = JSON.parse(localStorage.getItem('mesa-web-proyecto') || 'null'), host = u => { try { return new URL(u).host.toLowerCase(); } catch (e) { return ''; } };
+        if (p && p.url && p.publica && host(p.url) && host(p.url) !== host(WEB_REAL.url) && p.publica !== WEB_REAL.publica) return p;   // never the real one here, however it is written
+      } catch (e) { /* sin almacenamiento */ }
+      return null;
+    }
     return WEB_REAL.url && WEB_REAL.publica ? WEB_REAL : null;
   }
   let SUPA = null;
@@ -757,10 +763,16 @@
   // With the cloud, a save with nothing pending and nothing changed since the last write writes nothing (D-253): opening or leaving a
   // month is not a change to upload (without network, every board looked at would end up in «quedó sin subir»). Off, as always.
   const ESCRITO = new Map();   // board key → its body (no stamps), tray and folders as last written or read
+  let PEND_ESCRITA = null;      // the board a hidden tab copied to mesa-pending, until a write of it ends
   const cuerpoNube = B => boardBody({ ...B, tray: undefined }) + '|' + JSON.stringify(B.tray || []) + '|' + JSON.stringify(B.carpetas || []);
   function guardar(B) {
     const { tray: _t, carpetas: _c, ...cuerpo } = B, b = JSON.parse(JSON.stringify(cuerpo)), c = B.client || boardClient(B), fuera = {};
-    const yaEscrito = () => { BASE_IDB.set(B.key, b.savedAt || null); if (NUBE.activa) ESCRITO.set(B.key, cuerpoNube(B)); };
+    const firma = NUBE.activa ? cuerpoNube(B) : null;   // lo que se escribe, antes del await (un cambio en vuelo no cuenta como escrito)
+    const yaEscrito = () => {
+      BASE_IDB.set(B.key, b.savedAt || null); if (firma != null) ESCRITO.set(B.key, firma);
+      // la copia que dejó ocultar la pestaña ya está en IndexedDB: fuera, para que una recarga más tarde no la tome por perdida (D-253)
+      if (PEND_ESCRITA === B.key) { PEND_ESCRITA = null; try { const p = pendienteLS(); if (p && p.key === B.key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ } }
+    };
     // while a month opens, the list of boards it read gets this one as written instead of being read again (A4)
     const p0 = tablerosVivo ? tablerosP : null, parchea = v => { if (p0 && tablerosVivo) tablerosP = (tablerosP || p0).then(l => (l.some(x => x.key === B.key) ? l.map(x => x.key === B.key ? b : x) : [...l, b].sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0)))); return v; };
     if (!c) return idbPut('boards', B.key, b).then(parchea).then(yaEscrito);
@@ -5102,7 +5114,7 @@
       if (!(e.type === 'pagehide' || document.visibilityState === 'hidden') || !S || locked || !(saveTimer || noteTimer || motTimer)) return;
       stamp(S);
       S.savedAt = new Date().toISOString();
-      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 5, base: BASE_IDB.has(S.key) ? BASE_IDB.get(S.key) : null }));   // sync: survives a reload that kills the async write; base: the copy it started from
+      lsSet('mesa-pending', JSON.stringify({ key: S.key, board: S, v: 5, base: BASE_IDB.has(S.key) ? BASE_IDB.get(S.key) : null })); PEND_ESCRITA = S.key;   // sync: survives a reload that kills the async write; base: the copy it started from
       flushNow().catch(() => { /* */ });
     };
     document.addEventListener('visibilitychange', M._onHide); window.addEventListener('pagehide', M._onHide);
@@ -6086,7 +6098,8 @@
     BODY.set(S, boardBody(S));        // what init loaded/merged is the baseline: only later changes count as edits
     histReset();                      // ⌘Z history starts here (another board or a reload: new history)
     if (deadRenders.length) delList(l => [...new Set([...l, ...deadRenders])]);
-    if (NUBE.activa && saved && !saved.tray) ESCRITO.set(key, cuerpoNube({ ...saved, tray: (recCarp && recCarp.tray) || [], carpetas: carpetasBien(recCarp && recCarp.carpetas) }));   // what IndexedDB holds
+    if (NUBE.activa && saved && !(Array.isArray(saved.tray) && saved.tray.length)) ESCRITO.set(key, cuerpoNube({ ...saved, tray: (recCarp && recCarp.tray) || [], carpetas: carpetasBien(recCarp && recCarp.carpetas) }));   // what IndexedDB holds
+    else ESCRITO.delete(key);
     await flushNow();
     try { const pend = pendienteLS(); if (pend && pend.key === key) localStorage.removeItem('mesa-pending'); } catch (e) { /* */ }   // only now that the board is saved
     delSweep(); sweepDesigns();
@@ -6161,7 +6174,7 @@
         if (enSuBase) {
           const n = !p.v && !('historias' in p.board) && b && hsDe(b).length ? { ...p.board, historias: b.historias } : p.board;
           await tx('boards', 'readwrite', st => st.put(n, p.key));
-        } else if ('base' in p && b) await nubeAlmacen.aparteValor('boards', p.key, p.board, 'pendiente');   // IndexedDB changed since: never by a clock
+        } else if ('base' in p && b && boardBody({ ...p.board, tray: undefined }) !== boardBody({ ...b, tray: undefined })) await nubeAlmacen.aparteValor('boards', p.key, p.board, 'pendiente');   // IndexedDB changed since: never by a clock (the same body: nothing to keep)
         localStorage.removeItem('mesa-pending');
       }
     } catch (e) { /* the copy stays in localStorage */ }
@@ -6187,7 +6200,8 @@
     if (!NUBE.pausa || !NUBE.pausaHtml || !shellReady()) return;
     root.querySelectorAll('.nubelock').forEach(x => x.remove());
     const o = document.createElement('div'); o.className = 'lock nubelock'; o.innerHTML = NUBE.pausaHtml; root.append(o);
-    const b = o.querySelector('.btn'); if (b) b.focus({ preventScroll: true });
+    const b = o.querySelector('[data-nube="usar"]') || o.querySelector('.btn');
+    if (b) b.focus({ preventScroll: true }); else if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();   // nada que pulsar: lo que se teclee no va a un campo tapado
   }
 
   // ---------- past posts from Notion (only when the previous month isn't in the mesa) ----------
@@ -7684,8 +7698,8 @@
     cobBorrarTodo: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); cobGen++; await tx(['cobros', 'cfacturas'], 'readwrite', o => { o.cobros.clear(); o.cfacturas.clear(); }); COB = new Map(); for (const c of CL) if (c.cuota || c.cuotaAt) await editarCliente(c.id, x => { delete x.cuota; delete x.cuotaAt; return x; }); await loadClients(); cobAvisar(false); },   // the battery's invoices and fees go (D-232)
     reloj: t => { RELOJ = t == null ? null : +t; }, vencRevisar: abrir => vencRevisar(!!abrir), avisadas: () => new Set(), fueraListo: () => fueraQ,   // a fixed clock for the battery (D-120)
     place, swap, unassign, move, movePhoto, setType, removeFile, setCover, setNote, setMemo, pastList, addToSlot, setPreview, refreshDetail,
-    versionNueva, claim, nubeAbrir,
-    perBorrar: async () => { for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)
+    versionNueva, claim, nubeAbrir, escrito: k => ESCRITO.get(k), cuerpoNube: () => S && cuerpoNube(S),
+    perBorrar: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); for (const c of CL) if (c.personas) await editarCliente(c.id, o => { delete o.personas; delete o.personasAt; return o; }); await loadClients(); },   // the battery's lists of people go (D-130)
     setPersona: (slotId, campo, usuario, poner = true) => setPersona(slotId, campo, usuario, poner),
     ubBorrar: async () => { if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)'); await tx('ubicaciones', 'readwrite', st => st.clear()); for (const c of CL) if (c.ubicaciones) await editarCliente(c.id, o => { delete o.ubicaciones; delete o.ubicacionesAt; return o; }); await loadClients(); },   // the battery's places go (D-124)
     setCrop: (fid, slotId, patch) => { setCrop(fid, slot(slotId), patch); save(); render(); },
@@ -7704,7 +7718,8 @@
   M._test.removeFile = removeFile;
   M._test.persistencia = pedir => revisarPersistencia(!!pedir);   // the notice of storage that isn't kept (D-249)
   M._test.djSin = t => SIN_DIARIO.has(t);   // the battery's guard: a transaction without journal on purpose (D-250)
-  M._test.vaciarTodo = async () => {   // every store empty, as a new browser (D-249: «Exportar todo» → empty → «Importar»)
+  M._test.vaciarTodo = async () => {
+    if (NUBE.activa) throw new Error('con la nube encendida no se vacía nada (D-256)');   // every store empty, as a new browser (D-249: «Exportar todo» → empty → «Importar»)
     clearTimeout(saveTimer); saveTimer = null; clearTimeout(noteTimer); noteTimer = null; S = null; PB = null;
     await tx(ALMACENES, 'readwrite', o => ALMACENES.forEach(n => o[n].clear()));
     try { localStorage.removeItem('mesa-pending'); localStorage.removeItem('mesa-del'); } catch (e) { /* */ }

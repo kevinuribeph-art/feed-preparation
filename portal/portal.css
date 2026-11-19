@@ -64,6 +64,15 @@ svg.i *{vector-effect:non-scaling-stroke}
 .pv-top{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:0 4px 0 8px}
 .pv-marca{flex:none;align-self:center;display:block;width:24px;height:24px;margin-right:10px}   /* la marca, sin pulsar: a 22 px del nombre (D-264) */
 .pv-clis{display:flex;gap:4px;margin-right:auto;flex-wrap:wrap}
+/* la cuenta que solo mira (D-266): una tira encima, «Ver como» cada cliente; en la hoja, lo que no puede hacer, apagado en su sitio */
+.pv-obs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:1440px;margin:0 auto;padding:8px 20px;border-bottom:1px solid var(--line2);background:var(--bg-2);font-size:13px;color:var(--ink-2)}
+.pv-obs-t{margin-right:auto}.pv-obs-t b{color:var(--ink);font-weight:600}
+.pv-obs-l{color:var(--mute);font-size:12px}
+.pv-obs-c{border:1px solid var(--line-strong);background:var(--panel-2);border-radius:var(--r-pill);padding:4px 12px;min-height:30px;font-size:13px;color:var(--ink)}
+.pv-obs-c.on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+@media (pointer:coarse){.pv-obs-c{min-height:44px}}
+.acc .por{flex-basis:100%;margin:0;font-size:12.5px;color:var(--mute);text-align:center}
+.escr textarea[disabled]{opacity:.6;cursor:not-allowed}
 .pv-cli{border:0;background:none;font-size:13px;font-weight:600;padding:8px 13px 10px;border-bottom:2px solid transparent;color:var(--mute);min-height:44px}
 .pv-cli.on{border-bottom-color:var(--acc);color:var(--ink)}
 .pv-meses{display:flex;gap:6px;flex-wrap:wrap}
@@ -251,6 +260,7 @@ svg.i *{vector-effect:non-scaling-stroke}
   .pv-top{padding:0 2px 0 6px}
   .pv-marca{margin-right:8px}
   .lado .card{padding:18px 16px 20px}
+  .pv-obs{padding:8px 12px}
   .cols,.cols.con-lado{grid-template-columns:1fr}
   .feedw .feed{max-width:420px;margin:0 auto}   /* el panel a todo el ancho, la cuadrícula ceñida (D-264) */
 }
@@ -268,6 +278,8 @@ svg.i *{vector-effect:non-scaling-stroke}
   .pv-top{gap:8px;padding:0}
   .pv-marca{margin-right:2px}
   .feedw .feed{max-width:none}
+  .pv-obs{padding:8px 16px}
+  .pv-obs-t{flex-basis:100%}
   .pv-cli{padding:8px 4px 10px}
   .pv-meses{order:3;width:100%}
   .pv-salir .tx{display:none}

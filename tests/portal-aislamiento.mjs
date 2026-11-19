@@ -7,6 +7,9 @@
 // aplicados (`node tools/web.mjs esquema pruebas`, `node tools/web.mjs funciones pruebas`). Crea y borra sus propios
 // clientes, usuarios y archivos (también la fila de dueño de su Kevin inventado).
 import { createHash, randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { proyecto, rest, cab, pedir, gestion, tapar, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
 import { conCodigo } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
 
@@ -25,11 +28,11 @@ const S = P.secreta;
 const sha = t => createHash('sha256').update(t).digest('hex');
 const A = { id: 'prueba-norte', nombre: 'Cliente Prueba Norte', handle: 'prueba.norte' };
 const B = { id: 'prueba-sur', nombre: 'Cliente Prueba Sur', handle: 'prueba.sur' };
-const BORRADO = 'prueba-borrada';
+const BORRADO = 'prueba-borrada', NUEVO = 'prueba-nueva';   // NUEVO: un cliente que llega después (D-266)
 const pid = t => sha(t).slice(0, 16);
 const PA1 = pid('a1'), PA2 = pid('a2'), PA3 = pid('a3'), PAH = pid('a-oculta'), PB1 = pid('b1'), PNADA = pid('no-existe');
 const VA1 = sha('va1'), VA1b = sha('va1-b'), VA2 = sha('va2'), VA3 = sha('va3'), VAH = sha('vah'), VB1 = sha('vb1');
-const CORREO = { a: 'ana@portal-pruebas.test', b: 'bea@portal-pruebas.test', k: 'kevin@portal-pruebas.test' };
+const CORREO = { a: 'ana@portal-pruebas.test', b: 'bea@portal-pruebas.test', k: 'kevin@portal-pruebas.test', o: 'mira@portal-pruebas.test', o2: 'mira-nueva@portal-pruebas.test' };   // o: solo mira (D-266)
 const CLAVE = 'Pr-' + randomBytes(16).toString('hex'); // solo para estos usuarios inventados; no se imprime
 const JPG = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
@@ -68,8 +71,8 @@ async function subir(bucket, ruta, bytes, tipo) {
 }
 const firmarFn = (tk, bucket, rutas) => pedir(`${P.url}/functions/v1/firmar`, { method: 'POST', headers: { ...cab(P.publica, tk || undefined), 'Content-Type': 'application/json' }, body: { bucket, rutas } });
 async function limpiar() {
-  await servicio(`clientes?id=in.(${A.id},${B.id},${BORRADO})`, { method: 'DELETE' });
-  await servicio(`clientes_borrados?id=in.(${A.id},${B.id},${BORRADO})`, { method: 'DELETE' });   // la reserva de los inventados
+  await servicio(`clientes?id=in.(${A.id},${B.id},${BORRADO},${NUEVO})`, { method: 'DELETE' });
+  await servicio(`clientes_borrados?id=in.(${A.id},${B.id},${BORRADO},${NUEVO})`, { method: 'DELETE' });   // la reserva de los inventados
   for (const [b, rutas] of [['fotos', [FA, FAH, FB]], ['facturas', [PDFB]]])
     await pedir(`${P.url}/storage/v1/object/${b}`, { method: 'DELETE', headers: { ...cab(S), 'Content-Type': 'application/json' }, body: { prefixes: rutas } });
   for (const c of Object.values(CORREO)) {
@@ -81,11 +84,12 @@ async function limpiar() {
 async function main() {
   console.log(`Prueba de aislamiento · proyecto de pruebas ${P.ref}`);
   await limpiar();
-  const ua = await usuario(CORREO.a), ub = await usuario(CORREO.b), uk = await usuario(CORREO.k);
+  const ua = await usuario(CORREO.a), ub = await usuario(CORREO.b), uk = await usuario(CORREO.k), uo = await usuario(CORREO.o);
   const pub = (c, p, o) => ({ cliente_id: c, pid: p, mes: '2026-12', orden: o.orden, tipo: o.tipo || 'foto', nombre: o.nombre, fecha: '2026-12-10T12:00:00Z', caption: o.caption || '', imagenes: o.imagenes || [], estado: o.estado, version: o.version, visible: o.visible !== false });
   const semillas = [
     ['clientes', [A, B]],
     ['miembros', [{ user_id: ua, cliente_id: A.id, nombre: 'Ana Norte' }, { user_id: ub, cliente_id: B.id, nombre: 'Bea Sur' }]],
+    ['miembros', [{ user_id: uo, cliente_id: A.id, nombre: 'Mira Prueba', observa: true }, { user_id: uo, cliente_id: B.id, nombre: 'Mira Prueba', observa: true }]],   // D-266
     ['duenos?on_conflict=user_id', [{ user_id: uk }]],
     ['publicaciones', [pub(A.id, PA1, { orden: 0, nombre: 'Foto 1.1', estado: 'por_aprobar', version: VA1, imagenes: [{ ruta: FA }] }),
       pub(A.id, PA2, { orden: 1, nombre: 'Reel 1.2', tipo: 'reel', estado: 'programada', version: VA2 }),
@@ -186,6 +190,40 @@ async function main() {
   for (let i = 0; i < 22 && !tope; i++) { const q = await a('comentarios', { method: 'POST', body: { cliente_id: A.id, pid: PA1, version: VA1, texto: 'seguido ' + i } }); if (!q.ok) tope = q; }
   ok(tope && es(tope, 429), 'más de 20 comentarios en un minuto: 429', tope && tope.text);
   r = await b(`comentarios?select=${C_COM}`); ok(r.ok && r.json.every(x => x.cliente_id === B.id), 'Bea no ve los comentarios de Norte', r.text);
+
+  console.log('Solo mirar (D-266)');
+  const ko = await entrar(CORREO.o), o = como(ko);
+  r = await o('miembros?select=cliente_id,observa'); ok(r.ok && r.json.length >= 2 && r.json.every(x => x.observa === true) && [A.id, B.id].every(c => r.json.some(x => x.cliente_id === c)), 've sus filas, todas «solo mirar»', r.text);
+  r = await o(`publicaciones?select=${C_PUB}&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length === 4 && !r.json.some(x => x.pid === PAH), 've las publicaciones visibles de los dos clientes (la oculta, no)', r.text);
+  for (const t of ['pagos', 'meses', 'sesiones']) { r = await o(`${t}?select=cliente_id&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && new Set(r.json.map(x => x.cliente_id)).size === (t === 'sesiones' ? 1 : 2), `${t}: los de los dos clientes, como cada uno`, r.text); }
+  r = await o(`comentarios?select=${C_COM}&cliente_id=in.(${A.id},${B.id})`); ok(r.ok && r.json.length > 0 && !r.json.some(x => x.pid === PAH), 've los comentarios de lo que se ve, no los de una oculta', r.text);
+  r = await firmarFn(ko, 'fotos', [FA, FB, FAH]); const uo1 = (r.ok && r.json && r.json.urls) || {};
+  ok(r.ok && uo1[FA] && uo1[FB] && !uo1[FAH], 'la función le firma las fotos de lo que ve (no la de una oculta)', r.text);
+  r = await apr({ cliente_id: B.id, pid: PB1, version: VB1, decision: 'aprobada' }, ko); ok(es(r, 403) && /solo mira/.test(r.text), 'no aprueba: 403 «esta cuenta solo mira»', r.text);
+  r = await apr({ cliente_id: B.id, pid: PB1, version: VB1, decision: 'cambios', motivo: 'Otra foto' }, ko); ok(es(r, 403) && /solo mira/.test(r.text), 'no pide cambios', r.text);
+  r = await apr({ cliente_id: A.id, pid: PA1, version: VA1, decision: 'retirada' }, ko); ok(es(r, 403) && /solo mira/.test(r.text), 'no deshace la decisión de Ana', r.text);
+  r = await o('comentarios', { method: 'POST', body: { cliente_id: B.id, pid: PB1, version: VB1, texto: 'Solo miro' } }); ok(es(r, 403) && /solo mira/.test(r.text), 'no comenta', r.text);
+  r = await servicio(`aprobaciones?select=id&cliente_id=in.(${A.id},${B.id})&autor_nombre=eq.Mira%20Prueba`); ok(r.ok && r.json.length === 0, 'y no quedó nada suyo escrito', r.text);
+  r = await servicio(`comentarios?select=id&autor_nombre=eq.Mira%20Prueba`); ok(r.ok && r.json.length === 0, 'ni comentarios suyos', r.text);
+  r = await o(`publicaciones?cliente_id=eq.${B.id}&pid=eq.${PB1}`, { method: 'PATCH', body: { estado: 'aprobada' } });
+  r = await servicio(`publicaciones?pid=eq.${PB1}&select=estado`); ok(r.ok && r.json[0].estado === 'por_aprobar', 'no cambia una publicación', r.text);
+  r = await o('miembros', { method: 'PATCH', body: { observa: false } }); ok(!r.ok || (await servicio(`miembros?user_id=eq.${uo}&observa=is.false`)).json.length === 0, 'no se quita a sí mismo el «solo mirar»', r.text);
+  r = await o('lecturas', { method: 'POST', body: { cliente_id: A.id, visto_hasta: new Date().toISOString() } }); ok(es(r, 401, 403), 'no escribe «leído» (es de Kevin)', r.text);
+  r = await rest(P, `aprobaciones?select=${C_APR}`, { method: 'POST', token: kb, body: { cliente_id: B.id, pid: PB1, version: VB1, decision: 'aprobada' }, prefer: 'return=representation' }); ok(r.ok && r.json[0].autor_nombre === 'Bea Sur', 'Bea, que decide, sigue aprobando', r.text);
+  r = await servicio('clientes', { method: 'POST', body: { id: NUEVO, nombre: 'Cliente Prueba Nueva' } }); if (!r.ok) throw new Fallo('cliente nuevo: ' + r.text);
+  r = await o(`clientes?select=id&id=eq.${NUEVO}`); ok(r.ok && r.json.length === 1, 'un cliente nuevo le llega solo', r.text);
+  r = await servicio(`miembros?cliente_id=eq.${NUEVO}&select=user_id,observa,nombre`); ok(r.ok && r.json.length >= 1 && r.json.every(x => x.observa === true) && r.json.some(x => x.user_id === uo && x.nombre === 'Mira Prueba'), 'como «solo mirar», con su nombre (Ana y Bea, no)', r.text);
+  if (P.cual === 'pruebas') {   // la orden `observador` (en el real se pasa a mano, con --si y el OK de Kevin)
+    const web = (...a) => { try { return { ok: true, j: JSON.parse(execFileSync('node', [join(dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'web.mjs'), 'observador', 'pruebas', ...a], { stdio: 'pipe' }).toString()) }; } catch (e) { return { ok: false, t: String(e.stderr || e.message) }; } };
+    let w = web(CORREO.o, 'quitar'); ok(w.ok && w.j.quitados >= 3, '`observador … quitar` le quita lo que mira', w.t || JSON.stringify(w.j));
+    r = await o(`clientes?select=id&id=in.(${A.id},${B.id},${NUEVO})`); ok(r.ok && r.json.length === 0, 'y ya no ve nada', r.text);
+    w = web(CORREO.o, '--nombre=Mira Prueba'); ok(w.ok && w.j.creada === 'ya existía' && w.j.mira === w.j.de && w.j.mira >= 3, '`observador` vuelve a darle todos los clientes', w.t || JSON.stringify(w.j));
+    r = await o(`clientes?select=id&id=in.(${A.id},${B.id},${NUEVO})`); ok(r.ok && r.json.length === 3, 'y los ve otra vez', r.text);
+    w = web(CORREO.o2); ok(w.ok && w.j.creada === 'sí, sin contraseña', '`observador` crea la cuenta si no existe (sin contraseña)', w.t || JSON.stringify(w.j));
+    const u2 = await usuarioPorCorreo(P, CORREO.o2); r = await servicio(`miembros?user_id=eq.${u2 && u2.id}&select=observa`); ok(r.ok && r.json.length === w.j.mira && r.json.every(x => x.observa), 'con una fila «solo mirar» por cliente', r.text);
+    w = web(CORREO.k); ok(!w.ok && /dueño/.test(w.t), '`observador` no convierte a Kevin', w.t);
+    w = web(CORREO.o, '--si', 'x'); ok(!w.ok, 'ni acepta lo que no conoce', w.t);
+  }
 
   console.log('Kevin');
   r = await k('publicaciones?select=cliente_id'); ok(r.ok && new Set(r.json.map(x => x.cliente_id)).size >= 2, 'Kevin ve los dos clientes', r.text);

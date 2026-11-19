@@ -18541,7 +18541,7 @@
       const iso = M._in.madridISO('2026-11-10', '18:30');
       b = await paso({ slot: 'r1', campo: 'fecha', valor: iso }, ['r1.date']);
       ok(M._in.sameDate(b.slots.find(s => s.id === 'r1').date, iso), 'no cambió la fecha');
-      igual(M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' }).v.pick, 2, 'valor() no dice lo que hay');
+      igual((await M._in.movil.valor({ key, slot: 'r2', campo: 'capElegir' })).v.pick, 2, 'valor() no dice lo que hay');
     });
   });
 
@@ -18587,6 +18587,47 @@
       const l1 = M._in.movil.estadosPosibles(key, 'r1');
       ok(l1.find(x => x.v === 'aprobado').actual, 'r1 Aprobada no sale como la actual');
     });
+  });
+
+  // lo que suma Hoy, en una forma comparable: cada cifra y cada línea (tipo, id, grupo)
+  const hoyDe = R => ({ cifras: R.cifras, items: R.items.map(x => [x.tipo, x.tipo === 'post' ? x.s.id : x.tipo === 'cobro' ? x.r.id : x.tipo === 'historias' ? x.B.key + '|' + x.dia : x.k.id, x.cat]) });
+  prueba('MV9', 'Hoy en el móvil suma como la página personal (D-267, D-212, D-236): las cinco cifras y cada aviso, también una tarea vencida y una factura retrasada, son los mismos que da la Mesa del escritorio con «Tareas» encendido', async () => {
+    await tableroMovil(); await sinTareas();
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await M.personal.tarea({ txt: 'Enviar la factura de noviembre', fecha: '2026-11-18', cliente: CLIENTE });
+      await M.personal.tarea({ txt: 'Llamar para la sesión', fecha: '2026-11-20' });
+      await M.cobros.cargar([{ id: 'mv9-a', cliente: CLIENTE, periodo: '2026-10', importe: 380, factura: '2026-028', emitida: '2026-10-26', vence: '2026-11-05' }]);
+      const mac = hoyDe(await M.personal.datos({ modo: 'semana', desp: 0, avTareas: true }));
+      ok(mac.items.some(x => x[0] === 'cobro') && mac.items.some(x => x[0] === 'tarea' && x[2] === 'pasado'), 'el escritorio no tiene la factura ni la tarea vencida: ' + json(mac));
+      await enMovil(async () => {
+        M._test.reloj(Date.parse('2026-11-20T10:00:00+01:00'));
+        await M._in.cob.leer();
+        const mov = hoyDe(await M.personal.datos({ modo: 'semana', desp: 0, avTareas: true }));
+        igual(mov, mac, 'Hoy en el móvil no suma como el escritorio');
+        const l = await M.personal.lista();
+        igual(l.filter(x => x.grupo === 'pasado').map(x => x.txt), ['Enviar la factura de noviembre'], 'la lista de tareas: lo que se ha pasado');
+        igual(l.filter(x => x.grupo === 'hoy').map(x => x.txt), ['Llamar para la sesión'], 'la lista de tareas: hoy');
+      });
+    } finally { relojVuelve(); await sinTareas(); if (M._test.cobBorrarTodo) await M._test.cobBorrarTodo(); }
+  });
+
+  prueba('MV8', 'Las tareas en el móvil (D-267, D-180): marcar una hecha y crear una tarea y una nota son operaciones que escriben en su almacén con la Mesa cogida; sin ella, «sin turno»', async () => {
+    await tableroMovil(); await sinTareas();
+    try {
+      const t = await M.personal.tarea({ txt: 'Revisar los captions', fecha: '2026-11-05' });
+      await enMovil(async () => {
+        igual(await M._in.movil.valor({ campo: 'tarea', slot: t.id }), { v: { hecha: false } }, 'valor de la tarea');
+        ok((await M._in.movil.operar({ campo: 'tarea', slot: t.id, valor: { hecha: true } })).ok, 'no se marcó');
+        ok((await M._in.idbGet('tareas', t.id)).hecha, 'no quedó hecha en su almacén');
+        const n = await M._in.movil.operar({ campo: 'tareaNueva', valor: { txt: 'Ideas para diciembre', tipo: 'nota' } });
+        ok(n.ok && (await M._in.idbGet('tareas', n.id)).tipo === 'nota', 'no se creó la nota: ' + json(n));
+        igual((await M._in.movil.operar({ campo: 'tareaNueva', valor: { txt: '  ' } })).error, 'una tarea necesita un texto', 'una tarea vacía');
+        await M._in.pausaNube('');
+        igual(await M._in.movil.operar({ campo: 'tarea', slot: t.id, valor: { hecha: false } }), { error: 'sin turno' }, 'sin la Mesa marcó');
+        M._in.NUBE.pausa = false; await M._test.claim();
+      });
+    } finally { await sinTareas(); }
   });
 
   async function pasar() {

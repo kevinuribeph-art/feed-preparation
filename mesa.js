@@ -6266,7 +6266,8 @@
   // valor(op) is that field now (to compare with what was seen); operar(op) writes it at once (journal included) with the Mesa
   // taken (not locked); each warning the change gives (D-103) comes back in `avisos`.
   const capOfId = id => { const s = S && S.slots.find(x => x.id === id); return s ? capOf(s) : null; };
-  function valorMovil(op) {
+  async function valorMovil(op) {
+    if (op && op.campo === 'tarea') { const r = M.personal ? await M.personal.valor(op.slot) : null; return r ? { v: { hecha: !!r.hecha } } : { error: 'no existe' }; }
     if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
     const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
     const c = capOf(s);
@@ -6279,6 +6280,12 @@
   async function operarMovil(op) {
     if (!MOVIL) return { error: 'solo en el móvil' };
     if (locked) return { error: 'sin turno' };
+    if (op && (op.campo === 'tarea' || op.campo === 'tareaNueva')) {   // a task or a note (personal.js, D-180): its own store, written at once
+      if (!M.personal) return { error: 'sin tareas' };
+      if (op.campo === 'tarea') return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: 'no se pudo marcar' };
+      const o = op.valor || {}, r = await M.personal.tarea({ txt: o.txt, tipo: o.tipo === 'nota' ? 'nota' : 'tarea', ...(o.fecha ? { fecha: o.fecha } : {}), ...(o.cliente ? { cliente: o.cliente } : {}) });
+      return r ? { ok: true, id: r.id, avisos: [] } : { error: o.tipo === 'nota' ? 'no se pudo crear la nota' : 'una tarea necesita un texto' };
+    }
     if (!S || !op || S.key !== op.key) return { error: 'otro tablero' };
     const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };
     const avisos = [], cara = MOVIL_IN.alAviso; MOVIL_IN.alAviso = m => avisos.push(m);

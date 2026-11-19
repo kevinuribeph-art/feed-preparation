@@ -658,6 +658,22 @@
     if (X.curClient === cid && X.S) cerrar(); else await abrirTablero(() => M.openClient(cid));
   }
 
+  // ---------- the iPhone's list of tasks (D-267) ----------
+  // What is left to do (also what went past) and what was done today, then what has no date and the notes: each with its group
+  // by the same rules as the page's Lista (a session counts to its last day, D-218); the phone only draws it
+  function listaMovil() {
+    const X = I(), hoy = X.hoy(), man = addD(hoy, 1), venc = k => !k.hecha && !!k.fecha && ultDia(k) < hoy;
+    const l = [...enLista().filter(k => venc(k) || !k.hecha || hechaHoy(k, hoy)), ...notas()];
+    const ORD = { pasado: 0, hoy: 1, man: 2, despues: 3, sinfecha: 4 };
+    return l.map(k => {
+      const g = k.tipo === 'nota' || !k.fecha ? 'sinfecha' : venc(k) ? 'pasado' : k.fecha <= hoy ? 'hoy' : k.fecha === man ? 'man' : 'despues';
+      const n = (k.subtareas || []).length;
+      return { id: k.id, tipo: k.tipo, txt: String(k.txt || ''), fecha: k.fecha || null, hora: k.tipo === 'sesion' ? k.hora || '' : '', fin: k.fecha ? ultDia(k) : null,
+        clientes: clis(k).filter(cliOk), hecha: k.hecha || null, venc: venc(k), grupo: g, detalles: String(k.detalles || ''), subtareas: n ? { n, hechas: k.subtareas.filter(x => x.hecha).length } : null,
+        fotos: (k.fotos || []).length, creada: k.creada || null };
+    }).sort((a, b) => ORD[a.grupo] - ORD[b.grupo] || String(a.fecha || '').localeCompare(String(b.fecha || '')) || String(a.hora).localeCompare(String(b.hora)) || (a.tipo === 'nota') - (b.tipo === 'nota') || String(a.creada || '').localeCompare(String(b.creada || '')));
+  }
+
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
   const hondo = o => JSON.parse(JSON.stringify(o));   // a session's part and the list of material: plain data, copied whole (D-206)
@@ -1456,7 +1472,10 @@
     version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
     // a session's sheet over the board, from the posts' calendar (D-219): {de, vc, cli}
     abrirSesion: async (id, o = {}) => { if (!EXT.sesion) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; return abrirCard(id, { ...o, tablero: !st.on }); },
-    datos: async () => { const d = await leer(); return calcular(d); },
+    // o (the iPhone, D-267): the period and the «Tareas» switch to sum with, without changing this page's own
+    datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = { modo: st.modo, desp: st.desp, avTareas: st.avTareas }; Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
+    lista: async () => { await cargarTK(); return listaMovil(); },
+    valor: async id => { await cargarTK(); const r = TK.get(id); return r && !r._b ? copia(r) : null; },
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),

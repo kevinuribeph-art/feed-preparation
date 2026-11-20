@@ -19672,6 +19672,31 @@
     });
   });
 
+  prueba('MV51', 'El iPhone en apaisado a pantalla completa (D-271, punto 6; lecciones 226 y 227): a 956×440 el contenido, la barra de pestañas y las hojas ocupan el ancho, sin salirse; los textos largos con su ancho de lectura; la foto entera cabe en el alto; la zona segura de los lados llega también a lo fijo', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const ancho = sel => { const e = W.document.querySelector(sel); return e ? e.getBoundingClientRect().width : 0; }, sale = () => W.document.documentElement.scrollWidth - W.innerWidth;
+      await irMovil('#hoy', '#movil .cifras');
+      ok(ancho('#movil .main') >= W.innerWidth - 1 && ancho('#movil .tabs-in') >= W.innerWidth - 1, 'Hoy no ocupa el ancho: ' + ancho('#movil .main') + ' y ' + ancho('#movil .tabs-in') + ' de ' + W.innerWidth);
+      ok(sale() <= 0, 'Hoy se sale ' + sale() + ' px');
+      await irMovil(`#pub/${key}/r1`, '#movil .car .lam');
+      ok(ancho('#movil .main') >= W.innerWidth - 1 && sale() <= 0, 'la publicación no ocupa el ancho o se sale');
+      const lam = W.document.querySelector('#movil .car .lam').getBoundingClientRect();
+      ok(lam.height <= W.innerHeight * 0.7 + 1, 'la foto no cabe en el alto: ' + lam.height);
+      const t = W.document.querySelector('#movil .cap-t'); ok(t && t.getBoundingClientRect().width < 720 && W.getComputedStyle(t).maxWidth !== 'none', 'el caption sin ancho de lectura: ' + (t && t.getBoundingClientRect().width));
+      clicCara('#movil [data-a="estado"]'); await hojaCara('.estados', 'la hoja del estado');
+      ok(ancho('#movil .hoja') >= W.innerWidth - 1, 'la hoja no ocupa el ancho: ' + ancho('#movil .hoja'));
+      // la zona segura de los lados (Chrome no la emula: se fuerza su variable) llega a la barra, al contenido, a las pestañas y a la hoja
+      const raizM = W.document.getElementById('movil'); raizM.style.setProperty('--sa-l', '47px'); raizM.style.setProperty('--sa-r', '47px'); await espera(60);
+      const pl = sel => parseFloat(W.getComputedStyle(W.document.querySelector(sel)).paddingLeft);
+      ok(pl('#movil .top-in') >= 47 && pl('#movil .main') >= 47 && pl('#movil .hoja') >= 47, 'la zona segura no llega: ' + json([pl('#movil .top-in'), pl('#movil .main'), pl('#movil .hoja')]));
+      raizM.style.removeProperty('--sa-l'); raizM.style.removeProperty('--sa-r');
+      W.document.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); raizM.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await espera(400);
+      await irMovil('#tareas', '#movil .nueva');
+      ok(pl('#movil .tabs-in') >= 0 && ancho('#movil .tabs-in') >= W.innerWidth - 1, 'las pestañas en Tareas');
+    }, { w: 956, h: 440 });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

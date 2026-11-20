@@ -365,15 +365,14 @@
 #movil .mv-tf img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}`;
   const CSS_MAS = `
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
-#movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
+#movil{--sa-l:env(safe-area-inset-left,0px);--sa-r:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
 :root[data-theme="dark"] #movil{--rojo-tinta:#B3263A}
 #movil[hidden]{display:none}
 #movil :where(button,a,[role=button]){touch-action:manipulation}
 #movil :where(button,[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:12px}
 #movil :where(button):disabled{cursor:default}
-#movil .main,#movil .top-in,#movil .tabs-in{width:100%;max-width:600px;margin-left:auto;margin-right:auto}
+#movil .main,#movil .top-in,#movil .tabs-in{width:100%}
 #movil .main{min-width:0}
-#movil .hoja{max-width:600px;margin:0 auto}
 #movil .mono{width:30px;height:30px}
 #movil .top-r{min-width:0}
 #movil .nube{max-width:min(44vw,240px);min-width:0;overflow:hidden}#movil .nube .num{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#movil .nube .q{white-space:nowrap}#movil .nube svg{flex:none}
@@ -531,7 +530,20 @@
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
 @media (prefers-reduced-motion:reduce){#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
-@media (orientation:landscape) and (max-height:500px){#movil .car .lam{max-height:70vh}#movil .hoja{max-height:calc(100dvh - 8px)}}
+#movil .car .lam{aspect-ratio:var(--r,.8)}
+@media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}}
+#movil .main{padding-left:var(--sa-l);padding-right:var(--sa-r)}
+#movil .top-in{padding-left:calc(8px + var(--sa-l));padding-right:calc(8px + var(--sa-r))}
+#movil .tabs-in{padding-left:var(--sa-l);padding-right:var(--sa-r)}
+#movil .hoja{padding-left:calc(var(--pad) + var(--sa-l));padding-right:calc(var(--pad) + var(--sa-r))}
+#movil .hoja .pie{margin-left:calc(-1 * (var(--pad) + var(--sa-l)));margin-right:calc(-1 * (var(--pad) + var(--sa-r)));padding-left:calc(var(--pad) + var(--sa-l));padding-right:calc(var(--pad) + var(--sa-r))}
+#movil .hoja .selcal,#movil .hoja .ruedas{max-width:560px;margin-left:auto;margin-right:auto}
+#movil .toast{left:calc(var(--pad) + var(--sa-l));right:calc(var(--pad) + var(--sa-r))}
+#movil .ver .vtop{padding-left:calc(16px + var(--sa-l));padding-right:calc(8px + var(--sa-r))}
+#movil .ver .barras,#movil .ver .vpie{padding-left:calc(16px + var(--sa-l));padding-right:calc(16px + var(--sa-r))}
+#movil .cap-t,#movil .op p,#movil .hoja .txt,#movil .decision{max-width:68ch}
+#movil .msg{max-width:min(88%,68ch)}
+#movil .editor{max-width:calc(68ch + 2 * var(--pad))}
 `;
   const estilo = (id, css) => { let s = D.getElementById(id); if (!s) { s = D.createElement('style'); s.id = id; D.head.appendChild(s); } s.textContent = css; };
   estilo('movil-css', MV().tokens('#movil') + '\n' + CSS_V3 + CSS_MAS);
@@ -878,7 +890,7 @@
     const r0 = p.recortes[0], ratio = p.tipo.reel ? 9 / 16 : r0 && r0.ratio ? Math.max(0.6, Math.min(1.91, r0.ratio)) : 4 / 5;
     const n = p.fotos.length, e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
     let html = top({ ...volverPub(v, p), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
-    html += `<div class="car" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="aspect-ratio:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="aspect-ratio:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
+    html += `<div class="car" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="--r:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="--r:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
     if (n > 1) html += `<div class="puntos" aria-hidden="true">${p.fotos.map((_, i) => `<i${i === 0 ? ' class="on"' : ''}></i>`).join('')}</div>`;
     html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div></div>`;
     if (p.estado.k === 'cancelado') html += `<div class="aviso gris">${ic('x')}<span>${p.motivo ? 'Cancelada: ' + esc(p.motivo) : 'Cancelada, sin motivo.'}</span></div>`;

@@ -352,6 +352,10 @@
 #movil .cifras.c5 .cifra .v{font-size:28px}
 #movil .sub-h{padding:14px var(--pad) 8px;font-size:16px;font-weight:600;color:var(--ink-2)}
 #movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}
+#movil .top-l,#movil .top-r{display:grid;align-items:center}
+#movil .top-l>*,#movil .top-r>*{grid-area:1/1}
+#movil .top-l>*{justify-self:start}#movil .top-r>*{justify-self:end}
+#movil .top-g{visibility:hidden;pointer-events:none}
 #movil .mv-tit{display:flex;align-items:center;justify-content:space-between;gap:12px}
 #movil .mv-tit h1{min-width:0}
 #movil .mv-sw{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:var(--tap);padding:0 0 0 8px;font-size:15px;color:var(--ink-2)}
@@ -554,25 +558,26 @@
   D.body.appendChild(raiz);
 
   // ---------- el estado de la nube, siempre a la vista (D-255, D-268) ----------
-  const ST = { fase: 'apagada', vistoA: null, guardado: 0, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
+  const ST = { fase: 'apagada', vistoA: null, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
   const sinRed = () => !ST.red || ST.fase === 'sin_conexion';
   function chip() {
     const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
     const b = (k, ico, t, a, lbl) => `<button type="button" class="nube${k ? ' ' + k : ''}" data-a="${a || (q ? 'sinsubir' : 'nube')}" aria-label="${esc(lbl || t.replace(/<[^>]+>/g, '') + (q ? `, ${q} sin subir` : ''))}">${ic(ico)}<span class="num">${t}</span>${cola}</button>`;
     if (e.guardando) return b('', 'nube', 'Guardando…');   // la operación en vuelo no es «sin subir» (lote 4)
-    if (Date.now() - e.guardado < 4000) return b('ok', 'nubeok', 'Guardado');
+    // si todo va bien, nada (D-271, punto 8): ni «Al día» ni «Guardado» (basta el aviso breve al guardar)
     switch (e.fase) {
-      case 'guardado': case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
+      case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
       case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');
       case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
       case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
       case 'otra_cuenta': return b('err', 'alerta', 'Otra cuenta', 'otracuenta');
       case 'vieja': return b('off', 'recarga', 'Versión nueva', 'version');
       case 'apagada': return b('off', 'nubeoff', 'Sin nube');
-      default: return b('', 'ojo', h && !q ? `Al día ${h}` : 'Al día');
+      default: if (!e.red) return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');   // el iPhone sin red, antes de que la nube lo note
+        return q ? `<button type="button" class="nube err" data-a="sinsubir" aria-label="${esc(plural(q, 'cambio sin subir', 'cambios sin subir'))}">${ic('alerta')}<span class="num">${q} sin subir</span></button>` : '';
     }
   }
-  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip]').forEach(x => { x.innerHTML = chip(); }); };
+  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip],.top-l [data-chip-g]').forEach(x => { x.innerHTML = chip(); }); };
 
   // ---------- las fotos: cada una a su tamaño en pantalla, 3 como mucho a la vez (nunca el original) ----------
   // La miniatura de la Mesa (1.600 px) es la foto: se decodifica una a una, se dibuja al tamaño que se ve (por la densidad del iPhone)
@@ -642,7 +647,9 @@
   const est = e => `<span class="es ${esc(e.k)}"><i></i>${esc(e.txt)}</span>`;
   function top(o = {}) {
     const izq = o.atras ? `<button type="button" class="back" data-a="atras" data-destino="${esc(o.destino || prevDe() || 'clientes')}" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : `<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="30" height="30">`;
-    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r">${o.r || `<span data-chip>${chip()}</span>`}</div></div></header>`;
+    // cada lado reserva, sin verse, lo que ocupa el otro: el título va centrado con estado o sin él y no salta (D-271, punto 8)
+    const fant = h => `<span class="top-g" aria-hidden="true" inert>${h}</span>`;
+    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}${fant(o.r || `<span data-chip-g>${chip()}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r">${o.r || `<span data-chip>${chip()}</span>`}${fant(izq)}</div></div></header>`;
   }
   function tabs(on) {
     const n = TAREAS_PASADO;
@@ -1180,9 +1187,8 @@
     const e = ST, t = e.vistoA ? horaDe(e.vistoA) : '';
     const quien = e.tiene && e.tiene.dispositivo && M.nube.nombreDe ? M.nube.nombreDe(e.tiene.dispositivo) : '';
     const txt = e.fase === 'sin_conexion' ? `Sin conexión. Lo que ves es de las ${t}: al volver la red, baja lo nuevo.` : `Lo que ves está al día a las ${t}.${quien ? ` La Mesa está abierta en ${quien}; mirar no la coge.` : ' Mirar no coge la Mesa.'}`;
-    hoja(`<h2>La nube</h2><p class="ex">${esc(txt)}</p><div class="botones"><button type="button" class="btn sua" data-a="cerrarhoja">Cerrar</button><button type="button" class="btn pri" data-a="mirarya"${sinRed() ? ' disabled' : ''}>Bajar ahora</button></div>`, { etiqueta: 'La nube' });
+    hoja(`<h2>La nube</h2><p class="ex">${esc(txt)}</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: 'La nube' });   // sin «Bajar ahora»: mira cada 10 s (D-271, punto 8)
   }
-  C.mirarya = () => { cerrarHojas(); if (M.nube && M.nube.mirar) M.nube.mirar(); };
 
   // la respuesta al cliente: su borrador sobrevive a que iOS cierre la app
   raiz.addEventListener('input', e => {
@@ -1414,7 +1420,7 @@
     else if (res.quedan) { const n = plural(res.quedan, 'cambio espera', 'cambios esperan'); aviso(res.por.turno ? `La Mesa se soltó a mitad: ${n} en «sin subir».` : res.por.fallo ? `No se pudo guardar en este iPhone: ${n} en «sin subir».` : `Sin decidir: ${n} en «sin subir».`, { error: true, ms: 8000 }); }
     else if (s && s.error === 'sin_conexion') aviso('Guardado en este iPhone; sube en cuanto vuelva la red.', { ms: 8000 });
     else if (s && s.error) aviso('Guardado en este iPhone; aún no ha subido: lo intenta otra vez solo.', { ms: 8000 });
-    else if (res.ok) { ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100); aviso(res.avisos.length ? res.avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
+    else if (res.ok) { aviso(res.avisos.length ? res.avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
     else if (res.dejados) aviso('Se queda lo de la Mesa.', { ms: 4200 });
     await releerTodo();
   }

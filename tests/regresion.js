@@ -19571,6 +19571,7 @@
         igual(cifras(), mac1, 'encendido, las cifras no son las del Mac con «Tareas»');
         W.__mv52 = 1; W.location.reload();
         await hasta(() => !W.__mv52 && W.MESA && W.MESA.movil && sw(), 15000, 'Hoy otra vez');
+        M = W.MESA; if (M._test && M._test.reloj) M._test.reloj(RELOJ_PRUEBAS);   // tras recargar, el MESA de la página vieja ya no contesta
         ok(sw().getAttribute('aria-checked') === 'false', 'al volver a abrir no está apagado');
       });
     } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
@@ -19741,6 +19742,34 @@
         ok(cola.length === 1 && cola[0].estado === 'quedo' && cola[0].campo === 'fecha', 'la fecha no quedó en «sin subir»: ' + json(cola));
       } finally { await C.fin(); }
     });
+  });
+
+  prueba('MV49', 'El estado de arriba a la derecha del iPhone solo sale cuando hay algo (D-271, punto 8; lecciones 212 y 222): mirando y sin nada que subir, nada (ni «Al día»); tras guardar, el aviso «Guardado» y arriba nada; sin conexión, lo dice; con un cambio sin subir, «1 sin subir»; el título, centrado y entero a 375 con y sin estado', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      const chip = () => W.document.querySelector('#movil .top-r .nube'), txt = () => (chip() || {}).textContent || '';
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        ok(!chip(), 'mirando y al día sale «' + txt() + '»');
+        const t = W.document.querySelector('#movil .top-t').getBoundingClientRect();
+        ok(Math.abs((t.left + t.right) / 2 - W.innerWidth / 2) <= 2, 'el título no va centrado sin estado');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar');
+        await espera(300); ok(!chip(), 'tras guardar, arriba sale «' + txt() + '»');
+        // sin conexión: lo dice, y un cambio guardado sin red queda en «1 sin subir»
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-12"]'); await espera(60);
+        W.dispatchEvent(new W.Event('offline')); await espera(150);
+        ok(/Sin conexión|Sin red/.test(txt()), 'sin conexión no lo dice: «' + txt() + '»');
+        const tt = W.document.querySelector('#movil .top-t').getBoundingClientRect(), ch = chip().getBoundingClientRect();
+        ok(tt.right <= ch.left + 0.5, 'el estado tapa el título');
+        clicCara('#movil .hoja [data-a2="guardar"]'); await espera(200);
+        W.dispatchEvent(new W.Event('online')); await espera(150);
+        await hasta(() => /1 sin subir/.test(txt()), 4000, '«1 sin subir»');
+      } finally { W.localStorage.removeItem('mesa-movil-ops'); await C.fin(); }
+    }, { w: 375, h: 667 });
   });
 
   async function pasar() {

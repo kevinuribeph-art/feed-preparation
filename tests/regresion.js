@@ -19953,7 +19953,7 @@
     const key = await tableroMovil(); await sinTareas();
     const id = 'tkmv60editarlatarea', nt = 'ntmv60editarlanota', ahora = new W.Date().toISOString(), cli = M._in.CL[0].id;
     const T0 = { id, tipo: 'tarea', txt: 'Preparar la lista de planos de la sesión de diciembre', fecha: '2026-11-12', detalles: 'Mirar las referencias', creada: ahora, at: ahora,
-      subtareas: [{ id: 'stmv60a', txt: 'Pedir las referencias' }, { id: 'stmv60b', txt: 'Elegir 12 fotos' }, { id: 'stmv60c', txt: 'Lista del obrador', hecha: true }] };
+      subtareas: [{ id: 'stmv60a', txt: 'Pedir las referencias' }, { id: 'stmv60b', txt: 'Elegir 12 fotos' }, { id: 'stmv60c', txt: 'Lista del obrador', hecha: true }, { id: 'stmv60d', txt: 'Reservar el panel LED' }] };
     await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(T0, id); st.put({ id: nt, tipo: 'nota', txt: 'Ideas para diciembre', creada: ahora, at: ahora }, nt); });
     await enMovilPagina(async () => {
       const C = await nubeCara(key);
@@ -19971,10 +19971,15 @@
         clicCara('#movil .hoja [data-ed-ck="stmv60b"]'); await espera(40);
         clicCara('#movil .hoja [data-ed-x="stmv60c"]'); await espera(40);
         clicCara('#movil .hoja [data-ed-mas]'); await espera(40);
-        const nueva = W.document.querySelector('#movil .hoja .mv-sub:last-child input'); nueva.value = 'Confirmar la hora con el equipo'; nueva.dispatchEvent(new W.Event('input', { bubbles: true }));
-        // el Mac, entretanto, cambia otra subtarea: no choca (cada subtarea, su campo)
-        C.sv.escribirMac('tareas', id, { ...T0, subtareas: [T0.subtareas[0], T0.subtareas[1], { ...T0.subtareas[2], txt: 'Lista del obrador y la barra' }] });
-        C.corte.demora = 200; clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(40);
+        const nueva = W.document.querySelector('#movil .hoja .mv-sub:last-child textarea'); nueva.value = 'Confirmar la hora con el equipo'; nueva.dispatchEvent(new W.Event('input', { bubbles: true }));
+        // el Mac, entretanto, cambia otra subtarea que el iPhone no toca: no choca (cada subtarea, su campo)
+        C.sv.escribirMac('tareas', id, { ...T0, subtareas: [...T0.subtareas.slice(0, 3), { ...T0.subtareas[3], txt: 'Reservar el panel LED grande' }] });
+        C.corte.demora = 1500; clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(60);
+        // reabrirla mientras se guarda enseña lo que se está guardando (revisión del lote B): la subtarea nueva sí, la quitada no
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`); h = await hojaCara('.mv-ttxt', 'la hoja reabierta');
+        const vs = [...h.querySelectorAll('textarea[data-ed-st]')].map(t => t.value);
+        ok(vs.includes('Confirmar la hora con el equipo') && !vs.includes('Lista del obrador') && h.querySelector('[data-ed="txt"]').value === 'Preparar la lista de planos y el moodboard de diciembre', 'reabierta mientras guarda, la hoja no enseña lo que se guarda: ' + json(vs));
+        clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(400);
         const ops2 = JSON.parse(W.localStorage.getItem('mesa-movil-ops2') || '[]'), ops1 = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
         ok(ops2.length >= 7 && !ops1.some(o => /^(tareaTexto|tareaFecha|tareaCliente|tareaDetalles|subtarea)$/.test(o.campo)), 'los campos nuevos no van en su propia cola: ' + json({ ops1: ops1.map(o => o.campo), ops2: ops2.map(o => o.campo) }));
         C.corte.demora = 0;
@@ -19983,8 +19988,8 @@
         ok(!choque, 'otra subtarea cambiada en el Mac enseñó un choque');
         const r = await M._in.idbGet('tareas', id), subs = Object.fromEntries((r.subtareas || []).map(x => [x.id, x]));
         igual([r.txt, r.fecha, r.cliente, r.detalles], ['Preparar la lista de planos y el moodboard de diciembre', '2026-11-20', cli, 'Mirar las referencias que mandó por WhatsApp'], 'los campos de la tarea');
-        ok(subs.stmv60a && subs.stmv60a.txt === 'Pedir las referencias de la carta nueva' && subs.stmv60b && subs.stmv60b.hecha && !subs.stmv60c && r.subtareas.some(x => /^st/.test(x.id) && x.txt === 'Confirmar la hora con el equipo'), 'las subtareas: ' + json(r.subtareas));
-        const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.cliente === cli && arriba.valor.subtareas.length === 3, 'no subió');
+        ok(subs.stmv60a && subs.stmv60a.txt === 'Pedir las referencias de la carta nueva' && subs.stmv60b && subs.stmv60b.hecha && !subs.stmv60c && subs.stmv60d && subs.stmv60d.txt === 'Reservar el panel LED grande' && r.subtareas.filter(x => x.txt === 'Confirmar la hora con el equipo').length === 1, 'las subtareas: ' + json(r.subtareas));
+        const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.cliente === cli && arriba.valor.subtareas.length === 4, 'no subió');
         ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
         // una nota: solo su texto; vacía no se guarda
         await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`); sinAviso();
@@ -20050,6 +20055,10 @@
         ok(/necesita un nombre/.test(W.document.querySelector('#movil .hoja').innerText), 'un nombre vacío se guardó');
         pon('Sesión de otoño en el obrador con todo el equipo'); clicCara('#movil .hoja [data-sc-a="si"]');
         await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el nombre');
+        await hasta(() => /con todo el equipo/.test(W.document.querySelector('#movil .mv-ses-h h1').textContent), 3000, 'el nombre nuevo en la pantalla tras guardar');
+        ok(W.document.querySelector('#movil [data-a="sesmat"][data-m="mamv61a"]').getAttribute('aria-pressed') === 'true', 'tras guardar, el material vuelve a lo de antes en la pantalla');
+        ok(!W.document.querySelector('#movil [data-a="sested"][data-ap="fotos"]'), '«Editar» de un apartado plegado a la vista');
+        clicCara('#movil [data-a="sesap"][data-ap="fotos"]'); await espera(80);
         sinAviso(); clicCara('#movil [data-a="sested"][data-ap="fotos"]'); h = await hojaCara('textarea[data-sc]', 'la hoja del texto');
         pon('Retratos del equipo de sala\n[] Fondo del horno'); clicCara('#movil .hoja [data-sc-a="si"]');
         await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el texto');
@@ -20066,6 +20075,17 @@
         igual(tx('orden'), S0.sesion.apartados[0].texto, 'otro texto cambió');
         const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.txt === r.txt && arriba.valor.fecha === '2026-11-26', 'no subió');
         ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
+        // una sesión de antes de la 4.24 (solo «cliente»): su cliente se ve y añadir otro lo conserva
+        const S1 = { id: id + 'v', tipo: 'sesion', txt: 'Sesión de verano en la terraza del obrador', fecha: '2026-11-28', cliente: c0, creada: ahora, at: ahora, sesion: { clase: 'foto', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: '' }] } };
+        await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(S1, S1.id)); C.sv.escribirMac('tareas', S1.id, S1); await M.movil.releer();
+        await irMovil('#tareas', `#movil [data-a="tver"][data-id="${S1.id}"]`); clicCara(`#movil [data-a="tver"][data-id="${S1.id}"]`);
+        await hasta(() => W.document.querySelector('#movil .mv-ses-h h1') && /verano/.test(W.document.querySelector('#movil .mv-ses-h h1').textContent), 6000, 'la sesión de antes');
+        ok(!/Sin cliente/.test(W.document.querySelector('#movil [data-a="sesclis"]').textContent), 'la sesión de antes dice «Sin cliente»');
+        sinAviso(); clicCara('#movil [data-a="sesclis"]'); await hojaCara(`[data-scl="${es}"]`, 'sus clientes');
+        clicCara(`#movil .hoja [data-scl="${es}"]`); await espera(40); clicCara('#movil .hoja [data-scl-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar sus clientes');
+        ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'la sesión de antes enseñó un choque');
+        igual([...(await M._in.idbGet('tareas', S1.id)).clientes].sort(), [c0, es].sort(), 'la sesión de antes perdió su cliente');
         // salir y volver: plegados otra vez
         await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`); clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
         await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la sesión otra vez');

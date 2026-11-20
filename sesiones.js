@@ -1007,24 +1007,26 @@
       if (t === 'texto') o.texto = typeof a.texto === 'string' ? a.texto : '';
       if (t === 'planos') o.pestanas = (a.pestanas || []).map(p => ({ id: p.id, nombre: p.nombre, items: (p.items || []).map(i => ({ id: i.id, titulo: i.titulo || '', texto: i.texto || '', hecho: !!i.hecho, fotos: (i.fotos || []).slice() })) }));
       if (t === 'mood') o.grupos = (a.grupos || []).map(g => ({ id: g.id, nombre: g.nombre || '', fotos: (g.fotos || []).slice() }));
-      if (t === 'material') {
-        const L = matDe(a, r).L, hs = new Set((a.material && a.material.hechos) || []), fams = [];
-        const fam = n => { let f = fams.find(x => x.nombre === n); if (!f) fams.push(f = { nombre: n, cosas: [] }); return f; };
-        if (L.some(x => (x.familia || '') === 'Antes de salir')) fam('Antes de salir');
-        for (const x of L.filter(y => !y.padre)) { const f = fam(x.familia || 'Otras'); f.cosas.push({ id: x.id, nombre: x.nombre, hecha: hs.has(x.id) }); for (const c of L.filter(y => y.padre === x.id)) f.cosas.push({ id: c.id, nombre: c.nombre, hecha: hs.has(c.id), de: x.id }); }
-        for (const x of L.filter(y => y.padre && !L.some(z => z.id === y.padre))) fam(x.familia || 'Otras').cosas.push({ id: x.id, nombre: x.nombre, hecha: hs.has(x.id) });
-        o.material = { familias: fams.map(f => ({ ...f, hechas: f.cosas.filter(c => c.hecha).length })), hechas: L.filter(x => hs.has(x.id)).length, n: L.length };
+      if (t === 'planos') { const it = o.pestanas.flatMap(p => p.items); if (it.length) o.cuenta = { hechas: it.filter(i => i.hecho).length, n: it.length }; }
+      if (t === 'material') {   // as matHTML on the Mac: each thing in its own family, «Antes de salir» first, a hung thing right after its own
+        const L = matDe(a, r).L, hs = new Set((a.material && a.material.hechos) || []), fams = [], fa = x => x.familia || 'Otros';
+        for (const x of L) if (!fams.includes(fa(x))) fams.push(fa(x));
+        fams.sort((x, y) => (/^antes de salir$/i.test(y) ? 1 : 0) - (/^antes de salir$/i.test(x) ? 1 : 0));
+        const orden = l => { const out = []; for (const x of l.filter(y => !y.padre || !l.some(z => z.id === y.padre))) { out.push(x); out.push(...l.filter(y => y.padre === x.id)); } return out; };
+        o.material = { familias: fams.map(f => { const cosas = orden(L.filter(x => fa(x) === f)).map(x => ({ id: x.id, nombre: x.nombre, hecha: hs.has(x.id), ...(x.padre ? { de: x.padre } : {}) })); return { nombre: f, cosas, hechas: cosas.filter(c => c.hecha).length }; }),
+          hechas: L.filter(x => hs.has(x.id)).length, n: L.length };
       }
       return o;
     });
+    // clientes: as the Mac reads them (a session from before 4.24 has only «cliente»); the face shows the ones it knows
     return { id: r.id, nombre: String(r.txt || ''), clase: claseTxt(r.sesion.clase), visible: r.sesion.visible !== false, fecha: r.fecha || '', hora: r.hora || '', fin: r.fin ? { ...r.fin } : null,
-      clientes: (r.clientes || []).filter(c => P.cliDe(c)), apartados: aps, fotos: (r.fotos || []).map(f => ({ id: f.id, w: f.w, h: f.h })) };
+      clientes: P.clis(r), apartados: aps, fotos: (r.fotos || []).map(f => ({ id: f.id, w: f.w, h: f.h })) };
   }
   async function campoMovil(id, campo, sub) {
     await listo(); await P.cargarTK(); const r = P.TK.get(id); if (!r || r.tipo !== 'sesion' || r._b || !r.sesion) return { error: 'no existe' };
     if (campo === 'nombre') return { v: String(r.txt || '') };
     if (campo === 'inicio') return { v: { fecha: r.fecha || '', hora: r.hora || '' } };
-    if (campo === 'clientes') return { v: [...(r.clientes || [])].sort() };
+    if (campo === 'clientes') return { v: [...P.clis(r)].sort() };
     const a = sub && ap(r, sub.ap); if (!a) return { error: 'no existe' };
     if (campo === 'material') return { v: { hecho: !!((a.material && a.material.hechos) || []).includes(sub.m) } };
     if (campo === 'texto') return { v: typeof a.texto === 'string' ? a.texto : '' };
@@ -1038,7 +1040,7 @@
     else if (campo === 'inicio') {
       const o = v || {}; if ((o.fecha && !/^\d{4}-\d{2}-\d{2}$/.test(o.fecha)) || (o.hora && !/^\d{2}:\d{2}$/.test(o.hora)) || (o.hora && !o.fecha)) return { error: 'fecha no válida' };
       f = x => { P.moverInicio(x, o.fecha || '', o.hora || ''); return x; };   // its end moves with it, keeping the length (D-218)
-    } else if (campo === 'clientes') { if (!Array.isArray(v)) return { error: 'clientes no válidos' }; const l = v.filter(c => typeof c === 'string' && P.cliDe(c)); f = x => { ponerClis(x, l); return x; }; }
+    } else if (campo === 'clientes') { if (!Array.isArray(v)) return { error: 'clientes no válidos' }; f = x => { const ya = new Set(P.clis(x)); ponerClis(x, v.filter(c => typeof c === 'string' && (P.cliDe(c) || ya.has(c)))); return x; }; }   // one it no longer knows, kept if it was there
     else if (campo === 'material') {
       const o = v || {}; f = x => { const y = ap(x, o.ap); if (!y || tipoDe(y) !== 'material') return null; const m = matDeY(y); if (!m.lista.some(z => z.id === o.m)) return null; const h = new Set(m.hechos || []); if (o.hecho) h.add(o.m); else h.delete(o.m); m.hechos = [...h]; return x; };
     } else if (campo === 'texto') { const o = v || {}; f = x => { const y = ap(x, o.ap); if (!y || tipoDe(y) !== 'texto') return null; y.texto = String(o.texto ?? ''); return x; }; }

@@ -6445,6 +6445,7 @@ ${TK_FUENTES}
     if (op.campo === 'sesMaterial') return { hecho: !!(op.valor || {}).hecho };
     if (op.campo === 'sesTexto') return String((op.valor || {}).texto ?? '');
     if (op.campo === 'tareaTexto') return String(op.valor ?? '');
+    if (op.campo === 'tareaDetalles') return String(op.valor ?? '').replace(/^\s*\n|\s+$/g, '');   // as personal.js keeps it (review of lot B)
     if (op.campo === 'subtarea') { const o = op.valor || {}; return o.accion === 'quitar' ? null : o.accion === 'texto' ? { txt: String(o.txt || '').trim() } : o.accion === 'hecha' ? { hecha: !!o.hecha } : undefined; }
     if (op.campo === 'fecha') return isoMovil(op.valor);
     if (op.campo === 'estado') return a && a.v ? { ...a.v, v: (op.valor && op.valor.v) ?? null, motivo: op.valor && op.valor.v === 'cancelado' ? String(op.valor.motivo || '') : '' } : undefined;

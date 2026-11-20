@@ -50,6 +50,7 @@
     chispa: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', mas: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     historias: '<path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>',
+    hijo: '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
     ojoNo: '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
     sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     luna: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
@@ -415,7 +416,7 @@
 #movil .mv-desp.estados{padding:8px 8px 10px}
 #movil .mv-desp .lbl{margin:8px 4px 2px}
 #movil .campo .v .av{width:24px;height:24px;font-size:11px}
-#movil .mv-subh{display:flex;justify-content:space-between;align-items:baseline}
+#movil .mv-subh{display:flex;gap:6px;align-items:baseline}
 #movil .mv-subh .num{color:var(--mute);font-weight:500}
 #movil .mv-barra{height:4px;border-radius:2px;background:var(--bg-3);overflow:hidden;margin:0 0 8px}
 #movil .mv-barra i{display:block;height:100%;background:var(--acc);border-radius:2px}
@@ -646,6 +647,31 @@
 #movil .estado-op .av{flex:none}
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
+/* revisiones del lote B */
+#movil .top.sin-t .top-in{grid-template-columns:auto 1fr auto}
+#movil .mv-tema{place-items:center end;padding-right:8px}
+#movil .top:has(.back) .nube:has(.q) :is(.num,.qp){display:none}#movil .top:has(.back) .nube{gap:4px;min-width:44px;justify-content:center}
+#movil .hoja .lbl.mv-subh{display:flex;justify-content:space-between;align-items:baseline}
+#movil .mv-subs{background:var(--panel-2);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line2);padding:0 4px 0 14px}
+#movil .mv-sub{align-items:flex-start}#movil .mv-sub:last-child{border-bottom:0}
+#movil .mv-sub .casilla{position:relative;margin-top:9px}#movil .mv-sub .casilla::after{content:'';position:absolute;inset:-9px}
+#movil .mv-sub .mv-subx{margin-top:0}
+#movil .hoja .mv-sub textarea{flex:1;min-width:0;min-height:var(--tap) !important;height:auto;border:0 !important;border-radius:0;background:none !important;padding:11px 0 !important;box-shadow:none !important;font:16px/1.35 var(--font);color:var(--ink);overflow:hidden;resize:none}
+#movil .hoja .mv-sub.hecha :is(input,textarea){color:var(--mute);text-decoration:line-through}
+#movil .hoja textarea[data-ed="detalles"]{max-height:40vh;overflow-y:auto}
+#movil .ty.ses{background:var(--ty-ses);color:var(--ty-ses-ink)}
+#movil .mv-sap-b .oj{color:var(--mute)}
+#movil .mv-sap-ed{display:flex;justify-content:flex-end;padding:0 6px 0 var(--pad);margin:-8px 0 0}
+#movil .mv-sap-ed .lnk{min-height:var(--tap);padding:0 10px;color:var(--acc-ink);font-weight:500}
+#movil .mv-mk{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;margin:3px 2px 0 4px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line);color:var(--on-acc)}
+#movil .mv-mk.on{background:var(--acc);box-shadow:none}#movil .mv-mk svg{width:11px;height:11px}
+#movil .mv-scl>span{max-width:100%}#movil .mv-scl .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .campo:has(.mv-scl){align-items:flex-start}#movil .campo:has(.mv-scl) .k{padding-top:15px}#movil .campo:has(.mv-scl) .chev{margin-top:12px}
+#movil .mv-mat h3{margin:20px 0 8px}#movil .mv-mat h3:first-of-type{margin-top:12px}
+#movil .mv-ficha .hj svg{width:15px;height:15px}
+#movil .hoja [data-ed-abre="cliente"] .v>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .mv-pubs b{font-weight:600;color:var(--ink-2)}
+#movil .mv-desp .selcal{background:none;box-shadow:none;padding:0 2px 6px}
 @media (prefers-reduced-motion:reduce){#movil .mv-tema .tr,#movil .mv-tema .k,#movil .mv-tema .k::before,#movil .mv-tema .k::after{transition:none}#movil .mono-w .mono-ll{transition:none}#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 #movil .car .lam{aspect-ratio:var(--r,.8)}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
@@ -677,7 +703,7 @@
   const ST = { fase: 'apagada', vistoA: null, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
   const sinRed = () => !ST.red || ST.fase === 'sin_conexion';
   function chip() {
-    const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
+    const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q"><span class="qp">· </span>${q}<span class="qt"> sin subir</span></span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
     const b = (k, ico, t, a, lbl) => `<button type="button" class="nube${k ? ' ' + k : ''}" data-a="${a || (q ? 'sinsubir' : 'nube')}" aria-label="${esc(lbl || t.replace(/<[^>]+>/g, '') + (q ? `, ${q} sin subir` : ''))}">${ic(ico)}<span class="num">${t}</span>${cola}</button>`;
     // si todo va bien, nada (D-271, punto 8): ni «Al día» ni «Guardado» (basta el aviso breve al guardar); lo que baja o se guarda
     // lo enseña el monograma (punto 10)
@@ -800,7 +826,8 @@
     // cada lado reserva, sin verse, lo que ocupa el otro: el título va centrado con estado o sin él y no salta (D-271, punto 8)
     const fant = h => `<span class="top-g" aria-hidden="true" inert>${h}</span>`;
     const ext = o.extra || '';
-    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}${fant(`<span class="top-fila">${mini}${o.r || `<span data-chip-g>${chip()}</span>`}${ext}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r"><span class="top-fila">${mini}${o.r || `<span data-chip>${chip()}</span>`}${ext}</span>${fant(izq)}</div></div></header>`;
+    const g = o.t || o.atras ? fant : () => '';   // sin título no hay nada que centrar: sin lados fantasma (la píldora de Hoy no se sale, revisión del lote B)
+    return `<header class="top${o.linea ? ' linea' : ''}${o.t || o.atras ? '' : ' sin-t'}"><div class="top-in"><div class="top-l">${izq}${g(`<span class="top-fila">${mini}${o.r || `<span data-chip-g>${chip()}</span>`}${ext}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r"><span class="top-fila">${mini}${o.r || `<span data-chip>${chip()}</span>`}${ext}</span>${g(izq)}</div></div></header>`;
   }
   function tabs(on) {
     const n = TAREAS_PASADO;
@@ -882,7 +909,8 @@
     } catch (e) { L.vista = null; L.error.mes = 'No se pudo abrir este mes.'; }
   }
   async function leerSes(id) {   // una sesión entera (D-275): la vista sale de sesiones.js
-    try { const v = M.sesiones && M.sesiones.movil ? await M.sesiones.movil.vista(id) : null; L.ses = v || { id, falta: true }; L.error.ses = ''; }
+    if (!(M.sesiones && M.sesiones.movil)) { L.ses = null; L.error.ses = 'No se pudo leer la sesión: recarga la Mesa.'; return; }
+    try { const v = await M.sesiones.movil.vista(id); L.ses = v || { id, falta: true }; L.error.ses = ''; }
     catch (e) { L.ses = null; L.error.ses = 'No se pudo leer la sesión.'; }
   }
   let convDe = '';
@@ -1225,7 +1253,7 @@
       if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes();
       await leerTareas();
     } catch (e) { /* cada lectura dice lo suyo */ }
-    if (L.ses && L.ses.id) await leerSes(L.ses.id);   // la sesión abierta, también al día
+    if (r.p === 'ses' && L.ses && L.ses.id) await leerSes(L.ses.id);   // la sesión abierta, también al día (solo si se está en ella)
     const vv = MV().vista(); if (L.vista && vv && vv.key === L.vista.key) { L.vista = vv; if (['mes', 'pub', 'cap', 'his'].includes(r.p) && r.a === vv.key) leerConv(vv.key); }   // el tablero abierto, aunque no se vea
     if (r.p !== 'hoy') { L.hoy = null; L.error.hoy = ''; }
     if (r.p !== 'clientes') { L.clientes = null; L.error.clientes = ''; }
@@ -1341,9 +1369,16 @@
   // la misma hoja (nunca una hoja encima de otra). Sus fotos se ven (D-271, punto 1), no se añaden ni se quitan aquí.
   async function hojaTarea(x, r, fotos) {
     const nota = r.tipo === 'nota', o0 = { txt: String(r.txt || ''), fecha: r.fecha || '', cliente: r.cliente || '', detalles: String(r.detalles || ''), subs: (r.subtareas || []).map(y => ({ sid: y.id, txt: String(y.txt || ''), hecha: !!y.hecha })) };
-    const ed = JSON.parse(JSON.stringify(o0)), off = sinRed();
+    // o1: lo que se ve, lo guardado con lo que se está guardando encima (guardar de fondo: reabrirla mientras sube es normal; revisión del lote B)
+    const o1 = JSON.parse(JSON.stringify(o0));
+    for (const p of opsLeer().filter(q => q.estado === 'nueva' && q.slot === x.id)) {
+      const v = p.valor;
+      if (p.campo === 'tareaTexto') o1.txt = String(v ?? ''); else if (p.campo === 'tareaFecha') o1.fecha = v || ''; else if (p.campo === 'tareaCliente') o1.cliente = v || ''; else if (p.campo === 'tareaDetalles') o1.detalles = String(v ?? '');
+      else if (p.campo === 'subtarea' && v) { const y = o1.subs.find(z => z.sid === v.sid); if (v.accion === 'nueva' && !y) o1.subs.push({ sid: v.sid, txt: String(v.txt || ''), hecha: !!v.hecha, pend: p.id }); else if (y && v.accion === 'quitar') y.quitada = true; else if (y && v.accion === 'texto') y.txt = String(v.txt || ''); else if (y && v.accion === 'hecha') y.hecha = !!v.hecha; }
+    }
+    const ed = JSON.parse(JSON.stringify(o1)), off = sinRed();
     let abre = '', mes = (ed.fecha || hoy()).slice(0, 7), err = '';
-    const esp = !nota ? (await M.personal.tareas().catch(() => [])).filter(t => t.tipo === 'esporadico' && !t.pasado) : [];
+    const esp = !nota && M.personal._p && M.personal._p.esps ? M.personal._p.esps() : [];   // ya leídos con la tarea (sin leer todos los tableros)
     const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const q = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${q.toFixed(4)}">${fotoArch('tareas', x.id, `el valor.fotos[${i}].blob`, 140 * q)}</span>`; }).join('')}</div>` : '';
     const pinta = () => {
       const vivas = ed.subs.filter(y => !y.quitada), h = vivas.filter(y => y.hecha).length;
@@ -1355,15 +1390,18 @@
         ${nota ? '' : `<div class="grupo" style="margin-top:12px">${fila('fecha', 'Fecha', esc(ed.fecha ? cap1(DS[dow(ed.fecha)]) + ' ' + corto(ed.fecha) : 'Sin fecha'))}${abre === 'fecha' ? `<div class="mv-desp">${calendarioHTML(ed.fecha, mes, null, { pie: `<button type="button" class="lnk" data-ed-dia=""${ed.fecha ? '' : ' disabled'}>Sin fecha</button><button type="button" class="lnk" data-ed-dia="${hoy()}">Hoy</button>` })}</div>` : ''}${fila('cliente', 'Cliente', cliTxt)}${abre === 'cliente' ? `<div class="mv-desp estados">${cli({ id: '', name: 'Sin cliente' })}${(X().CL || []).map(cli).join('')}${esp.length ? `<span class="lbl">Esporádicos</span>${esp.map(e => cli({ id: e.id, name: e.txt })).join('')}` : ''}</div>` : ''}</div>
         <span class="lbl">Detalles</span><textarea data-ed="detalles" rows="3" placeholder="Detalles" aria-label="Detalles"${off ? ' disabled' : ''}>${esc(ed.detalles)}</textarea>
         <span class="lbl mv-subh"><span>Subtareas</span>${vivas.length ? `<span class="num">${h}/${vivas.length}</span>` : ''}</span>${vivas.length ? `<div class="mv-barra" aria-hidden="true"><i style="width:${(h / vivas.length * 100).toFixed(1)}%"></i></div>` : ''}
-        <div class="mv-subs">${vivas.map(y => `<div class="mv-sub${y.hecha ? ' hecha' : ''}"><button type="button" class="casilla" data-ed-ck="${esc(y.sid)}" role="checkbox" aria-checked="${y.hecha}" aria-label="${esc((y.hecha ? 'Hecha: ' : 'Marcar como hecha: ') + y.txt)}"${off ? ' disabled' : ''}>${ic('check', 2.5)}</button><input type="text" data-ed-st="${esc(y.sid)}" value="${esc(y.txt)}" aria-label="Subtarea" enterkeyhint="next"${off ? ' disabled' : ''}><button type="button" class="ib mv-subx" data-ed-x="${esc(y.sid)}" aria-label="${esc('Quitar: ' + y.txt)}"${off ? ' disabled' : ''}>${ic('x')}</button></div>`).join('')}</div>
+        <div class="mv-subs">${vivas.map(y => `<div class="mv-sub${y.hecha ? ' hecha' : ''}"><button type="button" class="casilla" data-ed-ck="${esc(y.sid)}" role="checkbox" aria-checked="${y.hecha}" aria-label="${esc((y.hecha ? 'Hecha: ' : 'Marcar como hecha: ') + y.txt)}"${off ? ' disabled' : ''}>${ic('check', 2.5)}</button><textarea rows="1" data-ed-st="${esc(y.sid)}" aria-label="Subtarea" enterkeyhint="next"${off ? ' disabled' : ''}>${esc(y.txt)}</textarea><button type="button" class="ib mv-subx" data-ed-x="${esc(y.sid)}" aria-label="${esc('Quitar: ' + y.txt)}"${off ? ' disabled' : ''}>${ic('x')}</button></div>`).join('')}</div>
         <button type="button" class="lnk" data-ed-mas${off ? ' disabled' : ''}>${ic('mas')}Subtarea</button>`}
         ${tira}${err ? `<p class="resp-err" style="margin:10px 0 0">${esc(err)}</p>` : ''}${off ? '<p class="ex" style="margin-top:12px">Sin conexión: no se puede cambiar.</p>' : ''}
         <div class="pie"><div class="botones"><button type="button" class="btn sua" data-ed-a="cancelar">Cancelar</button><button type="button" class="btn pri" data-ed-a="guardar"${off ? ' disabled' : ''}>Guardar</button></div></div>`;
     };
     const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea' });
     vigilarFotos(capas);
-    const repinta = foco => { const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) f.focus({ preventScroll: true }); } };
-    h.addEventListener('input', e => { const t = e.target; if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value; } });
+    const crece = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };   // las subtareas y los detalles ocupan las líneas que necesiten
+    const crecer = () => h.querySelectorAll('textarea[data-ed-st],textarea[data-ed="detalles"]').forEach(crece);
+    const repinta = foco => { const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); crecer(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) f.focus({ preventScroll: true }); } };
+    requestAnimationFrame(crecer);
+    h.addEventListener('input', e => { const t = e.target; if (t.matches('textarea[data-ed-st],textarea[data-ed="detalles"]')) crece(t); if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value.replace(/\n/g, ' '); } });
     h.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.dataset.edSt) { e.preventDefault(); masSub(); } });
     const masSub = () => { const sid = M.personal.nuevoId('sub'); ed.subs.push({ sid, txt: '', hecha: false, nueva: true }); repinta(`[data-ed-st="${sid}"]`); };
     h.addEventListener('click', e => {
@@ -1382,18 +1420,22 @@
       // «Guardar»: cada campo cambiado, su operación (D-272)
       const txtN = nota ? ed.txt.replace(/\s+$/, '') : ed.txt.replace(/\s*\n\s*/g, ' ').trim();
       if (!txtN.trim()) { err = nota ? 'Una nota necesita un texto.' : 'Una tarea necesita un texto.'; return repinta('[data-ed="txt"]'); }
-      const base = { slot: x.id, nombre: String(o0.txt).split('\n')[0] }, ops = [];
-      if (txtN !== o0.txt) ops.push({ ...base, campo: 'tareaTexto', valor: txtN, visto: o0.txt });
+      const base = { slot: x.id, nombre: String(o1.txt).split('\n')[0] }, ops = [];   // cambiado frente a lo que se veía (o1); lo visto, lo guardado (o0)
+      if (txtN !== o1.txt) ops.push({ ...base, campo: 'tareaTexto', valor: txtN, visto: o0.txt });
       if (!nota) {
-        if (ed.fecha !== o0.fecha) ops.push({ ...base, campo: 'tareaFecha', valor: ed.fecha, visto: o0.fecha });
-        if (ed.cliente !== o0.cliente) ops.push({ ...base, campo: 'tareaCliente', valor: ed.cliente, visto: o0.cliente });
-        const det = ed.detalles.replace(/^\s*\n|\s+$/g, ''); if (det !== o0.detalles.replace(/^\s*\n|\s+$/g, '')) ops.push({ ...base, campo: 'tareaDetalles', valor: det, visto: o0.detalles });
+        if (ed.fecha !== o1.fecha) ops.push({ ...base, campo: 'tareaFecha', valor: ed.fecha, visto: o0.fecha });
+        if (ed.cliente !== o1.cliente) ops.push({ ...base, campo: 'tareaCliente', valor: ed.cliente, visto: o0.cliente });
+        const det = ed.detalles.replace(/^\s*\n|\s+$/g, ''); if (det !== o1.detalles.replace(/^\s*\n|\s+$/g, '')) ops.push({ ...base, campo: 'tareaDetalles', valor: det, visto: o0.detalles });
         for (const y of ed.subs) {
-          const o = o0.subs.find(z => z.sid === y.sid), t2 = y.txt.trim();
-          if (!o) { if (!y.quitada && t2) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'nueva', txt: t2, hecha: y.hecha }, visto: null }); continue; }
-          if (y.quitada || !t2) { ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true } }); continue; }   // vacía al guardar: se quita, como en el Mac
-          if (t2 !== o.txt) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'texto', txt: t2 }, visto: { txt: o.txt } });
-          if (y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'hecha', hecha: y.hecha }, visto: { hecha: o.hecha } });
+          const o = o1.subs.find(z => z.sid === y.sid), g = o0.subs.find(z => z.sid === y.sid), t2 = y.txt.trim(), etq = (t2 || (o && o.txt) || '').slice(0, 60);
+          if (!o || o.pend) {   // nueva aquí, o nueva que aún se está guardando: otra vez «nueva» con su id (sustituye a la pendiente)
+            if (!y.quitada && t2) { if (!o || t2 !== o.txt || y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'nueva', txt: t2, hecha: y.hecha }, visto: null, etq }); }
+            else if (o && o.pend) { if (o.pend !== ENVUELO) opsQuitar(o.pend); else ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true }, etq }); }
+            continue;
+          }
+          if (y.quitada || !t2) { if (!o.quitada) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true }, etq }); continue; }   // vacía al guardar: se quita, como en el Mac
+          if (t2 !== o.txt) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'texto', txt: t2 }, visto: { txt: g ? g.txt : o.txt }, etq });
+          if (y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'hecha', hecha: y.hecha }, visto: { hecha: g ? g.hecha : o.hecha }, etq });
         }
       }
       cerrarHojas(true);
@@ -1415,6 +1457,7 @@
   const E_HTML = t => (M.escritura && M.escritura.html ? M.escritura.html(t, { leer: true }) : esc(t));
   const volverSes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : { atras: 'Tareas', destino: 'tareas' }; };
   const sesCurso = (campo, f) => opsLeer().filter(o => o.estado === 'nueva' && o.slot === (L.ses || {}).id && o.campo === campo && (!f || f(o.valor || {}))).pop();
+  const conocido = c => !!((X().CL || []).find(x => x.id === c) || (M.personal && M.personal._p && M.personal._p.cliDe(c)));
   const fotoSes = (fid, px, q) => `<span class="mv-sf" style="--r:${(q || 1).toFixed(4)}">${fotoArch('tfotos', fid, 'el valor.blob', px)}</span>`;
   C.pantSes = () => {
     const v = L.ses, r0 = RUTA;
@@ -1431,48 +1474,49 @@
       const tx = a.tipo === 'texto', top = sesCurso('sesTexto', o => o.ap === a.id);
       let cuerpo = '';
       if (ab && tx) { const t = top ? top.valor.texto : a.texto; cuerpo = t.trim() ? `<div class="txt mv-stx">${E_HTML(t)}</div>` : `<p class="solo-mac" style="margin:0 var(--pad)">Vacío.</p>`; }
-      if (ab && a.tipo === 'planos') cuerpo = a.pestanas.map(p => `<div class="mv-spl"><h3>${esc(p.nombre)} <span class="num">${p.items.length}</span></h3>${p.items.length ? `<div class="lista">${p.items.map(i => `<div class="tarea${i.hecho ? ' hecha' : ''}"><span class="casilla" role="img" aria-label="${i.hecho ? 'Hecho' : 'Sin hacer'}">${ic('check', 2.5)}</span><span class="tx"><span class="tt">${esc(i.titulo)}</span>${i.texto ? `<span class="tm">${esc(i.texto)}</span>` : ''}${i.fotos.length ? `<span class="mv-sref">${i.fotos.map(fid => fotoSes(fid, 56 * q(fid), q(fid))).join('')}</span>` : ''}</span></div>`).join('')}</div>` : '<p class="solo-mac" style="margin:0">Sin planos.</p>'}</div>`).join('');
+      if (ab && a.tipo === 'planos') cuerpo = a.pestanas.map(p => `<div class="mv-spl"><h3>${esc(p.nombre)} <span class="num">${p.items.length}</span></h3>${p.items.length ? `<div class="lista">${p.items.map(i => `<div class="tarea${i.hecho ? ' hecha' : ''}"><span class="mv-mk${i.hecho ? ' on' : ''}" role="img" aria-label="${i.hecho ? 'Hecho' : 'Sin hacer'}">${i.hecho ? ic('check', 3) : ''}</span><span class="tx"><span class="tt">${esc(i.titulo)}</span>${i.texto ? `<span class="tm">${esc(i.texto)}</span>` : ''}${i.fotos.length ? `<span class="mv-sref">${i.fotos.map(fid => fotoSes(fid, 56 * q(fid), q(fid))).join('')}</span>` : ''}</span></div>`).join('')}</div>` : '<p class="solo-mac" style="margin:0">Sin planos.</p>'}</div>`).join('');
       if (ab && a.tipo === 'mood') cuerpo = a.grupos.map(g => `<div class="mv-spl"><h3>${esc(g.nombre || 'Sin nombre')} <span class="num">${g.fotos.length}</span></h3><div class="mv-mood">${g.fotos.map(fid => fotoSes(fid, 180, q(fid))).join('')}</div></div>`).join('') || '<p class="solo-mac" style="margin:0 var(--pad)">Sin fotos.</p>';
-      if (ab && a.tipo === 'material') { const m = a.material; cuerpo = `<div class="mv-mat"><div class="mv-matb"><div class="mv-barra" aria-hidden="true"><i style="width:${m.n ? (m.hechas / m.n * 100).toFixed(1) : 0}%"></i></div><span class="num">${m.hechas}/${m.n}</span></div>${m.familias.map(f => `<h3>${esc(f.nombre)} <span class="num">${f.hechas}/${f.cosas.length}</span></h3><div class="mv-fichas">${f.cosas.map(c => { const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), on = pend ? pend.valor.hecho : c.hecha; return `<button type="button" class="mv-ficha${on ? ' on' : ''}${c.de ? ' hijo' : ''}" data-a="sesmat" data-ap="${esc(a.id)}" data-m="${esc(c.id)}" aria-pressed="${on}"${dis}${pend ? ' aria-busy="true"' : ''}>${c.de ? `<span class="hj">${ic('der')}</span>` : on ? ic('check', 2.25) : ''}${esc(c.nombre)}</button>`; }).join('')}</div>`).join('')}</div>`; }
-      return `<section class="mv-sap${ab ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="${esc(a.id)}" aria-expanded="${ab}"><h2>${esc(a.nombre)}</h2>${n ? `<span class="n num">${n}</span>` : ''}${a.visible ? '' : `<span class="oj" role="img" aria-label="No lo ve el cliente">${ic('ojoNo')}</span>`}${top ? GIRA : ''}<span class="chev">${ic('abajo')}</span></button>${tx ? `<button type="button" class="lnk" data-a="sested" data-ap="${esc(a.id)}"${dis || (top ? ' disabled' : '')}>Editar</button>` : ''}</div>${cuerpo}</section>`;
+      if (ab && a.tipo === 'material') { const m = a.material; cuerpo = `<div class="mv-mat"><div class="mv-matb"><div class="mv-barra" aria-hidden="true"><i style="width:${m.n ? (m.hechas / m.n * 100).toFixed(1) : 0}%"></i></div></div>${m.familias.map(f => `<h3>${esc(f.nombre)} <span class="num">${f.hechas}/${f.cosas.length}</span></h3><div class="mv-fichas">${f.cosas.map(c => { const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), on = pend ? pend.valor.hecho : c.hecha; return `<button type="button" class="mv-ficha${on ? ' on' : ''}${c.de ? ' hijo' : ''}" data-a="sesmat" data-ap="${esc(a.id)}" data-m="${esc(c.id)}" aria-pressed="${on}"${dis}${pend ? ' aria-busy="true"' : ''}>${c.de ? `<span class="hj">${ic('hijo')}</span>` : ''}${on ? ic('check', 2.25) : ''}${esc(c.nombre)}</button>`; }).join('')}</div>`).join('')}</div>`; }
+      const ed = ab && tx ? `<div class="mv-sap-ed"><button type="button" class="lnk" data-a="sested" data-ap="${esc(a.id)}"${dis || (top ? ' disabled' : '')}>Editar</button></div>` : '';
+      return `<section class="mv-sap${ab ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="${esc(a.id)}" aria-expanded="${ab}"><h2>${esc(a.nombre)}</h2>${n ? `<span class="n num">${n}</span>` : ''}${a.visible ? '' : `<span class="oj" role="img" aria-label="No lo ve el cliente">${ic('ojoNo')}</span>`}${top ? GIRA : ''}<span class="chev">${ic('abajo')}</span></button></div>${ed}${cuerpo}</section>`;
     };
     return top(volverSes()) + `<main class="main sin-tabs mv-ses" id="contenido">
       <div class="mv-ses-h"><h1>${esc(nombre)}${nop ? ' ' + GIRA : ''}</h1><button type="button" class="lnk" data-a="sesnom"${dis || (nop ? ' disabled' : '')}>Editar</button></div>
-      <div class="mv-ses-sub"><span class="ty hist">${ic('claqueta')}Sesión</span><span>${esc(v.clase)}</span></div>
+      <div class="mv-ses-sub"><span class="ty ses">${ic('claqueta')}Sesión</span><span>${esc(v.clase)}</span></div>
       <div class="grupo">
         <button type="button" class="campo" data-a="sesfecha"${dis || (iop ? ' disabled' : '')}${iop ? ' aria-busy="true"' : ''}><span class="k">Fecha y hora</span><span class="v num" style="display:block;white-space:normal">${esc(cuando)}${fin}</span>${iop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
-        <button type="button" class="campo" data-a="sesclis"${dis || (cop ? ' disabled' : '')}${cop ? ' aria-busy="true"' : ''}><span class="k">${clis.length > 1 ? 'Clientes' : 'Cliente'}</span><span class="v mv-scl">${clis.length ? clis.map(c => `<span>${av(c)}${esc(nombreCli(c))}</span>`).join('') : 'Sin cliente'}</span>${cop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
+        <button type="button" class="campo" data-a="sesclis"${dis || (cop ? ' disabled' : '')}${cop ? ' aria-busy="true"' : ''}><span class="k">${clis.filter(conocido).length > 1 ? 'Clientes' : 'Cliente'}</span><span class="v mv-scl">${clis.filter(conocido).length ? clis.filter(conocido).map(c => `<span>${av(c)}<span class="nm">${esc(nombreCli(c))}</span></span>`).join('') : 'Sin cliente'}</span>${cop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
       </div>${off ? '<p class="solo-mac">Sin conexión: no se puede cambiar.</p>' : ''}
       ${v.apartados.map(apHTML).join('')}
       ${v.fotos.length ? `<section class="mv-sap${SES.abiertos.has('__fotos') ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="__fotos" aria-expanded="${SES.abiertos.has('__fotos')}"><h2>Fotos de la sesión</h2><span class="n num">${v.fotos.length}</span><span class="chev">${ic('abajo')}</span></button></div>${SES.abiertos.has('__fotos') ? `<div class="mv-srej">${v.fotos.map(f => fotoSes(f.id, 130, 1)).join('')}</div>` : ''}</section>` : ''}
     </main>`;
   };
   C.sesap = b => { const k = b.dataset.ap; if (SES.abiertos.has(k)) SES.abiertos.delete(k); else SES.abiertos.add(k); pintar(); };
-  C.sesmat = b => { const v = L.ses; if (!v) return; const a = v.apartados.find(x => x.id === b.dataset.ap), c = a && a.material.familias.flatMap(f => f.cosas).find(x => x.id === b.dataset.m); if (!c) return; const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), ahora = pend ? pend.valor.hecho : c.hecha; guardar({ slot: v.id, campo: 'sesMaterial', valor: { ap: a.id, m: c.id, hecho: !ahora }, visto: { hecho: c.hecha }, nombre: v.nombre }); };
+  C.sesmat = b => { const v = L.ses; if (!v) return; const a = v.apartados.find(x => x.id === b.dataset.ap), c = a && a.material.familias.flatMap(f => f.cosas).find(x => x.id === b.dataset.m); if (!c) return; const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), ahora = pend ? pend.valor.hecho : c.hecha; guardar({ slot: v.id, campo: 'sesMaterial', valor: { ap: a.id, m: c.id, hecho: !ahora }, visto: { hecho: c.hecha }, nombre: v.nombre, etq: c.nombre }); };
   // una hoja con un campo y «Guardar» (el nombre o el texto de un apartado)
   function hojaCampo(t, valor, multi, alGuardar) {
     const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `<textarea rows="9" data-sc aria-label="${esc(t)}">${esc(valor)}</textarea><p class="ex" style="margin-top:8px">Al empezar una línea: «- » viñeta, «1. » número, «[] » casilla.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t });
     h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return cerrarHojas(); const err = alGuardar(h.querySelector('[data-sc]').value); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
   }
   C.sesnom = () => { const v = L.ses; if (!v) return; hojaCampo('Nombre de la sesión', v.nombre, false, t => { const n = t.replace(/\s*\n\s*/g, ' ').trim(); if (!n) return 'Una sesión necesita un nombre.'; cerrarHojas(true); if (n !== v.nombre) guardar({ slot: v.id, campo: 'sesNombre', valor: n, visto: v.nombre, nombre: v.nombre }); return ''; }); };
-  C.sested = b => { const v = L.ses, a = v && v.apartados.find(x => x.id === b.dataset.ap); if (!a) return; hojaCampo(a.nombre, a.texto, true, t => { cerrarHojas(true); if (t !== a.texto) guardar({ slot: v.id, campo: 'sesTexto', valor: { ap: a.id, texto: t }, visto: a.texto, nombre: v.nombre }); return ''; }); };
+  C.sested = b => { const v = L.ses, a = v && v.apartados.find(x => x.id === b.dataset.ap); if (!a) return; hojaCampo(a.nombre, a.texto, true, t => { cerrarHojas(true); if (t !== a.texto) guardar({ slot: v.id, campo: 'sesTexto', valor: { ap: a.id, texto: t }, visto: a.texto, nombre: v.nombre, etq: a.nombre }); return ''; }); };
   C.sesclis = () => {
     const v = L.ses; if (!v) return; const sel = new Set(v.clientes);
     const pinta = esp => { const fila = (id, n) => `<button type="button" class="estado-op${sel.has(id) ? ' on' : ''}" data-scl="${esc(id)}" aria-pressed="${sel.has(id)}">${av(id)}<span style="flex:1;min-width:0">${esc(n)}</span>${sel.has(id) ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`;
       return `<h2>Clientes de la sesión</h2><p class="ex">Uno o varios. Los nuevos se crean en el escritorio.</p><span class="lbl">Mensuales</span><div class="estados">${(X().CL || []).map(c => fila(c.id, c.name)).join('')}</div>${esp.length ? `<span class="lbl">Esporádicos</span><div class="estados">${esp.map(e => fila(e.id, e.txt)).join('')}</div>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-scl-a="no">Cancelar</button><button type="button" class="btn pri" data-scl-a="si">Guardar</button></div></div>`; };
-    M.personal.tareas().catch(() => []).then(l => {
-      const esp = l.filter(t => t.tipo === 'esporadico' && !t.pasado), h = hoja(pinta(esp), { etiqueta: 'Clientes de la sesión' });
+    {   // los esporádicos ya leídos con la sesión (sin leer todos los tableros; la hoja sale en el acto, sobre esta pantalla)
+      const esp = M.personal._p && M.personal._p.esps ? M.personal._p.esps() : [], h = hoja(pinta(esp), { etiqueta: 'Clientes de la sesión' });
       h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const f = e.target.closest('[data-scl]'); if (f) { const id = f.dataset.scl; if (sel.has(id)) sel.delete(id); else sel.add(id); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(esp); h.scrollTop = y; return; }
         const b = e.target.closest('[data-scl-a]'); if (!b) return; if (b.dataset.sclA !== 'si') return cerrarHojas(); cerrarHojas(true);
         const nuevo = [...sel], ant = [...v.clientes].sort(); if (JSON.stringify([...nuevo].sort()) !== JSON.stringify(ant)) guardar({ slot: v.id, campo: 'sesClientes', valor: nuevo, visto: ant, nombre: v.nombre }); });
-    });
+    }
   };
   C.sesfecha = () => {
     const v = L.ses; if (!v) return;
-    let dia = v.fecha || hoy(), conHora = !!v.hora, hh = (v.hora || '10:00').slice(0, 2), mm = (v.hora || '10:00').slice(3, 5), mes = dia.slice(0, 7);
+    let dia = v.fecha || '', conHora = !!v.hora, hh = (v.hora || '10:00').slice(0, 2), mm = (v.hora || '10:00').slice(3, 5), mes = (v.fecha || hoy()).slice(0, 7);   // sin fecha: ningún día elegido (guardar sin tocar no pone hoy)
     const mins = MINS.includes(mm) ? MINS : [...MINS, mm].sort();
     const dur = () => { if (!v.fin || !v.fin.fecha || !v.fecha) return ''; if (v.fin.hora && v.hora && v.fin.fecha === v.fecha) { const a = +v.hora.slice(0, 2) * 60 + +v.hora.slice(3, 5), b = +v.fin.hora.slice(0, 2) * 60 + +v.fin.hora.slice(3, 5), c = (+hh * 60 + +mm) + (b - a); return c < 1440 ? `Termina a las ${String(Math.floor(c / 60)).padStart(2, '0')}:${String(c % 60).padStart(2, '0')}.` : 'El fin se mueve con el inicio.'; } return 'El fin se mueve con el inicio.'; };
-    const pinta = () => `<h2>Fecha y hora</h2><p class="ex">${esc(v.nombre)}</p>${calendarioHTML(dia, mes, null)}${conHora ? `<div class="ruedas"><span class="banda"></span>${ruedaHTML('h', HORAS, hh)}<b class="dos">:</b>${ruedaHTML('m', mins, mm)}</div><button type="button" class="lnk" data-a2="sinhora" style="margin:4px auto 0;display:flex">Sin hora</button>` : `<button type="button" class="campo" data-a2="ponhora" style="margin-top:10px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)"><span class="k">Hora</span><span class="v">Sin hora</span><span class="chev">${ic('der')}</span></button>`}${v.fin && v.fin.fecha ? `<p class="ex" style="margin:10px 0 0" data-dur>${esc(dur())}</p>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-a2="cancelar">Cancelar</button><button type="button" class="btn pri" data-a2="guardar">Guardar</button></div></div>`;
+    const pinta = () => `<h2>Fecha y hora</h2><p class="ex">${esc(v.nombre)}</p>${calendarioHTML(dia, mes, null, { pie: `<button type="button" class="lnk" data-a2="sinfecha"${v.fecha ? '' : ' disabled'}>Sin fecha</button>` })}${conHora ? `<div class="ruedas"><span class="banda"></span>${ruedaHTML('h', HORAS, hh)}<b class="dos">:</b>${ruedaHTML('m', mins, mm)}</div><button type="button" class="lnk" data-a2="sinhora" style="margin:4px auto 0;display:flex">Sin hora</button>` : `<button type="button" class="campo" data-a2="ponhora" style="margin-top:10px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)"><span class="k">Hora</span><span class="v">Sin hora</span><span class="chev">${ic('der')}</span></button>`}${v.fin && v.fin.fecha ? `<p class="ex" style="margin:10px 0 0" data-dur>${esc(dur())}</p>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-a2="cancelar">Cancelar</button><button type="button" class="btn pri" data-a2="guardar">Guardar</button></div></div>`;
     const h = hoja(pinta(), { etiqueta: 'Fecha y hora' });
     const armar = () => h.querySelectorAll('[data-rueda]').forEach(rr => armarRueda(rr, x => { if (rr.dataset.rueda === 'h') hh = x; else mm = x; const d = h.querySelector('[data-dur]'); if (d) d.textContent = dur(); }));
     const leer = () => { if (!conHora) return; const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; };
@@ -1485,6 +1529,8 @@
       if (b.dataset.a2 === 'cancelar') return cerrarHojas();
       if (b.dataset.a2 === 'sinhora') { leer(); conHora = false; return repinta(); }
       if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
+      if (b.dataset.a2 === 'sinfecha' && !b.disabled) { cerrarHojas(true); return guardar({ slot: v.id, campo: 'sesInicio', valor: { fecha: '', hora: '' }, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }
+      if (b.dataset.a2 === 'guardar' && !dia) return cerrarHojas();
       if (b.dataset.a2 === 'guardar') { leer(); const valor = { fecha: dia, hora: conHora ? `${hh}:${mm}` : '' }; cerrarHojas(true); if (valor.fecha !== v.fecha || valor.hora !== v.hora) guardar({ slot: v.id, campo: 'sesInicio', valor, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }
     });
   };
@@ -1638,7 +1684,7 @@
     if (op.campo === 'subtarea') { const o = op.valor || {}; if (v === op.valor) return o.accion === 'quitar' ? 'Quitarla' : o.accion === 'hecha' ? (o.hecha ? 'Hecha' : 'Sin hacer') : String(o.txt || ''); return v == null ? 'No está' : v.txt != null ? v.txt : v.hecha != null ? (v.hecha ? 'Hecha' : 'Sin hacer') : 'Está'; }
     return '';
   }
-  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva', tareaTexto: 'Texto', tareaFecha: 'Fecha', tareaCliente: 'Cliente', tareaDetalles: 'Detalles', subtarea: 'Subtarea', sesNombre: 'Nombre', sesInicio: 'Fecha y hora', sesClientes: 'Clientes', sesMaterial: 'Material', sesTexto: 'Texto' })[op.campo] || op.campo;
+  const opQue = op => (({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva', tareaTexto: 'Texto', tareaFecha: 'Fecha', tareaCliente: 'Cliente', tareaDetalles: 'Detalles', subtarea: 'Subtarea', sesNombre: 'Nombre', sesInicio: 'Fecha y hora', sesClientes: 'Clientes', sesMaterial: 'Material', sesTexto: 'Texto' })[op.campo] || op.campo) + (op.etq ? ' · ' + op.etq : '');   // op.etq: la subtarea, la cosa del material o el apartado (revisión del lote B)
   // guardar de fondo (D-271, punto 9): sin hoja que tape la pantalla; sus pasos (coger, aplicar, subir, soltar) llenan el monograma
   const alPaso = n => { TRAB.guardar = [0, 0.25, 0.5, 1][n] ?? 1; trabajo(); };   // el monograma, un cuarto por paso
   // lo que se está guardando: la pantalla enseña ya el valor nuevo, con un aro en el sitio de su flecha
@@ -1727,7 +1773,7 @@
   async function correr(o, escritos = new Map()) {
     const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
     const prim = opsLeer().find(x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva'));
-    const prog = { paso: n => alPaso(n), h: null, que: prim ? `«${opQue(prim).toLowerCase()}»${prim.nombre ? ' de ' + prim.nombre : ''}` : '' };
+    const prog = { paso: n => alPaso(n), h: null, que: prim ? esc(`«${opQue(prim).toLowerCase()}»${prim.nombre ? ' de ' + prim.nombre : ''}`) : '' };
     const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
     const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set();
     const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : op.campo === 'subtarea' ? (op.valor || {}).sid + ':' + (op.valor || {}).accion : op.campo === 'sesMaterial' ? (op.valor || {}).ap + ':' + (op.valor || {}).m : op.campo === 'sesTexto' ? (op.valor || {}).ap : ''].join('|');
@@ -1825,6 +1871,7 @@
     L.hoy = null; L.clientes = null; L.error = {};
     if (L.vista) { const v = await MV().mirar(L.vista.key).catch(() => null); L.vista = v && !v.error ? v : null; }
     await leerTareas();
+    if (RUTA.p === 'ses' && L.ses && L.ses.id) await leerSes(L.ses.id);   // tras guardar, la sesión con lo guardado (revisión del lote B)
     pintar();
   }
   const pAhora = () => { const v = L.vista; return v && v.key === RUTA.a ? v.posts.find(x => x.id === RUTA.b) : null; };
@@ -1997,7 +2044,7 @@
     const ALM = { boards: 'Tablero', tareas: 'Tarea o nota', clients: 'Cliente', files: 'Foto' };
     const fila2 = (t, s, d) => `<div class="campo" style="cursor:default;align-items:flex-start;padding-top:12px;padding-bottom:12px"><span class="v" style="display:block;white-space:normal"><b>${esc(t)}</b><span class="por">${esc(s)}</span></span></div><div class="botones" style="margin:0 0 12px;padding:0 12px">${d}</div>`;
     const h = hoja(`<h2>Sin subir</h2><p class="ex">${esc(plural(ops.length + nube.length, 'cambio no llegó', 'cambios no llegaron'))} a la Mesa.</p>`
-      + (ops.length ? `<div class="grupo">${ops.map(op => fila2(opQue(op), opTexto(op, op.valor), `<button type="button" class="btn sua" data-des="${esc(op.id)}">Descartar</button><button type="button" class="btn pri" data-sub="${esc(op.id)}">Subir encima</button>`)).join('')}</div>` : '')
+      + (ops.length ? `<div class="grupo">${ops.map(op => fila2(opQue(op) + (op.nombre ? ' · ' + op.nombre : ''), opTexto(op, op.valor), `<button type="button" class="btn sua" data-des="${esc(op.id)}">Descartar</button><button type="button" class="btn pri" data-sub="${esc(op.id)}">Subir encima</button>`)).join('')}</div>` : '')
       + (nube.length ? `<div class="grupo" style="margin-top:12px">${nube.map((x, i) => fila2(`${ALM[x.a] || x.a}`, x.mensaje || x.motivo || '', `<button type="button" class="btn sua" data-ndes="${i}">Descartar</button><button type="button" class="btn pri" data-nsub="${i}">Subir encima</button>`)).join('')}</div>` : '')
       + `<div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Sin subir' });
     h.addEventListener('click', async e => { if (!h.isConnected) return;

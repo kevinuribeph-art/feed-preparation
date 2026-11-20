@@ -23,6 +23,15 @@
 //                                                     pedir cambios ni comentar; entra con un código por correo. La crea si no existe
 //                                                     (sin contraseña). «quitar» le quita lo que mira (la cuenta se queda). En el
 //                                                     real, solo con --si. Antes, `esquema` con la columna `observa`
+//   node tools/web.mjs alta <pruebas|real> <cliente[,cliente…]> <correo> --nombre=… [--reenviar] [--prueba-a=<correo>] [--si]
+//                                                     da de alta una cuenta de cliente que decide (aprueba, pide cambios, comenta) y le
+//                                                     manda la bienvenida (D-273). Antes de nada comprueba que cada cliente ya está en
+//                                                     el portal (lo pone «Web del cliente» de la Mesa): si falta uno, no hace nada.
+//                                                     Crea la cuenta sin contraseña (entra con un código por correo). La bienvenida va
+//                                                     solo la primera vez (--reenviar, otra), desde el buzón de los códigos, con
+//                                                     «Responder a» el correo de Kevin. --prueba-a: el mismo correo a otra dirección,
+//                                                     sin crear nada. En el real, solo con --si; en pruebas nunca se envía: se guarda el
+//                                                     .eml (--buzon=<carpeta>)
 //   node tools/web.mjs funciones <pruebas|real>       despliega servidor/funciones/firmar.ts (URL firmadas de lo que se puede ver)
 //   node tools/web.mjs borrar-cliente <pruebas|real> <id>   borra sus archivos y todo lo suyo; el id no se vuelve a usar
 //   node tools/web.mjs mesa <pruebas|real> [--si]     aplica servidor/mesa.sql (la Mesa en el servidor; después de `esquema`).
@@ -38,10 +47,12 @@
 //                                                     En pruebas NUNCA la clave real: una inventada (ZERNIO_PRUEBAS_CLAVE, que empieza
 //                                                     por «falsa-», o una nueva) y el Zernio simulado servidor/funciones/zernio-falso.ts,
 //                                                     que solo se despliega ahí
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { bienvenida, mensaje, enviarSmtp, CORREO_OK } from './correo.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -160,6 +171,32 @@ async function sqlDe(P, query) {
   const r = await gestion(`projects/${P.ref}/database/query`, { method: 'POST', body: { query } });
   if (!r.ok || !Array.isArray(r.json)) throw new Fallo(`la consulta no entró (${r.status}): ${r.text}`);
   return r.json;
+}
+
+// El correo de Kevin (el único dueño) para el «Responder a» de la bienvenida; con ninguno o varios, sin «Responder a».
+async function correoDelDueno(P) {
+  const d = await rest(P, 'duenos?select=user_id', { apikey: P.secreta });
+  if (!d.ok || (d.json || []).length !== 1) return null;
+  const r = await pedir(`${P.url}/auth/v1/admin/users/${d.json[0].user_id}`, { headers: cab(P.secreta) });
+  const c = r.ok && r.json && r.json.email;
+  return c && CORREO_OK.test(c) ? c : null;
+}
+
+// Envía un correo del portal (D-273). Solo el proyecto real envía, desde el buzón de los códigos (SMTP_USUARIO, Hostinger, 465);
+// en pruebas nunca: se guarda el .eml en `buzon` (o en la carpeta temporal) para comprobarlo.
+async function mandarCorreo(P, para, m, responderA, buzon) {
+  if (P.cual !== 'real' || P.ref !== clave('SUPABASE_REF')) {
+    const dir = buzon || join(tmpdir(), 'portal-bienvenidas');
+    mkdirSync(dir, { recursive: true });
+    const f = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}-${para.replace(/[^a-z0-9.@-]/gi, '_')}.eml`);
+    writeFileSync(f, mensaje({ de: 'portal@portal-pruebas.test', para, responderA, ...m }));
+    return `guardada en ${f} (pruebas: no se envía)`;
+  }
+  const usuario = clave('SMTP_USUARIO'), k = clave('SMTP_CLAVE');
+  if (!usuario || !k) throw new Fallo('faltan SMTP_USUARIO y SMTP_CLAVE en .env');
+  const r = await enviarSmtp({ host: 'smtp.hostinger.com', port: 465, usuario, clave: k, de: usuario, para,
+    datos: mensaje({ de: usuario, para, responderA, ...m }) });
+  return `enviada a ${para} (el servidor dice: ${r.aceptado})`;
 }
 
 const ORDENES = {
@@ -284,6 +321,73 @@ const ORDENES = {
     return { proyecto: P.ref, cuenta: correo, creada: creada ? 'sí, sin contraseña' : 'ya existía', mira: (mira.json || []).length, de: (cl.json || []).length,
       ...(decide.length ? { aviso: `en ${decide.join(', ')} es un miembro que decide: ahí no solo mira` } : {}),
       entrada: 'en el portal, con un código por correo, como los clientes', nuevos: 'cada cliente nuevo le llega solo' };
+  },
+  // Alta de una cuenta de cliente que decide, con su correo de bienvenida (D-273). Antes de nada, cada cliente tiene que estar ya
+  // en el portal (lo pone el primer «Enviar» de «Web del cliente» en la Mesa): si falta uno, no se crea nada ni se envía nada.
+  async alta(cual, clientes, correo, ...op) {
+    const P = proyecto(cual);
+    const ids = String(clientes || '').split(',').map(x => x.trim()).filter(Boolean);
+    if (!ids.length || ids.some(x => !/^[a-z0-9][a-z0-9-]{0,39}$/.test(x)) || new Set(ids).size !== ids.length)
+      throw new Fallo('di el id de cada cliente de la Mesa, separados por comas y sin repetir (p. ej. cliente-a,cliente-b)');
+    correo = String(correo || '').trim().toLowerCase();
+    if (!CORREO_OK.test(correo)) throw new Fallo('falta el correo de la cuenta');
+    const valor = k => { const x = op.find(o => o.startsWith(k + '=')); return x === undefined ? null : x.slice(k.length + 1).trim(); };
+    if (op.some(x => !['--si', '--reenviar'].includes(x) && !/^--(nombre|prueba-a|buzon)=/.test(x))) throw new Fallo('di «--nombre=…», «--reenviar», «--prueba-a=<correo>», «--buzon=<carpeta>», «--si» o nada más');
+    if (cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real, solo con --si (y con el OK de Kevin)');
+    if (cual === 'real' && valor('--buzon') !== null) throw new Fallo('--buzon es solo para pruebas: en el real el correo se envía');
+    if (!P.secreta) throw new Fallo('falta la clave secreta de ese proyecto en .env');
+    const nombre = valor('--nombre') || '';
+    if (nombre.length < 1 || nombre.length > 60 || /[\r\n<>]/.test(nombre)) throw new Fallo('--nombre=… (de 1 a 60 letras): sale en el saludo del correo y como autor de sus comentarios');
+    const pruebaA = valor('--prueba-a');
+    if (pruebaA !== null && !CORREO_OK.test(pruebaA)) throw new Fallo('--prueba-a=<correo>: a quién va la prueba');
+    const servicio = (ruta, o = {}) => rest(P, ruta, { ...o, apikey: P.secreta });
+
+    // 1. Que cada cliente exista ya en el portal.
+    const cl = await servicio(`clientes?select=id,nombre&id=in.(${ids.join(',')})`);
+    if (!cl.ok) throw new Fallo(`no se pudieron leer los clientes (${cl.status}): ${cl.text}`);
+    const faltan = ids.filter(x => !(cl.json || []).some(c => c.id === x));
+    if (faltan.length) throw new Fallo(`${faltan.join(', ')} aún no ${faltan.length > 1 ? 'están' : 'está'} en el portal: envía antes su tablero desde la Mesa con «Web del cliente». No se ha dado de alta nada ni se ha enviado ningún correo`);
+    const m = bienvenida({ nombre, correo, clientes: ids.map(x => cl.json.find(c => c.id === x).nombre) });
+    const responderA = await correoDelDueno(P);
+
+    // Una prueba: el correo tal cual, a otra dirección (Kevin), sin crear nada.
+    if (pruebaA !== null) {
+      const envio = await mandarCorreo(P, pruebaA, { ...m, asunto: '[Prueba] ' + m.asunto }, responderA, valor('--buzon'));
+      return { proyecto: P.ref, prueba: envio, asunto: '[Prueba] ' + m.asunto, alta: 'ninguna: es una prueba' };
+    }
+
+    // 2. La cuenta (sin contraseña: entra con un código por correo) y que no sea la de Kevin.
+    let u = await usuarioPorCorreo(P, correo), creada = false;
+    if (!u) {
+      const r = await pedir(`${P.url}/auth/v1/admin/users`, { method: 'POST', headers: { ...cab(P.secreta), 'Content-Type': 'application/json' }, body: { email: correo, email_confirm: true } });
+      if (!r.ok) throw new Fallo(`no se pudo crear la cuenta (${r.status}): ${r.text}`);
+      u = r.json; creada = true;
+    }
+    if (!/^[0-9a-f-]{36}$/.test(u.id)) throw new Fallo('id de usuario raro: paro');
+    const d = await servicio(`duenos?user_id=eq.${u.id}&select=user_id`);
+    if (!d.ok || (d.json || []).length) throw new Fallo(d.ok ? 'esa cuenta es la de Kevin (dueño): ya lo ve todo y aprueba en su Mesa' : `no se pudo mirar si es dueño (${d.status})`);
+
+    // 3. Miembro que decide de cada cliente. Una fila que ya existe no se toca; una que solo mira (D-266) no se convierte.
+    const ya = await servicio(`miembros?user_id=eq.${u.id}&cliente_id=in.(${ids.join(',')})&select=cliente_id,observa`);
+    if (!ya.ok) throw new Fallo(`no se pudo leer si ya era miembro (${ya.status}): ${ya.text}`);
+    const mira = (ya.json || []).filter(x => x.observa).map(x => x.cliente_id);
+    if (mira.length) throw new Fallo(`en ${mira.join(', ')} esa cuenta solo mira (D-266): no se convierte en una que decide`);
+    const nuevos = ids.filter(x => !(ya.json || []).some(y => y.cliente_id === x));
+    if (nuevos.length) {
+      const r = await servicio('miembros', { method: 'POST', body: nuevos.map(c => ({ user_id: u.id, cliente_id: c, nombre, observa: false })) });
+      if (!r.ok) throw new Fallo(`no se pudo dar de alta (${r.status}): ${r.text}`);
+    }
+    const hay = await servicio(`miembros?user_id=eq.${u.id}&cliente_id=in.(${ids.join(',')})&observa=is.false&select=cliente_id`);
+    if (!hay.ok || (hay.json || []).length !== ids.length) throw new Fallo(`el alta no quedó entera (${hay.status}): míralo antes de enviar nada`);
+
+    // 4. La bienvenida, solo con el alta hecha y solo la primera vez (o con --reenviar).
+    let correoBienvenida;
+    if (nuevos.length || op.includes('--reenviar')) {
+      try { correoBienvenida = await mandarCorreo(P, correo, m, responderA, valor('--buzon')); }
+      catch (e) { correoBienvenida = `NO enviada (${tapar(e.message)}): repite la orden con --reenviar`; }
+    } else correoBienvenida = 'no: ya era miembro de todos (--reenviar para mandarla otra vez)';
+    return { proyecto: P.ref, cuenta: correo, creada: creada ? 'sí, sin contraseña' : 'ya existía', nombre, clientes: ids,
+      nuevos: nuevos.length ? nuevos : 'ninguno', bienvenida: correoBienvenida, asunto: m.asunto, responder_a: responderA || 'el buzón que envía' };
   },
   async funciones(cual) {
     const P = proyecto(cual);

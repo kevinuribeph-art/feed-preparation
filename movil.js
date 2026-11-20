@@ -12,10 +12,17 @@
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
   const X = () => M._in, MV = () => M._in.movil;
 
-  // ---------- el tema: el del iPhone (claro u oscuro), sin interruptor ----------
-  const MQ = W.matchMedia ? W.matchMedia('(prefers-color-scheme: dark)') : null;
-  const tema = () => { if (MQ && MQ.matches) D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme; };
-  tema(); if (MQ) { if (MQ.addEventListener) MQ.addEventListener('change', tema); else if (MQ.addListener) MQ.addListener(tema); }
+  // ---------- el tema: el elegido en este iPhone («Apariencia», D-271 punto 11) o, sin elegir, el del iPhone; tema.js lo pinta antes ----------
+  const MQ = W.matchMedia ? W.matchMedia('(prefers-color-scheme: dark)') : null, K_TEMA = 'mesa-movil-tema';
+  const temaElegido = () => { try { const v = W.localStorage.getItem(K_TEMA); return v === 'claro' || v === 'oscuro' ? v : null; } catch (e) { return null; } };
+  const oscuro = () => { const t = temaElegido(); return t ? t === 'oscuro' : !!(MQ && MQ.matches); };
+  const tema = () => {
+    const t = temaElegido(), o = oscuro(), r = D.documentElement;
+    if (o) r.dataset.theme = 'dark'; else if (t) r.dataset.theme = 'light'; else delete r.dataset.theme;
+    D.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', (t ? o : /dark/.test(m.getAttribute('media') || '')) ? '#15110E' : '#F4EFE8'));
+  };
+  const alCambiarTema = () => { tema(); pintarPildora(); };   // el iPhone cambió de modo (la cara ya existe)
+  tema(); if (MQ) { if (MQ.addEventListener) MQ.addEventListener('change', alCambiarTema); else if (MQ.addListener) MQ.addListener(alCambiarTema); }
   const POCO = W.matchMedia ? W.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   // ---------- iconos (Lucide, ISC; un trazo) ----------
@@ -43,6 +50,8 @@
     chispa: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', mas: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     historias: '<path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>',
+    sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    luna: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
     recarga: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
   };
   const ic = (n, sw = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[n] || ''}</svg>`;
@@ -383,6 +392,17 @@
 #movil .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
 #movil .pp-ea{color:var(--acc-ink);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
 #movil .hoja .txt .pp-el{white-space:normal}
+#movil .mv-tema{position:relative;flex:none;width:60px;height:var(--tap);display:grid;place-items:center;border-radius:12px}
+#movil .mv-tema .tr{position:relative;width:52px;height:30px;border-radius:999px;background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line);overflow:hidden;transition:background-color var(--d-m) var(--ease-m)}
+#movil .mv-tema .k{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:999px;background:var(--tg-sun);box-shadow:0 0 0 3px var(--tg-sun-ring),var(--shadow-xs);transform:translateX(22px);transition:transform var(--d-m) var(--ease-m),background-color var(--d-m) var(--ease-m),box-shadow var(--d-m) var(--ease-m)}
+#movil .mv-tema .k::before,#movil .mv-tema .k::after{content:'';position:absolute;border-radius:50%;background:var(--tg-crater);opacity:0;transform:scale(.3);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}
+#movil .mv-tema .k::before{width:7px;height:7px;left:4px;top:10px}#movil .mv-tema .k::after{width:4px;height:4px;left:11px;top:5px}
+#movil .mv-tema.osc .k{transform:none;background:var(--tg-moon);box-shadow:var(--shadow-xs)}
+#movil .mv-tema.osc .k::before,#movil .mv-tema.osc .k::after{opacity:1;transform:none}
+#movil .estado-op .mv-ico{flex:none;width:24px;height:24px;display:grid;place-items:center;color:var(--ink-2)}
+#movil .estado-op .mv-ico svg{width:22px;height:22px}
+#movil .estado-op .mv-tt{flex:1;min-width:0}
+#movil .estado-op .mv-tt .sub{display:block}
 #movil .mono-w{position:relative;flex:none;display:inline-block;width:30px;height:30px;margin-left:8px}
 #movil .mono-w .mono{position:absolute;inset:0;margin:0}
 #movil .mono-w .mono-ll{clip-path:inset(var(--vacio,0%) 0 0 0);transition:clip-path .35s var(--ease)}
@@ -566,7 +586,7 @@
 #movil .estado-op .av{flex:none}
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
-@media (prefers-reduced-motion:reduce){#movil .mono-w .mono-ll{transition:none}#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
+@media (prefers-reduced-motion:reduce){#movil .mv-tema .tr,#movil .mv-tema .k,#movil .mv-tema .k::before,#movil .mv-tema .k::after{transition:none}#movil .mono-w .mono-ll{transition:none}#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 #movil .car .lam{aspect-ratio:var(--r,.8)}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
   #movil .car,#movil .car .lam{background:var(--bg)}#movil .car{margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r))}#movil .car .cnt{right:max(12px,calc(50% - 35vh * var(--r,.8) + 12px))}
@@ -640,6 +660,10 @@
     }
   }
   D.addEventListener('mesa-bajan-fotos', e => { const d = e.detail || {}; TRAB.fotos = { pend: +d.pend || 0, hechas: +d.hechas || 0 }; trabajo(); });
+
+  // la píldora del modo en uso (como la del Mac, D-134 y D-143: sol en claro, luna con dos cráteres en oscuro); abre «Apariencia»
+  const pildora = () => { const o = oscuro(), t = temaElegido(); return `<button type="button" class="mv-tema${o ? ' osc' : ''}" data-a="tema" aria-haspopup="dialog" aria-label="Apariencia: ${o ? 'oscuro' : 'claro'}${t ? '' : ', como el iPhone'}"><span class="tr"><span class="k"></span></span></button>`; };
+  function pintarPildora() { raiz.querySelectorAll('.mv-tema').forEach(b => { const o = oscuro(), t = temaElegido(); b.classList.toggle('osc', o); b.setAttribute('aria-label', `Apariencia: ${o ? 'oscuro' : 'claro'}${t ? '' : ', como el iPhone'}`); }); }
 
   // ---------- las fotos: cada una a su tamaño en pantalla, 3 como mucho a la vez (nunca el original) ----------
   // La miniatura de la Mesa (1.600 px) es la foto: se decodifica una a una, se dibuja al tamaño que se ve (por la densidad del iPhone)
@@ -715,7 +739,8 @@
     const mini = o.atras ? mono(true) : '';
     // cada lado reserva, sin verse, lo que ocupa el otro: el título va centrado con estado o sin él y no salta (D-271, punto 8)
     const fant = h => `<span class="top-g" aria-hidden="true" inert>${h}</span>`;
-    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}${fant(`<span class="top-fila">${mini}${o.r || `<span data-chip-g>${chip()}</span>`}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r"><span class="top-fila">${mini}${o.r || `<span data-chip>${chip()}</span>`}</span>${fant(izq)}</div></div></header>`;
+    const ext = o.extra || '';
+    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}${fant(`<span class="top-fila">${mini}${o.r || `<span data-chip-g>${chip()}</span>`}${ext}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r"><span class="top-fila">${mini}${o.r || `<span data-chip>${chip()}</span>`}${ext}</span>${fant(izq)}</div></div></header>`;
   }
   function tabs(on) {
     const n = TAREAS_PASADO;
@@ -832,7 +857,7 @@
   function pantHoy() {
     const R = L.hoy, h = hoy();
     const sw = `<button type="button" class="mv-sw" role="switch" aria-checked="${AVT}" data-a="avt"><span>Tareas</span><i aria-hidden="true"></i></button>`;   // como en la página del Mac (D-180)
-    let html = top() + `<main class="main" id="contenido"><div class="titulo"><div class="mv-tit"><h1>Hoy</h1>${sw}</div><p>${esc(fechaLarga(h))}</p></div>`;
+    let html = top({ extra: pildora() }) + `<main class="main" id="contenido"><div class="titulo"><div class="mv-tit"><h1>Hoy</h1>${sw}</div><p>${esc(fechaLarga(h))}</p></div>`;
     if (!R) return html + (L.error.hoy ? mal(L.error.hoy) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('hoy');
     html += `<div class="cifras c5" role="group" aria-label="Avisos">${CIFRAS.map(([k, t]) => { const n = R.cifras[k] || 0; return `<button type="button" class="cifra${k === 'pasado' && n ? ' roja' : ''}${FILTRO === k ? ' on' : ''}" data-a="filtro" data-k="${k}" aria-pressed="${FILTRO === k}"${n || FILTRO === k ? '' : ' disabled'}><span class="v num">${n}</span><span class="k">${t}</span></button>`; }).join('')}</div>`;
     const por = c => R.items.filter(x => x.cat === c);
@@ -1264,6 +1289,19 @@
     hoja(`<h2>La nube</h2><p class="ex">${esc(txt)}</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: 'La nube' });   // sin «Bajar ahora»: mira cada 10 s (D-271, punto 8)
   }
 
+  // «Apariencia» (D-271, punto 11, variante A): como el iPhone, claro u oscuro; cambia al momento, se recuerda en este aparato y la hoja
+  // se queda abierta para ver el cambio
+  C.tema = () => {
+    const pinta = () => { const t = temaElegido() || 'auto', fila = (k, ico, txt, sub) => { const on = t === k; return `<button type="button" class="estado-op${on ? ' on' : ''}" data-tema="${k}"${on ? ' aria-current="true"' : ''}><span class="mv-ico">${ic(ico)}</span><span class="mv-tt">${txt}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${on ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`; };
+      return `<h2>Apariencia</h2><p class="ex">Solo en este iPhone.</p><div class="estados">${fila('auto', 'movil', 'Como el iPhone', 'Ahora ' + (MQ && MQ.matches ? 'oscuro' : 'claro'))}${fila('claro', 'sol', 'Claro')}${fila('oscuro', 'luna', 'Oscuro')}</div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cerrar">Cerrar</button></div></div>`; };
+    const h = hoja(pinta(), { etiqueta: 'Apariencia' });
+    h.addEventListener('click', e => {
+      if (!h.isConnected) return;
+      const b = e.target.closest('[data-tema]');
+      if (b) { lsS(K_TEMA, b.dataset.tema === 'auto' ? null : b.dataset.tema); tema(); pintarPildora(); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); h.scrollTop = y; const f = h.querySelector(`[data-tema="${b.dataset.tema}"]`); if (f) f.focus({ preventScroll: true }); return; }
+      if (e.target.closest('[data-a2="cerrar"]')) cerrarHojas();
+    });
+  };
   // la respuesta al cliente: su borrador sobrevive a que iOS cierre la app
   raiz.addEventListener('input', e => {
     const t = e.target;

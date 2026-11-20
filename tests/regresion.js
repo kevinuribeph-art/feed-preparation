@@ -18902,7 +18902,7 @@
     const tx = async u => (await W.fetch(u + '?mv17=' + Date.now(), { cache: 'no-store' })).text();
     const mv = await tx('movil.html'), ix = await tx('index.html');
     const scripts = [...mv.matchAll(/<script[^>]*\ssrc="([^"?]+)/g)].map(m => m[1]);
-    igual(scripts, ['vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'movil.js'], 'los scripts de movil.html');
+    igual(scripts, ['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'movil.js'], 'los scripts de movil.html');   // tema.js: el modo elegido antes de pintar (D-271, punto 11)
     ok(!/<script(?![^>]*\ssrc=)[^>]*>/.test(mv.replace(/<!--[\s\S]*?-->/g, '')) && !/\son[a-z]+\s*=/.test(mv.replace(/<!--[\s\S]*?-->/g, '')), 'movil.html con un script en línea o un manejador');
     ok(!/\basync\b/.test(scripts.join(' ')) && !/<script async/.test(mv), 'un script async en movil.html');
     const csp = t => (t.match(/Content-Security-Policy" content="([^"]*)"/) || [])[1];
@@ -19884,6 +19884,33 @@
         await hasta(() => !mini() || mini().hidden, 3000, 'que el pequeño se vaya');
       } finally { await C.fin(); }
     });
+  });
+
+  prueba('MV58', 'Claro u oscuro en el iPhone (D-271, punto 11; lección 229): la píldora de Hoy marca el modo en uso y abre «Apariencia» (Como el iPhone · Claro · Oscuro); elegir cambia al momento, con sus theme-color, y se recuerda en este aparato; al volver a abrir, tema.js lo pinta y en el móvil nunca redirige; «Como el iPhone» vuelve a seguirlo', async () => {
+    await tableroMovil();
+    try {
+      await enMovilPagina(async () => {
+        const raizH = () => W.document.documentElement, sistema = W.matchMedia('(prefers-color-scheme: dark)').matches, pil = () => W.document.querySelector('#movil .mv-tema');
+        await irMovil('#hoy', '#movil .mv-tema');
+        ok(pil().classList.contains('osc') === sistema && /como el iPhone/.test(pil().getAttribute('aria-label')), 'sin elegir no sigue al iPhone: ' + pil().getAttribute('aria-label'));
+        const d = diana(pil()); ok(d.h >= 44 && d.w >= 44, 'la diana de la píldora: ' + d.w + '×' + d.h);
+        pil().click(); const h = await hojaCara('[data-tema]', '«Apariencia»');
+        igual([...h.querySelectorAll('[data-tema]')].map(b => b.dataset.tema), ['auto', 'claro', 'oscuro'], 'las filas de «Apariencia»');
+        ok(h.querySelector('[data-tema="auto"]').classList.contains('on'), 'sin elegir, «Como el iPhone» no está marcada');
+        const otro = sistema ? 'claro' : 'oscuro', osc = otro === 'oscuro';
+        h.querySelector(`[data-tema="${otro}"]`).click(); await espera(80);
+        ok((raizH().dataset.theme === 'dark') === osc && W.localStorage.getItem('mesa-movil-tema') === otro, 'elegir no cambió el modo o no se recordó');
+        ok(pil().classList.contains('osc') === osc && W.document.querySelector(`#movil .hoja [data-tema="${otro}"]`).classList.contains('on'), 'la píldora o la hoja no marcan lo elegido');
+        ok([...W.document.querySelectorAll('meta[name="theme-color"]')].every(m => m.getAttribute('content') === (osc ? '#15110E' : '#F4EFE8')), 'los theme-color no siguen lo elegido');
+        W.__mv58 = 1; W.location.reload();
+        await hasta(() => !W.__mv58 && W.MESA && W.MESA.movil && W.document.querySelector('#movil .mv-tema'), 15000, 'Hoy otra vez');
+        M = W.MESA;   // tras recargar, el MESA de la página vieja ya no contesta (lección 238)
+        ok(/movil\.html$/.test(W.location.pathname) && !W.MESA_A_MOVIL && (raizH().dataset.theme === 'dark') === osc, 'tema.js no pintó lo elegido o redirigió: ' + W.location.pathname + ' ' + raizH().dataset.theme);
+        pil().click(); const h2 = await hojaCara('[data-tema]', '«Apariencia» otra vez');
+        h2.querySelector('[data-tema="auto"]').click(); await espera(80);
+        ok(W.localStorage.getItem('mesa-movil-tema') === null && (raizH().dataset.theme === 'dark') === sistema, '«Como el iPhone» no vuelve a seguirlo');
+      });
+    } finally { try { W.localStorage.removeItem('mesa-movil-tema'); } catch (e) { /* */ } }
   });
 
   async function pasar() {

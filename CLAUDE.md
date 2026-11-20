@@ -46,6 +46,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
   `mesa-version`, `mesa-epoca`, `actividad`), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:
   el interruptor del código de su app; `rescate`: quitar su código y sus sesiones si pierde el iPhone y el Mac; D-262). Solo en local.
+  `alta` da de alta una cuenta de cliente y le manda la bienvenida (D-273) con `tools/correo.mjs` (el correo, su logo `tools/correo-logo.png` y un SMTP mínimo, sin
+  dependencias), desde el buzón de los códigos (`SMTP_*`); en pruebas nunca envía.
 - `servidor/funciones/zernio.ts`: función de Supabase que hace lo de `presign`, `schedule`, `posts` y `update` de
   `tools/zernio.mjs` con la clave como secreto del proyecto, solo para la sesión de Kevin (D-261). `zernio-falso.ts`, su Zernio
   simulado, solo en el proyecto de pruebas.
@@ -82,6 +84,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - El núcleo de la nube (`nube.js`: turno, versiones, páginas, cola, reescanear y reconciliar; las fotos, `subirTodo`, `comprobar`
   y «traer»), sin red, con un servidor, un almacén y un reloj simulados: `node tests/nube-simulada.mjs`. Antes de cada PR que toque `nube.js`, entera en verde.
 - El aviso de los códigos de entrada de `portal/supa.js` y sus archivos (subir solo con el 409, bajar), también sin red: `node tests/portal-supa.mjs`.
+- El correo de bienvenida y su envío (`tools/correo.mjs`), sin red (SMTP simulado en 127.0.0.1): `node tests/correo.mjs`; la orden
+  `alta`, en `tests/portal-aislamiento.mjs` contra pruebas. Antes de cada PR que toque `tools/correo.mjs` o `alta`, las dos en verde.
 - La copia que publica el dominio (`tools/publicar-mesa.sh`: lo que lleva, lo que no y sus cabeceras), sin red:
   `node tests/publicar-mesa.mjs`. Antes de cada PR que toque `index.html`, la CSP, los archivos de la Mesa o la copia.
 - El aislamiento del portal tiene su prueba contra el proyecto de pruebas de Supabase, nunca el real:

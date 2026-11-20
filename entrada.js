@@ -1,4 +1,4 @@
-// entrada.js · 1.2 · la entrada de la Mesa (D-262; en el iPhone, con el dibujo de la v3, D-269): correo y contraseña en cada ventana o pestaña nueva, el código de la app
+// entrada.js · 1.3 · la entrada de la Mesa (D-262; en el iPhone, con el dibujo de la v3, D-269): correo y contraseña en cada ventana o pestaña nueva, el código de la app
 // (TOTP, Contraseñas de Apple) la primera vez en cada ordenador y a los 30 días, el alta (contraseña y QR), «¿Olvidaste tu
 // contraseña?» y la pantalla de carga mientras baja la Mesa. Sin proyecto (las copias de 127.0.0.1, la batería) no hace nada.
 // La sesión del servidor se guarda en este navegador cifrada con la contraseña (PBKDF2 SHA-256 de 1.000.000 vueltas y
@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var G = typeof window !== 'undefined' ? window : globalThis;
-  var V = '1.2', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
+  var V = '1.3', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
 
   // ================= el núcleo (sin DOM): cifrado, la sesión guardada y qué pedir =================
   var enc = new TextEncoder(), dec = new TextDecoder();
@@ -344,14 +344,18 @@
       });
     });
   }
+  // Una cuenta que no es la dueña (la de un cliente del portal) no sigue en la Mesa: se cierra su sesión y se le dice dónde está lo
+  // suyo, antes de crear una contraseña o un código de app en su cuenta (D-274). `mesa_yo` ya contesta con la sesión del correo.
+  async function noEsLaMesa(c) {
+    var yo = null; try { yo = await c.rpc('mesa_yo', {}); } catch (e) { if (!red(e)) yo = null; }
+    if (!(yo && yo.dueno === false)) return false;
+    try { await c.salir('local'); } catch (e) { /* */ }
+    await ver('mensaje', { titulo: 'Esta cuenta no es la de la Mesa', texto: 'La Mesa es solo de Uribe Visuals. Si eres cliente, tu calendario está en <b>clientes.uribevisuals.studio</b>.', boton: 'Volver' });
+    return true;
+  }
   // Tras entrar (contraseña + código): ¿es la cuenta de la Mesa? Se guarda cifrada y, si este navegador no tenía la nube, se trae.
   async function trasEntrar(c, contrasena, sesion) {
-    var yo = null; try { yo = await c.rpc('mesa_yo', {}); } catch (e) { if (!red(e)) yo = null; }
-    if (yo && yo.dueno === false) {
-      try { await c.salir('local'); } catch (e) { /* */ }
-      await ver('mensaje', { titulo: 'Esta cuenta no es la de tu Mesa', texto: 'Has entrado, pero el servidor no la reconoce como la dueña de la Mesa.', boton: 'Volver' });
-      return 'otra';
-    }
+    if (await noEsLaMesa(c)) return 'otra';
     await A.nueva(contrasena, sesion);
     await A.esperar();
     lsS('mesa-web-' + REF, null);   // la de antes, en claro: fuera (D-262)
@@ -361,8 +365,8 @@
     return new Promise(function () {});   // la página se recarga
   }
   // Entrar con un código por correo: la primera vez, tras un rescate o «¿Olvidaste tu contraseña?».
-  async function porCorreo(correo, por) {
-    var c = temporalCon(), olvido = por === 'olvido';
+  async function porCorreo(correo, por, cPrueba) {
+    var c = cPrueba || temporalCon(), olvido = por === 'olvido';
     if (!correo) {
       var r0 = await ver('pedirCorreo', { titulo: olvido ? '¿Olvidaste tu contraseña?' : 'Entra con tu correo', correo: '' });
       if (r0.accion) return 'volver';
@@ -370,8 +374,9 @@
     }
     try { await c.pedirCodigo(correo); } catch (e) { await ver('mensaje', { titulo: 'No se pudo mandar el código', texto: esc(mensaje(e)), boton: 'Volver' }); return 'volver'; }
     var r = await conReintento('correo', { correo: correo, titulo: olvido ? 'Mira tu correo' : 'Mira tu correo', dato: olvido ? 'Paso 1 de 3 · contraseña nueva' : '' }, function (d) { return c.verificarCodigo(correo, digitos(d['e-cc'])); });
-    if (r.accion === 'otro') return porCorreo(correo, por);
+    if (r.accion === 'otro') return porCorreo(correo, por, cPrueba);
     if (r.accion) return 'volver';
+    if (await noEsLaMesa(c)) return 'otra';   // un cliente: ni contraseña ni QR en su cuenta (D-274)
     var fs = await factoresSeguro(c);
     var tiene = fs.some(function (f) { return f.verificado; }), pw;
     if (tiene) {   // ¿Olvidaste?: la app, y después la contraseña nueva (Supabase la pide en aal2; al cambiarla cierra las demás sesiones)
@@ -398,6 +403,7 @@
       });
       if (r.accion === 'olvido' || r.accion === 'primera') { var v = await porCorreo(String((D.getElementById('e-co') || {}).value || (o && o.correo) || '').trim(), r.accion); if (v === 'volver' || v === 'otra') continue; return v; }
       if (r.accion) continue;
+      if (await noEsLaMesa(c)) continue;   // con contraseña, tampoco sigue un cliente (D-274)
       var a = await codigoApp(c, { nota: 'En este navegador no te lo vuelve a pedir en 30 días.' });
       if (a.accion) continue;
       var t = await trasEntrar(c, pwUsada, c._sesionEntera()); if (t === 'otra') continue;
@@ -550,7 +556,8 @@
   }, true);
   E.estado = function () { var c = X.supa && X.supa(), n = c && c.nivel && c.nivel(); return { modo: E.modo, paso: E.paso, carga: E.carga, sesion: !!(c && c.usuario()), nivel: n ? n.aal : null, vence: venceCodigo(n) || null, abierta: A ? A.abierta() : false }; };
   E.salir = async function () { try { await X.supa().salir('local'); } catch (e) { /* */ } if (A) { lsS(A.CLAVES.BLOB, null); try { sessionStorage.removeItem(A.CLAVES.SES); sessionStorage.removeItem(A.CLAVES.LLAVE); } catch (e) { /* */ } } G.location.reload(); };
-  E._test = { pantalla: function (n, o) { E.paso = n; return capa(PANT[n](o || {}), n === 'carga' ? 'carga' : ''); }, quitar: quitar, nucleo: G.EntradaNucleo };
+  E._test = { pantalla: function (n, o) { E.paso = n; return capa(PANT[n](o || {}), n === 'carga' ? 'carga' : ''); }, quitar: quitar, nucleo: G.EntradaNucleo,
+    porCorreo: function (correo, por, c) { return porCorreo(correo, por, c); } };
   M.entrada = E;
   (G.MESA_CARGA = G.MESA_CARGA || {}).entrada = 'ok';
 })();

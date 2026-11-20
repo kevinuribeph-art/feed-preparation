@@ -8,6 +8,8 @@
 // clientes, usuarios y archivos (también la fila de dueño de su Kevin inventado).
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { proyecto, rest, cab, pedir, gestion, tapar, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
@@ -32,7 +34,8 @@ const BORRADO = 'prueba-borrada', NUEVO = 'prueba-nueva';   // NUEVO: un cliente
 const pid = t => sha(t).slice(0, 16);
 const PA1 = pid('a1'), PA2 = pid('a2'), PA3 = pid('a3'), PAH = pid('a-oculta'), PB1 = pid('b1'), PNADA = pid('no-existe');
 const VA1 = sha('va1'), VA1b = sha('va1-b'), VA2 = sha('va2'), VA3 = sha('va3'), VAH = sha('vah'), VB1 = sha('vb1');
-const CORREO = { a: 'ana@portal-pruebas.test', b: 'bea@portal-pruebas.test', k: 'kevin@portal-pruebas.test', o: 'mira@portal-pruebas.test', o2: 'mira-nueva@portal-pruebas.test' };   // o: solo mira (D-266)
+const CORREO = { a: 'ana@portal-pruebas.test', b: 'bea@portal-pruebas.test', k: 'kevin@portal-pruebas.test', o: 'mira@portal-pruebas.test', o2: 'mira-nueva@portal-pruebas.test',
+  al: 'alta@portal-pruebas.test', al2: 'alta-sin-crear@portal-pruebas.test' };   // o: solo mira (D-266); al: alta con bienvenida (D-273)
 const CLAVE = 'Pr-' + randomBytes(16).toString('hex'); // solo para estos usuarios inventados; no se imprime
 const JPG = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
@@ -223,6 +226,59 @@ async function main() {
     const u2 = await usuarioPorCorreo(P, CORREO.o2); r = await servicio(`miembros?user_id=eq.${u2 && u2.id}&select=observa`); ok(r.ok && r.json.length === w.j.mira && r.json.every(x => x.observa), 'con una fila «solo mirar» por cliente', r.text);
     w = web(CORREO.k); ok(!w.ok && /dueño/.test(w.t), '`observador` no convierte a Kevin', w.t);
     w = web(CORREO.o, '--si', 'x'); ok(!w.ok, 'ni acepta lo que no conoce', w.t);
+  }
+
+  if (P.cual === 'pruebas') {   // la orden `alta` y su bienvenida (D-273); en pruebas nunca se envía: el .eml va a un buzón temporal
+    console.log('Alta de clientes y bienvenida');
+    const buzon = mkdtempSync(join(tmpdir(), 'portal-buzon-'));
+    const emls = () => readdirSync(buzon).filter(f => f.endsWith('.eml')).sort().map(f => readFileSync(join(buzon, f), 'utf8'));
+    const leer = raw => {   // cabeceras, asunto, el texto plano y si lleva el logo dentro (multipart/related, D-273)
+      const cab = raw.slice(0, raw.indexOf('\r\n\r\n'));
+      const pl = raw.match(/Content-Type: text\/plain[^\r]*\r\n(?:[A-Za-z-]+: [^\r]*\r\n)*\r\n([A-Za-z0-9+\/=\r\n]+?)\r\n--/);
+      const asunto = ((cab.match(/^Subject: ([\s\S]*?)\r\n(?=[A-Z])/m) || [])[1] || '').replace(/\r\n /g, '').replace(/=\?UTF-8\?B\?([^?]*)\?=/g, (_, b) => Buffer.from(b, 'base64').toString('utf8'));
+      return { cab, asunto, texto: pl ? Buffer.from(pl[1].replace(/\s+/g, ''), 'base64').toString('utf8') : '', logo: /\r\nContent-ID: <logo@uribevisuals\.studio>\r\n/.test(raw) };
+    };
+    const alta = (...a) => { try { return { ok: true, j: JSON.parse(execFileSync('node', [join(dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'web.mjs'), 'alta', ...a, '--buzon=' + buzon], { stdio: 'pipe' }).toString()) }; } catch (e) { return { ok: false, t: String(e.stderr || e.message) }; } };
+    const dd = (await servicio('duenos?select=user_id')).json || [];
+    const responde = dd.length === 1 && dd[0].user_id === uk ? CORREO.k : null;   // «Responder a»: el único dueño
+
+    let w = alta('pruebas', `${A.id},prueba-no-existe`, CORREO.al, '--nombre=Alta Prueba');
+    ok(!w.ok && /prueba-no-existe aún no está en el portal/.test(w.t) && /Web del cliente/.test(w.t), 'con un cliente que aún no está en el portal, para y lo dice', w.t || JSON.stringify(w.j));
+    ok(!(await usuarioPorCorreo(P, CORREO.al)) && emls().length === 0, 'y no crea la cuenta ni manda nada');
+    w = alta('pruebas', `${A.id},${B.id}`, 'Alta@Portal-Pruebas.test', '--nombre=Alta Prueba');
+    ok(w.ok && w.j.cuenta === CORREO.al && w.j.creada === 'sí, sin contraseña' && Array.isArray(w.j.nuevos) && w.j.nuevos.length === 2 && /guardada en/.test(w.j.bienvenida), 'da de alta la cuenta (sin contraseña) en los dos clientes', w.t || JSON.stringify(w.j));
+    const ual = await usuarioPorCorreo(P, CORREO.al);
+    r = await servicio(`miembros?user_id=eq.${ual && ual.id}&select=cliente_id,nombre,observa&order=cliente_id`);
+    ok(r.ok && r.json.length === 2 && r.json.every(x => x.observa === false && x.nombre === 'Alta Prueba') && r.json.map(x => x.cliente_id).join() === [A.id, B.id].sort().join(), 'miembro que decide de los dos, con su nombre', r.text);
+    let e = emls();
+    const m1 = e.length === 1 && leer(e[0]);
+    ok(m1 && /^To: <alta@portal-pruebas\.test>$/m.test(m1.cab) && m1.asunto === `Ya puedes ver tu calendario de ${A.nombre} y ${B.nombre}`, 'una bienvenida, a su correo, con los dos clientes', e.length + ' ' + (m1 && m1.asunto));
+    ok(m1 && (responde ? m1.cab.includes(`Reply-To: <${responde}>`) : !/Reply-To/.test(m1.cab)), '«Responder a» el correo de Kevin (el único dueño)', m1 && m1.cab);
+    ok(m1 && m1.logo && m1.texto.includes('Hola, Alta Prueba.') && m1.texto.includes(`Escribe ${CORREO.al} y pulsa «Enviarme el código»`) && m1.texto.includes('clientes.uribevisuals.studio'), 'el saludo, su correo y cómo entrar', m1 && m1.texto);
+    ok(m1 && !m1.texto.includes('Cliente Prueba Nueva') && !m1.cab.includes('Cliente Prueba Nueva'), 'sin otro cliente en el correo');
+    await usuario(CORREO.al);   // una contraseña solo para mirar qué ve
+    const kal = await entrar(CORREO.al);
+    r = await rest(P, 'clientes?select=id&order=id', { token: kal });
+    ok(r.ok && r.json.map(x => x.id).join() === [A.id, B.id].sort().join(), 'en el portal ve sus dos clientes y nada más', r.text);
+    r = await rest(P, 'rpc/puede_decidir', { method: 'POST', token: kal, body: { c: A.id } });
+    ok(r.ok && r.json === true, 'y decide (aprueba, pide cambios y comenta)', r.text);
+    w = alta('pruebas', `${A.id},${B.id}`, CORREO.al, '--nombre=Alta Prueba');
+    ok(w.ok && w.j.creada === 'ya existía' && w.j.nuevos === 'ninguno' && /^no: ya era miembro/.test(w.j.bienvenida) && emls().length === 1, 'otra vez: no repite la bienvenida', w.t || JSON.stringify(w.j));
+    w = alta('pruebas', `${A.id},${B.id}`, CORREO.al, '--nombre=Alta Prueba', '--reenviar');
+    ok(w.ok && /guardada en/.test(w.j.bienvenida) && emls().length === 2, 'con --reenviar, sí', w.t || JSON.stringify(w.j));
+    w = alta('pruebas', A.id, CORREO.al2, '--nombre=Alta Prueba', '--prueba-a=' + CORREO.k);
+    e = emls(); const mp = e.length === 3 && e.map(leer).find(x => /^To: <kevin@/m.test(x.cab));
+    ok(w.ok && /ninguna/.test(w.j.alta) && mp && mp.asunto === `[Prueba] Ya puedes ver tu calendario de ${A.nombre}` && mp.texto.includes(`Escribe ${CORREO.al2} y pulsa`), '--prueba-a: el mismo correo a otra dirección', w.t || JSON.stringify(w.j));
+    ok(!(await usuarioPorCorreo(P, CORREO.al2)), 'y sin crear la cuenta');
+    w = alta('pruebas', A.id, CORREO.k, '--nombre=Kevin'); ok(!w.ok && /dueño/.test(w.t), 'no da de alta a Kevin (dueño)', w.t);
+    w = alta('pruebas', A.id, CORREO.o, '--nombre=Mira'); ok(!w.ok && /solo mira/.test(w.t), 'no convierte una cuenta que solo mira', w.t);
+    r = await servicio(`miembros?user_id=eq.${uo}&cliente_id=eq.${A.id}&select=observa`); ok(r.ok && r.json.length === 1 && r.json[0].observa === true, 'y la deja como estaba', r.text);
+    w = alta('pruebas', A.id, CORREO.al); ok(!w.ok && /--nombre/.test(w.t), 'sin --nombre no hace nada', w.t);
+    w = alta('pruebas', A.id, CORREO.al, '--nombre=X', '--otra'); ok(!w.ok, 'ni acepta lo que no conoce', w.t);
+    w = alta('pruebas', `${A.id},${A.id}`, CORREO.al, '--nombre=X'); ok(!w.ok && /sin repetir/.test(w.t), 'ni un cliente repetido', w.t);
+    w = alta('real', A.id, CORREO.al, '--nombre=X'); ok(!w.ok && /--si/.test(w.t), 'en el real, solo con --si (antes de tocar nada)', w.t);
+    ok(emls().length === 3, 'y ninguno de estos manda nada');
+    rmSync(buzon, { recursive: true, force: true });
   }
 
   console.log('Kevin');

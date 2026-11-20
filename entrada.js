@@ -1,4 +1,4 @@
-// entrada.js · 1.1 · la entrada de la Mesa (D-262): correo y contraseña en cada ventana o pestaña nueva, el código de la app
+// entrada.js · 1.2 · la entrada de la Mesa (D-262; en el iPhone, con el dibujo de la v3, D-269): correo y contraseña en cada ventana o pestaña nueva, el código de la app
 // (TOTP, Contraseñas de Apple) la primera vez en cada ordenador y a los 30 días, el alta (contraseña y QR), «¿Olvidaste tu
 // contraseña?» y la pantalla de carga mientras baja la Mesa. Sin proyecto (las copias de 127.0.0.1, la batería) no hace nada.
 // La sesión del servidor se guarda en este navegador cifrada con la contraseña (PBKDF2 SHA-256 de 1.000.000 vueltas y

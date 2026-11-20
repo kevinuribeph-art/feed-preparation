@@ -6359,11 +6359,11 @@ ${TK_FUENTES}
     if (locked) return { error: 'sin turno' };
     if (op && (op.campo === 'tarea' || op.campo === 'tareaNueva')) {   // a task or a note (personal.js, D-180): its own store, written at once
       if (!M.personal) return { error: 'sin tareas' };
-      if (op.campo === 'tarea') { if (!(await M.personal.valor(op.slot))) return { error: 'no existe' }; return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: 'no se pudo marcar' }; }   // read again first: never over what the Mac changed in it
+      if (op.campo === 'tarea') { if (!(await M.personal.valor(op.slot))) return { error: 'no existe' }; return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: locked ? 'sin turno' : 'no se pudo marcar' }; }   // read again first: never over what the Mac changed in it; the Mesa gone meanwhile is «sin turno» (review of lot 4, point 6)
       const o = op.valor || {};
       if (o.id != null && !(typeof o.id === 'string' && /^(tk|nt)[a-z0-9]{6,24}$/.test(o.id))) return { error: 'id de tarea no válido' };
       const r = await M.personal.tarea({ txt: o.txt, tipo: o.tipo === 'nota' ? 'nota' : 'tarea', ...(o.id ? { id: o.id } : {}), ...(o.fecha ? { fecha: o.fecha } : {}), ...(o.cliente ? { cliente: o.cliente } : {}) });   // its id comes with the operation: done twice, it is made once
-      return r ? { ok: true, id: r.id, avisos: [] } : { error: o.tipo === 'nota' ? 'no se pudo crear la nota' : 'una tarea necesita un texto' };
+      return r ? { ok: true, id: r.id, avisos: [] } : { error: locked ? 'sin turno' : String(o.txt || '').trim() ? 'no se pudo crear' : 'una tarea necesita un texto' };
     }
     const v0 = await mirarMovil(op && op.key); if (!v0 || v0.error) return v0 && v0.error ? v0 : { error: 'no existe' };   // always from what is stored now
     const s = S.slots.find(x => x.id === op.slot); if (!s) return { error: 'no existe' };

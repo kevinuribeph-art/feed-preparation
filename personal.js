@@ -682,11 +682,13 @@
     const X = I();
     gen++;
     for (const c of cambios) { TOCADA.set(c.id, gen); PEND.set(c.id, c.despues || null); if (c.despues) TK.set(c.id, c.despues); else { soltarFotos(TK.get(c.id)); TK.delete(c.id); } }
+    let bien = true;
     try { for (const c of cambios) { if (c.despues) await X.idbPut('tareas', c.id, c.despues); else await X.idbDel('tareas', c.id); } }
-    catch (e) { X.toast('No se pudo guardar la tarea: ' + ((e && e.message) || e)); }
+    catch (e) { bien = false; X.toast('No se pudo guardar la tarea: ' + ((e && e.message) || e)); }
     finally { for (const c of cambios) if (PEND.get(c.id) === (c.despues || null)) PEND.delete(c.id); }
     if (bc) { try { bc.postMessage({ t: 'tareas' }); } catch (e) { /* */ } }
     avisar();
+    return bien;   // the phone needs to know (review of lot 4, point 6); the desk already said it in the toast
   }
   function soltarFotos(r) { for (const f of (r && r.fotos) || []) { const u = MINI.get(f.id); if (u && ![...TK.values()].some(k => k !== r && (k.fotos || []).some(g => g.id === f.id))) { URL.revokeObjectURL(u); MINI.delete(f.id); } } }
   function puede() { const X = I(); return !!X && !X.locked; }
@@ -697,8 +699,7 @@
     if (junta && u && u.junta === junta && Date.now() - u.t < 2000) { paso.forEach(p => { const q = u.find(x => x.id === p.id); if (q) q.despues = p.despues; else u.push(p); }); u.t = Date.now(); }
     else { paso.junta = junta || null; paso.t = Date.now(); H.u.push(paso); if (H.u.length > 60) H.u.shift(); }
     H.r = [];
-    await escribir(paso.map(p => ({ id: p.id, despues: p.despues })));
-    return true;
+    return escribir(paso.map(p => ({ id: p.id, despues: p.despues })));   // false if IndexedDB failed
   }
   async function deshacer(re, sinCard) {        // sinCard: the card being written in stays as it is (a «/» command undone, D-204)
     if (!puede()) return false;

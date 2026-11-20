@@ -1294,6 +1294,61 @@ await grupo('NS28 la cara que escribe justo cuando se suelta: o sube o no se esc
   ok(s.valor && s.valor.hecho && !ss.length && (!escrita || W.srv.vivo('boards', 'tarde')), 'NS28.1 nada aparte: la Mesa se bloquea antes de soltarla', { s, escrita, ss, ll: resumen(M1) });
 });
 
+await grupo('NS29 un mirar que encuentra la Mesa suya mientras la cara la pide, con el soltar del pulso lento: tomar nunca dice «hecho» encima de un soltar (revisión del lote 4, punto 4)', async () => {
+  const { W, A, sv } = await conTurno();
+  A.alm.escribirLocal('boards', 'b1', { n: 1 }); await W.hasta(async () => sv.vivo('boards', 'b1'), { tics: [A], max: 30 });
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  M1.cli.fallos.push({ fn: 'mesa_bajar', modo: 'red' }, { fn: 'mesa_turno_soltar', modo: 'red' });   // el servidor le da la Mesa, el núcleo no lo sabe
+  const t0 = await W.correr(() => M1.n.tomar(), { tics: [A, M1], max: 40 });
+  ok(t0.valor && t0.valor.error && W.S.turno.dispositivo === DM && !M1.n.conTurno(), 'NS29.0 preparado: la Mesa es del móvil en el servidor, no en su núcleo', { t0 });
+  A.congelar();
+  M1.efectos.releido = async () => { await W.reloj.esperar(1200, M1.dueno); };
+  const orig = M1.cli.rpc.bind(M1.cli); let lento = true;
+  M1.cli.rpc = async (fn, a) => { if (fn === 'mesa_turno_soltar' && lento) { lento = false; await W.reloj.esperar(3000, M1.dueno); } return orig(fn, a); };
+  let escrito = false, bloqueada = true;
+  M1.efectos.tomada = async () => { bloqueada = false; }; M1.efectos.soltada = async () => { bloqueada = true; }; M1.efectos.congelar = async () => { bloqueada = true; };
+  const r = await W.correr(async () => {
+    const pm = M1.n.mirar(); await Promise.resolve();
+    const x = await M1.n.tomar();
+    if (x && x.hecho) {
+      await W.reloj.esperar(100, M1.dueno);
+      if (!bloqueada) { M1.alm.escribirLocal('boards', 'cara', { n: 1 }); M1.n.cambio(); escrito = true; }   // la cara solo escribe con la Mesa desbloqueada
+      await W.reloj.esperar(4000, M1.dueno); M1.n.retener(false); await M1.n.soltar();
+    }
+    await pm.catch(() => null);
+    return x;
+  }, { tics: [M1], max: 40 });
+  await W.vivir(4, M1);
+  const ss = await M1.alm.sinSubir();
+  ok(!(r.valor && r.valor.hecho) || (escrito && W.srv.vivo('boards', 'cara') && !ss.length), 'NS29.1 tomar «hecho» ⇒ lo que la cara escribe sube; nada aparte', { r, escrito, ss, ll: resumen(M1) });
+});
+
+await grupo('NS30 irse a segundo plano mientras «Usarla aquí» la fuerza: se suelta cuando la cara acaba (revisión del lote 4, punto 7; vigila: antes la soltaba el pulso, que en segundo plano no corre)', async () => {
+  const { W, A } = await conTurno();
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  A.congelar(); await W.vivir(25, M1);
+  const v = W.S.turno.numero;
+  const f = await W.correr(async () => { const pf = M1.n.forzar(v); await M1.n.pedirIrse(); return pf; }, { tics: [M1], max: 30 });
+  ok(f.valor && f.valor.hecho && W.S.turno.dispositivo === DM, 'NS30.0 forzar la coge', { f, ll: resumen(M1) });
+  M1.n.retener(false);   // la cara acaba
+  const soltada = await W.hasta(() => W.S.turno.dispositivo !== DM, { tics: [M1], max: 10 });
+  ok(soltada, 'NS30.1 … y al acabar la cara, la suelta (se fue a segundo plano)', { turno: W.S.turno, ll: resumen(M1) });
+});
+
+await grupo('NS31 soltar con la Mesa perdida y algo escrito no dice «hecho» (revisión del lote 4, punto 8)', async () => {
+  const { W, A } = await conTurno();
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  A.congelar(); await W.vivir(25, M1);
+  await W.correr(() => M1.n.forzar(W.S.turno.numero), { tics: [M1], max: 30 });
+  M1.alm.escribirLocal('boards', 'tarde', { n: 1 });   // escrito, sin subir todavía
+  const C = W.nodo(DC); await W.abrir(C); M1.congelar(); await W.vivir(25, C);
+  await W.correr(() => C.n.forzar(W.S.turno.numero), { tics: [C], max: 30 });   // otro aparato la fuerza
+  M1.descongelar(); await W.vivir(3, M1);
+  M1.n.retener(false);
+  const s = await W.correr(() => M1.n.soltar(), { tics: [M1], max: 20 });
+  ok(s.valor && s.valor.error === 'perdida', 'NS31.1 «perdida», no «hecho», cuando lo escrito no subió', { s, ll: resumen(M1) });
+});
+
 await grupo('NS24 «Esperar más» espera los 20 s aunque el otro calle', async () => {
   const { W, A } = await conTurno(); const C = W.nodo(DC); await W.abrir(C);
   A.congelar(); await W.vivir(25, C);

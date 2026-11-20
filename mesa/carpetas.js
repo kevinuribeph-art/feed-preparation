@@ -7,7 +7,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.5';   // 1.5: «Pegar» on only when it would paste something (D-201). 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
+  const VERSION = '1.6';   // 1.6: a photo over the mesa's limit (200 MB) is skipped and counted, nothing of it written (D-279). 1.5: «Pegar» on only when it would paste something (D-201). 1.4: «Nueva carpeta…» and «Subir carpeta…» in the mesa tray's right-click menu; no «Cancelar» (D-155, D-158)
   const AVISO_DESDE = 20;                      // loose photos: fewer than this go in as always, without a warning
   const SISTEMA = /^(\.|__MACOSX$|Thumbs\.db$|desktop\.ini$)/i;   // .DS_Store, ._foto.jpg (the disk is exFAT), the system's folders
   const POR_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
@@ -101,7 +101,7 @@
     const sb = await I().empezarSubida();
     if (!sb) { I().toast('Ahora no se puede subir: abre un mes o espera a que termine lo que está en marcha.'); return null; }
     const yo = enMarcha = { cancelar: false }, ids = new Map(), creadas = [], { fotos } = c;
-    const r = { total: fotos.length, subidas: 0, yaEstaban: 0, danadas: 0, bytes: 0, parada: null, saltados: textoSaltados(c, fallan), carpetas: 0 };
+    const r = { total: fotos.length, subidas: 0, yaEstaban: 0, danadas: 0, grandes: 0, bytes: 0, parada: null, saltados: textoSaltados(c, fallan), carpetas: 0 };
     try {
       for (const k of carpetasDe(fotos)) {     // all of them first: a sister with the same name is the same folder (D-069)
         const p = k.split('\u0000'), padre = p.length > 1 ? ids.get(p.slice(0, -1).join('\u0000')) : destino || null;
@@ -126,7 +126,7 @@
         } catch (e) {
           if (e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message)))) { r.parada = 'espacio'; break; }
           if (e && e.name === 'MesaLocked') { r.parada = 'pestaña'; break; }
-          r.danadas++;
+          if (e && e.name === 'ArchivoGrande') r.grandes++; else r.danadas++;   // D-279
         }
         if (Date.now() - t > 1500) { t = Date.now(); pintar(); }
       }
@@ -140,7 +140,7 @@
   }
   function informar(r) {
     const pes = I().pesoTxt, esc = I().esc;
-    const hechas = [r.subidas ? `${num(r.subidas)} ${r.subidas === 1 ? 'foto subida' : 'fotos subidas'} (${pes(r.bytes)})` : '', r.yaEstaban ? `${num(r.yaEstaban)} ya ${r.yaEstaban === 1 ? 'estaba' : 'estaban'}` : '', r.danadas ? `${num(r.danadas)} no se ${r.danadas === 1 ? 'pudo leer' : 'pudieron leer'}` : '', r.saltados].filter(Boolean).join(' · ') || 'Nada subido';
+    const hechas = [r.subidas ? `${num(r.subidas)} ${r.subidas === 1 ? 'foto subida' : 'fotos subidas'} (${pes(r.bytes)})` : '', r.yaEstaban ? `${num(r.yaEstaban)} ya ${r.yaEstaban === 1 ? 'estaba' : 'estaban'}` : '', r.danadas ? `${num(r.danadas)} no se ${r.danadas === 1 ? 'pudo leer' : 'pudieron leer'}` : '', r.grandes ? `${num(r.grandes)} de más de ${pes(I().limiteArchivo())} sin subir` : '', r.saltados].filter(Boolean).join(' · ') || 'Nada subido';
     if (r.parada === 'espacio' || r.parada === 'error' || r.parada === 'pestaña') {
       const por = r.parada === 'espacio' ? `No queda espacio: la subida se ha parado para dejar ${pes(margen())} libres.` : r.parada === 'pestaña' ? 'La Mesa se ha abierto en otra pestaña.' : `Ha fallado: ${r.error}.`;
       I().showDialog('subidaparada', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Subida parada</h3><p>${esc(por)}</p><p>${esc(hechas)}, de ${num(r.total)}.</p><p>Lo subido se queda en su carpeta. Para seguir, vuelve a subir la misma carpeta: lo que ya está no se repite.</p>`);   // no «Entendido»: the × (D-155)

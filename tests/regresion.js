@@ -17189,6 +17189,87 @@
     } finally { sub.digest = dig; delete W.document.documentElement.dataset.theme; await cpFin(); }
   });
 
+  // D-279: en Safari (WebKit) un trozo de un archivo (File.slice) guardado en IndexedDB ocupa el archivo ENTERO del que sale: el
+  // 20/11/2026 cada foto de una parte de 2 GB ocupó 2 GB y llenó el disco. La prueba marca los trozos de los .tar (y los File hechos
+  // con ellos) y mira cada put nativo: ninguno lleva uno. Falla con la 4.40 en cualquier navegador
+  // (en las dos ventanas: unos .tar elegidos desde otra página son de esa página, y sus trozos también)
+  async function cpEspiar(tars, fn) {
+    const marca = new WeakSet(), malos = [], puts = [], P0 = W.IDBObjectStore.prototype.put, vuelta = [];
+    let blobs = 0;
+    const esBlob = v => /^\[object (Blob|File)\]$/.test(Object.prototype.toString.call(v));
+    const lleva = (v, n = 0) => { if (!v || typeof v !== 'object' || n > 30) return false; if (esBlob(v)) { blobs++; return marca.has(v); } return Object.values(v).some(x => lleva(x, n + 1)); };
+    for (const V of [W, window]) {
+      const S0 = V.Blob.prototype.slice, F0 = V.File;
+      V.Blob.prototype.slice = function (...a) { const b = S0.apply(this, a); if (tars.includes(this) || marca.has(this)) marca.add(b); return b; };
+      V.File = new Proxy(F0, { construct: (t, a, nt) => { const f = Reflect.construct(t, a, nt); if (Array.isArray(a[0]) && a[0].some(x => marca.has(x))) marca.add(f); return f; } });
+      vuelta.push(() => { V.Blob.prototype.slice = S0; V.File = F0; });
+    }
+    W.IDBObjectStore.prototype.put = function (v, k) { puts.push(this.name); if (lleva(v)) malos.push(`${this.name} · ${String(k)}`); return P0.apply(this, arguments); };
+    try { return { r: await fn(), malos, puts, blobs: () => blobs }; } finally { vuelta.forEach(f => f()); W.IDBObjectStore.prototype.put = P0; }
+  }
+
+  prueba('CP8', 'Importar una copia en Safari (D-279): ningún archivo se guarda como un trozo del .tar (WebKit guardaría el .tar entero por cada foto), cada archivo llega con su huella e importar la misma copia otra vez no escribe ningún archivo; igual con unos .tar elegidos desde otra ventana', async () => {
+    await cpSembrar();
+    try {
+      const antes = await cpFoto(), ar = await cpExportar();
+      await M._test.vaciarTodo();
+      const fs = cpArchivos(ar), e1 = await cpEspiar(fs, () => M.importData(fs, { confirm: false }));
+      ok(e1.r && e1.r.ok && !e1.r.error, 'no se importó: ' + json(e1.r));
+      igual(e1.malos, [], 'se guardó un trozo del .tar');
+      ok(e1.blobs() >= 12, 'la espía no vio los archivos guardados: ' + e1.blobs());
+      igual(await cpFoto(), antes, 'la mesa restaurada (cada archivo con su huella)');
+      const fs2 = cpArchivos(ar), e2 = await cpEspiar(fs2, () => M.importData(fs2, { confirm: false }));
+      ok(e2.r && !e2.r.error, 'la segunda vez falló: ' + json(e2.r));
+      igual(e2.puts.filter(n => ['files', 'tfotos', 'cfacturas'].includes(n)), [], 'la segunda vez volvió a escribir archivos');
+      igual(await cpFoto(), antes, 'importar dos veces cambió algo');
+      await M._test.vaciarTodo();
+      const fs3 = ar.map(a => new File([a.blob], a.name, { type: 'application/x-tar' })), e3 = await cpEspiar(fs3, () => M.importData(fs3, { confirm: false }));   // de esta ventana, no de la de la mesa
+      ok(e3.r && e3.r.ok && !e3.r.error, 'no se importó desde otra ventana: ' + json(e3.r));
+      igual(e3.malos, [], 'desde otra ventana se guardó un trozo del .tar');
+      igual(await cpFoto(), antes, 'la mesa restaurada desde otra ventana');
+    } finally { await cpFin(); }
+  });
+
+  prueba('CP9', 'Tope por archivo (D-279): una copia con un archivo de más del tope se rechaza sin escribir nada y lo dice; una foto del disco de más del tope no entra y avisa, ni en la bandeja ni al subir una carpeta; con el tope de siempre (200 MB) entran', async () => {
+    await cpSembrar();
+    try {
+      igual(M._in.limiteArchivo(), 200 * 1048576, 'el tope de siempre');
+      const ar = await cpExportar();
+      await M._test.vaciarTodo();
+      const vacia = await cpFoto();
+      M._test.limiteArchivo(2000);
+      const r = await M.importData(cpArchivos(ar), { confirm: false });
+      ok(r && r.error && /trae un archivo de .*: la Mesa no guarda archivos de más de/.test(r.error) && /No se ha importado nada/.test(r.error), 'no se rechazó por el tope: ' + json(r));
+      M._in.closeDetail();
+      igual(await cpFoto(), vacia, 'el rechazo escribió algo');
+      await tablero([pub(1)]);
+      const f = await foto('cp-grande.jpg', 900, 900);
+      igual(await M.addFiles([f]), [], 'entró una foto de más del tope');
+      ok(qa('.toasts > *').some(t => /cp-grande\.jpg mide .*: la Mesa no guarda archivos de más de/.test(t.textContent)), 'sin aviso del tope');
+      const sb = await M._in.empezarSubida(); let nombre = '';
+      try { await M._in.entrarFoto(sb, null, f, 'image/jpeg'); } catch (e) { nombre = e.name; } finally { await M._in.acabarSubida(sb, []); }
+      igual(nombre, 'ArchivoGrande', 'subir una carpeta guardó una foto de más del tope');
+      M._test.limiteArchivo(0);
+      igual((await M.addFiles([f])).length, 1, 'con el tope de siempre no entró');
+    } finally { M._test.limiteArchivo(0); await cpFin(); }
+  });
+
+  prueba('CP10', 'La guarda (D-279): si un trozo del .tar llegara a escribirse (aquí, sin darle sus bytes a propósito), la transacción se anula, la importación se para y lo dice; no se guarda ningún archivo', async () => {
+    await cpSembrar();
+    const pr = M.copia._propio;
+    try {
+      const ar = await cpExportar();
+      await M._test.vaciarTodo();
+      M.copia._propio = v => Promise.resolve(v);   // un sitio que se olvidara de darle sus bytes
+      const r = await M.importData(cpArchivos(ar), { confirm: false });
+      M.copia._propio = pr;
+      ok(r && r.cancelled && /Importación parada porque un archivo de la copia no salió con su tamaño/.test(r.parada || ''), 'no se paró: ' + json(r));
+      ok(!M.copia._viva(), 'los trozos siguen vivos tras la importación');
+      const n = await M._in.xfer.tx('files', 'readonly', st => st.count());
+      igual(n, 0, 'se guardó un archivo');
+    } finally { M.copia._propio = pr; await cpFin(); }
+  });
+
   prueba('CP6', 'Guarda (D-249): la base de datos no tiene ningún almacén que «Exportar todo» no conozca: cada almacén de datos viaja en la copia', async () => {
     await tablero([pub(1)]);
     const dbx = await new Promise((res, rej) => { const r = W.indexedDB.open('mesa-feed'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });

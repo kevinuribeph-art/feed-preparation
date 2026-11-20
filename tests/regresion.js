@@ -19621,6 +19621,20 @@
     });
   });
 
+  prueba('MV53', 'Los captions enteros en la publicación del iPhone (D-271, punto 4): uno de 2.200 caracteres en 20 líneas sale entero, sin plegar ni «Ver entero»', async () => {
+    const key = await tableroMovil();
+    const largo = Array.from({ length: 20 }, (_, i) => `Línea ${i + 1}: pan recién hecho cada mañana, mantequilla cultivada y café de tueste claro en la barra del obrador. `).join('\n').padEnd(2200, '·').slice(0, 2200);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'Cercano', text: largo }, { tone: 'Profesional', text: 'dos' }, { tone: 'Poético', text: 'tres' }], force: true }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } }); await M.flush();
+    await enMovilPagina(async () => {
+      await irMovil(`#pub/${key}/r1`, '#movil .cap-b .cap-t');
+      const t = W.document.querySelector('#movil .cap-b .cap-t');
+      igual(t.textContent.length, 2200, 'el caption');
+      ok(t.scrollHeight - t.clientHeight <= 1 && W.getComputedStyle(t).webkitLineClamp === 'none', 'el caption plegado: ' + t.clientHeight + ' de ' + t.scrollHeight);
+      ok(!/Ver entero|Ver menos/.test(W.document.getElementById('movil').innerText), 'sale «Ver entero»');
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

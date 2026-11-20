@@ -523,8 +523,6 @@
 #movil .hoja{bottom:var(--kb,0px);max-height:calc(100dvh - var(--kb,0px) - var(--sa-t) - 8px)}
 #movil .hoja:has(.pie){scroll-padding-bottom:110px}
 #movil.teclado .hoja{padding-bottom:16px}#movil.teclado .hoja .pie{bottom:-16px;margin-bottom:-16px;padding-bottom:16px}
-#movil .cap-b.corto .cap-t{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
-#movil .cap-b .vercap{margin:4px 0 -6px -12px;color:var(--acc-ink);font-weight:500;min-height:var(--tap);display:inline-flex;align-items:center;padding:0 12px}
 #movil .tarea .tm .cn>span:last-child,#movil .campo .v.vista{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .tarea .tm .cn{display:inline-flex}
 #movil .sd.hoyd:not(.sel){box-shadow:inset 0 0 0 1.5px var(--line-strong)}
@@ -893,7 +891,7 @@
     if (offline) html += `<p class="solo-mac">Sin conexión: no se puede cambiar. Lo que ves es de las ${esc(ST.vistoA ? horaDe(ST.vistoA) : '')}.</p>`;
     const c = p.captions, k = c && c.pick != null ? c.opciones.find(o => o.k === c.pick) : null;
     html += `<div class="cap"><div class="cap-h"><h2>Caption</h2>${c ? `<button type="button" class="lnk" data-ir="cap/${esc(v.key)}/${esc(p.id)}">${c.opciones.length} opciones</button>` : ''}</div>`
-      + (k ? (() => { const largo = k.texto.length > 300 || k.texto.split('\n').length > 6, ab = ABIERTO['cap:' + p.id]; return `<div class="cap-b${largo && !ab ? ' corto' : ''}"><div class="cap-t">${esc(k.texto)}</div><span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span>${largo ? `<button type="button" class="lnk vercap" data-a="plegar" data-k="cap:${esc(p.id)}" aria-expanded="${!!ab}">${ab ? 'Ver menos' : 'Ver entero'}</button>` : ''}</div>`; })()
+      + (k ? `<div class="cap-b"><div class="cap-t">${esc(k.texto)}</div><span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span></div>`   // entero, sin plegar (D-271, punto 4)
         : c ? `<button type="button" class="cap-b vacia" style="display:block;width:100%;text-align:left" data-ir="cap/${esc(v.key)}/${esc(p.id)}">Sin elegir todavía: ${c.opciones.length} opciones para elegir.</button>`
           : `<div class="cap-b vacia">Sin opciones: pídeselas a Claude.</div>`) + `</div>`;
     const pl = (key, t, txt) => `<button type="button" class="campo pl${ABIERTO[key] ? ' abierto' : ''}" data-a="plegar" data-k="${key}" aria-expanded="${!!ABIERTO[key]}"${txt ? '' : ' disabled'}><span class="k">${t}</span><span class="v vista">${txt ? esc(txt) : 'Sin ' + t.toLowerCase()}</span><span class="chev">${ic('abajo')}</span></button>`;

@@ -9,7 +9,7 @@
 // Apagada (lo normal hasta la mudanza, lote 5) no hace nada: ni red ni temporizadores.
 (function (G) {
   'use strict';
-  const VERSION = '1.3';   // 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
+  const VERSION = '1.4';   // 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB

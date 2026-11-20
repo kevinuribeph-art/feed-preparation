@@ -6,7 +6,7 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
@@ -648,7 +648,7 @@
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
 /* revisiones del lote B */
-#movil .top.sin-t .top-in{grid-template-columns:auto 1fr auto}
+#movil .top.sin-t .top-in{grid-template-columns:auto 1fr auto}#movil .top.sin-t .nube{max-width:none}
 #movil .mv-tema{place-items:center end;padding-right:8px}
 #movil .top:has(.back) .nube:has(.q) :is(.num,.qp){display:none}#movil .top:has(.back) .nube{gap:4px;min-width:44px;justify-content:center}
 #movil .hoja .lbl.mv-subh{display:flex;justify-content:space-between;align-items:baseline}
@@ -1428,9 +1428,12 @@
         const det = ed.detalles.replace(/^\s*\n|\s+$/g, ''); if (det !== o1.detalles.replace(/^\s*\n|\s+$/g, '')) ops.push({ ...base, campo: 'tareaDetalles', valor: det, visto: o0.detalles });
         for (const y of ed.subs) {
           const o = o1.subs.find(z => z.sid === y.sid), g = o0.subs.find(z => z.sid === y.sid), t2 = y.txt.trim(), etq = (t2 || (o && o.txt) || '').slice(0, 60);
-          if (!o || o.pend) {   // nueva aquí, o nueva que aún se está guardando: otra vez «nueva» con su id (sustituye a la pendiente)
+          // nueva aquí, o nueva que sigue en la cola sin salir: otra vez «nueva» con su id (sustituye a la pendiente) o se quita de la cola.
+          // Si mientras la hoja estaba abierta ya se aplicó o está saliendo, se trata como una que existe (lo visto: lo que se veía)
+          const enCola = o && o.pend && o.pend !== ENVUELO && opsLeer().some(q => q.id === o.pend);
+          if (!o || enCola) {
             if (!y.quitada && t2) { if (!o || t2 !== o.txt || y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'nueva', txt: t2, hecha: y.hecha }, visto: null, etq }); }
-            else if (o && o.pend) { if (o.pend !== ENVUELO) opsQuitar(o.pend); else ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true }, etq }); }
+            else if (o) opsQuitar(o.pend);
             continue;
           }
           if (y.quitada || !t2) { if (!o.quitada) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true }, etq }); continue; }   // vacía al guardar: se quita, como en el Mac
@@ -1465,7 +1468,7 @@
     if (v.falta) return top(volverSes()) + `<main class="main sin-tabs" id="contenido">${vacio('Esta sesión ya no está', 'Se quitó en otro aparato.')}</main>`;
     const off = sinRed(), dis = off ? ' disabled' : '', iop = sesCurso('sesInicio'), cop = sesCurso('sesClientes'), nop = sesCurso('sesNombre');
     const ini = iop ? { fecha: iop.valor.fecha, hora: iop.valor.hora } : { fecha: v.fecha, hora: v.hora }, clis = cop ? cop.valor : v.clientes, nombre = nop ? nop.valor : v.nombre;
-    const cuando = ini.fecha ? `${campoFecha({ dia: ini.fecha, hora: ini.hora })}${!iop && v.fin && v.fin.hora && v.fin.fecha === v.fecha ? ' – ' + v.fin.hora : ''}` : 'Sin fecha';
+    const cuando = ini.fecha ? `${campoFecha({ dia: ini.fecha, hora: ini.hora })}${!iop && v.fin && v.fin.hora && v.fin.fecha === v.fecha ? '\u00a0–\u00a0' + v.fin.hora : ''}` : 'Sin fecha';
     const fin = !iop && v.fin && v.fin.fecha && v.fin.fecha !== v.fecha ? `<span class="por">Termina el ${esc(corto(v.fin.fecha))}${v.fin.hora ? ' a las ' + esc(v.fin.hora) : ''}</span>` : '';
     const fotoMap = new Map(v.fotos.map(f => [f.id, f]));
     const q = id => { const f = fotoMap.get(id); return f && f.w && f.h ? f.w / f.h : 1; };
@@ -1529,8 +1532,8 @@
       if (b.dataset.a2 === 'cancelar') return cerrarHojas();
       if (b.dataset.a2 === 'sinhora') { leer(); conHora = false; return repinta(); }
       if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
-      if (b.dataset.a2 === 'sinfecha' && !b.disabled) { cerrarHojas(true); return guardar({ slot: v.id, campo: 'sesInicio', valor: { fecha: '', hora: '' }, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }
-      if (b.dataset.a2 === 'guardar' && !dia) return cerrarHojas();
+      if (b.dataset.a2 === 'sinfecha' && !b.disabled) { cerrarHojas(true); return guardar({ slot: v.id, campo: 'sesInicio', valor: { fecha: '' }, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }   // la hora se queda, como en el Mac
+      if (b.dataset.a2 === 'guardar' && !dia) { if (!conHora) return cerrarHojas(); return aviso('Elige un día para la sesión.'); }
       if (b.dataset.a2 === 'guardar') { leer(); const valor = { fecha: dia, hora: conHora ? `${hh}:${mm}` : '' }; cerrarHojas(true); if (valor.fecha !== v.fecha || valor.hora !== v.hora) guardar({ slot: v.id, campo: 'sesInicio', valor, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }
     });
   };

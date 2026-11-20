@@ -19979,16 +19979,22 @@
         clicCara(`#movil [data-a="tver"][data-id="${id}"]`); h = await hojaCara('.mv-ttxt', 'la hoja reabierta');
         const vs = [...h.querySelectorAll('textarea[data-ed-st]')].map(t => t.value);
         ok(vs.includes('Confirmar la hora con el equipo') && !vs.includes('Lista del obrador') && h.querySelector('[data-ed="txt"]').value === 'Preparar la lista de planos y el moodboard de diciembre', 'reabierta mientras guarda, la hoja no enseña lo que se guarda: ' + json(vs));
-        clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(400);
         const ops2 = JSON.parse(W.localStorage.getItem('mesa-movil-ops2') || '[]'), ops1 = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
         ok(ops2.length >= 7 && !ops1.some(o => /^(tareaTexto|tareaFecha|tareaCliente|tareaDetalles|subtarea)$/.test(o.campo)), 'los campos nuevos no van en su propia cola: ' + json({ ops1: ops1.map(o => o.campo), ops2: ops2.map(o => o.campo) }));
         C.corte.demora = 0;
         let choque = false;
         await hasta(() => { if (W.document.querySelector('#movil .hoja [data-r="mio"]')) { choque = true; return true; } return !M.movil._ST.guardando && /Guardado/.test(avisoCara()); }, 20000, 'guardar la tarea');
         ok(!choque, 'otra subtarea cambiada en el Mac enseñó un choque');
+        // con la hoja reabierta aún abierta, lo pendiente ya se aplicó: cambiar la subtarea nueva se guarda (no como otra «nueva» que no hace nada; ronda 2)
+        ok(W.document.querySelector('#movil .hoja .mv-ttxt'), 'guardar cerró la hoja reabierta');
+        const tn = [...W.document.querySelectorAll('#movil .hoja textarea[data-ed-st]')].find(t => t.value === 'Confirmar la hora con el equipo');
+        ok(tn, 'la subtarea nueva no está en la hoja reabierta'); tn.value = 'Confirmar la hora con el equipo de sala'; tn.dispatchEvent(new W.Event('input', { bubbles: true }));
+        sinAviso(); clicCara('#movil .hoja [data-ed-a="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar desde la hoja reabierta');
+        ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'la subtarea nueva cambiada tras aplicarse enseñó un choque');
         const r = await M._in.idbGet('tareas', id), subs = Object.fromEntries((r.subtareas || []).map(x => [x.id, x]));
         igual([r.txt, r.fecha, r.cliente, r.detalles], ['Preparar la lista de planos y el moodboard de diciembre', '2026-11-20', cli, 'Mirar las referencias que mandó por WhatsApp'], 'los campos de la tarea');
-        ok(subs.stmv60a && subs.stmv60a.txt === 'Pedir las referencias de la carta nueva' && subs.stmv60b && subs.stmv60b.hecha && !subs.stmv60c && subs.stmv60d && subs.stmv60d.txt === 'Reservar el panel LED grande' && r.subtareas.filter(x => x.txt === 'Confirmar la hora con el equipo').length === 1, 'las subtareas: ' + json(r.subtareas));
+        ok(subs.stmv60a && subs.stmv60a.txt === 'Pedir las referencias de la carta nueva' && subs.stmv60b && subs.stmv60b.hecha && !subs.stmv60c && subs.stmv60d && subs.stmv60d.txt === 'Reservar el panel LED grande' && r.subtareas.filter(x => x.txt === 'Confirmar la hora con el equipo de sala').length === 1 && !r.subtareas.some(x => x.txt === 'Confirmar la hora con el equipo'), 'las subtareas: ' + json(r.subtareas));
         const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.cliente === cli && arriba.valor.subtareas.length === 4, 'no subió');
         ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
         // una nota: solo su texto; vacía no se guarda
@@ -20086,6 +20092,12 @@
         await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar sus clientes');
         ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'la sesión de antes enseñó un choque');
         igual([...(await M._in.idbGet('tareas', S1.id)).clientes].sort(), [c0, es].sort(), 'la sesión de antes perdió su cliente');
+        // «Sin fecha»: se quita la fecha y la hora se queda, como en el Mac (ronda 2)
+        { const x = await M._in.idbGet('tareas', S1.id); if (x.hora !== '17:30') { x.hora = '17:30'; await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(x, S1.id)); } C.sv.escribirMac('tareas', S1.id, { ...x, hora: '17:30' }); }
+        await M.movil.releer(); await hasta(() => /17:30/.test((W.document.querySelector('#movil [data-a="sesfecha"]') || {}).textContent || ''), 15000, 'la hora de la sesión de antes');
+        sinAviso(); clicCara('#movil [data-a="sesfecha"]'); await hojaCara('[data-a2="sinfecha"]', 'la hoja de la fecha'); clicCara('#movil .hoja [data-a2="sinfecha"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar «Sin fecha»');
+        { const x = await M._in.idbGet('tareas', S1.id); igual([x.fecha || '', x.hora || ''], ['', '17:30'], '«Sin fecha» de una sesión'); }
         // salir y volver: plegados otra vez
         await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`); clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
         await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la sesión otra vez');

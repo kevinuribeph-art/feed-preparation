@@ -1051,7 +1051,7 @@
     }
     if (o.permanente) capas.querySelectorAll('[data-permanente]').forEach(x => x.remove());   // un aviso permanente a la vez: el último
     cerrarHojas(true);
-    const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
+    const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija || o.pregunta ? '' : 'cerrarhoja';   // una pregunta no la contesta un toque perdido
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
     if (o.alCerrar) h._alCerrar = o.alCerrar;
@@ -1060,7 +1060,7 @@
     h._velo = velo;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
     capas.append(velo, h);
     requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
-    if (!o.fija) arrastrable(h);
+    if (!o.fija) arrastrable(h);   // las de pregunta también: cerrarla arrastrando es «Ahora no» (D-271, punto 7)
     return h;
   }
   const devolverFoco = h => { const a = h && h._antes; if (a && a.isConnected && !capas.querySelector('.hoja.on:not([data-permanente])')) { try { a.focus({ preventScroll: true }); } catch (e) { /* */ } } };
@@ -1075,12 +1075,49 @@
     capas.querySelectorAll('.hoja:not([data-permanente]),.velo:not([data-permanente])').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
     if (PEND_PINTAR) setTimeout(pintarSiQuieto, ya ? 0 : 360);
   }
-  function arrastrable(h) {   // el asa: la hoja sigue al dedo y, soltada deprisa o pasada la mitad, se cierra (Apple: a la velocidad del dedo)
-    const asa = h.querySelector('.asa'); let y0 = 0, t0 = 0, dy = 0, activo = false;
-    asa.addEventListener('pointerdown', e => { activo = true; y0 = e.clientY; t0 = e.timeStamp; dy = 0; asa.setPointerCapture(e.pointerId); h.style.transition = 'none'; });
-    asa.addEventListener('pointermove', e => { if (!activo) return; dy = Math.max(0, e.clientY - y0); h.style.transform = `translateY(${dy}px)`; }, { passive: true });
-    const fin = e => { if (!activo) return; activo = false; h.style.transition = ''; const v = dy / Math.max(1, e.timeStamp - t0); if (dy > h.offsetHeight / 2 || v > 0.6) { h.style.transform = ''; cerrarHojas(); } else h.style.transform = ''; };
-    asa.addEventListener('pointerup', fin); asa.addEventListener('pointercancel', fin);
+  // arrastrar una hoja hacia abajo la cierra (D-271, punto 7; apple-design): desde su cabecera (el asa, su título y su texto) o desde
+  // cualquier punto con la hoja arriba del todo, nunca desde las ruedas ni un campo; se decide en el primer movimiento (después el
+  // navegador ya desplaza y no deja cancelarlo); la hoja sigue al dedo y, al soltar, se cierra si lo arrastrado más lo que proyecta su
+  // velocidad pasa de la mitad, o si se lanza deprisa; si no, vuelve. Con el ratón, solo el asa. Cerrar así es cerrar (su pregunta,
+  // «Ahora no»; el foco vuelve). Se puede llamar otra vez tras redibujar la hoja: sus oyentes van en la hoja, una vez.
+  const decidirArrastre = o => o.dy > 0 && o.dy >= Math.abs(o.dx) && !o.enControl && !!(o.enCabecera || o.arriba);
+  const cierraArrastre = o => o.dy + Math.max(0, o.v) * 160 > o.alto / 2 || (o.v > 0.5 && o.dy > 24);
+  function arrastrable(h) {
+    if (h._arrastre) return; h._arrastre = true;
+    let g = null;   // el gesto: {y0, x0, cab, ctl, arriba, tira: null|true|false, dy, m: [[t, y]]}
+    const viva = () => h.isConnected && h.classList.contains('on');
+    const empezar = (x, y, t, el) => { const c = el.closest && el.closest('h2,.ex'); g = { x0: x, y0: y, cab: !!(el.closest && el.closest('.asa')) || !!(c && c.parentNode === h), ctl: !!(el.closest && el.closest('.ruedas,textarea,input,select,[contenteditable]')), arriba: h.scrollTop <= 0, tira: null, dy: 0, m: [[t, y]] }; };
+    const seguir = (x, y, t) => {
+      if (!g || g.tira === false) return false;
+      const dx = x - g.x0, dy = y - g.y0;
+      if (g.tira === null) { if (!dx && !dy) return false; g.tira = decidirArrastre({ dx, dy, enControl: g.ctl, enCabecera: g.cab, arriba: g.arriba }); if (!g.tira) return false; h.style.transition = 'none'; }
+      g.dy = dy; g.m.push([t, y]); while (g.m.length > 2 && t - g.m[0][0] > 100) g.m.shift();
+      h.style.transform = `translateY(${dy > 0 ? dy : dy / 6}px)`;   // hacia arriba, con resistencia
+      if (h._velo) h._velo.style.opacity = String(1 - Math.min(1, Math.max(0, dy) / Math.max(1, h.offsetHeight)) * 0.7);
+      return true;
+    };
+    const soltar = t => {
+      if (!g || !g.tira) { g = null; return; }
+      const a = g.m[0], b = g.m[g.m.length - 1], v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]), alto = h.offsetHeight, dy = Math.max(0, g.dy); g = null;
+      if (cierraArrastre({ dy, v, alto })) {
+        const ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, (alto - dy) / Math.max(0.9, v))));
+        h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.2,.8,.2,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad
+        if (h._velo) h._velo.style.opacity = '';
+        cerrarHojas();
+      } else {
+        h.style.transition = POCO.matches ? 'none' : 'transform .34s var(--ease-m)'; h.style.transform = '';
+        if (h._velo) h._velo.style.opacity = '';
+        setTimeout(() => { if (h.isConnected) h.style.transition = ''; }, 360);
+      }
+    };
+    h.addEventListener('touchstart', e => { if (!viva() || e.touches.length !== 1) { g = null; return; } const p = e.touches[0]; empezar(p.clientX, p.clientY, e.timeStamp, e.target); }, { passive: true });
+    h.addEventListener('touchmove', e => { if (!viva() || e.touches.length !== 1) return; const p = e.touches[0]; if (seguir(p.clientX, p.clientY, e.timeStamp) && e.cancelable) e.preventDefault(); }, { passive: false });
+    h.addEventListener('touchend', e => { if (viva()) soltar(e.timeStamp); else g = null; });
+    h.addEventListener('touchcancel', () => { if (g && g.tira) { g.dy = 0; g.m = [[0, 0]]; soltar(0); } g = null; });
+    // con el ratón, solo el asa (en el iPhone, el dedo va por los toques: nunca dos veces)
+    h.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse' || !viva() || !e.target.closest('.asa')) return; empezar(e.clientX, e.clientY, e.timeStamp, e.target); g.cab = true; try { h.setPointerCapture(e.pointerId); } catch (x) { /* */ } });
+    h.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && g) seguir(e.clientX, e.clientY, e.timeStamp); }, { passive: true });
+    h.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && g) soltar(e.timeStamp); });
   }
   let toastT = 0;
   function aviso(msg, o = {}) {
@@ -1194,7 +1231,7 @@
     await pintar();
     (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'ok';
   }
-  M.movil = { version: VERSION, pintar, releer, ir, _L: L, _ST: ST, _C: C };
+  M.movil = { version: VERSION, pintar, releer, ir, _L: L, _ST: ST, _C: C, _t: { decidirArrastre, cierraArrastre } };
 
   // ===== lote 4: cambiar (D-267, D-268, D-270) =====
   // Cada cambio es una operación {key, slot, campo, valor, visto}: se apunta (localStorage, sobrevive a que iOS cierre la app), se
@@ -1241,7 +1278,7 @@
   function hojaNoContesta(e) {
     return new Promise(res => {
       const quien = corto2(e.dispositivo), h = e.latido ? X().localTime(e.latido) : '', n = +e.cola || 0;
-      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { fija: true, etiqueta: quien + ' no contesta', alCerrar: () => res('no') });
+      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { pregunta: true, etiqueta: quien + ' no contesta', alCerrar: () => res('no') });
       el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
     });
   }
@@ -1254,7 +1291,7 @@
       const cuerpo = otraTanda
         ? `<p class="ex">Llegó otra tanda de captions desde que la viste: lo que elegiste era de la anterior. Vuelve a elegir en «Captions».</p><div class="botones" style="grid-template-columns:1fr"><button type="button" class="btn pri" data-r="mesa" data-foco>Entendido</button></div>`
         : `<p class="ex">${esc(opQue(op))}: ${esc(porQueChoque(op, ch))}</p><div class="grupo">${fila('Lo tuyo', opTexto(op, op.valor))}${fila('En la Mesa', opTexto(op, ch.ahora))}</div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`;
-      const el = hoja(`<h2>${otraTanda ? 'Otra tanda de captions' : 'Cambió en la Mesa'}</h2>${cuerpo}`, { fija: true, etiqueta: 'Cambió en la Mesa', alCerrar: () => res('cerrar') });
+      const el = hoja(`<h2>${otraTanda ? 'Otra tanda de captions' : 'Cambió en la Mesa'}</h2>${cuerpo}`, { pregunta: true, etiqueta: 'Cambió en la Mesa', alCerrar: () => res('cerrar') });
       el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
     });
   }

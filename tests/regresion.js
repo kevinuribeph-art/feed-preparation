@@ -19697,6 +19697,52 @@
     }, { w: 956, h: 440 });
   });
 
+  // un arrastre con el dedo sobre un elemento del iPhone (toques sintéticos: la cara solo lee touches, timeStamp y target)
+  const toqueMv = (el, tipo, x, y) => { const e = new W.Event(tipo, { bubbles: true, cancelable: true }); Object.defineProperty(e, 'touches', { value: tipo === 'touchend' ? [] : [{ clientX: x, clientY: y, identifier: 1, target: el }] }); el.dispatchEvent(e); return e; };
+  async function arrastrarMv(el, dy, pasos = 4, ms = 0) {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + Math.min(10, r.height / 2);
+    toqueMv(el, 'touchstart', x, y); let movido = null;
+    for (let i = 1; i <= pasos; i++) { if (ms) await espera(ms); const e = toqueMv(el, 'touchmove', x, y + dy * i / pasos); if (movido === null) movido = e.defaultPrevented; }
+    toqueMv(el, 'touchend', x, y + dy); return movido;
+  }
+  prueba('MV47', 'Cerrar una hoja del iPhone arrastrándola hacia abajo (D-271, punto 7; lecciones 201–204 y 224): desde su cabecera o, arriba del todo, desde cualquier punto; lanzada deprisa se cierra y despacio y corta vuelve; desde las ruedas, nunca; tras redibujarse, igual; el foco vuelve; arrastrar «no contesta» es «Ahora no» y «Guardar» no se queda colgado', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    await enMovilPagina(async () => {
+      const { decidirArrastre: dec, cierraArrastre: cie } = M.movil._t;
+      ok(dec({ dy: 6, dx: 1, enCabecera: true }) && dec({ dy: 6, dx: 0, arriba: true }) && !dec({ dy: 6, dx: 0, arriba: false }) && !dec({ dy: 6, dx: 0, enCabecera: true, enControl: true }) && !dec({ dy: -6, dx: 0, enCabecera: true }) && !dec({ dy: 3, dx: 9, enCabecera: true }), 'cuándo tira de la hoja');
+      ok(cie({ dy: 30, v: 1.2, alto: 500 }) && !cie({ dy: 30, v: 0.1, alto: 500 }) && cie({ dy: 300, v: 0, alto: 500 }) && !cie({ dy: 10, v: 0.6, alto: 500 }) && cie({ dy: 120, v: 0.9, alto: 500 }), 'cuándo se cierra al soltar');
+      const hoja = () => W.document.querySelector('#movil .hoja.on');
+      await irMovil(`#pub/${key}/r1`, '#movil [data-a="estado"]');
+      const boton = W.document.querySelector('#movil [data-a="estado"]'); boton.focus(); boton.click(); await hojaCara('.estados', 'la hoja del estado');
+      // despacio y corto, desde el título: vuelve
+      ok(await arrastrarMv(hoja().querySelector('h2'), 40, 8, 40), 'el arrastre desde el título no tiró de la hoja');
+      await espera(450); ok(hoja() && !hoja().style.transform, 'despacio y corto la cerró o no volvió: ' + (hoja() && hoja().style.transform));
+      // deprisa, desde una opción con la hoja arriba del todo: se cierra y el foco vuelve
+      await arrastrarMv(hoja().querySelector('.estado-op'), 140, 3);
+      await hasta(() => !W.document.querySelector('#movil .hoja'), 2000, 'que se cierre lanzada deprisa');
+      await espera(50); ok(W.document.activeElement === W.document.querySelector('#movil [data-a="estado"]'), 'el foco no volvió a «Estado»');
+      // la hoja de la fecha con sus ruedas: desde las ruedas no se cierra; redibujada, desde su título sí
+      clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+      if (!hoja().querySelector('.ruedas')) { clicCara('#movil .hoja [data-a2="ponhora"]'); await hojaCara('.ruedas', 'las ruedas'); }
+      ok(!(await arrastrarMv(hoja().querySelector('.rueda'), 160, 3)), 'arrastrar la rueda tiró de la hoja');
+      await espera(400); ok(hoja(), 'arrastrar la rueda cerró la hoja');
+      clicCara(`#movil .hoja [data-dia]:not([disabled])`); await espera(80);   // la hoja se redibuja
+      await arrastrarMv(hoja().querySelector('h2'), 200, 3);
+      await hasta(() => !W.document.querySelector('#movil .hoja'), 2000, 'que se cierre la redibujada');
+      // una pregunta arrastrada es «Ahora no»
+      const C = await nubeCara(key, { ceder: false }); C.sv.callar(true);
+      try {
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha otra vez');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hojaCara('[data-r="forzar"]', '«no contesta»');
+        await arrastrarMv(hoja().querySelector('h2'), 260, 3);
+        await hasta(() => !M.movil._ST.guardando, 6000, 'que «Guardar» acabe');
+        const cola = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(cola.length === 1 && cola[0].estado === 'quedo' && cola[0].campo === 'fecha', 'la fecha no quedó en «sin subir»: ' + json(cola));
+      } finally { await C.fin(); }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

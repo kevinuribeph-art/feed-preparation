@@ -352,6 +352,13 @@
 #movil .cifras.c5 .cifra .v{font-size:28px}
 #movil .sub-h{padding:14px var(--pad) 8px;font-size:16px;font-weight:600;color:var(--ink-2)}
 #movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}
+#movil .mv-tit{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#movil .mv-tit h1{min-width:0}
+#movil .mv-sw{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:var(--tap);padding:0 0 0 8px;font-size:15px;color:var(--ink-2)}
+#movil .mv-sw i{position:relative;flex:none;width:51px;height:31px;border-radius:16px;background:var(--line-strong);transition:background var(--d2) var(--ease)}
+#movil .mv-sw i::after{content:'';position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:var(--knob);box-shadow:var(--shadow-xs),0 2px 6px rgba(0,0,0,.16);transition:transform var(--d2) var(--ease-m)}
+#movil .mv-sw[aria-checked="true"] i{background:var(--sw-on)}
+#movil .mv-sw[aria-checked="true"] i::after{transform:translateX(20px)}
 #movil .mv-tira{display:flex;gap:8px;overflow-x:auto;margin:0 calc(-1 * var(--pad));padding:0 var(--pad);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 #movil .mv-tira::-webkit-scrollbar{display:none}
 #movil .mv-tf{position:relative;flex:none;height:140px;aspect-ratio:var(--r);border-radius:12px;overflow:hidden;background:var(--cell-ph)}
@@ -525,7 +532,7 @@
 #movil .estado-op .av{flex:none}
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
-@media (prefers-reduced-motion:reduce){#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
+@media (prefers-reduced-motion:reduce){#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{max-height:70vh}#movil .hoja{max-height:calc(100dvh - 8px)}}
 `;
   const estilo = (id, css) => { let s = D.getElementById(id); if (!s) { s = D.createElement('style'); s.id = id; D.head.appendChild(s); } s.textContent = css; };
@@ -663,7 +670,7 @@
   let TAREAS_PASADO = 0;
   async function leerHoy() {
     try {
-      const R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: true });
+      const R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: AVT });
       await cargarMinis(R.items.filter(x => x.tipo === 'post').map(x => x.s.photos && x.s.photos[0]));
       try { if (M.web && M.web.leerRespuestas) await M.web.leerRespuestas(); } catch (e) { /* sin web: sin «ha contestado» */ }
       L.hoy = R; L.error.hoy = '';
@@ -699,7 +706,7 @@
   // ---------- Hoy (D-180, D-212, D-236) ----------
   const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
-  let FILTRO = null, VER_TODO = {};
+  let FILTRO = null, VER_TODO = {}, AVT = false;   // AVT: el interruptor «Tareas» de Hoy, apagado al abrir la app (D-271, punto 2; D-180)
   function lineaAviso(x) {
     const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
     if (x.tipo === 'cobro') {
@@ -724,7 +731,8 @@
   const isReelTxt = t => /reel/i.test(String(t || ''));
   function pantHoy() {
     const R = L.hoy, h = hoy();
-    let html = top() + `<main class="main" id="contenido"><div class="titulo"><h1>Hoy</h1><p>${esc(fechaLarga(h))}</p></div>`;
+    const sw = `<button type="button" class="mv-sw" role="switch" aria-checked="${AVT}" data-a="avt"><span>Tareas</span><i aria-hidden="true"></i></button>`;   // como en la página del Mac (D-180)
+    let html = top() + `<main class="main" id="contenido"><div class="titulo"><div class="mv-tit"><h1>Hoy</h1>${sw}</div><p>${esc(fechaLarga(h))}</p></div>`;
     if (!R) return html + (L.error.hoy ? mal(L.error.hoy) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('hoy');
     html += `<div class="cifras c5" role="group" aria-label="Avisos">${CIFRAS.map(([k, t]) => { const n = R.cifras[k] || 0; return `<button type="button" class="cifra${k === 'pasado' && n ? ' roja' : ''}${FILTRO === k ? ' on' : ''}" data-a="filtro" data-k="${k}" aria-pressed="${FILTRO === k}"${n || FILTRO === k ? '' : ' disabled'}><span class="v num">${n}</span><span class="k">${t}</span></button>`; }).join('')}</div>`;
     const por = c => R.items.filter(x => x.cat === c);
@@ -1073,6 +1081,7 @@
   function accion(a, b, e) {
     switch (a) {
       case 'atras': return atras();
+      case 'avt': AVT = !AVT; b.setAttribute('aria-checked', String(AVT)); return leerHoy().then(() => { if (RUTA.p !== 'hoy') return; pintar(); const s = raiz.querySelector('[data-a="avt"]'); if (s) s.focus({ preventScroll: true }); });   // se relee sin pasar por «Leyendo…»
       case 'filtro': FILTRO = FILTRO === b.dataset.k ? null : b.dataset.k; return pintar();
       case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
       case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();

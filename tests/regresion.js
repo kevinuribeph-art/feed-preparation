@@ -18934,7 +18934,7 @@
     const key = await tableroMovil();
     await enMovilPagina(async () => {
       const MV = W.MESA; await MV.movil.releer();   // con el reloj de la batería (aMarco lo pone tras cargar)
-      const R = await MV.personal.datos({ modo: 'semana', desp: 0, avTareas: true });
+      const R = await MV.personal.datos({ modo: 'semana', desp: 0, avTareas: false });   // Hoy abre con «Tareas» apagado, como el Mac (D-271, punto 2)
       await hasta(() => W.document.querySelector('#movil .cifras'), 6000, 'las cifras'); await espera(200);
       igual([...W.document.querySelectorAll('#movil .cifra .v')].map(x => +x.textContent), ['pasado', 'hoy', 'man', 'espera', 'falta'].map(k => R.cifras[k] || 0), 'las cifras de Hoy no son las del núcleo');
       const textos = [], malos = [];
@@ -19535,6 +19535,36 @@
         igual(await M.nube.archivo('tfotos', k, 'el valor.mini'), null, 'el mini se bajó');
       } finally { W.document.removeEventListener('mesa-archivo-llego', oye); await nbLimpiar(); await M._in.diario.sinDiario('tfotos', 'readwrite', st => st.delete(k)); await M._in.diario.vaciar(); }
     });
+  });
+
+  prueba('MV52', 'Hoy con el interruptor «Tareas» (D-271, punto 2; lección 233): al abrir la app está apagado y las cinco cifras son las de la página del Mac recién abierta; encendido, las del Mac con «Tareas» (una tarea vencida sale solo entonces); al volver a abrir, apagado; su diana, de 44 px', async () => {
+    await tableroMovil();
+    const h = M._in.hoy(), antes = new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) - 2)).toISOString().slice(0, 10);
+    const id = 'tkmv52vencidaayer', txt = 'Llamar al proveedor de café para cerrar el pedido de noviembre', ahora = new W.Date().toISOString();
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put({ id, tipo: 'tarea', txt, fecha: antes, creada: ahora, at: ahora }, id));
+    const cinco = R => ['pasado', 'hoy', 'man', 'espera', 'falta'].map(k => R.cifras[k] || 0);
+    // el Mac: su página recién abierta (el interruptor apagado, D-180) y con «Tareas» encendido
+    await M.personal.abrir(); const mac0 = cinco(await M.personal.datos());
+    await M.personal.set({ avTareas: true }); const mac1 = cinco(await M.personal.datos()); M.personal.cerrar();
+    ok(mac1[0] > mac0[0], 'en el Mac la tarea vencida no cuenta con «Tareas»: ' + json([mac0, mac1]));
+    try {
+      await enMovilPagina(async () => {
+        await M.movil.releer();
+        const cifras = () => [...W.document.querySelectorAll('#movil .cifra .v')].map(x => +x.textContent), sw = () => W.document.querySelector('#movil [data-a="avt"]');
+        await hasta(() => sw() && W.document.querySelector('#movil .cifras'), 6000, 'el interruptor de Hoy');
+        ok(sw().getAttribute('role') === 'switch' && sw().getAttribute('aria-checked') === 'false', 'el interruptor no empieza apagado');
+        igual(cifras(), mac0, 'apagado, las cifras no son las de la página del Mac');
+        ok(!W.document.getElementById('movil').innerText.includes(txt), 'apagado, sale la tarea');
+        const d = diana(sw()); ok(d.h >= 44 - 0.5 && d.w >= 44, 'la diana del interruptor: ' + d.w + '×' + d.h);
+        sw().click();
+        await hasta(() => W.document.getElementById('movil').innerText.includes(txt), 4000, 'la tarea con «Tareas» encendido');
+        ok(sw().getAttribute('aria-checked') === 'true', 'el interruptor no quedó encendido');
+        igual(cifras(), mac1, 'encendido, las cifras no son las del Mac con «Tareas»');
+        W.__mv52 = 1; W.location.reload();
+        await hasta(() => !W.__mv52 && W.MESA && W.MESA.movil && sw(), 15000, 'Hoy otra vez');
+        ok(sw().getAttribute('aria-checked') === 'false', 'al volver a abrir no está apagado');
+      });
+    } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
   });
 
   async function pasar() {

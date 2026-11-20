@@ -631,7 +631,7 @@
   const ty = t => `<span class="ty ${TY[t.k] || (t.reel ? 'reel' : 'foto')}">${esc(t.txt)}</span>`;
   const est = e => `<span class="es ${esc(e.k)}"><i></i>${esc(e.txt)}</span>`;
   function top(o = {}) {
-    const izq = o.atras ? `<button type="button" class="back" data-a="atras" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : `<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="30" height="30">`;
+    const izq = o.atras ? `<button type="button" class="back" data-a="atras" data-destino="${esc(o.destino || prevDe() || 'clientes')}" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : `<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="30" height="30">`;
     return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r">${o.r || `<span data-chip>${chip()}</span>`}</div></div></header>`;
   }
   function tabs(on) {
@@ -659,11 +659,27 @@
   // ---------- la navegación: #hoy, #clientes, #tareas, #mes/<tablero>/<vista>[/<mes>], #pub/<tablero>/<id>, #cap/…, #ret/…/<k>, #his/<tablero>/<id> ----------
   const leerRuta = () => { const p = decodeURIComponent((location.hash || '#hoy').slice(1)).split('/'); return { p: p[0] || 'hoy', a: p[1] || '', b: p[2] || '', c: p[3] || '' }; };
   let RUTA = leerRuta();
-  const ir = (h, reemplazar) => { const u = '#' + h.split('/').map(encodeURIComponent).join('/'); if (reemplazar) history.replaceState(null, '', u); else history.pushState(null, '', u); RUTA = leerRuta(); W.scrollTo(0, 0); pintar(); };
+  // atrás (D-271, punto 3): cada entrada guarda de dónde se vino (history.state.prev). Abrir algo apila; cambiar de vista o de mes
+  // dentro de un cliente sustituye la entrada (conserva su prev); las pestañas empiezan de cero. «‹ X» vuelve con history.back()
+  // solo si la entrada anterior es X; si no, va a X sin apilar: así el botón y el gesto de Safari hacen lo mismo.
+  const rutaAhora = () => decodeURIComponent((location.hash || '#hoy').slice(1));
+  const prevDe = () => (history.state && typeof history.state.prev === 'string' ? history.state.prev : null);
+  const ir = (h, modo) => {   // modo: nada = apilar; 'sustituir' = la misma entrada con su prev; 'raiz' = la misma entrada, sin prev
+    const u = '#' + h.split('/').map(encodeURIComponent).join('/');
+    if (modo === 'sustituir') history.replaceState({ prev: prevDe() }, '', u); else if (modo === 'raiz') history.replaceState({ prev: null }, '', u); else history.pushState({ prev: rutaAhora() }, '', u);
+    RUTA = leerRuta(); W.scrollTo(0, 0); pintar();
+  };
   W.addEventListener('popstate', () => { cerrarHojas(true); RUTA = leerRuta(); pintar(); });
-  const atras = () => { if (history.length > 1 && HIST > 0) { HIST--; history.back(); } else ir(RUTA.p === 'pub' || RUTA.p === 'his' ? `mes/${RUTA.a}/lista` : RUTA.p === 'cap' ? `pub/${RUTA.a}/${RUTA.b}` : RUTA.p === 'ret' ? `cap/${RUTA.a}/${RUTA.b}` : 'clientes', true); };
-  let HIST = 0;
-  const avanzar = h => { HIST++; ir(h); };
+  const atras = dest => { dest = dest || 'hoy'; if (prevDe() === dest) history.back(); else ir(dest, 'raiz'); };
+  const avanzar = h => ir(h);
+  // a dónde vuelve cada pantalla y cómo se llama ese sitio
+  const volverMes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : { atras: 'Clientes', destino: 'clientes' }; };
+  function volverPub(v, p) {
+    const pv = prevDe();
+    if (pv === 'hoy') return { atras: 'Hoy', destino: 'hoy' };
+    if (pv && pv.startsWith(`mes/${v.key}/`)) { const m = pv.split('/')[3]; return { atras: mesNombre(/^\d{4}-\d{2}$/.test(m || '') ? m : p.mes), destino: pv }; }
+    return { atras: mesNombre(p.mes), destino: `mes/${v.key}/lista/${p.mes}` };
+  }
 
   // ---------- lo leído (todo del núcleo); lo que falla se dice, nunca se enseña como vacío ----------
   const L = { hoy: null, clientes: null, tareas: null, vista: null, conv: null, error: {} };
@@ -781,7 +797,7 @@
     const sin = posts.filter(p => !['programado', 'publicado'].includes(p.estado.k)).length, hs = v.historias.filter(h => !h.cancelada && h.fecha.dia && h.fecha.dia.slice(0, 7) === m).length;
     const otro = (d) => { const j = i + d; return j >= 0 && j < v.meses.length ? `data-ir="mes/${esc(v.key)}/${vista}/${esc(v.meses[j].m)}"` : ''; };
     const ant = otro(-1), sig = otro(1), sigB = !sig && MESES_CLI.sig ? `data-ir="mes/${esc(MESES_CLI.sig)}/${vista}"` : '', antB = !ant && MESES_CLI.ant ? `data-ir="mes/${esc(MESES_CLI.ant)}/${vista}"` : '';
-    return top({ atras: 'Clientes', t: nombreCli(v.client) })
+    return top({ ...volverMes(), t: nombreCli(v.client) })
       + `<div class="mesnav"><h1>${esc(mesNombre(m))}</h1><div class="flechas"><button type="button" class="ib" ${ant || antB} ${ant || antB ? '' : 'disabled'} aria-label="Mes anterior">${ic('izq')}</button><button type="button" class="ib" ${sig || sigB} ${sig || sigB ? '' : 'disabled'} aria-label="Mes siguiente">${ic('der')}</button></div></div>`
       + `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`
       + `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`;
@@ -806,7 +822,7 @@
   }
   function pantMes() {
     const v = L.vista, vista = RUTA.b || 'lista';
-    if (!v || v.key !== RUTA.a) return top({ atras: 'Clientes' }) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
+    if (!v || v.key !== RUTA.a) return top(volverMes()) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
     const m = mesDeRuta(v);
     let html = `<main class="main" id="contenido">` + cabMes(v, m, vista);
     const posts = v.posts.filter(p => p.mes === m).sort((a, b) => String(a.fecha.dia || '9').localeCompare(String(b.fecha.dia || '9')) || String(a.fecha.hora).localeCompare(String(b.fecha.hora)));
@@ -863,7 +879,7 @@
     if (!p) return top({ atras: 'Volver' }) + `<main class="main sin-tabs" id="contenido">${L.error.mes ? mal(L.error.mes) : v && v.key === RUTA.a ? vacio('Esta publicación ya no está', 'Se quitó en el escritorio.') : `<div class="lugar">Abriendo…</div>`}</main>`;
     const r0 = p.recortes[0], ratio = p.tipo.reel ? 9 / 16 : r0 && r0.ratio ? Math.max(0.6, Math.min(1.91, r0.ratio)) : 4 / 5;
     const n = p.fotos.length, e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
-    let html = top({ atras: mesNombre(p.mes), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
+    let html = top({ ...volverPub(v, p), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
     html += `<div class="car" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="aspect-ratio:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="aspect-ratio:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
     if (n > 1) html += `<div class="puntos" aria-hidden="true">${p.fotos.map((_, i) => `<i${i === 0 ? ' class="on"' : ''}></i>`).join('')}</div>`;
     html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div></div>`;
@@ -905,7 +921,7 @@
     const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b);
     if (!p) return top({ atras: 'Volver' }) + `<main class="main sin-tabs">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo…</div>`}</main>`;
     const c = p.captions, off = sinRed();
-    let html = top({ atras: p.nombre }) + `<main class="main sin-tabs" id="contenido"><div class="titulo"><h1>Captions</h1><p>${esc(p.nombre)} · ${esc(p.tipo.txt)}${p.fecha.dia ? ' · ' + esc(DS[dow(p.fecha.dia)] + ' ' + corto(p.fecha.dia)) : ''}</p></div>`;
+    let html = top({ atras: p.nombre, destino: `pub/${v.key}/${p.id}` }) + `<main class="main sin-tabs" id="contenido"><div class="titulo"><h1>Captions</h1><p>${esc(p.nombre)} · ${esc(p.tipo.txt)}${p.fecha.dia ? ' · ' + esc(DS[dow(p.fecha.dia)] + ' ' + corto(p.fecha.dia)) : ''}</p></div>`;
     if (!c) html += vacio('Sin opciones todavía', 'Pídeselas a Claude.');
     else html += c.opciones.map(o => { const on = o.k === c.pick; return `<div class="op${on ? ' on' : ''}"><div class="op-h"><b>${esc(o.tono)}</b>${on ? `<span class="elegido">${ic('check', 2.25)}Elegido</span>` : ''}</div><p>${o.texto ? esc(o.texto) : '<span class="vacia">Vacío</span>'}</p>${o.editada ? '<p class="solo-mac" style="margin:8px 0 0">Retocado</p>' : ''}
       <div class="op-a">${on ? `<button type="button" class="btn sua" data-ir="ret/${esc(v.key)}/${esc(p.id)}/${o.k}"${off ? ' disabled' : ''}>Retocar</button>` : `<button type="button" class="btn sua" data-a="elegir" data-k="${o.k}"${off ? ' disabled' : ''}>Elegir esta</button>`}</div></div>`; }).join('');
@@ -957,10 +973,11 @@
     const v = L.vista; if (!v || v.key !== RUTA.a) return `<div class="ver"><div class="lugar" style="color:#fff">Abriendo…</div></div>`;
     const l = v.historias.filter(h => !h.cancelada).sort((a, b) => String(a.fecha.dia + a.fecha.hora).localeCompare(String(b.fecha.dia + b.fecha.hora)));
     const i = Math.max(0, l.findIndex(h => h.id === RUTA.b)), h = l[i];
-    if (!h) return `<div class="ver"><div class="vtop"><span class="t">Sin historias</span><button type="button" class="ib" data-a="atras" aria-label="Cerrar">${ic('x', 2)}</button></div></div>`;
+    const dH = prevDe() || `mes/${v.key}/hist${h ? '/' + h.fecha.dia.slice(0, 7) : ''}`;
+    if (!h) return `<div class="ver"><div class="vtop"><span class="t">Sin historias</span><button type="button" class="ib" data-a="atras" data-destino="${esc(dH)}" aria-label="Cerrar">${ic('x', 2)}</button></div></div>`;
     const deDia = l.filter(x => x.fecha.dia === h.fecha.dia), j = deDia.indexOf(h);
     return `<div class="ver" role="dialog" aria-label="Historia ${i + 1} de ${l.length}" data-hist="${i}" data-total="${l.length}"><div class="barras" aria-hidden="true">${deDia.map((_, k) => `<i${k <= j ? ' class="on"' : ''}></i>`).join('')}</div>
-      <div class="vtop"><span class="t">${esc(diaCab(h.fecha.dia))} · ${esc(h.fecha.hora || '')}<span>${esc(nombreCli(v.client))} · ${h.programada ? 'programada' : 'sin programar'}</span></span><button type="button" class="ib" data-a="atras" aria-label="Cerrar">${ic('x', 2)}</button></div>
+      <div class="vtop"><span class="t">${esc(diaCab(h.fecha.dia))} · ${esc(h.fecha.hora || '')}<span>${esc(nombreCli(v.client))} · ${h.programada ? 'programada' : 'sin programar'}</span></span><button type="button" class="ib" data-a="atras" data-destino="${esc(dH)}" aria-label="Cerrar">${ic('x', 2)}</button></div>
       <div class="lam">${h.img ? `<span style="position:relative;display:block;height:100%;aspect-ratio:9/16;max-width:100%">${foto(h.img, Math.min(500, W.innerWidth || 440))}</span>` : `<span class="hueco" style="position:static;background:none;color:#fff">Sin imagen todavía</span>`}</div>
       <button type="button" class="lado i" data-a="hmov" data-d="-1" aria-label="Historia anterior"${i ? '' : ' disabled'}></button><button type="button" class="lado d" data-a="hmov" data-d="1" aria-label="Historia siguiente"${i < l.length - 1 ? '' : ' disabled'}></button>
       ${h.post ? `<div class="vpie">De la publicación ${esc((v.posts.find(p => p.id === h.post) || {}).nombre || '')}</div>` : ''}</div>`;
@@ -1074,14 +1091,14 @@
   // ---------- el toque: un solo oyente para toda la cara ----------
   raiz.addEventListener('click', e => {
     const b = e.target.closest('[data-ir],[data-a]'); if (!b || b.disabled || !raiz.contains(b)) return;
-    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { HIST = 0; FILTRO = null; ir(r, true); } else avanzar(r); return; }
+    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { FILTRO = null; ir(r, 'raiz'); } else if (RUTA.p === 'mes' && /^mes\//.test(r)) ir(r, 'sustituir'); else avanzar(r); return; }
     accion(b.dataset.a, b, e);
   });
   raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) cerrarHojas(); });
   const C = {};   // cambiar (lote 4): se llena más abajo
   function accion(a, b, e) {
     switch (a) {
-      case 'atras': return atras();
+      case 'atras': return atras(b.dataset.destino);
       case 'avt': AVT = !AVT; b.setAttribute('aria-checked', String(AVT)); return leerHoy().then(() => { if (RUTA.p !== 'hoy') return; pintar(); const s = raiz.querySelector('[data-a="avt"]'); if (s) s.focus({ preventScroll: true }); });   // se relee sin pasar por «Leyendo…»
       case 'filtro': FILTRO = FILTRO === b.dataset.k ? null : b.dataset.k; return pintar();
       case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
@@ -1092,7 +1109,7 @@
       case 'tcli': FILTRO_T = b.dataset.c || ''; return pintar();
       case 'tver': return verTarea(b.dataset.id);
       case 'cobro': return aviso('Las facturas se abren en el escritorio.');
-      case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, true); return; }
+      case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
       case 'cerrarhoja': return cerrarHojas();
       case 'recargar': try { location.reload(); } catch (x) { /* */ } return;
       case 'entrar': try { location.reload(); } catch (x) { /* */ } return;
@@ -1483,11 +1500,11 @@
   const borrPoner = (key, slot, k, texto, base) => lsS(K_BORR(key, slot, k), JSON.stringify({ texto, base }));
   C.pantRetocar = () => {
     const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k);
-    if (!o) return top({ atras: 'Captions' }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
+    if (!o) return top({ atras: 'Captions', destino: `cap/${RUTA.a}/${RUTA.b}` }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
     const b = borrLeer(v.key, p.id, k), borr = b ? b.texto : null, txt = borr != null ? borr : o.texto;
     RET0 = { key: v.key, slot: p.id, k, base: { at: p.captions.at, texto: o.texto } };   // lo que enseña esta pantalla: la base si aún no hay borrador
     const cambio = b && b.base && (b.base.at !== p.captions.at || b.base.texto !== o.texto);   // cambió en la Mesa desde que empezaste
-    return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
+    return top({ atras: 'Captions', destino: `cap/${v.key}/${p.id}`, t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
       <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
       <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${cambio ? '<p class="solo-mac">Este caption cambió en la Mesa desde que empezaste a retocarlo: si guardas tu retoque, verás los dos.</p>' : ''}${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
   };
@@ -1504,10 +1521,10 @@
     if (t.value === base.texto) {   // nada que guardar: lo de la Mesa se queda (aunque cambiara) y un retoque pendiente de ese caption, deshecho, se va
       lsS(K_BORR(v.key, p.id, k), null);
       opsGuardar(opsLeer().filter(x => !(x.campo === 'capTexto' && x.key === v.key && x.slot === p.id && (x.valor || {}).k === k && x.id !== ENVUELO)));
-      return atras();
+      return atras(`cap/${v.key}/${p.id}`);
     }
     const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
-    if (ok) atras();
+    if (ok) atras(`cap/${v.key}/${p.id}`);
   };
 
   // ---------- contestar al cliente (va a su web con tu sesión, sin coger la Mesa: D-244, R2) ----------

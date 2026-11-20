@@ -19576,6 +19576,51 @@
     } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
   });
 
+  prueba('MV50', 'Atrás en el iPhone (D-271, punto 3; lección 223): cambiar de vista o de mes no apila; «‹ Clientes» va directo a Clientes; una publicación abierta desde Hoy dice «‹ Hoy» y vuelve a Hoy; desde el mes, «‹ <mes>» y vuelve a esa vista; abierta sin historial, vuelve a su lista sin history.back()', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const H = W.history, c = { push: 0, back: 0 }, p0 = H.pushState, b0 = H.back;
+      H.pushState = function (...a) { c.push++; return p0.apply(H, a); }; H.back = function () { c.back++; return b0.apply(H); };
+      const toca = async (sel, que) => { await hasta(() => W.document.querySelector(sel), 6000, que || sel); W.document.querySelector(sel).click(); await espera(250); };
+      const hash = () => decodeURIComponent(W.location.hash.slice(1)), volver = () => (W.document.querySelector('#movil .top .back span') || {}).textContent;
+      try {
+        await toca('#movil .tab[data-ir="clientes"]', 'la pestaña Clientes');
+        await toca(`#movil .cli[data-ir^="mes/${key}/"]`, 'el cliente');
+        const mesDe = id => M.movil._L.vista.posts.find(x => x.id === id).mes, nombreMes = m => W.MESA._in.MONTHS[+m.slice(5, 7) - 1].replace(/^./, x => x.toUpperCase());
+        igual([c.push, volver()], [1, 'Clientes'], 'abrir el mes');
+        await toca(`#movil .seg [data-ir^="mes/${key}/cal"]`, 'Calendario');
+        await toca(`#movil .seg [data-ir^="mes/${key}/hist"]`, 'Historias');
+        await toca(`#movil .seg [data-ir^="mes/${key}/lista"]`, 'Lista');
+        igual(c.push, 1, 'cambiar de vista apiló');
+        await toca('#movil .top .back', '‹ Clientes');
+        await hasta(() => hash() === 'clientes', 4000, 'Clientes');
+        igual(c.back, 1, '«‹ Clientes» no volvió atrás una vez');
+        // desde Hoy: «‹ Hoy»
+        await toca('#movil .tab[data-ir="hoy"]', 'la pestaña Hoy');
+        await toca(`#movil .fila[data-ir^="pub/${key}/"]`, 'una publicación de Hoy');
+        igual(volver(), 'Hoy', 'la publicación abierta desde Hoy');
+        await toca('#movil .top .back', '‹ Hoy');
+        await hasta(() => hash() === 'hoy', 4000, 'Hoy');
+        // desde el mes en Calendario: «‹ <mes>» y vuelve a esa vista
+        await toca('#movil .tab[data-ir="clientes"]'); await toca(`#movil .cli[data-ir^="mes/${key}/"]`); await toca(`#movil .seg [data-ir^="mes/${key}/cal"]`);
+        const enCal = hash();
+        await toca(`#movil .fila[data-ir^="pub/${key}/"]`, 'una publicación del calendario');
+        const mCal = enCal.split('/')[3]; igual(volver(), nombreMes(/^\d{4}-\d{2}$/.test(mCal || '') ? mCal : mesDe(hash().split('/')[2])), 'la publicación abierta desde el mes');
+        const b1 = c.back; await toca('#movil .top .back', '‹ mes');
+        await hasta(() => hash() === enCal, 4000, 'el calendario del mes');
+        igual(c.back, b1 + 1, 'volver al mes no fue history.back()');
+        // abierta sin historial (al volver a abrir la app en ella): vuelve a su lista sin history.back()
+        H.replaceState(null, '', '#pub/' + key + '/r1'); W.dispatchEvent(new W.PopStateEvent('popstate')); await espera(300);
+        const b2 = c.back; await toca('#movil .top .back', '‹ mes sin historial');
+        await hasta(() => hash() === `mes/${key}/lista/${mesDe('r1')}`, 4000, 'su lista');
+        igual(c.back, b2, 'sin historial usó history.back()');
+        await toca('#movil .top .back', '‹ Clientes sin historial');
+        await hasta(() => hash() === 'clientes', 4000, 'Clientes sin historial');
+        igual(c.back, b2, 'sin historial usó history.back() hacia Clientes');
+      } finally { H.pushState = p0; H.back = b0; }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

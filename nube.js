@@ -570,6 +570,7 @@
           const r2 = await mandar(lote, resc); return { ...r2, aparte: (r2.aparte || 0) + 1 };
         }
         if (c === 'forma') return porMitades(lote, resc, 'forma', er.mensaje);
+        if (c === 'turno' && args.turno != null && st.turno != null && args.turno !== st.turno && conTurno) return { subidos: 0, viejo: true };   // un lote de un turno anterior: obsoleto, no la Mesa perdida
         await trasRechazo(r); return { parar: true };
       }
       if (r.epoca && st.epoca && r.epoca !== st.epoca) { ponerTurno(false); fase(MOVIL ? 'mirando' : 'recargar'); return { parar: true }; }   // the phone: the next look comes down again from the start   // se restauró una copia del servidor
@@ -696,6 +697,7 @@
     // face lets it go (retener(false)), never over its write
     function trasIrse() { if (!irse) return; irse = false; if (!conTurno) return; if (retenido) irseTras = true; else soltar().catch(() => {}); }
     async function entrarYa(turno, orden) {
+      if (enVuelo && enVuelo.args && enVuelo.args.turno !== turno) enVuelo = null;   // a batch in flight with the old turn: its entries go up again from the journal
       st.turno = turno; await A.ponerMeta({ turno });   // known at once: a phone closed now knows it is its own when it comes back
       let n = 0;
       try { n = await bajarTodo(orden, null, false, undefined, false, true); }
@@ -824,8 +826,10 @@
           await A.confirmar({ versiones: [{ a: x.a, k: x.k, v: base, o: con ? con.o : undefined, b: !!(con && con.b) }], quitar: [] });
         }
         await A.quitarSinSubir(lista.map(x => [x.a, x.k]));
-        ultCambio = -Infinity; await subir({ todo: true });
+        ultCambio = -Infinity; const r = await subir({ todo: true });
         await contarSinSubir();
+        if (!conTurno) return { error: 'perdida' };   // lost meanwhile: it went aside again (dos aparatos, escenario 5)
+        if (r && (r.sinRed || r.cortado)) return { error: 'sin_conexion', hecho: 0 };
         return { hecho: lista.length };
       } finally { if (E.recargar) E.recargar(); }   // también si algo falla: la Mesa no se queda congelada
     }

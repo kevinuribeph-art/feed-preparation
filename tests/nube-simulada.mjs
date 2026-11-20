@@ -1378,6 +1378,26 @@ await grupo('NS33 tomar en un núcleo dormido a mitad de la espera no pide ni re
   ok(pidio === 0, 'NS33.1 dormido, tomar no pide ni reclama', { r, pidio, ll: resumen(M1) });
 });
 
+await grupo('NS34 «Subir encima» tras un congelado: el lote que quedó en vuelo con el turno viejo no hace perder la Mesa nueva, y lo apartado sube (dos aparatos, escenario 5)', async () => {
+  const { W, A } = await conTurno();
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  A.congelar(); await W.vivir(25, M1);
+  const f1 = await W.correr(() => M1.n.forzar(W.S.turno.numero), { tics: [M1], max: 30 });
+  ok(f1.valor && f1.valor.hecho, 'NS34.0 el móvil la coge', f1);
+  M1.cli.fallos.push({ fn: 'mesa_escribir', modo: 'red' });   // su escritura se corta: queda en vuelo con su turno
+  M1.alm.escribirLocal('boards', 'vuelo34', { n: 34 }); M1.n.cambio(); await W.vivir(3, M1);
+  M1.congelar();
+  const C = W.nodo(DC); await W.abrir(C); await W.vivir(25, C);
+  await W.correr(() => C.n.forzar(W.S.turno.numero), { tics: [C], max: 30 });   // otro aparato la fuerza
+  M1.descongelar(); await W.vivir(8, M1, C);
+  const ss = await M1.alm.sinSubir();
+  ok(ss.some(x => x.k === 'vuelo34'), 'NS34.1 lo suyo va a «quedó sin subir»', { ss: ss.map(x => x.k), ll: resumen(M1) });
+  C.congelar(); await W.vivir(25, M1);
+  const f2 = await W.correr(() => M1.n.forzar(W.S.turno.numero), { tics: [M1], max: 30 });
+  const r = await W.correr(() => M1.n.subirEncima([['boards', 'vuelo34']]), { tics: [M1], max: 30 });
+  ok(f2.valor && f2.valor.hecho && r.valor && r.valor.hecho && W.srv.vivo('boards', 'vuelo34') && M1.n.conTurno() && W.S.turno.dispositivo === DM, 'NS34.2 «Subir encima» lo sube y la Mesa sigue en el móvil', { f2, r, turno: W.S.turno, ll: resumen(M1) });
+});
+
 await grupo('NS24 «Esperar más» espera los 20 s aunque el otro calle', async () => {
   const { W, A } = await conTurno(); const C = W.nodo(DC); await W.abrir(C);
   A.congelar(); await W.vivir(25, C);

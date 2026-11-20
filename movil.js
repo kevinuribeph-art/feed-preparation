@@ -1333,7 +1333,7 @@
     await releerTodo();
     return r;
   }
-  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.' };
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', perdida: 'La Mesa pasó a otro aparato: sigue en «sin subir».', sin_conexion: 'Sin conexión: sigue en «sin subir».' };
   const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
   async function releerTodo() {
     L.hoy = null; L.clientes = null; L.error = {};

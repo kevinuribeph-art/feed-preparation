@@ -223,9 +223,13 @@ const ORDENES = {
       mfa_totp_enroll_enabled: true, mfa_totp_verify_enabled: true };
     // El proyecto real: su dirección, y el correo de los códigos desde el buzón de Hostinger del dominio.
     if (cual === 'real') {
-      Object.assign(base, { site_url: 'https://clientes.uribevisuals.studio', uri_allow_list: 'https://clientes.uribevisuals.studio/**' });
+      // Los límites (S8, D-278), solo en el real (las pruebas entran muchas veces desde una IP): un código por correo cada 3 min
+      // (20 por hora como mucho: un solo correo de cliente ya no agota el tope), 60 correos por hora en todo el portal y 10
+      // entradas y 10 verificaciones por IP cada 5 min. Y las contraseñas que aparecen en filtraciones, rechazadas (S9).
+      Object.assign(base, { site_url: 'https://clientes.uribevisuals.studio', uri_allow_list: 'https://clientes.uribevisuals.studio/**',
+        rate_limit_otp: 10, rate_limit_verify: 10, password_hibp_enabled: true });
       const u = clave('SMTP_USUARIO'), k = clave('SMTP_CLAVE');
-      if (u && k) Object.assign(base, { smtp_host: 'smtp.hostinger.com', smtp_port: '465', smtp_user: u, smtp_pass: k, smtp_admin_email: u, smtp_sender_name: 'Uribe Visuals', smtp_max_frequency: 60, rate_limit_email_sent: 30 });   // 30 códigos por hora en todo el portal (D-247; por defecto, 2)
+      if (u && k) Object.assign(base, { smtp_host: 'smtp.hostinger.com', smtp_port: '465', smtp_user: u, smtp_pass: k, smtp_admin_email: u, smtp_sender_name: 'Uribe Visuals', smtp_max_frequency: 180, rate_limit_email_sent: 60 }); // 30 códigos por hora en todo el portal (D-247; por defecto, 2)
     }
     const r = await gestion(`projects/${P.ref}/config/auth`, { method: 'PATCH', body: base });
     if (!r.ok) throw new Fallo(`la configuración no entró (${r.status}): ${r.text}`);
@@ -239,7 +243,9 @@ const ORDENES = {
       .then(r => r.ok ? r.json() : null).catch(() => null);
     const app = v && v.mfa_totp_enroll_enabled === true && v.mfa_totp_verify_enabled === true ? 'activado' : 'SIN ACTIVAR: míralo';
     const minimo = v ? v.password_min_length : '?';
-    return { proyecto: P.ref, entrada: 'solo por invitación, código de 6 cifras, 10 minutos', correo, codigo_app: app, contrasena_minima: minimo };
+    const limites = v ? { codigo_cada_s: v.smtp_max_frequency, correos_hora: v.rate_limit_email_sent, entradas_ip_5min: v.rate_limit_otp,
+      verificaciones_ip_5min: v.rate_limit_verify, contrasenas_filtradas: v.password_hibp_enabled === true ? 'rechazadas' : 'no' } : '?';
+    return { proyecto: P.ref, entrada: 'solo por invitación, código de 6 cifras, 10 minutos', correo, codigo_app: app, contrasena_minima: minimo, limites };
   },
   // El interruptor del código de la app (D-262). Apagado al aplicar el esquema; se enciende cuando Kevin ya tiene contraseña y
   // código (si no, se quedaría fuera). Apagarlo es la vuelta atrás: al momento, sin tocar datos.

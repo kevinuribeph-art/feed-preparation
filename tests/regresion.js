@@ -18268,7 +18268,7 @@
 
   prueba('EN1', 'La entrada (D-262) sin proyecto no hace nada: en una copia de este Mac (127.0.0.1) sin `mesa-web-proyecto` la Mesa abre como siempre, sin capa ni almacén de sesión, y abrir() contesta enseguida', async () => {
     const E = M.entrada;
-    ok(E && E.version === '1.2', 'falta MESA.entrada');   // 1.2: la entrada del móvil (D-269)
+    ok(E && E.version === '1.3', 'falta MESA.entrada');   // 1.3: un cliente no sigue en la Mesa (D-274)
     igual(E.modo, 'sin_proyecto', 'modo');
     ok(!D.getElementById('mesa-entrada'), 'hay capa de entrada en una Mesa sin proyecto');
     ok(!M._in.almacenSesion, 'almacén de sesión sin proyecto');
@@ -18340,6 +18340,31 @@
       c = E._test.pantalla('codigo', {}); ok(c.querySelector('input[autocomplete="one-time-code"][inputmode="numeric"]'), 'codigo: sin código de un solo uso');
       c = E._test.pantalla('qr', P.qr); ok(/^data:image\/svg\+xml/.test(c.querySelector('.qr img').getAttribute('src')) && /ABCD EFGH IJKL MNOP/.test(c.querySelector('.clave code').textContent), 'qr: sin la imagen o sin la clave en grupos de 4');
     } finally { E._test.quitar(); }
+  });
+
+  prueba('EN6', 'Una cuenta de cliente no sigue en la Mesa (D-274): tras el código del correo («primera vez» u «¿Olvidaste tu contraseña?»), el servidor dice que no es la dueña y la entrada cierra su sesión y dice que su calendario está en clientes.uribevisuals.studio, sin crear contraseña ni código de app en su cuenta', async () => {
+    const E = M.entrada, D = W.document;
+    for (const por of ['primera', 'olvido']) {
+      const hizo = [];
+      const c = new Proxy({}, { get: (_, k) => k === 'then' ? undefined : (...a) => {
+        hizo.push(k);
+        if (k === 'rpc') return Promise.resolve(a[0] === 'mesa_yo' ? { ok: true, dueno: false } : null);
+        if (k === 'factores') return Promise.resolve([]);
+        if (k === '_sesionEntera') return null;
+        return Promise.resolve({});
+      } });
+      try {
+        const fin = E._test.porCorreo('cliente@ejemplo.test', por, c);
+        await hasta(() => E.paso === 'correo' && D.getElementById('e-cc'), 4000, 'la pantalla del código');
+        const i = D.getElementById('e-cc'); i.value = '123456'; i.form.requestSubmit();
+        await hasta(() => E.paso !== 'correo', 4000, 'que deje la pantalla del código');
+        ok(E.paso === 'mensaje', por + ': tras el código sigue a «' + E.paso + '» en vez de parar');
+        const capa = D.getElementById('mesa-entrada');
+        ok(capa && /no es la de la Mesa/.test(capa.querySelector('h1').textContent) && /clientes\.uribevisuals\.studio/.test(capa.textContent), por + ': no dice dónde está su calendario');
+        if (E.paso === 'mensaje') { capa.querySelector('form').requestSubmit(); ok(await fin === 'otra', por + ': no vuelve como «otra cuenta»'); }
+        ok(hizo.join() === 'pedirCodigo,verificarCodigo,rpc,salir', por + ': hizo ' + hizo.join() + ' (solo el código, preguntar al servidor y cerrar la sesión)');
+      } finally { E._test.quitar(); }
+    }
   });
 
   prueba('EN5', 'La pantalla de carga (D-262, la B): el monograma se llena con lo que baja y dice «Bajando tu Mesa · N de M»; sin movimiento con «Reducir movimiento»; al terminar se va', async () => {

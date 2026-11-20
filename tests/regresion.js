@@ -18753,9 +18753,9 @@
   // un servidor de la Mesa de mentira para el móvil (D-268): el turno lo tiene «el Mac» hasta que lo suelta; lo que se escribe, en memoria
   function srvMovil(key) {
     const reg = new Map(), llamadas = [], base = () => ({ ok: true, epoca: 'e-mv', hora: new Date().toISOString(), version_minima: '0.0' });
-    let turno = 1, tiene = 'mac-claude-00000000000000aa', orden = 0, cede = false;
-    const T = d => ({ ...base(), turno, tuyo: tiene === d, libre: !tiene, tiene: tiene ? { dispositivo: tiene, desde: new Date().toISOString(), latido: new Date().toISOString(), latido_hace: 1, cola: 0 } : null, pide: null, orden, total: reg.size });
-    const sv = { reg, llamadas, mac: () => tiene, soltarMac: () => { tiene = null; }, cederAlPedir: v => { cede = v; },
+    let turno = 1, tiene = 'mac-claude-00000000000000aa', orden = 0, cede = false, calla = false;
+    const T = d => ({ ...base(), turno, tuyo: tiene === d, libre: !tiene, tiene: tiene ? { dispositivo: tiene, desde: new Date().toISOString(), latido: new Date(Date.now() - (calla ? 40e3 : 1e3)).toISOString(), latido_hace: calla ? 40 : 1, cola: 0 } : null, pide: null, orden, total: reg.size });
+    const sv = { reg, llamadas, mac: () => tiene, soltarMac: () => { tiene = null; }, cederAlPedir: v => { cede = v; }, callar: v => { calla = v; },
       escribirMac: (almacen, clave, valor) => { orden++; const v = reg.get(almacen + '|' + clave); reg.set(almacen + '|' + clave, { almacen, clave, valor, version: (v ? v.version : 0) + 1, orden, dispositivo: 'mac-claude-00000000000000aa', turno, borrado: false }); },
       rpc: async (fn, a) => {
         llamadas.push(fn);
@@ -19016,7 +19016,7 @@
           const h = await hojaCara('[data-r="mio"]', 'la hoja del choque').catch(e => { throw new Error(e.message + ' · ronda ' + resp + ' · aviso «' + avisoCara() + '» · hoja «' + ((W.document.querySelector('#movil .hoja') || {}).innerText || '') + '» · ' + C.sv.llamadas.slice(-10).join(',') + ' · ' + (W.localStorage.getItem('mesa-movil-ops') || '')); });
           ok(/Lo tuyo/.test(h.innerText) && /En la Mesa/.test(h.innerText) && /10 nov/i.test(h.innerText) && new RegExp(+mac.slice(8) + ' nov', 'i').test(h.innerText), 'el choque no enseña los dos valores: ' + h.innerText);
           clicCara(`#movil .hoja [data-r="${resp}"]`);
-          await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado» tras el choque');
+          await hasta(() => (resp === 'mesa' ? /Se queda lo de la Mesa/ : /Guardado/).test(avisoCara()), 15000, resp === 'mesa' ? '«Se queda lo de la Mesa»' : '«Guardado» tras el choque');
           igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date), queda, `«${resp}» dejó otra fecha`);
           igual(M._in.localDay(C.sv.reg.get('boards|' + key).valor.slots.find(s => s.id === 'r1').date), queda, `arriba, «${resp}» dejó otra fecha`);
         }
@@ -19067,7 +19067,8 @@
         clicCara(`#movil [data-ir="ret/${key}/r2/0"]`); await hasta(() => W.document.querySelector('#movil [data-ret]'), 4000, 'la pantalla de retocar');
         const t = W.document.querySelector('#movil [data-ret]'), txt = ('Retocado desde el iPhone, con su tono de siempre. ' + 'a'.repeat(2200)).slice(0, 2200);
         t.value = txt; t.dispatchEvent(new W.Event('input', { bubbles: true }));
-        igual(W.localStorage.getItem(K), txt, 'el borrador no se guardó');
+        const bo = JSON.parse(W.localStorage.getItem(K) || 'null');
+        ok(bo && bo.texto === txt && bo.base && bo.base.texto === 'uno 2' && bo.base.at, 'el borrador no se guardó con su base: ' + json(bo && { ...bo, texto: bo.texto.length }));
         ok(/2\.200 \/ 2\.200/.test(W.document.querySelector('#movil [data-cuenta]').textContent), 'la cuenta: ' + W.document.querySelector('#movil [data-cuenta]').textContent);
         t.blur(); await irMovil('#hoy', '#movil .cifras'); await irMovil(`#ret/${key}/r2/0`, '#movil [data-ret]');
         igual(W.document.querySelector('#movil [data-ret]').value, txt, 'el borrador no volvió');
@@ -19176,6 +19177,108 @@
     ok(!distintas.length, 'versiones distintas en las dos páginas: ' + distintas.join(', '));
     igual([ix['mesa.js'], mv['mesa.js']], [M.version, M.version], 'el ?v= de mesa.js no es M.version');
     ok(mv['movil.js'] && !ix['movil.js'], 'movil.js sin versión en movil.html o cargado en index.html');
+  });
+
+
+  // la revisión del lote 4 (D-270): el borrador con su base, las hojas que se cierran sin colgar «Guardar», la cola por estados
+  prueba('MV32', 'Un retoque guarda la versión de la que salió (D-270; revisión del lote 4, ALTA 1): si el caption cambió en la Mesa mientras se escribía, «Listo» enseña el choque y no lo pisa', async () => {
+    const key = await tableroMovil(), K = `mesa-movil-borrador:${key}|r1|1`;
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#ret/${key}/r1/1`, '#movil [data-ret]');
+        const t = W.document.querySelector('#movil [data-ret]'); t.value = 'BORRADOR DEL IPHONE'; t.dispatchEvent(new W.Event('input', { bubbles: true })); t.blur();
+        const rec = await M._in.idbGet('boards', key); rec.slots.find(x => x.id === 'r1').caption.text[1] = 'RETOCADO EN EL MAC'; await M._in.idbPut('boards', key, rec);   // lo bajó una mirada
+        await M._in.movil.releer(); await M.movil.releer(); await espera(200);   // como tras una bajada: el núcleo y la cara releen
+        ok(/cambió en la Mesa desde que empezaste/.test(W.document.getElementById('movil').innerText), 'la pantalla no dice que cambió');
+        clicCara('#movil [data-a="listo"]');
+        const h = await hojaCara('[data-r="mesa"]', 'la hoja del choque');
+        ok(/BORRADOR DEL IPHONE/.test(h.innerText) && /RETOCADO EN EL MAC/.test(h.innerText), 'el choque no enseña los dos textos: ' + h.innerText);
+        clicCara('#movil .hoja [data-r="mesa"]');
+        await hasta(() => !W.document.querySelector('#movil .hoja [data-r]') && !M.movil._ST.guardando, 15000, 'acabar');
+        igual((await M._in.idbGet('boards', key)).slots.find(x => x.id === 'r1').caption.text[1], 'RETOCADO EN EL MAC', 'el borrador pisó lo del Mac');
+      } finally { W.localStorage.removeItem(K); await C.fin(); }
+    });
+  });
+
+  prueba('MV33', 'Cerrar «no contesta» o el choque con atrás o Esc no deja «Guardar» colgado (D-270; revisión del lote 4, ALTA 2): el cambio espera en «sin subir» y lo siguiente se guarda', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const TXT = 'Revisar el calendario de diciembre con la clienta de Aurora';
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key, { ceder: false }); C.sv.callar(true);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hojaCara('[data-r="forzar"]', '«no contesta»');
+        W.document.querySelector('#movil .hoja').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));   // la cierra sin contestar
+        await hasta(() => !M.movil._ST.guardando, 6000, 'que «Guardar» acabe');
+        const cola = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(cola.length === 1 && cola[0].estado === 'quedo' && cola[0].campo === 'fecha', 'la fecha no quedó en «sin subir»: ' + json(cola));
+        C.sv.callar(false); C.sv.cederAlPedir(true); sinAviso();
+        await irMovil('#tareas', '#movil [data-nueva]');
+        const i = W.document.querySelector('#movil [data-nueva]'); i.value = TXT; i.dispatchEvent(new W.Event('input', { bubbles: true }));
+        i.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        await hasta(async () => (await tareaDe(TXT)).length && /Guardado/.test(avisoCara()), 15000, 'la tarea tras cerrar la hoja');
+        igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(x => x.id === 'r1').date), '2026-11-03', 'la fecha que quedó en «sin subir» se aplicó sola');
+      } finally { await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV34', 'Mientras se guarda, otro cambio no se pierde y lo que quedó en «sin subir» no se aplica solo (D-270; revisión del lote 4, puntos 3 y 5)', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const A = M.personal.nuevoId('tarea'), B = M.personal.nuevoId('tarea');
+    await M.personal.tarea({ id: A, txt: 'Tarea A de la prueba de la cola del iPhone' }); await M.personal.tarea({ id: B, txt: 'Tarea B de la prueba de la cola del iPhone' });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        // lo que quedó: la fecha de r2, sin subir
+        W.localStorage.setItem('mesa-movil-ops', JSON.stringify([{ id: 'opviejo1', key, slot: 'r2', campo: 'fecha', valor: { dia: '2026-11-20', hora: '12:00' }, visto: '2026-11-04T12:00:00.000+01:00', at: Date.now(), estado: 'quedo' }]));
+        await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');
+        await C.fin(true); const C2 = await nubeCara(key); Object.assign(C, C2);
+        await irMovil('#tareas', `#movil [data-a="hecha"][data-id="${A}"]`);
+        clicCara(`#movil [data-a="hecha"][data-id="${A}"]`);
+        await hasta(() => M.movil._ST.guardando, 3000, 'que empiece a guardar');
+        clicCara(`#movil [data-a="hecha"][data-id="${B}"]`);   // otra, mientras se guarda
+        await hasta(async () => { const l = await M._in.idbAll('tareas'); return l.find(t => t.id === A).hecha && l.find(t => t.id === B).hecha && !M.movil._ST.guardando; }, 20000, 'las dos marcadas');
+        const cola = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(cola.length === 1 && cola[0].id === 'opviejo1' && cola[0].estado === 'quedo', 'la cola: ' + json(cola));
+        igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(x => x.id === 'r2').date), '2026-11-04', 'lo que quedó en «sin subir» se aplicó solo');
+      } finally { await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV35', 'Sin conexión, «Guardar» apunta el cambio en «sin subir» (D-270; revisión del lote 4, punto 13): lo elegido en una hoja abierta antes del corte no se pierde', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-11"]'); await espera(60);
+        W.dispatchEvent(new W.Event('offline')); await espera(100);
+        clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => /sin subir/.test(avisoCara()), 4000, 'el aviso');
+        const cola = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(cola.length === 1 && cola[0].estado === 'quedo' && cola[0].valor.dia === '2026-11-11', 'no se apuntó: ' + json(cola));
+        W.dispatchEvent(new W.Event('online'));
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV36', 'Una tarea con la Mesa ida a otro aparato a mitad da «sin turno» (queda en «sin subir»), no «no se pudo marcar» (D-267; revisión del lote 4, punto 6)', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = M.personal.nuevoId('tarea'); await M.personal.tarea({ id, txt: 'Tarea de la prueba del turno perdido a mitad' });
+    await enMovil(async () => {
+      M._in.movil.turno(true);
+      const v0 = M.personal.valor; let n = 0; M.personal.valor = async x => { const r = await v0(x); if (++n === 2) M._in.movil.turno(false); return r; };   // el Mac la fuerza justo tras la última lectura, antes de marcar
+      let a; try { a = await M._in.movil.aplicar({ slot: id, campo: 'tarea', valor: { hecha: true }, visto: { hecha: false } }); } finally { M.personal.valor = v0; }
+      igual(a, { error: 'sin turno' }, 'el error');
+      ok(!(await M._in.idbGet('tareas', id)).hecha, 'se marcó sin la Mesa');
+    });
+    await sinTareas();
   });
 
   async function pasar() {

@@ -114,7 +114,7 @@
 #movil .cifra.roja .v{color:var(--red)}
 #movil .cifra.on{background:var(--ink);color:var(--on-ink);box-shadow:none}
 #movil .cifra.on .k{color:color-mix(in srgb,var(--on-ink) 78%,transparent)}
-#movil .cifra.on.roja .v{color:#FF9AA0}
+#movil .cifra.on.roja .v{color:var(--rojo-tinta)}
 #movil .lista{margin:0 var(--pad);border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);overflow:hidden}
 #movil .fila{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:10px 12px 10px 12px;text-align:left}
 #movil .fila+.fila::before{content:'';position:absolute;left:84px;right:0;top:0;height:1px;background:var(--sep)}
@@ -354,7 +354,8 @@
 #movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}`;
   const CSS_MAS = `
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
-#movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--dot-f:color-mix(in oklab,var(--ty-foto-ink) 58%,var(--ty-foto));--dot-c:color-mix(in oklab,var(--ty-carr-ink) 58%,var(--ty-carr));--dot-r:color-mix(in oklab,var(--ty-reel-ink) 58%,var(--ty-reel));--dot-co:color-mix(in oklab,var(--ty-collab-ink) 58%,var(--ty-collab))}
+#movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
+#movil[data-theme="dark"],:root[data-theme="dark"] #movil{--rojo-tinta:#B3263A}
 #movil[hidden]{display:none}
 #movil :where(button,a,[role=button]){touch-action:manipulation}
 #movil :where(button,[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:12px}
@@ -364,7 +365,7 @@
 #movil .hoja{max-width:600px;margin:0 auto}
 #movil .mono{width:30px;height:30px}
 #movil .top-r{min-width:0}
-#movil .nube{max-width:min(60vw,240px);overflow:hidden;text-overflow:ellipsis}
+#movil .nube{max-width:min(44vw,240px);min-width:0;overflow:hidden}#movil .nube .num{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#movil .nube .q{white-space:nowrap}
 #movil .nube.err{color:var(--red);background:var(--red-soft)}
 #movil .nube .q{color:var(--red);font-weight:600}
 #movil button.nube{cursor:pointer}
@@ -383,7 +384,7 @@
 #movil .tarea .tm{flex-wrap:wrap;row-gap:4px;column-gap:10px}
 #movil .tarea .tm>*{white-space:nowrap}
 #movil .tarea .tm .cn{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-#movil .top-t{max-width:42vw}
+#movil .top-in{grid-template-columns:minmax(0,max-content) minmax(0,1fr) minmax(0,max-content);column-gap:6px}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .fila{touch-action:manipulation}
 #movil .fila:active{background:var(--bg-2)}
 #movil .fila .hr.roja{color:var(--red)}
@@ -407,8 +408,6 @@
 #movil .ib:disabled{color:var(--faint)}
 #movil .seg button{min-height:var(--tap)}
 #movil .cd{position:relative;height:52px}
-#movil .cd .p i.f{background:var(--dot-f)}#movil .cd .p i.c{background:var(--dot-c)}#movil .cd .p i.r{background:var(--dot-r)}#movil .cd .p i.co{background:var(--dot-co)}#movil .cd .p i.h{background:var(--story)}
-#movil .leyenda i.f{background:var(--dot-f)}#movil .leyenda i.c{background:var(--dot-c)}#movil .leyenda i.r{background:var(--dot-r)}#movil .leyenda i.co{background:var(--dot-co)}#movil .leyenda i.h{background:var(--story)}
 #movil .cd.vacio-d{color:var(--faint)}
 #movil .cd.otro{pointer-events:none}
 #movil .hc{display:block;width:100%;padding:0;text-align:left}
@@ -479,7 +478,7 @@
 #movil .estado-op .porque{display:block;font-size:13px;color:var(--red);font-weight:400}
 #movil .toast{transform:translateY(12px);opacity:0;transition:transform .3s var(--ease),opacity .3s var(--ease);pointer-events:none}
 #movil .toast.on{transform:none;opacity:1}
-#movil .toast.error svg{color:#FF9AA0}
+#movil .toast.error svg{color:var(--rojo-tinta)}
 #movil .toast.sin-tabs{bottom:calc(20px + var(--sa-b))}
 #movil .ver{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column;touch-action:pan-y}
 #movil .ver .lam{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
@@ -506,7 +505,15 @@
 #movil .sd{touch-action:manipulation;position:relative}
 #movil .sd::after{content:'';position:absolute;inset:-2px}
 #movil .sd:disabled{color:var(--line-strong);cursor:default}
-#movil .sd.otro{visibility:hidden}
+#movil .sd.otro{visibility:visible;color:var(--faint)}
+#movil .cd .p i.f,#movil .leyenda i.f{background:#D9876F}#movil .cd .p i.c,#movil .leyenda i.c{background:#9A7BAA}#movil .cd .p i.r,#movil .leyenda i.r{background:#6E9A76}#movil .cd .p i.co,#movil .leyenda i.co{background:#3F7A4C}#movil .cd .p i.h,#movil .leyenda i.h{background:var(--story)}   /* los colores de la v3 por tipo */
+#movil .hoja .lnk{min-height:var(--tap);padding:0 12px;display:inline-flex;align-items:center;color:var(--acc-ink);font-weight:500}
+@media (max-height:700px){#movil .sd{height:36px;width:36px}#movil .ruedas,#movil .rueda{height:136px}#movil .rueda-in{padding:52px 0}}
+#movil .hoja{bottom:var(--kb,0px);max-height:calc(100dvh - var(--kb,0px) - var(--sa-t) - 8px)}
+#movil .cap-b.corto .cap-t{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+#movil .cap-b .vercap{margin:4px 0 -6px -12px;color:var(--acc-ink);font-weight:500;min-height:var(--tap);display:inline-flex;align-items:center;padding:0 12px}
+#movil .tarea .tm .cn>span:last-child,#movil .campo .v.vista{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#movil .tarea .tm .cn{display:inline-flex}
 #movil .sd.hoyd:not(.sel){box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 #movil .selcal-pie{display:flex;justify-content:space-between;padding:4px 6px 0}
 #movil .estado-op .av{flex:none}
@@ -688,7 +695,7 @@
     const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
     const estado = x.e === 'publicado' || !x.e ? '' : `<span class="es ${esc(x.e)}"><i></i>${esc((X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1])}</span>`;
     let t2;
-    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : estado}`;
+    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : `${estado} · <span class="roja">vencida</span>`}`;
     else if (x.cat === 'espera') { const w = M.web && M.web.contestado ? M.web.contestado(x.B.client, s.id) : ''; t2 = `${w ? `<span class="acc">${esc(cap1(w))} en su web</span>` : x.e === 'noaprobado' ? '<span class="roja">Pidió cambios</span>' : estado} · ${esc(corto(x.dia))}${x.lleva ? ` · lleva ${x.lleva} días` : ''}`; }
     else if (x.cat === 'falta') t2 = `${esc(corto(x.dia))} · ${estado}${x.aMano ? ' · se programa a mano' : ''}`;
     else t2 = x.mano ? '<span class="acc">publicar a mano</span>' : estado;
@@ -843,7 +850,7 @@
     if (offline) html += `<p class="solo-mac">Sin conexión: no se puede cambiar. Lo que ves es de las ${esc(ST.vistoA ? horaDe(ST.vistoA) : '')}.</p>`;
     const c = p.captions, k = c && c.pick != null ? c.opciones.find(o => o.k === c.pick) : null;
     html += `<div class="cap"><div class="cap-h"><h2>Caption</h2>${c ? `<button type="button" class="lnk" data-ir="cap/${esc(v.key)}/${esc(p.id)}">${c.opciones.length} opciones</button>` : ''}</div>`
-      + (k ? `<div class="cap-b">${esc(k.texto)}<span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span></div>`
+      + (k ? (() => { const largo = k.texto.length > 300 || k.texto.split('\n').length > 6, ab = ABIERTO['cap:' + p.id]; return `<div class="cap-b${largo && !ab ? ' corto' : ''}"><div class="cap-t">${esc(k.texto)}</div><span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span>${largo ? `<button type="button" class="lnk vercap" data-a="plegar" data-k="cap:${esc(p.id)}" aria-expanded="${!!ab}">${ab ? 'Ver menos' : 'Ver entero'}</button>` : ''}</div>`; })()
         : c ? `<button type="button" class="cap-b vacia" style="display:block;width:100%;text-align:left" data-ir="cap/${esc(v.key)}/${esc(p.id)}">Sin elegir todavía: ${c.opciones.length} opciones para elegir.</button>`
           : `<div class="cap-b vacia">Sin opciones: pídeselas a Claude.</div>`) + `</div>`;
     const pl = (key, t, txt) => `<button type="button" class="campo pl${ABIERTO[key] ? ' abierto' : ''}" data-a="plegar" data-k="${key}" aria-expanded="${!!ABIERTO[key]}"${txt ? '' : ' disabled'}><span class="k">${t}</span><span class="v vista">${txt ? esc(txt) : 'Sin ' + t.toLowerCase()}</span><span class="chev">${ic('abajo')}</span></button>`;
@@ -905,7 +912,7 @@
     else if (x.grupo === 'pasado' && x.fecha) meta.push(`<span class="roja">${esc(corto(x.fecha))}</span>`);
     else if (x.grupo === 'despues' && x.fecha) meta.push(esc(cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha)));
     if (ses) meta.push(`<span style="display:inline-flex">${ic('claqueta')}</span>${x.hora ? `<span class="num">${esc(x.hora)}</span>` : ''}`);
-    if (!x.hecha || nota) x.clientes.slice(0, 2).forEach(c => meta.push(`<span class="cn">${av(c)}${esc(nombreCli(c))}</span>`));
+    if (!x.hecha || nota) x.clientes.slice(0, 2).forEach(c => meta.push(`<span class="cn">${av(c)}<span>${esc(nombreCli(c))}</span></span>`));
     if (x.subtareas) meta.push(`${x.subtareas.hechas}/${x.subtareas.n}`);
     const titulo = nota ? String(x.txt).split('\n')[0] : x.txt;
     const casilla = nota ? `<span class="nota-ic">${ic('nota')}</span>` : `<button type="button" class="casilla" data-a="hecha" data-id="${esc(x.id)}" role="checkbox" aria-checked="${!!x.hecha}" aria-label="${esc(x.hecha ? 'Hecha: ' + titulo : 'Marcar como hecha: ' + titulo)}"${sinRed() ? ' disabled' : ''}>${ic('check', 2.5)}</button>`;
@@ -980,13 +987,14 @@
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
+    if (o.alCerrar) h._alCerrar = o.alCerrar;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
     capas.append(velo, h);
     requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
     if (!o.fija) arrastrable(h);
     return h;
   }
   function cerrarHojas(ya) {
-    capas.querySelectorAll('.hoja,.velo').forEach(x => { if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
+    capas.querySelectorAll('.hoja,.velo').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
     if (PEND_PINTAR) setTimeout(pintarSiQuieto, ya ? 0 : 360);
   }
   function arrastrable(h) {   // el asa: la hoja sigue al dedo y, soltada deprisa o pasada la mitad, se cierra (Apple: a la velocidad del dedo)
@@ -1067,7 +1075,9 @@
 
   // ---------- el teclado del iPhone: lo que se escribe queda a la vista (visualViewport, como el portal) ----------
   if (W.visualViewport) W.visualViewport.addEventListener('resize', () => {
+    const vv0 = W.visualViewport; raiz.style.setProperty('--kb', Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop)) + 'px');   // una hoja sube encima del teclado
     const a = D.activeElement; if (!a || !raiz.contains(a) || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
+    if (a.closest('.hoja')) { a.scrollIntoView({ block: 'nearest', behavior: POCO.matches ? 'auto' : 'smooth' }); return; }
     const vv = W.visualViewport, r = a.getBoundingClientRect(), fondo = vv.height + vv.offsetTop;
     if (r.bottom > fondo - 12) W.scrollBy({ top: r.bottom - fondo + 24, behavior: POCO.matches ? 'auto' : 'smooth' });
   }, { passive: true });
@@ -1106,15 +1116,24 @@
   // Cada cambio es una operación {key, slot, campo, valor, visto}: se apunta (localStorage, sobrevive a que iOS cierre la app), se
   // coge la Mesa (el Mac sube lo suyo y la suelta), el núcleo la aplica comparando con lo que se vio y se suelta la Mesa en cuanto ha
   // subido. Un doble toque en «Guardar» guarda una vez. Nada de esto corre solo: solo al tocarlo.
+  // La cola: cada operación con su estado. «nueva»: se aplica en este «Guardar». «quedo»: no llegó (sin conexión, «Ahora no», la
+  // Mesa en otro aparato, un choque sin decidir) y espera en «sin subir» a que Kevin la suba encima o la descarte: nunca se aplica
+  // sola (R4). Al abrir la app, lo que quedó a medias es «quedo».
   const K_OPS = 'mesa-movil-ops';
   const opsLeer = () => { try { const l = JSON.parse(lsG(K_OPS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
-  const opsGuardar = l => { lsS(K_OPS, l.length ? JSON.stringify(l) : null); ST.opsN = l.length; pintarChip(); };
+  const opsGuardar = l => { lsS(K_OPS, l.length ? JSON.stringify(l) : null); ST.opsN = l.filter(x => x.estado !== 'nueva').length; pintarChip(); };
   const opsQuitar = id => opsGuardar(opsLeer().filter(o => o.id !== id));
-  ST.opsN = opsLeer().length;
+  const opsMarcar = (ids, estado) => opsGuardar(opsLeer().map(x => (ids.includes(x.id) ? { ...x, estado } : x)));
+  opsGuardar(opsLeer().map(x => ({ ...x, estado: 'quedo' })));
   const nuevoOp = () => 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const miles = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');   // 2.200 como en la v3 (es-ES no agrupa 4 cifras)
   const corto2 = id => (M.nube && M.nube.nombreDe ? M.nube.nombreDe(id) : 'otro aparato').replace(/ \([0-9a-f]{4}\)$/, '');
-  let GUARDANDO = null;
+  // la misma operación (un doble toque) y otra del mismo campo (la nueva sustituye a la que aún no se aplicó)
+  const firma = op => { const v = op.valor || {}; return op.campo === 'tareaNueva' ? ['tn', v.tipo, v.txt, v.fecha || '', v.cliente || ''].join('|') : [op.key, op.slot, op.campo, JSON.stringify(op.valor)].join('|'); };
+  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k);
+  let RUN = null, OTRA = false, ENVUELO = null;
+  // un fallo pasajero deja la operación en «sin subir»; uno definitivo (publicada, fuera del mes, ya no está…) la quita y lo dice
+  const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas)$/.test(String(e)) || /^no se pudo/.test(String(e));
   // lo que dice una operación, para la hoja del choque y la de «sin subir»
   function opTexto(op, v) {
     if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return iso ? campoFecha({ dia: X().localDay(iso), hora: X().dOnly(iso) ? '' : X().localTime(iso) }) : 'Sin fecha'; }
@@ -1133,28 +1152,34 @@
     const t0 = Date.now(), base = quien ? 0 : -1;
     return { paso: n => { const i = n + base + 1; h.querySelectorAll('.paso').forEach((p, j) => { p.classList.toggle('hecho', j < i); p.classList.toggle('ahora', j === i); const ico = p.querySelector('.ic'); if (j < i) ico.innerHTML = ic('check', 2.5); else if (j === i) { ico.innerHTML = ic('gira', 2.25); ico.classList.add('gira'); } if (j < i) ico.classList.remove('gira'); }); const s = h.querySelector(`.paso[data-p="${i - 1}"] .s`); if (s && !s.textContent) s.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + ' s'; }, h };
   }
-  // «<aparato> no contesta»: esperar más, usarla aquí o dejarlo (D-254, D-268)
+  // «<aparato> no contesta»: esperar más, usarla aquí o dejarlo (D-254, D-268); cerrada de otro modo (atrás, Esc) es «Ahora no»
   function hojaNoContesta(e) {
     return new Promise(res => {
       const quien = corto2(e.dispositivo), h = e.latido ? X().localTime(e.latido) : '', n = +e.cola || 0;
-      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { fija: true, etiqueta: quien + ' no contesta' });
+      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { fija: true, etiqueta: quien + ' no contesta', alCerrar: () => res('no') });
       el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
     });
   }
-  // el choque: el Mac cambió lo mismo mientras tanto; los dos valores y Kevin decide (R3)
+  // el choque: el Mac cambió lo mismo mientras tanto; los dos valores y Kevin decide (R3). Cerrada sin decidir, el cambio espera en
+  // «sin subir». Elegir un caption de una tanda que Kevin no vio no se ofrece: vuelve a elegir
   function hojaChoque(op, ch) {
     return new Promise(res => {
-      const el = hoja(`<h2>Cambió en la Mesa</h2><p class="ex">${esc(opQue(op))}: ${esc(porQueChoque(op, ch))}</p><div class="grupo"><div class="campo" style="cursor:default"><span class="k">Lo tuyo</span><span class="v" style="white-space:normal">${esc(opTexto(op, op.valor))}</span></div><div class="campo" style="cursor:default"><span class="k">En la Mesa</span><span class="v" style="white-space:normal">${esc(opTexto(op, ch.ahora))}</span></div></div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`, { fija: true, etiqueta: 'Cambió en la Mesa' });
+      const otraTanda = op.campo === 'capElegir' && (ch.visto || {}).at !== (ch.ahora || {}).at;
+      const fila = (k, v) => `<div class="campo" style="cursor:default"><span class="k">${k}</span><span class="v" style="white-space:normal">${esc(v)}</span></div>`;
+      const cuerpo = otraTanda
+        ? `<p class="ex">Llegó otra tanda de captions desde que la viste: lo que elegiste era de la anterior. Vuelve a elegir en «Captions».</p><div class="botones" style="grid-template-columns:1fr"><button type="button" class="btn pri" data-r="mesa" data-foco>Entendido</button></div>`
+        : `<p class="ex">${esc(opQue(op))}: ${esc(porQueChoque(op, ch))}</p><div class="grupo">${fila('Lo tuyo', opTexto(op, op.valor))}${fila('En la Mesa', opTexto(op, ch.ahora))}</div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`;
+      const el = hoja(`<h2>${otraTanda ? 'Otra tanda de captions' : 'Cambió en la Mesa'}</h2>${cuerpo}`, { fija: true, etiqueta: 'Cambió en la Mesa', alCerrar: () => res('cerrar') });
       el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
     });
   }
   function porQueChoque(op, ch) {   // lo que cambió en la Mesa desde que lo viste, cuando los dos valores se leen igual
     const v = ch.visto || {}, a = ch.ahora || {};
     if (op.campo === 'estado' && v.v === a.v && v.sig !== a.sig) return 'desde que la viste cambió su caption, foto o contexto. Mírala antes de decidir.';
-    if ((op.campo === 'capElegir' || op.campo === 'capTexto') && v.at !== a.at) return 'llegó otra tanda de captions desde que la viste.';
+    if (op.campo === 'capTexto' && v.at !== a.at) return 'llegó otra tanda de captions desde que empezaste a retocarlo.';
     return 'mientras lo cambiabas, se cambió en otro aparato.';
   }
-  // coger la Mesa (con «no contesta» si toca); true si la tiene
+  // coger la Mesa (con «no contesta» si toca); true si la tiene, false si Kevin dijo «Ahora no»
   async function cogerMesa(prog) {
     try { await MV().reclamar(); } catch (e) { /* esta pestaña */ }
     let t = await M.nube.tomar();
@@ -1173,54 +1198,113 @@
       throw new Error(t && t.error === 'sin_conexion' ? 'Sin conexión: tu cambio espera en «sin subir».' : t && t.error === 'sin_sesion' ? 'Tu sesión se cerró: entra otra vez.' : t && t.error === 'verificacion' ? 'Falta el código de tu app.' : 'No se pudo coger la Mesa' + (t && t.error ? ` (${t.error})` : '') + '.');
     }
   }
-  // guardar: la operación entra en la cola y la cola se aplica con la Mesa cogida un momento
+  // apuntar: la operación entra en la cola (un doble toque, una vez; otra del mismo campo que aún no se aplicó, sustituida)
+  function apuntar(ops, estado) {
+    const l = opsLeer(), nuevas = [];
+    for (const op0 of [].concat(ops || [])) {
+      const f = firma(op0);
+      if (l.some(x => x.estado === 'nueva' && firma(x) === f) || nuevas.some(x => firma(x) === f)) continue;
+      const op = { ...op0, id: op0.id || nuevoOp(), at: Date.now(), estado };
+      for (let i = l.length - 1; i >= 0; i--) if (l[i].id !== ENVUELO && mismoCampo(l[i], op)) l.splice(i, 1);
+      nuevas.push(op);
+    }
+    if (nuevas.length) opsGuardar([...l, ...nuevas]);
+    return nuevas.map(x => x.id);
+  }
+  // guardar: apunta y aplica lo nuevo con la Mesa cogida un momento. Lo que llega mientras se guarda se aplica en la misma vuelta
+  // (o en la siguiente): nunca se descarta. true si sus operaciones se aplicaron
   async function guardar(ops, o = {}) {
-    if (GUARDANDO) return GUARDANDO;   // un doble toque guarda una vez
-    if (sinRed()) { aviso('Sin conexión: no se puede cambiar ahora.', { error: true }); return false; }
-    if (!M.nube || !M.nube.tomar || ST.fase === 'apagada') { aviso('Sin nube en este iPhone: no se puede cambiar.', { error: true }); return false; }
-    GUARDANDO = (async () => {
-      ST.guardando = true;
-      const nuevas = [].concat(ops || []).map(op => ({ ...op, id: op.id || nuevoOp(), at: Date.now() }));
-      if (nuevas.length) opsGuardar([...opsLeer().filter(x => !nuevas.some(n => n.id === x.id)), ...nuevas]);
-      const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
-      const g = hojaGuardando(quien), prog = { paso: g.paso };
-      let avisos = [], hecho = 0, fallos = [];
+    const red = !sinRed(), nube = !!(M.nube && M.nube.tomar) && ST.fase !== 'apagada';
+    const ids = apuntar(ops, red && nube ? 'nueva' : 'quedo');
+    if (!red) { aviso('Sin conexión: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
+    if (!nube) { aviso('Sin nube en este iPhone: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
+    if (!RUN) {
+      RUN = (async () => {
+        ST.guardando = true; pintarChip();
+        try { let oo = o; do { OTRA = false; await correr(oo); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); }
+        finally { RUN = null; ST.guardando = false; pintarChip(); }
+      })();
+    } else OTRA = true;
+    await RUN;
+    return !ids.length || !opsLeer().some(x => ids.includes(x.id));
+  }
+  async function correr(o) {
+    const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
+    const g = hojaGuardando(quien), prog = { paso: g.paso };
+    const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
+    const res = { ok: 0, dejados: 0, quedan: 0, fallos: [], avisos: [] }, hechos = new Set();
+    let s = null;
+    try {
+      prog.paso(0);
+      if (!(await cogerMesa(prog))) { cerrarHojas(true); opsMarcar(opsLeer().filter(toca).map(x => x.id), 'quedo'); aviso('Tu cambio espera en «sin subir».', { ms: 6000 }); return; }
+      prog.paso(1);
+      vuelta: for (;;) {
+        const lista = opsLeer().filter(x => toca(x) && !hechos.has(x.id));
+        if (!lista.length) break;
+        for (const op of lista) {
+          hechos.add(op.id); ENVUELO = op.id;
+          let r = await MV().aplicar(o.solo ? { ...op, forzar: true } : op);   // «Subir encima»: lo tuyo encima (R4)
+          if (r && r.choque) {
+            cerrarHojas(true);
+            const a = await hojaChoque(op, r.choque);
+            cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.paso(1);
+            r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : a === 'mesa' ? { ok: true, dejado: true } : { error: 'sin decidir' };
+          }
+          ENVUELO = null;
+          if (r && r.ok) { opsQuitar(op.id); if (r.dejado) res.dejados++; else res.ok++; res.avisos.push(...(r.avisos || [])); if (op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); }
+          else if (r && pasajero(r.error)) { opsMarcar([op.id], 'quedo'); res.quedan++; if (r.error === 'sin turno') { opsMarcar(opsLeer().filter(x => toca(x) && !hechos.has(x.id)).map(x => x.id), 'quedo'); res.quedan = opsLeer().filter(x => x.estado === 'quedo' && (hechos.has(x.id) || toca(x))).length; break vuelta; } }
+          else { opsQuitar(op.id); res.fallos.push(errorTexto(r && r.error)); }
+        }
+        if (o.solo) break;
+      }
+      prog.paso(2);
+      M.nube.retener(false);
+      s = await M.nube.soltar();
+      prog.paso(3);
+    } catch (e) {
+      opsMarcar(opsLeer().filter(x => toca(x) && x.estado === 'nueva').map(x => x.id), 'quedo');
+      cerrarHojas(true);
+      try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) M.nube.soltar(); } catch (x) { /* */ }
+      ENVUELO = null;
+      aviso((e && e.message) || 'No se pudo guardar: tu cambio espera en «sin subir».', { error: true, ms: 8000 });
+      await releerTodo();
+      return;
+    }
+    cerrarHojas();
+    // un solo aviso, el que más importa: lo que no se pudo, lo que se perdió al soltar, lo que espera, y si no, «Guardado»
+    const mas = n => (n > 1 ? ` (y ${n - 1} más)` : '');
+    if (res.fallos.length) aviso(res.fallos[0] + mas(res.fallos.length), { error: true, ms: 8000 });
+    else if (s && s.error === 'perdida') aviso('La Mesa pasó a otro aparato antes de subir: tu cambio está en «sin subir».', { error: true, ms: 8000 });
+    else if (res.quedan) aviso(`La Mesa se soltó a mitad: ${plural(res.quedan, 'cambio espera', 'cambios esperan')} en «sin subir».`, { error: true, ms: 8000 });
+    else if (s && s.error === 'sin_conexion') aviso('Guardado en este iPhone; sube en cuanto vuelva la red.', { ms: 8000 });
+    else if (s && s.error) aviso('Guardado en este iPhone; aún no ha subido: lo intenta otra vez solo.', { ms: 8000 });
+    else if (res.ok) { ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100); aviso(res.avisos.length ? res.avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
+    else if (res.dejados) aviso('Se queda lo de la Mesa.', { ms: 4200 });
+    await releerTodo();
+  }
+  // lo que necesita la Mesa sin ser una operación («Subir encima» y «Descartar» de lo que apartó la nube): el mismo freno y la misma hoja
+  async function conLaMesa(fn) {
+    if (RUN) { aviso('Espera: se está guardando.'); return null; }
+    let r = null;
+    RUN = (async () => {
+      ST.guardando = true; pintarChip();
+      const g = hojaGuardando(''), prog = { paso: g.paso };
       try {
         prog.paso(0);
-        if (!(await cogerMesa(prog))) { cerrarHojas(true); aviso('Tu cambio espera en «sin subir».'); return false; }
-        prog.paso(1);
-        for (const op of opsLeer().filter(x => !o.solo || o.solo.includes(x.id))) {
-          let r = await MV().aplicar(op);
-          if (r && r.choque) { cerrarHojas(true); const a = await hojaChoque(op, r.choque); cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.paso(1); r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : { ok: true, dejado: true }; }
-          if (r && r.ok) { opsQuitar(op.id); hecho++; avisos = avisos.concat(r.avisos || []); if (op.campo === 'capTexto') lsS(`mesa-movil-borrador:${op.key}|${op.slot}|${op.valor.k}`, null); }
-          else if (r && r.error === 'sin turno') throw new Error('La Mesa se fue a otro aparato a mitad: tu cambio espera en «sin subir».');
-          else { opsQuitar(op.id); fallos.push(r && r.error ? errorTexto(r.error) : 'No se pudo.'); }
-        }
-        prog.paso(2);
-        M.nube.retener(false);
-        const s = await M.nube.soltar();
-        prog.paso(3);
-        if (s && s.error === 'sin_conexion') avisos.push('Sin conexión: lo guardado sube en cuanto vuelva la red.');
-        else if (s && s.error === 'perdida') avisos.push('La Mesa se fue a otro aparato antes de subir: lo tuyo está en «sin subir».');
-        else if (s && s.error) avisos.push('Guardado aquí; aún no ha subido: vuelve a intentarlo en un momento.');
-        cerrarHojas();
-        ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100);
-        if (fallos.length) aviso(fallos[0], { error: true, ms: 7000 });
-        else if (hecho) aviso(avisos.length ? avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: avisos.length ? 8000 : 4200 });
-        await releerTodo();
-        return true;
-      } catch (e) {
-        cerrarHojas(true);
-        try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) M.nube.soltar(); } catch (x) { /* */ }
-        aviso((e && e.message) || 'No se pudo guardar.', { error: true, ms: 8000 });
-        await releerTodo();
-        return false;
+        if (!(await cogerMesa(prog))) { cerrarHojas(true); return; }
+        prog.paso(1); r = await fn(); prog.paso(2);
+      } catch (e) { r = { error: (e && e.message) || String(e) }; }
+      finally {
+        try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) await M.nube.soltar(); } catch (x) { /* */ }
+        cerrarHojas(); RUN = null; ST.guardando = false; pintarChip();
       }
-    })().finally(() => { GUARDANDO = null; ST.guardando = false; pintarChip(); });
-    return GUARDANDO;
+    })();
+    await RUN;
+    await releerTodo();
+    return r;
   }
-  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.' };
-  const errorTexto = e => ERR[e] || cap1(String(e)) + '.';
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.' };
+  const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
   async function releerTodo() {
     L.hoy = null; L.clientes = null; L.error = {};
     if (L.vista) { const v = await MV().mirar(L.vista.key).catch(() => null); L.vista = v && !v.error ? v : null; }
@@ -1270,17 +1354,18 @@
     };
     const h = hoja(pinta(), { etiqueta: 'Fecha y hora' });
     const armar = () => { h.querySelectorAll('[data-rueda]').forEach(r => armarRueda(r, x => { if (r.dataset.rueda === 'h') hh = x; else mm = x; })); };
-    const repinta = () => { const y = h.scrollTop; h.innerHTML = `<div class="asa" aria-hidden="true"></div>` + pinta(); arrastrable(h); armar(); h.scrollTop = y; };
+    const leerRuedas = () => { if (!conHora) return; const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; };
+    const repinta = () => { leerRuedas(); const y = h.scrollTop; h.innerHTML = `<div class="asa" aria-hidden="true"></div>` + pinta(); arrastrable(h); armar(); h.scrollTop = y; };
     armar();
     h.addEventListener('click', async e => { if (!h.isConnected) return;
       const d = e.target.closest('[data-dia]'); if (d && !d.disabled) { dia = d.dataset.dia; return repinta(); }
       const c = e.target.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
       const b = e.target.closest('[data-a2]'); if (!b) return;
       if (b.dataset.a2 === 'cancelar') return cerrarHojas();
-      if (b.dataset.a2 === 'sinhora') { conHora = false; return repinta(); }
+      if (b.dataset.a2 === 'sinhora') { leerRuedas(); conHora = false; return repinta(); }
       if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
       if (b.dataset.a2 === 'guardar') {
-        if (conHora) { const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; }   // lo que se ve, aunque el dedo acabe de soltarla
+        leerRuedas();   // lo que se ve, aunque el dedo acabe de soltarla
         const valor = conHora ? { dia, hora: `${hh}:${mm}` } : { dia };
         const igual = p.fecha.dia === dia && (conHora ? p.fecha.hora === valor.hora : !p.fecha.hora);
         cerrarHojas(true); if (igual) return;
@@ -1316,22 +1401,30 @@
   // ---------- captions: elegir y retocar (su borrador sobrevive a que iOS cierre la app) ----------
   C.elegir = b => { const p = pAhora(), v = L.vista; if (!p || !p.captions) return; guardar({ key: v.key, slot: p.id, campo: 'capElegir', valor: +b.dataset.k, visto: { at: p.captions.at, pick: p.captions.pick } }); };
   const K_BORR = (key, slot, k) => `mesa-movil-borrador:${key}|${slot}|${k}`;
+  // el borrador guarda la versión de la que salió (su tanda y su texto): «Listo» compara con esa, nunca con lo que bajó entretanto
+  const borrLeer = (key, slot, k) => { const t = lsG(K_BORR(key, slot, k)); if (t == null) return null; try { const o = JSON.parse(t); if (o && typeof o.texto === 'string') return o; } catch (e) { /* uno de antes, solo texto */ } return { texto: t, base: null }; };
+  const borrPoner = (key, slot, k, texto, base) => lsS(K_BORR(key, slot, k), JSON.stringify({ texto, base }));
   C.pantRetocar = () => {
     const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k);
     if (!o) return top({ atras: 'Captions' }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
-    const borr = lsG(K_BORR(v.key, p.id, k)), txt = borr != null ? borr : o.texto;
+    const b = borrLeer(v.key, p.id, k), borr = b ? b.texto : null, txt = borr != null ? borr : o.texto;
+    const cambio = b && b.base && (b.base.at !== p.captions.at || b.base.texto !== o.texto);   // cambió en la Mesa desde que empezaste
     return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
       <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
-      <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
+      <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${cambio ? '<p class="solo-mac">Este caption cambió en la Mesa desde que empezaste a retocarlo: al guardar verás los dos.</p>' : ''}${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
   };
   C.alEscribir = e => {
     const t = e.target;
-    if (t.matches('[data-ret]')) { lsS(K_BORR(RUTA.a, RUTA.b, +RUTA.c), t.value); const c = raiz.querySelector('[data-cuenta]'); if (c) { c.textContent = `${miles(t.value.length)} / 2.200`; c.classList.toggle('sobra', t.value.length > 2200); } }
+    if (t.matches('[data-ret]')) {
+      const k = +RUTA.c, b = borrLeer(RUTA.a, RUTA.b, k), p = pAhora(), o = p && p.captions && p.captions.opciones.find(x => x.k === k);
+      borrPoner(RUTA.a, RUTA.b, k, t.value, b && b.base ? b.base : o ? { at: p.captions.at, texto: o.texto } : null);   // la base, en la primera tecla
+      const c = raiz.querySelector('[data-cuenta]'); if (c) { c.textContent = `${miles(t.value.length)} / 2.200`; c.classList.toggle('sobra', t.value.length > 2200); } }
   };
   C.listo = async () => {
     const v = L.vista, p = pAhora(), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k), t = raiz.querySelector('[data-ret]'); if (!o || !t) return;
-    if (t.value === o.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }
-    const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: { at: p.captions.at, texto: o.texto } });
+    const b = borrLeer(v.key, p.id, k), base = b && b.base ? b.base : { at: p.captions.at, texto: o.texto };
+    if (t.value === base.texto && t.value === o.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }
+    const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
     if (ok) atras();
   };
 
@@ -1369,13 +1462,14 @@
   };
   C.ncliente = () => {
     const l = (X().CL || []);
-    const h = hoja(`<h2>Cliente de la tarea</h2><div class="estados"><button type="button" class="estado-op${NUEVA.cliente ? '' : ' on'}" data-c="">Sin cliente</button>${l.map(c => `<button type="button" class="estado-op${NUEVA.cliente === c.id ? ' on' : ''}" data-c="${esc(c.id)}">${av(c.id)}<span style="flex:1">${esc(c.name)}</span></button>`).join('')}</div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Cliente de la tarea' });
+    const h = hoja(`<h2>Cliente de la tarea</h2><div class="estados"><button type="button" class="estado-op${NUEVA.cliente ? '' : ' on'}" data-c=""${NUEVA.cliente ? '' : ' aria-current="true"'}><span style="flex:1">Sin cliente</span>${NUEVA.cliente ? '' : `<span class="ck">${ic('check', 2.25)}</span>`}</button>${l.map(c => `<button type="button" class="estado-op${NUEVA.cliente === c.id ? ' on' : ''}" data-c="${esc(c.id)}"${NUEVA.cliente === c.id ? ' aria-current="true"' : ''}>${av(c.id)}<span style="flex:1">${esc(c.name)}</span>${NUEVA.cliente === c.id ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`).join('')}</div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Cliente de la tarea' });
     h.addEventListener('click', e => { if (!h.isConnected) return; const b = e.target.closest('[data-c]'); if (b) { NUEVA.cliente = b.dataset.c; cerrarHojas(); pintar(); } else if (e.target.closest('[data-a2]')) cerrarHojas(); });
   };
 
   // ---------- «sin subir»: lo que no llegó (de la cola o de la nube), con «Subir encima» o «Descartar» (D-255) ----------
   C.sinsubir = async () => {
-    const ops = opsLeer(), nube = M.nube && M.nube.sinSubir ? await M.nube.sinSubir().catch(() => []) : [];
+    if (RUN) return aviso('Espera: se está guardando.');
+    const ops = opsLeer().filter(x => x.estado !== 'nueva'), nube = M.nube && M.nube.sinSubir ? await M.nube.sinSubir().catch(() => []) : [];
     const ALM = { boards: 'Tablero', tareas: 'Tarea o nota', clients: 'Cliente', files: 'Foto' };
     const fila2 = (t, s, d) => `<div class="campo" style="cursor:default;align-items:flex-start;padding-top:12px;padding-bottom:12px"><span class="v" style="display:block;white-space:normal"><b>${esc(t)}</b><span class="por">${esc(s)}</span></span></div><div class="botones" style="margin:0 0 12px;padding:0 12px">${d}</div>`;
     const h = hoja(`<h2>Sin subir</h2><p class="ex">${esc(plural(ops.length + nube.length, 'cambio no llegó', 'cambios no llegaron'))} a la Mesa.</p>`
@@ -1385,17 +1479,12 @@
     h.addEventListener('click', async e => { if (!h.isConnected) return;
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.a2) return cerrarHojas();
-      if (b.dataset.des) { opsQuitar(b.dataset.des); cerrarHojas(); return pintar(); }
-      if (b.dataset.sub) { cerrarHojas(true); return guardar([], { solo: [b.dataset.sub] }); }
+      if (b.dataset.des) { const op = opsLeer().find(x => x.id === b.dataset.des); if (op && op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); opsQuitar(b.dataset.des); cerrarHojas(); return pintar(); }
+      if (b.dataset.sub) { cerrarHojas(true); if (RUN) return aviso('Espera: se está guardando.'); return guardar([], { solo: [b.dataset.sub] }); }
       const i = b.dataset.nsub ?? b.dataset.ndes; if (i == null) return;
-      const x = nube[+i]; cerrarHojas(true);
-      try {
-        if (!(await cogerMesa(null))) return;
-        const r = b.dataset.nsub != null ? await M.nube.subirEncima([[x.a, x.k]]) : await M.nube.descartar([[x.a, x.k]]);
-        M.nube.retener(false); await M.nube.soltar();
-        aviso(r && r.error ? r.error : b.dataset.nsub != null ? 'Subido encima.' : 'Descartado.', { ok: !(r && r.error), error: !!(r && r.error) });
-      } catch (er) { aviso(er.message, { error: true }); }
-      await releerTodo();
+      const x = nube[+i], encima = b.dataset.nsub != null; cerrarHojas(true);
+      const r = await conLaMesa(() => (encima ? M.nube.subirEncima([[x.a, x.k]]) : M.nube.descartar([[x.a, x.k]])));
+      if (r) aviso(r.error ? errorTexto(r.error) : encima ? 'Subido encima.' : 'Descartado.', { ok: !r.error, error: !!r.error });
     });
   };
   C.alNube = (t, d) => {

@@ -355,7 +355,7 @@
   const CSS_MAS = `
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
 #movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
-#movil[data-theme="dark"],:root[data-theme="dark"] #movil{--rojo-tinta:#B3263A}
+:root[data-theme="dark"] #movil{--rojo-tinta:#B3263A}
 #movil[hidden]{display:none}
 #movil :where(button,a,[role=button]){touch-action:manipulation}
 #movil :where(button,[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:12px}
@@ -365,7 +365,7 @@
 #movil .hoja{max-width:600px;margin:0 auto}
 #movil .mono{width:30px;height:30px}
 #movil .top-r{min-width:0}
-#movil .nube{max-width:min(44vw,240px);min-width:0;overflow:hidden}#movil .nube .num{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#movil .nube .q{white-space:nowrap}
+#movil .nube{max-width:min(44vw,240px);min-width:0;overflow:hidden}#movil .nube .num{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#movil .nube .q{white-space:nowrap}#movil .nube svg{flex:none}
 #movil .nube.err{color:var(--red);background:var(--red-soft)}
 #movil .nube .q{color:var(--red);font-weight:600}
 #movil button.nube{cursor:pointer}
@@ -384,7 +384,7 @@
 #movil .tarea .tm{flex-wrap:wrap;row-gap:4px;column-gap:10px}
 #movil .tarea .tm>*{white-space:nowrap}
 #movil .tarea .tm .cn{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-#movil .top-in{grid-template-columns:minmax(0,max-content) minmax(0,1fr) minmax(0,max-content);column-gap:6px}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#movil .top-in{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr);column-gap:6px}#movil .top-r{justify-self:end}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .fila{touch-action:manipulation}
 #movil .fila:active{background:var(--bg-2)}
 #movil .fila .hr.roja{color:var(--red)}
@@ -478,7 +478,7 @@
 #movil .estado-op .porque{display:block;font-size:13px;color:var(--red);font-weight:400}
 #movil .toast{transform:translateY(12px);opacity:0;transition:transform .3s var(--ease),opacity .3s var(--ease);pointer-events:none}
 #movil .toast.on{transform:none;opacity:1}
-#movil .toast.error svg{color:var(--rojo-tinta)}
+#movil .toast.error svg,:root[data-theme="dark"] #movil .toast.error svg{color:var(--rojo-tinta)}
 #movil .toast.sin-tabs{bottom:calc(20px + var(--sa-b))}
 #movil .ver{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column;touch-action:pan-y}
 #movil .ver .lam{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
@@ -508,8 +508,10 @@
 #movil .sd.otro{visibility:visible;color:var(--faint)}
 #movil .cd .p i.f,#movil .leyenda i.f{background:#D9876F}#movil .cd .p i.c,#movil .leyenda i.c{background:#9A7BAA}#movil .cd .p i.r,#movil .leyenda i.r{background:#6E9A76}#movil .cd .p i.co,#movil .leyenda i.co{background:#3F7A4C}#movil .cd .p i.h,#movil .leyenda i.h{background:var(--story)}   /* los colores de la v3 por tipo */
 #movil .hoja .lnk{min-height:var(--tap);padding:0 12px;display:inline-flex;align-items:center;color:var(--acc-ink);font-weight:500}
-@media (max-height:700px){#movil .sd{height:36px;width:36px}#movil .ruedas,#movil .rueda{height:136px}#movil .rueda-in{padding:52px 0}}
+@media (max-height:700px){#movil .sd{height:36px;width:36px}#movil .ruedas,#movil .rueda{height:130px}#movil .rueda-in{padding:52px 0}#movil .rueda-in span{height:26px;font-size:19px}#movil .rueda-in span.sel{font-size:21px}#movil .ruedas .banda{height:30px;margin-top:-15px}}
 #movil .hoja{bottom:var(--kb,0px);max-height:calc(100dvh - var(--kb,0px) - var(--sa-t) - 8px)}
+#movil .hoja:has(.pie){scroll-padding-bottom:110px}
+#movil.teclado .hoja{padding-bottom:16px}#movil.teclado .hoja .pie{bottom:-16px;margin-bottom:-16px;padding-bottom:16px}
 #movil .cap-b.corto .cap-t{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
 #movil .cap-b .vercap{margin:4px 0 -6px -12px;color:var(--acc-ink);font-weight:500;min-height:var(--tap);display:inline-flex;align-items:center;padding:0 12px}
 #movil .tarea .tm .cn>span:last-child,#movil .campo .v.vista{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -540,13 +542,13 @@
     if (Date.now() - e.guardado < 4000) return b('ok', 'nubeok', 'Guardado');
     switch (e.fase) {
       case 'guardado': case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
-      case 'sin_conexion': return b('off', 'nubeoff', h ? `Sin conexión · ${h}` : 'Sin conexión');
+      case 'sin_conexion': return b('off', 'nubeoff', h && !q ? `Sin conexión · ${h}` : 'Sin conexión');
       case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
       case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
       case 'otra_cuenta': return b('err', 'alerta', 'Otra cuenta', 'otracuenta');
       case 'vieja': return b('off', 'recarga', 'Versión nueva', 'version');
       case 'apagada': return b('off', 'nubeoff', 'Sin nube');
-      default: return b('', 'ojo', h ? `Al día ${h}` : 'Al día');
+      default: return b('', 'ojo', h && !q ? `Al día ${h}` : 'Al día');
     }
   }
   const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip]').forEach(x => { x.innerHTML = chip(); }); };
@@ -695,7 +697,7 @@
     const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
     const estado = x.e === 'publicado' || !x.e ? '' : `<span class="es ${esc(x.e)}"><i></i>${esc((X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1])}</span>`;
     let t2;
-    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : `${estado} · <span class="roja">vencida</span>`}`;
+    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : `<span class="roja">vencida</span> · ${estado}`}`;
     else if (x.cat === 'espera') { const w = M.web && M.web.contestado ? M.web.contestado(x.B.client, s.id) : ''; t2 = `${w ? `<span class="acc">${esc(cap1(w))} en su web</span>` : x.e === 'noaprobado' ? '<span class="roja">Pidió cambios</span>' : estado} · ${esc(corto(x.dia))}${x.lleva ? ` · lleva ${x.lleva} días` : ''}`; }
     else if (x.cat === 'falta') t2 = `${esc(corto(x.dia))} · ${estado}${x.aMano ? ' · se programa a mano' : ''}`;
     else t2 = x.mano ? '<span class="acc">publicar a mano</span>' : estado;
@@ -1075,7 +1077,8 @@
 
   // ---------- el teclado del iPhone: lo que se escribe queda a la vista (visualViewport, como el portal) ----------
   if (W.visualViewport) W.visualViewport.addEventListener('resize', () => {
-    const vv0 = W.visualViewport; raiz.style.setProperty('--kb', Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop)) + 'px');   // una hoja sube encima del teclado
+    const vv0 = W.visualViewport, kb = Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop));
+    raiz.style.setProperty('--kb', kb + 'px'); raiz.classList.toggle('teclado', kb > 60);   // una hoja sube encima del teclado, sin la zona segura de abajo
     const a = D.activeElement; if (!a || !raiz.contains(a) || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
     if (a.closest('.hoja')) { a.scrollIntoView({ block: 'nearest', behavior: POCO.matches ? 'auto' : 'smooth' }); return; }
     const vv = W.visualViewport, r = a.getBoundingClientRect(), fondo = vv.height + vv.offsetTop;
@@ -1330,7 +1333,7 @@
     return `<div class="rueda" role="spinbutton" tabindex="0" data-rueda="${nombre}" aria-label="${nombre === 'h' ? 'Hora' : 'Minutos'}" aria-valuenow="${+sel}" aria-valuetext="${esc(sel)}" aria-valuemin="${+vals[0]}" aria-valuemax="${+vals[vals.length - 1]}"><div class="rueda-in">${vals.map(v => `<span data-v="${v}"${v === sel ? ' class="sel"' : ''}>${v}</span>`).join('')}</div></div>`;
   }
   function armarRueda(el, alCambiar) {
-    const inn = el.querySelector('.rueda-in'), items = [...inn.children], H = 32;
+    const inn = el.querySelector('.rueda-in'), items = [...inn.children], H = items[0] ? items[0].getBoundingClientRect().height || 32 : 32;
     const idx = () => Math.max(0, Math.min(items.length - 1, Math.round(inn.scrollTop / H)));
     const marcar = () => { const i = idx(); items.forEach((s, j) => { const d = Math.abs(j - i); s.style.setProperty('--d', Math.min(d, 3)); s.classList.toggle('sel', j === i); }); const v = items[i].dataset.v; el.setAttribute('aria-valuenow', +v); el.setAttribute('aria-valuetext', v); return v; };
     const ir = (i, suave) => { inn.scrollTo({ top: i * H, behavior: suave && !POCO.matches ? 'smooth' : 'auto' }); };

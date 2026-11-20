@@ -725,6 +725,40 @@
     if (r._b) { Object.defineProperty(n, '_b', { value: true, enumerable: false, configurable: true }); TK.set(id, n); return Promise.resolve(true); }   // a new task not made yet (D-203): in memory only
     return hacer([{ id, despues: n }], junta); };
   const marcar = (id, v) => cambiar(id, r => { if (v) r.hecha = ahoraISO(); else delete r.hecha; return r; });
+  // the iPhone edits a task or a note field by field (D-272), with the rules of the Mac's card (D-182, D-183): the title (a task's in one
+  // line; empty, refused), the date and the client (valid or none), the details (trimmed; empty, none) and each subtask on its own (its id
+  // comes with the operation). A note: only its text. Each change, a step of the tasks' ⌘Z. campo(id, campo, sid) is what is there now.
+  async function campoTarea(id, campo, sid) {
+    await cargarTK(); const r = TK.get(id); if (!r || r._b || !/^(tarea|nota)$/.test(r.tipo)) return { error: 'no existe' };
+    if (campo === 'txt') return { v: String(r.txt || '') };
+    if (campo === 'fecha') return { v: r.fecha || '' };
+    if (campo === 'cliente') return { v: r.cliente || '' };
+    if (campo === 'detalles') return { v: String(r.detalles || '') };
+    if (campo === 'subtarea') { const y = (r.subtareas || []).find(x => x.id === sid); return { v: y ? { txt: String(y.txt || ''), hecha: !!y.hecha } : null }; }
+    return { error: 'campo no válido' };
+  }
+  async function editarTarea(id, campo, v) {
+    if (!puede()) return { error: 'sin turno' };
+    await cargarTK(); const r = TK.get(id); if (!r || r._b || !/^(tarea|nota)$/.test(r.tipo)) return { error: 'no existe' };
+    const nota = r.tipo === 'nota'; let f = null;
+    if (campo === 'txt') { const t = nota ? String(v ?? '').replace(/\s+$/, '') : String(v ?? '').replace(/\s*\n\s*/g, ' ').trim(); if (!t.trim()) return { error: nota ? 'una nota necesita un texto' : 'una tarea necesita un texto' }; f = x => { x.txt = t; return x; }; }
+    else if (nota) return { error: 'campo no válido' };
+    else if (campo === 'fecha') { if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { error: 'fecha no válida' }; f = x => { if (v) x.fecha = v; else delete x.fecha; return x; }; }
+    else if (campo === 'cliente') { if (v && !cliDe(v)) return { error: 'cliente no válido' }; f = x => { if (v) x.cliente = v; else delete x.cliente; return x; }; }
+    else if (campo === 'detalles') { const d = String(v ?? '').replace(/^\s*\n|\s+$/g, ''); f = x => { if (d) x.detalles = d; else delete x.detalles; return x; }; }
+    else if (campo === 'subtarea') {
+      const o = v || {}, sid = o.sid, t = String(o.txt ?? '').trim();
+      if (typeof sid !== 'string' || !/^st[a-z0-9]{2,30}$/.test(sid)) return { error: 'subtarea no válida' };
+      if ((o.accion === 'nueva' || o.accion === 'texto') && !t) return { error: 'una subtarea necesita un texto' };
+      if (o.accion === 'nueva') f = x => { const l = x.subtareas || []; if (!l.some(y => y.id === sid)) x.subtareas = [...l, { id: sid, txt: t, ...(o.hecha ? { hecha: true } : {}) }]; return x; };
+      else if (o.accion === 'quitar') f = x => { const l = (x.subtareas || []).filter(y => y.id !== sid); if (l.length) x.subtareas = l; else delete x.subtareas; return x; };
+      else if (o.accion === 'hecha') f = x => { const y = (x.subtareas || []).find(z => z.id === sid); if (!y) return null; if (o.hecha) y.hecha = true; else delete y.hecha; return x; };
+      else if (o.accion === 'texto') f = x => { const y = (x.subtareas || []).find(z => z.id === sid); if (!y) return null; y.txt = t; return x; };
+      else return { error: 'subtarea no válida' };
+    } else return { error: 'campo no válido' };
+    if (campo === 'subtarea' && (v.accion === 'hecha' || v.accion === 'texto') && !(r.subtareas || []).some(y => y.id === v.sid)) return { error: 'no existe' };
+    return (await cambiar(id, f)) ? { ok: true } : { error: puede() ? 'no se pudo guardar' : 'sin turno' };
+  }
   const borrar = id => TK.has(id) ? hacer([{ id, despues: null }]) : Promise.resolve(false);
 
   // a photo dropped on a task or on «Nueva tarea»: lowered to a JPEG of 1600 px and a thumbnail, never to the tray
@@ -1480,7 +1514,8 @@
     datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = Object.fromEntries(Object.keys(o).map(k => [k, st[k]])); Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
     lista: async () => { await cargarTK(); return listaMovil(); },
     valor: async id => { await cargarTK(); const r = TK.get(id); return r && !r._b ? copia(r) : null; },
-    nuevoId: tipo => nuevoId(tipo === 'nota' ? 'nt' : 'tk'),   // a task's id before it is made (the iPhone's operation, D-267)
+    nuevoId: tipo => nuevoId(tipo === 'nota' ? 'nt' : tipo === 'sub' ? 'st' : 'tk'),   // a task's id before it is made (the iPhone's operation, D-267); a subtask's (D-272)
+    campo: (id, campo, sid) => campoTarea(id, campo, sid), editar: (id, campo, v) => editarTarea(id, campo, v),   // the iPhone edits field by field (D-272)
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),

@@ -409,6 +409,25 @@
 #movil .mv-pubs .r{margin-left:auto;color:var(--mute);font-size:14px}
 #movil .mv-pubs .chev{flex:none;width:20px;height:20px;color:var(--faint);transition:transform var(--d2) var(--ease)}
 #movil .mv-pubs[aria-expanded="true"] .chev{transform:rotate(180deg)}
+#movil .hoja .mv-ttxt{font-size:17px;font-weight:600;line-height:1.35}
+#movil .mv-desp{padding:4px 6px 10px}
+#movil .mv-desp.estados{padding:8px 8px 10px}
+#movil .mv-desp .lbl{margin:8px 4px 2px}
+#movil .campo .v .av{width:24px;height:24px;font-size:11px}
+#movil .mv-subh{display:flex;justify-content:space-between;align-items:baseline}
+#movil .mv-subh .num{color:var(--mute);font-weight:500}
+#movil .mv-barra{height:4px;border-radius:2px;background:var(--bg-3);overflow:hidden;margin:0 0 8px}
+#movil .mv-barra i{display:block;height:100%;background:var(--acc);border-radius:2px}
+#movil .mv-subs{display:grid}
+#movil .mv-sub{display:flex;align-items:center;gap:10px;min-height:var(--tap);border-bottom:1px solid var(--sep)}
+#movil .mv-sub .casilla{margin:0}
+#movil .mv-sub input{flex:1;min-width:0;min-height:var(--tap) !important;border:0 !important;background:none !important;padding:0 !important;box-shadow:none !important;font:16px/1.35 var(--font);color:var(--ink)}
+#movil .mv-sub.hecha .casilla{background:var(--ink);box-shadow:none;color:var(--on-ink)}
+#movil .mv-sub.hecha .casilla svg{opacity:1}
+#movil .mv-sub.hecha input{color:var(--mute);text-decoration:line-through}
+#movil .mv-subx{flex:none;width:var(--tap);height:var(--tap);color:var(--faint)}
+#movil .hoja [data-ed-mas]{display:inline-flex;align-items:center;gap:6px;margin:4px 0 0 -12px}
+#movil .hoja [data-ed-mas] svg{width:18px;height:18px}
 #movil .mono-w{position:relative;flex:none;display:inline-block;width:30px;height:30px;margin-left:8px}
 #movil .mono-w .mono{position:absolute;inset:0;margin:0}
 #movil .mono-w .mono-ll{clip-path:inset(var(--vacio,0%) 0 0 0);transition:clip-path .35s var(--ease)}
@@ -1082,6 +1101,8 @@
   }
   function tareaHTML(x) {
     const hop = enCurso(null, x.id, 'tarea'); if (hop) x = { ...x, hecha: hop.valor.hecha ? x.hecha || new Date().toISOString() : null };   // marcada, mientras se guarda (D-271, punto 9)
+    const tex = enCurso(null, x.id, 'tareaTexto'), fop = enCurso(null, x.id, 'tareaFecha'), edita = !!(tex || fop || opsLeer().some(o => o.estado === 'nueva' && o.slot === x.id && NUEVOS.test(o.campo)));
+    if (tex) x = { ...x, txt: tex.valor }; if (fop) x = { ...x, fecha: fop.valor || null };   // lo editado, ya a la vista (D-272)
     const nota = x.tipo === 'nota', ses = x.tipo === 'sesion';
     const meta = [];
     if (nota) meta.push(`Nota · ${esc(plural(String(x.txt).split('\n').length, 'línea', 'líneas'))}`);
@@ -1093,7 +1114,7 @@
     if (x.subtareas) meta.push(`${x.subtareas.hechas}/${x.subtareas.n}`);
     const titulo = nota ? String(x.txt).split('\n')[0] : x.txt;
     const casilla = nota ? `<span class="nota-ic">${ic('nota')}</span>` : `<button type="button" class="casilla" data-a="hecha" data-id="${esc(x.id)}" role="checkbox" aria-checked="${!!x.hecha}" aria-label="${esc(x.hecha ? 'Hecha: ' + titulo : 'Marcar como hecha: ' + titulo)}"${sinRed() || hop ? ' disabled' : ''}${hop ? ' aria-busy="true"' : ''}>${ic('check', 2.5)}</button>`;
-    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}</span><span class="tm">${meta.join('')}</span></span></div>`;
+    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}${edita ? ' ' + GIRA : ''}</span><span class="tm">${meta.join('')}</span></span></div>`;
   }
   const NUEVA = { txt: '', fecha: '', cliente: '' };
   function nuevaHTML() {
@@ -1263,12 +1284,78 @@
     const x = (L.tareas || []).find(t => t.id === id); if (!x) return;
     const r0 = RUTA, rec = x.fotos ? await M.personal.valor(id).catch(() => null) : null, fotos = (rec && rec.fotos) || [];   // sus fotos se ven (D-271, punto 1)
     if (RUTA !== r0) return;   // se fue a otra pantalla mientras se leía
+    if (x.tipo === 'tarea' || x.tipo === 'nota') { const r = rec || (await M.personal.valor(id).catch(() => null)); if (r && RUTA === r0) return hojaTarea(x, r, fotos); return; }   // editable (D-272)
     const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const r = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${r.toFixed(4)}">${fotoArch('tareas', id, `el valor.fotos[${i}].blob`, 140 * r)}</span>`; }).join('')}</div>` : '';
     const E = M.escritura && M.escritura.html ? M.escritura : null, txt = E ? E.html(x.txt, { leer: true }) : esc(x.txt);
     const t = x.tipo === 'nota' ? 'Nota' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea';
     const meta = [x.fecha ? cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha) + (x.hora ? ' · ' + x.hora : '') : '', x.clientes.map(nombreCli).join(' · ')].filter(Boolean).join(' · ');
     hoja(`<h2>${esc(t)}</h2>${meta ? `<p class="ex">${esc(meta)}</p>` : ''}<div class="txt">${txt}</div>${x.detalles ? `<span class="lbl">Detalles</span><div class="txt">${E ? E.html(x.detalles, { leer: true }) : esc(x.detalles)}</div>` : ''}${x.subtareas ? `<p class="ex" style="margin-top:12px">${x.subtareas.hechas} de ${x.subtareas.n} subtareas hechas</p>` : ''}${tira}<p class="ex" style="margin-top:14px">Se edita en el escritorio.</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: t });
     vigilarFotos(capas);
+  }
+
+  // ---------- editar una tarea o una nota ya creada (D-272): como Recordatorios, con «Guardar» abajo ----------
+  // Cada campo cambiado es su operación (cada subtarea, la suya); una nota, solo su texto. La fecha y el cliente se despliegan dentro de
+  // la misma hoja (nunca una hoja encima de otra). Sus fotos se ven (D-271, punto 1), no se añaden ni se quitan aquí.
+  async function hojaTarea(x, r, fotos) {
+    const nota = r.tipo === 'nota', o0 = { txt: String(r.txt || ''), fecha: r.fecha || '', cliente: r.cliente || '', detalles: String(r.detalles || ''), subs: (r.subtareas || []).map(y => ({ sid: y.id, txt: String(y.txt || ''), hecha: !!y.hecha })) };
+    const ed = JSON.parse(JSON.stringify(o0)), off = sinRed();
+    let abre = '', mes = (ed.fecha || hoy()).slice(0, 7), err = '';
+    const esp = !nota ? (await M.personal.tareas().catch(() => [])).filter(t => t.tipo === 'esporadico' && !t.pasado) : [];
+    const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const q = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${q.toFixed(4)}">${fotoArch('tareas', x.id, `el valor.fotos[${i}].blob`, 140 * q)}</span>`; }).join('')}</div>` : '';
+    const pinta = () => {
+      const vivas = ed.subs.filter(y => !y.quitada), h = vivas.filter(y => y.hecha).length;
+      const cliTxt = ed.cliente ? `${av(ed.cliente)}<span>${esc(nombreCli(ed.cliente))}</span>` : 'Sin cliente';
+      const fila = (k, t, v) => `<button type="button" class="campo" data-ed-abre="${k}" aria-expanded="${abre === k}"${off ? ' disabled' : ''}><span class="k">${t}</span><span class="v">${v}</span><span class="chev">${ic(abre === k ? 'arriba' : 'abajo')}</span></button>`;
+      const cli = c => `<button type="button" class="estado-op${ed.cliente === c.id ? ' on' : ''}" data-ed-cli="${esc(c.id)}"${ed.cliente === c.id ? ' aria-current="true"' : ''}>${c.id ? av(c.id) : ''}<span style="flex:1">${esc(c.name)}</span>${ed.cliente === c.id ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`;
+      return `<h2>${nota ? 'Nota' : 'Tarea'}</h2>
+        <textarea class="mv-ttxt" data-ed="txt" rows="${nota ? 6 : 2}" aria-label="${nota ? 'Texto de la nota' : 'Texto de la tarea'}"${off ? ' disabled' : ''}>${esc(ed.txt)}</textarea>
+        ${nota ? '' : `<div class="grupo" style="margin-top:12px">${fila('fecha', 'Fecha', esc(ed.fecha ? cap1(DS[dow(ed.fecha)]) + ' ' + corto(ed.fecha) : 'Sin fecha'))}${abre === 'fecha' ? `<div class="mv-desp">${calendarioHTML(ed.fecha, mes, null, { pie: `<button type="button" class="lnk" data-ed-dia=""${ed.fecha ? '' : ' disabled'}>Sin fecha</button><button type="button" class="lnk" data-ed-dia="${hoy()}">Hoy</button>` })}</div>` : ''}${fila('cliente', 'Cliente', cliTxt)}${abre === 'cliente' ? `<div class="mv-desp estados">${cli({ id: '', name: 'Sin cliente' })}${(X().CL || []).map(cli).join('')}${esp.length ? `<span class="lbl">Esporádicos</span>${esp.map(e => cli({ id: e.id, name: e.txt })).join('')}` : ''}</div>` : ''}</div>
+        <span class="lbl">Detalles</span><textarea data-ed="detalles" rows="3" placeholder="Detalles" aria-label="Detalles"${off ? ' disabled' : ''}>${esc(ed.detalles)}</textarea>
+        <span class="lbl mv-subh"><span>Subtareas</span>${vivas.length ? `<span class="num">${h}/${vivas.length}</span>` : ''}</span>${vivas.length ? `<div class="mv-barra" aria-hidden="true"><i style="width:${(h / vivas.length * 100).toFixed(1)}%"></i></div>` : ''}
+        <div class="mv-subs">${vivas.map(y => `<div class="mv-sub${y.hecha ? ' hecha' : ''}"><button type="button" class="casilla" data-ed-ck="${esc(y.sid)}" role="checkbox" aria-checked="${y.hecha}" aria-label="${esc((y.hecha ? 'Hecha: ' : 'Marcar como hecha: ') + y.txt)}"${off ? ' disabled' : ''}>${ic('check', 2.5)}</button><input type="text" data-ed-st="${esc(y.sid)}" value="${esc(y.txt)}" aria-label="Subtarea" enterkeyhint="next"${off ? ' disabled' : ''}><button type="button" class="ib mv-subx" data-ed-x="${esc(y.sid)}" aria-label="${esc('Quitar: ' + y.txt)}"${off ? ' disabled' : ''}>${ic('x')}</button></div>`).join('')}</div>
+        <button type="button" class="lnk" data-ed-mas${off ? ' disabled' : ''}>${ic('mas')}Subtarea</button>`}
+        ${tira}${err ? `<p class="resp-err" style="margin:10px 0 0">${esc(err)}</p>` : ''}${off ? '<p class="ex" style="margin-top:12px">Sin conexión: no se puede cambiar.</p>' : ''}
+        <div class="pie"><div class="botones"><button type="button" class="btn sua" data-ed-a="cancelar">Cancelar</button><button type="button" class="btn pri" data-ed-a="guardar"${off ? ' disabled' : ''}>Guardar</button></div></div>`;
+    };
+    const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea' });
+    vigilarFotos(capas);
+    const repinta = foco => { const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) f.focus({ preventScroll: true }); } };
+    h.addEventListener('input', e => { const t = e.target; if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value; } });
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.dataset.edSt) { e.preventDefault(); masSub(); } });
+    const masSub = () => { const sid = M.personal.nuevoId('sub'); ed.subs.push({ sid, txt: '', hecha: false, nueva: true }); repinta(`[data-ed-st="${sid}"]`); };
+    h.addEventListener('click', e => {
+      if (!h.isConnected || !h.classList.contains('on')) return;
+      const t = e.target;
+      const ab = t.closest('[data-ed-abre]'); if (ab && !ab.disabled) { abre = abre === ab.dataset.edAbre ? '' : ab.dataset.edAbre; return repinta(); }
+      const d = t.closest('[data-dia]'); if (d && !d.disabled) { ed.fecha = d.dataset.dia; abre = ''; return repinta(); }
+      const dd = t.closest('[data-ed-dia]'); if (dd && !dd.disabled) { ed.fecha = dd.dataset.edDia; abre = ''; return repinta(); }
+      const c = t.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
+      const cl = t.closest('[data-ed-cli]'); if (cl) { ed.cliente = cl.dataset.edCli; abre = ''; return repinta(); }
+      const ck = t.closest('[data-ed-ck]'); if (ck && !ck.disabled) { const y = ed.subs.find(z => z.sid === ck.dataset.edCk); if (y) { y.hecha = !y.hecha; repinta(); } return; }
+      const qx = t.closest('[data-ed-x]'); if (qx && !qx.disabled) { const y = ed.subs.find(z => z.sid === qx.dataset.edX); if (y) { if (y.nueva) ed.subs = ed.subs.filter(z => z !== y); else y.quitada = true; repinta(); } return; }
+      if (t.closest('[data-ed-mas]')) return masSub();
+      const a = t.closest('[data-ed-a]'); if (!a) return;
+      if (a.dataset.edA === 'cancelar') return cerrarHojas();
+      // «Guardar»: cada campo cambiado, su operación (D-272)
+      const txtN = nota ? ed.txt.replace(/\s+$/, '') : ed.txt.replace(/\s*\n\s*/g, ' ').trim();
+      if (!txtN.trim()) { err = nota ? 'Una nota necesita un texto.' : 'Una tarea necesita un texto.'; return repinta('[data-ed="txt"]'); }
+      const base = { slot: x.id, nombre: String(o0.txt).split('\n')[0] }, ops = [];
+      if (txtN !== o0.txt) ops.push({ ...base, campo: 'tareaTexto', valor: txtN, visto: o0.txt });
+      if (!nota) {
+        if (ed.fecha !== o0.fecha) ops.push({ ...base, campo: 'tareaFecha', valor: ed.fecha, visto: o0.fecha });
+        if (ed.cliente !== o0.cliente) ops.push({ ...base, campo: 'tareaCliente', valor: ed.cliente, visto: o0.cliente });
+        const det = ed.detalles.replace(/^\s*\n|\s+$/g, ''); if (det !== o0.detalles.replace(/^\s*\n|\s+$/g, '')) ops.push({ ...base, campo: 'tareaDetalles', valor: det, visto: o0.detalles });
+        for (const y of ed.subs) {
+          const o = o0.subs.find(z => z.sid === y.sid), t2 = y.txt.trim();
+          if (!o) { if (!y.quitada && t2) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'nueva', txt: t2, hecha: y.hecha }, visto: null }); continue; }
+          if (y.quitada || !t2) { ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true } }); continue; }   // vacía al guardar: se quita, como en el Mac
+          if (t2 !== o.txt) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'texto', txt: t2 }, visto: { txt: o.txt } });
+          if (y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'hecha', hecha: y.hecha }, visto: { hecha: o.hecha } });
+        }
+      }
+      cerrarHojas(true);
+      if (ops.length) guardar(ops);
+    });
   }
 
   // ---------- el toque: un solo oyente para toda la cara ----------
@@ -1383,8 +1470,12 @@
   // Mesa en otro aparato, un choque sin decidir) y espera en «sin subir» a que Kevin la suba encima o la descarte: nunca se aplica
   // sola (R4). Al abrir la app, lo que quedó a medias es «quedo».
   const K_OPS = 'mesa-movil-ops';
-  const opsLeer = () => { try { const l = JSON.parse(lsG(K_OPS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
-  const opsGuardar = l => { lsS(K_OPS, l.length ? JSON.stringify(l) : null); ST.opsN = l.filter(x => x.estado !== 'nueva').length; pintarChip(); };
+  // los campos nuevos de la 4.38 (D-272, D-273) van en otra clave: una 4.37 que leyera la cola los quitaría como «campo no válido»
+  // (fallo definitivo); así no los ve y esperan a una 4.38 (lección 228). La cola es la unión de las dos, en su orden
+  const K_OPS2 = 'mesa-movil-ops2', NUEVOS = /^(tarea(Texto|Fecha|Cliente|Detalles)|subtarea|ses[A-Z]\w*)$/;
+  const leerK = k => { try { const l = JSON.parse(lsG(k) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+  const opsLeer = () => [...leerK(K_OPS), ...leerK(K_OPS2)].sort((a, b) => (a.at || 0) - (b.at || 0));
+  const opsGuardar = l => { const v = l.filter(x => !NUEVOS.test(x.campo)), n = l.filter(x => NUEVOS.test(x.campo)); lsS(K_OPS, v.length ? JSON.stringify(v) : null); lsS(K_OPS2, n.length ? JSON.stringify(n) : null); ST.opsN = l.filter(x => x.estado !== 'nueva').length; pintarChip(); };
   const opsQuitar = id => opsGuardar(opsLeer().filter(o => o.id !== id));
   const opsMarcar = (ids, estado) => opsGuardar(opsLeer().map(x => (ids.includes(x.id) ? { ...x, estado } : x)));
   opsGuardar(opsLeer().map(x => ({ ...x, estado: 'quedo' })));
@@ -1393,7 +1484,7 @@
   const corto2 = id => (M.nube && M.nube.nombreDe ? M.nube.nombreDe(id) : 'otro aparato').replace(/ \([0-9a-f]{4}\)$/, '');
   // la misma operación (un doble toque) y otra del mismo campo (la nueva sustituye a la que aún no se aplicó)
   const firma = op => { const v = op.valor || {}; return op.campo === 'tareaNueva' ? ['tn', v.tipo, v.txt, v.fecha || '', v.cliente || ''].join('|') : [op.key, op.slot, op.campo, JSON.stringify(op.valor)].join('|'); };
-  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k);
+  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k) && (a.campo !== 'subtarea' || ((a.valor || {}).sid === (b.valor || {}).sid && (a.valor || {}).accion === (b.valor || {}).accion));   // cada subtarea, su campo (D-272)
   let RUN = null, OTRA = false, ENVUELO = null;
   const ESCRITOS = new Map();   // lo que escribió este iPhone en cada campo, como quedó guardado: un choque contra eso no es un choque
   // un fallo pasajero deja la operación en «sin subir»; uno definitivo (publicada, fuera del mes, ya no está…) la quita y lo dice
@@ -1406,9 +1497,13 @@
     if (op.campo === 'capTexto') { const t = v && typeof v === 'object' ? v.texto : v; return String(t || '').slice(0, 140) + (String(t || '').length > 140 ? '…' : ''); }
     if (op.campo === 'tarea') return v && v.hecha ? 'Hecha' : 'Sin hacer';
     if (op.campo === 'tareaNueva') return (v && v.tipo === 'nota' ? 'Nota: ' : 'Tarea: ') + ((v && v.txt) || '');
+    if (op.campo === 'tareaTexto' || op.campo === 'tareaDetalles') return String(v || '').slice(0, 140) || 'Vacío';
+    if (op.campo === 'tareaFecha') return v ? cap1(DS[dow(v)]) + ' ' + corto(v) : 'Sin fecha';
+    if (op.campo === 'tareaCliente') return v ? nombreCli(v) : 'Sin cliente';
+    if (op.campo === 'subtarea') { const o = op.valor || {}; if (v === op.valor) return o.accion === 'quitar' ? 'Quitarla' : o.accion === 'hecha' ? (o.hecha ? 'Hecha' : 'Sin hacer') : String(o.txt || ''); return v == null ? 'No está' : v.txt != null ? v.txt : v.hecha != null ? (v.hecha ? 'Hecha' : 'Sin hacer') : 'Está'; }
     return '';
   }
-  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva' })[op.campo] || op.campo;
+  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva', tareaTexto: 'Texto', tareaFecha: 'Fecha', tareaCliente: 'Cliente', tareaDetalles: 'Detalles', subtarea: 'Subtarea' })[op.campo] || op.campo;
   // guardar de fondo (D-271, punto 9): sin hoja que tape la pantalla; sus pasos (coger, aplicar, subir, soltar) llenan el monograma
   const alPaso = n => { TRAB.guardar = [0, 0.25, 0.5, 1][n] ?? 1; trabajo(); };   // el monograma, un cuarto por paso
   // lo que se está guardando: la pantalla enseña ya el valor nuevo, con un aro en el sitio de su flecha
@@ -1500,7 +1595,7 @@
     const prog = { paso: n => alPaso(n), h: null, que: prim ? `«${opQue(prim).toLowerCase()}»${prim.nombre ? ' de ' + prim.nombre : ''}` : '' };
     const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
     const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set();
-    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : ''].join('|');
+    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : op.campo === 'subtarea' ? (op.valor || {}).sid + ':' + (op.valor || {}).accion : ''].join('|');
     const queda = (ids, motivo) => { if (!ids.length) return; opsMarcar(ids, 'quedo'); res.quedan += ids.length; res.por[motivo] = (res.por[motivo] || 0) + ids.length; };
     const motivoDe = e => (e === 'sin turno' ? 'turno' : e === 'sin decidir' ? 'decidir' : 'fallo');
     let s = null;
@@ -1589,7 +1684,7 @@
     await releerTodo();
     return r;
   }
-  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', 'una nota necesita un texto': 'Una nota necesita un texto.', 'una subtarea necesita un texto': 'Una subtarea necesita un texto.', 'cliente no válido': 'Ese cliente ya no está.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
   const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
   async function releerTodo() {
     L.hoy = null; L.clientes = null; L.error = {};

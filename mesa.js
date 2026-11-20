@@ -6317,8 +6317,16 @@ ${TK_FUENTES}
     if (op.campo === 'capTexto') { const k = op.valor && op.valor.k; return { v: c && kOk(k) ? { at: c.at || null, texto: c.text[k] } : null }; }
     return { error: 'campo no válido' };
   }
+  // a task's or a note's fields on the phone (D-272): the operation's field → personal.js's; a subtask is its own field, per action
+  const T_CAMPO = { tareaTexto: 'txt', tareaFecha: 'fecha', tareaCliente: 'cliente', tareaDetalles: 'detalles', subtarea: 'subtarea' };
+  const subVisto = (a, c) => (c == null ? null : a === 'texto' ? { txt: c.txt } : a === 'hecha' ? { hecha: c.hecha } : a === 'quitar' ? { existe: true } : c);
   async function valorAsync(op) {
     if (op && op.campo === 'tarea') { const r = M.personal ? await M.personal.valor(op.slot) : null; return r ? { v: { hecha: !!r.hecha } } : { error: 'no existe' }; }
+    if (op && T_CAMPO[op.campo]) {
+      if (!M.personal || !M.personal.campo) return { error: 'sin tareas' };
+      const c = await M.personal.campo(op.slot, T_CAMPO[op.campo], op.valor && op.valor.sid); if (c.error) return c;
+      return { v: op.campo === 'subtarea' ? subVisto(op.valor && op.valor.accion, c.v) : c.v };
+    }
     // always from what is stored now: a download of the cloud (entrar) may have changed it without reading it again (review 2, point 1)
     if (op && op.key) { const v = await mirarMovil(op.key); if (v && v.error) return v; }
     return valorMovil(op);
@@ -6358,6 +6366,11 @@ ${TK_FUENTES}
   async function operarMovil(op) {
     if (!MOVIL) return { error: 'solo en el móvil' };
     if (locked) return { error: 'sin turno' };
+    if (op && T_CAMPO[op.campo]) {   // a task's or a note's field (D-272): with personal.js's rules, written at once
+      if (!M.personal || !M.personal.editar) return { error: 'sin tareas' };
+      const r = await M.personal.editar(op.slot, T_CAMPO[op.campo], op.valor);
+      return r && r.ok ? { ok: true, avisos: [] } : { error: locked ? 'sin turno' : (r && r.error) || 'no se pudo guardar' };
+    }
     if (op && (op.campo === 'tarea' || op.campo === 'tareaNueva')) {   // a task or a note (personal.js, D-180): its own store, written at once
       if (!M.personal) return { error: 'sin tareas' };
       if (op.campo === 'tarea') { if (!(await M.personal.valor(op.slot))) return { error: 'no existe' }; return (await M.personal.hecha(op.slot, !!(op.valor && op.valor.hecha))) ? { ok: true, avisos: [] } : { error: locked ? 'sin turno' : 'no se pudo marcar' }; }   // read again first: never over what the Mac changed in it; the Mesa gone meanwhile is «sin turno» (review of lot 4, point 6)
@@ -6418,6 +6431,9 @@ ${TK_FUENTES}
   const mismo = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null) || (typeof a === 'string' && typeof b === 'string' && sameDate(a, b));
   function finalDe(op, a) {   // what the field would hold once applied, to tell «the Mac did the same»
     if (op.campo === 'tarea') return { hecha: !!(op.valor && op.valor.hecha) };
+    if (op.campo === 'tareaFecha' || op.campo === 'tareaCliente') return op.valor || '';
+    if (op.campo === 'tareaTexto') return String(op.valor ?? '');
+    if (op.campo === 'subtarea') { const o = op.valor || {}; return o.accion === 'quitar' ? null : o.accion === 'texto' ? { txt: String(o.txt || '').trim() } : o.accion === 'hecha' ? { hecha: !!o.hecha } : undefined; }
     if (op.campo === 'fecha') return isoMovil(op.valor);
     if (op.campo === 'estado') return a && a.v ? { ...a.v, v: (op.valor && op.valor.v) ?? null, motivo: op.valor && op.valor.v === 'cancelado' ? String(op.valor.motivo || '') : '' } : undefined;
     if (op.campo === 'capElegir') return a && a.v ? { at: a.v.at, pick: op.valor ?? null } : undefined;

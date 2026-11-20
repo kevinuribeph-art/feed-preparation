@@ -19516,7 +19516,7 @@
         ok(r2.fotos.every(f => f.blob instanceof W.Blob), 'el registro sin sus fotos bajadas');
         igual((await M._in.diario.leer()).filter(e => e.a === 'tareas').length, 0, 'bajar se apuntó en el diario');
         // marcarla hecha: el registro sube con sus fotos como referencias, sin volver a subir ninguna
-        clicCara('#movil .hoja [data-a="cerrarhoja"]'); await espera(400);
+        clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(400);   // la hoja de la tarea es editable (D-272)
         await hasta(() => M.movil._ST.fase === 'mirando', 4000, 'la cara mirando');
         clicCara(`#movil .casilla[data-id="${id}"]`);
         await hasta(async () => !M.movil._ST.guardando && F.valor('tareas', id) && F.valor('tareas', id).hecha, 15000, 'la tarea hecha arriba');
@@ -19799,27 +19799,16 @@
     }, { w: 375, h: 667 });
   });
 
-  prueba('MV55', 'Lo que vio el dibujo del lote B en la cara (D-271, arreglos): las marcas de una nota se dibujan al leerla (casilla y viñeta, no «[x]» ni «- » en crudo) y «vencida» va antes del estado en la fila del mes, sin cortarse a 375', async () => {
+  prueba('MV55', 'Lo que vio el dibujo del lote B en la cara (D-271, arreglos): «vencida» va antes del estado en la fila del mes, sin cortarse a 375 (las marcas de escritura, al leer una sesión: MV61)', async () => {
     const key = await tableroMovil();
     const h = M._in.hoy(), ayer = new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) - 1)).toISOString().slice(0, 10);
     M._test.setSlot('r2', { date: M._in.madridISO(ayer, '10:00') }); await M.flush();
-    const id = 'ntmv55marcasnota', ahora = new W.Date().toISOString();
-    await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put({ id, tipo: 'nota', txt: 'Llevar a la sesión de otoño en el obrador:\n[x] Baterías cargadas\n[] Tarjetas vacías\n- Trípode de luz', creada: ahora, at: ahora }, id));
-    try {
-      await enMovilPagina(async () => {
-        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
-        clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.txt', 'la nota');
-        const cas = W.document.querySelector('#movil .hoja .txt .pp-em.ca'), vi = W.document.querySelector('#movil .hoja .txt .pp-em.vi');
-        ok(cas && vi, 'la nota sin sus marcas');
-        ok(W.getComputedStyle(cas).color === 'rgba(0, 0, 0, 0)' && W.getComputedStyle(vi).color === 'rgba(0, 0, 0, 0)', 'las marcas salen en crudo: ' + (cas && W.getComputedStyle(cas).color));
-        ok(W.getComputedStyle(cas.querySelector('.pp-emk'), '::before').content !== 'none', 'la casilla de la nota no se dibuja');
-        clicCara('#movil .hoja [data-a="cerrarhoja"]'); await espera(400);
-        await irMovil(`#mes/${key}/lista`, `#movil .fila[data-ir="pub/${key}/r2"]`);
-        const f = W.document.querySelector(`#movil .fila[data-ir="pub/${key}/r2"]`), t2 = f.querySelector('.t2'), roja = t2.querySelector('.roja');
-        ok(roja && /vencida/.test(roja.textContent) && t2.firstElementChild === roja, 'la fila no empieza por «vencida»: ' + t2.textContent);
-        ok(roja.getBoundingClientRect().right <= t2.getBoundingClientRect().right + 0.5, '«vencida» se corta');
-      }, { w: 375, h: 667 });
-    } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
+    await enMovilPagina(async () => {
+      await irMovil(`#mes/${key}/lista`, `#movil .fila[data-ir="pub/${key}/r2"]`);
+      const f = W.document.querySelector(`#movil .fila[data-ir="pub/${key}/r2"]`), t2 = f.querySelector('.t2'), roja = t2.querySelector('.roja');
+      ok(roja && /vencida/.test(roja.textContent) && t2.firstElementChild === roja, 'la fila no empieza por «vencida»: ' + t2.textContent);
+      ok(roja.getBoundingClientRect().right <= t2.getBoundingClientRect().right + 0.5, '«vencida» se corta');
+    }, { w: 375, h: 667 });
   });
 
   prueba('MV56', 'Guardar de fondo (D-271, punto 9; lecciones 207 y 235): tras «Guardar» se puede ir a otra pantalla; un choque sale donde está Kevin, con el nombre de la publicación, y nunca cierra la hoja que tenga abierta; cerrado sin decidir, la publicación vuelve a lo de la Mesa y arriba dice «1 sin subir»', async () => {
@@ -19933,6 +19922,57 @@
       await irMovil(`#mes/${key}/lista`, '#movil .mv-pubs');
       ok(pubs().getAttribute('aria-expanded') === 'false' && !fila('r1'), 'al entrar otra vez en el mes no está plegada');
     });
+  });
+
+  prueba('MV60', 'Editar una tarea y una nota desde el iPhone (D-272; lecciones 208, 228, 232 y 234): texto, fecha, cliente, detalles y cada subtarea (añadir, quitar, marcar y cambiar su texto) son operaciones, cada subtarea la suya: otra cambiada en el Mac a la vez no choca; van en su propia cola (una 4.37 no las ve); una nota, solo su texto; sin texto no se guarda', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'tkmv60editarlatarea', nt = 'ntmv60editarlanota', ahora = new W.Date().toISOString(), cli = M._in.CL[0].id;
+    const T0 = { id, tipo: 'tarea', txt: 'Preparar la lista de planos de la sesión de diciembre', fecha: '2026-11-12', detalles: 'Mirar las referencias', creada: ahora, at: ahora,
+      subtareas: [{ id: 'stmv60a', txt: 'Pedir las referencias' }, { id: 'stmv60b', txt: 'Elegir 12 fotos' }, { id: 'stmv60c', txt: 'Lista del obrador', hecha: true }] };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(T0, id); st.put({ id: nt, tipo: 'nota', txt: 'Ideas para diciembre', creada: ahora, at: ahora }, nt); });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        C.sv.escribirMac('tareas', id, T0); C.sv.escribirMac('tareas', nt, { id: nt, tipo: 'nota', txt: 'Ideas para diciembre', creada: ahora, at: ahora });
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`); let h = await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+        const pon = (sel, v) => { const i = h.querySelector(sel); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+        pon('[data-ed="txt"]', 'Preparar la lista de planos y el moodboard de diciembre');
+        clicCara('#movil .hoja [data-ed-abre="fecha"]'); await hojaCara('.selcal', 'el calendario de la tarea'); clicCara('#movil .hoja [data-dia="2026-11-20"]'); await espera(60);
+        clicCara('#movil .hoja [data-ed-abre="cliente"]'); await hojaCara('[data-ed-cli]', 'los clientes'); clicCara(`#movil .hoja [data-ed-cli="${cli}"]`); await espera(60);
+        h = W.document.querySelector('#movil .hoja');
+        pon('[data-ed="detalles"]', 'Mirar las referencias que mandó por WhatsApp');
+        pon('[data-ed-st="stmv60a"]', 'Pedir las referencias de la carta nueva');
+        clicCara('#movil .hoja [data-ed-ck="stmv60b"]'); await espera(40);
+        clicCara('#movil .hoja [data-ed-x="stmv60c"]'); await espera(40);
+        clicCara('#movil .hoja [data-ed-mas]'); await espera(40);
+        const nueva = W.document.querySelector('#movil .hoja .mv-sub:last-child input'); nueva.value = 'Confirmar la hora con el equipo'; nueva.dispatchEvent(new W.Event('input', { bubbles: true }));
+        // el Mac, entretanto, cambia otra subtarea: no choca (cada subtarea, su campo)
+        C.sv.escribirMac('tareas', id, { ...T0, subtareas: [T0.subtareas[0], T0.subtareas[1], { ...T0.subtareas[2], txt: 'Lista del obrador y la barra' }] });
+        C.corte.demora = 200; clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(40);
+        const ops2 = JSON.parse(W.localStorage.getItem('mesa-movil-ops2') || '[]'), ops1 = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(ops2.length >= 7 && !ops1.some(o => /^(tareaTexto|tareaFecha|tareaCliente|tareaDetalles|subtarea)$/.test(o.campo)), 'los campos nuevos no van en su propia cola: ' + json({ ops1: ops1.map(o => o.campo), ops2: ops2.map(o => o.campo) }));
+        C.corte.demora = 0;
+        let choque = false;
+        await hasta(() => { if (W.document.querySelector('#movil .hoja [data-r="mio"]')) { choque = true; return true; } return !M.movil._ST.guardando && /Guardado/.test(avisoCara()); }, 20000, 'guardar la tarea');
+        ok(!choque, 'otra subtarea cambiada en el Mac enseñó un choque');
+        const r = await M._in.idbGet('tareas', id), subs = Object.fromEntries((r.subtareas || []).map(x => [x.id, x]));
+        igual([r.txt, r.fecha, r.cliente, r.detalles], ['Preparar la lista de planos y el moodboard de diciembre', '2026-11-20', cli, 'Mirar las referencias que mandó por WhatsApp'], 'los campos de la tarea');
+        ok(subs.stmv60a && subs.stmv60a.txt === 'Pedir las referencias de la carta nueva' && subs.stmv60b && subs.stmv60b.hecha && !subs.stmv60c && r.subtareas.some(x => /^st/.test(x.id) && x.txt === 'Confirmar la hora con el equipo'), 'las subtareas: ' + json(r.subtareas));
+        const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.cliente === cli && arriba.valor.subtareas.length === 3, 'no subió');
+        ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
+        // una nota: solo su texto; vacía no se guarda
+        await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`); sinAviso();
+        clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); h = await hojaCara('.mv-ttxt', 'la hoja de la nota');
+        ok(!h.querySelector('[data-ed-abre]') && !h.querySelector('[data-ed="detalles"]'), 'la nota ofrece más que su texto');
+        pon('[data-ed="txt"]', '   '); clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(80);
+        ok(/necesita un texto/.test(W.document.querySelector('#movil .hoja').innerText), 'una nota vacía se guardó');
+        h = W.document.querySelector('#movil .hoja'); pon('[data-ed="txt"]', 'Ideas para diciembre\n[] calendario de adviento'); clicCara('#movil .hoja [data-ed-a="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar la nota');
+        igual((await M._in.idbGet('tareas', nt)).txt, 'Ideas para diciembre\n[] calendario de adviento', 'el texto de la nota');
+      } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
+    });
+    await sinTareas();
   });
 
   async function pasar() {

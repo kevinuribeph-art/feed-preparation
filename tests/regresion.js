@@ -19772,6 +19772,29 @@
     }, { w: 375, h: 667 });
   });
 
+  prueba('MV55', 'Lo que vio el dibujo del lote B en la cara (D-271, arreglos): las marcas de una nota se dibujan al leerla (casilla y viñeta, no «[x]» ni «- » en crudo) y «vencida» va antes del estado en la fila del mes, sin cortarse a 375', async () => {
+    const key = await tableroMovil();
+    const h = M._in.hoy(), ayer = new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) - 1)).toISOString().slice(0, 10);
+    M._test.setSlot('r2', { date: M._in.madridISO(ayer, '10:00') }); await M.flush();
+    const id = 'ntmv55marcasnota', ahora = new W.Date().toISOString();
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put({ id, tipo: 'nota', txt: 'Llevar a la sesión de otoño en el obrador:\n[x] Baterías cargadas\n[] Tarjetas vacías\n- Trípode de luz', creada: ahora, at: ahora }, id));
+    try {
+      await enMovilPagina(async () => {
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.txt', 'la nota');
+        const cas = W.document.querySelector('#movil .hoja .txt .pp-em.ca'), vi = W.document.querySelector('#movil .hoja .txt .pp-em.vi');
+        ok(cas && vi, 'la nota sin sus marcas');
+        ok(W.getComputedStyle(cas).color === 'rgba(0, 0, 0, 0)' && W.getComputedStyle(vi).color === 'rgba(0, 0, 0, 0)', 'las marcas salen en crudo: ' + (cas && W.getComputedStyle(cas).color));
+        ok(W.getComputedStyle(cas.querySelector('.pp-emk'), '::before').content !== 'none', 'la casilla de la nota no se dibuja');
+        clicCara('#movil .hoja [data-a="cerrarhoja"]'); await espera(400);
+        await irMovil(`#mes/${key}/lista`, `#movil .fila[data-ir="pub/${key}/r2"]`);
+        const f = W.document.querySelector(`#movil .fila[data-ir="pub/${key}/r2"]`), t2 = f.querySelector('.t2'), roja = t2.querySelector('.roja');
+        ok(roja && /vencida/.test(roja.textContent) && t2.firstElementChild === roja, 'la fila no empieza por «vencida»: ' + t2.textContent);
+        ok(roja.getBoundingClientRect().right <= t2.getBoundingClientRect().right + 0.5, '«vencida» se corta');
+      }, { w: 375, h: 667 });
+    } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

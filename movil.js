@@ -363,6 +363,21 @@
 #movil .mv-sw i::after{content:'';position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:var(--knob);box-shadow:var(--shadow-xs),0 2px 6px rgba(0,0,0,.16);transition:transform var(--d2) var(--ease-m)}
 #movil .mv-sw[aria-checked="true"] i{background:var(--sw-on)}
 #movil .mv-sw[aria-checked="true"] i::after{transform:translateX(20px)}
+/* las marcas de una nota o unos detalles al leer (escritura.js, D-202–D-204): su hoja de estilo va bajo #mesa */
+#movil .pp-el{display:flex;min-width:0}
+#movil .pp-ei,#movil .pp-em{flex:none;white-space:pre}
+#movil .pp-em.vi,#movil .pp-em.ca{color:transparent}
+#movil .pp-emk{position:relative;display:inline-block;color:transparent}
+#movil .pp-em.vi .pp-emk::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:var(--ink-2);opacity:.7}
+#movil .pp-em.ca .pp-emk::before{content:'';position:absolute;right:-.02em;top:50%;width:.8em;height:.8em;margin:-.4em 0 0;box-sizing:border-box;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--ink-2)}
+#movil .pp-em.ca.on .pp-emk::before{background:var(--acc);box-shadow:none}
+#movil .pp-em.ca.on .pp-emk::after{content:'';position:absolute;right:.1em;top:50%;width:.56em;height:.56em;margin:-.28em 0 0;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
+#movil .pp-el.ca .pp-et{padding-left:.22em}
+#movil .pp-em.nu{color:var(--mute)}
+#movil .pp-et{flex:1;min-width:0}
+#movil .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
+#movil .pp-ea{color:var(--acc-ink);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+#movil .hoja .txt .pp-el{white-space:normal}
 #movil .mv-tira{display:flex;gap:8px;overflow-x:auto;margin:0 calc(-1 * var(--pad));padding:0 var(--pad);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 #movil .mv-tira::-webkit-scrollbar{display:none}
 #movil .mv-tf{position:relative;flex:none;height:140px;aspect-ratio:var(--r);border-radius:12px;overflow:hidden;background:var(--cell-ph)}
@@ -829,9 +844,9 @@
   function filaPost(v, p) {
     const c = comentariosDe(p.id), n = c ? c.sinLeer : 0;
     const e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
-    const extra = n ? ` · <span class="acc">${esc(plural(n, 'comentario', 'comentarios'))}</span>` : p.vencida ? ' · <span class="roja">vencida</span>' : '';
+    const extra = n ? ` · <span class="acc">${esc(plural(n, 'comentario', 'comentarios'))}</span>` : '';
     const tp = X().tipoPost({ type: p.tipo.k, photos: p.fotos }), ico = p.tipo.txt === 'Foto' ? '' : tp.ico;
-    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${est(e)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
+    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${p.vencida && !n ? '<span class="roja">vencida</span> · ' : ''}${est(e)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
   }
   function diaFila(v, d, n) {
     const r = relativo(d), hs = v.historias.filter(h => !h.cancelada && h.fecha.dia === d).length;

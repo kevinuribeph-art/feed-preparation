@@ -672,6 +672,8 @@
 #movil .hoja [data-ed-abre="cliente"] .v>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #movil .mv-pubs b{font-weight:600;color:var(--ink-2)}
 #movil .mv-desp .selcal{background:none;box-shadow:none;padding:0 2px 6px}
+#movil .hoja .pie .mv-desc-t{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--ink);text-align:center}
+#movil .btn.mv-desc{background:var(--red-soft);color:var(--red)}
 @media (prefers-reduced-motion:reduce){#movil .mv-tema .tr,#movil .mv-tema .k,#movil .mv-tema .k::before,#movil .mv-tema .k::after{transition:none}#movil .mono-w .mono-ll{transition:none}#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 #movil .car .lam{aspect-ratio:var(--r,.8)}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
@@ -1274,6 +1276,12 @@
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
     if (o.alCerrar) h._alCerrar = o.alCerrar;
+    if (o.cambios) {   // una hoja donde se escribe: cerrarla a mano con cambios sin guardar pregunta antes (D-271, decisión de Kevin)
+      h._cambios = o.cambios;
+      h.addEventListener('click', e => { const b = e.target.closest('[data-desc]'); if (!b) return; e.stopPropagation(); e.preventDefault();
+        if (b.dataset.desc === 'si') { h._cambios = null; return cerrarHojas(); }
+        const pie = h.querySelector('.pie'); if (pie && pie._antes != null) { pie.innerHTML = pie._antes; pie._antes = null; delete pie.dataset.desc; } }, true);
+    }
     if (o.permanente) { h.dataset.permanente = ''; velo.dataset.permanente = ''; }
     const a0 = D.activeElement; h._antes = a0 && a0 !== D.body && raiz.contains(a0) && !capas.contains(a0) ? a0 : null;   // el foco vuelve aquí al cerrarla
     h._velo = velo;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
@@ -1281,6 +1289,19 @@
     requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
     if (!o.fija) arrastrable(h);   // las de pregunta también: cerrarla arrastrando es «Ahora no» (D-271, punto 7)
     return h;
+  }
+  // cerrar a mano (tocar fuera, arrastrar, Esc, «Cancelar»): con cambios sin guardar, la hoja se queda y abajo pregunta
+  // «¿Descartar los cambios?» con «Seguir editando» y «Descartar», como en iOS. Cerrar por otra cosa (otra hoja, atrás) no pregunta.
+  const conCambios = h => !!(h && h._cambios && (() => { try { return h._cambios(); } catch (e) { return false; } })());
+  function confirmarDescartar(h) {
+    const pie = h.querySelector('.pie'); if (!pie) return;
+    if (!pie.dataset.desc) { pie.dataset.desc = '1'; pie._antes = pie.innerHTML; pie.innerHTML = `<p class="mv-desc-t" role="alert">¿Descartar los cambios?</p><div class="botones"><button type="button" class="btn sua" data-desc="seguir">Seguir editando</button><button type="button" class="btn mv-desc" data-desc="si">Descartar</button></div>`; }
+    const s = pie.querySelector('[data-desc="seguir"]'); if (s) s.focus({ preventScroll: true });
+  }
+  function pedirCerrar(h) {
+    h = h || capas.querySelector('.hoja.on:not([data-permanente])');
+    if (conCambios(h)) { confirmarDescartar(h); return false; }
+    cerrarHojas(); return true;
   }
   const devolverFoco = h => { const a = h && h._antes; if (a && a.isConnected && !capas.querySelector('.hoja.on:not([data-permanente])')) { try { a.focus({ preventScroll: true }); } catch (e) { /* */ } } };
   function cerrarEsta(h) {   // solo esa hoja (y su velo), si sigue abierta: nunca otra que se abrió entretanto
@@ -1319,7 +1340,9 @@
       if (!g || !g.tira) { g = null; return; }
       const a = g.m[0], b = g.m[g.m.length - 1], alto = h.offsetHeight, dy = Math.max(0, g.dy); let v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]); g = null;
       if (t - b[0] > 150) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento (150 ms: con menos, el retraso normal entre toques ya lo quitaba)
-      if (cierraArrastre({ dy, v, alto })) {
+      const pide = cierraArrastre({ dy, v, alto }) && conCambios(h);   // con cambios sin guardar: vuelve arriba y pregunta
+      if (pide) confirmarDescartar(h);
+      if (!pide && cierraArrastre({ dy, v, alto })) {
         const resto = Math.max(1, alto * 1.05 - dy), ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, resto / Math.max(0.9, v)))), p1 = Math.min(1, 0.25 * Math.max(0, v) * ms / resto).toFixed(3);
         h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25,${p1},.5,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad (sin tirón)
         if (h._velo) { h._velo.style.transition = ''; h._velo.style.opacity = ''; }
@@ -1395,13 +1418,15 @@
         ${tira}${err ? `<p class="resp-err" style="margin:10px 0 0">${esc(err)}</p>` : ''}${off ? '<p class="ex" style="margin-top:12px">Sin conexión: no se puede cambiar.</p>' : ''}
         <div class="pie"><div class="botones"><button type="button" class="btn sua" data-ed-a="cancelar">Cancelar</button><button type="button" class="btn pri" data-ed-a="guardar"${off ? ' disabled' : ''}>Guardar</button></div></div>`;
     };
-    const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea' });
+    const firmaEd = e => JSON.stringify([e.txt.trim(), e.fecha, e.cliente, e.detalles.trim(), e.subs.filter(y => !(y.nueva && !y.txt.trim())).map(y => [y.sid, y.txt.trim(), !!y.hecha, !!y.quitada])]), f1 = firmaEd(o1);
+    const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea', cambios: () => firmaEd(ed) !== f1 });
     vigilarFotos(capas);
     const crece = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };   // las subtareas y los detalles ocupan las líneas que necesiten
-    const crecer = () => h.querySelectorAll('textarea[data-ed-st],textarea[data-ed="detalles"]').forEach(crece);
+    const CRECE = nota ? 'textarea[data-ed-st],textarea[data-ed="detalles"]' : 'textarea[data-ed-st],textarea[data-ed="detalles"],textarea[data-ed="txt"]';   // el texto de una tarea también (el de una nota tiene su alto)
+    const crecer = () => h.querySelectorAll(CRECE).forEach(crece);
     const repinta = foco => { const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); crecer(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) f.focus({ preventScroll: true }); } };
     requestAnimationFrame(crecer);
-    h.addEventListener('input', e => { const t = e.target; if (t.matches('textarea[data-ed-st],textarea[data-ed="detalles"]')) crece(t); if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value.replace(/\n/g, ' '); } });
+    h.addEventListener('input', e => { const t = e.target; if (t.matches(CRECE)) crece(t); if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value.replace(/\n/g, ' '); } });
     h.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.dataset.edSt) { e.preventDefault(); masSub(); } });
     const masSub = () => { const sid = M.personal.nuevoId('sub'); ed.subs.push({ sid, txt: '', hecha: false, nueva: true }); repinta(`[data-ed-st="${sid}"]`); };
     h.addEventListener('click', e => {
@@ -1416,7 +1441,7 @@
       const qx = t.closest('[data-ed-x]'); if (qx && !qx.disabled) { const y = ed.subs.find(z => z.sid === qx.dataset.edX); if (y) { if (y.nueva) ed.subs = ed.subs.filter(z => z !== y); else y.quitada = true; repinta(); } return; }
       if (t.closest('[data-ed-mas]')) return masSub();
       const a = t.closest('[data-ed-a]'); if (!a) return;
-      if (a.dataset.edA === 'cancelar') return cerrarHojas();
+      if (a.dataset.edA === 'cancelar') return pedirCerrar(h);
       // «Guardar»: cada campo cambiado, su operación (D-272)
       const txtN = nota ? ed.txt.replace(/\s+$/, '') : ed.txt.replace(/\s*\n\s*/g, ' ').trim();
       if (!txtN.trim()) { err = nota ? 'Una nota necesita un texto.' : 'Una tarea necesita un texto.'; return repinta('[data-ed="txt"]'); }
@@ -1452,7 +1477,7 @@
     if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { FILTRO = null; if (prevDe() === r) history.back(); else ir(r, 'raiz'); } else if (RUTA.p === 'mes' && /^mes\//.test(r)) ir(r, 'sustituir'); else avanzar(r); return; }
     accion(b.dataset.a, b, e);
   });
-  raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) cerrarHojas(); });
+  raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) pedirCerrar(); });
   const C = {};   // cambiar (lote 4): se llena más abajo
   // ---------- una sesión entera (D-275): en una columna, como en el Mac; cada apartado plegable (todos plegados al entrar, varios abiertos
   // a la vez, como pidió Kevin); se cambian la fecha y la hora de inicio, los clientes, el material, el nombre y el texto de cada apartado
@@ -1498,8 +1523,8 @@
   C.sesmat = b => { const v = L.ses; if (!v) return; const a = v.apartados.find(x => x.id === b.dataset.ap), c = a && a.material.familias.flatMap(f => f.cosas).find(x => x.id === b.dataset.m); if (!c) return; const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), ahora = pend ? pend.valor.hecho : c.hecha; guardar({ slot: v.id, campo: 'sesMaterial', valor: { ap: a.id, m: c.id, hecho: !ahora }, visto: { hecho: c.hecha }, nombre: v.nombre, etq: c.nombre }); };
   // una hoja con un campo y «Guardar» (el nombre o el texto de un apartado)
   function hojaCampo(t, valor, multi, alGuardar) {
-    const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `<textarea rows="9" data-sc aria-label="${esc(t)}">${esc(valor)}</textarea><p class="ex" style="margin-top:8px">Al empezar una línea: «- » viñeta, «1. » número, «[] » casilla.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t });
-    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return cerrarHojas(); const err = alGuardar(h.querySelector('[data-sc]').value); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
+    const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `<textarea rows="9" data-sc aria-label="${esc(t)}">${esc(valor)}</textarea><p class="ex" style="margin-top:8px">Al empezar una línea: «- » viñeta, «1. » número, «[] » casilla.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t, cambios: () => { const i = h.querySelector('[data-sc]'); return !!i && i.value !== valor; } });
+    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return pedirCerrar(h); const err = alGuardar(h.querySelector('[data-sc]').value); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
   }
   C.sesnom = () => { const v = L.ses; if (!v) return; hojaCampo('Nombre de la sesión', v.nombre, false, t => { const n = t.replace(/\s*\n\s*/g, ' ').trim(); if (!n) return 'Una sesión necesita un nombre.'; cerrarHojas(true); if (n !== v.nombre) guardar({ slot: v.id, campo: 'sesNombre', valor: n, visto: v.nombre, nombre: v.nombre }); return ''; }); };
   C.sested = b => { const v = L.ses, a = v && v.apartados.find(x => x.id === b.dataset.ap); if (!a) return; hojaCampo(a.nombre, a.texto, true, t => { cerrarHojas(true); if (t !== a.texto) guardar({ slot: v.id, campo: 'sesTexto', valor: { ap: a.id, texto: t }, visto: a.texto, nombre: v.nombre, etq: a.nombre }); return ''; }); };
@@ -1557,7 +1582,7 @@
       }
       case 'cobro': return aviso('Las facturas se abren en el escritorio.');
       case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
-      case 'cerrarhoja': return cerrarHojas();
+      case 'cerrarhoja': return pedirCerrar();
       case 'recargar': try { location.reload(); } catch (x) { /* */ } return;
       case 'entrar': try { location.reload(); } catch (x) { /* */ } return;
       case 'codigo': if (M.entrada && M.entrada.pedirCodigo) M.entrada.pedirCodigo(); return;

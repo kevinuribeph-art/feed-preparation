@@ -20107,6 +20107,50 @@
     await sinTareas();
   });
 
+  prueba('MV62', 'Cerrar a mano una hoja donde se escribe con cambios sin guardar pregunta antes (D-271, decisión de Kevin): tocar fuera, arrastrarla, Esc o «Cancelar» la dejan abierta con «¿Descartar los cambios?»; «Seguir editando» vuelve con lo escrito; «Descartar» la cierra sin guardar nada; sin cambios se cierra como siempre. Vale para la tarea o nota y para el nombre o el texto de una sesión', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'tkmv62descartarloescrito', ss = 'ssmv62descartarloescrito', ahora = new W.Date().toISOString();
+    const T0 = { id, tipo: 'tarea', txt: 'Revisar la lista de planos del obrador con el equipo', creada: ahora, at: ahora };
+    const S0 = { id: ss, tipo: 'sesion', txt: 'Sesión de invierno en el obrador con el equipo de sala', fecha: '2026-11-27', clientes: [], creada: ahora, at: ahora, sesion: { clase: 'foto', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: 'Llegar a las 9' }] } };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(T0, id); st.put(S0, ss); });
+    await enMovilPagina(async () => {
+      const hoja = () => W.document.querySelector('#movil .hoja.on'), preg = () => !!(hoja() && hoja().querySelector('.mv-desc-t'));
+      const pon = (sel, v) => { const i = hoja().querySelector(sel); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+      // sin cambios: tocar fuera la cierra
+      clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+      clicCara('#movil .velo.on'); await espera(450); ok(!hoja(), 'sin cambios, tocar fuera no la cerró');
+      // con cambios: tocar fuera, Esc, arrastrar y «Cancelar» preguntan
+      clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+      pon('[data-ed="txt"]', 'Revisar la lista de planos del obrador con todo el equipo');
+      clicCara('#movil .velo.on'); await espera(450); ok(hoja() && preg(), 'tocar fuera con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="seguir"]'); await espera(60);
+      ok(!preg() && hoja().querySelector('[data-ed-a="guardar"]') && hoja().querySelector('[data-ed="txt"]').value === 'Revisar la lista de planos del obrador con todo el equipo', '«Seguir editando» no vuelve con lo escrito');
+      W.document.getElementById('movil').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await espera(450); ok(hoja() && preg(), 'Esc con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="seguir"]'); await espera(60);
+      await arrastrarMv(hoja().querySelector('h2'), 600, 3); await espera(500); ok(hoja() && preg() && !hoja().style.transform, 'arrastrarla con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="seguir"]'); await espera(60);
+      clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(450); ok(hoja() && preg(), '«Cancelar» con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="si"]'); await espera(450);
+      ok(!hoja(), '«Descartar» no la cerró');
+      ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), '«Descartar» guardó algo');
+      igual((await M._in.idbGet('tareas', id)).txt, T0.txt, '«Descartar» cambió la tarea');
+      // una subtarea nueva vacía no cuenta como cambio
+      clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja otra vez');
+      clicCara('#movil .hoja [data-ed-mas]'); await espera(60); clicCara('#movil .velo.on'); await espera(450);
+      ok(!hoja(), 'una subtarea nueva vacía cuenta como cambio');
+      // el nombre de una sesión
+      await irMovil('#tareas', `#movil [data-a="tver"][data-id="${ss}"]`); clicCara(`#movil [data-a="tver"][data-id="${ss}"]`);
+      await hasta(() => W.document.querySelector('#movil [data-a="sesnom"]'), 6000, 'la sesión');
+      clicCara('#movil [data-a="sesnom"]'); await hojaCara('[data-sc]', 'la hoja del nombre');
+      pon('[data-sc]', 'Sesión de invierno en el obrador'); clicCara('#movil .hoja [data-sc-a="no"]'); await espera(450);
+      ok(hoja() && preg(), '«Cancelar» del nombre con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="si"]'); await espera(450); ok(!hoja(), '«Descartar» no cerró la hoja del nombre');
+      igual((await M._in.idbGet('tareas', ss)).txt, S0.txt, '«Descartar» cambió el nombre');
+    });
+    await sinTareas();
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

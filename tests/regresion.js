@@ -19350,6 +19350,54 @@
     });
   });
 
+
+  prueba('MV40', '«Listo» sin teclear tras una bajada entre el foco y el toque no escribe ni enseña un choque falso (D-270; revisión 3 del lote 4, punto 1)', async () => {
+    const key = await tableroMovil(), K = `mesa-movil-borrador:${key}|r1|1`;
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#ret/${key}/r1/1`, '#movil [data-ret]');
+        const t = W.document.querySelector('#movil [data-ret]'); t.focus();
+        const rec = await M._in.idbGet('boards', key); rec.slots.find(x => x.id === 'r1').caption.text[1] = 'RETOCADO EN EL MAC'; await M._in.idbPut('boards', key, rec);
+        await M._in.movil.releer(); await M.movil.releer(); await espera(200);
+        ok(W.document.querySelector('#movil [data-ret]') === t, 'la pantalla se rehízo');
+        const llam0 = C.sv.llamadas.length;
+        clicCara('#movil [data-a="listo"]');
+        await espera(2500);
+        const hoja = W.document.querySelector('#movil .hoja');
+        const choque = !!W.document.querySelector('#movil .hoja [data-r="mio"]');
+        const txt = hoja ? hoja.innerText.replace(/\s+/g, ' ') : '';
+        if (choque) clicCara('#movil .hoja [data-r="mesa"]');
+        await hasta(() => !M.movil._ST.guardando, 15000, 'acabar').catch(() => null);
+        ok(!choque, 'Listo sin teclear enseña un choque: «' + txt + '» · llamadas ' + C.sv.llamadas.slice(llam0).join(','));
+      } finally { W.localStorage.removeItem(K); await C.fin(); }
+    });
+  });
+
+  prueba('MV41', 'Un segundo cambio del mismo campo tocado mientras se suelta la Mesa (otra vuelta del mismo «Guardar») no enseña un choque contra lo que escribió el propio iPhone (D-270; revisión 3 del lote 4, punto 2)', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 700;
+        clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(async () => M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date) === '2026-11-10', 15000, 'A aplicado');
+        W.dispatchEvent(new W.PopStateEvent('popstate')); await espera(60);
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha otra vez');
+        const f0 = (W.document.querySelector('#movil .hoja .selcal [aria-current], #movil .hoja .selcal .on') || {}).textContent;
+        clicCara('#movil .hoja [data-dia="2026-11-12"]'); await espera(60);
+        clicCara('#movil .hoja [data-a2="guardar"]'); C.corte.demora = 0;
+        let choque = false, txt = '';
+        await hasta(() => { const h = W.document.querySelector('#movil .hoja [data-r="mio"]'); if (h) { choque = true; txt = W.document.querySelector('#movil .hoja').innerText.replace(/\s+/g, ' '); return true; } return !M.movil._ST.guardando; }, 20000, 'acabar o choque');
+        if (choque) { clicCara('#movil .hoja [data-r="mio"]'); await hasta(() => !M.movil._ST.guardando, 15000, 'acabar'); }
+        ok(!choque, 'choque falso con lo que escribió el propio iPhone: «' + txt + '» · día en la hoja al reabrir: ' + f0);
+      } finally { await C.fin(); }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

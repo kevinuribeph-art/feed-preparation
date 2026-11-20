@@ -542,7 +542,7 @@
     if (Date.now() - e.guardado < 4000) return b('ok', 'nubeok', 'Guardado');
     switch (e.fase) {
       case 'guardado': case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
-      case 'sin_conexion': return b('off', 'nubeoff', h && !q ? `Sin conexión · ${h}` : 'Sin conexión');
+      case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');
       case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
       case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
       case 'otra_cuenta': return b('err', 'alerta', 'Otra cuenta', 'otracuenta');
@@ -697,7 +697,7 @@
     const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
     const estado = x.e === 'publicado' || !x.e ? '' : `<span class="es ${esc(x.e)}"><i></i>${esc((X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1])}</span>`;
     let t2;
-    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : `<span class="roja">vencida</span> · ${estado}`}`;
+    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : '<span class="roja">vencida</span>'}`;
     else if (x.cat === 'espera') { const w = M.web && M.web.contestado ? M.web.contestado(x.B.client, s.id) : ''; t2 = `${w ? `<span class="acc">${esc(cap1(w))} en su web</span>` : x.e === 'noaprobado' ? '<span class="roja">Pidió cambios</span>' : estado} · ${esc(corto(x.dia))}${x.lleva ? ` · lleva ${x.lleva} días` : ''}`; }
     else if (x.cat === 'falta') t2 = `${esc(corto(x.dia))} · ${estado}${x.aMano ? ' · se programa a mano' : ''}`;
     else t2 = x.mano ? '<span class="acc">publicar a mano</span>' : estado;
@@ -1203,6 +1203,7 @@
         if (t && t.otraVez) t = await M.nube.tomar();
         continue;
       }
+      if (t && /^(parada|dormida|apagada)$/.test(t.error)) throw new Error('La Mesa sigue en otra pestaña de este iPhone: tu cambio espera en «sin subir».');
       throw new Error(t && t.error === 'sin_conexion' ? 'Sin conexión: tu cambio espera en «sin subir».' : t && t.error === 'sin_sesion' ? 'Tu sesión se cerró: entra otra vez.' : t && t.error === 'verificacion' ? 'Falta el código de tu app.' : 'No se pudo coger la Mesa' + (t && t.error ? ` (${t.error})` : '') + '.');
     }
   }
@@ -1226,11 +1227,12 @@
     const ids = apuntar(ops, red && nube ? 'nueva' : 'quedo');
     if (!red) { aviso('Sin conexión: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
     if (!nube) { aviso('Sin nube en este iPhone: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
-    while (RUN && !RUN.g) await RUN.catch(() => null);   // «Subir encima» o «Descartar» de la nube en marcha: primero acaba
+    for (let i = 0; RUN && !RUN.g && i < 50; i++) { const r0 = RUN; await r0.catch(() => null); if (RUN === r0) break; }   // «Subir encima» o «Descartar» de la nube en marcha: primero acaba (nunca en bucle)
     if (!RUN) {
       RUN = (async () => {
         ST.guardando = true; pintarChip();
-        try { let oo = o; do { OTRA = false; await correr(oo); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); }
+        const escritos = new Map();   // lo que escribió este «Guardar», en todas sus vueltas (un choque contra eso no es un choque)
+        try { let oo = o; do { OTRA = false; await correr(oo, escritos); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); }
         finally { RUN = null; ST.guardando = false; pintarChip(); }
       })();
       RUN.g = true;
@@ -1238,11 +1240,11 @@
     await RUN;
     return !ids.length || !opsLeer().some(x => ids.includes(x.id));
   }
-  async function correr(o) {
+  async function correr(o, escritos = new Map()) {
     const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
     const g = hojaGuardando(quien), prog = { paso: g.paso, h: g.h };
     const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
-    const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set(), escritos = new Map();
+    const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set();
     const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : ''].join('|');
     const queda = (ids, motivo) => { if (!ids.length) return; opsMarcar(ids, 'quedo'); res.quedan += ids.length; res.por[motivo] = (res.por[motivo] || 0) + ids.length; };
     const motivoDe = e => (e === 'sin turno' ? 'turno' : e === 'sin decidir' ? 'decidir' : 'fallo');
@@ -1270,7 +1272,7 @@
             r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : a === 'mesa' ? { ok: true, dejado: true } : { error: 'sin decidir' };
           }
           ENVUELO = null;
-          if (r && r.ok) { opsQuitar(op.id); if (r.dejado) res.dejados++; else { res.ok++; escritos.set(campoDe(op), op.valor); } res.avisos.push(...(r.avisos || [])); if (op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); }
+          if (r && r.ok) { opsQuitar(op.id); if (r.dejado) res.dejados++; else { res.ok++; const vv = op.campo === 'tareaNueva' ? null : await MV().valor(op).catch(() => null); escritos.set(campoDe(op), vv && !vv.error ? { guardado: vv.v } : op.valor); } res.avisos.push(...(r.avisos || [])); if (op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); }
           else if (r && pasajero(r.error)) {
             queda([op.id], motivoDe(r.error));
             if (r.error === 'sin turno') { queda(opsLeer().filter(x => toca(x) && x.estado === 'nueva' && !hechos.has(x.id)).map(x => x.id), 'turno'); break vuelta; }
@@ -1305,6 +1307,7 @@
     await releerTodo();
   }
   function mismoEscrito(op, ahora, v) {
+    if (v && typeof v === 'object' && 'guardado' in v) return JSON.stringify(ahora ?? null) === JSON.stringify(v.guardado ?? null);   // como quedó escrito
     if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return !!iso && !!ahora && X().sameDate(iso, ahora); }
     if (op.campo === 'estado') return !!ahora && (ahora.v || null) === ((v && v.v) || null) && String(ahora.motivo || '') === String((v && v.v === 'cancelado' && v.motivo) || '');
     if (op.campo === 'capElegir') return !!ahora && ahora.pick === v;
@@ -1317,9 +1320,10 @@
     if (RUN) { aviso('Espera: se está guardando.'); return null; }
     let r = null;
     RUN = (async () => {
-      ST.guardando = true; pintarChip();
-      const g = hojaGuardando(''), prog = { paso: g.paso, h: g.h };
+      let prog = { paso: () => {}, h: null };
       try {
+        ST.guardando = true; pintarChip();
+        const g = hojaGuardando(''); prog = { paso: g.paso, h: g.h };
         prog.paso(0);
         if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); return; }
         prog.paso(1); r = await fn(); prog.paso(2);
@@ -1456,7 +1460,7 @@
   C.listo = async () => {
     const v = L.vista, p = pAhora(), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k), t = raiz.querySelector('[data-ret]'); if (!o || !t) return;
     const b = borrLeer(v.key, p.id, k), base = b && b.base ? b.base : baseDe(v.key, p.id, k) || { at: p.captions.at, texto: o.texto };
-    if (t.value === base.texto && t.value === o.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }
+    if (t.value === base.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }   // nada que guardar: lo de la Mesa se queda (aunque cambiara)
     const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
     if (ok) atras();
   };

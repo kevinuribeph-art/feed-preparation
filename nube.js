@@ -643,7 +643,7 @@
       if (!MOVIL) return forzarYa(visto);
       if (forzando) return { error: 'ocupado' };
       forzando = true; perdidaCon = 0;   // a look that starts meanwhile waits: it never enters nor lets go (review 2, point 3)
-      try { if (mirandoP) await mirandoP.catch(() => null); retenido = true; return await forzarYa(visto); }   // held for the face
+      try { if (mirandoP) await mirandoP.catch(() => null); if (parado) return { error: 'parada' }; retenido = true; return await forzarYa(visto); }   // held for the face; asleep, nothing
       finally { forzando = false; trasIrse(); }
     }
     async function forzarYa(visto) {
@@ -740,6 +740,7 @@
           const dentro = async (t, o) => { const x = await entrar(t, o); if (!x.hecho) retenido = false; return x; };
           if (r.tuyo) return await dentro(r.turno, 0);
           if (r.libre) {
+            if (parado) { retenido = false; return { error: 'parada' }; }   // asleep meanwhile: never claims
             let c;
             try { c = await llamar('mesa_turno_reclamar', { dispositivo: D, visto: r.turno, app: APP, forzar: false }); }
             catch (e) { retenido = false; return { error: 'sin_conexion' }; }

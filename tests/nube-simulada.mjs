@@ -38,8 +38,8 @@ import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 
-const RUTA = process.env.NUBE_JS ? pathToFileURL(process.env.NUBE_JS) : new URL('../nube.js', import.meta.url);
-if (!existsSync(RUTA)) { console.log('falta nube.js (lote 3): esta prueba carga ../nube.js y todavía no existe'); process.exit(1); }
+const RUTA = process.env.NUBE_JS ? pathToFileURL(process.env.NUBE_JS) : new URL('../mesa/nube.js', import.meta.url);
+if (!existsSync(RUTA)) { console.log('falta nube.js (lote 3): esta prueba carga ../mesa/nube.js y todavía no existe'); process.exit(1); }
 
 // ── nube.js como en el navegador, sin MESA. Date, setTimeout y setInterval están, pero se cuentan: el núcleo no los usa ──
 let usoDate = 0, usoTemporizador = 0, contarDate = true;

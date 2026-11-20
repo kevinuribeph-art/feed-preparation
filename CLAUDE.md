@@ -2,9 +2,8 @@
 
 App web estática para preparar el feed mensual de Instagram: tablero de publicaciones,
 diseñador de carruseles y editor libre de diapositivas.
-Publicada con GitHub Pages: https://kevinuribeph-art.github.io/feed-preparation/ y, para la mudanza al servidor (traspaso C),
-también en https://mesa.uribevisuals.studio (Cloudflare Pages, D-260). Tras la mudanza vive en el dominio; `github.io` se cierra
-con el OK de Kevin.
+Publicada en https://mesa.uribevisuals.studio (Cloudflare Pages: la carpeta `mesa/` tal cual, D-276). La dirección antigua de
+GitHub Pages (`github.io`) ya no tiene la Mesa y se apaga con el OK de Kevin.
 
 **Este repo es público.** Nada de datos de clientes, credenciales ni flujos internos en archivos
 rastreados. Las notas privadas van en `CLAUDE.local.md` (ignorado por git).
@@ -16,10 +15,12 @@ como decisión nueva y marca la otra como sustituida. Toda petición que cambie 
 DECISIONES.md en el mismo PR, choque o no con algo.
 
 ## Stack
-- HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual. Única excepción
-  (D-260): para el dominio, Cloudflare Pages corre `sh tools/publicar-mesa.sh`, que **copia** a `_mesa/` solo los archivos de la
-  Mesa (sin transformarlos) con sus cabeceras (`tools/mesa.headers`; la CSP sale del `<meta>` de `index.html`). Pendiente (Kevin):
-  más adelante, la Mesa en su propia carpeta, como el portal, y sin esta copia.
+- HTML + JavaScript sin framework, sin build y sin dependencias: se edita el archivo y se publica tal cual. **Todo lo de la Mesa
+  vive en `mesa/`** (D-276), como el portal en `portal/`: los nombres de archivo de esta sección y de «Publicar» son desde ahí.
+  Lleva sus cabeceras en `mesa/_headers` y una copia de lo que comparte con el portal en `mesa/portal/` (`supa.js` y, de `marca/`,
+  `logo-ink.svg`, `logo-paper.svg`, `monograma.svg`, `icono-32.png` e `icono-180.png`), en las mismas rutas públicas: `portal/`
+  manda. Hasta que el proyecto de Cloudflare publique `mesa/` sin orden de build, `tools/publicar-mesa.sh` es un puente que copia
+  `mesa/` tal cual a `_mesa/`.
 - `index.html` lleva la CSP de la Mesa en un `<meta>` (D-252: ningún script en línea ni manejador `on…=`; todo script es un
   archivo) y carga, sin async, `tema.js` (el tema oscuro antes de pintar), `mesa.js` (núcleo, expone `window.MESA`),
   `portal/supa.js` (la sesión de Supabase: una sola instancia para toda la Mesa, `MESA._in.supa`), `entrada.js` (la entrada, D-262:
@@ -56,10 +57,16 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   en su propio archivo, como `libre.js`.
 
 ## Publicar
-- GitHub Pages y Cloudflare Pages (`mesa.uribevisuals.studio`) publican desde `main`. Cada cambio va en una rama y entra por PR.
-- Un archivo nuevo de la Mesa fuera de la raíz (`*.js`, `index.html`, `movil.html`, `movil.webmanifest`) o de `kits/` se añade a
-  `tools/publicar-mesa.sh` (si una de las dos páginas lo pide y falta, o si la CSP de `movil.html` no es la de `index.html`, la copia
-  se para y Cloudflare no publica).
+- Cloudflare Pages publica desde `main` la carpeta `mesa/` en `mesa.uribevisuals.studio` y `portal/` en `clientes.uribevisuals.studio`.
+  Cada cambio va en una rama y entra por PR.
+- Un archivo nuevo de la Mesa va dentro de `mesa/`. `tests/mesa-carpeta.mjs` falla si una de las dos páginas, el manifiesto o
+  `nube.js` piden algo que no está en `mesa/`, si entra algo ajeno o si la CSP de `movil.html` no es la de `index.html`.
+- **Lo compartido con el portal:** `portal/` manda. Si cambias `portal/supa.js` o uno de esos cinco archivos de `portal/marca/`, cópialo
+  igual a `mesa/portal/…` en el mismo PR y sube su `?v=` en `mesa/index.html`, `mesa/movil.html` y las páginas del portal que lo
+  cargan. `mesa-carpeta` (MC5) falla si las dos copias no son iguales byte a byte.
+- **Las cabeceras de la Mesa,** en `mesa/_headers`: su CSP es la del `<meta>` de `mesa/index.html` (y de `mesa/movil.html`) más
+  `frame-ancestors 'none'`. Si cambias la CSP, cámbiala en los tres sitios (MC4 lo comprueba). El `<meta>` se queda: las copias de
+  prueba en 127.0.0.1 no tienen cabeceras.
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
   `index.html` y en `movil.html`, los tres iguales. Si cambias `nube-fotos.js` (el worker de las fotos), sube `FOTOS_V` en `nube.js` y el `?v=` de
   `nube.js`. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `entrada.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
@@ -68,16 +75,16 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - Si subes la versión de IndexedDB, tras comprobar con curl que Pages sirve la nueva, sube la mínima del servidor a esa versión
   de la Mesa (`node tools/web.mjs mesa-version real <x.yy>`): una Mesa más vieja deja de bajar y subir y pide recargar (D-060
   entre ordenadores, D-257).
-- Tras publicar, comprueba con `curl` que las dos direcciones sirven los archivos nuevos y, en `mesa.uribevisuals.studio`, sus
-  cabeceras (`curl -sI`) y que no sirve `tools/`, `tests/`, `servidor/` ni los `.md`.
+- Tras publicar, comprueba con `curl` que `mesa.uribevisuals.studio` sirve los archivos nuevos, sus cabeceras (`curl -sI`) y que no
+  sirve `tools/`, `tests/`, `servidor/` ni los `.md`.
 
 ## Probar
 - Nunca abras las URL publicadas (`github.io` ni `mesa.uribevisuals.studio`) en el navegador integrado de Claude para probar:
   ahí están los datos reales de Kevin.
   Ábrela solo para lo que Kevin pida hacer en su mesa.
-- Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `entrada.js`, `nube.js`, `nube-fotos.js`, `mesa.js`, `diseno.js`,
-  `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `movil.html`, `movil.js`, `movil.webmanifest`, `portal/`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
-  (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
+- Prueba siempre en localhost sobre una copia: copia `mesa/`, `portal/` y `tests/` a una carpeta temporal (las pruebas abren
+  `../mesa/` y la IC1 y `portal-supa` leen `portal/`) y sírvela en 127.0.0.1, en un puerto nuevo (cada puerto es un almacenamiento
+  aparte). La Mesa queda en `/mesa/` y la batería en `/tests/regresion.html`. Vuelve a copiar tras cada cambio.
 - Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
   («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.
 - Cada fallo corregido suma su prueba en `tests/regresion.js`.
@@ -87,8 +94,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - El aviso de los códigos de entrada de `portal/supa.js` y sus archivos (subir solo con el 409, bajar), también sin red: `node tests/portal-supa.mjs`.
 - El correo de bienvenida y su envío (`tools/correo.mjs`), sin red (SMTP simulado en 127.0.0.1): `node tests/correo.mjs`; la orden
   `alta`, en `tests/portal-aislamiento.mjs` contra pruebas. Antes de cada PR que toque `tools/correo.mjs` o `alta`, las dos en verde.
-- La copia que publica el dominio (`tools/publicar-mesa.sh`: lo que lleva, lo que no y sus cabeceras), sin red:
-  `node tests/publicar-mesa.mjs`. Antes de cada PR que toque `index.html`, la CSP, los archivos de la Mesa o la copia.
+- La carpeta que publica el dominio (`mesa/`: lo que lleva, lo que no, sus cabeceras, las copias del portal y el puente), sin red:
+  `node tests/mesa-carpeta.mjs`. Antes de cada PR que toque `mesa/`, la CSP, `portal/supa.js` o `portal/marca/`.
 - El aislamiento del portal tiene su prueba contra el proyecto de pruebas de Supabase, nunca el real:
   `node tests/portal-aislamiento.mjs`. Antes de cada PR que toque el servidor, el portal o lo que la Mesa envía, entera en verde.
 - El servidor de la Mesa (esquema `mesa`, D-251), igual, contra el proyecto de pruebas y nunca el real: `node tests/mesa-servidor.mjs`

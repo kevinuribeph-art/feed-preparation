@@ -1,0 +1,7 @@
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://*.supabase.co https://prod-files-secure.s3.us-west-2.amazonaws.com; font-src 'self'; connect-src 'self' https://*.supabase.co https://api.notion.com https://late-media.613d73a46130ed0083c059a837d6511b.r2.cloudflarestorage.com; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000
+  X-Robots-Tag: noindex, nofollow

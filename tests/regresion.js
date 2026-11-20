@@ -1,5 +1,5 @@
 // Batería de regresión de la Mesa: una prueba por fallo ya corregido (ver CLAUDE.md, «Probar»).
-// Abre ../index.html en un iframe del mismo origen y lo maneja con window.MESA (MESA._test, MESA._in) y el estado del
+// Abre ../mesa/index.html en un iframe del mismo origen y lo maneja con window.MESA (MESA._test, MESA._in) y el estado del
 // editor (MESA.libre._ed()). Tablero sintético de un cliente de prueba, fotos hechas con canvas; al final lo borra todo.
 // Solo corre en 127.0.0.1 / localhost: en otro sitio (la web publicada) iría sobre los datos reales de ese navegador.
 // ?solo=M3,E2 pasa solo esas pruebas; ?auto la lanza al cargar. window.RESULTADO guarda el último resultado.
@@ -6389,7 +6389,7 @@
 
   prueba('D12', 'Ningún botón ni texto manda a «Diseñar»: ni el código de la mesa, el editor y el diseñador, ni la ventana de un carrusel, una Foto o un reel sin diseño (D-089)', async () => {
     for (const a of ['mesa.js', 'libre.js', 'diseno.js']) {
-      const t = await (await fetch(`../${a}?v=${Date.now()}`, { cache: 'no-store' })).text();
+      const t = await (await fetch(`../mesa/${a}?v=${Date.now()}`, { cache: 'no-store' })).text();
       ok(t.length > 1000 && !t.includes('«Diseñar»') && !t.includes('data-act="disenar"'), `${a} todavía manda a «Diseñar»`);
     }
     await tablero([pub(1, 'Carrusel'), pub(2), pub(3, 'Reel')]);
@@ -12768,7 +12768,7 @@
     await tablero([pub(1)]);
     try {
       W.sessionStorage.removeItem('mesa-pp-cliente');
-      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
+      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../mesa/index.html?regresion=' + Date.now(); });
       W = $('mesa').contentWindow; D = W.document;
       await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
       M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); djGuarda();
@@ -12784,7 +12784,7 @@
       igual(W.getComputedStyle(q('.appbar .tema')).display, 'none', 'claro / oscuro sale fuera de la página');
       igual(W.sessionStorage.getItem('mesa-pp-cliente'), '1', 'no se recuerda que se salió a un cliente');
       // recargar dentro de un cliente: se queda en el cliente
-      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
+      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../mesa/index.html?regresion=' + Date.now(); });
       W = $('mesa').contentWindow; D = W.document;
       await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
       M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); djGuarda(); await espera(150);
@@ -13563,7 +13563,7 @@
       igual(fotoCli(), a, 'cerrar sin «Guardar» cambió la foto');
       // al recargar, en la página
       W.sessionStorage.removeItem('mesa-pp-cliente');
-      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../index.html?regresion=' + Date.now(); });
+      await new Promise(r => { $('mesa').onload = r; $('mesa').src = '../mesa/index.html?regresion=' + Date.now(); });
       W = $('mesa').contentWindow; D = W.document;
       await hasta(() => W.MESA && W.MESA.personal && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 15000, 'la mesa y personal.js');
       M = W.MESA; M._test.reloj(RELOJ_PRUEBAS); djGuarda();
@@ -17127,7 +17127,7 @@
   });
 
   prueba('IC1', 'El icono de Uribe Visuals (D-265): la Mesa y las páginas del portal piden el monograma en SVG, un PNG de 32 px y el de 180 px para el iPhone, todos de portal/marca y que cargan; ninguna lleva el icono vacío', async () => {
-    const paginas = [['../index.html', '../'], ['../portal/index.html', '../portal/'], ['../portal/privacidad.html', '../portal/'], ['../portal/aviso-legal.html', '../portal/']];
+    const paginas = [['../mesa/index.html', '../mesa/'], ['../portal/index.html', '../portal/'], ['../portal/privacidad.html', '../portal/'], ['../portal/aviso-legal.html', '../portal/']];
     for (const [url, base] of paginas) {
       const doc = new DOMParser().parseFromString(await (await fetch(url, { cache: 'no-store' })).text(), 'text/html');
       const ls = [...doc.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')].map(l => ({ rel: l.getAttribute('rel'), href: l.getAttribute('href'), type: l.getAttribute('type') || '', sizes: l.getAttribute('sizes') || '' }));
@@ -17354,7 +17354,7 @@
 
   async function preparar() {
     const fr = $('mesa');
-    await new Promise(r => { fr.onload = r; fr.src = '../index.html?regresion=' + Date.now(); });
+    await new Promise(r => { fr.onload = r; fr.src = '../mesa/index.html?regresion=' + Date.now(); });
     W = fr.contentWindow; D = W.document;
     await hasta(() => W.MESA && W.MESA.status && W.MESA.libre && W.MESA.libre.version && W.MESA._in && W.MESA.revisar && W.MESA.diseno, 15000, 'que carguen mesa.js, libre.js, revisar.js y diseno.js');
     M = W.MESA;
@@ -18438,7 +18438,7 @@
       await aMarco('movil-nucleo.html', () => W.MESA && W.MESA._in && W.MESA._in.movil && W.MESA.personal && W.MESA.web && W.MESA.nube !== undefined, 'el núcleo del móvil');
       return await fn();
     } finally {
-      await aMarco('../index.html', () => W.MESA && W.MESA.status && W.MESA.libre && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 'la mesa de vuelta');
+      await aMarco('../mesa/index.html', () => W.MESA && W.MESA.status && W.MESA.libre && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 'la mesa de vuelta');
       M.cfg.margenSubida = 0;
       await hasta(() => M.personal || (W.MESA_CARGA || {}).personal === 'fallo', 15000, 'personal.js').catch(() => null);
       if (M.personal) M.personal.cerrar();
@@ -18904,11 +18904,11 @@
     try {
       await M.flush();
       marco.style.width = w + 'px'; marco.style.height = h + 'px';
-      await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden && W.document.querySelector('#movil .titulo,#movil .lugar'), 'la cara del móvil');
+      await aMarco('../mesa/movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden && W.document.querySelector('#movil .titulo,#movil .lugar'), 'la cara del móvil');
       return await fn();
     } finally {
       marco.style.width = w0; marco.style.height = h0;
-      await aMarco('../index.html', () => W.MESA && W.MESA.status && W.MESA.libre && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 'la mesa de vuelta');
+      await aMarco('../mesa/index.html', () => W.MESA && W.MESA.status && W.MESA.libre && W.MESA._in && W.MESA._in.shellReady() && !W.MESA._in.switching(), 'la mesa de vuelta');
       M.cfg.margenSubida = 0;
       await hasta(() => M.personal || (W.MESA_CARGA || {}).personal === 'fallo', 15000, 'personal.js').catch(() => null);
       if (M.personal) M.personal.cerrar();
@@ -19069,7 +19069,7 @@
         igual(JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]').length, 1, 'la operación no quedó apuntada');
         ok(/1 sin subir/.test(W.document.getElementById('movil').innerText), 'la cara no dice «1 sin subir»');
         await C.fin(true);
-        await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');   // iOS cerró la app
+        await aMarco('../mesa/movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');   // iOS cerró la app
         C = await nubeCara(key);
         await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
         await hasta(() => /1 sin subir/.test(W.document.getElementById('movil').innerText), 4000, '«1 sin subir» al volver');
@@ -19265,7 +19265,7 @@
       try {
         // lo que quedó: la fecha de r2, sin subir
         W.localStorage.setItem('mesa-movil-ops', JSON.stringify([{ id: 'opviejo1', key, slot: 'r2', campo: 'fecha', valor: { dia: '2026-11-20', hora: '12:00' }, visto: '2026-11-04T12:00:00.000+01:00', at: Date.now(), estado: 'quedo' }]));
-        await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');
+        await aMarco('../mesa/movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');
         await C.fin(true); const C2 = await nubeCara(key); Object.assign(C, C2);
         await irMovil('#tareas', `#movil [data-a="hecha"][data-id="${A}"]`);
         clicCara(`#movil [data-a="hecha"][data-id="${A}"]`);
@@ -19369,7 +19369,7 @@
         const rec0 = await M._in.idbGet('boards', key), c0 = rec0.slots.find(x => x.id === 'r2').caption;
         W.localStorage.setItem('mesa-movil-ops', JSON.stringify([{ id: 'opcap39', key, slot: 'r2', campo: 'capElegir', valor: 1, visto: { at: c0.at, pick: c0.pick ?? null }, at: Date.now(), estado: 'quedo' }]));
         c0.at = '2026-11-02T09:00:00.000Z'; c0.orig = ['otra uno', 'otra dos', 'otra tres']; c0.text = c0.orig.slice(); c0.pick = null; await M._in.idbPut('boards', key, rec0);   // otra tanda, ya bajada
-        await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');
+        await aMarco('../mesa/movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');
         await C.fin(true); Object.assign(C, await nubeCara(key));
         await irMovil(`#pub/${key}/r2`, '#movil [data-a="sinsubir"]');
         clicCara('#movil [data-a="sinsubir"]'); await hojaCara('[data-sub="opcap39"]', 'la hoja «Sin subir»');

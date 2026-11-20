@@ -383,6 +383,14 @@
 #movil .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
 #movil .pp-ea{color:var(--acc-ink);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
 #movil .hoja .txt .pp-el{white-space:normal}
+#movil .mono-w{position:relative;flex:none;display:inline-block;width:30px;height:30px;margin-left:8px}
+#movil .mono-w .mono{position:absolute;inset:0;margin:0}
+#movil .mono-w .mono-ll{clip-path:inset(var(--vacio,0%) 0 0 0);transition:clip-path .35s var(--ease)}
+#movil .mono-w.trabaja>.mono:not(.mono-ll){filter:grayscale(1);opacity:.3}
+#movil .mono-w.mini{width:22px;height:22px;margin:0 8px 0 0}
+#movil .mono-w.mini .mono{width:22px;height:22px;border-radius:6px}
+#movil .mono-w[hidden]{display:none}
+#movil .top-fila{display:inline-flex;align-items:center}
 #movil .mv-gira{flex:none;display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--acc);animation:mv-gira .9s linear infinite;vertical-align:-3px}
 #movil .cap-h h2 .mv-gira{margin-left:6px}
 #movil .tarea.mv-nueva .mv-gira{margin:2px 4px 0}
@@ -558,7 +566,7 @@
 #movil .estado-op .av{flex:none}
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
-@media (prefers-reduced-motion:reduce){#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
+@media (prefers-reduced-motion:reduce){#movil .mono-w .mono-ll{transition:none}#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 #movil .car .lam{aspect-ratio:var(--r,.8)}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
   #movil .car,#movil .car .lam{background:var(--bg)}#movil .car{margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r))}#movil .car .cnt{right:max(12px,calc(50% - 35vh * var(--r,.8) + 12px))}
@@ -591,10 +599,9 @@
   function chip() {
     const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
     const b = (k, ico, t, a, lbl) => `<button type="button" class="nube${k ? ' ' + k : ''}" data-a="${a || (q ? 'sinsubir' : 'nube')}" aria-label="${esc(lbl || t.replace(/<[^>]+>/g, '') + (q ? `, ${q} sin subir` : ''))}">${ic(ico)}<span class="num">${t}</span>${cola}</button>`;
-    if (e.guardando) return b('', 'nube', 'Guardando…');   // la operación en vuelo no es «sin subir» (lote 4)
-    // si todo va bien, nada (D-271, punto 8): ni «Al día» ni «Guardado» (basta el aviso breve al guardar)
+    // si todo va bien, nada (D-271, punto 8): ni «Al día» ni «Guardado» (basta el aviso breve al guardar); lo que baja o se guarda
+    // lo enseña el monograma (punto 10)
     switch (e.fase) {
-      case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
       case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : 'Sin conexión');   // la hora, en la hoja «La nube»
       case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
       case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
@@ -608,6 +615,31 @@
   const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip],.top-l [data-chip-g]').forEach(x => { x.innerHTML = chip(); }); ajustarTitulo(); };
   // el título de la barra va centrado si cabe así; si no, ocupa el hueco que dejan los lados (como iOS)
   function ajustarTitulo() { raiz.querySelectorAll('.top').forEach(t => { const x = t.querySelector('.top-t'); if (!x || !x.textContent) return; t.classList.remove('ajusta'); if (x.scrollWidth > x.clientWidth + 1) t.classList.add('ajusta'); }); }
+
+  // ---------- el monograma que se llena (D-271, punto 10) ----------
+  // Fuentes: guardar (sus pasos: coger, aplicar, subir y soltar), las fotos que bajan (el pegamento las cuenta) y las filas que trae
+  // una mirada larga (una página tras otra). Solo se vacía si el trabajo dura más de 0,4 s: una mirada corta no lo toca.
+  const TRAB = { guardar: null, fotos: { pend: 0, hechas: 0 }, filasHasta: 0, filasP: 0, visible: false, p: 1, que: '', t0: 0, tim: 0 };
+  function pintarMono() {
+    const on = TRAB.visible, p = Math.max(0, Math.min(1, TRAB.p));
+    raiz.querySelectorAll('[data-mono]').forEach(w => {
+      w.classList.toggle('trabaja', on); w.style.setProperty('--vacio', on ? ((1 - p) * 100).toFixed(1) + '%' : '0%');
+      if (w.classList.contains('mini')) w.hidden = !on;
+      if (!w.closest('.top-g')) { if (on) { w.setAttribute('role', 'img'); w.setAttribute('aria-label', `${TRAB.que} · ${Math.round(p * 100)} %`); } else if (w.classList.contains('mini')) w.removeAttribute('aria-label'); else { w.removeAttribute('role'); w.removeAttribute('aria-label'); } }
+    });
+  }
+  function trabajo() {
+    const g = TRAB.guardar, f = TRAB.fotos, filas = Date.now() < TRAB.filasHasta, activo = g != null || f.pend > 0 || filas;
+    if (activo) {
+      TRAB.p = g != null ? g : f.pend > 0 ? f.hechas / (f.hechas + f.pend) : TRAB.filasP; TRAB.que = g != null ? 'Guardando' : 'Bajando la Mesa';
+      if (!TRAB.t0) { TRAB.t0 = Date.now(); clearTimeout(TRAB.tim); TRAB.tim = setTimeout(() => { if (TRAB.t0) { TRAB.visible = true; pintarMono(); ajustarTitulo(); } }, 400); }
+      if (TRAB.visible) pintarMono();
+    } else if (TRAB.t0) {
+      TRAB.t0 = 0; clearTimeout(TRAB.tim);
+      if (TRAB.visible) { TRAB.p = 1; pintarMono(); TRAB.tim = setTimeout(() => { TRAB.visible = false; pintarMono(); ajustarTitulo(); }, 450); }
+    }
+  }
+  D.addEventListener('mesa-bajan-fotos', e => { const d = e.detail || {}; TRAB.fotos = { pend: +d.pend || 0, hechas: +d.hechas || 0 }; trabajo(); });
 
   // ---------- las fotos: cada una a su tamaño en pantalla, 3 como mucho a la vez (nunca el original) ----------
   // La miniatura de la Mesa (1.600 px) es la foto: se decodifica una a una, se dibuja al tamaño que se ve (por la densidad del iPhone)
@@ -675,11 +707,15 @@
   const TY = { Foto: 'foto', Carrusel: 'carr', Reel: 'reel', 'Collab Reel': 'collab', 'Trial Reel': 'reel' };
   const ty = t => `<span class="ty ${TY[t.k] || (t.reel ? 'reel' : 'foto')}">${esc(t.txt)}</span>`;
   const est = e => `<span class="es ${esc(e.k)}"><i></i>${esc(e.txt)}</span>`;
+  // el monograma: su capa de color se llena de abajo arriba mientras el iPhone baja algo o guarda (D-271, punto 10); en las pantallas
+  // con «‹ atrás», uno pequeño a la derecha de la barra que solo sale entonces (variante B)
+  const mono = mini => `<span class="mono-w${mini ? ' mini' : ''}" data-mono${mini ? ' hidden' : ''}><img class="mono" src="portal/marca/monograma.svg" alt="${mini ? '' : 'Uribe Visuals'}" width="30" height="30"><img class="mono mono-ll" src="portal/marca/monograma.svg" alt="" aria-hidden="true" width="30" height="30"></span>`;
   function top(o = {}) {
-    const izq = o.atras ? `<button type="button" class="back" data-a="atras" data-destino="${esc(o.destino || prevDe() || 'clientes')}" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : `<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="30" height="30">`;
+    const izq = o.atras ? `<button type="button" class="back" data-a="atras" data-destino="${esc(o.destino || prevDe() || 'clientes')}" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : mono(false);
+    const mini = o.atras ? mono(true) : '';
     // cada lado reserva, sin verse, lo que ocupa el otro: el título va centrado con estado o sin él y no salta (D-271, punto 8)
     const fant = h => `<span class="top-g" aria-hidden="true" inert>${h}</span>`;
-    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}${fant(o.r || `<span data-chip-g>${chip()}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r">${o.r || `<span data-chip>${chip()}</span>`}${fant(izq)}</div></div></header>`;
+    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}${fant(`<span class="top-fila">${mini}${o.r || `<span data-chip-g>${chip()}</span>`}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r"><span class="top-fila">${mini}${o.r || `<span data-chip>${chip()}</span>`}</span>${fant(izq)}</div></div></header>`;
   }
   function tabs(on) {
     const n = TAREAS_PASADO;
@@ -1060,7 +1096,7 @@
     if (html === ULT && location.hash === ULT_H && raiz.firstChild) return;
     const y = W.scrollY, t0 = location.hash === ULT_H && raiz.querySelector('[data-car]'), x0 = t0 ? t0.scrollLeft : 0;
     raiz.innerHTML = html; raiz.appendChild(capas); ULT = html; ULT_H = location.hash;
-    vigilarFotos(raiz); carrusel(); ajustarTitulo(); W.scrollTo(0, y);
+    vigilarFotos(raiz); carrusel(); pintarMono(); ajustarTitulo(); W.scrollTo(0, y);
     const t1 = x0 && raiz.querySelector('[data-car]'); if (t1) t1.scrollLeft = x0;
   }
   // el carrusel: deslizar con el dedo (desplazamiento nativo con imán, la inercia del iPhone), el contador y los puntos al día
@@ -1143,7 +1179,7 @@
     const soltar = t => {
       if (!g || !g.tira) { g = null; return; }
       const a = g.m[0], b = g.m[g.m.length - 1], alto = h.offsetHeight, dy = Math.max(0, g.dy); let v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]); g = null;
-      if (t - b[0] > 80) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento
+      if (t - b[0] > 150) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento (150 ms: un toque real llega antes)
       if (cierraArrastre({ dy, v, alto })) {
         const resto = Math.max(1, alto * 1.05 - dy), ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, resto / Math.max(0.9, v)))), p1 = Math.min(1, 0.25 * Math.max(0, v) * ms / resto).toFixed(3);
         h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25,${p1},.5,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad (sin tirón)
@@ -1251,6 +1287,7 @@
   function alNube(t, d) {
     if (t === 'estado') { ST.fase = d.fase; ST.vistoA = d.vistoA || ST.vistoA; ST.sinSubir = d.sinSubir || 0; ST.tiene = d.tiene || null; pintarChip(); if (d.fase === 'sin_codigo' && M.entrada && M.entrada.pedirCodigo && !raiz.querySelector('.hoja')) M.entrada.pedirCodigo(); return; }
     if (t === 'releido') { releer(); return; }
+    if (t === 'bajando') { if (d && d.h > 0) { TRAB.filasHasta = Date.now() + 300; TRAB.filasP = d.h / (d.h + 500); trabajo(); setTimeout(trabajo, 320); } return; }   // una página tras otra; una sola no llega a verse
     if (C.alNube) C.alNube(t, d);
   }
   const red = v => { ST.red = v; pintarChip(); pintarSiQuieto(); };
@@ -1312,7 +1349,7 @@
   }
   const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva' })[op.campo] || op.campo;
   // guardar de fondo (D-271, punto 9): sin hoja que tape la pantalla; sus pasos (coger, aplicar, subir, soltar) llenan el monograma
-  let alPaso = () => {};
+  const alPaso = n => { TRAB.guardar = [0, 0.25, 0.5, 1][n] ?? 1; trabajo(); };   // el monograma, un cuarto por paso
   // lo que se está guardando: la pantalla enseña ya el valor nuevo, con un aro en el sitio de su flecha
   const enCurso = (key, slot, campo, k) => { const l = opsLeer().filter(x => x.estado === 'nueva' && x.slot === slot && x.campo === campo && (key == null || x.key === key) && (k == null || (x.valor || {}).k === k)); return l.length ? l[l.length - 1] : null; };
   const GIRA = '<span class="mv-gira" role="img" aria-label="Guardando"></span>';
@@ -1391,7 +1428,7 @@
       ST.guardando = true; pintarChip();
       const p = (async () => { let oo = o; do { OTRA = false; await correr(oo, ESCRITOS); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); })();
       RUN = p; RUN.g = true;
-      p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });   // se limpia desde fuera: aunque algo fallara antes de su primer await
+      p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; TRAB.guardar = null; trabajo(); pintarChip(); });   // se limpia desde fuera: aunque algo fallara antes de su primer await
     } else OTRA = true;
     await RUN;
     return !ids.length || !opsLeer().some(x => ids.includes(x.id));
@@ -1487,7 +1524,7 @@
       }
     })();
     RUN = p;
-    await p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });
+    await p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; TRAB.guardar = null; trabajo(); pintarChip(); });
     await releerTodo();
     return r;
   }

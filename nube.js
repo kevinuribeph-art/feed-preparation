@@ -1077,6 +1077,7 @@
     soltada: async () => { X().movil.turno(false); aCara('soltada', {}); },
     releido: async n => { await X().movil.releer(); aCara('releido', { n }); },
     antesDeSoltar: () => X().movil.esperar(),
+    avance: (h, t) => { try { if (base.avance) base.avance(h, t); } catch (e) { /* la entrada */ } aCara('bajando', { h, t }); },   // lo que baja, también al monograma de la cara (D-271, punto 10)
     estado: e => { ESTADO = e; aCara('estado', e); if ((e.avisos || 0) !== AVS.length && N) N.avisos().then(l => { AVS = l; aCara('avisos', { n: l.length }); }, () => {}); } });   // no desk chip nor its code dialog: the face draws both
   function nucleo() {
     if (N) return N;
@@ -1281,12 +1282,16 @@
     return p;
   }
   const MINIS = new Map();
+  // the photos coming down on the phone, counted for its monogram (D-271, point 10): one event per change, never on the desk
+  const BAJAN = { pend: 0, hechas: 0 };
+  const avisarBajan = () => { try { D.dispatchEvent(new CustomEvent('mesa-bajan-fotos', { detail: { pend: BAJAN.pend, hechas: BAJAN.hechas } })); } catch (e) { /* */ } if (!BAJAN.pend) BAJAN.hechas = 0; };
+  const contarBajada = async p => { if (!MOVIL_G) return p; BAJAN.pend++; avisarBajan(); try { return await p; } finally { BAJAN.pend--; BAJAN.hechas++; avisarBajan(); } };
   function pedirMini(id) {
     if (!X().NUBE.activa || MINIS.has(id)) return;
     MINIS.set(id, (async () => {
       const rec = await X().idbGet('files', id); const ref = rec && rec.thumb;
       if (!X().esRefNube(ref) || !ref.ruta) return;
-      const b = await bajarArchivo(ref), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.thumb', ref.sha256, b, null);
+      const b = await contarBajada(bajarArchivo(ref)), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.thumb', ref.sha256, b, null);
       if (n) X().fotoLlego(id, (await X().idbGet('files', id)) || n);   // releído: un Blob en disco, no el de la red en memoria
     })().catch(() => { /* se vuelve a pedir la próxima vez que se vea */ }).finally(() => MINIS.delete(id)));
   }
@@ -1306,8 +1311,7 @@
       if (!X().esRefNube(r) || !r.ruta || !X().NUBE.activa) return null;
       const antes = unaFoto; let suelta = () => {}; unaFoto = new Promise(res => { suelta = res; });   // one at a time
       try {
-        await antes;
-        const b = await bajarArchivo(r);
+        const b = await contarBajada((async () => { await antes; return bajarArchivo(r); })());   // counted from the queue: the monogram sees all that waits
         if (!(await X().nubeAlmacen.ponerArchivo(a, k, ruta, r.sha256, b, null))) return null;   // the record changed meanwhile
         const r2 = enRutaV(await X().idbGet(a, k), ruta);   // read again: a Blob on disk, not the one from the network
         if (r2 instanceof Blob) {   // it is already up: when its record goes up again (a task marked done), it goes as its reference, never uploaded again

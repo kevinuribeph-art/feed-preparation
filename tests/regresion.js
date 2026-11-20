@@ -19853,6 +19853,39 @@
     });
   });
 
+  prueba('MV57', 'El monograma que se llena (D-271, punto 10; lección 230): mientras bajan fotos, el de Hoy se vacía y se llena según las que llegan; en una pantalla con «‹ atrás», sale uno pequeño a la derecha (variante B) mientras se guarda; lo que dura menos de 0,4 s no se ve; al acabar, vuelve a estar lleno y el pequeño se va; el estado de arriba ya no dice «Guardando…»', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const bajan = (pend, hechas) => W.document.dispatchEvent(new W.CustomEvent('mesa-bajan-fotos', { detail: { pend, hechas } }));
+      const grande = () => W.document.querySelector('#movil .top-l > .mono-w'), vacio = el => parseFloat(el.style.getPropertyValue('--vacio')) || 0;
+      await irMovil('#hoy', '#movil .cifras');
+      bajan(1, 0); await espera(150); bajan(0, 1); await espera(500);
+      ok(!grande().classList.contains('trabaja'), 'lo que dura menos de 0,4 s se vio');
+      bajan(4, 0); await espera(550);
+      ok(grande().classList.contains('trabaja') && vacio(grande()) > 90, 'bajando 4 fotos, el monograma no se vació: ' + grande().className + ' ' + vacio(grande()));
+      bajan(2, 2); await espera(60);
+      ok(Math.abs(vacio(grande()) - 50) < 1, 'con la mitad bajada, no está a la mitad: ' + vacio(grande()));
+      ok(/Bajando la Mesa · 50 %/.test(grande().getAttribute('aria-label') || ''), 'VoiceOver no dice lo que baja: ' + grande().getAttribute('aria-label'));
+      bajan(0, 4); await espera(600);
+      ok(!grande().classList.contains('trabaja') && vacio(grande()) === 0, 'al acabar no vuelve a estar lleno');
+      // guardar en la publicación (con «‹ atrás»): el pequeño de la derecha, mientras guarda
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        const mini = () => W.document.querySelector('#movil .top-r .top-fila > .mono-w.mini');
+        ok(mini() && mini().hidden, 'el pequeño se ve sin trabajo');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 500; clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => mini() && !mini().hidden && mini().classList.contains('trabaja'), 3000, 'el monograma pequeño mientras guarda');
+        ok(!/Guardando/.test((W.document.querySelector('#movil .top-r [data-chip]') || {}).textContent || ''), 'el estado de arriba dice «Guardando…»');
+        C.corte.demora = 0;
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
+        await hasta(() => !mini() || mini().hidden, 3000, 'que el pequeño se vaya');
+      } finally { await C.fin(); }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

@@ -439,6 +439,11 @@ revoke execute on function public.es_dueno(), public.es_miembro(text), public.pu
 grant execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) to authenticated;
 revoke execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() from public, anon;
 grant execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() to authenticated;
+-- Los disparadores no se llaman por la API (S9, D-278): sin permiso de ejecutarlos para nadie. Siguen saltando en sus tablas
+-- (PostgreSQL no mira ese permiso al dispararlos); llamarlos por /rest/v1/rpc ya fallaba, pero el aviso de seguridad de
+-- Supabase los contaba como «Public Can Execute SECURITY DEFINER Function».
+revoke execute on function public.firmar(), public.comprobar_aprobacion(), public.aplicar_aprobacion(), public.comprobar_comentario(),
+  public.cliente_nuevo(), public.cliente_observadores(), public.cliente_borrado() from public, anon, authenticated;
 
 drop policy if exists duenos_ver on public.duenos;
 create policy duenos_ver on public.duenos for select to authenticated using (user_id = (select auth.uid()));

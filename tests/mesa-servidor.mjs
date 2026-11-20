@@ -79,6 +79,11 @@ async function entrar(correo) {
   if (!r.ok) throw new Fallo('no se pudo entrar como ' + correo + ': ' + r.text);
   return r.json.access_token;
 }
+async function entrarCon(correo, ua) {   // entrar con otro navegador (su cabecera User-Agent)
+  const r = await pedir(`${P.url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { ...cab(P.publica), 'Content-Type': 'application/json', 'User-Agent': ua }, body: { email: correo, password: CLAVE }, dejar: ['access_token'] });
+  return r;
+}
+const pedirCodigo = correo => pedir(`${P.url}/auth/v1/admin/generate_link`, { method: 'POST', headers: { ...cab(S), 'Content-Type': 'application/json' }, body: { type: 'magiclink', email: correo } });
 const servicio = (ruta, o = {}) => rest(P, ruta, { ...o, apikey: S });
 const rpcDe = (tk, guardar) => async (fn, args) => { const r = await rest(P, 'rpc/' + fn, { method: 'POST', token: tk || undefined, body: args || {} }); if (guardar) ajeno.push(r.text); return r; };
 const almacen = (tk, guardar) => async (metodo, ruta, o = {}) => {
@@ -123,6 +128,8 @@ async function limpiarDatos() {
     }
   }
   await borrarAct(`a.usuario is not null and not exists (select 1 from auth.users u where u.id = a.usuario)`);   // de usuarios ya borrados
+  await sql(`delete from mesa.portal_aparatos a where not exists (select 1 from auth.users u where u.id = a.usuario);
+    delete from mesa.portal_codigos c where not exists (select 1 from auth.users u where u.id = c.usuario);`);   // el registro del portal (D-278)
 }
 // El turno, la mínima y la época como estaban. El número de turno nunca baja (un dispositivo con el número viejo ya no
 // escribe); el contador de orden tampoco.
@@ -594,6 +601,45 @@ async function main() {
     'un detalle de más de 2 KB guarda menos claves de muestra, sin perder almacenes ni cuántos', JSON.stringify(a1 && { n: a1.detalle.claves && a1.detalle.claves.length, alm: a1.detalle.almacenes }));
   for (const [q, txt] of [[`update mesa.actividad set tipo = 'cambiada' where id > ${A0}`, 'cambiarla'], [`delete from mesa.actividad where id > ${A0}`, 'borrarla'],
     ['begin; truncate mesa.actividad; rollback;', 'vaciarla']]) { const y = await sqlIntento(q); ok(!y.ok && /solo se añaden/.test(y.text), `ni el dueño de la base puede ${txt} (solo se añaden filas)`, y.text); }
+
+  console.log('El portal en «Avisos» (D-278)');
+  {
+    const IPH = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+    const FFL = 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0';
+    const sinRastro = f => !/@/.test(JSON.stringify(f.detalle)) && !/\b\d{1,3}(\.\d{1,3}){3}\b/.test(JSON.stringify(f.detalle));
+    let l = await act(`tipo = 'portal_aparato_nuevo' and usuario = '${ua}'`);
+    ok(l.length === 1 && l[0].detalle.primera === true && l[0].detalle.nombre === 'Ana Prueba' && (l[0].detalle.clientes || []).includes(CLI.nombre)
+      && typeof l[0].detalle.aparato === 'string' && l[0].sesion && sinRastro(l[0]), 'la primera entrada de una clienta: su nombre, sus clientes y el aparato, sin correo ni IP', JSON.stringify(l));
+    l = await act(`tipo = 'portal_no_miembro' and usuario = '${un}'`);
+    ok(l.length >= 1 && l.every(x => x.detalle.aparato && sinRastro(x)), 'la entrada de una cuenta que no es de ningún cliente (una fila por entrada)', JSON.stringify(l));
+    ok(await cuantasAct(`tipo like 'portal\_%' and usuario = '${uk}' and tipo <> 'portal_codigos'`) === 0, 'las entradas de Kevin no avisan aquí');
+    await entrar(CORREO.a);
+    ok(await cuantasAct(`tipo = 'portal_aparato_nuevo' and usuario = '${ua}'`) === 1, 'otra entrada con el mismo navegador no avisa');
+    let e = await entrarCon(CORREO.a, IPH);
+    l = await act(`tipo = 'portal_aparato_nuevo' and usuario = '${ua}'`);
+    ok(e.ok && l.length === 2 && l[1].detalle.aparato === 'Safari · iPhone' && l[1].detalle.primera === false, 'desde un iPhone: «Safari · iPhone», aparato nuevo', JSON.stringify(l.map(x => x.detalle)));
+    for (let i = 0; i < 5; i++) { const g = await pedirCodigo(CORREO.a); if (!g.ok) throw new Fallo('generate_link: ' + g.text); }
+    l = await act(`tipo = 'portal_codigos' and usuario = '${ua}'`);
+    ok(l.length === 1 && +l[0].detalle.n === 5 && l[0].detalle.nombre === 'Ana Prueba' && l[0].detalle.dueno === false && sinRastro(l[0]), '5 códigos pedidos en una hora para una clienta: un aviso', JSON.stringify(l.map(x => x.detalle)));
+    for (let i = 0; i < 4; i++) await pedirCodigo(CORREO.a);
+    ok(await cuantasAct(`tipo = 'portal_codigos' and usuario = '${ua}'`) === 1, 'y no otro hasta el décimo');
+    await pedirCodigo(CORREO.a);
+    l = await act(`tipo = 'portal_codigos' and usuario = '${ua}'`);
+    ok(l.length === 2 && +l[1].detalle.n === 10, 'al décimo, otro', JSON.stringify(l.map(x => x.detalle)));
+    for (let i = 0; i < 5; i++) await pedirCodigo(CORREO.k);
+    l = await act(`tipo = 'portal_codigos' and usuario = '${uk}'`);
+    ok(l.length === 1 && l[0].detalle.dueno === true, 'también avisa de los códigos pedidos para la cuenta de Kevin', JSON.stringify(l.map(x => x.detalle)));
+    // un fallo dentro del disparador nunca para la entrada: queda apuntado
+    await sql('alter table mesa.portal_aparatos rename to portal_aparatos_roto');
+    try {
+      e = await entrarCon(CORREO.a, FFL);
+      ok(e.ok && e.json && e.json.access_token, 'con el registro roto, la clienta entra igual', e.text);
+      l = await act(`tipo = 'portal_fallo' and usuario = '${ua}'`);
+      ok(l.length === 1 && l[0].detalle.donde === 'entrada', 'y el fallo queda apuntado', JSON.stringify(l));
+    } finally { await sql('alter table mesa.portal_aparatos_roto rename to portal_aparatos'); }
+    const t = await sql(`select count(*)::int as n from pg_trigger where tgname in ('mesa_portal_sesion', 'mesa_portal_codigo') and not tgisinternal`);
+    ok(+t[0].n === 2, 'los dos disparadores están puestos', JSON.stringify(t));
+  }
 
   console.log('Nadie más que Kevin: esquema por REST');
   const g = await gestion(`projects/${P.ref}/postgrest`);   // su respuesta lleva secretos: solo se mira db_schema

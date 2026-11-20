@@ -9,13 +9,13 @@
 // Apagada (lo normal hasta la mudanza, lote 5) no hace nada: ni red ni temporizadores.
 (function (G) {
   'use strict';
-  const VERSION = '1.4';   // 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
+  const VERSION = '1.5';   // 1.5: los avisos del portal (portal_aparato_nuevo, portal_no_miembro, portal_codigos, portal_fallo; D-278). 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
   const TIEMPOS = Object.freeze({ latido: 5000, calma: 3000, pideViva: 60, espera: 20000, primera: 4000, primeraSuya: 15000, actividad: 60000, pedirCada: 3000, fotos: 30000,
     reintento: Object.freeze([5000, 10000, 20000, 40000, 60000]) });
-  const AVISA = ['ajeno', 'ajeno_tope', 'dispositivo_nuevo', 'borrado_masivo'];
+  const AVISA = ['ajeno', 'ajeno_tope', 'dispositivo_nuevo', 'borrado_masivo', 'portal_aparato_nuevo', 'portal_no_miembro', 'portal_codigos', 'portal_fallo'];   // portal_*: el portal (D-278)
   const esAviso = f => !!f && (AVISA.includes(f.tipo) || (f.tipo === 'rechazo' && !!f.detalle && f.detalle.funcion === 'mesa_escribir'));
 
   const esBlob = x => !!x && typeof x === 'object' && typeof x.size === 'number' && typeof x.type === 'string' && typeof x.arrayBuffer === 'function';
@@ -1546,6 +1546,12 @@
     if (f.tipo === 'ajeno') return ['Una cuenta que no es la tuya intentó entrar en la Mesa', `quiso ${FN[d.funcion] || d.funcion || 'algo'}; el servidor lo rechazó`];
     if (f.tipo === 'ajeno_tope') return ['Muchas llamadas de cuentas que no son la tuya', `${d.en_un_minuto || 'más de 60'} en un minuto; todas rechazadas`];
     if (f.tipo === 'dispositivo_nuevo') return ['La Mesa se abrió en un aparato nuevo', quien];   // an iPhone too (D-268)
+    // the portal's accounts (D-278): who (the member's name and its clients, never an email) and the device as «browser · system»
+    const cuenta = [d.nombre, Array.isArray(d.clientes) ? d.clientes.join(', ') : ''].filter(Boolean).join(' · ');
+    if (f.tipo === 'portal_aparato_nuevo') return [d.primera ? 'Primera entrada en el portal' : 'El portal se abrió en un aparato nuevo', [cuenta, d.aparato].filter(Boolean).join(' · ')];
+    if (f.tipo === 'portal_no_miembro') return ['Entró en el portal una cuenta que no es de ningún cliente', d.aparato || ''];
+    if (f.tipo === 'portal_codigos') return ['Muchos códigos pedidos para un correo', [d.dueno ? 'tu cuenta' : cuenta, `${+d.n || 5} en la última hora`].filter(Boolean).join(' · ')];
+    if (f.tipo === 'portal_fallo') return ['El registro del portal falló', 'la entrada no se paró por esto'];
     const PL = { files: ['foto', 'fotos'], boards: ['tablero', 'tableros'], clients: ['cliente', 'clientes'], bandejas: ['bandeja', 'bandejas'], tareas: ['tarea o nota', 'tareas o notas'], tfotos: ['foto de sesión', 'fotos de sesiones'], cobros: ['factura', 'facturas'], cfacturas: ['PDF', 'PDF'], meses: ['mes', 'meses'], ubicaciones: ['ubicación', 'ubicaciones'] };
     if (f.tipo === 'borrado_masivo') return [`Se borraron ${+d.cuantos || 'muchos'} registros de una vez`, [Object.entries(d.almacenes || {}).map(([a, n]) => `${+n || 0} ${PL[a] ? PL[a][+n === 1 ? 0 : 1] : a}`).join(', '), quien].filter(Boolean).join(' · ')];
     const POR = { tope: 'era demasiado grande', forma: 'venía mal formado', turno: 'llegó sin el turno', turno_cambiado: 'el turno había cambiado', app: 'venía de una versión vieja de la Mesa', permiso: 'sin permiso', cursor: 'de otra copia del servidor' };

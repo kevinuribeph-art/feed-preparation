@@ -50,6 +50,7 @@
     chispa: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', mas: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     historias: '<path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>',
+    ojoNo: '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
     sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     luna: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
     recarga: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
@@ -428,6 +429,40 @@
 #movil .mv-subx{flex:none;width:var(--tap);height:var(--tap);color:var(--faint)}
 #movil .hoja [data-ed-mas]{display:inline-flex;align-items:center;gap:6px;margin:4px 0 0 -12px}
 #movil .hoja [data-ed-mas] svg{width:18px;height:18px}
+#movil .mv-ses-h{display:flex;align-items:flex-start;gap:8px;padding:14px 6px 0 var(--pad)}
+#movil .mv-ses-h h1{flex:1;min-width:0;margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.12;overflow-wrap:anywhere}
+#movil .mv-ses-h .lnk,#movil .mv-sap-h .lnk{min-height:var(--tap);padding:0 10px;color:var(--acc-ink);font-weight:500;flex:none}
+#movil .mv-ses-sub{display:flex;align-items:center;gap:8px;padding:8px var(--pad) 0;color:var(--mute);font-size:15px}
+#movil .mv-ses-sub .ty svg{width:14px;height:14px;margin-right:4px}
+#movil .mv-scl{display:flex !important;flex-direction:column;align-items:flex-start;gap:6px;white-space:normal !important;padding:12px 0}
+#movil .mv-scl>span{display:inline-flex;align-items:center;gap:8px;min-width:0}
+#movil .mv-sap{margin:18px 0 0;border-top:1px solid var(--line2)}
+#movil .mv-sap-h{display:flex;align-items:center;gap:4px;padding:0 6px 0 var(--pad)}
+#movil .mv-sap-b{flex:1;min-width:0;display:flex;align-items:center;gap:8px;min-height:52px;text-align:left}
+#movil .mv-sap-b h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.015em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .mv-sap-b .n{color:var(--mute);font-weight:500;font-size:16px}
+#movil .mv-sap-b .oj{display:inline-grid;color:var(--faint)}#movil .mv-sap-b .oj svg{width:17px;height:17px}
+#movil .mv-sap-b .chev{margin-left:auto;flex:none;width:20px;height:20px;color:var(--faint);transition:transform var(--d2) var(--ease)}
+#movil .mv-sap.abierto .mv-sap-b .chev{transform:rotate(180deg)}
+#movil .mv-stx{margin:0 var(--pad) 6px}
+#movil .mv-spl{margin:6px var(--pad) 10px}
+#movil .mv-spl h3,#movil .mv-mat h3{margin:10px 0 8px;font-size:16px;font-weight:600}#movil .mv-spl h3 .num,#movil .mv-mat h3 .num{color:var(--mute);font-weight:500}
+#movil .mv-spl .lista{margin:0}
+#movil .mv-spl .tarea .casilla{margin-top:-2px}
+#movil .mv-sref{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+#movil .mv-sf{position:relative;display:inline-block;flex:none;height:56px;aspect-ratio:var(--r);border-radius:8px;overflow:hidden;background:var(--cell-ph)}
+#movil .mv-sf img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#movil .mv-mood{columns:2;column-gap:6px}#movil .mv-mood .mv-sf{display:block;width:100%;height:auto;margin:0 0 6px;break-inside:avoid}
+#movil .mv-sref .hueco>span,#movil .mv-srej .hueco>span{display:none}#movil .mv-sref .hueco svg{width:16px;height:16px}
+#movil .mv-srej{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:0 var(--pad) 10px}#movil .mv-srej .mv-sf{width:100%;height:auto;aspect-ratio:1}
+#movil .mv-mat{margin:0 var(--pad) 10px}
+#movil .mv-matb{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--ink-2)}#movil .mv-matb .mv-barra{flex:1;margin:0;height:5px}
+#movil .mv-fichas{display:flex;flex-wrap:wrap;gap:8px}
+#movil .mv-ficha{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:999px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:15px;font-weight:500;color:var(--ink)}
+#movil .mv-ficha::after{content:'';position:absolute;inset:-4px -2px}
+#movil .mv-ficha svg{width:16px;height:16px}
+#movil .mv-ficha.on{background:var(--ink);color:var(--on-ink);box-shadow:none;padding-left:10px}
+#movil .mv-ficha.hijo{padding-left:10px}#movil .mv-ficha.hijo .hj{color:var(--mute);display:inline-grid}#movil .mv-ficha.hijo.on .hj{color:color-mix(in srgb,var(--on-ink) 70%,transparent)}
 #movil .mono-w{position:relative;flex:none;display:inline-block;width:30px;height:30px;margin-left:8px}
 #movil .mono-w .mono{position:absolute;inset:0;margin:0}
 #movil .mono-w .mono-ll{clip-path:inset(var(--vacio,0%) 0 0 0);transition:clip-path .35s var(--ease)}
@@ -846,6 +881,10 @@
       leerConv(v.key);
     } catch (e) { L.vista = null; L.error.mes = 'No se pudo abrir este mes.'; }
   }
+  async function leerSes(id) {   // una sesión entera (D-275): la vista sale de sesiones.js
+    try { const v = M.sesiones && M.sesiones.movil ? await M.sesiones.movil.vista(id) : null; L.ses = v || { id, falta: true }; L.error.ses = ''; }
+    catch (e) { L.ses = null; L.error.ses = 'No se pudo leer la sesión.'; }
+  }
   let convDe = '';
   async function leerConv(key) {   // lo que dijo el cliente (D-244, R2): solo leer
     convDe = key;
@@ -1139,20 +1178,23 @@
   }
 
   // ---------- pintar ----------
-  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria };
+  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria, ses: r => C.pantSes(r) };
   let pintando = 0, PEND_PINTAR = false;
   const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && /^(TEXTAREA|INPUT)$/.test(a.tagName)) || !!raiz.querySelector('.hoja'); };
   function pintarSiQuieto() { if (enUso()) { PEND_PINTAR = true; return; } pintar(); }   // un campo en uso no se rehace desde fuera (D-112)
-  let ULT_P = '';
+  let ULT_P = '', ULT_A = '';
   async function pintar() {
     const n = ++pintando, r = RUTA;
     if (r.p === 'mes' && !['mes', 'pub', 'cap', 'ret', 'his'].includes(ULT_P)) PUBS.abierta = false;   // «Publicadas» se pliega al entrar en el mes; volver de una publicación la deja como estaba
-    ULT_P = r.p;
+    const entra = r.p === 'ses' && (ULT_P !== 'ses' || ULT_A !== r.a);   // una sesión, al entrar en ella: plegada y leída otra vez (D-275)
+    if (entra) SES.abiertos = new Set();
+    ULT_P = r.p; ULT_A = r.a;
     if (r.p === 'mes' || r.p === 'pub' || r.p === 'cap' || r.p === 'ret' || r.p === 'his') {
       if (!L.vista || L.vista.key !== r.a) { raiz.querySelector('.pant') ? 0 : 0; dibujar((PANT[r.p] || pantMes)()); await leerMes(r.a); if (n !== pintando) return; if (L.vista) await vecinos(L.vista); if (n !== pintando) return; }
     } else if (r.p === 'hoy' && !L.hoy && !L.error.hoy) { dibujar(pantHoy()); await leerHoy(); if (n !== pintando) return; }
     else if (r.p === 'clientes' && !L.clientes && !L.error.clientes) { dibujar(pantClientes()); await leerClientes(); if (n !== pintando) return; }
     else if (r.p === 'tareas' && !L.tareas && !L.error.tareas) { dibujar(pantTareas()); await leerTareas(); if (n !== pintando) return; }
+    else if (r.p === 'ses' && (entra || !L.ses || L.ses.id !== r.a)) { dibujar(C.pantSes()); await leerSes(r.a); if (n !== pintando) return; }
     if (r.p === 'ret') { if (C.pantRetocar) return dibujar(C.pantRetocar()); }
     dibujar((PANT[r.p] || pantHoy)());
   }
@@ -1183,6 +1225,7 @@
       if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes();
       await leerTareas();
     } catch (e) { /* cada lectura dice lo suyo */ }
+    if (L.ses && L.ses.id) await leerSes(L.ses.id);   // la sesión abierta, también al día
     const vv = MV().vista(); if (L.vista && vv && vv.key === L.vista.key) { L.vista = vv; if (['mes', 'pub', 'cap', 'his'].includes(r.p) && r.a === vv.key) leerConv(vv.key); }   // el tablero abierto, aunque no se vea
     if (r.p !== 'hoy') { L.hoy = null; L.error.hoy = ''; }
     if (r.p !== 'clientes') { L.clientes = null; L.error.clientes = ''; }
@@ -1366,6 +1409,86 @@
   });
   raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) cerrarHojas(); });
   const C = {};   // cambiar (lote 4): se llena más abajo
+  // ---------- una sesión entera (D-275): en una columna, como en el Mac; cada apartado plegable (todos plegados al entrar, varios abiertos
+  // a la vez, como pidió Kevin); se cambian la fecha y la hora de inicio, los clientes, el material, el nombre y el texto de cada apartado
+  const SES = { abiertos: new Set() };
+  const E_HTML = t => (M.escritura && M.escritura.html ? M.escritura.html(t, { leer: true }) : esc(t));
+  const volverSes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : { atras: 'Tareas', destino: 'tareas' }; };
+  const sesCurso = (campo, f) => opsLeer().filter(o => o.estado === 'nueva' && o.slot === (L.ses || {}).id && o.campo === campo && (!f || f(o.valor || {}))).pop();
+  const fotoSes = (fid, px, q) => `<span class="mv-sf" style="--r:${(q || 1).toFixed(4)}">${fotoArch('tfotos', fid, 'el valor.blob', px)}</span>`;
+  C.pantSes = () => {
+    const v = L.ses, r0 = RUTA;
+    if (!v || v.id !== r0.a) return top(volverSes()) + `<main class="main sin-tabs" id="contenido">${L.error.ses ? mal(L.error.ses) : '<div class="lugar">Abriendo la sesión…</div>'}</main>`;
+    if (v.falta) return top(volverSes()) + `<main class="main sin-tabs" id="contenido">${vacio('Esta sesión ya no está', 'Se quitó en otro aparato.')}</main>`;
+    const off = sinRed(), dis = off ? ' disabled' : '', iop = sesCurso('sesInicio'), cop = sesCurso('sesClientes'), nop = sesCurso('sesNombre');
+    const ini = iop ? { fecha: iop.valor.fecha, hora: iop.valor.hora } : { fecha: v.fecha, hora: v.hora }, clis = cop ? cop.valor : v.clientes, nombre = nop ? nop.valor : v.nombre;
+    const cuando = ini.fecha ? `${campoFecha({ dia: ini.fecha, hora: ini.hora })}${!iop && v.fin && v.fin.hora && v.fin.fecha === v.fecha ? ' – ' + v.fin.hora : ''}` : 'Sin fecha';
+    const fin = !iop && v.fin && v.fin.fecha && v.fin.fecha !== v.fecha ? `<span class="por">Termina el ${esc(corto(v.fin.fecha))}${v.fin.hora ? ' a las ' + esc(v.fin.hora) : ''}</span>` : '';
+    const fotoMap = new Map(v.fotos.map(f => [f.id, f]));
+    const q = id => { const f = fotoMap.get(id); return f && f.w && f.h ? f.w / f.h : 1; };
+    const apHTML = a => {
+      const ab = SES.abiertos.has(a.id), n = a.cuenta ? (a.cuenta.hechas == null ? a.cuenta.n : `${a.cuenta.hechas}/${a.cuenta.n}`) : '';
+      const tx = a.tipo === 'texto', top = sesCurso('sesTexto', o => o.ap === a.id);
+      let cuerpo = '';
+      if (ab && tx) { const t = top ? top.valor.texto : a.texto; cuerpo = t.trim() ? `<div class="txt mv-stx">${E_HTML(t)}</div>` : `<p class="solo-mac" style="margin:0 var(--pad)">Vacío.</p>`; }
+      if (ab && a.tipo === 'planos') cuerpo = a.pestanas.map(p => `<div class="mv-spl"><h3>${esc(p.nombre)} <span class="num">${p.items.length}</span></h3>${p.items.length ? `<div class="lista">${p.items.map(i => `<div class="tarea${i.hecho ? ' hecha' : ''}"><span class="casilla" role="img" aria-label="${i.hecho ? 'Hecho' : 'Sin hacer'}">${ic('check', 2.5)}</span><span class="tx"><span class="tt">${esc(i.titulo)}</span>${i.texto ? `<span class="tm">${esc(i.texto)}</span>` : ''}${i.fotos.length ? `<span class="mv-sref">${i.fotos.map(fid => fotoSes(fid, 56 * q(fid), q(fid))).join('')}</span>` : ''}</span></div>`).join('')}</div>` : '<p class="solo-mac" style="margin:0">Sin planos.</p>'}</div>`).join('');
+      if (ab && a.tipo === 'mood') cuerpo = a.grupos.map(g => `<div class="mv-spl"><h3>${esc(g.nombre || 'Sin nombre')} <span class="num">${g.fotos.length}</span></h3><div class="mv-mood">${g.fotos.map(fid => fotoSes(fid, 180, q(fid))).join('')}</div></div>`).join('') || '<p class="solo-mac" style="margin:0 var(--pad)">Sin fotos.</p>';
+      if (ab && a.tipo === 'material') { const m = a.material; cuerpo = `<div class="mv-mat"><div class="mv-matb"><div class="mv-barra" aria-hidden="true"><i style="width:${m.n ? (m.hechas / m.n * 100).toFixed(1) : 0}%"></i></div><span class="num">${m.hechas}/${m.n}</span></div>${m.familias.map(f => `<h3>${esc(f.nombre)} <span class="num">${f.hechas}/${f.cosas.length}</span></h3><div class="mv-fichas">${f.cosas.map(c => { const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), on = pend ? pend.valor.hecho : c.hecha; return `<button type="button" class="mv-ficha${on ? ' on' : ''}${c.de ? ' hijo' : ''}" data-a="sesmat" data-ap="${esc(a.id)}" data-m="${esc(c.id)}" aria-pressed="${on}"${dis}${pend ? ' aria-busy="true"' : ''}>${c.de ? `<span class="hj">${ic('der')}</span>` : on ? ic('check', 2.25) : ''}${esc(c.nombre)}</button>`; }).join('')}</div>`).join('')}</div>`; }
+      return `<section class="mv-sap${ab ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="${esc(a.id)}" aria-expanded="${ab}"><h2>${esc(a.nombre)}</h2>${n ? `<span class="n num">${n}</span>` : ''}${a.visible ? '' : `<span class="oj" role="img" aria-label="No lo ve el cliente">${ic('ojoNo')}</span>`}${top ? GIRA : ''}<span class="chev">${ic('abajo')}</span></button>${tx ? `<button type="button" class="lnk" data-a="sested" data-ap="${esc(a.id)}"${dis || (top ? ' disabled' : '')}>Editar</button>` : ''}</div>${cuerpo}</section>`;
+    };
+    return top(volverSes()) + `<main class="main sin-tabs mv-ses" id="contenido">
+      <div class="mv-ses-h"><h1>${esc(nombre)}${nop ? ' ' + GIRA : ''}</h1><button type="button" class="lnk" data-a="sesnom"${dis || (nop ? ' disabled' : '')}>Editar</button></div>
+      <div class="mv-ses-sub"><span class="ty hist">${ic('claqueta')}Sesión</span><span>${esc(v.clase)}</span></div>
+      <div class="grupo">
+        <button type="button" class="campo" data-a="sesfecha"${dis || (iop ? ' disabled' : '')}${iop ? ' aria-busy="true"' : ''}><span class="k">Fecha y hora</span><span class="v num" style="display:block;white-space:normal">${esc(cuando)}${fin}</span>${iop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
+        <button type="button" class="campo" data-a="sesclis"${dis || (cop ? ' disabled' : '')}${cop ? ' aria-busy="true"' : ''}><span class="k">${clis.length > 1 ? 'Clientes' : 'Cliente'}</span><span class="v mv-scl">${clis.length ? clis.map(c => `<span>${av(c)}${esc(nombreCli(c))}</span>`).join('') : 'Sin cliente'}</span>${cop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
+      </div>${off ? '<p class="solo-mac">Sin conexión: no se puede cambiar.</p>' : ''}
+      ${v.apartados.map(apHTML).join('')}
+      ${v.fotos.length ? `<section class="mv-sap${SES.abiertos.has('__fotos') ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="__fotos" aria-expanded="${SES.abiertos.has('__fotos')}"><h2>Fotos de la sesión</h2><span class="n num">${v.fotos.length}</span><span class="chev">${ic('abajo')}</span></button></div>${SES.abiertos.has('__fotos') ? `<div class="mv-srej">${v.fotos.map(f => fotoSes(f.id, 130, 1)).join('')}</div>` : ''}</section>` : ''}
+    </main>`;
+  };
+  C.sesap = b => { const k = b.dataset.ap; if (SES.abiertos.has(k)) SES.abiertos.delete(k); else SES.abiertos.add(k); pintar(); };
+  C.sesmat = b => { const v = L.ses; if (!v) return; const a = v.apartados.find(x => x.id === b.dataset.ap), c = a && a.material.familias.flatMap(f => f.cosas).find(x => x.id === b.dataset.m); if (!c) return; const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), ahora = pend ? pend.valor.hecho : c.hecha; guardar({ slot: v.id, campo: 'sesMaterial', valor: { ap: a.id, m: c.id, hecho: !ahora }, visto: { hecho: c.hecha }, nombre: v.nombre }); };
+  // una hoja con un campo y «Guardar» (el nombre o el texto de un apartado)
+  function hojaCampo(t, valor, multi, alGuardar) {
+    const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `<textarea rows="9" data-sc aria-label="${esc(t)}">${esc(valor)}</textarea><p class="ex" style="margin-top:8px">Al empezar una línea: «- » viñeta, «1. » número, «[] » casilla.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t });
+    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return cerrarHojas(); const err = alGuardar(h.querySelector('[data-sc]').value); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
+  }
+  C.sesnom = () => { const v = L.ses; if (!v) return; hojaCampo('Nombre de la sesión', v.nombre, false, t => { const n = t.replace(/\s*\n\s*/g, ' ').trim(); if (!n) return 'Una sesión necesita un nombre.'; cerrarHojas(true); if (n !== v.nombre) guardar({ slot: v.id, campo: 'sesNombre', valor: n, visto: v.nombre, nombre: v.nombre }); return ''; }); };
+  C.sested = b => { const v = L.ses, a = v && v.apartados.find(x => x.id === b.dataset.ap); if (!a) return; hojaCampo(a.nombre, a.texto, true, t => { cerrarHojas(true); if (t !== a.texto) guardar({ slot: v.id, campo: 'sesTexto', valor: { ap: a.id, texto: t }, visto: a.texto, nombre: v.nombre }); return ''; }); };
+  C.sesclis = () => {
+    const v = L.ses; if (!v) return; const sel = new Set(v.clientes);
+    const pinta = esp => { const fila = (id, n) => `<button type="button" class="estado-op${sel.has(id) ? ' on' : ''}" data-scl="${esc(id)}" aria-pressed="${sel.has(id)}">${av(id)}<span style="flex:1;min-width:0">${esc(n)}</span>${sel.has(id) ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`;
+      return `<h2>Clientes de la sesión</h2><p class="ex">Uno o varios. Los nuevos se crean en el escritorio.</p><span class="lbl">Mensuales</span><div class="estados">${(X().CL || []).map(c => fila(c.id, c.name)).join('')}</div>${esp.length ? `<span class="lbl">Esporádicos</span><div class="estados">${esp.map(e => fila(e.id, e.txt)).join('')}</div>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-scl-a="no">Cancelar</button><button type="button" class="btn pri" data-scl-a="si">Guardar</button></div></div>`; };
+    M.personal.tareas().catch(() => []).then(l => {
+      const esp = l.filter(t => t.tipo === 'esporadico' && !t.pasado), h = hoja(pinta(esp), { etiqueta: 'Clientes de la sesión' });
+      h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const f = e.target.closest('[data-scl]'); if (f) { const id = f.dataset.scl; if (sel.has(id)) sel.delete(id); else sel.add(id); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(esp); h.scrollTop = y; return; }
+        const b = e.target.closest('[data-scl-a]'); if (!b) return; if (b.dataset.sclA !== 'si') return cerrarHojas(); cerrarHojas(true);
+        const nuevo = [...sel], ant = [...v.clientes].sort(); if (JSON.stringify([...nuevo].sort()) !== JSON.stringify(ant)) guardar({ slot: v.id, campo: 'sesClientes', valor: nuevo, visto: ant, nombre: v.nombre }); });
+    });
+  };
+  C.sesfecha = () => {
+    const v = L.ses; if (!v) return;
+    let dia = v.fecha || hoy(), conHora = !!v.hora, hh = (v.hora || '10:00').slice(0, 2), mm = (v.hora || '10:00').slice(3, 5), mes = dia.slice(0, 7);
+    const mins = MINS.includes(mm) ? MINS : [...MINS, mm].sort();
+    const dur = () => { if (!v.fin || !v.fin.fecha || !v.fecha) return ''; if (v.fin.hora && v.hora && v.fin.fecha === v.fecha) { const a = +v.hora.slice(0, 2) * 60 + +v.hora.slice(3, 5), b = +v.fin.hora.slice(0, 2) * 60 + +v.fin.hora.slice(3, 5), c = (+hh * 60 + +mm) + (b - a); return c < 1440 ? `Termina a las ${String(Math.floor(c / 60)).padStart(2, '0')}:${String(c % 60).padStart(2, '0')}.` : 'El fin se mueve con el inicio.'; } return 'El fin se mueve con el inicio.'; };
+    const pinta = () => `<h2>Fecha y hora</h2><p class="ex">${esc(v.nombre)}</p>${calendarioHTML(dia, mes, null)}${conHora ? `<div class="ruedas"><span class="banda"></span>${ruedaHTML('h', HORAS, hh)}<b class="dos">:</b>${ruedaHTML('m', mins, mm)}</div><button type="button" class="lnk" data-a2="sinhora" style="margin:4px auto 0;display:flex">Sin hora</button>` : `<button type="button" class="campo" data-a2="ponhora" style="margin-top:10px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)"><span class="k">Hora</span><span class="v">Sin hora</span><span class="chev">${ic('der')}</span></button>`}${v.fin && v.fin.fecha ? `<p class="ex" style="margin:10px 0 0" data-dur>${esc(dur())}</p>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-a2="cancelar">Cancelar</button><button type="button" class="btn pri" data-a2="guardar">Guardar</button></div></div>`;
+    const h = hoja(pinta(), { etiqueta: 'Fecha y hora' });
+    const armar = () => h.querySelectorAll('[data-rueda]').forEach(rr => armarRueda(rr, x => { if (rr.dataset.rueda === 'h') hh = x; else mm = x; const d = h.querySelector('[data-dur]'); if (d) d.textContent = dur(); }));
+    const leer = () => { if (!conHora) return; const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; };
+    const repinta = () => { leer(); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); armar(); h.scrollTop = y; };
+    armar();
+    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return;
+      const d = e.target.closest('[data-dia]'); if (d && !d.disabled) { dia = d.dataset.dia; return repinta(); }
+      const c = e.target.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
+      const b = e.target.closest('[data-a2]'); if (!b) return;
+      if (b.dataset.a2 === 'cancelar') return cerrarHojas();
+      if (b.dataset.a2 === 'sinhora') { leer(); conHora = false; return repinta(); }
+      if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
+      if (b.dataset.a2 === 'guardar') { leer(); const valor = { fecha: dia, hora: conHora ? `${hh}:${mm}` : '' }; cerrarHojas(true); if (valor.fecha !== v.fecha || valor.hora !== v.hora) guardar({ slot: v.id, campo: 'sesInicio', valor, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }
+    });
+  };
+
   function accion(a, b, e) {
     switch (a) {
       case 'atras': return atras(b.dataset.destino);
@@ -1378,7 +1501,11 @@
       case 'pubs': PUBS.abierta = !PUBS.abierta; return pintar();
       case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();
       case 'tcli': FILTRO_T = b.dataset.c || ''; return pintar();
-      case 'tver': return verTarea(b.dataset.id);
+      case 'tver': {   // una sesión abre su pantalla (D-275); una tarea o una nota, su hoja
+        const id = b.dataset.id, x = (L.tareas || []).find(t => t.id === id), hi = L.hoy && (L.hoy.items || []).find(i => i.k && i.k.id === id);
+        if ((x && x.tipo === 'sesion') || (hi && (hi.tipo === 'sesion' || hi.k.tipo === 'sesion'))) return avanzar('ses/' + id);
+        return verTarea(id);
+      }
       case 'cobro': return aviso('Las facturas se abren en el escritorio.');
       case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
       case 'cerrarhoja': return cerrarHojas();
@@ -1473,7 +1600,7 @@
   // Mesa en otro aparato, un choque sin decidir) y espera en «sin subir» a que Kevin la suba encima o la descarte: nunca se aplica
   // sola (R4). Al abrir la app, lo que quedó a medias es «quedo».
   const K_OPS = 'mesa-movil-ops';
-  // los campos nuevos de la 4.38 (D-272, D-273) van en otra clave: una 4.37 que leyera la cola los quitaría como «campo no válido»
+  // los campos nuevos de la 4.38 (D-272, D-275) van en otra clave: una 4.37 que leyera la cola los quitaría como «campo no válido»
   // (fallo definitivo); así no los ve y esperan a una 4.38 (lección 228). La cola es la unión de las dos, en su orden
   const K_OPS2 = 'mesa-movil-ops2', NUEVOS = /^(tarea(Texto|Fecha|Cliente|Detalles)|subtarea|ses[A-Z]\w*)$/;
   const leerK = k => { try { const l = JSON.parse(lsG(k) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
@@ -1487,11 +1614,11 @@
   const corto2 = id => (M.nube && M.nube.nombreDe ? M.nube.nombreDe(id) : 'otro aparato').replace(/ \([0-9a-f]{4}\)$/, '');
   // la misma operación (un doble toque) y otra del mismo campo (la nueva sustituye a la que aún no se aplicó)
   const firma = op => { const v = op.valor || {}; return op.campo === 'tareaNueva' ? ['tn', v.tipo, v.txt, v.fecha || '', v.cliente || ''].join('|') : [op.key, op.slot, op.campo, JSON.stringify(op.valor)].join('|'); };
-  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k) && (a.campo !== 'subtarea' || ((a.valor || {}).sid === (b.valor || {}).sid && (a.valor || {}).accion === (b.valor || {}).accion));   // cada subtarea, su campo (D-272)
+  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k) && (a.campo !== 'subtarea' || ((a.valor || {}).sid === (b.valor || {}).sid && (a.valor || {}).accion === (b.valor || {}).accion)) && (a.campo !== 'sesMaterial' || ((a.valor || {}).ap === (b.valor || {}).ap && (a.valor || {}).m === (b.valor || {}).m)) && (a.campo !== 'sesTexto' || (a.valor || {}).ap === (b.valor || {}).ap);   // cada subtarea, su campo (D-272); cada cosa del material y cada texto de una sesión, el suyo (D-275)
   let RUN = null, OTRA = false, ENVUELO = null;
   const ESCRITOS = new Map();   // lo que escribió este iPhone en cada campo, como quedó guardado: un choque contra eso no es un choque
   // un fallo pasajero deja la operación en «sin subir»; uno definitivo (publicada, fuera del mes, ya no está…) la quita y lo dice
-  const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas)$/.test(String(e)) || /^no se pudo/.test(String(e));
+  const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas|sin sesiones)$/.test(String(e)) || /^no se pudo/.test(String(e));
   // lo que dice una operación, para la hoja del choque y la de «sin subir»
   function opTexto(op, v) {
     if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return iso ? campoFecha({ dia: X().localDay(iso), hora: X().dOnly(iso) ? '' : X().localTime(iso) }) : 'Sin fecha'; }
@@ -1503,10 +1630,15 @@
     if (op.campo === 'tareaTexto' || op.campo === 'tareaDetalles') return String(v || '').slice(0, 140) || 'Vacío';
     if (op.campo === 'tareaFecha') return v ? cap1(DS[dow(v)]) + ' ' + corto(v) : 'Sin fecha';
     if (op.campo === 'tareaCliente') return v ? nombreCli(v) : 'Sin cliente';
+    if (op.campo === 'sesNombre') return String(v || '');
+    if (op.campo === 'sesInicio') { const o = v || {}; return o.fecha ? campoFecha({ dia: o.fecha, hora: o.hora || '' }) : 'Sin fecha'; }
+    if (op.campo === 'sesClientes') return (v || []).length ? v.map(nombreCli).join(' · ') : 'Sin cliente';
+    if (op.campo === 'sesMaterial') return v && v.hecho ? 'Marcado' : 'Sin marcar';
+    if (op.campo === 'sesTexto') { const t = v && typeof v === 'object' ? v.texto : v; return String(t || '').slice(0, 140) || 'Vacío'; }
     if (op.campo === 'subtarea') { const o = op.valor || {}; if (v === op.valor) return o.accion === 'quitar' ? 'Quitarla' : o.accion === 'hecha' ? (o.hecha ? 'Hecha' : 'Sin hacer') : String(o.txt || ''); return v == null ? 'No está' : v.txt != null ? v.txt : v.hecha != null ? (v.hecha ? 'Hecha' : 'Sin hacer') : 'Está'; }
     return '';
   }
-  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva', tareaTexto: 'Texto', tareaFecha: 'Fecha', tareaCliente: 'Cliente', tareaDetalles: 'Detalles', subtarea: 'Subtarea' })[op.campo] || op.campo;
+  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva', tareaTexto: 'Texto', tareaFecha: 'Fecha', tareaCliente: 'Cliente', tareaDetalles: 'Detalles', subtarea: 'Subtarea', sesNombre: 'Nombre', sesInicio: 'Fecha y hora', sesClientes: 'Clientes', sesMaterial: 'Material', sesTexto: 'Texto' })[op.campo] || op.campo;
   // guardar de fondo (D-271, punto 9): sin hoja que tape la pantalla; sus pasos (coger, aplicar, subir, soltar) llenan el monograma
   const alPaso = n => { TRAB.guardar = [0, 0.25, 0.5, 1][n] ?? 1; trabajo(); };   // el monograma, un cuarto por paso
   // lo que se está guardando: la pantalla enseña ya el valor nuevo, con un aro en el sitio de su flecha
@@ -1598,7 +1730,7 @@
     const prog = { paso: n => alPaso(n), h: null, que: prim ? `«${opQue(prim).toLowerCase()}»${prim.nombre ? ' de ' + prim.nombre : ''}` : '' };
     const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
     const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set();
-    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : op.campo === 'subtarea' ? (op.valor || {}).sid + ':' + (op.valor || {}).accion : ''].join('|');
+    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : op.campo === 'subtarea' ? (op.valor || {}).sid + ':' + (op.valor || {}).accion : op.campo === 'sesMaterial' ? (op.valor || {}).ap + ':' + (op.valor || {}).m : op.campo === 'sesTexto' ? (op.valor || {}).ap : ''].join('|');
     const queda = (ids, motivo) => { if (!ids.length) return; opsMarcar(ids, 'quedo'); res.quedan += ids.length; res.por[motivo] = (res.por[motivo] || 0) + ids.length; };
     const motivoDe = e => (e === 'sin turno' ? 'turno' : e === 'sin decidir' ? 'decidir' : 'fallo');
     let s = null;
@@ -1687,7 +1819,7 @@
     await releerTodo();
     return r;
   }
-  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', 'una nota necesita un texto': 'Una nota necesita un texto.', 'una subtarea necesita un texto': 'Una subtarea necesita un texto.', 'cliente no válido': 'Ese cliente ya no está.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', 'una nota necesita un texto': 'Una nota necesita un texto.', 'una subtarea necesita un texto': 'Una subtarea necesita un texto.', 'cliente no válido': 'Ese cliente ya no está.', 'una sesión necesita un nombre': 'Una sesión necesita un nombre.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
   const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
   async function releerTodo() {
     L.hoy = null; L.clientes = null; L.error = {};

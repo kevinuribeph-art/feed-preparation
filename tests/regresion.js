@@ -18902,7 +18902,7 @@
     const tx = async u => (await W.fetch(u + '?mv17=' + Date.now(), { cache: 'no-store' })).text();
     const mv = await tx('movil.html'), ix = await tx('index.html');
     const scripts = [...mv.matchAll(/<script[^>]*\ssrc="([^"?]+)/g)].map(m => m[1]);
-    igual(scripts, ['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'movil.js'], 'los scripts de movil.html');   // tema.js: el modo elegido antes de pintar (D-271, punto 11)
+    igual(scripts, ['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'sesiones.js', 'movil.js'], 'los scripts de movil.html');   // tema.js: el modo elegido antes de pintar (D-271, punto 11); sesiones.js: la sesión entera (D-275)
     ok(!/<script(?![^>]*\ssrc=)[^>]*>/.test(mv.replace(/<!--[\s\S]*?-->/g, '')) && !/\son[a-z]+\s*=/.test(mv.replace(/<!--[\s\S]*?-->/g, '')), 'movil.html con un script en línea o un manejador');
     ok(!/\basync\b/.test(scripts.join(' ')) && !/<script async/.test(mv), 'un script async en movil.html');
     const csp = t => (t.match(/Content-Security-Policy" content="([^"]*)"/) || [])[1];
@@ -19970,6 +19970,81 @@
         h = W.document.querySelector('#movil .hoja'); pon('[data-ed="txt"]', 'Ideas para diciembre\n[] calendario de adviento'); clicCara('#movil .hoja [data-ed-a="guardar"]');
         await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar la nota');
         igual((await M._in.idbGet('tareas', nt)).txt, 'Ideas para diciembre\n[] calendario de adviento', 'el texto de la nota');
+      } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV61', 'Una sesión entera en el iPhone (D-275): desde Tareas abre su pantalla, con los apartados plegados al entrar, varios abiertos a la vez y otra vez plegados al volver; las marcas del texto se dibujan; sus fotos llegan; marcar el material, el nombre, el texto de un apartado, la fecha y hora (el fin se mueve con el inicio) y los clientes (también esporádicos) son operaciones de su cola: otra cosa del material marcada en el Mac a la vez no choca', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'ssmv61sesionenteraenelobrador', es = 'esmv61fincadelamarinadesantagertrudis', ahora = new W.Date().toISOString(), c0 = M._in.CL[0].id;
+    const ab = await (await foto('mv61.jpg', 900, 600, '#6a4a2c')).arrayBuffer();
+    const tf = (fid, w, h) => ({ id: fid, w, h, blob: new W.Blob([ab], { type: 'image/jpeg' }), mini: new W.Blob([ab], { type: 'image/jpeg' }), sesion: id, t: 1 });
+    const S0 = { id, tipo: 'sesion', txt: 'Sesión de otoño en el obrador con el equipo de sala', fecha: '2026-11-24', hora: '09:30', fin: { fecha: '2026-11-24', hora: '13:00' }, cliente: c0, clientes: [c0], creada: ahora, at: ahora,
+      fotos: [{ id: 'tfmv61a', w: 900, h: 600 }, { id: 'tfmv61b', w: 900, h: 600 }],
+      sesion: { clase: 'fotovideo', visible: true, plantilla: 1, apartados: [
+        { id: 'orden', nombre: 'Orden', visible: true, texto: 'Llegar a las 9:00 al obrador:\n[x] Baterías cargadas\n[] Tarjetas vacías\n- Trípode de luz' },
+        { id: 'planos', nombre: 'Planos', visible: true, pestanas: [{ id: 'ptmv61a', nombre: 'Planos', items: [{ id: 'plmv61a', titulo: 'Manos amasando sobre la mesa de mármol', texto: 'Luz lateral de la ventana', hecho: true, fotos: ['tfmv61a'] }] }, { id: 'ptmv61b', nombre: 'Vídeos', items: [] }] },
+        { id: 'fotos', nombre: 'Fotos', visible: true, texto: '' },
+        { id: 'mood', nombre: 'Mood board', visible: true, grupos: [{ id: 'grmv61a', nombre: 'Luz de mañana', fotos: ['tfmv61a', 'tfmv61b'] }] },
+        { id: 'material', nombre: 'Material', visible: false, material: { lista: [{ id: 'mamv61a', nombre: 'Cámara principal', familia: 'Cámara y óptica', tipo: 'ambas' }, { id: 'mamv61b', nombre: 'Batería de repuesto', familia: 'Cámara y óptica', tipo: 'ambas', padre: 'mamv61a' }, { id: 'mamv61c', nombre: 'Cargar las baterías la noche antes', familia: 'Antes de salir', tipo: 'ambas' }], hechos: ['mamv61c'] } }] } };
+    const E0 = { id: es, tipo: 'esporadico', txt: 'Finca de la Marina de Santa Gertrudis', creada: ahora, at: ahora };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(S0, id); st.put(E0, es); });
+    await M._in.diario.sinDiario('tfotos', 'readwrite', st => { st.put(tf('tfmv61a', 900, 600), 'tfmv61a'); st.put(tf('tfmv61b', 900, 600), 'tfmv61b'); });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        C.sv.escribirMac('tareas', id, S0); C.sv.escribirMac('tareas', es, E0);
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+        await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la pantalla de la sesión');
+        ok(/^#ses\//.test(W.location.hash) && !W.document.querySelector('#movil .hoja.on'), 'la sesión abrió una hoja y no su pantalla');
+        ok(/Sesión de otoño en el obrador/.test(W.document.querySelector('#movil .mv-ses-h h1').textContent) && /Tareas/.test(W.document.querySelector('#movil .top').textContent), 'la cabecera o el «‹ Tareas»');
+        igual([...W.document.querySelectorAll('#movil .mv-sap-b h2')].map(h => h.textContent), ['Orden', 'Planos', 'Fotos', 'Mood board', 'Material', 'Fotos de la sesión'], 'los apartados, en el orden del Mac');
+        ok(!W.document.querySelector('#movil .mv-sap.abierto'), 'al entrar hay un apartado abierto');
+        ok(W.document.querySelector('#movil [data-a="sesap"][data-ap="material"] .oj'), 'el material no dice que el cliente no lo ve');
+        clicCara('#movil [data-a="sesap"][data-ap="orden"]'); await espera(80); clicCara('#movil [data-a="sesap"][data-ap="mood"]'); await espera(80);
+        igual([...W.document.querySelectorAll('#movil .mv-sap.abierto [data-a="sesap"]')].map(b => b.dataset.ap), ['orden', 'mood'], 'abrir dos apartados');
+        const cas = W.document.querySelector('#movil .mv-stx .pp-em.ca'), vi = W.document.querySelector('#movil .mv-stx .pp-em.vi');
+        ok(cas && vi && W.getComputedStyle(cas).color === 'rgba(0, 0, 0, 0)' && W.getComputedStyle(cas.querySelector('.pp-emk'), '::before').content !== 'none', 'las marcas del texto salen en crudo');
+        aLaVista(); await hasta(() => { const l = [...W.document.querySelectorAll('#movil .mv-mood img.mi')]; return l.length === 2 && l.every(verFoto); }, 8000, 'las fotos del mood board');
+        // el material: marcar una cosa mientras el Mac marca otra (cada cosa, su campo)
+        clicCara('#movil [data-a="sesap"][data-ap="material"]'); await espera(80);
+        ok(W.document.querySelectorAll('#movil .mv-sap.abierto').length === 3, 'abrir el material cerró otro');
+        igual([...W.document.querySelectorAll('#movil .mv-mat h3')].map(h => h.firstChild.textContent.trim()), ['Antes de salir', 'Cámara y óptica'], 'las familias, «Antes de salir» primero');
+        C.sv.escribirMac('tareas', id, { ...S0, sesion: { ...S0.sesion, apartados: S0.sesion.apartados.map(a => a.id === 'material' ? { ...a, material: { ...a.material, hechos: ['mamv61c', 'mamv61b'] } } : a) } });
+        clicCara('#movil [data-a="sesmat"][data-m="mamv61a"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el material');
+        ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'otra cosa del material marcada en el Mac enseñó un choque');
+        igual([...(await M._in.idbGet('tareas', id)).sesion.apartados.find(a => a.id === 'material').material.hechos].sort(), ['mamv61a', 'mamv61b', 'mamv61c'], 'el material marcado');
+        ok(W.document.querySelectorAll('#movil .mv-sap.abierto').length === 3, 'guardar plegó los apartados abiertos');
+        // el nombre y el texto de un apartado
+        sinAviso(); clicCara('#movil [data-a="sesnom"]'); let h = await hojaCara('[data-sc]', 'la hoja del nombre');
+        const pon = v => { const i = h.querySelector('[data-sc]'); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+        pon('   '); clicCara('#movil .hoja [data-sc-a="si"]'); await espera(60);
+        ok(/necesita un nombre/.test(W.document.querySelector('#movil .hoja').innerText), 'un nombre vacío se guardó');
+        pon('Sesión de otoño en el obrador con todo el equipo'); clicCara('#movil .hoja [data-sc-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el nombre');
+        sinAviso(); clicCara('#movil [data-a="sested"][data-ap="fotos"]'); h = await hojaCara('textarea[data-sc]', 'la hoja del texto');
+        pon('Retratos del equipo de sala\n[] Fondo del horno'); clicCara('#movil .hoja [data-sc-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el texto');
+        // la fecha y la hora: el fin se mueve con el inicio
+        sinAviso(); clicCara('#movil [data-a="sesfecha"]'); await hojaCara('.selcal', 'el calendario de la sesión');
+        clicCara('#movil .hoja [data-dia="2026-11-26"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar la fecha');
+        // los clientes: un mensual y un esporádico
+        sinAviso(); clicCara('#movil [data-a="sesclis"]'); await hojaCara(`[data-scl="${es}"]`, 'los clientes de la sesión');
+        clicCara(`#movil .hoja [data-scl="${es}"]`); await espera(40); clicCara('#movil .hoja [data-scl-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar los clientes');
+        const r = await M._in.idbGet('tareas', id), tx = a => r.sesion.apartados.find(x => x.id === a).texto;
+        igual([r.txt, tx('fotos'), r.fecha, r.hora, r.fin, [...r.clientes].sort()], ['Sesión de otoño en el obrador con todo el equipo', 'Retratos del equipo de sala\n[] Fondo del horno', '2026-11-26', '09:30', { fecha: '2026-11-26', hora: '13:00' }, [c0, es].sort()], 'lo guardado en la sesión');
+        igual(tx('orden'), S0.sesion.apartados[0].texto, 'otro texto cambió');
+        const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.txt === r.txt && arriba.valor.fecha === '2026-11-26', 'no subió');
+        ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
+        // salir y volver: plegados otra vez
+        await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`); clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+        await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la sesión otra vez');
+        ok(!W.document.querySelector('#movil .mv-sap.abierto'), 'al volver hay un apartado abierto');
       } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
     });
     await sinTareas();

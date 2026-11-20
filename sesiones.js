@@ -14,6 +14,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;
+  const MOVIL = document.documentElement.hasAttribute('data-movil');   // the iPhone (D-275): nothing mounted, only its view and its setters
   const VERSION = '1.6';   // 1.6: a session's photo that hasn't come down from the server yet (lot 4 of the traspaso) waits instead of breaking the sheet, and is read again when it arrives (D-259). 1.5: with the cloud on, the loose photos are cleaned only once everything came down, and only here (D-256). 1.4: a sporadic client's file has its «Cobros», one per session and client (cobros.js); «Pasar a mensual» takes them (D-234); drawing the file never takes the focus from what is being written in it. 1.3: the sheet changes in place only what changed (D-223); seen as the client, no empty section («Aún sin detalles» if none is left) and the separator still (D-228); the end the same day, its calendar with the pointer over it; --mute for what is read (D-231). 1.2: a chip each client and «+ Cliente» (D-217); «– Fin» (D-218); fixed in «Ver como el cliente» over the board in the vista cliente (D-219); templates of material (D-220); «Duplicar sesión» (D-221). 1.1: a click writes in the sheet and the file (D-209); the sheet widens (D-210); the mood board in columns of a cell of the feed (D-211); the shots' tabs as titles (D-214); the right column 20 px inside (D-216)
   if (M.sesiones && M.sesiones._off) { try { M.sesiones._off(); } catch (e) { /* */ } }
   let P = null;                                // personal.js's own (M.personal._p)
@@ -979,6 +980,7 @@
   const listo = () => listoP || (listoP = new Promise(res => { const t = setInterval(() => { if (M.personal && M.personal._p && I() && I().idbAll) { clearInterval(t); res(); } }, 100); }));
   listo().then(() => {
     P = M.personal._p;
+    if (MOVIL) return;   // the iPhone (D-275): no listeners, no style, no limpiar() (it writes tfotos on its own: R1)
     P.EXT.sesion = HOJA; P.EXT.ficha = FICHA;
     on(document, 'contextmenu', e => { const C = P.CARD; if (C && C.ext && C.ext.menu && P.enCard(e.target)) C.ext.menu(e); }, true);
     for (const ty of ['dragstart', 'dragenter', 'dragover', 'dragleave', 'drop']) on(document, ty, e => { const C = P.CARD; if (C && C.ext === HOJA && P.enCard(e.target)) arrastre(e); });
@@ -992,8 +994,60 @@
     if (P.page && P.st.on) P.pintar();
     setTimeout(limpiar, 8000);
   });
+  // ---------- the iPhone (D-275): a session seen whole and edited field by field, with these same rules ----------
+  // vista(id): the session as Kevin sees it on the Mac (not «as the client»), its sections in the Mac's order in one column (left, then
+  // right). campo(id, campo, sub): what a field holds now (what was seen). editar(id, campo, valor): one field — the start (its end
+  // moves with it, D-218), the clients (monthly and sporadic, none made here), a thing of the material (the template copied at the
+  // first mark, as on the Mac), the name and the text of a text section. Each, a step of the tasks' ⌘Z.
+  async function vistaMovil(id) {
+    await listo(); await P.cargarTK(); const r = P.TK.get(id); if (!r || r.tipo !== 'sesion' || r._b || !r.sesion) return null;
+    const C = columnas(r), orden = [...C.izq, ...C.der];
+    const aps = orden.map(k => ap(r, k)).filter(Boolean).map(a => {
+      const t = tipoDe(a), h = hechos(a, r), o = { id: a.id, tipo: t, nombre: a.nombre || (APS[a.id] || {}).n || a.id, visible: a.visible !== false, cuenta: h ? { hechas: h[0], n: h[1] } : null };
+      if (t === 'texto') o.texto = typeof a.texto === 'string' ? a.texto : '';
+      if (t === 'planos') o.pestanas = (a.pestanas || []).map(p => ({ id: p.id, nombre: p.nombre, items: (p.items || []).map(i => ({ id: i.id, titulo: i.titulo || '', texto: i.texto || '', hecho: !!i.hecho, fotos: (i.fotos || []).slice() })) }));
+      if (t === 'mood') o.grupos = (a.grupos || []).map(g => ({ id: g.id, nombre: g.nombre || '', fotos: (g.fotos || []).slice() }));
+      if (t === 'material') {
+        const L = matDe(a, r).L, hs = new Set((a.material && a.material.hechos) || []), fams = [];
+        const fam = n => { let f = fams.find(x => x.nombre === n); if (!f) fams.push(f = { nombre: n, cosas: [] }); return f; };
+        if (L.some(x => (x.familia || '') === 'Antes de salir')) fam('Antes de salir');
+        for (const x of L.filter(y => !y.padre)) { const f = fam(x.familia || 'Otras'); f.cosas.push({ id: x.id, nombre: x.nombre, hecha: hs.has(x.id) }); for (const c of L.filter(y => y.padre === x.id)) f.cosas.push({ id: c.id, nombre: c.nombre, hecha: hs.has(c.id), de: x.id }); }
+        for (const x of L.filter(y => y.padre && !L.some(z => z.id === y.padre))) fam(x.familia || 'Otras').cosas.push({ id: x.id, nombre: x.nombre, hecha: hs.has(x.id) });
+        o.material = { familias: fams.map(f => ({ ...f, hechas: f.cosas.filter(c => c.hecha).length })), hechas: L.filter(x => hs.has(x.id)).length, n: L.length };
+      }
+      return o;
+    });
+    return { id: r.id, nombre: String(r.txt || ''), clase: claseTxt(r.sesion.clase), visible: r.sesion.visible !== false, fecha: r.fecha || '', hora: r.hora || '', fin: r.fin ? { ...r.fin } : null,
+      clientes: (r.clientes || []).filter(c => P.cliDe(c)), apartados: aps, fotos: (r.fotos || []).map(f => ({ id: f.id, w: f.w, h: f.h })) };
+  }
+  async function campoMovil(id, campo, sub) {
+    await listo(); await P.cargarTK(); const r = P.TK.get(id); if (!r || r.tipo !== 'sesion' || r._b || !r.sesion) return { error: 'no existe' };
+    if (campo === 'nombre') return { v: String(r.txt || '') };
+    if (campo === 'inicio') return { v: { fecha: r.fecha || '', hora: r.hora || '' } };
+    if (campo === 'clientes') return { v: [...(r.clientes || [])].sort() };
+    const a = sub && ap(r, sub.ap); if (!a) return { error: 'no existe' };
+    if (campo === 'material') return { v: { hecho: !!((a.material && a.material.hechos) || []).includes(sub.m) } };
+    if (campo === 'texto') return { v: typeof a.texto === 'string' ? a.texto : '' };
+    return { error: 'campo no válido' };
+  }
+  async function editarMovil(id, campo, v) {
+    await listo(); await P.cargarTK(); const r = P.TK.get(id); if (!r || r.tipo !== 'sesion' || r._b || !r.sesion) return { error: 'no existe' };
+    if (I().locked) return { error: 'sin turno' };
+    let f = null;
+    if (campo === 'nombre') { const n = String(v ?? '').replace(/\s*\n\s*/g, ' ').trim(); if (!n) return { error: 'una sesión necesita un nombre' }; f = x => { x.txt = n; return x; }; }
+    else if (campo === 'inicio') {
+      const o = v || {}; if ((o.fecha && !/^\d{4}-\d{2}-\d{2}$/.test(o.fecha)) || (o.hora && !/^\d{2}:\d{2}$/.test(o.hora)) || (o.hora && !o.fecha)) return { error: 'fecha no válida' };
+      f = x => { P.moverInicio(x, o.fecha || '', o.hora || ''); return x; };   // its end moves with it, keeping the length (D-218)
+    } else if (campo === 'clientes') { if (!Array.isArray(v)) return { error: 'clientes no válidos' }; const l = v.filter(c => typeof c === 'string' && P.cliDe(c)); f = x => { ponerClis(x, l); return x; }; }
+    else if (campo === 'material') {
+      const o = v || {}; f = x => { const y = ap(x, o.ap); if (!y || tipoDe(y) !== 'material') return null; const m = matDeY(y); if (!m.lista.some(z => z.id === o.m)) return null; const h = new Set(m.hechos || []); if (o.hecho) h.add(o.m); else h.delete(o.m); m.hechos = [...h]; return x; };
+    } else if (campo === 'texto') { const o = v || {}; f = x => { const y = ap(x, o.ap); if (!y || tipoDe(y) !== 'texto') return null; y.texto = String(o.texto ?? ''); return x; }; }
+    else return { error: 'campo no válido' };
+    return (await P.cambiar(id, f)) ? { ok: true } : { error: I().locked ? 'sin turno' : campo === 'material' || campo === 'texto' ? 'no existe' : 'no se pudo guardar' };
+  }
   M.sesiones = {
     version: VERSION, plantilla: () => P.hondo(PLANTILLA),
+    movil: { vista: vistaMovil, campo: campoMovil, editar: editarMovil },
     _test: { limpiar, reparto: () => reparto(), S: () => ({ ...S, plg: [...S.plg] }), decodificados: () => BM.size,
       crear: async o => { await listo(); const now = P.ahoraISO(), c = PLANTILLA[o.clase] ? o.clase : 'fotovideo', r = { id: P.nuevoId('ss'), tipo: 'sesion', txt: o.txt || nombreDe(c), creada: now, at: now, sesion: { clase: c, visible: o.visible !== false, plantilla: PLANTILLA.v, apartados: PLANTILLA[c].map(apartado) } }; if (o.fecha) r.fecha = o.fecha; if (o.hora) r.hora = o.hora; ponerClis(r, o.clientes || (o.cliente ? [o.cliente] : [])); if (o.fin && r.fecha) r.fin = { ...o.fin }; await P.hacer([{ id: r.id, despues: r }]); return P.copia(r); } },
     _off: () => { OFF.forEach(f => f()); OFF.length = 0; if (P) { delete P.EXT.sesion; delete P.EXT.ficha; } soltarFotos(); }

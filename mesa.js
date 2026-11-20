@@ -6319,9 +6319,11 @@ ${TK_FUENTES}
   }
   // a task's or a note's fields on the phone (D-272): the operation's field → personal.js's; a subtask is its own field, per action
   const T_CAMPO = { tareaTexto: 'txt', tareaFecha: 'fecha', tareaCliente: 'cliente', tareaDetalles: 'detalles', subtarea: 'subtarea' };
+  const S_CAMPO = { sesNombre: 'nombre', sesInicio: 'inicio', sesClientes: 'clientes', sesMaterial: 'material', sesTexto: 'texto' };   // a session's (D-275)
   const subVisto = (a, c) => (c == null ? null : a === 'texto' ? { txt: c.txt } : a === 'hecha' ? { hecha: c.hecha } : a === 'quitar' ? { existe: true } : c);
   async function valorAsync(op) {
     if (op && op.campo === 'tarea') { const r = M.personal ? await M.personal.valor(op.slot) : null; return r ? { v: { hecha: !!r.hecha } } : { error: 'no existe' }; }
+    if (op && S_CAMPO[op.campo]) { if (!M.sesiones || !M.sesiones.movil) return { error: 'sin sesiones' }; return M.sesiones.movil.campo(op.slot, S_CAMPO[op.campo], op.valor); }
     if (op && T_CAMPO[op.campo]) {
       if (!M.personal || !M.personal.campo) return { error: 'sin tareas' };
       const c = await M.personal.campo(op.slot, T_CAMPO[op.campo], op.valor && op.valor.sid); if (c.error) return c;
@@ -6366,6 +6368,11 @@ ${TK_FUENTES}
   async function operarMovil(op) {
     if (!MOVIL) return { error: 'solo en el móvil' };
     if (locked) return { error: 'sin turno' };
+    if (op && S_CAMPO[op.campo]) {   // a session's field (D-275): with sesiones.js's rules, written at once
+      if (!M.sesiones || !M.sesiones.movil) return { error: 'sin sesiones' };
+      const r = await M.sesiones.movil.editar(op.slot, S_CAMPO[op.campo], op.valor);
+      return r && r.ok ? { ok: true, avisos: [] } : { error: locked ? 'sin turno' : (r && r.error) || 'no se pudo guardar' };
+    }
     if (op && T_CAMPO[op.campo]) {   // a task's or a note's field (D-272): with personal.js's rules, written at once
       if (!M.personal || !M.personal.editar) return { error: 'sin tareas' };
       const r = await M.personal.editar(op.slot, T_CAMPO[op.campo], op.valor);
@@ -6432,6 +6439,11 @@ ${TK_FUENTES}
   function finalDe(op, a) {   // what the field would hold once applied, to tell «the Mac did the same»
     if (op.campo === 'tarea') return { hecha: !!(op.valor && op.valor.hecha) };
     if (op.campo === 'tareaFecha' || op.campo === 'tareaCliente') return op.valor || '';
+    if (op.campo === 'sesNombre') return String(op.valor ?? '').replace(/\s*\n\s*/g, ' ').trim();
+    if (op.campo === 'sesInicio') return { fecha: (op.valor || {}).fecha || '', hora: (op.valor || {}).hora || '' };
+    if (op.campo === 'sesClientes') return [...(op.valor || [])].sort();
+    if (op.campo === 'sesMaterial') return { hecho: !!(op.valor || {}).hecho };
+    if (op.campo === 'sesTexto') return String((op.valor || {}).texto ?? '');
     if (op.campo === 'tareaTexto') return String(op.valor ?? '');
     if (op.campo === 'subtarea') { const o = op.valor || {}; return o.accion === 'quitar' ? null : o.accion === 'texto' ? { txt: String(o.txt || '').trim() } : o.accion === 'hecha' ? { hecha: !!o.hecha } : undefined; }
     if (op.campo === 'fecha') return isoMovil(op.valor);

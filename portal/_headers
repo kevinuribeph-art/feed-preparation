@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https://*.supabase.co; connect-src https://*.supabase.co; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https://ipqeywhhuncpnqkvfxpn.supabase.co; connect-src https://ipqeywhhuncpnqkvfxpn.supabase.co; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer

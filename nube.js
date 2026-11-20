@@ -1289,6 +1289,33 @@
       if (n) X().fotoLlego(id, (await X().idbGet('files', id)) || n);   // releído: un Blob en disco, no el de la red en memoria
     })().catch(() => { /* se vuelve a pedir la próxima vez que se vea */ }).finally(() => MINIS.delete(id)));
   }
+  // the photo of a task or a session on the phone (D-271, point 1): it comes down when it is seen, one at a time (never all at once,
+  // never traerResto, D-268): the 1.600 px photo (`blob`; the 160 px `mini` is not enough at 3×, and sesiones.js wants the `blob`).
+  // What is already here is given as it is; the same photo asked twice is one download. Without the cloud or on a failure: null.
+  const RUTA_FOTO = { tareas: /^el valor\.fotos\.\d+\.blob$/, tfotos: /^el valor\.blob$/ };
+  const FOTOS_ARCH = new Map(); let unaFoto = Promise.resolve();
+  const enRutaV = (v, ruta) => { let x = v; for (const p of String(ruta).replace(/^el valor/, '').match(/[^.[\]]+/g) || []) { if (x == null || typeof x !== 'object') return undefined; x = x[/^\d+$/.test(p) && Array.isArray(x) ? +p : p]; } return x; };
+  function archivoFoto(a, k, ruta) {
+    if (!RUTA_FOTO[a] || !RUTA_FOTO[a].test(String(ruta))) return Promise.resolve(null);
+    const c = a + '\u0001' + k + '\u0001' + ruta;
+    if (FOTOS_ARCH.has(c)) return FOTOS_ARCH.get(c);
+    const p = (async () => {
+      const r = enRutaV(await X().idbGet(a, k).catch(() => null), ruta);
+      if (r instanceof Blob) return r;
+      if (!X().esRefNube(r) || !r.ruta || !X().NUBE.activa) return null;
+      const antes = unaFoto; let suelta = () => {}; unaFoto = new Promise(res => { suelta = res; });   // one at a time
+      try {
+        await antes;
+        const b = await bajarArchivo(r);
+        if (!(await X().nubeAlmacen.ponerArchivo(a, k, ruta, r.sha256, b, null))) return null;   // the record changed meanwhile
+        const r2 = enRutaV(await X().idbGet(a, k), ruta);   // read again: a Blob on disk, not the one from the network
+        try { D.dispatchEvent(new CustomEvent('mesa-archivo-llego', { detail: { a, k, ruta } })); } catch (e) { /* */ }
+        return r2 instanceof Blob ? r2 : null;
+      } finally { suelta(); }
+    })().catch(() => null);
+    FOTOS_ARCH.set(c, p); p.then(() => FOTOS_ARCH.delete(c));
+    return p;
+  }
   // un Blob de aquí que es el original de esa huella (la misma foto bajo otro id, p. ej. llevada a otro post en el otro ordenador)
   async function originalAqui(sha, tam, tipo) {
     await registro();
@@ -1648,6 +1675,7 @@
     soltar: () => (N && !DORMIDA ? N.soltar() : Promise.resolve(DORMIDA ? { error: 'dormida' } : { hecho: true })), retener: v => { if (N && !DORMIDA) N.retener(v); },
     forzarAqui: visto => (N && !DORMIDA ? N.forzar(+visto) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),   // a sleeping tab touches nothing (review 2, point 7)
     subirEncima: claves => (N && !DORMIDA ? N.subirEncima(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })), descartar: claves => (N && !DORMIDA ? N.descartar(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),
+    archivo: (a, k, ruta) => archivoFoto(a, k, ruta),   // a task's or a session's photo, when the phone shows it (D-271)
     sinSubir: () => X().nubeAlmacen.sinSubir(), estadoYa: () => (N ? N.estado() : { fase: 'apagada' }), conTurno: () => !!(N && N.conTurno()),
     alEstado: f => { CARA.add(f); return () => CARA.delete(f); },
     _dormir: () => { DORMIDA = true; clearInterval(pulso); clearInterval(mirarT); if (N && N.dormir) N.dormir(); },   // another tab of this phone took over: this one does nothing more (it never lets the Mesa go: it is the same device)
@@ -1656,7 +1684,7 @@
     _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
     _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); estilar(); return AVS.length; },
     _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, movil: MOVIL_G, efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } }) }); X().NUBE.alApuntar = () => N.cambio(); return N; },
-    _soltar: () => { clearInterval(pulso); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
+    _soltar: () => { clearInterval(pulso); FOTOS_ARCH.clear(); unaFoto = Promise.resolve(); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
   if (X().NUBE.activa) { sb().alCambiar(u => { const n = sb().nivel && sb().nivel(); if (u && N && (ESTADO.fase === 'sin_sesion' || (ESTADO.fase === 'sin_codigo' && n && n.aal === 'aal2'))) N.reintentar(); }); if (!MOVIL_G) trasArmazon(() => pintar()); }

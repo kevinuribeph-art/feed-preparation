@@ -351,7 +351,11 @@
 #movil .cifras.c5 .cifra:nth-child(n+4){grid-column:span 3}
 #movil .cifras.c5 .cifra .v{font-size:28px}
 #movil .sub-h{padding:14px var(--pad) 8px;font-size:16px;font-weight:600;color:var(--ink-2)}
-#movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}`;
+#movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}
+#movil .mv-tira{display:flex;gap:8px;overflow-x:auto;margin:0 calc(-1 * var(--pad));padding:0 var(--pad);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+#movil .mv-tira::-webkit-scrollbar{display:none}
+#movil .mv-tf{position:relative;flex:none;height:140px;aspect-ratio:var(--r);border-radius:12px;overflow:hidden;background:var(--cell-ph)}
+#movil .mv-tf img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}`;
   const CSS_MAS = `
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
 #movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
@@ -558,12 +562,19 @@
   // y se suelta. El recorte es el de la publicación (vista.recortes, del núcleo). Una que aún no ha llegado (D-256) lo dice.
   const MINIS = new Map(), COLA = [], DPR = Math.min(3, W.devicePixelRatio || 1); let decodificando = 0;
   const claveMini = (id, px, r) => id + '|' + px + '|' + (r ? [r.x, r.y, r.w, r.h].map(v => v.toFixed(4)).join(',') : '');
-  const pendiente = id => { const f = M.files && M.files[id]; return !f || !!f.pendiente || !(M.thumbBlobs && M.thumbBlobs[id]) || !!(X().NUBE && X().NUBE.activa && X().pendienteRec && f.hueco); };
-  function miniDe(id, px, r) {
+  // sin miniatura = el hueco (D-271, punto 1): `pendiente` de M.files dice que el original sigue arriba, no que falte la miniatura
+  const pendiente = id => { const b = M.thumbBlobs && M.thumbBlobs[id]; return !b || b === X().hueco(); };
+  function miniDe(id, px, r, blob) {
     const k = claveMini(id, px, r); if (MINIS.has(k)) return MINIS.get(k);
-    const p = new Promise((res, rej) => { COLA.push({ id, px, r, res, rej }); correrMinis(); });
+    const p = new Promise((res, rej) => { COLA.push({ id, px, r, blob, res, rej }); correrMinis(); });
     MINIS.set(k, p); p.catch(() => MINIS.delete(k));
     return p;
+  }
+  // la foto de una tarea o de una sesión (D-271, punto 1): la nube la baja al verse, una a una; aquí se dibuja como las demás
+  async function miniArch(a, k, ruta, px) {
+    const id = a + '|' + k + '|' + ruta, c = claveMini(id, px, null); if (MINIS.has(c)) return MINIS.get(c);
+    const b = M.nube && M.nube.archivo ? await M.nube.archivo(a, k, ruta) : null;
+    return b ? miniDe(id, px, null, b) : null;   // sin ella todavía: nada guardado, se pide otra vez cuando llegue
   }
   function correrMinis() {
     while (decodificando < 3 && COLA.length) {
@@ -571,8 +582,8 @@
       hacerMini(t).then(t.res, t.rej).finally(() => { decodificando--; correrMinis(); });
     }
   }
-  async function hacerMini({ id, px, r }) {
-    const b = M.thumbBlobs && M.thumbBlobs[id]; if (!b) throw new Error('sin foto');
+  async function hacerMini({ id, px, r, blob }) {
+    const b = blob || (M.thumbBlobs && M.thumbBlobs[id]); if (!b) throw new Error('sin foto');
     const bm = await createImageBitmap(b);
     try {
       const sx = r ? r.x * bm.width : 0, sy = r ? r.y * bm.height : 0, sw = r ? r.w * bm.width : bm.width, sh = r ? r.h * bm.height : bm.height;
@@ -589,6 +600,7 @@
   const vigia = 'IntersectionObserver' in W ? new IntersectionObserver(l => l.forEach(e => { if (e.isIntersecting) { vigia.unobserve(e.target); llenar(e.target); } }), { rootMargin: '300px 0px' }) : null;
   function llenar(img) {
     const id = img.dataset.id, px = +img.dataset.px || 120, r = img.dataset.r ? JSON.parse(img.dataset.r) : null, hue = img.parentNode && img.parentNode.querySelector('.hueco');
+    if (img.dataset.alm) { miniArch(img.dataset.alm, img.dataset.k, img.dataset.ruta, px).then(u => { if (!u) { if (hue) hue.hidden = false; return; } if (hue) hue.hidden = true; if (img.isConnected) { img.src = u; img.classList.remove('cargando'); } }, () => { if (hue) hue.hidden = false; }); return; }
     if (pendiente(id)) { if (hue) hue.hidden = false; return; }
     if (hue) hue.hidden = true;
     miniDe(id, px, r).then(u => { if (img.isConnected) { img.src = u; img.classList.remove('cargando'); } }, () => { if (hue) hue.hidden = false; });
@@ -598,8 +610,13 @@
     const id = e.detail && e.detail.id; if (!id) return;
     olvidarMini(id); raiz.querySelectorAll(`img.mi[data-id="${CSS.escape(id)}"]`).forEach(i => { i.removeAttribute('src'); llenar(i); });
   });
+  D.addEventListener('mesa-archivo-llego', e => {   // una foto de una tarea o de una sesión bajó: donde se ve, se rellena en su sitio
+    const d = e.detail || {}; if (!d.a) return;
+    raiz.querySelectorAll(`img.mi[data-alm="${CSS.escape(d.a)}"][data-k="${CSS.escape(String(d.k))}"][data-ruta="${CSS.escape(d.ruta)}"]:not([src])`).forEach(llenar);
+  });
   const HUECO = `<span class="hueco" hidden>${ic('nube')}<span>Llega en un momento</span></span>`;
   const foto = (id, px, r) => id ? `<img class="mi cargando" data-id="${esc(id)}" data-px="${px}"${r ? ` data-r='${esc(JSON.stringify(r))}'` : ''} alt="">${HUECO}` : '';
+  const fotoArch = (a, k, ruta, px) => `<img class="mi cargando" data-alm="${esc(a)}" data-k="${esc(k)}" data-ruta="${esc(ruta)}" data-px="${Math.round(px)}" alt="">${HUECO}`;
   const cargarMinis = ids => { const l = [...new Set(ids.filter(Boolean))]; return l.length ? X().loadThumbs(l).catch(() => []) : Promise.resolve([]); };
 
   // ---------- piezas comunes ----------
@@ -1034,12 +1051,15 @@
   MV().alVersion = () => { ST.fase = 'vieja'; pintarChip(); hojaVersion(); };
   MV().alPestana = () => hoja(`<h2>La Mesa está abierta en otra pestaña</h2><p class="ex">Esta se ha parado para no pisar cambios.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar">Usar aquí</button></div>`, { fija: true, permanente: true, etiqueta: 'La Mesa está abierta en otra pestaña' });
   const hojaVersion = () => hoja(`<h2>Hay una versión nueva de la Mesa</h2><p class="ex">Esta se ha pausado para no pisar los datos. Lo guardado no se pierde.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar" data-foco>Recargar</button></div>`, { fija: true, permanente: true, etiqueta: 'Hay una versión nueva de la Mesa' });
-  function verTarea(id) {
+  async function verTarea(id) {
     const x = (L.tareas || []).find(t => t.id === id); if (!x) return;
+    const rec = x.fotos ? await M.personal.valor(id).catch(() => null) : null, fotos = (rec && rec.fotos) || [];   // sus fotos se ven (D-271, punto 1)
+    const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const r = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${r.toFixed(4)}">${fotoArch('tareas', id, `el valor.fotos.${i}.blob`, 140 * r)}</span>`; }).join('')}</div>` : '';
     const E = M.escritura && M.escritura.html ? M.escritura : null, txt = E ? E.html(x.txt, { leer: true }) : esc(x.txt);
     const t = x.tipo === 'nota' ? 'Nota' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea';
     const meta = [x.fecha ? cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha) + (x.hora ? ' · ' + x.hora : '') : '', x.clientes.map(nombreCli).join(' · ')].filter(Boolean).join(' · ');
-    hoja(`<h2>${esc(t)}</h2>${meta ? `<p class="ex">${esc(meta)}</p>` : ''}<div class="txt">${txt}</div>${x.detalles ? `<span class="lbl">Detalles</span><div class="txt">${E ? E.html(x.detalles, { leer: true }) : esc(x.detalles)}</div>` : ''}${x.subtareas ? `<p class="ex" style="margin-top:12px">${x.subtareas.hechas} de ${x.subtareas.n} subtareas hechas</p>` : ''}${x.fotos ? `<p class="ex">${plural(x.fotos, 'foto', 'fotos')}: se ven en el escritorio</p>` : ''}<p class="ex" style="margin-top:14px">Se edita en el escritorio.</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: t });
+    hoja(`<h2>${esc(t)}</h2>${meta ? `<p class="ex">${esc(meta)}</p>` : ''}<div class="txt">${txt}</div>${x.detalles ? `<span class="lbl">Detalles</span><div class="txt">${E ? E.html(x.detalles, { leer: true }) : esc(x.detalles)}</div>` : ''}${x.subtareas ? `<p class="ex" style="margin-top:12px">${x.subtareas.hechas} de ${x.subtareas.n} subtareas hechas</p>` : ''}${tira}<p class="ex" style="margin-top:14px">Se edita en el escritorio.</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: t });
+    vigilarFotos(capas);
   }
 
   // ---------- el toque: un solo oyente para toda la cara ----------

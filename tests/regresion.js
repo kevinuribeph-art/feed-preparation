@@ -19444,6 +19444,99 @@
     });
   });
 
+  // ===== ajustes tras probarla en el iPhone (D-271) =====
+  // fotos como bajadas del servidor (lección 197): la miniatura aquí y el original aún arriba (`blob` referencia), como FT3
+  async function comoBajadas(key) {
+    const ids = [...new Set((await M._in.idbGet('boards', key)).slots.flatMap(s => s.photos || []))];
+    for (const id of ids) {
+      const rec = await M._in.idbGet('files', id);
+      const ref = { __blob: 'pendiente', sha256: 'cd'.repeat(32), tam: rec.size || 1000, tipo: rec.type || 'image/jpeg', nombre: rec.name, fecha: 1, ruta: `files/${id}.jpg` };
+      await M._in.diario.sinDiario('files', 'readwrite', st => st.put({ ...rec, blob: ref }, id));
+      M._in.soltarArchivo(id);
+    }
+    await M._in.diario.vaciar();
+    return ids;
+  }
+  const aLaVista = () => fr$().scrollIntoView({ block: 'start' });   // las fotos se dibujan al entrar en la vista de la página de la batería (IntersectionObserver)
+  const verFoto = img => !!img && img.naturalWidth > 4 && img.naturalHeight > 4;   // el hueco mide 4×5
+  const proporcion = (img, r) => Math.abs(img.naturalWidth / img.naturalHeight - r) / r < 0.03;
+
+  prueba('MV44', 'Las fotos bajadas del servidor se ven en el iPhone (D-271, punto 1; lecciones 197 y 198): con la miniatura aquí y el original aún arriba, la lista del mes y la publicación enseñan cada foto con la proporción de su recorte, nunca «Llega en un momento»', async () => {
+    const key = await tableroMovil(); await comoBajadas(key);
+    await enMovilPagina(async () => {
+      aLaVista(); await irMovil(`#mes/${key}/lista`, '#movil .fila .ft img.mi');
+      const lista = () => [...W.document.querySelectorAll('#movil .fila .ft img.mi')];
+      await hasta(() => lista().length >= 3 && lista().every(verFoto), 8000, 'las miniaturas de la lista');
+      ok(![...W.document.querySelectorAll('#movil .fila .ft .hueco')].some(h => !h.hidden), 'la lista enseña «Llega en un momento»');
+      for (const id of ['r1', 'r2', 'r3']) {
+        await irMovil(`#pub/${key}/${id}`, '#movil .car .lam img.mi');
+        const p = M.movil._L.vista.posts.find(x => x.id === id), imgs = [...W.document.querySelectorAll('#movil .car .lam img.mi')], tira = W.document.querySelector('#movil [data-car]');
+        igual(imgs.length, p.fotos.length, 'las fotos de ' + id);
+        for (let i = 0; i < imgs.length; i++) {
+          if (tira) tira.scrollLeft = i * tira.clientWidth;   // la siguiente se dibuja al acercarse a la vista
+          await hasta(() => verFoto(imgs[i]), 8000, `la foto ${i + 1} de ${id}`);
+          ok(proporcion(imgs[i], p.recortes[i].ratio), `la proporción de la foto ${i + 1} de ${id}: ${imgs[i].naturalWidth}×${imgs[i].naturalHeight} frente a ${p.recortes[i].ratio}`);
+        }
+        ok(![...W.document.querySelectorAll('#movil .car .hueco')].some(h => !h.hidden), id + ' enseña «Llega en un momento»');
+      }
+    });
+  });
+
+  prueba('MV45', 'Las fotos de una tarea bajan al verla en el iPhone (D-271, punto 1; lecciones 197 y 199): con la nube, al abrir la tarea se bajan una a una (nunca dos a la vez), sin diario, y se ven con su proporción', async () => {
+    await tablero([pub(1)]);
+    await enMovilPagina(async () => {
+      const F = ftMundo(), a = await ftJpeg(1200, 800, '#7a4a3c'), b = await ftJpeg(800, 1200, '#3c6a7a'), sa = await ftHuella(a), sb = await ftHuella(b);
+      F.arch.set(`tareas/${sa}.jpg`, a); F.arch.set(`tareas/${sb}.jpg`, b);
+      let enVuelo = 0, maxVuelo = 0, pedidas = 0; const arch0 = F.al.archivo;
+      F.al.archivo = async (...x) => { pedidas++; enVuelo++; maxVuelo = Math.max(maxVuelo, enVuelo); try { await espera(150); return await arch0(...x); } finally { enVuelo--; } };
+      const ref = (s, x) => ({ __blob: 'pendiente', sha256: s, tam: x.size, tipo: 'image/jpeg', ruta: `tareas/${s}.jpg` });
+      const id = 'tkmv45fotostarea', ahora = new W.Date().toISOString();
+      const rec = { id, tipo: 'tarea', txt: 'Revisar las fotos de la sesión de otoño en la panadería del barrio', creada: ahora, at: ahora, fotos: [{ id: 'tfmv45a', w: 1200, h: 800, blob: ref(sa, a), mini: ref(sa, a) }, { id: 'tfmv45b', w: 800, h: 1200, blob: ref(sb, b), mini: ref(sb, b) }] };
+      try {
+        await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(rec, id)); await M._in.diario.vaciar();
+        M._in.NUBE.activa = true; M.nube._con(F.sv, F.al); aLaVista();
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+        await hojaCara('.mv-tira', 'la tira de fotos de la tarea');
+        const imgs = () => [...W.document.querySelectorAll('#movil .hoja .mv-tf img.mi')];
+        igual(imgs().length, 2, 'las fotos de la tarea');
+        await hasta(() => imgs().every(verFoto), 10000, 'las fotos de la tarea');
+        imgs().forEach((im, i) => ok(proporcion(im, [1.5, 2 / 3][i]), `la proporción de la foto ${i + 1}: ${im.naturalWidth}×${im.naturalHeight}`));
+        igual([pedidas, maxVuelo], [2, 1], 'bajadas y a la vez');
+        const r2 = await M._in.idbGet('tareas', id);
+        ok(r2.fotos.every(f => f.blob instanceof W.Blob), 'el registro sin sus fotos bajadas');
+        igual((await M._in.diario.leer()).filter(e => e.a === 'tareas').length, 0, 'bajar se apuntó en el diario');
+      } finally { await nbLimpiar(); await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
+    });
+  });
+
+  prueba('MV46', 'El iPhone baja la foto de una sesión cuando se ve (D-271, punto 1; lecciones 199 y 200): MESA.nube.archivo baja el `blob` de `tfotos`, lo escribe sin diario y avisa; pedirla dos veces es una bajada; lo que ya está aquí se da tal cual; el `mini`, no; sin nube, nada', async () => {
+    await tablero([pub(1)]);
+    await enMovilPagina(async () => {
+      const F = ftMundo(), a = await ftJpeg(1600, 1067, '#556b2f'), sa = await ftHuella(a), k = 'tfmv46sesion';
+      F.arch.set(`tfotos/${sa}.jpg`, a);
+      let pedidas = 0; const arch0 = F.al.archivo; F.al.archivo = async (...x) => { pedidas++; return arch0(...x); };
+      const ref = { __blob: 'pendiente', sha256: sa, tam: a.size, tipo: 'image/jpeg', ruta: `tfotos/${sa}.jpg` };
+      const llegadas = [], oye = e => llegadas.push(e.detail); W.document.addEventListener('mesa-archivo-llego', oye);
+      try {
+        await M._in.diario.sinDiario('tfotos', 'readwrite', st => st.put({ id: k, w: 1600, h: 1067, blob: ref, mini: { ...ref } }, k)); await M._in.diario.vaciar();
+        igual(await M.nube.archivo('tfotos', k, 'el valor.blob'), null, 'sin nube dio algo');
+        igual(pedidas, 0, 'sin nube se pidió');
+        M._in.NUBE.activa = true; M.nube._con(F.sv, F.al);
+        const [b1, b2] = await Promise.all([M.nube.archivo('tfotos', k, 'el valor.blob'), M.nube.archivo('tfotos', k, 'el valor.blob')]);
+        ok(b1 instanceof W.Blob && b1.size === a.size && b2 && b2.size === a.size, 'la foto bajada');
+        igual(pedidas, 1, 'dos peticiones de la misma foto');
+        const r = await M._in.idbGet('tfotos', k);
+        ok(r.blob instanceof W.Blob && r.blob.size === a.size && M._in.esRefNube(r.mini), 'el registro tras bajar');
+        igual(llegadas.map(x => x.a + '|' + x.k + '|' + x.ruta), ['tfotos|' + k + '|el valor.blob'], 'el aviso de que llegó');
+        igual((await M._in.diario.leer()).filter(e => e.a === 'tfotos').length, 0, 'bajar se apuntó en el diario');
+        const b3 = await M.nube.archivo('tfotos', k, 'el valor.blob');
+        ok(b3 && b3.size === a.size && pedidas === 1, 'la de aquí se volvió a bajar');
+        igual(await M.nube.archivo('tfotos', k, 'el valor.mini'), null, 'el mini se bajó');
+      } finally { W.document.removeEventListener('mesa-archivo-llego', oye); await nbLimpiar(); await M._in.diario.sinDiario('tfotos', 'readwrite', st => st.delete(k)); await M._in.diario.vaciar(); }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

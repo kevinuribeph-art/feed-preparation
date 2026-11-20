@@ -18979,7 +18979,7 @@
   const hojaCara = async (sel, que) => { await hasta(() => W.document.querySelector('#movil .hoja ' + sel), 4000, que); await espera(60); return W.document.querySelector('#movil .hoja'); };
   const tareaDe = async txt => (await M._in.idbAll('tareas')).filter(t => t.txt === txt);
 
-  prueba('MV23', 'Guardar desde el móvil (D-268, D-270): la fecha se elige en el calendario de la Mesa; «Guardar» enseña «Guardando en la Mesa», coge la Mesa (el Mac sube y la suelta), aplica la operación y la suelta; un doble toque guarda una vez', async () => {
+  prueba('MV23', 'Guardar desde el móvil (D-268, D-270, D-271 punto 9): la fecha se elige en el calendario de la Mesa; «Guardar» la enseña al momento con su aro, sin hoja que tape la pantalla, coge la Mesa (el Mac sube y la suelta), aplica la operación y la suelta; un doble toque guarda una vez', async () => {
     const key = await tableroMovil();
     await enMovilPagina(async () => {
       const C = await nubeCara(key);
@@ -18987,8 +18987,13 @@
         await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
         clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
         clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 300;   // un servidor algo lento: se ve lo que hay mientras guarda
         const g = W.document.querySelector('#movil .hoja [data-a2="guardar"]'); g.click(); g.click();   // el doble toque
-        ok(W.document.querySelector('#movil .hoja .prog'), 'sin «Guardando en la Mesa»');
+        await espera(60);
+        ok(!W.document.querySelector('#movil .hoja'), 'una hoja tapa la pantalla mientras guarda');
+        const f0 = W.document.querySelector('#movil [data-a="fecha"]');
+        ok(/10 nov/i.test(f0.textContent) && f0.querySelector('.mv-gira'), 'la fecha nueva no se ve al momento con su aro: ' + f0.textContent);
+        C.corte.demora = 0;
         await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
         const d = (await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date;
         igual([M._in.localDay(d), M._in.localTime(d)], ['2026-11-10', '12:00'], 'la fecha guardada');
@@ -19793,6 +19798,37 @@
         ok(roja.getBoundingClientRect().right <= t2.getBoundingClientRect().right + 0.5, '«vencida» se corta');
       }, { w: 375, h: 667 });
     } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
+  });
+
+  prueba('MV56', 'Guardar de fondo (D-271, punto 9; lecciones 207 y 235): tras «Guardar» se puede ir a otra pantalla; un choque sale donde está Kevin, con el nombre de la publicación, y nunca cierra la hoja que tenga abierta; cerrado sin decidir, la publicación vuelve a lo de la Mesa y arriba dice «1 sin subir»', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        const nombre = M.movil._L.vista.posts.find(x => x.id === 'r1').nombre;
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        const rec = await M._in.idbGet('boards', key); rec.slots.find(s => s.id === 'r1').date = '2026-11-08T12:00:00.000+01:00'; C.sv.escribirMac('boards', key, rec);   // el Mac, entretanto
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 400;
+        clicCara('#movil .hoja [data-a2="guardar"]'); await espera(30);
+        W.location.hash = '#tareas';   // Kevin sigue: se va a Tareas y abre la hoja de la fecha de una tarea nueva
+        await hasta(() => W.document.querySelector('#movil [data-a="nfecha"]'), 4000, 'Tareas');
+        clicCara('#movil [data-a="nfecha"]'); await hojaCara('.selcal', 'la hoja de la fecha de la tarea');
+        await espera(1500);
+        ok(W.document.querySelector('#movil .hoja .selcal') && !W.document.querySelector('#movil .hoja [data-r="mio"]'), 'el choque cerró la hoja que Kevin estaba usando');
+        clicCara('#movil .hoja [data-a2="cancelar"]'); C.corte.demora = 0;
+        const h = await hojaCara('[data-r="mio"]', 'el choque en Tareas');
+        ok(/^#tareas/.test(W.location.hash), 'el choque no salió donde estaba Kevin: ' + W.location.hash);
+        ok(h.innerText.includes(nombre) && /Lo tuyo/.test(h.innerText) && /En la Mesa/.test(h.innerText), 'el choque no nombra la publicación: ' + h.innerText);
+        W.document.querySelector('#movil .hoja').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));   // sin decidir
+        await hasta(() => !M.movil._ST.guardando, 8000, 'que acabe');
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        const f = W.document.querySelector('#movil [data-a="fecha"]');
+        ok(/8 nov/i.test(f.textContent) && !f.querySelector('.mv-gira'), 'la publicación no volvió a lo de la Mesa: ' + f.textContent);
+        ok(/1 sin subir/.test(W.document.querySelector('#movil .top').innerText), 'arriba no dice «1 sin subir»');
+      } finally { W.localStorage.removeItem('mesa-movil-ops'); await C.fin(); }
+    });
   });
 
   async function pasar() {

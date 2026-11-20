@@ -364,7 +364,7 @@
 #movil .top-l,#movil .top-r{display:grid;align-items:center}
 #movil .top-l>*,#movil .top-r>*{grid-area:1/1}
 #movil .top-l>*{justify-self:start}#movil .top-r>*{justify-self:end}
-#movil .top-g{visibility:hidden;pointer-events:none;max-width:30vw;overflow:hidden}
+#movil .top-g{visibility:hidden;pointer-events:none;max-width:34vw;overflow:hidden}
 #movil .top.ajusta .top-in{grid-template-columns:auto minmax(0,1fr) auto}
 #movil .top.ajusta .top-g{display:none}
 #movil .mv-tit{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -615,7 +615,7 @@
 #movil .car .lam{aspect-ratio:var(--r,.8)}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
   #movil .car,#movil .car .lam{background:var(--bg)}#movil .car{margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r))}#movil .car .cnt{right:max(12px,calc(50% - 35vh * var(--r,.8) + 12px))}
-  #movil .tabs-in{height:44px}#movil .tabs .tab{min-height:44px;flex-direction:row;gap:6px;font-size:13px}#movil .tab svg{width:21px;height:21px}#movil .main{padding-bottom:calc(60px + var(--sa-b))}
+  #movil .tabs-in{height:44px}#movil .tabs .tab{min-height:44px;flex-direction:row;gap:6px;font-size:13px}#movil .tabs .tab .badge{position:static;margin:-12px 0 0 -2px}#movil .tab svg{width:21px;height:21px}#movil .main{padding-bottom:calc(60px + var(--sa-b))}
   #movil .titulo h1,#movil .mesnav h1{font-size:24px}#movil .toast{bottom:calc(56px + var(--sa-b))}}
 #movil .main{padding-left:var(--sa-l);padding-right:var(--sa-r)}
 #movil .top-in{padding-left:calc(8px + var(--sa-l));padding-right:calc(8px + var(--sa-r))}
@@ -1238,7 +1238,7 @@
     const seguir = (x, y, t) => {
       if (!g || g.tira === false) return false;
       const dx = x - g.x0, dy = y - g.y0;
-      if (g.tira === null) { if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return false; g.tira = decidirArrastre({ dx, dy, enControl: g.ctl, enCabecera: g.cab, arriba: g.arriba }); if (!g.tira) return false; h.style.transition = 'none'; if (h._velo) h._velo.style.transition = 'none'; }
+      if (g.tira === null) { if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return false; g.tira = decidirArrastre({ dx, dy, enControl: g.ctl, enCabecera: g.cab, arriba: g.arriba }); if (!g.tira) return false; h.style.transition = 'none'; if (h._velo) h._velo.style.transition = 'none'; }
       g.dy = dy; g.m.push([t, y]); while (g.m.length > 2 && t - g.m[0][0] > 100) g.m.shift();
       h.style.transform = `translateY(${dy > 0 ? dy : dy / 6}px)`;   // hacia arriba, con resistencia
       if (h._velo) h._velo.style.opacity = String(1 - Math.min(1, Math.max(0, dy) / Math.max(1, h.offsetHeight)) * 0.7);
@@ -1247,7 +1247,7 @@
     const soltar = t => {
       if (!g || !g.tira) { g = null; return; }
       const a = g.m[0], b = g.m[g.m.length - 1], alto = h.offsetHeight, dy = Math.max(0, g.dy); let v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]); g = null;
-      if (t - b[0] > 150) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento (150 ms: un toque real llega antes)
+      if (t - b[0] > 150) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento (150 ms: con menos, el retraso normal entre toques ya lo quitaba)
       if (cierraArrastre({ dy, v, alto })) {
         const resto = Math.max(1, alto * 1.05 - dy), ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, resto / Math.max(0.9, v)))), p1 = Math.min(1, 0.25 * Math.max(0, v) * ms / resto).toFixed(3);
         h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25,${p1},.5,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad (sin tirón)
@@ -1422,7 +1422,10 @@
   raiz.addEventListener('focusout', () => { setTimeout(() => { if (PEND_PINTAR && !enUso()) pintar(); }, 0); });
 
   // ---------- el teclado del iPhone: lo que se escribe queda a la vista (visualViewport, como el portal) ----------
+  if (D.fonts && D.fonts.ready) D.fonts.ready.then(() => ajustarTitulo(), () => {});   // con la letra cargada, el título se vuelve a medir
+  W.addEventListener('orientationchange', () => setTimeout(ajustarTitulo, 120));
   if (W.visualViewport) W.visualViewport.addEventListener('resize', () => {
+    ajustarTitulo();
     const vv0 = W.visualViewport, kb = Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop));
     raiz.style.setProperty('--kb', kb + 'px'); raiz.classList.toggle('teclado', kb > 60);   // una hoja sube encima del teclado, sin la zona segura de abajo
     const a = D.activeElement; if (!a || !raiz.contains(a) || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;

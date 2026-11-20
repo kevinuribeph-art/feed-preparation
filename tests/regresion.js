@@ -19398,6 +19398,52 @@
     });
   });
 
+
+  // la revisión 4 del lote 4 (D-268, D-270)
+  prueba('MV42', 'Una pestaña del iPhone parada por otra no se reabre con atrás ni Esc y nunca reclama la Mesa (duerme a la activa); su aviso queda encima de todo (D-268; revisión 4 del lote 4, punto 1)', async () => {
+    await tableroMovil();
+    await enMovilPagina(async () => {
+      const bc = new BroadcastChannel('mesa-feed'), vistos = [];
+      try {
+        bc.postMessage({ t: 'claim', id: 'otra-pestana-mv42' });   // otra pestaña del mismo iPhone la coge
+        await hasta(() => W.document.querySelector('#movil .hoja[data-permanente]'), 4000, 'el aviso de otra pestaña');
+        const h = W.document.querySelector('#movil .hoja[data-permanente]');
+        h.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); W.dispatchEvent(new W.PopStateEvent('popstate')); await espera(400);
+        ok(h.isConnected && W.document.querySelector('#movil .hoja[data-permanente]'), 'atrás o Esc cerraron el aviso de la pestaña parada');
+        bc.onmessage = e => { if (e.data && e.data.t === 'claim') vistos.push(e.data); };
+        await M._in.movil.reclamar(); await espera(300);
+        igual(vistos.length, 0, 'la pestaña parada reclamó la Mesa');
+        ok(M._in.locked, 'la pestaña parada se desbloqueó');
+      } finally { bc.close(); }
+    });
+  });
+
+  prueba('MV43', 'Una hoja de fecha abierta mientras se guarda y guardada después no enseña un choque contra lo que escribió el propio iPhone (D-270; revisión 4 del lote 4, punto 3)', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 500;
+        clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(async () => M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date) === '2026-11-10', 15000, 'A aplicado');
+        W.dispatchEvent(new W.PopStateEvent('popstate')); await espera(60);
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha otra vez');   // abierta durante el guardado
+        C.corte.demora = 0;
+        await hasta(() => !M.movil._ST.guardando, 15000, 'que acabe el primer «Guardar»');
+        clicCara('#movil .hoja [data-dia="2026-11-12"]'); await espera(60); sinAviso();
+        clicCara('#movil .hoja [data-a2="guardar"]');
+        let choque = false;
+        await hasta(() => { if (W.document.querySelector('#movil .hoja [data-r="mio"]')) { choque = true; return true; } return !M.movil._ST.guardando && /Guardado/.test(avisoCara()); }, 20000, 'acabar o el choque');
+        if (choque) { clicCara('#movil .hoja [data-r="mio"]'); await hasta(() => !M.movil._ST.guardando, 15000, 'acabar'); }
+        ok(!choque, 'choque falso contra lo que escribió el propio iPhone');
+        igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date), '2026-11-12', 'la fecha final');
+      } finally { await C.fin(); }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

@@ -169,6 +169,7 @@
     });
   }
   function claim() {
+    if (MOVIL && movilParada) return Promise.resolve();   // a phone tab put to sleep by another never claims back (review 4 of lot 4): only «Usar aquí» (reload)
     locked = MOVIL ? !movilTurno : !!NUBE.pausa;   // the cloud's pause (D-254) holds over a tab's claim: another computer has the Mesa; the iPhone, until it holds it
     if (bc) { try { bc.postMessage({ t: 'claim', id: TAB }); } catch (e) { /* */ } }
     if (root) root.querySelectorAll('.lock:not(.nubelock)').forEach(o => o.remove());

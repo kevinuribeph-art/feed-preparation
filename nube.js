@@ -738,7 +738,7 @@
           if (!r || r.ok !== true) { retenido = false; await abrirRechazo(r); return { error: (r && r.error && r.error.codigo) || 'sin respuesta' }; }
           if (masNueva(r.version_minima, APP)) { retenido = false; await vieja(); return { error: 'app' }; }
           const dentro = async (t, o) => { const x = await entrar(t, o); if (!x.hecho) retenido = false; return x; };
-          if (r.tuyo) return await dentro(r.turno, 0);
+          if (r.tuyo) { if (parado) { retenido = false; return { error: 'parada' }; } return await dentro(r.turno, 0); }
           if (r.libre) {
             if (parado) { retenido = false; return { error: 'parada' }; }   // asleep meanwhile: never claims
             let c;
@@ -829,8 +829,9 @@
         await A.quitarSinSubir(lista.map(x => [x.a, x.k]));
         ultCambio = -Infinity; const r = await subir({ todo: true });
         await contarSinSubir();
-        if (!conTurno) return { error: 'perdida' };   // lost meanwhile: it went aside again (dos aparatos, escenario 5)
-        if (r && (r.sinRed || r.cortado)) return { error: 'sin_conexion', hecho: 0 };
+        if (!conTurno) return { error: 'perdida' };   // lost meanwhile (another device, the session, the code…): it went aside again (dos aparatos, escenario 5)
+        if (r && r.sinRed) return { error: 'sin_conexion', hecho: 0 };   // in the journal: it goes up as soon as the network is back
+        if (r && (r.parar || r.esperando)) return { error: 'no_subio', hecho: 0 };
         return { hecho: lista.length };
       } finally { if (E.recargar) E.recargar(); }   // también si algo falla: la Mesa no se queda congelada
     }
@@ -1643,7 +1644,7 @@
     },
     avisosHTML, avisos: () => AVS.slice(), avisosN: () => (X().NUBE.activa ? AVS.length : 0), nombreDe,
     // the phone (D-268): look, take the Mesa, let it go, force it without reloading; its face hears every state and change
-    mirar: () => (N && !DORMIDA ? N.mirar() : Promise.resolve({ error: 'apagada' })), tomar: op => (N && !DORMIDA ? N.tomar(op) : Promise.resolve({ error: 'apagada' })),
+    mirar: () => (N && !DORMIDA ? N.mirar() : Promise.resolve({ error: 'apagada' })), tomar: op => (N && !DORMIDA ? N.tomar(op) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),
     soltar: () => (N && !DORMIDA ? N.soltar() : Promise.resolve(DORMIDA ? { error: 'dormida' } : { hecho: true })), retener: v => { if (N && !DORMIDA) N.retener(v); },
     forzarAqui: visto => (N && !DORMIDA ? N.forzar(+visto) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),   // a sleeping tab touches nothing (review 2, point 7)
     subirEncima: claves => (N && !DORMIDA ? N.subirEncima(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })), descartar: claves => (N && !DORMIDA ? N.descartar(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),

@@ -985,23 +985,30 @@
   // una hoja se cierra con «Cancelar», tocando el velo o arrastrando el asa hacia abajo; «Guardar» queda fijo abajo en un iPhone pequeño
   // (los oyentes de cada hoja no hacen nada si ya se cerró: el segundo toque de un doble toque no cierra la hoja siguiente)
   function hoja(html, o = {}) {
+    if (!o.permanente && capas.querySelector('.hoja[data-permanente]')) return D.createElement('div');   // la pestaña está parada: nada encima de su aviso
     cerrarHojas(true);
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
     if (o.alCerrar) h._alCerrar = o.alCerrar;
+    if (o.permanente) { h.dataset.permanente = ''; velo.dataset.permanente = ''; }
+    const a0 = D.activeElement; h._antes = a0 && a0 !== D.body && raiz.contains(a0) && !capas.contains(a0) ? a0 : null;   // el foco vuelve aquí al cerrarla
     h._velo = velo;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
     capas.append(velo, h);
     requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
     if (!o.fija) arrastrable(h);
     return h;
   }
+  const devolverFoco = h => { const a = h && h._antes; if (a && a.isConnected && !capas.querySelector('.hoja.on:not([data-permanente])')) { try { a.focus({ preventScroll: true }); } catch (e) { /* */ } } };
   function cerrarEsta(h) {   // solo esa hoja (y su velo), si sigue abierta: nunca otra que se abrió entretanto
     if (!h || !h.isConnected) return;
+    setTimeout(() => devolverFoco(h), 0);
     for (const x of [h, h._velo]) { if (!x) continue; if (POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } }
   }
   function cerrarHojas(ya) {
-    capas.querySelectorAll('.hoja,.velo').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
+    const antes = [...capas.querySelectorAll('.hoja:not([data-permanente])')];
+    if (!ya) setTimeout(() => antes.forEach(devolverFoco), 0);
+    capas.querySelectorAll('.hoja:not([data-permanente]),.velo:not([data-permanente])').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
     if (PEND_PINTAR) setTimeout(pintarSiQuieto, ya ? 0 : 360);
   }
   function arrastrable(h) {   // el asa: la hoja sigue al dedo y, soltada deprisa o pasada la mitad, se cierra (Apple: a la velocidad del dedo)
@@ -1021,8 +1028,8 @@
   }
   MV().alAviso = (m, o) => aviso(m, o || {});
   MV().alVersion = () => { ST.fase = 'vieja'; pintarChip(); hojaVersion(); };
-  MV().alPestana = () => hoja(`<h2>La Mesa está abierta en otra pestaña</h2><p class="ex">Esta se ha parado para no pisar cambios.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar">Usar aquí</button></div>`, { fija: true, etiqueta: 'La Mesa está abierta en otra pestaña' });
-  const hojaVersion = () => hoja(`<h2>Hay una versión nueva de la Mesa</h2><p class="ex">Esta se ha pausado para no pisar los datos. Lo guardado no se pierde.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar" data-foco>Recargar</button></div>`, { fija: true, etiqueta: 'Hay una versión nueva de la Mesa' });
+  MV().alPestana = () => hoja(`<h2>La Mesa está abierta en otra pestaña</h2><p class="ex">Esta se ha parado para no pisar cambios.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar">Usar aquí</button></div>`, { fija: true, permanente: true, etiqueta: 'La Mesa está abierta en otra pestaña' });
+  const hojaVersion = () => hoja(`<h2>Hay una versión nueva de la Mesa</h2><p class="ex">Esta se ha pausado para no pisar los datos. Lo guardado no se pierde.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar" data-foco>Recargar</button></div>`, { fija: true, permanente: true, etiqueta: 'Hay una versión nueva de la Mesa' });
   function verTarea(id) {
     const x = (L.tareas || []).find(t => t.id === id); if (!x) return;
     const E = M.escritura && M.escritura.html ? M.escritura : null, txt = E ? E.html(x.txt, { leer: true }) : esc(x.txt);
@@ -1140,6 +1147,7 @@
   const firma = op => { const v = op.valor || {}; return op.campo === 'tareaNueva' ? ['tn', v.tipo, v.txt, v.fecha || '', v.cliente || ''].join('|') : [op.key, op.slot, op.campo, JSON.stringify(op.valor)].join('|'); };
   const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k);
   let RUN = null, OTRA = false, ENVUELO = null;
+  const ESCRITOS = new Map();   // lo que escribió este iPhone en cada campo, como quedó guardado: un choque contra eso no es un choque
   // un fallo pasajero deja la operación en «sin subir»; uno definitivo (publicada, fuera del mes, ya no está…) la quita y lo dice
   const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas)$/.test(String(e)) || /^no se pudo/.test(String(e));
   // lo que dice una operación, para la hoja del choque y la de «sin subir»
@@ -1203,7 +1211,8 @@
         if (t && t.otraVez) t = await M.nube.tomar();
         continue;
       }
-      if (t && /^(parada|dormida|apagada)$/.test(t.error)) throw new Error('La Mesa sigue en otra pestaña de este iPhone: tu cambio espera en «sin subir».');
+      if (t && /^(parada|dormida)$/.test(t.error)) throw new Error('La Mesa sigue en otra pestaña de este iPhone: tu cambio espera en «sin subir».');
+      if (t && t.error === 'apagada') throw new Error('Sin nube en este iPhone: tu cambio espera en «sin subir».');
       throw new Error(t && t.error === 'sin_conexion' ? 'Sin conexión: tu cambio espera en «sin subir».' : t && t.error === 'sin_sesion' ? 'Tu sesión se cerró: entra otra vez.' : t && t.error === 'verificacion' ? 'Falta el código de tu app.' : 'No se pudo coger la Mesa' + (t && t.error ? ` (${t.error})` : '') + '.');
     }
   }
@@ -1229,13 +1238,10 @@
     if (!nube) { aviso('Sin nube en este iPhone: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
     for (let i = 0; RUN && !RUN.g && i < 50; i++) { const r0 = RUN; await r0.catch(() => null); if (RUN === r0) break; }   // «Subir encima» o «Descartar» de la nube en marcha: primero acaba (nunca en bucle)
     if (!RUN) {
-      RUN = (async () => {
-        ST.guardando = true; pintarChip();
-        const escritos = new Map();   // lo que escribió este «Guardar», en todas sus vueltas (un choque contra eso no es un choque)
-        try { let oo = o; do { OTRA = false; await correr(oo, escritos); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); }
-        finally { RUN = null; ST.guardando = false; pintarChip(); }
-      })();
-      RUN.g = true;
+      ST.guardando = true; pintarChip();
+      const p = (async () => { let oo = o; do { OTRA = false; await correr(oo, ESCRITOS); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); })();
+      RUN = p; RUN.g = true;
+      p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });   // se limpia desde fuera: aunque algo fallara antes de su primer await
     } else OTRA = true;
     await RUN;
     return !ids.length || !opsLeer().some(x => ids.includes(x.id));
@@ -1319,10 +1325,10 @@
   async function conLaMesa(fn) {
     if (RUN) { aviso('Espera: se está guardando.'); return null; }
     let r = null;
-    RUN = (async () => {
+    ST.guardando = true; pintarChip();
+    const p = (async () => {
       let prog = { paso: () => {}, h: null };
       try {
-        ST.guardando = true; pintarChip();
         const g = hojaGuardando(''); prog = { paso: g.paso, h: g.h };
         prog.paso(0);
         if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); return; }
@@ -1330,14 +1336,15 @@
       } catch (e) { r = { error: (e && e.message) || String(e) }; }
       finally {
         try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) await M.nube.soltar(); } catch (x) { /* */ }
-        cerrarEsta(prog.h); RUN = null; ST.guardando = false; pintarChip();
+        cerrarEsta(prog.h);
       }
     })();
-    await RUN;
+    RUN = p;
+    await p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });
     await releerTodo();
     return r;
   }
-  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', perdida: 'La Mesa pasó a otro aparato: sigue en «sin subir».', sin_conexion: 'Sin conexión: sigue en «sin subir».' };
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
   const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
   async function releerTodo() {
     L.hoy = null; L.clientes = null; L.error = {};
@@ -1448,7 +1455,7 @@
     const cambio = b && b.base && (b.base.at !== p.captions.at || b.base.texto !== o.texto);   // cambió en la Mesa desde que empezaste
     return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
       <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
-      <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${cambio ? '<p class="solo-mac">Este caption cambió en la Mesa desde que empezaste a retocarlo: al guardar verás los dos.</p>' : ''}${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
+      <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${cambio ? '<p class="solo-mac">Este caption cambió en la Mesa desde que empezaste a retocarlo: si guardas tu retoque, verás los dos.</p>' : ''}${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
   };
   C.alEscribir = e => {
     const t = e.target;
@@ -1460,7 +1467,11 @@
   C.listo = async () => {
     const v = L.vista, p = pAhora(), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k), t = raiz.querySelector('[data-ret]'); if (!o || !t) return;
     const b = borrLeer(v.key, p.id, k), base = b && b.base ? b.base : baseDe(v.key, p.id, k) || { at: p.captions.at, texto: o.texto };
-    if (t.value === base.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }   // nada que guardar: lo de la Mesa se queda (aunque cambiara)
+    if (t.value === base.texto) {   // nada que guardar: lo de la Mesa se queda (aunque cambiara) y un retoque pendiente de ese caption, deshecho, se va
+      lsS(K_BORR(v.key, p.id, k), null);
+      opsGuardar(opsLeer().filter(x => !(x.campo === 'capTexto' && x.key === v.key && x.slot === p.id && (x.valor || {}).k === k && x.id !== ENVUELO)));
+      return atras();
+    }
     const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
     if (ok) atras();
   };

@@ -6,16 +6,23 @@
 // Mesa cogida un momento (lote 4, más abajo).
 (function () {
   'use strict';
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: los ajustes tras probarla en el iPhone (D-271), editar tareas (D-272) y la sesión entera (D-275)
   const M = window.MESA, D = document, W = window;
   const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
   if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
   const X = () => M._in, MV = () => M._in.movil;
 
-  // ---------- el tema: el del iPhone (claro u oscuro), sin interruptor ----------
-  const MQ = W.matchMedia ? W.matchMedia('(prefers-color-scheme: dark)') : null;
-  const tema = () => { if (MQ && MQ.matches) D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme; };
-  tema(); if (MQ) { if (MQ.addEventListener) MQ.addEventListener('change', tema); else if (MQ.addListener) MQ.addListener(tema); }
+  // ---------- el tema: el elegido en este iPhone («Apariencia», D-271 punto 11) o, sin elegir, el del iPhone; tema.js lo pinta antes ----------
+  const MQ = W.matchMedia ? W.matchMedia('(prefers-color-scheme: dark)') : null, K_TEMA = 'mesa-movil-tema';
+  const temaElegido = () => { try { const v = W.localStorage.getItem(K_TEMA); return v === 'claro' || v === 'oscuro' ? v : null; } catch (e) { return null; } };
+  const oscuro = () => { const t = temaElegido(); return t ? t === 'oscuro' : !!(MQ && MQ.matches); };
+  const tema = () => {
+    const t = temaElegido(), o = oscuro(), r = D.documentElement;
+    if (o) r.dataset.theme = 'dark'; else if (t) r.dataset.theme = 'light'; else delete r.dataset.theme;
+    D.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', (t ? o : /dark/.test(m.getAttribute('media') || '')) ? '#15110E' : '#F4EFE8'));
+  };
+  const alCambiarTema = () => { tema(); pintarPildora(); };   // el iPhone cambió de modo (la cara ya existe)
+  tema(); if (MQ) { if (MQ.addEventListener) MQ.addEventListener('change', alCambiarTema); else if (MQ.addListener) MQ.addListener(alCambiarTema); }
   const POCO = W.matchMedia ? W.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   // ---------- iconos (Lucide, ISC; un trazo) ----------
@@ -43,6 +50,10 @@
     chispa: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', mas: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     historias: '<path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>',
+    hijo: '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
+    ojoNo: '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
+    sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    luna: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
     recarga: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
   };
   const ic = (n, sw = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[n] || ''}</svg>`;
@@ -351,18 +362,135 @@
 #movil .cifras.c5 .cifra:nth-child(n+4){grid-column:span 3}
 #movil .cifras.c5 .cifra .v{font-size:28px}
 #movil .sub-h{padding:14px var(--pad) 8px;font-size:16px;font-weight:600;color:var(--ink-2)}
-#movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}`;
+#movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}
+#movil .top-l,#movil .top-r{display:grid;align-items:center}
+#movil .top-l>*,#movil .top-r>*{grid-area:1/1}
+#movil .top-l>*{justify-self:start}#movil .top-r>*{justify-self:end}
+#movil .top-g{visibility:hidden;pointer-events:none;max-width:34vw;overflow:hidden}
+#movil .top.ajusta .top-in{grid-template-columns:auto minmax(0,1fr) auto}
+#movil .top.ajusta .top-g{display:none}
+#movil .mv-tit{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#movil .mv-tit h1{min-width:0}
+#movil .mv-sw{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:var(--tap);padding:0 0 0 8px;font-size:15px;color:var(--ink-2)}
+#movil .mv-sw i{position:relative;flex:none;width:51px;height:31px;border-radius:16px;background:var(--line-strong);transition:background var(--d2) var(--ease)}
+#movil .mv-sw i::after{content:'';position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:var(--knob);box-shadow:var(--shadow-xs),0 2px 6px rgba(0,0,0,.16);transition:transform var(--d2) var(--ease-m)}
+#movil .mv-sw[aria-checked="true"] i{background:var(--sw-on)}
+#movil .mv-sw[aria-checked="true"] i::after{transform:translateX(20px)}
+/* las marcas de una nota o unos detalles al leer (escritura.js, D-202–D-204): su hoja de estilo va bajo #mesa */
+#movil .pp-el{display:flex;min-width:0}
+#movil .pp-ei,#movil .pp-em{flex:none;white-space:pre}
+#movil .pp-em.vi,#movil .pp-em.ca{color:transparent}
+#movil .pp-emk{position:relative;display:inline-block;color:transparent}
+#movil .pp-em.vi .pp-emk::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:var(--ink-2);opacity:.7}
+#movil .pp-em.ca .pp-emk::before{content:'';position:absolute;right:-.02em;top:50%;width:.8em;height:.8em;margin:-.4em 0 0;box-sizing:border-box;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--ink-2)}
+#movil .pp-em.ca.on .pp-emk::before{background:var(--acc);box-shadow:none}
+#movil .pp-em.ca.on .pp-emk::after{content:'';position:absolute;right:.1em;top:50%;width:.56em;height:.56em;margin:-.28em 0 0;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
+#movil .pp-el.ca .pp-et{padding-left:.22em}
+#movil .pp-em.ca{display:inline-block;width:1.3em;overflow:hidden}
+#movil .pp-em.ca .pp-emk::before{left:0;right:auto}
+#movil .pp-em.ca.on .pp-emk::after{left:.12em;right:auto}
+#movil .pp-em.nu{color:var(--mute)}
+#movil .pp-et{flex:1;min-width:0}
+#movil .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
+#movil .pp-ea{color:var(--acc-ink);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
+#movil .hoja .txt .pp-el{white-space:normal}
+#movil .mv-tema{position:relative;flex:none;width:60px;height:var(--tap);display:grid;place-items:center;border-radius:12px}
+#movil .mv-tema .tr{position:relative;width:52px;height:30px;border-radius:999px;background:var(--tg-track);box-shadow:inset 0 0 0 1px var(--tg-line);overflow:hidden;transition:background-color var(--d-m) var(--ease-m)}
+#movil .mv-tema .k{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:999px;background:var(--tg-sun);box-shadow:0 0 0 3px var(--tg-sun-ring),var(--shadow-xs);transform:translateX(22px);transition:transform var(--d-m) var(--ease-m),background-color var(--d-m) var(--ease-m),box-shadow var(--d-m) var(--ease-m)}
+#movil .mv-tema .k::before,#movil .mv-tema .k::after{content:'';position:absolute;border-radius:50%;background:var(--tg-crater);opacity:0;transform:scale(.3);transition:opacity var(--d2) ease-out,transform var(--d-m) var(--ease-m)}
+#movil .mv-tema .k::before{width:7px;height:7px;left:4px;top:10px}#movil .mv-tema .k::after{width:4px;height:4px;left:11px;top:5px}
+#movil .mv-tema.osc .k{transform:none;background:var(--tg-moon);box-shadow:var(--shadow-xs)}
+#movil .mv-tema.osc .k::before,#movil .mv-tema.osc .k::after{opacity:1;transform:none}
+#movil .estado-op .mv-ico{flex:none;width:24px;height:24px;display:grid;place-items:center;color:var(--ink-2)}
+#movil .estado-op .mv-ico svg{width:22px;height:22px}
+#movil .estado-op .mv-tt{flex:1;min-width:0}
+#movil .estado-op .mv-tt .sub{display:block}
+#movil .mv-pubs{display:flex;align-items:center;gap:6px;width:calc(100% - 2 * var(--pad));min-height:var(--tap);margin:16px var(--pad) 0;padding:0 2px;text-align:left;font-size:16px}
+#movil .mv-pubs b{font-weight:800}
+#movil .mv-pubs .n{color:var(--mute)}
+#movil .mv-pubs .r{margin-left:auto;color:var(--mute);font-size:14px}
+#movil .mv-pubs .chev{flex:none;width:20px;height:20px;color:var(--faint);transition:transform var(--d2) var(--ease)}
+#movil .mv-pubs[aria-expanded="true"] .chev{transform:rotate(180deg)}
+#movil .hoja .mv-ttxt{font-size:17px;font-weight:600;line-height:1.35}
+#movil .mv-desp{padding:4px 6px 10px}
+#movil .mv-desp.estados{padding:8px 8px 10px}
+#movil .mv-desp .lbl{margin:8px 4px 2px}
+#movil .campo .v .av{width:24px;height:24px;font-size:11px}
+#movil .mv-subh{display:flex;gap:6px;align-items:baseline}
+#movil .mv-subh .num{color:var(--mute);font-weight:500}
+#movil .mv-barra{height:4px;border-radius:2px;background:var(--bg-3);overflow:hidden;margin:0 0 8px}
+#movil .mv-barra i{display:block;height:100%;background:var(--acc);border-radius:2px}
+#movil .mv-subs{display:grid}
+#movil .mv-sub{display:flex;align-items:center;gap:10px;min-height:var(--tap);border-bottom:1px solid var(--sep)}
+#movil .mv-sub .casilla{margin:0}
+#movil .mv-sub input{flex:1;min-width:0;min-height:var(--tap) !important;border:0 !important;background:none !important;padding:0 !important;box-shadow:none !important;font:16px/1.35 var(--font);color:var(--ink)}
+#movil .mv-sub.hecha .casilla{background:var(--ink);box-shadow:none;color:var(--on-ink)}
+#movil .mv-sub.hecha .casilla svg{opacity:1}
+#movil .mv-sub.hecha input{color:var(--mute);text-decoration:line-through}
+#movil .mv-subx{flex:none;width:var(--tap);height:var(--tap);color:var(--faint)}
+#movil .hoja [data-ed-mas]{display:inline-flex;align-items:center;gap:6px;margin:4px 0 0 -12px}
+#movil .hoja [data-ed-mas] svg{width:18px;height:18px}
+#movil .mv-ses-h{display:flex;align-items:flex-start;gap:8px;padding:14px 6px 0 var(--pad)}
+#movil .mv-ses-h h1{flex:1;min-width:0;margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.12;overflow-wrap:anywhere}
+#movil .mv-ses-h .lnk,#movil .mv-sap-h .lnk{min-height:var(--tap);padding:0 10px;color:var(--acc-ink);font-weight:500;flex:none}
+#movil .mv-ses-sub{display:flex;align-items:center;gap:8px;padding:8px var(--pad) 0;color:var(--mute);font-size:15px}
+#movil .mv-ses-sub .ty svg{width:14px;height:14px;margin-right:4px}
+#movil .mv-scl{display:flex !important;flex-direction:column;align-items:flex-start;gap:6px;white-space:normal !important;padding:12px 0}
+#movil .mv-scl>span{display:inline-flex;align-items:center;gap:8px;min-width:0}
+#movil .mv-sap{margin:18px 0 0;border-top:1px solid var(--line2)}
+#movil .mv-sap-h{display:flex;align-items:center;gap:4px;padding:0 6px 0 var(--pad)}
+#movil .mv-sap-b{flex:1;min-width:0;display:flex;align-items:center;gap:8px;min-height:52px;text-align:left}
+#movil .mv-sap-b h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.015em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .mv-sap-b .n{color:var(--mute);font-weight:500;font-size:16px}
+#movil .mv-sap-b .oj{display:inline-grid;color:var(--faint)}#movil .mv-sap-b .oj svg{width:17px;height:17px}
+#movil .mv-sap-b .chev{margin-left:auto;flex:none;width:20px;height:20px;color:var(--faint);transition:transform var(--d2) var(--ease)}
+#movil .mv-sap.abierto .mv-sap-b .chev{transform:rotate(180deg)}
+#movil .mv-stx{margin:0 var(--pad) 6px}
+#movil .mv-spl{margin:6px var(--pad) 10px}
+#movil .mv-spl h3,#movil .mv-mat h3{margin:10px 0 8px;font-size:16px;font-weight:600}#movil .mv-spl h3 .num,#movil .mv-mat h3 .num{color:var(--mute);font-weight:500}
+#movil .mv-spl .lista{margin:0}
+#movil .mv-spl .tarea .casilla{margin-top:-2px}
+#movil .mv-sref{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+#movil .mv-sf{position:relative;display:inline-block;flex:none;height:56px;aspect-ratio:var(--r);border-radius:8px;overflow:hidden;background:var(--cell-ph)}
+#movil .mv-sf img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#movil .mv-mood{columns:2;column-gap:6px}#movil .mv-mood .mv-sf{display:block;width:100%;height:auto;margin:0 0 6px;break-inside:avoid}
+#movil .mv-sref .hueco>span,#movil .mv-srej .hueco>span{display:none}#movil .mv-sref .hueco svg{width:16px;height:16px}
+#movil .mv-srej{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:0 var(--pad) 10px}#movil .mv-srej .mv-sf{width:100%;height:auto;aspect-ratio:1}
+#movil .mv-mat{margin:0 var(--pad) 10px}
+#movil .mv-matb{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--ink-2)}#movil .mv-matb .mv-barra{flex:1;margin:0;height:5px}
+#movil .mv-fichas{display:flex;flex-wrap:wrap;gap:8px}
+#movil .mv-ficha{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:999px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:15px;font-weight:500;color:var(--ink)}
+#movil .mv-ficha::after{content:'';position:absolute;inset:-4px -2px}
+#movil .mv-ficha svg{width:16px;height:16px}
+#movil .mv-ficha.on{background:var(--ink);color:var(--on-ink);box-shadow:none;padding-left:10px}
+#movil .mv-ficha.hijo{padding-left:10px}#movil .mv-ficha.hijo .hj{color:var(--mute);display:inline-grid}#movil .mv-ficha.hijo.on .hj{color:color-mix(in srgb,var(--on-ink) 70%,transparent)}
+#movil .mono-w{position:relative;flex:none;display:inline-block;width:30px;height:30px;margin-left:8px}
+#movil .mono-w .mono{position:absolute;inset:0;margin:0}
+#movil .mono-w .mono-ll{clip-path:inset(var(--vacio,0%) 0 0 0);transition:clip-path .35s var(--ease)}
+#movil .mono-w.trabaja>.mono:not(.mono-ll){filter:grayscale(1);opacity:.3}
+#movil .mono-w.mini{width:22px;height:22px;margin:0 8px 0 0}
+#movil .mono-w.mini .mono{width:22px;height:22px;border-radius:6px}
+#movil .mono-w[hidden]{display:none}
+#movil .top-fila{display:inline-flex;align-items:center}
+#movil .mv-gira{flex:none;display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--acc);animation:mv-gira .9s linear infinite;vertical-align:-3px}
+#movil .cap-h h2 .mv-gira{margin-left:6px}
+#movil .tarea.mv-nueva .mv-gira{margin:2px 4px 0}
+#movil .campo[aria-busy="true"]:disabled .v{color:var(--ink)}
+#movil .mv-tira{display:flex;gap:8px;overflow-x:auto;margin:0 calc(-1 * var(--pad));padding:0 var(--pad);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+#movil .mv-tira::-webkit-scrollbar{display:none}
+#movil .mv-tira{scroll-snap-type:x proximity;scroll-padding-inline:var(--pad)}
+#movil .mv-tf{scroll-snap-align:start;position:relative;flex:none;height:140px;aspect-ratio:var(--r);border-radius:12px;overflow:hidden;background:var(--cell-ph)}
+#movil .mv-tf img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}`;
   const CSS_MAS = `
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
-#movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
+#movil{--sa-l:env(safe-area-inset-left,0px);--sa-r:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
 :root[data-theme="dark"] #movil{--rojo-tinta:#B3263A}
 #movil[hidden]{display:none}
 #movil :where(button,a,[role=button]){touch-action:manipulation}
 #movil :where(button,[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:12px}
 #movil :where(button):disabled{cursor:default}
-#movil .main,#movil .top-in,#movil .tabs-in{width:100%;max-width:600px;margin-left:auto;margin-right:auto}
+#movil .main,#movil .top-in,#movil .tabs-in{width:100%}
 #movil .main{min-width:0}
-#movil .hoja{max-width:600px;margin:0 auto}
 #movil .mono{width:30px;height:30px}
 #movil .top-r{min-width:0}
 #movil .nube{max-width:min(44vw,240px);min-width:0;overflow:hidden}#movil .nube .num{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#movil .nube .q{white-space:nowrap}#movil .nube svg{flex:none}
@@ -512,8 +640,6 @@
 #movil .hoja{bottom:var(--kb,0px);max-height:calc(100dvh - var(--kb,0px) - var(--sa-t) - 8px)}
 #movil .hoja:has(.pie){scroll-padding-bottom:110px}
 #movil.teclado .hoja{padding-bottom:16px}#movil.teclado .hoja .pie{bottom:-16px;margin-bottom:-16px;padding-bottom:16px}
-#movil .cap-b.corto .cap-t{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
-#movil .cap-b .vercap{margin:4px 0 -6px -12px;color:var(--acc-ink);font-weight:500;min-height:var(--tap);display:inline-flex;align-items:center;padding:0 12px}
 #movil .tarea .tm .cn>span:last-child,#movil .campo .v.vista{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #movil .tarea .tm .cn{display:inline-flex}
 #movil .sd.hoyd:not(.sel){box-shadow:inset 0 0 0 1.5px var(--line-strong)}
@@ -521,8 +647,51 @@
 #movil .estado-op .av{flex:none}
 #movil .cuenta .sobra{color:var(--red);font-weight:600}
 #movil .estado-op.on .es{font-weight:600}
-@media (prefers-reduced-motion:reduce){#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
-@media (orientation:landscape) and (max-height:500px){#movil .car .lam{max-height:70vh}#movil .hoja{max-height:calc(100dvh - 8px)}}
+/* revisiones del lote B */
+#movil .top.sin-t .top-in{grid-template-columns:auto 1fr auto}#movil .top.sin-t .nube{max-width:none}
+#movil .mv-tema{place-items:center end;padding-right:8px}
+#movil .top:has(.back) .nube:has(.q) :is(.num,.qp){display:none}#movil .top:has(.back) .nube{gap:4px;min-width:44px;justify-content:center}
+#movil .hoja .lbl.mv-subh{display:flex;justify-content:space-between;align-items:baseline}
+#movil .mv-subs{background:var(--panel-2);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line2);padding:0 4px 0 14px}
+#movil .mv-sub{align-items:flex-start}#movil .mv-sub:last-child{border-bottom:0}
+#movil .mv-sub .casilla{position:relative;margin-top:9px}#movil .mv-sub .casilla::after{content:'';position:absolute;inset:-9px}
+#movil .mv-sub .mv-subx{margin-top:0}
+#movil .hoja .mv-sub textarea{flex:1;min-width:0;min-height:var(--tap) !important;height:auto;border:0 !important;border-radius:0;background:none !important;padding:11px 0 !important;box-shadow:none !important;font:16px/1.35 var(--font);color:var(--ink);overflow:hidden;resize:none}
+#movil .hoja .mv-sub.hecha :is(input,textarea){color:var(--mute);text-decoration:line-through}
+#movil .hoja textarea[data-ed="detalles"]{max-height:40vh;overflow-y:auto}
+#movil .ty.ses{background:var(--ty-ses);color:var(--ty-ses-ink)}
+#movil .mv-sap-b .oj{color:var(--mute)}
+#movil .mv-sap-ed{display:flex;justify-content:flex-end;padding:0 6px 0 var(--pad);margin:-8px 0 0}
+#movil .mv-sap-ed .lnk{min-height:var(--tap);padding:0 10px;color:var(--acc-ink);font-weight:500}
+#movil .mv-mk{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;margin:3px 2px 0 4px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line);color:var(--on-acc)}
+#movil .mv-mk.on{background:var(--acc);box-shadow:none}#movil .mv-mk svg{width:11px;height:11px}
+#movil .mv-scl>span{max-width:100%}#movil .mv-scl .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .campo:has(.mv-scl){align-items:flex-start}#movil .campo:has(.mv-scl) .k{padding-top:15px}#movil .campo:has(.mv-scl) .chev{margin-top:12px}
+#movil .mv-mat h3{margin:20px 0 8px}#movil .mv-mat h3:first-of-type{margin-top:12px}
+#movil .mv-ficha .hj svg{width:15px;height:15px}
+#movil .hoja [data-ed-abre="cliente"] .v>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .mv-pubs b{font-weight:600;color:var(--ink-2)}
+#movil .mv-desp .selcal{background:none;box-shadow:none;padding:0 2px 6px}
+#movil .hoja .pie .mv-desc-t{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--ink);text-align:center}
+#movil .btn.mv-desc{background:var(--red-soft);color:var(--red)}
+@media (prefers-reduced-motion:reduce){#movil .mv-tema .tr,#movil .mv-tema .k,#movil .mv-tema .k::before,#movil .mv-tema .k::after{transition:none}#movil .mono-w .mono-ll{transition:none}#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
+#movil .car .lam{aspect-ratio:var(--r,.8)}
+@media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
+  #movil .car,#movil .car .lam{background:var(--bg)}#movil .car{margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r))}#movil .car .cnt{right:max(12px,calc(50% - 35vh * var(--r,.8) + 12px))}
+  #movil .tabs-in{height:44px}#movil .tabs .tab{min-height:44px;flex-direction:row;gap:6px;font-size:13px}#movil .tabs .tab .badge{position:static;margin:-12px 0 0 -2px}#movil .tab svg{width:21px;height:21px}#movil .main{padding-bottom:calc(60px + var(--sa-b))}
+  #movil .titulo h1,#movil .mesnav h1{font-size:24px}#movil .toast{bottom:calc(56px + var(--sa-b))}}
+#movil .main{padding-left:var(--sa-l);padding-right:var(--sa-r)}
+#movil .top-in{padding-left:calc(8px + var(--sa-l));padding-right:calc(8px + var(--sa-r))}
+#movil .tabs-in{padding-left:var(--sa-l);padding-right:var(--sa-r)}
+#movil .hoja{padding-left:calc(var(--pad) + var(--sa-l));padding-right:calc(var(--pad) + var(--sa-r))}
+#movil .hoja .pie{margin-left:calc(-1 * (var(--pad) + var(--sa-l)));margin-right:calc(-1 * (var(--pad) + var(--sa-r)));padding-left:calc(var(--pad) + var(--sa-l));padding-right:calc(var(--pad) + var(--sa-r))}
+#movil .hoja .selcal,#movil .hoja .ruedas{max-width:560px;margin-left:auto;margin-right:auto}
+#movil .toast{left:calc(var(--pad) + var(--sa-l));right:calc(var(--pad) + var(--sa-r))}
+#movil .ver .vtop{padding-left:calc(16px + var(--sa-l));padding-right:calc(8px + var(--sa-r))}
+#movil .ver .barras,#movil .ver .vpie{padding-left:calc(16px + var(--sa-l));padding-right:calc(16px + var(--sa-r))}
+#movil .cap-t,#movil .op p,#movil .hoja .txt,#movil .decision{max-width:68ch}
+#movil .msg{max-width:min(88%,68ch)}
+#movil .editor{max-width:calc(68ch + 2 * var(--pad))}
 `;
   const estilo = (id, css) => { let s = D.getElementById(id); if (!s) { s = D.createElement('style'); s.id = id; D.head.appendChild(s); } s.textContent = css; };
   estilo('movil-css', MV().tokens('#movil') + '\n' + CSS_V3 + CSS_MAS);
@@ -533,37 +702,75 @@
   D.body.appendChild(raiz);
 
   // ---------- el estado de la nube, siempre a la vista (D-255, D-268) ----------
-  const ST = { fase: 'apagada', vistoA: null, guardado: 0, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
+  const ST = { fase: 'apagada', vistoA: null, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
   const sinRed = () => !ST.red || ST.fase === 'sin_conexion';
   function chip() {
-    const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
+    const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q"><span class="qp">· </span>${q}<span class="qt"> sin subir</span></span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
     const b = (k, ico, t, a, lbl) => `<button type="button" class="nube${k ? ' ' + k : ''}" data-a="${a || (q ? 'sinsubir' : 'nube')}" aria-label="${esc(lbl || t.replace(/<[^>]+>/g, '') + (q ? `, ${q} sin subir` : ''))}">${ic(ico)}<span class="num">${t}</span>${cola}</button>`;
-    if (e.guardando) return b('', 'nube', 'Guardando…');   // la operación en vuelo no es «sin subir» (lote 4)
-    if (Date.now() - e.guardado < 4000) return b('ok', 'nubeok', 'Guardado');
+    // si todo va bien, nada (D-271, punto 8): ni «Al día» ni «Guardado» (basta el aviso breve al guardar); lo que baja o se guarda
+    // lo enseña el monograma (punto 10)
     switch (e.fase) {
-      case 'guardado': case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
-      case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');
+      case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : 'Sin conexión');   // la hora, en la hoja «La nube»
       case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
       case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
       case 'otra_cuenta': return b('err', 'alerta', 'Otra cuenta', 'otracuenta');
       case 'vieja': return b('off', 'recarga', 'Versión nueva', 'version');
       case 'apagada': return b('off', 'nubeoff', 'Sin nube');
-      default: return b('', 'ojo', h && !q ? `Al día ${h}` : 'Al día');
+      default: if (!e.red) return b('off', 'nubeoff', q ? 'Sin red' : 'Sin conexión');   // el iPhone sin red, antes de que la nube lo note
+        return q ? `<button type="button" class="nube err" data-a="sinsubir" aria-label="${esc(plural(q, 'cambio sin subir', 'cambios sin subir'))}">${ic('alerta')}<span class="num">${q} sin subir</span></button>` : '';
     }
   }
-  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip]').forEach(x => { x.innerHTML = chip(); }); };
+  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip],.top-l [data-chip-g]').forEach(x => { x.innerHTML = chip(); }); ajustarTitulo(); };
+  // el título de la barra va centrado si cabe así; si no, ocupa el hueco que dejan los lados (como iOS)
+  function ajustarTitulo() { raiz.querySelectorAll('.top').forEach(t => { const x = t.querySelector('.top-t'); if (!x || !x.textContent) return; t.classList.remove('ajusta'); if (x.scrollWidth > x.clientWidth + 1) t.classList.add('ajusta'); }); }
+
+  // ---------- el monograma que se llena (D-271, punto 10) ----------
+  // Fuentes: guardar (sus pasos: coger, aplicar, subir y soltar), las fotos que bajan (el pegamento las cuenta) y las filas que trae
+  // una mirada larga (una página tras otra). Solo se vacía si el trabajo dura más de 0,4 s: una mirada corta no lo toca.
+  const TRAB = { guardar: null, fotos: { pend: 0, hechas: 0 }, filasHasta: 0, filasP: 0, visible: false, p: 1, que: '', t0: 0, tim: 0 };
+  function pintarMono() {
+    const on = TRAB.visible, p = Math.max(0, Math.min(1, TRAB.p));
+    raiz.querySelectorAll('[data-mono]').forEach(w => {
+      w.classList.toggle('trabaja', on); w.style.setProperty('--vacio', on ? ((1 - p) * 100).toFixed(1) + '%' : '0%');
+      if (w.classList.contains('mini')) w.hidden = !on;
+      if (!w.closest('.top-g')) { if (on) { w.setAttribute('role', 'img'); w.setAttribute('aria-label', `${TRAB.que} · ${Math.round(p * 100)} %`); } else if (w.classList.contains('mini')) w.removeAttribute('aria-label'); else { w.removeAttribute('role'); w.removeAttribute('aria-label'); } }
+    });
+  }
+  function trabajo() {
+    const g = TRAB.guardar, f = TRAB.fotos, filas = Date.now() < TRAB.filasHasta, activo = g != null || f.pend > 0 || filas;
+    if (activo) {
+      TRAB.p = g != null ? g : f.pend > 0 ? f.hechas / (f.hechas + f.pend) : TRAB.filasP; TRAB.que = g != null ? 'Guardando' : 'Bajando la Mesa';
+      if (!TRAB.t0) { TRAB.t0 = Date.now(); clearTimeout(TRAB.tim); TRAB.tim = setTimeout(() => { if (TRAB.t0) { TRAB.visible = true; pintarMono(); ajustarTitulo(); } }, 400); }
+      if (TRAB.visible) pintarMono();
+    } else if (TRAB.t0) {
+      TRAB.t0 = 0; clearTimeout(TRAB.tim);
+      if (TRAB.visible) { TRAB.p = 1; pintarMono(); TRAB.tim = setTimeout(() => { TRAB.visible = false; pintarMono(); ajustarTitulo(); }, 450); }
+    }
+  }
+  D.addEventListener('mesa-bajan-fotos', e => { const d = e.detail || {}; TRAB.fotos = { pend: +d.pend || 0, hechas: +d.hechas || 0 }; trabajo(); });
+
+  // la píldora del modo en uso (como la del Mac, D-134 y D-143: sol en claro, luna con dos cráteres en oscuro); abre «Apariencia»
+  const pildora = () => { const o = oscuro(), t = temaElegido(); return `<button type="button" class="mv-tema${o ? ' osc' : ''}" data-a="tema" aria-haspopup="dialog" aria-label="Apariencia: ${o ? 'oscuro' : 'claro'}${t ? '' : ', como el iPhone'}"><span class="tr"><span class="k"></span></span></button>`; };
+  function pintarPildora() { raiz.querySelectorAll('.mv-tema').forEach(b => { const o = oscuro(), t = temaElegido(); b.classList.toggle('osc', o); b.setAttribute('aria-label', `Apariencia: ${o ? 'oscuro' : 'claro'}${t ? '' : ', como el iPhone'}`); }); }
 
   // ---------- las fotos: cada una a su tamaño en pantalla, 3 como mucho a la vez (nunca el original) ----------
   // La miniatura de la Mesa (1.600 px) es la foto: se decodifica una a una, se dibuja al tamaño que se ve (por la densidad del iPhone)
   // y se suelta. El recorte es el de la publicación (vista.recortes, del núcleo). Una que aún no ha llegado (D-256) lo dice.
   const MINIS = new Map(), COLA = [], DPR = Math.min(3, W.devicePixelRatio || 1); let decodificando = 0;
   const claveMini = (id, px, r) => id + '|' + px + '|' + (r ? [r.x, r.y, r.w, r.h].map(v => v.toFixed(4)).join(',') : '');
-  const pendiente = id => { const f = M.files && M.files[id]; return !f || !!f.pendiente || !(M.thumbBlobs && M.thumbBlobs[id]) || !!(X().NUBE && X().NUBE.activa && X().pendienteRec && f.hueco); };
-  function miniDe(id, px, r) {
+  // sin miniatura = el hueco (D-271, punto 1): `pendiente` de M.files dice que el original sigue arriba, no que falte la miniatura
+  const pendiente = id => { const b = M.thumbBlobs && M.thumbBlobs[id]; return !b || b === X().hueco(); };
+  function miniDe(id, px, r, blob) {
     const k = claveMini(id, px, r); if (MINIS.has(k)) return MINIS.get(k);
-    const p = new Promise((res, rej) => { COLA.push({ id, px, r, res, rej }); correrMinis(); });
+    const p = new Promise((res, rej) => { COLA.push({ id, px, r, blob, res, rej }); correrMinis(); });
     MINIS.set(k, p); p.catch(() => MINIS.delete(k));
     return p;
+  }
+  // la foto de una tarea o de una sesión (D-271, punto 1): la nube la baja al verse, una a una; aquí se dibuja como las demás
+  async function miniArch(a, k, ruta, px) {
+    const id = a + '|' + k + '|' + ruta, c = claveMini(id, px, null); if (MINIS.has(c)) return MINIS.get(c);
+    const b = M.nube && M.nube.archivo ? await M.nube.archivo(a, k, ruta) : null;
+    return b ? miniDe(id, px, null, b) : null;   // sin ella todavía: nada guardado, se pide otra vez cuando llegue
   }
   function correrMinis() {
     while (decodificando < 3 && COLA.length) {
@@ -571,8 +778,8 @@
       hacerMini(t).then(t.res, t.rej).finally(() => { decodificando--; correrMinis(); });
     }
   }
-  async function hacerMini({ id, px, r }) {
-    const b = M.thumbBlobs && M.thumbBlobs[id]; if (!b) throw new Error('sin foto');
+  async function hacerMini({ id, px, r, blob }) {
+    const b = blob || (M.thumbBlobs && M.thumbBlobs[id]); if (!b) throw new Error('sin foto');
     const bm = await createImageBitmap(b);
     try {
       const sx = r ? r.x * bm.width : 0, sy = r ? r.y * bm.height : 0, sw = r ? r.w * bm.width : bm.width, sh = r ? r.h * bm.height : bm.height;
@@ -589,6 +796,7 @@
   const vigia = 'IntersectionObserver' in W ? new IntersectionObserver(l => l.forEach(e => { if (e.isIntersecting) { vigia.unobserve(e.target); llenar(e.target); } }), { rootMargin: '300px 0px' }) : null;
   function llenar(img) {
     const id = img.dataset.id, px = +img.dataset.px || 120, r = img.dataset.r ? JSON.parse(img.dataset.r) : null, hue = img.parentNode && img.parentNode.querySelector('.hueco');
+    if (img.dataset.alm) { miniArch(img.dataset.alm, img.dataset.k, img.dataset.ruta, px).then(u => { if (!u) { if (hue) hue.hidden = false; return; } if (hue) hue.hidden = true; if (img.isConnected) { img.src = u; img.classList.remove('cargando'); } }, () => { if (hue) hue.hidden = false; }); return; }
     if (pendiente(id)) { if (hue) hue.hidden = false; return; }
     if (hue) hue.hidden = true;
     miniDe(id, px, r).then(u => { if (img.isConnected) { img.src = u; img.classList.remove('cargando'); } }, () => { if (hue) hue.hidden = false; });
@@ -598,17 +806,30 @@
     const id = e.detail && e.detail.id; if (!id) return;
     olvidarMini(id); raiz.querySelectorAll(`img.mi[data-id="${CSS.escape(id)}"]`).forEach(i => { i.removeAttribute('src'); llenar(i); });
   });
+  D.addEventListener('mesa-archivo-llego', e => {   // una foto de una tarea o de una sesión bajó: donde se ve, se rellena en su sitio
+    const d = e.detail || {}; if (!d.a) return;
+    raiz.querySelectorAll(`img.mi[data-alm="${CSS.escape(d.a)}"][data-k="${CSS.escape(String(d.k))}"][data-ruta="${CSS.escape(d.ruta)}"]:not([src])`).forEach(llenar);
+  });
   const HUECO = `<span class="hueco" hidden>${ic('nube')}<span>Llega en un momento</span></span>`;
   const foto = (id, px, r) => id ? `<img class="mi cargando" data-id="${esc(id)}" data-px="${px}"${r ? ` data-r='${esc(JSON.stringify(r))}'` : ''} alt="">${HUECO}` : '';
+  const fotoArch = (a, k, ruta, px) => `<img class="mi cargando" data-alm="${esc(a)}" data-k="${esc(k)}" data-ruta="${esc(ruta)}" data-px="${Math.round(px)}" alt="">${HUECO}`;
   const cargarMinis = ids => { const l = [...new Set(ids.filter(Boolean))]; return l.length ? X().loadThumbs(l).catch(() => []) : Promise.resolve([]); };
 
   // ---------- piezas comunes ----------
   const TY = { Foto: 'foto', Carrusel: 'carr', Reel: 'reel', 'Collab Reel': 'collab', 'Trial Reel': 'reel' };
   const ty = t => `<span class="ty ${TY[t.k] || (t.reel ? 'reel' : 'foto')}">${esc(t.txt)}</span>`;
   const est = e => `<span class="es ${esc(e.k)}"><i></i>${esc(e.txt)}</span>`;
+  // el monograma: su capa de color se llena de abajo arriba mientras el iPhone baja algo o guarda (D-271, punto 10); en las pantallas
+  // con «‹ atrás», uno pequeño a la derecha de la barra que solo sale entonces (variante B)
+  const mono = mini => `<span class="mono-w${mini ? ' mini' : ''}" data-mono${mini ? ' hidden' : ''}><img class="mono" src="portal/marca/monograma.svg" alt="${mini ? '' : 'Uribe Visuals'}" width="30" height="30"><img class="mono mono-ll" src="portal/marca/monograma.svg" alt="" aria-hidden="true" width="30" height="30"></span>`;
   function top(o = {}) {
-    const izq = o.atras ? `<button type="button" class="back" data-a="atras" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : `<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="30" height="30">`;
-    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r">${o.r || `<span data-chip>${chip()}</span>`}</div></div></header>`;
+    const izq = o.atras ? `<button type="button" class="back" data-a="atras" data-destino="${esc(o.destino || prevDe() || 'clientes')}" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : mono(false);
+    const mini = o.atras ? mono(true) : '';
+    // cada lado reserva, sin verse, lo que ocupa el otro: el título va centrado con estado o sin él y no salta (D-271, punto 8)
+    const fant = h => `<span class="top-g" aria-hidden="true" inert>${h}</span>`;
+    const ext = o.extra || '';
+    const g = o.t || o.atras ? fant : () => '';   // sin título no hay nada que centrar: sin lados fantasma (la píldora de Hoy no se sale, revisión del lote B)
+    return `<header class="top${o.linea ? ' linea' : ''}${o.t || o.atras ? '' : ' sin-t'}"><div class="top-in"><div class="top-l">${izq}${g(`<span class="top-fila">${mini}${o.r || `<span data-chip-g>${chip()}</span>`}${ext}</span>`)}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r"><span class="top-fila">${mini}${o.r || `<span data-chip>${chip()}</span>`}${ext}</span>${g(izq)}</div></div></header>`;
   }
   function tabs(on) {
     const n = TAREAS_PASADO;
@@ -635,20 +856,37 @@
   // ---------- la navegación: #hoy, #clientes, #tareas, #mes/<tablero>/<vista>[/<mes>], #pub/<tablero>/<id>, #cap/…, #ret/…/<k>, #his/<tablero>/<id> ----------
   const leerRuta = () => { const p = decodeURIComponent((location.hash || '#hoy').slice(1)).split('/'); return { p: p[0] || 'hoy', a: p[1] || '', b: p[2] || '', c: p[3] || '' }; };
   let RUTA = leerRuta();
-  const ir = (h, reemplazar) => { const u = '#' + h.split('/').map(encodeURIComponent).join('/'); if (reemplazar) history.replaceState(null, '', u); else history.pushState(null, '', u); RUTA = leerRuta(); W.scrollTo(0, 0); pintar(); };
+  // atrás (D-271, punto 3): cada entrada guarda de dónde se vino (history.state.prev). Abrir algo apila; cambiar de vista o de mes
+  // dentro de un cliente sustituye la entrada (conserva su prev); las pestañas empiezan de cero. «‹ X» vuelve con history.back()
+  // solo si la entrada anterior es X; si no, va a X sin apilar: así el botón y el gesto de Safari hacen lo mismo.
+  const rutaAhora = () => decodeURIComponent((location.hash || '#hoy').slice(1));
+  const prevDe = () => (history.state && typeof history.state.prev === 'string' ? history.state.prev : null);
+  const ir = (h, modo) => {   // modo: nada = apilar; 'sustituir' = la misma entrada con su prev; 'raiz' = la misma entrada, sin prev
+    const u = '#' + h.split('/').map(encodeURIComponent).join('/');
+    if (modo === 'sustituir') history.replaceState({ prev: prevDe() }, '', u); else if (modo === 'raiz') history.replaceState({ prev: null }, '', u); else history.pushState({ prev: rutaAhora() }, '', u);
+    RUTA = leerRuta(); W.scrollTo(0, 0); pintar();
+  };
   W.addEventListener('popstate', () => { cerrarHojas(true); RUTA = leerRuta(); pintar(); });
-  const atras = () => { if (history.length > 1 && HIST > 0) { HIST--; history.back(); } else ir(RUTA.p === 'pub' || RUTA.p === 'his' ? `mes/${RUTA.a}/lista` : RUTA.p === 'cap' ? `pub/${RUTA.a}/${RUTA.b}` : RUTA.p === 'ret' ? `cap/${RUTA.a}/${RUTA.b}` : 'clientes', true); };
-  let HIST = 0;
-  const avanzar = h => { HIST++; ir(h); };
+  const atras = dest => { dest = dest || 'hoy'; if (prevDe() === dest) history.back(); else ir(dest, 'raiz'); };
+  const avanzar = h => ir(h);
+  // a dónde vuelve cada pantalla y cómo se llama ese sitio
+  const volverMes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : { atras: 'Clientes', destino: 'clientes' }; };
+  function volverPub(v, p) {
+    const pv = prevDe();
+    if (pv === 'hoy') return { atras: 'Hoy', destino: 'hoy' };
+    if (pv && pv.startsWith(`mes/${v.key}/`)) { const m = pv.split('/')[3]; return { atras: mesNombre(/^\d{4}-\d{2}$/.test(m || '') ? m : p.mes), destino: pv }; }
+    return { atras: mesNombre(p.mes), destino: `mes/${v.key}/lista/${p.mes}` };
+  }
 
   // ---------- lo leído (todo del núcleo); lo que falla se dice, nunca se enseña como vacío ----------
   const L = { hoy: null, clientes: null, tareas: null, vista: null, conv: null, error: {} };
   let TAREAS_PASADO = 0;
   async function leerHoy() {
     try {
-      const R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: true });
+      const a0 = AVT, R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: a0 });
       await cargarMinis(R.items.filter(x => x.tipo === 'post').map(x => x.s.photos && x.s.photos[0]));
       try { if (M.web && M.web.leerRespuestas) await M.web.leerRespuestas(); } catch (e) { /* sin web: sin «ha contestado» */ }
+      if (a0 !== AVT) return;   // el interruptor cambió mientras se leía: vale la lectura del valor nuevo
       L.hoy = R; L.error.hoy = '';
     } catch (e) { L.error.hoy = 'No se pudo leer Hoy.'; }
   }
@@ -672,6 +910,11 @@
       leerConv(v.key);
     } catch (e) { L.vista = null; L.error.mes = 'No se pudo abrir este mes.'; }
   }
+  async function leerSes(id) {   // una sesión entera (D-275): la vista sale de sesiones.js
+    if (!(M.sesiones && M.sesiones.movil)) { L.ses = null; L.error.ses = 'No se pudo leer la sesión: recarga la Mesa.'; return; }
+    try { const v = await M.sesiones.movil.vista(id); L.ses = v || { id, falta: true }; L.error.ses = ''; }
+    catch (e) { L.ses = null; L.error.ses = 'No se pudo leer la sesión.'; }
+  }
   let convDe = '';
   async function leerConv(key) {   // lo que dijo el cliente (D-244, R2): solo leer
     convDe = key;
@@ -682,7 +925,7 @@
   // ---------- Hoy (D-180, D-212, D-236) ----------
   const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
   const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
-  let FILTRO = null, VER_TODO = {};
+  let FILTRO = null, VER_TODO = {}, AVT = false;   // AVT: el interruptor «Tareas» de Hoy, apagado al abrir la app (D-271, punto 2; D-180)
   function lineaAviso(x) {
     const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
     if (x.tipo === 'cobro') {
@@ -707,7 +950,8 @@
   const isReelTxt = t => /reel/i.test(String(t || ''));
   function pantHoy() {
     const R = L.hoy, h = hoy();
-    let html = top() + `<main class="main" id="contenido"><div class="titulo"><h1>Hoy</h1><p>${esc(fechaLarga(h))}</p></div>`;
+    const sw = `<button type="button" class="mv-sw" role="switch" aria-checked="${AVT}" data-a="avt"><span>Tareas</span><i aria-hidden="true"></i></button>`;   // como en la página del Mac (D-180)
+    let html = top({ extra: pildora() }) + `<main class="main" id="contenido"><div class="titulo"><div class="mv-tit"><h1>Hoy</h1>${sw}</div><p>${esc(fechaLarga(h))}</p></div>`;
     if (!R) return html + (L.error.hoy ? mal(L.error.hoy) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('hoy');
     html += `<div class="cifras c5" role="group" aria-label="Avisos">${CIFRAS.map(([k, t]) => { const n = R.cifras[k] || 0; return `<button type="button" class="cifra${k === 'pasado' && n ? ' roja' : ''}${FILTRO === k ? ' on' : ''}" data-a="filtro" data-k="${k}" aria-pressed="${FILTRO === k}"${n || FILTRO === k ? '' : ' disabled'}><span class="v num">${n}</span><span class="k">${t}</span></button>`; }).join('')}</div>`;
     const por = c => R.items.filter(x => x.cat === c);
@@ -756,7 +1000,7 @@
     const sin = posts.filter(p => !['programado', 'publicado'].includes(p.estado.k)).length, hs = v.historias.filter(h => !h.cancelada && h.fecha.dia && h.fecha.dia.slice(0, 7) === m).length;
     const otro = (d) => { const j = i + d; return j >= 0 && j < v.meses.length ? `data-ir="mes/${esc(v.key)}/${vista}/${esc(v.meses[j].m)}"` : ''; };
     const ant = otro(-1), sig = otro(1), sigB = !sig && MESES_CLI.sig ? `data-ir="mes/${esc(MESES_CLI.sig)}/${vista}"` : '', antB = !ant && MESES_CLI.ant ? `data-ir="mes/${esc(MESES_CLI.ant)}/${vista}"` : '';
-    return top({ atras: 'Clientes', t: nombreCli(v.client) })
+    return top({ ...volverMes(), t: nombreCli(v.client) }) + `<main class="main" id="contenido">`
       + `<div class="mesnav"><h1>${esc(mesNombre(m))}</h1><div class="flechas"><button type="button" class="ib" ${ant || antB} ${ant || antB ? '' : 'disabled'} aria-label="Mes anterior">${ic('izq')}</button><button type="button" class="ib" ${sig || sigB} ${sig || sigB ? '' : 'disabled'} aria-label="Mes siguiente">${ic('der')}</button></div></div>`
       + `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`
       + `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`;
@@ -771,9 +1015,9 @@
   function filaPost(v, p) {
     const c = comentariosDe(p.id), n = c ? c.sinLeer : 0;
     const e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
-    const extra = n ? ` · <span class="acc">${esc(plural(n, 'comentario', 'comentarios'))}</span>` : p.vencida ? ' · <span class="roja">vencida</span>' : '';
+    const extra = n ? ` · <span class="acc">${esc(plural(n, 'comentario', 'comentarios'))}</span>` : '';
     const tp = X().tipoPost({ type: p.tipo.k, photos: p.fotos }), ico = p.tipo.txt === 'Foto' ? '' : tp.ico;
-    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${est(e)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
+    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${p.vencida && !n ? '<span class="roja">vencida</span> · ' : ''}${est(e)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
   }
   function diaFila(v, d, n) {
     const r = relativo(d), hs = v.historias.filter(h => !h.cancelada && h.fecha.dia === d).length;
@@ -781,21 +1025,34 @@
   }
   function pantMes() {
     const v = L.vista, vista = RUTA.b || 'lista';
-    if (!v || v.key !== RUTA.a) return top({ atras: 'Clientes' }) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
+    if (!v || v.key !== RUTA.a) return top(volverMes()) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
     const m = mesDeRuta(v);
-    let html = `<main class="main" id="contenido">` + cabMes(v, m, vista);
+    let html = cabMes(v, m, vista);   // la barra va fuera de <main>, como en las demás
     const posts = v.posts.filter(p => p.mes === m).sort((a, b) => String(a.fecha.dia || '9').localeCompare(String(b.fecha.dia || '9')) || String(a.fecha.hora).localeCompare(String(b.fecha.hora)));
     if (vista === 'lista') {
       if (!posts.length) html += vacio('Este mes no tiene publicaciones', 'Se preparan en el escritorio.');
-      let dia = null;
-      for (const p of posts) {
-        if (p.fecha.dia !== dia) { if (dia !== null) html += '</div>'; dia = p.fecha.dia; html += (dia ? diaFila(v, dia) : `<div class="dia"><b>Sin fecha</b></div>`) + '<div class="lista">'; }
-        html += filaPost(v, p);
+      // lo ya publicado antes de hoy, plegado en «Publicadas · N» (D-271, punto 12): así hoy queda arriba; lo vencido o sin publicar
+      // del pasado sigue a la vista. Se pliega otra vez al entrar en otro mes
+      const pas = posts.filter(p => p.fecha.dia && p.fecha.dia < v.hoy && (p.publicada || p.tocaria || p.estado.k === 'publicado')), resto = posts.filter(p => !pas.includes(p));
+      if (PUBS.de !== v.key + '|' + m) PUBS.de = v.key + '|' + m, PUBS.abierta = false;   // (y al entrar desde fuera del mes: pintar)
+      if (pas.length) {
+        const a = pas[0].fecha.dia, z = pas[pas.length - 1].fecha.dia, rango = a === z ? corto(a) : a.slice(0, 7) === z.slice(0, 7) ? `${+a.slice(8, 10)}–${corto(z)}` : `${corto(a)}–${corto(z)}`;
+        html += `<button type="button" class="mv-pubs" data-a="pubs" aria-expanded="${PUBS.abierta}"><b>Publicadas</b><span class="n num">· ${pas.length}</span><span class="r num">${esc(rango)}</span><span class="chev">${ic('abajo')}</span></button>`;
+        if (PUBS.abierta) html += listaDias(v, pas);
       }
-      if (dia !== null) html += '</div>';
+      html += listaDias(v, resto);
     } else if (vista === 'cal') html += calMes(v, m, posts);
     else html += histMes(v, m);
     return html + '</main>' + tabs('clientes');
+  }
+  const PUBS = { de: '', abierta: false };
+  function listaDias(v, posts) {   // las publicaciones por día, cada día con su cabecera
+    let h = '', dia = null;
+    for (const p of posts) {
+      if (p.fecha.dia !== dia) { if (dia !== null) h += '</div>'; dia = p.fecha.dia; h += (dia ? diaFila(v, dia) : `<div class="dia"><b>Sin fecha</b></div>`) + '<div class="lista">'; }
+      h += filaPost(v, p);
+    }
+    return dia !== null ? h + '</div>' : h;
   }
   let DIA_CAL = null;
   function calMes(v, m, posts) {
@@ -838,21 +1095,23 @@
     if (!p) return top({ atras: 'Volver' }) + `<main class="main sin-tabs" id="contenido">${L.error.mes ? mal(L.error.mes) : v && v.key === RUTA.a ? vacio('Esta publicación ya no está', 'Se quitó en el escritorio.') : `<div class="lugar">Abriendo…</div>`}</main>`;
     const r0 = p.recortes[0], ratio = p.tipo.reel ? 9 / 16 : r0 && r0.ratio ? Math.max(0.6, Math.min(1.91, r0.ratio)) : 4 / 5;
     const n = p.fotos.length, e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
-    let html = top({ atras: mesNombre(p.mes), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
-    html += `<div class="car" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="aspect-ratio:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="aspect-ratio:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
+    let html = top({ ...volverPub(v, p), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
+    html += `<div class="car" style="--r:${ratio}" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="--r:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="--r:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
     if (n > 1) html += `<div class="puntos" aria-hidden="true">${p.fotos.map((_, i) => `<i${i === 0 ? ' class="on"' : ''}></i>`).join('')}</div>`;
     html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div></div>`;
     if (p.estado.k === 'cancelado') html += `<div class="aviso gris">${ic('x')}<span>${p.motivo ? 'Cancelada: ' + esc(p.motivo) : 'Cancelada, sin motivo.'}</span></div>`;
     else if (p.vencida) html += `<div class="aviso rojo">${ic('reloj')}<span>Su hora ya pasó sin publicarse.</span></div>`;
     const offline = sinRed() ? ' disabled' : '';
+    const fop = enCurso(v.key, p.id, 'fecha'), eop = enCurso(v.key, p.id, 'estado');   // lo que se guarda de fondo, ya a la vista (D-271, punto 9)
+    const fVer = fop ? { dia: fop.valor.dia, hora: fop.valor.hora || '' } : p.fecha, eVer = eop ? (eop.valor.v ? { k: eop.valor.v, txt: (X().ESTADOS.find(x => x[0] === eop.valor.v) || [eop.valor.v, eop.valor.v])[1] } : { k: e.k, txt: 'Según sus datos' }) : e;
     html += `<div class="grupo">
-      <button type="button" class="campo" data-a="fecha"${p.publicada || offline ? ' disabled' : ''}><span class="k">Fecha y hora</span><span class="v num">${esc(campoFecha(p.fecha))}${p.publicada ? '<span class="por">Ya está publicada: no se mueve.</span>' : ''}</span><span class="chev">${ic('der')}</span></button>
-      <button type="button" class="campo" data-a="estado"${offline}><span class="k">Estado</span><span class="v">${est(e)}</span><span class="chev">${ic('der')}</span></button>
+      <button type="button" class="campo" data-a="fecha"${p.publicada || offline || fop ? ' disabled' : ''}${fop ? ' aria-busy="true"' : ''}><span class="k">Fecha y hora</span><span class="v num">${esc(campoFecha(fVer))}${p.publicada ? '<span class="por">Ya está publicada: no se mueve.</span>' : ''}</span>${fop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
+      <button type="button" class="campo" data-a="estado"${offline || eop ? ' disabled' : ''}${eop ? ' aria-busy="true"' : ''}><span class="k">Estado</span><span class="v">${est(eVer)}</span>${eop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
     </div>`;
     if (offline) html += `<p class="solo-mac">Sin conexión: no se puede cambiar. Lo que ves es de las ${esc(ST.vistoA ? horaDe(ST.vistoA) : '')}.</p>`;
-    const c = p.captions, k = c && c.pick != null ? c.opciones.find(o => o.k === c.pick) : null;
-    html += `<div class="cap"><div class="cap-h"><h2>Caption</h2>${c ? `<button type="button" class="lnk" data-ir="cap/${esc(v.key)}/${esc(p.id)}">${c.opciones.length} opciones</button>` : ''}</div>`
-      + (k ? (() => { const largo = k.texto.length > 300 || k.texto.split('\n').length > 6, ab = ABIERTO['cap:' + p.id]; return `<div class="cap-b${largo && !ab ? ' corto' : ''}"><div class="cap-t">${esc(k.texto)}</div><span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span>${largo ? `<button type="button" class="lnk vercap" data-a="plegar" data-k="cap:${esc(p.id)}" aria-expanded="${!!ab}">${ab ? 'Ver menos' : 'Ver entero'}</button>` : ''}</div>`; })()
+    const c = p.captions, cop = c && enCurso(v.key, p.id, 'capElegir'), kPick = cop ? cop.valor : c && c.pick, k0 = c && kPick != null ? c.opciones.find(o => o.k === kPick) : null, top0 = k0 && enCurso(v.key, p.id, 'capTexto', k0.k), k = top0 ? { ...k0, texto: top0.valor.texto, editada: true } : k0;
+    html += `<div class="cap"><div class="cap-h"><h2>Caption${cop || top0 ? ' ' + GIRA : ''}</h2>${c ? `<button type="button" class="lnk" data-ir="cap/${esc(v.key)}/${esc(p.id)}">${c.opciones.length} opciones</button>` : ''}</div>`
+      + (k ? `<div class="cap-b"><div class="cap-t">${esc(k.texto)}</div><span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span></div>`   // entero, sin plegar (D-271, punto 4)
         : c ? `<button type="button" class="cap-b vacia" style="display:block;width:100%;text-align:left" data-ir="cap/${esc(v.key)}/${esc(p.id)}">Sin elegir todavía: ${c.opciones.length} opciones para elegir.</button>`
           : `<div class="cap-b vacia">Sin opciones: pídeselas a Claude.</div>`) + `</div>`;
     const pl = (key, t, txt) => `<button type="button" class="campo pl${ABIERTO[key] ? ' abierto' : ''}" data-a="plegar" data-k="${key}" aria-expanded="${!!ABIERTO[key]}"${txt ? '' : ' disabled'}><span class="k">${t}</span><span class="v vista">${txt ? esc(txt) : 'Sin ' + t.toLowerCase()}</span><span class="chev">${ic('abajo')}</span></button>`;
@@ -880,9 +1139,10 @@
     const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b);
     if (!p) return top({ atras: 'Volver' }) + `<main class="main sin-tabs">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo…</div>`}</main>`;
     const c = p.captions, off = sinRed();
-    let html = top({ atras: p.nombre }) + `<main class="main sin-tabs" id="contenido"><div class="titulo"><h1>Captions</h1><p>${esc(p.nombre)} · ${esc(p.tipo.txt)}${p.fecha.dia ? ' · ' + esc(DS[dow(p.fecha.dia)] + ' ' + corto(p.fecha.dia)) : ''}</p></div>`;
-    if (!c) html += vacio('Sin opciones todavía', 'Pídeselas a Claude.');
-    else html += c.opciones.map(o => { const on = o.k === c.pick; return `<div class="op${on ? ' on' : ''}"><div class="op-h"><b>${esc(o.tono)}</b>${on ? `<span class="elegido">${ic('check', 2.25)}Elegido</span>` : ''}</div><p>${o.texto ? esc(o.texto) : '<span class="vacia">Vacío</span>'}</p>${o.editada ? '<p class="solo-mac" style="margin:8px 0 0">Retocado</p>' : ''}
+    let html = top({ atras: p.nombre, destino: `pub/${v.key}/${p.id}` }) + `<main class="main sin-tabs" id="contenido"><div class="titulo"><h1>Captions</h1><p>${esc(p.nombre)} · ${esc(p.tipo.txt)}${p.fecha.dia ? ' · ' + esc(DS[dow(p.fecha.dia)] + ' ' + corto(p.fecha.dia)) : ''}</p></div>`;
+    if (!c) html += vacio('Sin opciones todavía', 'Pídeselas a Claude.');   // (abajo, la elegida mientras se guarda, D-271 punto 9)
+    const cop = c && enCurso(v.key, p.id, 'capElegir'), pick = cop ? cop.valor : c && c.pick;
+    if (c) html += c.opciones.map(o => { const on = o.k === pick; return `<div class="op${on ? ' on' : ''}"><div class="op-h"><b>${esc(o.tono)}</b>${on ? `<span class="elegido">${cop ? GIRA : ic('check', 2.25)}Elegido</span>` : ''}</div><p>${o.texto ? esc(o.texto) : '<span class="vacia">Vacío</span>'}</p>${o.editada ? '<p class="solo-mac" style="margin:8px 0 0">Retocado</p>' : ''}
       <div class="op-a">${on ? `<button type="button" class="btn sua" data-ir="ret/${esc(v.key)}/${esc(p.id)}/${o.k}"${off ? ' disabled' : ''}>Retocar</button>` : `<button type="button" class="btn sua" data-a="elegir" data-k="${o.k}"${off ? ' disabled' : ''}>Elegir esta</button>`}</div></div>`; }).join('');
     if (off) html += `<p class="solo-mac">Sin conexión: no se puede cambiar.</p>`;
     html += `<div class="llave" style="margin:16px var(--pad) 0">${ic('chispa')}<span>¿Otras? Pídeselas a Claude: «genera los captions de ${esc(nombreCli(v.client))}».</span></div>`;
@@ -898,6 +1158,8 @@
     const l = l0.filter(x => !FILTRO_T || x.clientes.includes(FILTRO_T)), nHoy = l.filter(x => x.grupo === 'hoy' && !x.hecha).length, nPas = l.filter(x => x.grupo === 'pasado').length;
     html += `<div class="titulo"><h1>Tareas</h1><p>${esc(plural(nHoy, 'para hoy', 'para hoy'))}${nPas ? ` · <span class="acc">${esc(plural(nPas, 'se ha pasado', 'se han pasado'))}</span>` : ''}</p></div>`;
     html += nuevaHTML();
+    const nuevas = opsLeer().filter(o => o.estado === 'nueva' && o.campo === 'tareaNueva');   // las que se están creando, ya a la vista
+    if (nuevas.length) html += `<div class="lista" style="margin-top:14px">${nuevas.map(o => `<div class="tarea mv-nueva">${GIRA}<span class="tx"><span class="tt">${esc(String(o.valor.txt).split('\n')[0])}</span><span class="tm">${o.valor.tipo === 'nota' ? 'Nota' : 'Tarea'} · guardando</span></span></div>`).join('')}</div>`;
     const clis = [...new Set(l0.flatMap(x => x.clientes))];
     if (clis.length) html += `<div class="filtro" role="group" aria-label="Ver las tareas de"><button type="button" class="chip solo${FILTRO_T ? '' : ' on'}" data-a="tcli" data-c="" aria-pressed="${!FILTRO_T}">Todos</button>${clis.map(c => `<button type="button" class="chip${FILTRO_T === c ? ' on' : ''}" data-a="tcli" data-c="${esc(c)}" aria-pressed="${FILTRO_T === c}">${av(c)}${esc(String(nombreCli(c)).split(' ')[0])}</button>`).join('')}</div>`;
     const G = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['despues', 'Más adelante'], ['sinfecha', 'Sin fecha']];
@@ -907,6 +1169,9 @@
     return html + '</main>' + tabs('tareas');
   }
   function tareaHTML(x) {
+    const hop = enCurso(null, x.id, 'tarea'); if (hop) x = { ...x, hecha: hop.valor.hecha ? x.hecha || new Date().toISOString() : null };   // marcada, mientras se guarda (D-271, punto 9)
+    const tex = enCurso(null, x.id, 'tareaTexto'), fop = enCurso(null, x.id, 'tareaFecha'), edita = !!(tex || fop || opsLeer().some(o => o.estado === 'nueva' && o.slot === x.id && NUEVOS.test(o.campo)));
+    if (tex) x = { ...x, txt: tex.valor }; if (fop) x = { ...x, fecha: fop.valor || null };   // lo editado, ya a la vista (D-272)
     const nota = x.tipo === 'nota', ses = x.tipo === 'sesion';
     const meta = [];
     if (nota) meta.push(`Nota · ${esc(plural(String(x.txt).split('\n').length, 'línea', 'líneas'))}`);
@@ -917,8 +1182,8 @@
     if (!x.hecha || nota) x.clientes.slice(0, 2).forEach(c => meta.push(`<span class="cn">${av(c)}<span>${esc(nombreCli(c))}</span></span>`));
     if (x.subtareas) meta.push(`${x.subtareas.hechas}/${x.subtareas.n}`);
     const titulo = nota ? String(x.txt).split('\n')[0] : x.txt;
-    const casilla = nota ? `<span class="nota-ic">${ic('nota')}</span>` : `<button type="button" class="casilla" data-a="hecha" data-id="${esc(x.id)}" role="checkbox" aria-checked="${!!x.hecha}" aria-label="${esc(x.hecha ? 'Hecha: ' + titulo : 'Marcar como hecha: ' + titulo)}"${sinRed() ? ' disabled' : ''}>${ic('check', 2.5)}</button>`;
-    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}</span><span class="tm">${meta.join('')}</span></span></div>`;
+    const casilla = nota ? `<span class="nota-ic">${ic('nota')}</span>` : `<button type="button" class="casilla" data-a="hecha" data-id="${esc(x.id)}" role="checkbox" aria-checked="${!!x.hecha}" aria-label="${esc(x.hecha ? 'Hecha: ' + titulo : 'Marcar como hecha: ' + titulo)}"${sinRed() || hop ? ' disabled' : ''}${hop ? ' aria-busy="true"' : ''}>${ic('check', 2.5)}</button>`;
+    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}${edita ? ' ' + GIRA : ''}</span><span class="tm">${meta.join('')}</span></span></div>`;
   }
   const NUEVA = { txt: '', fecha: '', cliente: '' };
   function nuevaHTML() {
@@ -932,35 +1197,47 @@
     const v = L.vista; if (!v || v.key !== RUTA.a) return `<div class="ver"><div class="lugar" style="color:#fff">Abriendo…</div></div>`;
     const l = v.historias.filter(h => !h.cancelada).sort((a, b) => String(a.fecha.dia + a.fecha.hora).localeCompare(String(b.fecha.dia + b.fecha.hora)));
     const i = Math.max(0, l.findIndex(h => h.id === RUTA.b)), h = l[i];
-    if (!h) return `<div class="ver"><div class="vtop"><span class="t">Sin historias</span><button type="button" class="ib" data-a="atras" aria-label="Cerrar">${ic('x', 2)}</button></div></div>`;
+    const dH = prevDe() || `mes/${v.key}/hist${h ? '/' + h.fecha.dia.slice(0, 7) : ''}`;
+    if (!h) return `<div class="ver"><div class="vtop"><span class="t">Sin historias</span><button type="button" class="ib" data-a="atras" data-destino="${esc(dH)}" aria-label="Cerrar">${ic('x', 2)}</button></div></div>`;
     const deDia = l.filter(x => x.fecha.dia === h.fecha.dia), j = deDia.indexOf(h);
     return `<div class="ver" role="dialog" aria-label="Historia ${i + 1} de ${l.length}" data-hist="${i}" data-total="${l.length}"><div class="barras" aria-hidden="true">${deDia.map((_, k) => `<i${k <= j ? ' class="on"' : ''}></i>`).join('')}</div>
-      <div class="vtop"><span class="t">${esc(diaCab(h.fecha.dia))} · ${esc(h.fecha.hora || '')}<span>${esc(nombreCli(v.client))} · ${h.programada ? 'programada' : 'sin programar'}</span></span><button type="button" class="ib" data-a="atras" aria-label="Cerrar">${ic('x', 2)}</button></div>
+      <div class="vtop"><span class="t">${esc(diaCab(h.fecha.dia))} · ${esc(h.fecha.hora || '')}<span>${esc(nombreCli(v.client))} · ${h.programada ? 'programada' : 'sin programar'}</span></span><button type="button" class="ib" data-a="atras" data-destino="${esc(dH)}" aria-label="Cerrar">${ic('x', 2)}</button></div>
       <div class="lam">${h.img ? `<span style="position:relative;display:block;height:100%;aspect-ratio:9/16;max-width:100%">${foto(h.img, Math.min(500, W.innerWidth || 440))}</span>` : `<span class="hueco" style="position:static;background:none;color:#fff">Sin imagen todavía</span>`}</div>
       <button type="button" class="lado i" data-a="hmov" data-d="-1" aria-label="Historia anterior"${i ? '' : ' disabled'}></button><button type="button" class="lado d" data-a="hmov" data-d="1" aria-label="Historia siguiente"${i < l.length - 1 ? '' : ' disabled'}></button>
       ${h.post ? `<div class="vpie">De la publicación ${esc((v.posts.find(p => p.id === h.post) || {}).nombre || '')}</div>` : ''}</div>`;
   }
 
   // ---------- pintar ----------
-  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria };
+  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria, ses: r => C.pantSes(r) };
   let pintando = 0, PEND_PINTAR = false;
   const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && /^(TEXTAREA|INPUT)$/.test(a.tagName)) || !!raiz.querySelector('.hoja'); };
   function pintarSiQuieto() { if (enUso()) { PEND_PINTAR = true; return; } pintar(); }   // un campo en uso no se rehace desde fuera (D-112)
+  let ULT_P = '', ULT_A = '';
   async function pintar() {
     const n = ++pintando, r = RUTA;
+    if (r.p === 'mes' && !['mes', 'pub', 'cap', 'ret', 'his'].includes(ULT_P)) PUBS.abierta = false;   // «Publicadas» se pliega al entrar en el mes; volver de una publicación la deja como estaba
+    const entra = r.p === 'ses' && (ULT_P !== 'ses' || ULT_A !== r.a);   // una sesión, al entrar en ella: plegada y leída otra vez (D-275)
+    if (entra) SES.abiertos = new Set();
+    ULT_P = r.p; ULT_A = r.a;
     if (r.p === 'mes' || r.p === 'pub' || r.p === 'cap' || r.p === 'ret' || r.p === 'his') {
       if (!L.vista || L.vista.key !== r.a) { raiz.querySelector('.pant') ? 0 : 0; dibujar((PANT[r.p] || pantMes)()); await leerMes(r.a); if (n !== pintando) return; if (L.vista) await vecinos(L.vista); if (n !== pintando) return; }
     } else if (r.p === 'hoy' && !L.hoy && !L.error.hoy) { dibujar(pantHoy()); await leerHoy(); if (n !== pintando) return; }
     else if (r.p === 'clientes' && !L.clientes && !L.error.clientes) { dibujar(pantClientes()); await leerClientes(); if (n !== pintando) return; }
     else if (r.p === 'tareas' && !L.tareas && !L.error.tareas) { dibujar(pantTareas()); await leerTareas(); if (n !== pintando) return; }
+    else if (r.p === 'ses' && (entra || !L.ses || L.ses.id !== r.a)) { dibujar(C.pantSes()); await leerSes(r.a); if (n !== pintando) return; }
     if (r.p === 'ret') { if (C.pantRetocar) return dibujar(C.pantRetocar()); }
     dibujar((PANT[r.p] || pantHoy)());
   }
+  // lo mismo que ya se ve no se toca (las fotos, el carrusel y su inercia siguen); otro dibujo de la misma pantalla conserva la foto
+  // del carrusel en la que estaba (D-271, punto 5)
+  let ULT = '', ULT_H = '';
   function dibujar(html) {
-    const y = W.scrollY;
-    raiz.innerHTML = html; raiz.appendChild(capas);
-    vigilarFotos(raiz); carrusel(); W.scrollTo(0, y);
     PEND_PINTAR = false;
+    if (html === ULT && location.hash === ULT_H && raiz.firstChild) return;
+    const y = W.scrollY, t0 = location.hash === ULT_H && raiz.querySelector('[data-car]'), x0 = t0 ? t0.scrollLeft : 0;
+    raiz.innerHTML = html; raiz.appendChild(capas); ULT = html; ULT_H = location.hash;
+    vigilarFotos(raiz); carrusel(); pintarMono(); ajustarTitulo(); W.scrollTo(0, y);
+    const t1 = x0 && raiz.querySelector('[data-car]'); if (t1) t1.scrollLeft = x0;
   }
   // el carrusel: deslizar con el dedo (desplazamiento nativo con imán, la inercia del iPhone), el contador y los puntos al día
   function carrusel() {
@@ -970,14 +1247,18 @@
     t.addEventListener('scroll', () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; const i = Math.round(t.scrollLeft / Math.max(1, t.clientWidth)); if (cnt) cnt.textContent = `${i + 1} / ${n}`; pts.forEach((p, k) => p.classList.toggle('on', k === i)); }); }, { passive: true });
   }
   // releer lo bajado (la nube avisa: «releido»): lo de la pantalla se vuelve a leer, sin parpadear ni pisar un campo en uso
+  // (D-271, punto 5: con mirar cada 10 s pasa a menudo) lo de la pantalla se lee antes de cambiarlo (nunca «Leyendo…» entre medias);
+  // lo que no se ve se lee al volver
   async function releer() {
-    L.hoy = null; L.clientes = null; L.tareas = null; L.error = {};
     const r = RUTA;
     try {
-      if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes(); else if (r.p === 'tareas') await leerTareas();
-      else if (L.vista) { L.vista = MV().vista() && MV().vista().key === r.a ? MV().vista() : L.vista; leerConv(L.vista.key); }
+      if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes();
       await leerTareas();
     } catch (e) { /* cada lectura dice lo suyo */ }
+    if (r.p === 'ses' && L.ses && L.ses.id) await leerSes(L.ses.id);   // la sesión abierta, también al día (solo si se está en ella)
+    const vv = MV().vista(); if (L.vista && vv && vv.key === L.vista.key) { L.vista = vv; if (['mes', 'pub', 'cap', 'his'].includes(r.p) && r.a === vv.key) leerConv(vv.key); }   // el tablero abierto, aunque no se vea
+    if (r.p !== 'hoy') { L.hoy = null; L.error.hoy = ''; }
+    if (r.p !== 'clientes') { L.clientes = null; L.error.clientes = ''; }
     pintarSiQuieto();
   }
 
@@ -991,17 +1272,36 @@
     }
     if (o.permanente) capas.querySelectorAll('[data-permanente]').forEach(x => x.remove());   // un aviso permanente a la vez: el último
     cerrarHojas(true);
-    const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
+    const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija || o.pregunta ? '' : 'cerrarhoja';   // una pregunta no la contesta un toque perdido
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
     if (o.alCerrar) h._alCerrar = o.alCerrar;
+    if (o.cambios) {   // una hoja donde se escribe: cerrarla a mano con cambios sin guardar pregunta antes (D-271, decisión de Kevin)
+      h._cambios = o.cambios;
+      h.addEventListener('click', e => { const b = e.target.closest('[data-desc]'); if (!b) return; e.stopPropagation(); e.preventDefault();
+        if (b.dataset.desc === 'si') { h._cambios = null; return cerrarHojas(); }
+        const pie = h.querySelector('.pie'); if (pie && pie._antes != null) { pie.innerHTML = pie._antes; pie._antes = null; delete pie.dataset.desc; } }, true);
+    }
     if (o.permanente) { h.dataset.permanente = ''; velo.dataset.permanente = ''; }
     const a0 = D.activeElement; h._antes = a0 && a0 !== D.body && raiz.contains(a0) && !capas.contains(a0) ? a0 : null;   // el foco vuelve aquí al cerrarla
     h._velo = velo;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
     capas.append(velo, h);
     requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
-    if (!o.fija) arrastrable(h);
+    if (!o.fija) arrastrable(h);   // las de pregunta también: cerrarla arrastrando es «Ahora no» (D-271, punto 7)
     return h;
+  }
+  // cerrar a mano (tocar fuera, arrastrar, Esc, «Cancelar»): con cambios sin guardar, la hoja se queda y abajo pregunta
+  // «¿Descartar los cambios?» con «Seguir editando» y «Descartar», como en iOS. Cerrar por otra cosa (otra hoja, atrás) no pregunta.
+  const conCambios = h => !!(h && h._cambios && (() => { try { return h._cambios(); } catch (e) { return false; } })());
+  function confirmarDescartar(h) {
+    const pie = h.querySelector('.pie'); if (!pie) return;
+    if (!pie.dataset.desc) { pie.dataset.desc = '1'; pie._antes = pie.innerHTML; pie.innerHTML = `<p class="mv-desc-t" role="alert">¿Descartar los cambios?</p><div class="botones"><button type="button" class="btn sua" data-desc="seguir">Seguir editando</button><button type="button" class="btn mv-desc" data-desc="si">Descartar</button></div>`; }
+    const s = pie.querySelector('[data-desc="seguir"]'); if (s) s.focus({ preventScroll: true });
+  }
+  function pedirCerrar(h) {
+    h = h || capas.querySelector('.hoja.on:not([data-permanente])');
+    if (conCambios(h)) { confirmarDescartar(h); return false; }
+    cerrarHojas(); return true;
   }
   const devolverFoco = h => { const a = h && h._antes; if (a && a.isConnected && !capas.querySelector('.hoja.on:not([data-permanente])')) { try { a.focus({ preventScroll: true }); } catch (e) { /* */ } } };
   function cerrarEsta(h) {   // solo esa hoja (y su velo), si sigue abierta: nunca otra que se abrió entretanto
@@ -1015,12 +1315,52 @@
     capas.querySelectorAll('.hoja:not([data-permanente]),.velo:not([data-permanente])').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
     if (PEND_PINTAR) setTimeout(pintarSiQuieto, ya ? 0 : 360);
   }
-  function arrastrable(h) {   // el asa: la hoja sigue al dedo y, soltada deprisa o pasada la mitad, se cierra (Apple: a la velocidad del dedo)
-    const asa = h.querySelector('.asa'); let y0 = 0, t0 = 0, dy = 0, activo = false;
-    asa.addEventListener('pointerdown', e => { activo = true; y0 = e.clientY; t0 = e.timeStamp; dy = 0; asa.setPointerCapture(e.pointerId); h.style.transition = 'none'; });
-    asa.addEventListener('pointermove', e => { if (!activo) return; dy = Math.max(0, e.clientY - y0); h.style.transform = `translateY(${dy}px)`; }, { passive: true });
-    const fin = e => { if (!activo) return; activo = false; h.style.transition = ''; const v = dy / Math.max(1, e.timeStamp - t0); if (dy > h.offsetHeight / 2 || v > 0.6) { h.style.transform = ''; cerrarHojas(); } else h.style.transform = ''; };
-    asa.addEventListener('pointerup', fin); asa.addEventListener('pointercancel', fin);
+  // arrastrar una hoja hacia abajo la cierra (D-271, punto 7; apple-design): desde su cabecera (el asa, su título y su texto) o desde
+  // cualquier punto con la hoja arriba del todo, nunca desde las ruedas ni un campo; se decide en el primer movimiento (después el
+  // navegador ya desplaza y no deja cancelarlo); la hoja sigue al dedo y, al soltar, se cierra si lo arrastrado más lo que proyecta su
+  // velocidad pasa de la mitad, o si se lanza deprisa; si no, vuelve. Con el ratón, solo el asa. Cerrar así es cerrar (su pregunta,
+  // «Ahora no»; el foco vuelve). Se puede llamar otra vez tras redibujar la hoja: sus oyentes van en la hoja, una vez.
+  const decidirArrastre = o => o.dy > 0 && o.dy >= Math.abs(o.dx) && !o.enControl && !!(o.enCabecera || o.arriba);
+  const cierraArrastre = o => o.dy + Math.max(0, o.v) * 160 > o.alto / 2 || (o.v > 0.5 && o.dy > 24);
+  function arrastrable(h) {
+    if (h._arrastre) return; h._arrastre = true;
+    let g = null;   // el gesto: {y0, x0, cab, ctl, arriba, tira: null|true|false, dy, m: [[t, y]]}
+    const viva = () => h.isConnected && h.classList.contains('on');
+    const empezar = (x, y, t, el) => { const c = el.closest && el.closest('h2,.ex'); g = { x0: x, y0: y, cab: !!(el.closest && el.closest('.asa')) || !!(c && c.parentNode === h), ctl: !!(el.closest && el.closest('.ruedas,textarea,input,select,[contenteditable]')), arriba: h.scrollTop <= 0, tira: null, dy: 0, m: [[t, y]] }; };
+    const seguir = (x, y, t) => {
+      if (!g || g.tira === false) return false;
+      const dx = x - g.x0, dy = y - g.y0;
+      if (g.tira === null) { if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return false; g.tira = decidirArrastre({ dx, dy, enControl: g.ctl, enCabecera: g.cab, arriba: g.arriba }); if (!g.tira) return false; h.style.transition = 'none'; if (h._velo) h._velo.style.transition = 'none'; }
+      g.dy = dy; g.m.push([t, y]); while (g.m.length > 2 && t - g.m[0][0] > 100) g.m.shift();
+      h.style.transform = `translateY(${dy > 0 ? dy : dy / 6}px)`;   // hacia arriba, con resistencia
+      if (h._velo) h._velo.style.opacity = String(1 - Math.min(1, Math.max(0, dy) / Math.max(1, h.offsetHeight)) * 0.7);
+      return true;
+    };
+    const soltar = t => {
+      if (!g || !g.tira) { g = null; return; }
+      const a = g.m[0], b = g.m[g.m.length - 1], alto = h.offsetHeight, dy = Math.max(0, g.dy); let v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]); g = null;
+      if (t - b[0] > 150) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento (150 ms: con menos, el retraso normal entre toques ya lo quitaba)
+      const pide = cierraArrastre({ dy, v, alto }) && conCambios(h);   // con cambios sin guardar: vuelve arriba y pregunta
+      if (pide) confirmarDescartar(h);
+      if (!pide && cierraArrastre({ dy, v, alto })) {
+        const resto = Math.max(1, alto * 1.05 - dy), ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, resto / Math.max(0.9, v)))), p1 = Math.min(1, 0.25 * Math.max(0, v) * ms / resto).toFixed(3);
+        h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25,${p1},.5,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad (sin tirón)
+        if (h._velo) { h._velo.style.transition = ''; h._velo.style.opacity = ''; }
+        cerrarHojas();
+      } else {
+        h.style.transition = POCO.matches ? 'none' : 'transform .34s var(--ease-m)'; h.style.transform = '';
+        if (h._velo) { h._velo.style.transition = ''; h._velo.style.opacity = ''; }
+        setTimeout(() => { if (h.isConnected) h.style.transition = ''; }, 360);
+      }
+    };
+    h.addEventListener('touchstart', e => { if (!viva() || e.touches.length !== 1) { g = null; return; } const p = e.touches[0]; empezar(p.clientX, p.clientY, e.timeStamp, e.target); }, { passive: true });
+    h.addEventListener('touchmove', e => { if (!viva() || e.touches.length !== 1) return; const p = e.touches[0]; if (seguir(p.clientX, p.clientY, e.timeStamp) && e.cancelable) e.preventDefault(); }, { passive: false });
+    h.addEventListener('touchend', e => { if (viva()) soltar(e.timeStamp); else g = null; });
+    h.addEventListener('touchcancel', () => { if (g && g.tira) { g.dy = 0; g.m = [[0, 0]]; soltar(0); } g = null; });
+    // con el ratón, solo el asa (en el iPhone, el dedo va por los toques: nunca dos veces)
+    h.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse' || !viva() || !e.target.closest('.asa')) return; empezar(e.clientX, e.clientY, e.timeStamp, e.target); g.cab = true; try { h.setPointerCapture(e.pointerId); } catch (x) { /* */ } });
+    h.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && g) seguir(e.clientX, e.clientY, e.timeStamp); }, { passive: true });
+    h.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && g) soltar(e.timeStamp); });
   }
   let toastT = 0;
   function aviso(msg, o = {}) {
@@ -1034,36 +1374,215 @@
   MV().alVersion = () => { ST.fase = 'vieja'; pintarChip(); hojaVersion(); };
   MV().alPestana = () => hoja(`<h2>La Mesa está abierta en otra pestaña</h2><p class="ex">Esta se ha parado para no pisar cambios.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar">Usar aquí</button></div>`, { fija: true, permanente: true, etiqueta: 'La Mesa está abierta en otra pestaña' });
   const hojaVersion = () => hoja(`<h2>Hay una versión nueva de la Mesa</h2><p class="ex">Esta se ha pausado para no pisar los datos. Lo guardado no se pierde.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar" data-foco>Recargar</button></div>`, { fija: true, permanente: true, etiqueta: 'Hay una versión nueva de la Mesa' });
-  function verTarea(id) {
+  async function verTarea(id) {
     const x = (L.tareas || []).find(t => t.id === id); if (!x) return;
+    const r0 = RUTA, rec = x.fotos ? await M.personal.valor(id).catch(() => null) : null, fotos = (rec && rec.fotos) || [];   // sus fotos se ven (D-271, punto 1)
+    if (RUTA !== r0) return;   // se fue a otra pantalla mientras se leía
+    if (x.tipo === 'tarea' || x.tipo === 'nota') { const r = rec || (await M.personal.valor(id).catch(() => null)); if (r && RUTA === r0) return hojaTarea(x, r, fotos); return; }   // editable (D-272)
+    const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const r = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${r.toFixed(4)}">${fotoArch('tareas', id, `el valor.fotos[${i}].blob`, 140 * r)}</span>`; }).join('')}</div>` : '';
     const E = M.escritura && M.escritura.html ? M.escritura : null, txt = E ? E.html(x.txt, { leer: true }) : esc(x.txt);
     const t = x.tipo === 'nota' ? 'Nota' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea';
     const meta = [x.fecha ? cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha) + (x.hora ? ' · ' + x.hora : '') : '', x.clientes.map(nombreCli).join(' · ')].filter(Boolean).join(' · ');
-    hoja(`<h2>${esc(t)}</h2>${meta ? `<p class="ex">${esc(meta)}</p>` : ''}<div class="txt">${txt}</div>${x.detalles ? `<span class="lbl">Detalles</span><div class="txt">${E ? E.html(x.detalles, { leer: true }) : esc(x.detalles)}</div>` : ''}${x.subtareas ? `<p class="ex" style="margin-top:12px">${x.subtareas.hechas} de ${x.subtareas.n} subtareas hechas</p>` : ''}${x.fotos ? `<p class="ex">${plural(x.fotos, 'foto', 'fotos')}: se ven en el escritorio</p>` : ''}<p class="ex" style="margin-top:14px">Se edita en el escritorio.</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: t });
+    hoja(`<h2>${esc(t)}</h2>${meta ? `<p class="ex">${esc(meta)}</p>` : ''}<div class="txt">${txt}</div>${x.detalles ? `<span class="lbl">Detalles</span><div class="txt">${E ? E.html(x.detalles, { leer: true }) : esc(x.detalles)}</div>` : ''}${x.subtareas ? `<p class="ex" style="margin-top:12px">${x.subtareas.hechas} de ${x.subtareas.n} subtareas hechas</p>` : ''}${tira}<p class="ex" style="margin-top:14px">Se edita en el escritorio.</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: t });
+    vigilarFotos(capas);
+  }
+
+  // ---------- editar una tarea o una nota ya creada (D-272): como Recordatorios, con «Guardar» abajo ----------
+  // Cada campo cambiado es su operación (cada subtarea, la suya); una nota, solo su texto. La fecha y el cliente se despliegan dentro de
+  // la misma hoja (nunca una hoja encima de otra). Sus fotos se ven (D-271, punto 1), no se añaden ni se quitan aquí.
+  async function hojaTarea(x, r, fotos) {
+    const nota = r.tipo === 'nota', o0 = { txt: String(r.txt || ''), fecha: r.fecha || '', cliente: r.cliente || '', detalles: String(r.detalles || ''), subs: (r.subtareas || []).map(y => ({ sid: y.id, txt: String(y.txt || ''), hecha: !!y.hecha })) };
+    // o1: lo que se ve, lo guardado con lo que se está guardando encima (guardar de fondo: reabrirla mientras sube es normal; revisión del lote B)
+    const o1 = JSON.parse(JSON.stringify(o0));
+    for (const p of opsLeer().filter(q => q.estado === 'nueva' && q.slot === x.id)) {
+      const v = p.valor;
+      if (p.campo === 'tareaTexto') o1.txt = String(v ?? ''); else if (p.campo === 'tareaFecha') o1.fecha = v || ''; else if (p.campo === 'tareaCliente') o1.cliente = v || ''; else if (p.campo === 'tareaDetalles') o1.detalles = String(v ?? '');
+      else if (p.campo === 'subtarea' && v) { const y = o1.subs.find(z => z.sid === v.sid); if (v.accion === 'nueva' && !y) o1.subs.push({ sid: v.sid, txt: String(v.txt || ''), hecha: !!v.hecha, pend: p.id }); else if (y && v.accion === 'quitar') y.quitada = true; else if (y && v.accion === 'texto') y.txt = String(v.txt || ''); else if (y && v.accion === 'hecha') y.hecha = !!v.hecha; }
+    }
+    const ed = JSON.parse(JSON.stringify(o1)), off = sinRed();
+    let abre = '', mes = (ed.fecha || hoy()).slice(0, 7), err = '';
+    const esp = !nota && M.personal._p && M.personal._p.esps ? M.personal._p.esps() : [];   // ya leídos con la tarea (sin leer todos los tableros)
+    const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const q = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${q.toFixed(4)}">${fotoArch('tareas', x.id, `el valor.fotos[${i}].blob`, 140 * q)}</span>`; }).join('')}</div>` : '';
+    const pinta = () => {
+      const vivas = ed.subs.filter(y => !y.quitada), h = vivas.filter(y => y.hecha).length;
+      const cliTxt = ed.cliente ? `${av(ed.cliente)}<span>${esc(nombreCli(ed.cliente))}</span>` : 'Sin cliente';
+      const fila = (k, t, v) => `<button type="button" class="campo" data-ed-abre="${k}" aria-expanded="${abre === k}"${off ? ' disabled' : ''}><span class="k">${t}</span><span class="v">${v}</span><span class="chev">${ic(abre === k ? 'arriba' : 'abajo')}</span></button>`;
+      const cli = c => `<button type="button" class="estado-op${ed.cliente === c.id ? ' on' : ''}" data-ed-cli="${esc(c.id)}"${ed.cliente === c.id ? ' aria-current="true"' : ''}>${c.id ? av(c.id) : ''}<span style="flex:1">${esc(c.name)}</span>${ed.cliente === c.id ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`;
+      return `<h2>${nota ? 'Nota' : 'Tarea'}</h2>
+        <textarea class="mv-ttxt" data-ed="txt" rows="${nota ? 6 : 2}" aria-label="${nota ? 'Texto de la nota' : 'Texto de la tarea'}"${off ? ' disabled' : ''}>${esc(ed.txt)}</textarea>
+        ${nota ? '' : `<div class="grupo" style="margin-top:12px">${fila('fecha', 'Fecha', esc(ed.fecha ? cap1(DS[dow(ed.fecha)]) + ' ' + corto(ed.fecha) : 'Sin fecha'))}${abre === 'fecha' ? `<div class="mv-desp">${calendarioHTML(ed.fecha, mes, null, { pie: `<button type="button" class="lnk" data-ed-dia=""${ed.fecha ? '' : ' disabled'}>Sin fecha</button><button type="button" class="lnk" data-ed-dia="${hoy()}">Hoy</button>` })}</div>` : ''}${fila('cliente', 'Cliente', cliTxt)}${abre === 'cliente' ? `<div class="mv-desp estados">${cli({ id: '', name: 'Sin cliente' })}${(X().CL || []).map(cli).join('')}${esp.length ? `<span class="lbl">Esporádicos</span>${esp.map(e => cli({ id: e.id, name: e.txt })).join('')}` : ''}</div>` : ''}</div>
+        <span class="lbl">Detalles</span><textarea data-ed="detalles" rows="3" placeholder="Detalles" aria-label="Detalles"${off ? ' disabled' : ''}>${esc(ed.detalles)}</textarea>
+        <span class="lbl mv-subh"><span>Subtareas</span>${vivas.length ? `<span class="num">${h}/${vivas.length}</span>` : ''}</span>${vivas.length ? `<div class="mv-barra" aria-hidden="true"><i style="width:${(h / vivas.length * 100).toFixed(1)}%"></i></div>` : ''}
+        <div class="mv-subs">${vivas.map(y => `<div class="mv-sub${y.hecha ? ' hecha' : ''}"><button type="button" class="casilla" data-ed-ck="${esc(y.sid)}" role="checkbox" aria-checked="${y.hecha}" aria-label="${esc((y.hecha ? 'Hecha: ' : 'Marcar como hecha: ') + y.txt)}"${off ? ' disabled' : ''}>${ic('check', 2.5)}</button><textarea rows="1" data-ed-st="${esc(y.sid)}" aria-label="Subtarea" enterkeyhint="next"${off ? ' disabled' : ''}>${esc(y.txt)}</textarea><button type="button" class="ib mv-subx" data-ed-x="${esc(y.sid)}" aria-label="${esc('Quitar: ' + y.txt)}"${off ? ' disabled' : ''}>${ic('x')}</button></div>`).join('')}</div>
+        <button type="button" class="lnk" data-ed-mas${off ? ' disabled' : ''}>${ic('mas')}Subtarea</button>`}
+        ${tira}${err ? `<p class="resp-err" style="margin:10px 0 0">${esc(err)}</p>` : ''}${off ? '<p class="ex" style="margin-top:12px">Sin conexión: no se puede cambiar.</p>' : ''}
+        <div class="pie"><div class="botones"><button type="button" class="btn sua" data-ed-a="cancelar">Cancelar</button><button type="button" class="btn pri" data-ed-a="guardar"${off ? ' disabled' : ''}>Guardar</button></div></div>`;
+    };
+    const firmaEd = e => JSON.stringify([e.txt.trim(), e.fecha, e.cliente, e.detalles.trim(), e.subs.filter(y => !(y.nueva && !y.txt.trim())).map(y => [y.sid, y.txt.trim(), !!y.hecha, !!y.quitada])]), f1 = firmaEd(o1);
+    const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea', cambios: () => firmaEd(ed) !== f1 });
+    vigilarFotos(capas);
+    const crece = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };   // las subtareas y los detalles ocupan las líneas que necesiten
+    const CRECE = nota ? 'textarea[data-ed-st],textarea[data-ed="detalles"]' : 'textarea[data-ed-st],textarea[data-ed="detalles"],textarea[data-ed="txt"]';   // el texto de una tarea también (el de una nota tiene su alto)
+    const crecer = () => h.querySelectorAll(CRECE).forEach(crece);
+    const repinta = foco => { const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); crecer(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) f.focus({ preventScroll: true }); } };
+    requestAnimationFrame(crecer);
+    h.addEventListener('input', e => { const t = e.target; if (t.matches(CRECE)) crece(t); if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value.replace(/\n/g, ' '); } });
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.dataset.edSt) { e.preventDefault(); masSub(); } });
+    const masSub = () => { const sid = M.personal.nuevoId('sub'); ed.subs.push({ sid, txt: '', hecha: false, nueva: true }); repinta(`[data-ed-st="${sid}"]`); };
+    h.addEventListener('click', e => {
+      if (!h.isConnected || !h.classList.contains('on')) return;
+      const t = e.target;
+      const ab = t.closest('[data-ed-abre]'); if (ab && !ab.disabled) { abre = abre === ab.dataset.edAbre ? '' : ab.dataset.edAbre; return repinta(); }
+      const d = t.closest('[data-dia]'); if (d && !d.disabled) { ed.fecha = d.dataset.dia; abre = ''; return repinta(); }
+      const dd = t.closest('[data-ed-dia]'); if (dd && !dd.disabled) { ed.fecha = dd.dataset.edDia; abre = ''; return repinta(); }
+      const c = t.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
+      const cl = t.closest('[data-ed-cli]'); if (cl) { ed.cliente = cl.dataset.edCli; abre = ''; return repinta(); }
+      const ck = t.closest('[data-ed-ck]'); if (ck && !ck.disabled) { const y = ed.subs.find(z => z.sid === ck.dataset.edCk); if (y) { y.hecha = !y.hecha; repinta(); } return; }
+      const qx = t.closest('[data-ed-x]'); if (qx && !qx.disabled) { const y = ed.subs.find(z => z.sid === qx.dataset.edX); if (y) { if (y.nueva) ed.subs = ed.subs.filter(z => z !== y); else y.quitada = true; repinta(); } return; }
+      if (t.closest('[data-ed-mas]')) return masSub();
+      const a = t.closest('[data-ed-a]'); if (!a) return;
+      if (a.dataset.edA === 'cancelar') return pedirCerrar(h);
+      // «Guardar»: cada campo cambiado, su operación (D-272)
+      const txtN = nota ? ed.txt.replace(/\s+$/, '') : ed.txt.replace(/\s*\n\s*/g, ' ').trim();
+      if (!txtN.trim()) { err = nota ? 'Una nota necesita un texto.' : 'Una tarea necesita un texto.'; return repinta('[data-ed="txt"]'); }
+      const base = { slot: x.id, nombre: String(o1.txt).split('\n')[0] }, ops = [];   // cambiado frente a lo que se veía (o1); lo visto, lo guardado (o0)
+      if (txtN !== o1.txt) ops.push({ ...base, campo: 'tareaTexto', valor: txtN, visto: o0.txt });
+      if (!nota) {
+        if (ed.fecha !== o1.fecha) ops.push({ ...base, campo: 'tareaFecha', valor: ed.fecha, visto: o0.fecha });
+        if (ed.cliente !== o1.cliente) ops.push({ ...base, campo: 'tareaCliente', valor: ed.cliente, visto: o0.cliente });
+        const det = ed.detalles.replace(/^\s*\n|\s+$/g, ''); if (det !== o1.detalles.replace(/^\s*\n|\s+$/g, '')) ops.push({ ...base, campo: 'tareaDetalles', valor: det, visto: o0.detalles });
+        for (const y of ed.subs) {
+          const o = o1.subs.find(z => z.sid === y.sid), g = o0.subs.find(z => z.sid === y.sid), t2 = y.txt.trim(), etq = (t2 || (o && o.txt) || '').slice(0, 60);
+          // nueva aquí, o nueva que sigue en la cola sin salir: otra vez «nueva» con su id (sustituye a la pendiente) o se quita de la cola.
+          // Si mientras la hoja estaba abierta ya se aplicó o está saliendo, se trata como una que existe (lo visto: lo que se veía)
+          const enCola = o && o.pend && o.pend !== ENVUELO && opsLeer().some(q => q.id === o.pend);
+          if (!o || enCola) {
+            if (!y.quitada && t2) { if (!o || t2 !== o.txt || y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'nueva', txt: t2, hecha: y.hecha }, visto: null, etq }); }
+            else if (o) opsQuitar(o.pend);
+            continue;
+          }
+          if (y.quitada || !t2) { if (!o.quitada) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'quitar' }, visto: { existe: true }, etq }); continue; }   // vacía al guardar: se quita, como en el Mac
+          if (t2 !== o.txt) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'texto', txt: t2 }, visto: { txt: g ? g.txt : o.txt }, etq });
+          if (y.hecha !== o.hecha) ops.push({ ...base, campo: 'subtarea', valor: { sid: y.sid, accion: 'hecha', hecha: y.hecha }, visto: { hecha: g ? g.hecha : o.hecha }, etq });
+        }
+      }
+      cerrarHojas(true);
+      if (ops.length) guardar(ops);
+    });
   }
 
   // ---------- el toque: un solo oyente para toda la cara ----------
   raiz.addEventListener('click', e => {
     const b = e.target.closest('[data-ir],[data-a]'); if (!b || b.disabled || !raiz.contains(b)) return;
-    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { HIST = 0; FILTRO = null; ir(r, true); } else avanzar(r); return; }
+    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { FILTRO = null; if (prevDe() === r) history.back(); else ir(r, 'raiz'); } else if (RUTA.p === 'mes' && /^mes\//.test(r)) ir(r, 'sustituir'); else avanzar(r); return; }
     accion(b.dataset.a, b, e);
   });
-  raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) cerrarHojas(); });
+  raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) pedirCerrar(); });
   const C = {};   // cambiar (lote 4): se llena más abajo
+  // ---------- una sesión entera (D-275): en una columna, como en el Mac; cada apartado plegable (todos plegados al entrar, varios abiertos
+  // a la vez, como pidió Kevin); se cambian la fecha y la hora de inicio, los clientes, el material, el nombre y el texto de cada apartado
+  const SES = { abiertos: new Set() };
+  const E_HTML = t => (M.escritura && M.escritura.html ? M.escritura.html(t, { leer: true }) : esc(t));
+  const volverSes = () => { const pv = prevDe(); return pv === 'hoy' ? { atras: 'Hoy', destino: 'hoy' } : { atras: 'Tareas', destino: 'tareas' }; };
+  const sesCurso = (campo, f) => opsLeer().filter(o => o.estado === 'nueva' && o.slot === (L.ses || {}).id && o.campo === campo && (!f || f(o.valor || {}))).pop();
+  const conocido = c => !!((X().CL || []).find(x => x.id === c) || (M.personal && M.personal._p && M.personal._p.cliDe(c)));
+  const fotoSes = (fid, px, q) => `<span class="mv-sf" style="--r:${(q || 1).toFixed(4)}">${fotoArch('tfotos', fid, 'el valor.blob', px)}</span>`;
+  C.pantSes = () => {
+    const v = L.ses, r0 = RUTA;
+    if (!v || v.id !== r0.a) return top(volverSes()) + `<main class="main sin-tabs" id="contenido">${L.error.ses ? mal(L.error.ses) : '<div class="lugar">Abriendo la sesión…</div>'}</main>`;
+    if (v.falta) return top(volverSes()) + `<main class="main sin-tabs" id="contenido">${vacio('Esta sesión ya no está', 'Se quitó en otro aparato.')}</main>`;
+    const off = sinRed(), dis = off ? ' disabled' : '', iop = sesCurso('sesInicio'), cop = sesCurso('sesClientes'), nop = sesCurso('sesNombre');
+    const ini = iop ? { fecha: iop.valor.fecha, hora: iop.valor.hora } : { fecha: v.fecha, hora: v.hora }, clis = cop ? cop.valor : v.clientes, nombre = nop ? nop.valor : v.nombre;
+    const cuando = ini.fecha ? `${campoFecha({ dia: ini.fecha, hora: ini.hora })}${!iop && v.fin && v.fin.hora && v.fin.fecha === v.fecha ? '\u00a0–\u00a0' + v.fin.hora : ''}` : 'Sin fecha';
+    const fin = !iop && v.fin && v.fin.fecha && v.fin.fecha !== v.fecha ? `<span class="por">Termina el ${esc(corto(v.fin.fecha))}${v.fin.hora ? ' a las ' + esc(v.fin.hora) : ''}</span>` : '';
+    const fotoMap = new Map(v.fotos.map(f => [f.id, f]));
+    const q = id => { const f = fotoMap.get(id); return f && f.w && f.h ? f.w / f.h : 1; };
+    const apHTML = a => {
+      const ab = SES.abiertos.has(a.id), n = a.cuenta ? (a.cuenta.hechas == null ? a.cuenta.n : `${a.cuenta.hechas}/${a.cuenta.n}`) : '';
+      const tx = a.tipo === 'texto', top = sesCurso('sesTexto', o => o.ap === a.id);
+      let cuerpo = '';
+      if (ab && tx) { const t = top ? top.valor.texto : a.texto; cuerpo = t.trim() ? `<div class="txt mv-stx">${E_HTML(t)}</div>` : `<p class="solo-mac" style="margin:0 var(--pad)">Vacío.</p>`; }
+      if (ab && a.tipo === 'planos') cuerpo = a.pestanas.map(p => `<div class="mv-spl"><h3>${esc(p.nombre)} <span class="num">${p.items.length}</span></h3>${p.items.length ? `<div class="lista">${p.items.map(i => `<div class="tarea${i.hecho ? ' hecha' : ''}"><span class="mv-mk${i.hecho ? ' on' : ''}" role="img" aria-label="${i.hecho ? 'Hecho' : 'Sin hacer'}">${i.hecho ? ic('check', 3) : ''}</span><span class="tx"><span class="tt">${esc(i.titulo)}</span>${i.texto ? `<span class="tm">${esc(i.texto)}</span>` : ''}${i.fotos.length ? `<span class="mv-sref">${i.fotos.map(fid => fotoSes(fid, 56 * q(fid), q(fid))).join('')}</span>` : ''}</span></div>`).join('')}</div>` : '<p class="solo-mac" style="margin:0">Sin planos.</p>'}</div>`).join('');
+      if (ab && a.tipo === 'mood') cuerpo = a.grupos.map(g => `<div class="mv-spl"><h3>${esc(g.nombre || 'Sin nombre')} <span class="num">${g.fotos.length}</span></h3><div class="mv-mood">${g.fotos.map(fid => fotoSes(fid, 180, q(fid))).join('')}</div></div>`).join('') || '<p class="solo-mac" style="margin:0 var(--pad)">Sin fotos.</p>';
+      if (ab && a.tipo === 'material') { const m = a.material; cuerpo = `<div class="mv-mat"><div class="mv-matb"><div class="mv-barra" aria-hidden="true"><i style="width:${m.n ? (m.hechas / m.n * 100).toFixed(1) : 0}%"></i></div></div>${m.familias.map(f => `<h3>${esc(f.nombre)} <span class="num">${f.hechas}/${f.cosas.length}</span></h3><div class="mv-fichas">${f.cosas.map(c => { const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), on = pend ? pend.valor.hecho : c.hecha; return `<button type="button" class="mv-ficha${on ? ' on' : ''}${c.de ? ' hijo' : ''}" data-a="sesmat" data-ap="${esc(a.id)}" data-m="${esc(c.id)}" aria-pressed="${on}"${dis}${pend ? ' aria-busy="true"' : ''}>${c.de ? `<span class="hj">${ic('hijo')}</span>` : ''}${on ? ic('check', 2.25) : ''}${esc(c.nombre)}</button>`; }).join('')}</div>`).join('')}</div>`; }
+      const ed = ab && tx ? `<div class="mv-sap-ed"><button type="button" class="lnk" data-a="sested" data-ap="${esc(a.id)}"${dis || (top ? ' disabled' : '')}>Editar</button></div>` : '';
+      return `<section class="mv-sap${ab ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="${esc(a.id)}" aria-expanded="${ab}"><h2>${esc(a.nombre)}</h2>${n ? `<span class="n num">${n}</span>` : ''}${a.visible ? '' : `<span class="oj" role="img" aria-label="No lo ve el cliente">${ic('ojoNo')}</span>`}${top ? GIRA : ''}<span class="chev">${ic('abajo')}</span></button></div>${ed}${cuerpo}</section>`;
+    };
+    return top(volverSes()) + `<main class="main sin-tabs mv-ses" id="contenido">
+      <div class="mv-ses-h"><h1>${esc(nombre)}${nop ? ' ' + GIRA : ''}</h1><button type="button" class="lnk" data-a="sesnom"${dis || (nop ? ' disabled' : '')}>Editar</button></div>
+      <div class="mv-ses-sub"><span class="ty ses">${ic('claqueta')}Sesión</span><span>${esc(v.clase)}</span></div>
+      <div class="grupo">
+        <button type="button" class="campo" data-a="sesfecha"${dis || (iop ? ' disabled' : '')}${iop ? ' aria-busy="true"' : ''}><span class="k">Fecha y hora</span><span class="v num" style="display:block;white-space:normal">${esc(cuando)}${fin}</span>${iop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
+        <button type="button" class="campo" data-a="sesclis"${dis || (cop ? ' disabled' : '')}${cop ? ' aria-busy="true"' : ''}><span class="k">${clis.filter(conocido).length > 1 ? 'Clientes' : 'Cliente'}</span><span class="v mv-scl">${clis.filter(conocido).length ? clis.filter(conocido).map(c => `<span>${av(c)}<span class="nm">${esc(nombreCli(c))}</span></span>`).join('') : 'Sin cliente'}</span>${cop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
+      </div>${off ? '<p class="solo-mac">Sin conexión: no se puede cambiar.</p>' : ''}
+      ${v.apartados.map(apHTML).join('')}
+      ${v.fotos.length ? `<section class="mv-sap${SES.abiertos.has('__fotos') ? ' abierto' : ''}"><div class="mv-sap-h"><button type="button" class="mv-sap-b" data-a="sesap" data-ap="__fotos" aria-expanded="${SES.abiertos.has('__fotos')}"><h2>Fotos de la sesión</h2><span class="n num">${v.fotos.length}</span><span class="chev">${ic('abajo')}</span></button></div>${SES.abiertos.has('__fotos') ? `<div class="mv-srej">${v.fotos.map(f => fotoSes(f.id, 130, 1)).join('')}</div>` : ''}</section>` : ''}
+    </main>`;
+  };
+  C.sesap = b => { const k = b.dataset.ap; if (SES.abiertos.has(k)) SES.abiertos.delete(k); else SES.abiertos.add(k); pintar(); };
+  C.sesmat = b => { const v = L.ses; if (!v) return; const a = v.apartados.find(x => x.id === b.dataset.ap), c = a && a.material.familias.flatMap(f => f.cosas).find(x => x.id === b.dataset.m); if (!c) return; const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), ahora = pend ? pend.valor.hecho : c.hecha; guardar({ slot: v.id, campo: 'sesMaterial', valor: { ap: a.id, m: c.id, hecho: !ahora }, visto: { hecho: c.hecha }, nombre: v.nombre, etq: c.nombre }); };
+  // una hoja con un campo y «Guardar» (el nombre o el texto de un apartado)
+  function hojaCampo(t, valor, multi, alGuardar) {
+    const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `<textarea rows="9" data-sc aria-label="${esc(t)}">${esc(valor)}</textarea><p class="ex" style="margin-top:8px">Al empezar una línea: «- » viñeta, «1. » número, «[] » casilla.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t, cambios: () => { const i = h.querySelector('[data-sc]'); return !!i && i.value !== valor; } });
+    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return pedirCerrar(h); const err = alGuardar(h.querySelector('[data-sc]').value); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
+  }
+  C.sesnom = () => { const v = L.ses; if (!v) return; hojaCampo('Nombre de la sesión', v.nombre, false, t => { const n = t.replace(/\s*\n\s*/g, ' ').trim(); if (!n) return 'Una sesión necesita un nombre.'; cerrarHojas(true); if (n !== v.nombre) guardar({ slot: v.id, campo: 'sesNombre', valor: n, visto: v.nombre, nombre: v.nombre }); return ''; }); };
+  C.sested = b => { const v = L.ses, a = v && v.apartados.find(x => x.id === b.dataset.ap); if (!a) return; hojaCampo(a.nombre, a.texto, true, t => { cerrarHojas(true); if (t !== a.texto) guardar({ slot: v.id, campo: 'sesTexto', valor: { ap: a.id, texto: t }, visto: a.texto, nombre: v.nombre, etq: a.nombre }); return ''; }); };
+  C.sesclis = () => {
+    const v = L.ses; if (!v) return; const sel = new Set(v.clientes);
+    const pinta = esp => { const fila = (id, n) => `<button type="button" class="estado-op${sel.has(id) ? ' on' : ''}" data-scl="${esc(id)}" aria-pressed="${sel.has(id)}">${av(id)}<span style="flex:1;min-width:0">${esc(n)}</span>${sel.has(id) ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`;
+      return `<h2>Clientes de la sesión</h2><p class="ex">Uno o varios. Los nuevos se crean en el escritorio.</p><span class="lbl">Mensuales</span><div class="estados">${(X().CL || []).map(c => fila(c.id, c.name)).join('')}</div>${esp.length ? `<span class="lbl">Esporádicos</span><div class="estados">${esp.map(e => fila(e.id, e.txt)).join('')}</div>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-scl-a="no">Cancelar</button><button type="button" class="btn pri" data-scl-a="si">Guardar</button></div></div>`; };
+    {   // los esporádicos ya leídos con la sesión (sin leer todos los tableros; la hoja sale en el acto, sobre esta pantalla)
+      const esp = M.personal._p && M.personal._p.esps ? M.personal._p.esps() : [], h = hoja(pinta(esp), { etiqueta: 'Clientes de la sesión' });
+      h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const f = e.target.closest('[data-scl]'); if (f) { const id = f.dataset.scl; if (sel.has(id)) sel.delete(id); else sel.add(id); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(esp); h.scrollTop = y; return; }
+        const b = e.target.closest('[data-scl-a]'); if (!b) return; if (b.dataset.sclA !== 'si') return cerrarHojas(); cerrarHojas(true);
+        const nuevo = [...sel], ant = [...v.clientes].sort(); if (JSON.stringify([...nuevo].sort()) !== JSON.stringify(ant)) guardar({ slot: v.id, campo: 'sesClientes', valor: nuevo, visto: ant, nombre: v.nombre }); });
+    }
+  };
+  C.sesfecha = () => {
+    const v = L.ses; if (!v) return;
+    let dia = v.fecha || '', conHora = !!v.hora, hh = (v.hora || '10:00').slice(0, 2), mm = (v.hora || '10:00').slice(3, 5), mes = (v.fecha || hoy()).slice(0, 7);   // sin fecha: ningún día elegido (guardar sin tocar no pone hoy)
+    const mins = MINS.includes(mm) ? MINS : [...MINS, mm].sort();
+    const dur = () => { if (!v.fin || !v.fin.fecha || !v.fecha) return ''; if (v.fin.hora && v.hora && v.fin.fecha === v.fecha) { const a = +v.hora.slice(0, 2) * 60 + +v.hora.slice(3, 5), b = +v.fin.hora.slice(0, 2) * 60 + +v.fin.hora.slice(3, 5), c = (+hh * 60 + +mm) + (b - a); return c < 1440 ? `Termina a las ${String(Math.floor(c / 60)).padStart(2, '0')}:${String(c % 60).padStart(2, '0')}.` : 'El fin se mueve con el inicio.'; } return 'El fin se mueve con el inicio.'; };
+    const pinta = () => `<h2>Fecha y hora</h2><p class="ex">${esc(v.nombre)}</p>${calendarioHTML(dia, mes, null, { pie: `<button type="button" class="lnk" data-a2="sinfecha"${v.fecha ? '' : ' disabled'}>Sin fecha</button>` })}${conHora ? `<div class="ruedas"><span class="banda"></span>${ruedaHTML('h', HORAS, hh)}<b class="dos">:</b>${ruedaHTML('m', mins, mm)}</div><button type="button" class="lnk" data-a2="sinhora" style="margin:4px auto 0;display:flex">Sin hora</button>` : `<button type="button" class="campo" data-a2="ponhora" style="margin-top:10px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)"><span class="k">Hora</span><span class="v">Sin hora</span><span class="chev">${ic('der')}</span></button>`}${v.fin && v.fin.fecha ? `<p class="ex" style="margin:10px 0 0" data-dur>${esc(dur())}</p>` : ''}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-a2="cancelar">Cancelar</button><button type="button" class="btn pri" data-a2="guardar">Guardar</button></div></div>`;
+    const h = hoja(pinta(), { etiqueta: 'Fecha y hora' });
+    const armar = () => h.querySelectorAll('[data-rueda]').forEach(rr => armarRueda(rr, x => { if (rr.dataset.rueda === 'h') hh = x; else mm = x; const d = h.querySelector('[data-dur]'); if (d) d.textContent = dur(); }));
+    const leer = () => { if (!conHora) return; const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; };
+    const repinta = () => { leer(); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); armar(); h.scrollTop = y; };
+    armar();
+    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return;
+      const d = e.target.closest('[data-dia]'); if (d && !d.disabled) { dia = d.dataset.dia; return repinta(); }
+      const c = e.target.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
+      const b = e.target.closest('[data-a2]'); if (!b) return;
+      if (b.dataset.a2 === 'cancelar') return cerrarHojas();
+      if (b.dataset.a2 === 'sinhora') { leer(); conHora = false; return repinta(); }
+      if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
+      if (b.dataset.a2 === 'sinfecha' && !b.disabled) { cerrarHojas(true); return guardar({ slot: v.id, campo: 'sesInicio', valor: { fecha: '' }, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }   // la hora se queda, como en el Mac
+      if (b.dataset.a2 === 'guardar' && !dia) { if (!conHora) return cerrarHojas(); return aviso('Elige un día para la sesión.'); }
+      if (b.dataset.a2 === 'guardar') { leer(); const valor = { fecha: dia, hora: conHora ? `${hh}:${mm}` : '' }; cerrarHojas(true); if (valor.fecha !== v.fecha || valor.hora !== v.hora) guardar({ slot: v.id, campo: 'sesInicio', valor, visto: { fecha: v.fecha, hora: v.hora }, nombre: v.nombre }); }
+    });
+  };
+
   function accion(a, b, e) {
     switch (a) {
-      case 'atras': return atras();
+      case 'atras': return atras(b.dataset.destino);
+      case 'avt': AVT = !AVT; b.setAttribute('aria-checked', String(AVT)); return leerHoy().then(() => { if (RUTA.p !== 'hoy') return; pintar(); const s = raiz.querySelector('[data-a="avt"]'); if (s) s.focus({ preventScroll: true }); });   // se relee sin pasar por «Leyendo…»
       case 'filtro': FILTRO = FILTRO === b.dataset.k ? null : b.dataset.k; return pintar();
       case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
       case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();
       case 'reconv': if (L.vista) leerConv(L.vista.key); return;
       case 'dia': DIA_CAL = b.dataset.d; return pintar();
+      case 'pubs': PUBS.abierta = !PUBS.abierta; return pintar();
       case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();
       case 'tcli': FILTRO_T = b.dataset.c || ''; return pintar();
-      case 'tver': return verTarea(b.dataset.id);
+      case 'tver': {   // una sesión abre su pantalla (D-275); una tarea o una nota, su hoja
+        const id = b.dataset.id, x = (L.tareas || []).find(t => t.id === id), hi = L.hoy && (L.hoy.items || []).find(i => i.k && i.k.id === id);
+        if ((x && x.tipo === 'sesion') || (hi && (hi.tipo === 'sesion' || hi.k.tipo === 'sesion'))) return avanzar('ses/' + id);
+        return verTarea(id);
+      }
       case 'cobro': return aviso('Las facturas se abren en el escritorio.');
-      case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, true); return; }
-      case 'cerrarhoja': return cerrarHojas();
+      case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
+      case 'cerrarhoja': return pedirCerrar();
       case 'recargar': try { location.reload(); } catch (x) { /* */ } return;
       case 'entrar': try { location.reload(); } catch (x) { /* */ } return;
       case 'codigo': if (M.entrada && M.entrada.pedirCodigo) M.entrada.pedirCodigo(); return;
@@ -1078,10 +1597,22 @@
     const e = ST, t = e.vistoA ? horaDe(e.vistoA) : '';
     const quien = e.tiene && e.tiene.dispositivo && M.nube.nombreDe ? M.nube.nombreDe(e.tiene.dispositivo) : '';
     const txt = e.fase === 'sin_conexion' ? `Sin conexión. Lo que ves es de las ${t}: al volver la red, baja lo nuevo.` : `Lo que ves está al día a las ${t}.${quien ? ` La Mesa está abierta en ${quien}; mirar no la coge.` : ' Mirar no coge la Mesa.'}`;
-    hoja(`<h2>La nube</h2><p class="ex">${esc(txt)}</p><div class="botones"><button type="button" class="btn sua" data-a="cerrarhoja">Cerrar</button><button type="button" class="btn pri" data-a="mirarya"${sinRed() ? ' disabled' : ''}>Bajar ahora</button></div>`, { etiqueta: 'La nube' });
+    hoja(`<h2>La nube</h2><p class="ex">${esc(txt)}</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: 'La nube' });   // sin «Bajar ahora»: mira cada 10 s (D-271, punto 8)
   }
-  C.mirarya = () => { cerrarHojas(); if (M.nube && M.nube.mirar) M.nube.mirar(); };
 
+  // «Apariencia» (D-271, punto 11, variante A): como el iPhone, claro u oscuro; cambia al momento, se recuerda en este aparato y la hoja
+  // se queda abierta para ver el cambio
+  C.tema = () => {
+    const pinta = () => { const t = temaElegido() || 'auto', fila = (k, ico, txt, sub) => { const on = t === k; return `<button type="button" class="estado-op${on ? ' on' : ''}" data-tema="${k}"${on ? ' aria-current="true"' : ''}><span class="mv-ico">${ic(ico)}</span><span class="mv-tt">${txt}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${on ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`; };
+      return `<h2>Apariencia</h2><p class="ex">Solo en este iPhone.</p><div class="estados">${fila('auto', 'movil', 'Como el iPhone', 'Ahora ' + (MQ && MQ.matches ? 'oscuro' : 'claro'))}${fila('claro', 'sol', 'Claro')}${fila('oscuro', 'luna', 'Oscuro')}</div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cerrar">Cerrar</button></div></div>`; };
+    const h = hoja(pinta(), { etiqueta: 'Apariencia' });
+    h.addEventListener('click', e => {
+      if (!h.isConnected) return;
+      const b = e.target.closest('[data-tema]');
+      if (b) { lsS(K_TEMA, b.dataset.tema === 'auto' ? null : b.dataset.tema); tema(); pintarPildora(); const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); h.scrollTop = y; const f = h.querySelector(`[data-tema="${b.dataset.tema}"]`); if (f) f.focus({ preventScroll: true }); return; }
+      if (e.target.closest('[data-a2="cerrar"]')) cerrarHojas();
+    });
+  };
   // la respuesta al cliente: su borrador sobrevive a que iOS cierre la app
   raiz.addEventListener('input', e => {
     const t = e.target;
@@ -1092,7 +1623,10 @@
   raiz.addEventListener('focusout', () => { setTimeout(() => { if (PEND_PINTAR && !enUso()) pintar(); }, 0); });
 
   // ---------- el teclado del iPhone: lo que se escribe queda a la vista (visualViewport, como el portal) ----------
+  if (D.fonts && D.fonts.ready) D.fonts.ready.then(() => ajustarTitulo(), () => {});   // con la letra cargada, el título se vuelve a medir
+  W.addEventListener('orientationchange', () => setTimeout(ajustarTitulo, 120));
   if (W.visualViewport) W.visualViewport.addEventListener('resize', () => {
+    ajustarTitulo();
     const vv0 = W.visualViewport, kb = Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop));
     raiz.style.setProperty('--kb', kb + 'px'); raiz.classList.toggle('teclado', kb > 60);   // una hoja sube encima del teclado, sin la zona segura de abajo
     const a = D.activeElement; if (!a || !raiz.contains(a) || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
@@ -1105,6 +1639,7 @@
   function alNube(t, d) {
     if (t === 'estado') { ST.fase = d.fase; ST.vistoA = d.vistoA || ST.vistoA; ST.sinSubir = d.sinSubir || 0; ST.tiene = d.tiene || null; pintarChip(); if (d.fase === 'sin_codigo' && M.entrada && M.entrada.pedirCodigo && !raiz.querySelector('.hoja')) M.entrada.pedirCodigo(); return; }
     if (t === 'releido') { releer(); return; }
+    if (t === 'bajando') { if (d && d.h > 0) { TRAB.filasHasta = Date.now() + 300; TRAB.filasP = d.h / (d.h + 500); trabajo(); setTimeout(trabajo, 320); } return; }   // una página tras otra; una sola no llega a verse
     if (C.alNube) C.alNube(t, d);
   }
   const red = v => { ST.red = v; pintarChip(); pintarSiQuieto(); };
@@ -1129,7 +1664,7 @@
     await pintar();
     (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'ok';
   }
-  M.movil = { version: VERSION, pintar, releer, ir, _L: L, _ST: ST, _C: C };
+  M.movil = { version: VERSION, pintar, releer, ir, _L: L, _ST: ST, _C: C, _t: { decidirArrastre, cierraArrastre } };
 
   // ===== lote 4: cambiar (D-267, D-268, D-270) =====
   // Cada cambio es una operación {key, slot, campo, valor, visto}: se apunta (localStorage, sobrevive a que iOS cierre la app), se
@@ -1139,8 +1674,12 @@
   // Mesa en otro aparato, un choque sin decidir) y espera en «sin subir» a que Kevin la suba encima o la descarte: nunca se aplica
   // sola (R4). Al abrir la app, lo que quedó a medias es «quedo».
   const K_OPS = 'mesa-movil-ops';
-  const opsLeer = () => { try { const l = JSON.parse(lsG(K_OPS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
-  const opsGuardar = l => { lsS(K_OPS, l.length ? JSON.stringify(l) : null); ST.opsN = l.filter(x => x.estado !== 'nueva').length; pintarChip(); };
+  // los campos nuevos de la 4.38 (D-272, D-275) van en otra clave: una 4.37 que leyera la cola los quitaría como «campo no válido»
+  // (fallo definitivo); así no los ve y esperan a una 4.38 (lección 228). La cola es la unión de las dos, en su orden
+  const K_OPS2 = 'mesa-movil-ops2', NUEVOS = /^(tarea(Texto|Fecha|Cliente|Detalles)|subtarea|ses[A-Z]\w*)$/;
+  const leerK = k => { try { const l = JSON.parse(lsG(k) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+  const opsLeer = () => [...leerK(K_OPS), ...leerK(K_OPS2)].sort((a, b) => (a.at || 0) - (b.at || 0));
+  const opsGuardar = l => { const v = l.filter(x => !NUEVOS.test(x.campo)), n = l.filter(x => NUEVOS.test(x.campo)); lsS(K_OPS, v.length ? JSON.stringify(v) : null); lsS(K_OPS2, n.length ? JSON.stringify(n) : null); ST.opsN = l.filter(x => x.estado !== 'nueva').length; pintarChip(); };
   const opsQuitar = id => opsGuardar(opsLeer().filter(o => o.id !== id));
   const opsMarcar = (ids, estado) => opsGuardar(opsLeer().map(x => (ids.includes(x.id) ? { ...x, estado } : x)));
   opsGuardar(opsLeer().map(x => ({ ...x, estado: 'quedo' })));
@@ -1149,11 +1688,11 @@
   const corto2 = id => (M.nube && M.nube.nombreDe ? M.nube.nombreDe(id) : 'otro aparato').replace(/ \([0-9a-f]{4}\)$/, '');
   // la misma operación (un doble toque) y otra del mismo campo (la nueva sustituye a la que aún no se aplicó)
   const firma = op => { const v = op.valor || {}; return op.campo === 'tareaNueva' ? ['tn', v.tipo, v.txt, v.fecha || '', v.cliente || ''].join('|') : [op.key, op.slot, op.campo, JSON.stringify(op.valor)].join('|'); };
-  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k);
+  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k) && (a.campo !== 'subtarea' || ((a.valor || {}).sid === (b.valor || {}).sid && (a.valor || {}).accion === (b.valor || {}).accion)) && (a.campo !== 'sesMaterial' || ((a.valor || {}).ap === (b.valor || {}).ap && (a.valor || {}).m === (b.valor || {}).m)) && (a.campo !== 'sesTexto' || (a.valor || {}).ap === (b.valor || {}).ap);   // cada subtarea, su campo (D-272); cada cosa del material y cada texto de una sesión, el suyo (D-275)
   let RUN = null, OTRA = false, ENVUELO = null;
   const ESCRITOS = new Map();   // lo que escribió este iPhone en cada campo, como quedó guardado: un choque contra eso no es un choque
   // un fallo pasajero deja la operación en «sin subir»; uno definitivo (publicada, fuera del mes, ya no está…) la quita y lo dice
-  const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas)$/.test(String(e)) || /^no se pudo/.test(String(e));
+  const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas|sin sesiones)$/.test(String(e)) || /^no se pudo/.test(String(e));
   // lo que dice una operación, para la hoja del choque y la de «sin subir»
   function opTexto(op, v) {
     if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return iso ? campoFecha({ dia: X().localDay(iso), hora: X().dOnly(iso) ? '' : X().localTime(iso) }) : 'Sin fecha'; }
@@ -1162,22 +1701,31 @@
     if (op.campo === 'capTexto') { const t = v && typeof v === 'object' ? v.texto : v; return String(t || '').slice(0, 140) + (String(t || '').length > 140 ? '…' : ''); }
     if (op.campo === 'tarea') return v && v.hecha ? 'Hecha' : 'Sin hacer';
     if (op.campo === 'tareaNueva') return (v && v.tipo === 'nota' ? 'Nota: ' : 'Tarea: ') + ((v && v.txt) || '');
+    if (op.campo === 'tareaTexto' || op.campo === 'tareaDetalles') return String(v || '').slice(0, 140) || 'Vacío';
+    if (op.campo === 'tareaFecha') return v ? cap1(DS[dow(v)]) + ' ' + corto(v) : 'Sin fecha';
+    if (op.campo === 'tareaCliente') return v ? nombreCli(v) : 'Sin cliente';
+    if (op.campo === 'sesNombre') return String(v || '');
+    if (op.campo === 'sesInicio') { const o = v || {}; return o.fecha ? campoFecha({ dia: o.fecha, hora: o.hora || '' }) : 'Sin fecha'; }
+    if (op.campo === 'sesClientes') return (v || []).length ? v.map(nombreCli).join(' · ') : 'Sin cliente';
+    if (op.campo === 'sesMaterial') return v && v.hecho ? 'Marcado' : 'Sin marcar';
+    if (op.campo === 'sesTexto') { const t = v && typeof v === 'object' ? v.texto : v; return String(t || '').slice(0, 140) || 'Vacío'; }
+    if (op.campo === 'subtarea') { const o = op.valor || {}; if (v === op.valor) return o.accion === 'quitar' ? 'Quitarla' : o.accion === 'hecha' ? (o.hecha ? 'Hecha' : 'Sin hacer') : String(o.txt || ''); return v == null ? 'No está' : v.txt != null ? v.txt : v.hecha != null ? (v.hecha ? 'Hecha' : 'Sin hacer') : 'Está'; }
     return '';
   }
-  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva' })[op.campo] || op.campo;
-  // la hoja «Guardando en la Mesa»: sus pasos, al día
-  function hojaGuardando(quien) {
-    const pasos = [quien ? `${quien} sube lo suyo` : null, 'La Mesa pasa a este iPhone', 'Se guarda tu cambio', `La Mesa queda libre${quien ? ' para ' + quien : ''}`].filter(Boolean);
-    const h = hoja(`<h2>Guardando en la Mesa</h2><p class="ex">${quien ? `${esc(quien)} la tiene abierta: queda en pausa mientras cambias desde aquí.` : 'Está libre: se guarda al momento.'}</p><div class="prog" role="list">${pasos.map((t, i) => `<div class="paso" role="listitem" data-p="${i}"><span class="ic">${ic(['mac', 'movil', 'movil', 'mac'][quien ? i : i + 1])}</span><span class="t">${esc(t)}</span><span class="s num"></span></div>`).join('')}</div>`, { fija: true, etiqueta: 'Guardando en la Mesa' });
-    const t0 = Date.now(), base = quien ? 0 : -1;
-    return { h, paso: n => { const i = n + base + 1; h.querySelectorAll('.paso').forEach((p, j) => { p.classList.toggle('hecho', j < i); p.classList.toggle('ahora', j === i); const ico = p.querySelector('.ic'); if (j < i) ico.innerHTML = ic('check', 2.5); else if (j === i) { ico.innerHTML = ic('gira', 2.25); ico.classList.add('gira'); } if (j < i) ico.classList.remove('gira'); }); const s = h.querySelector(`.paso[data-p="${i - 1}"] .s`); if (s && !s.textContent) s.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + ' s'; }, h };
-  }
+  const opQue = op => (({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva', tareaTexto: 'Texto', tareaFecha: 'Fecha', tareaCliente: 'Cliente', tareaDetalles: 'Detalles', subtarea: 'Subtarea', sesNombre: 'Nombre', sesInicio: 'Fecha y hora', sesClientes: 'Clientes', sesMaterial: 'Material', sesTexto: 'Texto' })[op.campo] || op.campo) + (op.etq ? ' · ' + op.etq : '');   // op.etq: la subtarea, la cosa del material o el apartado (revisión del lote B)
+  // guardar de fondo (D-271, punto 9): sin hoja que tape la pantalla; sus pasos (coger, aplicar, subir, soltar) llenan el monograma
+  const alPaso = n => { TRAB.guardar = [0, 0.25, 0.5, 1][n] ?? 1; trabajo(); };   // el monograma, un cuarto por paso
+  // lo que se está guardando: la pantalla enseña ya el valor nuevo, con un aro en el sitio de su flecha
+  const enCurso = (key, slot, campo, k) => { const l = opsLeer().filter(x => x.estado === 'nueva' && x.slot === slot && x.campo === campo && (key == null || x.key === key) && (k == null || (x.valor || {}).k === k)); return l.length ? l[l.length - 1] : null; };
+  const GIRA = '<span class="mv-gira" role="img" aria-label="Guardando"></span>';
+  // una pregunta de un guardado de fondo sale cuando Kevin no tiene otra hoja abierta (nunca le cierra la que está usando)
+  async function sinHoja() { for (let i = 0; i < 2400 && capas.querySelector('.hoja.on:not([data-permanente])'); i++) await new Promise(r => setTimeout(r, 250)); }
   // «<aparato> no contesta»: esperar más, usarla aquí o dejarlo (D-254, D-268); cerrada de otro modo (atrás, Esc) es «Ahora no»
-  function hojaNoContesta(e) {
+  function hojaNoContesta(e, que) {
     return new Promise(res => {
       const quien = corto2(e.dispositivo), h = e.latido ? X().localTime(e.latido) : '', n = +e.cola || 0;
-      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { fija: true, etiqueta: quien + ' no contesta', alCerrar: () => res('no') });
-      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
+      const el = hoja(`<h2>${esc(quien)} no contesta</h2>${que ? `<p class="ex">Para guardar ${que}.</p>` : ''}<p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { pregunta: true, etiqueta: quien + ' no contesta', alCerrar: () => res('no') });
+      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) { res(b.dataset.r); cerrarEsta(el); } });
     });
   }
   // el choque: el Mac cambió lo mismo mientras tanto; los dos valores y Kevin decide (R3). Cerrada sin decidir, el cambio espera en
@@ -1188,9 +1736,9 @@
       const fila = (k, v) => `<div class="campo" style="cursor:default"><span class="k">${k}</span><span class="v" style="white-space:normal">${esc(v)}</span></div>`;
       const cuerpo = otraTanda
         ? `<p class="ex">Llegó otra tanda de captions desde que la viste: lo que elegiste era de la anterior. Vuelve a elegir en «Captions».</p><div class="botones" style="grid-template-columns:1fr"><button type="button" class="btn pri" data-r="mesa" data-foco>Entendido</button></div>`
-        : `<p class="ex">${esc(opQue(op))}: ${esc(porQueChoque(op, ch))}</p><div class="grupo">${fila('Lo tuyo', opTexto(op, op.valor))}${fila('En la Mesa', opTexto(op, ch.ahora))}</div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`;
-      const el = hoja(`<h2>${otraTanda ? 'Otra tanda de captions' : 'Cambió en la Mesa'}</h2>${cuerpo}`, { fija: true, etiqueta: 'Cambió en la Mesa', alCerrar: () => res('cerrar') });
-      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
+        : `<p class="ex">${esc(opQue(op))}${op.nombre ? ` de <b>${esc(op.nombre)}</b>` : ''}: ${esc(porQueChoque(op, ch))}</p><div class="grupo">${fila('Lo tuyo', opTexto(op, op.valor))}${fila('En la Mesa', opTexto(op, ch.ahora))}</div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`;
+      const el = hoja(`<h2>${otraTanda ? 'Otra tanda de captions' : 'Cambió en la Mesa'}</h2>${cuerpo}`, { pregunta: true, etiqueta: 'Cambió en la Mesa', alCerrar: () => res('cerrar') });
+      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) { res(b.dataset.r); cerrarEsta(el); } });
     });
   }
   function porQueChoque(op, ch) {   // lo que cambió en la Mesa desde que lo viste, cuando los dos valores se leen igual
@@ -1206,11 +1754,10 @@
     for (;;) {
       if (t && t.hecho) return true;
       if (t && t.espera) {
-        cerrarHojas(true);
-        const r = await hojaNoContesta(t.espera);
-        cerrarHojas(true);
+        await sinHoja();
+        const r = await hojaNoContesta(t.espera, prog && prog.que);
         if (r === 'no') return false;
-        if (prog) { const g = hojaGuardando(corto2(t.espera.dispositivo)); prog.paso = g.paso; prog.h = g.h; prog.paso(0); }
+        if (prog) prog.paso(0);
         t = r === 'forzar' ? await M.nube.forzarAqui(t.espera.turno) : await M.nube.tomar({ esperar: true });
         if (t && t.otraVez) t = await M.nube.tomar();
         continue;
@@ -1238,6 +1785,7 @@
   async function guardar(ops, o = {}) {
     const red = !sinRed(), nube = !!(M.nube && M.nube.tomar) && ST.fase !== 'apagada';
     const ids = apuntar(ops, red && nube ? 'nueva' : 'quedo');
+    pintarSiQuieto();   // lo que se ve al tocar sale en el acto: el valor nuevo con su aro (D-271, punto 9)
     if (!red) { aviso('Sin conexión: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
     if (!nube) { aviso('Sin nube en este iPhone: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
     for (let i = 0; RUN && !RUN.g && i < 50; i++) { const r0 = RUN; await r0.catch(() => null); if (RUN === r0) break; }   // «Subir encima» o «Descartar» de la nube en marcha: primero acaba (nunca en bucle)
@@ -1245,23 +1793,24 @@
       ST.guardando = true; pintarChip();
       const p = (async () => { let oo = o; do { OTRA = false; await correr(oo, ESCRITOS); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); })();
       RUN = p; RUN.g = true;
-      p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });   // se limpia desde fuera: aunque algo fallara antes de su primer await
+      p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; TRAB.guardar = null; trabajo(); pintarChip(); });   // se limpia desde fuera: aunque algo fallara antes de su primer await
     } else OTRA = true;
     await RUN;
     return !ids.length || !opsLeer().some(x => ids.includes(x.id));
   }
   async function correr(o, escritos = new Map()) {
     const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
-    const g = hojaGuardando(quien), prog = { paso: g.paso, h: g.h };
+    const prim = opsLeer().find(x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva'));
+    const prog = { paso: n => alPaso(n), h: null, que: prim ? esc(`«${opQue(prim).toLowerCase()}»${prim.nombre ? ' de ' + prim.nombre : ''}`) : '' };
     const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
     const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set();
-    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : ''].join('|');
+    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : op.campo === 'subtarea' ? (op.valor || {}).sid + ':' + (op.valor || {}).accion : op.campo === 'sesMaterial' ? (op.valor || {}).ap + ':' + (op.valor || {}).m : op.campo === 'sesTexto' ? (op.valor || {}).ap : ''].join('|');
     const queda = (ids, motivo) => { if (!ids.length) return; opsMarcar(ids, 'quedo'); res.quedan += ids.length; res.por[motivo] = (res.por[motivo] || 0) + ids.length; };
     const motivoDe = e => (e === 'sin turno' ? 'turno' : e === 'sin decidir' ? 'decidir' : 'fallo');
     let s = null;
     try {
       prog.paso(0);
-      if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); opsMarcar(opsLeer().filter(toca).map(x => x.id), 'quedo'); aviso('Tu cambio espera en «sin subir».', { ms: 6000 }); return; }
+      if (!(await cogerMesa(prog))) { opsMarcar(opsLeer().filter(toca).map(x => x.id), 'quedo'); aviso('Tu cambio espera en «sin subir».', { ms: 6000 }); pintarSiQuieto(); return; }   // vuelve lo de la Mesa
       prog.paso(1);
       vuelta: for (;;) {
         const lista = opsLeer().filter(x => toca(x) && !hechos.has(x.id));
@@ -1276,9 +1825,9 @@
           if (r && r.choque && ciego) r = (r.choque.visto || {}).at !== (r.choque.ahora || {}).at ? { error: 'Llegó otra tanda de captions: vuelve a elegir' } : await MV().aplicar({ ...op, forzar: true });
           if (r && r.choque && escritos.has(campoDe(op)) && mismoEscrito(op, r.choque.ahora, escritos.get(campoDe(op)))) r = await MV().aplicar({ ...op, forzar: true });   // lo que «cambió» lo escribió esta misma vuelta
           if (r && r.choque) {
-            cerrarEsta(prog.h);
+            await sinHoja();
             const a = await hojaChoque(op, r.choque);
-            cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.h = g2.h; prog.paso(1);
+            prog.paso(1);
             r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : a === 'mesa' ? { ok: true, dejado: true } : { error: 'sin decidir' };
           }
           ENVUELO = null;
@@ -1297,14 +1846,12 @@
       prog.paso(3);
     } catch (e) {
       opsMarcar(opsLeer().filter(x => toca(x) && x.estado === 'nueva').map(x => x.id), 'quedo');
-      cerrarEsta(prog.h);
       try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) M.nube.soltar(); } catch (x) { /* */ }
       ENVUELO = null;
       aviso((e && e.message) || 'No se pudo guardar: tu cambio espera en «sin subir».', { error: true, ms: 8000 });
       await releerTodo();
       return;
     }
-    cerrarEsta(prog.h);
     // un solo aviso, el que más importa: lo que no se pudo, lo que se perdió al soltar, lo que espera, y si no, «Guardado»
     const mas = n => (n > 1 ? ` (y ${n - 1} más)` : '');
     if (res.fallos.length) aviso(res.fallos[0] + mas(res.fallos.length), { error: true, ms: 8000 });
@@ -1312,7 +1859,7 @@
     else if (res.quedan) { const n = plural(res.quedan, 'cambio espera', 'cambios esperan'); aviso(res.por.turno ? `La Mesa se soltó a mitad: ${n} en «sin subir».` : res.por.fallo ? `No se pudo guardar en este iPhone: ${n} en «sin subir».` : `Sin decidir: ${n} en «sin subir».`, { error: true, ms: 8000 }); }
     else if (s && s.error === 'sin_conexion') aviso('Guardado en este iPhone; sube en cuanto vuelva la red.', { ms: 8000 });
     else if (s && s.error) aviso('Guardado en este iPhone; aún no ha subido: lo intenta otra vez solo.', { ms: 8000 });
-    else if (res.ok) { ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100); aviso(res.avisos.length ? res.avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
+    else if (res.ok) { aviso(res.avisos.length ? res.avisos[0] : 'Guardado.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
     else if (res.dejados) aviso('Se queda lo de la Mesa.', { ms: 4200 });
     await releerTodo();
   }
@@ -1331,29 +1878,28 @@
     let r = null;
     ST.guardando = true; pintarChip();
     const p = (async () => {
-      let prog = { paso: () => {}, h: null };
+      const prog = { paso: n => alPaso(n), h: null, que: '' };
       try {
-        const g = hojaGuardando(''); prog = { paso: g.paso, h: g.h };
         prog.paso(0);
-        if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); return; }
+        if (!(await cogerMesa(prog))) return;
         prog.paso(1); r = await fn(); prog.paso(2);
       } catch (e) { r = { error: (e && e.message) || String(e) }; }
       finally {
         try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) await M.nube.soltar(); } catch (x) { /* */ }
-        cerrarEsta(prog.h);
       }
     })();
     RUN = p;
-    await p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });
+    await p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; TRAB.guardar = null; trabajo(); pintarChip(); });
     await releerTodo();
     return r;
   }
-  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', 'una nota necesita un texto': 'Una nota necesita un texto.', 'una subtarea necesita un texto': 'Una subtarea necesita un texto.', 'cliente no válido': 'Ese cliente ya no está.', 'una sesión necesita un nombre': 'Una sesión necesita un nombre.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
   const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
   async function releerTodo() {
     L.hoy = null; L.clientes = null; L.error = {};
     if (L.vista) { const v = await MV().mirar(L.vista.key).catch(() => null); L.vista = v && !v.error ? v : null; }
     await leerTareas();
+    if (RUTA.p === 'ses' && L.ses && L.ses.id) await leerSes(L.ses.id);   // tras guardar, la sesión con lo guardado (revisión del lote B)
     pintar();
   }
   const pAhora = () => { const v = L.vista; return v && v.key === RUTA.a ? v.posts.find(x => x.id === RUTA.b) : null; };
@@ -1414,7 +1960,7 @@
         const valor = conHora ? { dia, hora: `${hh}:${mm}` } : { dia };
         const igual = p.fecha.dia === dia && (conHora ? p.fecha.hora === valor.hora : !p.fecha.hora);
         cerrarHojas(true); if (igual) return;
-        guardar({ key: v.key, slot: p.id, campo: 'fecha', valor, visto: p.fecha.iso });
+        guardar({ key: v.key, slot: p.id, campo: 'fecha', valor, visto: p.fecha.iso, nombre: p.nombre });
       }
     });
   }
@@ -1430,7 +1976,7 @@
     h.addEventListener('click', e => { if (!h.isConnected) return;
       const b = e.target.closest('.estado-op'), c = e.target.closest('[data-a2]');
       if (c && c.dataset.a2 === 'cancelar') return cerrarHojas();
-      if (c && c.dataset.a2 === 'cancelarpub') { const mot = h.querySelector('[data-mot]').value; cerrarHojas(true); return guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: 'cancelado', motivo: mot }, visto }); }
+      if (c && c.dataset.a2 === 'cancelarpub') { const mot = h.querySelector('[data-mot]').value; cerrarHojas(true); return guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: 'cancelado', motivo: mot }, visto, nombre: p.nombre }); }
       if (!b || b.disabled) return;
       const nv = b.dataset.v || null, x = l.find(y => (y.v || null) === nv);
       if (x && x.actual && nv !== 'cancelado') return cerrarHojas();
@@ -1439,12 +1985,12 @@
         h.querySelector('[data-motivo]').hidden = false; h.querySelector('.pie .botones').innerHTML = `<button type="button" class="btn sua" data-a2="cancelar">Volver</button><button type="button" class="btn pri" data-a2="cancelarpub">Cancelarla</button>`;
         const t = h.querySelector('[data-mot]'); t.focus(); return;
       }
-      cerrarHojas(true); guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: nv }, visto });
+      cerrarHojas(true); guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: nv }, visto, nombre: p.nombre });
     });
   };
 
   // ---------- captions: elegir y retocar (su borrador sobrevive a que iOS cierre la app) ----------
-  C.elegir = b => { const p = pAhora(), v = L.vista; if (!p || !p.captions) return; guardar({ key: v.key, slot: p.id, campo: 'capElegir', valor: +b.dataset.k, visto: { at: p.captions.at, pick: p.captions.pick } }); };
+  C.elegir = b => { const p = pAhora(), v = L.vista; if (!p || !p.captions) return; guardar({ key: v.key, slot: p.id, campo: 'capElegir', valor: +b.dataset.k, visto: { at: p.captions.at, pick: p.captions.pick }, nombre: p.nombre }); };
   const K_BORR = (key, slot, k) => `mesa-movil-borrador:${key}|${slot}|${k}`;
   let RET0 = null;
   const baseDe = (key, slot, k) => (RET0 && RET0.key === key && RET0.slot === slot && RET0.k === k ? RET0.base : null);
@@ -1453,11 +1999,11 @@
   const borrPoner = (key, slot, k, texto, base) => lsS(K_BORR(key, slot, k), JSON.stringify({ texto, base }));
   C.pantRetocar = () => {
     const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k);
-    if (!o) return top({ atras: 'Captions' }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
+    if (!o) return top({ atras: 'Captions', destino: `cap/${RUTA.a}/${RUTA.b}` }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
     const b = borrLeer(v.key, p.id, k), borr = b ? b.texto : null, txt = borr != null ? borr : o.texto;
     RET0 = { key: v.key, slot: p.id, k, base: { at: p.captions.at, texto: o.texto } };   // lo que enseña esta pantalla: la base si aún no hay borrador
     const cambio = b && b.base && (b.base.at !== p.captions.at || b.base.texto !== o.texto);   // cambió en la Mesa desde que empezaste
-    return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
+    return top({ atras: 'Captions', destino: `cap/${v.key}/${p.id}`, t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
       <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
       <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${cambio ? '<p class="solo-mac">Este caption cambió en la Mesa desde que empezaste a retocarlo: si guardas tu retoque, verás los dos.</p>' : ''}${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
   };
@@ -1474,10 +2020,10 @@
     if (t.value === base.texto) {   // nada que guardar: lo de la Mesa se queda (aunque cambiara) y un retoque pendiente de ese caption, deshecho, se va
       lsS(K_BORR(v.key, p.id, k), null);
       opsGuardar(opsLeer().filter(x => !(x.campo === 'capTexto' && x.key === v.key && x.slot === p.id && (x.valor || {}).k === k && x.id !== ENVUELO)));
-      return atras();
+      return atras(`cap/${v.key}/${p.id}`);
     }
-    const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
-    if (ok) atras();
+    const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base, nombre: p.nombre });
+    if (ok) atras(`cap/${v.key}/${p.id}`);
   };
 
   // ---------- contestar al cliente (va a su web con tu sesión, sin coger la Mesa: D-244, R2) ----------
@@ -1490,12 +2036,13 @@
   };
 
   // ---------- tareas y notas ----------
-  C.hecha = b => { const x = (L.tareas || []).find(t => t.id === b.dataset.id); if (!x) return; guardar({ slot: x.id, campo: 'tarea', valor: { hecha: !x.hecha }, visto: { hecha: !!x.hecha } }); };
+  C.hecha = b => { const x = (L.tareas || []).find(t => t.id === b.dataset.id); if (!x) return; guardar({ slot: x.id, campo: 'tarea', valor: { hecha: !x.hecha }, visto: { hecha: !!x.hecha }, nombre: String(x.txt).split('\n')[0] }); };
   async function crearTarea(tipo) {
     const txt = NUEVA.txt.trim(); if (!txt) { const i = raiz.querySelector('[data-nueva]'); if (i) i.focus(); return; }
     const valor = { id: M.personal.nuevoId(tipo), txt, tipo, ...(tipo === 'tarea' && NUEVA.fecha ? { fecha: NUEVA.fecha } : {}), ...(NUEVA.cliente ? { cliente: NUEVA.cliente } : {}) };
-    const ok = await guardar({ campo: 'tareaNueva', valor });
-    if (ok) { NUEVA.txt = ''; NUEVA.fecha = ''; NUEVA.cliente = ''; pintar(); }
+    const g = guardar({ campo: 'tareaNueva', valor, nombre: txt });   // ya apuntada: el campo se vacía al momento y se guarda de fondo
+    NUEVA.txt = ''; NUEVA.fecha = ''; NUEVA.cliente = ''; pintar();
+    await g;
   }
   C.nnota = () => crearTarea('nota');
   raiz.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.matches('[data-nueva]')) { e.preventDefault(); crearTarea('tarea'); } });
@@ -1525,7 +2072,7 @@
     const ALM = { boards: 'Tablero', tareas: 'Tarea o nota', clients: 'Cliente', files: 'Foto' };
     const fila2 = (t, s, d) => `<div class="campo" style="cursor:default;align-items:flex-start;padding-top:12px;padding-bottom:12px"><span class="v" style="display:block;white-space:normal"><b>${esc(t)}</b><span class="por">${esc(s)}</span></span></div><div class="botones" style="margin:0 0 12px;padding:0 12px">${d}</div>`;
     const h = hoja(`<h2>Sin subir</h2><p class="ex">${esc(plural(ops.length + nube.length, 'cambio no llegó', 'cambios no llegaron'))} a la Mesa.</p>`
-      + (ops.length ? `<div class="grupo">${ops.map(op => fila2(opQue(op), opTexto(op, op.valor), `<button type="button" class="btn sua" data-des="${esc(op.id)}">Descartar</button><button type="button" class="btn pri" data-sub="${esc(op.id)}">Subir encima</button>`)).join('')}</div>` : '')
+      + (ops.length ? `<div class="grupo">${ops.map(op => fila2(opQue(op) + (op.nombre ? ' · ' + op.nombre : ''), opTexto(op, op.valor), `<button type="button" class="btn sua" data-des="${esc(op.id)}">Descartar</button><button type="button" class="btn pri" data-sub="${esc(op.id)}">Subir encima</button>`)).join('')}</div>` : '')
       + (nube.length ? `<div class="grupo" style="margin-top:12px">${nube.map((x, i) => fila2(`${ALM[x.a] || x.a}`, x.mensaje || x.motivo || '', `<button type="button" class="btn sua" data-ndes="${i}">Descartar</button><button type="button" class="btn pri" data-nsub="${i}">Subir encima</button>`)).join('')}</div>` : '')
       + `<div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Sin subir' });
     h.addEventListener('click', async e => { if (!h.isConnected) return;

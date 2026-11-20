@@ -9,7 +9,7 @@
 // Apagada (lo normal hasta la mudanza, lote 5) no hace nada: ni red ni temporizadores.
 (function (G) {
   'use strict';
-  const VERSION = '1.3';   // 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
+  const VERSION = '1.4';   // 1.4: las fotos de tareas y sesiones bajan al verlas (M.nube.archivo), mira cada 10 s, el avance para el monograma (D-271). 1.3: el iPhone (D-268): mira sin coger la Mesa, la coge sin recargar para cada cambio y la suelta en cuanto sube; «no contesta» al momento; «aparato nuevo». 1.2: la entrada (D-262): «falta el código» (`verificacion`), el avance de la bajada para la pantalla de carga, sin «Entrar y traer tu Mesa»
 
   // ================= el núcleo =================
   const TOPES = Object.freeze({ cambios: 500, valor: 1950000, lote: 3600000, masivo: 20 });   // como jsonb; los del servidor: 500 / 2 MB / 4 MB
@@ -308,7 +308,7 @@
     }
     async function olvidar() { await A.olvidar(); st.cursor = 0; st.epoca = null; }
     async function bajarTodo(ordenMin, t0, yaOlvidada, tope = TIEMPOS.primera, traer = false, quieto = false) {
-      if (!quieto) fase('bajando');   // the phone's look every 45 s doesn't blink «Bajando…» (D-268)
+      if (!quieto) fase('bajando');   // the phone's look every 10 s doesn't blink «Bajando…» (D-268)
       let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null, hechos = 0;
       const avance = () => { try { if (E.avance) E.avance(hechos, st.total || 0); } catch (e) { /* la pantalla de carga no para la bajada */ } };
       avance();
@@ -1077,6 +1077,7 @@
     soltada: async () => { X().movil.turno(false); aCara('soltada', {}); },
     releido: async n => { await X().movil.releer(); aCara('releido', { n }); },
     antesDeSoltar: () => X().movil.esperar(),
+    avance: (h, t) => { try { if (base.avance) base.avance(h, t); } catch (e) { /* la entrada */ } aCara('bajando', { h, t }); },   // lo que baja, también al monograma de la cara (D-271, punto 10)
     estado: e => { ESTADO = e; aCara('estado', e); if ((e.avisos || 0) !== AVS.length && N) N.avisos().then(l => { AVS = l; aCara('avisos', { n: l.length }); }, () => {}); } });   // no desk chip nor its code dialog: the face draws both
   function nucleo() {
     if (N) return N;
@@ -1097,9 +1098,10 @@
     pulso = setInterval(() => { if (N && (!X().locked || MOVIL_G)) N.tic().catch(() => { /* lo dice su estado */ }); }, 1000);   // the phone is «locked» while it looks: its pulse goes on (D-268)
   }
   // M.boot lo llama antes de leer nada (mesa.js, nubeAbrir): primero bajar, después dibujar
-  // the phone (D-268): open looking; then look at once (the face already drew what it has), every 45 s with the screen in front,
+  // the phone (D-268): open looking; then look at once (the face already drew what it has), every 10 s with the screen in front (D-271),
   // on coming back and with the network back; going away with the Mesa, let it go. Never traerResto nor verificarOriginales: each
   // thing comes down when it is seen, and the phone never keeps an original to check.
+  const MIRAR_MS = 10000;   // a change from the desk shows up on the phone without leaving the app (D-271, point 5); never in the background
   let mirarT = 0, DORMIDA = false, OYENDO = false;
   const mirarYa = () => { if (N && !DORMIDA && D.visibilityState === 'visible') N.mirar().then(r => { if (r && r.traido) lsS(TRAER, null); }, () => { /* its state says it */ }); };
   const soltarYa = () => { if (N && !DORMIDA) N.pedirIrse().catch(() => { /* the next time */ }); };
@@ -1113,7 +1115,7 @@
     if (traer && r.traido) lsS(TRAER, null);
     if (r.modo === 'vieja') { const f = X().movil.alVersion; if (f) f(); }
     arrancarPulso();
-    clearInterval(mirarT); mirarT = setInterval(mirarYa, 45000);
+    clearInterval(mirarT); mirarT = setInterval(mirarYa, MIRAR_MS);
     if (!OYENDO) { OYENDO = true; on(D, 'visibilitychange', () => { if (D.visibilityState === 'visible') mirarYa(); else soltarYa(); }); on(G, 'pageshow', mirarYa); on(G, 'online', mirarYa); on(G, 'pagehide', soltarYa); }
     if (!r.traido && r.modo === 'mirando') setTimeout(mirarYa, 0);
     AVS = await nucleo().avisos().catch(() => []);
@@ -1280,14 +1282,50 @@
     return p;
   }
   const MINIS = new Map();
+  // the photos coming down on the phone, counted for its monogram (D-271, point 10): one event per change, never on the desk
+  const BAJAN = { pend: 0, hechas: 0 };
+  const avisarBajan = () => { try { D.dispatchEvent(new CustomEvent('mesa-bajan-fotos', { detail: { pend: BAJAN.pend, hechas: BAJAN.hechas } })); } catch (e) { /* */ } if (!BAJAN.pend) BAJAN.hechas = 0; };
+  const contarBajada = async p => { if (!MOVIL_G) return p; BAJAN.pend++; avisarBajan(); try { return await p; } finally { BAJAN.pend--; BAJAN.hechas++; avisarBajan(); } };
   function pedirMini(id) {
     if (!X().NUBE.activa || MINIS.has(id)) return;
     MINIS.set(id, (async () => {
       const rec = await X().idbGet('files', id); const ref = rec && rec.thumb;
       if (!X().esRefNube(ref) || !ref.ruta) return;
-      const b = await bajarArchivo(ref), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.thumb', ref.sha256, b, null);
+      const b = await contarBajada(bajarArchivo(ref)), n = await X().nubeAlmacen.ponerArchivo('files', id, 'el valor.thumb', ref.sha256, b, null);
       if (n) X().fotoLlego(id, (await X().idbGet('files', id)) || n);   // releído: un Blob en disco, no el de la red en memoria
     })().catch(() => { /* se vuelve a pedir la próxima vez que se vea */ }).finally(() => MINIS.delete(id)));
+  }
+  // the photo of a task or a session on the phone (D-271, point 1): it comes down when it is seen, one at a time (never all at once,
+  // never traerResto, D-268): the 1.600 px photo (`blob`; the 160 px `mini` is not enough at 3×, and sesiones.js wants the `blob`).
+  // What is already here is given as it is; the same photo asked twice is one download. Without the cloud or on a failure: null.
+  const RUTA_FOTO = { tareas: /^el valor\.fotos\[\d+\]\.blob$/, tfotos: /^el valor\.blob$/ };   // the core's paths (refsCon)
+  const FOTOS_ARCH = new Map(); let unaFoto = Promise.resolve();
+  const enRutaV = (v, ruta) => { let x = v; for (const p of String(ruta).replace(/^el valor/, '').match(/[^.[\]]+/g) || []) { if (x == null || typeof x !== 'object') return undefined; x = x[/^\d+$/.test(p) && Array.isArray(x) ? +p : p]; } return x; };
+  function archivoFoto(a, k, ruta) {
+    if (!RUTA_FOTO[a] || !RUTA_FOTO[a].test(String(ruta))) return Promise.resolve(null);
+    const c = a + '\u0001' + k + '\u0001' + ruta;
+    if (FOTOS_ARCH.has(c)) return FOTOS_ARCH.get(c);
+    const p = (async () => {
+      const r = enRutaV(await X().idbGet(a, k).catch(() => null), ruta);
+      if (r instanceof Blob) return r;
+      if (!X().esRefNube(r) || !r.ruta || !X().NUBE.activa) return null;
+      const antes = unaFoto; let suelta = () => {}; unaFoto = new Promise(res => { suelta = res; });   // one at a time
+      try {
+        const b = await contarBajada((async () => { await antes; return bajarArchivo(r); })());   // counted from the queue: the monogram sees all that waits
+        if (!(await X().nubeAlmacen.ponerArchivo(a, k, ruta, r.sha256, b, null))) return null;   // the record changed meanwhile
+        const r2 = enRutaV(await X().idbGet(a, k), ruta);   // read again: a Blob on disk, not the one from the network
+        if (r2 instanceof Blob) {   // it is already up: when its record goes up again (a task marked done), it goes as its reference, never uploaded again
+          await registro().catch(() => null);
+          const y = { tam: r2.size, tipo: r2.type || '', fecha: typeof r2.lastModified === 'number' ? r2.lastModified : null, sha256: r.sha256 };
+          HU.set(c, y); SUBIDOS.set(r.sha256, { ruta: r.ruta });
+          await X().nubeAlmacen.ponerHuella(a, k, ruta, y).catch(() => null); await X().nubeAlmacen.ponerSubido(r.sha256, { ruta: r.ruta }).catch(() => null);
+        }
+        try { D.dispatchEvent(new CustomEvent('mesa-archivo-llego', { detail: { a, k, ruta } })); } catch (e) { /* */ }
+        return r2 instanceof Blob ? r2 : null;
+      } finally { suelta(); }
+    })().catch(() => null);
+    FOTOS_ARCH.set(c, p); p.then(() => FOTOS_ARCH.delete(c));
+    return p;
   }
   // un Blob de aquí que es el original de esa huella (la misma foto bajo otro id, p. ej. llevada a otro post en el otro ordenador)
   async function originalAqui(sha, tam, tipo) {
@@ -1648,6 +1686,7 @@
     soltar: () => (N && !DORMIDA ? N.soltar() : Promise.resolve(DORMIDA ? { error: 'dormida' } : { hecho: true })), retener: v => { if (N && !DORMIDA) N.retener(v); },
     forzarAqui: visto => (N && !DORMIDA ? N.forzar(+visto) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),   // a sleeping tab touches nothing (review 2, point 7)
     subirEncima: claves => (N && !DORMIDA ? N.subirEncima(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })), descartar: claves => (N && !DORMIDA ? N.descartar(claves) : Promise.resolve({ error: DORMIDA ? 'dormida' : 'apagada' })),
+    archivo: (a, k, ruta) => archivoFoto(a, k, ruta),   // a task's or a session's photo, when the phone shows it (D-271)
     sinSubir: () => X().nubeAlmacen.sinSubir(), estadoYa: () => (N ? N.estado() : { fase: 'apagada' }), conTurno: () => !!(N && N.conTurno()),
     alEstado: f => { CARA.add(f); return () => CARA.delete(f); },
     _dormir: () => { DORMIDA = true; clearInterval(pulso); clearInterval(mirarT); if (N && N.dormir) N.dormir(); },   // another tab of this phone took over: this one does nothing more (it never lets the Mesa go: it is the same device)
@@ -1656,7 +1695,7 @@
     _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
     _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); estilar(); return AVS.length; },
     _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, movil: MOVIL_G, efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } }) }); X().NUBE.alApuntar = () => N.cambio(); return N; },
-    _soltar: () => { clearInterval(pulso); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
+    _soltar: () => { clearInterval(pulso); clearInterval(mirarT); FOTOS_ARCH.clear(); unaFoto = Promise.resolve(); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
   if (X().NUBE.activa) { sb().alCambiar(u => { const n = sb().nivel && sb().nivel(); if (u && N && (ESTADO.fase === 'sin_sesion' || (ESTADO.fase === 'sin_codigo' && n && n.aal === 'aal2'))) N.reintentar(); }); if (!MOVIL_G) trasArmazon(() => pintar()); }

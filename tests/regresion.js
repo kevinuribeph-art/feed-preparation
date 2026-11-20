@@ -18927,7 +18927,7 @@
     const tx = async u => (await W.fetch(u + '?mv17=' + Date.now(), { cache: 'no-store' })).text();
     const mv = await tx('movil.html'), ix = await tx('index.html');
     const scripts = [...mv.matchAll(/<script[^>]*\ssrc="([^"?]+)/g)].map(m => m[1]);
-    igual(scripts, ['vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'movil.js'], 'los scripts de movil.html');
+    igual(scripts, ['tema.js', 'vigia.js', 'mesa.js', 'portal/supa.js', 'entrada.js', 'nube.js', 'personal.js', 'web.js', 'escritura.js', 'sesiones.js', 'movil.js'], 'los scripts de movil.html');   // tema.js: el modo elegido antes de pintar (D-271, punto 11); sesiones.js: la sesión entera (D-275)
     ok(!/<script(?![^>]*\ssrc=)[^>]*>/.test(mv.replace(/<!--[\s\S]*?-->/g, '')) && !/\son[a-z]+\s*=/.test(mv.replace(/<!--[\s\S]*?-->/g, '')), 'movil.html con un script en línea o un manejador');
     ok(!/\basync\b/.test(scripts.join(' ')) && !/<script async/.test(mv), 'un script async en movil.html');
     const csp = t => (t.match(/Content-Security-Policy" content="([^"]*)"/) || [])[1];
@@ -18959,7 +18959,7 @@
     const key = await tableroMovil();
     await enMovilPagina(async () => {
       const MV = W.MESA; await MV.movil.releer();   // con el reloj de la batería (aMarco lo pone tras cargar)
-      const R = await MV.personal.datos({ modo: 'semana', desp: 0, avTareas: true });
+      const R = await MV.personal.datos({ modo: 'semana', desp: 0, avTareas: false });   // Hoy abre con «Tareas» apagado, como el Mac (D-271, punto 2)
       await hasta(() => W.document.querySelector('#movil .cifras'), 6000, 'las cifras'); await espera(200);
       igual([...W.document.querySelectorAll('#movil .cifra .v')].map(x => +x.textContent), ['pasado', 'hoy', 'man', 'espera', 'falta'].map(k => R.cifras[k] || 0), 'las cifras de Hoy no son las del núcleo');
       const textos = [], malos = [];
@@ -19004,7 +19004,7 @@
   const hojaCara = async (sel, que) => { await hasta(() => W.document.querySelector('#movil .hoja ' + sel), 4000, que); await espera(60); return W.document.querySelector('#movil .hoja'); };
   const tareaDe = async txt => (await M._in.idbAll('tareas')).filter(t => t.txt === txt);
 
-  prueba('MV23', 'Guardar desde el móvil (D-268, D-270): la fecha se elige en el calendario de la Mesa; «Guardar» enseña «Guardando en la Mesa», coge la Mesa (el Mac sube y la suelta), aplica la operación y la suelta; un doble toque guarda una vez', async () => {
+  prueba('MV23', 'Guardar desde el móvil (D-268, D-270, D-271 punto 9): la fecha se elige en el calendario de la Mesa; «Guardar» la enseña al momento con su aro, sin hoja que tape la pantalla, coge la Mesa (el Mac sube y la suelta), aplica la operación y la suelta; un doble toque guarda una vez', async () => {
     const key = await tableroMovil();
     await enMovilPagina(async () => {
       const C = await nubeCara(key);
@@ -19012,8 +19012,13 @@
         await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
         clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
         clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 300;   // un servidor algo lento: se ve lo que hay mientras guarda
         const g = W.document.querySelector('#movil .hoja [data-a2="guardar"]'); g.click(); g.click();   // el doble toque
-        ok(W.document.querySelector('#movil .hoja .prog'), 'sin «Guardando en la Mesa»');
+        await espera(60);
+        ok(!W.document.querySelector('#movil .hoja'), 'una hoja tapa la pantalla mientras guarda');
+        const f0 = W.document.querySelector('#movil [data-a="fecha"]');
+        ok(/10 nov/i.test(f0.textContent) && f0.querySelector('.mv-gira'), 'la fecha nueva no se ve al momento con su aro: ' + f0.textContent);
+        C.corte.demora = 0;
         await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
         const d = (await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date;
         igual([M._in.localDay(d), M._in.localTime(d)], ['2026-11-10', '12:00'], 'la fecha guardada');
@@ -19467,6 +19472,683 @@
         igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date), '2026-11-12', 'la fecha final');
       } finally { await C.fin(); }
     });
+  });
+
+  // ===== ajustes tras probarla en el iPhone (D-271) =====
+  // fotos como bajadas del servidor (lección 197): la miniatura aquí y el original aún arriba (`blob` referencia), como FT3
+  async function comoBajadas(key) {
+    const ids = [...new Set((await M._in.idbGet('boards', key)).slots.flatMap(s => s.photos || []))];
+    for (const id of ids) {
+      const rec = await M._in.idbGet('files', id);
+      const ref = { __blob: 'pendiente', sha256: 'cd'.repeat(32), tam: rec.size || 1000, tipo: rec.type || 'image/jpeg', nombre: rec.name, fecha: 1, ruta: `files/${id}.jpg` };
+      await M._in.diario.sinDiario('files', 'readwrite', st => st.put({ ...rec, blob: ref }, id));
+      M._in.soltarArchivo(id);
+    }
+    await M._in.diario.vaciar();
+    return ids;
+  }
+  const aLaVista = () => fr$().scrollIntoView({ block: 'start' });   // las fotos se dibujan al entrar en la vista de la página de la batería (IntersectionObserver)
+  const verFoto = img => !!img && img.naturalWidth > 4 && img.naturalHeight > 4;   // el hueco mide 4×5
+  const proporcion = (img, r) => Math.abs(img.naturalWidth / img.naturalHeight - r) / r < 0.03;
+
+  prueba('MV44', 'Las fotos bajadas del servidor se ven en el iPhone (D-271, punto 1; lecciones 197 y 198): con la miniatura aquí y el original aún arriba, la lista del mes y la publicación enseñan cada foto con la proporción de su recorte, nunca «Llega en un momento»', async () => {
+    const key = await tableroMovil(); await comoBajadas(key);
+    await enMovilPagina(async () => {
+      aLaVista(); await irMovil('#hoy', '#movil .cifras');
+      const hoyI = () => [...W.document.querySelectorAll('#movil .fila .ft img.mi')];
+      if (hoyI().length) await hasta(() => hoyI().every(verFoto), 8000, 'las miniaturas de Hoy');
+      await irMovil(`#mes/${key}/lista`, '#movil .fila .ft img.mi');
+      const lista = () => [...W.document.querySelectorAll('#movil .fila .ft img.mi')];
+      await hasta(() => lista().length >= 3 && lista().every(verFoto), 8000, 'las miniaturas de la lista');
+      ok(![...W.document.querySelectorAll('#movil .fila .ft .hueco')].some(h => !h.hidden), 'la lista enseña «Llega en un momento»');
+      for (const id of ['r1', 'r2', 'r3']) {
+        await irMovil(`#pub/${key}/${id}`, '#movil .car .lam img.mi');
+        const p = M.movil._L.vista.posts.find(x => x.id === id), imgs = [...W.document.querySelectorAll('#movil .car .lam img.mi')], tira = W.document.querySelector('#movil [data-car]');
+        igual(imgs.length, p.fotos.length, 'las fotos de ' + id);
+        for (let i = 0; i < imgs.length; i++) {
+          if (tira) tira.scrollLeft = i * tira.clientWidth;   // la siguiente se dibuja al acercarse a la vista
+          await hasta(() => verFoto(imgs[i]), 8000, `la foto ${i + 1} de ${id}`);
+          ok(proporcion(imgs[i], p.recortes[i].ratio), `la proporción de la foto ${i + 1} de ${id}: ${imgs[i].naturalWidth}×${imgs[i].naturalHeight} frente a ${p.recortes[i].ratio}`);
+        }
+        ok(![...W.document.querySelectorAll('#movil .car .hueco')].some(h => !h.hidden), id + ' enseña «Llega en un momento»');
+      }
+    });
+  });
+
+  prueba('MV45', 'Las fotos de una tarea bajan al verla en el iPhone (D-271, punto 1; lecciones 197 y 199): con la nube, al abrir la tarea se bajan una a una (nunca dos a la vez), sin diario, y se ven con su proporción; marcarla hecha después no las vuelve a subir (suben como su referencia)', async () => {
+    await tablero([pub(1)]);
+    await enMovilPagina(async () => {
+      const F = ftMundo(), a = await ftJpeg(1200, 800, '#7a4a3c'), b = await ftJpeg(800, 1200, '#3c6a7a'), sa = await ftHuella(a), sb = await ftHuella(b);
+      F.arch.set(`tareas/${sa}.jpg`, a); F.arch.set(`tareas/${sb}.jpg`, b);
+      let enVuelo = 0, maxVuelo = 0, pedidas = 0; const arch0 = F.al.archivo;
+      F.al.archivo = async (...x) => { pedidas++; enVuelo++; maxVuelo = Math.max(maxVuelo, enVuelo); try { await espera(150); return await arch0(...x); } finally { enVuelo--; } };
+      const ref = (s, x) => ({ __blob: 'pendiente', sha256: s, tam: x.size, tipo: 'image/jpeg', ruta: `tareas/${s}.jpg` });
+      const id = 'tkmv45fotostarea', ahora = new W.Date().toISOString();
+      const rec = { id, tipo: 'tarea', txt: 'Revisar las fotos de la sesión de otoño en la panadería del barrio', creada: ahora, at: ahora, fotos: [{ id: 'tfmv45a', w: 1200, h: 800, blob: ref(sa, a), mini: ref(sa, a) }, { id: 'tfmv45b', w: 800, h: 1200, blob: ref(sb, b), mini: ref(sb, b) }] };
+      try {
+        await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(rec, id)); await M._in.diario.vaciar();
+        M._in.NUBE.activa = true; const n = M.nube._con(F.sv, F.al); aLaVista();
+        igual((await n.abrir()).modo, 'mirando', 'la nube del iPhone no abrió mirando');
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+        await hojaCara('.mv-tira', 'la tira de fotos de la tarea');
+        const imgs = () => [...W.document.querySelectorAll('#movil .hoja .mv-tf img.mi')];
+        igual(imgs().length, 2, 'las fotos de la tarea');
+        await hasta(() => imgs().every(verFoto), 10000, 'las fotos de la tarea');
+        imgs().forEach((im, i) => ok(proporcion(im, [1.5, 2 / 3][i]), `la proporción de la foto ${i + 1}: ${im.naturalWidth}×${im.naturalHeight}`));
+        igual([pedidas, maxVuelo], [2, 1], 'bajadas y a la vez');
+        const r2 = await M._in.idbGet('tareas', id);
+        ok(r2.fotos.every(f => f.blob instanceof W.Blob), 'el registro sin sus fotos bajadas');
+        igual((await M._in.diario.leer()).filter(e => e.a === 'tareas').length, 0, 'bajar se apuntó en el diario');
+        // marcarla hecha: el registro sube con sus fotos como referencias, sin volver a subir ninguna
+        clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(400);   // la hoja de la tarea es editable (D-272)
+        await hasta(() => M.movil._ST.fase === 'mirando', 4000, 'la cara mirando');
+        clicCara(`#movil .casilla[data-id="${id}"]`);
+        await hasta(async () => !M.movil._ST.guardando && F.valor('tareas', id) && F.valor('tareas', id).hecha, 15000, 'la tarea hecha arriba');
+        const arriba = F.valor('tareas', id);
+        ok(arriba.fotos.every((f, i) => f.blob && f.blob.__blob && f.blob.sha256 === [sa, sb][i]), 'las fotos de arriba no son sus referencias: ' + json(arriba.fotos.map(f => f.blob)));
+        igual(F.subidas.filter(x => /^tareas\//.test(x)), [], 'marcarla hecha volvió a subir sus fotos');
+      } finally { await nbLimpiar(); await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); try { W.localStorage.removeItem('mesa-movil-ops'); } catch (e) { /* */ } }
+    });
+  });
+
+  prueba('MV46', 'El iPhone baja la foto de una sesión cuando se ve (D-271, punto 1; lecciones 199 y 200): MESA.nube.archivo baja el `blob` de `tfotos`, lo escribe sin diario y avisa; pedirla dos veces es una bajada; lo que ya está aquí se da tal cual; el `mini`, no; sin nube, nada', async () => {
+    await tablero([pub(1)]);
+    await enMovilPagina(async () => {
+      const F = ftMundo(), a = await ftJpeg(1600, 1067, '#556b2f'), sa = await ftHuella(a), k = 'tfmv46sesion';
+      F.arch.set(`tfotos/${sa}.jpg`, a);
+      let pedidas = 0; const arch0 = F.al.archivo; F.al.archivo = async (...x) => { pedidas++; return arch0(...x); };
+      const ref = { __blob: 'pendiente', sha256: sa, tam: a.size, tipo: 'image/jpeg', ruta: `tfotos/${sa}.jpg` };
+      const llegadas = [], oye = e => llegadas.push(e.detail); W.document.addEventListener('mesa-archivo-llego', oye);
+      try {
+        await M._in.diario.sinDiario('tfotos', 'readwrite', st => st.put({ id: k, w: 1600, h: 1067, blob: ref, mini: { ...ref } }, k)); await M._in.diario.vaciar();
+        igual(await M.nube.archivo('tfotos', k, 'el valor.blob'), null, 'sin nube dio algo');
+        igual(pedidas, 0, 'sin nube se pidió');
+        M._in.NUBE.activa = true; M.nube._con(F.sv, F.al);
+        const [b1, b2] = await Promise.all([M.nube.archivo('tfotos', k, 'el valor.blob'), M.nube.archivo('tfotos', k, 'el valor.blob')]);
+        ok(b1 instanceof W.Blob && b1.size === a.size && b2 && b2.size === a.size, 'la foto bajada');
+        igual(pedidas, 1, 'dos peticiones de la misma foto');
+        const r = await M._in.idbGet('tfotos', k);
+        ok(r.blob instanceof W.Blob && r.blob.size === a.size && M._in.esRefNube(r.mini), 'el registro tras bajar');
+        igual(llegadas.map(x => x.a + '|' + x.k + '|' + x.ruta), ['tfotos|' + k + '|el valor.blob'], 'el aviso de que llegó');
+        igual((await M._in.diario.leer()).filter(e => e.a === 'tfotos').length, 0, 'bajar se apuntó en el diario');
+        const b3 = await M.nube.archivo('tfotos', k, 'el valor.blob');
+        ok(b3 && b3.size === a.size && pedidas === 1, 'la de aquí se volvió a bajar');
+        igual(await M.nube.archivo('tfotos', k, 'el valor.mini'), null, 'el mini se bajó');
+      } finally { W.document.removeEventListener('mesa-archivo-llego', oye); await nbLimpiar(); await M._in.diario.sinDiario('tfotos', 'readwrite', st => st.delete(k)); await M._in.diario.vaciar(); }
+    });
+  });
+
+  prueba('MV52', 'Hoy con el interruptor «Tareas» (D-271, punto 2; lección 233): al abrir la app está apagado y las cinco cifras son las de la página del Mac recién abierta; encendido, las del Mac con «Tareas» (una tarea vencida sale solo entonces); al volver a abrir, apagado; su diana, de 44 px', async () => {
+    await tableroMovil();
+    const h = M._in.hoy(), antes = new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) - 2)).toISOString().slice(0, 10);
+    const id = 'tkmv52vencidaayer', txt = 'Llamar al proveedor de café para cerrar el pedido de noviembre', ahora = new W.Date().toISOString();
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put({ id, tipo: 'tarea', txt, fecha: antes, creada: ahora, at: ahora }, id));
+    const cinco = R => ['pasado', 'hoy', 'man', 'espera', 'falta'].map(k => R.cifras[k] || 0);
+    // el Mac: su página recién abierta (el interruptor apagado, D-180) y con «Tareas» encendido
+    await M.personal.abrir(); const mac0 = cinco(await M.personal.datos());
+    await M.personal.set({ avTareas: true }); const mac1 = cinco(await M.personal.datos()); M.personal.cerrar();
+    ok(mac1[0] > mac0[0], 'en el Mac la tarea vencida no cuenta con «Tareas»: ' + json([mac0, mac1]));
+    try {
+      await enMovilPagina(async () => {
+        await M.movil.releer();
+        const cifras = () => [...W.document.querySelectorAll('#movil .cifra .v')].map(x => +x.textContent), sw = () => W.document.querySelector('#movil [data-a="avt"]');
+        await hasta(() => sw() && W.document.querySelector('#movil .cifras'), 6000, 'el interruptor de Hoy');
+        ok(sw().getAttribute('role') === 'switch' && sw().getAttribute('aria-checked') === 'false', 'el interruptor no empieza apagado');
+        igual(cifras(), mac0, 'apagado, las cifras no son las de la página del Mac');
+        ok(!W.document.getElementById('movil').innerText.includes(txt), 'apagado, sale la tarea');
+        const d = diana(sw()); ok(d.h >= 44 - 0.5 && d.w >= 44, 'la diana del interruptor: ' + d.w + '×' + d.h);
+        sw().click();
+        await hasta(() => W.document.getElementById('movil').innerText.includes(txt), 4000, 'la tarea con «Tareas» encendido');
+        ok(sw().getAttribute('aria-checked') === 'true', 'el interruptor no quedó encendido');
+        igual(cifras(), mac1, 'encendido, las cifras no son las del Mac con «Tareas»');
+        W.__mv52 = 1; W.location.reload();
+        await hasta(() => !W.__mv52 && W.MESA && W.MESA.movil && sw(), 15000, 'Hoy otra vez');
+        M = W.MESA; if (M._test && M._test.reloj) M._test.reloj(RELOJ_PRUEBAS);   // tras recargar, el MESA de la página vieja ya no contesta
+        ok(sw().getAttribute('aria-checked') === 'false', 'al volver a abrir no está apagado');
+      });
+    } finally { await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
+  });
+
+  prueba('MV50', 'Atrás en el iPhone (D-271, punto 3; lección 223): cambiar de vista o de mes no apila; «‹ Clientes» va directo a Clientes; una publicación abierta desde Hoy dice «‹ Hoy» y vuelve a Hoy; desde el mes, «‹ <mes>» y vuelve a esa vista; abierta sin historial, vuelve a su lista sin history.back()', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const H = W.history, c = { push: 0, back: 0 }, p0 = H.pushState, b0 = H.back;
+      H.pushState = function (...a) { c.push++; return p0.apply(H, a); }; H.back = function () { c.back++; return b0.apply(H); };
+      const toca = async (sel, que) => { await hasta(() => W.document.querySelector(sel), 6000, que || sel); W.document.querySelector(sel).click(); await espera(250); };
+      const hash = () => decodeURIComponent(W.location.hash.slice(1)), volver = () => (W.document.querySelector('#movil .top .back span') || {}).textContent;
+      try {
+        await toca('#movil .tab[data-ir="clientes"]', 'la pestaña Clientes');
+        await toca(`#movil .cli[data-ir^="mes/${key}/"]`, 'el cliente');
+        const mesDe = id => M.movil._L.vista.posts.find(x => x.id === id).mes, nombreMes = m => W.MESA._in.MONTHS[+m.slice(5, 7) - 1].replace(/^./, x => x.toUpperCase());
+        igual([c.push, volver()], [1, 'Clientes'], 'abrir el mes');
+        await toca(`#movil .seg [data-ir^="mes/${key}/cal"]`, 'Calendario');
+        await toca(`#movil .seg [data-ir^="mes/${key}/hist"]`, 'Historias');
+        await toca(`#movil .seg [data-ir^="mes/${key}/lista"]`, 'Lista');
+        igual(c.push, 1, 'cambiar de vista apiló');
+        await toca('#movil .top .back', '‹ Clientes');
+        await hasta(() => hash() === 'clientes', 4000, 'Clientes');
+        igual(c.back, 1, '«‹ Clientes» no volvió atrás una vez');
+        // desde Hoy: «‹ Hoy»
+        await toca('#movil .tab[data-ir="hoy"]', 'la pestaña Hoy');
+        await toca(`#movil .fila[data-ir^="pub/${key}/"]`, 'una publicación de Hoy');
+        igual(volver(), 'Hoy', 'la publicación abierta desde Hoy');
+        await toca('#movil .top .back', '‹ Hoy');
+        await hasta(() => hash() === 'hoy', 4000, 'Hoy');
+        const fh = W.document.querySelector(`#movil .fila[data-ir^="mes/${key}/hist"]`);
+        if (fh) { fh.click(); await espera(250); igual(volver(), 'Hoy', 'el mes abierto desde las historias de Hoy'); await toca('#movil .top .back', '‹ Hoy desde el mes'); await hasta(() => hash() === 'hoy', 4000, 'Hoy desde el mes'); }
+        await toca('#movil .tab[data-ir="clientes"]'); await toca(`#movil .cli[data-ir^="mes/${key}/"]`); const b0 = c.back;
+        await toca('#movil .tab[data-ir="clientes"]', 'la pestaña Clientes desde el mes');
+        await hasta(() => hash() === 'clientes', 4000, 'Clientes desde la pestaña'); igual(c.back, b0 + 1, 'la pestaña no volvió atrás (el gesto de Safari haría otra cosa)');
+        // desde el mes en Calendario: «‹ <mes>» y vuelve a esa vista
+        await toca('#movil .tab[data-ir="clientes"]'); await toca(`#movil .cli[data-ir^="mes/${key}/"]`); await toca(`#movil .seg [data-ir^="mes/${key}/cal"]`);
+        const enCal = hash();
+        await toca(`#movil .fila[data-ir^="pub/${key}/"]`, 'una publicación del calendario');
+        const mCal = enCal.split('/')[3]; igual(volver(), nombreMes(/^\d{4}-\d{2}$/.test(mCal || '') ? mCal : mesDe(hash().split('/')[2])), 'la publicación abierta desde el mes');
+        const b1 = c.back; await toca('#movil .top .back', '‹ mes');
+        await hasta(() => hash() === enCal, 4000, 'el calendario del mes');
+        igual(c.back, b1 + 1, 'volver al mes no fue history.back()');
+        // abierta sin historial (al volver a abrir la app en ella): vuelve a su lista sin history.back()
+        H.replaceState(null, '', '#pub/' + key + '/r1'); W.dispatchEvent(new W.PopStateEvent('popstate')); await espera(300);
+        const b2 = c.back; await toca('#movil .top .back', '‹ mes sin historial');
+        await hasta(() => hash() === `mes/${key}/lista/${mesDe('r1')}`, 4000, 'su lista');
+        igual(c.back, b2, 'sin historial usó history.back()');
+        await toca('#movil .top .back', '‹ Clientes sin historial');
+        await hasta(() => hash() === 'clientes', 4000, 'Clientes sin historial');
+        igual(c.back, b2, 'sin historial usó history.back() hacia Clientes');
+      } finally { H.pushState = p0; H.back = b0; }
+    });
+  });
+
+  prueba('MV53', 'Los captions enteros en la publicación del iPhone (D-271, punto 4): uno de 2.200 caracteres en 20 líneas sale entero, sin plegar ni «Ver entero»', async () => {
+    const key = await tableroMovil();
+    const largo = Array.from({ length: 20 }, (_, i) => `Línea ${i + 1}: pan recién hecho cada mañana, mantequilla cultivada y café de tueste claro en la barra del obrador. `).join('\n').padEnd(2200, '·').slice(0, 2200);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'Cercano', text: largo }, { tone: 'Profesional', text: 'dos' }, { tone: 'Poético', text: 'tres' }], force: true }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0 } }); await M.flush();
+    await enMovilPagina(async () => {
+      await irMovil(`#pub/${key}/r1`, '#movil .cap-b .cap-t');
+      const t = W.document.querySelector('#movil .cap-b .cap-t');
+      igual(t.textContent.length, 2200, 'el caption');
+      ok(t.scrollHeight - t.clientHeight <= 1 && W.getComputedStyle(t).webkitLineClamp === 'none', 'el caption plegado: ' + t.clientHeight + ' de ' + t.scrollHeight);
+      ok(!/Ver entero|Ver menos/.test(W.document.getElementById('movil').innerText), 'sale «Ver entero»');
+    });
+  });
+
+  prueba('MV48', 'Mirar cada 10 s con la pantalla delante (D-271, punto 5; lección 225): tras abrir la nube del iPhone, la mirada de abrir y otra antes de 10,6 s; con la app en segundo plano, ninguna', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const sv = srvMovil(key), n = M.nube._con({ rpc: (fn, a) => sv.rpc(fn, a) });
+      let k = 0; const m0 = n.mirar; n.mirar = function (...a) { k++; return m0.apply(n, a); };
+      M._in.NUBE.activa = true; await M._in.diario.vaciar();
+      try {
+        const r = await M.nube._abrir(); igual(r && r.modo, 'mirando', 'la nube del iPhone no abrió mirando');
+        await espera(10600);
+        ok(k >= 2, 'en 10,6 s, ' + k + ' miradas (la de abrir y otra a los 10 s)');
+        Object.defineProperty(W.document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        const k1 = k; await espera(10600);
+        igual(k, k1, 'en segundo plano miró');
+      } finally { delete W.document.visibilityState; await nbLimpiar(); }
+    });
+  });
+
+  prueba('MV54', 'Releer lo bajado no rehace la pantalla del iPhone (D-271, punto 5): con mirar cada 10 s, una bajada que no cambia la publicación no la vuelve a dibujar (el carrusel sigue en su foto y sus imágenes son las mismas); una que la cambia, la redibuja en la misma foto del carrusel', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      aLaVista(); await irMovil(`#pub/${key}/r2`, '#movil .car .lam img.mi');
+      const tira = () => W.document.querySelector('#movil [data-car]');
+      await hasta(() => tira() && tira().scrollWidth > tira().clientWidth, 4000, 'el carrusel');
+      tira().scrollLeft = tira().clientWidth; await espera(300);
+      const t0 = tira(), img0 = W.document.querySelector('#movil .car .lam img.mi');
+      await M.movil.releer(); await espera(300);
+      ok(tira() === t0 && img0.isConnected, 'releer sin cambios volvió a dibujar la publicación');
+      igual(Math.round(tira().scrollLeft / tira().clientWidth), 1, 'el carrusel volvió a la primera foto');
+      // la publicación cambia por debajo (como al bajar de la nube): se redibuja, en la misma foto
+      const B = await M._in.idbGet('boards', key); B.slots.find(x => x.id === 'r2').name = 'Carrusel de otoño con nombre cambiado en la Mesa';
+      await M._in.diario.sinDiario('boards', 'readwrite', st => st.put(B, key)); await M._in.diario.vaciar();
+      await M._in.movil.releer(); await M.movil.releer(); await espera(300);
+      await hasta(() => /nombre cambiado en la Mesa/.test(W.document.querySelector('#movil .pub-h h1').textContent), 4000, 'el nombre nuevo');
+      igual(Math.round(tira().scrollLeft / tira().clientWidth), 1, 'tras redibujar, el carrusel volvió a la primera foto');
+      // desde Hoy: lo que baja de la publicación abierta se ve al volver a ella (revisión funcional, MEDIA 2)
+      await irMovil('#hoy', '#movil .cifras');
+      const B2 = await M._in.idbGet('boards', key); B2.slots.find(x => x.id === 'r2').name = 'Carrusel de otoño cambiado otra vez desde Hoy';
+      await M._in.diario.sinDiario('boards', 'readwrite', st => st.put(B2, key)); await M._in.diario.vaciar();
+      await M._in.movil.releer(); await M.movil.releer(); await espera(200);
+      await irMovil(`#pub/${key}/r2`, '#movil .pub-h h1');
+      ok(/cambiado otra vez desde Hoy/.test(W.document.querySelector('#movil .pub-h h1').textContent), 'al volver, la publicación enseña lo viejo: ' + W.document.querySelector('#movil .pub-h h1').textContent);
+    });
+  });
+
+  prueba('MV51', 'El iPhone en apaisado a pantalla completa (D-271, punto 6; lecciones 226 y 227): a 956×440 el contenido, la barra de pestañas y las hojas ocupan el ancho, sin salirse; los textos largos con su ancho de lectura; la foto entera cabe en el alto; la zona segura de los lados llega también a lo fijo', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const ancho = sel => { const e = W.document.querySelector(sel); return e ? e.getBoundingClientRect().width : 0; }, sale = () => W.document.documentElement.scrollWidth - W.innerWidth;
+      await irMovil('#hoy', '#movil .cifras');
+      ok(ancho('#movil .main') >= W.innerWidth - 1 && ancho('#movil .tabs-in') >= W.innerWidth - 1, 'Hoy no ocupa el ancho: ' + ancho('#movil .main') + ' y ' + ancho('#movil .tabs-in') + ' de ' + W.innerWidth);
+      ok(sale() <= 0, 'Hoy se sale ' + sale() + ' px');
+      await irMovil(`#pub/${key}/r1`, '#movil .car .lam');
+      ok(ancho('#movil .main') >= W.innerWidth - 1 && sale() <= 0, 'la publicación no ocupa el ancho o se sale');
+      const lam = W.document.querySelector('#movil .car .lam').getBoundingClientRect();
+      ok(lam.height <= W.innerHeight * 0.7 + 1, 'la foto no cabe en el alto: ' + lam.height);
+      const t = W.document.querySelector('#movil .cap-t'); ok(t && t.getBoundingClientRect().width < 720 && W.getComputedStyle(t).maxWidth !== 'none', 'el caption sin ancho de lectura: ' + (t && t.getBoundingClientRect().width));
+      clicCara('#movil [data-a="estado"]'); await hojaCara('.estados', 'la hoja del estado');
+      ok(ancho('#movil .hoja') >= W.innerWidth - 1, 'la hoja no ocupa el ancho: ' + ancho('#movil .hoja'));
+      // la zona segura de los lados (Chrome no la emula: se fuerza su variable) llega a la barra, al contenido, a las pestañas y a la hoja
+      const raizM = W.document.getElementById('movil'); raizM.style.setProperty('--sa-l', '47px'); raizM.style.setProperty('--sa-r', '47px'); await espera(60);
+      const pl = sel => parseFloat(W.getComputedStyle(W.document.querySelector(sel)).paddingLeft);
+      ok(pl('#movil .top-in') >= 47 && pl('#movil .main') >= 47 && pl('#movil .hoja') >= 47, 'la zona segura no llega: ' + json([pl('#movil .top-in'), pl('#movil .main'), pl('#movil .hoja')]));
+      raizM.style.removeProperty('--sa-l'); raizM.style.removeProperty('--sa-r');
+      W.document.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); raizM.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await espera(400);
+      await irMovil('#tareas', '#movil .nueva');
+      ok(pl('#movil .tabs-in') >= 0 && ancho('#movil .tabs-in') >= W.innerWidth - 1, 'las pestañas en Tareas');
+    }, { w: 956, h: 440 });
+  });
+
+  // un arrastre con el dedo sobre un elemento del iPhone (toques sintéticos: la cara solo lee touches, timeStamp y target)
+  const toqueMv = (el, tipo, x, y) => { const e = new W.Event(tipo, { bubbles: true, cancelable: true }); Object.defineProperty(e, 'touches', { value: tipo === 'touchend' ? [] : [{ clientX: x, clientY: y, identifier: 1, target: el }] }); el.dispatchEvent(e); return e; };
+  async function arrastrarMv(el, dy, pasos = 4, ms = 0) {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + Math.min(10, r.height / 2);
+    toqueMv(el, 'touchstart', x, y); let movido = null;
+    for (let i = 1; i <= pasos; i++) { if (ms) await espera(ms); const e = toqueMv(el, 'touchmove', x, y + dy * i / pasos); if (movido === null) movido = e.defaultPrevented; }
+    toqueMv(el, 'touchend', x, y + dy); return movido;
+  }
+  prueba('MV47', 'Cerrar una hoja del iPhone arrastrándola hacia abajo (D-271, punto 7; lecciones 201–204 y 224): desde su cabecera o, arriba del todo, desde cualquier punto; lanzada deprisa se cierra y despacio y corta vuelve; desde las ruedas, nunca; tras redibujarse, igual; el foco vuelve; arrastrar «no contesta» es «Ahora no» y «Guardar» no se queda colgado', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    await enMovilPagina(async () => {
+      const { decidirArrastre: dec, cierraArrastre: cie } = M.movil._t;
+      ok(dec({ dy: 6, dx: 1, enCabecera: true }) && dec({ dy: 6, dx: 0, arriba: true }) && !dec({ dy: 6, dx: 0, arriba: false }) && !dec({ dy: 6, dx: 0, enCabecera: true, enControl: true }) && !dec({ dy: -6, dx: 0, enCabecera: true }) && !dec({ dy: 3, dx: 9, enCabecera: true }), 'cuándo tira de la hoja');
+      ok(cie({ dy: 30, v: 1.2, alto: 500 }) && !cie({ dy: 30, v: 0.1, alto: 500 }) && cie({ dy: 300, v: 0, alto: 500 }) && !cie({ dy: 10, v: 0.6, alto: 500 }) && cie({ dy: 120, v: 0.9, alto: 500 }), 'cuándo se cierra al soltar');
+      const hoja = () => W.document.querySelector('#movil .hoja.on');
+      await irMovil(`#pub/${key}/r1`, '#movil [data-a="estado"]');
+      const boton = W.document.querySelector('#movil [data-a="estado"]'); boton.focus(); boton.click(); await hojaCara('.estados', 'la hoja del estado');
+      // despacio y corto, desde el título: vuelve
+      ok(await arrastrarMv(hoja().querySelector('h2'), 40, 8, 40), 'el arrastre desde el título no tiró de la hoja');
+      await espera(450); ok(hoja() && !hoja().style.transform, 'despacio y corto la cerró o no volvió: ' + (hoja() && hoja().style.transform));
+      // deprisa, pero el dedo se para antes de soltar: no se lanza (revisión funcional, MEDIA 3)
+      { const t = hoja().querySelector('h2'), r = t.getBoundingClientRect(), x = r.left + 20, y = r.top + 8;
+        toqueMv(t, 'touchstart', x, y); toqueMv(t, 'touchmove', x, y + 30); toqueMv(t, 'touchmove', x, y + 60); await espera(300); toqueMv(t, 'touchend', x, y + 60); }
+      await espera(450); ok(hoja(), 'deprisa y parado antes de soltar, se cerró');
+      // deprisa, desde una opción con la hoja arriba del todo: se cierra y el foco vuelve
+      await arrastrarMv(hoja().querySelector('.estado-op'), 140, 3);
+      await hasta(() => !W.document.querySelector('#movil .hoja'), 2000, 'que se cierre lanzada deprisa');
+      await espera(50); ok(W.document.activeElement === W.document.querySelector('#movil [data-a="estado"]'), 'el foco no volvió a «Estado»');
+      // la hoja de la fecha con sus ruedas: desde las ruedas no se cierra; redibujada, desde su título sí
+      clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+      if (!hoja().querySelector('.ruedas')) { clicCara('#movil .hoja [data-a2="ponhora"]'); await hojaCara('.ruedas', 'las ruedas'); }
+      ok(!(await arrastrarMv(hoja().querySelector('.rueda'), 160, 3)), 'arrastrar la rueda tiró de la hoja');
+      await espera(400); ok(hoja(), 'arrastrar la rueda cerró la hoja');
+      clicCara(`#movil .hoja [data-dia]:not([disabled])`); await espera(80);   // la hoja se redibuja
+      await arrastrarMv(hoja().querySelector('h2'), 200, 3);
+      await hasta(() => !W.document.querySelector('#movil .hoja'), 2000, 'que se cierre la redibujada');
+      // una pregunta arrastrada es «Ahora no»
+      const C = await nubeCara(key, { ceder: false }); C.sv.callar(true);
+      try {
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha otra vez');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hojaCara('[data-r="forzar"]', '«no contesta»');
+        await arrastrarMv(hoja().querySelector('h2'), 260, 3);
+        await hasta(() => !M.movil._ST.guardando, 6000, 'que «Guardar» acabe');
+        const cola = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(cola.length === 1 && cola[0].estado === 'quedo' && cola[0].campo === 'fecha', 'la fecha no quedó en «sin subir»: ' + json(cola));
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV49', 'El estado de arriba a la derecha del iPhone solo sale cuando hay algo (D-271, punto 8; lecciones 212 y 222): mirando y sin nada que subir, nada (ni «Al día»); tras guardar, el aviso «Guardado» y arriba nada; sin conexión, lo dice; con un cambio sin subir, «1 sin subir»; el título, centrado y entero a 375 con y sin estado', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      const chip = () => W.document.querySelector('#movil .top-r .nube'), txt = () => (chip() || {}).textContent || '';
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        ok(!chip(), 'mirando y al día sale «' + txt() + '»');
+        const tEl = W.document.querySelector('#movil .top-t'), t = tEl.getBoundingClientRect(), ajusta = tEl.closest('.top').classList.contains('ajusta');
+        ok(ajusta ? tEl.scrollWidth > tEl.clientWidth - 1 || t.width >= 80 : Math.abs((t.left + t.right) / 2 - W.innerWidth / 2) <= 2, 'el título no va centrado sin estado (o, si no cabe centrado, no ocupa el hueco)');
+        ok(t.width >= 80, 'sin estado el título se queda en ' + Math.round(t.width) + ' px');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar');
+        await espera(300); ok(!chip(), 'tras guardar, arriba sale «' + txt() + '»');
+        // sin conexión: lo dice, y un cambio guardado sin red queda en «1 sin subir»
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-12"]'); await espera(60);
+        W.dispatchEvent(new W.Event('offline')); await espera(150);
+        ok(/Sin conexión|Sin red/.test(txt()), 'sin conexión no lo dice: «' + txt() + '»');
+        const tt = W.document.querySelector('#movil .top-t').getBoundingClientRect(), ch = chip().getBoundingClientRect();
+        ok(tt.right <= ch.left + 0.5, 'el estado tapa el título');
+        ok(tt.width >= 80, 'sin conexión el título se queda en ' + Math.round(tt.width) + ' px (revisión de dibujo, ALTA 1)');
+        ok(!/\d:\d/.test(txt()), 'el estado lleva la hora: «' + txt() + '»');
+        clicCara('#movil .hoja [data-a2="guardar"]'); await espera(200);
+        W.dispatchEvent(new W.Event('online')); await espera(150);
+        await hasta(() => /1 sin subir/.test(txt()), 4000, '«1 sin subir»');
+      } finally { W.localStorage.removeItem('mesa-movil-ops'); await C.fin(); }
+    }, { w: 375, h: 667 });
+  });
+
+  prueba('MV55', 'Lo que vio el dibujo del lote B en la cara (D-271, arreglos): «vencida» va antes del estado en la fila del mes, sin cortarse a 375 (las marcas de escritura, al leer una sesión: MV61)', async () => {
+    const key = await tableroMovil();
+    const h = M._in.hoy(), ayer = new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) - 1)).toISOString().slice(0, 10);
+    M._test.setSlot('r2', { date: M._in.madridISO(ayer, '10:00') }); await M.flush();
+    await enMovilPagina(async () => {
+      await irMovil(`#mes/${key}/lista`, `#movil .fila[data-ir="pub/${key}/r2"]`);
+      const f = W.document.querySelector(`#movil .fila[data-ir="pub/${key}/r2"]`), t2 = f.querySelector('.t2'), roja = t2.querySelector('.roja');
+      ok(roja && /vencida/.test(roja.textContent) && t2.firstElementChild === roja, 'la fila no empieza por «vencida»: ' + t2.textContent);
+      ok(roja.getBoundingClientRect().right <= t2.getBoundingClientRect().right + 0.5, '«vencida» se corta');
+    }, { w: 375, h: 667 });
+  });
+
+  prueba('MV56', 'Guardar de fondo (D-271, punto 9; lecciones 207 y 235): tras «Guardar» se puede ir a otra pantalla; un choque sale donde está Kevin, con el nombre de la publicación, y nunca cierra la hoja que tenga abierta; cerrado sin decidir, la publicación vuelve a lo de la Mesa y arriba dice «1 sin subir»', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        const nombre = M.movil._L.vista.posts.find(x => x.id === 'r1').nombre;
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        const rec = await M._in.idbGet('boards', key); rec.slots.find(s => s.id === 'r1').date = '2026-11-08T12:00:00.000+01:00'; C.sv.escribirMac('boards', key, rec);   // el Mac, entretanto
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 400;
+        clicCara('#movil .hoja [data-a2="guardar"]'); await espera(30);
+        W.location.hash = '#tareas';   // Kevin sigue: se va a Tareas y abre la hoja de la fecha de una tarea nueva
+        await hasta(() => W.document.querySelector('#movil [data-a="nfecha"]'), 4000, 'Tareas');
+        clicCara('#movil [data-a="nfecha"]'); await hojaCara('.selcal', 'la hoja de la fecha de la tarea');
+        await espera(1500);
+        ok(W.document.querySelector('#movil .hoja .selcal') && !W.document.querySelector('#movil .hoja [data-r="mio"]'), 'el choque cerró la hoja que Kevin estaba usando');
+        clicCara('#movil .hoja [data-a2="cancelar"]'); C.corte.demora = 0;
+        const h = await hojaCara('[data-r="mio"]', 'el choque en Tareas');
+        ok(/^#tareas/.test(W.location.hash), 'el choque no salió donde estaba Kevin: ' + W.location.hash);
+        ok(h.innerText.includes(nombre) && /Lo tuyo/.test(h.innerText) && /En la Mesa/.test(h.innerText), 'el choque no nombra la publicación: ' + h.innerText);
+        W.document.querySelector('#movil .hoja').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));   // sin decidir
+        await hasta(() => !M.movil._ST.guardando, 8000, 'que acabe');
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        const f = W.document.querySelector('#movil [data-a="fecha"]');
+        ok(/8 nov/i.test(f.textContent) && !f.querySelector('.mv-gira'), 'la publicación no volvió a lo de la Mesa: ' + f.textContent);
+        ok(/1 sin subir/.test(W.document.querySelector('#movil .top').innerText), 'arriba no dice «1 sin subir»');
+      } finally { W.localStorage.removeItem('mesa-movil-ops'); await C.fin(); }
+    });
+  });
+
+  prueba('MV57', 'El monograma que se llena (D-271, punto 10; lección 230): mientras bajan fotos, el de Hoy se vacía y se llena según las que llegan; en una pantalla con «‹ atrás», sale uno pequeño a la derecha (variante B) mientras se guarda; lo que dura menos de 0,4 s no se ve; al acabar, vuelve a estar lleno y el pequeño se va; el estado de arriba ya no dice «Guardando…»', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const bajan = (pend, hechas) => W.document.dispatchEvent(new W.CustomEvent('mesa-bajan-fotos', { detail: { pend, hechas } }));
+      const grande = () => W.document.querySelector('#movil .top-l > .mono-w'), vacio = el => parseFloat(el.style.getPropertyValue('--vacio')) || 0;
+      await irMovil('#hoy', '#movil .cifras');
+      bajan(1, 0); await espera(150); bajan(0, 1); await espera(500);
+      ok(!grande().classList.contains('trabaja'), 'lo que dura menos de 0,4 s se vio');
+      bajan(4, 0); await espera(550);
+      ok(grande().classList.contains('trabaja') && vacio(grande()) > 90, 'bajando 4 fotos, el monograma no se vació: ' + grande().className + ' ' + vacio(grande()));
+      bajan(2, 2); await espera(60);
+      ok(Math.abs(vacio(grande()) - 50) < 1, 'con la mitad bajada, no está a la mitad: ' + vacio(grande()));
+      ok(/Bajando la Mesa · 50 %/.test(grande().getAttribute('aria-label') || ''), 'VoiceOver no dice lo que baja: ' + grande().getAttribute('aria-label'));
+      bajan(0, 4); await espera(600);
+      ok(!grande().classList.contains('trabaja') && vacio(grande()) === 0, 'al acabar no vuelve a estar lleno');
+      // guardar en la publicación (con «‹ atrás»): el pequeño de la derecha, mientras guarda
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        const mini = () => W.document.querySelector('#movil .top-r .top-fila > .mono-w.mini');
+        ok(mini() && mini().hidden, 'el pequeño se ve sin trabajo');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        C.corte.demora = 500; clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => mini() && !mini().hidden && mini().classList.contains('trabaja'), 3000, 'el monograma pequeño mientras guarda');
+        ok(!/Guardando/.test((W.document.querySelector('#movil .top-r [data-chip]') || {}).textContent || ''), 'el estado de arriba dice «Guardando…»');
+        C.corte.demora = 0;
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
+        await hasta(() => !mini() || mini().hidden, 3000, 'que el pequeño se vaya');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV58', 'Claro u oscuro en el iPhone (D-271, punto 11; lección 229): la píldora de Hoy marca el modo en uso y abre «Apariencia» (Como el iPhone · Claro · Oscuro); elegir cambia al momento, con sus theme-color, y se recuerda en este aparato; al volver a abrir, tema.js lo pinta y en el móvil nunca redirige; «Como el iPhone» vuelve a seguirlo', async () => {
+    await tableroMovil();
+    try {
+      await enMovilPagina(async () => {
+        const raizH = () => W.document.documentElement, sistema = W.matchMedia('(prefers-color-scheme: dark)').matches, pil = () => W.document.querySelector('#movil .mv-tema');
+        await irMovil('#hoy', '#movil .mv-tema');
+        ok(pil().classList.contains('osc') === sistema && /como el iPhone/.test(pil().getAttribute('aria-label')), 'sin elegir no sigue al iPhone: ' + pil().getAttribute('aria-label'));
+        const d = diana(pil()); ok(d.h >= 44 && d.w >= 44, 'la diana de la píldora: ' + d.w + '×' + d.h);
+        pil().click(); const h = await hojaCara('[data-tema]', '«Apariencia»');
+        igual([...h.querySelectorAll('[data-tema]')].map(b => b.dataset.tema), ['auto', 'claro', 'oscuro'], 'las filas de «Apariencia»');
+        ok(h.querySelector('[data-tema="auto"]').classList.contains('on'), 'sin elegir, «Como el iPhone» no está marcada');
+        const otro = sistema ? 'claro' : 'oscuro', osc = otro === 'oscuro';
+        h.querySelector(`[data-tema="${otro}"]`).click(); await espera(80);
+        ok((raizH().dataset.theme === 'dark') === osc && W.localStorage.getItem('mesa-movil-tema') === otro, 'elegir no cambió el modo o no se recordó');
+        ok(pil().classList.contains('osc') === osc && W.document.querySelector(`#movil .hoja [data-tema="${otro}"]`).classList.contains('on'), 'la píldora o la hoja no marcan lo elegido');
+        ok([...W.document.querySelectorAll('meta[name="theme-color"]')].every(m => m.getAttribute('content') === (osc ? '#15110E' : '#F4EFE8')), 'los theme-color no siguen lo elegido');
+        W.__mv58 = 1; W.location.reload();
+        await hasta(() => !W.__mv58 && W.MESA && W.MESA.movil && W.document.querySelector('#movil .mv-tema'), 15000, 'Hoy otra vez');
+        M = W.MESA;   // tras recargar, el MESA de la página vieja ya no contesta (lección 238)
+        ok(/movil\.html$/.test(W.location.pathname) && !W.MESA_A_MOVIL && (raizH().dataset.theme === 'dark') === osc, 'tema.js no pintó lo elegido o redirigió: ' + W.location.pathname + ' ' + raizH().dataset.theme);
+        pil().click(); const h2 = await hojaCara('[data-tema]', '«Apariencia» otra vez');
+        h2.querySelector('[data-tema="auto"]').click(); await espera(80);
+        ok(W.localStorage.getItem('mesa-movil-tema') === null && (raizH().dataset.theme === 'dark') === sistema, '«Como el iPhone» no vuelve a seguirlo');
+      });
+    } finally { try { W.localStorage.removeItem('mesa-movil-tema'); } catch (e) { /* */ } }
+  });
+
+  prueba('MV59', 'La lista del mes con «Publicadas» (D-271, punto 12): lo ya publicado antes de hoy va plegado en «Publicadas · N» al entrar; lo vencido o sin publicar del pasado sigue a la vista; al tocarlo se despliega; al entrar otra vez en el mes, plegado', async () => {
+    const key = await tableroMovil();
+    const h = M._in.hoy(), dia = n => new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) + n)).toISOString().slice(0, 10);
+    M._test.setSlot('r1', { date: M._in.madridISO(dia(-3), '10:00') }); M._test.setSlot('r2', { date: M._in.madridISO(dia(-2), '10:00') }); M._test.setSlot('r3', { date: M._in.madridISO(dia(-1), '10:00') });
+    ok(!M.setEstado('r1', 'publicado')[0].error && !M.setEstado('r2', 'publicado')[0].error, 'no se publicaron r1 y r2');
+    await M.flush();
+    await enMovilPagina(async () => {
+      const fila = id => W.document.querySelector(`#movil .fila[data-ir="pub/${key}/${id}"]`), pubs = () => W.document.querySelector('#movil .mv-pubs');
+      await irMovil(`#mes/${key}/lista`, '#movil .seg');
+      ok(pubs() && /Publicadas/.test(pubs().textContent) && /· 2/.test(pubs().textContent) && pubs().getAttribute('aria-expanded') === 'false', 'sin «Publicadas · 2» plegada: ' + (pubs() && pubs().textContent));
+      ok(!fila('r1') && !fila('r2') && fila('r3'), 'plegada, se ven las publicadas o no la del pasado sin publicar');
+      pubs().click(); await espera(150);
+      ok(pubs().getAttribute('aria-expanded') === 'true' && fila('r1') && fila('r2'), 'al tocarla no se despliega');
+      fila('r1').click(); await hasta(() => W.document.querySelector('#movil .pub-h'), 4000, 'la publicación');
+      W.document.querySelector('#movil .top .back').click(); await hasta(() => pubs(), 4000, 'el mes otra vez');
+      ok(pubs().getAttribute('aria-expanded') === 'true' && fila('r1'), 'volver de una publicación plegó «Publicadas»');
+      await irMovil('#hoy', '#movil .cifras');
+      await irMovil(`#mes/${key}/lista`, '#movil .mv-pubs');
+      ok(pubs().getAttribute('aria-expanded') === 'false' && !fila('r1'), 'al entrar otra vez en el mes no está plegada');
+    });
+  });
+
+  prueba('MV60', 'Editar una tarea y una nota desde el iPhone (D-272; lecciones 208, 228, 232 y 234): texto, fecha, cliente, detalles y cada subtarea (añadir, quitar, marcar y cambiar su texto) son operaciones, cada subtarea la suya: otra cambiada en el Mac a la vez no choca; van en su propia cola (una 4.37 no las ve); una nota, solo su texto; sin texto no se guarda', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'tkmv60editarlatarea', nt = 'ntmv60editarlanota', ahora = new W.Date().toISOString(), cli = M._in.CL[0].id;
+    const T0 = { id, tipo: 'tarea', txt: 'Preparar la lista de planos de la sesión de diciembre', fecha: '2026-11-12', detalles: 'Mirar las referencias', creada: ahora, at: ahora,
+      subtareas: [{ id: 'stmv60a', txt: 'Pedir las referencias' }, { id: 'stmv60b', txt: 'Elegir 12 fotos' }, { id: 'stmv60c', txt: 'Lista del obrador', hecha: true }, { id: 'stmv60d', txt: 'Reservar el panel LED' }] };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(T0, id); st.put({ id: nt, tipo: 'nota', txt: 'Ideas para diciembre', creada: ahora, at: ahora }, nt); });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        C.sv.escribirMac('tareas', id, T0); C.sv.escribirMac('tareas', nt, { id: nt, tipo: 'nota', txt: 'Ideas para diciembre', creada: ahora, at: ahora });
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`); let h = await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+        const pon = (sel, v) => { const i = h.querySelector(sel); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+        pon('[data-ed="txt"]', 'Preparar la lista de planos y el moodboard de diciembre');
+        clicCara('#movil .hoja [data-ed-abre="fecha"]'); await hojaCara('.selcal', 'el calendario de la tarea'); clicCara('#movil .hoja [data-dia="2026-11-20"]'); await espera(60);
+        clicCara('#movil .hoja [data-ed-abre="cliente"]'); await hojaCara('[data-ed-cli]', 'los clientes'); clicCara(`#movil .hoja [data-ed-cli="${cli}"]`); await espera(60);
+        h = W.document.querySelector('#movil .hoja');
+        pon('[data-ed="detalles"]', 'Mirar las referencias que mandó por WhatsApp');
+        pon('[data-ed-st="stmv60a"]', 'Pedir las referencias de la carta nueva');
+        clicCara('#movil .hoja [data-ed-ck="stmv60b"]'); await espera(40);
+        clicCara('#movil .hoja [data-ed-x="stmv60c"]'); await espera(40);
+        clicCara('#movil .hoja [data-ed-mas]'); await espera(40);
+        const nueva = W.document.querySelector('#movil .hoja .mv-sub:last-child textarea'); nueva.value = 'Confirmar la hora con el equipo'; nueva.dispatchEvent(new W.Event('input', { bubbles: true }));
+        // el Mac, entretanto, cambia otra subtarea que el iPhone no toca: no choca (cada subtarea, su campo)
+        C.sv.escribirMac('tareas', id, { ...T0, subtareas: [...T0.subtareas.slice(0, 3), { ...T0.subtareas[3], txt: 'Reservar el panel LED grande' }] });
+        C.corte.demora = 1500; clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(60);
+        // reabrirla mientras se guarda enseña lo que se está guardando (revisión del lote B): la subtarea nueva sí, la quitada no
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`); h = await hojaCara('.mv-ttxt', 'la hoja reabierta');
+        const vs = [...h.querySelectorAll('textarea[data-ed-st]')].map(t => t.value);
+        ok(vs.includes('Confirmar la hora con el equipo') && !vs.includes('Lista del obrador') && h.querySelector('[data-ed="txt"]').value === 'Preparar la lista de planos y el moodboard de diciembre', 'reabierta mientras guarda, la hoja no enseña lo que se guarda: ' + json(vs));
+        const ops2 = JSON.parse(W.localStorage.getItem('mesa-movil-ops2') || '[]'), ops1 = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        ok(ops2.length >= 7 && !ops1.some(o => /^(tareaTexto|tareaFecha|tareaCliente|tareaDetalles|subtarea)$/.test(o.campo)), 'los campos nuevos no van en su propia cola: ' + json({ ops1: ops1.map(o => o.campo), ops2: ops2.map(o => o.campo) }));
+        C.corte.demora = 0;
+        let choque = false;
+        await hasta(() => { if (W.document.querySelector('#movil .hoja [data-r="mio"]')) { choque = true; return true; } return !M.movil._ST.guardando && /Guardado/.test(avisoCara()); }, 20000, 'guardar la tarea');
+        ok(!choque, 'otra subtarea cambiada en el Mac enseñó un choque');
+        // con la hoja reabierta aún abierta, lo pendiente ya se aplicó: cambiar la subtarea nueva se guarda (no como otra «nueva» que no hace nada; ronda 2)
+        ok(W.document.querySelector('#movil .hoja .mv-ttxt'), 'guardar cerró la hoja reabierta');
+        const tn = [...W.document.querySelectorAll('#movil .hoja textarea[data-ed-st]')].find(t => t.value === 'Confirmar la hora con el equipo');
+        ok(tn, 'la subtarea nueva no está en la hoja reabierta'); tn.value = 'Confirmar la hora con el equipo de sala'; tn.dispatchEvent(new W.Event('input', { bubbles: true }));
+        sinAviso(); clicCara('#movil .hoja [data-ed-a="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar desde la hoja reabierta');
+        ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'la subtarea nueva cambiada tras aplicarse enseñó un choque');
+        const r = await M._in.idbGet('tareas', id), subs = Object.fromEntries((r.subtareas || []).map(x => [x.id, x]));
+        igual([r.txt, r.fecha, r.cliente, r.detalles], ['Preparar la lista de planos y el moodboard de diciembre', '2026-11-20', cli, 'Mirar las referencias que mandó por WhatsApp'], 'los campos de la tarea');
+        ok(subs.stmv60a && subs.stmv60a.txt === 'Pedir las referencias de la carta nueva' && subs.stmv60b && subs.stmv60b.hecha && !subs.stmv60c && subs.stmv60d && subs.stmv60d.txt === 'Reservar el panel LED grande' && r.subtareas.filter(x => x.txt === 'Confirmar la hora con el equipo de sala').length === 1 && !r.subtareas.some(x => x.txt === 'Confirmar la hora con el equipo'), 'las subtareas: ' + json(r.subtareas));
+        const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.cliente === cli && arriba.valor.subtareas.length === 4, 'no subió');
+        ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
+        // una nota: solo su texto; vacía no se guarda
+        await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`); sinAviso();
+        clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); h = await hojaCara('.mv-ttxt', 'la hoja de la nota');
+        ok(!h.querySelector('[data-ed-abre]') && !h.querySelector('[data-ed="detalles"]'), 'la nota ofrece más que su texto');
+        pon('[data-ed="txt"]', '   '); clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(80);
+        ok(/necesita un texto/.test(W.document.querySelector('#movil .hoja').innerText), 'una nota vacía se guardó');
+        h = W.document.querySelector('#movil .hoja'); pon('[data-ed="txt"]', 'Ideas para diciembre\n[] calendario de adviento'); clicCara('#movil .hoja [data-ed-a="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar la nota');
+        igual((await M._in.idbGet('tareas', nt)).txt, 'Ideas para diciembre\n[] calendario de adviento', 'el texto de la nota');
+      } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV61', 'Una sesión entera en el iPhone (D-275): desde Tareas abre su pantalla, con los apartados plegados al entrar, varios abiertos a la vez y otra vez plegados al volver; las marcas del texto se dibujan; sus fotos llegan; marcar el material, el nombre, el texto de un apartado, la fecha y hora (el fin se mueve con el inicio) y los clientes (también esporádicos) son operaciones de su cola: otra cosa del material marcada en el Mac a la vez no choca', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'ssmv61sesionenteraenelobrador', es = 'esmv61fincadelamarinadesantagertrudis', ahora = new W.Date().toISOString(), c0 = M._in.CL[0].id;
+    const ab = await (await foto('mv61.jpg', 900, 600, '#6a4a2c')).arrayBuffer();
+    const tf = (fid, w, h) => ({ id: fid, w, h, blob: new W.Blob([ab], { type: 'image/jpeg' }), mini: new W.Blob([ab], { type: 'image/jpeg' }), sesion: id, t: 1 });
+    const S0 = { id, tipo: 'sesion', txt: 'Sesión de otoño en el obrador con el equipo de sala', fecha: '2026-11-24', hora: '09:30', fin: { fecha: '2026-11-24', hora: '13:00' }, cliente: c0, clientes: [c0], creada: ahora, at: ahora,
+      fotos: [{ id: 'tfmv61a', w: 900, h: 600 }, { id: 'tfmv61b', w: 900, h: 600 }],
+      sesion: { clase: 'fotovideo', visible: true, plantilla: 1, apartados: [
+        { id: 'orden', nombre: 'Orden', visible: true, texto: 'Llegar a las 9:00 al obrador:\n[x] Baterías cargadas\n[] Tarjetas vacías\n- Trípode de luz' },
+        { id: 'planos', nombre: 'Planos', visible: true, pestanas: [{ id: 'ptmv61a', nombre: 'Planos', items: [{ id: 'plmv61a', titulo: 'Manos amasando sobre la mesa de mármol', texto: 'Luz lateral de la ventana', hecho: true, fotos: ['tfmv61a'] }] }, { id: 'ptmv61b', nombre: 'Vídeos', items: [] }] },
+        { id: 'fotos', nombre: 'Fotos', visible: true, texto: '' },
+        { id: 'mood', nombre: 'Mood board', visible: true, grupos: [{ id: 'grmv61a', nombre: 'Luz de mañana', fotos: ['tfmv61a', 'tfmv61b'] }] },
+        { id: 'material', nombre: 'Material', visible: false, material: { lista: [{ id: 'mamv61a', nombre: 'Cámara principal', familia: 'Cámara y óptica', tipo: 'ambas' }, { id: 'mamv61b', nombre: 'Batería de repuesto', familia: 'Cámara y óptica', tipo: 'ambas', padre: 'mamv61a' }, { id: 'mamv61c', nombre: 'Cargar las baterías la noche antes', familia: 'Antes de salir', tipo: 'ambas' }], hechos: ['mamv61c'] } }] } };
+    const E0 = { id: es, tipo: 'esporadico', txt: 'Finca de la Marina de Santa Gertrudis', creada: ahora, at: ahora };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(S0, id); st.put(E0, es); });
+    await M._in.diario.sinDiario('tfotos', 'readwrite', st => { st.put(tf('tfmv61a', 900, 600), 'tfmv61a'); st.put(tf('tfmv61b', 900, 600), 'tfmv61b'); });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        C.sv.escribirMac('tareas', id, S0); C.sv.escribirMac('tareas', es, E0);
+        await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+        clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+        await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la pantalla de la sesión');
+        ok(/^#ses\//.test(W.location.hash) && !W.document.querySelector('#movil .hoja.on'), 'la sesión abrió una hoja y no su pantalla');
+        ok(/Sesión de otoño en el obrador/.test(W.document.querySelector('#movil .mv-ses-h h1').textContent) && /Tareas/.test(W.document.querySelector('#movil .top').textContent), 'la cabecera o el «‹ Tareas»');
+        igual([...W.document.querySelectorAll('#movil .mv-sap-b h2')].map(h => h.textContent), ['Orden', 'Planos', 'Fotos', 'Mood board', 'Material', 'Fotos de la sesión'], 'los apartados, en el orden del Mac');
+        ok(!W.document.querySelector('#movil .mv-sap.abierto'), 'al entrar hay un apartado abierto');
+        ok(W.document.querySelector('#movil [data-a="sesap"][data-ap="material"] .oj'), 'el material no dice que el cliente no lo ve');
+        clicCara('#movil [data-a="sesap"][data-ap="orden"]'); await espera(80); clicCara('#movil [data-a="sesap"][data-ap="mood"]'); await espera(80);
+        igual([...W.document.querySelectorAll('#movil .mv-sap.abierto [data-a="sesap"]')].map(b => b.dataset.ap), ['orden', 'mood'], 'abrir dos apartados');
+        const cas = W.document.querySelector('#movil .mv-stx .pp-em.ca'), vi = W.document.querySelector('#movil .mv-stx .pp-em.vi');
+        ok(cas && vi && W.getComputedStyle(cas).color === 'rgba(0, 0, 0, 0)' && W.getComputedStyle(cas.querySelector('.pp-emk'), '::before').content !== 'none', 'las marcas del texto salen en crudo');
+        aLaVista(); await hasta(() => { const l = [...W.document.querySelectorAll('#movil .mv-mood img.mi')]; return l.length === 2 && l.every(verFoto); }, 8000, 'las fotos del mood board');
+        // el material: marcar una cosa mientras el Mac marca otra (cada cosa, su campo)
+        clicCara('#movil [data-a="sesap"][data-ap="material"]'); await espera(80);
+        ok(W.document.querySelectorAll('#movil .mv-sap.abierto').length === 3, 'abrir el material cerró otro');
+        igual([...W.document.querySelectorAll('#movil .mv-mat h3')].map(h => h.firstChild.textContent.trim()), ['Antes de salir', 'Cámara y óptica'], 'las familias, «Antes de salir» primero');
+        C.sv.escribirMac('tareas', id, { ...S0, sesion: { ...S0.sesion, apartados: S0.sesion.apartados.map(a => a.id === 'material' ? { ...a, material: { ...a.material, hechos: ['mamv61c', 'mamv61b'] } } : a) } });
+        clicCara('#movil [data-a="sesmat"][data-m="mamv61a"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el material');
+        ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'otra cosa del material marcada en el Mac enseñó un choque');
+        igual([...(await M._in.idbGet('tareas', id)).sesion.apartados.find(a => a.id === 'material').material.hechos].sort(), ['mamv61a', 'mamv61b', 'mamv61c'], 'el material marcado');
+        ok(W.document.querySelectorAll('#movil .mv-sap.abierto').length === 3, 'guardar plegó los apartados abiertos');
+        // el nombre y el texto de un apartado
+        sinAviso(); clicCara('#movil [data-a="sesnom"]'); let h = await hojaCara('[data-sc]', 'la hoja del nombre');
+        const pon = v => { const i = h.querySelector('[data-sc]'); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+        pon('   '); clicCara('#movil .hoja [data-sc-a="si"]'); await espera(60);
+        ok(/necesita un nombre/.test(W.document.querySelector('#movil .hoja').innerText), 'un nombre vacío se guardó');
+        pon('Sesión de otoño en el obrador con todo el equipo'); clicCara('#movil .hoja [data-sc-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el nombre');
+        await hasta(() => /con todo el equipo/.test(W.document.querySelector('#movil .mv-ses-h h1').textContent), 3000, 'el nombre nuevo en la pantalla tras guardar');
+        ok(W.document.querySelector('#movil [data-a="sesmat"][data-m="mamv61a"]').getAttribute('aria-pressed') === 'true', 'tras guardar, el material vuelve a lo de antes en la pantalla');
+        ok(!W.document.querySelector('#movil [data-a="sested"][data-ap="fotos"]'), '«Editar» de un apartado plegado a la vista');
+        clicCara('#movil [data-a="sesap"][data-ap="fotos"]'); await espera(80);
+        sinAviso(); clicCara('#movil [data-a="sested"][data-ap="fotos"]'); h = await hojaCara('textarea[data-sc]', 'la hoja del texto');
+        pon('Retratos del equipo de sala\n[] Fondo del horno'); clicCara('#movil .hoja [data-sc-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el texto');
+        // la fecha y la hora: el fin se mueve con el inicio
+        sinAviso(); clicCara('#movil [data-a="sesfecha"]'); await hojaCara('.selcal', 'el calendario de la sesión');
+        clicCara('#movil .hoja [data-dia="2026-11-26"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar la fecha');
+        // los clientes: un mensual y un esporádico
+        sinAviso(); clicCara('#movil [data-a="sesclis"]'); await hojaCara(`[data-scl="${es}"]`, 'los clientes de la sesión');
+        clicCara(`#movil .hoja [data-scl="${es}"]`); await espera(40); clicCara('#movil .hoja [data-scl-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar los clientes');
+        const r = await M._in.idbGet('tareas', id), tx = a => r.sesion.apartados.find(x => x.id === a).texto;
+        igual([r.txt, tx('fotos'), r.fecha, r.hora, r.fin, [...r.clientes].sort()], ['Sesión de otoño en el obrador con todo el equipo', 'Retratos del equipo de sala\n[] Fondo del horno', '2026-11-26', '09:30', { fecha: '2026-11-26', hora: '13:00' }, [c0, es].sort()], 'lo guardado en la sesión');
+        igual(tx('orden'), S0.sesion.apartados[0].texto, 'otro texto cambió');
+        const arriba = C.sv.reg.get('tareas|' + id); ok(arriba && arriba.valor.txt === r.txt && arriba.valor.fecha === '2026-11-26', 'no subió');
+        ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
+        // una sesión de antes de la 4.24 (solo «cliente»): su cliente se ve y añadir otro lo conserva
+        const S1 = { id: id + 'v', tipo: 'sesion', txt: 'Sesión de verano en la terraza del obrador', fecha: '2026-11-28', cliente: c0, creada: ahora, at: ahora, sesion: { clase: 'foto', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: '' }] } };
+        await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(S1, S1.id)); C.sv.escribirMac('tareas', S1.id, S1); await M.movil.releer();
+        await irMovil('#tareas', `#movil [data-a="tver"][data-id="${S1.id}"]`); clicCara(`#movil [data-a="tver"][data-id="${S1.id}"]`);
+        await hasta(() => W.document.querySelector('#movil .mv-ses-h h1') && /verano/.test(W.document.querySelector('#movil .mv-ses-h h1').textContent), 6000, 'la sesión de antes');
+        ok(!/Sin cliente/.test(W.document.querySelector('#movil [data-a="sesclis"]').textContent), 'la sesión de antes dice «Sin cliente»');
+        sinAviso(); clicCara('#movil [data-a="sesclis"]'); await hojaCara(`[data-scl="${es}"]`, 'sus clientes');
+        clicCara(`#movil .hoja [data-scl="${es}"]`); await espera(40); clicCara('#movil .hoja [data-scl-a="si"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar sus clientes');
+        ok(!W.document.querySelector('#movil .hoja [data-r="mio"]'), 'la sesión de antes enseñó un choque');
+        igual([...(await M._in.idbGet('tareas', S1.id)).clientes].sort(), [c0, es].sort(), 'la sesión de antes perdió su cliente');
+        // «Sin fecha»: se quita la fecha y la hora se queda, como en el Mac (ronda 2)
+        { const x = await M._in.idbGet('tareas', S1.id); if (x.hora !== '17:30') { x.hora = '17:30'; await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(x, S1.id)); } C.sv.escribirMac('tareas', S1.id, { ...x, hora: '17:30' }); }
+        await M.movil.releer(); await hasta(() => /17:30/.test((W.document.querySelector('#movil [data-a="sesfecha"]') || {}).textContent || ''), 15000, 'la hora de la sesión de antes');
+        sinAviso(); clicCara('#movil [data-a="sesfecha"]'); await hojaCara('[data-a2="sinfecha"]', 'la hoja de la fecha'); clicCara('#movil .hoja [data-a2="sinfecha"]');
+        await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar «Sin fecha»');
+        { const x = await M._in.idbGet('tareas', S1.id); igual([x.fecha || '', x.hora || ''], ['', '17:30'], '«Sin fecha» de una sesión'); }
+        // salir y volver: plegados otra vez
+        await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`); clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+        await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la sesión otra vez');
+        ok(!W.document.querySelector('#movil .mv-sap.abierto'), 'al volver hay un apartado abierto');
+      } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV62', 'Cerrar a mano una hoja donde se escribe con cambios sin guardar pregunta antes (D-271, decisión de Kevin): tocar fuera, arrastrarla, Esc o «Cancelar» la dejan abierta con «¿Descartar los cambios?»; «Seguir editando» vuelve con lo escrito; «Descartar» la cierra sin guardar nada; sin cambios se cierra como siempre. Vale para la tarea o nota y para el nombre o el texto de una sesión', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'tkmv62descartarloescrito', ss = 'ssmv62descartarloescrito', ahora = new W.Date().toISOString();
+    const T0 = { id, tipo: 'tarea', txt: 'Revisar la lista de planos del obrador con el equipo', creada: ahora, at: ahora };
+    const S0 = { id: ss, tipo: 'sesion', txt: 'Sesión de invierno en el obrador con el equipo de sala', fecha: '2026-11-27', clientes: [], creada: ahora, at: ahora, sesion: { clase: 'foto', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: 'Llegar a las 9' }] } };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(T0, id); st.put(S0, ss); });
+    await enMovilPagina(async () => {
+      const hoja = () => W.document.querySelector('#movil .hoja.on'), preg = () => !!(hoja() && hoja().querySelector('.mv-desc-t'));
+      const pon = (sel, v) => { const i = hoja().querySelector(sel); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+      // sin cambios: tocar fuera la cierra
+      clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+      clicCara('#movil .velo.on'); await espera(450); ok(!hoja(), 'sin cambios, tocar fuera no la cerró');
+      // con cambios: tocar fuera, Esc, arrastrar y «Cancelar» preguntan
+      clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+      pon('[data-ed="txt"]', 'Revisar la lista de planos del obrador con todo el equipo');
+      clicCara('#movil .velo.on'); await espera(450); ok(hoja() && preg(), 'tocar fuera con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="seguir"]'); await espera(60);
+      ok(!preg() && hoja().querySelector('[data-ed-a="guardar"]') && hoja().querySelector('[data-ed="txt"]').value === 'Revisar la lista de planos del obrador con todo el equipo', '«Seguir editando» no vuelve con lo escrito');
+      W.document.getElementById('movil').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await espera(450); ok(hoja() && preg(), 'Esc con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="seguir"]'); await espera(60);
+      await arrastrarMv(hoja().querySelector('h2'), 600, 3); await espera(500); ok(hoja() && preg() && !hoja().style.transform, 'arrastrarla con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="seguir"]'); await espera(60);
+      clicCara('#movil .hoja [data-ed-a="cancelar"]'); await espera(450); ok(hoja() && preg(), '«Cancelar» con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="si"]'); await espera(450);
+      ok(!hoja(), '«Descartar» no la cerró');
+      ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), '«Descartar» guardó algo');
+      igual((await M._in.idbGet('tareas', id)).txt, T0.txt, '«Descartar» cambió la tarea');
+      // una subtarea nueva vacía no cuenta como cambio
+      clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja otra vez');
+      clicCara('#movil .hoja [data-ed-mas]'); await espera(60); clicCara('#movil .velo.on'); await espera(450);
+      ok(!hoja(), 'una subtarea nueva vacía cuenta como cambio');
+      // el nombre de una sesión
+      await irMovil('#tareas', `#movil [data-a="tver"][data-id="${ss}"]`); clicCara(`#movil [data-a="tver"][data-id="${ss}"]`);
+      await hasta(() => W.document.querySelector('#movil [data-a="sesnom"]'), 6000, 'la sesión');
+      clicCara('#movil [data-a="sesnom"]'); await hojaCara('[data-sc]', 'la hoja del nombre');
+      pon('[data-sc]', 'Sesión de invierno en el obrador'); clicCara('#movil .hoja [data-sc-a="no"]'); await espera(450);
+      ok(hoja() && preg(), '«Cancelar» del nombre con cambios la cerró sin preguntar');
+      clicCara('#movil .hoja [data-desc="si"]'); await espera(450); ok(!hoja(), '«Descartar» no cerró la hoja del nombre');
+      igual((await M._in.idbGet('tareas', ss)).txt, S0.txt, '«Descartar» cambió el nombre');
+    });
+    await sinTareas();
   });
 
   async function pasar() {

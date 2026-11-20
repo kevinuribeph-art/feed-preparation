@@ -42,12 +42,14 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   propio esquema `mesa` y sus permisos, el servidor guarda también la Mesa (traspaso C, D-251): `servidor/mesa.sql`; el contrato,
   en `.claude/rediseno/traspaso/contrato.md`. Cada escritura en IndexedDB se apunta en el almacén `diario` (D-250). Con `nube.js`
   encendida (D-253), la Mesa de Kevin sube allí cada cambio y baja lo último al abrir; lo que sabe del servidor, en el almacén
-  `nube` (IndexedDB 23).
+  `nube` (IndexedDB 23). Desde el esquema 5 (D-278), dos disparadores en `auth.sessions` y `auth.one_time_tokens` apuntan en la
+  actividad las entradas y los códigos del portal, que la Mesa enseña en «Avisos»; nunca paran una entrada.
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
   `mesa-version`, `mesa-epoca`, `actividad`), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:
   el interruptor del código de su app; `rescate`: quitar su código y sus sesiones si pierde el iPhone y el Mac; D-262). Solo en local.
-  `alta` da de alta una cuenta de cliente y le manda la bienvenida (D-273) con `tools/correo.mjs` (el correo, su logo `tools/correo-logo.png` y un SMTP mínimo, sin
+  `entrada real` pone también los límites de los códigos (D-278: uno cada 3 min por correo, 60 por hora, 10 por IP cada 5 min) y
+  rechaza las contraseñas filtradas. `alta` da de alta una cuenta de cliente y le manda la bienvenida (D-273) con `tools/correo.mjs` (el correo, su logo `tools/correo-logo.png` y un SMTP mínimo, sin
   dependencias), desde el buzón de los códigos (`SMTP_*`); en pruebas nunca envía.
 - `servidor/funciones/zernio.ts`: función de Supabase que hace lo de `presign`, `schedule`, `posts` y `update` de
   `tools/zernio.mjs` con la clave como secreto del proyecto, solo para la sesión de Kevin (D-261). `zernio-falso.ts`, su Zernio

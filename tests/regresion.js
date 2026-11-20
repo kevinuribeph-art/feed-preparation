@@ -19469,7 +19469,10 @@
   prueba('MV44', 'Las fotos bajadas del servidor se ven en el iPhone (D-271, punto 1; lecciones 197 y 198): con la miniatura aquí y el original aún arriba, la lista del mes y la publicación enseñan cada foto con la proporción de su recorte, nunca «Llega en un momento»', async () => {
     const key = await tableroMovil(); await comoBajadas(key);
     await enMovilPagina(async () => {
-      aLaVista(); await irMovil(`#mes/${key}/lista`, '#movil .fila .ft img.mi');
+      aLaVista(); await irMovil('#hoy', '#movil .cifras');
+      const hoyI = () => [...W.document.querySelectorAll('#movil .fila .ft img.mi')];
+      if (hoyI().length) await hasta(() => hoyI().every(verFoto), 8000, 'las miniaturas de Hoy');
+      await irMovil(`#mes/${key}/lista`, '#movil .fila .ft img.mi');
       const lista = () => [...W.document.querySelectorAll('#movil .fila .ft img.mi')];
       await hasta(() => lista().length >= 3 && lista().every(verFoto), 8000, 'las miniaturas de la lista');
       ok(![...W.document.querySelectorAll('#movil .fila .ft .hueco')].some(h => !h.hidden), 'la lista enseña «Llega en un momento»');
@@ -19607,6 +19610,11 @@
         igual(volver(), 'Hoy', 'la publicación abierta desde Hoy');
         await toca('#movil .top .back', '‹ Hoy');
         await hasta(() => hash() === 'hoy', 4000, 'Hoy');
+        const fh = W.document.querySelector(`#movil .fila[data-ir^="mes/${key}/hist"]`);
+        if (fh) { fh.click(); await espera(250); igual(volver(), 'Hoy', 'el mes abierto desde las historias de Hoy'); await toca('#movil .top .back', '‹ Hoy desde el mes'); await hasta(() => hash() === 'hoy', 4000, 'Hoy desde el mes'); }
+        await toca('#movil .tab[data-ir="clientes"]'); await toca(`#movil .cli[data-ir^="mes/${key}/"]`); const b0 = c.back;
+        await toca('#movil .tab[data-ir="clientes"]', 'la pestaña Clientes desde el mes');
+        await hasta(() => hash() === 'clientes', 4000, 'Clientes desde la pestaña'); igual(c.back, b0 + 1, 'la pestaña no volvió atrás (el gesto de Safari haría otra cosa)');
         // desde el mes en Calendario: «‹ <mes>» y vuelve a esa vista
         await toca('#movil .tab[data-ir="clientes"]'); await toca(`#movil .cli[data-ir^="mes/${key}/"]`); await toca(`#movil .seg [data-ir^="mes/${key}/cal"]`);
         const enCal = hash();
@@ -19675,6 +19683,13 @@
       await M._in.movil.releer(); await M.movil.releer(); await espera(300);
       await hasta(() => /nombre cambiado en la Mesa/.test(W.document.querySelector('#movil .pub-h h1').textContent), 4000, 'el nombre nuevo');
       igual(Math.round(tira().scrollLeft / tira().clientWidth), 1, 'tras redibujar, el carrusel volvió a la primera foto');
+      // desde Hoy: lo que baja de la publicación abierta se ve al volver a ella (revisión funcional, MEDIA 2)
+      await irMovil('#hoy', '#movil .cifras');
+      const B2 = await M._in.idbGet('boards', key); B2.slots.find(x => x.id === 'r2').name = 'Carrusel de otoño cambiado otra vez desde Hoy';
+      await M._in.diario.sinDiario('boards', 'readwrite', st => st.put(B2, key)); await M._in.diario.vaciar();
+      await M._in.movil.releer(); await M.movil.releer(); await espera(200);
+      await irMovil(`#pub/${key}/r2`, '#movil .pub-h h1');
+      ok(/cambiado otra vez desde Hoy/.test(W.document.querySelector('#movil .pub-h h1').textContent), 'al volver, la publicación enseña lo viejo: ' + W.document.querySelector('#movil .pub-h h1').textContent);
     });
   });
 
@@ -19723,6 +19738,10 @@
       // despacio y corto, desde el título: vuelve
       ok(await arrastrarMv(hoja().querySelector('h2'), 40, 8, 40), 'el arrastre desde el título no tiró de la hoja');
       await espera(450); ok(hoja() && !hoja().style.transform, 'despacio y corto la cerró o no volvió: ' + (hoja() && hoja().style.transform));
+      // deprisa, pero el dedo se para antes de soltar: no se lanza (revisión funcional, MEDIA 3)
+      { const t = hoja().querySelector('h2'), r = t.getBoundingClientRect(), x = r.left + 20, y = r.top + 8;
+        toqueMv(t, 'touchstart', x, y); toqueMv(t, 'touchmove', x, y + 30); toqueMv(t, 'touchmove', x, y + 60); await espera(300); toqueMv(t, 'touchend', x, y + 60); }
+      await espera(450); ok(hoja(), 'deprisa y parado antes de soltar, se cerró');
       // deprisa, desde una opción con la hoja arriba del todo: se cierra y el foco vuelve
       await arrastrarMv(hoja().querySelector('.estado-op'), 140, 3);
       await hasta(() => !W.document.querySelector('#movil .hoja'), 2000, 'que se cierre lanzada deprisa');
@@ -19757,8 +19776,9 @@
       try {
         await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
         ok(!chip(), 'mirando y al día sale «' + txt() + '»');
-        const t = W.document.querySelector('#movil .top-t').getBoundingClientRect();
-        ok(Math.abs((t.left + t.right) / 2 - W.innerWidth / 2) <= 2, 'el título no va centrado sin estado');
+        const tEl = W.document.querySelector('#movil .top-t'), t = tEl.getBoundingClientRect(), ajusta = tEl.closest('.top').classList.contains('ajusta');
+        ok(ajusta ? tEl.scrollWidth > tEl.clientWidth - 1 || t.width >= 80 : Math.abs((t.left + t.right) / 2 - W.innerWidth / 2) <= 2, 'el título no va centrado sin estado (o, si no cabe centrado, no ocupa el hueco)');
+        ok(t.width >= 80, 'sin estado el título se queda en ' + Math.round(t.width) + ' px');
         clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
         clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60); clicCara('#movil .hoja [data-a2="guardar"]');
         await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar');
@@ -19770,6 +19790,8 @@
         ok(/Sin conexión|Sin red/.test(txt()), 'sin conexión no lo dice: «' + txt() + '»');
         const tt = W.document.querySelector('#movil .top-t').getBoundingClientRect(), ch = chip().getBoundingClientRect();
         ok(tt.right <= ch.left + 0.5, 'el estado tapa el título');
+        ok(tt.width >= 80, 'sin conexión el título se queda en ' + Math.round(tt.width) + ' px (revisión de dibujo, ALTA 1)');
+        ok(!/\d:\d/.test(txt()), 'el estado lleva la hora: «' + txt() + '»');
         clicCara('#movil .hoja [data-a2="guardar"]'); await espera(200);
         W.dispatchEvent(new W.Event('online')); await espera(150);
         await hasta(() => /1 sin subir/.test(txt()), 4000, '«1 sin subir»');

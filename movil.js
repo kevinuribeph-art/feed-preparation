@@ -355,7 +355,9 @@
 #movil .top-l,#movil .top-r{display:grid;align-items:center}
 #movil .top-l>*,#movil .top-r>*{grid-area:1/1}
 #movil .top-l>*{justify-self:start}#movil .top-r>*{justify-self:end}
-#movil .top-g{visibility:hidden;pointer-events:none}
+#movil .top-g{visibility:hidden;pointer-events:none;max-width:30vw;overflow:hidden}
+#movil .top.ajusta .top-in{grid-template-columns:auto minmax(0,1fr) auto}
+#movil .top.ajusta .top-g{display:none}
 #movil .mv-tit{display:flex;align-items:center;justify-content:space-between;gap:12px}
 #movil .mv-tit h1{min-width:0}
 #movil .mv-sw{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:var(--tap);padding:0 0 0 8px;font-size:15px;color:var(--ink-2)}
@@ -373,6 +375,9 @@
 #movil .pp-em.ca.on .pp-emk::before{background:var(--acc);box-shadow:none}
 #movil .pp-em.ca.on .pp-emk::after{content:'';position:absolute;right:.1em;top:50%;width:.56em;height:.56em;margin:-.28em 0 0;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
 #movil .pp-el.ca .pp-et{padding-left:.22em}
+#movil .pp-em.ca{display:inline-block;width:1.3em;overflow:hidden}
+#movil .pp-em.ca .pp-emk::before{left:0;right:auto}
+#movil .pp-em.ca.on .pp-emk::after{left:.12em;right:auto}
 #movil .pp-em.nu{color:var(--mute)}
 #movil .pp-et{flex:1;min-width:0}
 #movil .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
@@ -384,7 +389,8 @@
 #movil .campo[aria-busy="true"]:disabled .v{color:var(--ink)}
 #movil .mv-tira{display:flex;gap:8px;overflow-x:auto;margin:0 calc(-1 * var(--pad));padding:0 var(--pad);scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 #movil .mv-tira::-webkit-scrollbar{display:none}
-#movil .mv-tf{position:relative;flex:none;height:140px;aspect-ratio:var(--r);border-radius:12px;overflow:hidden;background:var(--cell-ph)}
+#movil .mv-tira{scroll-snap-type:x proximity;scroll-padding-inline:var(--pad)}
+#movil .mv-tf{scroll-snap-align:start;position:relative;flex:none;height:140px;aspect-ratio:var(--r);border-radius:12px;overflow:hidden;background:var(--cell-ph)}
 #movil .mv-tf img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}`;
   const CSS_MAS = `
 @font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
@@ -554,7 +560,10 @@
 #movil .estado-op.on .es{font-weight:600}
 @media (prefers-reduced-motion:reduce){#movil .mv-gira{animation:none;border-color:var(--acc)}#movil .mv-sw i,#movil .mv-sw i::after{transition:none}#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 #movil .car .lam{aspect-ratio:var(--r,.8)}
-@media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}}
+@media (orientation:landscape) and (max-height:500px){#movil .car .lam{aspect-ratio:auto;height:70vh}#movil .car .lam img{object-fit:contain}#movil .hoja{max-height:calc(100dvh - 8px)}
+  #movil .car,#movil .car .lam{background:var(--bg)}#movil .car{margin-left:calc(-1 * var(--sa-l));margin-right:calc(-1 * var(--sa-r))}#movil .car .cnt{right:max(12px,calc(50% - 35vh * var(--r,.8) + 12px))}
+  #movil .tabs-in{height:44px}#movil .tabs .tab{min-height:44px;flex-direction:row;gap:6px;font-size:13px}#movil .tab svg{width:21px;height:21px}#movil .main{padding-bottom:calc(60px + var(--sa-b))}
+  #movil .titulo h1,#movil .mesnav h1{font-size:24px}#movil .toast{bottom:calc(56px + var(--sa-b))}}
 #movil .main{padding-left:var(--sa-l);padding-right:var(--sa-r)}
 #movil .top-in{padding-left:calc(8px + var(--sa-l));padding-right:calc(8px + var(--sa-r))}
 #movil .tabs-in{padding-left:var(--sa-l);padding-right:var(--sa-r)}
@@ -586,17 +595,19 @@
     // si todo va bien, nada (D-271, punto 8): ni «Al día» ni «Guardado» (basta el aviso breve al guardar)
     switch (e.fase) {
       case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
-      case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');
+      case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : 'Sin conexión');   // la hora, en la hoja «La nube»
       case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
       case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
       case 'otra_cuenta': return b('err', 'alerta', 'Otra cuenta', 'otracuenta');
       case 'vieja': return b('off', 'recarga', 'Versión nueva', 'version');
       case 'apagada': return b('off', 'nubeoff', 'Sin nube');
-      default: if (!e.red) return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');   // el iPhone sin red, antes de que la nube lo note
+      default: if (!e.red) return b('off', 'nubeoff', q ? 'Sin red' : 'Sin conexión');   // el iPhone sin red, antes de que la nube lo note
         return q ? `<button type="button" class="nube err" data-a="sinsubir" aria-label="${esc(plural(q, 'cambio sin subir', 'cambios sin subir'))}">${ic('alerta')}<span class="num">${q} sin subir</span></button>` : '';
     }
   }
-  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip],.top-l [data-chip-g]').forEach(x => { x.innerHTML = chip(); }); };
+  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip],.top-l [data-chip-g]').forEach(x => { x.innerHTML = chip(); }); ajustarTitulo(); };
+  // el título de la barra va centrado si cabe así; si no, ocupa el hueco que dejan los lados (como iOS)
+  function ajustarTitulo() { raiz.querySelectorAll('.top').forEach(t => { const x = t.querySelector('.top-t'); if (!x || !x.textContent) return; t.classList.remove('ajusta'); if (x.scrollWidth > x.clientWidth + 1) t.classList.add('ajusta'); }); }
 
   // ---------- las fotos: cada una a su tamaño en pantalla, 3 como mucho a la vez (nunca el original) ----------
   // La miniatura de la Mesa (1.600 px) es la foto: se decodifica una a una, se dibuja al tamaño que se ve (por la densidad del iPhone)
@@ -722,9 +733,10 @@
   let TAREAS_PASADO = 0;
   async function leerHoy() {
     try {
-      const R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: AVT });
+      const a0 = AVT, R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: a0 });
       await cargarMinis(R.items.filter(x => x.tipo === 'post').map(x => x.s.photos && x.s.photos[0]));
       try { if (M.web && M.web.leerRespuestas) await M.web.leerRespuestas(); } catch (e) { /* sin web: sin «ha contestado» */ }
+      if (a0 !== AVT) return;   // el interruptor cambió mientras se leía: vale la lectura del valor nuevo
       L.hoy = R; L.error.hoy = '';
     } catch (e) { L.error.hoy = 'No se pudo leer Hoy.'; }
   }
@@ -833,7 +845,7 @@
     const sin = posts.filter(p => !['programado', 'publicado'].includes(p.estado.k)).length, hs = v.historias.filter(h => !h.cancelada && h.fecha.dia && h.fecha.dia.slice(0, 7) === m).length;
     const otro = (d) => { const j = i + d; return j >= 0 && j < v.meses.length ? `data-ir="mes/${esc(v.key)}/${vista}/${esc(v.meses[j].m)}"` : ''; };
     const ant = otro(-1), sig = otro(1), sigB = !sig && MESES_CLI.sig ? `data-ir="mes/${esc(MESES_CLI.sig)}/${vista}"` : '', antB = !ant && MESES_CLI.ant ? `data-ir="mes/${esc(MESES_CLI.ant)}/${vista}"` : '';
-    return top({ ...volverMes(), t: nombreCli(v.client) })
+    return top({ ...volverMes(), t: nombreCli(v.client) }) + `<main class="main" id="contenido">`
       + `<div class="mesnav"><h1>${esc(mesNombre(m))}</h1><div class="flechas"><button type="button" class="ib" ${ant || antB} ${ant || antB ? '' : 'disabled'} aria-label="Mes anterior">${ic('izq')}</button><button type="button" class="ib" ${sig || sigB} ${sig || sigB ? '' : 'disabled'} aria-label="Mes siguiente">${ic('der')}</button></div></div>`
       + `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`
       + `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`;
@@ -860,7 +872,7 @@
     const v = L.vista, vista = RUTA.b || 'lista';
     if (!v || v.key !== RUTA.a) return top(volverMes()) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
     const m = mesDeRuta(v);
-    let html = `<main class="main" id="contenido">` + cabMes(v, m, vista);
+    let html = cabMes(v, m, vista);   // la barra va fuera de <main>, como en las demás
     const posts = v.posts.filter(p => p.mes === m).sort((a, b) => String(a.fecha.dia || '9').localeCompare(String(b.fecha.dia || '9')) || String(a.fecha.hora).localeCompare(String(b.fecha.hora)));
     if (vista === 'lista') {
       if (!posts.length) html += vacio('Este mes no tiene publicaciones', 'Se preparan en el escritorio.');
@@ -916,7 +928,7 @@
     const r0 = p.recortes[0], ratio = p.tipo.reel ? 9 / 16 : r0 && r0.ratio ? Math.max(0.6, Math.min(1.91, r0.ratio)) : 4 / 5;
     const n = p.fotos.length, e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
     let html = top({ ...volverPub(v, p), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
-    html += `<div class="car" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="--r:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="--r:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
+    html += `<div class="car" style="--r:${ratio}" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="--r:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="--r:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
     if (n > 1) html += `<div class="puntos" aria-hidden="true">${p.fotos.map((_, i) => `<i${i === 0 ? ' class="on"' : ''}></i>`).join('')}</div>`;
     html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div></div>`;
     if (p.estado.k === 'cancelado') html += `<div class="aviso gris">${ic('x')}<span>${p.motivo ? 'Cancelada: ' + esc(p.motivo) : 'Cancelada, sin motivo.'}</span></div>`;
@@ -1048,7 +1060,7 @@
     if (html === ULT && location.hash === ULT_H && raiz.firstChild) return;
     const y = W.scrollY, t0 = location.hash === ULT_H && raiz.querySelector('[data-car]'), x0 = t0 ? t0.scrollLeft : 0;
     raiz.innerHTML = html; raiz.appendChild(capas); ULT = html; ULT_H = location.hash;
-    vigilarFotos(raiz); carrusel(); W.scrollTo(0, y);
+    vigilarFotos(raiz); carrusel(); ajustarTitulo(); W.scrollTo(0, y);
     const t1 = x0 && raiz.querySelector('[data-car]'); if (t1) t1.scrollLeft = x0;
   }
   // el carrusel: deslizar con el dedo (desplazamiento nativo con imán, la inercia del iPhone), el contador y los puntos al día
@@ -1065,9 +1077,9 @@
     const r = RUTA;
     try {
       if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes();
-      else if (L.vista && r.p !== 'tareas') { L.vista = MV().vista() && MV().vista().key === r.a ? MV().vista() : L.vista; leerConv(L.vista.key); }
       await leerTareas();
     } catch (e) { /* cada lectura dice lo suyo */ }
+    const vv = MV().vista(); if (L.vista && vv && vv.key === L.vista.key) { L.vista = vv; if (['mes', 'pub', 'cap', 'his'].includes(r.p) && r.a === vv.key) leerConv(vv.key); }   // el tablero abierto, aunque no se vea
     if (r.p !== 'hoy') { L.hoy = null; L.error.hoy = ''; }
     if (r.p !== 'clientes') { L.clientes = null; L.error.clientes = ''; }
     pintarSiQuieto();
@@ -1122,7 +1134,7 @@
     const seguir = (x, y, t) => {
       if (!g || g.tira === false) return false;
       const dx = x - g.x0, dy = y - g.y0;
-      if (g.tira === null) { if (!dx && !dy) return false; g.tira = decidirArrastre({ dx, dy, enControl: g.ctl, enCabecera: g.cab, arriba: g.arriba }); if (!g.tira) return false; h.style.transition = 'none'; }
+      if (g.tira === null) { if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return false; g.tira = decidirArrastre({ dx, dy, enControl: g.ctl, enCabecera: g.cab, arriba: g.arriba }); if (!g.tira) return false; h.style.transition = 'none'; if (h._velo) h._velo.style.transition = 'none'; }
       g.dy = dy; g.m.push([t, y]); while (g.m.length > 2 && t - g.m[0][0] > 100) g.m.shift();
       h.style.transform = `translateY(${dy > 0 ? dy : dy / 6}px)`;   // hacia arriba, con resistencia
       if (h._velo) h._velo.style.opacity = String(1 - Math.min(1, Math.max(0, dy) / Math.max(1, h.offsetHeight)) * 0.7);
@@ -1130,15 +1142,16 @@
     };
     const soltar = t => {
       if (!g || !g.tira) { g = null; return; }
-      const a = g.m[0], b = g.m[g.m.length - 1], v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]), alto = h.offsetHeight, dy = Math.max(0, g.dy); g = null;
+      const a = g.m[0], b = g.m[g.m.length - 1], alto = h.offsetHeight, dy = Math.max(0, g.dy); let v = (b[1] - a[1]) / Math.max(1, b[0] - a[0]); g = null;
+      if (t - b[0] > 80) v = 0;   // el dedo se paró antes de soltar: sin lanzamiento
       if (cierraArrastre({ dy, v, alto })) {
-        const ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, (alto - dy) / Math.max(0.9, v))));
-        h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.2,.8,.2,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad
-        if (h._velo) h._velo.style.opacity = '';
+        const resto = Math.max(1, alto * 1.05 - dy), ms = POCO.matches ? 0 : Math.round(Math.max(140, Math.min(340, resto / Math.max(0.9, v)))), p1 = Math.min(1, 0.25 * Math.max(0, v) * ms / resto).toFixed(3);
+        h.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25,${p1},.5,1)` : 'none'; h.style.transform = 'translateY(105%)';   // sigue desde donde lo dejó el dedo, a su velocidad (sin tirón)
+        if (h._velo) { h._velo.style.transition = ''; h._velo.style.opacity = ''; }
         cerrarHojas();
       } else {
         h.style.transition = POCO.matches ? 'none' : 'transform .34s var(--ease-m)'; h.style.transform = '';
-        if (h._velo) h._velo.style.opacity = '';
+        if (h._velo) { h._velo.style.transition = ''; h._velo.style.opacity = ''; }
         setTimeout(() => { if (h.isConnected) h.style.transition = ''; }, 360);
       }
     };
@@ -1178,7 +1191,7 @@
   // ---------- el toque: un solo oyente para toda la cara ----------
   raiz.addEventListener('click', e => {
     const b = e.target.closest('[data-ir],[data-a]'); if (!b || b.disabled || !raiz.contains(b)) return;
-    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { FILTRO = null; ir(r, 'raiz'); } else if (RUTA.p === 'mes' && /^mes\//.test(r)) ir(r, 'sustituir'); else avanzar(r); return; }
+    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { FILTRO = null; if (prevDe() === r) history.back(); else ir(r, 'raiz'); } else if (RUTA.p === 'mes' && /^mes\//.test(r)) ir(r, 'sustituir'); else avanzar(r); return; }
     accion(b.dataset.a, b, e);
   });
   raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) cerrarHojas(); });

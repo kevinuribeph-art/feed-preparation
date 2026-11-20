@@ -42,7 +42,7 @@
 
 do $$
 declare
-  v_archivo constant integer := 4;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3). 4: el código de la app y `total` (D-262)
+  v_archivo constant integer := 5;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3). 4: el código de la app y `total` (D-262). 5: el portal en «Avisos» (D-278)
   v_aplicada integer := 0;
 begin
   if to_regprocedure('public.es_dueno()') is null or to_regprocedure('public.dueno_cuenta()') is null then
@@ -764,6 +764,126 @@ grant execute on function public.mesa_turno_ver(text), public.mesa_turno_pedir(t
   public.mesa_turno_reclamar(text, bigint, text, boolean), public.mesa_turno_soltar(text, bigint),
   public.mesa_escribir(text, bigint, text, jsonb, boolean), public.mesa_bajar(bigint, integer),
   public.mesa_actividad(bigint, integer) to authenticated;
+
+-- ───────────────────────── El portal en «Avisos» (esquema 5, D-278) ─────────────────────────
+-- Supabase no guarda su registro de auditoría en la base (`audit_log_disable_postgres`) y un código mal no deja rastro; sí cada
+-- entrada (una fila en `auth.sessions`, con su navegador) y cada código pedido (una en `auth.one_time_tokens`). Dos disparadores
+-- lo apuntan en `mesa.actividad`, que solo lee Kevin con su código (`mesa_actividad`) y la Mesa enseña en «Avisos»:
+--   portal_aparato_nuevo  una cuenta del portal (miembro de algún cliente) entra desde un navegador y sistema que no había usado
+--                         (`primera`: su primera entrada); el aparato es «navegador · sistema», sin IP ni correo
+--   portal_no_miembro     entra una cuenta que no es de Kevin ni miembro de ningún cliente
+--   portal_codigos        5 códigos pedidos para una cuenta en una hora (y cada 5 más), también para la de Kevin
+--   portal_fallo          el disparador falló: la entrada sigue igual (nunca se para por esto)
+-- Las entradas de Kevin no avisan aquí: la Mesa ya avisa de «La Mesa se abrió en un aparato nuevo».
+
+create table if not exists mesa.portal_aparatos (
+  usuario uuid not null,
+  aparato text not null check (char_length(aparato) <= 60),
+  primera timestamptz not null default now(),
+  primary key (usuario, aparato)
+);
+create table if not exists mesa.portal_codigos (
+  id      bigint generated always as identity primary key,
+  usuario uuid not null,
+  hora    timestamptz not null default now()
+);
+create index if not exists portal_codigos_usuario on mesa.portal_codigos (usuario, hora);
+revoke all on mesa.portal_aparatos, mesa.portal_codigos from public, anon, authenticated, service_role;
+revoke all on sequence mesa.portal_codigos_id_seq from public, anon, authenticated, service_role;
+alter table mesa.portal_aparatos enable row level security;
+alter table mesa.portal_codigos  enable row level security;
+
+-- «Safari · iPhone»: el navegador y el sistema de una cabecera User-Agent, sin versión ni nada que identifique a nadie.
+create or replace function mesa.aparato_de(ua text) returns text
+  language sql immutable set search_path = '' as $$
+  select (case when ua ~* 'edg/' then 'Edge' when ua ~* 'firefox|fxios' then 'Firefox' when ua ~* 'crios|chrome' then 'Chrome'
+               when ua ~* 'safari' then 'Safari' else 'Otro navegador' end) || ' · ' ||
+         (case when ua ~* 'iphone' then 'iPhone' when ua ~* 'ipad' then 'iPad' when ua ~* 'android' then 'Android'
+               when ua ~* 'mac os x|macintosh' then 'Mac' when ua ~* 'windows' then 'Windows' when ua ~* 'linux' then 'Linux'
+               else 'otro sistema' end);
+$$;
+
+-- Quién es una cuenta, para el aviso: su nombre de miembro y los clientes que ve (sin correo); si es la de Kevin.
+create or replace function mesa.portal_quien(u uuid) returns jsonb
+  language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'nombre', (select left(min(m.nombre), 60) from public.miembros m where m.user_id = u),
+    'clientes', coalesce((select jsonb_agg(x.nombre order by x.nombre) from (select distinct left(c.nombre, 80) as nombre
+                  from public.miembros m join public.clientes c on c.id = m.cliente_id where m.user_id = u limit 20) x), '[]'::jsonb),
+    'dueno', exists (select 1 from public.duenos d where d.user_id = u));
+$$;
+
+-- Una fila de actividad que no viene de una llamada de la Mesa (no hay auth.uid() en un disparador de Supabase Auth).
+create or replace function mesa.portal_apuntar(p_tipo text, p_usuario uuid, p_sesion text, p_det jsonb) returns void
+  language plpgsql volatile security definer set search_path = '' as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('mesa.actividad', 0));
+  insert into mesa.actividad (tipo, usuario, sesion, detalle)
+  values (p_tipo, p_usuario, left(p_sesion, 64), coalesce(p_det, '{}'::jsonb));
+end $$;
+
+create or replace function mesa.portal_sesion() returns trigger
+  language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_q jsonb; v_ap text; v_primera boolean;
+begin
+  begin
+    v_q := mesa.portal_quien(new.user_id);
+    if (v_q ->> 'dueno')::boolean then return null; end if;
+    v_ap := mesa.aparato_de(coalesce(new.user_agent, ''));
+    if jsonb_array_length(v_q -> 'clientes') = 0 then
+      perform mesa.portal_apuntar('portal_no_miembro', new.user_id, new.id::text, jsonb_build_object('aparato', v_ap));
+      return null;
+    end if;
+    v_primera := not exists (select 1 from mesa.portal_aparatos a where a.usuario = new.user_id);
+    insert into mesa.portal_aparatos (usuario, aparato) values (new.user_id, v_ap) on conflict do nothing;
+    if found then
+      perform mesa.portal_apuntar('portal_aparato_nuevo', new.user_id, new.id::text,
+        (v_q - 'dueno') || jsonb_build_object('aparato', v_ap, 'primera', v_primera));
+    end if;
+  exception when others then
+    begin
+      perform mesa.portal_apuntar('portal_fallo', new.user_id, null, jsonb_build_object('donde', 'entrada', 'error', left(sqlerrm, 200)));
+    exception when others then null;
+    end;
+  end;
+  return null;
+end $$;
+
+create or replace function mesa.portal_codigo() returns trigger
+  language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_n integer;
+begin
+  begin
+    if new.user_id is null then return null; end if;
+    insert into mesa.portal_codigos (usuario) values (new.user_id);
+    delete from mesa.portal_codigos c where c.usuario = new.user_id and c.hora < now() - interval '2 hours';
+    select count(*) into v_n from mesa.portal_codigos c where c.usuario = new.user_id and c.hora > now() - interval '1 hour';
+    if v_n >= 5 and v_n % 5 = 0 then
+      perform mesa.portal_apuntar('portal_codigos', new.user_id, null, mesa.portal_quien(new.user_id) || jsonb_build_object('n', v_n));
+    end if;
+  exception when others then
+    begin
+      perform mesa.portal_apuntar('portal_fallo', new.user_id, null, jsonb_build_object('donde', 'codigo', 'error', left(sqlerrm, 200)));
+    exception when others then null;
+    end;
+  end;
+  return null;
+end $$;
+
+-- Los aparatos que ya tienen sesión cuentan como vistos: al aplicar, nadie avisa de golpe de todas las cuentas de siempre.
+insert into mesa.portal_aparatos (usuario, aparato, primera)
+select s.user_id, mesa.aparato_de(coalesce(s.user_agent, '')), min(s.created_at)
+  from auth.sessions s group by 1, 2
+on conflict do nothing;
+
+drop trigger if exists mesa_portal_sesion on auth.sessions;
+create trigger mesa_portal_sesion after insert on auth.sessions for each row execute function mesa.portal_sesion();
+drop trigger if exists mesa_portal_codigo on auth.one_time_tokens;
+create trigger mesa_portal_codigo after insert on auth.one_time_tokens for each row execute function mesa.portal_codigo();
+revoke all on function mesa.aparato_de(text), mesa.portal_quien(uuid), mesa.portal_apuntar(text, uuid, text, jsonb),
+  mesa.portal_sesion(), mesa.portal_codigo() from public, anon, authenticated, service_role;
 
 -- ───────────────────────── Archivos privados ─────────────────────────
 -- Almacén `mesa`: copias de trabajo de 2560 px, miniaturas, diseños, PDF de facturas y fotos de sesiones. Ruta por huella:

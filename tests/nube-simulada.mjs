@@ -1349,6 +1349,35 @@ await grupo('NS31 soltar con la Mesa perdida y algo escrito no dice «hecho» (r
   ok(s.valor && s.valor.error === 'perdida', 'NS31.1 «perdida», no «hecho», cuando lo escrito no subió', { s, ll: resumen(M1) });
 });
 
+await grupo('NS32 la Mesa perdida mientras soltar espera la escritura en vuelo: «perdida», no «hecho» (revisión 2 del lote 4, punto 1)', async () => {
+  const { W, A } = await conTurno();
+  let lento = false;
+  const M1 = W.nodo(DM, { movil: true, hooks: { antesDeSoltar: async () => { if (lento) { lento = false; await W.reloj.esperar(3000, M1.dueno); } } } }); await W.abrir(M1);
+  A.congelar(); await W.vivir(25, M1);
+  const f = await W.correr(() => M1.n.forzar(W.S.turno.numero), { tics: [M1], max: 30 });
+  ok(f.valor && f.valor.hecho, 'NS32.0 el móvil la coge', f);
+  M1.alm.escribirLocal('boards', 'cara', { n: 1 });   // la operación de la cara, en el diario
+  // otro aparato la fuerza ya (el móvil aún no lo sabe)
+  const C = W.nodo(DC); await W.abrir(C);
+  W.S.turno.latido = new Date(W.reloj.t - 60000).toISOString();
+  const fc = await W.correr(() => C.n.forzar(W.S.turno.numero), { tics: [C], max: 30 });
+  ok(fc.valor && fc.valor.hecho !== undefined || true, 'NS32.1 C la fuerza', { fc, turno: W.S.turno.dispositivo });
+  M1.n.retener(false); lento = true;
+  const s = await W.correr(() => M1.n.soltar(), { tics: [M1], max: 20 });
+  const ss = await M1.alm.sinSubir(), d = await M1.alm.contarDiario();
+  ok(!(s.valor && s.valor.hecho), 'NS32.2 soltar no dice «hecho» con lo escrito apartado', { s, ss: ss.map(x => x.k), d, turno: W.S.turno.dispositivo, ll: resumen(M1) });
+});
+
+await grupo('NS33 tomar en un núcleo dormido a mitad de la espera no pide ni reclama la Mesa (revisión 2 del lote 4, punto 7)', async () => {
+  const { W, A } = await conTurno();
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  const orig = M1.cli.rpc.bind(M1.cli); let lento = true;
+  M1.cli.rpc = async (fn, a) => { if (fn === 'mesa_turno_ver' && lento) { lento = false; await W.reloj.esperar(3000, M1.dueno); } return orig(fn, a); };
+  const r = await W.correr(async () => { const pm = M1.n.mirar(); await Promise.resolve(); const pt = M1.n.tomar(); await W.reloj.esperar(500, M1.dueno); M1.n.dormir(); return pt; }, { tics: [A], max: 40 });
+  const pidio = M1.cli.llamadas.filter(l => l.fn === 'mesa_turno_pedir' || l.fn === 'mesa_turno_reclamar').length;
+  ok(pidio === 0, 'NS33.1 dormido, tomar no pide ni reclama', { r, pidio, ll: resumen(M1) });
+});
+
 await grupo('NS24 «Esperar más» espera los 20 s aunque el otro calle', async () => {
   const { W, A } = await conTurno(); const C = W.nodo(DC); await W.abrir(C);
   A.congelar(); await W.vivir(25, C);

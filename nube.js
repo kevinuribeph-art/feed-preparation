@@ -720,7 +720,7 @@
         // whatever is in flight goes first, again and again until nothing is (never «done» over a release, a look or an entry;
         // a look that found the Mesa its own cleared retenido: it is set again below; review of lot 4, point 4)
         for (;;) {
-          if (parado) break;
+          if (parado) { retenido = false; return { error: 'parada' }; }   // asleep (another tab of this iPhone): never asks nor claims
           if (soltando) { await soltando.catch(() => null); continue; }
           if (mirandoP) { await mirandoP.catch(() => null); continue; }
           if (cediendo || entrando || forzando) { await R.esperar(250); continue; }
@@ -772,6 +772,7 @@
       soltando = (async () => {
         if (!auto) retenido = false;
         const otraVez = () => auto && retenido;
+        const perdidaSi = async () => { const c = await A.contarDiario().catch(() => 0), p = perdidaCon; if (!auto) perdidaCon = 0; return c || p ? { error: 'perdida', cola: c || p } : { hecho: true }; };   // lost meanwhile: what it wrote is in the journal or aside
         if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* */ } }
         if (otraVez()) return { cancelado: true };
         const subirCola = async corta => {   // the journal up; null once empty, or what to answer
@@ -788,7 +789,7 @@
           return null;
         };
         let x = await subirCola(false); if (x) return x;
-        if (!conTurno) return (await A.contarDiario()) ? { error: 'perdida' } : { hecho: true };
+        if (!conTurno) return perdidaSi();
         if (otraVez()) return { cancelado: true };
         // the last step (review 2, point 2): the phone's Mesa locked first, the face's write in flight waited and the journal
         // counted again — a write that slipped in after the upload goes up before the turn is let go, never aside. From here it
@@ -797,7 +798,7 @@
           try { await E.congelar(); } catch (e) { /* */ }
           if (E.antesDeSoltar) { try { await E.antesDeSoltar(); } catch (e) { /* */ } }
           if (await A.contarDiario()) { x = await subirCola(true); if (x) return x; }
-          if (!conTurno) return (await A.contarDiario()) ? { error: 'perdida' } : { hecho: true };
+          if (!conTurno) return perdidaSi();
         }
         let r;
         try { r = await llamar('mesa_turno_soltar', { dispositivo: D, turno: st.turno }); }

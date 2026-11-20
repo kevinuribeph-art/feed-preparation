@@ -989,11 +989,16 @@
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
-    if (o.alCerrar) h._alCerrar = o.alCerrar;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
+    if (o.alCerrar) h._alCerrar = o.alCerrar;
+    h._velo = velo;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
     capas.append(velo, h);
     requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
     if (!o.fija) arrastrable(h);
     return h;
+  }
+  function cerrarEsta(h) {   // solo esa hoja (y su velo), si sigue abierta: nunca otra que se abrió entretanto
+    if (!h || !h.isConnected) return;
+    for (const x of [h, h._velo]) { if (!x) continue; if (POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } }
   }
   function cerrarHojas(ya) {
     capas.querySelectorAll('.hoja,.velo').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
@@ -1153,7 +1158,7 @@
     const pasos = [quien ? `${quien} sube lo suyo` : null, 'La Mesa pasa a este iPhone', 'Se guarda tu cambio', `La Mesa queda libre${quien ? ' para ' + quien : ''}`].filter(Boolean);
     const h = hoja(`<h2>Guardando en la Mesa</h2><p class="ex">${quien ? `${esc(quien)} la tiene abierta: queda en pausa mientras cambias desde aquí.` : 'Está libre: se guarda al momento.'}</p><div class="prog" role="list">${pasos.map((t, i) => `<div class="paso" role="listitem" data-p="${i}"><span class="ic">${ic(['mac', 'movil', 'movil', 'mac'][quien ? i : i + 1])}</span><span class="t">${esc(t)}</span><span class="s num"></span></div>`).join('')}</div>`, { fija: true, etiqueta: 'Guardando en la Mesa' });
     const t0 = Date.now(), base = quien ? 0 : -1;
-    return { paso: n => { const i = n + base + 1; h.querySelectorAll('.paso').forEach((p, j) => { p.classList.toggle('hecho', j < i); p.classList.toggle('ahora', j === i); const ico = p.querySelector('.ic'); if (j < i) ico.innerHTML = ic('check', 2.5); else if (j === i) { ico.innerHTML = ic('gira', 2.25); ico.classList.add('gira'); } if (j < i) ico.classList.remove('gira'); }); const s = h.querySelector(`.paso[data-p="${i - 1}"] .s`); if (s && !s.textContent) s.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + ' s'; }, h };
+    return { h, paso: n => { const i = n + base + 1; h.querySelectorAll('.paso').forEach((p, j) => { p.classList.toggle('hecho', j < i); p.classList.toggle('ahora', j === i); const ico = p.querySelector('.ic'); if (j < i) ico.innerHTML = ic('check', 2.5); else if (j === i) { ico.innerHTML = ic('gira', 2.25); ico.classList.add('gira'); } if (j < i) ico.classList.remove('gira'); }); const s = h.querySelector(`.paso[data-p="${i - 1}"] .s`); if (s && !s.textContent) s.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + ' s'; }, h };
   }
   // «<aparato> no contesta»: esperar más, usarla aquí o dejarlo (D-254, D-268); cerrada de otro modo (atrás, Esc) es «Ahora no»
   function hojaNoContesta(e) {
@@ -1193,7 +1198,7 @@
         const r = await hojaNoContesta(t.espera);
         cerrarHojas(true);
         if (r === 'no') return false;
-        if (prog) { const g = hojaGuardando(corto2(t.espera.dispositivo)); prog.paso = g.paso; prog.paso(0); }
+        if (prog) { const g = hojaGuardando(corto2(t.espera.dispositivo)); prog.paso = g.paso; prog.h = g.h; prog.paso(0); }
         t = r === 'forzar' ? await M.nube.forzarAqui(t.espera.turno) : await M.nube.tomar({ esperar: true });
         if (t && t.otraVez) t = await M.nube.tomar();
         continue;
@@ -1221,41 +1226,55 @@
     const ids = apuntar(ops, red && nube ? 'nueva' : 'quedo');
     if (!red) { aviso('Sin conexión: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
     if (!nube) { aviso('Sin nube en este iPhone: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
+    while (RUN && !RUN.g) await RUN.catch(() => null);   // «Subir encima» o «Descartar» de la nube en marcha: primero acaba
     if (!RUN) {
       RUN = (async () => {
         ST.guardando = true; pintarChip();
         try { let oo = o; do { OTRA = false; await correr(oo); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); }
         finally { RUN = null; ST.guardando = false; pintarChip(); }
       })();
+      RUN.g = true;
     } else OTRA = true;
     await RUN;
     return !ids.length || !opsLeer().some(x => ids.includes(x.id));
   }
   async function correr(o) {
     const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
-    const g = hojaGuardando(quien), prog = { paso: g.paso };
+    const g = hojaGuardando(quien), prog = { paso: g.paso, h: g.h };
     const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
-    const res = { ok: 0, dejados: 0, quedan: 0, fallos: [], avisos: [] }, hechos = new Set();
+    const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set(), escritos = new Map();
+    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : ''].join('|');
+    const queda = (ids, motivo) => { if (!ids.length) return; opsMarcar(ids, 'quedo'); res.quedan += ids.length; res.por[motivo] = (res.por[motivo] || 0) + ids.length; };
+    const motivoDe = e => (e === 'sin turno' ? 'turno' : e === 'sin decidir' ? 'decidir' : 'fallo');
     let s = null;
     try {
       prog.paso(0);
-      if (!(await cogerMesa(prog))) { cerrarHojas(true); opsMarcar(opsLeer().filter(toca).map(x => x.id), 'quedo'); aviso('Tu cambio espera en «sin subir».', { ms: 6000 }); return; }
+      if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); opsMarcar(opsLeer().filter(toca).map(x => x.id), 'quedo'); aviso('Tu cambio espera en «sin subir».', { ms: 6000 }); return; }
       prog.paso(1);
       vuelta: for (;;) {
         const lista = opsLeer().filter(x => toca(x) && !hechos.has(x.id));
         if (!lista.length) break;
         for (const op of lista) {
-          hechos.add(op.id); ENVUELO = op.id;
-          let r = await MV().aplicar(o.solo ? { ...op, forzar: true } : op);   // «Subir encima»: lo tuyo encima (R4)
+          hechos.add(op.id);
+          if (!opsLeer().some(x => x.id === op.id)) continue;   // sustituida por otra del mismo campo mientras tanto
+          ENVUELO = op.id;
+          // «Subir encima»: lo tuyo encima (R4), salvo un caption elegido de otra tanda, que nunca se elige a ciegas
+          const ciego = o.solo && op.campo === 'capElegir';
+          let r = await MV().aplicar(o.solo && !ciego ? { ...op, forzar: true } : op);
+          if (r && r.choque && ciego) r = (r.choque.visto || {}).at !== (r.choque.ahora || {}).at ? { error: 'Llegó otra tanda de captions: vuelve a elegir' } : await MV().aplicar({ ...op, forzar: true });
+          if (r && r.choque && escritos.has(campoDe(op)) && mismoEscrito(op, r.choque.ahora, escritos.get(campoDe(op)))) r = await MV().aplicar({ ...op, forzar: true });   // lo que «cambió» lo escribió esta misma vuelta
           if (r && r.choque) {
-            cerrarHojas(true);
+            cerrarEsta(prog.h);
             const a = await hojaChoque(op, r.choque);
-            cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.paso(1);
+            cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.h = g2.h; prog.paso(1);
             r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : a === 'mesa' ? { ok: true, dejado: true } : { error: 'sin decidir' };
           }
           ENVUELO = null;
-          if (r && r.ok) { opsQuitar(op.id); if (r.dejado) res.dejados++; else res.ok++; res.avisos.push(...(r.avisos || [])); if (op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); }
-          else if (r && pasajero(r.error)) { opsMarcar([op.id], 'quedo'); res.quedan++; if (r.error === 'sin turno') { opsMarcar(opsLeer().filter(x => toca(x) && !hechos.has(x.id)).map(x => x.id), 'quedo'); res.quedan = opsLeer().filter(x => x.estado === 'quedo' && (hechos.has(x.id) || toca(x))).length; break vuelta; } }
+          if (r && r.ok) { opsQuitar(op.id); if (r.dejado) res.dejados++; else { res.ok++; escritos.set(campoDe(op), op.valor); } res.avisos.push(...(r.avisos || [])); if (op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); }
+          else if (r && pasajero(r.error)) {
+            queda([op.id], motivoDe(r.error));
+            if (r.error === 'sin turno') { queda(opsLeer().filter(x => toca(x) && x.estado === 'nueva' && !hechos.has(x.id)).map(x => x.id), 'turno'); break vuelta; }
+          }
           else { opsQuitar(op.id); res.fallos.push(errorTexto(r && r.error)); }
         }
         if (o.solo) break;
@@ -1266,24 +1285,32 @@
       prog.paso(3);
     } catch (e) {
       opsMarcar(opsLeer().filter(x => toca(x) && x.estado === 'nueva').map(x => x.id), 'quedo');
-      cerrarHojas(true);
+      cerrarEsta(prog.h);
       try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) M.nube.soltar(); } catch (x) { /* */ }
       ENVUELO = null;
       aviso((e && e.message) || 'No se pudo guardar: tu cambio espera en «sin subir».', { error: true, ms: 8000 });
       await releerTodo();
       return;
     }
-    cerrarHojas();
+    cerrarEsta(prog.h);
     // un solo aviso, el que más importa: lo que no se pudo, lo que se perdió al soltar, lo que espera, y si no, «Guardado»
     const mas = n => (n > 1 ? ` (y ${n - 1} más)` : '');
     if (res.fallos.length) aviso(res.fallos[0] + mas(res.fallos.length), { error: true, ms: 8000 });
     else if (s && s.error === 'perdida') aviso('La Mesa pasó a otro aparato antes de subir: tu cambio está en «sin subir».', { error: true, ms: 8000 });
-    else if (res.quedan) aviso(`La Mesa se soltó a mitad: ${plural(res.quedan, 'cambio espera', 'cambios esperan')} en «sin subir».`, { error: true, ms: 8000 });
+    else if (res.quedan) { const n = plural(res.quedan, 'cambio espera', 'cambios esperan'); aviso(res.por.turno ? `La Mesa se soltó a mitad: ${n} en «sin subir».` : res.por.fallo ? `No se pudo guardar en este iPhone: ${n} en «sin subir».` : `Sin decidir: ${n} en «sin subir».`, { error: true, ms: 8000 }); }
     else if (s && s.error === 'sin_conexion') aviso('Guardado en este iPhone; sube en cuanto vuelva la red.', { ms: 8000 });
     else if (s && s.error) aviso('Guardado en este iPhone; aún no ha subido: lo intenta otra vez solo.', { ms: 8000 });
     else if (res.ok) { ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100); aviso(res.avisos.length ? res.avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
     else if (res.dejados) aviso('Se queda lo de la Mesa.', { ms: 4200 });
     await releerTodo();
+  }
+  function mismoEscrito(op, ahora, v) {
+    if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return !!iso && !!ahora && X().sameDate(iso, ahora); }
+    if (op.campo === 'estado') return !!ahora && (ahora.v || null) === ((v && v.v) || null) && String(ahora.motivo || '') === String((v && v.v === 'cancelado' && v.motivo) || '');
+    if (op.campo === 'capElegir') return !!ahora && ahora.pick === v;
+    if (op.campo === 'capTexto') return !!ahora && ahora.texto === (v && v.texto);
+    if (op.campo === 'tarea') return !!ahora && !!ahora.hecha === !!(v && v.hecha);
+    return false;
   }
   // lo que necesita la Mesa sin ser una operación («Subir encima» y «Descartar» de lo que apartó la nube): el mismo freno y la misma hoja
   async function conLaMesa(fn) {
@@ -1291,15 +1318,15 @@
     let r = null;
     RUN = (async () => {
       ST.guardando = true; pintarChip();
-      const g = hojaGuardando(''), prog = { paso: g.paso };
+      const g = hojaGuardando(''), prog = { paso: g.paso, h: g.h };
       try {
         prog.paso(0);
-        if (!(await cogerMesa(prog))) { cerrarHojas(true); return; }
+        if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); return; }
         prog.paso(1); r = await fn(); prog.paso(2);
       } catch (e) { r = { error: (e && e.message) || String(e) }; }
       finally {
         try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) await M.nube.soltar(); } catch (x) { /* */ }
-        cerrarHojas(); RUN = null; ST.guardando = false; pintarChip();
+        cerrarEsta(prog.h); RUN = null; ST.guardando = false; pintarChip();
       }
     })();
     await RUN;
@@ -1404,6 +1431,8 @@
   // ---------- captions: elegir y retocar (su borrador sobrevive a que iOS cierre la app) ----------
   C.elegir = b => { const p = pAhora(), v = L.vista; if (!p || !p.captions) return; guardar({ key: v.key, slot: p.id, campo: 'capElegir', valor: +b.dataset.k, visto: { at: p.captions.at, pick: p.captions.pick } }); };
   const K_BORR = (key, slot, k) => `mesa-movil-borrador:${key}|${slot}|${k}`;
+  let RET0 = null;
+  const baseDe = (key, slot, k) => (RET0 && RET0.key === key && RET0.slot === slot && RET0.k === k ? RET0.base : null);
   // el borrador guarda la versión de la que salió (su tanda y su texto): «Listo» compara con esa, nunca con lo que bajó entretanto
   const borrLeer = (key, slot, k) => { const t = lsG(K_BORR(key, slot, k)); if (t == null) return null; try { const o = JSON.parse(t); if (o && typeof o.texto === 'string') return o; } catch (e) { /* uno de antes, solo texto */ } return { texto: t, base: null }; };
   const borrPoner = (key, slot, k, texto, base) => lsS(K_BORR(key, slot, k), JSON.stringify({ texto, base }));
@@ -1411,6 +1440,7 @@
     const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k);
     if (!o) return top({ atras: 'Captions' }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
     const b = borrLeer(v.key, p.id, k), borr = b ? b.texto : null, txt = borr != null ? borr : o.texto;
+    RET0 = { key: v.key, slot: p.id, k, base: { at: p.captions.at, texto: o.texto } };   // lo que enseña esta pantalla: la base si aún no hay borrador
     const cambio = b && b.base && (b.base.at !== p.captions.at || b.base.texto !== o.texto);   // cambió en la Mesa desde que empezaste
     return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
       <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
@@ -1420,12 +1450,12 @@
     const t = e.target;
     if (t.matches('[data-ret]')) {
       const k = +RUTA.c, b = borrLeer(RUTA.a, RUTA.b, k), p = pAhora(), o = p && p.captions && p.captions.opciones.find(x => x.k === k);
-      borrPoner(RUTA.a, RUTA.b, k, t.value, b && b.base ? b.base : o ? { at: p.captions.at, texto: o.texto } : null);   // la base, en la primera tecla
+      borrPoner(RUTA.a, RUTA.b, k, t.value, b && b.base ? b.base : baseDe(RUTA.a, RUTA.b, k) || (o ? { at: p.captions.at, texto: o.texto } : null));   // la base: lo que se veía al dibujar
       const c = raiz.querySelector('[data-cuenta]'); if (c) { c.textContent = `${miles(t.value.length)} / 2.200`; c.classList.toggle('sobra', t.value.length > 2200); } }
   };
   C.listo = async () => {
     const v = L.vista, p = pAhora(), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k), t = raiz.querySelector('[data-ret]'); if (!o || !t) return;
-    const b = borrLeer(v.key, p.id, k), base = b && b.base ? b.base : { at: p.captions.at, texto: o.texto };
+    const b = borrLeer(v.key, p.id, k), base = b && b.base ? b.base : baseDe(v.key, p.id, k) || { at: p.captions.at, texto: o.texto };
     if (t.value === base.texto && t.value === o.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }
     const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
     if (ok) atras();

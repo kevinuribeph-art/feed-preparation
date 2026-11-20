@@ -18964,7 +18964,7 @@
   // la cara cambia (lote 4, D-267, D-268, D-270): su nube contra el servidor simulado (srvMovil), con la Mesa en el Mac
   async function nubeCara(key, o = {}) {
     const sv = srvMovil(key), corte = { red: true };
-    const srv = { rpc: async (fn, a) => { if (!corte.red) throw new TypeError('Failed to fetch'); return sv.rpc(fn, a); } };
+    const srv = { rpc: async (fn, a) => { if (!corte.red) throw new TypeError('Failed to fetch'); if (corte.demora) await espera(corte.demora); return sv.rpc(fn, a); } };   // demora: un servidor lento
     const cero = () => M._in.diario.sinDiario(M._in.xfer.NO_VIAJAN[1], 'readwrite', st => st.clear());   // lo que la nube sabe de otra prueba (cursor, versiones) no vale aquí: cada servidor simulado empieza de cero
     M._in.NUBE.activa = true; await M._in.diario.vaciar(); await cero();
     const n = M.nube._con(srv), r = await n.abrir();
@@ -19279,6 +19279,75 @@
       ok(!(await M._in.idbGet('tareas', id)).hecha, 'se marcó sin la Mesa');
     });
     await sinTareas();
+  });
+
+
+  prueba('MV37', 'Un cambio tocado mientras corre «Subir encima» de la nube no queda escondido sin aplicar (D-270; revisión 2 del lote 4, punto 3)', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const A = M.personal.nuevoId('tarea'); await M.personal.tarea({ id: A, txt: 'Tarea YA de la revisión de la cola' });
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        const rec = await M._in.idbGet('boards', key);
+        await M._in.nubeAlmacen.aparteValor('boards', key, rec, 'turno');
+        await irMovil('#tareas', `#movil [data-a="hecha"][data-id="${A}"]`);
+        M.movil._C.sinsubir();
+        await hojaCara('[data-nsub="0"]', 'la hoja sin subir');
+        C.corte.demora = 400;   // «Subir encima» tarda: el toque llega mientras corre
+        clicCara('#movil .hoja [data-nsub="0"]');
+        await hasta(() => M.movil._ST.guardando, 3000, 'conLaMesa empieza');
+        W.dispatchEvent(new W.PopStateEvent('popstate')); await espera(30);
+        clicCara(`#movil [data-a="hecha"][data-id="${A}"]`); C.corte.demora = 0;
+        await hasta(() => !M.movil._ST.guardando, 20000, 'acabar');
+        await espera(800);
+        const cola = JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]');
+        const t = (await M._in.idbAll('tareas')).find(x => x.id === A);
+        ok(t.hecha || cola.some(x => x.estado === 'quedo'), 'el toque de «Hecha» ni se guardó ni está en «sin subir»: cola ' + JSON.stringify(cola.map(x => [x.campo, x.estado])) + ' · chip opsN ' + M.movil._ST.opsN + ' · aviso «' + avisoCara() + '»');
+      } finally { await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV38', 'Retocar con una bajada entre el foco y la primera tecla no pisa lo del Mac sin choque: la base es lo que enseñaba la pantalla (D-270; revisión 2 del lote 4, punto 2)', async () => {
+    const key = await tableroMovil(), K = `mesa-movil-borrador:${key}|r1|1`;
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#ret/${key}/r1/1`, '#movil [data-ret]');
+        const t = W.document.querySelector('#movil [data-ret]'); t.focus();
+        ok(W.document.activeElement === t, 'el campo no tiene el foco');
+        const rec = await M._in.idbGet('boards', key); rec.slots.find(x => x.id === 'r1').caption.text[1] = 'RETOCADO EN EL MAC'; await M._in.idbPut('boards', key, rec);
+        await M._in.movil.releer(); await M.movil.releer(); await espera(200);
+        ok(W.document.querySelector('#movil [data-ret]') === t, 'la pantalla se rehízo');
+        t.value = t.value + ' y algo del iPhone'; t.dispatchEvent(new W.Event('input', { bubbles: true }));
+        const bo = JSON.parse(W.localStorage.getItem(K) || 'null');
+        clicCara('#movil [data-a="listo"]');
+        await hasta(() => W.document.querySelector('#movil .hoja [data-r="mio"]') || (!M.movil._ST.guardando && /Guardado|Se queda/.test(avisoCara())), 15000, 'acabar o el choque');
+        const choque = !!W.document.querySelector('#movil .hoja [data-r="mio"]');
+        if (choque) { clicCara('#movil .hoja [data-r="mesa"]'); await hasta(() => !M.movil._ST.guardando, 15000, 'acabar'); }
+        const ahora = (await M._in.idbGet('boards', key)).slots.find(x => x.id === 'r1').caption.text[1];
+        ok(choque || ahora === 'RETOCADO EN EL MAC', 'el retoque pisó lo del Mac sin choque: «' + ahora + '» · base ' + JSON.stringify(bo && bo.base));
+      } finally { W.localStorage.removeItem(K); await C.fin(); }
+    });
+  });
+
+  prueba('MV39', '«Subir encima» de un caption elegido que quedó en «sin subir» nunca lo elige a ciegas en otra tanda (D-270; revisión 2 del lote 4, punto 4)', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        const rec0 = await M._in.idbGet('boards', key), c0 = rec0.slots.find(x => x.id === 'r2').caption;
+        W.localStorage.setItem('mesa-movil-ops', JSON.stringify([{ id: 'opcap39', key, slot: 'r2', campo: 'capElegir', valor: 1, visto: { at: c0.at, pick: c0.pick ?? null }, at: Date.now(), estado: 'quedo' }]));
+        c0.at = '2026-11-02T09:00:00.000Z'; c0.orig = ['otra uno', 'otra dos', 'otra tres']; c0.text = c0.orig.slice(); c0.pick = null; await M._in.idbPut('boards', key, rec0);   // otra tanda, ya bajada
+        await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');
+        await C.fin(true); Object.assign(C, await nubeCara(key));
+        await irMovil(`#pub/${key}/r2`, '#movil [data-a="sinsubir"]');
+        clicCara('#movil [data-a="sinsubir"]'); await hojaCara('[data-sub="opcap39"]', 'la hoja «Sin subir»');
+        clicCara('#movil .hoja [data-sub="opcap39"]');
+        await hasta(() => !M.movil._ST.guardando && /otra tanda/i.test(avisoCara()), 15000, 'el aviso de otra tanda');
+        igual((await M._in.idbGet('boards', key)).slots.find(x => x.id === 'r2').caption.pick ?? null, null, 'eligió a ciegas en la tanda nueva');
+      } finally { await C.fin(); }
+    });
   });
 
   async function pasar() {

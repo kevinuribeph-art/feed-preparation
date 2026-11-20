@@ -19913,6 +19913,28 @@
     } finally { try { W.localStorage.removeItem('mesa-movil-tema'); } catch (e) { /* */ } }
   });
 
+  prueba('MV59', 'La lista del mes con «Publicadas» (D-271, punto 12): lo ya publicado antes de hoy va plegado en «Publicadas · N» al entrar; lo vencido o sin publicar del pasado sigue a la vista; al tocarlo se despliega; al entrar otra vez en el mes, plegado', async () => {
+    const key = await tableroMovil();
+    const h = M._in.hoy(), dia = n => new W.Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) + n)).toISOString().slice(0, 10);
+    M._test.setSlot('r1', { date: M._in.madridISO(dia(-3), '10:00') }); M._test.setSlot('r2', { date: M._in.madridISO(dia(-2), '10:00') }); M._test.setSlot('r3', { date: M._in.madridISO(dia(-1), '10:00') });
+    ok(!M.setEstado('r1', 'publicado')[0].error && !M.setEstado('r2', 'publicado')[0].error, 'no se publicaron r1 y r2');
+    await M.flush();
+    await enMovilPagina(async () => {
+      const fila = id => W.document.querySelector(`#movil .fila[data-ir="pub/${key}/${id}"]`), pubs = () => W.document.querySelector('#movil .mv-pubs');
+      await irMovil(`#mes/${key}/lista`, '#movil .seg');
+      ok(pubs() && /Publicadas/.test(pubs().textContent) && /· 2/.test(pubs().textContent) && pubs().getAttribute('aria-expanded') === 'false', 'sin «Publicadas · 2» plegada: ' + (pubs() && pubs().textContent));
+      ok(!fila('r1') && !fila('r2') && fila('r3'), 'plegada, se ven las publicadas o no la del pasado sin publicar');
+      pubs().click(); await espera(150);
+      ok(pubs().getAttribute('aria-expanded') === 'true' && fila('r1') && fila('r2'), 'al tocarla no se despliega');
+      fila('r1').click(); await hasta(() => W.document.querySelector('#movil .pub-h'), 4000, 'la publicación');
+      W.document.querySelector('#movil .top .back').click(); await hasta(() => pubs(), 4000, 'el mes otra vez');
+      ok(pubs().getAttribute('aria-expanded') === 'true' && fila('r1'), 'volver de una publicación plegó «Publicadas»');
+      await irMovil('#hoy', '#movil .cifras');
+      await irMovil(`#mes/${key}/lista`, '#movil .mv-pubs');
+      ok(pubs().getAttribute('aria-expanded') === 'false' && !fila('r1'), 'al entrar otra vez en el mes no está plegada');
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

@@ -403,6 +403,12 @@
 #movil .estado-op .mv-ico svg{width:22px;height:22px}
 #movil .estado-op .mv-tt{flex:1;min-width:0}
 #movil .estado-op .mv-tt .sub{display:block}
+#movil .mv-pubs{display:flex;align-items:center;gap:6px;width:calc(100% - 2 * var(--pad));min-height:var(--tap);margin:16px var(--pad) 0;padding:0 2px;text-align:left;font-size:16px}
+#movil .mv-pubs b{font-weight:800}
+#movil .mv-pubs .n{color:var(--mute)}
+#movil .mv-pubs .r{margin-left:auto;color:var(--mute);font-size:14px}
+#movil .mv-pubs .chev{flex:none;width:20px;height:20px;color:var(--faint);transition:transform var(--d2) var(--ease)}
+#movil .mv-pubs[aria-expanded="true"] .chev{transform:rotate(180deg)}
 #movil .mono-w{position:relative;flex:none;display:inline-block;width:30px;height:30px;margin-left:8px}
 #movil .mono-w .mono{position:absolute;inset:0;margin:0}
 #movil .mono-w .mono-ll{clip-path:inset(var(--vacio,0%) 0 0 0);transition:clip-path .35s var(--ease)}
@@ -937,15 +943,28 @@
     const posts = v.posts.filter(p => p.mes === m).sort((a, b) => String(a.fecha.dia || '9').localeCompare(String(b.fecha.dia || '9')) || String(a.fecha.hora).localeCompare(String(b.fecha.hora)));
     if (vista === 'lista') {
       if (!posts.length) html += vacio('Este mes no tiene publicaciones', 'Se preparan en el escritorio.');
-      let dia = null;
-      for (const p of posts) {
-        if (p.fecha.dia !== dia) { if (dia !== null) html += '</div>'; dia = p.fecha.dia; html += (dia ? diaFila(v, dia) : `<div class="dia"><b>Sin fecha</b></div>`) + '<div class="lista">'; }
-        html += filaPost(v, p);
+      // lo ya publicado antes de hoy, plegado en «Publicadas · N» (D-271, punto 12): así hoy queda arriba; lo vencido o sin publicar
+      // del pasado sigue a la vista. Se pliega otra vez al entrar en otro mes
+      const pas = posts.filter(p => p.fecha.dia && p.fecha.dia < v.hoy && (p.publicada || p.tocaria || p.estado.k === 'publicado')), resto = posts.filter(p => !pas.includes(p));
+      if (PUBS.de !== v.key + '|' + m) PUBS.de = v.key + '|' + m, PUBS.abierta = false;   // (y al entrar desde fuera del mes: pintar)
+      if (pas.length) {
+        const a = pas[0].fecha.dia, z = pas[pas.length - 1].fecha.dia, rango = a === z ? corto(a) : a.slice(0, 7) === z.slice(0, 7) ? `${+a.slice(8, 10)}–${corto(z)}` : `${corto(a)}–${corto(z)}`;
+        html += `<button type="button" class="mv-pubs" data-a="pubs" aria-expanded="${PUBS.abierta}"><b>Publicadas</b><span class="n num">· ${pas.length}</span><span class="r num">${esc(rango)}</span><span class="chev">${ic('abajo')}</span></button>`;
+        if (PUBS.abierta) html += listaDias(v, pas);
       }
-      if (dia !== null) html += '</div>';
+      html += listaDias(v, resto);
     } else if (vista === 'cal') html += calMes(v, m, posts);
     else html += histMes(v, m);
     return html + '</main>' + tabs('clientes');
+  }
+  const PUBS = { de: '', abierta: false };
+  function listaDias(v, posts) {   // las publicaciones por día, cada día con su cabecera
+    let h = '', dia = null;
+    for (const p of posts) {
+      if (p.fecha.dia !== dia) { if (dia !== null) h += '</div>'; dia = p.fecha.dia; h += (dia ? diaFila(v, dia) : `<div class="dia"><b>Sin fecha</b></div>`) + '<div class="lista">'; }
+      h += filaPost(v, p);
+    }
+    return dia !== null ? h + '</div>' : h;
   }
   let DIA_CAL = null;
   function calMes(v, m, posts) {
@@ -1103,8 +1122,11 @@
   let pintando = 0, PEND_PINTAR = false;
   const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && /^(TEXTAREA|INPUT)$/.test(a.tagName)) || !!raiz.querySelector('.hoja'); };
   function pintarSiQuieto() { if (enUso()) { PEND_PINTAR = true; return; } pintar(); }   // un campo en uso no se rehace desde fuera (D-112)
+  let ULT_P = '';
   async function pintar() {
     const n = ++pintando, r = RUTA;
+    if (r.p === 'mes' && !['mes', 'pub', 'cap', 'ret', 'his'].includes(ULT_P)) PUBS.abierta = false;   // «Publicadas» se pliega al entrar en el mes; volver de una publicación la deja como estaba
+    ULT_P = r.p;
     if (r.p === 'mes' || r.p === 'pub' || r.p === 'cap' || r.p === 'ret' || r.p === 'his') {
       if (!L.vista || L.vista.key !== r.a) { raiz.querySelector('.pant') ? 0 : 0; dibujar((PANT[r.p] || pantMes)()); await leerMes(r.a); if (n !== pintando) return; if (L.vista) await vecinos(L.vista); if (n !== pintando) return; }
     } else if (r.p === 'hoy' && !L.hoy && !L.error.hoy) { dibujar(pantHoy()); await leerHoy(); if (n !== pintando) return; }
@@ -1266,6 +1288,7 @@
       case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();
       case 'reconv': if (L.vista) leerConv(L.vista.key); return;
       case 'dia': DIA_CAL = b.dataset.d; return pintar();
+      case 'pubs': PUBS.abierta = !PUBS.abierta; return pintar();
       case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();
       case 'tcli': FILTRO_T = b.dataset.c || ''; return pintar();
       case 'tver': return verTarea(b.dataset.id);

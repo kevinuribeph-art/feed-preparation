@@ -17941,6 +17941,32 @@
     } finally { await nbLimpiar(); if (M.personal) M.personal.cerrar(); }
   });
 
+  prueba('RP1', 'Los avisos del portal (D-278): lo que apunta el servidor de una cuenta del portal (aparato nuevo, primera entrada, una cuenta sin clientes, muchos códigos, un fallo) cuenta como aviso y sale en «Avisos» con quién y el aparato, nunca un correo; lo demás del portal no', async () => {
+    await tablero([pub(1)]);
+    const A = M._in.nubeAlmacen, hora = new Date(M._in.ahora() - 1800e3).toISOString(), es = W.NubeNucleo.esAviso;
+    const filas = [{ id: 9101, hora, tipo: 'portal_aparato_nuevo', usuario: 'u1', detalle: { nombre: 'Ana <b>Prueba</b>', clientes: ['Cliente Uno', 'Cliente Dos'], aparato: 'Safari · iPhone', primera: false } },
+      { id: 9102, hora, tipo: 'portal_aparato_nuevo', usuario: 'u2', detalle: { nombre: 'Bea', clientes: ['Cliente Uno'], aparato: 'Chrome · Windows', primera: true } },
+      { id: 9103, hora, tipo: 'portal_no_miembro', usuario: 'u3', detalle: { aparato: 'Firefox · Linux' } },
+      { id: 9104, hora, tipo: 'portal_codigos', usuario: 'u1', detalle: { nombre: 'Ana', clientes: ['Cliente Uno'], n: 5, dueno: false } },
+      { id: 9105, hora, tipo: 'portal_codigos', usuario: 'k', detalle: { nombre: null, clientes: [], n: 10, dueno: true } },
+      { id: 9106, hora, tipo: 'portal_fallo', usuario: 'u1', detalle: { donde: 'entrada', error: 'x' } }];
+    ok(filas.every(es), 'el núcleo no los cuenta como avisos: ' + filas.filter(f => !es(f)).map(f => f.tipo).join(', '));
+    ok(!es({ tipo: 'portal_otro', detalle: {} }) && !es({ tipo: 'turno_reclamado', detalle: {} }), 'cuenta como aviso lo que no lo es');
+    try {
+      await A.ponerAvisos(filas); await M.nube._releerAvisos();
+      M._in.NUBE.activa = true; await M.personal.abrir(); await espera(200);
+      const g = q('.pp-grupo[data-cat="nube"]'), t = g ? g.textContent : '';
+      ok(g && g.querySelectorAll('.nubeav').length === 6, 'los seis avisos: ' + (g ? g.querySelectorAll('.nubeav').length : 0));
+      ok(/El portal se abrió en un aparato nuevoAna <b>Prueba<\/b> · Cliente Uno, Cliente Dos · Safari · iPhone/.test(t.replace(/\s+Visto/g, '')) || (/El portal se abrió en un aparato nuevo/.test(t) && /Cliente Uno, Cliente Dos · Safari · iPhone/.test(t)), 'aparato nuevo: ' + t.slice(0, 300));
+      ok(!g.querySelector('.pp-est b') && /Ana <b>Prueba<\/b>/.test(t), 'el nombre se escapa (no es HTML)');
+      ok(/Primera entrada en el portal/.test(t) && /Bea · Cliente Uno · Chrome · Windows/.test(t), 'primera entrada');
+      ok(/Entró en el portal una cuenta que no es de ningún cliente/.test(t) && /Firefox · Linux/.test(t), 'cuenta sin clientes');
+      ok(/Muchos códigos pedidos para un correo/.test(t) && /Ana · Cliente Uno · 5 en la última hora/.test(t) && /tu cuenta · 10 en la última hora/.test(t), 'muchos códigos (de una clienta y de tu cuenta)');
+      ok(/El registro del portal falló/.test(t), 'el fallo del registro');
+      ok(!/@/.test(t), 'ningún correo');
+    } finally { await nbLimpiar(); if (M.personal) M.personal.cerrar(); }
+  });
+
   prueba('NB8', 'Bajar y subir con un servidor de mentira (D-253, D-255): al abrir mira el turno sin pedirlo, lo reclama libre y baja por páginas, sin diario; un cambio de aquí sube tras la calma con su versión base y sale del diario; un 200 con «ok: false» no se da por guardado', async () => {
     await tablero([pub(1)]);
     const ubs = Array.from({ length: 7 }, (_, i) => 'ub-nb8' + i), llamadas = [];

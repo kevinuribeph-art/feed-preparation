@@ -11,7 +11,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.11';   // 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
+  const VERSION = '1.12';   // 1.12: in the iPhone (data-movil) nothing mounts; datos(o), lista(), valor(id), nuevoId(tipo) and a task with its id for the phone (D-267). 1.11: the symbol's button says «Clic: tu página · Clic derecho: copias» (D-263). 1.10: a photo of a task or note that hasn't come down from the server yet (lot 4 of the traspaso) shows nothing and says so, instead of breaking the page (D-259). 1.9: the cloud's activity notices, first in Avisos (D-257). 1.8: «aprobó / pidió cambios / ha comentado en su web» en «Esperando al cliente» (D-244). 1.7: each client's most urgent payment under its block, which opens its «Cobros», and the sums paid this month and pending in the header of Clientes (D-235); a late invoice in «Se ha pasado» (D-236); «Borrar esporádico» off with payments (D-234). 1.6: today's posts not scheduled, tinted amber in Avisos (D-222); the page and a card change in place only what changed (D-223); widen and reduce in the ×'s box (D-224); Tareas as this tab left it (D-225); a session in 600 with its clapperboard in --ty-ses-ink (D-226); square corners where a session goes on, --mute for what is read, «Fecha» / «Cliente» with the pointer over them, widening with a transform (D-231). 1.5: a session's several clients shown once, «A · B» and the first one's avatar with «+N» (D-217); its end in Avisos, Lista, Semana and Mes, «Reprogramar» keeps its length (D-218); its sheet opens over the board from the posts' calendar (D-219); «Duplicar sesión» in its menu (D-221). 1.4: a click writes, Esc and the × close (D-209); a session's sheet widens (D-210); «Hoy» and «Mañana» apart (D-212); one thin line on what is written (D-213). 1.3: the note and the details write with marks and the «/» menu (escritura.js, D-202–D-204); the card widens (D-205). 1.2: a task's date offers «Sin fecha» (D-188); what is not scheduled stands out in «Hoy y mañana» and «Se ha pasado» (D-190); each month's step is its most delayed post's (D-192)
   if (M.personal && M.personal._off) { try { M.personal._off(); } catch (e) { /* */ } }
 
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -658,6 +658,22 @@
     if (X.curClient === cid && X.S) cerrar(); else await abrirTablero(() => M.openClient(cid));
   }
 
+  // ---------- the iPhone's list of tasks (D-267) ----------
+  // What is left to do (also what went past) and what was done today, then what has no date and the notes: each with its group
+  // by the same rules as the page's Lista (a session counts to its last day, D-218); the phone only draws it
+  function listaMovil() {
+    const X = I(), hoy = X.hoy(), man = addD(hoy, 1), venc = k => !k.hecha && !!k.fecha && ultDia(k) < hoy;
+    const l = [...enLista().filter(k => venc(k) || !k.hecha || hechaHoy(k, hoy)), ...notas()];
+    const ORD = { pasado: 0, hoy: 1, man: 2, despues: 3, sinfecha: 4 };
+    return l.map(k => {
+      const g = k.tipo === 'nota' || !k.fecha ? 'sinfecha' : venc(k) ? 'pasado' : k.fecha <= hoy ? 'hoy' : k.fecha === man ? 'man' : 'despues';
+      const n = (k.subtareas || []).length;
+      return { id: k.id, tipo: k.tipo, txt: String(k.txt || ''), fecha: k.fecha || null, hora: k.tipo === 'sesion' ? k.hora || '' : '', fin: k.fecha ? ultDia(k) : null,
+        clientes: clis(k).filter(cliOk), hecha: k.hecha || null, venc: venc(k), grupo: g, detalles: String(k.detalles || ''), subtareas: n ? { n, hechas: k.subtareas.filter(x => x.hecha).length } : null,
+        fotos: (k.fotos || []).length, creada: k.creada || null };
+    }).sort((a, b) => ORD[a.grupo] - ORD[b.grupo] || String(a.fecha || '').localeCompare(String(b.fecha || '')) || String(a.hora).localeCompare(String(b.hora)) || (a.tipo === 'nota') - (b.tipo === 'nota') || String(a.creada || '').localeCompare(String(b.creada || '')));
+  }
+
   // ---------- tasks: saved at once, a step of their own ⌘Z (D-180) ----------
   const H = { u: [], r: [] };                  // steps: [{id, antes, despues}]
   const hondo = o => JSON.parse(JSON.stringify(o));   // a session's part and the list of material: plain data, copied whole (D-206)
@@ -666,11 +682,13 @@
     const X = I();
     gen++;
     for (const c of cambios) { TOCADA.set(c.id, gen); PEND.set(c.id, c.despues || null); if (c.despues) TK.set(c.id, c.despues); else { soltarFotos(TK.get(c.id)); TK.delete(c.id); } }
+    let bien = true;
     try { for (const c of cambios) { if (c.despues) await X.idbPut('tareas', c.id, c.despues); else await X.idbDel('tareas', c.id); } }
-    catch (e) { X.toast('No se pudo guardar la tarea: ' + ((e && e.message) || e)); }
+    catch (e) { bien = false; X.toast('No se pudo guardar la tarea: ' + ((e && e.message) || e)); }
     finally { for (const c of cambios) if (PEND.get(c.id) === (c.despues || null)) PEND.delete(c.id); }
     if (bc) { try { bc.postMessage({ t: 'tareas' }); } catch (e) { /* */ } }
     avisar();
+    return bien;   // the phone needs to know (review of lot 4, point 6); the desk already said it in the toast
   }
   function soltarFotos(r) { for (const f of (r && r.fotos) || []) { const u = MINI.get(f.id); if (u && ![...TK.values()].some(k => k !== r && (k.fotos || []).some(g => g.id === f.id))) { URL.revokeObjectURL(u); MINI.delete(f.id); } } }
   function puede() { const X = I(); return !!X && !X.locked; }
@@ -681,8 +699,7 @@
     if (junta && u && u.junta === junta && Date.now() - u.t < 2000) { paso.forEach(p => { const q = u.find(x => x.id === p.id); if (q) q.despues = p.despues; else u.push(p); }); u.t = Date.now(); }
     else { paso.junta = junta || null; paso.t = Date.now(); H.u.push(paso); if (H.u.length > 60) H.u.shift(); }
     H.r = [];
-    await escribir(paso.map(p => ({ id: p.id, despues: p.despues })));
-    return true;
+    return escribir(paso.map(p => ({ id: p.id, despues: p.despues })));   // false if IndexedDB failed
   }
   async function deshacer(re, sinCard) {        // sinCard: the card being written in stays as it is (a «/» command undone, D-204)
     if (!puede()) return false;
@@ -695,7 +712,10 @@
   async function nuevaTarea(o = {}) {
     const txt = String(o.txt || '').trim(), tipo = o.tipo === 'nota' ? 'nota' : 'tarea';
     if (!txt && tipo === 'tarea') return null;
-    const now = ahoraISO(), r = { id: nuevoId(tipo === 'nota' ? 'nt' : 'tk'), tipo, txt, creada: now, at: now };
+    // an id given (the iPhone's operation, D-267): made once — done again, the one already made
+    const id0 = typeof o.id === 'string' && /^(tk|nt)[a-z0-9]{6,24}$/.test(o.id) ? o.id : null;
+    if (id0 && TK.has(id0)) return copia(TK.get(id0));
+    const now = ahoraISO(), r = { id: id0 || nuevoId(tipo === 'nota' ? 'nt' : 'tk'), tipo, txt, creada: now, at: now };
     if (o.fecha && /^\d{4}-\d{2}-\d{2}$/.test(o.fecha) && tipo === 'tarea') r.fecha = o.fecha;
     if (o.cliente && cliDe(o.cliente)) r.cliente = o.cliente;
     if (Array.isArray(o.fotos) && o.fotos.length && tipo === 'tarea') r.fotos = o.fotos.slice();
@@ -1456,7 +1476,11 @@
     version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
     // a session's sheet over the board, from the posts' calendar (D-219): {de, vc, cli}
     abrirSesion: async (id, o = {}) => { if (!EXT.sesion) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; return abrirCard(id, { ...o, tablero: !st.on }); },
-    datos: async () => { const d = await leer(); return calcular(d); },
+    // o (the iPhone, D-267): the period and the «Tareas» switch to sum with, without changing this page's own
+    datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = Object.fromEntries(Object.keys(o).map(k => [k, st[k]])); Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
+    lista: async () => { await cargarTK(); return listaMovil(); },
+    valor: async id => { await cargarTK(); const r = TK.get(id); return r && !r._b ? copia(r) : null; },
+    nuevoId: tipo => nuevoId(tipo === 'nota' ? 'nt' : 'tk'),   // a task's id before it is made (the iPhone's operation, D-267)
     tareas: async () => { await leer(); return vivos().map(copia); },
     tarea: o => nuevaTarea(o), hecha: (id, v = true) => marcar(id, v), borrar, deshacer: () => deshacer(false), rehacer: () => deshacer(true),
     estado: () => ({ ...st, abiertos: [...st.abiertos], plg: { ...st.plg }, nueva: { ...st.nueva, fotos: st.nueva.fotos.length } }),
@@ -1814,6 +1838,7 @@
 `;
   // the mesa never waits for this file: this file waits for the mesa's shell (put in the body when the mesa opens)
   (function esperarShell() {
+    if (document.documentElement.hasAttribute('data-movil')) return;   // the iPhone (D-267): no page, only its sums and its tasks
     const listo = () => { const X = I(); return !!(X && X.shellReady && X.shellReady() && X.idbAll && X.estilo); };
     if (listo()) return montar();
     let t = 0; const mo = new MutationObserver(() => { if (listo()) { mo.disconnect(); clearInterval(t); montar(); } });

@@ -1,4 +1,4 @@
-// entrada.js · 1.1 · la entrada de la Mesa (D-262): correo y contraseña en cada ventana o pestaña nueva, el código de la app
+// entrada.js · 1.2 · la entrada de la Mesa (D-262; en el iPhone, con el dibujo de la v3, D-269): correo y contraseña en cada ventana o pestaña nueva, el código de la app
 // (TOTP, Contraseñas de Apple) la primera vez en cada ordenador y a los 30 días, el alta (contraseña y QR), «¿Olvidaste tu
 // contraseña?» y la pantalla de carga mientras baja la Mesa. Sin proyecto (las copias de 127.0.0.1, la batería) no hace nada.
 // La sesión del servidor se guarda en este navegador cifrada con la contraseña (PBKDF2 SHA-256 de 1.000.000 vueltas y
@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var G = typeof window !== 'undefined' ? window : globalThis;
-  var V = '1.1', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
+  var V = '1.2', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
 
   // ================= el núcleo (sin DOM): cifrado, la sesión guardada y qué pedir =================
   var enc = new TextEncoder(), dec = new TextDecoder();
@@ -126,6 +126,11 @@
   var M = G.MESA, D = G.document;
   if (!M || !D || !M._in) return;
   var X = M._in;
+  // 1.2, el iPhone (movil.html, D-269): el dibujo de la v3 (campos de 16 px, botones de 52, la zona segura) y nada dicho a mano
+  // de «ordenador» ni del «Mac»; el código de los 30 días en su pantalla, no en el diálogo del escritorio
+  var MOVIL = !!(D.documentElement && D.documentElement.hasAttribute('data-movil'));
+  var tx = function (h) { return !MOVIL ? h : String(h).replace(/<h1>Tu Mesa<\/h1>/g, '<h1>Mesa de trabajo</h1>').replace(/Ordenador nuevo/g, 'Aparato nuevo').replace(/, en el iPhone o en el Mac,/g, '')
+    .replace(/O en el Mac, pega/g, 'O pega').replace(/¿Sin tu iPhone ni tu Mac\?/g, '¿Sin acceso a Contraseñas?').replace(/ordenadores/g, 'aparatos').replace(/ordenador/g, 'aparato'); };
   function lsG(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsS(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* */ } }
   var P = null; try { P = X.proyectoWeb && X.proyectoWeb(); } catch (e) { P = null; }
@@ -195,7 +200,31 @@
     + '#mesa-entrada .marca{margin:22px 0 0;font:800 15px/1 var(--font);letter-spacing:-.01em}'
     + '#mesa-entrada .avance{margin:8px 0 0;font:500 13px/1.3 var(--font);color:var(--ink-2);min-height:1.3em}#mesa-entrada .avance span{color:var(--mute)}'
     + '@media (prefers-reduced-motion:reduce){#mesa-entrada,#mesa-entrada .mono .ll{transition:none}}';
-  function estilo() { if (D.getElementById('mesa-entrada-css')) return; var s = D.createElement('style'); s.id = 'mesa-entrada-css'; s.textContent = CSS; D.head.appendChild(s); }
+  var CSS_MOVIL = '#mesa-entrada{font:15px/1.42 var(--font);padding:calc(env(safe-area-inset-top,0px) + 24px) 24px calc(env(safe-area-inset-bottom,0px) + 24px);min-height:100dvh;place-items:center;-webkit-text-size-adjust:100%}'
+    + '#mesa-entrada .col{width:min(440px,100%)}#mesa-entrada .col.ancha{width:min(440px,100%)}'
+    + '#mesa-entrada .logo{height:auto;margin:0 0 22px}#mesa-entrada .logo img{width:64px;height:64px;border-radius:16px}'
+    + '#mesa-entrada h1{font:800 30px/1.1 var(--font);letter-spacing:-.025em}'
+    + '#mesa-entrada .dato,#mesa-entrada .ex{margin:8px 0 0;font:400 16px/1.4 var(--font);color:var(--mute)}'
+    + '#mesa-entrada .p{font-size:16px}#mesa-entrada form{margin:26px 0 0}'
+    + '#mesa-entrada label{font:500 14px/1.3 var(--font);color:var(--ink-2);margin:0 0 6px}'
+    + '#mesa-entrada .campo{margin:0 0 12px}'
+    + '#mesa-entrada input{height:52px;padding:0 14px;border:1px solid var(--line);border-radius:14px;font:400 16px/1 var(--font)}'
+    + '#mesa-entrada input:focus-visible,#mesa-entrada input:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--ring)}'
+    + '#mesa-entrada input[readonly]{background:var(--bg-2);color:var(--ink-2)}'
+    + '#mesa-entrada input.cod{height:60px}'
+    + '#mesa-entrada .ojo{width:44px;height:44px;top:4px;right:4px;border-radius:10px}#mesa-entrada .ojo svg{width:20px;height:20px}'
+    + '#mesa-entrada .btn{height:52px;border-radius:14px;font:600 17px/1 var(--font);margin-top:16px}'
+    + '#mesa-entrada .btn2{height:52px;border-radius:14px;border:0;background:var(--bg-2);font:600 17px/1 var(--font)}'
+    + '#mesa-entrada .lnk,#mesa-entrada .lrow .lnk{min-height:44px;display:inline-flex;align-items:center;font:500 15px/1.3 var(--font);color:var(--acc-ink);text-decoration:none}'
+    + '#mesa-entrada .lrow{align-items:center}#mesa-entrada .lrow label{margin:0}'
+    + '#mesa-entrada .err{margin:0 0 4px;font:500 14px/1.4 var(--font)}'
+    + '#mesa-entrada .nota,#mesa-entrada .enlace{font:400 14px/1.45 var(--font)}'
+    + '#mesa-entrada .llave{display:flex;align-items:center;gap:10px;margin:2px 0 0;padding:12px 14px;border-radius:14px;background:var(--bg-2);font:400 14px/1.4 var(--font);color:var(--ink-2)}'
+    + '#mesa-entrada .llave svg{width:22px;height:22px;flex:none}'
+    + '#mesa-entrada .pie{margin:10px 0 0;text-align:center}'
+    + '#mesa-entrada .alta{grid-template-columns:1fr;gap:22px}#mesa-entrada .qr{justify-self:center}'
+    + '#mesa-entrada .clave button{height:44px;padding:0 14px;border-radius:10px;font:500 15px/1 var(--font)}';
+  function estilo() { if (D.getElementById('mesa-entrada-css')) return; var s = D.createElement('style'); s.id = 'mesa-entrada-css'; s.textContent = CSS + (MOVIL ? CSS_MOVIL : ''); D.head.appendChild(s); }
   var U = 'M49.99 66.38Q45.49 66.38 42.32 64.89Q39.14 63.4 37.47 60.55Q35.8 57.7 35.8 53.64V34.22H43.72V53.46Q43.72 56.49 45.32 58.07Q46.92 59.65 49.99 59.65Q53.08 59.65 54.68 58.01Q56.28 56.38 56.28 52.98V34.22H64.2V53.64Q64.2 57.7 62.53 60.55Q60.86 63.4 57.7 64.89Q54.53 66.38 49.99 66.38Z';
   var OJO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle vector-effect="non-scaling-stroke" cx="12" cy="12" r="3"/></svg>';
 
@@ -204,12 +233,13 @@
   function capa(html, clase) {
     estilo();
     if (!capaEl || !capaEl.isConnected) { capaEl = D.createElement('div'); capaEl.id = 'mesa-entrada'; capaEl.setAttribute('role', 'main'); D.body.appendChild(capaEl); }
-    capaEl.className = clase || ''; capaEl.innerHTML = html;
+    capaEl.className = clase || ''; capaEl.innerHTML = tx(html);
     var f = capaEl.querySelector('[data-foco]') || capaEl.querySelector('input:not([type=hidden])'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { /* */ } }
     return capaEl;
   }
   function quitar() { if (capaEl) { capaEl.remove(); capaEl = null; } }
-  var logo = function () { return '<div class="logo"><img src="portal/marca/' + (oscuro() ? 'logo-paper' : 'logo-ink') + '.svg" alt="Uribe Visuals"></div>'; };
+  var logo = function () { return MOVIL ? '<div class="logo"><img src="portal/marca/monograma.svg" alt="Uribe Visuals"></div>' : '<div class="logo"><img src="portal/marca/' + (oscuro() ? 'logo-paper' : 'logo-ink') + '.svg" alt="Uribe Visuals"></div>'; };
+  var CARA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg>';
   var cab = function (t, dato) { return logo() + '<h1>' + t + '</h1>' + (dato ? '<p class="dato">' + dato + '</p>' : ''); };
   var pw = function (id, nueva) { return '<div class="campo"><input id="' + id + '" name="' + id + '" type="password" autocomplete="' + (nueva ? 'new-password' : 'current-password') + '" required' + (nueva ? ' minlength="20"' : '') + '><button type="button" class="ojo" data-ver="' + id + '" aria-label="Ver la contraseña">' + OJO + '</button></div>'; };
   var cod = function (id, etq) { return '<label for="' + id + '">' + etq + '</label><div class="campo"><input id="' + id + '" name="' + id + '" class="cod" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="000000" required></div>'; };
@@ -228,14 +258,18 @@
   }
   function esperar(html, clase) { return new Promise(function (res) { enlazar(capa(html, clase), res); }); }
   function siguiente() { return new Promise(function (res) { enlazar(capaEl, res); }); }
-  function fallo(form, texto) { var p = form && form.querySelector('.err'); if (p) p.textContent = texto; var b = form && form.querySelector('[type=submit]'); if (b) b.disabled = false; }
+  function fallo(form, texto) { var p = form && form.querySelector('.err'); if (p) p.textContent = tx(texto); var b = form && form.querySelector('[type=submit]'); if (b) b.disabled = false; }
   function ocupado(form, si) { var b = form && form.querySelector('[type=submit]'); if (b) b.disabled = !!si; }
   var red = function (e) { return e && (e.status === 0 || e.codigo === 'red'); };
   var mensaje = function (e) { return red(e) ? 'Sin conexión: inténtalo cuando vuelva.' : (e && e.message ? e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.' : 'No se pudo: inténtalo otra vez.'); };
 
   // ---------- las pantallas ----------
   var PANT = {
-    entrar: function (o) { return '<div class="col">' + cab('Tu Mesa') + '<form novalidate><div class="cuenta"><span class="ini">' + esc((o.correo || '?').charAt(0)) + '</span><span class="mail">' + esc(o.correo) + '</span><button type="button" class="lnk" data-accion="otra">Otra cuenta</button></div>'
+    entrar: function (o) { if (MOVIL) return '<div class="col">' + logo() + '<h1>Mesa de trabajo</h1><p class="ex">Entra con tu contraseña.</p><form novalidate>'
+      + '<div class="lrow"><label for="e-co">Correo</label><button type="button" class="lnk" data-accion="otra">Otra cuenta</button></div><div class="campo"><input id="e-co" name="correo" type="email" value="' + esc(o.correo) + '" autocomplete="username" readonly></div>'
+      + '<label for="e-pw">Contraseña</label>' + pw('e-pw') + err + '<div class="llave">' + CARA + 'Contraseñas la rellena con Face ID.</div><button class="btn" type="submit">Entrar</button></form>'
+      + '<p class="pie"><button type="button" class="lnk" data-accion="olvido">¿Olvidaste tu contraseña?</button></p>' + (o.vence ? '<p class="nota">Te pedirá el código de tu app el <b>' + esc(fecha(o.vence)) + '</b>.</p>' : '') + '</div>';
+      return '<div class="col">' + cab('Tu Mesa') + '<form novalidate><div class="cuenta"><span class="ini">' + esc((o.correo || '?').charAt(0)) + '</span><span class="mail">' + esc(o.correo) + '</span><button type="button" class="lnk" data-accion="otra">Otra cuenta</button></div>'
       + '<input type="email" name="correo" value="' + esc(o.correo) + '" autocomplete="username" hidden><div class="lrow"><label for="e-pw">Contraseña</label><button type="button" class="lnk" data-accion="olvido">¿Olvidaste tu contraseña?</button></div>' + pw('e-pw') + err
       + '<button class="btn" type="submit">Entrar</button></form>' + (o.vence ? '<p class="nota">Este navegador te pedirá el código de tu app el <b>' + esc(fecha(o.vence)) + '</b>.</p>' : '') + '</div>'; },
     nuevo: function (o) { return '<div class="col">' + cab('Tu Mesa', o.aviso ? esc(o.aviso) : 'Ordenador nuevo') + '<form novalidate><label for="e-co">Correo</label><div class="campo"><input id="e-co" name="correo" type="email" autocomplete="username" value="' + esc(o.correo || '') + '" required' + (o.correo ? '' : ' data-foco') + '></div>'
@@ -483,7 +517,17 @@
   };
   // ---------- el código con la Mesa abierta (la nube recibió «verificacion»: pasaron los 30 días) ----------
   var pidiendo = false;
-  E.pedirCodigo = async function () {
+  E.pedirCodigo = MOVIL ? async function () {   // el iPhone: su pantalla, como al entrar (la nube espera sin apartar nada, D-262)
+    if (pidiendo) return; pidiendo = true;
+    try {
+      var c = X.supa && X.supa(); if (!c) return;
+      var r = await codigoApp(c, { titulo: 'Falta el código de tu app', dato: 'Han pasado 30 días', texto: 'Sin él no se baja ni se guarda nada. Ábrelo en <b>Contraseñas</b> y escribe las 6 cifras.', boton: 'Seguir' });
+      if (r && r.accion) return;
+      if (A) await A.esperar(); quitar();
+      if (X.toast) X.toast('Código escrito.');
+      if (M.nube && M.nube.mirar) M.nube.mirar();
+    } finally { pidiendo = false; }
+  } : async function () {
     if (pidiendo || !X.showDialog || D.querySelector('form[data-entrada="codigo"]')) return;
     if (X.shellReady && !X.shellReady()) { E._esperas = (E._esperas || 0) + 1; if (E._esperas < 100) setTimeout(E.pedirCodigo, 300); return; }   // la nube lo pide al abrir, antes de dibujar
     E._esperas = 0; pidiendo = true;
@@ -496,6 +540,7 @@
     setTimeout(function () { var i = D.getElementById('ent-cod'); if (i) i.focus(); pidiendo = false; }, 0);
     E._factor = f.id;
   };
+  E.movil = MOVIL;
   D.addEventListener('submit', async function (e) {
     var f = e.target.closest && e.target.closest('form[data-entrada="codigo"]'); if (!f) return;
     e.preventDefault(); e.stopPropagation();

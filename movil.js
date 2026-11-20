@@ -1,0 +1,1547 @@
+// movil.js · 1.0 · la cara de la Mesa en el iPhone (D-267 a D-270). movil.html (<html data-movil>) carga el mismo núcleo que la
+// Mesa del Mac y esta cara, hecha para el dedo: Hoy, Clientes y Tareas; el mes de cada cliente (lista, calendario e historias); la
+// publicación (fotos, fecha y hora, estado, caption, contexto y nota plegados, lo que dijo el cliente). Aquí no hay ninguna regla de
+// la Mesa: estados, avisos, captions, vencidas, pasos y fechas de Madrid salen del núcleo (M._in.movil, M.personal, M.web, M.nube).
+// Mirar nunca coge la Mesa; cambiar (fecha, hora, estado, un caption, tareas y notas) es una operación que el núcleo aplica con la
+// Mesa cogida un momento (lote 4, más abajo).
+(function () {
+  'use strict';
+  const VERSION = '1.0';
+  const M = window.MESA, D = document, W = window;
+  const fallo = t => { (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'fallo'; const p = D.getElementById('arranque'); if (p) p.textContent = t; };
+  if (!M || !M._in || !M._in.movil || !M._in.movil.activo) { fallo('No se pudo cargar la Mesa. Cierra la app y vuelve a abrirla.'); return; }
+  const X = () => M._in, MV = () => M._in.movil;
+
+  // ---------- el tema: el del iPhone (claro u oscuro), sin interruptor ----------
+  const MQ = W.matchMedia ? W.matchMedia('(prefers-color-scheme: dark)') : null;
+  const tema = () => { if (MQ && MQ.matches) D.documentElement.dataset.theme = 'dark'; else delete D.documentElement.dataset.theme; };
+  tema(); if (MQ) { if (MQ.addEventListener) MQ.addEventListener('change', tema); else if (MQ.addListener) MQ.addListener(tema); }
+  const POCO = W.matchMedia ? W.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
+  // ---------- iconos (Lucide, ISC; un trazo) ----------
+  const P = {
+    casa: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    gente: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    tareas: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/>',
+    abajo: '<path d="m6 9 6 6 6-6"/>', arriba: '<path d="m18 15-6-6-6 6"/>', izq: '<path d="m15 18-6-6 6-6"/>', der: '<path d="m9 18 6-6-6-6"/>',
+    reloj: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    euro: '<path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>',
+    ojo: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+    nubeok: '<path d="m17 15-5.5 5.5L9 18"/><path d="M5 17.743A7 7 0 1 1 15.71 10h1.79a4.5 4.5 0 0 1 1.5 8.742"/>',
+    nubeoff: '<path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>',
+    nube: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+    alerta: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', subir: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+    cal: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+    cliente: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+    nota: '<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>',
+    msg: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    claqueta: '<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    gira: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+    mac: '<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+    movil: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+    chispa: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', mas: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    historias: '<path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/>',
+    recarga: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
+  };
+  const ic = (n, sw = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[n] || ''}</svg>`;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const lsG = k => { try { return W.localStorage.getItem(k); } catch (e) { return null; } };
+  const lsS = (k, v) => { try { if (v == null) W.localStorage.removeItem(k); else W.localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
+
+  // ---------- fechas: el día y la hora de Madrid salen del núcleo; aquí solo se escriben ----------
+  const DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], DL = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const MES = () => X().MONTHS;
+  const cap1 = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+  const dow = d => new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10))).getUTCDay();
+  const addD = (d, n) => { const t = new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10) + n)); return t.toISOString().slice(0, 10); };
+  const hoy = () => X().hoy();
+  const corto = d => d ? `${+d.slice(8, 10)} ${MES()[+d.slice(5, 7) - 1].slice(0, 3)}` : '';
+  const diaCab = d => `${cap1(DS[dow(d)])} ${+d.slice(8, 10)}`;
+  const fechaLarga = d => `${cap1(DL[dow(d)])} ${+d.slice(8, 10)} de ${MES()[+d.slice(5, 7) - 1]}`;
+  const relativo = d => { const h = hoy(); return d === h ? 'Hoy' : d === addD(h, 1) ? 'Mañana' : d === addD(h, -1) ? 'Ayer' : ''; };
+  const diaCorto = d => relativo(d) || corto(d);
+  const campoFecha = f => !f || !f.dia ? 'Sin fecha' : `${relativo(f.dia) || cap1(DS[dow(f.dia)]) + ' ' + corto(f.dia)}${f.hora ? ' · ' + f.hora : ''}`;
+  const horaDe = ms => { try { return X().localTime(new Date(ms).toISOString()); } catch (e) { return ''; } };
+  const mesNombre = m => cap1(MES()[+m.slice(5, 7) - 1]);
+  const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+  const ordinal = n => n.toLocaleString('es-ES');
+
+  // ---------- el estilo: los tokens de la Mesa (una sola fuente, M._in.movil.tokens) y el dibujo de la v3 ----------
+  const CSS_V3 = `:root[data-theme="dark"] #movil{--sep:var(--line)}
+#movil *{box-sizing:border-box}
+#movil{--sep:var(--line2);
+  --sa-t:env(safe-area-inset-top,0px);--sa-b:env(safe-area-inset-bottom,0px);
+  --tap:44px;--pad:16px;
+  --st-aprobado:var(--ok);--st-programado:var(--ok);--st-publicado:var(--mute);--st-noaprobado:var(--red);--st-cancelado:var(--faint);
+  position:relative;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
+  background:var(--bg);color:var(--ink);font:15px/1.42 var(--font);
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;font-kerning:normal;}
+:where(#movil) button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#movil b,#movil strong{font-weight:600}
+#movil .top{position:sticky;top:0;z-index:20;padding-top:var(--sa-t);background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:saturate(1.6) blur(18px);backdrop-filter:saturate(1.6) blur(18px);border-bottom:1px solid transparent}
+#movil .top.linea{border-bottom-color:var(--line2)}
+#movil .top-in{height:48px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 8px}
+#movil .top-t{font-weight:600;font-size:17px;letter-spacing:-.01em;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56vw}
+#movil .top-l{justify-self:start;display:flex;align-items:center}
+#movil .top-r{justify-self:end;display:flex;align-items:center;gap:4px}
+#movil .back{display:flex;align-items:center;gap:2px;height:var(--tap);padding:0 8px 0 2px;color:var(--acc-ink);font-size:17px}
+#movil .back svg{width:26px;height:26px}
+#movil .mono{width:30px;height:30px;border-radius:8px;display:block;margin-left:8px}
+#movil .ib{width:var(--tap);height:var(--tap);display:grid;place-items:center;border-radius:12px;color:var(--ink-2)}
+#movil .ib svg{width:23px;height:23px}
+#movil .nube{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px 0 9px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink-2);background:var(--bg-2);margin-right:8px;white-space:nowrap}
+#movil .nube svg{width:16px;height:16px}
+#movil .nube.ok{color:var(--ok);background:var(--ok-soft)}
+#movil .nube.off{color:var(--chg);background:var(--chg-soft)}
+#movil .main{flex:1;padding:0 0 calc(76px + var(--sa-b))}
+#movil .main.sin-tabs{padding-bottom:calc(24px + var(--sa-b))}
+#movil .titulo{padding:6px var(--pad) 2px}
+#movil .titulo h1{margin:0;font-weight:800;font-size:32px;line-height:1.08;letter-spacing:-.025em}
+#movil .titulo p{margin:6px 0 0;color:var(--mute);font-size:15px}
+#movil .titulo p .acc{color:var(--acc-ink);font-weight:600}
+#movil .sec{margin:26px 0 0}
+#movil .sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:0 var(--pad) 10px}
+#movil .sec-h h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.015em}
+#movil .sec-h .n{color:var(--mute);font-weight:500;margin-left:6px}
+#movil .sec-h .lnk{color:var(--acc-ink);font-size:15px;font-weight:500;min-height:var(--tap);display:flex;align-items:center}
+#movil .sec-h.roja h2{color:var(--red)}
+#movil .cifras{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:18px var(--pad) 0}
+#movil .cifra{position:relative;text-align:left;min-height:84px;padding:12px 14px 12px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)}
+#movil .cifra .v{display:block;font-weight:800;font-size:30px;line-height:1;letter-spacing:-.03em}
+#movil .cifra .k{display:block;margin-top:8px;font-size:14px;line-height:1.25;color:var(--ink-2)}
+#movil .cifra.roja .v{color:var(--red)}
+#movil .cifra.on{background:var(--ink);color:var(--on-ink);box-shadow:none}
+#movil .cifra.on .k{color:color-mix(in srgb,var(--on-ink) 78%,transparent)}
+#movil .cifra.on.roja .v{color:var(--rojo-tinta)}
+#movil .lista{margin:0 var(--pad);border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);overflow:hidden}
+#movil .fila{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:10px 12px 10px 12px;text-align:left}
+#movil .fila+.fila::before{content:'';position:absolute;left:84px;right:0;top:0;height:1px;background:var(--sep)}
+#movil .lista.chica .fila+.fila::before{left:52px}
+#movil .fila .ft{flex:none;width:60px;height:60px;border-radius:10px;overflow:hidden;position:relative;background:var(--cell-ph)}
+#movil .fila .ft.r{height:60px;width:60px}
+#movil .fila .tx{flex:1;min-width:0}
+#movil .fila .t1{display:block;font-weight:600;font-size:16px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#movil .fila .t2{margin-top:3px;font-size:14px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#movil .fila .t2 .acc{color:var(--acc-ink);font-weight:600}
+#movil .fila .t2 .roja{color:var(--red);font-weight:600}
+#movil .fila .chev{flex:none;width:20px;height:20px;color:var(--faint)}
+#movil .fila .hr{flex:none;font-size:15px;font-weight:600;color:var(--ink-2);text-align:right;min-width:44px}
+#movil .av{flex:none;width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
+#movil .av.g{width:40px;height:40px;font-size:17px}
+#movil .ty{display:inline-flex;align-items:center;vertical-align:2px;margin-left:4px;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:600;flex:none}
+#movil .ty.foto{background:var(--ty-foto);color:var(--ty-foto-ink)}
+#movil .ty.carr{background:var(--ty-carr);color:var(--ty-carr-ink)}
+#movil .ty.reel{background:var(--ty-reel);color:var(--ty-reel-ink)}
+#movil .ty.collab{background:var(--ty-collab);color:var(--ty-collab-ink)}
+#movil .ty.hist{background:color-mix(in srgb,var(--story) 14%,var(--panel-2));color:color-mix(in srgb,var(--story) 70%,var(--ink))}
+#movil .es{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-2);white-space:nowrap}
+#movil .es i{width:9px;height:9px;border-radius:50%;flex:none;background:var(--c);box-shadow:inset 0 0 0 1.5px var(--a,transparent)}
+#movil .es.empezar{--c:var(--st-empezar);--a:var(--st-empezar-aro)}
+#movil .es.captions{--c:var(--st-captions)}
+#movil .es.aprobar{--c:var(--st-aprobar)}
+#movil .es.noaprobado{--c:var(--st-noaprobado)}
+#movil .es.aprobado{--c:var(--st-aprobado)}
+#movil .es.programado{--c:var(--st-programado)}
+#movil .es.publicado{--c:var(--st-publicado)}
+#movil .es.cancelado{--c:var(--st-cancelado)}
+#movil .pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px 0 10px;border-radius:999px;background:var(--bg-2);font-size:14px;font-weight:600}
+#movil .cli{display:block;width:100%;text-align:left;padding:14px 14px 14px;border-radius:18px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)}
+#movil .clis{display:grid;gap:10px;padding:0 var(--pad)}
+#movil .cli-h{display:flex;align-items:center;gap:12px}
+#movil .cli-h .nm{flex:1;min-width:0}
+#movil .cli-h .nm b{display:block;font-size:17px;font-weight:800;letter-spacing:-.01em}
+#movil .cli-h .nm span{display:block;font-size:14px;color:var(--mute)}
+#movil .cli-h .chev{width:20px;height:20px;color:var(--faint)}
+#movil .tramos{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:14px 0 8px}
+#movil .tramos i{height:6px;border-radius:3px;background:var(--bg-3)}
+#movil .tramos i.h{background:var(--ink-2)}
+#movil .tramos i.a{background:var(--acc)}
+#movil .cli-p{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--mute)}
+#movil .cli-p b{color:var(--ink);font-weight:600}
+#movil .cli-p .acc{color:var(--acc-ink);font-weight:600}
+#movil .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;margin:14px var(--pad) 0;padding:3px;border-radius:12px;background:var(--bg-2)}
+#movil .seg button{height:36px;border-radius:9px;font-size:15px;font-weight:500;color:var(--ink-2)}
+#movil .seg button.on{background:var(--panel-2);color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
+#movil .mesnav{display:flex;align-items:center;justify-content:space-between;padding:4px 6px 0 var(--pad)}
+#movil .mesnav h1{margin:0;font-weight:800;font-size:32px;line-height:1.08;letter-spacing:-.025em}
+#movil .mesnav .flechas{display:flex}
+#movil .pasos{margin:12px var(--pad) 0}
+#movil .pasos .tramos{margin:0 0 8px}
+#movil .pasos p{margin:0;font-size:14px;color:var(--mute)}
+#movil .pasos p .acc{color:var(--acc-ink);font-weight:600}
+#movil .dia{padding:20px var(--pad) 8px;display:flex;align-items:baseline;gap:8px}
+#movil .dia b{font-size:16px;font-weight:800}
+#movil .dia span{font-size:14px;color:var(--mute)}
+#movil .dia.hoy b{color:var(--acc-ink)}
+#movil .dia .hs{margin-left:auto;font-size:14px;color:var(--mute);display:inline-flex;align-items:center;gap:6px}
+#movil .dia .hs i{width:8px;height:8px;border-radius:50%;background:var(--story)}
+#movil .cal{margin:14px var(--pad) 0;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);padding:8px 6px 10px}
+#movil .cal-s{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:12px;font-weight:600;color:var(--mute);padding:4px 0 6px}
+#movil .cal-g{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px}
+#movil .cd{height:52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;padding-top:6px;border-radius:12px;font-size:15px;font-weight:500}
+#movil .cd.otro{color:var(--faint)}
+#movil .cd.hoy .n{background:var(--acc);color:var(--on-acc);font-weight:800}
+#movil .cd.sel{background:var(--bg-2)}
+#movil .cd .n{width:28px;height:28px;display:grid;place-items:center;border-radius:50%}
+#movil .cd .p{display:flex;gap:3px}
+#movil .cd .p i{width:6px;height:6px;border-radius:50%}
+#movil .cd .p i.foto{background:#D9876F}
+#movil .cd .p i.carr{background:#9A7BAA}
+#movil .cd .p i.reel{background:#6E9A76}
+#movil .cd .p i.collab{background:#3F7A4C}
+#movil .cd .p i.hist{background:var(--story)}
+#movil .leyenda{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px var(--pad) 0;font-size:13px;color:var(--mute)}
+#movil .leyenda span{display:inline-flex;align-items:center;gap:6px}
+#movil .leyenda i{width:8px;height:8px;border-radius:50%}
+#movil .hgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 var(--pad)}
+#movil .hc{position:relative;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:var(--cell-ph)}
+#movil .hc .ph{position:absolute;inset:0}
+#movil .hc .hh{position:absolute;left:8px;bottom:8px;right:8px;display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:13px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+#movil .hc .hh i{width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 0 1.5px rgba(255,255,255,.9)}
+#movil .hc .tit{position:absolute;left:10px;right:10px;top:42%;color:#fff;font-weight:800;font-size:15px;line-height:1.1;letter-spacing:-.01em;text-shadow:0 1px 8px rgba(0,0,0,.25)}
+#movil .car{position:relative;margin:4px 0 0;background:var(--stage)}
+#movil .car .ph{aspect-ratio:4/5;width:100%}
+#movil .car .cnt{position:absolute;right:12px;top:12px;height:26px;padding:0 10px;border-radius:999px;background:var(--photo-chip);color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center}
+#movil .puntos{display:flex;justify-content:center;gap:6px;padding:10px 0 0}
+#movil .puntos i{width:6px;height:6px;border-radius:50%;background:var(--line-strong)}
+#movil .puntos i.on{background:var(--ink);width:18px;border-radius:3px}
+#movil .pub-h{padding:14px var(--pad) 0}
+#movil .pub-h h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+#movil .pub-h .sub{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--mute);font-size:15px}
+#movil .grupo{margin:18px var(--pad) 0;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);overflow:hidden}
+#movil .campo{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:54px;padding:0 12px 0 14px;text-align:left}
+#movil .campo+.campo::before{content:'';position:absolute;left:14px;right:0;top:0;height:1px;background:var(--sep)}
+#movil .campo .k{flex:none;width:104px;color:var(--mute);font-size:15px}
+#movil .campo .v{flex:1;min-width:0;font-size:16px;font-weight:500;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#movil .campo .chev{flex:none;width:20px;height:20px;color:var(--faint)}
+#movil .campo.solo .v{color:var(--ink-2);font-weight:400}
+#movil .aviso{display:flex;gap:10px;margin:12px var(--pad) 0;padding:12px 14px;border-radius:14px;background:var(--chg-soft);color:var(--chg);font-size:14px;line-height:1.4}
+#movil .aviso svg{flex:none;width:18px;height:18px;margin-top:1px}
+#movil .aviso.rojo{background:var(--red-soft);color:var(--red)}
+#movil .cap{margin:18px var(--pad) 0}
+#movil .cap-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+#movil .cap-h h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.015em}
+#movil .cap-h .lnk{color:var(--acc-ink);font-weight:500;min-height:var(--tap);display:flex;align-items:center}
+#movil .cap-b{padding:14px 16px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:16px;line-height:1.5;white-space:pre-line}
+#movil .cap-b .tono{display:block;margin-top:12px;font-size:14px;color:var(--mute)}
+#movil .cap-b .tono b{color:var(--acc-ink)}
+#movil .hilo{display:grid;gap:10px;margin:0 var(--pad)}
+#movil .msg{max-width:88%;padding:10px 14px 11px;border-radius:18px;font-size:15px;line-height:1.42}
+#movil .msg .q{display:block;font-size:13px;color:var(--mute);margin-bottom:3px}
+#movil .msg.cli{justify-self:start;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);border-bottom-left-radius:6px}
+#movil .msg.yo{justify-self:end;background:var(--ink);color:var(--on-ink);border-bottom-right-radius:6px}
+#movil .msg.yo .q{color:color-mix(in srgb,var(--on-ink) 70%,transparent)}
+#movil .resp{display:flex;align-items:flex-end;gap:8px;margin:12px var(--pad) 0}
+#movil .resp textarea{flex:1;min-height:46px;max-height:140px;resize:none;padding:12px 14px;border-radius:22px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:16px/1.35 var(--font);outline:none}
+#movil .resp textarea::placeholder{color:var(--faint)}
+#movil .enviar{flex:none;width:46px;height:46px;border-radius:50%;background:var(--acc);color:var(--on-acc);display:grid;place-items:center}
+#movil .enviar svg{width:22px;height:22px}
+#movil .velo{position:fixed;inset:0;background:var(--scrim);z-index:50}
+#movil .hoja{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);border-radius:22px 22px 0 0;padding:8px var(--pad) calc(16px + var(--sa-b));box-shadow:var(--shadow-lg)}
+#movil .hoja .asa{width:38px;height:5px;border-radius:3px;background:var(--line-strong);margin:0 auto 12px}
+#movil .hoja h2{margin:0 0 4px;font-size:22px;font-weight:800;letter-spacing:-.02em}
+#movil .hoja .ex{margin:0 0 14px;color:var(--mute);font-size:15px}
+#movil .hoja .grupo{margin:0}
+#movil .botones{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+#movil .btn{height:52px;border-radius:14px;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+#movil .btn.pri{background:var(--acc);color:var(--on-acc)}
+#movil .btn.sua{background:var(--bg-2);color:var(--ink)}
+#movil .btn.ancho{grid-column:1/-1}
+#movil .prog{display:grid;gap:14px;margin:6px 0 4px}
+#movil .paso{display:flex;align-items:center;gap:12px;font-size:16px}
+#movil .paso .ic{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--bg-2);color:var(--mute)}
+#movil .paso .ic svg{width:16px;height:16px}
+#movil .paso.hecho .ic{background:var(--ok);color:#fff}
+#movil .paso.ahora .ic{background:var(--acc-soft);color:var(--acc-ink)}
+#movil .paso.ahora{font-weight:600}
+#movil .paso .t{flex:1}
+#movil .paso .s{color:var(--mute);font-size:14px}
+#movil .gira{animation:mv-gira 1s linear infinite}
+@keyframes mv-gira{to{transform:rotate(360deg)}}
+#movil .estados{display:grid;gap:8px}
+#movil .estado-op{display:flex;align-items:center;gap:12px;min-height:54px;padding:0 14px;border-radius:14px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:16px;font-weight:500;text-align:left;width:100%}
+#movil .estado-op .es{font-size:16px;color:var(--ink);font-weight:500;flex:1}
+#movil .estado-op .es i{width:11px;height:11px}
+#movil .estado-op.on{box-shadow:inset 0 0 0 2px var(--ink)}
+#movil .estado-op .ck{width:22px;height:22px;color:var(--ink)}
+#movil .estado-op .sub{font-size:13px;color:var(--mute);font-weight:400}
+#movil .op{margin:12px var(--pad) 0;padding:14px 16px 12px;border-radius:18px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)}
+#movil .op.on{box-shadow:inset 0 0 0 2px var(--acc)}
+#movil .op-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+#movil .op-h b{font-size:15px}
+#movil .op-h .elegido{display:inline-flex;align-items:center;gap:6px;color:var(--acc-ink);font-size:14px;font-weight:600}
+#movil .op-h .elegido svg{width:18px;height:18px}
+#movil .op p{margin:0;font-size:16px;line-height:1.5;white-space:pre-line}
+#movil .op-a{display:flex;gap:8px;margin-top:12px}
+#movil .op-a .btn{height:44px;font-size:15px;padding:0 16px;flex:1}
+#movil .editor textarea{width:100%;min-height:220px;padding:14px 16px;border-radius:16px;border:1.5px solid var(--acc);background:var(--panel-2);color:var(--ink);font:16px/1.5 var(--font);outline:none;resize:none;box-shadow:0 0 0 4px var(--ring)}
+#movil .editor{margin:12px var(--pad) 0}
+#movil .cuenta{display:flex;justify-content:space-between;margin-top:8px;color:var(--mute);font-size:14px}
+#movil .nueva{display:flex;align-items:center;gap:8px;margin:16px var(--pad) 0;padding:0 6px 0 14px;height:52px;border-radius:14px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)}
+#movil .nueva input{flex:1;min-width:0;border:0;background:none;font:16px var(--font);color:var(--ink);outline:none}
+#movil .nueva input::placeholder{color:var(--faint)}
+#movil .nueva .ib{width:40px;height:40px;color:var(--mute)}
+#movil .nueva .ib svg{width:21px;height:21px}
+#movil .filtro{display:flex;gap:8px;overflow-x:auto;padding:14px var(--pad) 2px;scrollbar-width:none}
+#movil .filtro::-webkit-scrollbar{display:none}
+#movil .chip{flex:none;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);font-size:14px;font-weight:500;white-space:nowrap}
+#movil .chip.on{background:var(--ink);color:var(--on-ink);box-shadow:none}
+#movil .chip.solo{padding:0 14px}
+#movil .tarea{display:flex;align-items:flex-start;gap:12px;width:100%;min-height:56px;padding:13px 14px 12px;text-align:left;position:relative}
+#movil .tarea+.tarea::before{content:'';position:absolute;left:52px;right:0;top:0;height:1px;background:var(--sep)}
+#movil .casilla{flex:none;width:26px;height:26px;border-radius:8px;box-shadow:inset 0 0 0 1.75px var(--line-strong);display:grid;place-items:center;margin-top:-2px}
+#movil .casilla svg{width:18px;height:18px;opacity:0}
+#movil .tarea.hecha .casilla{background:var(--ink);box-shadow:none;color:var(--on-ink)}
+#movil .tarea.hecha .casilla svg{opacity:1}
+#movil .tarea.hecha .tt{text-decoration:line-through;color:var(--faint)}
+#movil .tarea .tx{flex:1;min-width:0}
+#movil .tarea .tt{font-size:16px;line-height:1.35}
+#movil .tarea .tm{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:14px;color:var(--mute)}
+#movil .tarea .tm .roja{color:var(--red);font-weight:600}
+#movil .tarea .tm .acc{color:var(--acc-ink);font-weight:600}
+#movil .tarea .tm svg{width:15px;height:15px}
+#movil .nota-ic{flex:none;width:26px;height:26px;display:grid;place-items:center;color:var(--brass);margin-top:-2px}
+#movil .nota-ic svg{width:22px;height:22px}
+#movil .tabs{position:fixed;left:0;right:0;bottom:0;z-index:25;padding-bottom:var(--sa-b);background:color-mix(in srgb,var(--panel) 86%,transparent);-webkit-backdrop-filter:saturate(1.6) blur(18px);backdrop-filter:saturate(1.6) blur(18px);border-top:1px solid var(--line2)}
+#movil .tabs-in{height:56px;display:grid;grid-template-columns:repeat(3,1fr)}
+#movil .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--mute)}
+#movil .tab svg{width:25px;height:25px}
+#movil .tab.on{color:var(--ink);font-weight:600}
+#movil .tab .badge{position:absolute;margin:-18px 0 0 22px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
+#movil .tab{position:relative}
+#movil .entrar{flex:1;display:flex;flex-direction:column;justify-content:center;padding:calc(var(--sa-t) + 24px) 24px calc(var(--sa-b) + 24px)}
+#movil .entrar .logo{width:64px;height:64px;border-radius:16px;margin:0 0 22px}
+#movil .entrar h1{margin:0;font-size:30px;font-weight:800;letter-spacing:-.025em}
+#movil .entrar .ex{margin:8px 0 26px;color:var(--mute);font-size:16px}
+#movil .fld{display:block;margin:0 0 12px}
+#movil .fld span{display:block;font-size:14px;font-weight:500;color:var(--ink-2);margin:0 0 6px}
+#movil .fld input{width:100%;height:52px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:16px var(--font);outline:none}
+#movil .fld input:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--ring)}
+#movil .llave{display:flex;align-items:center;gap:10px;margin:14px 0 0;padding:12px 14px;border-radius:14px;background:var(--bg-2);font-size:14px;color:var(--ink-2)}
+#movil .llave svg{width:22px;height:22px;flex:none}
+#movil .pie{margin-top:18px;text-align:center;font-size:14px;color:var(--mute)}
+#movil .toast{position:fixed;left:var(--pad);right:var(--pad);bottom:calc(76px + var(--sa-b));z-index:45;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:var(--tip);color:var(--bg);font-size:15px;box-shadow:var(--shadow-md)}
+#movil .toast svg{width:20px;height:20px;flex:none;color:#86C795}
+:root[data-theme="dark"] #movil .toast svg{color:var(--ok-on-ink)}
+#movil .ph{background:var(--g)}
+#movil .ft .ph,#movil .hc .ph{position:absolute;inset:0}
+#movil .car .ph{display:block}
+#movil .pub-h .ty{margin-left:0}
+#movil .campo.pl .v.vista{font-weight:400;color:var(--mute);font-size:15px}
+#movil .selcal{border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);padding:4px 6px 8px}
+#movil .selcal-h{display:flex;align-items:center;justify-content:space-between;padding:0 0 0 10px}
+#movil .selcal-h b{font-size:17px;font-weight:800}
+#movil .selcal-h span{display:flex}
+#movil .selcal .cal-s{padding:0 0 2px}
+#movil .selcal-g{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px}
+#movil .sd{height:40px;display:grid;place-items:center;font-size:17px;font-weight:500;border-radius:50%;width:40px;margin:0 auto}
+#movil .sd.otro{color:var(--faint)}
+#movil .sd.sel{background:var(--acc);color:var(--on-acc);font-weight:800}
+#movil .ruedas{position:relative;display:flex;align-items:center;justify-content:center;gap:4px;margin-top:10px;height:170px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);overflow:hidden}
+#movil .ruedas .banda{position:absolute;left:12px;right:12px;top:50%;height:38px;margin-top:-19px;border-radius:10px;background:var(--bg-2)}
+#movil .rueda{position:relative;display:flex;flex-direction:column;align-items:center;width:84px}
+#movil .rueda span{height:32px;display:grid;place-items:center;font-size:21px;font-weight:500;color:var(--ink);opacity:calc(1 - var(--d) * .32);transform:scale(calc(1 - var(--d) * .08))}
+#movil .rueda span.sel{font-weight:800;font-size:23px}
+#movil .ruedas .dos{position:relative;font-size:23px;font-weight:800}
+#movil .hoja{max-height:calc(100dvh - var(--sa-t) - 8px);overflow-y:auto;overscroll-behavior:contain}
+#movil .cifras.c5{grid-template-columns:repeat(6,1fr)}
+#movil .cifras.c5 .cifra{grid-column:span 2;min-height:78px;padding:11px 12px}
+#movil .cifras.c5 .cifra:nth-child(n+4){grid-column:span 3}
+#movil .cifras.c5 .cifra .v{font-size:28px}
+#movil .sub-h{padding:14px var(--pad) 8px;font-size:16px;font-weight:600;color:var(--ink-2)}
+#movil .sub-h .num{color:var(--mute);font-weight:500;margin-left:4px}`;
+  const CSS_MAS = `
+@font-face{font-family:"Mesa Grotesk";src:url("kits/fonts/SchibstedGrotesk-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
+#movil{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);--rojo-tinta:#FF9AA0}
+:root[data-theme="dark"] #movil{--rojo-tinta:#B3263A}
+#movil[hidden]{display:none}
+#movil :where(button,a,[role=button]){touch-action:manipulation}
+#movil :where(button,[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:12px}
+#movil :where(button):disabled{cursor:default}
+#movil .main,#movil .top-in,#movil .tabs-in{width:100%;max-width:600px;margin-left:auto;margin-right:auto}
+#movil .main{min-width:0}
+#movil .hoja{max-width:600px;margin:0 auto}
+#movil .mono{width:30px;height:30px}
+#movil .top-r{min-width:0}
+#movil .nube{max-width:min(44vw,240px);min-width:0;overflow:hidden}#movil .nube .num{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#movil .nube .q{white-space:nowrap}#movil .nube svg{flex:none}
+#movil .nube.err{color:var(--red);background:var(--red-soft)}
+#movil .nube .q{color:var(--red);font-weight:600}
+#movil button.nube{cursor:pointer}
+#movil .ft img,#movil .hc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#movil .ft.ico{display:grid;place-items:center;color:var(--mute);background:var(--bg-2)}
+#movil .ft.ico.roja{background:var(--red-soft);color:var(--red)}
+#movil .ft.ico span{width:26px;height:26px;display:block}
+#movil .ft .tyi{position:absolute;right:4px;top:4px;width:18px;height:18px;padding:2px;border-radius:5px;background:var(--photo-chip);color:#fff;display:grid}
+#movil .ft .tyi svg{width:14px;height:14px}
+#movil .mi.cargando,#movil .mi:not([src]){opacity:0}
+#movil .mi{transition:opacity var(--d2) var(--ease)}
+#movil .hueco{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--mute);font-size:13px;background:var(--cell-ph)}
+#movil .hueco svg{width:22px;height:22px}
+#movil .hueco[hidden]{display:none}
+#movil .fila .t2{display:block}
+#movil .tarea .tm{flex-wrap:wrap;row-gap:4px;column-gap:10px}
+#movil .tarea .tm>*{white-space:nowrap}
+#movil .tarea .tm .cn{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#movil .top-in{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr);column-gap:6px}#movil .top-r{justify-self:end}#movil .top-t{max-width:none;min-width:0}#movil .back{min-width:0;max-width:34vw}#movil .back>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#movil .fila{touch-action:manipulation}
+#movil .fila:active{background:var(--bg-2)}
+#movil .fila .hr.roja{color:var(--red)}
+#movil .t1 .ty{vertical-align:1px}
+#movil .vacio{margin:18px var(--pad) 0;padding:22px 18px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute);font-size:15px;text-align:center}
+#movil .vacio b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+#movil .mal{margin:18px var(--pad) 0;padding:16px;border-radius:16px;background:var(--red-soft);color:var(--red);font-size:15px;display:flex;align-items:center;gap:12px}
+#movil .mal span{flex:1}
+#movil .mal button{flex:none;height:var(--tap);padding:0 14px;border-radius:12px;background:var(--panel-2);color:var(--ink);font-weight:600}
+#movil .cifra:disabled{opacity:1}
+#movil .cifra:disabled .v,#movil .cifra:disabled .k{color:var(--faint)}
+#movil .cifra:active:not(:disabled){transform:scale(.97)}
+#movil .cifra{transition:transform var(--d1) var(--ease),background var(--d1) var(--ease)}
+#movil .mas{display:block;width:100%;min-height:var(--tap);color:var(--acc-ink);font-weight:500;font-size:15px}
+#movil .cli:disabled{opacity:.6}
+#movil .av{background:var(--ink-2);color:var(--bg);overflow:hidden}
+#movil .av[style]{color:#fff}
+#movil .av img{width:100%;height:100%;object-fit:cover;display:block}
+#movil .av.claro{color:var(--ink)}
+#movil .mesnav h1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#movil .ib:disabled{color:var(--faint)}
+#movil .seg button{min-height:var(--tap)}
+#movil .cd{position:relative;height:52px}
+#movil .cd.vacio-d{color:var(--faint)}
+#movil .cd.otro{pointer-events:none}
+#movil .hc{display:block;width:100%;padding:0;text-align:left}
+#movil .hc .hh{text-shadow:0 1px 2px rgba(0,0,0,.45)}
+#movil .hc.cancelada{opacity:.45}
+#movil .car{overflow:hidden}
+#movil .car .tira{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}
+#movil .car .tira::-webkit-scrollbar{display:none}
+#movil .car .lam{position:relative;flex:none;width:100%;scroll-snap-align:center;scroll-snap-stop:always;background:var(--stage)}
+#movil .car .lam img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#movil .car .cnt{z-index:2;pointer-events:none}
+#movil .puntos i{transition:width var(--d2) var(--ease),background var(--d2) var(--ease)}
+#movil .pub-h .es.toca{color:var(--mute)}
+#movil .campo:disabled .v{color:var(--mute)}
+#movil .campo:disabled .chev{opacity:0}
+#movil .campo .por{display:block;font-size:13px;color:var(--mute);font-weight:400}
+#movil .campo.pl .v.vista{white-space:nowrap}
+#movil .campo.pl.abierto{align-items:flex-start;padding-top:15px;padding-bottom:15px}
+#movil .campo.pl.abierto .v.vista{white-space:pre-line;overflow:visible;text-overflow:clip;color:var(--ink-2);display:block}
+#movil .campo.pl.abierto .chev{transform:rotate(180deg)}
+#movil .campo .chev{transition:transform var(--d2) var(--ease)}
+#movil .cap-b.vacia{color:var(--mute);font-size:15px}
+#movil .cap-b .marcas b{color:var(--ink)}
+#movil .aviso.gris{background:var(--bg-2);color:var(--ink-2)}
+#movil .sec-h .n.acc{color:var(--acc-ink);font-weight:600}
+#movil .decision{margin:0 var(--pad) 10px;font-size:15px;color:var(--ink-2)}
+#movil .decision b{color:var(--ink)}
+#movil .resp .enviar:disabled{opacity:.45}
+#movil .resp .nota-r{flex-basis:100%;color:var(--mute);font-size:14px}
+#movil .resp{flex-wrap:wrap}
+#movil .resp-err{margin:8px var(--pad) 0;color:var(--red);font-size:14px}
+#movil .solo-mac{margin:10px var(--pad) 0;font-size:14px;color:var(--mute)}
+#movil .op-a .btn:disabled{opacity:.5}
+#movil .op .vacia{color:var(--mute)}
+#movil .tarea .casilla{touch-action:manipulation;position:relative}
+#movil .tarea .casilla::after,#movil .chip::after,#movil .nube::after,#movil .nueva-meta .chip::after{content:'';position:absolute;inset:-9px}
+#movil .chip,#movil .nube{position:relative}
+#movil .chip::after{inset:-4px -2px}#movil .nube::after{inset:-7px -2px}
+#movil .nueva .ib{position:relative}#movil .nueva .ib::after{content:'';position:absolute;inset:-2px}
+#movil .tarea .tx{cursor:pointer}
+#movil .tarea .tm .av{width:20px;height:20px;font-size:10px}
+#movil .tarea.nota .tt{font-weight:500}
+#movil .nueva .ib.puesta{color:var(--acc-ink)}
+#movil .nueva-meta{display:flex;flex-wrap:wrap;gap:8px;margin:8px var(--pad) 0}
+#movil .nueva-meta .chip{height:32px;font-size:13px}
+#movil .nueva-meta .chip svg{width:14px;height:14px}
+#movil .chip .av{width:20px;height:20px;font-size:10px}
+#movil .tabs .tab{min-height:56px}
+#movil .tabs .tab:active svg{transform:scale(.92)}
+#movil .tabs .tab svg{transition:transform var(--d1) var(--ease)}
+#movil .velo{opacity:0;transition:opacity .28s var(--ease)}
+#movil .velo.on{opacity:1}
+#movil .hoja{transform:translateY(105%);transition:transform .34s var(--ease-m);will-change:transform;touch-action:pan-y}
+#movil .hoja.on{transform:none}
+#movil .hoja .asa{touch-action:none;padding:8px 0;margin:-8px auto 4px;width:60px;height:21px;background:none;position:relative}
+#movil .hoja .asa::after{content:'';position:absolute;left:11px;right:11px;top:8px;height:5px;border-radius:3px;background:var(--line-strong)}
+#movil .hoja .pie{position:sticky;bottom:calc(-16px - var(--sa-b));margin:16px calc(-1 * var(--pad)) calc(-16px - var(--sa-b));padding:12px var(--pad) calc(16px + var(--sa-b));background:var(--panel);border-top:1px solid var(--line2)}
+#movil .hoja .pie .botones{margin-top:0}
+#movil .hoja textarea,#movil .hoja input[type=text]{width:100%;min-height:52px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:16px/1.4 var(--font);outline:none;resize:none}
+#movil .hoja textarea:focus,#movil .hoja input:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--ring)}
+#movil .hoja .lbl{display:block;font-size:14px;font-weight:500;color:var(--ink-2);margin:14px 0 6px}
+#movil .hoja .txt{font-size:16px;line-height:1.5;white-space:pre-line;color:var(--ink)}
+#movil .hoja .txt .marca-x{color:var(--mute);text-decoration:line-through}
+#movil .btn:disabled{opacity:.5}
+#movil .btn:active:not(:disabled){transform:scale(.97)}
+#movil .btn{transition:transform var(--d1) var(--ease),opacity var(--d1) var(--ease)}
+#movil .estado-op:disabled{opacity:.55}
+#movil .estado-op .porque{display:block;font-size:13px;color:var(--red);font-weight:400}
+#movil .toast{transform:translateY(12px);opacity:0;transition:transform .3s var(--ease),opacity .3s var(--ease);pointer-events:none}
+#movil .toast.on{transform:none;opacity:1}
+#movil .toast.error svg,:root[data-theme="dark"] #movil .toast.error svg{color:var(--rojo-tinta)}
+#movil .toast.sin-tabs{bottom:calc(20px + var(--sa-b))}
+#movil .ver{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column;touch-action:pan-y}
+#movil .ver .lam{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#movil .ver img{max-width:100%;max-height:100%;object-fit:contain}
+#movil .ver .vtop{position:absolute;left:0;right:0;top:0;z-index:2;padding:calc(var(--sa-t) + 8px) 8px 8px 16px;display:flex;align-items:center;gap:10px;color:#fff;background:linear-gradient(rgba(0,0,0,.55),transparent)}
+#movil .ver .vtop .t{flex:1;font-size:15px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+#movil .ver .vtop .t span{display:block;font-weight:400;font-size:13px;opacity:.85}
+#movil .ver .vtop .ib{color:#fff}
+#movil .ver .barras{display:flex;gap:4px;padding:0 16px 8px;position:absolute;left:0;right:0;top:calc(var(--sa-t) + 4px);z-index:3}
+#movil .ver .barras i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.35)}
+#movil .ver .barras i.on{background:#fff}
+#movil .ver .lado{position:absolute;top:20%;bottom:20%;width:34%;z-index:1}
+#movil .ver .lado.i{left:0}#movil .ver .lado.d{right:0}
+#movil .ver .vpie{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:16px 16px calc(var(--sa-b) + 16px);color:#fff;font-size:14px;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+#movil .lugar{min-height:40vh;display:grid;place-items:center;color:var(--mute);font-size:15px}
+#movil .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#movil .rueda{height:170px;width:84px;overflow:hidden;position:relative;outline:none}
+#movil .rueda:focus-visible{box-shadow:0 0 0 2px var(--focus);border-radius:10px}
+#movil .rueda-in{height:100%;overflow-y:auto;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:69px 0;overscroll-behavior:contain}
+#movil .rueda-in::-webkit-scrollbar{display:none}
+#movil .rueda-in span{height:32px;display:grid;place-items:center;font-size:21px;font-weight:500;color:var(--ink);scroll-snap-align:center;opacity:calc(1 - var(--d,0) * .32);transform:scale(calc(1 - var(--d,0) * .08));font-variant-numeric:tabular-nums}
+#movil .rueda-in span.sel{font-weight:800;font-size:23px}
+#movil .ruedas .banda{pointer-events:none}
+#movil .sd{touch-action:manipulation;position:relative}
+#movil .sd::after{content:'';position:absolute;inset:-2px}
+#movil .sd:disabled{color:var(--line-strong);cursor:default}
+#movil .sd.otro{visibility:visible;color:var(--faint)}
+#movil .cd .p i.f,#movil .leyenda i.f{background:#D9876F}#movil .cd .p i.c,#movil .leyenda i.c{background:#9A7BAA}#movil .cd .p i.r,#movil .leyenda i.r{background:#6E9A76}#movil .cd .p i.co,#movil .leyenda i.co{background:#3F7A4C}#movil .cd .p i.h,#movil .leyenda i.h{background:var(--story)}   /* los colores de la v3 por tipo */
+#movil .hoja .lnk{min-height:var(--tap);padding:0 12px;display:inline-flex;align-items:center;color:var(--acc-ink);font-weight:500}
+@media (max-height:700px){#movil .sd{height:36px;width:36px}#movil .ruedas,#movil .rueda{height:130px}#movil .rueda-in{padding:52px 0}#movil .rueda-in span{height:26px;font-size:19px}#movil .rueda-in span.sel{font-size:21px}#movil .ruedas .banda{height:30px;margin-top:-15px}}
+#movil .hoja{bottom:var(--kb,0px);max-height:calc(100dvh - var(--kb,0px) - var(--sa-t) - 8px)}
+#movil .hoja:has(.pie){scroll-padding-bottom:110px}
+#movil.teclado .hoja{padding-bottom:16px}#movil.teclado .hoja .pie{bottom:-16px;margin-bottom:-16px;padding-bottom:16px}
+#movil .cap-b.corto .cap-t{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+#movil .cap-b .vercap{margin:4px 0 -6px -12px;color:var(--acc-ink);font-weight:500;min-height:var(--tap);display:inline-flex;align-items:center;padding:0 12px}
+#movil .tarea .tm .cn>span:last-child,#movil .campo .v.vista{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#movil .tarea .tm .cn{display:inline-flex}
+#movil .sd.hoyd:not(.sel){box-shadow:inset 0 0 0 1.5px var(--line-strong)}
+#movil .selcal-pie{display:flex;justify-content:space-between;padding:4px 6px 0}
+#movil .estado-op .av{flex:none}
+#movil .cuenta .sobra{color:var(--red);font-weight:600}
+#movil .estado-op.on .es{font-weight:600}
+@media (prefers-reduced-motion:reduce){#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
+@media (orientation:landscape) and (max-height:500px){#movil .car .lam{max-height:70vh}#movil .hoja{max-height:calc(100dvh - 8px)}}
+`;
+  const estilo = (id, css) => { let s = D.getElementById(id); if (!s) { s = D.createElement('style'); s.id = id; D.head.appendChild(s); } s.textContent = css; };
+  estilo('movil-css', MV().tokens('#movil') + '\n' + CSS_V3 + CSS_MAS);
+
+  // ---------- la raíz ----------
+  const raiz = D.createElement('div'); raiz.id = 'movil'; raiz.hidden = true; raiz.setAttribute('aria-live', 'off');
+  const capas = D.createElement('div'); capas.className = 'capas';
+  D.body.appendChild(raiz);
+
+  // ---------- el estado de la nube, siempre a la vista (D-255, D-268) ----------
+  const ST = { fase: 'apagada', vistoA: null, guardado: 0, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
+  const sinRed = () => !ST.red || ST.fase === 'sin_conexion';
+  function chip() {
+    const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
+    const b = (k, ico, t, a, lbl) => `<button type="button" class="nube${k ? ' ' + k : ''}" data-a="${a || (q ? 'sinsubir' : 'nube')}" aria-label="${esc(lbl || t.replace(/<[^>]+>/g, '') + (q ? `, ${q} sin subir` : ''))}">${ic(ico)}<span class="num">${t}</span>${cola}</button>`;
+    if (e.guardando) return b('', 'nube', 'Guardando…');   // la operación en vuelo no es «sin subir» (lote 4)
+    if (Date.now() - e.guardado < 4000) return b('ok', 'nubeok', 'Guardado');
+    switch (e.fase) {
+      case 'guardado': case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
+      case 'sin_conexion': return b('off', 'nubeoff', q ? 'Sin red' : h ? `Sin conexión · ${h}` : 'Sin conexión');
+      case 'sin_sesion': return b('off', 'nubeoff', 'Entra otra vez', 'entrar');
+      case 'sin_codigo': return b('off', 'alerta', 'Falta el código', 'codigo');
+      case 'otra_cuenta': return b('err', 'alerta', 'Otra cuenta', 'otracuenta');
+      case 'vieja': return b('off', 'recarga', 'Versión nueva', 'version');
+      case 'apagada': return b('off', 'nubeoff', 'Sin nube');
+      default: return b('', 'ojo', h && !q ? `Al día ${h}` : 'Al día');
+    }
+  }
+  const pintarChip = () => { raiz.querySelectorAll('.top-r [data-chip]').forEach(x => { x.innerHTML = chip(); }); };
+
+  // ---------- las fotos: cada una a su tamaño en pantalla, 3 como mucho a la vez (nunca el original) ----------
+  // La miniatura de la Mesa (1.600 px) es la foto: se decodifica una a una, se dibuja al tamaño que se ve (por la densidad del iPhone)
+  // y se suelta. El recorte es el de la publicación (vista.recortes, del núcleo). Una que aún no ha llegado (D-256) lo dice.
+  const MINIS = new Map(), COLA = [], DPR = Math.min(3, W.devicePixelRatio || 1); let decodificando = 0;
+  const claveMini = (id, px, r) => id + '|' + px + '|' + (r ? [r.x, r.y, r.w, r.h].map(v => v.toFixed(4)).join(',') : '');
+  const pendiente = id => { const f = M.files && M.files[id]; return !f || !!f.pendiente || !(M.thumbBlobs && M.thumbBlobs[id]) || !!(X().NUBE && X().NUBE.activa && X().pendienteRec && f.hueco); };
+  function miniDe(id, px, r) {
+    const k = claveMini(id, px, r); if (MINIS.has(k)) return MINIS.get(k);
+    const p = new Promise((res, rej) => { COLA.push({ id, px, r, res, rej }); correrMinis(); });
+    MINIS.set(k, p); p.catch(() => MINIS.delete(k));
+    return p;
+  }
+  function correrMinis() {
+    while (decodificando < 3 && COLA.length) {
+      const t = COLA.shift(); decodificando++;
+      hacerMini(t).then(t.res, t.rej).finally(() => { decodificando--; correrMinis(); });
+    }
+  }
+  async function hacerMini({ id, px, r }) {
+    const b = M.thumbBlobs && M.thumbBlobs[id]; if (!b) throw new Error('sin foto');
+    const bm = await createImageBitmap(b);
+    try {
+      const sx = r ? r.x * bm.width : 0, sy = r ? r.y * bm.height : 0, sw = r ? r.w * bm.width : bm.width, sh = r ? r.h * bm.height : bm.height;
+      const k = Math.min(1, (px * DPR) / Math.max(1, sw)), cw = Math.max(1, Math.round(sw * k)), ch = Math.max(1, Math.round(sh * k));
+      const c = D.createElement('canvas'); c.width = cw; c.height = ch;
+      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(bm, sx, sy, sw, sh, 0, 0, cw, ch);
+      const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.86)); c.width = c.height = 0;
+      if (!blob) throw new Error('no se pudo dibujar');
+      return URL.createObjectURL(blob);
+    } finally { if (bm.close) bm.close(); }
+  }
+  const olvidarMini = id => { for (const [k, p] of [...MINIS]) if (k.startsWith(id + '|')) { MINIS.delete(k); p.then(u => setTimeout(() => URL.revokeObjectURL(u), 3000), () => {}); } };
+  // un <img class="mi" data-id data-px data-r> se llena al acercarse a la vista
+  const vigia = 'IntersectionObserver' in W ? new IntersectionObserver(l => l.forEach(e => { if (e.isIntersecting) { vigia.unobserve(e.target); llenar(e.target); } }), { rootMargin: '300px 0px' }) : null;
+  function llenar(img) {
+    const id = img.dataset.id, px = +img.dataset.px || 120, r = img.dataset.r ? JSON.parse(img.dataset.r) : null, hue = img.parentNode && img.parentNode.querySelector('.hueco');
+    if (pendiente(id)) { if (hue) hue.hidden = false; return; }
+    if (hue) hue.hidden = true;
+    miniDe(id, px, r).then(u => { if (img.isConnected) { img.src = u; img.classList.remove('cargando'); } }, () => { if (hue) hue.hidden = false; });
+  }
+  function vigilarFotos(el) { el.querySelectorAll('img.mi:not([src])').forEach(i => { if (vigia) vigia.observe(i); else llenar(i); }); }
+  D.addEventListener('mesa-foto-llego', e => {   // una miniatura bajó (lote 4 del traspaso): se vuelve a dibujar donde se ve
+    const id = e.detail && e.detail.id; if (!id) return;
+    olvidarMini(id); raiz.querySelectorAll(`img.mi[data-id="${CSS.escape(id)}"]`).forEach(i => { i.removeAttribute('src'); llenar(i); });
+  });
+  const HUECO = `<span class="hueco" hidden>${ic('nube')}<span>Llega en un momento</span></span>`;
+  const foto = (id, px, r) => id ? `<img class="mi cargando" data-id="${esc(id)}" data-px="${px}"${r ? ` data-r='${esc(JSON.stringify(r))}'` : ''} alt="">${HUECO}` : '';
+  const cargarMinis = ids => { const l = [...new Set(ids.filter(Boolean))]; return l.length ? X().loadThumbs(l).catch(() => []) : Promise.resolve([]); };
+
+  // ---------- piezas comunes ----------
+  const TY = { Foto: 'foto', Carrusel: 'carr', Reel: 'reel', 'Collab Reel': 'collab', 'Trial Reel': 'reel' };
+  const ty = t => `<span class="ty ${TY[t.k] || (t.reel ? 'reel' : 'foto')}">${esc(t.txt)}</span>`;
+  const est = e => `<span class="es ${esc(e.k)}"><i></i>${esc(e.txt)}</span>`;
+  function top(o = {}) {
+    const izq = o.atras ? `<button type="button" class="back" data-a="atras" aria-label="Volver a ${esc(o.atras)}">${ic('izq', 2)}<span>${esc(o.atras)}</span></button>` : `<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="30" height="30">`;
+    return `<header class="top${o.linea ? ' linea' : ''}"><div class="top-in"><div class="top-l">${izq}</div><div class="top-t">${esc(o.t || '')}</div><div class="top-r">${o.r || `<span data-chip>${chip()}</span>`}</div></div></header>`;
+  }
+  function tabs(on) {
+    const n = TAREAS_PASADO;
+    const t = (k, i, txt) => `<button type="button" class="tab${on === k ? ' on' : ''}" data-ir="${k}"${on === k ? ' aria-current="page"' : ''}>${ic(i, on === k ? 2 : 1.75)}${txt}${k === 'tareas' && n ? `<span class="badge num" aria-label="${plural(n, 'tarea se ha pasado', 'tareas se han pasado')}">${n}</span>` : ''}</button>`;
+    return `<nav class="tabs" aria-label="Secciones"><div class="tabs-in">${t('hoy', 'casa', 'Hoy')}${t('clientes', 'gente', 'Clientes')}${t('tareas', 'tareas', 'Tareas')}</div></nav>`;
+  }
+  const fila = o => `<button type="button" class="fila" ${o.a}>${o.izq || ''}<span class="tx"><span class="t1">${o.t1}</span><span class="t2">${o.t2}</span></span>${o.hr ? `<span class="hr num${o.hrRoja ? ' roja' : ''}">${esc(o.hr)}</span>` : ''}<span class="chev">${ic('der')}</span></button>`;
+  const miniFila = (id, ico) => `<span class="ft">${foto(id, 60)}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`;
+  const icoFila = (n, roja) => `<span class="ft ico${roja ? ' roja' : ''}"><span>${ic(n)}</span></span>`;
+  const iniciales = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase();
+  const KIT = new Map();
+  function av(cid, g) {
+    const c = (X().CL || []).find(x => x.id === cid) || (M.personal && M.personal._p && M.personal._p.cliDe(cid)) || { name: '?' };
+    const f = c.foto && M.files && M.files[c.foto], col = KIT.get(cid);
+    const fondo = col ? ` style="background:${esc(col)}"` : '';
+    return `<span class="av${g ? ' g' : ''}" aria-hidden="true"${fondo}>${f && f.thumbUrl ? `<img src="${f.thumbUrl}" alt="">` : esc(iniciales(c.name).slice(0, 1))}</span>`;
+  }
+  const nombreCli = cid => { const c = (X().CL || []).find(x => x.id === cid) || (M.personal && M.personal._p && M.personal._p.cliDe(cid)); return c ? c.name || c.txt || cid : cid; };
+  const tramos = k => { const L = X().PASOS, i = Math.max(0, L.findIndex(x => x[0] === k)); return `<div class="tramos" role="img" aria-label="${esc((L[i] || [k, k])[1])}">${L.map((_, j) => `<i class="${j < i ? 'h' : j === i ? 'a' : ''}"></i>`).join('')}</div>`; };
+  const pasoTxt = k => (X().PASOS.find(x => x[0] === k) || [k, k])[1];
+  const vacio = (t, s) => `<div class="vacio"><b>${esc(t)}</b>${s ? esc(s) : ''}</div>`;
+  const mal = (t, a) => `<div class="mal" role="alert">${ic('alerta')}<span>${esc(t)}</span><button type="button" data-a="${a || 'reintentar'}">Reintentar</button></div>`;
+
+  // ---------- la navegación: #hoy, #clientes, #tareas, #mes/<tablero>/<vista>[/<mes>], #pub/<tablero>/<id>, #cap/…, #ret/…/<k>, #his/<tablero>/<id> ----------
+  const leerRuta = () => { const p = decodeURIComponent((location.hash || '#hoy').slice(1)).split('/'); return { p: p[0] || 'hoy', a: p[1] || '', b: p[2] || '', c: p[3] || '' }; };
+  let RUTA = leerRuta();
+  const ir = (h, reemplazar) => { const u = '#' + h.split('/').map(encodeURIComponent).join('/'); if (reemplazar) history.replaceState(null, '', u); else history.pushState(null, '', u); RUTA = leerRuta(); W.scrollTo(0, 0); pintar(); };
+  W.addEventListener('popstate', () => { cerrarHojas(true); RUTA = leerRuta(); pintar(); });
+  const atras = () => { if (history.length > 1 && HIST > 0) { HIST--; history.back(); } else ir(RUTA.p === 'pub' || RUTA.p === 'his' ? `mes/${RUTA.a}/lista` : RUTA.p === 'cap' ? `pub/${RUTA.a}/${RUTA.b}` : RUTA.p === 'ret' ? `cap/${RUTA.a}/${RUTA.b}` : 'clientes', true); };
+  let HIST = 0;
+  const avanzar = h => { HIST++; ir(h); };
+
+  // ---------- lo leído (todo del núcleo); lo que falla se dice, nunca se enseña como vacío ----------
+  const L = { hoy: null, clientes: null, tareas: null, vista: null, conv: null, error: {} };
+  let TAREAS_PASADO = 0;
+  async function leerHoy() {
+    try {
+      const R = await M.personal.datos({ modo: 'semana', desp: 0, avTareas: true });
+      await cargarMinis(R.items.filter(x => x.tipo === 'post').map(x => x.s.photos && x.s.photos[0]));
+      try { if (M.web && M.web.leerRespuestas) await M.web.leerRespuestas(); } catch (e) { /* sin web: sin «ha contestado» */ }
+      L.hoy = R; L.error.hoy = '';
+    } catch (e) { L.error.hoy = 'No se pudo leer Hoy.'; }
+  }
+  async function leerClientes() {
+    try {
+      const R = await M.personal.datos({ modo: 'mes', desp: 0, avTareas: false }), boards = (await X().idbAll('boards')) || [];
+      await cargarMinis((X().CL || []).map(c => c.foto));
+      for (const c of X().CL || []) if (!KIT.has(c.id) && M.personal._p && M.personal._p.kitColor) { KIT.set(c.id, null); M.personal._p.kitColor(c.id, { boards }).then(v => { if (v) { KIT.set(c.id, v); if (RUTA.p === 'clientes') pintar(); } }, () => {}); }
+      L.clientes = { R, boards }; L.error.clientes = '';
+    } catch (e) { L.error.clientes = 'No se pudo leer los clientes.'; }
+  }
+  async function leerTareas() {
+    try { L.tareas = await M.personal.lista(); TAREAS_PASADO = L.tareas.filter(x => x.grupo === 'pasado' && !x.hecha).length; L.error.tareas = ''; }
+    catch (e) { L.error.tareas = 'No se pudo leer las tareas.'; }
+  }
+  async function leerMes(key) {
+    try {
+      const v = await MV().mirar(key);
+      if (!v || v.error) throw new Error((v && v.error) || 'sin tablero');
+      L.vista = v; L.error.mes = '';
+      leerConv(v.key);
+    } catch (e) { L.vista = null; L.error.mes = 'No se pudo abrir este mes.'; }
+  }
+  let convDe = '';
+  async function leerConv(key) {   // lo que dijo el cliente (D-244, R2): solo leer
+    convDe = key;
+    try { const c = M.web && M.web.conversacion ? await M.web.conversacion(X().S) : null; if (convDe === key) { L.conv = c; if (RUTA.p === 'pub' || RUTA.p === 'mes') pintarSiQuieto(); } }
+    catch (e) { if (convDe === key) L.conv = { error: 'No se pudo leer lo que dijo el cliente.' }; }
+  }
+
+  // ---------- Hoy (D-180, D-212, D-236) ----------
+  const GRUPOS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
+  const CIFRAS = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['espera', 'Esperando al cliente'], ['falta', 'Falta programar']];
+  let FILTRO = null, VER_TODO = {};
+  function lineaAviso(x) {
+    const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
+    if (x.tipo === 'cobro') {
+      const C = X().cob, r = x.r, nf = r.factura ? 'Factura ' + r.factura : 'Factura de ' + C.nombre(r).toLowerCase();
+      return fila({ a: `data-a="cobro"`, izq: icoFila('euro', true), t1: `${esc(nf)} · ${esc(C.eur(r.importe))}`, t2: `${esc(quien)} · <span class="roja">${esc(x.dias === 1 ? 'retrasada 1 día' : `retrasada ${x.dias} días`)}</span>` });
+    }
+    if (x.tipo === 'tarea' || x.tipo === 'sesion') {
+      const pas = x.cat === 'pasado';
+      return fila({ a: `data-a="tver" data-id="${esc(x.k.id)}"`, izq: icoFila(x.tipo === 'sesion' ? 'claqueta' : 'tareas', pas), t1: esc(x.k.txt), t2: `${x.tipo === 'sesion' ? 'Sesión' : 'Tarea'}${quien ? ' · ' + esc(quien) : ''}${pas ? ` · <span class="roja">${esc(corto(x.dia))}</span>` : x.hora ? ' · ' + esc(x.hora) : ''}` });
+    }
+    if (x.tipo === 'historias') return fila({ a: `data-ir="mes/${esc(x.B.key)}/hist"`, izq: icoFila('historias'), t1: esc(plural(x.n, 'historia', 'historias')), t2: `${esc(quien)} · ${esc(plural(x.sin, 'sin programar', 'sin programar'))}` });
+    const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
+    const estado = x.e === 'publicado' || !x.e ? '' : `<span class="es ${esc(x.e)}"><i></i>${esc((X().ESTADOS.find(z => z[0] === x.e) || [x.e, x.e])[1])}</span>`;
+    let t2;
+    if (x.cat === 'pasado') t2 = `${esc(diaCorto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''} · ${x.mano ? '<span class="roja">publicar a mano</span>' : x.e !== 'programado' ? '<span class="roja">sin programar</span>' : '<span class="roja">vencida</span>'}`;
+    else if (x.cat === 'espera') { const w = M.web && M.web.contestado ? M.web.contestado(x.B.client, s.id) : ''; t2 = `${w ? `<span class="acc">${esc(cap1(w))} en su web</span>` : x.e === 'noaprobado' ? '<span class="roja">Pidió cambios</span>' : estado} · ${esc(corto(x.dia))}${x.lleva ? ` · lleva ${x.lleva} días` : ''}`; }
+    else if (x.cat === 'falta') t2 = `${esc(corto(x.dia))} · ${estado}${x.aMano ? ' · se programa a mano' : ''}`;
+    else t2 = x.mano ? '<span class="acc">publicar a mano</span>' : estado;
+    const tyTxt = isReelTxt(s.type) ? s.type : tp.txt;
+    return fila({ a: `data-ir="pub/${esc(x.B.key)}/${esc(s.id)}"`, izq: miniFila(s.photos && s.photos[0], esOtro), t1: `${esc(s.name)} <span class="ty ${TY[tyTxt] || 'foto'}">${esc(tyTxt)}</span>`, t2, hr: x.cat === 'hoy' || x.cat === 'man' ? x.hora : '' });
+  }
+  const isReelTxt = t => /reel/i.test(String(t || ''));
+  function pantHoy() {
+    const R = L.hoy, h = hoy();
+    let html = top() + `<main class="main" id="contenido"><div class="titulo"><h1>Hoy</h1><p>${esc(fechaLarga(h))}</p></div>`;
+    if (!R) return html + (L.error.hoy ? mal(L.error.hoy) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('hoy');
+    html += `<div class="cifras c5" role="group" aria-label="Avisos">${CIFRAS.map(([k, t]) => { const n = R.cifras[k] || 0; return `<button type="button" class="cifra${k === 'pasado' && n ? ' roja' : ''}${FILTRO === k ? ' on' : ''}" data-a="filtro" data-k="${k}" aria-pressed="${FILTRO === k}"${n || FILTRO === k ? '' : ' disabled'}><span class="v num">${n}</span><span class="k">${t}</span></button>`; }).join('')}</div>`;
+    const por = c => R.items.filter(x => x.cat === c);
+    let alguno = false;
+    for (const [k, t] of GRUPOS) {
+      if (FILTRO && FILTRO !== k && !(k === 'hoy' && FILTRO === 'man')) continue;
+      const l = k === 'hoy' ? (FILTRO === 'man' ? [] : por('hoy')) : por(k), lm = k === 'hoy' && FILTRO !== 'hoy' ? por('man') : [];
+      if (!l.length && !lm.length) continue;
+      alguno = true;
+      const tope = VER_TODO[k] || FILTRO ? Infinity : k === 'falta' ? 3 : 8;
+      if (k === 'hoy') {
+        html += `<section class="sec"><div class="sec-h"><h2>${FILTRO === 'man' ? 'Mañana' : 'Hoy'} <span class="n num">${FILTRO === 'man' ? lm.length : l.length || ''}</span></h2></div>`;
+        if (FILTRO !== 'man') html += l.length ? `<div class="lista">${l.map(lineaAviso).join('')}</div>` : `<p class="solo-mac" style="margin-top:0">Nada para hoy</p>`;
+        if (lm.length) html += `${FILTRO === 'man' ? '' : `<div class="sub-h">Mañana <span class="num">${lm.length}</span></div>`}<div class="lista">${lm.map(lineaAviso).join('')}</div>`;
+        html += `</section>`; continue;
+      }
+      html += `<section class="sec"><div class="sec-h${k === 'pasado' ? ' roja' : ''}"><h2>${t} <span class="n num">${l.length}</span></h2>${l.length > tope ? `<button type="button" class="lnk" data-a="vertodo" data-k="${k}">Ver las ${l.length}</button>` : ''}</div><div class="lista">${l.slice(0, tope).map(lineaAviso).join('')}</div></section>`;
+    }
+    if (!alguno) html += vacio('Nada pendiente', FILTRO ? 'Con este filtro no hay avisos.' : 'Todo está al día.');
+    return html + '</main>' + tabs('hoy');
+  }
+
+  // ---------- Clientes ----------
+  function pantClientes() {
+    const C = L.clientes;
+    let html = top() + `<main class="main" id="contenido">`;
+    if (!C) return html + `<div class="titulo"><h1>Clientes</h1></div>` + (L.error.clientes ? mal(L.error.clientes) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('clientes');
+    const filas = C.R.filas, m0 = C.R.V.w0.slice(0, 7);
+    html += `<div class="titulo"><h1>Clientes</h1><p>${esc(plural(filas.length, 'mensual', 'mensuales'))} · ${esc(MES()[+m0.slice(5, 7) - 1])}</p></div>`;
+    if (!filas.length) return html + vacio('Sin clientes todavía', 'Se dan de alta en el escritorio.') + '</main>' + tabs('clientes');
+    html += `<div class="clis" style="margin-top:18px">${filas.map(f => {
+      const m = f.meses[0], B = m && m.B, key = B ? B.key : ((C.boards.filter(b => b.client === f.c.id).sort((a, b) => String(b.month).localeCompare(String(a.month)))[0]) || {}).key;
+      return `<button type="button" class="cli"${key ? ` data-ir="mes/${esc(key)}/lista/${esc(m && B ? m.m : '')}"` : ' disabled'}>
+      <span class="cli-h" style="display:flex">${av(f.c.id, true)}<span class="nm"><b>${esc(f.c.name)}</b><span>${esc(plural(f.pubs, 'publicación', 'publicaciones'))} · ${esc(plural(f.hs, 'historia', 'historias'))}</span></span><span class="chev">${ic('der')}</span></span>
+      ${B ? tramos(m.paso) : `<div class="tramos" aria-hidden="true">${'<i></i>'.repeat(6)}</div>`}
+      <span class="cli-p" style="display:flex"><span>${B ? `<b>${esc(pasoTxt(m.paso))}</b>` : 'Sin tablero este mes'}</span>${f.pubSin ? `<span class="acc num">${esc(plural(f.pubSin, 'sin programar', 'sin programar'))}</span>` : B ? '<span>Todo programado</span>' : ''}</span>
+    </button>`; }).join('')}</div>`;
+    return html + '</main>' + tabs('clientes');
+  }
+
+  // ---------- el mes de un cliente: lista, calendario e historias ----------
+  const VISTAS = [['lista', 'Lista'], ['cal', 'Calendario'], ['hist', 'Historias']];
+  function mesDeRuta(v) { const m = RUTA.c && v.meses.some(x => x.m === RUTA.c) ? RUTA.c : (v.meses.find(x => X().cycleStart(x.m, 1) <= v.hoy && v.hoy.slice(0, 7) === x.m) || v.meses[0]).m; return m; }
+  function cabMes(v, m, vista) {
+    const i = v.meses.findIndex(x => x.m === m), mx = v.meses[i], posts = v.posts.filter(p => p.mes === m && p.estado.k !== 'cancelado');
+    const sin = posts.filter(p => !['programado', 'publicado'].includes(p.estado.k)).length, hs = v.historias.filter(h => !h.cancelada && h.fecha.dia && h.fecha.dia.slice(0, 7) === m).length;
+    const otro = (d) => { const j = i + d; return j >= 0 && j < v.meses.length ? `data-ir="mes/${esc(v.key)}/${vista}/${esc(v.meses[j].m)}"` : ''; };
+    const ant = otro(-1), sig = otro(1), sigB = !sig && MESES_CLI.sig ? `data-ir="mes/${esc(MESES_CLI.sig)}/${vista}"` : '', antB = !ant && MESES_CLI.ant ? `data-ir="mes/${esc(MESES_CLI.ant)}/${vista}"` : '';
+    return top({ atras: 'Clientes', t: nombreCli(v.client) })
+      + `<div class="mesnav"><h1>${esc(mesNombre(m))}</h1><div class="flechas"><button type="button" class="ib" ${ant || antB} ${ant || antB ? '' : 'disabled'} aria-label="Mes anterior">${ic('izq')}</button><button type="button" class="ib" ${sig || sigB} ${sig || sigB ? '' : 'disabled'} aria-label="Mes siguiente">${ic('der')}</button></div></div>`
+      + `<div class="pasos">${tramos(mx.paso.k)}<p><span class="acc">${esc(mx.paso.txt)}</span> · ${esc(plural(sin, 'sin programar', 'sin programar'))} · ${esc(plural(hs, 'historia', 'historias'))}</p></div>`
+      + `<div class="seg" role="tablist" aria-label="Vista del mes">${VISTAS.map(([k, t]) => `<button type="button" role="tab" class="${k === vista ? 'on' : ''}" aria-selected="${k === vista}" data-ir="mes/${esc(v.key)}/${k}/${esc(m)}">${t}</button>`).join('')}</div>`;
+  }
+  let MESES_CLI = { ant: null, sig: null };   // los tableros vecinos del cliente (otro tablero, otro mes)
+  async function vecinos(v) {
+    const l = ((await X().idbAll('boards')) || []).filter(b => b.client === v.client && b.month).sort((a, b) => String(a.month).localeCompare(String(b.month)));
+    const i = l.findIndex(b => b.key === v.key);
+    MESES_CLI = { ant: i > 0 ? l[i - 1].key : null, sig: i >= 0 && i < l.length - 1 ? l[i + 1].key : null };
+  }
+  function comentariosDe(id) { const c = L.conv && L.conv.porSlot && L.conv.porSlot[id]; return c ? c : null; }
+  function filaPost(v, p) {
+    const c = comentariosDe(p.id), n = c ? c.sinLeer : 0;
+    const e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
+    const extra = n ? ` · <span class="acc">${esc(plural(n, 'comentario', 'comentarios'))}</span>` : p.vencida ? ' · <span class="roja">vencida</span>' : '';
+    const tp = X().tipoPost({ type: p.tipo.k, photos: p.fotos }), ico = p.tipo.txt === 'Foto' ? '' : tp.ico;
+    return fila({ a: `data-ir="pub/${esc(v.key)}/${esc(p.id)}"`, izq: `<span class="ft">${foto(p.portada, 60, p.recortes[0])}${ico ? `<span class="tyi">${ico}</span>` : ''}</span>`, t1: `${esc(p.nombre)} ${ty(p.tipo)}`, t2: `${est(e)}${extra}`, hr: p.fecha.hora || (p.fecha.sinHora ? 'Sin hora' : ''), hrRoja: p.vencida });
+  }
+  function diaFila(v, d, n) {
+    const r = relativo(d), hs = v.historias.filter(h => !h.cancelada && h.fecha.dia === d).length;
+    return `<div class="dia${d === v.hoy ? ' hoy' : ''}"><b>${esc(diaCab(d))}</b>${r && r !== 'Ayer' ? `<span>${r}</span>` : ''}${hs ? `<span class="hs"><i></i>${esc(plural(hs, 'historia', 'historias'))}</span>` : ''}</div>`;
+  }
+  function pantMes() {
+    const v = L.vista, vista = RUTA.b || 'lista';
+    if (!v || v.key !== RUTA.a) return top({ atras: 'Clientes' }) + `<main class="main" id="contenido">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo el mes…</div>`}</main>` + tabs('clientes');
+    const m = mesDeRuta(v);
+    let html = `<main class="main" id="contenido">` + cabMes(v, m, vista);
+    const posts = v.posts.filter(p => p.mes === m).sort((a, b) => String(a.fecha.dia || '9').localeCompare(String(b.fecha.dia || '9')) || String(a.fecha.hora).localeCompare(String(b.fecha.hora)));
+    if (vista === 'lista') {
+      if (!posts.length) html += vacio('Este mes no tiene publicaciones', 'Se preparan en el escritorio.');
+      let dia = null;
+      for (const p of posts) {
+        if (p.fecha.dia !== dia) { if (dia !== null) html += '</div>'; dia = p.fecha.dia; html += (dia ? diaFila(v, dia) : `<div class="dia"><b>Sin fecha</b></div>`) + '<div class="lista">'; }
+        html += filaPost(v, p);
+      }
+      if (dia !== null) html += '</div>';
+    } else if (vista === 'cal') html += calMes(v, m, posts);
+    else html += histMes(v, m);
+    return html + '</main>' + tabs('clientes');
+  }
+  let DIA_CAL = null;
+  function calMes(v, m, posts) {
+    const d1 = m + '-01', pre = (dow(d1) + 6) % 7, ini = addD(d1, -pre), dias = Array.from({ length: 42 }, (_, i) => addD(ini, i));
+    const enMes = d => d.slice(0, 7) === m, deDia = d => posts.filter(p => p.fecha.dia === d && p.estado.k !== 'cancelado');
+    const sel = DIA_CAL && enMes(DIA_CAL) ? DIA_CAL : enMes(v.hoy) ? v.hoy : (posts[0] && posts[0].fecha.dia) || d1;
+    const punto = p => /collab/i.test(p.tipo.k) ? 'co' : p.tipo.reel ? 'r' : p.tipo.txt === 'Carrusel' ? 'c' : 'f';
+    let h = `<div class="cal"><div class="cal-s" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div><div class="cal-g" role="grid" aria-label="${esc(mesNombre(m))}">`;
+    for (const d of dias) {
+      const n = enMes(d) ? deDia(d) : [], hs = enMes(d) && v.historias.some(x => !x.cancelada && x.fecha.dia === d);
+      const lbl = `${diaCab(d)}${n.length ? ', ' + plural(n.length, 'publicación', 'publicaciones') : ''}${hs ? ', con historias' : ''}`;
+      h += `<button type="button" class="cd${enMes(d) ? '' : ' otro'}${d === v.hoy ? ' hoy' : ''}${d === sel ? ' sel' : ''}" data-a="dia" data-d="${d}" aria-label="${esc(lbl)}"${d === sel ? ' aria-pressed="true"' : ''}${enMes(d) ? '' : ' tabindex="-1" aria-hidden="true"'}><span class="n num">${+d.slice(8, 10)}</span><span class="p">${n.slice(0, 3).map(p => `<i class="${punto(p)}"></i>`).join('')}${hs ? '<i class="h"></i>' : ''}</span></button>`;
+    }
+    h += `</div></div><div class="leyenda"><span><i class="f"></i>Foto</span><span><i class="c"></i>Carrusel</span><span><i class="r"></i>Reel</span><span><i class="co"></i>Collab</span><span><i class="h"></i>Historias</span></div>`;
+    const l = deDia(sel);
+    h += diaFila(v, sel) + (l.length ? `<div class="lista">${l.map(p => filaPost(v, p)).join('')}</div>` : `<p class="solo-mac" style="margin-top:0">Nada ese día.</p>`);
+    return h;
+  }
+  function histMes(v, m) {
+    const l = v.historias.filter(h => h.fecha.dia && h.fecha.dia.slice(0, 7) === m).sort((a, b) => String(a.fecha.dia + a.fecha.hora).localeCompare(String(b.fecha.dia + b.fecha.hora)));
+    if (!l.length) return vacio('Sin historias este mes', 'Se preparan en el escritorio.');
+    let h = '', dia = null;
+    for (const x of l) {
+      if (x.fecha.dia !== dia) {
+        if (dia !== null) h += '</div>';
+        dia = x.fecha.dia; const n = l.filter(y => y.fecha.dia === dia).length, r = relativo(dia);
+        h += `<div class="dia${dia === v.hoy ? ' hoy' : ''}"><b>${esc(diaCab(dia))}</b><span>${r && r !== 'Ayer' ? r + ' · ' : ''}${n}</span></div><div class="hgrid">`;
+      }
+      const pas = x.fecha.dia < v.hoy || (x.fecha.dia === v.hoy && x.fecha.hora && x.fecha.hora <= horaDe(Date.now()));
+      const k = x.cancelada ? 'cancelado' : x.programada ? (pas ? 'publicado' : 'programado') : 'empezar';
+      h += `<button type="button" class="hc${x.cancelada ? ' cancelada' : ''}" data-ir="his/${esc(v.key)}/${esc(x.id)}" aria-label="Historia de las ${esc(x.fecha.hora || '')}${x.programada ? ', programada' : ', sin programar'}">${foto(x.img, 130)}<span class="hh"><span class="num">${esc(x.fecha.hora || '')}</span><i style="--c:var(--st-${k}${k === 'empezar' ? '-aro' : ''})"></i></span></button>`;
+    }
+    return h + '</div>';
+  }
+
+  // ---------- la publicación ----------
+  let ABIERTO = {};   // contexto y nota desplegados
+  function pantPub() {
+    const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b);
+    if (!p) return top({ atras: 'Volver' }) + `<main class="main sin-tabs" id="contenido">${L.error.mes ? mal(L.error.mes) : v && v.key === RUTA.a ? vacio('Esta publicación ya no está', 'Se quitó en el escritorio.') : `<div class="lugar">Abriendo…</div>`}</main>`;
+    const r0 = p.recortes[0], ratio = p.tipo.reel ? 9 / 16 : r0 && r0.ratio ? Math.max(0.6, Math.min(1.91, r0.ratio)) : 4 / 5;
+    const n = p.fotos.length, e = p.tocaria ? { k: 'publicado', txt: 'Publicado' } : p.estado;
+    let html = top({ atras: mesNombre(p.mes), t: nombreCli(v.client) }) + `<main class="main sin-tabs" id="contenido">`;
+    html += `<div class="car" aria-roledescription="carrusel" aria-label="Fotos de ${esc(p.nombre)}">` + (n ? `<div class="tira" data-car>${p.fotos.map((f, i) => `<div class="lam" style="aspect-ratio:${ratio}" role="group" aria-label="Foto ${i + 1} de ${n}">${foto(f, Math.min(600, W.innerWidth || 440), p.recortes[i])}</div>`).join('')}</div>${n > 1 ? `<span class="cnt num" data-cnt>1 / ${n}</span>` : ''}` : `<div class="lam" style="aspect-ratio:${ratio};position:relative"><span class="hueco">${ic('nube')}<span>Sin foto todavía</span></span></div>`) + `</div>`;
+    if (n > 1) html += `<div class="puntos" aria-hidden="true">${p.fotos.map((_, i) => `<i${i === 0 ? ' class="on"' : ''}></i>`).join('')}</div>`;
+    html += `<div class="pub-h"><h1>${esc(p.nombre)}</h1><div class="sub">${ty(p.tipo)}${est(e)}${p.tocaria ? '<span class="es toca">· se marca en el escritorio</span>' : ''}</div></div>`;
+    if (p.estado.k === 'cancelado') html += `<div class="aviso gris">${ic('x')}<span>${p.motivo ? 'Cancelada: ' + esc(p.motivo) : 'Cancelada, sin motivo.'}</span></div>`;
+    else if (p.vencida) html += `<div class="aviso rojo">${ic('reloj')}<span>Su hora ya pasó sin publicarse.</span></div>`;
+    const offline = sinRed() ? ' disabled' : '';
+    html += `<div class="grupo">
+      <button type="button" class="campo" data-a="fecha"${p.publicada || offline ? ' disabled' : ''}><span class="k">Fecha y hora</span><span class="v num">${esc(campoFecha(p.fecha))}${p.publicada ? '<span class="por">Ya está publicada: no se mueve.</span>' : ''}</span><span class="chev">${ic('der')}</span></button>
+      <button type="button" class="campo" data-a="estado"${offline}><span class="k">Estado</span><span class="v">${est(e)}</span><span class="chev">${ic('der')}</span></button>
+    </div>`;
+    if (offline) html += `<p class="solo-mac">Sin conexión: no se puede cambiar. Lo que ves es de las ${esc(ST.vistoA ? horaDe(ST.vistoA) : '')}.</p>`;
+    const c = p.captions, k = c && c.pick != null ? c.opciones.find(o => o.k === c.pick) : null;
+    html += `<div class="cap"><div class="cap-h"><h2>Caption</h2>${c ? `<button type="button" class="lnk" data-ir="cap/${esc(v.key)}/${esc(p.id)}">${c.opciones.length} opciones</button>` : ''}</div>`
+      + (k ? (() => { const largo = k.texto.length > 300 || k.texto.split('\n').length > 6, ab = ABIERTO['cap:' + p.id]; return `<div class="cap-b${largo && !ab ? ' corto' : ''}"><div class="cap-t">${esc(k.texto)}</div><span class="tono">Tono <b>${esc(k.tono)}</b>${k.editada ? ' · retocado' : ''}</span>${largo ? `<button type="button" class="lnk vercap" data-a="plegar" data-k="cap:${esc(p.id)}" aria-expanded="${!!ab}">${ab ? 'Ver menos' : 'Ver entero'}</button>` : ''}</div>`; })()
+        : c ? `<button type="button" class="cap-b vacia" style="display:block;width:100%;text-align:left" data-ir="cap/${esc(v.key)}/${esc(p.id)}">Sin elegir todavía: ${c.opciones.length} opciones para elegir.</button>`
+          : `<div class="cap-b vacia">Sin opciones: pídeselas a Claude.</div>`) + `</div>`;
+    const pl = (key, t, txt) => `<button type="button" class="campo pl${ABIERTO[key] ? ' abierto' : ''}" data-a="plegar" data-k="${key}" aria-expanded="${!!ABIERTO[key]}"${txt ? '' : ' disabled'}><span class="k">${t}</span><span class="v vista">${txt ? esc(txt) : 'Sin ' + t.toLowerCase()}</span><span class="chev">${ic('abajo')}</span></button>`;
+    html += `<div class="grupo">${pl('ctx', 'Contexto', p.contexto)}${pl('nota', 'Nota', p.nota)}</div>`;
+    html += delCliente(v, p);
+    return html + '</main>';
+  }
+  function delCliente(v, p) {
+    if (!L.conv) return '';
+    if (L.conv.error) return `<section class="sec"><div class="sec-h"><h2>Del cliente</h2></div>${mal(L.conv.error, 'reconv')}</section>`;
+    const c = comentariosDe(p.id); if (!c) return '';
+    if (c.ultima && M.web && M.web.leido) setTimeout(() => M.web.leido(c.pid, c.ultima), 1500);   // leído en este aparato (su marca, nunca la del Mac)
+    const d = c.decision, quien = d && d.autor ? esc(d.autor) : 'El cliente';
+    const dec = d && d.tipo !== 'cambios' ? `<p class="decision"><b>${quien}</b> ${d.tipo === 'aprobada' ? 'la aprobó' : 'retiró su decisión'} · ${esc(diaCorto(X().localDay(d.hora)))} ${esc(X().localTime(d.hora))}${d.vieja ? ' · era de una versión anterior' : ''}</p>` : '';
+    const items = c.items.map(m => `<div class="msg ${m.de === 'tu' ? 'yo' : 'cli'}"><span class="q">${esc(m.autor || 'Cliente')} · ${esc(diaCorto(X().localDay(m.hora)).toLowerCase())} ${esc(X().localTime(m.hora))}${m.diapositiva ? ' · foto ' + esc(m.diapositiva) : ''}${m.pidioCambios ? ' · pidió cambios' : ''}${m.vieja ? ' · de una versión anterior' : ''}${m.resuelto ? ' · resuelto' : ''}</span>${esc(m.texto)}</div>`).join('');
+    const autor = (c.items.filter(m => m.de === 'cliente').pop() || {}).autor || '';
+    const borr = lsG('mesa-movil-resp:' + c.pid) || '';
+    const resp = c.puedeEscribir ? `<div class="resp"><textarea rows="1" data-resp="${esc(p.id)}" aria-label="${autor ? 'Contestar a ' + esc(autor) : 'Escribir al cliente'}" placeholder="${autor ? 'Contestar a ' + esc(autor) : 'Escribir al cliente'}" maxlength="2000"${sinRed() ? ' disabled' : ''}>${esc(borr)}</textarea><button type="button" class="enviar" data-a="contestar" aria-label="Enviar"${sinRed() || !borr.trim() ? ' disabled' : ''}>${ic('subir', 2.25)}</button></div>` : `<p class="solo-mac">Envía esta publicación a la web desde el escritorio para poder escribir aquí.</p>`;
+    if (!items && !dec && !c.puedeEscribir) return '';
+    return `<section class="sec"><div class="sec-h"><h2>Del cliente${c.sinLeer ? ` <span class="n acc">${c.sinLeer} sin leer</span>` : ''}</h2></div>${dec}${items ? `<div class="hilo">${items}</div>` : ''}${resp}<p class="resp-err" data-resp-err hidden></p></section>`;
+  }
+
+  // ---------- captions (para leer; elegir y retocar, lote 4) ----------
+  function pantCaptions() {
+    const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b);
+    if (!p) return top({ atras: 'Volver' }) + `<main class="main sin-tabs">${L.error.mes ? mal(L.error.mes) : `<div class="lugar">Abriendo…</div>`}</main>`;
+    const c = p.captions, off = sinRed();
+    let html = top({ atras: p.nombre }) + `<main class="main sin-tabs" id="contenido"><div class="titulo"><h1>Captions</h1><p>${esc(p.nombre)} · ${esc(p.tipo.txt)}${p.fecha.dia ? ' · ' + esc(DS[dow(p.fecha.dia)] + ' ' + corto(p.fecha.dia)) : ''}</p></div>`;
+    if (!c) html += vacio('Sin opciones todavía', 'Pídeselas a Claude.');
+    else html += c.opciones.map(o => { const on = o.k === c.pick; return `<div class="op${on ? ' on' : ''}"><div class="op-h"><b>${esc(o.tono)}</b>${on ? `<span class="elegido">${ic('check', 2.25)}Elegido</span>` : ''}</div><p>${o.texto ? esc(o.texto) : '<span class="vacia">Vacío</span>'}</p>${o.editada ? '<p class="solo-mac" style="margin:8px 0 0">Retocado</p>' : ''}
+      <div class="op-a">${on ? `<button type="button" class="btn sua" data-ir="ret/${esc(v.key)}/${esc(p.id)}/${o.k}"${off ? ' disabled' : ''}>Retocar</button>` : `<button type="button" class="btn sua" data-a="elegir" data-k="${o.k}"${off ? ' disabled' : ''}>Elegir esta</button>`}</div></div>`; }).join('');
+    if (off) html += `<p class="solo-mac">Sin conexión: no se puede cambiar.</p>`;
+    html += `<div class="llave" style="margin:16px var(--pad) 0">${ic('chispa')}<span>¿Otras? Pídeselas a Claude: «genera los captions de ${esc(nombreCli(v.client))}».</span></div>`;
+    return html + '</main>';
+  }
+
+  // ---------- Tareas ----------
+  let FILTRO_T = '';
+  function pantTareas() {
+    let html = top() + `<main class="main" id="contenido">`;
+    const l0 = L.tareas;
+    if (!l0) return html + `<div class="titulo"><h1>Tareas</h1></div>` + (L.error.tareas ? mal(L.error.tareas) : `<div class="lugar">Leyendo…</div>`) + '</main>' + tabs('tareas');
+    const l = l0.filter(x => !FILTRO_T || x.clientes.includes(FILTRO_T)), nHoy = l.filter(x => x.grupo === 'hoy' && !x.hecha).length, nPas = l.filter(x => x.grupo === 'pasado').length;
+    html += `<div class="titulo"><h1>Tareas</h1><p>${esc(plural(nHoy, 'para hoy', 'para hoy'))}${nPas ? ` · <span class="acc">${esc(plural(nPas, 'se ha pasado', 'se han pasado'))}</span>` : ''}</p></div>`;
+    html += nuevaHTML();
+    const clis = [...new Set(l0.flatMap(x => x.clientes))];
+    if (clis.length) html += `<div class="filtro" role="group" aria-label="Ver las tareas de"><button type="button" class="chip solo${FILTRO_T ? '' : ' on'}" data-a="tcli" data-c="" aria-pressed="${!FILTRO_T}">Todos</button>${clis.map(c => `<button type="button" class="chip${FILTRO_T === c ? ' on' : ''}" data-a="tcli" data-c="${esc(c)}" aria-pressed="${FILTRO_T === c}">${av(c)}${esc(String(nombreCli(c)).split(' ')[0])}</button>`).join('')}</div>`;
+    const G = [['pasado', 'Se ha pasado'], ['hoy', 'Hoy'], ['man', 'Mañana'], ['despues', 'Más adelante'], ['sinfecha', 'Sin fecha']];
+    let alguno = false;
+    G.forEach(([k, t], i) => { const g = l.filter(x => x.grupo === k); if (!g.length) return; alguno = true; html += `<section class="sec"${i === 0 || !alguno ? ' style="margin-top:18px"' : ''}><div class="sec-h${k === 'pasado' ? ' roja' : ''}"><h2>${t}</h2></div><div class="lista">${g.map(tareaHTML).join('')}</div></section>`; });
+    if (!alguno) html += vacio('Nada en tareas', FILTRO_T ? 'Este cliente no tiene tareas.' : 'Escribe una arriba.');
+    return html + '</main>' + tabs('tareas');
+  }
+  function tareaHTML(x) {
+    const nota = x.tipo === 'nota', ses = x.tipo === 'sesion';
+    const meta = [];
+    if (nota) meta.push(`Nota · ${esc(plural(String(x.txt).split('\n').length, 'línea', 'líneas'))}`);
+    if (x.hecha && !nota) meta.push(`Hecha a las ${esc(X().localTime(x.hecha))}`);
+    else if (x.grupo === 'pasado' && x.fecha) meta.push(`<span class="roja">${esc(corto(x.fecha))}</span>`);
+    else if (x.grupo === 'despues' && x.fecha) meta.push(esc(cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha)));
+    if (ses) meta.push(`<span style="display:inline-flex">${ic('claqueta')}</span>${x.hora ? `<span class="num">${esc(x.hora)}</span>` : ''}`);
+    if (!x.hecha || nota) x.clientes.slice(0, 2).forEach(c => meta.push(`<span class="cn">${av(c)}<span>${esc(nombreCli(c))}</span></span>`));
+    if (x.subtareas) meta.push(`${x.subtareas.hechas}/${x.subtareas.n}`);
+    const titulo = nota ? String(x.txt).split('\n')[0] : x.txt;
+    const casilla = nota ? `<span class="nota-ic">${ic('nota')}</span>` : `<button type="button" class="casilla" data-a="hecha" data-id="${esc(x.id)}" role="checkbox" aria-checked="${!!x.hecha}" aria-label="${esc(x.hecha ? 'Hecha: ' + titulo : 'Marcar como hecha: ' + titulo)}"${sinRed() ? ' disabled' : ''}>${ic('check', 2.5)}</button>`;
+    return `<div class="tarea${x.hecha && !nota ? ' hecha' : ''}${nota ? ' nota' : ''}">${casilla}<span class="tx" data-a="tver" data-id="${esc(x.id)}" role="button" tabindex="0"><span class="tt">${esc(titulo)}</span><span class="tm">${meta.join('')}</span></span></div>`;
+  }
+  const NUEVA = { txt: '', fecha: '', cliente: '' };
+  function nuevaHTML() {
+    const off = sinRed();
+    return `<div class="nueva"><input type="text" data-nueva placeholder="${off ? 'Sin conexión: no se puede crear' : 'Nueva tarea'}" aria-label="Nueva tarea" enterkeyhint="done" autocomplete="off" value="${esc(NUEVA.txt)}"${off ? ' disabled' : ''}><button type="button" class="ib${NUEVA.fecha ? ' puesta' : ''}" data-a="nfecha" aria-label="Fecha de la tarea"${off ? ' disabled' : ''}>${ic('cal')}</button><button type="button" class="ib${NUEVA.cliente ? ' puesta' : ''}" data-a="ncliente" aria-label="Cliente de la tarea"${off ? ' disabled' : ''}>${ic('cliente')}</button><button type="button" class="ib" data-a="nnota" aria-label="Guardar como nota"${off ? ' disabled' : ''}>${ic('nota')}</button></div>`
+      + (NUEVA.fecha || NUEVA.cliente ? `<div class="nueva-meta">${NUEVA.fecha ? `<button type="button" class="chip" data-a="nfecha">${ic('cal')}${esc(cap1(DS[dow(NUEVA.fecha)]) + ' ' + corto(NUEVA.fecha))}</button>` : ''}${NUEVA.cliente ? `<button type="button" class="chip" data-a="ncliente">${av(NUEVA.cliente)}${esc(nombreCli(NUEVA.cliente))}</button>` : ''}</div>` : '');
+  }
+
+  // ---------- las historias a pantalla completa (se pasan con el dedo o tocando a los lados) ----------
+  function pantHistoria() {
+    const v = L.vista; if (!v || v.key !== RUTA.a) return `<div class="ver"><div class="lugar" style="color:#fff">Abriendo…</div></div>`;
+    const l = v.historias.filter(h => !h.cancelada).sort((a, b) => String(a.fecha.dia + a.fecha.hora).localeCompare(String(b.fecha.dia + b.fecha.hora)));
+    const i = Math.max(0, l.findIndex(h => h.id === RUTA.b)), h = l[i];
+    if (!h) return `<div class="ver"><div class="vtop"><span class="t">Sin historias</span><button type="button" class="ib" data-a="atras" aria-label="Cerrar">${ic('x', 2)}</button></div></div>`;
+    const deDia = l.filter(x => x.fecha.dia === h.fecha.dia), j = deDia.indexOf(h);
+    return `<div class="ver" role="dialog" aria-label="Historia ${i + 1} de ${l.length}" data-hist="${i}" data-total="${l.length}"><div class="barras" aria-hidden="true">${deDia.map((_, k) => `<i${k <= j ? ' class="on"' : ''}></i>`).join('')}</div>
+      <div class="vtop"><span class="t">${esc(diaCab(h.fecha.dia))} · ${esc(h.fecha.hora || '')}<span>${esc(nombreCli(v.client))} · ${h.programada ? 'programada' : 'sin programar'}</span></span><button type="button" class="ib" data-a="atras" aria-label="Cerrar">${ic('x', 2)}</button></div>
+      <div class="lam">${h.img ? `<span style="position:relative;display:block;height:100%;aspect-ratio:9/16;max-width:100%">${foto(h.img, Math.min(500, W.innerWidth || 440))}</span>` : `<span class="hueco" style="position:static;background:none;color:#fff">Sin imagen todavía</span>`}</div>
+      <button type="button" class="lado i" data-a="hmov" data-d="-1" aria-label="Historia anterior"${i ? '' : ' disabled'}></button><button type="button" class="lado d" data-a="hmov" data-d="1" aria-label="Historia siguiente"${i < l.length - 1 ? '' : ' disabled'}></button>
+      ${h.post ? `<div class="vpie">De la publicación ${esc((v.posts.find(p => p.id === h.post) || {}).nombre || '')}</div>` : ''}</div>`;
+  }
+
+  // ---------- pintar ----------
+  const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria };
+  let pintando = 0, PEND_PINTAR = false;
+  const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && /^(TEXTAREA|INPUT)$/.test(a.tagName)) || !!raiz.querySelector('.hoja'); };
+  function pintarSiQuieto() { if (enUso()) { PEND_PINTAR = true; return; } pintar(); }   // un campo en uso no se rehace desde fuera (D-112)
+  async function pintar() {
+    const n = ++pintando, r = RUTA;
+    if (r.p === 'mes' || r.p === 'pub' || r.p === 'cap' || r.p === 'ret' || r.p === 'his') {
+      if (!L.vista || L.vista.key !== r.a) { raiz.querySelector('.pant') ? 0 : 0; dibujar((PANT[r.p] || pantMes)()); await leerMes(r.a); if (n !== pintando) return; if (L.vista) await vecinos(L.vista); if (n !== pintando) return; }
+    } else if (r.p === 'hoy' && !L.hoy && !L.error.hoy) { dibujar(pantHoy()); await leerHoy(); if (n !== pintando) return; }
+    else if (r.p === 'clientes' && !L.clientes && !L.error.clientes) { dibujar(pantClientes()); await leerClientes(); if (n !== pintando) return; }
+    else if (r.p === 'tareas' && !L.tareas && !L.error.tareas) { dibujar(pantTareas()); await leerTareas(); if (n !== pintando) return; }
+    if (r.p === 'ret') { if (C.pantRetocar) return dibujar(C.pantRetocar()); }
+    dibujar((PANT[r.p] || pantHoy)());
+  }
+  function dibujar(html) {
+    const y = W.scrollY;
+    raiz.innerHTML = html; raiz.appendChild(capas);
+    vigilarFotos(raiz); carrusel(); W.scrollTo(0, y);
+    PEND_PINTAR = false;
+  }
+  // el carrusel: deslizar con el dedo (desplazamiento nativo con imán, la inercia del iPhone), el contador y los puntos al día
+  function carrusel() {
+    const t = raiz.querySelector('[data-car]'); if (!t) return;
+    const cnt = raiz.querySelector('[data-cnt]'), pts = raiz.querySelectorAll('.puntos i'), n = t.children.length;
+    let raf = 0;
+    t.addEventListener('scroll', () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; const i = Math.round(t.scrollLeft / Math.max(1, t.clientWidth)); if (cnt) cnt.textContent = `${i + 1} / ${n}`; pts.forEach((p, k) => p.classList.toggle('on', k === i)); }); }, { passive: true });
+  }
+  // releer lo bajado (la nube avisa: «releido»): lo de la pantalla se vuelve a leer, sin parpadear ni pisar un campo en uso
+  async function releer() {
+    L.hoy = null; L.clientes = null; L.tareas = null; L.error = {};
+    const r = RUTA;
+    try {
+      if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes(); else if (r.p === 'tareas') await leerTareas();
+      else if (L.vista) { L.vista = MV().vista() && MV().vista().key === r.a ? MV().vista() : L.vista; leerConv(L.vista.key); }
+      await leerTareas();
+    } catch (e) { /* cada lectura dice lo suyo */ }
+    pintarSiQuieto();
+  }
+
+  // ---------- hojas (abajo), avisos y lo que se abre en el Mac ----------
+  // una hoja se cierra con «Cancelar», tocando el velo o arrastrando el asa hacia abajo; «Guardar» queda fijo abajo en un iPhone pequeño
+  // (los oyentes de cada hoja no hacen nada si ya se cerró: el segundo toque de un doble toque no cierra la hoja siguiente)
+  function hoja(html, o = {}) {
+    if (!o.permanente && capas.querySelector('.hoja[data-permanente]')) {   // la pestaña está parada: nada encima de su aviso, y su pregunta se contesta ya («Ahora no»)
+      if (o.alCerrar) queueMicrotask(() => { try { o.alCerrar(); } catch (e) { /* */ } });
+      return D.createElement('div');
+    }
+    if (o.permanente) capas.querySelectorAll('[data-permanente]').forEach(x => x.remove());   // un aviso permanente a la vez: el último
+    cerrarHojas(true);
+    const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
+    const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
+    h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
+    if (o.alCerrar) h._alCerrar = o.alCerrar;
+    if (o.permanente) { h.dataset.permanente = ''; velo.dataset.permanente = ''; }
+    const a0 = D.activeElement; h._antes = a0 && a0 !== D.body && raiz.contains(a0) && !capas.contains(a0) ? a0 : null;   // el foco vuelve aquí al cerrarla
+    h._velo = velo;   // una pregunta abierta se contesta también si la hoja se cierra de otro modo (atrás, Esc)
+    capas.append(velo, h);
+    requestAnimationFrame(() => { velo.classList.add('on'); h.classList.add('on'); const f = h.querySelector('[data-foco]') || h.querySelector('h2'); if (f) { f.setAttribute('tabindex', f.tabIndex >= 0 ? f.tabIndex : '-1'); f.focus({ preventScroll: true }); } });
+    if (!o.fija) arrastrable(h);
+    return h;
+  }
+  const devolverFoco = h => { const a = h && h._antes; if (a && a.isConnected && !capas.querySelector('.hoja.on:not([data-permanente])')) { try { a.focus({ preventScroll: true }); } catch (e) { /* */ } } };
+  function cerrarEsta(h) {   // solo esa hoja (y su velo), si sigue abierta: nunca otra que se abrió entretanto
+    if (!h || !h.isConnected) return;
+    setTimeout(() => devolverFoco(h), 0);
+    for (const x of [h, h._velo]) { if (!x) continue; if (POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } }
+  }
+  function cerrarHojas(ya) {
+    const antes = [...capas.querySelectorAll('.hoja:not([data-permanente])')];
+    if (!ya) setTimeout(() => antes.forEach(devolverFoco), 0);
+    capas.querySelectorAll('.hoja:not([data-permanente]),.velo:not([data-permanente])').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
+    if (PEND_PINTAR) setTimeout(pintarSiQuieto, ya ? 0 : 360);
+  }
+  function arrastrable(h) {   // el asa: la hoja sigue al dedo y, soltada deprisa o pasada la mitad, se cierra (Apple: a la velocidad del dedo)
+    const asa = h.querySelector('.asa'); let y0 = 0, t0 = 0, dy = 0, activo = false;
+    asa.addEventListener('pointerdown', e => { activo = true; y0 = e.clientY; t0 = e.timeStamp; dy = 0; asa.setPointerCapture(e.pointerId); h.style.transition = 'none'; });
+    asa.addEventListener('pointermove', e => { if (!activo) return; dy = Math.max(0, e.clientY - y0); h.style.transform = `translateY(${dy}px)`; }, { passive: true });
+    const fin = e => { if (!activo) return; activo = false; h.style.transition = ''; const v = dy / Math.max(1, e.timeStamp - t0); if (dy > h.offsetHeight / 2 || v > 0.6) { h.style.transform = ''; cerrarHojas(); } else h.style.transform = ''; };
+    asa.addEventListener('pointerup', fin); asa.addEventListener('pointercancel', fin);
+  }
+  let toastT = 0;
+  function aviso(msg, o = {}) {
+    let t = capas.querySelector('.toast'); if (!t) { t = D.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); capas.appendChild(t); }
+    t.className = 'toast' + (o.error ? ' error' : '') + (raiz.querySelector('.tabs') ? '' : ' sin-tabs');
+    t.innerHTML = `${ic(o.error ? 'alerta' : o.ok ? 'nubeok' : 'chispa', 2)}<span>${esc(msg)}</span>`;
+    requestAnimationFrame(() => t.classList.add('on'));
+    clearTimeout(toastT); toastT = setTimeout(() => { t.classList.remove('on'); }, o.ms || 4200);
+  }
+  MV().alAviso = (m, o) => aviso(m, o || {});
+  MV().alVersion = () => { ST.fase = 'vieja'; pintarChip(); hojaVersion(); };
+  MV().alPestana = () => hoja(`<h2>La Mesa está abierta en otra pestaña</h2><p class="ex">Esta se ha parado para no pisar cambios.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar">Usar aquí</button></div>`, { fija: true, permanente: true, etiqueta: 'La Mesa está abierta en otra pestaña' });
+  const hojaVersion = () => hoja(`<h2>Hay una versión nueva de la Mesa</h2><p class="ex">Esta se ha pausado para no pisar los datos. Lo guardado no se pierde.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar" data-foco>Recargar</button></div>`, { fija: true, permanente: true, etiqueta: 'Hay una versión nueva de la Mesa' });
+  function verTarea(id) {
+    const x = (L.tareas || []).find(t => t.id === id); if (!x) return;
+    const E = M.escritura && M.escritura.html ? M.escritura : null, txt = E ? E.html(x.txt, { leer: true }) : esc(x.txt);
+    const t = x.tipo === 'nota' ? 'Nota' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea';
+    const meta = [x.fecha ? cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha) + (x.hora ? ' · ' + x.hora : '') : '', x.clientes.map(nombreCli).join(' · ')].filter(Boolean).join(' · ');
+    hoja(`<h2>${esc(t)}</h2>${meta ? `<p class="ex">${esc(meta)}</p>` : ''}<div class="txt">${txt}</div>${x.detalles ? `<span class="lbl">Detalles</span><div class="txt">${E ? E.html(x.detalles, { leer: true }) : esc(x.detalles)}</div>` : ''}${x.subtareas ? `<p class="ex" style="margin-top:12px">${x.subtareas.hechas} de ${x.subtareas.n} subtareas hechas</p>` : ''}${x.fotos ? `<p class="ex">${plural(x.fotos, 'foto', 'fotos')}: se ven en el escritorio</p>` : ''}<p class="ex" style="margin-top:14px">Se edita en el escritorio.</p><div class="botones"><button type="button" class="btn sua ancho" data-a="cerrarhoja">Cerrar</button></div>`, { etiqueta: t });
+  }
+
+  // ---------- el toque: un solo oyente para toda la cara ----------
+  raiz.addEventListener('click', e => {
+    const b = e.target.closest('[data-ir],[data-a]'); if (!b || b.disabled || !raiz.contains(b)) return;
+    if (b.dataset.ir != null && !b.dataset.a) { const r = b.dataset.ir; if (['hoy', 'clientes', 'tareas'].includes(r)) { HIST = 0; FILTRO = null; ir(r, true); } else avanzar(r); return; }
+    accion(b.dataset.a, b, e);
+  });
+  raiz.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-a]')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && capas.querySelector('.hoja')) cerrarHojas(); });
+  const C = {};   // cambiar (lote 4): se llena más abajo
+  function accion(a, b, e) {
+    switch (a) {
+      case 'atras': return atras();
+      case 'filtro': FILTRO = FILTRO === b.dataset.k ? null : b.dataset.k; return pintar();
+      case 'vertodo': VER_TODO[b.dataset.k] = true; return pintar();
+      case 'reintentar': L.error = {}; L.hoy = L.clientes = L.tareas = null; return pintar();
+      case 'reconv': if (L.vista) leerConv(L.vista.key); return;
+      case 'dia': DIA_CAL = b.dataset.d; return pintar();
+      case 'plegar': ABIERTO[b.dataset.k] = !ABIERTO[b.dataset.k]; return pintar();
+      case 'tcli': FILTRO_T = b.dataset.c || ''; return pintar();
+      case 'tver': return verTarea(b.dataset.id);
+      case 'cobro': return aviso('Las facturas se abren en el escritorio.');
+      case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, true); return; }
+      case 'cerrarhoja': return cerrarHojas();
+      case 'recargar': try { location.reload(); } catch (x) { /* */ } return;
+      case 'entrar': try { location.reload(); } catch (x) { /* */ } return;
+      case 'codigo': if (M.entrada && M.entrada.pedirCodigo) M.entrada.pedirCodigo(); return;
+      case 'version': return hojaVersion();
+      case 'otracuenta': return hoja(`<h2>Esta cuenta no es la de la Mesa</h2><p class="ex">Sal y entra con la tuya.</p><div class="botones"><button type="button" class="btn sua" data-a="cerrarhoja">Cerrar</button><button type="button" class="btn pri" data-a="salir">Salir</button></div>`);
+      case 'salir': if (M.entrada && M.entrada.salir) M.entrada.salir().then(() => location.reload()); return;
+      case 'nube': return hojaNube();
+      default: if (C[a]) return C[a](b, e);
+    }
+  }
+  function hojaNube() {
+    const e = ST, t = e.vistoA ? horaDe(e.vistoA) : '';
+    const quien = e.tiene && e.tiene.dispositivo && M.nube.nombreDe ? M.nube.nombreDe(e.tiene.dispositivo) : '';
+    const txt = e.fase === 'sin_conexion' ? `Sin conexión. Lo que ves es de las ${t}: al volver la red, baja lo nuevo.` : `Lo que ves está al día a las ${t}.${quien ? ` La Mesa está abierta en ${quien}; mirar no la coge.` : ' Mirar no coge la Mesa.'}`;
+    hoja(`<h2>La nube</h2><p class="ex">${esc(txt)}</p><div class="botones"><button type="button" class="btn sua" data-a="cerrarhoja">Cerrar</button><button type="button" class="btn pri" data-a="mirarya"${sinRed() ? ' disabled' : ''}>Bajar ahora</button></div>`, { etiqueta: 'La nube' });
+  }
+  C.mirarya = () => { cerrarHojas(); if (M.nube && M.nube.mirar) M.nube.mirar(); };
+
+  // la respuesta al cliente: su borrador sobrevive a que iOS cierre la app
+  raiz.addEventListener('input', e => {
+    const t = e.target;
+    if (t.matches('[data-resp]')) { const c = comentariosDe(t.dataset.resp); if (c) lsS('mesa-movil-resp:' + c.pid, t.value || null); const env = t.parentNode.querySelector('.enviar'); if (env) env.disabled = !t.value.trim() || sinRed(); t.style.height = 'auto'; t.style.height = Math.min(140, t.scrollHeight) + 'px'; }
+    if (t.matches('[data-nueva]')) NUEVA.txt = t.value;
+    if (C.alEscribir) C.alEscribir(e);
+  });
+  raiz.addEventListener('focusout', () => { setTimeout(() => { if (PEND_PINTAR && !enUso()) pintar(); }, 0); });
+
+  // ---------- el teclado del iPhone: lo que se escribe queda a la vista (visualViewport, como el portal) ----------
+  if (W.visualViewport) W.visualViewport.addEventListener('resize', () => {
+    const vv0 = W.visualViewport, kb = Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop));
+    raiz.style.setProperty('--kb', kb + 'px'); raiz.classList.toggle('teclado', kb > 60);   // una hoja sube encima del teclado, sin la zona segura de abajo
+    const a = D.activeElement; if (!a || !raiz.contains(a) || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
+    if (a.closest('.hoja')) { a.scrollIntoView({ block: 'nearest', behavior: POCO.matches ? 'auto' : 'smooth' }); return; }
+    const vv = W.visualViewport, r = a.getBoundingClientRect(), fondo = vv.height + vv.offsetTop;
+    if (r.bottom > fondo - 12) W.scrollBy({ top: r.bottom - fondo + 24, behavior: POCO.matches ? 'auto' : 'smooth' });
+  }, { passive: true });
+
+  // ---------- la nube: su estado, lo bajado y la red ----------
+  function alNube(t, d) {
+    if (t === 'estado') { ST.fase = d.fase; ST.vistoA = d.vistoA || ST.vistoA; ST.sinSubir = d.sinSubir || 0; ST.tiene = d.tiene || null; pintarChip(); if (d.fase === 'sin_codigo' && M.entrada && M.entrada.pedirCodigo && !raiz.querySelector('.hoja')) M.entrada.pedirCodigo(); return; }
+    if (t === 'releido') { releer(); return; }
+    if (C.alNube) C.alNube(t, d);
+  }
+  const red = v => { ST.red = v; pintarChip(); pintarSiQuieto(); };
+  W.addEventListener('online', () => red(true)); W.addEventListener('offline', () => red(false));
+
+  // ---------- arrancar: la entrada (contraseña, código), la Mesa (mirando) y Hoy ----------
+  async function arrancar() {
+    const E = M.entrada;
+    try { if (E) await E.abrir(); } catch (e) { /* la entrada dice lo suyo */ }
+    if (E) E.cargaDurante();
+    let r;
+    try { r = await MV().abrir(); } catch (e) { if (E) E.cargaFin(); fallo('No se pudo abrir la Mesa en este iPhone: ' + ((e && e.message) || e)); return; }
+    if (E) E.cargaFin();
+    if (M.nube && M.nube.alEstado) { M.nube.alEstado(alNube); const e0 = M.nube.estadoYa ? M.nube.estadoYa() : null; if (e0) alNube('estado', e0); }
+    else ST.fase = 'apagada';
+    if (r && r.modo === 'vieja') hojaVersion();
+    const p = D.getElementById('arranque'); if (p) p.remove();
+    raiz.hidden = false;
+    if (!location.hash) history.replaceState(null, '', '#hoy');
+    RUTA = leerRuta();
+    leerTareas().then(() => { if (RUTA.p !== 'tareas') raiz.querySelectorAll('.tabs').forEach(n => { n.outerHTML = tabs(RUTA.p === 'mes' ? 'clientes' : RUTA.p); }); });
+    await pintar();
+    (W.MESA_CARGA = W.MESA_CARGA || {}).movil = 'ok';
+  }
+  M.movil = { version: VERSION, pintar, releer, ir, _L: L, _ST: ST, _C: C };
+
+  // ===== lote 4: cambiar (D-267, D-268, D-270) =====
+  // Cada cambio es una operación {key, slot, campo, valor, visto}: se apunta (localStorage, sobrevive a que iOS cierre la app), se
+  // coge la Mesa (el Mac sube lo suyo y la suelta), el núcleo la aplica comparando con lo que se vio y se suelta la Mesa en cuanto ha
+  // subido. Un doble toque en «Guardar» guarda una vez. Nada de esto corre solo: solo al tocarlo.
+  // La cola: cada operación con su estado. «nueva»: se aplica en este «Guardar». «quedo»: no llegó (sin conexión, «Ahora no», la
+  // Mesa en otro aparato, un choque sin decidir) y espera en «sin subir» a que Kevin la suba encima o la descarte: nunca se aplica
+  // sola (R4). Al abrir la app, lo que quedó a medias es «quedo».
+  const K_OPS = 'mesa-movil-ops';
+  const opsLeer = () => { try { const l = JSON.parse(lsG(K_OPS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+  const opsGuardar = l => { lsS(K_OPS, l.length ? JSON.stringify(l) : null); ST.opsN = l.filter(x => x.estado !== 'nueva').length; pintarChip(); };
+  const opsQuitar = id => opsGuardar(opsLeer().filter(o => o.id !== id));
+  const opsMarcar = (ids, estado) => opsGuardar(opsLeer().map(x => (ids.includes(x.id) ? { ...x, estado } : x)));
+  opsGuardar(opsLeer().map(x => ({ ...x, estado: 'quedo' })));
+  const nuevoOp = () => 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const miles = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');   // 2.200 como en la v3 (es-ES no agrupa 4 cifras)
+  const corto2 = id => (M.nube && M.nube.nombreDe ? M.nube.nombreDe(id) : 'otro aparato').replace(/ \([0-9a-f]{4}\)$/, '');
+  // la misma operación (un doble toque) y otra del mismo campo (la nueva sustituye a la que aún no se aplicó)
+  const firma = op => { const v = op.valor || {}; return op.campo === 'tareaNueva' ? ['tn', v.tipo, v.txt, v.fecha || '', v.cliente || ''].join('|') : [op.key, op.slot, op.campo, JSON.stringify(op.valor)].join('|'); };
+  const mismoCampo = (a, b) => a.campo !== 'tareaNueva' && a.campo === b.campo && a.key === b.key && a.slot === b.slot && (a.campo !== 'capTexto' || (a.valor || {}).k === (b.valor || {}).k);
+  let RUN = null, OTRA = false, ENVUELO = null;
+  const ESCRITOS = new Map();   // lo que escribió este iPhone en cada campo, como quedó guardado: un choque contra eso no es un choque
+  // un fallo pasajero deja la operación en «sin subir»; uno definitivo (publicada, fuera del mes, ya no está…) la quita y lo dice
+  const pasajero = e => /^(sin turno|sin decidir|otro tablero|sin tareas)$/.test(String(e)) || /^no se pudo/.test(String(e));
+  // lo que dice una operación, para la hoja del choque y la de «sin subir»
+  function opTexto(op, v) {
+    if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return iso ? campoFecha({ dia: X().localDay(iso), hora: X().dOnly(iso) ? '' : X().localTime(iso) }) : 'Sin fecha'; }
+    if (op.campo === 'estado') { const k = v && v.v; return k ? (X().ESTADOS.find(x => x[0] === k) || [k, k])[1] + (v.motivo ? ' · ' + v.motivo : '') : 'Según sus datos'; }
+    if (op.campo === 'capElegir') return v == null ? 'Sin elegir' : typeof v === 'object' ? (v.pick == null ? 'Sin elegir' : `Caption ${v.pick + 1}`) : `Caption ${v + 1}`;
+    if (op.campo === 'capTexto') { const t = v && typeof v === 'object' ? v.texto : v; return String(t || '').slice(0, 140) + (String(t || '').length > 140 ? '…' : ''); }
+    if (op.campo === 'tarea') return v && v.hecha ? 'Hecha' : 'Sin hacer';
+    if (op.campo === 'tareaNueva') return (v && v.tipo === 'nota' ? 'Nota: ' : 'Tarea: ') + ((v && v.txt) || '');
+    return '';
+  }
+  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva' })[op.campo] || op.campo;
+  // la hoja «Guardando en la Mesa»: sus pasos, al día
+  function hojaGuardando(quien) {
+    const pasos = [quien ? `${quien} sube lo suyo` : null, 'La Mesa pasa a este iPhone', 'Se guarda tu cambio', `La Mesa queda libre${quien ? ' para ' + quien : ''}`].filter(Boolean);
+    const h = hoja(`<h2>Guardando en la Mesa</h2><p class="ex">${quien ? `${esc(quien)} la tiene abierta: queda en pausa mientras cambias desde aquí.` : 'Está libre: se guarda al momento.'}</p><div class="prog" role="list">${pasos.map((t, i) => `<div class="paso" role="listitem" data-p="${i}"><span class="ic">${ic(['mac', 'movil', 'movil', 'mac'][quien ? i : i + 1])}</span><span class="t">${esc(t)}</span><span class="s num"></span></div>`).join('')}</div>`, { fija: true, etiqueta: 'Guardando en la Mesa' });
+    const t0 = Date.now(), base = quien ? 0 : -1;
+    return { h, paso: n => { const i = n + base + 1; h.querySelectorAll('.paso').forEach((p, j) => { p.classList.toggle('hecho', j < i); p.classList.toggle('ahora', j === i); const ico = p.querySelector('.ic'); if (j < i) ico.innerHTML = ic('check', 2.5); else if (j === i) { ico.innerHTML = ic('gira', 2.25); ico.classList.add('gira'); } if (j < i) ico.classList.remove('gira'); }); const s = h.querySelector(`.paso[data-p="${i - 1}"] .s`); if (s && !s.textContent) s.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + ' s'; }, h };
+  }
+  // «<aparato> no contesta»: esperar más, usarla aquí o dejarlo (D-254, D-268); cerrada de otro modo (atrás, Esc) es «Ahora no»
+  function hojaNoContesta(e) {
+    return new Promise(res => {
+      const quien = corto2(e.dispositivo), h = e.latido ? X().localTime(e.latido) : '', n = +e.cola || 0;
+      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { fija: true, etiqueta: quien + ' no contesta', alCerrar: () => res('no') });
+      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
+    });
+  }
+  // el choque: el Mac cambió lo mismo mientras tanto; los dos valores y Kevin decide (R3). Cerrada sin decidir, el cambio espera en
+  // «sin subir». Elegir un caption de una tanda que Kevin no vio no se ofrece: vuelve a elegir
+  function hojaChoque(op, ch) {
+    return new Promise(res => {
+      const otraTanda = op.campo === 'capElegir' && (ch.visto || {}).at !== (ch.ahora || {}).at;
+      const fila = (k, v) => `<div class="campo" style="cursor:default"><span class="k">${k}</span><span class="v" style="white-space:normal">${esc(v)}</span></div>`;
+      const cuerpo = otraTanda
+        ? `<p class="ex">Llegó otra tanda de captions desde que la viste: lo que elegiste era de la anterior. Vuelve a elegir en «Captions».</p><div class="botones" style="grid-template-columns:1fr"><button type="button" class="btn pri" data-r="mesa" data-foco>Entendido</button></div>`
+        : `<p class="ex">${esc(opQue(op))}: ${esc(porQueChoque(op, ch))}</p><div class="grupo">${fila('Lo tuyo', opTexto(op, op.valor))}${fila('En la Mesa', opTexto(op, ch.ahora))}</div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`;
+      const el = hoja(`<h2>${otraTanda ? 'Otra tanda de captions' : 'Cambió en la Mesa'}</h2>${cuerpo}`, { fija: true, etiqueta: 'Cambió en la Mesa', alCerrar: () => res('cerrar') });
+      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
+    });
+  }
+  function porQueChoque(op, ch) {   // lo que cambió en la Mesa desde que lo viste, cuando los dos valores se leen igual
+    const v = ch.visto || {}, a = ch.ahora || {};
+    if (op.campo === 'estado' && v.v === a.v && v.sig !== a.sig) return 'desde que la viste cambió su caption, foto o contexto. Mírala antes de decidir.';
+    if (op.campo === 'capTexto' && v.at !== a.at) return 'llegó otra tanda de captions desde que empezaste a retocarlo.';
+    return 'mientras lo cambiabas, se cambió en otro aparato.';
+  }
+  // coger la Mesa (con «no contesta» si toca); true si la tiene, false si Kevin dijo «Ahora no»
+  async function cogerMesa(prog) {
+    try { await MV().reclamar(); } catch (e) { /* esta pestaña */ }
+    let t = await M.nube.tomar();
+    for (;;) {
+      if (t && t.hecho) return true;
+      if (t && t.espera) {
+        cerrarHojas(true);
+        const r = await hojaNoContesta(t.espera);
+        cerrarHojas(true);
+        if (r === 'no') return false;
+        if (prog) { const g = hojaGuardando(corto2(t.espera.dispositivo)); prog.paso = g.paso; prog.h = g.h; prog.paso(0); }
+        t = r === 'forzar' ? await M.nube.forzarAqui(t.espera.turno) : await M.nube.tomar({ esperar: true });
+        if (t && t.otraVez) t = await M.nube.tomar();
+        continue;
+      }
+      if (t && /^(parada|dormida)$/.test(t.error)) throw new Error('La Mesa sigue en otra pestaña de este iPhone: tu cambio espera en «sin subir».');
+      if (t && t.error === 'apagada') throw new Error('Sin nube en este iPhone: tu cambio espera en «sin subir».');
+      throw new Error(t && t.error === 'sin_conexion' ? 'Sin conexión: tu cambio espera en «sin subir».' : t && t.error === 'sin_sesion' ? 'Tu sesión se cerró: entra otra vez.' : t && t.error === 'verificacion' ? 'Falta el código de tu app.' : 'No se pudo coger la Mesa' + (t && t.error ? ` (${t.error})` : '') + '.');
+    }
+  }
+  // apuntar: la operación entra en la cola (un doble toque, una vez; otra del mismo campo que aún no se aplicó, sustituida)
+  function apuntar(ops, estado) {
+    const l = opsLeer(), nuevas = [];
+    for (const op0 of [].concat(ops || [])) {
+      const f = firma(op0);
+      if (l.some(x => x.estado === 'nueva' && firma(x) === f) || nuevas.some(x => firma(x) === f)) continue;
+      const op = { ...op0, id: op0.id || nuevoOp(), at: Date.now(), estado };
+      for (let i = l.length - 1; i >= 0; i--) if (l[i].id !== ENVUELO && mismoCampo(l[i], op)) l.splice(i, 1);
+      nuevas.push(op);
+    }
+    if (nuevas.length) opsGuardar([...l, ...nuevas]);
+    return nuevas.map(x => x.id);
+  }
+  // guardar: apunta y aplica lo nuevo con la Mesa cogida un momento. Lo que llega mientras se guarda se aplica en la misma vuelta
+  // (o en la siguiente): nunca se descarta. true si sus operaciones se aplicaron
+  async function guardar(ops, o = {}) {
+    const red = !sinRed(), nube = !!(M.nube && M.nube.tomar) && ST.fase !== 'apagada';
+    const ids = apuntar(ops, red && nube ? 'nueva' : 'quedo');
+    if (!red) { aviso('Sin conexión: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
+    if (!nube) { aviso('Sin nube en este iPhone: tu cambio espera en «sin subir».', { error: true, ms: 7000 }); return false; }
+    for (let i = 0; RUN && !RUN.g && i < 50; i++) { const r0 = RUN; await r0.catch(() => null); if (RUN === r0) break; }   // «Subir encima» o «Descartar» de la nube en marcha: primero acaba (nunca en bucle)
+    if (!RUN) {
+      ST.guardando = true; pintarChip();
+      const p = (async () => { let oo = o; do { OTRA = false; await correr(oo, ESCRITOS); oo = {}; } while (OTRA && opsLeer().some(x => x.estado === 'nueva')); })();
+      RUN = p; RUN.g = true;
+      p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });   // se limpia desde fuera: aunque algo fallara antes de su primer await
+    } else OTRA = true;
+    await RUN;
+    return !ids.length || !opsLeer().some(x => ids.includes(x.id));
+  }
+  async function correr(o, escritos = new Map()) {
+    const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
+    const g = hojaGuardando(quien), prog = { paso: g.paso, h: g.h };
+    const toca = x => (o.solo ? o.solo.includes(x.id) : x.estado === 'nueva');
+    const res = { ok: 0, dejados: 0, quedan: 0, por: {}, fallos: [], avisos: [] }, hechos = new Set();
+    const campoDe = op => [op.key, op.slot, op.campo, op.campo === 'capTexto' ? (op.valor || {}).k : ''].join('|');
+    const queda = (ids, motivo) => { if (!ids.length) return; opsMarcar(ids, 'quedo'); res.quedan += ids.length; res.por[motivo] = (res.por[motivo] || 0) + ids.length; };
+    const motivoDe = e => (e === 'sin turno' ? 'turno' : e === 'sin decidir' ? 'decidir' : 'fallo');
+    let s = null;
+    try {
+      prog.paso(0);
+      if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); opsMarcar(opsLeer().filter(toca).map(x => x.id), 'quedo'); aviso('Tu cambio espera en «sin subir».', { ms: 6000 }); return; }
+      prog.paso(1);
+      vuelta: for (;;) {
+        const lista = opsLeer().filter(x => toca(x) && !hechos.has(x.id));
+        if (!lista.length) break;
+        for (const op of lista) {
+          hechos.add(op.id);
+          if (!opsLeer().some(x => x.id === op.id)) continue;   // sustituida por otra del mismo campo mientras tanto
+          ENVUELO = op.id;
+          // «Subir encima»: lo tuyo encima (R4), salvo un caption elegido de otra tanda, que nunca se elige a ciegas
+          const ciego = o.solo && op.campo === 'capElegir';
+          let r = await MV().aplicar(o.solo && !ciego ? { ...op, forzar: true } : op);
+          if (r && r.choque && ciego) r = (r.choque.visto || {}).at !== (r.choque.ahora || {}).at ? { error: 'Llegó otra tanda de captions: vuelve a elegir' } : await MV().aplicar({ ...op, forzar: true });
+          if (r && r.choque && escritos.has(campoDe(op)) && mismoEscrito(op, r.choque.ahora, escritos.get(campoDe(op)))) r = await MV().aplicar({ ...op, forzar: true });   // lo que «cambió» lo escribió esta misma vuelta
+          if (r && r.choque) {
+            cerrarEsta(prog.h);
+            const a = await hojaChoque(op, r.choque);
+            cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.h = g2.h; prog.paso(1);
+            r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : a === 'mesa' ? { ok: true, dejado: true } : { error: 'sin decidir' };
+          }
+          ENVUELO = null;
+          if (r && r.ok) { opsQuitar(op.id); if (r.dejado) res.dejados++; else { res.ok++; const vv = op.campo === 'tareaNueva' ? null : await MV().valor(op).catch(() => null); escritos.set(campoDe(op), vv && !vv.error ? { guardado: vv.v } : op.valor); } res.avisos.push(...(r.avisos || [])); if (op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); }
+          else if (r && pasajero(r.error)) {
+            queda([op.id], motivoDe(r.error));
+            if (r.error === 'sin turno') { queda(opsLeer().filter(x => toca(x) && x.estado === 'nueva' && !hechos.has(x.id)).map(x => x.id), 'turno'); break vuelta; }
+          }
+          else { opsQuitar(op.id); res.fallos.push(errorTexto(r && r.error)); }
+        }
+        if (o.solo) break;
+      }
+      prog.paso(2);
+      M.nube.retener(false);
+      s = await M.nube.soltar();
+      prog.paso(3);
+    } catch (e) {
+      opsMarcar(opsLeer().filter(x => toca(x) && x.estado === 'nueva').map(x => x.id), 'quedo');
+      cerrarEsta(prog.h);
+      try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) M.nube.soltar(); } catch (x) { /* */ }
+      ENVUELO = null;
+      aviso((e && e.message) || 'No se pudo guardar: tu cambio espera en «sin subir».', { error: true, ms: 8000 });
+      await releerTodo();
+      return;
+    }
+    cerrarEsta(prog.h);
+    // un solo aviso, el que más importa: lo que no se pudo, lo que se perdió al soltar, lo que espera, y si no, «Guardado»
+    const mas = n => (n > 1 ? ` (y ${n - 1} más)` : '');
+    if (res.fallos.length) aviso(res.fallos[0] + mas(res.fallos.length), { error: true, ms: 8000 });
+    else if (s && s.error === 'perdida') aviso('La Mesa pasó a otro aparato antes de subir: tu cambio está en «sin subir».', { error: true, ms: 8000 });
+    else if (res.quedan) { const n = plural(res.quedan, 'cambio espera', 'cambios esperan'); aviso(res.por.turno ? `La Mesa se soltó a mitad: ${n} en «sin subir».` : res.por.fallo ? `No se pudo guardar en este iPhone: ${n} en «sin subir».` : `Sin decidir: ${n} en «sin subir».`, { error: true, ms: 8000 }); }
+    else if (s && s.error === 'sin_conexion') aviso('Guardado en este iPhone; sube en cuanto vuelva la red.', { ms: 8000 });
+    else if (s && s.error) aviso('Guardado en este iPhone; aún no ha subido: lo intenta otra vez solo.', { ms: 8000 });
+    else if (res.ok) { ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100); aviso(res.avisos.length ? res.avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: res.avisos.length ? 8000 : 4200 }); }
+    else if (res.dejados) aviso('Se queda lo de la Mesa.', { ms: 4200 });
+    await releerTodo();
+  }
+  function mismoEscrito(op, ahora, v) {
+    if (v && typeof v === 'object' && 'guardado' in v) return JSON.stringify(ahora ?? null) === JSON.stringify(v.guardado ?? null);   // como quedó escrito
+    if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return !!iso && !!ahora && X().sameDate(iso, ahora); }
+    if (op.campo === 'estado') return !!ahora && (ahora.v || null) === ((v && v.v) || null) && String(ahora.motivo || '') === String((v && v.v === 'cancelado' && v.motivo) || '');
+    if (op.campo === 'capElegir') return !!ahora && ahora.pick === v;
+    if (op.campo === 'capTexto') return !!ahora && ahora.texto === (v && v.texto);
+    if (op.campo === 'tarea') return !!ahora && !!ahora.hecha === !!(v && v.hecha);
+    return false;
+  }
+  // lo que necesita la Mesa sin ser una operación («Subir encima» y «Descartar» de lo que apartó la nube): el mismo freno y la misma hoja
+  async function conLaMesa(fn) {
+    if (RUN) { aviso('Espera: se está guardando.'); return null; }
+    let r = null;
+    ST.guardando = true; pintarChip();
+    const p = (async () => {
+      let prog = { paso: () => {}, h: null };
+      try {
+        const g = hojaGuardando(''); prog = { paso: g.paso, h: g.h };
+        prog.paso(0);
+        if (!(await cogerMesa(prog))) { cerrarEsta(prog.h); return; }
+        prog.paso(1); r = await fn(); prog.paso(2);
+      } catch (e) { r = { error: (e && e.message) || String(e) }; }
+      finally {
+        try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) await M.nube.soltar(); } catch (x) { /* */ }
+        cerrarEsta(prog.h);
+      }
+    })();
+    RUN = p;
+    await p.catch(() => null).then(() => { if (RUN === p) RUN = null; ST.guardando = false; pintarChip(); });
+    await releerTodo();
+    return r;
+  }
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.', 'una tarea necesita un texto': 'Una tarea necesita un texto.', perdida: 'La Mesa se soltó antes de subir: sigue en «sin subir».', sin_conexion: 'Sin conexión: sube en cuanto vuelva la red.', no_subio: 'Aún no ha subido: lo intenta otra vez solo.' };
+  const errorTexto = e => (e ? ERR[e] || cap1(String(e)) + '.' : 'No se pudo.');
+  async function releerTodo() {
+    L.hoy = null; L.clientes = null; L.error = {};
+    if (L.vista) { const v = await MV().mirar(L.vista.key).catch(() => null); L.vista = v && !v.error ? v : null; }
+    await leerTareas();
+    pintar();
+  }
+  const pAhora = () => { const v = L.vista; return v && v.key === RUTA.a ? v.posts.find(x => x.id === RUTA.b) : null; };
+  async function aqui() { if (!L.vista || L.vista.key !== RUTA.a) return null; const S0 = X().S; if (!S0 || S0.key !== RUTA.a) { const v = await MV().mirar(RUTA.a); if (v && !v.error) L.vista = v; } return X().S; }
+
+  // ---------- fecha y hora: un calendario y ruedas que se usan como las del iPhone, dibujados por la Mesa (D-270) ----------
+  const HORAS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), MINS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+  function calendarioHTML(sel, mesVisto, lim, o = {}) {
+    const d1 = mesVisto + '-01', pre = (dow(d1) + 6) % 7, ini = addD(d1, -pre), dias = Array.from({ length: 42 }, (_, i) => addD(ini, i));
+    const puede = d => (!lim || (d >= lim.desde && d <= lim.hasta));
+    const mAnt = X().addMonths(mesVisto, -1), mSig = X().addMonths(mesVisto, 1), hay = m => !lim || (m + '-31' >= lim.desde && m + '-01' <= lim.hasta);
+    return `<div class="selcal"><div class="selcal-h"><b>${esc(mesNombre(mesVisto))} ${mesVisto.slice(0, 4)}</b><span><button type="button" class="ib" data-cal="${mAnt}" aria-label="Mes anterior"${hay(mAnt) ? '' : ' disabled'}>${ic('izq')}</button><button type="button" class="ib" data-cal="${mSig}" aria-label="Mes siguiente"${hay(mSig) ? '' : ' disabled'}>${ic('der')}</button></span></div>
+      <div class="cal-s" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div>
+      <div class="selcal-g" role="grid" aria-label="${esc(mesNombre(mesVisto))}">${dias.map(d => { const en = d.slice(0, 7) === mesVisto, ok = en && puede(d); return `<button type="button" class="sd${en ? '' : ' otro'}${d === sel ? ' sel' : ''}${d === hoy() ? ' hoyd' : ''}" data-dia="${d}" aria-label="${esc(cap1(DL[dow(d)]) + ' ' + corto(d))}"${d === sel ? ' aria-pressed="true"' : ''}${ok ? '' : ' disabled'}${en ? '' : ' tabindex="-1" aria-hidden="true"'}>${+d.slice(8, 10)}</button>`; }).join('')}</div>
+      ${o.pie ? `<div class="selcal-pie">${o.pie}</div>` : ''}</div>`;
+  }
+  // una rueda: desplazamiento nativo con imán (la inercia del iPhone), de 5 en 5, con la hora exacta en su sitio
+  function ruedaHTML(nombre, vals, sel) {
+    return `<div class="rueda" role="spinbutton" tabindex="0" data-rueda="${nombre}" aria-label="${nombre === 'h' ? 'Hora' : 'Minutos'}" aria-valuenow="${+sel}" aria-valuetext="${esc(sel)}" aria-valuemin="${+vals[0]}" aria-valuemax="${+vals[vals.length - 1]}"><div class="rueda-in">${vals.map(v => `<span data-v="${v}"${v === sel ? ' class="sel"' : ''}>${v}</span>`).join('')}</div></div>`;
+  }
+  function armarRueda(el, alCambiar) {
+    const inn = el.querySelector('.rueda-in'), items = [...inn.children], H = items[0] ? items[0].getBoundingClientRect().height || 32 : 32;
+    const idx = () => Math.max(0, Math.min(items.length - 1, Math.round(inn.scrollTop / H)));
+    const marcar = () => { const i = idx(); items.forEach((s, j) => { const d = Math.abs(j - i); s.style.setProperty('--d', Math.min(d, 3)); s.classList.toggle('sel', j === i); }); const v = items[i].dataset.v; el.setAttribute('aria-valuenow', +v); el.setAttribute('aria-valuetext', v); return v; };
+    const ir = (i, suave) => { inn.scrollTo({ top: i * H, behavior: suave && !POCO.matches ? 'smooth' : 'auto' }); };
+    const i0 = Math.max(0, items.findIndex(s => s.classList.contains('sel'))); requestAnimationFrame(() => { ir(i0); marcar(); });
+    let raf = 0, t = 0;
+    inn.addEventListener('scroll', () => { if (!el.isConnected) return; if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (el.isConnected) marcar(); }); clearTimeout(t); t = setTimeout(() => { if (el.isConnected) alCambiar(marcar()); }, 140); }, { passive: true });   // una rueda ya quitada (la hoja se redibujó) no cambia nada
+    el.addEventListener('keydown', e => { const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0; if (!d) return; e.preventDefault(); ir(Math.max(0, Math.min(items.length - 1, idx() + d)), true); });
+    inn.addEventListener('click', e => { const s = e.target.closest('[data-v]'); if (s) ir(items.indexOf(s), true); });
+  }
+  async function hojaFecha(p, v) {
+    if (p.publicada || p.tocaria === 'publicado') return aviso('Ya está publicada: no se mueve.');
+    await aqui();
+    const lim = MV().dias(v.key) || null;
+    let dia = p.fecha.dia || (lim && lim.desde) || hoy(), conHora = !p.fecha.sinHora && !!p.fecha.hora, hh = (p.fecha.hora || '13:00').slice(0, 2), mm = (p.fecha.hora || '13:00').slice(3, 5), mes = dia.slice(0, 7);
+    const mins = MINS.includes(mm) ? MINS : [...MINS, mm].sort();
+    const pinta = () => {
+      const avisoZ = p.programada ? `<div class="aviso" style="margin:12px 0 0">${ic('alerta')}<span>Ya está programada en Instagram. Zernio seguirá con ${p.fecha.hora ? 'las ' + esc(p.fecha.hora) : 'su fecha'} hasta que se lo pidas a Claude.</span></div>` : '';
+      return `<h2>Fecha y hora</h2><p class="ex">${esc(p.nombre)} · ${esc(p.tipo.txt)}</p>${calendarioHTML(dia, mes, lim)}
+        ${conHora ? `<div class="ruedas"><span class="banda"></span>${ruedaHTML('h', HORAS, hh)}<b class="dos">:</b>${ruedaHTML('m', mins, mm)}</div><button type="button" class="lnk" data-a2="sinhora" style="margin:4px auto 0;display:flex">Sin hora</button>` : `<button type="button" class="campo" data-a2="ponhora" style="margin-top:10px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)"><span class="k">Hora</span><span class="v">Sin hora</span><span class="chev">${ic('der')}</span></button>`}
+        ${avisoZ}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-a2="cancelar">Cancelar</button><button type="button" class="btn pri" data-a2="guardar">Guardar</button></div></div>`;
+    };
+    const h = hoja(pinta(), { etiqueta: 'Fecha y hora' });
+    const armar = () => { h.querySelectorAll('[data-rueda]').forEach(r => armarRueda(r, x => { if (r.dataset.rueda === 'h') hh = x; else mm = x; })); };
+    const leerRuedas = () => { if (!conHora) return; const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; };
+    const repinta = () => { leerRuedas(); const y = h.scrollTop; h.innerHTML = `<div class="asa" aria-hidden="true"></div>` + pinta(); arrastrable(h); armar(); h.scrollTop = y; };
+    armar();
+    h.addEventListener('click', async e => { if (!h.isConnected) return;
+      const d = e.target.closest('[data-dia]'); if (d && !d.disabled) { dia = d.dataset.dia; return repinta(); }
+      const c = e.target.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
+      const b = e.target.closest('[data-a2]'); if (!b) return;
+      if (b.dataset.a2 === 'cancelar') return cerrarHojas();
+      if (b.dataset.a2 === 'sinhora') { leerRuedas(); conHora = false; return repinta(); }
+      if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
+      if (b.dataset.a2 === 'guardar') {
+        leerRuedas();   // lo que se ve, aunque el dedo acabe de soltarla
+        const valor = conHora ? { dia, hora: `${hh}:${mm}` } : { dia };
+        const igual = p.fecha.dia === dia && (conHora ? p.fecha.hora === valor.hora : !p.fecha.hora);
+        cerrarHojas(true); if (igual) return;
+        guardar({ key: v.key, slot: p.id, campo: 'fecha', valor, visto: p.fecha.iso });
+      }
+    });
+  }
+  C.fecha = () => { const p = pAhora(); if (p) hojaFecha(p, L.vista); };
+
+  // ---------- el estado (la hoja de la v3; el porqué de cada uno, del núcleo) ----------
+  const SUB = { aprobado: 'Aprobada: lista para programar', noaprobado: 'El cliente pidió cambios', programado: 'Ya está en Zernio', publicado: 'Ya salió en Instagram', cancelado: 'Sale del mes; no se borra nada' };
+  C.estado = async () => {
+    const p = pAhora(), v = L.vista; if (!p) return;
+    await aqui();
+    const l = MV().estadosPosibles(v.key, p.id), visto = (await MV().valor({ key: v.key, slot: p.id, campo: 'estado' })).v;
+    const h = hoja(`<h2>Estado</h2><p class="ex">${esc(p.nombre)} · ahora ${esc(p.estado.txt)}</p><div class="estados">${l.map(x => `<button type="button" class="estado-op${x.actual ? ' on' : ''}" data-v="${x.v || ''}"${x.ok ? '' : ' disabled'}${x.actual ? ' aria-current="true"' : ''}><span class="es ${esc(x.k)}"><i></i><span>${esc(x.txt)}<br><span class="sub">${esc(x.v ? SUB[x.v] : 'Lo que dicen sus datos')}</span>${x.ok ? '' : `<span class="porque">${esc(cap1(x.porque))}</span>`}</span></span>${x.actual ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`).join('')}</div><div data-motivo hidden><span class="lbl">Motivo (opcional)</span><textarea rows="2" maxlength="500" data-mot>${esc(p.motivo || '')}</textarea></div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cancelar</button></div></div>`, { etiqueta: 'Estado' });
+    h.addEventListener('click', e => { if (!h.isConnected) return;
+      const b = e.target.closest('.estado-op'), c = e.target.closest('[data-a2]');
+      if (c && c.dataset.a2 === 'cancelar') return cerrarHojas();
+      if (c && c.dataset.a2 === 'cancelarpub') { const mot = h.querySelector('[data-mot]').value; cerrarHojas(true); return guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: 'cancelado', motivo: mot }, visto }); }
+      if (!b || b.disabled) return;
+      const nv = b.dataset.v || null, x = l.find(y => (y.v || null) === nv);
+      if (x && x.actual && nv !== 'cancelado') return cerrarHojas();
+      if (nv === 'cancelado') {   // D-082: el motivo, opcional
+        h.querySelectorAll('.estado-op').forEach(x => { const on = x === b; x.classList.toggle('on', on); if (on) x.setAttribute('aria-current', 'true'); else x.removeAttribute('aria-current'); const ck = x.querySelector('.ck'); if (ck && !on) ck.remove(); if (on && !ck) x.insertAdjacentHTML('beforeend', `<span class="ck">${ic('check', 2.25)}</span>`); });
+        h.querySelector('[data-motivo]').hidden = false; h.querySelector('.pie .botones').innerHTML = `<button type="button" class="btn sua" data-a2="cancelar">Volver</button><button type="button" class="btn pri" data-a2="cancelarpub">Cancelarla</button>`;
+        const t = h.querySelector('[data-mot]'); t.focus(); return;
+      }
+      cerrarHojas(true); guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: nv }, visto });
+    });
+  };
+
+  // ---------- captions: elegir y retocar (su borrador sobrevive a que iOS cierre la app) ----------
+  C.elegir = b => { const p = pAhora(), v = L.vista; if (!p || !p.captions) return; guardar({ key: v.key, slot: p.id, campo: 'capElegir', valor: +b.dataset.k, visto: { at: p.captions.at, pick: p.captions.pick } }); };
+  const K_BORR = (key, slot, k) => `mesa-movil-borrador:${key}|${slot}|${k}`;
+  let RET0 = null;
+  const baseDe = (key, slot, k) => (RET0 && RET0.key === key && RET0.slot === slot && RET0.k === k ? RET0.base : null);
+  // el borrador guarda la versión de la que salió (su tanda y su texto): «Listo» compara con esa, nunca con lo que bajó entretanto
+  const borrLeer = (key, slot, k) => { const t = lsG(K_BORR(key, slot, k)); if (t == null) return null; try { const o = JSON.parse(t); if (o && typeof o.texto === 'string') return o; } catch (e) { /* uno de antes, solo texto */ } return { texto: t, base: null }; };
+  const borrPoner = (key, slot, k, texto, base) => lsS(K_BORR(key, slot, k), JSON.stringify({ texto, base }));
+  C.pantRetocar = () => {
+    const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k);
+    if (!o) return top({ atras: 'Captions' }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
+    const b = borrLeer(v.key, p.id, k), borr = b ? b.texto : null, txt = borr != null ? borr : o.texto;
+    RET0 = { key: v.key, slot: p.id, k, base: { at: p.captions.at, texto: o.texto } };   // lo que enseña esta pantalla: la base si aún no hay borrador
+    const cambio = b && b.base && (b.base.at !== p.captions.at || b.base.texto !== o.texto);   // cambió en la Mesa desde que empezaste
+    return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
+      <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
+      <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${cambio ? '<p class="solo-mac">Este caption cambió en la Mesa desde que empezaste a retocarlo: si guardas tu retoque, verás los dos.</p>' : ''}${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
+  };
+  C.alEscribir = e => {
+    const t = e.target;
+    if (t.matches('[data-ret]')) {
+      const k = +RUTA.c, b = borrLeer(RUTA.a, RUTA.b, k), p = pAhora(), o = p && p.captions && p.captions.opciones.find(x => x.k === k);
+      borrPoner(RUTA.a, RUTA.b, k, t.value, b && b.base ? b.base : baseDe(RUTA.a, RUTA.b, k) || (o ? { at: p.captions.at, texto: o.texto } : null));   // la base: lo que se veía al dibujar
+      const c = raiz.querySelector('[data-cuenta]'); if (c) { c.textContent = `${miles(t.value.length)} / 2.200`; c.classList.toggle('sobra', t.value.length > 2200); } }
+  };
+  C.listo = async () => {
+    const v = L.vista, p = pAhora(), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k), t = raiz.querySelector('[data-ret]'); if (!o || !t) return;
+    const b = borrLeer(v.key, p.id, k), base = b && b.base ? b.base : baseDe(v.key, p.id, k) || { at: p.captions.at, texto: o.texto };
+    if (t.value === base.texto) {   // nada que guardar: lo de la Mesa se queda (aunque cambiara) y un retoque pendiente de ese caption, deshecho, se va
+      lsS(K_BORR(v.key, p.id, k), null);
+      opsGuardar(opsLeer().filter(x => !(x.campo === 'capTexto' && x.key === v.key && x.slot === p.id && (x.valor || {}).k === k && x.id !== ENVUELO)));
+      return atras();
+    }
+    const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: base });
+    if (ok) atras();
+  };
+
+  // ---------- contestar al cliente (va a su web con tu sesión, sin coger la Mesa: D-244, R2) ----------
+  C.contestar = async b => {
+    const p = pAhora(), t = raiz.querySelector('[data-resp]'); if (!p || !t || !t.value.trim()) return;
+    b.disabled = true; const err = raiz.querySelector('[data-resp-err]');
+    const B = await aqui(); const r = B ? await M.web.contestar(B, p.id, t.value) : { error: 'Abre la publicación otra vez.' };
+    if (r && r.ok) { const c = comentariosDe(p.id); if (c) lsS('mesa-movil-resp:' + c.pid, null); t.value = ''; await leerConv(L.vista.key); pintar(); aviso('Enviado a su web.', { ok: true }); }
+    else { b.disabled = false; if (err) { err.hidden = false; err.textContent = (r && r.error) || 'No se pudo enviar.'; } }
+  };
+
+  // ---------- tareas y notas ----------
+  C.hecha = b => { const x = (L.tareas || []).find(t => t.id === b.dataset.id); if (!x) return; guardar({ slot: x.id, campo: 'tarea', valor: { hecha: !x.hecha }, visto: { hecha: !!x.hecha } }); };
+  async function crearTarea(tipo) {
+    const txt = NUEVA.txt.trim(); if (!txt) { const i = raiz.querySelector('[data-nueva]'); if (i) i.focus(); return; }
+    const valor = { id: M.personal.nuevoId(tipo), txt, tipo, ...(tipo === 'tarea' && NUEVA.fecha ? { fecha: NUEVA.fecha } : {}), ...(NUEVA.cliente ? { cliente: NUEVA.cliente } : {}) };
+    const ok = await guardar({ campo: 'tareaNueva', valor });
+    if (ok) { NUEVA.txt = ''; NUEVA.fecha = ''; NUEVA.cliente = ''; pintar(); }
+  }
+  C.nnota = () => crearTarea('nota');
+  raiz.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.matches('[data-nueva]')) { e.preventDefault(); crearTarea('tarea'); } });
+  C.nfecha = () => {
+    let mes = (NUEVA.fecha || hoy()).slice(0, 7), sel = NUEVA.fecha || '';
+    const pinta = () => `<h2>Fecha de la tarea</h2>${calendarioHTML(sel, mes, null, { pie: `<button type="button" class="lnk" data-a2="sin"${sel ? '' : ' disabled'}>Sin fecha</button><button type="button" class="lnk" data-a2="hoy">Hoy</button>` })}<div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`;
+    const h = hoja(pinta(), { etiqueta: 'Fecha de la tarea' });
+    h.addEventListener('click', e => { if (!h.isConnected) return;
+      const d = e.target.closest('[data-dia]'), c = e.target.closest('[data-cal]'), b = e.target.closest('[data-a2]');
+      if (d && !d.disabled) { NUEVA.fecha = d.dataset.dia; cerrarHojas(); return pintar(); }
+      if (c && !c.disabled) { mes = c.dataset.cal; h.innerHTML = `<div class="asa" aria-hidden="true"></div>` + pinta(); arrastrable(h); return; }
+      if (!b) return;
+      if (b.dataset.a2 === 'sin') NUEVA.fecha = ''; else if (b.dataset.a2 === 'hoy') NUEVA.fecha = hoy();
+      cerrarHojas(); pintar();
+    });
+  };
+  C.ncliente = () => {
+    const l = (X().CL || []);
+    const h = hoja(`<h2>Cliente de la tarea</h2><div class="estados"><button type="button" class="estado-op${NUEVA.cliente ? '' : ' on'}" data-c=""${NUEVA.cliente ? '' : ' aria-current="true"'}><span style="flex:1">Sin cliente</span>${NUEVA.cliente ? '' : `<span class="ck">${ic('check', 2.25)}</span>`}</button>${l.map(c => `<button type="button" class="estado-op${NUEVA.cliente === c.id ? ' on' : ''}" data-c="${esc(c.id)}"${NUEVA.cliente === c.id ? ' aria-current="true"' : ''}>${av(c.id)}<span style="flex:1">${esc(c.name)}</span>${NUEVA.cliente === c.id ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`).join('')}</div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Cliente de la tarea' });
+    h.addEventListener('click', e => { if (!h.isConnected) return; const b = e.target.closest('[data-c]'); if (b) { NUEVA.cliente = b.dataset.c; cerrarHojas(); pintar(); } else if (e.target.closest('[data-a2]')) cerrarHojas(); });
+  };
+
+  // ---------- «sin subir»: lo que no llegó (de la cola o de la nube), con «Subir encima» o «Descartar» (D-255) ----------
+  C.sinsubir = async () => {
+    if (RUN) return aviso('Espera: se está guardando.');
+    const ops = opsLeer().filter(x => x.estado !== 'nueva'), nube = M.nube && M.nube.sinSubir ? await M.nube.sinSubir().catch(() => []) : [];
+    const ALM = { boards: 'Tablero', tareas: 'Tarea o nota', clients: 'Cliente', files: 'Foto' };
+    const fila2 = (t, s, d) => `<div class="campo" style="cursor:default;align-items:flex-start;padding-top:12px;padding-bottom:12px"><span class="v" style="display:block;white-space:normal"><b>${esc(t)}</b><span class="por">${esc(s)}</span></span></div><div class="botones" style="margin:0 0 12px;padding:0 12px">${d}</div>`;
+    const h = hoja(`<h2>Sin subir</h2><p class="ex">${esc(plural(ops.length + nube.length, 'cambio no llegó', 'cambios no llegaron'))} a la Mesa.</p>`
+      + (ops.length ? `<div class="grupo">${ops.map(op => fila2(opQue(op), opTexto(op, op.valor), `<button type="button" class="btn sua" data-des="${esc(op.id)}">Descartar</button><button type="button" class="btn pri" data-sub="${esc(op.id)}">Subir encima</button>`)).join('')}</div>` : '')
+      + (nube.length ? `<div class="grupo" style="margin-top:12px">${nube.map((x, i) => fila2(`${ALM[x.a] || x.a}`, x.mensaje || x.motivo || '', `<button type="button" class="btn sua" data-ndes="${i}">Descartar</button><button type="button" class="btn pri" data-nsub="${i}">Subir encima</button>`)).join('')}</div>` : '')
+      + `<div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Sin subir' });
+    h.addEventListener('click', async e => { if (!h.isConnected) return;
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.a2) return cerrarHojas();
+      if (b.dataset.des) { const op = opsLeer().find(x => x.id === b.dataset.des); if (op && op.campo === 'capTexto') lsS(K_BORR(op.key, op.slot, op.valor.k), null); opsQuitar(b.dataset.des); cerrarHojas(); return pintar(); }
+      if (b.dataset.sub) { cerrarHojas(true); if (RUN) return aviso('Espera: se está guardando.'); return guardar([], { solo: [b.dataset.sub] }); }
+      const i = b.dataset.nsub ?? b.dataset.ndes; if (i == null) return;
+      const x = nube[+i], encima = b.dataset.nsub != null; cerrarHojas(true);
+      const r = await conLaMesa(() => (encima ? M.nube.subirEncima([[x.a, x.k]]) : M.nube.descartar([[x.a, x.k]])));
+      if (r) aviso(r.error ? errorTexto(r.error) : encima ? 'Subido encima.' : 'Descartado.', { ok: !r.error, error: !!r.error });
+    });
+  };
+  C.alNube = (t, d) => {
+    if (t === 'pausa' && d && d.motivo === 'perdido') aviso(`La Mesa la cogió ${corto2(d.dispositivo)}: lo que no subió está en «sin subir».`, { error: true, ms: 8000 });
+  };
+
+  arrancar();
+})();

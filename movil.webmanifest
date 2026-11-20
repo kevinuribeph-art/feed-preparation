@@ -1,0 +1,14 @@
+{
+  "name": "Mesa de trabajo",
+  "short_name": "Mesa",
+  "lang": "es",
+  "start_url": "movil.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4EFE8",
+  "theme_color": "#F4EFE8",
+  "icons": [
+    { "src": "portal/marca/icono-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "portal/marca/monograma.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

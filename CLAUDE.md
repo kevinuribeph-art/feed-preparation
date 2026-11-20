@@ -29,6 +29,12 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   salvo que se active en un navegador, D-253 a D-257; con ella, las fotos suben y bajan con su worker `nube-fotos.js`, D-259), `arranque.js` (abre la Mesa) y `vigia.js` (marca los módulos que no
   cargan y avisa de lo que bloquea la CSP); y, en async, `kits/motor.js` (motor de
   diseño), `diseno.js` (diseñador), `libre.js` (editor de diapositivas), `calendario.js` (calendario), `revisar.js` (revisión antes de subir o programar), `historias.js` (historias de Instagram), `carpetas.js` (subir y crear carpetas en la bandeja), `descargar.js` (descargar fotos de las publicaciones elegidas con ⌘+clic), `controles.js` (desplegables, fecha y hora propios de la Mesa: el `<select>` o el `<input>` nativo sigue oculto como fuente de verdad) y `personal.js` (la página personal que abre el logo: avisos, clientes, tareas y notas) `escritura.js` (escritura rápida de la página personal: marcas y menú «/») y `sesiones.js` (sesiones y clientes esporádicos de la página personal; sus fotos, en el almacén `tfotos`) y `cobros.js` (la pestaña «Cobros» de «Editar cliente», la tabla de facturas y «Tus pagos» de la «Vista cliente»; los datos, en `mesa.js`: almacenes `cobros` y `cfacturas`) e `informe.js` (en la «Vista cliente», el porqué del mes y cómo fue el anterior; los datos, en `mesa.js`: almacén `meses` y `MESA.informe`) y `web.js` («Web del cliente»: envía al servidor del portal lo que ve el cliente, D-241; habla con él con `portal/supa.js`, que comparte con el portal) y `copia.js` («Exportar todo»: la copia completa, un `.tar` por cliente y uno general a tamaño original, y su importación por partes, D-249). La mesa nunca espera a los async; `portal/supa.js` y `nube.js` van sin async porque la nube baja antes de dibujar (D-253).
+- La Mesa en el iPhone (D-267 a D-270): `movil.html` (`<html data-movil>`, la misma CSP que `index.html`) carga, sin async, `vigia.js`,
+  `mesa.js`, `portal/supa.js`, `entrada.js`, `nube.js`, `personal.js`, `web.js`, `escritura.js` y su cara, `movil.js` (Hoy, Clientes,
+  Tareas, el mes, la publicación, captions e historias; cambiar fecha y hora, estado, captions, tareas y contestar al cliente). El
+  mismo núcleo, sin escritorio: `MESA._in.movil` mira sin escribir y aplica cada cambio como una operación; la nube del iPhone mira en
+  pausa y coge la Mesa solo para cada cambio. `movil.webmanifest` es el icono de la pantalla de inicio; en un iPhone, `tema.js` lleva la
+  dirección de siempre a `movil.html`. Ninguna regla de la Mesa en `movil.js`: todo sale del núcleo.
 - `kits/<marca>.json` + `kits/fonts/`: kits de marca para el diseñador y el editor.
 - Los datos de la Mesa viven en IndexedDB del navegador donde se abre (aislados por origen). El único servidor (Supabase,
   Fráncfort) guarda lo que ve cada cliente en su portal (D-241): esquema en `servidor/esquema.sql`. En el mismo proyecto, con su
@@ -48,12 +54,13 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 
 ## Publicar
 - GitHub Pages y Cloudflare Pages (`mesa.uribevisuals.studio`) publican desde `main`. Cada cambio va en una rama y entra por PR.
-- Un archivo nuevo de la Mesa fuera de la raíz (`*.js`, `index.html`) o de `kits/` se añade a `tools/publicar-mesa.sh` (si la
-  página lo pide y falta, la copia se para y Cloudflare no publica).
+- Un archivo nuevo de la Mesa fuera de la raíz (`*.js`, `index.html`, `movil.html`, `movil.webmanifest`) o de `kits/` se añade a
+  `tools/publicar-mesa.sh` (si una de las dos páginas lo pide y falta, o si la CSP de `movil.html` no es la de `index.html`, la copia
+  se para y Cloudflare no publica).
 - En cada publicación sube la versión: `M.version` en `mesa.js` y el `?v=` de `mesa.js` en
-  `index.html`, los dos iguales. Si cambias `nube-fotos.js` (el worker de las fotos), sube `FOTOS_V` en `nube.js` y el `?v=` de
+  `index.html` y en `movil.html`, los tres iguales. Si cambias `nube-fotos.js` (el worker de las fotos), sube `FOTOS_V` en `nube.js` y el `?v=` de
   `nube.js`. Si cambias `tema.js`, `arranque.js`, `vigia.js`, `entrada.js`, `nube.js`, `diseno.js`, `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/supa.js` o `kits/motor.js`, sube también
-  su `?v=` en `index.html`. Sin esto el navegador sigue sirviendo la versión en caché.
+  su `?v=` en `index.html` (y en `movil.html` si la carga; `movil.js`, solo allí). Sin esto el navegador sigue sirviendo la versión en caché.
 - Si un tablero empieza a guardar algo que el código anterior no conoce, sube también la versión de IndexedDB en `db()`: si no, una pestaña antigua lo pisa (D-060).
 - Si subes la versión de IndexedDB, tras comprobar con curl que Pages sirve la nueva, sube la mínima del servidor a esa versión
   de la Mesa (`node tools/web.mjs mesa-version real <x.yy>`): una Mesa más vieja deja de bajar y subir y pide recargar (D-060
@@ -66,7 +73,7 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   ahí están los datos reales de Kevin.
   Ábrela solo para lo que Kevin pida hacer en su mesa.
 - Prueba siempre en localhost sobre una copia: copia `index.html`, `tema.js`, `arranque.js`, `vigia.js`, `entrada.js`, `nube.js`, `nube-fotos.js`, `mesa.js`, `diseno.js`,
-  `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `portal/`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
+  `libre.js`, `calendario.js`, `revisar.js`, `historias.js`, `carpetas.js`, `descargar.js`, `controles.js`, `personal.js`, `escritura.js`, `sesiones.js`, `cobros.js`, `informe.js`, `web.js`, `copia.js`, `movil.html`, `movil.js`, `movil.webmanifest`, `portal/`, `kits/` y `tests/` a una carpeta temporal y sírvela en 127.0.0.1, en un puerto nuevo
   (cada puerto es un almacenamiento aparte). Vuelve a copiar tras cada cambio.
 - Batería de regresión: `tests/regresion.html` en esa copia, en un puerto sin otros datos (si los hay, se niega)
   («Pasar la batería», o `?auto`; `?solo=M3,E2` pasa solo esas). Antes de cada PR se pasa entera y tiene que pasar entera; la comprobación manual de la misma página también.

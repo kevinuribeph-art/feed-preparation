@@ -1292,7 +1292,7 @@
   // the photo of a task or a session on the phone (D-271, point 1): it comes down when it is seen, one at a time (never all at once,
   // never traerResto, D-268): the 1.600 px photo (`blob`; the 160 px `mini` is not enough at 3×, and sesiones.js wants the `blob`).
   // What is already here is given as it is; the same photo asked twice is one download. Without the cloud or on a failure: null.
-  const RUTA_FOTO = { tareas: /^el valor\.fotos\.\d+\.blob$/, tfotos: /^el valor\.blob$/ };
+  const RUTA_FOTO = { tareas: /^el valor\.fotos\[\d+\]\.blob$/, tfotos: /^el valor\.blob$/ };   // the core's paths (refsCon)
   const FOTOS_ARCH = new Map(); let unaFoto = Promise.resolve();
   const enRutaV = (v, ruta) => { let x = v; for (const p of String(ruta).replace(/^el valor/, '').match(/[^.[\]]+/g) || []) { if (x == null || typeof x !== 'object') return undefined; x = x[/^\d+$/.test(p) && Array.isArray(x) ? +p : p]; } return x; };
   function archivoFoto(a, k, ruta) {
@@ -1309,6 +1309,12 @@
         const b = await bajarArchivo(r);
         if (!(await X().nubeAlmacen.ponerArchivo(a, k, ruta, r.sha256, b, null))) return null;   // the record changed meanwhile
         const r2 = enRutaV(await X().idbGet(a, k), ruta);   // read again: a Blob on disk, not the one from the network
+        if (r2 instanceof Blob) {   // it is already up: when its record goes up again (a task marked done), it goes as its reference, never uploaded again
+          await registro().catch(() => null);
+          const y = { tam: r2.size, tipo: r2.type || '', fecha: typeof r2.lastModified === 'number' ? r2.lastModified : null, sha256: r.sha256 };
+          HU.set(c, y); SUBIDOS.set(r.sha256, { ruta: r.ruta });
+          await X().nubeAlmacen.ponerHuella(a, k, ruta, y).catch(() => null); await X().nubeAlmacen.ponerSubido(r.sha256, { ruta: r.ruta }).catch(() => null);
+        }
         try { D.dispatchEvent(new CustomEvent('mesa-archivo-llego', { detail: { a, k, ruta } })); } catch (e) { /* */ }
         return r2 instanceof Blob ? r2 : null;
       } finally { suelta(); }

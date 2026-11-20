@@ -1061,8 +1061,9 @@
   const hojaVersion = () => hoja(`<h2>Hay una versión nueva de la Mesa</h2><p class="ex">Esta se ha pausado para no pisar los datos. Lo guardado no se pierde.</p><div class="botones"><button type="button" class="btn pri ancho" data-a="recargar" data-foco>Recargar</button></div>`, { fija: true, permanente: true, etiqueta: 'Hay una versión nueva de la Mesa' });
   async function verTarea(id) {
     const x = (L.tareas || []).find(t => t.id === id); if (!x) return;
-    const rec = x.fotos ? await M.personal.valor(id).catch(() => null) : null, fotos = (rec && rec.fotos) || [];   // sus fotos se ven (D-271, punto 1)
-    const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const r = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${r.toFixed(4)}">${fotoArch('tareas', id, `el valor.fotos.${i}.blob`, 140 * r)}</span>`; }).join('')}</div>` : '';
+    const r0 = RUTA, rec = x.fotos ? await M.personal.valor(id).catch(() => null) : null, fotos = (rec && rec.fotos) || [];   // sus fotos se ven (D-271, punto 1)
+    if (RUTA !== r0) return;   // se fue a otra pantalla mientras se leía
+    const tira = fotos.length ? `<span class="lbl">Fotos</span><div class="mv-tira" role="list">${fotos.map((f, i) => { const r = f.w > 0 && f.h > 0 ? f.w / f.h : 4 / 5; return `<span class="mv-tf" role="listitem" aria-label="Foto ${i + 1} de ${fotos.length}" style="--r:${r.toFixed(4)}">${fotoArch('tareas', id, `el valor.fotos[${i}].blob`, 140 * r)}</span>`; }).join('')}</div>` : '';
     const E = M.escritura && M.escritura.html ? M.escritura : null, txt = E ? E.html(x.txt, { leer: true }) : esc(x.txt);
     const t = x.tipo === 'nota' ? 'Nota' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea';
     const meta = [x.fecha ? cap1(DS[dow(x.fecha)]) + ' ' + corto(x.fecha) + (x.hora ? ' · ' + x.hora : '') : '', x.clientes.map(nombreCli).join(' · ')].filter(Boolean).join(' · ');

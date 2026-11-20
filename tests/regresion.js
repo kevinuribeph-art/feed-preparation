@@ -19482,7 +19482,7 @@
     });
   });
 
-  prueba('MV45', 'Las fotos de una tarea bajan al verla en el iPhone (D-271, punto 1; lecciones 197 y 199): con la nube, al abrir la tarea se bajan una a una (nunca dos a la vez), sin diario, y se ven con su proporción', async () => {
+  prueba('MV45', 'Las fotos de una tarea bajan al verla en el iPhone (D-271, punto 1; lecciones 197 y 199): con la nube, al abrir la tarea se bajan una a una (nunca dos a la vez), sin diario, y se ven con su proporción; marcarla hecha después no las vuelve a subir (suben como su referencia)', async () => {
     await tablero([pub(1)]);
     await enMovilPagina(async () => {
       const F = ftMundo(), a = await ftJpeg(1200, 800, '#7a4a3c'), b = await ftJpeg(800, 1200, '#3c6a7a'), sa = await ftHuella(a), sb = await ftHuella(b);
@@ -19494,7 +19494,8 @@
       const rec = { id, tipo: 'tarea', txt: 'Revisar las fotos de la sesión de otoño en la panadería del barrio', creada: ahora, at: ahora, fotos: [{ id: 'tfmv45a', w: 1200, h: 800, blob: ref(sa, a), mini: ref(sa, a) }, { id: 'tfmv45b', w: 800, h: 1200, blob: ref(sb, b), mini: ref(sb, b) }] };
       try {
         await M._in.diario.sinDiario('tareas', 'readwrite', st => st.put(rec, id)); await M._in.diario.vaciar();
-        M._in.NUBE.activa = true; M.nube._con(F.sv, F.al); aLaVista();
+        M._in.NUBE.activa = true; const n = M.nube._con(F.sv, F.al); aLaVista();
+        igual((await n.abrir()).modo, 'mirando', 'la nube del iPhone no abrió mirando');
         await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
         clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
         await hojaCara('.mv-tira', 'la tira de fotos de la tarea');
@@ -19506,7 +19507,15 @@
         const r2 = await M._in.idbGet('tareas', id);
         ok(r2.fotos.every(f => f.blob instanceof W.Blob), 'el registro sin sus fotos bajadas');
         igual((await M._in.diario.leer()).filter(e => e.a === 'tareas').length, 0, 'bajar se apuntó en el diario');
-      } finally { await nbLimpiar(); await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); }
+        // marcarla hecha: el registro sube con sus fotos como referencias, sin volver a subir ninguna
+        clicCara('#movil .hoja [data-a="cerrarhoja"]'); await espera(400);
+        await hasta(() => M.movil._ST.fase === 'mirando', 4000, 'la cara mirando');
+        clicCara(`#movil .casilla[data-id="${id}"]`);
+        await hasta(async () => !M.movil._ST.guardando && F.valor('tareas', id) && F.valor('tareas', id).hecha, 15000, 'la tarea hecha arriba');
+        const arriba = F.valor('tareas', id);
+        ok(arriba.fotos.every((f, i) => f.blob && f.blob.__blob && f.blob.sha256 === [sa, sb][i]), 'las fotos de arriba no son sus referencias: ' + json(arriba.fotos.map(f => f.blob)));
+        igual(F.subidas.filter(x => /^tareas\//.test(x)), [], 'marcarla hecha volvió a subir sus fotos');
+      } finally { await nbLimpiar(); await M._in.diario.sinDiario('tareas', 'readwrite', st => st.delete(id)); await M._in.diario.vaciar(); try { W.localStorage.removeItem('mesa-movil-ops'); } catch (e) { /* */ } }
     });
   });
 

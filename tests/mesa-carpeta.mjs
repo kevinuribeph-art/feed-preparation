@@ -5,11 +5,12 @@
 // MC2 y lo que piden movil.html y su manifiesto (D-269)
 // MC3 nada ajeno: solo las dos páginas, el manifiesto, los .js, kits/, las copias del portal y _headers; cada .js de la raíz
 //     lo pide una página (o es el worker)
-// MC4 sus cabeceras: la CSP del <meta> de index.html más frame-ancestors, la de movil.html igual, y las de seguridad para todo
+// MC4 sus cabeceras: la CSP del <meta> de index.html con el servidor del proyecto real (el de portal/config.js) en vez de
+//     https://*.supabase.co, más frame-ancestors (D-277, S5); la de movil.html, la de index.html; las de seguridad para todo, con la
+//     misma Permissions-Policy que el portal (S6); y ni mesa/_headers ni portal/_headers dejan ir a cualquier proyecto de Supabase
 // MC5 las copias de lo que comparte con el portal (supa.js y 5 de marca/) son iguales byte a byte a las de portal/
-// MC6 el puente (tools/publicar-mesa.sh, mientras Cloudflare siga con su orden) copia mesa/ tal cual
-// MC7 cada fallo se ve: falta el worker, un icono, algo de movil.html, entra algo ajeno, otra CSP en movil.html, una copia distinta
-import { execFileSync } from 'node:child_process';
+// MC7 cada fallo se ve: falta el worker, un icono, algo de movil.html, entra algo ajeno, otra CSP en movil.html, una cabecera de
+//     menos, el comodín de Supabase en una de las dos, sin Permissions-Policy, una copia distinta
 import { mkdtempSync, readFileSync, existsSync, rmSync, cpSync, readdirSync, statSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -28,6 +29,8 @@ const ok = (c, t, x) => { n++; console.log((c ? '  ok    ' : '  FALLO ') + t + (
 const todos = d => { const out = []; for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) out.push(...todos(p).map(x => f + '/' + x)); else out.push(f); } return out; };
 const leer = (d, f) => readFileSync(join(d, f), 'utf8');
 const csp = h => (/Content-Security-Policy" content="([^"]*)/.exec(h) || [])[1];
+const COMODIN = 'https://*.supabase.co';
+const linea = (t, n) => (new RegExp('^\\s*' + n + ': (.*)$', 'm').exec(t) || [])[1];
 
 // Los problemas de una carpeta de la Mesa (d) frente a su portal (p): una lista vacía es que está bien.
 function revisar(d, p) {
@@ -51,8 +54,13 @@ function revisar(d, p) {
     || (/^[a-z-]+\.js$/.test(f) && pedidos.has(f)) || (/^kits\//.test(f) && !/\.md$/.test(f));
   for (const f of lista) if (!permitido(f)) mal.MC3.push('ajeno: ' + f);
   const cab = existsSync(join(d, '_headers')) ? leer(d, '_headers') : '', c = csp(html);
-  const linea = (/^\s*Content-Security-Policy: (.*)$/m.exec(cab) || [])[1];
-  if (!c || linea !== c + "; frame-ancestors 'none'") mal.MC4.push('la CSP de _headers no es la del <meta> más frame-ancestors');
+  const pcab = existsSync(join(p, 'portal', '_headers')) ? leer(join(p, 'portal'), '_headers') : '';
+  const real = (/url: "(https:\/\/[a-z0-9]{10,40}\.supabase\.co)"/.exec(existsSync(join(p, 'portal', 'config.js')) ? leer(join(p, 'portal'), 'config.js') : '') || [])[1];
+  if (!real) mal.MC4.push('portal/config.js sin el servidor del proyecto real');
+  if (!c || !c.includes(COMODIN) || linea(cab, 'Content-Security-Policy') !== c.split(COMODIN).join(real) + "; frame-ancestors 'none'") mal.MC4.push('la CSP de _headers no es la del <meta> con el servidor real en vez del comodín, más frame-ancestors');
+  if (cab.includes('*.supabase.co')) mal.MC4.push('mesa/_headers deja ir a cualquier proyecto de Supabase');
+  if (!pcab || pcab.includes('*.supabase.co') || !['img-src', 'connect-src'].every(k => new RegExp(k + " [^;]*" + (real || '-').replace(/\./g, '\\.')).test(linea(pcab, 'Content-Security-Policy') || ''))) mal.MC4.push('portal/_headers sin el servidor real en img-src y connect-src, o con el comodín');
+  if (!linea(cab, 'Permissions-Policy') || linea(cab, 'Permissions-Policy') !== linea(pcab, 'Permissions-Policy')) mal.MC4.push('mesa/_headers sin la Permissions-Policy del portal');
   if (csp(mv) !== c) mal.MC4.push('la CSP de movil.html no es la de index.html');
   if (!/^\/\*$/m.test(cab)) mal.MC4.push('_headers sin /*');
   for (const h of SEGURIDAD) if (!cab.includes(h)) mal.MC4.push('_headers sin ' + h);
@@ -69,16 +77,9 @@ try {
   ok(!m.MC4.length, 'MC4 las cabeceras: la CSP del <meta> más frame-ancestors, la misma en movil.html y las de seguridad para todo', m.MC4.join(', '));
   ok(!m.MC5.length, 'MC5 las copias del portal (supa.js y 5 de marca/) son iguales byte a byte a las de portal/', m.MC5.join(', '));
 
-  // MC6 el puente: copia mesa/ tal cual (los mismos archivos y los mismos bytes)
-  const P = join(tmp, 'puente');
-  execFileSync('sh', [join(RAIZ, 'tools', 'publicar-mesa.sh'), P], { stdio: 'pipe' });
-  const a = todos(MESA).sort(), b = todos(P).sort();
-  const distintos = a.filter(f => !b.includes(f) || !readFileSync(join(MESA, f)).equals(readFileSync(join(P, f))));
-  ok(a.length === b.length && !distintos.length, 'MC6 el puente copia mesa/ tal cual', `${a.length} / ${b.length} ${distintos.slice(0, 3).join(', ')}`);
-
   // MC7 cada fallo se ve, sobre copias de mesa/ y de portal/
   const copia = nombre => { const d = join(tmp, nombre); cpSync(MESA, d, { recursive: true }); return d; };
-  const POR = join(tmp, 'raiz'); for (const f of COMPARTIDOS) { mkdirSync(dirname(join(POR, f)), { recursive: true }); cpSync(join(RAIZ, f), join(POR, f)); }
+  const POR = join(tmp, 'raiz'); for (const f of [...COMPARTIDOS, 'portal/_headers', 'portal/config.js']) { mkdirSync(dirname(join(POR, f)), { recursive: true }); cpSync(join(RAIZ, f), join(POR, f)); }
   let d = copia('sin-worker'); unlinkSync(join(d, 'nube-fotos.js'));
   ok(revisar(d, POR).MC1.includes('falta nube-fotos.js'), 'MC7 sin el worker de las fotos, MC1 lo dice');
   d = copia('sin-icono'); unlinkSync(join(d, 'portal', 'marca', 'icono-180.png'));
@@ -93,6 +94,13 @@ try {
   ok(revisar(d, POR).MC4.includes('la CSP de movil.html no es la de index.html'), 'MC7 otra CSP en movil.html, MC4 lo dice');
   d = copia('sin-cabecera'); writeFileSync(join(d, '_headers'), leer(d, '_headers').replace('  X-Frame-Options: DENY\n', ''));
   ok(revisar(d, POR).MC4.includes('_headers sin X-Frame-Options: DENY'), 'MC7 una cabecera de menos, MC4 lo dice');
+  d = copia('comodin'); writeFileSync(join(d, '_headers'), leer(d, '_headers').replace(/https:\/\/[a-z0-9]+\.supabase\.co/g, COMODIN));
+  ok(revisar(d, POR).MC4.includes('mesa/_headers deja ir a cualquier proyecto de Supabase'), 'MC7 el comodín de Supabase en mesa/_headers, MC4 lo dice');
+  d = copia('sin-permisos'); writeFileSync(join(d, '_headers'), leer(d, '_headers').replace(/^\s*Permissions-Policy: .*\n/m, ''));
+  ok(revisar(d, POR).MC4.includes('mesa/_headers sin la Permissions-Policy del portal'), 'MC7 sin Permissions-Policy en mesa/_headers, MC4 lo dice');
+  const POR2 = join(tmp, 'raiz2'); cpSync(POR, POR2, { recursive: true });
+  writeFileSync(join(POR2, 'portal', '_headers'), leer(join(POR2, 'portal'), '_headers').replace(/https:\/\/[a-z0-9]+\.supabase\.co/g, COMODIN));
+  ok(revisar(MESA, POR2).MC4.some(x => /^portal\/_headers/.test(x)), 'MC7 el comodín de Supabase en portal/_headers, MC4 lo dice');
   for (const f of ['portal/supa.js', 'portal/marca/monograma.svg']) {
     d = copia('copia-' + f.replace(/\W/g, '-')); const x = readFileSync(join(d, f)); x[x.length - 1] ^= 1; writeFileSync(join(d, f), x);
     ok(revisar(d, POR).MC5.includes('copia distinta: ' + f), 'MC7 una copia del portal con un byte cambiado (' + f + '), MC5 lo dice');

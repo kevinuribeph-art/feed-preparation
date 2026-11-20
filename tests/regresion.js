@@ -19167,6 +19167,17 @@
     });
   });
 
+
+  prueba('MV31', 'Las versiones de las dos páginas (lote 5, D-269): movil.html pide de lo que comparte con index.html la misma versión, y la de mesa.js es la de la Mesa (M.version), en las dos', async () => {
+    const tx = async u => (await W.fetch(u + '?mv31=' + Date.now(), { cache: 'no-store' })).text();
+    const vs = h => Object.fromEntries([...h.matchAll(/<script[^>]*\ssrc="([^"?]+)\?v=([^"]+)"/g)].map(m => [m[1], m[2]]));
+    const ix = vs(await tx('index.html')), mv = vs(await tx('movil.html'));
+    const distintas = Object.keys(mv).filter(f => f in ix && ix[f] !== mv[f]).map(f => `${f}: ${ix[f]} / ${mv[f]}`);
+    ok(!distintas.length, 'versiones distintas en las dos páginas: ' + distintas.join(', '));
+    igual([ix['mesa.js'], mv['mesa.js']], [M.version, M.version], 'el ?v= de mesa.js no es M.version');
+    ok(mv['movil.js'] && !ix['movil.js'], 'movil.js sin versión en movil.html o cargado en index.html');
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

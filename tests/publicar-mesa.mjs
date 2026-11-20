@@ -4,8 +4,10 @@
 // (herramientas, pruebas, servidor, notas, .env) y sus cabeceras con la misma CSP que el <meta> de index.html más
 // frame-ancestors; y se para si a la página le falta algo.
 // PM1 la copia · PM2 nada de más · PM3 las cabeceras · PM4 se para si falta un archivo · PM5 y si falta un icono (D-265)
+// PM6 la Mesa del iPhone (D-269): movil.html, su manifiesto y lo que piden · PM7 se para si movil.html pide algo que falta
+// PM8 o si su CSP no es la de index.html
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, existsSync, rmSync, cpSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, rmSync, cpSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,9 +36,14 @@ try {
   const quiere = ['X-Frame-Options: DENY', 'X-Content-Type-Options: nosniff', 'Referrer-Policy: no-referrer', 'Strict-Transport-Security: max-age=31536000', 'X-Robots-Tag: noindex'];
   const sin = quiere.filter(h => !cab.includes(h));
   ok(/^\/\*$/m.test(cab) && !sin.length, 'PM3 las cabeceras de seguridad para todo (/*)', sin.join(', '));
+  // la Mesa del iPhone (D-269): movil.html, su manifiesto, cada script que pide, sus iconos y los del manifiesto, tal cual
+  const mv = readFileSync(join(RAIZ, 'movil.html'), 'utf8'), man = JSON.parse(readFileSync(join(RAIZ, 'movil.webmanifest'), 'utf8'));
+  const pideM = [...mv.matchAll(/src="([^"?]+)/g)].map(m => m[1]).concat([...mv.matchAll(/<link rel="(?:icon|apple-touch-icon|manifest)"[^>]*href="([^"?]+)/g)].map(m => m[1]), man.icons.map(i => i.src), 'movil.html');
+  const faltanM = pideM.filter(f => !existsSync(join(D, f)) || !readFileSync(join(D, f)).equals(readFileSync(join(RAIZ, f))));
+  ok(pideM.length >= 12 && !faltanM.length, 'PM6 la copia lleva movil.html, su manifiesto, cada script que pide y sus iconos, tal cual', faltanM.join(', ') || pideM.length);
   // un repo al que le falta un script que pide la página: la copia se para
   const R2 = join(tmp, 'repo');
-  for (const f of readdirSync(RAIZ)) if (/\.(js|html)$/.test(f)) cpSync(join(RAIZ, f), join(R2, f));
+  for (const f of readdirSync(RAIZ)) if (/\.(js|html|webmanifest)$/.test(f)) cpSync(join(RAIZ, f), join(R2, f));
   cpSync(join(RAIZ, 'kits'), join(R2, 'kits'), { recursive: true }); cpSync(join(RAIZ, 'tools'), join(R2, 'tools'), { recursive: true });
   cpSync(join(RAIZ, 'portal', 'supa.js'), join(R2, 'portal', 'supa.js'));
   for (const l of ['logo-ink.svg', 'logo-paper.svg', 'monograma.svg', 'icono-32.png', 'icono-180.png']) cpSync(join(RAIZ, 'portal', 'marca', l), join(R2, 'portal', 'marca', l));
@@ -48,6 +55,16 @@ try {
   paro = false; msg = '';
   try { execFileSync('sh', [join(R2, 'tools', 'publicar-mesa.sh'), join(tmp, 'salida3')], { stdio: 'pipe' }); } catch (e) { paro = e.status !== 0; msg = String(e.stderr || ''); }
   ok(paro && /falta portal\/marca\/icono-180\.png/.test(msg), 'PM5 si falta un icono que pide index.html, la copia se para y lo dice', msg.trim());
+  cpSync(join(RAIZ, 'portal', 'marca', 'icono-180.png'), join(R2, 'portal', 'marca', 'icono-180.png')); unlinkSync(join(R2, 'movil.js'));
+  paro = false; msg = '';
+  try { execFileSync('sh', [join(R2, 'tools', 'publicar-mesa.sh'), join(tmp, 'salida4')], { stdio: 'pipe' }); } catch (e) { paro = e.status !== 0; msg = String(e.stderr || ''); }
+  ok(paro && /falta movil\.js/.test(msg), 'PM7 si falta algo que pide movil.html, la copia se para y lo dice', msg.trim());
+  cpSync(join(RAIZ, 'movil.js'), join(R2, 'movil.js'));
+  const otra = readFileSync(join(R2, 'movil.html'), 'utf8').replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
+  writeFileSync(join(R2, 'movil.html'), otra);
+  paro = false; msg = '';
+  try { execFileSync('sh', [join(R2, 'tools', 'publicar-mesa.sh'), join(tmp, 'salida5')], { stdio: 'pipe' }); } catch (e) { paro = e.status !== 0; msg = String(e.stderr || ''); }
+  ok(paro && /CSP de movil\.html/.test(msg), 'PM8 si la CSP de movil.html no es la de index.html, la copia se para', msg.trim());
 } catch (e) { ok(false, 'la prueba se cortó', (e && (e.stderr ? String(e.stderr) : e.stack)) || e); }
 finally { rmSync(tmp, { recursive: true, force: true }); }
 console.log(fallos ? `${fallos} fallos de ${n}` : `todo bien (${n})`);

@@ -5,7 +5,7 @@
 (function webBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.3';   // 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
+  const VERSION = '1.4';   // 1.4: en el iPhone (D-267) no arranca solo; conversacion(B), contestar(B, slot, texto) y leido(pid, hora) para su cara, nunca estadoWeb ni lecturas (R2); «desde el escritorio». 1.3: con la entrada de la Mesa (D-262) no hay código por correo aquí: sin sesión, la Mesa vuelve a su entrada
   const I = () => M._in;
   if (M.web && M.web._off) { try { M.web._off(); } catch (e) { /* una versión anterior ya no está */ } }
   const OFF = [];

@@ -985,7 +985,11 @@
   // una hoja se cierra con «Cancelar», tocando el velo o arrastrando el asa hacia abajo; «Guardar» queda fijo abajo en un iPhone pequeño
   // (los oyentes de cada hoja no hacen nada si ya se cerró: el segundo toque de un doble toque no cierra la hoja siguiente)
   function hoja(html, o = {}) {
-    if (!o.permanente && capas.querySelector('.hoja[data-permanente]')) return D.createElement('div');   // la pestaña está parada: nada encima de su aviso
+    if (!o.permanente && capas.querySelector('.hoja[data-permanente]')) {   // la pestaña está parada: nada encima de su aviso, y su pregunta se contesta ya («Ahora no»)
+      if (o.alCerrar) queueMicrotask(() => { try { o.alCerrar(); } catch (e) { /* */ } });
+      return D.createElement('div');
+    }
+    if (o.permanente) capas.querySelectorAll('[data-permanente]').forEach(x => x.remove());   // un aviso permanente a la vez: el último
     cerrarHojas(true);
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
     const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);

@@ -308,7 +308,7 @@
     }
     async function olvidar() { await A.olvidar(); st.cursor = 0; st.epoca = null; }
     async function bajarTodo(ordenMin, t0, yaOlvidada, tope = TIEMPOS.primera, traer = false, quieto = false) {
-      if (!quieto) fase('bajando');   // the phone's look every 45 s doesn't blink «Bajando…» (D-268)
+      if (!quieto) fase('bajando');   // the phone's look every 10 s doesn't blink «Bajando…» (D-268)
       let desde = st.cursor, primera = true, otraEpoca = !!yaOlvidada, nuevos = 0, sig = null, hechos = 0;
       const avance = () => { try { if (E.avance) E.avance(hechos, st.total || 0); } catch (e) { /* la pantalla de carga no para la bajada */ } };
       avance();
@@ -1097,9 +1097,10 @@
     pulso = setInterval(() => { if (N && (!X().locked || MOVIL_G)) N.tic().catch(() => { /* lo dice su estado */ }); }, 1000);   // the phone is «locked» while it looks: its pulse goes on (D-268)
   }
   // M.boot lo llama antes de leer nada (mesa.js, nubeAbrir): primero bajar, después dibujar
-  // the phone (D-268): open looking; then look at once (the face already drew what it has), every 45 s with the screen in front,
+  // the phone (D-268): open looking; then look at once (the face already drew what it has), every 10 s with the screen in front (D-271),
   // on coming back and with the network back; going away with the Mesa, let it go. Never traerResto nor verificarOriginales: each
   // thing comes down when it is seen, and the phone never keeps an original to check.
+  const MIRAR_MS = 10000;   // a change from the desk shows up on the phone without leaving the app (D-271, point 5); never in the background
   let mirarT = 0, DORMIDA = false, OYENDO = false;
   const mirarYa = () => { if (N && !DORMIDA && D.visibilityState === 'visible') N.mirar().then(r => { if (r && r.traido) lsS(TRAER, null); }, () => { /* its state says it */ }); };
   const soltarYa = () => { if (N && !DORMIDA) N.pedirIrse().catch(() => { /* the next time */ }); };
@@ -1113,7 +1114,7 @@
     if (traer && r.traido) lsS(TRAER, null);
     if (r.modo === 'vieja') { const f = X().movil.alVersion; if (f) f(); }
     arrancarPulso();
-    clearInterval(mirarT); mirarT = setInterval(mirarYa, 45000);
+    clearInterval(mirarT); mirarT = setInterval(mirarYa, MIRAR_MS);
     if (!OYENDO) { OYENDO = true; on(D, 'visibilitychange', () => { if (D.visibilityState === 'visible') mirarYa(); else soltarYa(); }); on(G, 'pageshow', mirarYa); on(G, 'online', mirarYa); on(G, 'pagehide', soltarYa); }
     if (!r.traido && r.modo === 'mirando') setTimeout(mirarYa, 0);
     AVS = await nucleo().avisos().catch(() => []);
@@ -1690,7 +1691,7 @@
     _estado: e => { ESTADO = { cola: 0, sinSubir: 0, ...e }; estilar(); pintar(); },
     _releerAvisos: async () => { AVS = await X().nubeAlmacen.avisos().catch(() => []); estilar(); return AVS.length; },
     _con: (servidor, almacenamiento) => { N = null; ALM_TEST = almacenamiento || null; const c = { rpc: servidor.rpc }; N = G.NubeNucleo.crear({ servidor: c, almacen: X().nubeAlmacen, reloj: { ahora: () => Date.now(), esperar: ms => new Promise(r => setTimeout(r, ms)) }, dispositivo: DISP0(), app: M.version, archivo: archivoHook, movil: MOVIL_G, efectos: (MOVIL_G ? efectosMovil : x => x)({ pausar, recargar: () => { N._recargas = (N._recargas || 0) + 1; }, estado: e => { ESTADO = e; pintar(); } }) }); X().NUBE.alApuntar = () => N.cambio(); return N; },
-    _soltar: () => { clearInterval(pulso); FOTOS_ARCH.clear(); unaFoto = Promise.resolve(); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
+    _soltar: () => { clearInterval(pulso); clearInterval(mirarT); FOTOS_ARCH.clear(); unaFoto = Promise.resolve(); N = null; ALM_TEST = null; X().NUBE.alApuntar = null; ESTADO = { fase: 'apagada' }; COLA.clear(); FALLOS.clear(); HU.clear(); SUBIDOS.clear(); REG = null; pintar(); },
     _off: () => { OFF.splice(0).forEach(f => f()); clearInterval(pulso); }
   };
   if (X().NUBE.activa) { sb().alCambiar(u => { const n = sb().nivel && sb().nivel(); if (u && N && (ESTADO.fase === 'sin_sesion' || (ESTADO.fase === 'sin_codigo' && n && n.aal === 'aal2'))) N.reintentar(); }); if (!MOVIL_G) trasArmazon(() => pintar()); }

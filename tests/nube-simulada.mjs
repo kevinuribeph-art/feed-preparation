@@ -1406,6 +1406,16 @@ await grupo('NS24 «Esperar más» espera los 20 s aunque el otro calle', async 
 });
 
 
+await grupo('NS35 dos miradas a la vez son una (mirar cada 10 s, D-271 punto 5; vigila)', async () => {
+  const { W, A, sv } = await conTurno();
+  const M1 = W.nodo(DM, { movil: true }); await W.abrir(M1);
+  A.alm.escribirLocal('boards', 'b35', { n: 35 }); await W.hasta(async () => sv.vivo('boards', 'b35'), { tics: [A], max: 30 });
+  const b0 = M1.cli.llamadas.filter(l => l.fn === 'mesa_bajar').length, r0 = (M1.efectos.releidos || []).length;
+  const r = await W.correr(() => Promise.all([M1.n.mirar(), M1.n.mirar()]), { tics: [A], max: 20 });
+  const nb = M1.cli.llamadas.filter(l => l.fn === 'mesa_bajar').length - b0;
+  ok(r.valor && r.valor[0] && r.valor[0].nuevos >= 1 && M1.alm.ver('boards', 'b35') && nb === 1 && (M1.efectos.releidos || []).length - r0 === 1 && !reclamos(M1).length, 'NS35.1 dos miradas a la vez bajan una vez y releen una vez, sin coger la Mesa', { nb, releidos: (M1.efectos.releidos || []).length - r0, ll: resumen(M1) });
+});
+
 console.log('NS0 al final');
 ok(usoDate === 0 && usoTemporizador === 0, 'NS0.5 el núcleo no usa Date, setTimeout ni setInterval (todo con el reloj que recibe)', { usoDate, usoTemporizador });
 terminado = true;

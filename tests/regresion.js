@@ -19635,6 +19635,43 @@
     });
   });
 
+  prueba('MV48', 'Mirar cada 10 s con la pantalla delante (D-271, punto 5; lección 225): tras abrir la nube del iPhone, la mirada de abrir y otra antes de 10,6 s; con la app en segundo plano, ninguna', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const sv = srvMovil(key), n = M.nube._con({ rpc: (fn, a) => sv.rpc(fn, a) });
+      let k = 0; const m0 = n.mirar; n.mirar = function (...a) { k++; return m0.apply(n, a); };
+      M._in.NUBE.activa = true; await M._in.diario.vaciar();
+      try {
+        const r = await M.nube._abrir(); igual(r && r.modo, 'mirando', 'la nube del iPhone no abrió mirando');
+        await espera(10600);
+        ok(k >= 2, 'en 10,6 s, ' + k + ' miradas (la de abrir y otra a los 10 s)');
+        Object.defineProperty(W.document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        const k1 = k; await espera(10600);
+        igual(k, k1, 'en segundo plano miró');
+      } finally { delete W.document.visibilityState; await nbLimpiar(); }
+    });
+  });
+
+  prueba('MV54', 'Releer lo bajado no rehace la pantalla del iPhone (D-271, punto 5): con mirar cada 10 s, una bajada que no cambia la publicación no la vuelve a dibujar (el carrusel sigue en su foto y sus imágenes son las mismas); una que la cambia, la redibuja en la misma foto del carrusel', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      aLaVista(); await irMovil(`#pub/${key}/r2`, '#movil .car .lam img.mi');
+      const tira = () => W.document.querySelector('#movil [data-car]');
+      await hasta(() => tira() && tira().scrollWidth > tira().clientWidth, 4000, 'el carrusel');
+      tira().scrollLeft = tira().clientWidth; await espera(300);
+      const t0 = tira(), img0 = W.document.querySelector('#movil .car .lam img.mi');
+      await M.movil.releer(); await espera(300);
+      ok(tira() === t0 && img0.isConnected, 'releer sin cambios volvió a dibujar la publicación');
+      igual(Math.round(tira().scrollLeft / tira().clientWidth), 1, 'el carrusel volvió a la primera foto');
+      // la publicación cambia por debajo (como al bajar de la nube): se redibuja, en la misma foto
+      const B = await M._in.idbGet('boards', key); B.slots.find(x => x.id === 'r2').name = 'Carrusel de otoño con nombre cambiado en la Mesa';
+      await M._in.diario.sinDiario('boards', 'readwrite', st => st.put(B, key)); await M._in.diario.vaciar();
+      await M._in.movil.releer(); await M.movil.releer(); await espera(300);
+      await hasta(() => /nombre cambiado en la Mesa/.test(W.document.querySelector('#movil .pub-h h1').textContent), 4000, 'el nombre nuevo');
+      igual(Math.round(tira().scrollLeft / tira().clientWidth), 1, 'tras redibujar, el carrusel volvió a la primera foto');
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

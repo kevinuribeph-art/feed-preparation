@@ -996,11 +996,16 @@
     if (r.p === 'ret') { if (C.pantRetocar) return dibujar(C.pantRetocar()); }
     dibujar((PANT[r.p] || pantHoy)());
   }
+  // lo mismo que ya se ve no se toca (las fotos, el carrusel y su inercia siguen); otro dibujo de la misma pantalla conserva la foto
+  // del carrusel en la que estaba (D-271, punto 5)
+  let ULT = '', ULT_H = '';
   function dibujar(html) {
-    const y = W.scrollY;
-    raiz.innerHTML = html; raiz.appendChild(capas);
-    vigilarFotos(raiz); carrusel(); W.scrollTo(0, y);
     PEND_PINTAR = false;
+    if (html === ULT && location.hash === ULT_H && raiz.firstChild) return;
+    const y = W.scrollY, t0 = location.hash === ULT_H && raiz.querySelector('[data-car]'), x0 = t0 ? t0.scrollLeft : 0;
+    raiz.innerHTML = html; raiz.appendChild(capas); ULT = html; ULT_H = location.hash;
+    vigilarFotos(raiz); carrusel(); W.scrollTo(0, y);
+    const t1 = x0 && raiz.querySelector('[data-car]'); if (t1) t1.scrollLeft = x0;
   }
   // el carrusel: deslizar con el dedo (desplazamiento nativo con imán, la inercia del iPhone), el contador y los puntos al día
   function carrusel() {
@@ -1010,14 +1015,17 @@
     t.addEventListener('scroll', () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; const i = Math.round(t.scrollLeft / Math.max(1, t.clientWidth)); if (cnt) cnt.textContent = `${i + 1} / ${n}`; pts.forEach((p, k) => p.classList.toggle('on', k === i)); }); }, { passive: true });
   }
   // releer lo bajado (la nube avisa: «releido»): lo de la pantalla se vuelve a leer, sin parpadear ni pisar un campo en uso
+  // (D-271, punto 5: con mirar cada 10 s pasa a menudo) lo de la pantalla se lee antes de cambiarlo (nunca «Leyendo…» entre medias);
+  // lo que no se ve se lee al volver
   async function releer() {
-    L.hoy = null; L.clientes = null; L.tareas = null; L.error = {};
     const r = RUTA;
     try {
-      if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes(); else if (r.p === 'tareas') await leerTareas();
-      else if (L.vista) { L.vista = MV().vista() && MV().vista().key === r.a ? MV().vista() : L.vista; leerConv(L.vista.key); }
+      if (r.p === 'hoy') await leerHoy(); else if (r.p === 'clientes') await leerClientes();
+      else if (L.vista && r.p !== 'tareas') { L.vista = MV().vista() && MV().vista().key === r.a ? MV().vista() : L.vista; leerConv(L.vista.key); }
       await leerTareas();
     } catch (e) { /* cada lectura dice lo suyo */ }
+    if (r.p !== 'hoy') { L.hoy = null; L.error.hoy = ''; }
+    if (r.p !== 'clientes') { L.clientes = null; L.error.clientes = ''; }
     pintarSiQuieto();
   }
 

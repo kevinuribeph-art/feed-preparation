@@ -18960,6 +18960,213 @@
     });
   });
 
+
+  // la cara cambia (lote 4, D-267, D-268, D-270): su nube contra el servidor simulado (srvMovil), con la Mesa en el Mac
+  async function nubeCara(key, o = {}) {
+    const sv = srvMovil(key), corte = { red: true };
+    const srv = { rpc: async (fn, a) => { if (!corte.red) throw new TypeError('Failed to fetch'); return sv.rpc(fn, a); } };
+    const cero = () => M._in.diario.sinDiario(M._in.xfer.NO_VIAJAN[1], 'readwrite', st => st.clear());   // lo que la nube sabe de otra prueba (cursor, versiones) no vale aquí: cada servidor simulado empieza de cero
+    M._in.NUBE.activa = true; await M._in.diario.vaciar(); await cero();
+    const n = M.nube._con(srv), r = await n.abrir();
+    igual(r.modo, 'mirando', 'la nube de la cara no abrió mirando');
+    sv.cederAlPedir(o.ceder !== false);
+    await hasta(() => M.movil._ST.fase === 'mirando', 4000, 'la cara mirando');
+    return { sv, n, corte, fin: async (guardarCola = false) => { try { M.nube._soltar(); } catch (e) { /* */ } M._in.NUBE.activa = false; await cero().catch(() => null); if (!guardarCola) { try { W.localStorage.removeItem('mesa-movil-ops'); } catch (e) { /* */ } } } };
+  }
+  const avisoCara = () => { const t = W.document.querySelector('#movil .toast.on'); return t ? t.textContent : ''; };
+  const sinAviso = () => { const t = W.document.querySelector('#movil .toast'); if (t) { t.classList.remove('on'); t.textContent = ''; } };
+  const clicCara = sel => { const b = W.document.querySelector(sel); ok(b, 'falta ' + sel); b.click(); return b; };
+  const hojaCara = async (sel, que) => { await hasta(() => W.document.querySelector('#movil .hoja ' + sel), 4000, que); await espera(60); return W.document.querySelector('#movil .hoja'); };
+  const tareaDe = async txt => (await M._in.idbAll('tareas')).filter(t => t.txt === txt);
+
+  prueba('MV23', 'Guardar desde el móvil (D-268, D-270): la fecha se elige en el calendario de la Mesa; «Guardar» enseña «Guardando en la Mesa», coge la Mesa (el Mac sube y la suelta), aplica la operación y la suelta; un doble toque guarda una vez', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+        const g = W.document.querySelector('#movil .hoja [data-a2="guardar"]'); g.click(); g.click();   // el doble toque
+        ok(W.document.querySelector('#movil .hoja .prog'), 'sin «Guardando en la Mesa»');
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
+        const d = (await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date;
+        igual([M._in.localDay(d), M._in.localTime(d)], ['2026-11-10', '12:00'], 'la fecha guardada');
+        const arriba = C.sv.reg.get('boards|' + key);
+        ok(arriba && M._in.localDay(arriba.valor.slots.find(s => s.id === 'r1').date) === '2026-11-10', 'la fecha no subió');
+        igual(C.sv.llamadas.filter(f => f === 'mesa_turno_reclamar').length, 1, 'el doble toque guardó dos veces');
+        ok(!C.sv.mac() && !M.nube.conTurno() && M._in.locked && !W.localStorage.getItem('mesa-movil-ops'), 'no soltó la Mesa o quedó la operación en la cola');
+        ok(/10 nov/i.test(W.document.querySelector('#movil [data-a="fecha"]').textContent), 'la pantalla no enseña la fecha nueva');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV24', 'Un choque (D-267, R3): si la fecha cambió en otro aparato mientras Kevin la elegía, el móvil enseña los dos valores; «Dejar lo de la Mesa» no escribe y «Usar lo mío» sí', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        for (const [resp, mac, queda] of [['mesa', '2026-11-07', '2026-11-07'], ['mio', '2026-11-08', '2026-11-10']]) {
+          sinAviso();
+          await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+          clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+          const rec = await M._in.idbGet('boards', key); rec.slots.find(s => s.id === 'r1').date = `${mac}T12:00:00.000+01:00`; C.sv.escribirMac('boards', key, rec);   // el Mac, entretanto
+          clicCara('#movil .hoja [data-dia="2026-11-10"]'); await espera(60);
+          clicCara('#movil .hoja [data-a2="guardar"]');
+          const h = await hojaCara('[data-r="mio"]', 'la hoja del choque').catch(e => { throw new Error(e.message + ' · ronda ' + resp + ' · aviso «' + avisoCara() + '» · hoja «' + ((W.document.querySelector('#movil .hoja') || {}).innerText || '') + '» · ' + C.sv.llamadas.slice(-10).join(',') + ' · ' + (W.localStorage.getItem('mesa-movil-ops') || '')); });
+          ok(/Lo tuyo/.test(h.innerText) && /En la Mesa/.test(h.innerText) && /10 nov/i.test(h.innerText) && new RegExp(+mac.slice(8) + ' nov', 'i').test(h.innerText), 'el choque no enseña los dos valores: ' + h.innerText);
+          clicCara(`#movil .hoja [data-r="${resp}"]`);
+          await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado» tras el choque');
+          igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date), queda, `«${resp}» dejó otra fecha`);
+          igual(M._in.localDay(C.sv.reg.get('boards|' + key).valor.slots.find(s => s.id === 'r1').date), queda, `arriba, «${resp}» dejó otra fecha`);
+        }
+        ok(!M.nube.conTurno() && !W.localStorage.getItem('mesa-movil-ops'), 'la Mesa no se soltó o quedó la operación');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV25', 'Sin conexión al guardar, el cambio espera en «sin subir» y sobrevive a que iOS cierre la app (D-268, R4): la hoja lo enseña con «Subir encima» y «Descartar»; subirlo lo aplica', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      let C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('.selcal', 'la hoja de la fecha');
+        clicCara('#movil .hoja [data-dia="2026-11-12"]'); await espera(60);
+        C.corte.red = false;
+        clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => /sin subir/.test(avisoCara()), 15000, 'el aviso sin conexión');
+        igual(JSON.parse(W.localStorage.getItem('mesa-movil-ops') || '[]').length, 1, 'la operación no quedó apuntada');
+        ok(/1 sin subir/.test(W.document.getElementById('movil').innerText), 'la cara no dice «1 sin subir»');
+        await C.fin(true);
+        await aMarco('../movil.html', () => W.MESA && W.MESA.movil && W.document.getElementById('movil') && !W.document.getElementById('movil').hidden, 'la cara otra vez');   // iOS cerró la app
+        C = await nubeCara(key);
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        await hasta(() => /1 sin subir/.test(W.document.getElementById('movil').innerText), 4000, '«1 sin subir» al volver');
+        clicCara('#movil [data-a="sinsubir"]');
+        const h = await hojaCara('[data-sub]', 'la hoja «Sin subir»');
+        ok(/Fecha y hora/.test(h.innerText) && /12 nov/i.test(h.innerText) && h.querySelector('[data-des]'), 'la hoja no dice qué quedó: ' + h.innerText);
+        clicCara('#movil .hoja [data-sub]');
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado» tras subir encima');
+        igual(M._in.localDay((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date), '2026-11-12', 'subir encima no la aplicó');
+        ok(!W.localStorage.getItem('mesa-movil-ops') && !/sin subir/.test(W.document.getElementById('movil').innerText), 'la cola no se vació');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV26', 'Elegir y retocar un caption (D-267): «Elegir esta» lo elige con lo visto (su tanda); lo escrito es un borrador a cada tecla y sobrevive a salir y volver; cuenta hasta 2.200; «Listo» lo guarda en la Mesa y borra el borrador', async () => {
+    const key = await tableroMovil(), K = `mesa-movil-borrador:${key}|r2|0`;
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#cap/${key}/r2`, '#movil [data-a="elegir"][data-k="0"]');   // elegir el 1 (lo visto: su tanda y el elegido)
+        clicCara('#movil [data-a="elegir"][data-k="0"]');
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado» al elegir');
+        igual((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2').caption.pick, 0, 'el caption elegido');
+        await hasta(() => W.document.querySelector(`#movil [data-ir="ret/${key}/r2/0"]`), 4000, '«Retocar» del elegido'); sinAviso();
+        clicCara(`#movil [data-ir="ret/${key}/r2/0"]`); await hasta(() => W.document.querySelector('#movil [data-ret]'), 4000, 'la pantalla de retocar');
+        const t = W.document.querySelector('#movil [data-ret]'), txt = ('Retocado desde el iPhone, con su tono de siempre. ' + 'a'.repeat(2200)).slice(0, 2200);
+        t.value = txt; t.dispatchEvent(new W.Event('input', { bubbles: true }));
+        igual(W.localStorage.getItem(K), txt, 'el borrador no se guardó');
+        ok(/2\.200 \/ 2\.200/.test(W.document.querySelector('#movil [data-cuenta]').textContent), 'la cuenta: ' + W.document.querySelector('#movil [data-cuenta]').textContent);
+        t.blur(); await irMovil('#hoy', '#movil .cifras'); await irMovil(`#ret/${key}/r2/0`, '#movil [data-ret]');
+        igual(W.document.querySelector('#movil [data-ret]').value, txt, 'el borrador no volvió');
+        ok(/borrador sin guardar/.test(W.document.getElementById('movil').innerText), 'no dice que es un borrador');
+        clicCara('#movil [data-a="listo"]');
+        await hasta(() => !W.localStorage.getItem(K) && /Guardado/.test(avisoCara()), 15000, 'guardar el caption');
+        igual((await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2').caption.text[0], txt, 'el caption retocado');
+      } finally { W.localStorage.removeItem(K); await C.fin(); }
+    });
+  });
+
+  prueba('MV27', 'Las ruedas de la hora (D-270): son spinbutton con su valor; una hora que no es de 5 en 5 (19:37) se conserva; la flecha mueve la hora; «Sin hora» y «Poner hora»', async () => {
+    const key = await tableroMovil();
+    M._test.setSlot('r1', { date: '2026-11-03T19:37:00.000+01:00' }); await M.flush();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r1`, '#movil [data-a="fecha"]');
+        clicCara('#movil [data-a="fecha"]'); await hojaCara('[data-rueda="m"]', 'las ruedas'); await espera(200);
+        const h = W.document.querySelector('#movil .hoja [data-rueda="h"]'), m = W.document.querySelector('#movil .hoja [data-rueda="m"]');
+        igual([h.getAttribute('role'), h.getAttribute('aria-valuenow'), m.getAttribute('aria-valuetext')], ['spinbutton', '19', '37'], 'las ruedas no dicen 19:37');
+        clicCara('#movil .hoja [data-a2="sinhora"]'); await hojaCara('[data-a2="ponhora"]', '«Poner hora»');
+        ok(!W.document.querySelector('#movil .hoja [data-rueda]'), '«Sin hora» deja las ruedas');
+        clicCara('#movil .hoja [data-a2="ponhora"]'); await hojaCara('[data-rueda="h"]', 'las ruedas otra vez'); await espera(200);
+        W.document.querySelector('#movil .hoja [data-rueda="h"]').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+        await hasta(() => W.document.querySelector('#movil .hoja [data-rueda="h"]').getAttribute('aria-valuenow') === '20', 3000, 'la flecha a las 20'); await espera(400);
+        clicCara('#movil .hoja [data-dia="2026-11-12"]'); await espera(120);
+        clicCara('#movil .hoja [data-a2="guardar"]');
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
+        const d = (await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r1').date;
+        igual([M._in.localDay(d), M._in.localTime(d)], ['2026-11-12', '20:37'], 'la hora guardada');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV28', 'Tareas desde el móvil (D-267): una tarea nueva con Intro se crea una vez aunque se pulse dos; una nota; marcarla hecha; cada cambio coge y suelta la Mesa', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const TXT = 'Llamar a la imprenta por las tarjetas de la sesión de diciembre', NOTA = 'La clienta prefiere tonos cálidos en las portadas de enero';
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil('#tareas', '#movil [data-nueva]');
+        const escribe = t => { const i = W.document.querySelector('#movil [data-nueva]'); i.value = t; i.dispatchEvent(new W.Event('input', { bubbles: true })); return i; };
+        const i = escribe(TXT), intro = () => i.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        intro(); intro();
+        await hasta(async () => (await tareaDe(TXT)).length && !M.nube.conTurno() && /Guardado/.test(avisoCara()), 15000, 'la tarea nueva');
+        igual((await tareaDe(TXT)).length, 1, 'la tarea se creó dos veces');
+        sinAviso(); escribe(NOTA); clicCara('#movil [data-a="nnota"]');
+        await hasta(async () => (await tareaDe(NOTA)).some(t => t.tipo === 'nota') && /Guardado/.test(avisoCara()), 15000, 'la nota');
+        const id = (await tareaDe(TXT))[0].id;
+        await hasta(() => W.document.querySelector(`#movil [data-a="hecha"][data-id="${id}"]`), 4000, 'la casilla de la tarea');
+        sinAviso(); clicCara(`#movil [data-a="hecha"][data-id="${id}"]`);
+        await hasta(async () => !!(await tareaDe(TXT))[0].hecha && /Guardado/.test(avisoCara()), 15000, 'marcarla hecha');
+        ok(!M.nube.conTurno() && C.sv.llamadas.filter(f => f === 'mesa_turno_soltar').length >= 3, 'no soltó la Mesa tras cada cambio');
+      } finally { await C.fin(); }
+    });
+    await sinTareas();
+  });
+
+  prueba('MV29', 'El estado desde el móvil (D-267, D-082): los que no se pueden dicen por qué; «Cancelado» pide su motivo (opcional) y lo guarda', async () => {
+    const key = await tableroMovil();
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key);
+      try {
+        await irMovil(`#pub/${key}/r2`, '#movil [data-a="estado"]');
+        clicCara('#movil [data-a="estado"]'); const h = await hojaCara('.estado-op', 'la hoja del estado');
+        const no = [...h.querySelectorAll('.estado-op:disabled')];
+        ok(no.every(b => (b.querySelector('.porque') || {}).textContent), 'un estado que no se puede sin su porqué');
+        clicCara('#movil .hoja .estado-op[data-v="cancelado"]');
+        const mot = W.document.querySelector('#movil .hoja [data-mot]'); ok(mot && !mot.closest('[hidden]'), 'sin el motivo');
+        mot.value = 'El cliente cambió la campaña de diciembre'; 
+        clicCara('#movil .hoja [data-a2="cancelarpub"]');
+        await hasta(() => /Guardado/.test(avisoCara()), 15000, '«Guardado»');
+        const e = (await M._in.idbGet('boards', key)).slots.find(s => s.id === 'r2').estado;
+        igual([e && e.v, e && e.motivo], ['cancelado', 'El cliente cambió la campaña de diciembre'], 'el estado guardado');
+      } finally { await C.fin(); }
+    });
+  });
+
+  prueba('MV30', 'Contestar al cliente desde el móvil (D-244, R2): el borrador sobrevive; «Enviar» va a su web sin coger la Mesa ni escribir en el tablero; el borrador se borra', async () => {
+    const key = await tableroMovil(), K = 'mesa-movil-resp:p-mv30';
+    await enMovilPagina(async () => {
+      const C = await nubeCara(key), env = [];
+      const conv = () => ({ porSlot: { r2: { pid: 'p-mv30', version: 1, decision: null, sinLeer: 1, ultima: '2026-11-02T10:00:00Z', puedeEscribir: true,
+        items: [{ id: 'c1', de: 'cliente', autor: 'Ana', hora: '2026-11-02T10:00:00Z', texto: '¿Podéis cambiar la segunda foto?', diapositiva: 2, vieja: false, resuelto: false, pidioCambios: false }].concat(env.map((t, i) => ({ id: 'y' + i, de: 'tu', autor: 'Kevin', hora: '2026-11-02T11:00:00Z', texto: t }))) } } });
+      M.web.conversacion = async () => conv(); M.web.leido = () => {}; M.web.contestar = async (B, slot, t) => { env.push(t); return { ok: true }; };
+      try {
+        await irMovil(`#pub/${key}/r2`, '#movil [data-resp]');
+        const t = W.document.querySelector('#movil [data-resp]'); t.value = 'Sí, mañana te paso otra opción'; t.dispatchEvent(new W.Event('input', { bubbles: true }));
+        igual(W.localStorage.getItem(K), 'Sí, mañana te paso otra opción', 'el borrador de la respuesta');
+        const esc = contarEscrituras(), n0 = C.sv.llamadas.length;
+        clicCara('#movil [data-a="contestar"]');
+        await hasta(() => env.length && !W.localStorage.getItem(K), 6000, 'enviar');
+        igual(env, ['Sí, mañana te paso otra opción'], 'lo enviado');
+        ok(!C.sv.llamadas.slice(n0).some(f => /turno_(pedir|reclamar)/.test(f)) && !esc.de.some(w => / boards$/.test(w)), 'contestar cogió la Mesa o escribió el tablero: ' + esc.de.join(', '));
+      } finally { W.localStorage.removeItem(K); await C.fin(); }
+    });
+  });
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

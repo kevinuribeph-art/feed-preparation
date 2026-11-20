@@ -496,6 +496,22 @@
 #movil .ver .vpie{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:16px 16px calc(var(--sa-b) + 16px);color:#fff;font-size:14px;background:linear-gradient(transparent,rgba(0,0,0,.55))}
 #movil .lugar{min-height:40vh;display:grid;place-items:center;color:var(--mute);font-size:15px}
 #movil .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#movil .rueda{height:170px;width:84px;overflow:hidden;position:relative;outline:none}
+#movil .rueda:focus-visible{box-shadow:0 0 0 2px var(--focus);border-radius:10px}
+#movil .rueda-in{height:100%;overflow-y:auto;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:69px 0;overscroll-behavior:contain}
+#movil .rueda-in::-webkit-scrollbar{display:none}
+#movil .rueda-in span{height:32px;display:grid;place-items:center;font-size:21px;font-weight:500;color:var(--ink);scroll-snap-align:center;opacity:calc(1 - var(--d,0) * .32);transform:scale(calc(1 - var(--d,0) * .08));font-variant-numeric:tabular-nums}
+#movil .rueda-in span.sel{font-weight:800;font-size:23px}
+#movil .ruedas .banda{pointer-events:none}
+#movil .sd{touch-action:manipulation;position:relative}
+#movil .sd::after{content:'';position:absolute;inset:-2px}
+#movil .sd:disabled{color:var(--line-strong);cursor:default}
+#movil .sd.otro{visibility:hidden}
+#movil .sd.hoyd:not(.sel){box-shadow:inset 0 0 0 1.5px var(--line-strong)}
+#movil .selcal-pie{display:flex;justify-content:space-between;padding:4px 6px 0}
+#movil .estado-op .av{flex:none}
+#movil .cuenta .sobra{color:var(--red);font-weight:600}
+#movil .estado-op.on .es{font-weight:600}
 @media (prefers-reduced-motion:reduce){#movil .hoja,#movil .velo,#movil .toast,#movil .mi,#movil .puntos i,#movil .campo .chev{transition:opacity .2s linear}#movil .hoja{transform:none;opacity:0}#movil .hoja.on{opacity:1}#movil .gira{animation:none}}
 @media (orientation:landscape) and (max-height:500px){#movil .car .lam{max-height:70vh}#movil .hoja{max-height:calc(100dvh - 8px)}}
 `;
@@ -511,8 +527,9 @@
   const ST = { fase: 'apagada', vistoA: null, guardado: 0, sinSubir: 0, opsN: 0, red: navigator.onLine !== false };
   const sinRed = () => !ST.red || ST.fase === 'sin_conexion';
   function chip() {
-    const e = ST, q = e.sinSubir + e.opsN, cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
+    const e = ST, q = e.sinSubir + (e.guardando ? 0 : e.opsN), cola = q ? ` <span class="q">· ${q} sin subir</span>` : '', h = e.vistoA ? horaDe(e.vistoA) : '';
     const b = (k, ico, t, a, lbl) => `<button type="button" class="nube${k ? ' ' + k : ''}" data-a="${a || (q ? 'sinsubir' : 'nube')}" aria-label="${esc(lbl || t.replace(/<[^>]+>/g, '') + (q ? `, ${q} sin subir` : ''))}">${ic(ico)}<span class="num">${t}</span>${cola}</button>`;
+    if (e.guardando) return b('', 'nube', 'Guardando…');   // la operación en vuelo no es «sin subir» (lote 4)
     if (Date.now() - e.guardado < 4000) return b('ok', 'nubeok', 'Guardado');
     switch (e.fase) {
       case 'guardado': case 'subiendo': case 'esperando': return b('', 'nube', 'Guardando…');
@@ -957,6 +974,7 @@
 
   // ---------- hojas (abajo), avisos y lo que se abre en el Mac ----------
   // una hoja se cierra con «Cancelar», tocando el velo o arrastrando el asa hacia abajo; «Guardar» queda fijo abajo en un iPhone pequeño
+  // (los oyentes de cada hoja no hacen nada si ya se cerró: el segundo toque de un doble toque no cierra la hoja siguiente)
   function hoja(html, o = {}) {
     cerrarHojas(true);
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija ? '' : 'cerrarhoja';
@@ -1084,7 +1102,305 @@
   }
   M.movil = { version: VERSION, pintar, releer, ir, _L: L, _ST: ST, _C: C };
 
-  // ===== lote 4: cambiar =====
+  // ===== lote 4: cambiar (D-267, D-268, D-270) =====
+  // Cada cambio es una operación {key, slot, campo, valor, visto}: se apunta (localStorage, sobrevive a que iOS cierre la app), se
+  // coge la Mesa (el Mac sube lo suyo y la suelta), el núcleo la aplica comparando con lo que se vio y se suelta la Mesa en cuanto ha
+  // subido. Un doble toque en «Guardar» guarda una vez. Nada de esto corre solo: solo al tocarlo.
+  const K_OPS = 'mesa-movil-ops';
+  const opsLeer = () => { try { const l = JSON.parse(lsG(K_OPS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+  const opsGuardar = l => { lsS(K_OPS, l.length ? JSON.stringify(l) : null); ST.opsN = l.length; pintarChip(); };
+  const opsQuitar = id => opsGuardar(opsLeer().filter(o => o.id !== id));
+  ST.opsN = opsLeer().length;
+  const nuevoOp = () => 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const miles = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');   // 2.200 como en la v3 (es-ES no agrupa 4 cifras)
+  const corto2 = id => (M.nube && M.nube.nombreDe ? M.nube.nombreDe(id) : 'otro aparato').replace(/ \([0-9a-f]{4}\)$/, '');
+  let GUARDANDO = null;
+  // lo que dice una operación, para la hoja del choque y la de «sin subir»
+  function opTexto(op, v) {
+    if (op.campo === 'fecha') { const iso = v && typeof v === 'object' ? (v.hora ? X().madridISO(v.dia, v.hora) : v.dia) : v; return iso ? campoFecha({ dia: X().localDay(iso), hora: X().dOnly(iso) ? '' : X().localTime(iso) }) : 'Sin fecha'; }
+    if (op.campo === 'estado') { const k = v && v.v; return k ? (X().ESTADOS.find(x => x[0] === k) || [k, k])[1] + (v.motivo ? ' · ' + v.motivo : '') : 'Según sus datos'; }
+    if (op.campo === 'capElegir') return v == null ? 'Sin elegir' : typeof v === 'object' ? (v.pick == null ? 'Sin elegir' : `Caption ${v.pick + 1}`) : `Caption ${v + 1}`;
+    if (op.campo === 'capTexto') { const t = v && typeof v === 'object' ? v.texto : v; return String(t || '').slice(0, 140) + (String(t || '').length > 140 ? '…' : ''); }
+    if (op.campo === 'tarea') return v && v.hecha ? 'Hecha' : 'Sin hacer';
+    if (op.campo === 'tareaNueva') return (v && v.tipo === 'nota' ? 'Nota: ' : 'Tarea: ') + ((v && v.txt) || '');
+    return '';
+  }
+  const opQue = op => ({ fecha: 'Fecha y hora', estado: 'Estado', capElegir: 'Caption elegido', capTexto: 'Caption retocado', tarea: 'Tarea', tareaNueva: 'Nueva' })[op.campo] || op.campo;
+  // la hoja «Guardando en la Mesa»: sus pasos, al día
+  function hojaGuardando(quien) {
+    const pasos = [quien ? `${quien} sube lo suyo` : null, 'La Mesa pasa a este iPhone', 'Se guarda tu cambio', `La Mesa queda libre${quien ? ' para ' + quien : ''}`].filter(Boolean);
+    const h = hoja(`<h2>Guardando en la Mesa</h2><p class="ex">${quien ? `${esc(quien)} la tiene abierta: queda en pausa mientras cambias desde aquí.` : 'Está libre: se guarda al momento.'}</p><div class="prog" role="list">${pasos.map((t, i) => `<div class="paso" role="listitem" data-p="${i}"><span class="ic">${ic(['mac', 'movil', 'movil', 'mac'][quien ? i : i + 1])}</span><span class="t">${esc(t)}</span><span class="s num"></span></div>`).join('')}</div>`, { fija: true, etiqueta: 'Guardando en la Mesa' });
+    const t0 = Date.now(), base = quien ? 0 : -1;
+    return { paso: n => { const i = n + base + 1; h.querySelectorAll('.paso').forEach((p, j) => { p.classList.toggle('hecho', j < i); p.classList.toggle('ahora', j === i); const ico = p.querySelector('.ic'); if (j < i) ico.innerHTML = ic('check', 2.5); else if (j === i) { ico.innerHTML = ic('gira', 2.25); ico.classList.add('gira'); } if (j < i) ico.classList.remove('gira'); }); const s = h.querySelector(`.paso[data-p="${i - 1}"] .s`); if (s && !s.textContent) s.textContent = Math.max(1, Math.round((Date.now() - t0) / 1000)) + ' s'; }, h };
+  }
+  // «<aparato> no contesta»: esperar más, usarla aquí o dejarlo (D-254, D-268)
+  function hojaNoContesta(e) {
+    return new Promise(res => {
+      const quien = corto2(e.dispositivo), h = e.latido ? X().localTime(e.latido) : '', n = +e.cola || 0;
+      const el = hoja(`<h2>${esc(quien)} no contesta</h2><p class="ex">${h ? `Está dormido o cerrado desde las ${esc(h)}. ` : ''}${n ? `Tenía ${esc(plural(n, 'cambio', 'cambios'))} sin subir: se quedan allí, en «quedó sin subir».` : 'No tenía cambios sin subir.'}</p><div class="llave" style="margin:0">${ic('mac')}<span>Al volver a abrirla en ${esc(quien)}, verá lo que cambies aquí.</span></div><div class="botones"><button type="button" class="btn sua" data-r="esperar">Esperar</button><button type="button" class="btn pri" data-r="forzar" data-foco>Usarla aquí</button></div><div class="botones" style="grid-template-columns:1fr;margin-top:8px"><button type="button" class="btn sua" data-r="no">Ahora no</button></div>`, { fija: true, etiqueta: quien + ' no contesta' });
+      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
+    });
+  }
+  // el choque: el Mac cambió lo mismo mientras tanto; los dos valores y Kevin decide (R3)
+  function hojaChoque(op, ch) {
+    return new Promise(res => {
+      const el = hoja(`<h2>Cambió en la Mesa</h2><p class="ex">${esc(opQue(op))}: ${esc(porQueChoque(op, ch))}</p><div class="grupo"><div class="campo" style="cursor:default"><span class="k">Lo tuyo</span><span class="v" style="white-space:normal">${esc(opTexto(op, op.valor))}</span></div><div class="campo" style="cursor:default"><span class="k">En la Mesa</span><span class="v" style="white-space:normal">${esc(opTexto(op, ch.ahora))}</span></div></div><div class="botones"><button type="button" class="btn sua" data-r="mesa">Dejar lo de la Mesa</button><button type="button" class="btn pri" data-r="mio" data-foco>Usar lo mío</button></div>`, { fija: true, etiqueta: 'Cambió en la Mesa' });
+      el.addEventListener('click', ev => { if (!el.isConnected) return; const b = ev.target.closest('[data-r]'); if (b) res(b.dataset.r); });
+    });
+  }
+  function porQueChoque(op, ch) {   // lo que cambió en la Mesa desde que lo viste, cuando los dos valores se leen igual
+    const v = ch.visto || {}, a = ch.ahora || {};
+    if (op.campo === 'estado' && v.v === a.v && v.sig !== a.sig) return 'desde que la viste cambió su caption, foto o contexto. Mírala antes de decidir.';
+    if ((op.campo === 'capElegir' || op.campo === 'capTexto') && v.at !== a.at) return 'llegó otra tanda de captions desde que la viste.';
+    return 'mientras lo cambiabas, se cambió en otro aparato.';
+  }
+  // coger la Mesa (con «no contesta» si toca); true si la tiene
+  async function cogerMesa(prog) {
+    try { await MV().reclamar(); } catch (e) { /* esta pestaña */ }
+    let t = await M.nube.tomar();
+    for (;;) {
+      if (t && t.hecho) return true;
+      if (t && t.espera) {
+        cerrarHojas(true);
+        const r = await hojaNoContesta(t.espera);
+        cerrarHojas(true);
+        if (r === 'no') return false;
+        if (prog) { const g = hojaGuardando(corto2(t.espera.dispositivo)); prog.paso = g.paso; prog.paso(0); }
+        t = r === 'forzar' ? await M.nube.forzarAqui(t.espera.turno) : await M.nube.tomar({ esperar: true });
+        if (t && t.otraVez) t = await M.nube.tomar();
+        continue;
+      }
+      throw new Error(t && t.error === 'sin_conexion' ? 'Sin conexión: tu cambio espera en «sin subir».' : t && t.error === 'sin_sesion' ? 'Tu sesión se cerró: entra otra vez.' : t && t.error === 'verificacion' ? 'Falta el código de tu app.' : 'No se pudo coger la Mesa' + (t && t.error ? ` (${t.error})` : '') + '.');
+    }
+  }
+  // guardar: la operación entra en la cola y la cola se aplica con la Mesa cogida un momento
+  async function guardar(ops, o = {}) {
+    if (GUARDANDO) return GUARDANDO;   // un doble toque guarda una vez
+    if (sinRed()) { aviso('Sin conexión: no se puede cambiar ahora.', { error: true }); return false; }
+    if (!M.nube || !M.nube.tomar || ST.fase === 'apagada') { aviso('Sin nube en este iPhone: no se puede cambiar.', { error: true }); return false; }
+    GUARDANDO = (async () => {
+      ST.guardando = true;
+      const nuevas = [].concat(ops || []).map(op => ({ ...op, id: op.id || nuevoOp(), at: Date.now() }));
+      if (nuevas.length) opsGuardar([...opsLeer().filter(x => !nuevas.some(n => n.id === x.id)), ...nuevas]);
+      const quien = ST.tiene && ST.tiene.dispositivo ? corto2(ST.tiene.dispositivo) : '';
+      const g = hojaGuardando(quien), prog = { paso: g.paso };
+      let avisos = [], hecho = 0, fallos = [];
+      try {
+        prog.paso(0);
+        if (!(await cogerMesa(prog))) { cerrarHojas(true); aviso('Tu cambio espera en «sin subir».'); return false; }
+        prog.paso(1);
+        for (const op of opsLeer().filter(x => !o.solo || o.solo.includes(x.id))) {
+          let r = await MV().aplicar(op);
+          if (r && r.choque) { cerrarHojas(true); const a = await hojaChoque(op, r.choque); cerrarHojas(true); const g2 = hojaGuardando(''); prog.paso = g2.paso; prog.paso(1); r = a === 'mio' ? await MV().aplicar({ ...op, forzar: true }) : { ok: true, dejado: true }; }
+          if (r && r.ok) { opsQuitar(op.id); hecho++; avisos = avisos.concat(r.avisos || []); if (op.campo === 'capTexto') lsS(`mesa-movil-borrador:${op.key}|${op.slot}|${op.valor.k}`, null); }
+          else if (r && r.error === 'sin turno') throw new Error('La Mesa se fue a otro aparato a mitad: tu cambio espera en «sin subir».');
+          else { opsQuitar(op.id); fallos.push(r && r.error ? errorTexto(r.error) : 'No se pudo.'); }
+        }
+        prog.paso(2);
+        M.nube.retener(false);
+        const s = await M.nube.soltar();
+        prog.paso(3);
+        if (s && s.error === 'sin_conexion') avisos.push('Sin conexión: lo guardado sube en cuanto vuelva la red.');
+        else if (s && s.error === 'perdida') avisos.push('La Mesa se fue a otro aparato antes de subir: lo tuyo está en «sin subir».');
+        else if (s && s.error) avisos.push('Guardado aquí; aún no ha subido: vuelve a intentarlo en un momento.');
+        cerrarHojas();
+        ST.guardado = Date.now(); pintarChip(); setTimeout(pintarChip, 4100);
+        if (fallos.length) aviso(fallos[0], { error: true, ms: 7000 });
+        else if (hecho) aviso(avisos.length ? avisos[0] : 'Guardado. La Mesa queda libre.', { ok: true, ms: avisos.length ? 8000 : 4200 });
+        await releerTodo();
+        return true;
+      } catch (e) {
+        cerrarHojas(true);
+        try { M.nube.retener(false); if (M.nube.conTurno && M.nube.conTurno()) M.nube.soltar(); } catch (x) { /* */ }
+        aviso((e && e.message) || 'No se pudo guardar.', { error: true, ms: 8000 });
+        await releerTodo();
+        return false;
+      }
+    })().finally(() => { GUARDANDO = null; ST.guardando = false; pintarChip(); });
+    return GUARDANDO;
+  }
+  const ERR = { publicada: 'Ya está publicada: no se mueve.', 'fuera de la mesa': 'Esa fecha cae fuera de este mes.', 'no existe': 'Ya no está: se quitó en otro aparato.', 'fecha no válida': 'Esa fecha no vale.', 'sin captions': 'Sin captions todavía.' };
+  const errorTexto = e => ERR[e] || cap1(String(e)) + '.';
+  async function releerTodo() {
+    L.hoy = null; L.clientes = null; L.error = {};
+    if (L.vista) { const v = await MV().mirar(L.vista.key).catch(() => null); L.vista = v && !v.error ? v : null; }
+    await leerTareas();
+    pintar();
+  }
+  const pAhora = () => { const v = L.vista; return v && v.key === RUTA.a ? v.posts.find(x => x.id === RUTA.b) : null; };
+  async function aqui() { if (!L.vista || L.vista.key !== RUTA.a) return null; const S0 = X().S; if (!S0 || S0.key !== RUTA.a) { const v = await MV().mirar(RUTA.a); if (v && !v.error) L.vista = v; } return X().S; }
+
+  // ---------- fecha y hora: un calendario y ruedas que se usan como las del iPhone, dibujados por la Mesa (D-270) ----------
+  const HORAS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), MINS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+  function calendarioHTML(sel, mesVisto, lim, o = {}) {
+    const d1 = mesVisto + '-01', pre = (dow(d1) + 6) % 7, ini = addD(d1, -pre), dias = Array.from({ length: 42 }, (_, i) => addD(ini, i));
+    const puede = d => (!lim || (d >= lim.desde && d <= lim.hasta));
+    const mAnt = X().addMonths(mesVisto, -1), mSig = X().addMonths(mesVisto, 1), hay = m => !lim || (m + '-31' >= lim.desde && m + '-01' <= lim.hasta);
+    return `<div class="selcal"><div class="selcal-h"><b>${esc(mesNombre(mesVisto))} ${mesVisto.slice(0, 4)}</b><span><button type="button" class="ib" data-cal="${mAnt}" aria-label="Mes anterior"${hay(mAnt) ? '' : ' disabled'}>${ic('izq')}</button><button type="button" class="ib" data-cal="${mSig}" aria-label="Mes siguiente"${hay(mSig) ? '' : ' disabled'}>${ic('der')}</button></span></div>
+      <div class="cal-s" aria-hidden="true">${['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div>
+      <div class="selcal-g" role="grid" aria-label="${esc(mesNombre(mesVisto))}">${dias.map(d => { const en = d.slice(0, 7) === mesVisto, ok = en && puede(d); return `<button type="button" class="sd${en ? '' : ' otro'}${d === sel ? ' sel' : ''}${d === hoy() ? ' hoyd' : ''}" data-dia="${d}" aria-label="${esc(cap1(DL[dow(d)]) + ' ' + corto(d))}"${d === sel ? ' aria-pressed="true"' : ''}${ok ? '' : ' disabled'}${en ? '' : ' tabindex="-1" aria-hidden="true"'}>${+d.slice(8, 10)}</button>`; }).join('')}</div>
+      ${o.pie ? `<div class="selcal-pie">${o.pie}</div>` : ''}</div>`;
+  }
+  // una rueda: desplazamiento nativo con imán (la inercia del iPhone), de 5 en 5, con la hora exacta en su sitio
+  function ruedaHTML(nombre, vals, sel) {
+    return `<div class="rueda" role="spinbutton" tabindex="0" data-rueda="${nombre}" aria-label="${nombre === 'h' ? 'Hora' : 'Minutos'}" aria-valuenow="${+sel}" aria-valuetext="${esc(sel)}" aria-valuemin="${+vals[0]}" aria-valuemax="${+vals[vals.length - 1]}"><div class="rueda-in">${vals.map(v => `<span data-v="${v}"${v === sel ? ' class="sel"' : ''}>${v}</span>`).join('')}</div></div>`;
+  }
+  function armarRueda(el, alCambiar) {
+    const inn = el.querySelector('.rueda-in'), items = [...inn.children], H = 32;
+    const idx = () => Math.max(0, Math.min(items.length - 1, Math.round(inn.scrollTop / H)));
+    const marcar = () => { const i = idx(); items.forEach((s, j) => { const d = Math.abs(j - i); s.style.setProperty('--d', Math.min(d, 3)); s.classList.toggle('sel', j === i); }); const v = items[i].dataset.v; el.setAttribute('aria-valuenow', +v); el.setAttribute('aria-valuetext', v); return v; };
+    const ir = (i, suave) => { inn.scrollTo({ top: i * H, behavior: suave && !POCO.matches ? 'smooth' : 'auto' }); };
+    const i0 = Math.max(0, items.findIndex(s => s.classList.contains('sel'))); requestAnimationFrame(() => { ir(i0); marcar(); });
+    let raf = 0, t = 0;
+    inn.addEventListener('scroll', () => { if (!el.isConnected) return; if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (el.isConnected) marcar(); }); clearTimeout(t); t = setTimeout(() => { if (el.isConnected) alCambiar(marcar()); }, 140); }, { passive: true });   // una rueda ya quitada (la hoja se redibujó) no cambia nada
+    el.addEventListener('keydown', e => { const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0; if (!d) return; e.preventDefault(); ir(Math.max(0, Math.min(items.length - 1, idx() + d)), true); });
+    inn.addEventListener('click', e => { const s = e.target.closest('[data-v]'); if (s) ir(items.indexOf(s), true); });
+  }
+  async function hojaFecha(p, v) {
+    if (p.publicada || p.tocaria === 'publicado') return aviso('Ya está publicada: no se mueve.');
+    await aqui();
+    const lim = MV().dias(v.key) || null;
+    let dia = p.fecha.dia || (lim && lim.desde) || hoy(), conHora = !p.fecha.sinHora && !!p.fecha.hora, hh = (p.fecha.hora || '13:00').slice(0, 2), mm = (p.fecha.hora || '13:00').slice(3, 5), mes = dia.slice(0, 7);
+    const mins = MINS.includes(mm) ? MINS : [...MINS, mm].sort();
+    const pinta = () => {
+      const avisoZ = p.programada ? `<div class="aviso" style="margin:12px 0 0">${ic('alerta')}<span>Ya está programada en Instagram. Zernio seguirá con ${p.fecha.hora ? 'las ' + esc(p.fecha.hora) : 'su fecha'} hasta que se lo pidas a Claude.</span></div>` : '';
+      return `<h2>Fecha y hora</h2><p class="ex">${esc(p.nombre)} · ${esc(p.tipo.txt)}</p>${calendarioHTML(dia, mes, lim)}
+        ${conHora ? `<div class="ruedas"><span class="banda"></span>${ruedaHTML('h', HORAS, hh)}<b class="dos">:</b>${ruedaHTML('m', mins, mm)}</div><button type="button" class="lnk" data-a2="sinhora" style="margin:4px auto 0;display:flex">Sin hora</button>` : `<button type="button" class="campo" data-a2="ponhora" style="margin-top:10px;border-radius:16px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line2)"><span class="k">Hora</span><span class="v">Sin hora</span><span class="chev">${ic('der')}</span></button>`}
+        ${avisoZ}<div class="pie"><div class="botones"><button type="button" class="btn sua" data-a2="cancelar">Cancelar</button><button type="button" class="btn pri" data-a2="guardar">Guardar</button></div></div>`;
+    };
+    const h = hoja(pinta(), { etiqueta: 'Fecha y hora' });
+    const armar = () => { h.querySelectorAll('[data-rueda]').forEach(r => armarRueda(r, x => { if (r.dataset.rueda === 'h') hh = x; else mm = x; })); };
+    const repinta = () => { const y = h.scrollTop; h.innerHTML = `<div class="asa" aria-hidden="true"></div>` + pinta(); arrastrable(h); armar(); h.scrollTop = y; };
+    armar();
+    h.addEventListener('click', async e => { if (!h.isConnected) return;
+      const d = e.target.closest('[data-dia]'); if (d && !d.disabled) { dia = d.dataset.dia; return repinta(); }
+      const c = e.target.closest('[data-cal]'); if (c && !c.disabled) { mes = c.dataset.cal; return repinta(); }
+      const b = e.target.closest('[data-a2]'); if (!b) return;
+      if (b.dataset.a2 === 'cancelar') return cerrarHojas();
+      if (b.dataset.a2 === 'sinhora') { conHora = false; return repinta(); }
+      if (b.dataset.a2 === 'ponhora') { conHora = true; return repinta(); }
+      if (b.dataset.a2 === 'guardar') {
+        if (conHora) { const rh = h.querySelector('[data-rueda="h"]'), rm = h.querySelector('[data-rueda="m"]'); if (rh) hh = rh.getAttribute('aria-valuetext') || hh; if (rm) mm = rm.getAttribute('aria-valuetext') || mm; }   // lo que se ve, aunque el dedo acabe de soltarla
+        const valor = conHora ? { dia, hora: `${hh}:${mm}` } : { dia };
+        const igual = p.fecha.dia === dia && (conHora ? p.fecha.hora === valor.hora : !p.fecha.hora);
+        cerrarHojas(true); if (igual) return;
+        guardar({ key: v.key, slot: p.id, campo: 'fecha', valor, visto: p.fecha.iso });
+      }
+    });
+  }
+  C.fecha = () => { const p = pAhora(); if (p) hojaFecha(p, L.vista); };
+
+  // ---------- el estado (la hoja de la v3; el porqué de cada uno, del núcleo) ----------
+  const SUB = { aprobado: 'Aprobada: lista para programar', noaprobado: 'El cliente pidió cambios', programado: 'Ya está en Zernio', publicado: 'Ya salió en Instagram', cancelado: 'Sale del mes; no se borra nada' };
+  C.estado = async () => {
+    const p = pAhora(), v = L.vista; if (!p) return;
+    await aqui();
+    const l = MV().estadosPosibles(v.key, p.id), visto = (await MV().valor({ key: v.key, slot: p.id, campo: 'estado' })).v;
+    const h = hoja(`<h2>Estado</h2><p class="ex">${esc(p.nombre)} · ahora ${esc(p.estado.txt)}</p><div class="estados">${l.map(x => `<button type="button" class="estado-op${x.actual ? ' on' : ''}" data-v="${x.v || ''}"${x.ok ? '' : ' disabled'}${x.actual ? ' aria-current="true"' : ''}><span class="es ${esc(x.k)}"><i></i><span>${esc(x.txt)}<br><span class="sub">${esc(x.v ? SUB[x.v] : 'Lo que dicen sus datos')}</span>${x.ok ? '' : `<span class="porque">${esc(cap1(x.porque))}</span>`}</span></span>${x.actual ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`).join('')}</div><div data-motivo hidden><span class="lbl">Motivo (opcional)</span><textarea rows="2" maxlength="500" data-mot>${esc(p.motivo || '')}</textarea></div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cancelar</button></div></div>`, { etiqueta: 'Estado' });
+    h.addEventListener('click', e => { if (!h.isConnected) return;
+      const b = e.target.closest('.estado-op'), c = e.target.closest('[data-a2]');
+      if (c && c.dataset.a2 === 'cancelar') return cerrarHojas();
+      if (c && c.dataset.a2 === 'cancelarpub') { const mot = h.querySelector('[data-mot]').value; cerrarHojas(true); return guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: 'cancelado', motivo: mot }, visto }); }
+      if (!b || b.disabled) return;
+      const nv = b.dataset.v || null, x = l.find(y => (y.v || null) === nv);
+      if (x && x.actual && nv !== 'cancelado') return cerrarHojas();
+      if (nv === 'cancelado') {   // D-082: el motivo, opcional
+        h.querySelectorAll('.estado-op').forEach(x => { const on = x === b; x.classList.toggle('on', on); if (on) x.setAttribute('aria-current', 'true'); else x.removeAttribute('aria-current'); const ck = x.querySelector('.ck'); if (ck && !on) ck.remove(); if (on && !ck) x.insertAdjacentHTML('beforeend', `<span class="ck">${ic('check', 2.25)}</span>`); });
+        h.querySelector('[data-motivo]').hidden = false; h.querySelector('.pie .botones').innerHTML = `<button type="button" class="btn sua" data-a2="cancelar">Volver</button><button type="button" class="btn pri" data-a2="cancelarpub">Cancelarla</button>`;
+        const t = h.querySelector('[data-mot]'); t.focus(); return;
+      }
+      cerrarHojas(true); guardar({ key: v.key, slot: p.id, campo: 'estado', valor: { v: nv }, visto });
+    });
+  };
+
+  // ---------- captions: elegir y retocar (su borrador sobrevive a que iOS cierre la app) ----------
+  C.elegir = b => { const p = pAhora(), v = L.vista; if (!p || !p.captions) return; guardar({ key: v.key, slot: p.id, campo: 'capElegir', valor: +b.dataset.k, visto: { at: p.captions.at, pick: p.captions.pick } }); };
+  const K_BORR = (key, slot, k) => `mesa-movil-borrador:${key}|${slot}|${k}`;
+  C.pantRetocar = () => {
+    const v = L.vista, p = v && v.key === RUTA.a && v.posts.find(x => x.id === RUTA.b), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k);
+    if (!o) return top({ atras: 'Captions' }) + `<main class="main sin-tabs">${vacio('Este caption ya no está', 'Vuelve a los captions.')}</main>`;
+    const borr = lsG(K_BORR(v.key, p.id, k)), txt = borr != null ? borr : o.texto;
+    return top({ atras: 'Captions', t: 'Retocar', r: `<button type="button" class="back" style="padding:0 12px;font-weight:600" data-a="listo"${sinRed() ? ' disabled' : ''}>Listo</button>` }) + `<main class="main sin-tabs" id="contenido">
+      <div class="editor"><textarea data-ret aria-label="Caption ${k + 1}, tono ${esc(o.tono)}" maxlength="2200">${esc(txt)}</textarea>
+      <div class="cuenta"><span>Tono ${esc(o.tono)}${o.editada || txt !== o.original ? ' · retocado' : ''}${borr != null && borr !== o.texto ? ' · borrador sin guardar' : ''}</span><span class="num${txt.length > 2200 ? ' sobra' : ''}" data-cuenta>${miles(txt.length)} / 2.200</span></div></div>${sinRed() ? '<p class="solo-mac">Sin conexión: no se puede guardar ahora (el borrador se queda).</p>' : ''}</main>`;
+  };
+  C.alEscribir = e => {
+    const t = e.target;
+    if (t.matches('[data-ret]')) { lsS(K_BORR(RUTA.a, RUTA.b, +RUTA.c), t.value); const c = raiz.querySelector('[data-cuenta]'); if (c) { c.textContent = `${miles(t.value.length)} / 2.200`; c.classList.toggle('sobra', t.value.length > 2200); } }
+  };
+  C.listo = async () => {
+    const v = L.vista, p = pAhora(), k = +RUTA.c, o = p && p.captions && p.captions.opciones.find(x => x.k === k), t = raiz.querySelector('[data-ret]'); if (!o || !t) return;
+    if (t.value === o.texto) { lsS(K_BORR(v.key, p.id, k), null); return atras(); }
+    const ok = await guardar({ key: v.key, slot: p.id, campo: 'capTexto', valor: { k, texto: t.value }, visto: { at: p.captions.at, texto: o.texto } });
+    if (ok) atras();
+  };
+
+  // ---------- contestar al cliente (va a su web con tu sesión, sin coger la Mesa: D-244, R2) ----------
+  C.contestar = async b => {
+    const p = pAhora(), t = raiz.querySelector('[data-resp]'); if (!p || !t || !t.value.trim()) return;
+    b.disabled = true; const err = raiz.querySelector('[data-resp-err]');
+    const B = await aqui(); const r = B ? await M.web.contestar(B, p.id, t.value) : { error: 'Abre la publicación otra vez.' };
+    if (r && r.ok) { const c = comentariosDe(p.id); if (c) lsS('mesa-movil-resp:' + c.pid, null); t.value = ''; await leerConv(L.vista.key); pintar(); aviso('Enviado a su web.', { ok: true }); }
+    else { b.disabled = false; if (err) { err.hidden = false; err.textContent = (r && r.error) || 'No se pudo enviar.'; } }
+  };
+
+  // ---------- tareas y notas ----------
+  C.hecha = b => { const x = (L.tareas || []).find(t => t.id === b.dataset.id); if (!x) return; guardar({ slot: x.id, campo: 'tarea', valor: { hecha: !x.hecha }, visto: { hecha: !!x.hecha } }); };
+  async function crearTarea(tipo) {
+    const txt = NUEVA.txt.trim(); if (!txt) { const i = raiz.querySelector('[data-nueva]'); if (i) i.focus(); return; }
+    const valor = { id: M.personal.nuevoId(tipo), txt, tipo, ...(tipo === 'tarea' && NUEVA.fecha ? { fecha: NUEVA.fecha } : {}), ...(NUEVA.cliente ? { cliente: NUEVA.cliente } : {}) };
+    const ok = await guardar({ campo: 'tareaNueva', valor });
+    if (ok) { NUEVA.txt = ''; NUEVA.fecha = ''; NUEVA.cliente = ''; pintar(); }
+  }
+  C.nnota = () => crearTarea('nota');
+  raiz.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.matches('[data-nueva]')) { e.preventDefault(); crearTarea('tarea'); } });
+  C.nfecha = () => {
+    let mes = (NUEVA.fecha || hoy()).slice(0, 7), sel = NUEVA.fecha || '';
+    const pinta = () => `<h2>Fecha de la tarea</h2>${calendarioHTML(sel, mes, null, { pie: `<button type="button" class="lnk" data-a2="sin"${sel ? '' : ' disabled'}>Sin fecha</button><button type="button" class="lnk" data-a2="hoy">Hoy</button>` })}<div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`;
+    const h = hoja(pinta(), { etiqueta: 'Fecha de la tarea' });
+    h.addEventListener('click', e => { if (!h.isConnected) return;
+      const d = e.target.closest('[data-dia]'), c = e.target.closest('[data-cal]'), b = e.target.closest('[data-a2]');
+      if (d && !d.disabled) { NUEVA.fecha = d.dataset.dia; cerrarHojas(); return pintar(); }
+      if (c && !c.disabled) { mes = c.dataset.cal; h.innerHTML = `<div class="asa" aria-hidden="true"></div>` + pinta(); arrastrable(h); return; }
+      if (!b) return;
+      if (b.dataset.a2 === 'sin') NUEVA.fecha = ''; else if (b.dataset.a2 === 'hoy') NUEVA.fecha = hoy();
+      cerrarHojas(); pintar();
+    });
+  };
+  C.ncliente = () => {
+    const l = (X().CL || []);
+    const h = hoja(`<h2>Cliente de la tarea</h2><div class="estados"><button type="button" class="estado-op${NUEVA.cliente ? '' : ' on'}" data-c="">Sin cliente</button>${l.map(c => `<button type="button" class="estado-op${NUEVA.cliente === c.id ? ' on' : ''}" data-c="${esc(c.id)}">${av(c.id)}<span style="flex:1">${esc(c.name)}</span></button>`).join('')}</div><div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Cliente de la tarea' });
+    h.addEventListener('click', e => { if (!h.isConnected) return; const b = e.target.closest('[data-c]'); if (b) { NUEVA.cliente = b.dataset.c; cerrarHojas(); pintar(); } else if (e.target.closest('[data-a2]')) cerrarHojas(); });
+  };
+
+  // ---------- «sin subir»: lo que no llegó (de la cola o de la nube), con «Subir encima» o «Descartar» (D-255) ----------
+  C.sinsubir = async () => {
+    const ops = opsLeer(), nube = M.nube && M.nube.sinSubir ? await M.nube.sinSubir().catch(() => []) : [];
+    const ALM = { boards: 'Tablero', tareas: 'Tarea o nota', clients: 'Cliente', files: 'Foto' };
+    const fila2 = (t, s, d) => `<div class="campo" style="cursor:default;align-items:flex-start;padding-top:12px;padding-bottom:12px"><span class="v" style="display:block;white-space:normal"><b>${esc(t)}</b><span class="por">${esc(s)}</span></span></div><div class="botones" style="margin:0 0 12px;padding:0 12px">${d}</div>`;
+    const h = hoja(`<h2>Sin subir</h2><p class="ex">${esc(plural(ops.length + nube.length, 'cambio no llegó', 'cambios no llegaron'))} a la Mesa.</p>`
+      + (ops.length ? `<div class="grupo">${ops.map(op => fila2(opQue(op), opTexto(op, op.valor), `<button type="button" class="btn sua" data-des="${esc(op.id)}">Descartar</button><button type="button" class="btn pri" data-sub="${esc(op.id)}">Subir encima</button>`)).join('')}</div>` : '')
+      + (nube.length ? `<div class="grupo" style="margin-top:12px">${nube.map((x, i) => fila2(`${ALM[x.a] || x.a}`, x.mensaje || x.motivo || '', `<button type="button" class="btn sua" data-ndes="${i}">Descartar</button><button type="button" class="btn pri" data-nsub="${i}">Subir encima</button>`)).join('')}</div>` : '')
+      + `<div class="pie"><div class="botones"><button type="button" class="btn sua ancho" data-a2="cancelar">Cerrar</button></div></div>`, { etiqueta: 'Sin subir' });
+    h.addEventListener('click', async e => { if (!h.isConnected) return;
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.a2) return cerrarHojas();
+      if (b.dataset.des) { opsQuitar(b.dataset.des); cerrarHojas(); return pintar(); }
+      if (b.dataset.sub) { cerrarHojas(true); return guardar([], { solo: [b.dataset.sub] }); }
+      const i = b.dataset.nsub ?? b.dataset.ndes; if (i == null) return;
+      const x = nube[+i]; cerrarHojas(true);
+      try {
+        if (!(await cogerMesa(null))) return;
+        const r = b.dataset.nsub != null ? await M.nube.subirEncima([[x.a, x.k]]) : await M.nube.descartar([[x.a, x.k]]);
+        M.nube.retener(false); await M.nube.soltar();
+        aviso(r && r.error ? r.error : b.dataset.nsub != null ? 'Subido encima.' : 'Descartado.', { ok: !(r && r.error), error: !!(r && r.error) });
+      } catch (er) { aviso(er.message, { error: true }); }
+      await releerTodo();
+    });
+  };
+  C.alNube = (t, d) => {
+    if (t === 'pausa' && d && d.motivo === 'perdido') aviso(`La Mesa la cogió ${corto2(d.dispositivo)}: lo que no subió está en «sin subir».`, { error: true, ms: 8000 });
+  };
 
   arrancar();
 })();

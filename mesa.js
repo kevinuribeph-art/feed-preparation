@@ -6269,7 +6269,7 @@ ${TK_FUENTES}
         // each photo as it is published (its crop, from 0 to 1 of the photo, and its proportion): the phone draws exactly that
         recortes: publishList(s).map(fid => { const f = dims(fid), r = postRect(fid, s); return f.w && f.h ? { x: r.x / f.w, y: r.y / f.h, w: r.w / f.w, h: r.h / f.h, ratio: r.w / r.h } : null; }),
         // the options by their index (k, 0–2), as operar takes them; the Mac shows them as 1–3
-        captions: c && c.options.length ? { pick: c.pick == null ? null : c.pick - 1, texto: c.text, estado: c.state, opciones: c.options.map(o => ({ k: o.n - 1, tono: o.tone, texto: o.text, original: o.original, editada: o.edited })) } : null,
+        captions: c && c.options.length ? { at: c.loadedAt || null, pick: c.pick == null ? null : c.pick - 1, texto: c.text, estado: c.state, opciones: c.options.map(o => ({ k: o.n - 1, tono: o.tone, texto: o.text, original: o.original, editada: o.edited })) } : null,
         contexto: noteOf(s), nota: memoOf(s), colab: sharedWith(s)
       };
     });

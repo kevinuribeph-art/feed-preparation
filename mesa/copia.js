@@ -1,4 +1,4 @@
-// Copia — Mesa de trabajo · v1.0 (D-249)
+// Copia — Mesa de trabajo · v1.2 (D-249, D-279)
 // «Exportar todo» (menú ⇅): the whole mesa at its original size, in one file per client and one «general» (what is no monthly
 // client's: the locations' catalog, tasks and sessions without one, the sporadic clients and their invoices, the list of
 // material). Each file is a .tar (ustar, nothing compressed, any Mac opens it): first «manifiesto.json» (what the part holds,
@@ -8,11 +8,14 @@
 // app's browser only downloads, a save dialog per file) and the list says how each one is.
 // «Importar…» (mesa.js) hands the .tar here: they are read in parts (File.slice), every hash is checked and an incomplete or
 // damaged set is refused without touching anything; then mesa.js merges as the import of always (M.importData).
+// D-279: a piece of a .tar (File.slice) is only for planning. WebKit (Safari) stores a piece as the WHOLE file it comes from: on
+// 20/11/2026 each photo of a 2 GB part took 2 GB of disk (the disk filled) and, reopened, was the whole .tar. Each file gets its
+// own bytes (propio) right before mesa.js writes it, one at a time; no file over the mesa's limit (200 MB) goes in.
 // If this file doesn't load, «Exportar todo» says so and the mesa works as the 4.29.
 (function copiaBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.1';
+  const VERSION = '1.2';   // 1.2: each file of a copy written with its own bytes, never a piece of the .tar; 200 MB a file at most (D-279)
   const I = () => M._in, X = () => M._in.xfer;
   if (M.copia && M.copia._off) { try { M.copia._off(); } catch (e) { /* */ } }
   const FORMATO = 'mesa-copia', V = 1;
@@ -25,6 +28,25 @@
   const peso = n => I().pesoTxt(n);
   const n_ = n => Number(n).toLocaleString('es-ES');
   const OFF = [];
+  // D-279: the pieces of the .tar this import made (never written: propio gives each its own bytes) and whether some are alive
+  const TROZOS = new WeakSet();
+  let VIVAS = 0;
+  // a Blob of any window (a .tar chosen from another page's input is that page's: `instanceof Blob` doesn't see it)
+  const esBlob = b => !!b && typeof b === 'object' && (b instanceof Blob || /^\[object (Blob|File)\]$/.test(Object.prototype.toString.call(b)));
+  async function propio(v) {
+    if (!v || typeof v !== 'object') return v;
+    if (TROZOS.has(v)) {
+      const ab = await v.arrayBuffer();   // only this piece: its bytes, read now
+      if (ab.byteLength !== v.size) { const e = new Error(`Un archivo de la copia no salió con su tamaño (${ab.byteLength} de ${v.size} bytes).`); e.name = 'TrozoError'; throw e; }
+      return typeof v.name === 'string' && Object.prototype.toString.call(v) === '[object File]' ? new File([ab], v.name, { type: v.type, lastModified: v.lastModified }) : new Blob([ab], { type: v.type });
+    }
+    if (esBlob(v)) return v;
+    let cambia = false;
+    if (Array.isArray(v)) { const o = []; for (const x of v) { const y = await propio(x); if (y !== x) cambia = true; o.push(y); } return cambia ? o : v; }
+    if (Object.getPrototypeOf(v) !== Object.prototype) return v;
+    const o = {}; for (const k of Object.keys(v)) { const y = await propio(v[k]); if (y !== v[k]) cambia = true; o[k] = y; }
+    return cambia ? o : v;
+  }
 
   // ---------- hashes and the tar (ustar) ----------
   const hex = b => { const u = new Uint8Array(b); let s = ''; for (let i = 0; i < u.length; i++) s += u[i].toString(16).padStart(2, '0'); return s; };
@@ -347,6 +369,8 @@
         if (r.mal === 'cortado') return fallo(`«${f.name || 'archivo'}» está cortado: ¿terminó de copiarse?`);
         if (r.mal === 'danado') return fallo(`«${f.name || 'archivo'}» está dañado: no se puede leer su manifiesto.`);
         if (r.mal) return fallo(`«${f.name || 'archivo'}» no es una copia de «Exportar todo».${/\.json$/i.test(f.name || '') ? ' Un archivo .json se importa solo, sin los .tar.' : ''}`);
+        const lim = I().limiteArchivo(), g = r.m.archivos.find(a => a && a.tam > lim);   // D-279: before a byte is written
+        if (g) return fallo(`«${f.name || 'archivo'}» trae un archivo de ${peso(g.tam)}: la Mesa no guarda archivos de más de ${peso(lim)}. No se ha importado nada.`);
         leidos.push({ f, ...r });
       }
       // 2. every part of each file: none missing, none twice with something else
@@ -409,13 +433,16 @@
           }
         }
       }
-      // 5. the blobs, slices of the files (nothing read into memory); every reference has its file
+      // 5. the blobs, slices of the files (nothing read into memory, only to plan: each one gets its own bytes right before it's
+      // written, D-279); every reference has its file
       let falta = null;
       const blobDe = r => {
         const w = donde.get(r.sha); if (!w || w.tam !== r.tam) { falta = r; return null; }
         const b = w.f.slice(w.off, w.off + w.tam, r.tipo || '');
-        return typeof r.nombre === 'string' && typeof File !== 'undefined' ? new File([b], r.nombre, { type: r.tipo || '', lastModified: +r.lm || 0 }) : b;
+        const out = typeof r.nombre === 'string' && typeof File !== 'undefined' ? new File([b], r.nombre, { type: r.tipo || '', lastModified: +r.lm || 0 }) : b;
+        TROZOS.add(b); TROZOS.add(out); return out;
       };
+      if (!st.viva) { st.viva = true; VIVAS++; }
       const raw = Object.fromEntries(X().ALMACENES.map(n => [n, new Map()]));
       for (const e2 of elegido.values()) { const mismo = new Map(); raw[e2.n].set(e2.k, decodificar(e2.v, r => { const k = r.sha + '|' + (r.nombre || '') + '|' + (r.tipo || ''); if (!mismo.has(k)) mismo.set(k, blobDe(r)); return mismo.get(k); })); }
       if (falta) return fallo('La copia está incompleta: le falta uno de sus archivos.');
@@ -443,7 +470,7 @@
     } catch (err) {
       const q = err && (err.name === 'NotReadableError' || err.name === 'NotFoundError');
       return fallo(q ? 'No se pudo leer un archivo de la copia: ¿sigue donde estaba (el SSD conectado)?' : `No se pudo leer la copia: ${errTxt(err)}.`);
-    } finally { soltar(); if (IMP === st) IMP = null; }
+    } finally { soltar(); if (IMP === st) IMP = null; if (st.viva) { st.viva = false; VIVAS--; } }
   }
   const mayor = (a, b) => { for (let i = 0; i < a.length; i++) { if (a[i] > b[i]) return true; if (a[i] < b[i]) return false; } return false; };
   // two files of different copies with the same record: a full photo over a reduced one (D-017), the newer `at` (as «Importar»),
@@ -500,6 +527,7 @@
 
   M.copia = {
     exportar, importar,
+    _propio: propio, _esTrozo: b => !!b && typeof b === 'object' && TROZOS.has(b), _viva: () => VIVAS > 0, _esBlob: esBlob,   // D-279: mesa.js writes a copy's files with their own bytes
     _test: { parteMax: n => { PARTE_MAX = n > 0 ? n : 2e9; }, leerCab, huella, repartir: async () => repartir(await instantanea()) },
     _off: () => { OFF.forEach(f => f()); }
   };

@@ -125,6 +125,15 @@
   const mcCerrar = () => tecla('Escape', { en: D.activeElement || D.body });
   const mcItems = m => [...m.querySelectorAll('[role="menuitem"]')].map(b => b.firstChild.textContent.trim());
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
+  // «+ Hueco» desde el clic derecho del feed (D-282; antes, un chip de la barra del mes): con 2, apagado, no hace nada
+  async function huecoMas() {
+    const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
+    g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W }));
+    const m = await hasta(() => q('.cpmenu[aria-label="Feed"]'), 2000, 'el menú del feed');
+    const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent) && !/Quitar/.test(x.textContent));
+    if (b && !b.disabled) b.click(); else tecla('Escape', { en: D.activeElement || D.body });
+    await espera(30);
+  }
   const compDe = i => { const x = ed().sl[i]; return x.comp || x.raw; };
   const elegir = el => { ed().sel = el.id; ed().mas = []; };
   // tamaño de la diapositiva abierta en px de salida (1440 de ancho), por su formato; no se usa E.sz, que es el del último
@@ -201,7 +210,7 @@
     M._test.setNote('r1', 'Contexto de prueba');
     M._test.setMemo('r1', 'Nota privada');
     M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'Cercano', text: 'Uno' }, { tone: 'Directo', text: 'Dos' }, { tone: 'Poético', text: 'Tres' }] }]);
-    await pulsar('[data-act="addfiller"]');
+    await huecoMas();
     await M.flush();
     const corte = b => ({ fillers: b.fillers, tray: b.tray, slots: b.slots.map(s => ({ id: s.id, name: s.name, type: s.type, photos: s.photos, note: s.note, memo: s.memo, caption: s.caption && { orig: s.caption.orig, tones: s.caption.tones } })) });
     const antes = corte(M.board());
@@ -300,7 +309,7 @@
 
   prueba('M9', '«+ Hueco»: como mucho 2, detrás de las fijadas, y siguen al reabrir (D-002)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    for (let i = 0; i < 3; i++) await pulsar('[data-act="addfiller"]');
+    for (let i = 0; i < 3; i++) await huecoMas();
     ok(M.status().fillers === 2, 'huecos: ' + M.status().fillers);
     const S = M._in.S; S.pins = ['r1']; M._in.save(); M._in.renderFeed();
     const orden = () => qa('.feed .cell, .grid .cell').filter(c => !c.closest('.past, .prevm')).slice(0, 4).map(c => c.classList.contains('filler') ? 'hueco' : c.dataset.slot);
@@ -2159,7 +2168,7 @@
 
   prueba('M24', 'Portada en un hueco: foto y etiqueta en la mesa, «Vista cliente» y la imagen del feed; no es una publicación; se quita sin borrar el hueco y sigue al reabrir (D-049)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    await huecoMas(); await huecoMas();
     ok(!('previews' in M.board()), 'un tablero sin portadas lleva el campo');
     const [a] = await M.addFiles([await foto('m24.jpg', 1600, 1000, '#b03030')]);
     await M._test.setPreview(0, a);
@@ -2201,7 +2210,7 @@
 
   prueba('M27', 'Portada a toda la casilla, sin borde negro y con la etiqueta recta y traslúcida, igual en la mesa, «Vista cliente» y la imagen del feed, sobre foto clara y oscura (D-067)', async () => {
     await tablero([pub(1), pub(2), pub(3), pub(4)]);
-    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    await huecoMas(); await huecoMas(); await huecoMas();
     igual(M.status().fillers, 2, 'los huecos');
     const [clara, oscura] = await M.addFiles([await foto('m27-clara.jpg', 1600, 1000, '#f6f6f6'), await foto('m27-oscura.jpg', 1000, 1600, '#101010')]);
     await M._test.setPreview(0, clara); await M._test.setPreview(1, oscura);
@@ -2281,7 +2290,7 @@
     const DIC = '2026-12', dic = [pub(5, 'Foto', 3, DIC)], claveNov = `${CLIENTE}-${MES}`, claveDic = `${CLIENTE}-${DIC}`;
     const aviso = () => { const d = dialogo(); return d && d.querySelector('[data-act="repe"]'); };
     await tablero([pub(1), pub(2)]);
-    await pulsar('[data-act="addfiller"]');
+    await huecoMas();
     const [a] = await M.addFiles([await foto('m25.jpg')]);
     await filtro('sin');
     igual(vista(false), ['m25.jpg'], 'antes de ponerla');
@@ -2323,7 +2332,7 @@
     // se borra el mes del hueco, abierto otro mes o abierto él: la foto, que no va en otro sitio, queda en la bandeja del cliente
     for (const abierto of [DIC, MES]) {
       await tablero([pub(1)]);
-      await pulsar('[data-act="addfiller"]');
+      await huecoMas();
       const [c] = await M.addFiles([await foto('m25-c.jpg')]);
       await M._test.setPreview(0, c);
       await M.flush();
@@ -2344,7 +2353,7 @@
   prueba('M26', '«⇅ Exportar» e «Importar» conservan la portada de cada hueco; un archivo sin portadas importa igual, con los huecos negros (D-049, D-017)', async () => {
     const clave = `${CLIENTE}-${MES}`;
     await tablero([pub(1)]);
-    await pulsar('[data-act="addfiller"]'); await pulsar('[data-act="addfiller"]');
+    await huecoMas(); await huecoMas();
     const [a, b] = await M.addFiles([await foto('m26-a.jpg'), await foto('m26-b.jpg')]);
     await M._test.setPreview(0, a);
     await M._test.setPreview(1, b);
@@ -4324,7 +4333,7 @@
     M._test.place('r1', pu); M._test.place('r2', ca); M.setEstado('r2', 'cancelado');
     const hid = M.hs.anadir(`${MES}-20`);
     M._in.S.historias.find(h => h.id === hid).photos = [hi]; M._in.save();
-    await pulsar('[data-act="addfiller"]'); await M._test.setPreview(0, hu);
+    await huecoMas(); await M._test.setPreview(0, hu);
     await aCarpeta('historias', [await foto('c4-otr.jpg')]);
     await M.flush();
     const p = await M.planBorrarCarpeta(c);
@@ -7421,7 +7430,7 @@
     await poner('r1', [await foto('m41.jpg')]);
     await M.flush();
     const fotos = () => slot('r1').photos.length;
-    await pulsar('[data-act="addfiller"]'); await M.flush();
+    await huecoMas(); await M.flush();
     igual(M.board().fillers, 1, 'no se añadió el hueco');
     M._test.undo(); await M.flush();
     ok(!M.board().fillers, '⌘Z no quitó el hueco');
@@ -9067,7 +9076,7 @@
     const [x] = await poner('r3', [await foto('u3-cancelada.jpg')]);
     M.setEstado('r3', 'cancelado');
     const [x2] = await M._in.paraPoner([x]); M._test.place('r1', x2);   // y de relleno en el carrusel: solo cuenta esta
-    await pulsar('[data-act="addfiller"]');
+    await huecoMas();
     await M._test.setPreview(0, hz);
     const id = M.hs.anadir(DIA(10), { time: '12:00' });
     await historiaConFoto(id, h);
@@ -9261,7 +9270,7 @@
     ok(/agosto/i.test(d.textContent), 'la ventana no dice su uso: ' + d.textContent);
     d.querySelector('[data-act="close"]').click(); await p;
     // en un hueco del feed (D-049): la naranja entra sin preguntar
-    q('.bar [data-act="addfiller"]').click(); await espera(60);
+    await huecoMas(); await espera(30);
     const f = fs.find(x => M.files[x].name === 'u8-d-relleno.jpg');
     let hecho = false; M._test.setPreview(0, f).then(() => { hecho = true; });
     await hasta(() => hecho || repeVentana(), 4000, 'la portada del hueco');
@@ -10840,29 +10849,22 @@
     ok(qa('.cell.past').every(c => c.classList.contains('locked')) && / · Bloqueado: /.test(et()[0].title), 'no se volvió a bloquear desde la etiqueta');
   });
 
-  prueba('S2', '«Abrir notas» es un icono de la barra del mes, a la izquierda de «Revisar», solo con alguna Nota, marcado mientras están abiertas y nunca en «Vista cliente» (D-152)', async () => {
+  prueba('S2', '«Abrir todas las notas» va en el clic derecho del feed (D-282, antes un icono de la barra, D-152): apagada sin ninguna Nota, «Cerrar todas las notas» mientras están abiertas y nunca en «Vista cliente»', async () => {
     await tablero([pub(1), pub(2)]);
-    const b = () => q('.bar .memobtn'), est = () => [b().getAttribute('aria-label'), b().getAttribute('aria-pressed')];
-    ok(b() && b().hidden, 'sale sin ninguna Nota');
-    ok(b().nextElementSibling === q('.bar .rvbtn'), 'no va a la izquierda de «Revisar»');
+    const menu = async () => { const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W })); await espera(20); const m = q('.cpmenu[aria-label="Feed"]'); return m && m.querySelector('[role="menuitem"]'); };
+    ok(!q('.bar .memobtn'), 'sigue el icono de notas en la barra');
+    let b = await menu(); ok(b && b.disabled && /Abrir todas las notas/.test(b.textContent), 'sin ninguna Nota no está apagada'); tecla('Escape', { en: D.activeElement }); await espera(20);
     M._in.openDetail('r1', 0);
     const memo = await hasta(() => q('.detail textarea.memo'), 2000, 'el campo Nota');
     memo.focus(); memo.value = 'S2 nota'; memo.dispatchEvent(new W.Event('input', { bubbles: true }));
     M._in.closeDetail();
     await hasta(() => q('.cell[data-slot="r1"] .pit'), 2000, 'el post-it de la Nota');
-    ok(!b().hidden && b().offsetParent, 'no sale con una Nota');
-    ok(b().querySelector('svg') && !b().textContent.trim(), 'lleva texto o le falta el icono');
-    igual(est(), ['Abrir notas', 'false'], 'cerrado');
-    const borde0 = W.getComputedStyle(b()).borderTopColor;
-    b().click(); await espera(30);
+    b = await menu(); ok(b && !b.disabled, 'con una Nota sigue apagada'); b.click(); await espera(30);
     ok(q('#mesa').classList.contains('memos'), 'no abrió las notas');
-    igual(est(), ['Cerrar notas', 'true'], 'abierto');
-    ok(W.getComputedStyle(b()).borderTopColor !== borde0, 'abierto no se distingue');
-    b().click(); await espera(30);
+    b = await menu(); ok(/Cerrar todas las notas/.test(b.textContent), 'abiertas, no ofrece cerrarlas'); b.click(); await espera(30);
     ok(!q('#mesa').classList.contains('memos'), 'no cerró las notas');
-    igual(est(), ['Abrir notas', 'false'], 'cerrado otra vez');
     q('.clientToggle').click(); await espera(30);
-    try { ok(W.getComputedStyle(b()).display === 'none', 'sale en «Vista cliente»'); }
+    try { ok(!(await menu()), 'sale en «Vista cliente»'); }
     finally { q('.clientToggle').click(); await espera(30); }
   });
 
@@ -10883,7 +10885,7 @@
 
   prueba('LZ1', '«Vista cliente» no enseña «+ Cliente», «⋯», «+ Hueco» ni «Guardado» (ni «⇅», que ya no está, D-263); «No se pudo guardar» sí; al quitarla vuelven (D-154)', async () => {
     await tablero([pub(1), pub(2)]);
-    const P = ['.appbar .tab.add', '.tabs .tedit', '.bar [data-act="addfiller"]'];   // sin ⇅ (D-263)
+    const P = ['.appbar .tab.add', '.tabs .tedit'];   // sin ⇅ (D-263) ni «+ Hueco» en la barra (D-282: va en el clic derecho del feed, FH2)
     P.forEach(s => ok(seVe(s), 'no sale sin la vista cliente: ' + s));
     q('.save').classList.remove('err'); q('.save').textContent = 'Guardado';
     await conCliente(async () => {
@@ -11838,9 +11840,15 @@
     await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'calendario.js');   // Σ ya no está (D-229, AV8)
     const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
     const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
-    for (const [sel, txt] of [['[data-act="addfiller"]', '+ Hueco'], ['[data-act="newclient"]', '+ Cliente']]) {
+    for (const [sel, txt] of [['[data-act="newclient"]', '+ Cliente']]) {
       const b = q(sel), i = b && b.querySelector('.i-mas');
       ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
+    }
+    {   // «+ Hueco» ya no está en la barra: su «+» en el clic derecho del feed, también un icono (D-282)
+      const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W })); await espera(20);
+      const b = [...q('.cpmenu[aria-label="Feed"]').querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent)), i = b && b.querySelector('.i-mas');
+      ok(b && b.textContent.trim() === '+ Hueco' && i && tam0(i) && /M5 12h14/.test(masc(i)), '«+ Hueco» del menú del feed sin el icono plus');
+      tecla('Escape', { en: D.activeElement }); await espera(20);
     }
     const ti = qa('.tray .trayhead .ttam i'); ok(ti.length === 2 && ti.every(i => W.getComputedStyle(i).borderTopWidth === '0px' && /rect/.test(masc(i, null))), 'la barra de tamaño sigue con bordes');
     await poner('r1', [await foto('es2.jpg')]); await espera(80);
@@ -20266,7 +20274,7 @@
   const a43Ctx = (el, x, y) => { const r = el.getBoundingClientRect(); const e = new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x ?? r.x + r.width / 2, clientY: y ?? r.y + r.height / 2, view: W }); el.dispatchEvent(e); return e.defaultPrevented; };
   const a43Menu = () => q('.cpmenu:not(.pp-sm)');
   const a43Btns = () => { const m = a43Menu(); return m ? [...m.querySelectorAll('[role="menuitem"]')] : []; };
-  const a43Txt = b => b.firstChild.textContent.trim();
+  const a43Txt = b => { const c = b.cloneNode(true); c.querySelectorAll('.sub, .kb').forEach(x => x.remove()); return c.textContent.trim(); };
   const a43Items = () => (a43Menu() ? a43Btns().map(b => (b.disabled ? '·' : '') + a43Txt(b)) : null);   // «·» delante: apagada
   const a43Elige = t => { const b = a43Btns().find(x => a43Txt(x) === t); ok(b, 'el menú no tiene «' + t + '»: ' + json(a43Items())); ok(!b.disabled, '«' + t + '» está apagada'); b.click(); };
   const a43Cmd = el => el.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, view: W }));
@@ -20347,6 +20355,66 @@
       r = await conDescarga(async cap => { boton.click(); const d2 = await hasta(() => dialogo(), 2000, 'la pregunta'); d2.querySelector('.amode button').click(); await hasta(() => cap(), 8000, 'el ZIP'); });
       ok(r && /\.zip$/.test(r.name), '«Bajar la copia» no baja el ZIP');
     } finally { delete M.files[ids[1]].copia; }
+  });
+
+
+  prueba('FH1', 'Clic derecho en el feed (D-282): en una casilla o en el espacio del grid, «Abrir todas las notas» (apagada sin ninguna Nota, con su motivo en el título) y «+ Hueco»; ni el chip «+ Hueco» ni el icono de notas en la barra del mes; con 2 huecos, «+ Hueco» apagado con «máximo 2» a la derecha y su motivo; sobre un hueco, «Quitar hueco» arriba (con portada, «Quitar portada» y «Quitar hueco»)', async () => {
+    await tablero([pub(1), pub(2), pub(3)]);
+    ok(!q('.bar [data-act="addfiller"]') && !q('.bar .memobtn'), 'la barra del mes sigue con «+ Hueco» o con el icono de notas');
+    ok(a43Ctx(celda('r1')), 'el clic derecho en una casilla es el del navegador');
+    igual(a43Items(), ['·Abrir todas las notas', '+ Hueco'], 'el menú de una casilla, sin ninguna Nota');
+    ok(/Nota/.test(a43Btns()[0].title), 'la apagada no dice su motivo: ' + json(a43Btns()[0].title));
+    ok(D.activeElement === a43Btns()[1], 'el foco no va a la primera que hace algo');
+    a43Elige('+ Hueco'); await espera(60);
+    igual(M.status().fillers, 1, '«+ Hueco» no añadió un hueco'); ok(!a43Menu(), 'el menú sigue abierto');
+    // en el espacio del grid, debajo de las casillas
+    const feed = q('.feed'), fr = feed.getBoundingClientRect(), gr = q('.feed .grid').getBoundingClientRect();
+    ok(a43Ctx(feed, fr.x + 20, Math.min(fr.bottom - 4, gr.bottom + 30)), 'el clic derecho en el espacio del grid es el del navegador');
+    a43Elige('+ Hueco'); await espera(60); igual(M.status().fillers, 2, 'desde el espacio del grid no añadió un hueco');
+    // con 2: apagado, «máximo 2» y su motivo; sobre un hueco, «Quitar hueco» arriba
+    a43Ctx(q('.feed .cell.filler[data-filler="1"]'));
+    igual(a43Items(), ['Quitar hueco', '·Abrir todas las notas', '·+ Hueco'], 'el menú de un hueco con 2');
+    const mas = a43Btns()[2]; igual(mas.querySelector('.kb') && mas.querySelector('.kb').textContent, 'máximo 2', '«+ Hueco» apagado no dice «máximo 2»'); ok(/2 huecos/.test(mas.title), '«+ Hueco» apagado no dice su motivo');
+    ok(a43Menu().querySelector('hr'), 'sin la raya entre lo del hueco y lo del feed');
+    a43Elige('Quitar hueco'); await espera(60); igual(M.status().fillers, 1, '«Quitar hueco» no lo quitó');
+    // con portada: «Quitar portada» y «Quitar hueco»
+    const [f] = await M.addFiles([await foto('fh1-p.jpg', 1080, 1350, '#806040')]);
+    await M._test.setPreview(0, f); await espera(60);
+    a43Ctx(q('.feed .cell.filler[data-filler="0"]'));
+    igual(a43Items().slice(0, 2), ['Quitar portada', 'Quitar hueco'], 'el menú de un hueco con portada');
+    a43Elige('Quitar portada'); await espera(80);
+    ok(!M.board().previews || !M.board().previews[0], '«Quitar portada» no la quitó'); igual(M.status().fillers, 1, '«Quitar portada» quitó el hueco');
+    await M._test.setPreview(0, f); await espera(60);
+    a43Ctx(q('.feed .cell.filler[data-filler="0"]')); a43Elige('Quitar hueco'); await espera(80);
+    igual(M.status().fillers, 0, '«Quitar hueco» con portada no quitó el hueco');
+    ok(M.board().tray.includes(f), 'la foto de la portada no volvió a la bandeja');
+    // con una Nota: abrir y cerrar todas
+    M._test.setMemo('r2', 'FH1 nota'); await espera(60);
+    a43Ctx(celda('r3')); a43Elige('Abrir todas las notas'); await espera(40);
+    ok(q('#mesa').classList.contains('memos'), 'no abrió las notas');
+    a43Ctx(celda('r3')); igual(a43Items()[0], 'Cerrar todas las notas', 'abiertas, no ofrece cerrarlas');
+    a43Elige('Cerrar todas las notas'); await espera(40); ok(!q('#mesa').classList.contains('memos'), 'no cerró las notas');
+  });
+
+  prueba('FH2', 'El menú del feed con el teclado (D-282): el grid es una parada de Tab y ⇧F10 o la tecla de menú abren el menú sobre la primera casilla, con el foco dentro; ↑ ↓ lo recorren, Esc lo cierra y devuelve el foco al grid sin llegar al tablero; nada en «Vista cliente»', async () => {
+    await tablero([pub(1), pub(2)]);
+    const g = q('.feed .grid');
+    igual(g.tabIndex, 0, 'el grid no es una parada de Tab');
+    g.focus(); tecla('F10', { shift: true, en: g }); await espera(30);
+    ok(a43Menu(), '⇧F10 no abre el menú');
+    const r1 = q('.feed .grid > .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
+    ok(mr.left >= r1.left - 1 && mr.left <= r1.right && mr.top >= r1.top - 1 && mr.top <= r1.bottom, 'el menú no sale sobre la primera casilla');
+    ok(a43Menu().contains(D.activeElement), 'el foco no entra en el menú');
+    tecla('ArrowDown', { en: D.activeElement }); ok(a43Menu().contains(D.activeElement), '↓ saca el foco del menú');
+    let llego = false; const oy = e => { if (e.key === 'Escape') llego = true; }; W.addEventListener('keydown', oy);
+    try { tecla('Escape', { en: D.activeElement }); await espera(20); } finally { W.removeEventListener('keydown', oy); }
+    ok(!a43Menu(), 'Esc no lo cierra'); ok(D.activeElement === g, 'el foco no vuelve al grid'); ok(!llego, 'el Esc llegó al tablero');
+    tecla('ContextMenu', { en: g }); await espera(20); ok(a43Menu(), 'la tecla de menú no lo abre'); tecla('Escape', { en: D.activeElement }); await espera(20);
+    await vistaCliente(true);
+    try {
+      ok(!a43Ctx(celda('r1')) && !a43Menu(), 'en «Vista cliente» sale el menú del feed');
+      ok(q('.feed .grid').tabIndex !== 0, 'en «Vista cliente» el grid es una parada de Tab');
+    } finally { await vistaCliente(false); }
   });
 
 

@@ -1827,6 +1827,13 @@
       putPreview(k, f);
     } });
   }
+  function quitarHueco(k) {            // «Quitar hueco» of the feed's menu (D-282): the hole and its cover at once, its photo back to the tray
+    if (!S || k >= fillersOf()) return;
+    const f = previewAt(k);
+    if (S.previews) { const c = S.previews.slice(); c.splice(k, 1); setPreviews(c); }
+    if (f && !refsOf(S).has(f)) S.tray.unshift(f);
+    setFillers(fillersOf() - 1);
+  }
   function delFiller(k) {              // × on a filler: its photo first, the filler itself once it is empty
     if (previewAt(k)) return delPreview(k);
     if (S.previews) { const c = S.previews.slice(); c.splice(k, 1); setPreviews(c); }
@@ -2670,7 +2677,6 @@ ${TK_FUENTES}
 #mesa .ptag2{position:absolute;top:28px;left:5px;z-index:3;font-size:9.5px;font-weight:600;background:var(--photo-chip-2);color:var(--on-photo);border-radius:var(--r-pill);padding:1px 7px;pointer-events:none}
 #mesa .ptag2.ed{background:var(--acc);color:var(--on-acc)}
 #mesa .cell.past.phidden img,#mesa .cell.past.phidden .ph{opacity:.35}
-#mesa .memobtn{padding:0 9px}#mesa .memobtn svg{flex:none;width:16px;height:16px}#mesa .memobtn[hidden]{display:none}#mesa .memobtn[aria-pressed="true"]{border-color:var(--acc);color:var(--acc-ink)}
 #mesa.memos .pit:not(.edit){max-width:100%;max-height:8.6em;transition-delay:0s}#mesa.memos .pit .pt{opacity:1;transition-delay:0s}#mesa.memos .cell.empty>.pit:not(.edit){max-width:calc(100% - 12px)}
 #mesa .pthumb{max-width:100%;max-height:60vh;display:block;margin:0 auto;box-shadow:var(--shadow-md)}
 #mesa .pvacts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:10px}
@@ -2755,7 +2761,7 @@ ${TK_FUENTES}
 #mesa .cpmenu{position:fixed;z-index:70;display:flex;flex-direction:column;min-width:230px;padding:6px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg)}
 #mesa .cpmenu button{display:flex;justify-content:space-between;align-items:center;border:0;background:none;border-radius:var(--r-sm);min-height:32px;padding:6px 10px;text-align:left;font-size:13px;color:var(--ink)}
 #mesa .cpmenu button:hover:not(:disabled){background:var(--bg-2)}#mesa .cpmenu button:disabled{color:var(--faint);cursor:default}#mesa .cpmenu .kb{margin-left:14px;color:var(--mute);font-variant-numeric:tabular-nums}
-#mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line2)}
+#mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line)}#mesa .cpmenu button:disabled .kb{color:var(--faint)}
 #mesa .cpmenu.cp-copias{min-width:264px}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
 #mesa .cp-copias button .sub{font-size:12px;color:var(--mute)}
 #mesa .cp-copias .nota{display:flex;gap:7px;max-width:250px;margin:2px 4px;padding:6px 6px 4px;font-size:12px;line-height:1.4;color:var(--ink-2)}
@@ -2961,13 +2967,13 @@ ${TK_FUENTES}
 #mesa .toast button:hover{text-decoration:underline;text-underline-offset:3px}
 #mesa .lock{position:absolute;inset:0;z-index:20;background:var(--veil-bg);display:flex;align-items:center;justify-content:center;padding:16px}
 /* vista cliente */
-#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .memobtn,#mesa.client .tray{display:none}
+#mesa.client .lab,#mesa.client .badges,#mesa.client .cnt,#mesa.client .pdate,#mesa.client .pmonth,#mesa.client .ptag2,#mesa.client .cell.past.phidden,#mesa.client .ph>*,#mesa.client .tray{display:none}
 #mesa.client .cell.empty::before{display:none}#mesa.client .rvbtn{display:none}
 #mesa.client .cell.filler .hx{display:none}
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
-#mesa.client .tab.add,#mesa.client .appbar .nubest,#mesa.client .tabs .tedit,#mesa.client [data-act="addfiller"],#mesa.client .save:not(.err){display:none}
+#mesa.client .tab.add,#mesa.client .appbar .nubest,#mesa.client .tabs .tedit,#mesa.client .save:not(.err){display:none}
 #mesa.client .tabs .tab:not(.on){display:none}#mesa.client .appbar .brand{pointer-events:none}#mesa.client .appbar .brand svg{display:none}#mesa.client .appbar .brand .mono{display:block}   /* only its own tab (D-227); in its place, the monogram, not pressed (D-264) */#mesa.client .tab.on.hasedit{padding-right:13px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
@@ -3104,10 +3110,9 @@ ${TK_FUENTES}
     }
     // no avatar, name nor @ (D-157: the active tab names the client, «⋯» goes next to it) and no «+ Mes» (D-157:
     // a client without months says how to ask Claude for one)
-    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div>${S ? '<button class="mchip ghost" data-act="addfiller" title="Añade una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación; como mucho 2)"><span class="i-mas">+</span> Hueco</button>' : ''}</div><div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
+    bar.innerHTML = `<div class="mgrp"><div class="months">${months}</div></div><div class="spacer"></div>${S && M.web && M.web.barra ? M.web.barra() : ''}${stats}`
       + (S && M.hs && M.hs.barra ? M.hs.barra() : '')
       + (S && M.descargar && M.descargar.barra ? M.descargar.barra() : '')   // «Descargar (n)» with posts chosen with ⌘+click (descargar.js, D-083)
-      + (S ? memoBtnHTML() : '')
       + (S ? '<button class="mchip ghost rvbtn" data-act="revisar" title="Lo que hay que mirar antes de subir o programar el mes: huecos vacíos, numeración, resolución, márgenes y formato">Revisar</button>' : '')
       + (S ? `<label class="sw"><input type="checkbox" class="clientToggle"${root.classList.contains('client') ? ' checked' : ''}> Vista cliente</label>` : '');
     const ms = bar.querySelector('.months'), on = ms.querySelector('.mchip.on');   // narrow: the chips scroll sideways
@@ -3125,7 +3130,7 @@ ${TK_FUENTES}
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
       if (S) {
-        main.innerHTML = '<section class="feed"><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
+        main.innerHTML = '<section class="feed"><div class="grid" tabindex="' + (root.classList.contains('client') ? -1 : 0) + '" aria-label="Feed del mes" aria-keyshortcuts="Shift+F10"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold"${sinCal() ? ' hidden' : ''} aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
           + '<span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button type="button" class="mchip ghost tdl" data-act="tdescargar" hidden>' + IC.descargar + '<span>Descargar</span></button><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
@@ -3516,24 +3521,13 @@ ${TK_FUENTES}
     }
     if (hov.id) hov.t = Date.now();          // a redrawn post-it opens again after its 0.5 s
     pdRefresh();
-    memoSync();
     fitGrid();
     calRender();
     hsRender();
     dlRender();
   }
-  // «Abrir notas» lives in the month's bar as an icon (D-152), only while a post has a Nota; every redraw of the grid
-  // puts it up to date without redrawing the bar
-  const memoTxt = () => memosOpen ? ['Cerrar notas', 'Cerrar todas las notas'] : ['Abrir notas', 'Abrir todas las notas a la vez'];
-  function memoBtnHTML() {
-    const [l, t] = memoTxt();
-    return `<button type="button" class="mchip ghost memobtn" data-act="memos"${S.slots.some(s => memoOf(s)) ? '' : ' hidden'} aria-pressed="${memosOpen}" aria-label="${l}" title="${t}">${IC.nota}</button>`;
-  }
-  function memoSync() {
-    const b = root && root.querySelector('.bar .memobtn'); if (!b || !S) return;
-    const [l, t] = memoTxt();
-    b.hidden = !S.slots.some(s => memoOf(s)); b.setAttribute('aria-pressed', memosOpen); b.setAttribute('aria-label', l); b.title = t;
-  }
+  // «Abrir todas las notas» / «Cerrar todas las notas» live in the feed's right click (D-282; before, an icon of the bar, D-152)
+  function alternarNotas() { memosOpen = !memosOpen; root.classList.toggle('memos', memosOpen); renderFeed(); }
   // the cells chosen to download (descargar.js) are marked again after every redraw; the mesa never needs it
   function dlRender() { if (M.descargar && M.descargar.marcar) { try { M.descargar.marcar(); } catch (e) { /* */ } } }
   // the calendar (calendario.js) follows every redraw of the grid; if it didn't load or throws, the mesa goes on without it
@@ -4991,6 +4985,7 @@ ${TK_FUENTES}
     // the mouse drag (see pdDown…): starts on the photo, follows the mouse anywhere on the page
     root.addEventListener('pointerdown', pdDown);
     root.addEventListener('contextmenu', alCopias); root.addEventListener('keydown', alCopias);   // the copies' menu on the symbol (D-263)
+    root.addEventListener('contextmenu', alFeed); root.addEventListener('keydown', alFeed);   // the feed's: the notes and the holes (D-282)
     if (M._pd) { document.removeEventListener('pointermove', M._pd.move, true); document.removeEventListener('pointerup', M._pd.up, true); document.removeEventListener('pointercancel', M._pd.cancel, true); window.removeEventListener('blur', M._pd.cancel); }
     if (M._pd) { document.removeEventListener('pointerdown', M._pd.down, true); document.removeEventListener('contextmenu', M._pd.cancel, true); }
     M._pd = { move: pdMove, up: e => { btnDown = false; pdUp(e); }, cancel: () => { btnDown = false; pdCancel(); }, down: e => { btnDown = e.button === 0; pdHold = null; } };
@@ -5132,7 +5127,8 @@ ${TK_FUENTES}
       else if (e.target.matches('.tysel')) setType(e.target.dataset.slot, e.target.value);
       else if (e.target.matches('.essel')) pickEstado(e.target.dataset.slot, e.target.value || null);
       else if (e.target.matches('.clientToggle')) {
-        root.classList.toggle('client', e.target.checked); root.querySelectorAll('.mchip[data-tt]').forEach(b => { if (e.target.checked) b.removeAttribute('title'); else b.title = b.dataset.tt; });
+        root.classList.toggle('client', e.target.checked); menuCerrar(); { const g = root.querySelector('.feed .grid'); if (g) g.tabIndex = e.target.checked ? -1 : 0; }   // the feed's menu: not in the vista cliente (D-282)
+        root.querySelectorAll('.mchip[data-tt]').forEach(b => { if (e.target.checked) b.removeAttribute('title'); else b.title = b.dataset.tt; });
         // the calendar drawn again at once: without the notice on opening (D-160), «N vencidas» of its header must be there as
         // soon as the view is left, and never in it
         if (M.calendario && M.calendario.render) M.calendario.render();
@@ -5284,7 +5280,6 @@ ${TK_FUENTES}
     else if (act === 'avpick') { const i = root.querySelector('.detail .avin'); if (i) i.click(); }
     else if (act === 'avdel') { const cid = edCid || curClient; await avDiscard(); avStage = { cid, id: '' }; const c = CL.find(x => x.id === cid); const pv = root.querySelector('.detail .avprev'); if (pv) pv.outerHTML = avatarHTML({ ...c, foto: null }, 'avprev'); a.hidden = true; }
     else if (act === 'howmonth') dlgHowMonth();
-    else if (act === 'addfiller') setFillers(fillersOf() + 1);
     else if (act === 'delfiller') delFiller(+a.dataset.k);
     else if (act === 'tema') cambiarTema();
     else if (act === 'cambios') { if (M.calendario && M.calendario.cambios) M.calendario.cambios(); else toast((window.MESA_CARGA || {}).calendario === 'fallo' ? 'No se pudo cargar el calendario (calendario.js): recarga la página.' : 'Cargando la lista… Vuelve a pulsar en un momento.'); }   // the changed ones (D-126)
@@ -5311,7 +5306,6 @@ ${TK_FUENTES}
       closeDetail(); renderFeed();
       if (pu) { pu.fn(); if (pu.kind === 'edit') endOnce(); }
     }
-    else if (act === 'memos') { memosOpen = !memosOpen; root.classList.toggle('memos', memosOpen); renderFeed(); }
     else if (act === 'prevlock') { if (S.prevUnlocked || prevOnce) { S.prevUnlocked = false; prevOnce = false; save(); renderFeed(); toast('Mes anterior bloqueado.'); } else withPrev(() => {}, 'none'); }
     else if (act === 'prevhide') { const it = prevItem(a.dataset.id); if (it) { it.hidden = !it.hidden; changed(); openPast(it.id); } }
     else if (act === 'prevtotray') { prevToTray(a.dataset.id); openPast(a.dataset.id); }
@@ -7659,6 +7653,69 @@ ${TK_FUENTES}
       + `<p>${esc(msg)}. La copia ${hs.length === 1 ? 'lo lleva tal cual: llénalo en el editor antes de subir o programar esa publicación' : 'los lleva tal cual: llénalos en el editor antes de subir o programar esas publicaciones'}.</p>`
       + `<ul class="xsum">${hs.map(h => `<li><b>${esc(h.post)}</b>: ${h.diapositivas.length === 1 ? 'diapositiva' : 'diapositivas'} ${h.diapositivas.join(', ')} <span>· ${esc(cn(h.client))}, ${esc(monthLabel(h.month))}</span></li>`).join('')}</ul>`);
     focoX();                             // no «Entendido» (D-155): the ×
+  }
+  // The mesa's right-click menus (D-282, D-284, D-285), with the look and the keys of the copies' (D-263): items {t, sub?, kb?,
+  // off?, tip?, hacer} or '-' (a line); o: {foco: where the focus goes back, cls, label, pie: html at its foot}. Esc closes it
+  // and gives the focus back without reaching the board; Tab closes it; ↑ ↓ go round the ones that do something (D-201)
+  let ctxM = null;
+  function menuCerrar(volver) {
+    if (!ctxM) return; const c = ctxM; ctxM = null; c.el.remove();
+    document.removeEventListener('pointerdown', c.fuera, true); document.removeEventListener('keydown', c.tecla, true);
+    window.removeEventListener('blur', c.cerrar); window.removeEventListener('resize', c.cerrar); document.removeEventListener('scroll', c.cerrar, true);
+    if (volver && c.foco && c.foco.isConnected) c.foco.focus({ preventScroll: true });
+  }
+  function menuMesa(x, y, items, o = {}) {
+    menuCerrar(); cerrarCopias();
+    if (!shellReady()) return null;
+    const l = items.filter(Boolean), el = document.createElement('div');
+    el.className = 'cpmenu' + (o.cls ? ' ' + o.cls : ''); el.setAttribute('role', 'menu'); if (o.label) el.setAttribute('aria-label', o.label);
+    el.innerHTML = l.map((it, i) => it === '-' ? '<hr>' : `<button type="button" role="menuitem" data-i="${i}"${it.off ? ' disabled' : ''}${it.tip ? ` title="${esc(it.tip)}"` : ''}>${it.html || esc(it.t)}${it.sub ? `<span class="sub">${esc(it.sub)}</span>` : ''}${it.kb ? `<span class="kb">${esc(it.kb)}</span>` : ''}</button>`).join('') + (o.pie || '');
+    if (o.desc) el.setAttribute('aria-describedby', o.desc);
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button[data-i]'); if (!b || b.disabled) return;
+      const it = l[+b.dataset.i]; menuCerrar(true);
+      if (it && it.hacer) it.hacer();
+    });
+    root.append(el);
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.max(8, Math.min(x, innerWidth - r.width - 8))}px`; el.style.top = `${Math.max(8, Math.min(y, innerHeight - r.height - 8))}px`;
+    const c = ctxM = { el, foco: o.foco || null, cerrar: () => menuCerrar(false), fuera: e => { if (!el.contains(e.target)) menuCerrar(false); }, tecla: e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); menuCerrar(true); return; }
+      if (e.key === 'Tab') { menuCerrar(true); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); const bs = [...el.querySelectorAll('button:not(:disabled)')], i = bs.indexOf(document.activeElement); const n = bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length]; if (n) n.focus(); }
+    } };
+    document.addEventListener('pointerdown', c.fuera, true); document.addEventListener('keydown', c.tecla, true);
+    window.addEventListener('blur', c.cerrar); window.addEventListener('resize', c.cerrar); document.addEventListener('scroll', c.cerrar, true);
+    const b0 = el.querySelector('button:not(:disabled)'); if (b0) b0.focus({ preventScroll: true });
+    return el;
+  }
+  // The feed's right click (D-282): what left the month's bar — the notes, open or closed all at once, and «+ Hueco» (D-002,
+  // D-152) — anywhere in the feed; over a hole, «Quitar hueco» first (with its cover, «Quitar portada» too). Never in the
+  // vista cliente nor in a paused tab. With the keyboard, the grid is a stop of Tab and ⇧F10 / the menu key open it over its
+  // first cell
+  function menuFeed(x, y, k, foco) {
+    if (!S || root.classList.contains('client') || locked) return false;
+    const n = fillersOf(), hay = S.slots.some(s => memoOf(s)), l = [];
+    if (k != null && k < n) { if (previewAt(k)) l.push({ t: 'Quitar portada', hacer: () => delPreview(k) }); l.push({ t: 'Quitar hueco', hacer: () => quitarHueco(k) }, '-'); }
+    l.push({ t: memosOpen ? 'Cerrar todas las notas' : 'Abrir todas las notas', off: !hay && !memosOpen, tip: hay || memosOpen ? '' : 'Ninguna publicación tiene Nota', hacer: alternarNotas });
+    const mas = '<span class="i-mas">+</span> Hueco';
+    l.push(n >= MAX_FILLERS ? { html: mas, kb: 'máximo 2', off: true, tip: `Ya hay ${MAX_FILLERS} huecos: es el máximo` }
+      : { html: mas, tip: 'Una casilla negra arriba del grid para cuadrar las filas de 3 (no es una publicación)', hacer: () => setFillers(n + 1) });
+    return !!menuMesa(x, y, l, { foco, label: 'Feed' });
+  }
+  function alFeed(e) {                 // the right click anywhere in the feed, or ⇧F10 / the menu key on its grid
+    if (!S || !e.target.closest || root.classList.contains('client')) return;
+    const feed = e.target.closest('.main > .feed'); if (!feed) return;
+    if (e.type === 'keydown') {
+      if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) || !e.target.matches('.feed > .grid')) return;
+      e.preventDefault(); e.stopPropagation();
+      const c = feed.querySelector('.grid > .cell'), r = (c || e.target).getBoundingClientRect();
+      menuFeed(r.left + 12, r.top + 12, c && c.dataset.filler != null ? +c.dataset.filler : null, e.target);
+      return;
+    }
+    if (e.target.closest('textarea, input, [contenteditable]')) return;   // a Nota being written: the browser's own (spelling, paste)
+    const h = e.target.closest('.cell.filler[data-filler]');
+    if (menuFeed(e.clientX, e.clientY, h ? +h.dataset.filler : null, null)) { e.preventDefault(); e.stopPropagation(); }
   }
   // The copies (D-263): a right click on the header's symbol, or ⇧F10 / the menu key on it, opens a small menu like the mesa's
   // other right clicks — Exportar, Exportar todo, Importar… — with, at its foot, the notice of storage this browser may delete

@@ -20258,6 +20258,98 @@
     await sinTareas();
   });
 
+  // =====================================================================================================
+  // ajustes de la 4.42, lote A (Mesa 4.43): bajar fotos de la bandeja, el clic derecho del feed y del calendario, las listas
+  // de las notas y el menú del símbolo (D-281 a D-285)
+  // =====================================================================================================
+  // un clic derecho de verdad (contextmenu) en el centro de un elemento o en x, y; true si la Mesa lo atendió
+  const a43Ctx = (el, x, y) => { const r = el.getBoundingClientRect(); const e = new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x ?? r.x + r.width / 2, clientY: y ?? r.y + r.height / 2, view: W }); el.dispatchEvent(e); return e.defaultPrevented; };
+  const a43Menu = () => q('.cpmenu:not(.pp-sm)');
+  const a43Btns = () => { const m = a43Menu(); return m ? [...m.querySelectorAll('[role="menuitem"]')] : []; };
+  const a43Txt = b => b.firstChild.textContent.trim();
+  const a43Items = () => (a43Menu() ? a43Btns().map(b => (b.disabled ? '·' : '') + a43Txt(b)) : null);   // «·» delante: apagada
+  const a43Elige = t => { const b = a43Btns().find(x => a43Txt(x) === t); ok(b, 'el menú no tiene «' + t + '»: ' + json(a43Items())); ok(!b.disabled, '«' + t + '» está apagada'); b.click(); };
+  const a43Cmd = el => el.dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, view: W }));
+  async function a43Bytes(x, y) { const p = new Uint8Array(await x.arrayBuffer()), r = new Uint8Array(await y.arrayBuffer()); return p.length === r.length && p.every((v, i) => v === r[i]); }
+  // la luminancia relativa y el contraste de dos colores rgb() de getComputedStyle
+  const a43Lum = c => { const v = String(c).match(/[\d.]+/g).slice(0, 3).map(Number).map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const a43Contraste = (a, b) => { const x = a43Lum(a), y = a43Lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const a43Fondo = el => { for (let x = el; x; x = x.parentElement) { const c = W.getComputedStyle(x).backgroundColor; if (c && !/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c; } return 'rgb(255, 255, 255)'; };
+
+  prueba('BD1', 'Bajar fotos de la bandeja (D-281): con fotos elegidas con ⌘+clic, «Descargar N» en su cabecera y «Descargar N fotos» arriba de su clic derecho (N cuenta también las fotos de las carpetas elegidas y sus subcarpetas); una foto sale tal cual (su nombre y sus bytes), dos o más en un ZIP «cliente-bandeja-AAAA-MM-DD.zip» con las carpetas elegidas dentro como carpetas; sin nada elegido, nada; en la bandeja del editor, no', async () => {
+    await tablero([pub(1)]);
+    const fs = [await foto('bd-a.jpg', 900, 1100, '#7a4a3c'), await foto('bd-b.jpg', 1000, 800, '#3c6a7a'), await foto('bd-c.jpg', 800, 800, '#5a7a3c'), await foto('bd-d.jpg', 700, 900, '#6a3c7a'), await foto('bd-e.jpg', 600, 600, '#2c4a3c')];
+    const ids = await M.addFiles(fs); ok(ids.length === 5, 'no entraron las fotos: ' + json(ids));
+    const id = n => ids[fs.findIndex(f => f.name === n)];   // addFiles ordena por nombre
+    const t1 = M.crearCarpeta('Terraza'), t2 = M.crearCarpeta('Detalle', t1.id);
+    M._in.trayMover({ files: [id('bd-b.jpg')] }, t1.id); M._in.trayMover({ files: [id('bd-c.jpg')] }, t2.id);
+    await espera(150);
+    const boton = () => q('.side > .tray .trayhead [data-act="tdescargar"]');
+    const it = n => q(`.side > .tray .titem[data-file="${id(n)}"]`);
+    await hasta(() => it('bd-a.jpg') && it('bd-d.jpg'), 4000, 'las fotos en la bandeja');
+    ok(!boton() || boton().hidden, 'sin nada elegido sale «Descargar»');
+    a43Cmd(it('bd-a.jpg')); await espera(40);
+    ok(boton() && !boton().hidden && /^Descargar 1$/.test(boton().textContent.trim()), '«Descargar 1» no sale: ' + json(boton() && boton().textContent));
+    // una foto: su archivo, tal cual
+    let r = await conDescarga(async cap => { boton().click(); await hasta(() => cap(), 8000, 'la descarga de una foto'); });
+    igual(r.name, 'bd-a.jpg', 'el nombre de una foto sola');
+    ok(await a43Bytes(r.blob, fs[0]), 'la foto sola no sale con sus mismos bytes');
+    ok(it('bd-a.jpg').classList.contains('elegida'), 'tras bajarla, se pierde lo elegido');
+    // una carpeta (con su subcarpeta) y otra foto: 4 fotos en un ZIP, la carpeta dentro como carpeta
+    a43Cmd(q(`.side > .tray .tcarpeta[data-id="${t1.id}"]`)); a43Cmd(it('bd-d.jpg')); await espera(40);
+    ok(/^Descargar 4$/.test(boton().textContent.trim()), 'N no cuenta las fotos de la carpeta y su subcarpeta: ' + json(boton().textContent));
+    ok(a43Ctx(it('bd-d.jpg')), 'el clic derecho en una elegida es el del navegador');
+    ok(a43Items()[0] === 'Descargar 4 fotos', 'el clic derecho no empieza por «Descargar 4 fotos»: ' + json(a43Items()));
+    r = await conDescarga(async cap => { a43Elige('Descargar 4 fotos'); await hasta(() => cap(), 15000, 'el ZIP'); });
+    igual(r.name, `cliente-de-prueba-bandeja-${M._in.hoy()}.zip`, 'el nombre del ZIP');
+    const z = await leerZip(r.blob), nombres = z.map(e => e.name).sort();
+    igual(nombres, ['Terraza/Detalle/bd-c.jpg', 'Terraza/bd-b.jpg', 'bd-a.jpg', 'bd-d.jpg'], 'lo que lleva el ZIP');
+    for (const e of z) ok(await a43Bytes(new W.Blob([e.data]), fs.find(f => f.name === e.name.split('/').pop())), e.name + ' no va tal cual');
+    // más de 4 GB: un aviso que pide menos fotos, nada baja
+    const sz = [M.files[id('bd-a.jpg')].size, M.files[id('bd-d.jpg')].size];
+    M.files[id('bd-a.jpg')].size = 3e9; M.files[id('bd-d.jpg')].size = 2e9;
+    try {
+      r = await conDescarga(async () => { boton().click(); await espera(400); });
+      ok(!r, 'con más de 4 GB baja algo');
+      ok(qa('.toast').some(t => /elige menos fotos/.test(t.textContent)), 'con más de 4 GB no avisa: ' + json(qa('.toast').map(t => t.textContent)));
+    } finally { M.files[id('bd-a.jpg')].size = sz[0]; M.files[id('bd-d.jpg')].size = sz[1]; }
+    // el clic derecho en una que no está elegida: lo de siempre, sin «Descargar»
+    a43Ctx(it('bd-e.jpg')); ok(!a43Items().some(t => /Descargar/.test(t)), 'una foto sin elegir ofrece descargar lo elegido'); tecla('Escape'); await espera(20);
+    // nada elegido: un clic sin ⌘ lo suelta y el botón se va
+    q('.side > .tray .tbody').click(); await espera(40);
+    ok(!boton() || boton().hidden, 'sin nada elegido sigue «Descargar»');
+    // la bandeja del editor no baja nada
+    await abrirEditor('r1');
+    const ph = await hasta(() => q('.lb-tray .lb-tph[data-f]'), 4000, 'la bandeja del editor');
+    a43Cmd(ph); await espera(40);
+    ok(!q('.lb-tray [data-act="tdescargar"]'), 'la bandeja del editor lleva «Descargar»');
+    if (a43Ctx(ph)) { ok(!(a43Items() || []).some(t => /Descargar/.test(t)), 'el clic derecho del editor ofrece descargar'); tecla('Escape'); }
+    M.libre.cerrar(); await espera(60);
+  });
+
+  prueba('BD2', 'Bajar de la bandeja una foto de la que aquí solo está la copia de 2560 de la nube (D-281): antes, una pregunta corta «N fotos solo están aquí en su copia de 2560» · «Bajar la copia» · «Parar»; «Parar» no baja nada y «Bajar la copia» baja la copia', async () => {
+    await tablero([pub(1)]);
+    const fs = [await foto('bd2-a.jpg', 900, 1100, '#7a4a3c'), await foto('bd2-b.jpg', 1000, 800, '#3c6a7a')];
+    const ids = await M.addFiles(fs);
+    const it = f => q(`.side > .tray .titem[data-file="${f}"]`);
+    await hasta(() => it(ids[0]) && it(ids[1]), 4000, 'las fotos en la bandeja');
+    M.files[ids[1]].copia = { w: 1000, h: 800 };
+    try {
+      a43Cmd(it(ids[0])); a43Cmd(it(ids[1])); await espera(40);
+      const boton = q('.side > .tray .trayhead [data-act="tdescargar"]');
+      let r = await conDescarga(async () => { boton.click(); await espera(300); });
+      ok(!r, 'baja sin preguntar por la copia');
+      const d = dialogo(); ok(d && /Una foto solo está aquí en su copia de 2560/.test(d.textContent), 'no pregunta por la copia: ' + json(d && d.textContent));
+      igual([...d.querySelectorAll('.amode button')].map(b => b.querySelector('b').textContent), ['Bajar la copia', 'Parar'], 'las respuestas');
+      d.querySelector('.amode button:last-child').click(); await espera(300);
+      ok(!dialogo(), '«Parar» deja la pregunta');
+      r = await conDescarga(async () => { await espera(200); }); ok(!r, '«Parar» bajó algo');
+      r = await conDescarga(async cap => { boton.click(); const d2 = await hasta(() => dialogo(), 2000, 'la pregunta'); d2.querySelector('.amode button').click(); await hasta(() => cap(), 8000, 'el ZIP'); });
+      ok(r && /\.zip$/.test(r.name), '«Bajar la copia» no baja el ZIP');
+    } finally { delete M.files[ids[1]].copia; }
+  });
+
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

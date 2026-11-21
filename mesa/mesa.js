@@ -772,6 +772,7 @@
     pin: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4a1 1 0 0 1 1 1z"/></svg>',
     lock: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
     unlock: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>',
+    descargar: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>',   // Lucide «download»: the tray's chosen photos (D-281)
     nota: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/></svg>',
   };
 
@@ -2724,6 +2725,7 @@ ${TK_FUENTES}
 #mesa .btn:disabled{opacity:.4;transform:none}
 #mesa .trayhead .btn{margin-left:auto}
 #mesa .trayhead .tcount{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mesa .trayhead .btn{white-space:nowrap}
+#mesa .trayhead .tdl{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}#mesa .trayhead .tdl[hidden]{display:none}#mesa .trayhead .tdl svg{flex:none;width:15px;height:15px}
 #mesa .tfil{display:inline-flex;flex:none;gap:2px;padding:2px;border-radius:var(--r-pill);background:var(--bg-2)}
 #mesa .tfil button{border:0;background:none;border-radius:var(--r-pill);padding:3px 10px;font:inherit;font-size:12px;color:var(--mute);cursor:pointer;transition:background var(--d1) ease-out,color var(--d1) ease-out}#mesa .tfil button:hover{color:var(--ink)}#mesa .tfil button.on{background:var(--panel-2);color:var(--ink);font-weight:600;box-shadow:var(--shadow-sm)}
 #mesa .ttam{position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:6px;color:var(--faint)}#mesa .ttam[hidden]{display:none}
@@ -2993,7 +2995,7 @@ ${TK_FUENTES}
 #mesa .side{flex:none;border-radius:var(--r-md)}#mesa .side>.tray{flex:none;border-radius:var(--r-md) var(--r-md) 0 0}#mesa .side:not(:has(>.cal:not([hidden])))>.tray{border-radius:var(--r-md)}#mesa .side>.cal{border-radius:0 0 var(--r-md) var(--r-md)}
 #mesa .trayhead{position:static;min-height:34px;padding:4px 10px 2px}#mesa .tfold{width:22px;height:22px}#mesa .tfold svg{width:14px;height:14px}
 #mesa .trayhead b{font-size:14px}#mesa .trayhead span{font-size:11.5px}
-#mesa .trayhead .btn{min-height:28px;padding:0 11px;font-size:12px}#mesa .trayhead .btn svg{width:14px;height:14px}
+#mesa .trayhead .btn{min-height:28px;padding:0 11px;font-size:12px}#mesa .trayhead .btn svg{width:14px;height:14px}#mesa .trayhead .tdl{height:28px;font-size:12px}#mesa .trayhead .tdl svg{width:14px;height:14px}
 #mesa .tbody{flex:none;height:68px;padding:0 10px 4px;overflow-x:auto;overflow-y:hidden;-webkit-mask-image:linear-gradient(to right,var(--ink) 90%,transparent);mask-image:linear-gradient(to right,var(--ink) 90%,transparent)}
 #mesa .drop{display:none}
 #mesa .tray.isempty .tbody{height:auto;-webkit-mask-image:none;mask-image:none}
@@ -3125,7 +3127,7 @@ ${TK_FUENTES}
       if (S) {
         main.innerHTML = '<section class="feed"><div class="grid"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold"${sinCal() ? ' hidden' : ''} aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
-          + '<span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
+          + '<span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button type="button" class="mchip ghost tdl" data-act="tdescargar" hidden>' + IC.descargar + '<span>Descargar</span></button><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
           + '<div class="tbody"><div class="drop">Arrastra aquí tus fotos o carpetas (JPG o PNG) o pulsa «Añadir fotos».</div><div class="tgrid"></div></div></aside>'
           + '<div class="csplit" aria-hidden="true" title="Arrastra para repartir la columna · doble clic: mitad y mitad"></div><section class="cal" aria-label="Calendario" hidden></section></div>';   // filled by calendario.js (none: the tray takes it all)
@@ -3764,6 +3766,15 @@ ${TK_FUENTES}
     g.querySelectorAll('.elegida').forEach(x => x.classList.remove('elegida'));
     if (traySel.size) g.querySelectorAll('.titem[data-file]').forEach(x => { if (traySel.has(x.dataset.file)) x.classList.add('elegida'); });
     if (traySelC.size) g.querySelectorAll('.tcarpeta[data-id]').forEach(x => { if (traySelC.has(x.dataset.id)) x.classList.add('elegida'); });
+    trayDlSync();
+  }
+  // «Descargar N» in the tray's head while photos or folders are chosen (descargar.js, D-281): N counts the photos, also those of
+  // the chosen folders and their subfolders; without descargar.js, nothing
+  function trayDlSync() {
+    const b = root && root.querySelector('.side > .tray .trayhead [data-act="tdescargar"]'); if (!b) return;
+    const n = (traySel.size || traySelC.size) && M.descargar && M.descargar.bandejaN ? M.descargar.bandejaN() : 0;
+    if (n) { const t = 'Descargar ' + n, sp = b.querySelector('span'); if (sp.textContent !== t) sp.textContent = t; b.title = n === 1 ? 'Baja la foto elegida, tal cual' : `Baja las ${n} fotos elegidas, tal cual, en un ZIP`; }
+    if (b.hidden !== !n) { b.hidden = !n; tamColocar(); }
   }
   function trayElegir(el) {            // ⌘ + click: one more or one less (D-051)
     if (el.dataset.file) { if (!traySel.delete(el.dataset.file)) traySel.add(el.dataset.file); }
@@ -4032,7 +4043,7 @@ ${TK_FUENTES}
   }
   function tamColocar() {              // left of «Añadir fotos», only where there is room: it never moves nor covers anything
     const h = root && root.querySelector('.tray .trayhead'), w = h && h.querySelector('.ttam'); if (!w) return;
-    const b = h.querySelector('.btn'), f = h.querySelector('.tfil'), hr = h.getBoundingClientRect();
+    const b = h.querySelector('.btn'), dl = h.querySelector('.tdl:not([hidden])'), f = dl || h.querySelector('.tfil'), hr = h.getBoundingClientRect();   // «Descargar N» (D-281) is the last thing left of it
     if (NARROW.matches || !b || !f || !hr.width) { w.hidden = true; return; }
     const br = b.getBoundingClientRect(), fr = f.getBoundingClientRect();
     if (fr.top - hr.top > 20) { w.hidden = true; return; }   // a narrow panel puts the filter and the button on a second line (D-122): no room
@@ -5057,7 +5068,7 @@ ${TK_FUENTES}
       const elegible = (e.metaKey || e.ctrlKey) && e.target.closest('.tray') && !e.target.closest('.x') && e.target.closest('.titem[data-file], .tcarpeta[data-id]');
       if (elegible) { e.preventDefault(); trayElegir(elegible); return; }
       if (e.target.closest('.side > .tray.fold > .trayhead') && !e.target.closest('[data-act]') && colPestanas(colSide())) { trayPlegar(false); return; }   // the tray's tab (D-148)
-      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], .cptab, .ttam, .tfold')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
+      if (e.target.closest('.tray') && !e.target.closest('[data-act="cp-cerrar"], [data-act="tdescargar"], .cptab, .ttam, .tfold')) traySoltar();   // a click without ⌘ does what it always did and empties the choice (not on a tab nor the size slider, D-091)
       const a = e.target.closest('[data-act]');
       if (a) { onAct(a, e).catch(fallo); return; }
       if (e.target.classList.contains('detail')) { if (downOnBackdrop) closeDetail(); return; }
@@ -5241,6 +5252,7 @@ ${TK_FUENTES}
   async function onAct(a, e) {
     const act = a.dataset.act;
     if (act === 'add') root.querySelector('.picker').click();
+    else if (act === 'tdescargar') { if (M.descargar && M.descargar.bandeja) M.descargar.bandeja(); }   // the tray's chosen photos (D-281)
     else if (act === 'tfold') trayPlegar();
     else if (act === 'del') { e.stopPropagation(); removeFile(a.dataset.file, trayCarpeta); }
     else if (act === 'cp-entrar') trayAbrir(a.dataset.id || null);

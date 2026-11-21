@@ -860,7 +860,7 @@
   // writing in the card: the note and «Detalles» take the marks and the «/» menu (escritura.js, D-202–D-204)
   function cmdsDe(campo) {
     const ext = EXT.sesion && EXT.sesion.nueva ? ['sesion'] : [];
-    return campo === 'det' ? [...ext, 'fecha', 'lista', 'numerada', 'casilla'] : [...ext, 'tarea', 'fecha', 'lista', 'numerada', 'casilla'];
+    return campo === 'det' ? [...ext, 'fecha', 'lista', 'numerada', 'casilla', 'separador'] : [...ext, 'tarea', 'fecha', 'lista', 'numerada', 'casilla', 'separador'];   // «/-» (D-283)
   }
   function activarCampos() {
     const E = ES(); if (!E || !ov || !CARD || !CARD.ed) return;

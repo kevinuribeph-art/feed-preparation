@@ -13905,7 +13905,7 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
-  prueba('NA2', 'Teclas en una lista: Intro la sigue (el número sube), Intro en un elemento vacío la termina, ⌫ detrás de la marca la quita entera, Tab / ⇧Tab sangran dos espacios; fuera de una lista hacen lo de siempre; nada actúa componiendo; ⌘Z justo después de convertir deja la marca escrita con un espacio duro (D-202)', async () => {
+  prueba('NA2', 'Teclas en una lista: Intro la sigue (el número sube), Intro en un elemento vacío la termina, ⌫ detrás de la marca la quita entera, Tab / ⇧Tab un nivel (4 espacios, y en una numerada la cuenta de su nivel, D-283); fuera de una lista hacen lo de siempre; nada actúa componiendo; ⌘Z justo después de convertir deja la marca escrita con un espacio duro (D-202)', async () => {
     await tablero([pub(1)]); await sinTareas();
     try {
       await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
@@ -13914,7 +13914,7 @@
       await naEscribe(cn, '\n\n3. tres\ncuatro');
       igual(cn.textContent, '- uno\n- dos\n3. tres\n4. cuatro', 'Intro en vacío no termina o el número no sube');
       ok(naTecla(cn, 'Tab'), 'Tab en una lista sale del campo'); await espera(20);
-      igual(cn.textContent.split('\n').pop(), '  4. cuatro', 'Tab no sangra dos espacios');
+      igual(cn.textContent.split('\n').pop(), '    1. cuatro', 'Tab no sangra un nivel (4 espacios) ni empieza su cuenta (D-283)');
       ok(naTecla(cn, 'Tab', { shiftKey: true }), '⇧Tab sale del campo'); await espera(20);
       igual(cn.textContent.split('\n').pop(), '4. cuatro', '⇧Tab no desangra');
       // ⌫ justo detrás de la marca la quita entera
@@ -13973,7 +13973,7 @@
     try {
       await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
       const cn = await naNota('/');
-      ok(/^(sesion,)?tarea\*?,?.*fecha,lista,numerada,casilla$/.test(naMenu().replace('*', '')) && naMenu().split(',')[0].endsWith('*'), 'el menú de una nota: ' + naMenu());
+      ok(/^(sesion,)?tarea\*?,?.*fecha,lista,numerada,casilla,separador$/.test(naMenu().replace('*', '')) && naMenu().split(',')[0].endsWith('*'), 'el menú de una nota: ' + naMenu());   // «Separador» al final (D-283)
       const m = q('.pp-sm'); ok(/Empieza una lista/.test(m.textContent) && m.querySelectorAll('.pp-smp kbd').length === 4 && /elegir/.test(m.textContent), 'sin descripción o sin las teclas');
       const rs = q('.pp-sm').getBoundingClientRect(), rc = cn.getBoundingClientRect(); ok(rs.top >= rc.top, 'el menú no va bajo el «/»');
       await naEscribe(cn, 'nu'); igual(naMenu(), 'numerada*', '«/nu» no filtra');
@@ -20415,6 +20415,130 @@
       ok(!a43Ctx(celda('r1')) && !a43Menu(), 'en «Vista cliente» sale el menú del feed');
       ok(q('.feed .grid').tabIndex !== 0, 'en «Vista cliente» el grid es una parada de Tab');
     } finally { await vistaCliente(false); }
+  });
+
+
+  // listas en notas, «Detalles» y sesiones (escritura.js 1.1)
+  const a43Linea = (el, n) => { const L = el.textContent.split('\n'); let o = 0; for (let i = 0; i < n; i++) o += L[i].length + 1; return o + L[n].length; };   // el final de la línea n
+  const a43Caret = (el, n) => { el.focus(); el._esc.poner(a43Linea(el, n)); };
+  prueba('LI1', 'Viñetas y números en terracota (D-283): leyendo, la viñeta en --acc-ink al 100 % y el número en --acc-ink y 600; en el post-it, #A0472F, también en oscuro; escribiendo, el resaltado solo cambia el color; cada pareja con su fondo, 4,5:1 o más en claro y en oscuro', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const t = await M.personal.tarea({ txt: 'LI1 tarea' }); await M.personal.render();
+      await M.personal._p.cambiar(t.id, x => { x.detalles = '- uno\n1. dos'; return x; });
+      { const cn = await naNota(); cn.textContent = '- uno\n1. dos'; cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(60); }
+      ppLeer(); await espera(80);
+      const css = (q('#mesa-es-css') || {}).textContent || '';
+      ok(/::highlight\(pp-en\)\{color:var\(--acc-ink\)\}/.test(css), 'escribiendo, el número no va en --acc-ink');
+      ok(!/::highlight\(pp-en\)\{[^}]*font-weight/.test(css), 'el resaltado cambia algo más que el color');
+      ok(/\.pp-card\.nota ::highlight\(pp-en\)\{color:var\(--postit-marca\)\}/.test(css), 'escribiendo en el post-it, el número no va en --postit-marca');
+      igual(W.getComputedStyle(q('#mesa')).getPropertyValue('--postit-marca').trim().toUpperCase(), '#A0472F', 'el terracota del post-it no es #A0472F');
+      for (const tema of ['light', 'dark']) {
+        await enTema(tema, async () => {
+          const nu = q('.pp-card .pp-cn .pp-em.nu'), vi = q('.pp-card .pp-cn .pp-em.vi .pp-emk');
+          const cn = W.getComputedStyle(nu), cv = W.getComputedStyle(vi, '::before');
+          igual([cn.color, cn.fontWeight], ['rgb(160, 71, 47)', '600'], `el número del post-it (${tema})`);
+          igual([cv.backgroundColor, cv.opacity], ['rgb(160, 71, 47)', '1'], `la viñeta del post-it (${tema})`);
+          ok(a43Contraste(cn.color, a43Fondo(nu)) >= 4.5, `el número del post-it, ${a43Contraste(cn.color, a43Fondo(nu)).toFixed(2)}:1 (${tema})`);
+        });
+      }
+      ppTecla('Escape'); await espera(200);
+      ppRaton(q(`.pp-tk[data-tid="${t.id}"] .pp-tt`), 'click', 1); await espera(80);
+      for (const tema of ['light', 'dark']) {
+        await enTema(tema, async () => {
+          const nu = q('.pp-card .pp-cd .pp-em.nu'), vi = q('.pp-card .pp-cd .pp-em.vi .pp-emk');
+          ok(nu && vi, 'los «Detalles» no se leen con sus marcas');
+          const acc = W.getComputedStyle(q('#mesa')).getPropertyValue('--acc-ink').trim(), cn = W.getComputedStyle(nu), cv = W.getComputedStyle(vi, '::before');
+          const pr = D.createElement('i'); pr.style.color = acc; q('#mesa').append(pr); const accRgb = W.getComputedStyle(pr).color; pr.remove();
+          igual([cn.color, cn.fontWeight], [accRgb, '600'], `el número de «Detalles» (${tema})`);
+          igual([cv.backgroundColor, cv.opacity], [accRgb, '1'], `la viñeta de «Detalles» (${tema})`);
+          ok(a43Contraste(cn.color, a43Fondo(nu)) >= 4.5, `el número de «Detalles», ${a43Contraste(cn.color, a43Fondo(nu)).toFixed(2)}:1 (${tema})`);
+        });
+      }
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('LI2', '«/.» crea una lista y «/-» un separador (D-283): el menú «/» con «.» ofrece «Lista» y con «-», solo «Separador»; el separador se guarda como «⸻» y se dibuja como una línea fina al escribir y al leer; «- » al principio sigue creando lista; «---» escrito a mano y «.» fuera del menú no convierten nada', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota('Plan');
+      await naEscribe(cn, '\n/.'); igual(naMenu(), 'lista*', '«/.» no filtra «Lista»');
+      ok(naTecla(cn, 'Enter'), 'Intro no usa «Lista»'); await espera(30);
+      igual(cn.textContent, 'Plan\n- ', '«/.» no escribe una viñeta');
+      await naEscribe(cn, 'uno\n\n/-'); igual(naMenu(), 'separador*', '«/-» no ofrece solo «Separador»');
+      ok(naTecla(cn, 'Enter'), 'Intro no usa «Separador»'); await espera(30);
+      igual(cn.textContent.replace(/\n+$/, '\n'), 'Plan\n- uno\n⸻\n', 'el separador no se guarda como «⸻» en su línea');   // al final, el navegador deja un salto de más para el cursor
+      await espera(60);
+      igual(ppCard().querySelectorAll('.pp-ecm.se').length, 1, 'escribiendo, el separador no se dibuja como una línea');
+      igual(W.CSS.highlights.get('pp-es') ? W.CSS.highlights.get('pp-es').size : 0, 1, 'escribiendo, la raya «⸻» no se esconde');
+      await naEscribe(cn, '---\n- dos\n\n.punto');   // Intro en una viñeta vacía termina la lista
+      ppLeer(); await espera(60);
+      const L = qa('.pp-card .pp-cn .pp-el').map(x => x.className.replace('pp-el', '').trim() || '-');
+      igual(L, ['-', 'vi', 'se', '-', 'vi', '-'], 'leyendo, las líneas');
+      const se = q('.pp-card .pp-cn .pp-el.se'); ok(se.getAttribute('role') === 'separator' && !se.textContent.trim(), 'leyendo, el separador no es una línea sin texto');
+      const h = se.getBoundingClientRect().height; ok(h > 0 && h < 24, 'leyendo, el separador no es una línea fina: ' + h);
+      const k = (await M.personal.tareas()).find(x => x.tipo === 'nota');
+      igual(k && k.txt, 'Plan\n- uno\n⸻\n---\n- dos\n.punto', 'lo guardado');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('LI3', 'Tab y los números (D-283): Tab mete 4 espacios y ⇧Tab vuelve al nivel de encima (también desde una sublista de antes, de 2); en una numerada, Tab la pone en 1 o sigue la sublista de encima y las de fuera siguen su cuenta, ⇧Tab la devuelve a la cuenta de fuera, Intro sigue la de su nivel; una lista que empieza por 5 sigue por 5; los números se reescriben en el texto', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    try {
+      await paginaAbierta(); await hasta(() => M.escritura, 6000, 'escritura.js');
+      const cn = await naNota();
+      const pon = async t => { cn.textContent = t; cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(40); };
+      const tab = async (n, sh) => { a43Caret(cn, n); ok(naTecla(cn, 'Tab', { shiftKey: !!sh }), 'Tab en una lista sale del campo'); await espera(30); return cn.textContent; };
+      await pon('1. a\n2. b\n3. c');
+      igual(await tab(1), '1. a\n    1. b\n2. c', 'Tab en una numerada: 4 espacios, en 1, y la de fuera sigue su cuenta');
+      igual(await tab(1, true), '1. a\n2. b\n3. c', '⇧Tab la devuelve a la cuenta de fuera');
+      await pon('1. a\n    1. x\n2. b\n3. c');
+      igual(await tab(2), '1. a\n    1. x\n    2. b\n2. c', 'Tab no sigue la sublista de encima');
+      a43Caret(cn, 2); await naEscribe(cn, '\n');
+      igual(cn.textContent, '1. a\n    1. x\n    2. b\n    3. \n2. c', 'Intro no sigue la cuenta de su nivel');
+      await pon('1. a\n  1. x\n2. b');   // una sublista de antes, con 2 espacios
+      igual(await tab(2), '1. a\n  1. x\n  2. b', 'Tab no se pone al nivel de la sublista de encima, de 2');
+      igual(await tab(2, true), '1. a\n  1. x\n2. b', '⇧Tab no vuelve al nivel de encima');
+      await pon('- a\n  - b');
+      igual(await tab(1, true), '- a\n- b', '⇧Tab desde una sublista de 2 no vuelve');
+      igual(await tab(1), '- a\n    - b', 'Tab no mete 4 espacios');
+      await pon('5. a\n6. b\n7. c');
+      igual(await tab(1), '5. a\n    1. b\n6. c', 'una lista que empieza por 5 no sigue por 5');
+      igual(await tab(1, true), '5. a\n6. b\n7. c', '⇧Tab en una que empieza por 5');
+      // ⇧Tab de la primera de una sublista: la siguiente pasa a ser la primera de la suya
+      await pon('1. a\n    1. b\n    2. c\n2. d');
+      igual(await tab(1, true), '1. a\n2. b\n    1. c\n3. d', '⇧Tab de la primera de una sublista');
+      ppLeer(); await espera(60);
+      igual(qa('.pp-card .pp-cn .pp-ei').map(x => x.textContent.length), [4], 'leyendo, la sangría no son sus 4 espacios');
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+  prueba('LI4', 'Las listas en el iPhone (D-283): un texto de una sesión se lee como en el Mac, la viñeta y el número en terracota (el número en 600) y el separador como una línea fina', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const id = 'ssli4listasenelmovil', ahora = new W.Date().toISOString(), c0 = M._in.CL[0].id;
+    const S0 = { id, tipo: 'sesion', txt: 'Sesión LI4', fecha: '2026-11-24', cliente: c0, clientes: [c0], creada: ahora, at: ahora,
+      sesion: { clase: 'fotovideo', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: '- uno\n1. dos\n⸻\nfin' }] } };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(S0, id); });
+    try {
+      await enMovilPagina(async () => {
+        const C = await nubeCara(key);
+        try {
+          C.sv.escribirMac('tareas', id, S0);
+          await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+          clicCara(`#movil [data-a="tver"][data-id="${id}"]`);
+          await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la pantalla de la sesión');
+          clicCara('#movil [data-a="sesap"][data-ap="orden"]'); await espera(80);
+          const md = W.document.querySelector('#movil'), nu = md.querySelector('.mv-stx .pp-em.nu'), vi = md.querySelector('.mv-stx .pp-em.vi .pp-emk'), se = md.querySelector('.mv-stx .pp-el.se');
+          ok(nu && vi && se, 'el texto no lleva sus marcas o el separador');
+          const pr = W.document.createElement('i'); pr.style.color = W.getComputedStyle(md).getPropertyValue('--acc-ink').trim(); md.append(pr); const acc = W.getComputedStyle(pr).color; pr.remove();
+          igual([W.getComputedStyle(nu).color, W.getComputedStyle(nu).fontWeight], [acc, '600'], 'el número en el iPhone');
+          igual([W.getComputedStyle(vi, '::before').backgroundColor, W.getComputedStyle(vi, '::before').opacity], [acc, '1'], 'la viñeta en el iPhone');
+          const h = se.getBoundingClientRect().height; ok(h > 0 && h < 24 && !se.textContent.trim(), 'el separador en el iPhone no es una línea fina: ' + h);
+        } finally { await C.fin(); }
+      });
+    } finally { await sinTareas(); }
   });
 
 

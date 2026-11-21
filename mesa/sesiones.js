@@ -364,7 +364,7 @@
     if (pt && document.caretRangeFromPoint) { rg = document.caretRangeFromPoint(pt.x, pt.y); if (rg && !el.contains(rg.startContainer)) rg = null; }
     if (!rg) { rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); }
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg);
-    if (!UNA.test(campo) && P.ES()) ctlCampo = P.ES().activar(el, { comandos: () => ['tarea', 'fecha', 'lista', 'numerada', 'casilla'], alComando: (k, ctx) => P.comando(k, ctx, campo) });
+    if (!UNA.test(campo) && P.ES()) ctlCampo = P.ES().activar(el, { comandos: () => ['tarea', 'fecha', 'lista', 'numerada', 'casilla', 'separador'], alComando: (k, ctx) => P.comando(k, ctx, campo) });
   }
   function empezar(campo, pt) {
     if (S.vista) return;

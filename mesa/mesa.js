@@ -2467,7 +2467,7 @@
 --st-empezar:#F4EFE8;--st-empezar-aro:#A39A90;--st-captions:#D9A93A;--st-aprobar:#7FA6D6;
 --uso-p0:#16110E;--uso-p1:#6E635A;--uso-p2:#CFC5B8;--uso-r:#B8813F;--uso-ck:#FFFFFF;--uso-ck2:#16110E;
 --story:#D6249F;--franja:#16110E;--mk-aro:#FFCF1F;--mk-disco:#1F5FD6;--mk-punto:#E3262B;
---postit:#F8DF74;--postit-2:#FCEBAA;--postit-3:#D9AD35;--postit-ink:#3D3300;
+--postit:#F8DF74;--postit-2:#FCEBAA;--postit-3:#D9AD35;--postit-ink:#3D3300;--postit-marca:#A0472F;
 --on-photo:#FFFFFF;--photo-ink:#16110E;--photo-hover:rgba(22,17,14,.08);--photo-shade:rgba(22,17,14,.72);--photo-chip:rgba(22,17,14,.58);--photo-chip-2:rgba(22,17,14,.82);--photo-btn:rgba(22,17,14,.62);--photo-ring:rgba(22,17,14,.28);
 --photo-glass:rgba(255,255,255,.18);--photo-glass-2:rgba(255,255,255,.32);--photo-light:rgba(255,255,255,.88);--photo-light-2:rgba(255,255,255,.97);--photo-dim:rgba(255,255,255,.5);--photo-line:rgba(255,255,255,.45);
 --label-veil:rgba(0,0,0,.7);--filler:#000000;--stage:#111111;--cell-ph:#E9E2D7;--cell-past:#8E8E8E;

@@ -1,4 +1,4 @@
-// Escritura — Mesa de trabajo · v1.0 (D-202, D-203)
+// Escritura — Mesa de trabajo · v1.1 (D-202, D-203, D-283)
 // Quick writing in the personal page's free texts: a note, a task's «Detalles» and a session's texts (never a task's title,
 // a caption, a context, the editor's texts nor any other field). Marks at the start of a line (after its indent of 0, 2,
 // 4… spaces) and followed by a space: «- » a bullet, «1. » a numbered line (1 to 3 digits), «[] » or «[ ] » a checkbox and
@@ -13,7 +13,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
   if (M.escritura && M.escritura._off) { try { M.escritura._off(); } catch (e) { /* */ } }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,7 +26,8 @@
     fecha: svg('<path d="M8 2v4m8-4v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
     lista: svg('<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>'),
     numerada: svg('<path d="M10 12h11"/><path d="M10 18h11"/><path d="M10 6h11"/><path d="M4 10h2"/><path d="M4 6h1v4"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>'),
-    casilla: svg('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>')
+    casilla: svg('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'),
+    separador: svg('<path d="M5 12h14"/>')
   };
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'], DS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
   // «sáb 21 nov» (with the year when it isn't this one): a date written into a note
@@ -44,7 +45,9 @@
     const k = m[2], tipo = k === '-' ? 'vi' : k.charAt(0) === '[' ? 'ca' : 'nu';
     return { ind: m[1].length, k, tipo, fin: m[0].length, hecha: tipo === 'ca' && /x/i.test(k), n: tipo === 'nu' ? parseInt(k, 10) : 0 };
   }
-  function lineas(txt) { const L = []; let o = 0; for (const t of String(txt == null ? '' : txt).split('\n')) { L.push({ o, t, m: marca(t) }); o += t.length + 1; } return L; }
+  // a separator (D-283): a line with only «⸻» (U+2E3B, a dash nobody types by hand), made from «/-»; read and written, a thin line
+  const SEP = '\u2E3B', esSep = t => t.trim() === SEP;
+  function lineas(txt) { const L = []; let o = 0; for (const t of String(txt == null ? '' : txt).split('\n')) { L.push({ o, t, m: marca(t), se: esSep(t) }); o += t.length + 1; } return L; }
   const lineaEn = (L, x) => { let l = L[0]; for (const y of L) { if (y.o <= x) l = y; else break; } return l; };
   // the links: http(s) up to a space, without the punctuation that closes a sentence
   const URLRE = /\bhttps?:\/\/[^\s<>"«»]+/g;
@@ -66,6 +69,7 @@
     if (L.length === 1 && !L[0].t) return '';
     return L.map((l, i) => {
       const p = l.m;
+      if (l.se) return '<div class="pp-el se" role="separator"></div>';
       if (!p) return `<div class="pp-el">${l.t ? conEnlaces(l.t, o.enlaces) : '<br>'}</div>`;
       const rest = l.t.slice(p.fin), ind = p.ind ? `<span class="pp-ei">${' '.repeat(p.ind)}</span>` : '';
       let mk;
@@ -82,6 +86,65 @@
     if (!p || p.tipo !== 'ca') return null;
     L[ln] = L[ln].slice(0, p.ind) + (p.hecha ? '[]' : '[x]') + L[ln].slice(p.ind + p.k.length);
     return L.join('\n');
+  }
+
+  // ---------- levels and numbers (D-283) ----------
+  // Tab puts 4 spaces and ⇧Tab goes back to the level above; a level counts against the lines above it, so a note of before
+  // (with 2) keeps its sublists. In a numbered list, Tab, ⇧Tab and Intro write the numbers again in the text: each run counts
+  // on from its first, which keeps its number only if it already was the first of a run and didn't move (a list that starts
+  // at 5 goes on at 5); a run that starts now starts at 1. Only in the block of list lines around what changed.
+  const sangria = t => /^ */.exec(t)[0].length;
+  function corridas(L) {                       // for each numbered line, the index of its run's first; -1 for the rest
+    const r = L.map(() => -1);
+    for (let i = 0; i < L.length; i++) {
+      const p = L[i].m; if (!p || p.tipo !== 'nu' || r[i] >= 0) continue;
+      r[i] = i;
+      for (let j = i + 1; j < L.length; j++) {
+        const q = L[j].m;
+        if (q && q.tipo === 'nu' && q.ind === p.ind) { r[j] = i; continue; }
+        if (L[j].t.trim() && !L[j].se && sangria(L[j].t) > p.ind) continue;   // deeper: its children
+        break;
+      }
+    }
+    return r;
+  }
+  const primerasDe = L => new Set(corridas(L).map((f, i) => (f === i ? i : -1)).filter(i => i >= 0));
+  function numerar(txt, i0, i1, primeras, movidas) {
+    const L = lineas(txt), R = corridas(L), dentro = l => !!l && !!l.t.trim() && !l.se && (!!l.m || sangria(l.t) > 0);
+    let a = Math.min(i0, L.length - 1), b = Math.min(i1, L.length - 1);
+    while (a > 0 && dentro(L[a - 1])) a--; while (b < L.length - 1 && dentro(L[b + 1])) b++;
+    const out = L.map(l => l.t), n = {};
+    for (let i = a; i <= b; i++) {
+      const f = R[i]; if (f < 0) continue;
+      n[f] = f in n ? n[f] + 1 : (f === i && primeras.has(f) && !movidas.has(f) ? L[f].m.n : 1);
+      const p = L[i].m, k = n[f] + '.';
+      if (k !== p.k) out[i] = L[i].t.slice(0, p.ind) + k + L[i].t.slice(p.ind + p.k.length);
+    }
+    return out.join('\n');
+  }
+  // Tab: the level of the children of the line above it at its level (a sublist there, of 4 or of 2 of before), or 4 more
+  function nivelDentro(L, i) {
+    const ind = L[i].m.ind;
+    for (let j = i - 1; j >= 0; j--) {
+      const l = L[j]; if (!l.t.trim() || l.se) break;
+      const s0 = sangria(l.t); if (s0 > ind || !l.m) continue;
+      if (s0 < ind) break;                     // its parent: no sister above, one level more
+      let h = Infinity; for (let x = j + 1; x < i; x++) { const s1 = sangria(L[x].t); if (L[x].t.trim() && s1 > ind) h = Math.min(h, s1); }
+      return h < Infinity ? h : ind + 4;
+    }
+    return ind + 4;
+  }
+  // ⇧Tab: the level of its parent (the nearest line above with a mark and less indent), or none
+  function nivelFuera(L, i) {
+    const ind = L[i].m.ind;
+    for (let j = i - 1; j >= 0; j--) { const l = L[j]; if (!l.t.trim() || l.se) break; if (l.m && l.m.ind < ind) return l.m.ind; }
+    return 0;
+  }
+  // the caret of the old text in the new one, line by line (Tab and the numbers change only the start of each line)
+  function caretEn(t, t2, x) {
+    const L = lineas(t), L2 = lineas(t2), l = lineaEn(L, x), i = L.indexOf(l), l2 = L2[i]; if (!l2) return t2.length;
+    const col = x - l.o, ini = l.m ? l.m.fin : sangria(l.t);
+    return l2.o + (col >= ini ? Math.max(0, Math.min(l2.t.length, col + l2.t.length - l.t.length)) : Math.min(col, l2.t.length));
   }
 
   // ---------- a field being written in: its text, its caret ----------
@@ -121,21 +184,31 @@
     dibujar(ctl);
   }
 
+  function aplicar(ctl, t, t2, ca, cb) {      // t → t2 through the browser's editing, over what differs; the caret at ca–cb
+    if (t2 !== t) {
+      let p = 0; while (p < t.length && p < t2.length && t[p] === t2[p]) p++;
+      let q = 0; while (q < t.length - p && q < t2.length - p && t[t.length - 1 - q] === t2[t2.length - 1 - q]) q++;
+      reemplazar(ctl, p, t.length - q, t2.slice(p, t2.length - q));
+    }
+    poner(ctl.el, ca, cb);
+  }
+
   // ---------- drawing while writing (L1, or L2 without highlights) ----------
   const ACT = new Set();                       // the fields being written in
-  const RES = ['pp-em', 'pp-en', 'pp-eh', 'pp-ea'];
+  const RES = ['pp-em', 'pp-en', 'pp-eh', 'pp-ea', 'pp-es'];
   function juntar() {                          // the highlights: one set each for every field being written in
     if (!conRes()) return;
-    const g = { 'pp-em': [], 'pp-en': [], 'pp-eh': [], 'pp-ea': [] };
+    const g = { 'pp-em': [], 'pp-en': [], 'pp-eh': [], 'pp-ea': [], 'pp-es': [] };
     for (const c of ACT) if (c.res) for (const k of RES) g[k].push(...c.res[k]);
     for (const k of RES) { if (g[k].length) CSS.highlights.set(k, new Highlight(...g[k])); else CSS.highlights.delete(k); }
   }
   function dibujar(ctl) {
     ctl.rq = 0;
     const el = ctl.el; if (!el.isConnected) { apagar(ctl); return; }
-    const t = texto(el), L = lineas(t), res = { 'pp-em': [], 'pp-en': [], 'pp-eh': [], 'pp-ea': [] }, marcas = [], L1 = conRes(), N = nodos(el);
+    const t = texto(el), L = lineas(t), res = { 'pp-em': [], 'pp-en': [], 'pp-eh': [], 'pp-ea': [], 'pp-es': [] }, marcas = [], L1 = conRes(), N = nodos(el);
     for (let i = 0; i < L.length; i++) {
       const l = L[i], p = l.m;
+      if (l.se && L1) { const r = rango(el, l.o, l.o + l.t.length, N); res['pp-es'].push(r); marcas.push({ se: true, r }); continue; }
       if (p) {
         const a = l.o + p.ind, b = a + p.k.length, r = rango(el, a, b, N);
         if (p.tipo === 'nu') res['pp-en'].push(r); else res['pp-em'].push(r);
@@ -149,7 +222,9 @@
     // the layer: the bullet and the checkbox over their own text (L1); without highlights, the marks under a veil (L2)
     // measured in the field's own pixels: while its card opens it is scaled (from .97), and the drawings must not move
     const c = ctl.capa, b0 = c.getBoundingClientRect(), k = (el.getBoundingClientRect().width / el.offsetWidth) || 1; let h = '';
+    const cs = getComputedStyle(el), izq = (el.getBoundingClientRect().left - b0.left) / k + el.clientLeft + parseFloat(cs.paddingLeft), ancho = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     for (const m of marcas) {
+      if (m.se) { const q = m.r.getClientRects()[0] || m.r.getBoundingClientRect(); if (q) h += `<span class="pp-ecm se" style="left:${izq.toFixed(1)}px;top:${((q.top - b0.top) / k).toFixed(1)}px;width:${Math.max(0, ancho).toFixed(1)}px;height:${(q.height / k).toFixed(1)}px"></span>`; continue; }
       if (L1 && m.p.tipo === 'nu') continue;
       const q = m.r.getClientRects()[0]; if (!q) continue;
       const pos = `left:${((q.left - b0.left) / k).toFixed(1)}px;top:${((q.top - b0.top) / k).toFixed(1)}px;width:${(q.width / k).toFixed(1)}px;height:${(q.height / k).toFixed(1)}px`;
@@ -278,7 +353,11 @@
     const t = texto(el), L = lineas(t), l = lineaEn(L, c.a), p = l.m;
     if (!p || c.a < l.o + p.fin) return false;
     if (!t.slice(l.o + p.fin, l.o + l.t.length).trim() && c.a === c.b) reemplazar(ctl, l.o, l.o + p.fin, '');
-    else reemplazar(ctl, c.a, c.b, '\n' + ' '.repeat(p.ind) + (p.tipo === 'vi' ? '-' : p.tipo === 'nu' ? (p.n + 1) + '.' : '[]') + ' ');
+    else {
+      const prim = primerasDe(L), i = L.indexOf(l), sigue = new Set([...prim].map(f => (f > i ? f + 1 : f)));   // the firsts, after the new line
+      reemplazar(ctl, c.a, c.b, '\n' + ' '.repeat(p.ind) + (p.tipo === 'vi' ? '-' : p.tipo === 'nu' ? (p.n + 1) + '.' : '[]') + ' ');
+      if (p.tipo === 'nu') { const t1 = texto(el), c1 = caret(el), t2 = numerar(t1, i, i + 1, sigue, new Set()); if (t2 !== t1 && c1) { const x = caretEn(t1, t2, c1.a); aplicar(ctl, t1, t2, x, x); } }   // the ones after it count on (D-283)
+    }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   }
@@ -321,21 +400,18 @@
     if (k === 'Backspace' && !e.shiftKey && p && c.a === c.b && c.a === l.o + p.fin) {   // right behind a mark: it goes whole
       e.preventDefault(); e.stopPropagation(); reemplazar(ctl, l.o + p.ind, l.o + p.fin, ''); return;
     }
-    if (k === 'Tab') {                         // in a list: indent / outdent two spaces; elsewhere it leaves the field, as before
+    if (k === 'Tab') {                         // in a list: a level in (4 spaces) or out (D-283); elsewhere it leaves the field, as before
       const ls = L.filter(x => x.o + x.t.length >= c.a && x.o <= c.b), en = ls.filter(x => x.m);
       if (!en.length) return;
       e.preventDefault(); e.stopPropagation();
-      const a0 = ls[0].o, b0 = ls[ls.length - 1].o + ls[ls.length - 1].t.length;
-      let da = 0, db = 0;
-      const nuevo = ls.map((x, i) => {
-        if (!x.m) return x.t;
-        const d = e.shiftKey ? -Math.min(2, x.m.ind) : 2;
-        if (i === 0) da = d; db += d;
-        return d > 0 ? '  ' + x.t : x.t.slice(-d);
-      }).join('\n');
-      if (nuevo === t.slice(a0, b0)) return;
-      reemplazar(ctl, a0, b0, nuevo);
-      poner(el, Math.max(a0, c.a + da), Math.max(a0, c.b + db));
+      const i0 = L.indexOf(ls[0]), i1 = L.indexOf(ls[ls.length - 1]), ip = L.indexOf(en[0]);
+      const d = (e.shiftKey ? nivelFuera(L, ip) : nivelDentro(L, ip)) - en[0].m.ind;
+      if (!d) return;
+      const out = L.map(x => x.t), movidas = new Set();
+      for (let i = i0; i <= i1; i++) { const x = L[i]; if (!x.m) continue; out[i] = ' '.repeat(Math.max(0, x.m.ind + d)) + x.t.slice(x.m.ind); movidas.add(i); }
+      const t2 = numerar(out.join('\n'), i0, i1, primerasDe(L), movidas);
+      if (t2 === t) return;
+      aplicar(ctl, t, t2, caretEn(t, t2, c.a), caretEn(t, t2, c.b));
       return;
     }
   }
@@ -358,9 +434,10 @@
     sesion: { t: 'Sesión', d: 'Una hoja de sesión de foto o vídeo', a: ['sesion'] },
     tarea: { t: 'Tarea', d: 'Una tarea nueva, para escribirla', a: ['tarea'] },
     fecha: { t: 'Fecha', d: 'Escribe una fecha', a: ['fecha', 'dia'] },
-    lista: { t: 'Lista', m: '-', d: 'Empieza una lista', a: ['lista', 'vinetas', '-'] },
+    lista: { t: 'Lista', m: '-', d: 'Empieza una lista', a: ['lista', 'vinetas', '.'] },   // «/.» (D-283; «-» is now the separator's)
     numerada: { t: 'Lista numerada', m: '1.', d: 'Empieza una lista numerada', a: ['lista numerada', 'numerada', 'numeros', '1.'] },
-    casilla: { t: 'Casilla', m: '[]', d: 'Una casilla para tachar', a: ['casilla', '[]'] }
+    casilla: { t: 'Casilla', m: '[]', d: 'Una casilla para tachar', a: ['casilla', '[]'] },
+    separador: { t: 'Separador', sep: true, d: 'Una línea para separar partes', a: ['separador', 'linea', '-'] }   // «/-», only from here (D-283)
   };
   const GRUPO = ['sesion', 'tarea', 'fecha'];
   let MENU = null;                              // the field whose menu is open
@@ -438,6 +515,12 @@
     cerrarMenu(ctl);
     const antes = { t, caret: b };
     const volver = () => { reemplazar(ctl, 0, texto(el).length, antes.t); poner(el, antes.caret); el.dispatchEvent(new Event('input', { bubbles: true })); };
+    if (CMD[k].sep) {                           // a separator: «⸻» on its own line, the caret on the next one (D-283)
+      reemplazar(ctl, a, b, SEP + '\n');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      ctl.cmd = volver; ctl.cmdQ = { a, b, s: t.slice(a, b) };
+      return;
+    }
     if (CMD[k].m) {                             // a mark: written where «/…» was
       if (k === 'casilla' && ctl.o.subtareas && ctl.o.alCasilla) {   // in «Detalles», a subtask (D-183)
         const L = lineas(t), l = lineaEn(L, a), resto = t.slice(b, l.o + l.t.length);
@@ -507,15 +590,19 @@
   // ---------- style: the mesa's tokens (D-131), its icons and stroke (D-168), its scale and weights (D-172) ----------
   const ESTILO = `
 #mesa ::highlight(pp-em){color:transparent}
-#mesa ::highlight(pp-en){color:var(--mute)}
+#mesa ::highlight(pp-en){color:var(--acc-ink)}
+#mesa ::highlight(pp-es){color:transparent}
 #mesa ::highlight(pp-eh){color:var(--mute);text-decoration:line-through}
 #mesa ::highlight(pp-ea){color:var(--acc-ink);text-decoration:underline}
-#mesa .pp-card.nota ::highlight(pp-en),#mesa .pp-card.nota ::highlight(pp-eh){color:color-mix(in oklab,var(--postit-ink) 55%,var(--postit-2))}
+#mesa .pp-card.nota ::highlight(pp-en){color:var(--postit-marca)}
+#mesa .pp-card.nota ::highlight(pp-eh){color:color-mix(in oklab,var(--postit-ink) 55%,var(--postit-2))}
 #mesa .pp-card.nota ::highlight(pp-ea){color:var(--postit-ink)}
 #mesa .pp-ecapa{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:1}
 #mesa .pp-ecm{position:absolute;pointer-events:none}
 #mesa .pp-ecm.gris{background:var(--pp-efondo,var(--panel));opacity:.45}
-#mesa .pp-ecm.vi::before,#mesa .pp-em.vi .pp-emk::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:currentColor;opacity:.7}
+#mesa .pp-ecm.vi::before,#mesa .pp-em.vi .pp-emk::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:var(--pp-marca,var(--acc-ink))}
+#mesa .pp-ecm.se::before,#mesa .pp-el.se::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:var(--pp-raya,var(--line-strong))}
+#mesa .pp-el.se{position:relative;height:1.1em;margin:.25em 0}
 #mesa .pp-ecm.ca{pointer-events:auto;cursor:pointer}
 #mesa .pp-ecm.ca::before,#mesa .pp-em.ca .pp-emk::before{content:'';position:absolute;right:-.02em;top:50%;width:.8em;height:.8em;margin:-.4em 0 0;box-sizing:border-box;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.75;transition:background var(--d1) var(--ease),box-shadow var(--d1) var(--ease)}
 #mesa .pp-ecm.ca:hover::before,#mesa .pp-em.ca[data-ln]:hover .pp-emk::before{opacity:1}
@@ -525,20 +612,19 @@
 #mesa .pp-ei,#mesa .pp-em{flex:none;white-space:pre}
 #mesa .pp-em.vi,#mesa .pp-em.ca{color:transparent}
 #mesa .pp-emk{position:relative;display:inline-block;color:transparent}
-#mesa .pp-em.vi .pp-emk::before{background:var(--pp-tinta,var(--ink-2))}
 #mesa .pp-em.ca .pp-emk::before{box-shadow:inset 0 0 0 1.5px var(--pp-tinta,var(--ink-2))}
 #mesa .pp-em.ca[data-ln]{cursor:pointer;outline:none}
 #mesa .pp-el.ca .pp-et{padding-left:.22em}   /* read, a little air after the checkbox (written, its mark is only its own text) */
 #mesa .pp-em.ca[data-ln]:focus-visible .pp-emk{outline:2px solid var(--focus);outline-offset:2px;border-radius:50%}
-#mesa .pp-em.nu{color:var(--mute)}
+#mesa .pp-em.nu{color:var(--pp-marca,var(--acc-ink));font-weight:600}   /* read only: written, the highlight changes only its colour (D-283) */
 #mesa .pp-et{flex:1;min-width:0}
 #mesa .pp-el.hecha .pp-et{text-decoration:line-through;color:var(--mute)}
 #mesa .pp-ea{color:var(--acc-ink);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
 #mesa a.pp-ea{cursor:pointer}#mesa a.pp-ea:hover{text-decoration-thickness:2px}
 #mesa a.pp-ea:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-xs)}
-#mesa .pp-card.nota .pp-em.nu,#mesa .pp-pt .pp-em.nu,#mesa .pp-card.nota .pp-el.hecha .pp-et,#mesa .pp-pt .pp-el.hecha .pp-et{color:color-mix(in oklab,var(--postit-ink) 55%,var(--postit-2))}
+#mesa .pp-card.nota .pp-el.hecha .pp-et,#mesa .pp-pt .pp-el.hecha .pp-et{color:color-mix(in oklab,var(--postit-ink) 55%,var(--postit-2))}
 #mesa .pp-card.nota .pp-ea,#mesa .pp-pt .pp-ea{color:var(--postit-ink)}
-#mesa .pp-card.nota,#mesa .pp-pt{--pp-tinta:var(--postit-ink)}
+#mesa .pp-card.nota,#mesa .pp-pt{--pp-tinta:var(--postit-ink);--pp-marca:var(--postit-marca);--pp-raya:color-mix(in oklab,var(--postit-ink) 35%,var(--postit-2))}
 /* the «/» menu (M2) */
 #mesa .pp-sm{position:fixed;z-index:72;width:288px;max-width:calc(100vw - 16px);padding:6px;animation:pp-smin var(--d2) var(--ease)}
 #mesa .pp-sm.arriba{animation-name:pp-smup}

@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.4';   // 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.5';   // 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -60,7 +60,7 @@
   let toastT = 0;
   function toast(t) { clearTimeout(toastT); document.querySelectorAll('.toast').forEach(x => x.remove()); const el = h('div', { class: 'toast', role: 'status', text: t }); document.body.append(el); toastT = setTimeout(() => el.remove(), 4000); }
   const frase = t => { t = String(t || '').trim(); if (!t) return 'No se pudo.'; t = t[0].toUpperCase() + t.slice(1); return /[.!?]$/.test(t) ? t : t + '.'; };
-  const msgError = e => !e ? 'No se pudo.' : e.codigo === 'red' ? 'Sin conexión: inténtalo otra vez.' : e.codigo === 'codigo' ? 'Ese código no vale o ha caducado. Pide otro.' : e.status === 409 ? frase(e.message || 'Ha cambiado: vuelve a mirarla') : e.status === 429 ? frase(e.message || 'Demasiados intentos: espera un minuto') : e.status === 401 ? 'Tu sesión ha caducado: vuelve a entrar.' : frase(e.message);
+  const msgError = e => !e ? 'No se pudo.' : e.codigo === 'red' ? 'Sin conexión: inténtalo otra vez.' : e.codigo === 'codigo' ? 'Ese código no vale o ha caducado. Pide otro.' : e.status === 409 ? frase(e.message || 'Ha cambiado: vuelve a mirarla') : e.status === 429 ? frase(e.message || 'Demasiados intentos: espera unos minutos y vuelve a probar') : e.status === 401 ? 'Tu sesión ha caducado: vuelve a entrar.' : frase(e.message);
 
   // ---------- servidor ----------
   let S = null;

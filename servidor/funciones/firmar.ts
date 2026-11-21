@@ -5,9 +5,11 @@
 //   POST /functions/v1/firmar  { bucket: 'fotos' | 'facturas', rutas: string[] }  →  { urls: { ruta: url } }
 
 const URL_P = Deno.env.get('SUPABASE_URL') ?? '';
-const nuevas = (n: string) => { try { return JSON.parse(Deno.env.get(n) ?? '{}').default ?? ''; } catch { return ''; } };
-const PUBLICA = Deno.env.get('SUPABASE_ANON_KEY') || nuevas('SUPABASE_PUBLISHABLE_KEYS');
-const SECRETA = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || nuevas('SUPABASE_SECRET_KEYS');
+// Solo las claves nuevas del proyecto (`sb_publishable_…` y `sb_secret_…`), que Supabase pone en el entorno de la función. Nunca
+// las heredadas (anon y service_role, firmadas con el secreto JWT viejo), que están apagadas y revocadas (D-280).
+const nuevas = (n: string) => { try { const v = JSON.parse(Deno.env.get(n) ?? '{}').default; return typeof v === 'string' ? v : ''; } catch { return ''; } };
+const PUBLICA = nuevas('SUPABASE_PUBLISHABLE_KEYS');
+const SECRETA = nuevas('SUPABASE_SECRET_KEYS');
 const TTL: Record<string, number> = { fotos: 600, facturas: 60 };
 const RUTA = /^[a-z0-9-]+\/[a-z0-9._-]+$/;
 
@@ -21,9 +23,10 @@ const cors = (origen: string | null) => ({
 });
 const responder = (cuerpo: unknown, estado: number, origen: string | null) =>
   new Response(JSON.stringify(cuerpo), { status: estado, headers: { ...cors(origen), 'Content-Type': 'application/json' } });
+// Una clave nueva va solo en `apikey`; la sesión de quien llama, en Authorization.
 const cab = (clave: string, token?: string) => {
   const h: Record<string, string> = { apikey: clave };
-  if (token) h.Authorization = token; else if (clave.startsWith('eyJ')) h.Authorization = 'Bearer ' + clave;
+  if (token) h.Authorization = token;
   return h;
 };
 
@@ -31,6 +34,7 @@ Deno.serve(async (req) => {
   const origen = req.headers.get('origin');
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origen) });
   if (req.method !== 'POST') return responder({ error: 'método' }, 405, origen);
+  if (!URL_P || !PUBLICA.startsWith('sb_publishable_') || !SECRETA.startsWith('sb_secret_')) return responder({ error: 'config' }, 500, origen);
   const auth = req.headers.get('authorization') ?? '';
   if (!/^Bearer \S+$/.test(auth)) return responder({ error: 'sin sesión' }, 401, origen);
   let pedido: { bucket?: unknown; rutas?: unknown };

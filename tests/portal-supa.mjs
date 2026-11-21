@@ -4,7 +4,8 @@
 // servidor se dice como tal · PS5: subir da por subido solo un 409, nunca otro error que diga «exist» · PS6: archivo() da los
 // bytes tal cual (lote 4 del traspaso, D-259). La entrada de la Mesa (D-262): PS7 la sesión donde diga `almacen` · PS8 entrar
 // con contraseña y su error · PS9 nivel() lee aal y la hora del código · PS10 altaApp quita lo que quedó sin verificar · PS11
-// verificarApp pone la sesión aal2 y dice si el código no vale · PS12 ponerContrasena, salirOtros y salir('local').
+// verificarApp pone la sesión aal2 y dice si el código no vale · PS12 ponerContrasena, salirOtros y salir('local'). PS14: demasiados
+// intentos al verificar no promete un minuto (S8, D-280).
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
@@ -91,4 +92,8 @@ enAlm = { access_token: t2, refresh_token: 'nuevo', expires_at: ahora + 3600, us
 pedidos.length = 0; respuesta = { status: 200, cuerpo: [] };
 await M2.leer('clientes');
 ok(!pedidos.some(x => /grant_type=refresh_token/.test(x.u)) && /Bearer x\./.test(pedidos[0].o.headers.Authorization) && pedidos[0].o.headers.Authorization.endsWith(t2.slice(-10)), 'PS13 toma la renovada por otra pestaña en vez de renovar con la vieja');
-console.log(fallos ? `${fallos} fallos` : 'todo bien (15)'); process.exit(fallos ? 1 : 0);
+// PS14 (S8, D-280): demasiados intentos al verificar un código no promete un minuto (el real deja 10 por IP cada 5 minutos)
+let e14 = null; respuesta = { status: 429, cuerpo: { code: 429, error_code: 'over_request_rate_limit', msg: 'Request rate limit reached' } };
+try { await S.verificarCodigo('ana@ejemplo.test', '123456'); } catch (e) { e14 = e; }
+ok(e14 && e14.status === 429 && e14.codigo === 'espera' && !/minuto\b/.test(e14.message) && /unos minutos/.test(e14.message), 'PS14 demasiados intentos al verificar no dice «un minuto»', e14 && e14.message);
+console.log(fallos ? `${fallos} fallos` : 'todo bien (16)'); process.exit(fallos ? 1 : 0);

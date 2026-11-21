@@ -17,8 +17,10 @@
 // `ok` siempre. Solo lo que no llega a la función (sin sesión: lo para la pasarela) es un error HTTP.
 
 const URL_P = Deno.env.get('SUPABASE_URL') ?? '';
-const nuevas = (n: string) => { try { return JSON.parse(Deno.env.get(n) ?? '{}').default ?? ''; } catch { return ''; } };
-const PUBLICA = Deno.env.get('SUPABASE_ANON_KEY') || nuevas('SUPABASE_PUBLISHABLE_KEYS');
+// Solo la clave nueva publicable del proyecto (`sb_publishable_…`), que Supabase pone en el entorno; nunca la heredada (anon),
+// apagada y revocada (D-280).
+const nuevas = (n: string) => { try { const v = JSON.parse(Deno.env.get(n) ?? '{}').default; return typeof v === 'string' ? v : ''; } catch { return ''; } };
+const PUBLICA = nuevas('SUPABASE_PUBLISHABLE_KEYS');
 const CLAVE = (Deno.env.get('ZERNIO_API_KEY') ?? '').trim();
 const BASE = ((Deno.env.get('ZERNIO_BASE') ?? '').trim() || 'https://zernio.com/api/v1').replace(/\/+$/, '');
 const MARGEN_MS = 10 * 60 * 1000;   // un scheduledFor pasado lo publica Zernio en el acto: se deja margen (como tools/zernio.mjs)
@@ -48,9 +50,10 @@ const cors = (origen: string | null) => ({
 });
 const responder = (cuerpo: unknown, origen: string | null, estado = 200) =>
   new Response(tapar(JSON.stringify(cuerpo)), { status: estado, headers: { ...cors(origen), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+// Una clave nueva va solo en `apikey`; la sesión de quien llama, en Authorization.
 const cab = (clave: string, token?: string) => {
   const h: Record<string, string> = { apikey: clave };
-  if (token) h.Authorization = token; else if (clave.startsWith('eyJ')) h.Authorization = 'Bearer ' + clave;
+  if (token) h.Authorization = token;
   return h;
 };
 
@@ -310,6 +313,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origen) });
   try {
     if (req.method !== 'POST') throw new Rechazo('metodo', 405, 'solo POST');
+    if (!URL_P || !PUBLICA.startsWith('sb_publishable_')) throw new Rechazo('config', 500, 'falta la clave publicable del proyecto en el servidor');
     await soloKevin(req.headers.get('authorization') ?? '');
     if (CLAVE.length < 16 || !/^https:\/\/[^/]+/.test(BASE)) throw new Rechazo('config', 500, 'falta la clave o la dirección de Zernio en el servidor (node tools/web.mjs zernio …)');
     const p = await leerPedido(req);

@@ -4,7 +4,7 @@
 // cifrada, D-262); nunca se escribe en consola ni en avisos. La Mesa entra además con contraseña y el código de su app (TOTP).
 (function () {
   'use strict';
-  var V = '1.3';
+  var V = '1.4';
 
   function SupaError(mensaje, status, codigo, detalle) { this.name = 'SupaError'; this.message = mensaje; this.status = status || 0; this.codigo = codigo || ''; this.statusCode = detalle && detalle.statusCode != null ? String(detalle.statusCode) : ''; this.error = detalle && typeof detalle.error === 'string' ? detalle.error : ''; }
   SupaError.prototype = Object.create(Error.prototype);
@@ -101,7 +101,7 @@
       verificarCodigo: function (correo, codigo) {
         return pedir('/auth/v1/verify', { metodo: 'POST', json: { type: 'email', email: correo, token: String(codigo).replace(/\D/g, '') } })
           .then(function (s) { ponerSesion(s); return api.usuario(); }, function (e) {
-            if (e.status === 429) throw new SupaError('demasiados intentos: espera un minuto', 429, 'espera');
+            if (e.status === 429) throw new SupaError('demasiados intentos: espera unos minutos y vuelve a probar', 429, 'espera');   // el real deja 10 por IP cada 5 min (D-278, D-280)
             if (e.status === 0) throw e;
             throw new SupaError('ese código no vale o ha caducado', e.status, 'codigo');
           });

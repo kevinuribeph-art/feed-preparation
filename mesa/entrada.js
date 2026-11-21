@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var G = typeof window !== 'undefined' ? window : globalThis;
-  var V = '1.3', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
+  var V = '1.4', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
 
   // ================= el núcleo (sin DOM): cifrado, la sesión guardada y qué pedir =================
   var enc = new TextEncoder(), dec = new TextDecoder();
@@ -276,7 +276,7 @@
       + '<div class="lrow"><label for="e-pw">Contraseña</label><button type="button" class="lnk" data-accion="olvido">¿Olvidaste tu contraseña?</button></div>' + pw('e-pw') + err + '<button class="btn" type="submit">Entrar</button></form>'
       + '<p class="enlace">¿Primera vez, o sin contraseña? <button type="button" class="lnk" data-accion="primera">Entra con un código por correo</button></p></div>'; },
     correo: function (o) { return '<div class="col">' + cab(o.titulo || 'Mira tu correo', o.dato || '') + '<p class="p">Te hemos mandado un código de 6 cifras a <b>' + esc(o.correo) + '</b>. Vale 10 minutos.</p><form novalidate>' + cod('e-cc', 'Código del correo') + err
-      + '<button class="btn" type="submit">Seguir</button></form><p class="enlace">¿No llega? Mira en spam o <button type="button" class="lnk" data-accion="otro">pide otro</button> dentro de un minuto. <button type="button" class="lnk" data-accion="volver">Volver</button></p></div>'; },
+      + '<button class="btn" type="submit">Seguir</button></form><p class="enlace">¿No llega? Mira en spam o <button type="button" class="lnk" data-accion="otro">pide otro</button> dentro de 3 minutos. <button type="button" class="lnk" data-accion="volver">Volver</button></p></div>'; },
     pedirCorreo: function (o) { return '<div class="col">' + cab(o.titulo, o.dato || '') + '<p class="p">Te mandamos un código de 6 cifras a tu correo.</p><form novalidate><label for="e-co">Correo</label><div class="campo"><input id="e-co" name="correo" type="email" autocomplete="username" value="' + esc(o.correo || '') + '" required></div>' + err
       + '<button class="btn" type="submit">Enviarme el código</button></form><p class="enlace"><button type="button" class="lnk" data-accion="volver">Volver</button></p></div>'; },
     codigo: function (o) { return '<div class="col">' + cab(o.titulo || 'Código de tu app', o.dato || 'Contraseñas · Mesa Uribe Visuals') + '<p class="p">' + (o.texto || 'Ábrelo en <b>Contraseñas</b>, en el iPhone o en el Mac, y escribe las 6 cifras.') + '</p><form novalidate>' + cod('e-cod', 'Código') + err

@@ -763,7 +763,7 @@
   };
 
   // the interface's icons: one line set (Lucide, ISC licence), drawn with currentColor; ICON above stays as it is because the feed image draws it
-  const AYUDA_LOGO = 'Clic: tu página · Clic derecho: copias';   // the header's symbol (D-263); personal.js gives it to its button
+  const AYUDA_LOGO = 'Clic: tu página · Clic derecho: nuevo cliente y copias';   // the header's symbol (D-263, D-284); personal.js gives it to its button
   const IC = {
     grid: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>',
     reel: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12.296 3.464l3.02 3.956M20.2 6L3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3zM3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm3.18-5.724l3.1 3.899"/></svg>',
@@ -2555,8 +2555,6 @@ ${TK_FUENTES}
 #mesa .tab{position:relative;flex:none;border:0;background:none;padding:0 13px;font-size:13px;color:var(--mute);white-space:nowrap;border-bottom:2px solid transparent;transition:color var(--d1) ease-out}
 #mesa .tab:hover{color:var(--ink)}
 #mesa .tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--acc)}
-#mesa .tab.add{flex:none;align-self:center;margin-left:6px;height:32px;color:var(--ink-2);font-weight:600;border:0;border-radius:var(--r-pill);background:none;padding:0 12px;font-size:13px;white-space:nowrap;transition:background var(--d1) ease-out}
-#mesa .tab.add:hover{background:var(--bg-2);color:var(--ink)}
 #mesa .tabs .tedit{align-self:stretch;height:auto;width:28px;border-radius:0;border-bottom:2px solid var(--acc)}
 #mesa .tab.on.hasedit{padding-right:3px}
 #mesa .xtodo{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}#mesa .xtodo p{margin:0 0 10px}#mesa .xtodo b{font-weight:600;color:var(--ink)}
@@ -2762,7 +2760,13 @@ ${TK_FUENTES}
 #mesa .cpmenu button{display:flex;justify-content:space-between;align-items:center;border:0;background:none;border-radius:var(--r-sm);min-height:32px;padding:6px 10px;text-align:left;font-size:13px;color:var(--ink)}
 #mesa .cpmenu button:hover:not(:disabled){background:var(--bg-2)}#mesa .cpmenu button:disabled{color:var(--faint);cursor:default}#mesa .cpmenu .kb{margin-left:14px;color:var(--mute);font-variant-numeric:tabular-nums}
 #mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line)}#mesa .cpmenu button:disabled .kb{color:var(--faint)}
-#mesa .cpmenu.cp-copias{min-width:264px}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
+#mesa .cpmenu.cp-copias{min-width:264px}
+#mesa .expops{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px}
+#mesa .expop{position:relative;display:flex;gap:12px;align-items:flex-start;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .expop:hover{border-color:var(--line-strong)}
+#mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;accent-color:var(--acc)}
+#mesa .expop:has(input:checked){border-color:var(--acc);background:var(--acc-soft)}
+#mesa .expd{display:flex;flex-direction:column;gap:2px;min-width:0}#mesa .expd b{font-size:13.5px;font-weight:600;color:var(--ink)}#mesa .expd span{font-size:12.5px;line-height:1.4;color:var(--mute)}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
 #mesa .cp-copias button .sub{font-size:12px;color:var(--mute)}
 #mesa .cp-copias .nota{display:flex;gap:7px;max-width:250px;margin:2px 4px;padding:6px 6px 4px;font-size:12px;line-height:1.4;color:var(--ink-2)}
 #mesa .cp-copias .nota::before{content:'';flex:none;width:14px;height:14px;margin-top:1px;background:var(--chg);-webkit-mask:var(--i-alerta) center/contain no-repeat;mask:var(--i-alerta) center/contain no-repeat}
@@ -2924,7 +2928,7 @@ ${TK_FUENTES}
 /* titles and texts of the windows without a lone word (D-174) */
 #mesa .card h3,#mesa .phead h3,#mesa .ecard h3,#mesa .lb-ttl h3{text-wrap-style:balance}#mesa .card p,#mesa .cpnota,#mesa .toast{text-wrap-style:pretty}
 /* every button shrinks a little when pressed, like .btn (D-171) */
-#mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .tab.add:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
+#mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:scale(.97)}
 #mesa .pacts button:disabled{opacity:.4;cursor:default}
 #mesa .pacts .fname{color:var(--mute);font-size:11.5px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50%}
 #mesa .pright{grid-area:col;padding:18px 20px;display:flex;flex-direction:column;min-width:0}
@@ -2973,7 +2977,7 @@ ${TK_FUENTES}
 #mesa.client .cell.empty{background:var(--cell-ph)}
 #mesa.client .bd{display:none}
 #mesa.client .stats,#mesa.client .mchip i{display:none}
-#mesa.client .tab.add,#mesa.client .appbar .nubest,#mesa.client .tabs .tedit,#mesa.client .save:not(.err){display:none}
+#mesa.client .appbar .nubest,#mesa.client .tabs .tedit,#mesa.client .save:not(.err){display:none}
 #mesa.client .tabs .tab:not(.on){display:none}#mesa.client .appbar .brand{pointer-events:none}#mesa.client .appbar .brand svg{display:none}#mesa.client .appbar .brand .mono{display:block}   /* only its own tab (D-227); in its place, the monogram, not pressed (D-264) */#mesa.client .tab.on.hasedit{padding-right:13px}
 #mesa.client .feed{margin:0 auto;padding:10px}#mesa.client .side>.cal{border-top:0}
 @media (max-width:560px){#mesa .pbody{grid-template-columns:1fr;grid-template-areas:"cab" "izq" "col"}#mesa .phead{border-bottom:0}#mesa .pleft{border-right:0;border-bottom:1px solid var(--line2)}#mesa .pright textarea.note{min-height:90px}#mesa .pright textarea.memo{min-height:52px}}
@@ -2983,7 +2987,7 @@ ${TK_FUENTES}
 #mesa .appbar{height:44px;padding:0 8px 0 12px;gap:2px}
 #mesa .brand{padding-right:8px}
 #mesa .brand span{display:none}
-#mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.on.hasedit{padding-right:2px}#mesa .tab.add{padding:0 9px;font-size:12.5px;height:30px}#mesa.client .tab.on.hasedit{padding-right:10px}
+#mesa .tab{padding:0 10px;font-size:13px}#mesa .tab.on.hasedit{padding-right:2px}#mesa.client .tab.on.hasedit{padding-right:10px}
 #mesa .save{font-size:11.5px}
 #mesa .bar{flex-wrap:wrap;padding:4px 10px 8px;gap:4px 8px}
 #mesa .ident{display:none}
@@ -3026,7 +3030,7 @@ ${TK_FUENTES}
 #mesa .perchip.raro{background:var(--panel-2);border:1px dashed var(--chg);color:var(--chg)}
 #mesa .pdz>.muted{flex-basis:100%}#mesa .pdzav{flex-basis:100%;margin:0;padding:0 0 0 16px;color:var(--chg);font-size:12px;max-height:7.5em;overflow:auto}
 /* movimiento reducido: sin desplazamientos ni escalas, sí los cambios de color */
-@media (prefers-reduced-motion:reduce){#mesa *,#mesa *::before,#mesa *::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}#mesa .btn:active,#mesa .btn2:active{transform:none}#mesa .lb-ib:active:not(:disabled),#mesa .pacts button:active:not(:disabled),#mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .tab.add:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:none}}
+@media (prefers-reduced-motion:reduce){#mesa *,#mesa *::before,#mesa *::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}#mesa .btn:active,#mesa .btn2:active{transform:none}#mesa .lb-ib:active:not(:disabled),#mesa .pacts button:active:not(:disabled),#mesa .mchip:active:not(:disabled),#mesa .ibtn:not(.tema):active:not(:disabled),#mesa .lb-help:active:not(:disabled),#mesa .hv-add:active:not(:disabled),#mesa .dz-more:active:not(:disabled),#mesa .cpvolver:active:not(:disabled),#mesa .lb-trv:active:not(:disabled),#mesa .lb-trb:active:not(:disabled),#mesa .seg button:active:not(:disabled),#mesa button.cpaso:active:not(:disabled),#mesa .x:active:not(:disabled),#mesa .hx:active:not(:disabled),#mesa .cpx:active:not(:disabled){transform:none}}
 `;
 
   function buildShell() {
@@ -3036,7 +3040,7 @@ ${TK_FUENTES}
     const st = document.createElement('style'); st.textContent = CSS; document.body.append(st);
     root = document.createElement('div');
     root.id = 'mesa';
-    root.innerHTML = `<header class="appbar"><div class="brand" title="${AYUDA_LOGO}">${IC.grid}<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="24" height="24"></div><nav class="tabs" aria-label="Clientes"></nav><button class="tab add" data-act="newclient" title="Crear un cliente nuevo"><span class="i-mas">+</span> Cliente</button><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button type="button" class="nubest" data-nube="panel" hidden></button><span class="save" aria-live="polite"></span></header>`
+    root.innerHTML = `<header class="appbar"><div class="brand" title="${AYUDA_LOGO}">${IC.grid}<img class="mono" src="portal/marca/monograma.svg" alt="Uribe Visuals" width="24" height="24"></div><nav class="tabs" aria-label="Clientes"></nav><button type="button" class="ibtn tema" data-act="tema" role="switch" aria-checked="false" aria-label="Modo oscuro" title="Modo claro"><span class="tg-k" aria-hidden="true"></span></button><button type="button" class="nubest" data-nube="panel" hidden></button><span class="save" aria-live="polite"></span></header>`
       + '<section class="bar"></section><div class="busy" hidden></div><div class="main"></div><div class="detail" hidden></div><div class="toasts" aria-live="polite"></div>'
       + '<input type="file" class="picker" accept="image/jpeg,image/png,image/webp" multiple hidden>';
     document.body.append(root);
@@ -7721,41 +7725,35 @@ ${TK_FUENTES}
   // other right clicks — Exportar, Exportar todo, Importar… — with, at its foot, the notice of storage this browser may delete
   // (D-249). Never in the vista cliente. It replaces ⇅ and «Haz una copia»; «Entrar y traer tu Mesa» no longer goes here: with
   // the sign-in (D-262) the Mesa comes down on entering
-  let copias = null;
-  function cerrarCopias(volver) {
-    if (!copias) return; const c = copias; copias = null; c.el.remove();
-    document.removeEventListener('pointerdown', c.fuera, true); document.removeEventListener('keydown', c.tecla, true);
-    window.removeEventListener('blur', c.cerrar); window.removeEventListener('resize', c.cerrar);
-    if (volver && c.foco && c.foco.isConnected) c.foco.focus({ preventScroll: true });
-  }
+  function cerrarCopias(volver) { if (ctxM && ctxM.el.classList.contains('cp-copias')) menuCerrar(volver); }
   function abrirCopias(x, y, foco) {
-    cerrarCopias();
     if (!shellReady() || root.classList.contains('client')) return false;
-    const el = document.createElement('div'); el.className = 'cpmenu cp-copias'; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', 'Copias de la Mesa');
-    const it = (a, t, sub) => `<button type="button" role="menuitem" data-copia="${a}">${t}<span class="sub">${sub}</span></button>`;
-    el.innerHTML = it('exportar', 'Exportar', 'Todos los clientes, con las fotos a 1080 px') + it('todo', 'Exportar todo', 'La copia completa, a su tamaño original')
-      + '<hr>' + it('importar', 'Importar…', 'Un .json o los .tar de la copia completa')
-      + (persistida === false ? '<hr><p class="nota" id="cp-copias-nota">Este navegador no garantiza conservar los datos: si el disco se llena, puede borrarlos. Haz «Exportar todo» de vez en cuando.</p>' : '');
-    if (persistida === false) el.setAttribute('aria-describedby', 'cp-copias-nota');
-    el.addEventListener('click', e => {
-      const b = e.target.closest('button[data-copia]'); if (!b) return;
-      const a = b.dataset.copia; cerrarCopias(true);   // the focus back on the symbol (the review)
-      if (a === 'exportar') M.exportAll();   // no await before the save picker: it needs the click
-      else if (a === 'todo') { if (M.copia && M.copia.exportar) M.copia.exportar(); else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.'); }   // D-249
-      else if (a === 'importar') elegirImportar();
+    const pie = persistida === false ? '<hr><p class="nota" id="cp-copias-nota">Este navegador no garantiza conservar los datos: si el disco se llena, puede borrarlos. Haz «Exportar…» de vez en cuando.</p>' : '';
+    return !!menuMesa(x, y, [
+      { t: 'Nuevo cliente', sub: 'Mensual', hacer: dlgNewClient },
+      '-',
+      { t: 'Exportar…', sub: 'Una copia de toda la Mesa', hacer: dlgExportar },
+      { t: 'Importar…', sub: 'Un .json o los .tar de una copia', hacer: elegirImportar }
+    ], { foco, cls: 'cp-copias', label: 'Nuevo cliente y copias', pie, desc: pie ? 'cp-copias-nota' : '' });
+  }
+  // «Exportar…» asks which copy (D-284): the whole one by default (D-249: a .tar per client and a general one, at their original
+  // size, with the folders) or the light one (D-017: one .json with the photos at 1080 px, for tests or to pass something
+  // quickly). «Importar…» takes both. No await before the save picker or the download: they need the click
+  function dlgExportar() {
+    const op = (v, t, d, on) => `<label class="expop"><input type="radio" name="exp" value="${v}"${on ? ' checked' : ''}><span class="expd"><b>${t}</b><span>${d}</span></span></label>`;
+    showDialog('exportar', '<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar</h3><form class="form" data-form="exportar" autocomplete="off"><div class="expops" role="radiogroup" aria-label="Qué copia">'
+      + op('completa', 'Copia completa', 'Todo a su tamaño original, con las carpetas: un .tar por cliente y uno general. Para guardarla en el SSD.', true)
+      + op('ligera', 'Copia ligera', 'Un solo .json con las fotos a 1080 px. Para pruebas o para pasar algo rápido.', false)
+      + '</div><div class="row"><button type="submit" class="btn">Exportar</button></div></form>');
+    const f = root.querySelector('.detail form[data-form="exportar"]');
+    f.addEventListener('submit', e => {
+      e.preventDefault();
+      const v = (f.querySelector('input[name="exp"]:checked') || {}).value; closeDetail();
+      if (v === 'ligera') M.exportAll();
+      else if (M.copia && M.copia.exportar) M.copia.exportar();
+      else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.');   // D-249
     });
-    root.append(el);
-    const r = el.getBoundingClientRect();
-    el.style.left = `${Math.max(8, Math.min(x, innerWidth - r.width - 8))}px`; el.style.top = `${Math.max(8, Math.min(y, innerHeight - r.height - 8))}px`;
-    const c = copias = { el, foco, cerrar: () => cerrarCopias(false), fuera: e => { if (!el.contains(e.target)) cerrarCopias(false); }, tecla: e => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrarCopias(true); return; }
-      if (e.key === 'Tab') { cerrarCopias(true); return; }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); const bs = [...el.querySelectorAll('button')], i = bs.indexOf(document.activeElement); const n = bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length]; if (n) n.focus(); }
-    } };
-    document.addEventListener('pointerdown', c.fuera, true); document.addEventListener('keydown', c.tecla, true);
-    window.addEventListener('blur', c.cerrar); window.addEventListener('resize', c.cerrar);
-    el.querySelector('button').focus();
-    return true;
+    const r = f.querySelector('input[name="exp"]:checked'); if (r) r.focus();
   }
   function elegirImportar() {          // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together
     let inp = root.querySelector(':scope > .xferin');
@@ -7766,7 +7764,7 @@ ${TK_FUENTES}
     }
     inp.click();
   }
-  function alCopias(e) {               // the right click on the symbol, or ⇧F10 / the menu key with the focus on it
+  function alCopias(e) {               // the right click on the symbol, or ⇧F10 / the menu key with the focus on it (Nuevo cliente and the copies, D-284)
     const b = e.target.closest && e.target.closest('.appbar .brand'); if (!b || root.classList.contains('client')) return;
     if (e.type === 'keydown' && !(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) return;
     e.preventDefault(); e.stopPropagation();

@@ -1239,7 +1239,7 @@
     const X = I(); if (!X || !X.root) return;
     const root = X.root(); if (!root || !root.contains(e.target)) return;
     if (e.detail >= 2 && !CARD && Date.now() - cerradaT < DBL + 200) { e.preventDefault(); e.stopPropagation(); return; }   // the second click of the double click that closed a card: never on what was under it (D-209)
-    if (st.on && e.target.closest('.tabs [data-act="client"], .tab.add')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
+    if (st.on && e.target.closest('.tabs [data-act="client"]')) { if (e.target.closest('[data-act="client"]') && e.target.closest('[data-act="client"]').dataset.id === X.curClient) cerrar(); return; }   // another client: its tab opens it (and M.openClient closes the page)
     if (CARD && enCard(e.target)) { clicCard(e); return; }
     // a task or a note in small: a click opens it big (D-182); its checkbox and its photo, as before
     const it = st.on && page && page.contains(e.target) && !e.target.closest('.pp-ck, [data-pp="foto"], [data-pp="reprog"]') && e.target.closest('[data-tid]:not([data-tid="nueva"]), [data-nid]');

@@ -125,6 +125,9 @@
   const mcCerrar = () => tecla('Escape', { en: D.activeElement || D.body });
   const mcItems = m => [...m.querySelectorAll('[role="menuitem"]')].map(b => b.firstChild.textContent.trim());
   const mcElegir = t => { const m = mcAbrir(); ok(m, 'sin el menú de copias'); const b = [...m.querySelectorAll('[role="menuitem"]')].find(x => x.firstChild.textContent.trim() === t); ok(b, 'el menú de copias no tiene ' + t); b.click(); };
+  // «Exportar…» del símbolo con la copia ligera (.json, fotos a 1080 px; D-284, antes «Exportar», D-263)
+  async function exportarLigera() { mcElegir('Exportar…'); const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('input[value="ligera"]').click(); d.querySelector('form').requestSubmit(); await espera(20); }
+  async function nuevoCliente() { mcElegir('Nuevo cliente'); await hasta(() => q('.detail [data-form="newclient"]'), 2000, '«Nuevo cliente»'); }   // del menú del símbolo (D-284; antes «+ Cliente»)
   // «+ Hueco» desde el clic derecho del feed (D-282; antes, un chip de la barra del mes): con 2, apagado, no hace nada
   async function huecoMas() {
     const g = await hasta(() => q('.feed .grid'), 4000, 'el feed'), r = g.getBoundingClientRect();
@@ -3328,7 +3331,7 @@
     A.click = function () { if (this.download) cap = { name: this.download, href: this.href }; else click.call(this); };
     try {
       W.localStorage.setItem(LS, '1');             // este navegador descarga: sin diálogo de guardar
-      mcElegir('Exportar'); await espera(30);   // el menú de copias del símbolo (D-263)
+      await exportarLigera(); await espera(30);   // «Exportar…» del símbolo, la copia ligera (D-284)
       const dl = await hasta(() => q('.detail:not([hidden])[data-dlg="revisar"]'), 15000, 'la revisión con el hueco vacío tras exportar');   // D-040: el aviso de D-037 va en la revisión
       ok(cap, 'con un hueco vacío no se exportó (no hubo descarga)');
       const d = JSON.parse(await (await (await fetch(cap.href)).blob()).text());
@@ -10885,7 +10888,7 @@
 
   prueba('LZ1', '«Vista cliente» no enseña «+ Cliente», «⋯», «+ Hueco» ni «Guardado» (ni «⇅», que ya no está, D-263); «No se pudo guardar» sí; al quitarla vuelven (D-154)', async () => {
     await tablero([pub(1), pub(2)]);
-    const P = ['.appbar .tab.add', '.tabs .tedit'];   // sin ⇅ (D-263) ni «+ Hueco» en la barra (D-282: va en el clic derecho del feed, FH2)
+    const P = ['.tabs .tedit'];   // sin ⇅ (D-263), ni «+ Hueco» en la barra (D-282: va en el clic derecho del feed, FH2) ni «+ Cliente» (D-284: va en el menú del símbolo, SB1)
     P.forEach(s => ok(seVe(s), 'no sale sin la vista cliente: ' + s));
     q('.save').classList.remove('err'); q('.save').textContent = 'Guardado';
     await conCliente(async () => {
@@ -10915,12 +10918,12 @@
   prueba('LZ3', 'Fuera los textos de ayuda que no dicen nada nuevo: «Nuevo cliente», «Editar cliente», el menú de copias (antes ⇅, D-263), «Nueva carpeta», «Revisar», «Descargar fotos» y vencidas (D-156)', async () => {
     await tablero([pub(1, 'Carrusel'), pub(2)]);
     await poner('r1', [await foto('lz3-a.jpg'), await foto('lz3-b.jpg')]);
-    await pulsar('[data-act="newclient"]'); let t = dialogo().textContent;
+    await nuevoCliente(); let t = dialogo().textContent;
     ok(!/pestaña vacía|día del mes,/.test(t) && /\(1-28\)/.test(t), 'Nuevo cliente: ' + t); M._in.closeDetail();
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); t = dialogo().textContent;
     ok(!/la de su Instagram|día del mes/.test(t) && /Foto de perfil/.test(t) && /\(1-28; los meses ya cargados conservan el suyo\)/.test(t), 'Editar cliente: ' + t); M._in.closeDetail();
     t = mcAbrir().textContent;   // el menú de copias (D-263) dice lo que decía ⇅
-    ok(!/En el otro Mac/.test(t) && /fotos a 1080 px/.test(t), 'copias: ' + t); mcCerrar();
+    ok(!/En el otro Mac/.test(t) && /Una copia de toda la Mesa/.test(t), 'copias: ' + t); mcCerrar();   // «Exportar…» (D-284)
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); t = dialogo().textContent;
     ok(!/En la bandeja de este cliente/.test(t), 'Nueva carpeta: ' + t); M._in.closeDetail();
     M.calendario.vencidas(); await hasta(() => ventanaV(), 2000, 'la lista de vencidas'); M._in.closeDetail();
@@ -11011,7 +11014,7 @@
     await limpiar();
     const r = await M.init({ client: CLIENTE, clientName: NOMBRE, month: MES, slots: [pub(1), pub(2)], past: [{ id: 'lz11-p', name: 'Foto 0.1', type: 'Foto', date: '2026-10-05T12:00:00.000+02:00' }], force: true });
     ok(r && r.key === `${CLIENTE}-${MES}`, 'no se abrió el tablero: ' + json(r));
-    await pulsar('[data-act="newclient"]'); sinBoton('Nuevo cliente'); M._in.closeDetail();
+    await nuevoCliente(); sinBoton('Nuevo cliente'); M._in.closeDetail();
     q('.tabs .tedit').click(); await hasta(() => q('.detail [data-form="editclient"]'), 3000, 'Editar cliente'); sinBoton('Editar cliente'); M._in.closeDetail();
     M.carpetasUI.accion('cp-nueva'); await hasta(() => q('.detail [data-form="cp-nueva"]'), 2000, 'Nueva carpeta'); sinBoton('Nueva carpeta'); M._in.closeDetail();
     const c = M.crearCarpeta('LZ11'); M.pedirBorrarCarpeta(c.id);
@@ -11270,7 +11273,7 @@
 
   prueba('LZ45', 'Doble clic en «Inicio de ciclo»: día 1 en «Nuevo cliente»; el guardado en «Editar cliente» (D-159)', async () => {
     await tablero([pub(1)]);
-    await pulsar('[data-act="newclient"]');
+    await nuevoCliente();
     const l = await hasta(() => q('.detail label.dcl[for="nc-cycle"]'), 2000, 'la etiqueta');
     ok(/^Inicio de ciclo · doble clic: día 1$/.test(l.title), 'el título: ' + l.title);
     q('#nc-cycle').value = '12'; dbl(l); igual(q('#nc-cycle').value, '1', 'Nuevo cliente');
@@ -11840,10 +11843,6 @@
     await hasta(() => M.calendario && q('.side > .cal .cgrid'), 4000, 'calendario.js');   // Σ ya no está (D-229, AV8)
     const masc = (el, ps = '::before') => decodeURIComponent(W.getComputedStyle(el, ps).webkitMaskImage || '');
     const tam0 = el => W.getComputedStyle(el).fontSize === '0px';
-    for (const [sel, txt] of [['[data-act="newclient"]', '+ Cliente']]) {
-      const b = q(sel), i = b && b.querySelector('.i-mas');
-      ok(b && b.textContent.trim() === txt && i && tam0(i) && /M5 12h14/.test(masc(i)), txt + ' sin el icono plus o sin su texto');
-    }
     {   // «+ Hueco» ya no está en la barra: su «+» en el clic derecho del feed, también un icono (D-282)
       const g = q('.feed .grid'), r = g.getBoundingClientRect(); g.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.x + 5, clientY: r.y + 5, view: W })); await espera(20);
       const b = [...q('.cpmenu[aria-label="Feed"]').querySelectorAll('[role="menuitem"]')].find(x => /Hueco/.test(x.textContent)), i = b && b.querySelector('.i-mas');
@@ -17025,7 +17024,7 @@
     } finally { await cpFin(); }
   });
 
-  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249, D-263): nada en la cabecera; el menú de copias del símbolo lo explica al pie y nombra «Exportar todo»; con almacenamiento persistente no sale', async () => {
+  prueba('CP5', 'Almacenamiento que el navegador puede borrar (D-249, D-263): nada en la cabecera; el menú de copias del símbolo lo explica al pie y nombra «Exportar…» (D-284); con almacenamiento persistente no sale', async () => {
     await tablero([pub(1)]);
     const st = W.navigator.storage;
     try {
@@ -17034,7 +17033,7 @@
       ok(!q('.appbar .persist') && !qa('.appbar button').some(b => /Haz una copia/.test(b.textContent)), 'sigue «Haz una copia» en la cabecera');
       let m = mcAbrir(); ok(m, 'sin el menú de copias');
       const n = m.querySelector('.nota');
-      ok(n && /si el disco se llena, puede borrarlos/.test(n.textContent) && /Exportar todo/.test(n.textContent), 'sin el aviso al pie: ' + (n && n.textContent));
+      ok(n && /si el disco se llena, puede borrarlos/.test(n.textContent) && /Haz «Exportar…» de vez en cuando/.test(n.textContent), 'sin el aviso al pie: ' + (n && n.textContent));   // «Exportar…» (D-284)
       ok(m.lastElementChild === n && m.getAttribute('aria-describedby') === n.id, 'el aviso no va al pie o el menú no lo nombra');
       mcCerrar(); await espera(20);
       st.persisted = async () => true;
@@ -17043,20 +17042,20 @@
     } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
   });
 
-  prueba('MC1', 'Sin «⇅» ni «Haz una copia» en la cabecera; el símbolo dice «Clic: tu página · Clic derecho: copias»; su clic abre la página personal y su clic derecho el menú de copias (Exportar · Exportar todo · Importar…), sin abrir la página ni una ventana; un clic fuera lo cierra; en «Vista cliente», nada (D-263)', async () => {
+  prueba('MC1', 'Sin «⇅» ni «Haz una copia» en la cabecera; el símbolo dice «Clic: tu página · Clic derecho: nuevo cliente y copias»; su clic abre la página personal y su clic derecho el menú (Nuevo cliente · Exportar… · Importar…, D-284), sin abrir la página ni una ventana; un clic fuera lo cierra; en «Vista cliente», nada (D-263)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.personal, 8000, 'personal.js');
     ok(!q('.appbar .xfer') && !q('.appbar [data-act="xfer"]') && !qa('.appbar button').some(b => b.textContent.trim() === '⇅'), 'sigue «⇅» en la cabecera');
     ok(!q('.appbar .persist'), 'sigue «Haz una copia» en la cabecera');
     const b = mcLogo();
-    igual([b.tagName, b.title, b.getAttribute('aria-label')], ['BUTTON', 'Clic: tu página · Clic derecho: copias', 'Página personal'], 'el símbolo');
+    igual([b.tagName, b.title, b.getAttribute('aria-label')], ['BUTTON', 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'Página personal'], 'el símbolo');   // D-284
     paginaCerrada(); await espera(20);
     const m = mcAbrir(); ok(m, 'el clic derecho no abre el menú de copias');
-    igual(mcItems(m), ['Exportar', 'Exportar todo', 'Importar…'], 'lo que ofrece el menú');
-    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Todos los clientes, con las fotos a 1080 px', 'La copia completa, a su tamaño original', 'Un .json o los .tar de la copia completa'], 'su segunda línea');
+    igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece el menú');   // D-284
+    igual(qa('.cp-copias [role="menuitem"] .sub').map(x => x.textContent), ['Mensual', 'Una copia de toda la Mesa', 'Un .json o los .tar de una copia'], 'su segunda línea');
     ok(!M.personal.abierta(), 'el clic derecho abrió la página personal');
     ok(!q('.detail:not([hidden])'), 'el clic derecho abrió una ventana');
-    igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Exportar', 'el foco no va a la primera');
+    igual(D.activeElement && D.activeElement.closest('.cp-copias') && D.activeElement.firstChild.textContent.trim(), 'Nuevo cliente', 'el foco no va a la primera');
     const r = m.getBoundingClientRect(); ok(r.right <= W.innerWidth && r.bottom <= W.innerHeight && r.left >= 0 && r.top >= 0, 'el menú se sale de la ventana');
     q('.bar').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true })); await espera(20);
     ok(!q('.cp-copias'), 'un clic fuera no lo cierra');
@@ -17069,7 +17068,7 @@
     });
   });
 
-  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: Exportar exporta, Exportar todo hace la copia completa, Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
+  prueba('MC2', 'El menú de copias hace lo que hacía ⇅: «Exportar…» hace la copia ligera o la completa (D-284), Importar… elige un .json o varios .tar y los importa (D-263)', async () => {
     await tablero([pub(1)]);
     await hasta(() => M.copia && M.copia.exportar, 8000, 'copia.js');
     const ex = M.exportAll, cx = M.copia.exportar, im = M.importData, IP = W.HTMLInputElement.prototype, clk = IP.click;
@@ -17079,9 +17078,9 @@
     M.importData = src => { log.push(['importar', Array.isArray(src) ? src.map(f => f.name) : src.name]); return Promise.resolve({}); };
     IP.click = function () { if (this.type === 'file' && this.classList.contains('xferin')) { inp = this; log.push('elegir'); } else clk.call(this); };
     try {
-      mcLogo().focus(); mcElegir('Exportar'); await espera(20); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir'); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
-      mcElegir('Exportar todo'); await espera(20);
-      mcElegir('Importar…'); await espera(20);
+      await exportarLigera(); ok(!q('.cp-copias'), 'el menú sigue abierto tras elegir');
+      mcElegir('Exportar…'); { const d = await hasta(() => q('.detail:not([hidden])[data-dlg="exportar"]'), 2000, '«Exportar…»'); d.querySelector('form').requestSubmit(); await espera(20); }   // la completa, de serie (D-284)
+      mcLogo().focus(); mcElegir('Importar…'); await espera(20); ok(D.activeElement === mcLogo(), 'tras elegir, el foco no vuelve al símbolo');
       igual(log, ['exportar', 'todo', 'elegir'], 'lo que hizo cada opción');
       ok(inp && inp.multiple && /\.json/.test(inp.accept) && /\.tar/.test(inp.accept), 'Importar no acepta un .json o varios .tar');
       const pon = fs => { const dt = new W.DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; inp.dispatchEvent(new W.Event('change', { bubbles: true })); };
@@ -17092,7 +17091,7 @@
     } finally { M.exportAll = ex; M.copia.exportar = cx; M.importData = im; IP.click = clk; }
   });
 
-  prueba('MC3', 'El menú de copias con el teclado: ⇧F10 o la tecla de menú en el símbolo lo abren bajo él con el foco en «Exportar», ↑ ↓ lo recorren en círculo, Esc lo cierra y devuelve el foco al símbolo sin llegar al tablero (D-263)', async () => {
+  prueba('MC3', 'El menú de copias con el teclado: ⇧F10 o la tecla de menú en el símbolo lo abren bajo él con el foco en «Nuevo cliente» (D-284), ↑ ↓ lo recorren en círculo, Esc lo cierra y devuelve el foco al símbolo sin llegar al tablero (D-263)', async () => {
     await tablero([pub(1)]); await hasta(() => M.personal, 8000, 'personal.js'); paginaCerrada(); await espera(20);
     const b = mcLogo(); b.focus();
     tecla('F10', { shift: true, en: b }); await espera(20);
@@ -17100,10 +17099,10 @@
     const r = m.getBoundingClientRect(), rb = b.getBoundingClientRect();
     ok(r.top >= rb.bottom - 2 && Math.abs(r.left - rb.left) < 12, 'desde el teclado no sale bajo el símbolo: ' + json([r.left, r.top, rb.left, rb.bottom]));
     const foco = () => D.activeElement && D.activeElement.firstChild && D.activeElement.firstChild.textContent.trim();
-    igual(foco(), 'Exportar', 'el foco al abrir');
-    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar todo', '↓');
+    igual(foco(), 'Nuevo cliente', 'el foco al abrir');   // D-284
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar…', '↓');
     tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Importar…', '↓ otra vez');
-    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Exportar', '↓ no vuelve arriba');
+    tecla('ArrowDown', { en: D.activeElement }); igual(foco(), 'Nuevo cliente', '↓ no vuelve arriba');
     tecla('ArrowUp', { en: D.activeElement }); igual(foco(), 'Importar…', '↑ no va al último');
     let llego = false; const oy = () => { llego = true; }; D.addEventListener('keydown', oy);
     try { tecla('Escape', { en: D.activeElement }); await espera(20); } finally { D.removeEventListener('keydown', oy); }
@@ -20539,6 +20538,45 @@
         } finally { await C.fin(); }
       });
     } finally { await sinTareas(); }
+  });
+
+
+  prueba('SB1', 'El menú del símbolo (D-284): «Nuevo cliente» (segunda línea «Mensual») · «Exportar…» · «Importar…» y, al pie, «Haz «Exportar…» de vez en cuando»; sin «+ Cliente» en la cabecera; el título del símbolo «Clic: tu página · Clic derecho: nuevo cliente y copias»; «Nuevo cliente» abre su ventana', async () => {
+    await tablero([pub(1)]);
+    ok(!q('.appbar .tab.add'), 'sigue «+ Cliente» en la cabecera');
+    igual(M._in.AYUDA_LOGO, 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'el título del símbolo (mesa.js)');
+    await paginaAbierta(); paginaCerrada(); await espera(40);
+    igual(mcLogo().title, 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'el título del botón del símbolo (personal.js)');
+    const m = mcAbrir(); ok(m, 'sin el menú del símbolo');
+    igual(mcItems(m), ['Nuevo cliente', 'Exportar…', 'Importar…'], 'lo que ofrece');
+    igual(m.querySelector('[role="menuitem"] .sub').textContent, 'Mensual', 'la segunda línea de «Nuevo cliente»');
+    mcCerrar(); await espera(20);
+    mcElegir('Nuevo cliente'); await espera(40);
+    const d = dialogo(); ok(d && d.dataset.dlg === 'newclient', '«Nuevo cliente» no abre su ventana');
+    M._in.closeDetail();
+  });
+
+  prueba('SB2', '«Exportar…» del símbolo pregunta qué copia (D-284): «Copia completa» de serie (la de «Exportar todo») o «Copia ligera (.json, fotos a 1080 px)»; cada una hace lo de siempre; el aviso del almacenamiento dice «Haz «Exportar…» de vez en cuando»', async () => {
+    await tablero([pub(1)]);
+    const exp0 = M.exportAll, cop0 = M.copia && M.copia.exportar; let hecho = '';
+    M.exportAll = () => { hecho += 'ligera,'; }; if (M.copia) M.copia.exportar = () => { hecho += 'completa,'; };
+    try {
+      mcElegir('Exportar…'); await espera(40);
+      const d = dialogo(); ok(d && d.dataset.dlg === 'exportar', '«Exportar…» no pregunta: ' + json(d && d.dataset.dlg));
+      const rs = [...d.querySelectorAll('input[type="radio"][name="exp"]')];
+      igual(rs.map(x => x.value), ['completa', 'ligera'], 'las dos copias'); ok(rs[0].checked, 'la completa no va de serie');
+      ok(/Copia completa/.test(d.textContent) && /Copia ligera/.test(d.textContent) && /1080 px/.test(d.textContent), 'los nombres de las copias');
+      d.querySelector('form').requestSubmit(); await espera(60);
+      igual(hecho, 'completa,', 'la completa no hace «Exportar todo»'); ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'la ventana sigue abierta');
+      mcElegir('Exportar…'); await espera(40);
+      const d2 = dialogo(); d2.querySelector('input[value="ligera"]').click(); d2.querySelector('form').requestSubmit(); await espera(60);
+      igual(hecho, 'completa,ligera,', 'la ligera no hace el .json');
+    } finally { M.exportAll = exp0; if (M.copia) M.copia.exportar = cop0; M._in.closeDetail(); }
+    const st = W.navigator.storage;
+    try {
+      st.persisted = async () => false; st.persist = async () => false; await M._test.persistencia(true);
+      const m = mcAbrir(); ok(m && /Haz «Exportar…» de vez en cuando/.test(m.textContent), 'el aviso del pie: ' + json(m && m.textContent)); mcCerrar(); await espera(20);
+    } finally { delete st.persisted; delete st.persist; await M._test.persistencia(false); }
   });
 
 

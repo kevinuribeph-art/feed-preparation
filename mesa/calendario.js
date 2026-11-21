@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.25';   // 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.26';   // 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado';   // the weekly count Σ is gone, and its «mesa-cal-recuento» no longer read (D-229)
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -647,7 +647,36 @@
     const X = I(); if (!X || !e.target.closest || !e.target.closest('#mesa .side > .cal .cmes') || !X.S) return;
     const ini = mesInicial(X, span(X)); if (view.m !== ini) { view.m = ini; render(); }
   }
-  const ON = [['pointerover', onOver], ['click', onClick, false], ['dblclick', onDbl, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
+  // ---------- the right click (D-285): in a day, what can be made there; on a chip, what it is ----------
+  // A day: «Nueva sesión» (that day and the client), «Nueva tarea» (with them; made only with a title, D-204) and, if the day
+  // is the board's, «Nueva historia» (one to design that day; the stories' view opens on it). A post: «Abrir». A session:
+  // «Abrir», «Duplicar sesión», «Borrar sesión». Never in the vista cliente nor in a paused tab; elsewhere, the browser's.
+  function onCtx(e) {
+    const X = I(); if (!X || !X.S || !X.menu || !e.target.closest) return;
+    const sec = e.target.closest('#mesa .side > .cal'); if (!sec || X.root().classList.contains('client') || X.locked) return;
+    const ch = e.target.closest('.chip'), dia = e.target.closest('.cday[data-day]'), P = M.personal, cli = X.S.client;
+    let l = null;
+    if (ch && ch.dataset.ses) {
+      const id = ch.dataset.ses, de = `.side > .cal .chip[data-ses="${cssq(id)}"]`;
+      l = [{ t: 'Abrir', hacer: () => P && P.abrirSesion && P.abrirSesion(id, { de, vc: false, cli }) }, { t: 'Duplicar sesión', off: !(P && P.duplicarSesion), hacer: () => P.duplicarSesion(id) }, { t: 'Borrar sesión', off: !(P && P.borrarSesion), hacer: () => P.borrarSesion(id) }];
+    } else if (ch && ch.dataset.slot) { const id = ch.dataset.slot; l = [{ t: 'Abrir', hacer: () => X.openDetail(id, 0) }]; }
+    else if (ch && ch.dataset.prev) { const id = ch.dataset.prev; l = [{ t: 'Abrir', hacer: () => X.withPrev(() => X.openPast(id), 'open') }]; }
+    else if (dia) {
+      const d = dia.dataset.day, sp = span(X), kb = `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}`, de = `.side > .cal .cday[data-day="${d}"]`;
+      l = [{ t: 'Nueva sesión', kb, off: !(P && P.nuevaSesion), hacer: () => P.nuevaSesion({ fecha: d, cliente: cli }) },
+        { t: 'Nueva tarea', kb, off: !(P && P.nuevaTarea), hacer: () => P.nuevaTarea({ fecha: d, cliente: cli, de }) }];
+      if (d >= sp.lo && d <= sp.hi && M.hs && M.hs.anadir) l.push('-', { t: 'Nueva historia', kb, hacer: () => nuevaHistoria(d) });
+    }
+    if (!l) return;
+    e.preventDefault(); e.stopPropagation();
+    X.menu(e.clientX, e.clientY, l, { label: 'Calendario' });
+  }
+  function nuevaHistoria(d) {                    // one to design that day, and the stories' view on it (D-285)
+    if (!M.hs.anadir(d)) return;
+    M.hs.ver(true);
+    requestAnimationFrame(() => { const X = I(), r = X && X.root().querySelector(`.hv .hv-rail[data-day="${d}"]`); if (r) r.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
+  }
+  const ON = [['pointerover', onOver], ['click', onClick, false], ['dblclick', onDbl, false], ['contextmenu', onCtx, false], ['pointerdown', onDown], ['pointermove', onMove], ['pointerup', end], ['pointercancel', onCancel], ['keydown', onKey]];
   ON.forEach(([t, f, c]) => document.addEventListener(t, f, c !== false));
   document.addEventListener('mesa-tareas', alTareas);
   M.calendario = {

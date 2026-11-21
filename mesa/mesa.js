@@ -8185,7 +8185,8 @@ ${TK_FUENTES}
   };
   M._in = {
     movil: MOVIL_IN,   // the iPhone's core (D-267)
-    AYUDA_LOGO, copias: { abrir: abrirCopias, cerrar: () => cerrarCopias(false) },   // the symbol's help and the copies' menu (D-263)
+    AYUDA_LOGO, copias: { abrir: abrirCopias, cerrar: () => cerrarCopias(false) },
+    menu: menuMesa, menuCerrar,   // the mesa's right-click menus (D-282): calendario.js's too (D-285)   // the symbol's help and the copies' menu (D-263)
     vc: VC,
     // the cloud (lot 3, D-253 to D-257): its switch and state, its store, its pause; what hasn't arrived (D-256)
     NUBE, nubeAlmacen, pausaNube, versionNueva, limpiezasOk, esRefNube, pendienteRec, hueco, supa, proyectoWeb, fotoLlego, pastLlego, refsCon,

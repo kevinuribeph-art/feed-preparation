@@ -20580,6 +20580,52 @@
   });
 
 
+  prueba('CR1', 'Clic derecho en el calendario del tablero (D-285): en un día, «Nueva sesión», «Nueva tarea» y, si el día es del tablero, «Nueva historia», con su fecha; sobre una publicación, «Abrir»; sobre una sesión, «Abrir», «Duplicar sesión» y «Borrar sesión» (con «Deshacer»); nada en «Vista cliente»', async () => {
+    await tablero([pub(1)]); await sinTareas();
+    const cal = () => q('.side > .cal'), dia = d => q(`.side > .cal .cday[data-day="${d}"]`);
+    try {
+      await hasta(() => dia('2026-11-25'), 4000, 'el calendario de noviembre');
+      ok(a43Ctx(dia('2026-11-25')), 'el clic derecho en un día es el del navegador');
+      igual(a43Items(), ['Nueva sesión', 'Nueva tarea', 'Nueva historia'], 'lo que ofrece un día del tablero');
+      igual(a43Btns().map(b => (b.querySelector('.kb') || {}).textContent), ['25 nov', '25 nov', '25 nov'], 'la fecha de cada una');
+      // una historia por diseñar ese día, y la vista de historias en él
+      const n0 = M.hs.lista().length; a43Elige('Nueva historia'); await espera(80);
+      ok(M.hs.lista().length === n0 + 1 && M.hs.lista().some(h => M._in.localDay(h.date) === '2026-11-25'), '«Nueva historia» no la añade ese día');
+      ok(M.hs.activo(), 'no abre la vista de historias'); M.hs.ver(false); await espera(60);
+      // una sesión con ese día y el cliente
+      a43Ctx(dia('2026-11-25')); a43Elige('Nueva sesión');
+      const d = await hasta(() => dialogo() && dialogo().dataset.dlg === 'pp-sesion' && dialogo(), 4000, '«Nueva sesión»');
+      igual(d.querySelector('#pp-ns-fecha').value, '2026-11-25', '«Nueva sesión» sin su día');
+      ok(d.querySelector(`.pp-ns-cli [data-c="${CLIENTE}"]`), '«Nueva sesión» sin el cliente');
+      d.querySelector('form.pp-ns').requestSubmit();
+      await hasta(async () => ((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'sesion' && t.fecha === '2026-11-25' && (t.clientes || []).includes(CLIENTE)), 4000, 'la sesión guardada');
+      ppTecla('Escape'); await espera(250); W.document.dispatchEvent(new W.CustomEvent('mesa-tareas'));
+      const chip = await hasta(() => q('.side > .cal .chip[data-ses]'), 4000, 'el chip de la sesión');
+      // sobre la sesión
+      a43Ctx(chip); igual(a43Items(), ['Abrir', 'Duplicar sesión', 'Borrar sesión'], 'lo que ofrece una sesión');
+      a43Elige('Borrar sesión'); await espera(120);
+      ok(!((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'sesion'), '«Borrar sesión» no la borra');
+      const tb = await hasta(() => qa('.toast').find(t => /Deshacer/.test(t.textContent)), 2000, 'el aviso con «Deshacer»');
+      tb.querySelector('button').click(); await espera(150);
+      ok(((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'sesion'), '«Deshacer» no la devuelve');
+      // sobre una publicación
+      a43Ctx(q('.side > .cal .chip[data-slot="r1"]')); igual(a43Items(), ['Abrir'], 'lo que ofrece una publicación');
+      a43Elige('Abrir'); await espera(60); ok(dialogo(), '«Abrir» no abre la publicación'); M._in.closeDetail(); await espera(40);
+      // una tarea con su fecha y el cliente, que no se crea sin título
+      a43Ctx(dia('2026-11-25')); a43Elige('Nueva tarea'); await espera(120);
+      ok(ppCard(), '«Nueva tarea» no abre la tarea en grande');
+      ppTecla('Escape'); await espera(250);
+      ok(!((await M._in.idbAll('tareas')) || []).some(t => t.tipo === 'tarea'), 'una tarea sin título se crea');
+      // un día fuera del tablero, sin «Nueva historia»
+      const fuera = q('.side > .cal .cday.off[data-day]');
+      if (fuera) { a43Ctx(fuera); ok(!a43Items().includes('Nueva historia'), 'un día fuera del tablero ofrece «Nueva historia»'); tecla('Escape'); await espera(20); }
+      // nada en «Vista cliente»
+      await vistaCliente(true);
+      try { ok(!a43Ctx(dia('2026-11-25')) && !a43Menu(), 'en «Vista cliente» sale el menú del calendario'); } finally { await vistaCliente(false); }
+    } finally { paginaCerrada(); await sinTareas(); }
+  });
+
+
   async function pasar() {
     const go = $('go'); go.disabled = true;
     const solo = (new URLSearchParams(location.search).get('solo') || '').split(',').map(s => s.trim()).filter(Boolean);

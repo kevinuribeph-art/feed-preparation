@@ -264,7 +264,7 @@
   // a client: one with a board (the mesa's) or a sporadic one (D-207), never in the tabs nor where the clients with a board are read
   const esps = () => [...TK.values()].filter(k => k.tipo === 'esporadico' && !k.pasado && !k._b).sort((a, b) => String(a.txt).localeCompare(String(b.txt), 'es'));
   const espDe = id => { const k = id && TK.get(id); return k && k.tipo === 'esporadico' && !k.pasado ? { id: k.id, name: k.txt, esporadico: true } : null; };
-  const cliDe = id => ((D && D.CL) || I().CL).find(c => c.id === id) || espDe(id);
+  const cliDe = id => ((D && D.CL) || []).find(c => c.id === id) || (I().CL || []).find(c => c.id === id) || espDe(id);   // the page's reading may be older than a client made since (D-285: from the board)
   // a session has several clients (D-217): `clientes`; one saved before the 4.24 still says `cliente`. A task or a note, one
   const clis = k => !k ? [] : k.tipo === 'sesion' && Array.isArray(k.clientes) ? k.clientes.filter(c => typeof c === 'string' && c) : k.cliente ? [k.cliente] : [];
   const conCli = (k, c) => !!c && clis(k).includes(c);
@@ -1510,6 +1510,21 @@
     version: VERSION, abrir, cerrar, abierta: () => st.on, render: refrescar, _p,
     // a session's sheet over the board, from the posts' calendar (D-219): {de, vc, cli}
     abrirSesion: async (id, o = {}) => { if (!EXT.sesion) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; return abrirCard(id, { ...o, tablero: !st.on }); },
+    // the posts' calendar's right click (D-285), over the board: a session with that day and the client; a task in big with them,
+    // made only once it has a title (D-204); a session duplicated (D-221) or deleted, this one with «Deshacer»
+    nuevaSesion: async (o = {}) => { if (!EXT.sesion || !EXT.sesion.nueva) return false; if (!st.on) await cargarTK(); EXT.sesion.nueva({ desde: o.cliente ? { cliente: o.cliente } : null, fecha: o.fecha }); return true; },
+    nuevaTarea: async (o = {}) => { if (!st.on) await cargarTK(); return !!borrador({ cliente: o.cliente, fecha: o.fecha, de: o.de }); },
+    duplicarSesion: async id => { if (!EXT.sesion || !EXT.sesion.duplicar) return false; if (!st.on) await cargarTK(); const r = TK.get(id); if (!r || r.tipo !== 'sesion') return false; await EXT.sesion.duplicar(id); return true; },
+    borrarSesion: async id => {
+      if (!st.on) await cargarTK();
+      const r = TK.get(id); if (!r || r._b || r.tipo !== 'sesion') return false;
+      const antes = copia(r);
+      if (CARD && CARD.id === id) cerrarCard(true);
+      if (!(await borrar(id))) return false;
+      if (st.on) pintar();
+      I().toast(`Sesión «${r.txt}» borrada.`, { action: 'Deshacer', ms: 6000, onAction: async () => { if (TK.has(id)) return; if (await hacer([{ id, despues: antes }]) && st.on) pintar(); } });
+      return true;
+    },
     // o (the iPhone, D-267): the period and the «Tareas» switch to sum with, without changing this page's own
     datos: async o => { const d = await leer(); if (!o) return calcular(d); const g = Object.fromEntries(Object.keys(o).map(k => [k, st[k]])); Object.assign(st, o); try { return calcular(d); } finally { Object.assign(st, g); } },
     lista: async () => { await cargarTK(); return listaMovil(); },

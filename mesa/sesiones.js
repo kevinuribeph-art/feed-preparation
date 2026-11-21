@@ -694,9 +694,9 @@
 
   // ---------- «Nueva sesión» (Q2): the mesa's dialog ----------
   let DLG = null;                              // {estado, ctx, campo, desde, cambiando}
-  function nueva({ ctx, campo, desde }) {
+  function nueva({ ctx, campo, desde, fecha }) {   // fecha: a day given (the posts' calendar's right click, D-285)
     const cli = campo === 'nueva' ? (P.st.tcli || P.st.nueva.cliente || '') : (desde && desde.tipo === 'esporadico' ? desde.id : desde && desde.cliente) || '';
-    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
+    DLG = { origen: document.activeElement, estado: { nombre: nombreDe('fotovideo'), tocado: false, clase: 'fotovideo', fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? fecha : '', hora: '', fin: null, clientes: P.cliDe(cli) ? [cli] : [], visible: true }, ctx, campo, desde };
     dialogo();
   }
   function dialogo() {

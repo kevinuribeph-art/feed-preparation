@@ -41,6 +41,10 @@
 //   node tools/web.mjs mesa-epoca <pruebas|real> [--si]     época nueva, tras restaurar una copia de la base: las Mesas vuelven a
 //                                                     bajar todo desde 0 (en el real, solo con --si)
 //   node tools/web.mjs actividad <pruebas|real> [días]   la actividad de la Mesa en el servidor (7 días si no se dice; hasta 90)
+//   node tools/web.mjs heredada <pruebas|real> [apagar|encender|revocar] [--si]   las claves heredadas de Supabase (D-280): sin
+//                                                     nada, enseña cómo están (nunca un valor); «apagar» apaga anon y service_role
+//                                                     («encender» lo deshace); «revocar» revoca el secreto JWT viejo, sin vuelta atrás
+//                                                     y solo con las heredadas apagadas. En el real, cambiar algo solo con --si
 //   node tools/web.mjs zernio <pruebas|real> [--si]   despliega servidor/funciones/zernio.ts (Zernio desde el servidor, solo Kevin) y
 //                                                     pone sus secretos ZERNIO_API_KEY y ZERNIO_BASE. En el real, solo con --si: la
 //                                                     clave de .env (ZERNIO_API_KEY, nunca se enseña) y la dirección real de Zernio.
@@ -89,6 +93,9 @@ export function proyecto(cual) {
   const p = cual === 'pruebas' ? 'SUPABASE_PRUEBAS_' : 'SUPABASE_';
   const ref = clave(p + 'REF'), publica = clave(p + 'PUBLICA'), secreta = clave(p + 'SECRETA');
   if (!ref) throw new Fallo(`falta ${p}REF en .env`);
+  // Solo las claves nuevas (D-280): las heredadas (anon y service_role, JWT) están apagadas y su firma, revocada.
+  if (/^eyJ/.test(publica)) throw new Fallo(`${p}PUBLICA es una clave heredada: pon la nueva (sb_publishable_…)`);
+  if (/^eyJ/.test(secreta)) throw new Fallo(`${p}SECRETA es una clave heredada: pon la nueva (sb_secret_…)`);
   if (!/^[a-z0-9]{10,40}$/.test(ref)) throw new Fallo(`${p}REF no parece un id de proyecto`);
   return { cual, ref, url: `https://${ref}.supabase.co`, publica, secreta };
 }
@@ -119,11 +126,10 @@ export async function pedir(url, { method = 'GET', headers = {}, body, dejar = [
   return { ok: r.ok, status: r.status, json: jt, text: (esJson ? JSON.stringify(jt) : tapar(t)).slice(0, 400) };
 }
 
-// Cabeceras de una clave: la nueva («sb_…») va solo en apikey; la antigua (JWT) también como Bearer.
+// Cabeceras de una clave: la clave nueva («sb_…») va solo en apikey; la sesión de un usuario, como Bearer (D-280).
 export function cab(apikey, token) {
   const h = { apikey };
   if (token) h.Authorization = 'Bearer ' + token;
-  else if (/^eyJ/.test(apikey)) h.Authorization = 'Bearer ' + apikey;
   return h;
 }
 
@@ -133,10 +139,10 @@ export async function rest(P, ruta, { method = 'GET', apikey, token, body, prefe
   return pedir(`${P.url}/rest/v1/${ruta}`, { method, headers: h, body });
 }
 
-export async function gestion(ruta, { method = 'GET', body } = {}) {
+export async function gestion(ruta, { method = 'GET', body, dejar } = {}) {
   const t = tokenDe((String(ruta).match(/^projects\/([a-z0-9]+)\//) || [])[1]);
   if (!t) throw new Fallo('falta SUPABASE_ACCESS_TOKEN en .env');
-  return pedir(`https://api.supabase.com/v1/${ruta}`, { method, headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body });
+  return pedir(`https://api.supabase.com/v1/${ruta}`, { method, headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body, dejar });
 }
 
 export async function usuarioPorCorreo(P, correo) {
@@ -439,6 +445,48 @@ const ORDENES = {
     return { proyecto: P.ref, funcion: 'zernio desplegada', ...(cual === 'pruebas' ? { simulado: 'zernio-falso desplegada' } : {}),
       secretos: { ZERNIO_API_KEY: cual === 'real' ? 'la de .env (no se enseña)' : 'inventada (no se enseña)', ZERNIO_BASE: base },
       sin_sesion: rechazada ? 'rechazada' : `contestó ${r && r.status}: mírala` };
+  },
+  // Las claves heredadas de Supabase (S10, D-280): las claves anon y service_role (JWT) y el secreto JWT viejo (HS256) que las
+  // firma. Sin op, enseña cómo están (nunca un valor). `apagar` apaga anon y service_role (se puede deshacer con `encender`);
+  // `revocar` revoca el secreto viejo: sin vuelta atrás, y solo con las heredadas ya apagadas y una firma nueva en uso. Antes,
+  // `funciones` y `zernio` con las funciones que ya usan solo las claves nuevas. En el real, cambiar algo solo con --si.
+  async heredada(cual, ...op) {
+    const P = proyecto(cual), que = op.find(x => x === 'apagar' || x === 'encender' || x === 'revocar');
+    if (op.some(x => x !== que && x !== '--si')) throw new Fallo('di «apagar», «encender», «revocar» o nada (para ver cómo está)');
+    if (que && cual === 'real' && !op.includes('--si')) throw new Fallo('en el proyecto real, cambiarlo solo con --si (y con el OK de Kevin)');
+    const ver = async () => {
+      const [k, l, s, f] = await Promise.all([gestion(`projects/${P.ref}/api-keys?reveal=false`), gestion(`projects/${P.ref}/api-keys/legacy`),
+        gestion(`projects/${P.ref}/config/auth/signing-keys`, { dejar: ['keys'] }), gestion(`projects/${P.ref}/functions`, { dejar: ['verify_jwt'] })]);
+      for (const [r, que] of [[k, 'las claves'], [l, 'las heredadas'], [s, 'las firmas'], [f, 'las funciones']]) if (!r.ok) throw new Fallo(`no se pudo leer ${que} (${r.status}): ${r.text}`);
+      const firmas = (Array.isArray(s.json) ? s.json : (s.json && s.json.keys) || []).map(x => ({ id: String(x.id || ''), algoritmo: x.algorithm, estado: x.status }));
+      return {
+        claves_nuevas: (k.json || []).filter(x => x.type === 'publishable' || x.type === 'secret').map(x => x.type),
+        heredadas: l.json && l.json.enabled === false ? 'apagadas' : 'encendidas',
+        firmas,
+        funciones: (f.json || []).map(x => `${x.slug}${x.verify_jwt ? ' (pide sesión)' : ''}`),
+      };
+    };
+    const antes = await ver();
+    const mostrar = e => ({ claves_nuevas: e.claves_nuevas.join(' y ') || 'ninguna', heredadas: e.heredadas,
+      firmas: e.firmas.map(x => `${x.algoritmo} ${x.estado === 'in_use' ? 'en uso' : x.estado === 'previously_used' ? 'usada antes (aún vale)' : x.estado === 'revoked' ? 'revocada' : x.estado}`),
+      funciones: e.funciones });
+    if (!que) return { proyecto: P.ref, ...mostrar(antes) };
+    if (que === 'apagar' || que === 'encender') {
+      if (que === 'apagar' && !(antes.claves_nuevas.includes('publishable') && antes.claves_nuevas.includes('secret')))
+        throw new Fallo('el proyecto no tiene clave publicable y secreta nuevas: no se apagan las heredadas');
+      const r = await gestion(`projects/${P.ref}/api-keys/legacy?enabled=${que === 'encender'}`, { method: 'PUT' });
+      if (!r.ok) throw new Fallo(`no se pudo (${r.status}): ${r.text}`);
+    } else {
+      if (antes.heredadas !== 'apagadas') throw new Fallo('antes, «apagar»: anon y service_role van firmadas con el secreto viejo');
+      if (!antes.firmas.some(x => x.estado === 'in_use' && x.algoritmo !== 'HS256')) throw new Fallo('no hay una firma nueva en uso: no se revoca la vieja');
+      const viejas = antes.firmas.filter(x => x.algoritmo === 'HS256' && x.estado === 'previously_used');
+      if (!viejas.length) return { proyecto: P.ref, revocada: 'nada que revocar', ...mostrar(antes) };
+      for (const v of viejas) {
+        const r = await gestion(`projects/${P.ref}/config/auth/signing-keys/${encodeURIComponent(v.id)}`, { method: 'PATCH', body: { status: 'revoked' } });
+        if (!r.ok) throw new Fallo(`no se pudo revocar (${r.status}): ${r.text}`);
+      }
+    }
+    return { proyecto: P.ref, hecho: que, antes: mostrar(antes), ahora: mostrar(await ver()) };
   },
   async 'borrar-cliente'(cual, id) {
     const P = proyecto(cual);

@@ -47,7 +47,8 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
   `mesa-version`, `mesa-epoca`, `actividad`), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:
-  el interruptor del código de su app; `rescate`: quitar su código y sus sesiones si pierde el iPhone y el Mac; D-262). Solo en local.
+  el interruptor del código de su app; `rescate`: quitar su código y sus sesiones si pierde el iPhone y el Mac; D-262) y las claves
+  heredadas de Supabase (`heredada`, D-280: apagadas y su secreto revocado en los dos proyectos). Solo en local.
   `entrada real` pone también los límites de los códigos (D-278: uno cada 3 min por correo, 60 por hora, 10 por IP cada 5 min) y
   rechaza las contraseñas filtradas. `alta` da de alta una cuenta de cliente y le manda la bienvenida (D-273) con `tools/correo.mjs` (el correo, su logo `tools/correo-logo.png` y un SMTP mínimo, sin
   dependencias), desde el buzón de los códigos (`SMTP_*`); en pruebas nunca envía.
@@ -123,7 +124,9 @@ DECISIONES.md en el mismo PR, choque o no con algo.
 - La clave nunca va a `mesa.js`, a Notion, a un commit ni al chat. No muestres ni copies `.env`.
 - La mesa nunca ve la clave: pide URLs firmadas a `tools/zernio.mjs` y sube las fotos con `MESA.startZernio`.
 - Las de Supabase (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_REAL_TOKEN`, `SUPABASE_PRUEBAS_*`, `SUPABASE_*`) y las del buzón de los códigos (`SMTP_*`) viven igual, solo en `.env`; las lee
-  `tools/web.mjs`. Solo la clave «publishable» puede ir en una página (está hecha para eso, con los permisos por fila).
+  `tools/web.mjs`. Solo la clave «publishable» puede ir en una página (está hecha para eso, con los permisos por fila). Solo claves
+  nuevas (`sb_publishable_…`, `sb_secret_…`): las heredadas (anon, service_role) están apagadas y revocadas (D-280); `tools/web.mjs` no
+  acepta una JWT y las funciones del servidor leen solo las nuevas de su entorno.
 
 ## Qué no se toca
 - Los nombres de la API `window.MESA` y `tools/zernio.mjs` (nombre, ruta y comandos): una skill

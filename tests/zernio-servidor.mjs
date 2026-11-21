@@ -18,6 +18,7 @@
 // del portal aplicado en pruebas (`node tools/web.mjs esquema pruebas`). No usa ZERNIO_API_KEY (solo `tapar()` la conoce, para taparla).
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { proyecto, rest, cab, pedir, gestion, tapar, clave, usuarioPorCorreo, Fallo } from '../tools/web.mjs';
 import { conCodigo } from './codigo-app.mjs';   // Kevin entra con el código de su app (D-262)
@@ -51,6 +52,12 @@ const PUBLICA_YA = /^(publish|post|send)[_-]?(now|immediately|immediate)$/i;
 const llevaPublicarYa = v => Array.isArray(v) ? v.some(llevaPublicarYa) : v && typeof v === 'object' ? Object.entries(v).some(([k, x]) => PUBLICA_YA.test(k) || llevaPublicarYa(x)) : false;
 const enMin = m => new Date(Date.now() + m * 60000).toISOString();
 const todas = [], ajeno = [];   // todo lo recibido de la función (para buscar la clave) y lo que reciben los demás (para buscar datos)
+
+// ---- 0. Solo las claves nuevas (D-280): la función no lee las heredadas (anon, service_role), apagadas y revocadas ---------------
+{
+  const f = readFileSync(new URL('../servidor/funciones/zernio.ts', import.meta.url), 'utf8');
+  ok(!/SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|eyJ/.test(f) && /nuevas\('SUPABASE_PUBLISHABLE_KEYS'\)/.test(f), 'zernio.ts lee solo la clave publicable nueva, nunca las heredadas');
+}
 
 // ---- 1. La orden, sin red ------------------------------------------------------------------------------------------------
 // Un hijo con `fetch` falso (apunta lo que se pide y contesta como la API) y, por si el falso no entrara, proyectos y tokens

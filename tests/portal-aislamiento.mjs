@@ -48,6 +48,11 @@ const C_COM = 'id,cliente_id,pid,version,diapositiva,texto,autor_nombre,de_kevin
 let fallos = 0, n = 0;
 const ok = (c, txt, extra) => { n++; if (c) console.log('  ok   ' + txt); else { fallos++; console.log('  FALLO ' + txt + (extra ? ' · ' + tapar(extra).slice(0, 200) : '')); } };
 const es = (r, ...codigos) => codigos.includes(r.status);
+{ // Solo las claves nuevas (D-280): `firmar` no lee las heredadas (anon, service_role), apagadas y revocadas
+  const f = readFileSync(new URL('../servidor/funciones/firmar.ts', import.meta.url), 'utf8');
+  ok(!/SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|eyJ/.test(f) && /nuevas\('SUPABASE_PUBLISHABLE_KEYS'\)/.test(f) && /nuevas\('SUPABASE_SECRET_KEYS'\)/.test(f),
+    'firmar.ts lee solo las claves nuevas, nunca las heredadas');
+}
 const vistoComoA = []; // todo lo que recibe Ana de lo que pide de lo suyo, para buscar rastros de otro cliente
 
 async function usuario(correo) {

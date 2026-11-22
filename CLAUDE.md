@@ -43,7 +43,9 @@ DECISIONES.md en el mismo PR, choque o no con algo.
   en `.claude/rediseno/traspaso/contrato.md`. Cada escritura en IndexedDB se apunta en el almacén `diario` (D-250). Con `nube.js`
   encendida (D-253), la Mesa de Kevin sube allí cada cambio y baja lo último al abrir; lo que sabe del servidor, en el almacén
   `nube` (IndexedDB 23). Desde el esquema 5 (D-278), dos disparadores en `auth.sessions` y `auth.one_time_tokens` apuntan en la
-  actividad las entradas y los códigos del portal, que la Mesa enseña en «Avisos»; nunca paran una entrada.
+  actividad las entradas y los códigos del portal, que la Mesa enseña en «Avisos»; nunca paran una entrada. Desde el esquema 6
+  (D-298, D-299), «Es mío» / «No lo reconozco» de un aparato nuevo (el segundo cierra todas las sesiones) y el «Visto» de los
+  avisos se guardan en el servidor; `es_dueno()` pide además que la sesión siga abierta en `auth.sessions` (`sesion_viva()`).
 - `tools/zernio.mjs`: script Node 18+ sin dependencias para la API de Zernio. Solo en local, nunca en el navegador.
 - `tools/web.mjs`: script Node 18+ sin dependencias para el servidor del portal (esquema, entrada, altas) y el de la Mesa (`mesa`,
   `mesa-version`, `mesa-epoca`, `actividad`), la función `zernio` del servidor (`zernio`, D-261) y la entrada de Kevin (`codigo`:

@@ -588,6 +588,15 @@
     } catch (e) { return { error: 'No se pudo enviar: ' + ((e && e.message) || e) }; }
   }
   const leido = (pid, hora) => { if (pid && hora && hora > lsG('mesa-web-leido:' + pid)) lsS('mesa-web-leido:' + pid, hora); };
+  // What the client and Kevin said about a post, for its window in the vista cliente (D-295): only what was already read for
+  // this board (leerConversacion), never a reading of its own nor «leído» (lesson 140); null if nothing was read.
+  function hilo(B, slotId) {
+    const C0 = B && conv.get(B.key), pid = C0 && C0.pidDe && C0.pidDe.get(slotId); if (!pid) return null;
+    const ver = C0.version && C0.version.get(pid);
+    return [...(C0.coms || []).filter(c => c.pid === pid).map(c => ({ t: c.hora, autor: c.autor_nombre || (c.de_kevin ? 'Kevin' : ''), kv: !!c.de_kevin, texto: c.texto || '', diapositiva: c.diapositiva || null, vieja: !!ver && c.version !== ver })),
+      ...(C0.aprs || []).filter(a => a.pid === pid && a.decision === 'cambios').map(a => ({ t: a.hora, autor: a.autor_nombre || '', kv: false, cambios: true, texto: a.motivo || '', diapositiva: a.diapositiva || null, vieja: !!ver && a.version !== ver }))]
+      .sort((a, b) => String(a.t).localeCompare(String(b.t)));
+  }
   let listoP = null;
   const listo = () => listoP || (listoP = new Promise((res, rej) => {
     const t0 = Date.now(), t = setInterval(() => {
@@ -597,7 +606,7 @@
   }));
   let tic = 0, tic2 = 0;
   M.web = {
-    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas, conversacion, contestar, leido,
+    version: VERSION, barra, enviar, paquete, listo, marca, detalle, pintarDetalle, leer: leerConversacion, contestado, leerRespuestas, conversacion, contestar, leido, hilo,
     estado: () => { const c = sb(); return { proyecto: !!c, sesion: !!(c && c.usuario()), cambios: st.cambios, enviando: !!st.enviando, error: st.error }; },
     entrar: () => entrar(),
     salir: async () => { const c = sb(); if (c) await c.salir(); st.servidor = null; st.cambios = null; st.dueno = null; if (I()) I().renderBar(); },

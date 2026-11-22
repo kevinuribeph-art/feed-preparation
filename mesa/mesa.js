@@ -2915,6 +2915,36 @@ ${TK_FUENTES}
 #mesa .igcap{display:flex;align-items:flex-start;gap:14px;padding:14px 16px}
 #mesa .igct{flex:1;min-width:0;padding-top:7px;white-space:pre-wrap;overflow-wrap:anywhere}#mesa .igct b{font-weight:600}
 #mesa .igtag{color:var(--ig-tag)}
+#mesa .detail[data-dlg="ig"] .igcard{background:var(--panel);color:var(--ink);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);max-width:calc(100vw - 32px);font:inherit;font-size:14px;line-height:1.45}
+#mesa .detail[data-dlg="ig"] .igmw{flex:none;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+#mesa .detail[data-dlg="ig"] .igmedia{background:#000}
+#mesa .detail[data-dlg="ig"] .igside{width:400px;flex:none;border-left:1px solid var(--line2)}
+#mesa .detail[data-dlg="ig"] .ighead{gap:10px;padding:8px 8px 8px 16px;min-height:60px;border-bottom:1px solid var(--line2);font-size:13.5px}
+#mesa .detail[data-dlg="ig"] .igav{width:30px;height:30px;box-shadow:none}
+#mesa .detail[data-dlg="ig"] .igx{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:var(--ink-2) !important;background:none;font-size:0;transition:background var(--d1) ease-out}
+#mesa .detail[data-dlg="ig"] .igx:hover{background:var(--bg-2)}
+#mesa .detail[data-dlg="ig"] .igx svg,#mesa .detail[data-dlg="ig"] .igest svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}
+#mesa .detail[data-dlg="ig"] .igx svg *,#mesa .detail[data-dlg="ig"] .igest svg *{vector-effect:non-scaling-stroke}
+#mesa .ighd{flex:none;padding:14px 16px 4px}
+#mesa .igt{margin:0;font-size:17px;font-weight:800;letter-spacing:-.01em}
+#mesa .igf{margin:2px 0 8px;color:var(--mute);font-size:13px}
+#mesa .igest{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);font-size:13px;font-weight:600;white-space:nowrap}
+#mesa .detail[data-dlg="ig"] .igest svg{width:14px;height:14px}
+#mesa .igest.ok{background:var(--ok-soft);color:var(--ok)}#mesa .igest.cb{background:var(--acc-soft);color:var(--acc-ink)}#mesa .igest.pr{background:var(--bg-2);color:var(--ink-2)}
+#mesa .igest.ap{background:color-mix(in srgb,var(--st-aprobar) 22%,var(--panel));color:var(--ink)}#mesa .igdot{width:8px;height:8px;border-radius:50%;background:var(--st-aprobar)}
+#mesa .detail[data-dlg="ig"] .igbody{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 16px 14px;display:flex;flex-direction:column;gap:12px}
+#mesa .detail[data-dlg="ig"] .igcap{display:block;margin:0;padding:0 0 14px;border-bottom:1px solid var(--line2);font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+#mesa .detail[data-dlg="ig"] .igcap b{font-weight:600}#mesa .detail[data-dlg="ig"] .igtag{color:inherit}
+#mesa .igcoms h3{margin:0 0 10px;font-size:14px;font-weight:600}
+#mesa .igcoms ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+#mesa .igcoms li{display:flex;flex-direction:column;gap:3px;max-width:52ch}#mesa .igcoms li.kv{padding-left:12px;border-left:2px solid var(--line)}
+#mesa .igq{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12.5px;color:var(--mute)}#mesa .igq b{color:var(--ink);font-weight:600;font-size:13px}
+#mesa .igcoms p{margin:0;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+#mesa .igsl{align-self:flex-start;font-size:12px;color:var(--ink-2);background:var(--bg);border-radius:var(--r-pill);padding:3px 10px}
+#mesa .igvacio{margin:0;color:var(--mute);font-size:14px}
+#mesa .igpie{flex:none;margin:0;padding:12px 16px;border-top:1px solid var(--line2);font-size:13px;color:var(--mute)}
+#mesa .detail[data-dlg="ig"] .igcard.apilada{flex-direction:column}
+#mesa .detail[data-dlg="ig"] .igcard.apilada .igside{display:flex;flex-direction:column;width:auto;flex:1;min-height:0;border-left:0}
 @media (max-width:719px){#mesa .igcard{flex-direction:column}#mesa .igside{display:contents}#mesa .ighead{order:-1}#mesa .igacts{border-top:0}#mesa .igbody{order:1;flex:0 1 auto;min-height:0;max-height:32vh}#mesa .igdate{order:2}#mesa .igadd{display:none}#mesa .igcap{padding:6px 16px 0}#mesa .igcap .igav{display:none}#mesa .igct{padding-top:0}}
 #mesa .dots{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:4px;z-index:2;pointer-events:none}
 #mesa .dots i{width:6px;height:6px;border-radius:50%;background:var(--photo-dim)}#mesa .dots i.on{background:var(--on-photo)}
@@ -4558,6 +4588,43 @@ ${TK_FUENTES}
     for (const m of text.matchAll(IG_TAG)) { const at = m.index + m[1].length; out += esc(text.slice(i, at)) + `<span class="igtag">${esc(m[2])}</span>`; i = at + m[2].length; }
     return out + esc(text.slice(i));
   }
+  // ---------- the post's window as the client's web shows it (D-295) ----------
+  // The same window as the portal's (portal.js): the media on the left at its proportion and as tall as the window (at most
+  // min(92vh, 880 px)), 400 px on the right — the account and its ×; title, date and state; the caption and what the client
+  // said, scrolling together; up to 800 px wide, the media on top at 46 %. Only to look: what the client said is what M.web
+  // already read (never a reading of its own, nor «leído»: lesson 140); no likes, share nor save. The editor's «Vista previa»
+  // (libre.js) keeps the Instagram mock with its classes: these styles live under .detail[data-dlg="ig"].
+  const EST_CLI = { empezar: ['En preparación', 'pr'], captions: ['En preparación', 'pr'], aprobar: ['Por aprobar', 'ap'], noaprobado: ['Pediste cambios', 'cb'],
+    aprobado: ['Aprobada', 'ok'], programado: ['Programada', 'ok'], publicado: ['Publicada', 'ok'] };   // what the client calls each state (portal.js, lesson 85)
+  const IGX = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  const IGOK = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"/></svg>';
+  const IGPEN = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
+  function igEstado(id, prev) {
+    if (prev) return EST_CLI.publicado;
+    const s = S && S.slots.find(x => x.id === id); if (!s) return null;
+    const k = estadoDe(s); return k === 'programado' && s.date && ts(s.date) && ts(s.date) <= ahora() ? EST_CLI.publicado : EST_CLI[k] || null;
+  }
+  const igParte = (d, o) => Object.fromEntries(new Intl.DateTimeFormat('es-ES', { timeZone: TZ, ...o }).formatToParts(d).map(x => [x.type, x.value]));
+  function igFechaPub(iso) {                    // «Martes 24 nov · 13:00», as the portal
+    const d = new Date(String(iso || '').replace(' ', 'T')); if (!iso || isNaN(d)) return 'Sin fecha';
+    const p = igParte(d, { weekday: 'long', day: 'numeric', month: 'short' }), t = igParte(d, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    return `${p.weekday.charAt(0).toUpperCase() + p.weekday.slice(1)} ${p.day} ${String(p.month).replace('.', '')}` + (dOnly(iso) ? '' : ` · ${t.hour}:${t.minute}`);
+  }
+  function igCuando(iso) {                      // «hoy, 10:12», «ayer, 10:12», «3 nov, 10:12»
+    const d = new Date(iso); if (isNaN(d)) return '';
+    const dia = madParts(d.getTime()).day, t = igParte(d, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), hoy = madParts(ahora()).day;
+    const ay = madParts(Date.parse(hoy + 'T12:00:00Z') - 864e5).day;
+    return (dia === hoy ? 'hoy' : dia === ay ? 'ayer' : `${+dia.slice(8, 10)} ${COB_MESES[+dia.slice(5, 7) - 1].slice(0, 3)}`) + `, ${t.hour}:${t.minute}`;
+  }
+  function igTamV(R) {                          // the window's sizes: {bw, bh} the media's box, {w, h} the media (its proportion) and the card
+    const W = window.innerWidth, H = window.innerHeight, alto = Math.min(H * 0.92, 880);
+    if (W <= 800) {                             // on top, at 46 % of the card, whole
+      const cw = Math.max(280, Math.min(W - 32, 640)), bh = Math.round(alto * 0.46), w = Math.min(cw, bh * R), h = w / R;
+      return { apilada: true, cw, ch: Math.round(alto), bw: cw, bh, w: Math.round(w), h: Math.round(h) };
+    }
+    const h = Math.max(160, Math.min(alto, (W - 448) / R)), w = h * R;
+    return { bw: Math.round(w), bh: Math.round(h), w: Math.round(w), h: Math.round(h) };
+  }
   async function openIG(id, idx, soloVer) {   // soloVer: from the stories' view, without «Editar» (D-079)
     const P = igFotos(id); if (!P || !shellReady()) return;
     const n = P.list.length; idx = Math.max(0, Math.min(n - 1, idx || 0));
@@ -4575,17 +4642,23 @@ ${TK_FUENTES}
       media = `<img class="igfit" alt="" src="${url}">`;
     }
     if (!ig || ig.id !== id) return;
-    const { w, h } = igTam(R), c0 = CL.find(c => c.id === S.client) || {}, handle = String(c0.handle || '').replace(/^@/, '') || c0.name || '';
-    // as the first thing under the header: the photo, the user name in bold and the whole text (no «… más»)
-    const capText = igCaption(id), cap = capText ? `<div class="igcap">${avatarHTML(c0)}<div class="igct"><b>${esc(handle)}</b> ${igCapHTML(capText)}</div></div>` : '';
+    const T = igTamV(R), c0 = CL.find(c => c.id === S.client) || {}, handle = String(c0.handle || '').replace(/^@/, '') || c0.name || '';
+    const capText = igCaption(id), cap = capText ? `<p class="igcap"><b>${esc(handle)}</b> ${igCapHTML(capText)}</p>` : '';
     const nav = n > 1 ? `<button class="nav prev" data-act="ignav" data-d="-1" aria-label="Foto anterior" ${idx === 0 ? 'hidden' : ''}>${CHEV.l}</button><button class="nav next" data-act="ignav" data-d="1" aria-label="Foto siguiente" ${idx === n - 1 ? 'hidden' : ''}>${CHEV.r}</button><div class="dots">${P.list.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('')}</div>` : '';
+    const est = igEstado(id, P.prev), titulo = shortLabel(P.name, P.type) || P.type || '';
+    const pill = est ? `<span class="igest ${est[1]}">${est[1] === 'ap' ? '<i class="igdot" aria-hidden="true"></i>' : est[1] === 'cb' ? IGPEN : est[1] === 'ok' ? IGOK : ''}${esc(est[0])}</span>` : '';
+    // what the client said, from what was already read (D-295): never asked for here
+    const coms = !P.prev && M.web && M.web.hilo ? M.web.hilo(S, id) : null;
+    const lista = coms && coms.length ? `<ol>${coms.map(c => `<li${c.kv ? ' class="kv"' : ''}><span class="igq"><b>${esc(c.autor)}</b>${esc(igCuando(c.t))}${c.cambios ? ' · pidió cambios' : ''}${c.vieja ? ' · de una versión anterior' : ''}</span>${c.diapositiva ? `<span class="igsl">Diapositiva ${+c.diapositiva}</span>` : ''}<p>${esc(c.texto)}</p></li>`).join('')}</ol>`
+      : '<p class="igvacio">Aún no hay comentarios.</p>';
     const d = root.querySelector('.detail');
-    d.innerHTML = `<div class="igwrap"><div class="igtop">${soloVer ? '' : '<button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button>'}<button type="button" class="igx" data-act="close" aria-label="Cerrar">×</button></div>`
-      + `<div class="igcard${capText ? ' hascap' : ''}" role="dialog" aria-label="${esc(P.name)}"><div class="igmedia" style="width:${w}px;height:${h}px">${media}${nav}</div>`
-      + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><span class="igmore" aria-hidden="true">${IGI.more}</span></header><div class="igbody">${cap}</div>`
-      + `<div class="igacts" aria-hidden="true">${IGI.heart}${IGI.comment}${IGI.repost}${IGI.share}<span class="igsave">${IGI.save}</span></div>`
-      + `<div class="iglikes">Les gusta a <b>uribe.visuals</b> y <b>otras personas</b></div><div class="igdate">${esc(igFecha(P.date))}</div>`
-      + `<div class="igadd" aria-hidden="true">${IGI.emoji}<span>Añade un comentario…</span><b>Publicar</b></div></div></div></div>`;
+    d.innerHTML = `<div class="igwrap">${soloVer ? '' : '<div class="igtop"><button type="button" class="igedit" data-act="igedit" title="Editar la publicación o dejar una nota (solo en tu mesa)">Editar</button></div>'}`
+      + `<div class="igcard${T.apilada ? ' apilada' : ''}" role="dialog" aria-label="${esc(titulo)}"${T.apilada ? ` style="width:${T.cw}px;height:${T.ch}px"` : ''}>`
+      + `<div class="igmw" style="width:${T.bw}px;height:${T.bh}px"><div class="igmedia" style="width:${T.w}px;height:${T.h}px">${media}${nav}</div></div>`
+      + `<div class="igside"><header class="ighead">${avatarHTML(c0)}<b>${esc(handle)}</b><button type="button" class="igx" data-act="close" aria-label="Cerrar">${IGX}</button></header>`
+      + `<div class="ighd"><h2 class="igt">${esc(titulo)}</h2><p class="igf">${esc(igFechaPub(P.date))}</p>${pill}</div>`
+      + `<div class="igbody">${cap}<div class="igcoms"><h3>Comentarios</h3>${lista}</div></div>`
+      + `<p class="igpie">Así lo ve el cliente: aquí solo se mira.</p></div></div></div>`;
     if (d.hidden || d.dataset.dlg !== 'ig') clearToasts();
     repeCancel(); d.hidden = false; d.dataset.dlg = 'ig'; delete d.dataset.slot; delete d.dataset.prev; delete d.dataset.file;
   }

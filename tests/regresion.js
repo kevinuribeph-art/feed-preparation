@@ -15555,7 +15555,7 @@
       // a collab's preview
       q('.cell[data-slot="colav6"]').click(); await hasta(() => q('.detail:not([hidden]) .igwrap'), 3000, 'la previsualización de la collab');
       igual(nombrados(otros), [], 'la previsualización de la collab nombra al otro cliente');
-      ok(/uribe\.visuals/.test(q('.detail .igwrap').textContent), '«Les gusta a uribe.visuals» se ha ido');
+      ok(!/Les gusta/.test(q('.detail .igwrap').textContent), 'sigue «Les gusta a…» de adorno');   // al día a propósito: la ventana del portal, sin «Me gusta» (D-295)
       M._in.closeDetail(); await espera(40);
       // a shared session's sheet, from the calendar
       q(`.side > .cal .chip[data-ses="${ses.id}"]`).click(); await hasta(() => q('.pp-ov .pp-hj'), 3000, 'la hoja de la sesión');
@@ -21397,6 +21397,50 @@
       ok(vdR(a).height >= 32 && vdR(a).height <= 44, 'la pastilla mide ' + Math.round(vdR(a).height) + ' px');
       await vistaCliente(false); const a2 = q('a.if-zernio'); ok(!a2 || !a2.getClientRects().length, 'se ve en mi vista');
     } finally { relojVuelve(); await M.updateClient(CLIENTE, { metricas: '' }); await vistaCliente(false); }
+  });
+  prueba('VD3', 'La ventana de una publicación en la «Vista cliente», la del portal (D-295): la foto a su proporción y del alto de la ventana (como mucho min(92vh, 880 px)); a la derecha 400 px: la cuenta y la ×, título, fecha y estado, y el caption con lo que dijo el cliente (de lo ya leído: abrirla no pide nada), que se deslizan juntos; sin «Me gusta», compartir ni guardar; desde la vista de historias, la misma', async () => {
+    await tablero([pub(1), pub(2)]);
+    await poner('r1', [await foto('vd3.jpg', 1080, 1350)]);
+    M.loadCaptions([{ slotId: 'r1', options: [{ tone: 'a', text: 'CAPTION-VD3' }, { tone: 'b', text: 'b' }, { tone: 'c', text: 'c' }] }]);
+    M._test.setSlot('r1', { caption: { ...slot('r1').caption, pick: 0, sent: { text: 'CAPTION-VD3' } } });
+    M.setEstado('r1', 'aprobar');
+    await conWeb(async sv => {
+      wbSesion();
+      const r0 = await M.web.enviar(); ok(r0.ok, 'no se envió: ' + json(r0));
+      const p1 = sv.db.publicaciones.find(x => x.caption === 'CAPTION-VD3'), hora = new Date(Date.now() - 60000).toISOString(), XSS = 'Me gusta <b>mucho</b> la foto';
+      sv.db.comentarios.push({ id: 'vd3c1', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: XSS, autor_nombre: 'Ana', de_kevin: false, hora, resuelto: null },
+        { id: 'vd3c2', cliente_id: CLIENTE, pid: p1.pid, version: p1.version, diapositiva: null, texto: 'Hecho: la cambio.', autor_nombre: 'Kevin', de_kevin: true, hora: new Date(Date.now() - 30000).toISOString(), resuelto: null });
+      await M.web.leer(); await espera(60);
+      await vistaCliente(true);
+      try {
+        const n0 = sv.pedidos.length;
+        q('.cell[data-slot="r1"]').click();
+        const card = await hasta(vdIg, 3000, 'la ventana');
+        await espera(120);
+        igual(sv.pedidos.length, n0, 'abrirla pide algo al servidor: ' + json(sv.pedidos.slice(n0).map(x => x.ruta)));
+        const media = card.querySelector('.igmedia'), side = card.querySelector('.igside'), Hm = Math.min(W.innerHeight * 0.92, 880);
+        cerca(vdR(side).width, 400, 1, 'la columna derecha no mide 400 px');
+        cerca(vdR(media).width / vdR(media).height, 0.8, 0.01, 'la foto no va a su proporción');
+        cerca(vdR(media).height, Math.min(Hm, (W.innerWidth - 48 - 400) / 0.8), 2, 'la foto no mide el alto de la ventana');
+        ok(!card.querySelector('.igacts, .iglikes, .igadd, .igmore'), 'quedan los «Me gusta», compartir o guardar de adorno');
+        const cab = side.querySelector('.ighead'); ok(cab && cab.querySelector('[data-act="close"]'), 'la × no va en la cabecera de la cuenta');
+        igual([side.querySelector('.ighd .igt').textContent, side.querySelector('.ighd .igest').textContent.trim()], [slot('r1').name ? M._in.shortLabel(slot('r1').name, 'Foto') : 'Foto', 'Por aprobar'], 'título y estado');
+        ok(side.querySelector('.ighd .igf').textContent.length > 4, 'sin fecha');
+        const body = side.querySelector('.igbody');
+        ok(body && W.getComputedStyle(body).overflowY === 'auto', 'el caption y los comentarios no se deslizan juntos');
+        ok(/CAPTION-VD3/.test(body.querySelector('.igcap').textContent), 'sin el caption');
+        const cms = [...body.querySelectorAll('.igcoms li')].map(li => li.textContent);
+        ok(cms.length === 2 && cms[0].includes(XSS) && /Kevin/.test(cms[1]), 'lo que dijo el cliente: ' + json(cms));
+        ok(!body.querySelector('.igcoms b:not(.igq-n)') || ![...body.querySelectorAll('.igcoms p')].some(p => p.querySelector('b')), 'el comentario se pintó como HTML');
+        ok(!card.querySelector('textarea, input'), 'se puede escribir en la «Vista cliente»');
+        await vdCerrarIg();
+        // desde la vista de historias (D-079): la misma ventana
+        await vistaCliente(false); M._in.openIG('r1', 0, true); const c2 = await hasta(vdIg, 3000, 'la ventana desde las historias');
+        ok(c2.querySelector('.igside .ighd .igest') && !c2.querySelector('.igacts'), 'desde las historias, otra ventana');
+        ok(!q('.detail[data-dlg="ig"] .igedit'), 'desde las historias lleva «Editar»');
+        await vdCerrarIg();
+      } finally { await vdCerrarIg(); await vistaCliente(false); }
+    });
   });
 
   window.pasarBateria = pasar;

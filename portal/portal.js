@@ -415,7 +415,9 @@
     let escr = hoja.querySelector('.escr');
     const otraVersion = !nueva && A.version && A.version !== p.version;
     if (otraVersion) { A.slide = 1; A.tog = null; }
-    const ig = nueva || otraVersion || !hoja.querySelector('.ig') ? pintarIg(p, cli) : hoja.querySelector('.ig');
+    const ig = nueva || otraVersion || !hoja.querySelector('.ig') ? pintarIg(p) : hoja.querySelector('.ig');
+    // como Instagram (D-295): el caption, arriba de lo que se desliza con los comentarios
+    const capEl = p.caption ? h('p', { class: 'cap' }, h('b', { text: (cli.handle || cli.nombre || '') + ' ' }), p.caption) : null;
     const hilo = h('ol', {}, [
       ...coms.map(c => ({ t: c.hora, el: h('li', { class: 'cm' + (c.de_kevin ? ' kv' : '') }, h('span', { class: 'q' }, h('b', { text: c.autor_nombre }), cuando(c.hora), c.version !== p.version ? ' · de una versión anterior' : ''),
         c.diapositiva ? h('span', { class: 'sl', text: 'Diapositiva ' + c.diapositiva }) : null, h('p', { text: c.texto })) })),
@@ -453,13 +455,17 @@
     const lista = coms.length || aprs.some(a => a.decision === 'cambios') ? hilo : h('p', { class: 'vacio', text: soloMira() ? 'Aún no hay comentarios.' : 'Aún no hay comentarios. Si algo no te encaja, dilo aquí.' });
     const acc = acciones(p, ultimaMia), dl0 = hoja.querySelector('.dl');
     A.version = p.version;
+    // la proporción de la foto (la de la primera, entre 9:16 y 1,91:1, como Instagram): la ventana la sigue (portal.css)
+    const im0 = p.imagenes[0], prop = im0 && im0.an > 0 && im0.al > 0 ? Math.min(1.91, Math.max(0.5625, im0.an / im0.al)) : 0.8;
+    hoja.style.setProperty('--r', prop.toFixed(4));   // CSSOM: la CSP lo deja (lección 243)
     if (nueva || !dl0) {
       const x = h('button', { type: 'button', class: 'hoja-x', 'aria-label': 'Cerrar', onclick: () => cerrar() }, ico('x'));
-      hoja.replaceChildren(x, ig, h('div', { class: 'dl' }, cab, h('div', { class: 'dl-b' }, aviso, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista, escr)), acc));
+      hoja.replaceChildren(x, ig, h('div', { class: 'dl' }, cuentaDe(cli), cab, h('div', { class: 'dl-b' }, aviso, capEl, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista)), h('div', { class: 'dl-pie' }, escr, acc)));
     } else {   // solo cambia lo que cambió; el campo de escribir se queda donde está, con su foco
-      if (otraVersion) hoja.querySelector('.ig').replaceWith(ig);
+      const b = dl0.querySelector('.dl-b');
+      if (otraVersion) { hoja.querySelector('.ig').replaceWith(ig); b.querySelector(':scope > .cap')?.remove(); if (capEl) b.querySelector(':scope > .hilo').before(capEl); }
       dl0.querySelector('.dl-h').replaceWith(cab);
-      const b = dl0.querySelector('.dl-b'); b.querySelector(':scope > .cambio')?.remove(); if (aviso) b.prepend(aviso);
+      b.querySelector(':scope > .cambio')?.remove(); if (aviso) b.prepend(aviso);
       b.querySelector('.hilo > ol, .hilo > p.vacio').replaceWith(lista);
       dl0.querySelector('.acc').replaceWith(acc);
     }
@@ -490,7 +496,7 @@
       p.estado === 'cambios' ? h('button', { type: 'button', class: 'btn p', onclick: e => decidir(p, 'aprobada', null, null, e.currentTarget) }, ico('check'), 'Aprobar') : null,
       h('button', { type: 'button', class: 'btn s', onclick: e => decidir(p, 'retirada', null, null, e.currentTarget) }, ico('undo'), 'Deshacer'), sigBtn);
     const txt = { preparando: 'Aún la estamos preparando: te avisaremos para que la apruebes.', programada: 'Ya está programada.', publicada: 'Ya está publicada.' }[p.estado];
-    return h('div', { class: 'acc' }, h('p', { class: 'vacio', text: txt }), sigBtn);
+    return h('div', { class: 'acc quieta' }, h('p', { class: 'vacio', text: txt }), sigBtn);   // nada que decidir: en el móvil no tapa el campo de comentar
   }
   async function decidir(p0, decision, motivo, diapositiva, boton) {
     if (boton) boton.disabled = true;
@@ -533,9 +539,13 @@
     enviar.addEventListener('click', async () => { const ok = await decidir(p, 'cambios', ta.value.trim(), tog && tog.getAttribute('aria-pressed') === 'true' ? st.abierta.slide : null, enviar); if (ok) { lsSet(clave, null); quitar(); } });
     document.body.append(velo, dlg); ta.focus();
   }
-  function pintarIg(p, cli) {
+  // la cuenta, arriba de la columna de la derecha (en el móvil, arriba del todo, con «Volver») (D-295)
+  function cuentaDe(cli) {
     const av = h('span', { class: 'ig-av', 'aria-hidden': 'true', text: (cli.nombre || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() });
     if (cli.foto) urls([cli.foto]).then(m => { if (m[cli.foto]) av.replaceChildren(h('img', { src: m[cli.foto], alt: '' })); }).catch(() => {});
+    return h('div', { class: 'ig-h' }, h('button', { type: 'button', class: 'bk', onclick: () => cerrar() }, ico('left'), 'Volver'), av, h('span', { text: cli.handle || cli.nombre || '' }));
+  }
+  function pintarIg(p) {
     const lista = h('div', { class: 'car-l', tabindex: '0', 'aria-label': p.imagenes.length > 1 ? `${p.imagenes.length} imágenes: desliza para verlas` : 'Imagen de la publicación' },
       p.imagenes.length ? p.imagenes.map((im, i) => h('div', {}, h('img', { alt: `Imagen ${i + 1} de ${p.imagenes.length}`, 'data-grande': im.ruta, width: String(im.an), height: String(im.al) }))) : h('div', {}, h('div', { class: 'ph', text: 'En preparación' })));
     const n = h('span', { class: 'ig-n', text: p.imagenes.length > 1 ? `1 / ${p.imagenes.length}` : '' }); if (p.imagenes.length < 2) n.hidden = true;
@@ -551,10 +561,7 @@
       const tog = document.querySelector('.hoja .escr .tog'); if (tog) { tog.lastChild.textContent = 'Sobre la diapositiva ' + i; if (st.abierta.tog == null) tog.setAttribute('aria-pressed', String(i > 1)); }
     }, { passive: true });
     lista.addEventListener('keydown', e => { if (e.key === 'ArrowRight') { e.preventDefault(); ir(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); ir(-1); } });
-    return h('div', { class: 'ig' },
-      h('div', { class: 'ig-h' }, h('button', { type: 'button', class: 'bk', onclick: () => cerrar() }, ico('left'), 'Volver'), av, h('span', { text: cli.handle || cli.nombre || '' })),
-      h('div', { class: 'car' }, lista, n, ant, sig), dots,
-      p.caption ? h('p', { class: 'ig-cap' }, h('b', { text: (cli.handle || cli.nombre || '') + ' ' }), p.caption) : null);
+    return h('div', { class: 'ig' }, h('div', { class: 'car' }, lista, n, ant, sig), dots);
   }
   async function mostrarImagenes(p) {
     const imgs = [...document.querySelectorAll('.hoja img[data-grande]')]; if (!imgs.length) return;

@@ -202,12 +202,16 @@ svg.i *{vector-effect:non-scaling-stroke}
 .pv.lleno .dia{min-height:0}
 /* publicación */
 .velo{position:fixed;inset:0;background:var(--veil);z-index:20;animation:aparece var(--d2) var(--ease)}
-.hoja{position:fixed;z-index:21;inset:4vh 50% auto auto;transform:translateX(50%);width:min(980px,calc(100vw - 32px));max-height:92vh;background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);overflow:hidden;animation:aparece var(--d2) var(--ease)}
+/* como Instagram (D-295): la foto a la izquierda, a su proporción (--r, la pone portal.js) y del alto de la ventana (como mucho
+   min(92vh, 880 px)); a la derecha, 400 px: la cuenta; título, fecha y estado; el caption y los comentarios, que se deslizan
+   juntos; abajo, escribir y aprobar */
+.hoja{--h:min(92vh,880px,calc((100vw - 448px) / var(--r,.8)));position:fixed;z-index:21;inset:0;margin:auto;width:calc(var(--h) * var(--r,.8) + 400px);height:var(--h);background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1fr) 400px;overflow:hidden;animation:aparece var(--d2) var(--ease)}
 @keyframes aparece{from{opacity:0}to{opacity:1}}
 .hoja-x{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:50%;border:0;background:none;display:grid;place-items:center;color:var(--ink-2);z-index:2}
 .hoja-x svg{width:20px;height:20px}
-.ig{background:var(--panel-2);border-right:1px solid var(--sep);display:flex;flex-direction:column;min-height:0;overflow:auto}
-.ig-h{display:flex;align-items:center;gap:10px;padding:10px 14px;font-weight:600;font-size:13px;min-height:52px}
+.ig{position:relative;background:#000;min-height:0;overflow:hidden}
+.ig .car,.ig .car-l,.ig .car-l>div{height:100%}
+.ig-h{flex:none;display:flex;align-items:center;gap:10px;padding:10px 64px 10px 16px;font-weight:600;font-size:13.5px;min-height:60px;border-bottom:1px solid var(--sep)}
 .ig-av{width:30px;height:30px;border-radius:50%;background:var(--bg-3);overflow:hidden;display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--ink-2);flex:none}
 .ig-av img{width:100%;height:100%;object-fit:cover}
 .bk{display:none;align-items:center;gap:4px;border:0;background:none;min-height:44px;padding:0 8px 0 0;color:var(--ink);font-weight:600;font-size:14px}
@@ -215,25 +219,27 @@ svg.i *{vector-effect:non-scaling-stroke}
 .car{position:relative}
 .car-l{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;background:var(--bg-3)}
 .car-l::-webkit-scrollbar{display:none}
-.car-l>div{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;background:var(--bg-3)}
-.car-l img{width:100%;height:auto;display:block}
+.car-l>div{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;background:#000}
+.car-l img{width:100%;height:100%;object-fit:cover;display:block}
 .car-l .ph{width:100%;aspect-ratio:4/5;display:grid;place-items:center;color:var(--mute);font-size:13px}
 .ig-n{position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:var(--r-pill);background:rgba(22,17,14,.72);color:#fff;font-size:12px;font-weight:600}
 .car-b{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.88);color:#16110E;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .car-b.ant{left:8px}.car-b.sig{right:8px}.car-b svg{width:18px;height:18px;stroke-width:2}
 .car-b[hidden]{display:none}
-.ig-dots{display:flex;justify-content:center;gap:5px;padding:10px;min-height:26px}
-.ig-dots i{width:6px;height:6px;border-radius:50%;background:var(--line-strong)}.ig-dots i.on{background:#0095F6}
-.ig-cap{padding:12px 14px 16px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
-.ig-cap b{font-weight:600}
-.dl{display:flex;flex-direction:column;min-height:0;overflow:auto}
-.dl-h{padding:20px 64px 12px 20px}
-.dl-h h2{margin:0;font-size:20px;font-weight:800}
-.dl-h p{margin:2px 0 10px;color:var(--mute);font-size:13px}
-.dl-b{padding:0 20px;display:flex;flex-direction:column;gap:12px;flex:1}
+.ig-dots{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:5px;pointer-events:none}
+.ig-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}.ig-dots i.on{background:#fff}
+.cap{margin:0;padding:0 0 14px;border-bottom:1px solid var(--sep);font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.cap b{font-weight:600}
+.dl{display:flex;flex-direction:column;min-height:0;overflow:hidden;border-left:1px solid var(--sep)}
+.dl-h{flex:none;padding:14px 16px 4px}
+.dl-h h2{margin:0;font-size:17px;font-weight:800}
+.dl-h p{margin:2px 0 8px;color:var(--mute);font-size:13px}
+.dl-b{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 16px 14px;display:flex;flex-direction:column;gap:12px}
+.dl-pie{flex:none;border-top:1px solid var(--sep);background:var(--panel);padding-top:10px}
+.dl-pie .escr{padding:0 16px}
 .cambio{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink-2);background:var(--bg);border-radius:var(--r-md);padding:10px 12px;margin:0}
 .cambio svg{color:var(--chg);margin-top:1px}
-.hilo{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--sep);padding-top:14px}
+.hilo{display:flex;flex-direction:column;gap:12px}
 .hilo h3{margin:0;font-size:14px;font-weight:600}
 .hilo ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 .cm{display:flex;flex-direction:column;gap:3px;max-width:52ch}
@@ -253,7 +259,7 @@ svg.i *{vector-effect:non-scaling-stroke}
 .tog svg{width:14px;height:14px;stroke-width:2;visibility:hidden}
 .tog[aria-pressed="true"] svg{visibility:visible}
 .err-p{color:var(--red);font-size:13px;margin:0}
-.acc{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--sep);background:var(--panel);margin-top:12px;align-items:center;flex-wrap:wrap}
+.acc{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--sep);background:var(--panel);margin-top:10px;align-items:center;flex-wrap:wrap}
 .acc .btn{flex:1}
 .acc .hecho{display:flex;align-items:center;gap:10px;flex:1;font-size:14px;min-height:48px}
 .acc .hecho svg{color:var(--ok);width:20px;height:20px;stroke-width:2}
@@ -280,12 +286,13 @@ svg.i *{vector-effect:non-scaling-stroke}
   .cols,.cols.con-lado{grid-template-columns:1fr}
   .feedw .feed{max-width:420px;margin:0 auto}   /* el panel a todo el ancho, la cuadrícula ceñida (D-264) */
 }
+/* de 560 a 800 px (D-295): la foto arriba, a un 46 % del alto y entera; lo demás debajo, que se desliza dentro */
 @media (max-width: 800px){
-  .hoja{display:flex;flex-direction:column;overflow:auto;inset:16px 16px 16px 16px;transform:none;width:auto;max-height:none}
-  .hoja>.ig,.hoja>.dl{flex:none}
-  .acc{position:sticky;bottom:0;box-shadow:0 -1px 0 var(--sep)}
-  .ig{border-right:0;border-bottom:1px solid var(--sep);overflow:visible}
-  .dl{overflow:visible}
+  .hoja{inset:16px;width:auto;max-width:640px;height:min(92vh,880px);display:flex;flex-direction:column}
+  .ig{flex:none;height:46%}
+  .car-l img{object-fit:contain}
+  .dl{flex:1;border-left:0}
+  .hoja-x{background:rgba(22,17,14,.55);color:#fff}   /* sobre la foto */
 }
 /* 390 */
 @container app (max-width: 559px){
@@ -315,13 +322,24 @@ svg.i *{vector-effect:non-scaling-stroke}
 }
 @media (max-width: 559px){
   .velo{display:none}
-  .hoja{inset:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column;overflow:auto;max-height:none}
-  .hoja>.ig,.hoja>.dl{flex:none}
+  /* el móvil (D-295): todo se desliza junto; la foto como mucho a un 60 % del alto, así el estado y «Aprobar» se ven al abrirla
+     (también en un iPhone de 667 px); la barra de acciones, pegada abajo de la hoja (sin nada que decidir, no se pega) */
+  .hoja{inset:0;margin:0;width:auto;max-width:none;height:auto;border-radius:0;box-shadow:none;display:flex;flex-direction:column;overflow-y:auto}
+  .dl,.dl-pie{display:contents}
+  .ig-h{order:-1;padding:6px 16px 6px 8px;min-height:52px;border-bottom:0}
+  .ig{flex:none;height:auto;background:var(--bg-3)}
+  .ig .car,.ig .car-l{height:auto}
+  .ig .car-l>div{background:var(--bg-3);height:min(60vh,calc(100vw / var(--r,.8)));height:min(60dvh,calc(100vw / var(--r,.8)))}   /* su caja antes de cargar: nada salta */
+  .car-l img{object-fit:contain}
+  .ig-dots{position:static;padding:10px;min-height:26px}
+  .ig-dots i{background:var(--line-strong)}.ig-dots i.on{background:#0095F6}
   .hoja-x{display:none}
   .bk{display:flex}
   .dl-h{padding:16px 16px 8px}
-  .dl-b{padding:0 16px}
-  .acc{position:sticky;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -1px 0 var(--sep)}
+  .dl-b{flex:none;overflow:visible;padding:0 16px 12px}
+  .dl-pie .escr{padding:0 16px 16px}
+  .acc{position:sticky;bottom:0;margin-top:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -1px 0 var(--sep)}
+  .acc.quieta{position:static}
   .dlg{top:auto;bottom:var(--kb,0px);left:0;transform:none;width:100%;border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px 16px calc(24px + env(safe-area-inset-bottom))}
   .dlg .fila .btn{flex:1}
   .velo.alto{display:block}

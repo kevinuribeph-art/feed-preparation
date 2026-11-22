@@ -4,7 +4,7 @@
 // hace: aprobar, pedir cambios con motivo y comentar.
 (function portal() {
   'use strict';
-  const V = '1.5';   // 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
+  const V = '1.6';   // 1.6: a pantalla completa (D-293), «Ver más en Zernio» (D-294), la ventana de una publicación como Instagram (D-295), las flechas del carrusel (D-296), «Tus pagos» con su tramo, las entregas de un cliente de solo contenido y la reunión (D-297). 1.5: el aviso de demasiados intentos ya no promete un minuto (D-280). 1.4: la cuenta que solo mira: ve cada cliente como lo ve él, sin aprobar, pedir cambios ni comentar (D-266). 1.3: el monograma a la izquierda de la barra, sin pulsar, y la página con las medidas de la «Vista cliente» (D-264)
   const app = document.getElementById('app');
   const CFG = window.PORTAL_CONFIG || {};
   const TZ = 'Europe/Madrid';
@@ -39,10 +39,12 @@
   const diaDe = iso => { const p = partes(new Date(iso), { year: 'numeric', month: '2-digit', day: '2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
   const horaDe = iso => { const p = partes(new Date(iso), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); return `${p.hour}:${p.minute}`; };
   const dsem = dia => DIAS[new Date(dia + 'T12:00:00Z').getUTCDay()];
+  const madrid = dia => new Date(dia + 'T11:00:00Z').toISOString();   // una entrega, a mediodía de su día en Madrid (para ordenar la lista)
   const may = t => t ? t[0].toUpperCase() + t.slice(1) : t;
   const mesCorto = m => may(MESES[+m.slice(5, 7) - 1].slice(0, 3)) + ' ' + m.slice(0, 4);
   const mesNom = m => MESES[+m.slice(5, 7) - 1] + (m.slice(0, 4) !== hoy().slice(0, 4) ? ' ' + m.slice(0, 4) : '');
   const mesAntes = m => { let [y, mo] = m.split('-').map(Number); mo--; if (!mo) { mo = 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; };
+  const mesDespues = m => { let [y, mo] = m.split('-').map(Number); mo++; if (mo > 12) { mo = 1; y++; } return `${y}-${String(mo).padStart(2, '0')}`; };
   const diaCorto = d => +d.slice(8, 10) + ' ' + MESES[+d.slice(5, 7) - 1].slice(0, 3);
   const fechaPub = p => { if (!p.fecha) return 'Sin fecha'; const d = diaDe(p.fecha); return may(dsem(d)) + ' ' + diaCorto(d) + (p.sin_hora ? '' : ' · ' + horaDe(p.fecha)); };
   const cuando = iso => { const d = diaDe(iso), t = horaDe(iso); if (d === hoy()) return 'hoy, ' + t; const ay = diaDe(Date.now() - 864e5); return d === ay ? 'ayer, ' + t : diaCorto(d) + ', ' + t; };
@@ -66,7 +68,7 @@
   let S = null;
   try { S = window.Supa.crear({ url: CFG.url, publica: CFG.publica, clave: 'portal-sesion' }); } catch (e) { S = null; }
   const POR = 'Solo mirar: con esta cuenta no se aprueba, no se piden cambios ni se comenta.';   // D-266
-  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0 };
+  const st = { observa: new Set(), todoMira: false, clientes: [], cli: null, d: null, mes: null, tab: 'cal', verAnt: null, urls: new Map(), cargando: false, error: '', abierta: null, gen: 0, carga: 0, sucio: false, codigoEn: 0, ys: new Map(), colsDe: '' };
 
   async function cargarClientes() {
     // `observa` (D-266): una cuenta que solo mira; un servidor que aún no la tiene contesta 400 y se lee como siempre
@@ -77,25 +79,33 @@
     st.todoMira = !!(mios || []).length && (mios || []).every(m => m.observa === true);
     const ids = [...new Set((mios || []).map(m => m.cliente_id))];
     if (!ids.length) return [];
-    const l = await S.leer(`clientes?select=id,nombre,handle,foto,cuota_cent,proxima_emision&id=in.(${ids.map(encodeURIComponent).join(',')})`);
+    // `metricas` (D-294) y el acuerdo y el servicio (D-297): un servidor que aún no los tiene contesta 400 y se lee como antes
+    const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision';
+    let l;
+    try { l = await S.leer(`clientes?select=${C0},metricas,servicio,pago,pago_cent,cubre_de,cubre_hasta&id=in.(${en})`); }
+    catch (e) { if (e.status !== 400) throw e; l = await S.leer(`clientes?select=${C0}&id=in.(${en})`); }
     return (l || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
+  // una lectura con columnas nuevas (D-297): un servidor que aún no las tiene contesta 400 y se lee sin ellas
+  const leerCon = (t, cols, extra, resto) => S.leer(`${t}?select=${cols},${extra}${resto}`).catch(e => { if (e.status !== 400) throw e; return S.leer(`${t}?select=${cols}${resto}`); });
   async function cargarDatos(cli, antes) {
     const c = encodeURIComponent(cli), prev = antes || {};
     const pide = [
       S.leer(`publicaciones?select=${C_PUB}&cliente_id=eq.${c}&order=mes.desc,orden.asc`),
       S.leer(`aprobaciones?select=${C_APR}&cliente_id=eq.${c}&order=hora.asc`),
       S.leer(`comentarios?select=${C_COM}&cliente_id=eq.${c}&order=hora.asc`),
-      S.leer(`sesiones?select=id,mes,nombre,inicio,fin,sin_hora&cliente_id=eq.${c}`),
+      leerCon('sesiones', 'id,mes,nombre,inicio,fin,sin_hora', 'clase', `&cliente_id=eq.${c}`),
       S.leer(`meses?select=mes,porque,resumen&cliente_id=eq.${c}`),
-      S.leer(`pagos?select=id,periodo,concepto,importe_cent,factura,emitida,vence,cobrada,pdf&cliente_id=eq.${c}`),
+      leerCon('pagos', 'id,periodo,concepto,importe_cent,factura,emitida,vence,cobrada,pdf', 'hasta', `&cliente_id=eq.${c}`),
+      S.leer(`entregas?select=id,fecha,que,cuanto,enlace,entregada&cliente_id=eq.${c}&order=fecha.asc`),
     ];
     const r = await Promise.allSettled(pide);
     const mal = r.find(x => x.status === 'rejected');
     if (mal && (mal.reason.status === 401 || mal.reason.codigo === 'sesion')) throw mal.reason;
     if (r.slice(0, 3).some(x => x.status === 'rejected')) throw r.slice(0, 3).find(x => x.status === 'rejected').reason;   // sin publicaciones ni conversación, no se pinta
     const v = (i, k) => (r[i].status === 'fulfilled' ? r[i].value || [] : prev[k] || []);   // un panel que falla se queda como estaba
-    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos') };
+    return { pubs: v(0, 'pubs').map(visto), aprs: v(1, 'aprs'), coms: v(2, 'coms'), ses: v(3, 'ses'), meses: v(4, 'meses'), pagos: v(5, 'pagos'), ents: v(6, 'ents'),
+      entsMal: r[6].status === 'rejected' && (!prev.ents || !!prev.entsMal) };   // una lectura fallida no es «sin entregas» (lección 94)
   }
   // URL firmadas (10 minutos): se piden juntas y se guardan hasta un minuto antes de caducar.
   async function urls(rutas, bucket = 'fotos') {
@@ -151,7 +161,7 @@
   const delMes = m => visibles().filter(p => p.mes === m).sort((a, b) => a.orden - b.orden);
   const pendientes = () => visibles().filter(p => p.estado === 'por_aprobar').sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
   function mesesDisponibles() {
-    const s = new Set([...visibles().map(p => p.mes), ...st.d.ses.map(x => x.mes)]);
+    const s = new Set([...visibles().map(p => p.mes), ...st.d.ses.map(x => x.mes), ...(st.d.ents || []).map(x => x.fecha.slice(0, 7))]);
     return [...s].sort().reverse();
   }
   function mesInicial() {
@@ -204,18 +214,42 @@
         h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
       h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
-    const lado = [seguro(() => pintarPagos(cli)), seguro(pintarComoFue)].filter(Boolean);
-    const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
+    const lado = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean);
+    const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, cli && cli.servicio === 'contenido' ? seguro(pintarEntregas) : pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
     const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
       h('span', { class: 'pv-obs-t' }, h('b', { text: 'Solo mirar' }), ' · ves cada calendario como lo ve su cliente'),
       st.clientes.length > 1 ? h('span', { class: 'pv-obs-l', text: 'Ver como' }) : null,
       st.clientes.length > 1 ? st.clientes.map(c => h('button', { type: 'button', class: 'pv-obs-c' + (c.id === st.cli ? ' on' : ''), 'aria-pressed': String(c.id === st.cli), text: c.nombre, onclick: () => irA(c.id) })) : null) : null;
-    const y = window.scrollY;
+    const y = window.scrollY, k = st.cli + '|' + st.mes;
+    if (st.colsDe !== k) st.ys = new Map(); else scrollCols();   // otro cliente u otro mes: arriba
     app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
     window.scrollTo(0, y);
+    lleno();
+    scrollCols(true);
+    st.colsDe = k;
     pintarMinis();
   }
+  // A pantalla completa (D-293): con las tres columnas (desde 1100 px de ancho) y 700 px de alto o más, cada columna mide el
+  // alto de la pantalla menos lo de encima (la cabecera, el aviso) y se desliza dentro (portal.css, `.pv.lleno`).
+  function lleno() {
+    const pv = app.querySelector('.pv'), cols = pv && pv.querySelector('.cols'); if (!cols) return;
+    const si = app.clientWidth >= 1100 && window.innerHeight >= 700;
+    pv.classList.toggle('lleno', si);
+    if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
+  }
+  // A pantalla completa cada columna se desliza dentro: repintar (una pestaña, «Ver las anteriores», aprobar, el repaso de cada
+  // minuto) no la devuelve arriba (revisión en frío; D-240: nada salta mientras se lee). Se guarda la de cada columna y pestaña
+  // de este cliente y este mes (st.ys); `volver` las devuelve.
+  const claveCol = e => e.classList.contains('cent') ? 'cent|' + (e.dataset.tab || '') : e.getAttribute('aria-labelledby') || e.className.split(' ').filter(c => c !== 'card')[0] || '';   // la pestaña de esa columna, no la de ahora
+  function scrollCols(volver) {
+    const l = [...app.querySelectorAll('.cols > *, .lado > *')];
+    if (!volver) { l.forEach(e => st.ys.set(claveCol(e), e.scrollTop)); return; }
+    l.forEach(e => { const v = st.ys.get(claveCol(e)); if (v) e.scrollTop = v; });
+  }
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => lleno());   // la cabecera, con cada letra que llega (600 y 800 se piden al pintar)
+  let llenoRaf = 0;
+  window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(lleno); });   // una vez por cuadro (lección 113)
 
   async function irA(id) {
     if (id === st.cli) return;
@@ -240,6 +274,24 @@
     return h('section', { class: 'feedw', 'aria-label': 'Tu feed' },
       celdas.length ? h('div', { class: 'feed' }, celdas) : h('p', { class: 'vacio', text: 'Este mes aún no tiene publicaciones.' }));
   }
+  // Las entregas de un cliente de solo contenido (D-297), en el sitio del feed: las del mes, «N de M entregadas»; cada una con
+  // qué, cuánto y su fecha; entregada, su enlace (solo entonces) y el día; si no, «En camino»; las del mes siguiente, aparte.
+  // «qué» y «cuánto» pasaron en la Mesa el mismo filtro que los captions (mesOtros). Como la «Vista cliente» (entregas.js).
+  function filaEnt(e) {
+    const hecha = !!e.entregada, sub = [e.cuanto, hecha ? 'entregada el ' + diaCorto(e.entregada) : 'antes del ' + diaCorto(e.fecha)].filter(Boolean).join(' · ');
+    const der = hecha && /^https:\/\/\S+$/.test(e.enlace || '') ? h('a', { class: 'ent-l', href: e.enlace, target: '_blank', rel: 'noopener noreferrer' }, ico('ext'), 'Abrir')
+      : hecha ? null : h('span', { class: 'ent-cam', text: 'En camino' });
+    return h('li', { class: 'ent-f' + (hecha ? ' hecha' : ''), 'data-ent': e.id }, h('span', { class: 'd', text: diaCorto(e.fecha) }), h('span', { class: 't' }, h('b', { text: e.que }), h('span', { text: sub })), der);
+  }
+  function pintarEntregas() {
+    const E = st.d.ents || [], m = st.mes, sigM = mesDespues(m);
+    const del = E.filter(e => e.fecha.slice(0, 7) === m), sig = E.filter(e => e.fecha.slice(0, 7) === sigM), n = del.filter(e => e.entregada).length;
+    return h('section', { class: 'card entw', 'aria-labelledby': 'h-ent' },
+      h('div', { class: 'ti' }, h('h2', { id: 'h-ent', text: 'Tus entregas' }), h('span', { text: may(MESES[+m.slice(5, 7) - 1]) + (del.length ? ` · ${n} de ${del.length} entregada${del.length === 1 ? '' : 's'}` : '') })),
+      st.d.entsMal ? h('p', { class: 'vacio', text: 'No se pudieron cargar tus entregas: vuelve a abrir la página en un momento.' })
+        : del.length ? h('ol', { class: 'ents' }, del.map(filaEnt)) : h('p', { class: 'vacio', text: 'Este mes aún no tiene entregas.' }),
+      sig.length ? [h('p', { class: 'h3', text: may(MESES[+sigM.slice(5, 7) - 1]) }), h('ol', { class: 'ents' }, sig.map(filaEnt))] : null);
+  }
   async function otraVez(e) {   // una URL firmada que caducó antes de verse (perezosa): se pide de nuevo, una vez
     const i = e.currentTarget, r = i.dataset.ruta || i.dataset.grande; if (!r || i.dataset.otra) return;
     i.dataset.otra = '1'; st.urls.delete(r);
@@ -260,11 +312,16 @@
     return h('button', { type: 'button', class: 'chip ' + p.tipo, 'data-pid': p.pid, onclick: () => abrir(p.pid), 'aria-label': `${p.nombre} · ${fechaPub(p)} · ${ESTADO[p.estado][0]}` },
       h('span', { class: 'cl' }, h('span', { class: 'cn', text: p.nombre })), p.sin_hora || !p.fecha ? null : h('span', { class: 'ct', text: horaDe(p.fecha) }));
   }
-  const chipSes = x => h('span', { class: 'chip ses' }, h('span', { class: 'cl' }, ico('clap', 'cses'), h('span', { class: 'cn', text: x.nombre })), x.sin_hora ? null : h('span', { class: 'ct', text: horaDe(x.inicio) }));
+  const reu = x => x.clase === 'reunion';   // una reunión (D-297): su dibujo (Lucide «users») y su nombre, como una sesión
+  const chipSes = x => h('span', { class: 'chip ses' + (reu(x) ? ' reu' : '') },
+    h('span', { class: 'cl' }, ico(reu(x) ? 'users' : 'clap', 'cses'), h('span', { class: 'sr', text: (reu(x) ? 'Reunión' : 'Sesión') + ': ' }), h('span', { class: 'cn', text: x.nombre })), x.sin_hora ? null : h('span', { class: 'ct', text: horaDe(x.inicio) }));
+  // una entrega en su día (D-297): entregada, con su ✓; si no, en camino
+  const chipEnt = e => h('span', { class: 'chip entg' + (e.entregada ? ' hecha' : '') },
+    h('span', { class: 'cl' }, e.entregada ? ico('check', 'cses') : null, h('span', { class: 'sr', text: 'Entrega: ' }), h('span', { class: 'cn', text: e.que }), h('span', { class: 'sr', text: e.entregada ? ', entregada' : ', en camino' })));
   function pintarCalendario() {
     const m = st.mes, [y, mo] = m.split('-').map(Number), d0 = new Date(Date.UTC(y, mo - 1, 1)), dias = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-    const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), pubs = delMes(m).filter(p => p.fecha), ses = st.d.ses.filter(x => x.mes === m);
-    const deDia = d => [...pubs.filter(p => diaDe(p.fecha) === d).map(p => [p.fecha, chip(p)]), ...ses.filter(x => diaDe(x.inicio) === d).map(x => [x.inicio, chipSes(x)])].sort((a, b) => a[0].localeCompare(b[0])).map(x => x[1]);
+    const lun = (d0.getUTCDay() + 6) % 7, H = hoy(), pubs = delMes(m).filter(p => p.fecha), ses = st.d.ses.filter(x => x.mes === m), ents = (st.d.ents || []).filter(e => e.fecha.slice(0, 7) === m);
+    const deDia = d => [...pubs.filter(p => diaDe(p.fecha) === d).map(p => [p.fecha, chip(p)]), ...ses.filter(x => diaDe(x.inicio) === d).map(x => [x.inicio, chipSes(x)]), ...ents.filter(e => e.fecha === d).map(e => [e.fecha + 'T23:59', chipEnt(e)])].sort((a, b) => a[0].localeCompare(b[0])).map(x => x[1]);
     const celdas = [];
     const diasAntes = new Date(Date.UTC(y, mo - 1, 0)).getUTCDate();
     for (let i = 0; i < lun; i++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: String(diasAntes - lun + 1 + i) })));
@@ -272,15 +329,16 @@
     for (let d = 1; celdas.length % 7; d++) celdas.push(h('div', { class: 'dia fuera', 'aria-hidden': 'true' }, h('span', { class: 'n', text: d === 1 ? `1 ${MESES[mo % 12].slice(0, 3)}` : String(d) })));
     const grid = h('div', { class: 'cal', role: 'grid', 'aria-label': 'Calendario de ' + MESES[mo - 1] }, ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => h('span', { class: 'dn', 'aria-hidden': 'true', text: x })), celdas);
     // lista por semanas (a 390): de lunes a domingo
-    const items = [...pubs.map(p => ({ t: p.fecha, p })), ...ses.map(x => ({ t: x.inicio, x }))].sort((a, b) => a.t.localeCompare(b.t));
+    const items = [...pubs.map(p => ({ t: p.fecha, p })), ...ses.map(x => ({ t: x.inicio, x })), ...ents.map(e => ({ t: madrid(e.fecha), e }))].sort((a, b) => a.t.localeCompare(b.t));
     const lista = h('ol', { class: 'agenda' }); let semAnt = null;
     for (const it of items) {
       const dia = diaDe(it.t), dd = new Date(dia + 'T12:00:00Z'), w = (dd.getUTCDay() + 6) % 7, lunes = new Date(dd - w * 864e5).toISOString().slice(0, 10), dom = new Date(dd.getTime() + (6 - w) * 864e5).toISOString().slice(0, 10);
       if (lunes !== semAnt) { semAnt = lunes; const n = Math.floor((+dia.slice(8) + lun - 1) / 7) + 1, mismo = lunes.slice(5, 7) === dom.slice(5, 7);
         lista.append(h('li', { class: 'sem', text: `Semana ${n} · ${mismo ? +lunes.slice(8) : diaCorto(lunes)} – ${diaCorto(dom)}` })); }
-      const est = it.p ? (it.p.estado === 'por_aprobar' ? h('span', { class: 'dot', 'aria-hidden': 'true' }) : ['aprobada', 'programada', 'publicada'].includes(it.p.estado) ? ico('check', 'ok') : it.p.estado === 'cambios' ? ico('pen', 'cb') : null) : null;
-      const hora = it.p ? (it.p.sin_hora ? '' : horaDe(it.p.fecha)) : (it.x.sin_hora ? '' : horaDe(it.x.inicio));
-      const cont = [h('span', { class: 'd' }, h('b', { text: String(+dia.slice(8)) }), h('span', { text: dsem(dia).slice(0, 3) })), h('span', { class: 'c ' + (it.p ? it.p.tipo : 'ses'), text: it.p ? it.p.nombre : it.x.nombre }), h('span', { class: 'h', text: hora }), h('span', { class: 's' }, est)];
+      const est = it.p ? (it.p.estado === 'por_aprobar' ? h('span', { class: 'dot', 'aria-hidden': 'true' }) : ['aprobada', 'programada', 'publicada'].includes(it.p.estado) ? ico('check', 'ok') : it.p.estado === 'cambios' ? ico('pen', 'cb') : null) : it.e && it.e.entregada ? ico('check', 'ok') : null;
+      const hora = it.p ? (it.p.sin_hora ? '' : horaDe(it.p.fecha)) : it.e ? '' : (it.x.sin_hora ? '' : horaDe(it.x.inicio));
+      const cont = [h('span', { class: 'd' }, h('b', { text: String(+dia.slice(8)) }), h('span', { text: dsem(dia).slice(0, 3) })),
+        h('span', { class: 'c ' + (it.p ? it.p.tipo : it.e ? 'entg' + (it.e.entregada ? ' hecha' : '') : 'ses' + (reu(it.x) ? ' reu' : '')), text: it.p ? it.p.nombre : it.e ? it.e.que : it.x.nombre }), h('span', { class: 'h', text: hora }), h('span', { class: 's' }, est)];
       lista.append(h('li', {}, it.p ? h('button', { type: 'button', class: 'ag', 'data-pid': it.p.pid, onclick: () => abrir(it.p.pid), 'aria-label': `${it.p.nombre} · ${fechaPub(it.p)} · ${ESTADO[it.p.estado][0]}` }, cont) : h('div', { class: 'ag' }, cont)));
     }
     if (!items.length) lista.append(h('li', {}, h('p', { class: 'vacio', text: 'Este mes aún no tiene nada en el calendario.' })));
@@ -299,7 +357,7 @@
     const tabs = hayPq ? h('div', { class: 'tabs', role: 'tablist' },
       h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'cal' ? ' on' : ''), 'aria-selected': String(st.tab === 'cal'), text: 'Calendario', onclick: () => { st.tab = 'cal'; pintar(); } }),
       h('button', { type: 'button', role: 'tab', class: 'tab' + (st.tab === 'pq' ? ' on' : ''), 'aria-selected': String(st.tab === 'pq'), text: 'Por qué este calendario', onclick: () => { st.tab = 'pq'; pintar(); } })) : null;
-    return h('section', { class: 'card cent', 'aria-label': st.tab === 'pq' ? 'Por qué este calendario' : 'Calendario' }, tabs, st.tab === 'pq' ? h('div', { class: 'pq-w' }, pintarPorque()) : pintarCalendario());
+    return h('section', { class: 'card cent', 'data-tab': st.tab, 'aria-label': st.tab === 'pq' ? 'Por qué este calendario' : 'Calendario' }, tabs, st.tab === 'pq' ? h('div', { class: 'pq-w' }, pintarPorque()) : pintarCalendario());
   }
   function estadoPago(r, H) {
     if (r.cobrada) return ['Pagada', 'ok', 'check', 'pagada el ' + diaCorto(r.cobrada)];
@@ -307,24 +365,35 @@
     if (r.vence && r.vence < H) return ['Pendiente', 'ven', 'alert', 'venció el ' + diaCorto(r.vence)];
     return ['Pendiente', 'pen', 'clock', r.vence ? 'vence el ' + diaCorto(r.vence) : ''];
   }
+  // «Tus pagos» con su tramo (D-297): con un acuerdo que no es mensual, «Pago semestral · 2700 €» y «Cubre may – oct 2026 · el
+  // siguiente, el 1 nov»; cada factura por su tramo («Mayo – octubre»); nunca la fecha de renegociar (no llega). Como la Mesa.
+  const PAGO = { trimestral: 'Pago trimestral', semestral: 'Pago semestral', anual: 'Pago anual', unico: 'Pago único' };
+  const mesC = m => MESES[+m.slice(5, 7) - 1].slice(0, 3);
+  const tramoTxt = (de, ha) => de === ha ? `${mesC(de)} ${de.slice(0, 4)}` : de.slice(0, 4) === ha.slice(0, 4) ? `${mesC(de)} – ${mesC(ha)} ${ha.slice(0, 4)}` : `${mesC(de)} ${de.slice(0, 4)} – ${mesC(ha)} ${ha.slice(0, 4)}`;
+  const nomFactura = r => {   // «Noviembre», «Mayo – octubre», «Noviembre 2026 – abril 2027» (el año, si no es el de hoy)
+    const p = r.periodo, ha = r.hasta && r.hasta > p ? r.hasta : p, hy = hoy().slice(0, 4), M = (m, y) => MESES[+m.slice(5, 7) - 1] + (y ? ' ' + m.slice(0, 4) : '');
+    return may(ha === p ? M(p, p.slice(0, 4) !== hy) : p.slice(0, 4) !== ha.slice(0, 4) ? `${M(p, true)} – ${M(ha, true)}` : `${M(p, false)} – ${M(ha, ha.slice(0, 4) !== hy)}`);
+  };
   function pintarPagos(cli) {
     const P = st.d.pagos, H = hoy(), clave = r => r.emitida || (/^\d{4}-\d{2}$/.test(r.periodo || '') ? r.periodo + '-01' : '') || r.vence || '';
     const orden = (a, b) => clave(b).localeCompare(clave(a)) || String(b.id).localeCompare(String(a.id));
     const deber = P.filter(r => !r.cobrada && r.emitida && r.emitida <= H).sort((a, b) => clave(a).localeCompare(clave(b)));
     const pagadas = P.filter(r => r.cobrada).sort(orden), N = Math.max(0, pagadas.length - 3), ver = st.verAnt === st.cli;
     const prox = cli && cli.proxima_emision && cli.proxima_emision >= H ? cli.proxima_emision : '';
-    if (!(cli && cli.cuota_cent) && !deber.length && !pagadas.length && !prox) return null;
+    const tramo = cli && cli.pago && cli.pago !== 'mensual' && cli.pago_cent != null;
+    if (!(cli && cli.cuota_cent) && !tramo && !deber.length && !pagadas.length && !prox) return null;
     const filas = [...deber, ...pagadas.slice(0, 3), ...(ver ? pagadas.slice(3) : [])], venc = deber.filter(r => r.vence && r.vence < H).length;
     const fila = r => {
-      const [t, k, i, cuando] = estadoPago(r, H), titulo = (r.periodo ? may(MESES[+r.periodo.slice(5, 7) - 1]) : (r.concepto || 'Factura')) + ' · ' + eur(r.importe_cent);
+      const [t, k, i, cuando] = estadoPago(r, H), titulo = (r.periodo ? nomFactura(r) : (r.concepto || 'Factura')) + ' · ' + eur(r.importe_cent);
       return h('button', { type: 'button', class: 'fac', disabled: !r.pdf, 'aria-label': r.pdf ? `${titulo}: abrir la factura en PDF` : null, onclick: r.pdf ? () => abrirPdf(r.pdf) : null },
         h('div', {}, h('b', { text: titulo }), r.factura ? h('span', { class: 'm' }, r.pdf ? ico('file') : null, 'Factura ' + r.factura) : null, cuando ? h('span', { class: r.factura ? 'm2' : 'm', text: cuando }) : null),
         h('span', { class: 'est ' + k }, ico(i), t));
     };
-    const emite = prox ? h('p', { class: 'emite' }, ico('file'), `La de ${MESES[+prox.slice(5, 7) - 1]} se emite el ${diaCorto(prox)}`) : null;
+    const emite = prox && !tramo ? h('p', { class: 'emite' }, ico('file'), `La de ${MESES[+prox.slice(5, 7) - 1]} se emite el ${diaCorto(prox)}`) : null;   // con tramo, va en «Cubre …»
+    const cubre = tramo && cli.cubre_de && cli.cubre_hasta ? h('p', { class: 'cubre' }, 'Cubre ', h('b', { text: tramoTxt(cli.cubre_de, cli.cubre_hasta) }), cli.pago !== 'unico' && prox ? ` · el siguiente, el ${diaCorto(prox)}` : '') : null;
     const mas = N ? h('button', { type: 'button', class: 'lnk ver-ant', 'aria-expanded': String(ver), text: ver ? 'Ocultar las anteriores' : `Ver las anteriores (${N})`, onclick: () => { st.verAnt = ver ? null : st.cli; pintar(); } }) : null;
     return h('section', { class: 'card', 'aria-labelledby': 'h-pagos' },
-      h('div', { class: 'ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' }) : null),
+      h('div', { class: 'ti pagos-ti' }, h('h2', { id: 'h-pagos', text: 'Tus pagos' }), tramo ? h('span', { text: `${PAGO[cli.pago] || 'Pago'} · ${eur(cli.pago_cent)}` }) : cli && cli.cuota_cent ? h('span', { text: eur(cli.cuota_cent) + ' al mes' }) : null), cubre,
       deber.length ? h('p', { class: 'pend-pago' }, 'Pendiente de pago ', h('b', { text: eur(deber.reduce((s, r) => s + r.importe_cent, 0)) }), venc ? h('em', { text: `· ${venc === 1 ? '1 vencida' : venc + ' vencidas'}` }) : null) : null,
       filas.map(fila), mas, emite);
   }
@@ -334,13 +403,17 @@
     try { const m = await urls([ruta], 'facturas'); if (!m[ruta]) throw new Error('no se pudo abrir la factura'); if (w) w.location.replace(m[ruta]); else location.href = m[ruta]; }
     catch (e) { if (w) w.close(); toast(msgError(e)); }
   }
-  function pintarComoFue() {
+  // «Ver más en Zernio» (D-294): justo bajo el título de «Cómo fue», siempre a la vista (lección 247); otra pestaña, sin decir
+  // de dónde viene; solo un enlace https
+  const zernio = cli => cli && /^https:\/\/\S+$/.test(cli.metricas || '') && cli.metricas.length <= 500
+    ? h('a', { class: 'zernio', href: cli.metricas, target: '_blank', rel: 'noopener noreferrer' }, 'Ver más en Zernio', ico('ext')) : null;
+  function pintarComoFue(cli) {
     const p = mesAntes(st.mes), r = st.d.meses.find(x => x.mes === p && x.resumen), ultimo = st.d.meses.filter(x => x.resumen).map(x => x.mes).sort().pop();
     if (!ultimo) return null;
     const cab = x => h('div', { class: 'ti' }, h('h2', { text: 'Cómo fue ' + mesNom(p) }), x ? h('span', { text: x }) : null);
     if (!r) {
-      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card' }, cab(''), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
-      if (p > ultimo) return h('section', { class: 'card' }, cab(''), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
+      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
+      if (p > ultimo) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
       return null;
     }
     const res = r.resumen, c = res.cifras, ant = mesAntes(p), n = c.publicaciones.valor;
@@ -362,7 +435,7 @@
     const T = res.tipos || [], maxT = Math.max(1, ...T.map(t => t.alcance));
     return h('section', { class: 'card', 'aria-labelledby': 'h-comofue' },
       h('div', { class: 'ti' }, h('h2', { id: 'h-comofue', text: 'Cómo fue ' + mesNom(p) }), h('span', { text: n === 1 ? '1 publicación' : num(n) + ' publicaciones' })),
-      h('div', { class: 'cif' }, fichas), h('p', { class: 'sub', text: 'Frente a ' + MESES[+ant.slice(5, 7) - 1] }),
+      zernio(cli), h('div', { class: 'cif' }, fichas), h('p', { class: 'sub', text: 'Frente a ' + MESES[+ant.slice(5, 7) - 1] }),
       P.length ? [h('p', { class: 'h3', text: 'Alcance de cada publicación' }), barras, h('div', { class: 'fechas' }, h('span', { text: diaCorto(P[0].fecha) }), P.length > 1 ? h('span', { text: diaCorto(P[P.length - 1].fecha) }) : null), dato] : null,
       T.length ? [h('p', { class: 'h3', text: 'Alcance medio por tipo' }), h('div', { class: 'tp' }, T.map(t => { const b = h('i'); b.style.width = Math.max(t.alcance ? 1 : 0, t.alcance / maxT * 100).toFixed(1) + '%'; return [h('span', { text: t.tipo }), h('span', {}, b), h('em', { text: cifra(t.alcance) })]; }))] : null,
       res.frase ? h('p', { class: 'frase', text: res.frase }) : null);
@@ -396,7 +469,9 @@
     let escr = hoja.querySelector('.escr');
     const otraVersion = !nueva && A.version && A.version !== p.version;
     if (otraVersion) { A.slide = 1; A.tog = null; }
-    const ig = nueva || otraVersion || !hoja.querySelector('.ig') ? pintarIg(p, cli) : hoja.querySelector('.ig');
+    const ig = nueva || otraVersion || !hoja.querySelector('.ig') ? pintarIg(p) : hoja.querySelector('.ig');
+    // como Instagram (D-295): el caption, arriba de lo que se desliza con los comentarios
+    const capEl = p.caption ? h('p', { class: 'cap' }, h('b', { text: (cli.handle || cli.nombre || '') + ' ' }), p.caption) : null;
     const hilo = h('ol', {}, [
       ...coms.map(c => ({ t: c.hora, el: h('li', { class: 'cm' + (c.de_kevin ? ' kv' : '') }, h('span', { class: 'q' }, h('b', { text: c.autor_nombre }), cuando(c.hora), c.version !== p.version ? ' · de una versión anterior' : ''),
         c.diapositiva ? h('span', { class: 'sl', text: 'Diapositiva ' + c.diapositiva }) : null, h('p', { text: c.texto })) })),
@@ -434,13 +509,17 @@
     const lista = coms.length || aprs.some(a => a.decision === 'cambios') ? hilo : h('p', { class: 'vacio', text: soloMira() ? 'Aún no hay comentarios.' : 'Aún no hay comentarios. Si algo no te encaja, dilo aquí.' });
     const acc = acciones(p, ultimaMia), dl0 = hoja.querySelector('.dl');
     A.version = p.version;
+    // la proporción de la foto (la de la primera, entre 9:16 y 1,91:1, como Instagram): la ventana la sigue (portal.css)
+    const im0 = p.imagenes[0], prop = im0 && im0.an > 0 && im0.al > 0 ? Math.min(1.91, Math.max(0.5625, im0.an / im0.al)) : 0.8;
+    hoja.style.setProperty('--r', prop.toFixed(4));   // CSSOM: la CSP lo deja (lección 243)
     if (nueva || !dl0) {
       const x = h('button', { type: 'button', class: 'hoja-x', 'aria-label': 'Cerrar', onclick: () => cerrar() }, ico('x'));
-      hoja.replaceChildren(x, ig, h('div', { class: 'dl' }, cab, h('div', { class: 'dl-b' }, aviso, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista, escr)), acc));
+      hoja.replaceChildren(x, cuentaDe(cli), ig, h('div', { class: 'dl' }, cab, h('div', { class: 'dl-b' }, aviso, capEl, h('div', { class: 'hilo' }, h('h3', { text: 'Comentarios' }), lista)), h('div', { class: 'dl-pie' }, escr, acc)));
     } else {   // solo cambia lo que cambió; el campo de escribir se queda donde está, con su foco
-      if (otraVersion) hoja.querySelector('.ig').replaceWith(ig);
+      const b = dl0.querySelector('.dl-b');
+      if (otraVersion) { hoja.querySelector('.ig').replaceWith(ig); b.querySelector(':scope > .cap')?.remove(); if (capEl) b.querySelector(':scope > .hilo').before(capEl); }
       dl0.querySelector('.dl-h').replaceWith(cab);
-      const b = dl0.querySelector('.dl-b'); b.querySelector(':scope > .cambio')?.remove(); if (aviso) b.prepend(aviso);
+      b.querySelector(':scope > .cambio')?.remove(); if (aviso) b.prepend(aviso);
       b.querySelector('.hilo > ol, .hilo > p.vacio').replaceWith(lista);
       dl0.querySelector('.acc').replaceWith(acc);
     }
@@ -471,7 +550,7 @@
       p.estado === 'cambios' ? h('button', { type: 'button', class: 'btn p', onclick: e => decidir(p, 'aprobada', null, null, e.currentTarget) }, ico('check'), 'Aprobar') : null,
       h('button', { type: 'button', class: 'btn s', onclick: e => decidir(p, 'retirada', null, null, e.currentTarget) }, ico('undo'), 'Deshacer'), sigBtn);
     const txt = { preparando: 'Aún la estamos preparando: te avisaremos para que la apruebes.', programada: 'Ya está programada.', publicada: 'Ya está publicada.' }[p.estado];
-    return h('div', { class: 'acc' }, h('p', { class: 'vacio', text: txt }), sigBtn);
+    return h('div', { class: 'acc quieta' }, h('p', { class: 'vacio', text: txt }), sigBtn);   // nada que decidir: en el móvil no tapa el campo de comentar
   }
   async function decidir(p0, decision, motivo, diapositiva, boton) {
     if (boton) boton.disabled = true;
@@ -514,9 +593,13 @@
     enviar.addEventListener('click', async () => { const ok = await decidir(p, 'cambios', ta.value.trim(), tog && tog.getAttribute('aria-pressed') === 'true' ? st.abierta.slide : null, enviar); if (ok) { lsSet(clave, null); quitar(); } });
     document.body.append(velo, dlg); ta.focus();
   }
-  function pintarIg(p, cli) {
+  // la cuenta, arriba de la columna de la derecha (en el móvil, arriba del todo, con «Volver») (D-295)
+  function cuentaDe(cli) {
     const av = h('span', { class: 'ig-av', 'aria-hidden': 'true', text: (cli.nombre || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() });
     if (cli.foto) urls([cli.foto]).then(m => { if (m[cli.foto]) av.replaceChildren(h('img', { src: m[cli.foto], alt: '' })); }).catch(() => {});
+    return h('div', { class: 'ig-h' }, h('button', { type: 'button', class: 'bk', onclick: () => cerrar() }, ico('left'), 'Volver'), av, h('span', { text: cli.handle || cli.nombre || '' }));
+  }
+  function pintarIg(p) {
     const lista = h('div', { class: 'car-l', tabindex: '0', 'aria-label': p.imagenes.length > 1 ? `${p.imagenes.length} imágenes: desliza para verlas` : 'Imagen de la publicación' },
       p.imagenes.length ? p.imagenes.map((im, i) => h('div', {}, h('img', { alt: `Imagen ${i + 1} de ${p.imagenes.length}`, 'data-grande': im.ruta, width: String(im.an), height: String(im.al) }))) : h('div', {}, h('div', { class: 'ph', text: 'En preparación' })));
     const n = h('span', { class: 'ig-n', text: p.imagenes.length > 1 ? `1 / ${p.imagenes.length}` : '' }); if (p.imagenes.length < 2) n.hidden = true;
@@ -532,10 +615,7 @@
       const tog = document.querySelector('.hoja .escr .tog'); if (tog) { tog.lastChild.textContent = 'Sobre la diapositiva ' + i; if (st.abierta.tog == null) tog.setAttribute('aria-pressed', String(i > 1)); }
     }, { passive: true });
     lista.addEventListener('keydown', e => { if (e.key === 'ArrowRight') { e.preventDefault(); ir(1); } else if (e.key === 'ArrowLeft') { e.preventDefault(); ir(-1); } });
-    return h('div', { class: 'ig' },
-      h('div', { class: 'ig-h' }, h('button', { type: 'button', class: 'bk', onclick: () => cerrar() }, ico('left'), 'Volver'), av, h('span', { text: cli.handle || cli.nombre || '' })),
-      h('div', { class: 'car' }, lista, n, ant, sig), dots,
-      p.caption ? h('p', { class: 'ig-cap' }, h('b', { text: (cli.handle || cli.nombre || '') + ' ' }), p.caption) : null);
+    return h('div', { class: 'ig' }, h('div', { class: 'car' }, lista, n, ant, sig), dots);
   }
   async function mostrarImagenes(p) {
     const imgs = [...document.querySelectorAll('.hoja img[data-grande]')]; if (!imgs.length) return;

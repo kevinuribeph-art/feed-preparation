@@ -7,7 +7,7 @@
 (function informeBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: «Ver más en Zernio» right under the title of «Cómo fue» (D-294)
   const I = () => M._in, D = () => M._in.mes;
   if (M.informeUI && M.informeUI._off) { try { M.informeUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -49,7 +49,12 @@
   // composes nothing again
   let gen = 0; const MEMO = new Map();
   const memo = (k, f) => (ctx) => { const cli = ctx && ctx.cliente, m = ctx && ctx.mes; if (!cli || !m || !listo()) return '';
-    const key = `${k}|${gen}|${hoy()}|${cli}|${m}`; if (MEMO.has(key)) return MEMO.get(key); if (MEMO.size > 60) MEMO.clear(); const h = f(ctx); MEMO.set(key, h); return h; };
+    const key = `${k}|${gen}|${hoy()}|${cli}|${m}|${metricas(cli)}`; if (MEMO.has(key)) return MEMO.get(key); if (MEMO.size > 60) MEMO.clear(); const h = f(ctx); MEMO.set(key, h); return h; };
+
+  // the client's link of its metrics in Zernio (D-292), only https: «Ver más en Zernio» right under the title (D-294)
+  const metricas = cli => { const c = (I().CL || []).find(x => x.id === cli), u = c && c.metricas; return u && I().metricasOk && I().metricasOk(u) && /^https:\/\//.test(u) ? u : ''; };
+  const EXT = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
+  const zernio = cli => { const u = metricas(cli); return u ? `<a class="if-zernio" href="${esc(u)}" target="_blank" rel="noopener noreferrer">Ver más en Zernio${EXT}</a>` : ''; };
 
   // ---------- the tab «Por qué este calendario» ----------
   function porqueHTML(ctx) {
@@ -99,7 +104,7 @@
     const cli = ctx && ctx.cliente, m = ctx && ctx.mes; if (!cli || !m || !listo()) return '';
     const { rs } = datos(cli); if (!rs) return '';             // a client without any summary sees nothing new
     const p = antes(m), r = D().get(cli, p), h = hoy().slice(0, 7);
-    const cab = x => `<h2 class="if-h">Cómo fue ${esc(mesTxt(p))}${x ? ` <span>${x}</span>` : ''}</h2>`;
+    const cab = x => `<h2 class="if-h">Cómo fue ${esc(mesTxt(p))}${x ? ` <span>${x}</span>` : ''}</h2>${zernio(cli)}`;
     if (!(r && r.resumen)) {
       if (p >= h) return `<div class="if-cf">${cab('')}${camino(`${may(nomMes(p))} aún no ha terminado: el resumen llega los primeros días de ${nomMes(m)}.`)}</div>`;
       if (p > rs) return `<div class="if-cf">${cab('')}${camino(`El resumen de ${nomMes(p)} llega en unos días.`)}</div>`;
@@ -150,6 +155,10 @@
 #mesa .if-cf{color:var(--ink)}
 #mesa .if-h{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.01em}
 #mesa .if-h span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute)}
+#mesa .if-zernio{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;margin:-4px 0 14px;border-radius:var(--r-pill);background:var(--acc-soft);color:var(--acc-ink);font-size:14px;font-weight:600;text-decoration:none;transition:background var(--d1) ease-out}
+#mesa .if-zernio:hover{background:color-mix(in srgb,var(--acc-soft),var(--acc) 12%)}
+#mesa .if-zernio:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#mesa .if-zernio svg{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:var(--i-trazo);stroke-linecap:round;stroke-linejoin:round}#mesa .if-zernio svg *{vector-effect:non-scaling-stroke}
 #mesa .if-fs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 #mesa .if-f{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border-radius:var(--r-sm);background:var(--bg)}
 #mesa .if-f span{font-size:12px;color:var(--mute)}

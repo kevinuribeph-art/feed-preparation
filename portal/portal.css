@@ -125,6 +125,8 @@ svg.i *{vector-effect:non-scaling-stroke}
 .chip .cn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip .ct{flex:none;font-size:10.5px;opacity:.75}
 .chip svg.cses{flex:none;width:11px;height:11px}
+.chip.entg{background:var(--acc-soft);color:var(--acc-ink)}.chip.entg.hecha{background:var(--ok-soft);color:var(--ok)}   /* una entrega, como en la Mesa (D-297) */
+.ag .c.entg{background:var(--acc-soft);color:var(--acc-ink)}.ag .c.entg.hecha{background:var(--ok-soft);color:var(--ok)}
 .foto{background:var(--ty-foto);color:var(--ty-foto-ink)}.carrusel{background:var(--ty-carr);color:var(--ty-carr-ink)}.reel,.trial_reel{background:var(--ty-reel);color:var(--ty-reel-ink)}.collab_reel{background:var(--ty-collab);color:var(--ty-collab-ink)}.ses{background:var(--ty-ses);color:var(--ty-ses-ink)}
 .agenda{display:none;list-style:none;margin:0;padding:0}
 .agenda .sem{font-size:13px;font-weight:600;color:var(--mute);padding:14px 0 6px}
@@ -151,9 +153,26 @@ svg.i *{vector-effect:non-scaling-stroke}
 .est.ap{background:var(--st-aprobar-soft);color:var(--ink)}.est.cb{background:var(--acc-soft);color:var(--acc-ink)}.est.pr{background:var(--bg-2);color:var(--ink-2)}
 .est.ap .dot{width:8px;height:8px;box-shadow:none}
 .emite{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:13px;margin-top:8px}
+.cubre{margin:-4px 0 10px;font-size:13.5px;color:var(--ink-2)}.cubre b{font-weight:600;color:var(--ink)}   /* el tramo que cubre (D-297) */
+/* las entregas de un cliente de solo contenido, en el sitio del feed (D-297) */
+.ents{list-style:none;margin:0;padding:0}
+.ent-f{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-top:1px solid var(--sep)}
+.ent-f:first-child{border-top:0}
+.ent-f .d{font-size:13px;color:var(--ink-2);white-space:nowrap;min-width:44px}
+.ent-f .t{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ent-f .t b{font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.ent-f .t span{font-size:12.5px;color:var(--mute)}
+.ent-l{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border-radius:var(--r-pill);background:var(--acc-soft);color:var(--acc-ink);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+.ent-l svg{width:14px;height:14px}
+.ent-cam{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:var(--bg-2);color:var(--ink-2);white-space:nowrap}
+@media (pointer:coarse){.ent-l{min-height:44px;padding:0 14px}}
 .camino{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r-md);background:var(--bg);color:var(--ink-2);font-size:14px;line-height:1.5}
 .camino svg{width:20px;height:20px;color:var(--mute);margin-top:1px}
 .camino b{display:block;color:var(--ink);font-weight:600}
+.zernio{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;margin:-2px 0 12px;border-radius:var(--r-pill);background:var(--acc-soft);color:var(--acc-ink);font-size:14px;font-weight:600;text-decoration:none;transition:background-color var(--d2)}
+.zernio:hover{background:color-mix(in srgb,var(--acc-soft),var(--acc) 12%)}
+.zernio svg{width:15px;height:15px}
+@media (pointer:coarse){.zernio{min-height:44px;padding:0 14px}}
 .cif{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .cif div{background:var(--bg);border-radius:var(--r-md);padding:10px 12px;min-width:0}
 .cif span{font-size:12.5px;color:var(--mute);display:block}.cif b{font-size:22px;font-weight:800;display:block;line-height:1.2}
@@ -184,14 +203,32 @@ svg.i *{vector-effect:non-scaling-stroke}
 @media (pointer:coarse){.chip{min-height:44px}}
 .ver-ant{margin-top:4px;font-size:13px}
 
+/* a pantalla completa (D-293): con las tres columnas (desde 1100 px) y 700 px de alto o más, cada columna mide el alto de la
+   pantalla menos lo de encima (--cols-top, lo mide portal.js) y se desliza dentro; a la derecha, «Tus pagos» arriba (1/3) y
+   «Cómo fue» (2/3), y si falta uno, el otro llena la columna; las casillas del calendario llenan su alto. Lo legal, debajo. */
+.pv.lleno .cols{height:calc(100vh - var(--cols-top,170px) - 16px);height:calc(100dvh - var(--cols-top,170px) - 16px);align-items:stretch}
+.pv.lleno .cols>*{min-height:0;overflow-y:auto}
+.pv.lleno .lado{display:grid;grid-template-rows:minmax(0,1fr) minmax(0,2fr);overflow:hidden}
+.pv.lleno .lado>*{min-height:0;overflow-y:auto}
+.pv.lleno .lado>:only-child{grid-row:1/-1}
+.pv.lleno .card.cent{display:flex;flex-direction:column}
+.pv.lleno .card.cent>.pq-w{flex:1;min-height:0}
+.pv.lleno .cal{flex:1 0 auto;grid-template-rows:auto;grid-auto-rows:minmax(58px,1fr)}
+.pv.lleno .dia{min-height:0}
 /* publicación */
 .velo{position:fixed;inset:0;background:var(--veil);z-index:20;animation:aparece var(--d2) var(--ease)}
-.hoja{position:fixed;z-index:21;inset:4vh 50% auto auto;transform:translateX(50%);width:min(980px,calc(100vw - 32px));max-height:92vh;background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);overflow:hidden;animation:aparece var(--d2) var(--ease)}
+/* como Instagram (D-295): la foto a la izquierda, a su proporción (--r, la pone portal.js) y del alto de la ventana (como mucho
+   min(92vh, 880 px)); a la derecha, 400 px: la cuenta; título, fecha y estado; el caption y los comentarios, que se deslizan
+   juntos; abajo, escribir y aprobar */
+.hoja{--h:max(min(92vh,880px,calc((100vw - 448px) / var(--r,.8))),min(92vh,520px));position:fixed;z-index:21;inset:0;margin:auto;width:min(calc(var(--h) * var(--r,.8) + 400px),calc(100vw - 48px));height:var(--h);background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1fr) 400px;grid-template-rows:auto minmax(0,1fr);overflow:hidden;animation:aparece var(--d2) var(--ease)}
+/* nunca menos de 520 px de alto (una foto horizontal en una ventana mediana): la foto, entera sobre negro (revisión en frío) */
+.hoja>.ig{grid-column:1;grid-row:1/-1}.hoja>.ig-h{grid-column:2;grid-row:1;border-left:1px solid var(--sep)}.hoja>.dl{grid-column:2;grid-row:2}
 @keyframes aparece{from{opacity:0}to{opacity:1}}
 .hoja-x{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:50%;border:0;background:none;display:grid;place-items:center;color:var(--ink-2);z-index:2}
 .hoja-x svg{width:20px;height:20px}
-.ig{background:var(--panel-2);border-right:1px solid var(--sep);display:flex;flex-direction:column;min-height:0;overflow:auto}
-.ig-h{display:flex;align-items:center;gap:10px;padding:10px 14px;font-weight:600;font-size:13px;min-height:52px}
+.ig{position:relative;background:#000;min-height:0;overflow:hidden}
+.ig .car,.ig .car-l,.ig .car-l>div{height:100%}
+.ig-h{flex:none;display:flex;align-items:center;gap:10px;padding:10px 64px 10px 16px;font-weight:600;font-size:13.5px;min-height:60px;border-bottom:1px solid var(--sep)}
 .ig-av{width:30px;height:30px;border-radius:50%;background:var(--bg-3);overflow:hidden;display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--ink-2);flex:none}
 .ig-av img{width:100%;height:100%;object-fit:cover}
 .bk{display:none;align-items:center;gap:4px;border:0;background:none;min-height:44px;padding:0 8px 0 0;color:var(--ink);font-weight:600;font-size:14px}
@@ -199,25 +236,31 @@ svg.i *{vector-effect:non-scaling-stroke}
 .car{position:relative}
 .car-l{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;background:var(--bg-3)}
 .car-l::-webkit-scrollbar{display:none}
-.car-l>div{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;background:var(--bg-3)}
-.car-l img{width:100%;height:auto;display:block}
+.car-l>div{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;background:#000}
+.car-l img{width:100%;height:100%;object-fit:contain;display:block}
 .car-l .ph{width:100%;aspect-ratio:4/5;display:grid;place-items:center;color:var(--mute);font-size:13px}
 .ig-n{position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:var(--r-pill);background:rgba(22,17,14,.72);color:#fff;font-size:12px;font-weight:600}
-.car-b{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.88);color:#16110E;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.car-b.ant{left:8px}.car-b.sig{right:8px}.car-b svg{width:18px;height:18px;stroke-width:2}
+/* las flechas del carrusel, del tamaño de las de Instagram (D-296): 30 px, blancas al 72 %, la flecha de 16 px; un borde
+   invisible les da 44 px de toque */
+.car-b{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;padding:0;border-radius:50%;border:0;background:rgba(255,255,255,.72);color:#16110E;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:background-color var(--d2)}
+.car-b::before{content:'';position:absolute;inset:-7px;border-radius:50%}
+.car-b:hover{background:rgba(255,255,255,.92)}
+.car-b.ant{left:12px}.car-b.sig{right:12px}.car-b svg{width:16px;height:16px;stroke-width:2}
 .car-b[hidden]{display:none}
-.ig-dots{display:flex;justify-content:center;gap:5px;padding:10px;min-height:26px}
-.ig-dots i{width:6px;height:6px;border-radius:50%;background:var(--line-strong)}.ig-dots i.on{background:#0095F6}
-.ig-cap{padding:12px 14px 16px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
-.ig-cap b{font-weight:600}
-.dl{display:flex;flex-direction:column;min-height:0;overflow:auto}
-.dl-h{padding:20px 64px 12px 20px}
-.dl-h h2{margin:0;font-size:20px;font-weight:800}
-.dl-h p{margin:2px 0 10px;color:var(--mute);font-size:13px}
-.dl-b{padding:0 20px;display:flex;flex-direction:column;gap:12px;flex:1}
+.ig-dots{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:5px;pointer-events:none}
+.ig-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5)}.ig-dots i.on{background:#fff}
+.cap{margin:0;padding:0 0 14px;border-bottom:1px solid var(--sep);font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.cap b{font-weight:600}
+.dl{display:flex;flex-direction:column;min-height:0;overflow:hidden;border-left:1px solid var(--sep)}
+.dl-h{flex:none;padding:14px 16px 4px}
+.dl-h h2{margin:0;font-size:17px;font-weight:800}
+.dl-h p{margin:2px 0 8px;color:var(--mute);font-size:13px}
+.dl-b{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 16px 14px;display:flex;flex-direction:column;gap:12px}
+.dl-pie{flex:none;border-top:1px solid var(--sep);background:var(--panel);padding-top:10px}
+.dl-pie .escr{padding:0 16px}
 .cambio{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink-2);background:var(--bg);border-radius:var(--r-md);padding:10px 12px;margin:0}
 .cambio svg{color:var(--chg);margin-top:1px}
-.hilo{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--sep);padding-top:14px}
+.hilo{display:flex;flex-direction:column;gap:12px}
 .hilo h3{margin:0;font-size:14px;font-weight:600}
 .hilo ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 .cm{display:flex;flex-direction:column;gap:3px;max-width:52ch}
@@ -237,7 +280,7 @@ svg.i *{vector-effect:non-scaling-stroke}
 .tog svg{width:14px;height:14px;stroke-width:2;visibility:hidden}
 .tog[aria-pressed="true"] svg{visibility:visible}
 .err-p{color:var(--red);font-size:13px;margin:0}
-.acc{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--sep);background:var(--panel);margin-top:12px;align-items:center;flex-wrap:wrap}
+.acc{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--sep);background:var(--panel);margin-top:10px;align-items:center;flex-wrap:wrap}
 .acc .btn{flex:1}
 .acc .hecho{display:flex;align-items:center;gap:10px;flex:1;font-size:14px;min-height:48px}
 .acc .hecho svg{color:var(--ok);width:20px;height:20px;stroke-width:2}
@@ -264,12 +307,14 @@ svg.i *{vector-effect:non-scaling-stroke}
   .cols,.cols.con-lado{grid-template-columns:1fr}
   .feedw .feed{max-width:420px;margin:0 auto}   /* el panel a todo el ancho, la cuadrícula ceñida (D-264) */
 }
+/* de 560 a 800 px (D-295): la foto arriba, a un 46 % del alto y entera; lo demás debajo, que se desliza dentro (con menos de 820 px de
+   alto, como en el móvil: todo se desliza junto y la barra de acciones se pega abajo) */
 @media (max-width: 800px){
-  .hoja{display:flex;flex-direction:column;overflow:auto;inset:16px 16px 16px 16px;transform:none;width:auto;max-height:none}
-  .hoja>.ig,.hoja>.dl{flex:none}
-  .acc{position:sticky;bottom:0;box-shadow:0 -1px 0 var(--sep)}
-  .ig{border-right:0;border-bottom:1px solid var(--sep);overflow:visible}
-  .dl{overflow:visible}
+  .hoja{inset:16px;width:auto;max-width:640px;height:min(92vh,880px);display:flex;flex-direction:column}
+  .hoja>.ig{order:-1;flex:none;height:46%}   /* la foto arriba; en el código, la cuenta va antes (para leerla y con el teclado) */
+  .hoja>.ig-h{border-left:0}
+  .dl{flex:1;border-left:0}
+  .hoja-x{background:rgba(22,17,14,.55);color:#fff}   /* sobre la foto */
 }
 /* 390 */
 @container app (max-width: 559px){
@@ -297,15 +342,26 @@ svg.i *{vector-effect:non-scaling-stroke}
   .pub{font-size:11px;padding:3px 8px;left:5px;top:5px}
   .pub .l{display:none}.pub .c{display:inline}
 }
-@media (max-width: 559px){
+@media (max-width: 559px), (max-height: 599px), (max-width: 800px) and (max-height: 819px){
   .velo{display:none}
-  .hoja{inset:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column;overflow:auto;max-height:none}
-  .hoja>.ig,.hoja>.dl{flex:none}
+  /* el móvil (D-295): todo se desliza junto; la foto como mucho a un 60 % del alto, así el estado y «Aprobar» se ven al abrirla
+     (también en un iPhone de 667 px); la barra de acciones, pegada abajo de la hoja (sin nada que decidir, no se pega) */
+  .hoja{inset:0;margin:0;width:auto;max-width:none;height:auto;border-radius:0;box-shadow:none;display:flex;flex-direction:column;overflow-y:auto}
+  .dl,.dl-pie{display:contents}
+  .hoja>.ig-h{padding:6px 16px 6px 8px;min-height:52px;border-bottom:0;border-left:0}
+  .hoja>.ig{order:0;flex:none;height:auto;background:var(--bg-3)}
+  .ig .car,.ig .car-l{height:auto}
+  .ig .car-l>div{background:var(--bg-3);height:min(60vh,calc(100vw / var(--r,.8)));height:min(60dvh,calc(100vw / var(--r,.8)))}   /* su caja antes de cargar: nada salta */
+  .car-l img{object-fit:contain}
+  .ig-dots{position:static;padding:10px;min-height:26px}
+  .ig-dots i{background:var(--line-strong)}.ig-dots i.on{background:#0095F6}
   .hoja-x{display:none}
   .bk{display:flex}
   .dl-h{padding:16px 16px 8px}
-  .dl-b{padding:0 16px}
-  .acc{position:sticky;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -1px 0 var(--sep)}
+  .dl-b{flex:none;overflow:visible;padding:0 16px 12px}
+  .dl-pie .escr{padding:0 16px 16px}
+  .acc{position:sticky;bottom:0;margin-top:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -1px 0 var(--sep)}
+  .acc.quieta{position:static}
   .dlg{top:auto;bottom:var(--kb,0px);left:0;transform:none;width:100%;border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px 16px calc(24px + env(safe-area-inset-bottom))}
   .dlg .fila .btn{flex:1}
   .velo.alto{display:block}

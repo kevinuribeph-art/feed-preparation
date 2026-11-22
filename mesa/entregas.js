@@ -7,7 +7,7 @@
 (function entregasBoot() {
   'use strict';
   const M = window.MESA = window.MESA || {};
-  const VERSION = '1.0';
+  const VERSION = '1.1';   // 1.1: the vista cliente — its deliveries as the client's web shows them, only to look (D-297)
   const I = () => M._in, E = () => M._in.ent, C = () => M._in.cob;
   if (M.entregasUI && M.entregasUI._off) { try { M.entregasUI._off(); } catch (e) { /* */ } }
   const OFF = [];
@@ -85,6 +85,26 @@
       + (sesF ? `<div class="en-lista">${sesF}</div>` : `<p class="en-vacio">Aún sin sesiones este mes</p>`)
       + `<button type="button" class="en-mas" data-en="nueva-sesion">${IC.mas}Sesión</button>`;
   }
+  // ---------- the vista cliente (D-297): as the client's web shows them, only to look ----------
+  // The deliveries of the board's months, «N de M entregadas»; each one with what, how much and its deadline; delivered, its
+  // link (only then) and the day; not yet, «En camino» (never «sin entregar»: that's Kevin's); those of the month after, apart.
+  // The sessions go in the calendar; «Tus pagos» in the right column (M._in.vc, calendario.js); nothing of Kevin's.
+  function vcFila(r, h) {
+    const hecha = !!r.entregada, sub = [r.cuanto, hecha ? 'entregada el ' + corto(r.entregada, h) : 'antes del ' + corto(r.fecha, h)].filter(Boolean).join(' · ');
+    const der = hecha && r.enlace && E().url(r.enlace) ? `<a class="en-l" href="${esc(r.enlace)}" target="_blank" rel="noopener noreferrer">${IC.enlace}Abrir</a>` : hecha ? '' : '<span class="en-cam">En camino</span>';
+    return `<div class="en-vf${hecha ? ' hecha' : ''}" data-id="${esc(r.id)}" tabindex="-1"><span class="en-d">${esc(corto(r.fecha, h))}</span><span class="en-t"><b>${esc(r.que || 'Sin título')}</b><span>${esc(sub)}</span></span>${der}</div>`;
+  }
+  function vcIzqHTML() {
+    const S = I().S, cli = S.client, h = hoy(), ms = meses(), ini = ms[0] + '-01', finMes = ms[ms.length - 1] + '-31', sigM = I().addMonths(ms[ms.length - 1], 1);
+    const todas = E().vivas(cli).filter(r => String(r.que || '').trim()), delMes = todas.filter(r => r.fecha >= ini && r.fecha <= finMes).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const sig = todas.filter(r => r.fecha.slice(0, 7) === sigM).sort((a, b) => a.fecha.localeCompare(b.fecha)), hechas = delMes.filter(r => r.entregada).length;
+    const mesTxt = ms.length > 1 ? `${nombreMes(ms[0])} – ${nombreMes(ms[ms.length - 1])}` : nombreMes(ms[0]);
+    return `<div class="en-vc"><h2 class="en-h">Tus entregas <span>${esc(may(mesTxt))}${delMes.length ? ` · ${hechas} de ${delMes.length} entregada${delMes.length === 1 ? '' : 's'}` : ''}</span></h2>`
+      + (delMes.length ? `<div class="en-lista">${delMes.map(r => vcFila(r, h)).join('')}</div>` : '<p class="en-vacio">Este mes aún no tiene entregas</p>')
+      + (sig.length ? `<p class="en-sub">${esc(may(nombreMes(sigM)))} <span>${sig.length}</span></p><div class="en-lista">${sig.map(r => vcFila(r, h)).join('')}</div>` : '') + '</div>';
+  }
+  const vcIr = id => { const f = I().root().querySelector(`.cont-izq .en-vf[data-id="${I().cssq(id)}"]`); if (f) { f.scrollIntoView({ block: 'nearest' }); f.focus({ preventScroll: true }); } };   // a delivery's chip, in the vista cliente
+
   // the agreement in a line and the invoices, newest first, each one opening «Cobros» (where they're changed)
   const PAGO = { mensual: 'al mes', trimestral: 'cada 3 meses', semestral: 'cada 6 meses', anual: 'al año', unico: 'en un solo pago' };
   function derHTML() {
@@ -117,6 +137,10 @@
       return;
     }
     UI.sucio = false;
+    if (X.root().classList.contains('client')) {   // the vista cliente (D-297): the right column is the client's (calendario.js)
+      const hv = vcIzqHTML(); if (iz._h !== hv) { const y = iz.scrollTop; iz.innerHTML = hv; iz._h = hv; iz.scrollTop = y; }
+      return;
+    }
     const hi = izqHTML(), hd = derHTML();
     if (iz._h !== hi) { const y = iz.scrollTop; iz.innerHTML = hi; iz._h = hi; iz.scrollTop = y; }
     if (de._h !== hd) { de.innerHTML = hd; de._h = hd; }
@@ -221,7 +245,7 @@
   let listoP = null;
   const listo = () => listoP || (listoP = new Promise((res, rej) => { const t0 = Date.now(), t = setInterval(() => { if (I() && I().ent && I().cob && I().estilo) { clearInterval(t); res(); } else if (Date.now() - t0 > 30000) { clearInterval(t); rej(new Error('mesa.js sin entregas')); } }, 50); }));
   M.entregasUI = {
-    version: VERSION, pintar, abrir, salir,
+    version: VERSION, pintar, abrir, salir, irA: vcIr,
     _test: { UI },
     _off: () => { OFF.splice(0).forEach(f => f()); }
   };
@@ -254,6 +278,10 @@
 #mesa .en-d{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 #mesa .en-f.pasada .en-d{color:var(--red);font-weight:600}
 #mesa .en-t{display:flex;flex-direction:column;gap:1px;min-width:0}
+#mesa .en-vf{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;min-height:52px;padding:8px 0;border-top:1px solid var(--line-2,var(--line))}
+#mesa .en-vf:first-child{border-top:0}#mesa .en-vf:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-sm)}
+#mesa .en-cam{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:var(--bg-2);color:var(--ink-2);white-space:nowrap}
+#mesa .en-vf .en-l{font-weight:600}
 #mesa .en-t b{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .en-t span{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mesa .en-f.pasada .en-t span{color:var(--red)}

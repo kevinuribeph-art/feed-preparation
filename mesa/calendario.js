@@ -50,7 +50,7 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.27';   // 1.27: a «Solo contenido» board's calendar — its deliveries as chips, no steps, total, Notion nor fold, no «Nueva historia» (D-290); «Nueva reunión» in a day's right click and a meeting's chip with its drawing (D-291). 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
+  const VERSION = '1.28';   // 1.28: the vista cliente's right column fills the screen, 1/3 and 2/3 (D-293); a «Solo contenido» board in the vista cliente — its «Tus pagos» in place of the agreement, its deliveries «en camino» (D-297). 1.27: a «Solo contenido» board's calendar — its deliveries as chips, no steps, total, Notion nor fold, no «Nueva historia» (D-290); «Nueva reunión» in a day's right click and a meeting's chip with its drawing (D-291). 1.26: a right click in the board's calendar — in a day, «Nueva sesión», «Nueva tarea» and «Nueva historia»; on a post, «Abrir»; on a session, «Abrir», «Duplicar sesión» and «Borrar sesión» (D-285). 1.25: in the vista cliente the calendar's panel round on top, the tabs' panel on the parts' edge and the parts 12 px apart at 720 (D-240). 1.24: no Σ, the month's total always in my view (D-229) and never in the vista cliente, no ‹ › there without another month (D-228); the vista cliente's tabs and right column (D-230); square corners where a session goes on, the legend in --mute (D-231). 1.23: a chip for each day of a session of the board's client, which opens its sheet over the board (D-219). 1.22: «Calendario» at 17 px, as «Bandeja» (D-186); No aprobado and Cancelado in the bar only if the month has one (D-189); the new names of two states (D-191); the month's step goes on and back on its own, the next step shows what holds it back (D-192). 1.21: a client without Notion has nothing of Notion: no «N cambios sin subir» / «Igual que Notion», no «muévela en Notion» (D-184). 1.20: the chips' hours without tabular figures (D-175). 1.18: «Notion a fecha de» in a title, a double click on the month's name, no «Cancelar» / «Cerrar» in its dialogs (D-155, D-156, D-159, D-160). 1.17: the days of another month of the board, dimmed as the previous month's, with their chips muted (D-153). 1.16: the look of the date's calendar, with its tokens (D-147); folds with the column, and is a tab with the tray folded (D-148)
   if (M.calendario && M.calendario._off) { try { M.calendario._off(); } catch (e) { /* */ } }   // a previous copy on this page
   const LS_FOLD = 'mesa-cal-plegado';   // the weekly count Σ is gone, and its «mesa-cal-recuento» no longer read (D-229)
   const DOW = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -120,8 +120,9 @@
 
   // a delivery (D-290): its «qué» on its deadline; delivered, with a ✓ and in green; gone past without delivering, red
   const ENT_OK = '<svg class="cent" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20 6 9 17l-5-5"/></svg>';
-  function entHTML(X, r, hoy) {
-    const k = X.ent.estado(r, hoy), tit = `Entrega · ${r.que || 'Sin título'}${r.cuanto ? ' · ' + r.cuanto : ''} · ${k === 'entregada' ? 'entregada' : k === 'pasada' ? 'sin entregar, pasó su fecha' : 'antes del ' + (+r.fecha.slice(8, 10))}`;
+  function entHTML(X, r, hoy, client) {
+    // in the vista cliente (D-297), as the client's web: delivered or on its way, never «sin entregar» (that's Kevin's)
+    const k0 = X.ent.estado(r, hoy), k = client && k0 === 'pasada' ? 'pendiente' : k0, tit = `Entrega · ${r.que || 'Sin título'}${r.cuanto ? ' · ' + r.cuanto : ''} · ${k === 'entregada' ? 'entregada' : k === 'pasada' ? 'sin entregar, pasó su fecha' : client ? 'en camino' : 'antes del ' + (+r.fecha.slice(8, 10))}`;
     return `<button type="button" class="chip ty-ent ${k}" data-ent="${esc(r.id)}" title="${esc(tit)}"><span class="cl">${k === 'entregada' ? ENT_OK : ''}<span class="cn">${esc(r.que || 'Sin título')}</span></span></button>`;
   }
 
@@ -137,10 +138,12 @@
       lado: V ? V.lado.map(p => ({ id: p.id, html: html(p) })).filter(p => p.html) : [] };
   }
   function vcLado(X, root, partes) {             // the right column: each part in its panel; only what changed is drawn again
-    const main = root.querySelector('.main'); let col = main && main.querySelector(':scope > .vc-lado');
+    const main = root.querySelector('.main'), cont = main && main.querySelector(':scope > .cont'), host = cont || main;   // «Solo contenido»: in its grid, in place of Kevin's agreement (D-297)
+    let col = main && main.querySelector(':scope > .vc-lado, :scope > .cont > .vc-lado');
+    if (col && col.parentNode !== host) { col.remove(); col = null; }
     root.classList.toggle('vc-lado-on', partes.length > 0);
     if (!partes.length) { if (col) { col.remove(); dispatchEvent(new Event('resize')); } return; }
-    if (!col) { col = document.createElement('aside'); col.className = 'vc-lado'; col.setAttribute('aria-label', 'Este cliente'); main.append(col); }
+    if (!col) { col = document.createElement('aside'); col.className = 'vc-lado'; col.setAttribute('aria-label', 'Este cliente'); host.append(col); }
     const ya = new Map([...col.children].map(e => [e.dataset.vc, e]));
     partes.forEach((p, i) => {
       let e = ya.get(p.id); ya.delete(p.id);
@@ -192,7 +195,7 @@
         const cls = `cday${inM ? '' : ' out'}${d < sp.plo || d > sp.hi ? ' off' : d < sp.lo ? ' prevc' : inM ? '' : ' otromes'}${d === today ? ' today' : ''}`;
         const num = +d.slice(8) === 1 ? `${+d.slice(8)} ${X.MONTHS[+d.slice(5, 7) - 1].slice(0, 3)}` : String(+d.slice(8));
         body += `<div class="${cls}" data-day="${d}"><div class="dh"><span class="dn">${num}</span>${k > 1 && !client ? `<span class="dmany" title="${k} publicaciones este día">${k}</span>` : ''}</div>`
-          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.e ? entHTML(X, it.e, today) : it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
+          + (sd[d] ? [...items, ...sd[d]].sort((u, v) => u.t - v.t) : items).map(it => it.e ? entHTML(X, it.e, today, client) : it.x ? sesHTML(X, it.x, d) : it.p ? pastHTML(X, it.p) : chipHTML(X, it.s, client)).join('') + '</div>';
       }
       total += n;
     }
@@ -286,7 +289,7 @@
     }
     if (sec.classList.contains('fold') && !client && e.target.closest('.calhead') && sec.parentNode.querySelector(':scope > .tray.fold')) { plegar(X, sec); return; }   // its tab (D-148)
     const ch = e.target.closest('.chip'); if (!ch || Date.now() - noClick < 400) return;   // the click that ends a move opens nothing
-    if (ch.dataset.ent) { if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290)
+    if (ch.dataset.ent) { if (client) { if (M.entregasUI && M.entregasUI.irA) M.entregasUI.irA(ch.dataset.ent); } else if (M.entregasUI && M.entregasUI.abrir) M.entregasUI.abrir(ch.dataset.ent); return; }   // a delivery: open in its column (D-290); in the vista cliente, its row (D-297)
     if (ch.dataset.ses) { if (M.personal && M.personal.abrirSesion) M.personal.abrirSesion(ch.dataset.ses, { de: `.side > .cal .chip[data-ses="${cssq(ch.dataset.ses)}"]`, vc: client, cli: X.S && X.S.client }); return; }   // its sheet over the board (D-219)
     if (ch.dataset.slot) { if (client) X.openIG(ch.dataset.slot, 0); else X.openDetail(ch.dataset.slot, 0); }
     else if (ch.dataset.prev) { const id = ch.dataset.prev; if (client) X.openIG(id, 0); else X.withPrev(() => X.openPast(id), 'open'); }
@@ -642,9 +645,13 @@
 #mesa .vcp-tab:active:not(.on){transform:scale(.97)}
 #mesa .cal.vctabs .calhead .cnav{flex-basis:100%;justify-content:flex-end}
 #mesa .vcp-panel{flex:1;min-height:0;overflow:auto;padding:10px 20px 20px;color:var(--ink);font-size:14px;line-height:1.5}
-#mesa .vc-lado{flex:0 0 360px;min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-#mesa .vc-parte{flex:none;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
+/* the right column fills the screen as the portal's (D-293): «Tus pagos» on top, 1/3, and «Cómo fue» 2/3, each one scrolls inside; one alone fills it */
+#mesa .vc-lado{flex:0 0 360px;min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,2fr);gap:12px;overflow:hidden}
+#mesa .vc-parte{min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
+#mesa .vc-lado>.vc-parte:only-child{grid-row:1/-1}
 #mesa:not(.client) .vc-lado{display:none}
+#mesa.client .cont>.cont-der{display:none}#mesa .cont>.vc-lado{min-height:0}#mesa.client:not(.vc-lado-on) .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}#mesa.client.vc-lado-on .cont{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) 360px}
+@media (max-width:980px){#mesa .cont>.vc-lado{display:flex;flex-direction:column;overflow:visible}#mesa .cont>.vc-lado>.vc-parte{overflow:visible}}   /* one column: each part as tall as it is */   /* without its parts, the calendar widens, as the portal */   /* «Solo contenido» in the vista cliente: «Tus pagos» in place of the agreement (D-297) */
 #mesa.client .side>.cal{border-radius:inherit}   /* alone in its column (no tray): round on top too, as the drawing (D-240) */
 #mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
 @media (prefers-reduced-motion:reduce){#mesa .vcp-tab{transition:none}#mesa .vcp-tab:active:not(.on){transform:none}}
@@ -656,7 +663,7 @@
   #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .feed{flex:none;width:auto;height:620px;margin:0}
   #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .side{flex:none}
   #mesa.client .side>.cal.vctabs{height:auto}#mesa .cal.vctabs .calbody{flex:none;overflow:visible}
-  #mesa .vc-lado{flex:none;overflow:visible;gap:12px}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}#mesa .vcp-panel{padding:10px 16px 16px}   /* the panels' text on one edge and their gap as the drawing (D-240) */
+  #mesa .vc-lado{flex:none;display:flex;flex-direction:column;overflow:visible;gap:12px}#mesa .vc-parte{overflow:visible}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}#mesa .vcp-panel{padding:10px 16px 16px}   /* the panels' text on one edge and their gap as the drawing (D-240) */
 }`;
   I().estilo('mesa-cal-css', CSS);
 

@@ -21347,6 +21347,40 @@
     go.disabled = false;
     return res;
   }
+
+  // ---------- ajustes de la 4.42, lote D: el portal y la «Vista cliente» (D-293 a D-297) ----------
+  const vdCol = () => q('.main > .vc-lado'), vdR = e => e.getBoundingClientRect();
+  const vdIg = () => q('.detail[data-dlg="ig"] .igcard');
+  async function vdCerrarIg() { const x = q('.detail[data-dlg="ig"] [data-act="close"]'); if (x) { x.click(); await espera(60); } }
+  prueba('VD1', 'A pantalla completa (D-293): en la «Vista cliente», la columna derecha llega abajo como el calendario y reparte «Tus pagos» (arriba, 1/3) y «Cómo fue» (2/3), cada uno se desliza dentro (la columna entera no); con uno solo, ese la llena; las casillas del calendario llenan su alto', async () => {
+    await ifListo(); await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      await hasta(() => M.cobrosUI, 8000, 'cobros.js');
+      await coCliente({ importe: 450, dia: 15, plazo: 10 });
+      const L = []; for (let i = 1; i <= 10; i++) { const m = `2026-${String(i).padStart(2, '0')}`; L.push({ id: 'vd1-' + m, cliente: CLIENTE, periodo: m, importe: 450, factura: 'VD-' + i, emitida: m + '-15', vence: m + '-25', cobrada: m + '-20' }); }
+      ok((await M.cobros.cargar(L)).ok, 'cargar');
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES('2026-10', 2) })).ok, 'el resumen de octubre');
+      await vistaCliente(true); M._in.render(); await espera(150);
+      const col = await hasta(() => vdCol() && vdCol().querySelector('[data-vc="comofue"]') && vdCol().querySelector('[data-vc="pagos"]') && vdCol(), 3000, 'la columna derecha con las dos partes');
+      const p = col.querySelector('[data-vc="pagos"]'), c = col.querySelector('[data-vc="comofue"]'), cal = q('.side > .cal');
+      igual(col.firstElementChild, p, '«Tus pagos» no va arriba');
+      cerca(vdR(col).bottom, vdR(cal).bottom, 2, 'la columna derecha no llega abajo como el calendario');
+      const gap = parseFloat(W.getComputedStyle(col).rowGap) || 0, H = col.clientHeight - gap;
+      cerca(vdR(p).height, H / 3, 3, '«Tus pagos» no mide un tercio');
+      cerca(vdR(c).height, 2 * H / 3, 3, '«Cómo fue» no mide dos tercios');
+      igual([W.getComputedStyle(p).overflowY, W.getComputedStyle(c).overflowY], ['auto', 'auto'], 'las partes no se deslizan dentro');
+      ok(p.scrollHeight > p.clientHeight, '«Tus pagos» con diez facturas debería deslizarse dentro');
+      ok(col.scrollHeight <= col.clientHeight + 1, 'la columna entera se desliza');
+      const g = q('.side > .cal .cgrid'), b = q('.side > .cal .calbody');
+      ok(vdR(b).bottom - vdR(g).bottom < 24, `las casillas no llenan el alto del calendario (sobran ${Math.round(vdR(b).bottom - vdR(g).bottom)} px)`);
+      // con una sola parte, la llena
+      await M._test.cobBorrarTodo(); await coCliente(null); M._in.render(); await espera(150);
+      const c2 = await hasta(() => vdCol() && !vdCol().querySelector('[data-vc="pagos"]') && vdCol().querySelector('[data-vc="comofue"]'), 3000, 'solo «Cómo fue»');
+      cerca(vdR(c2).height, vdCol().clientHeight, 3, 'una sola parte no llena la columna');
+    } finally { relojVuelve(); await vistaCliente(false); }
+  });
+
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;
   $('resumen').textContent = `${T.length} pruebas listas.`;

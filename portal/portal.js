@@ -214,8 +214,19 @@
     const y = window.scrollY;
     app.replaceChildren(...[tira, h('div', { class: 'pv' }, top, aviso, cols, pie)].filter(Boolean));
     window.scrollTo(0, y);
+    lleno();
     pintarMinis();
   }
+  // A pantalla completa (D-293): con las tres columnas (desde 1100 px de ancho) y 700 px de alto o más, cada columna mide el
+  // alto de la pantalla menos lo de encima (la cabecera, el aviso) y se desliza dentro (portal.css, `.pv.lleno`).
+  function lleno() {
+    const pv = app.querySelector('.pv'), cols = pv && pv.querySelector('.cols'); if (!cols) return;
+    const si = app.clientWidth >= 1100 && window.innerHeight >= 700;
+    pv.classList.toggle('lleno', si);
+    if (si) pv.style.setProperty('--cols-top', Math.round(cols.getBoundingClientRect().top + window.scrollY) + 'px');   // CSSOM: la CSP lo deja (lección 243)
+  }
+  let llenoRaf = 0;
+  window.addEventListener('resize', () => { cancelAnimationFrame(llenoRaf); llenoRaf = requestAnimationFrame(lleno); });   // una vez por cuadro (lección 113)
 
   async function irA(id) {
     if (id === st.cli) return;

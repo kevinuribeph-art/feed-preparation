@@ -642,8 +642,10 @@
 #mesa .vcp-tab:active:not(.on){transform:scale(.97)}
 #mesa .cal.vctabs .calhead .cnav{flex-basis:100%;justify-content:flex-end}
 #mesa .vcp-panel{flex:1;min-height:0;overflow:auto;padding:10px 20px 20px;color:var(--ink);font-size:14px;line-height:1.5}
-#mesa .vc-lado{flex:0 0 360px;min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-#mesa .vc-parte{flex:none;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
+/* the right column fills the screen as the portal's (D-293): «Tus pagos» on top, 1/3, and «Cómo fue» 2/3, each one scrolls inside; one alone fills it */
+#mesa .vc-lado{flex:0 0 360px;min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,2fr);gap:12px;overflow:hidden}
+#mesa .vc-parte{min-height:0;overflow-y:auto;background:var(--panel);border-radius:var(--r-lg);padding:18px 20px 20px;color:var(--ink)}
+#mesa .vc-lado>.vc-parte:only-child{grid-row:1/-1}
 #mesa:not(.client) .vc-lado{display:none}
 #mesa.client .side>.cal{border-radius:inherit}   /* alone in its column (no tray): round on top too, as the drawing (D-240) */
 #mesa.client.vc-lado-on .feed{width:min(440px,32vw);margin:0}
@@ -656,7 +658,7 @@
   #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .feed{flex:none;width:auto;height:620px;margin:0}
   #mesa.client:is(.vc-lado-on,:has(.side>.cal.vctabs)) .side{flex:none}
   #mesa.client .side>.cal.vctabs{height:auto}#mesa .cal.vctabs .calbody{flex:none;overflow:visible}
-  #mesa .vc-lado{flex:none;overflow:visible;gap:12px}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}#mesa .vcp-panel{padding:10px 16px 16px}   /* the panels' text on one edge and their gap as the drawing (D-240) */
+  #mesa .vc-lado{flex:none;display:flex;flex-direction:column;overflow:visible;gap:12px}#mesa .vc-parte{overflow:visible}#mesa .vc-parte{border-radius:var(--r-md);padding:16px}#mesa .vcp-panel{padding:10px 16px 16px}   /* the panels' text on one edge and their gap as the drawing (D-240) */
 }`;
   I().estilo('mesa-cal-css', CSS);
 

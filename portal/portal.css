@@ -184,6 +184,18 @@ svg.i *{vector-effect:non-scaling-stroke}
 @media (pointer:coarse){.chip{min-height:44px}}
 .ver-ant{margin-top:4px;font-size:13px}
 
+/* a pantalla completa (D-293): con las tres columnas (desde 1100 px) y 700 px de alto o más, cada columna mide el alto de la
+   pantalla menos lo de encima (--cols-top, lo mide portal.js) y se desliza dentro; a la derecha, «Tus pagos» arriba (1/3) y
+   «Cómo fue» (2/3), y si falta uno, el otro llena la columna; las casillas del calendario llenan su alto. Lo legal, debajo. */
+.pv.lleno .cols{height:calc(100vh - var(--cols-top,170px) - 16px);height:calc(100dvh - var(--cols-top,170px) - 16px);align-items:stretch}
+.pv.lleno .cols>*{min-height:0;overflow-y:auto}
+.pv.lleno .lado{display:grid;grid-template-rows:minmax(0,1fr) minmax(0,2fr);overflow:hidden}
+.pv.lleno .lado>*{min-height:0;overflow-y:auto}
+.pv.lleno .lado>:only-child{grid-row:1/-1}
+.pv.lleno .card.cent{display:flex;flex-direction:column}
+.pv.lleno .card.cent>.pq-w{flex:1;min-height:0}
+.pv.lleno .cal{flex:1 0 auto;grid-template-rows:auto;grid-auto-rows:minmax(58px,1fr)}
+.pv.lleno .dia{min-height:0}
 /* publicación */
 .velo{position:fixed;inset:0;background:var(--veil);z-index:20;animation:aparece var(--d2) var(--ease)}
 .hoja{position:fixed;z-index:21;inset:4vh 50% auto auto;transform:translateX(50%);width:min(980px,calc(100vw - 32px));max-height:92vh;background:var(--panel);border-radius:var(--r-xl);box-shadow:var(--shadow-lg);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);overflow:hidden;animation:aparece var(--d2) var(--ease)}

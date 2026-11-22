@@ -1,4 +1,4 @@
-// Escritura — Mesa de trabajo · v1.1 (D-202, D-203, D-283)
+// Escritura — Mesa de trabajo · v1.2 (D-202, D-203, D-283, D-286)
 // Quick writing in the personal page's free texts: a note, a task's «Detalles» and a session's texts (never a task's title,
 // a caption, a context, the editor's texts nor any other field). Marks at the start of a line (after its indent of 0, 2,
 // 4… spaces) and followed by a space: «- » a bullet, «1. » a numbered line (1 to 3 digits), «[] » or «[ ] » a checkbox and
@@ -13,12 +13,12 @@
   'use strict';
   const M = window.MESA = window.MESA || {};
   const I = () => M._in;                       // read on every use: a reloaded mesa replaces the bridge
-  const VERSION = '1.1';   // 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
+  const VERSION = '1.2';   // 1.2: in the iPhone the «/» menu goes in its face and stays over its keyboard, within what the visual viewport shows (D-286). 1.1: bullets and numbers in terracotta (the number in 600 when read), «/.» a list and «/-» a separator «⸻», Tab 4 spaces and a level against the line above, the numbers written again with Tab, ⇧Tab and Intro (D-283)
   if (M.escritura && M.escritura._off) { try { M.escritura._off(); } catch (e) { /* */ } }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const sinTilde = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const raiz = () => { const X = I(); return (X && X.root && X.root()) || document.getElementById('mesa') || document.body; };
+  const raiz = () => { const X = I(); return (X && X.root && X.root()) || document.getElementById('mesa') || document.getElementById('movil') || document.body; };   // the iPhone's face (D-286)
   const svg = b => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${b}</svg>`;
   const ICO = {                                // Lucide (ISC), one stroke (D-168)
     sesion: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
@@ -492,14 +492,15 @@
     m.el.querySelectorAll('.pp-smo').forEach(b => { const on = b.dataset.k === m.act; b.classList.toggle('act', on); b.setAttribute('aria-selected', String(on)); });
     if (m.act) ctl.el.setAttribute('aria-activedescendant', 'pp-smo-' + m.act);
   }
-  // under the «/», or above it when it doesn't fit below; always inside the window
+  // under the «/», or above it when it doesn't fit below; always inside what is seen: the visual viewport, so in the iPhone never under
+  // its keyboard (D-286; in the Mac, without zoom, it is the window)
   function colocarMenu(ctl) {
     const m = ctl.menu, r = ancla(ctl); if (!r) return;
-    const e = m.el, vw = document.documentElement.clientWidth, vh = innerHeight, g = 8;
+    const vv = window.visualViewport, v0 = vv ? Math.max(0, vv.offsetTop) : 0, e = m.el, vw = document.documentElement.clientWidth, vh = vv ? v0 + vv.height : innerHeight, g = 8;
     e.style.left = '0px'; e.style.top = '0px';
-    const w = e.offsetWidth, h = e.getBoundingClientRect().height, abajo = vh - r.bottom - 6 - g, arriba = r.top - 6 - g, sube = h > abajo && arriba > abajo;
+    const w = e.offsetWidth, h = e.getBoundingClientRect().height, abajo = vh - r.bottom - 6 - g, arriba = r.top - v0 - 6 - g, sube = h > abajo && arriba > abajo;
     e.style.left = Math.round(Math.max(g, Math.min(r.left - 10, vw - w - g))) + 'px';
-    e.style.top = Math.floor(Math.max(g, Math.min(sube ? r.top - 6 - h : r.bottom + 6, vh - h - g))) + 'px';   // always inside the window
+    e.style.top = Math.floor(Math.max(v0 + g, Math.min(sube ? r.top - 6 - h : r.bottom + 6, vh - h - g))) + 'px';   // always inside what is seen
     e.classList.toggle('arriba', sube);
   }
   function ancla(ctl) {
@@ -595,6 +596,8 @@
   document.addEventListener('pointerdown', alFuera, true);
   window.addEventListener('resize', alMover);
   document.addEventListener('scroll', alMover, true);
+  const VV = window.visualViewport;            // the iPhone's keyboard moves what is seen without a resize of the window (D-286)
+  if (VV) { VV.addEventListener('resize', alMover); VV.addEventListener('scroll', alMover); }
 
   // ---------- style: the mesa's tokens (D-131), its icons and stroke (D-168), its scale and weights (D-172) ----------
   const ESTILO = `
@@ -673,6 +676,7 @@
       cerrarMenu(); [...ACT].forEach(apagar);
       document.removeEventListener('selectionchange', alSel); document.removeEventListener('pointerdown', alFuera, true);
       window.removeEventListener('resize', alMover); document.removeEventListener('scroll', alMover, true);
+      if (VV) { VV.removeEventListener('resize', alMover); VV.removeEventListener('scroll', alMover); }
     }
   };
   (window.MESA_CARGA = window.MESA_CARGA || {}).escritura = 'ok';

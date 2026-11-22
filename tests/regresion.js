@@ -20075,7 +20075,7 @@
         C.sv.escribirMac('tareas', id, T0); C.sv.escribirMac('tareas', nt, { id: nt, tipo: 'nota', txt: 'Ideas para diciembre', creada: ahora, at: ahora });
         await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
         clicCara(`#movil [data-a="tver"][data-id="${id}"]`); let h = await hojaCara('.mv-ttxt', 'la hoja de la tarea');
-        const pon = (sel, v) => { const i = h.querySelector(sel); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+        const pon = (sel, v) => { const i = h.querySelector(sel); if (i.isContentEditable) i.textContent = v; else i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };   // el texto de una nota y «Detalles», el campo del ordenador (D-286)
         pon('[data-ed="txt"]', 'Preparar la lista de planos y el moodboard de diciembre');
         clicCara('#movil .hoja [data-ed-abre="fecha"]'); await hojaCara('.selcal', 'el calendario de la tarea'); clicCara('#movil .hoja [data-dia="2026-11-20"]'); await espera(60);
         clicCara('#movil .hoja [data-ed-abre="cliente"]'); await hojaCara('[data-ed-cli]', 'los clientes'); clicCara(`#movil .hoja [data-ed-cli="${cli}"]`); await espera(60);
@@ -20113,7 +20113,7 @@
         ok(!W.localStorage.getItem('mesa-movil-ops2') && !W.localStorage.getItem('mesa-movil-ops'), 'quedó algo en la cola');
         // una nota: solo su texto; vacía no se guarda
         await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`); sinAviso();
-        clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); h = await hojaCara('.mv-ttxt', 'la hoja de la nota');
+        clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); h = await hojaCara('[data-ed="txt"]', 'la hoja de la nota');
         ok(!h.querySelector('[data-ed-abre]') && !h.querySelector('[data-ed="detalles"]'), 'la nota ofrece más que su texto');
         pon('[data-ed="txt"]', '   '); clicCara('#movil .hoja [data-ed-a="guardar"]'); await espera(80);
         ok(/necesita un texto/.test(W.document.querySelector('#movil .hoja').innerText), 'una nota vacía se guardó');
@@ -20170,7 +20170,7 @@
         ok(W.document.querySelectorAll('#movil .mv-sap.abierto').length === 3, 'guardar plegó los apartados abiertos');
         // el nombre y el texto de un apartado
         sinAviso(); clicCara('#movil [data-a="sesnom"]'); let h = await hojaCara('[data-sc]', 'la hoja del nombre');
-        const pon = v => { const i = h.querySelector('[data-sc]'); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+        const pon = v => { const i = h.querySelector('[data-sc]'); if (i.isContentEditable) i.textContent = v; else i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };   // el texto de un apartado, el campo del ordenador (D-286)
         pon('   '); clicCara('#movil .hoja [data-sc-a="si"]'); await espera(60);
         ok(/necesita un nombre/.test(W.document.querySelector('#movil .hoja').innerText), 'un nombre vacío se guardó');
         pon('Sesión de otoño en el obrador con todo el equipo'); clicCara('#movil .hoja [data-sc-a="si"]');
@@ -20179,7 +20179,7 @@
         ok(W.document.querySelector('#movil [data-a="sesmat"][data-m="mamv61a"]').getAttribute('aria-pressed') === 'true', 'tras guardar, el material vuelve a lo de antes en la pantalla');
         ok(!W.document.querySelector('#movil [data-a="sested"][data-ap="fotos"]'), '«Editar» de un apartado plegado a la vista');
         clicCara('#movil [data-a="sesap"][data-ap="fotos"]'); await espera(80);
-        sinAviso(); clicCara('#movil [data-a="sested"][data-ap="fotos"]'); h = await hojaCara('textarea[data-sc]', 'la hoja del texto');
+        sinAviso(); clicCara('#movil [data-a="sested"][data-ap="fotos"]'); h = await hojaCara('.mv-ced[data-sc]', 'la hoja del texto');
         pon('Retratos del equipo de sala\n[] Fondo del horno'); clicCara('#movil .hoja [data-sc-a="si"]');
         await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, 'guardar el texto');
         // la fecha y la hora: el fin se mueve con el inicio
@@ -20647,6 +20647,163 @@
     } finally { paginaCerrada(); await sinTareas(); }
   });
 
+  // =====================================================================================================
+  // ajustes de la 4.42, lote B (Mesa 4.44): las notas en el iPhone y sus marcas de estado (D-286, D-287)
+  // =====================================================================================================
+  // el teclado de iOS, simulado (lección 279): el visualViewport del marco con un alto y un offsetTop falsos y sus eventos;
+  // «abrir» es el teclado que sale (resize); «desplazar», iOS moviendo la vista sin cambiar su tamaño (scroll)
+  function tecladoFalso() {
+    const vv = W.visualViewport, H = W.innerHeight, st = { h: H, t: 0 };
+    Object.defineProperty(vv, 'height', { configurable: true, get: () => st.h });
+    Object.defineProperty(vv, 'offsetTop', { configurable: true, get: () => st.t });
+    const evento = async ty => { vv.dispatchEvent(new W.Event(ty)); await espera(120); };
+    return {
+      H, evento,
+      abrir: async kb => { st.h = H - kb; st.t = 0; await evento('resize'); },
+      desplazar: async t => { st.t = t; await evento('scroll'); },
+      cerrar: async () => { st.h = H; st.t = 0; await evento('resize'); },
+      fin: () => { try { delete vv.height; delete vv.offsetTop; } catch (e) { /* */ } }
+    };
+  }
+  // dónde está el cursor (el final de lo elegido) en un campo editable; si el navegador no da su caja, la del campo
+  const kbCursor = el => { const s = W.getSelection(); if (s && s.rangeCount) { const r = s.getRangeAt(0).cloneRange(); r.collapse(false); if (r.endContainer.nodeType === 1) { let n = r.endContainer.childNodes[r.endOffset - 1]; while (n && n.nodeType === 1) n = n.lastChild; if (n && n.nodeType === 3) r.setStart(n, n.data.length); } const q = r.getClientRects()[0]; if (q && (q.height || q.top)) return q; } return el.getBoundingClientRect(); };
+  const kbTok = (md, v) => { const pr = W.document.createElement('i'); pr.style.color = W.getComputedStyle(md).getPropertyValue(v).trim(); md.append(pr); const c = W.getComputedStyle(pr).color; pr.remove(); return c; };
+
+  prueba('KB1', 'La hoja de una nota sigue al teclado del iPhone (D-286; lección 279): de arriba a encima del teclado, también cuando iOS desplaza la vista sin cambiar su tamaño; «Cancelar · Guardar» pegados encima del teclado; el cursor a la vista, sin animar; la página de detrás no se mueve; con el teclado fuera, tocar fuera solo lo baja, y «¿Descartar los cambios?» sale al cerrar de verdad, a la vista', async () => {
+    await tableroMovil(); await sinTareas();
+    const ahora = new W.Date().toISOString(), nt = 'ntkb1notalarga', nc = 'ntkb1notacorta';
+    const largo = Array.from({ length: 30 }, (_, i) => `Línea ${i + 1} de una nota larga`).join('\n');
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => {
+      st.put({ id: nt, tipo: 'nota', txt: largo, creada: ahora, at: ahora }, nt);
+      st.put({ id: nc, tipo: 'nota', txt: 'Una nota corta', creada: ahora, at: ahora }, nc);
+      for (let i = 0; i < 16; i++) { const id = 'tkkb1relleno' + i; st.put({ id, tipo: 'tarea', txt: 'Tarea de relleno ' + (i + 1), creada: ahora, at: ahora }, id); }
+    });
+    try {
+      await enMovilPagina(async () => {
+        const T = tecladoFalso(), hoja = () => W.document.querySelector('#movil .hoja.on'), caja = () => hoja().getBoundingClientRect(), pie = () => hoja().querySelector('.pie').getBoundingClientRect(), preg = () => !!(hoja() && hoja().querySelector('.mv-desc-t'));
+        try {
+          await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nc}"]`);
+          // una nota corta: con el teclado, la hoja va de arriba a encima del teclado
+          clicCara(`#movil [data-a="tver"][data-id="${nc}"]`); await hojaCara('[data-ed="txt"]', 'la hoja de la nota corta'); await espera(400);   // la hoja ya subida
+          hoja().querySelector('[data-ed="txt"]').focus(); await T.abrir(336);
+          cerca(caja().bottom, T.H - 336, 1.5, 'la hoja no acaba encima del teclado');
+          cerca(caja().top, 8, 1.5, 'la hoja de una nota corta no va de arriba');
+          cerca(pie().bottom, caja().bottom, 2, '«Cancelar · Guardar» no están pegados encima del teclado');
+          await T.cerrar(); clicCara('#movil .velo.on'); await espera(450); ok(!hoja(), 'la nota corta no se cerró');
+          // la lista de detrás, algo desplazada: no se mueve mientras la hoja está abierta
+          W.scrollTo(0, 160); await espera(60); const y0 = W.scrollY; ok(y0 > 40, 'la lista de Tareas no se desliza: ' + y0);
+          clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); await hojaCara('[data-ed="txt"]', 'la hoja de la nota larga'); await espera(400);
+          const campo = hoja().querySelector('[data-ed="txt"]'); campo.focus(); naFin(campo);
+          // el teclado sale: la hoja encima y el cursor (al final del texto) a la vista, sin animar
+          const lisos = [], sv = W.Element.prototype.scrollIntoView;
+          W.Element.prototype.scrollIntoView = function (o) { if (o && o.behavior === 'smooth') lisos.push(this.tagName); return sv.apply(this, arguments); };
+          try { await T.abrir(336); } finally { W.Element.prototype.scrollIntoView = sv; }
+          cerca(caja().bottom, T.H - 336, 1.5, 'la hoja larga no acaba encima del teclado'); cerca(caja().top, 8, 1.5, 'la hoja larga no va de arriba');
+          const c = kbCursor(campo); ok(c.bottom <= pie().top + 1 && c.top >= caja().top - 1, `el cursor queda tapado: ${Math.round(c.top)}–${Math.round(c.bottom)}, el pie empieza en ${Math.round(pie().top)}`);
+          igual(lisos, [], 'el teclado anima el desplazamiento (el cursor salta)');
+          // iOS desplaza la vista sin cambiar su tamaño: la hoja la sigue
+          await T.desplazar(120);
+          cerca(caja().bottom, T.H - 336 + 120, 1.5, 'con la vista desplazada la hoja no sigue encima del teclado');
+          cerca(caja().top, 128, 1.5, 'con la vista desplazada la hoja no va de arriba');
+          cerca(pie().bottom, caja().bottom, 2, 'con la vista desplazada el pie no está encima del teclado');
+          // iOS desliza la página para enseñar el campo: vuelve a su sitio; el velo no deja deslizarla
+          W.scrollTo(0, y0 + 200); await T.evento('scroll'); cerca(W.scrollY, y0, 1, 'la página de detrás se movió');
+          igual(W.getComputedStyle(W.document.querySelector('#movil .velo.on')).touchAction, 'none', 'el velo deja deslizar la página de detrás');
+          await T.desplazar(0);
+          // tocar fuera con el teclado y cambios sin guardar: solo baja el teclado, sin preguntar
+          await naEscribe(campo, ' y algo más');
+          clicCara('#movil .velo.on'); await espera(120);
+          ok(hoja() && !preg(), 'tocar fuera con el teclado preguntó o cerró la hoja');
+          ok(W.document.activeElement !== campo, 'tocar fuera con el teclado no lo bajó');
+          await T.cerrar();
+          // sin el teclado, cerrar de verdad pregunta, con la pregunta a la vista
+          clicCara('#movil .velo.on'); await espera(450);
+          ok(preg(), 'cerrar de verdad con cambios no preguntó');
+          const p = hoja().querySelector('.mv-desc-t').getBoundingClientRect(); ok(p.top >= caja().top && p.bottom <= T.H, '«¿Descartar los cambios?» no se ve');
+          clicCara('#movil .hoja [data-desc="si"]'); await espera(450); ok(!hoja(), '«Descartar» no la cerró');
+          cerca(W.scrollY, y0, 1, 'al cerrar, la página de detrás no está donde estaba');
+        } finally { T.fin(); }
+      });
+    } finally { await sinTareas(); }
+  });
+
+  prueba('KB2', 'Escribir una nota, unos «Detalles» o el texto de una sesión en el iPhone con el campo del ordenador (D-286; lecciones 7 y 244): sus marcas dibujadas (en gris sin el resaltado de iOS 17.2) y el menú «/» con Lista, Lista numerada, Casilla y Separador, dentro de la cara y sin las teclas del ordenador; en «Detalles», «Casilla» y pegar «[] » crean subtareas, cada una su operación, sin rehacer el campo; el título de una tarea sigue siendo un campo de texto', async () => {
+    const key = await tableroMovil(); await sinTareas();
+    const ahora = new W.Date().toISOString(), nt = 'ntkb2notaconmarcas', id = 'tkkb2detallesconcasilla', ss = 'sskb2textodesesion';
+    const N0 = { id: nt, tipo: 'nota', txt: 'Lista:\n- uno\n- dos\n⸻\n1. primero\nfin', creada: ahora, at: ahora };
+    const T0 = { id, tipo: 'tarea', txt: 'Preparar el rodaje del obrador', detalles: 'Mirar las referencias', creada: ahora, at: ahora, subtareas: [{ id: 'stkb2a', txt: 'Pedir la carta' }] };
+    const S0 = { id: ss, tipo: 'sesion', txt: 'Sesión KB2', fecha: '2026-11-27', clientes: [], creada: ahora, at: ahora, sesion: { clase: 'foto', visible: true, plantilla: 1, apartados: [{ id: 'orden', nombre: 'Orden', visible: true, texto: 'Llegar a las 9' }] } };
+    await M._in.diario.sinDiario('tareas', 'readwrite', st => { st.put(N0, nt); st.put(T0, id); st.put(S0, ss); });
+    try {
+      await enMovilPagina(async () => {
+        const C = await nubeCara(key), hoja = () => W.document.querySelector('#movil .hoja.on'), md = W.document.getElementById('movil');
+        const regla = sel => [...W.document.styleSheets].some(s => { try { return [...s.cssRules].some(r => r.selectorText && r.selectorText.includes(sel)); } catch (e) { return false; } });
+        const menu = () => W.document.querySelector('.pp-sm:not([hidden])'), elige = k => { const b = menu() && menu().querySelector(`[data-k="${k}"]`); ok(b, 'el menú «/» no tiene ' + k); b.click(); };
+        const guardado = async que => { await hasta(() => !M.movil._ST.guardando && /Guardado/.test(avisoCara()), 15000, que); sinAviso(); };
+        try {
+          for (const x of [N0, T0, S0]) C.sv.escribirMac('tareas', x.id, x);
+          await M.movil.releer(); await irMovil('#tareas', `#movil [data-a="tver"][data-id="${nt}"]`);
+          // la nota: el campo del ordenador, con sus marcas dibujadas
+          clicCara(`#movil [data-a="tver"][data-id="${nt}"]`); await hojaCara('[data-ed="txt"]', 'la hoja de la nota');
+          const cn = hoja().querySelector('[data-ed="txt"]');
+          ok(cn.isContentEditable && cn.getAttribute('contenteditable') === 'plaintext-only' && cn.getAttribute('role') === 'textbox', 'el texto de la nota no es el campo del ordenador: ' + cn.tagName);
+          igual(cn.textContent, N0.txt, 'el texto de la nota en su campo');
+          ok(cn._esc && cn.parentNode.querySelector('.pp-ecapa'), 'escritura.js no está encendido en la nota');
+          await espera(80);
+          const capa = cn.parentNode.querySelector('.pp-ecapa');
+          igual([capa.querySelectorAll('.pp-ecm.vi').length, capa.querySelectorAll('.pp-ecm.se').length], [2, 1], 'las viñetas y el separador dibujados al escribir');
+          igual(W.getComputedStyle(capa.querySelector('.pp-ecm.vi'), '::before').backgroundColor, kbTok(md, '--acc-ink'), 'la viñeta al escribir, en terracota');
+          ok(['pp-em', 'pp-en', 'pp-es'].every(k => W.CSS.highlights.has(k)) && regla('#movil ::highlight(pp-en)') && regla('#movil ::highlight(pp-em)'), 'las marcas no se resaltan bajo #movil');
+          // sin el resaltado (iOS anterior a 17.2): las marcas en gris
+          const hl = W.Highlight; W.Highlight = undefined;
+          try { cn._esc.dibujar(); ok(capa.querySelectorAll('.pp-ecm.gris').length >= 3 && regla('#movil .pp-ecm.gris'), 'sin el resaltado, las marcas no salen en gris'); } finally { W.Highlight = hl; cn._esc.dibujar(); }
+          // el menú «/»: solo lo del iPhone, dentro de la cara, con opciones de 44 px y sin las teclas del ordenador
+          await naEscribe(cn, '\n/');
+          igual(naMenu(), 'lista*,numerada,casilla,separador', 'el menú «/» de una nota en el iPhone');
+          const m = menu(); ok(md.contains(m), 'el menú «/» no va en la cara del móvil');
+          const rm = m.getBoundingClientRect(); ok(rm.left >= 0 && rm.right <= W.innerWidth && rm.top >= 0 && rm.bottom <= W.innerHeight, 'el menú «/» se sale');
+          ok([...m.querySelectorAll('.pp-smo')].every(b => b.getBoundingClientRect().height >= 44), 'una opción del menú «/» mide menos de 44');
+          igual(W.getComputedStyle(m.querySelector('.pp-smp')).display, 'none', 'el menú del iPhone enseña las teclas del ordenador');
+          elige('separador'); await espera(60);
+          await naEscribe(cn, '/'); elige('casilla'); await espera(60);
+          igual(cn.textContent, N0.txt + '\n⸻\n[] ', 'el separador y la casilla en la nota');
+          ok(!hoja().querySelector('.mv-sub'), 'en una nota «Casilla» creó una subtarea');
+          clicCara('#movil .hoja [data-ed-a="guardar"]'); await guardado('guardar la nota');
+          igual((await M._in.idbGet('tareas', nt)).txt, N0.txt + '\n⸻\n[]', 'el texto de la nota guardado');
+          // «Detalles» de una tarea: el título sigue siendo un campo de texto; «Casilla» y pegar «[] » crean subtareas
+          await irMovil('#tareas', `#movil [data-a="tver"][data-id="${id}"]`);
+          clicCara(`#movil [data-a="tver"][data-id="${id}"]`); await hojaCara('.mv-ttxt', 'la hoja de la tarea');
+          igual(hoja().querySelector('.mv-ttxt').tagName, 'TEXTAREA', 'el título de la tarea dejó de ser un campo de texto');
+          const det = hoja().querySelector('[data-ed="detalles"]');
+          ok(det.isContentEditable && det._esc, '«Detalles» no es el campo del ordenador');
+          const subs = () => [...hoja().querySelectorAll('textarea[data-ed-st]')];
+          await naEscribe(det, '\n/'); igual(naMenu(), 'lista*,numerada,casilla,separador', 'el menú «/» de «Detalles»');
+          elige('casilla'); await espera(80);
+          igual(subs().length, 2, '«Casilla» no creó una subtarea');
+          igual(W.document.activeElement, subs()[1], 'el cursor no va a la subtarea nueva');
+          ok(hoja().querySelector('[data-ed="detalles"]') === det && det._esc, '«Detalles» se rehízo al crear la subtarea');
+          igual(det.textContent, 'Mirar las referencias', 'la línea de la casilla sigue en «Detalles»');
+          subs()[1].value = 'Llamar al obrador'; subs()[1].dispatchEvent(new W.Event('input', { bubbles: true }));
+          det.focus(); naFin(det); const dt = new W.DataTransfer(); dt.setData('text/plain', '[] Reservar el panel\n[x] Elegir la música');
+          det.dispatchEvent(new W.ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); await espera(80);
+          igual(subs().map(t => t.value), ['Pedir la carta', 'Llamar al obrador', 'Reservar el panel', 'Elegir la música'], 'pegar «[] » no crea subtareas');
+          clicCara('#movil .hoja [data-ed-a="guardar"]'); await guardado('guardar la tarea');
+          const r = await M._in.idbGet('tareas', id);
+          igual([r.txt, r.detalles, r.subtareas.map(x => [x.txt, !!x.hecha])], [T0.txt, 'Mirar las referencias', [['Pedir la carta', false], ['Llamar al obrador', false], ['Reservar el panel', false], ['Elegir la música', true]]], 'la tarea guardada');
+          // el texto de un apartado de una sesión
+          await irMovil('#tareas', `#movil [data-a="tver"][data-id="${ss}"]`); clicCara(`#movil [data-a="tver"][data-id="${ss}"]`);
+          await hasta(() => W.document.querySelector('#movil .mv-ses-h h1'), 6000, 'la sesión');
+          clicCara('#movil [data-a="sesap"][data-ap="orden"]'); await espera(80);
+          clicCara('#movil [data-a="sested"][data-ap="orden"]'); await hojaCara('[data-sc]', 'la hoja del texto de la sesión');
+          const sc = hoja().querySelector('[data-sc]'); ok(sc.isContentEditable && sc._esc, 'el texto de la sesión no es el campo del ordenador');
+          await naEscribe(sc, '\n/'); igual(naMenu(), 'lista*,numerada,casilla,separador', 'el menú «/» de una sesión');
+          elige('lista'); await espera(60); await naEscribe(sc, 'trípode');
+          clicCara('#movil .hoja [data-sc-a="si"]'); await guardado('guardar el texto de la sesión');
+          igual((await M._in.idbGet('tareas', ss)).sesion.apartados[0].texto, 'Llegar a las 9\n- trípode', 'el texto de la sesión guardado');
+        } finally { W.localStorage.removeItem('mesa-movil-ops2'); await C.fin(); }
+      });
+    } finally { await sinTareas(); }
+  });
 
   async function pasar() {
     const go = $('go'); go.disabled = true;

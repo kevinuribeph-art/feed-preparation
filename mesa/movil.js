@@ -693,6 +693,55 @@
 #movil .cap-t,#movil .op p,#movil .hoja .txt,#movil .decision{max-width:68ch}
 #movil .msg{max-width:min(88%,68ch)}
 #movil .editor{max-width:calc(68ch + 2 * var(--pad))}
+/* el teclado (D-286): la hoja sigue al visualViewport (--vvh su alto, --vvt lo que iOS lo desplazó, --kb el teclado); las hojas donde se
+   escribe (una nota, una tarea, el texto de una sesión) van de arriba abajo, así el teclado no las mueve: con él, de arriba a encima */
+#movil .hoja{max-height:calc(var(--vvh,100dvh) - var(--sa-t) - 8px)}
+#movil .hoja.grande{display:flex;flex-direction:column;height:calc(var(--vvh,100dvh) - var(--sa-t) - 8px)}
+#movil .hoja.grande>*{flex-shrink:0}
+#movil .hoja.grande>.pie{margin-top:auto}
+#movil .hoja.grande>:has(+ .pie){margin-bottom:16px}
+@media (orientation:landscape) and (max-height:500px){#movil .hoja{max-height:calc(var(--vvh,100dvh) - 8px)}#movil .hoja.grande{height:calc(var(--vvh,100dvh) - 8px)}}
+#movil .velo{touch-action:none}
+/* escribir con el campo del ordenador (escritura.js; su hoja de estilo va bajo #mesa: lección 244) */
+#movil .mv-cedw{position:relative}
+#movil .mv-ced{display:block;width:100%;min-height:52px;padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:16px/1.5 var(--font);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;caret-color:var(--acc);-webkit-user-select:text;user-select:text;cursor:text}
+#movil .mv-ced:focus{border-color:var(--acc);box-shadow:0 0 0 4px var(--ring)}
+#movil .mv-ced[data-ed="txt"]{min-height:160px}
+#movil .mv-ced[data-sc]{min-height:200px}
+#movil .mv-ced:empty::before{content:attr(data-ph);color:var(--mute);pointer-events:none}
+#movil .mv-ced[aria-disabled="true"]{color:var(--mute);cursor:default}
+#movil ::highlight(pp-em){color:transparent}
+#movil ::highlight(pp-en){color:var(--acc-ink)}
+#movil ::highlight(pp-es){color:transparent}
+#movil ::highlight(pp-eh){color:var(--mute);text-decoration:line-through}
+#movil ::highlight(pp-ea){color:var(--acc-ink);text-decoration:underline}
+#movil .pp-ecapa{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:1}
+#movil .pp-ecm{position:absolute;pointer-events:none}
+#movil .pp-ecm.gris{background:var(--pp-efondo,var(--panel-2));opacity:.45}
+#movil .pp-ecm.vi::before{content:'';position:absolute;left:50%;top:50%;width:.3em;height:.3em;margin:-.15em 0 0 -.15em;border-radius:50%;background:var(--acc-ink)}
+#movil .pp-ecm.se::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong)}
+#movil .pp-ecm.ca{pointer-events:auto;cursor:pointer}
+#movil .pp-ecm.ca::before{content:'';position:absolute;right:-.02em;top:50%;width:.8em;height:.8em;margin:-.4em 0 0;box-sizing:border-box;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.75}
+#movil .pp-ecm.ca.on::before{background:var(--acc);box-shadow:none;opacity:1}
+#movil .pp-ecm.ca.on::after{content:'';position:absolute;right:.1em;top:50%;width:.56em;height:.56em;margin:-.28em 0 0;background:var(--on-acc);-webkit-mask:var(--i-check) center/100% no-repeat;mask:var(--i-check) center/100% no-repeat}
+/* el menú «/» del iPhone: lo que se puede tocar, de 48 px, sin las teclas del ordenador */
+#movil .pp-sm{position:fixed;z-index:70;display:flex;flex-direction:column;width:288px;max-width:calc(100vw - 16px);padding:6px;background:var(--panel-2);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow-lg);animation:mv-smin .18s var(--ease)}
+#movil .pp-sm.arriba{animation-name:mv-smup}
+@keyframes mv-smin{from{opacity:0;transform:translateY(-3px)}}@keyframes mv-smup{from{opacity:0;transform:translateY(3px)}}
+#movil .pp-sm[hidden]{display:none}
+#movil .pp-smg{display:flex;flex-direction:column;gap:1px}
+#movil .pp-sm hr{margin:5px 8px;border:0;border-top:1px solid var(--line)}
+#movil .pp-sm .pp-smo{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:6px 8px;border-radius:12px;text-align:left}
+#movil .pp-sm .pp-smo.act{background:var(--bg-2)}
+#movil .pp-smi{flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--bg-2);color:var(--ink-2)}
+#movil .pp-smo.act .pp-smi{background:var(--panel)}
+#movil .pp-smi svg{width:18px;height:18px;stroke-width:1.75}
+#movil .pp-smt{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+#movil .pp-smt b{font-size:16px;font-weight:600;color:var(--ink)}
+#movil .pp-smm{font-weight:400;color:var(--mute)}
+#movil .pp-smt>span{font-size:14px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#movil .pp-smp{display:none}
+@media (prefers-reduced-motion:reduce){#movil .pp-sm{animation:none}}
 `;
   const estilo = (id, css) => { let s = D.getElementById(id); if (!s) { s = D.createElement('style'); s.id = id; D.head.appendChild(s); } s.textContent = css; };
   estilo('movil-css', MV().tokens('#movil') + '\n' + CSS_V3 + CSS_MAS);
@@ -1211,7 +1260,8 @@
   // ---------- pintar ----------
   const PANT = { hoy: pantHoy, clientes: pantClientes, tareas: pantTareas, mes: pantMes, pub: pantPub, cap: pantCaptions, his: pantHistoria, ses: r => C.pantSes(r) };
   let pintando = 0, PEND_PINTAR = false;
-  const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && /^(TEXTAREA|INPUT)$/.test(a.tagName)) || !!raiz.querySelector('.hoja'); };
+  const esCampo = a => !!a && (/^(TEXTAREA|INPUT)$/.test(a.tagName) || a.isContentEditable);   // también el campo del ordenador (D-286)
+  const enUso = () => { const a = D.activeElement; return !!(a && raiz.contains(a) && esCampo(a)) || !!raiz.querySelector('.hoja'); };
   function pintarSiQuieto() { if (enUso()) { PEND_PINTAR = true; return; } pintar(); }   // un campo en uso no se rehace desde fuera (D-112)
   let ULT_P = '', ULT_A = '';
   async function pintar() {
@@ -1266,15 +1316,18 @@
   // ---------- hojas (abajo), avisos y lo que se abre en el Mac ----------
   // una hoja se cierra con «Cancelar», tocando el velo o arrastrando el asa hacia abajo; «Guardar» queda fijo abajo en un iPhone pequeño
   // (los oyentes de cada hoja no hacen nada si ya se cerró: el segundo toque de un doble toque no cierra la hoja siguiente)
+  let Y_HOJA = null;   // dónde estaba la página al abrirse la hoja: detrás de una hoja, la página no se mueve (D-286)
   function hoja(html, o = {}) {
     if (!o.permanente && capas.querySelector('.hoja[data-permanente]')) {   // la pestaña está parada: nada encima de su aviso, y su pregunta se contesta ya («Ahora no»)
       if (o.alCerrar) queueMicrotask(() => { try { o.alCerrar(); } catch (e) { /* */ } });
       return D.createElement('div');
     }
     if (o.permanente) capas.querySelectorAll('[data-permanente]').forEach(x => x.remove());   // un aviso permanente a la vez: el último
+    const y0 = Y_HOJA != null ? Y_HOJA : W.scrollY;   // dónde estaba la página al abrir la primera hoja (otra hoja encima no lo cambia)
     cerrarHojas(true);
+    if (!o.permanente) Y_HOJA = y0;
     const velo = D.createElement('div'); velo.className = 'velo'; velo.dataset.a = o.fija || o.pregunta ? '' : 'cerrarhoja';   // una pregunta no la contesta un toque perdido
-    const h = D.createElement('div'); h.className = 'hoja'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);
+    const h = D.createElement('div'); h.className = 'hoja' + (o.grande ? ' grande' : ''); h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true'); if (o.etiqueta) h.setAttribute('aria-label', o.etiqueta);   // grande: donde se escribe, de arriba abajo (D-286)
     h.innerHTML = `<div class="asa" aria-hidden="true"></div>${html}`;
     if (o.alCerrar) h._alCerrar = o.alCerrar;
     if (o.cambios) {   // una hoja donde se escribe: cerrarla a mano con cambios sin guardar pregunta antes (D-271, decisión de Kevin)
@@ -1305,16 +1358,33 @@
     cerrarHojas(); return true;
   }
   const devolverFoco = h => { const a = h && h._antes; if (a && a.isConnected && !capas.querySelector('.hoja.on:not([data-permanente])')) { try { a.focus({ preventScroll: true }); } catch (e) { /* */ } } };
+  // al cerrarse una hoja, sus campos del ordenador se apagan (escritura.js: su menú «/» y sus marcas) y, sin otra abierta, la página
+  // vuelve a donde estaba al abrir la primera (iOS la desliza para enseñar un campo; D-286)
+  const apagarCampos = h => { if (!h) return; h.querySelectorAll('[contenteditable]').forEach(c => { if (c._esc && c._esc.apagar) c._esc.apagar(); }); };
+  function pagina() {
+    if (Y_HOJA == null || capas.querySelector('.hoja.on:not([data-permanente])')) return;
+    const y = Y_HOJA; Y_HOJA = null; if (Math.abs(W.scrollY - y) > 1) W.scrollTo(0, y);
+  }
   function cerrarEsta(h) {   // solo esa hoja (y su velo), si sigue abierta: nunca otra que se abrió entretanto
     if (!h || !h.isConnected) return;
+    apagarCampos(h);
     setTimeout(() => devolverFoco(h), 0);
     for (const x of [h, h._velo]) { if (!x) continue; if (POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } }
+    pagina();
   }
   function cerrarHojas(ya) {
     const antes = [...capas.querySelectorAll('.hoja:not([data-permanente])')];
+    antes.forEach(apagarCampos);
     if (!ya) setTimeout(() => antes.forEach(devolverFoco), 0);
     capas.querySelectorAll('.hoja:not([data-permanente]),.velo:not([data-permanente])').forEach(x => { if (x._alCerrar) { const f = x._alCerrar; x._alCerrar = null; try { f(); } catch (e) { /* */ } } if (ya || POCO.matches) x.remove(); else { x.classList.remove('on'); setTimeout(() => x.remove(), 340); } });
+    pagina();
     if (PEND_PINTAR) setTimeout(pintarSiQuieto, ya ? 0 : 360);
+  }
+  // tocar fuera con el teclado a la vista solo lo baja (como en iOS): «¿Descartar los cambios?» sale al cerrar de verdad (D-286)
+  function bajarTeclado() {
+    const a = D.activeElement;
+    if (!raiz.classList.contains('teclado') || !esCampo(a) || !capas.contains(a)) return false;
+    a.blur(); return true;
   }
   // arrastrar una hoja hacia abajo la cierra (D-271, punto 7; apple-design): desde su cabecera (el asa, su título y su texto) o desde
   // cualquier punto con la hoja arriba del todo, nunca desde las ruedas ni un campo; se decide en el primer movimiento (después el
@@ -1388,6 +1458,31 @@
     vigilarFotos(capas);
   }
 
+  // ---------- el campo del ordenador para escribir (escritura.js, D-286): el texto de una nota, «Detalles» y los textos de una sesión (nunca
+  // el título de una tarea), con sus marcas dibujadas (en gris sin el resaltado de iOS 17.2) y el menú «/» con lo que vale en el iPhone; lo que
+  // se guarda es el mismo texto plano con sus marcas. Sin red, solo se lee.
+  const CMD_MOVIL = () => ['lista', 'numerada', 'casilla', 'separador'];
+  const valorDe = i => (i.isContentEditable || i.classList.contains('mv-ced') ? i.textContent : i.value);
+  const campoEd = (k, v, etq, ph, off, attr = 'data-ed') => `<div class="mv-cedw" data-k="${esc(k)}"><div class="mv-ced" ${attr}="${esc(k)}" contenteditable="${off ? 'false' : 'plaintext-only'}" role="textbox" aria-multiline="true" aria-label="${esc(etq)}" spellcheck="true"${ph ? ` data-ph="${esc(ph)}"` : ''}${off ? ' aria-disabled="true"' : ''}>${esc(v)}</div></div>`;
+  function encenderEd(el, o) {
+    const E = M.escritura; if (!el || !E || !E.activar || el._esc || el.getAttribute('contenteditable') !== 'plaintext-only') return;
+    E.activar(el, { comandos: CMD_MOVIL, ...o });
+  }
+  // la hoja otra vez sin mover sus campos del ordenador (.mv-cedw[data-k], hijos de la hoja): moverlos los desenfocaría y bajaría el
+  // teclado, y perderían su cursor y su ⌘Z; lo demás se dibuja de nuevo alrededor
+  function rehacerHoja(h, html) {
+    const t = D.createElement('template'); t.innerHTML = html;
+    const vivos = new Map([...h.children].filter(x => x.matches('.mv-cedw[data-k]')).map(x => [x.dataset.k, x]));
+    [...h.childNodes].forEach(x => { if (!(x.nodeType === 1 && vivos.get(x.dataset.k) === x)) x.remove(); });
+    let ref = h.firstChild;
+    for (const n of [...t.content.childNodes]) {
+      const v = n.nodeType === 1 && n.matches('.mv-cedw[data-k]') ? vivos.get(n.dataset.k) : null;
+      if (v && v === ref) { vivos.delete(n.dataset.k); ref = v.nextSibling; continue; }
+      h.insertBefore(n, ref);
+    }
+    vivos.forEach(v => { apagarCampos(v); v.remove(); });   // un campo que ya no está (o cambió de sitio: se dibuja el nuevo)
+  }
+
   // ---------- editar una tarea o una nota ya creada (D-272): como Recordatorios, con «Guardar» abajo ----------
   // Cada campo cambiado es su operación (cada subtarea, la suya); una nota, solo su texto. La fecha y el cliente se despliegan dentro de
   // la misma hoja (nunca una hoja encima de otra). Sus fotos se ven (D-271, punto 1), no se añaden ni se quitan aquí.
@@ -1410,9 +1505,9 @@
       const fila = (k, t, v) => `<button type="button" class="campo" data-ed-abre="${k}" aria-expanded="${abre === k}"${off ? ' disabled' : ''}><span class="k">${t}</span><span class="v">${v}</span><span class="chev">${ic(abre === k ? 'arriba' : 'abajo')}</span></button>`;
       const cli = c => `<button type="button" class="estado-op${ed.cliente === c.id ? ' on' : ''}" data-ed-cli="${esc(c.id)}"${ed.cliente === c.id ? ' aria-current="true"' : ''}>${c.id ? av(c.id) : ''}<span style="flex:1">${esc(c.name)}</span>${ed.cliente === c.id ? `<span class="ck">${ic('check', 2.25)}</span>` : ''}</button>`;
       return `<h2>${nota ? 'Nota' : 'Tarea'}</h2>
-        <textarea class="mv-ttxt" data-ed="txt" rows="${nota ? 6 : 2}" aria-label="${nota ? 'Texto de la nota' : 'Texto de la tarea'}"${off ? ' disabled' : ''}>${esc(ed.txt)}</textarea>
+        ${nota ? campoEd('txt', ed.txt, 'Texto de la nota', '', off) : `<textarea class="mv-ttxt" data-ed="txt" rows="2" aria-label="Texto de la tarea"${off ? ' disabled' : ''}>${esc(ed.txt)}</textarea>`}
         ${nota ? '' : `<div class="grupo" style="margin-top:12px">${fila('fecha', 'Fecha', esc(ed.fecha ? cap1(DS[dow(ed.fecha)]) + ' ' + corto(ed.fecha) : 'Sin fecha'))}${abre === 'fecha' ? `<div class="mv-desp">${calendarioHTML(ed.fecha, mes, null, { pie: `<button type="button" class="lnk" data-ed-dia=""${ed.fecha ? '' : ' disabled'}>Sin fecha</button><button type="button" class="lnk" data-ed-dia="${hoy()}">Hoy</button>` })}</div>` : ''}${fila('cliente', 'Cliente', cliTxt)}${abre === 'cliente' ? `<div class="mv-desp estados">${cli({ id: '', name: 'Sin cliente' })}${(X().CL || []).map(cli).join('')}${esp.length ? `<span class="lbl">Esporádicos</span>${esp.map(e => cli({ id: e.id, name: e.txt })).join('')}` : ''}</div>` : ''}</div>
-        <span class="lbl">Detalles</span><textarea data-ed="detalles" rows="3" placeholder="Detalles" aria-label="Detalles"${off ? ' disabled' : ''}>${esc(ed.detalles)}</textarea>
+        <span class="lbl">Detalles</span>${campoEd('detalles', ed.detalles, 'Detalles', 'Detalles', off)}
         <span class="lbl mv-subh"><span>Subtareas</span>${vivas.length ? `<span class="num">${h}/${vivas.length}</span>` : ''}</span>${vivas.length ? `<div class="mv-barra" aria-hidden="true"><i style="width:${(h / vivas.length * 100).toFixed(1)}%"></i></div>` : ''}
         <div class="mv-subs">${vivas.map(y => `<div class="mv-sub${y.hecha ? ' hecha' : ''}"><button type="button" class="casilla" data-ed-ck="${esc(y.sid)}" role="checkbox" aria-checked="${y.hecha}" aria-label="${esc((y.hecha ? 'Hecha: ' : 'Marcar como hecha: ') + y.txt)}"${off ? ' disabled' : ''}>${ic('check', 2.5)}</button><textarea rows="1" data-ed-st="${esc(y.sid)}" aria-label="Subtarea" enterkeyhint="next"${off ? ' disabled' : ''}>${esc(y.txt)}</textarea><button type="button" class="ib mv-subx" data-ed-x="${esc(y.sid)}" aria-label="${esc('Quitar: ' + y.txt)}"${off ? ' disabled' : ''}>${ic('x')}</button></div>`).join('')}</div>
         <button type="button" class="lnk" data-ed-mas${off ? ' disabled' : ''}>${ic('mas')}Subtarea</button>`}
@@ -1420,16 +1515,26 @@
         <div class="pie"><div class="botones"><button type="button" class="btn sua" data-ed-a="cancelar">Cancelar</button><button type="button" class="btn pri" data-ed-a="guardar"${off ? ' disabled' : ''}>Guardar</button></div></div>`;
     };
     const firmaEd = e => JSON.stringify([e.txt.trim(), e.fecha, e.cliente, e.detalles.trim(), e.subs.filter(y => !(y.nueva && !y.txt.trim())).map(y => [y.sid, y.txt.trim(), !!y.hecha, !!y.quitada])]), f1 = firmaEd(o1);
-    const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea', cambios: () => firmaEd(ed) !== f1 });
+    const h = hoja(pinta(), { etiqueta: nota ? 'Nota' : 'Tarea', cambios: () => firmaEd(ed) !== f1, grande: true });
     vigilarFotos(capas);
-    const crece = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };   // las subtareas y los detalles ocupan las líneas que necesiten
-    const CRECE = nota ? 'textarea[data-ed-st],textarea[data-ed="detalles"]' : 'textarea[data-ed-st],textarea[data-ed="detalles"],textarea[data-ed="txt"]';   // el texto de una tarea también (el de una nota tiene su alto)
+    const crece = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };   // las subtareas ocupan las líneas que necesiten
+    const CRECE = nota ? 'textarea[data-ed-st]' : 'textarea[data-ed-st],textarea[data-ed="txt"]';   // el título de una tarea también (el texto de una nota y «Detalles» crecen solos)
     const crecer = () => h.querySelectorAll(CRECE).forEach(crece);
-    const repinta = foco => { const y = h.scrollTop; h.innerHTML = '<div class="asa" aria-hidden="true"></div>' + pinta(); crecer(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) f.focus({ preventScroll: true }); } };
+    // el texto de una nota y «Detalles», con las marcas y el menú «/» del ordenador (D-286); en «Detalles», una casilla es una subtarea (D-183),
+    // cada una su operación al guardar (D-272); el campo nunca se rehace al redibujar la hoja (lo escrito, su cursor y su ⌘Z siguen)
+    const nuevaSub = (txt, hecha) => { const sid = M.personal.nuevoId('sub'); ed.subs.push({ sid, txt: String(txt || '').replace(/\n/g, ' '), hecha: !!hecha, nueva: true }); return sid; };
+    const encender = () => {
+      encenderEd(h.querySelector('.mv-ced[data-ed="txt"]'), {});
+      encenderEd(h.querySelector('.mv-ced[data-ed="detalles"]'), { subtareas: true, desc: { casilla: 'Una subtarea' },
+        alCasilla: o => { if (!h.isConnected) return; const sid = nuevaSub(o.txt, o.hecha); repinta(`[data-ed-st="${sid}"]`); },
+        alPegarCasillas: l => { if (!h.isConnected) return; for (const y of l) if (String(y.txt).trim()) nuevaSub(y.txt, y.hecha); repinta(); } });
+    };
+    const repinta = foco => { const y = h.scrollTop; rehacerHoja(h, '<div class="asa" aria-hidden="true"></div>' + pinta()); encender(); crecer(); h.scrollTop = y; vigilarFotos(capas); if (foco) { const f = h.querySelector(foco); if (f) { f.focus({ preventScroll: true }); if (f.setSelectionRange) f.setSelectionRange(f.value.length, f.value.length); } } };
+    encender();
     requestAnimationFrame(crecer);
-    h.addEventListener('input', e => { const t = e.target; if (t.matches(CRECE)) crece(t); if (t.dataset.ed) ed[t.dataset.ed] = t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value.replace(/\n/g, ' '); } });
+    h.addEventListener('input', e => { const t = e.target; if (t.matches(CRECE)) crece(t); if (t.dataset.ed) ed[t.dataset.ed] = t.isContentEditable ? t.textContent : t.value; else if (t.dataset.edSt) { const y = ed.subs.find(z => z.sid === t.dataset.edSt); if (y) y.txt = t.value.replace(/\n/g, ' '); } });
     h.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.dataset.edSt) { e.preventDefault(); masSub(); } });
-    const masSub = () => { const sid = M.personal.nuevoId('sub'); ed.subs.push({ sid, txt: '', hecha: false, nueva: true }); repinta(`[data-ed-st="${sid}"]`); };
+    const masSub = () => { const sid = nuevaSub('', false); repinta(`[data-ed-st="${sid}"]`); };
     h.addEventListener('click', e => {
       if (!h.isConnected || !h.classList.contains('on')) return;
       const t = e.target;
@@ -1524,8 +1629,9 @@
   C.sesmat = b => { const v = L.ses; if (!v) return; const a = v.apartados.find(x => x.id === b.dataset.ap), c = a && a.material.familias.flatMap(f => f.cosas).find(x => x.id === b.dataset.m); if (!c) return; const pend = sesCurso('sesMaterial', o => o.ap === a.id && o.m === c.id), ahora = pend ? pend.valor.hecho : c.hecha; guardar({ slot: v.id, campo: 'sesMaterial', valor: { ap: a.id, m: c.id, hecho: !ahora }, visto: { hecho: c.hecha }, nombre: v.nombre, etq: c.nombre }); };
   // una hoja con un campo y «Guardar» (el nombre o el texto de un apartado)
   function hojaCampo(t, valor, multi, alGuardar) {
-    const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `<textarea rows="9" data-sc aria-label="${esc(t)}">${esc(valor)}</textarea><p class="ex" style="margin-top:8px">Al empezar una línea: «- » viñeta, «1. » número, «[] » casilla.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t, cambios: () => { const i = h.querySelector('[data-sc]'); return !!i && i.value !== valor; } });
-    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return pedirCerrar(h); const err = alGuardar(h.querySelector('[data-sc]').value); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
+    const h = hoja(`<h2>${esc(t)}</h2><p class="ex">${esc((L.ses || {}).nombre || '')}</p>${multi ? `${campoEd('sc', valor, t, '', false, 'data-sc')}<p class="ex" style="margin-top:8px">Escribe «/» para una lista, una casilla o un separador.</p>` : `<input type="text" data-sc aria-label="${esc(t)}" value="${esc(valor)}">`}<p class="resp-err" data-sc-err hidden></p><div class="pie"><div class="botones"><button type="button" class="btn sua" data-sc-a="no">Cancelar</button><button type="button" class="btn pri" data-sc-a="si">Guardar</button></div></div>`, { etiqueta: t, grande: multi, cambios: () => { const i = h.querySelector('[data-sc]'); return !!i && valorDe(i) !== valor; } });
+    if (multi) encenderEd(h.querySelector('.mv-ced[data-sc]'), {});   // con las marcas y el menú «/» del ordenador (D-286)
+    h.addEventListener('click', e => { if (!h.isConnected || !h.classList.contains('on')) return; const b = e.target.closest('[data-sc-a]'); if (!b) return; if (b.dataset.scA === 'no') return pedirCerrar(h); const err = alGuardar(valorDe(h.querySelector('[data-sc]'))); if (err) { const p = h.querySelector('[data-sc-err]'); p.hidden = false; p.textContent = err; } });
   }
   C.sesnom = () => { const v = L.ses; if (!v) return; hojaCampo('Nombre de la sesión', v.nombre, false, t => { const n = t.replace(/\s*\n\s*/g, ' ').trim(); if (!n) return 'Una sesión necesita un nombre.'; cerrarHojas(true); if (n !== v.nombre) guardar({ slot: v.id, campo: 'sesNombre', valor: n, visto: v.nombre, nombre: v.nombre }); return ''; }); };
   C.sested = b => { const v = L.ses, a = v && v.apartados.find(x => x.id === b.dataset.ap); if (!a) return; hojaCampo(a.nombre, a.texto, true, t => { cerrarHojas(true); if (t !== a.texto) guardar({ slot: v.id, campo: 'sesTexto', valor: { ap: a.id, texto: t }, visto: a.texto, nombre: v.nombre, etq: a.nombre }); return ''; }); };
@@ -1583,7 +1689,7 @@
       }
       case 'cobro': return aviso('Las facturas se abren en el escritorio.');
       case 'hmov': { const v = L.vista, l = v.historias.filter(h => !h.cancelada).sort((x, y) => String(x.fecha.dia + x.fecha.hora).localeCompare(String(y.fecha.dia + y.fecha.hora))), i = l.findIndex(h => h.id === RUTA.b) + (+b.dataset.d); if (l[i]) ir(`his/${v.key}/${l[i].id}`, 'sustituir'); return; }
-      case 'cerrarhoja': return pedirCerrar();
+      case 'cerrarhoja': if (b && b.classList.contains('velo') && bajarTeclado()) return; return pedirCerrar();
       case 'recargar': try { location.reload(); } catch (x) { /* */ } return;
       case 'entrar': try { location.reload(); } catch (x) { /* */ } return;
       case 'codigo': if (M.entrada && M.entrada.pedirCodigo) M.entrada.pedirCodigo(); return;
@@ -1626,15 +1732,39 @@
   // ---------- el teclado del iPhone: lo que se escribe queda a la vista (visualViewport, como el portal) ----------
   if (D.fonts && D.fonts.ready) D.fonts.ready.then(() => ajustarTitulo(), () => {});   // con la letra cargada, el título se vuelve a medir
   W.addEventListener('orientationchange', () => setTimeout(ajustarTitulo, 120));
-  if (W.visualViewport) W.visualViewport.addEventListener('resize', () => {
+  // La hoja sigue al visualViewport cuando cambia de tamaño (sale o se va el teclado) y también cuando iOS lo desplaza sin cambiarlo (al
+  // enfocar un campo: antes la hoja quedaba cortada y sus botones a media pantalla; D-286): --vvh su alto, --vvt lo desplazado y --kb lo que
+  // tapa el teclado. El cursor queda a la vista entre la cabecera de la hoja y su pie, sin animar (un desplazamiento suave en cada cambio lo
+  // hacía saltar); la página de detrás vuelve a donde estaba. Pellizcando (zoom), nada: no es el teclado.
+  let VV = { kb: -1, t: -1, h: -1 };
+  function cursorALaVista(h, a) {
+    let r = null;
+    if (a.isContentEditable) {   // la caja del cursor; al final del campo (fuera de un texto), la del final de su último texto
+      const s = W.getSelection();
+      if (s && s.rangeCount && a.contains(s.getRangeAt(0).endContainer)) {
+        const g = s.getRangeAt(0).cloneRange(); g.collapse(false);
+        if (g.endContainer.nodeType === 1) { let n = g.endContainer.childNodes[g.endOffset - 1]; while (n && n.nodeType === 1) n = n.lastChild; if (n && n.nodeType === 3) g.setStart(n, n.data.length); }
+        r = g.getClientRects()[0] || null;
+      }
+    }
+    if (!r || !(r.height || r.top)) { const e = a.getBoundingClientRect(); r = a.isContentEditable ? { top: Math.max(e.top, e.bottom - 32), bottom: e.bottom } : e; }
+    const hb = h.getBoundingClientRect(), pie = h.querySelector(':scope > .pie'), abajo = (pie ? pie.getBoundingClientRect().top : hb.bottom) - 8, arriba = hb.top + 8;
+    if (r.bottom > abajo) h.scrollTop += Math.ceil(r.bottom - abajo); else if (r.top < arriba) h.scrollTop -= Math.ceil(arriba - r.top);
+  }
+  function alTeclado() {
+    const vv = W.visualViewport; if (!vv || vv.scale > 1.05) return;
+    const alto = Math.round(vv.height), t = Math.max(0, Math.round(vv.offsetTop)), kb = Math.max(0, Math.round(W.innerHeight - vv.height - vv.offsetTop));
+    const cambia = kb !== VV.kb || t !== VV.t || alto !== VV.h;
+    if (cambia) { VV = { kb, t, h: alto }; raiz.style.setProperty('--kb', kb + 'px'); raiz.style.setProperty('--vvt', t + 'px'); raiz.style.setProperty('--vvh', alto + 'px'); raiz.classList.toggle('teclado', kb > 60); }   // una hoja sube encima del teclado, sin la zona segura de abajo
+    if (Y_HOJA != null && capas.querySelector('.hoja.on:not([data-permanente])') && Math.abs(W.scrollY - Y_HOJA) > 1) W.scrollTo(0, Y_HOJA);
+    if (!cambia) return;
     ajustarTitulo();
-    const vv0 = W.visualViewport, kb = Math.max(0, Math.round(W.innerHeight - vv0.height - vv0.offsetTop));
-    raiz.style.setProperty('--kb', kb + 'px'); raiz.classList.toggle('teclado', kb > 60);   // una hoja sube encima del teclado, sin la zona segura de abajo
-    const a = D.activeElement; if (!a || !raiz.contains(a) || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
-    if (a.closest('.hoja')) { a.scrollIntoView({ block: 'nearest', behavior: POCO.matches ? 'auto' : 'smooth' }); return; }
-    const vv = W.visualViewport, r = a.getBoundingClientRect(), fondo = vv.height + vv.offsetTop;
+    const a = D.activeElement; if (!esCampo(a) || !raiz.contains(a)) return;
+    const h = a.closest('.hoja'); if (h) { cursorALaVista(h, a); return; }
+    const r = a.getBoundingClientRect(), fondo = vv.height + vv.offsetTop;
     if (r.bottom > fondo - 12) W.scrollBy({ top: r.bottom - fondo + 24, behavior: POCO.matches ? 'auto' : 'smooth' });
-  }, { passive: true });
+  }
+  if (W.visualViewport) { W.visualViewport.addEventListener('resize', alTeclado, { passive: true }); W.visualViewport.addEventListener('scroll', alTeclado, { passive: true }); alTeclado(); }
 
   // ---------- la nube: su estado, lo bajado y la red ----------
   function alNube(t, d) {

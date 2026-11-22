@@ -21380,6 +21380,24 @@
       cerca(vdR(c2).height, vdCol().clientHeight, 3, 'una sola parte no llena la columna');
     } finally { relojVuelve(); await vistaCliente(false); }
   });
+  prueba('VD2', '«Ver más en Zernio» (D-294): con el enlace de métricas del cliente, justo bajo el título de «Cómo fue» y a la vista arriba de su panel, con el icono de enlace externo; abre otra pestaña sin decir de dónde viene; sin enlace, nada; en mi vista, nada', async () => {
+    await ifListo(); await tablero([pub(1)]);
+    relojEn('2026-11-20T10:00:00+01:00');
+    try {
+      ok((await M.informe.cargar(CLIENTE, '2026-10', { resumen: IF_RES('2026-10', 2) })).ok, 'el resumen de octubre');
+      await vistaCliente(true); M._in.render(); await espera(120);
+      const cf = () => q('.main > .vc-lado [data-vc="comofue"]');
+      await hasta(cf, 3000, '«Cómo fue»'); ok(!cf().querySelector('a.if-zernio'), 'sale sin enlace');
+      await M.updateClient(CLIENTE, { metricas: 'https://metricas.ejemplo.test/vd2' }); M._in.render(); await espera(150);
+      const a = await hasta(() => cf() && cf().querySelector('a.if-zernio'), 3000, '«Ver más en Zernio»');
+      igual([a.textContent.trim(), a.getAttribute('href'), a.target, a.rel], ['Ver más en Zernio', 'https://metricas.ejemplo.test/vd2', '_blank', 'noopener noreferrer'], 'el enlace');
+      ok(a.querySelector('svg'), 'sin el icono de enlace externo');
+      igual(cf().querySelector('.if-h').nextElementSibling, a, 'no va justo bajo el título');
+      ok(vdR(a).bottom <= vdR(cf()).top + 120, 'no queda a la vista arriba del panel');
+      ok(vdR(a).height >= 32 && vdR(a).height <= 44, 'la pastilla mide ' + Math.round(vdR(a).height) + ' px');
+      await vistaCliente(false); const a2 = q('a.if-zernio'); ok(!a2 || !a2.getClientRects().length, 'se ve en mi vista');
+    } finally { relojVuelve(); await M.updateClient(CLIENTE, { metricas: '' }); await vistaCliente(false); }
+  });
 
   window.pasarBateria = pasar;
   $('go').disabled = false; $('go').onclick = pasar;

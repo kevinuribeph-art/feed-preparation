@@ -77,7 +77,11 @@
     st.todoMira = !!(mios || []).length && (mios || []).every(m => m.observa === true);
     const ids = [...new Set((mios || []).map(m => m.cliente_id))];
     if (!ids.length) return [];
-    const l = await S.leer(`clientes?select=id,nombre,handle,foto,cuota_cent,proxima_emision&id=in.(${ids.map(encodeURIComponent).join(',')})`);
+    // `metricas` (D-294): un servidor que aún no la tiene contesta 400 y se lee como antes
+    const en = ids.map(encodeURIComponent).join(','), C0 = 'id,nombre,handle,foto,cuota_cent,proxima_emision';
+    let l;
+    try { l = await S.leer(`clientes?select=${C0},metricas&id=in.(${en})`); }
+    catch (e) { if (e.status !== 400) throw e; l = await S.leer(`clientes?select=${C0}&id=in.(${en})`); }
     return (l || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
   async function cargarDatos(cli, antes) {
@@ -204,7 +208,7 @@
         h('span', { text: 'Ábrelas una a una: puedes aprobar o pedir cambios.' })),
       h('button', { type: 'button', class: 'btn p', text: pend.length === 1 ? 'Revisarla' : 'Revisarlas', onclick: () => abrir(pend[0].pid) })) : null;
     // la columna derecha solo si tiene algo; sin ella, el calendario ocupa su sitio (como la «Vista cliente» de la Mesa, D-230, D-246)
-    const lado = [seguro(() => pintarPagos(cli)), seguro(pintarComoFue)].filter(Boolean);
+    const lado = [seguro(() => pintarPagos(cli)), seguro(() => pintarComoFue(cli))].filter(Boolean);
     const cols = h('div', { class: 'cols' + (lado.length ? ' con-lado' : '') }, pintarFeed(), seguro(pintarCentro), lado.length ? h('div', { class: 'lado' }, lado) : null);
     const pie = h('footer', { class: 'pie' }, h('a', { href: 'privacidad.html', text: 'Privacidad' }), h('a', { href: 'aviso-legal.html', text: 'Aviso legal' }), h('span', { text: 'Uribe Visuals' }));
     const tira = st.todoMira ? h('div', { class: 'pv-obs', role: 'region', 'aria-label': 'Cuenta que solo mira' },
@@ -345,13 +349,17 @@
     try { const m = await urls([ruta], 'facturas'); if (!m[ruta]) throw new Error('no se pudo abrir la factura'); if (w) w.location.replace(m[ruta]); else location.href = m[ruta]; }
     catch (e) { if (w) w.close(); toast(msgError(e)); }
   }
-  function pintarComoFue() {
+  // «Ver más en Zernio» (D-294): justo bajo el título de «Cómo fue», siempre a la vista (lección 247); otra pestaña, sin decir
+  // de dónde viene; solo un enlace https
+  const zernio = cli => cli && /^https:\/\/\S+$/.test(cli.metricas || '') && cli.metricas.length <= 500
+    ? h('a', { class: 'zernio', href: cli.metricas, target: '_blank', rel: 'noopener noreferrer' }, 'Ver más en Zernio', ico('ext')) : null;
+  function pintarComoFue(cli) {
     const p = mesAntes(st.mes), r = st.d.meses.find(x => x.mes === p && x.resumen), ultimo = st.d.meses.filter(x => x.resumen).map(x => x.mes).sort().pop();
     if (!ultimo) return null;
     const cab = x => h('div', { class: 'ti' }, h('h2', { text: 'Cómo fue ' + mesNom(p) }), x ? h('span', { text: x }) : null);
     if (!r) {
-      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card' }, cab(''), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
-      if (p > ultimo) return h('section', { class: 'card' }, cab(''), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
+      if (p >= hoy().slice(0, 7)) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`${may(MESES[+p.slice(5, 7) - 1])} aún no ha terminado: el resumen llega los primeros días de ${MESES[+st.mes.slice(5, 7) - 1]}.`));
+      if (p > ultimo) return h('section', { class: 'card' }, cab(''), zernio(cli), camino(`El resumen de ${MESES[+p.slice(5, 7) - 1]} llega en unos días.`));
       return null;
     }
     const res = r.resumen, c = res.cifras, ant = mesAntes(p), n = c.publicaciones.valor;
@@ -373,7 +381,7 @@
     const T = res.tipos || [], maxT = Math.max(1, ...T.map(t => t.alcance));
     return h('section', { class: 'card', 'aria-labelledby': 'h-comofue' },
       h('div', { class: 'ti' }, h('h2', { id: 'h-comofue', text: 'Cómo fue ' + mesNom(p) }), h('span', { text: n === 1 ? '1 publicación' : num(n) + ' publicaciones' })),
-      h('div', { class: 'cif' }, fichas), h('p', { class: 'sub', text: 'Frente a ' + MESES[+ant.slice(5, 7) - 1] }),
+      zernio(cli), h('div', { class: 'cif' }, fichas), h('p', { class: 'sub', text: 'Frente a ' + MESES[+ant.slice(5, 7) - 1] }),
       P.length ? [h('p', { class: 'h3', text: 'Alcance de cada publicación' }), barras, h('div', { class: 'fechas' }, h('span', { text: diaCorto(P[0].fecha) }), P.length > 1 ? h('span', { text: diaCorto(P[P.length - 1].fecha) }) : null), dato] : null,
       T.length ? [h('p', { class: 'h3', text: 'Alcance medio por tipo' }), h('div', { class: 'tp' }, T.map(t => { const b = h('i'); b.style.width = Math.max(t.alcance ? 1 : 0, t.alcance / maxT * 100).toFixed(1) + '%'; return [h('span', { text: t.tipo }), h('span', {}, b), h('em', { text: cifra(t.alcance) })]; }))] : null,
       res.frase ? h('p', { class: 'frase', text: res.frase }) : null);

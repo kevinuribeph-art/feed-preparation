@@ -154,6 +154,10 @@ svg.i *{vector-effect:non-scaling-stroke}
 .camino{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r-md);background:var(--bg);color:var(--ink-2);font-size:14px;line-height:1.5}
 .camino svg{width:20px;height:20px;color:var(--mute);margin-top:1px}
 .camino b{display:block;color:var(--ink);font-weight:600}
+.zernio{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;margin:-2px 0 12px;border-radius:var(--r-pill);background:var(--acc-soft);color:var(--acc-ink);font-size:14px;font-weight:600;text-decoration:none;transition:background-color var(--d2)}
+.zernio:hover{background:color-mix(in srgb,var(--acc-soft),var(--acc) 12%)}
+.zernio svg{width:15px;height:15px}
+@media (pointer:coarse){.zernio{min-height:44px;padding:0 14px}}
 .cif{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .cif div{background:var(--bg);border-radius:var(--r-md);padding:10px 12px;min-width:0}
 .cif span{font-size:12.5px;color:var(--mute);display:block}.cif b{font-size:22px;font-weight:800;display:block;line-height:1.2}

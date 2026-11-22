@@ -123,7 +123,8 @@
     // hasta el lote D, lo de siempre (D-288): cada factura con el primer mes de su tramo (su periodo) y la cuota solo si paga cada mes
     const q = cob ? cob.cuota(c) : null, prox = cob && q ? cob.proxima(cli) : null, mensual = q && (q.pago || 'mensual') === 'mensual';
     const cliente = { id: cli, nombre: String(c.name || cli).slice(0, 80), handle: c.handle ? String(c.handle).replace(/^@/, '').slice(0, 40) : null,
-      cuota_cent: mensual ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null, _foto: c.foto || null };
+      cuota_cent: mensual ? Math.round(q.importe * 100) : null, proxima_emision: prox && prox.emitida ? prox.emitida : null,
+      metricas: c.metricas && X.metricasOk && X.metricasOk(c.metricas) && /^https:\/\//.test(c.metricas) ? c.metricas : null, _foto: c.foto || null };   // «Ver más en Zernio» (D-294)
     // Ningún texto que va a la web nombra a otro cliente (lecciones 82 y 84): si no, no se envía.
     const problemas = [], esporadicos = tareas.filter(t => t.tipo === 'esporadico' && !t.pasado && t.txt).map(t => String(t.txt));
     const textos = [...pubs.flatMap(p => [[`«${p.fila.nombre}», nombre`, p.fila.nombre], [`«${p.fila.nombre}», caption`, p.fila.caption]]),

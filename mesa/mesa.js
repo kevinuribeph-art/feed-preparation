@@ -2766,7 +2766,7 @@ ${TK_FUENTES}
 #mesa .form .expop{position:relative;display:flex;gap:12px;align-items:flex-start;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .expop:hover{border-color:var(--line-strong)}
 #mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--mute);border-radius:50%;background:var(--panel-2);cursor:pointer}#mesa .expop input:checked{border:4.5px solid var(--acc)}   /* the Mesa's radio (.caplab) */
-#mesa .expop:has(input:checked){border-color:var(--acc);background:var(--acc-soft)}
+#mesa .form .expop.on{border-color:var(--acc);background:var(--acc-soft)}
 #mesa .expd{display:flex;flex-direction:column;gap:2px;min-width:0}#mesa .expd b{font-size:13.5px;font-weight:600;color:var(--ink)}#mesa .expd span{font-size:12.5px;line-height:1.4;color:var(--mute)}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
 #mesa .cp-copias button .sub{font-size:12px;color:var(--mute)}
 #mesa .cp-copias .nota{display:flex;gap:7px;max-width:250px;margin:2px 4px;padding:6px 6px 4px;font-size:12px;line-height:1.4;color:var(--ink-2)}
@@ -7740,7 +7740,7 @@ ${TK_FUENTES}
   // size, with the folders) or the light one (D-017: one .json with the photos at 1080 px, for tests or to pass something
   // quickly). «Importar…» takes both. No await before the save picker or the download: they need the click
   function dlgExportar() {
-    const op = (v, t, d, on) => `<label class="expop"><input type="radio" name="exp" value="${v}"${on ? ' checked' : ''}><span class="expd"><b>${t}</b><span>${d}</span></span></label>`;
+    const op = (v, t, d, on) => `<label class="expop${on ? ' on' : ''}"><input type="radio" name="exp" value="${v}"${on ? ' checked' : ''}><span class="expd"><b>${t}</b><span>${d}</span></span></label>`;
     showDialog('exportar', '<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar</h3><form class="form expform" autocomplete="off"><div class="expops" role="radiogroup" aria-label="Qué copia">'
       + op('completa', 'Copia completa', 'Todo a su tamaño original, con las carpetas: un .tar por cliente y uno general. Para guardarla en el SSD.', true)
       + op('ligera', 'Copia ligera', 'Un solo .json con las fotos a 1080 px. Para pruebas o para pasar algo rápido.', false)
@@ -7753,6 +7753,7 @@ ${TK_FUENTES}
       else if (M.copia && M.copia.exportar) M.copia.exportar();
       else toast((window.MESA_CARGA || {}).copia === 'fallo' ? 'No se pudo cargar la copia completa (copia.js): recarga la página.' : 'La copia completa aún se está cargando: vuelve a intentarlo en un momento.');   // D-249
     });
+    f.addEventListener('change', () => f.querySelectorAll('.expop').forEach(l => l.classList.toggle('on', l.querySelector('input').checked)));   // a class, not :has() (it costs on every change of the page)
     const r = f.querySelector('input[name="exp"]:checked'); if (r) r.focus();
   }
   function elegirImportar() {          // one .json as always; one or more .tar of «Exportar todo» (clients, general and parts, in any order) together

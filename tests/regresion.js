@@ -12783,7 +12783,7 @@
       ok(M._in.root().classList.contains('pp-on') && q('.pp:not([hidden])'), 'la página no está a la vista');
       igual(W.getComputedStyle(q('.main')).display, 'none', 'el tablero se ve detrás');
       const logo = q('.appbar .brand');
-      igual([logo.tagName, logo.title, logo.getAttribute('aria-label'), logo.getAttribute('aria-current')], ['BUTTON', 'Clic: tu página · Clic derecho: copias', 'Página personal', 'page'], 'el logo');   // la ayuda del clic derecho (D-263)
+      igual([logo.tagName, logo.title, logo.getAttribute('aria-label'), logo.getAttribute('aria-current')], ['BUTTON', 'Clic: tu página · Clic derecho: nuevo cliente y copias', 'Página personal', 'page'], 'el logo');   // la ayuda del clic derecho (D-263)
       ok(W.getComputedStyle(q('.appbar .tema')).display !== 'none', 'claro / oscuro no sale con la página');
       // una pestaña de cliente la cierra (la del cliente abierto también)
       q(`.tabs [data-act="client"][data-id="${CLIENTE}"]`).click(); await espera(60);
@@ -20322,6 +20322,10 @@
     } finally { M.files[id('bd-a.jpg')].size = sz[0]; M.files[id('bd-d.jpg')].size = sz[1]; }
     // el clic derecho en una que no está elegida: lo de siempre, sin «Descargar»
     a43Ctx(it('bd-e.jpg')); ok(!a43Items().some(t => /Descargar/.test(t)), 'una foto sin elegir ofrece descargar lo elegido'); tecla('Escape'); await espera(20);
+    // la bandeja plegada no enseña «Descargar N»
+    q('.side > .tray .tfold').click(); await espera(400);
+    ok(W.getComputedStyle(boton()).display === 'none', 'con la bandeja plegada sigue «Descargar N»');
+    q('.side > .tray .tfold').click(); await espera(400);
     // nada elegido: un clic sin ⌘ lo suelta y el botón se va
     q('.side > .tray .tbody').click(); await espera(40);
     ok(!boton() || boton().hidden, 'sin nada elegido sigue «Descargar»');
@@ -20348,6 +20352,7 @@
       ok(!r, 'baja sin preguntar por la copia');
       const d = dialogo(); ok(d && /Una foto solo está aquí en su copia de 2560/.test(d.textContent), 'no pregunta por la copia: ' + json(d && d.textContent));
       igual([...d.querySelectorAll('.amode button')].map(b => b.querySelector('b').textContent), ['Bajar la copia', 'Parar'], 'las respuestas');
+      ok(D.activeElement === d.querySelector('.amode button'), 'el foco no entra en la pregunta');
       d.querySelector('.amode button:last-child').click(); await espera(300);
       ok(!dialogo(), '«Parar» deja la pregunta');
       r = await conDescarga(async () => { await espera(200); }); ok(!r, '«Parar» bajó algo');
@@ -20375,6 +20380,8 @@
     igual(a43Items(), ['Quitar hueco', '·Abrir todas las notas', '·+ Hueco'], 'el menú de un hueco con 2');
     const mas = a43Btns()[2]; igual(mas.querySelector('.kb') && mas.querySelector('.kb').textContent, 'máximo 2', '«+ Hueco» apagado no dice «máximo 2»'); ok(/2 huecos/.test(mas.title), '«+ Hueco» apagado no dice su motivo');
     ok(a43Menu().querySelector('hr'), 'sin la raya entre lo del hueco y lo del feed');
+    for (const tema of ['light', 'dark']) await enTema(tema, async () => { const c = a43Contraste(W.getComputedStyle(a43Menu().querySelector('hr')).backgroundColor, W.getComputedStyle(a43Menu()).backgroundColor); ok(c >= 1.5, `la raya del menú casi no se ve (${c.toFixed(2)}:1, ${tema})`); });
+    { const ic = mas.querySelector('.i-mas').getBoundingClientRect(), tn = [...(mas.querySelector('.cpt') || mas).childNodes].find(n => n.nodeType === 3 && n.data.trim()), r = D.createRange(); r.selectNodeContents(tn); const tx = r.getBoundingClientRect(); ok(tx.left - ic.right < 10, `el «+» y «Hueco» no van juntos (${Math.round(tx.left - ic.right)} px entre los dos)`); }
     a43Elige('Quitar hueco'); await espera(60); igual(M.status().fillers, 1, '«Quitar hueco» no lo quitó');
     // con portada: «Quitar portada» y «Quitar hueco»
     const [f] = await M.addFiles([await foto('fh1-p.jpg', 1080, 1350, '#806040')]);
@@ -20387,6 +20394,7 @@
     a43Ctx(q('.feed .cell.filler[data-filler="0"]')); a43Elige('Quitar hueco'); await espera(80);
     igual(M.status().fillers, 0, '«Quitar hueco» con portada no quitó el hueco');
     ok(M.board().tray.includes(f), 'la foto de la portada no volvió a la bandeja');
+    await hasta(() => q(`.side > .tray .titem[data-file="${f}"]`), 2000, 'la foto de la portada dibujada en la bandeja');
     // con una Nota: abrir y cerrar todas
     M._test.setMemo('r2', 'FH1 nota'); await espera(60);
     a43Ctx(celda('r3')); a43Elige('Abrir todas las notas'); await espera(40);
@@ -20398,7 +20406,7 @@
   prueba('FH2', 'El menú del feed con el teclado (D-282): el grid es una parada de Tab y ⇧F10 o la tecla de menú abren el menú sobre la primera casilla, con el foco dentro; ↑ ↓ lo recorren, Esc lo cierra y devuelve el foco al grid sin llegar al tablero; nada en «Vista cliente»', async () => {
     await tablero([pub(1), pub(2)]);
     const g = q('.feed .grid');
-    igual(g.tabIndex, 0, 'el grid no es una parada de Tab');
+    igual(g.tabIndex, 0, 'el grid no es una parada de Tab'); igual(g.getAttribute('role'), 'group', 'el grid no dice qué es');
     g.focus(); tecla('F10', { shift: true, en: g }); await espera(30);
     ok(a43Menu(), '⇧F10 no abre el menú');
     const r1 = q('.feed .grid > .cell').getBoundingClientRect(), mr = a43Menu().getBoundingClientRect();
@@ -20472,7 +20480,14 @@
       await espera(60);
       igual(ppCard().querySelectorAll('.pp-ecm.se').length, 1, 'escribiendo, el separador no se dibuja como una línea');
       igual(W.CSS.highlights.get('pp-es') ? W.CSS.highlights.get('pp-es').size : 0, 1, 'escribiendo, la raya «⸻» no se esconde');
-      await naEscribe(cn, '---\n- dos\n\n.punto');   // Intro en una viñeta vacía termina la lista
+      // ⌫ al principio de la línea de debajo quita el separador entero (nunca lo pega al texto); escribir en su línea va a una nueva
+      await naEscribe(cn, 'x'); a43Caret(cn, 3); cn._esc.poner(a43Linea(cn, 3) - 1); ok(naTecla(cn, 'Backspace'), '⌫ bajo el separador es el del navegador'); await espera(30);
+      igual(cn.textContent.replace(/\n+$/, ''), 'Plan\n- uno\nx', '⌫ bajo el separador no lo quita entero');
+      cn._esc.poner(a43Linea(cn, 1)); D.execCommand('insertLineBreak'); await naEscribe(cn, '/-'); naTecla(cn, 'Enter'); await espera(30);
+      a43Caret(cn, 2); { const ev = new W.InputEvent('beforeinput', { inputType: 'insertText', data: 'z', bubbles: true, cancelable: true }); cn.dispatchEvent(ev); if (!ev.defaultPrevented) D.execCommand('insertText', false, 'z'); } await espera(30);   // execCommand no lanza beforeinput: como el teclado
+      igual(cn.textContent.split('\n').slice(0, 4), ['Plan', '- uno', '⸻', 'z'], 'escribir en la línea del separador lo rompe');
+      cn.textContent = 'Plan\n- uno\n⸻\n---'; cn.dispatchEvent(new W.InputEvent('input', { bubbles: true })); await espera(40); naFin(cn);
+      await naEscribe(cn, '\n- dos\n\n.punto');   // Intro en una viñeta vacía termina la lista
       ppLeer(); await espera(60);
       const L = qa('.pp-card .pp-cn .pp-el').map(x => x.className.replace('pp-el', '').trim() || '-');
       igual(L, ['-', 'vi', 'se', '-', 'vi', '-'], 'leyendo, las líneas');
@@ -20497,6 +20512,10 @@
       igual(await tab(2), '1. a\n    1. x\n    2. b\n2. c', 'Tab no sigue la sublista de encima');
       a43Caret(cn, 2); await naEscribe(cn, '\n');
       igual(cn.textContent, '1. a\n    1. x\n    2. b\n    3. \n2. c', 'Intro no sigue la cuenta de su nivel');
+      await pon('1. a\n2. b\n3. c'); a43Caret(cn, 0); await naEscribe(cn, '\n');
+      igual(cn.textContent, '1. a\n2. \n3. b\n4. c', 'Intro en medio no sigue la cuenta de las de detrás');
+      D.execCommand('undo'); await espera(40);
+      igual(cn.textContent, '1. a\n2. b\n3. c', 'Intro en medio no se deshace con un solo ⌘Z');
       await pon('1. a\n  1. x\n2. b');   // una sublista de antes, con 2 espacios
       igual(await tab(2), '1. a\n  1. x\n  2. b', 'Tab no se pone al nivel de la sublista de encima, de 2');
       igual(await tab(2, true), '1. a\n  1. x\n2. b', '⇧Tab no vuelve al nivel de encima');
@@ -20566,8 +20585,11 @@
       const rs = [...d.querySelectorAll('input[type="radio"][name="exp"]')];
       igual(rs.map(x => x.value), ['completa', 'ligera'], 'las dos copias'); ok(rs[0].checked, 'la completa no va de serie');
       ok(/Copia completa/.test(d.textContent) && /Copia ligera/.test(d.textContent) && /1080 px/.test(d.textContent), 'los nombres de las copias');
+      { const op = d.querySelector('.expop'), ri = op.querySelector('input').getBoundingClientRect(), tx = op.querySelector('.expd b').getBoundingClientRect();
+        ok(W.getComputedStyle(op).display === 'flex' && Math.abs(ri.top - tx.top) < 8 && ri.right < tx.left, 'el redondel y su texto no van en la misma fila'); ok(W.getComputedStyle(op.querySelector('input')).appearance === 'none', 'el redondel no es el de la Mesa'); }
       d.querySelector('form').requestSubmit(); await espera(60);
-      igual(hecho, 'completa,', 'la completa no hace «Exportar todo»'); ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'la ventana sigue abierta');
+      igual(hecho, 'completa,', 'la completa no hace «Exportar todo»');
+      ok(!qa('.toast').some(t => /No se pudo/.test(t.textContent)), 'exportar deja un aviso de fallo: ' + json(qa('.toast').map(t => t.textContent))); ok(!dialogo() || dialogo().dataset.dlg !== 'exportar', 'la ventana sigue abierta');
       mcElegir('Exportar…'); await espera(40);
       const d2 = dialogo(); d2.querySelector('input[value="ligera"]').click(); d2.querySelector('form').requestSubmit(); await espera(60);
       igual(hecho, 'completa,ligera,', 'la ligera no hace el .json');

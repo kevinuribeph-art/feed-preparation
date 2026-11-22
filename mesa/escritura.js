@@ -341,6 +341,10 @@
   }
   function antesInput(ctl, e) {
     if (e.inputType === 'historyUndo' && (ctl.conv || ctl.cmd || ctl.tras)) { e.preventDefault(); deshacerPropio(ctl); return; }
+    if (e.inputType === 'insertText' && e.data && !ctl.propio && !e.isComposing) {   // typed on a separator's line: on a line of its own under it (D-283)
+      const c = caret(ctl.el), t = texto(ctl.el), l = c && lineaEn(lineas(t), c.a);
+      if (l && l.se && c.a === c.b) { e.preventDefault(); const fin = l.o + l.t.length; reemplazar(ctl, fin, fin, '\n' + e.data); ctl.el.dispatchEvent(new Event('input', { bubbles: true })); return; }
+    }
     // a line typed as a paragraph (not the Enter key: dictation, other ways of typing): a «\n», and in a list it goes on
     if (e.inputType === 'insertParagraph' && !ctl.propio && !e.isComposing) {
       e.preventDefault();
@@ -354,9 +358,12 @@
     if (!p || c.a < l.o + p.fin) return false;
     if (!t.slice(l.o + p.fin, l.o + l.t.length).trim() && c.a === c.b) reemplazar(ctl, l.o, l.o + p.fin, '');
     else {
-      const prim = primerasDe(L), i = L.indexOf(l), sigue = new Set([...prim].map(f => (f > i ? f + 1 : f)));   // the firsts, after the new line
-      reemplazar(ctl, c.a, c.b, '\n' + ' '.repeat(p.ind) + (p.tipo === 'vi' ? '-' : p.tipo === 'nu' ? (p.n + 1) + '.' : '[]') + ' ');
-      if (p.tipo === 'nu') { const t1 = texto(el), c1 = caret(el), t2 = numerar(t1, i, i + 1, sigue, new Set()); if (t2 !== t1 && c1) { const x = caretEn(t1, t2, c1.a); aplicar(ctl, t1, t2, x, x); } }   // the ones after it count on (D-283)
+      const ins = '\n' + ' '.repeat(p.ind) + (p.tipo === 'vi' ? '-' : p.tipo === 'nu' ? (p.n + 1) + '.' : '[]') + ' ';
+      if (p.tipo !== 'nu') reemplazar(ctl, c.a, c.b, ins);
+      else {                                   // the new line and the numbers after it in one edit, one step of ⌘Z (D-283)
+        const i = L.indexOf(l), sigue = new Set([...primerasDe(L)].map(f => (f > i ? f + 1 : f))), t1 = t.slice(0, c.a) + ins + t.slice(c.b), x = caretEn(t1, numerar(t1, i, i + 1, sigue, new Set()), c.a + ins.length);
+        aplicar(ctl, t, numerar(t1, i, i + 1, sigue, new Set()), x, x);
+      }
     }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
@@ -397,6 +404,8 @@
     if (k === 'Enter' && !e.shiftKey && p && c.a >= l.o + p.fin) {   // ⇧Intro, or not in a list: the browser's line break, as before
       e.preventDefault(); e.stopPropagation(); seguirLista(ctl); return;
     }
+    { const i = L.indexOf(l), an = L[i - 1];   // ⌫ at the start of the line under a separator: the separator goes, never glued to the text (D-283)
+      if (k === 'Backspace' && !e.shiftKey && c.a === c.b && c.a === l.o && an && an.se) { e.preventDefault(); e.stopPropagation(); reemplazar(ctl, an.o, l.o, ''); poner(el, an.o); return; } }
     if (k === 'Backspace' && !e.shiftKey && p && c.a === c.b && c.a === l.o + p.fin) {   // right behind a mark: it goes whole
       e.preventDefault(); e.stopPropagation(); reemplazar(ctl, l.o + p.ind, l.o + p.fin, ''); return;
     }

@@ -1832,7 +1832,8 @@
     const f = previewAt(k);
     if (S.previews) { const c = S.previews.slice(); c.splice(k, 1); setPreviews(c); }
     if (f && !refsOf(S).has(f)) S.tray.unshift(f);
-    setFillers(fillersOf() - 1);
+    const n = fillersOf() - 1; if (n > 0) S.fillers = n; else delete S.fillers;
+    changed();                         // the feed and the tray drawn again: the cover's photo shows in the tray at once
   }
   function delFiller(k) {              // × on a filler: its photo first, the filler itself once it is empty
     if (previewAt(k)) return delPreview(k);
@@ -2705,7 +2706,7 @@ ${TK_FUENTES}
 #mesa .tfold[hidden]{display:none}#mesa .tfold:hover{background:var(--bg-2)}#mesa .tfold svg{width:16px;height:16px;transition:transform var(--d-m) var(--ease-m)}#mesa .tray.fold .tfold svg{transform:rotate(-90deg)}
 #mesa .trayhead>b{user-select:none;-webkit-user-select:none}
 #mesa .side>.tray.fold{flex:none;overflow:hidden}
-#mesa .tray.fold .tfil,#mesa .tray.fold .ttam,#mesa .tray.fold .trayhead>.btn,#mesa .tray.fold .cpnav,#mesa .tray.fold .tbody{display:none}
+#mesa .tray.fold .tfil,#mesa .tray.fold .tdl,#mesa .tray.fold .ttam,#mesa .tray.fold .trayhead>.btn,#mesa .tray.fold .cpnav,#mesa .tray.fold .tbody{display:none}
 #mesa .side>.tray.fold.tray-anim .tfil,#mesa .side>.tray.fold.tray-anim .trayhead>.btn{display:inline-flex}#mesa .side>.tray.fold.tray-anim .cpnav,#mesa .side>.tray.fold.tray-anim .tbody{display:block}
 #mesa .side>.tray.fold.tray-anim :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-fuera var(--d-m) var(--ease-m) forwards}#mesa .side>.tray.tray-anim:not(.fold) :is(.tfil,.trayhead>.btn,.cpnav,.tbody){animation:col-dentro var(--d-m) var(--ease-m)}
 #mesa .side>.tray.fold.tray-anim .tfold svg{animation:col-ch-f var(--d-m) var(--ease-m)}#mesa .side>.tray.tray-anim:not(.fold) .tfold svg{animation:col-ch-a var(--d-m) var(--ease-m)}
@@ -2759,12 +2760,12 @@ ${TK_FUENTES}
 #mesa .cpmenu{position:fixed;z-index:70;display:flex;flex-direction:column;min-width:230px;padding:6px;background:var(--panel-2);border:1px solid var(--line2);border-radius:var(--r-md);box-shadow:var(--shadow-lg)}
 #mesa .cpmenu button{display:flex;justify-content:space-between;align-items:center;border:0;background:none;border-radius:var(--r-sm);min-height:32px;padding:6px 10px;text-align:left;font-size:13px;color:var(--ink)}
 #mesa .cpmenu button:hover:not(:disabled){background:var(--bg-2)}#mesa .cpmenu button:disabled{color:var(--faint);cursor:default}#mesa .cpmenu .kb{margin-left:14px;color:var(--mute);font-variant-numeric:tabular-nums}
-#mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line)}#mesa .cpmenu button:disabled .kb{color:var(--faint)}
+#mesa .cpmenu hr{width:100%;height:1px;margin:5px 0;border:0;background:var(--line-strong)}#mesa .feed > .grid:focus-visible{outline-offset:-2px}#mesa .cpmenu button:disabled .kb{color:var(--faint)}
 #mesa .cpmenu.cp-copias{min-width:264px}
 #mesa .expops{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px}
-#mesa .expop{position:relative;display:flex;gap:12px;align-items:flex-start;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
+#mesa .form .expop{position:relative;display:flex;gap:12px;align-items:flex-start;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);cursor:pointer;font-weight:400;transition:background var(--d1) ease-out,border-color var(--d1) ease-out}
 #mesa .expop:hover{border-color:var(--line-strong)}
-#mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;accent-color:var(--acc)}
+#mesa .expop input{flex:none;width:16px;height:16px;margin:2px 0 0;-webkit-appearance:none;appearance:none;box-sizing:border-box;border:1.5px solid var(--mute);border-radius:50%;background:var(--panel-2);cursor:pointer}#mesa .expop input:checked{border:4.5px solid var(--acc)}   /* the Mesa's radio (.caplab) */
 #mesa .expop:has(input:checked){border-color:var(--acc);background:var(--acc-soft)}
 #mesa .expd{display:flex;flex-direction:column;gap:2px;min-width:0}#mesa .expd b{font-size:13.5px;font-weight:600;color:var(--ink)}#mesa .expd span{font-size:12.5px;line-height:1.4;color:var(--mute)}#mesa .cp-copias button{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:7px 10px}
 #mesa .cp-copias button .sub{font-size:12px;color:var(--mute)}
@@ -3134,7 +3135,7 @@ ${TK_FUENTES}
       if (M._ro) { M._ro.disconnect(); M._ro = null; }
       if (!S) root.classList.remove('client');
       if (S) {
-        main.innerHTML = '<section class="feed"><div class="grid" tabindex="' + (root.classList.contains('client') ? -1 : 0) + '" aria-label="Feed del mes" aria-keyshortcuts="Shift+F10"></div></section><section class="hv" aria-label="Historias" hidden></section>'
+        main.innerHTML = '<section class="feed"><div class="grid" tabindex="' + (root.classList.contains('client') ? -1 : 0) + '" role="group" aria-label="Feed del mes" aria-keyshortcuts="Shift+F10"></div></section><section class="hv" aria-label="Historias" hidden></section>'
           + `<div class="side" style="${colVars()}"><aside class="tray${trayPlegada() ? ' fold' : ''}"><div class="trayhead"><button type="button" class="tfold" data-act="tfold"${sinCal() ? ' hidden' : ''} aria-expanded="${!trayPlegada()}" title="${trayPlegada() ? 'Abrir la bandeja' : 'Plegar la bandeja'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><b title="Doble clic: la bandeja y el calendario, mitad y mitad">Bandeja</b>`
           + '<span class="tcount"></span><div class="tfil" role="group" aria-label="Fotos de la bandeja"><button type="button" data-act="tfil" data-v="sin">Sin usar</button><button type="button" data-act="tfil" data-v="portada" title="Libres para portada">Libres</button><button type="button" data-act="tfil" data-v="todas">Todas</button></div><button type="button" class="mchip ghost tdl" data-act="tdescargar" hidden>' + IC.descargar + '<span>Descargar</span></button><button class="btn" data-act="add">' + IC.upload + 'Añadir fotos</button>'
           + `<div class="ttam" hidden><i></i><input type="range" min="0" max="100" step="1" value="${tamPos()}" aria-label="Tamaño de las fotos de la bandeja" title="Tamaño de las fotos · doble clic: el de siempre"><i></i></div></div><div class="cpnav"></div>`
@@ -7673,7 +7674,7 @@ ${TK_FUENTES}
     if (!shellReady()) return null;
     const l = items.filter(Boolean), el = document.createElement('div');
     el.className = 'cpmenu' + (o.cls ? ' ' + o.cls : ''); el.setAttribute('role', 'menu'); if (o.label) el.setAttribute('aria-label', o.label);
-    el.innerHTML = l.map((it, i) => it === '-' ? '<hr>' : `<button type="button" role="menuitem" data-i="${i}"${it.off ? ' disabled' : ''}${it.tip ? ` title="${esc(it.tip)}"` : ''}>${it.html || esc(it.t)}${it.sub ? `<span class="sub">${esc(it.sub)}</span>` : ''}${it.kb ? `<span class="kb">${esc(it.kb)}</span>` : ''}</button>`).join('') + (o.pie || '');
+    el.innerHTML = l.map((it, i) => it === '-' ? '<hr>' : `<button type="button" role="menuitem" data-i="${i}"${it.off ? ' disabled' : ''}${it.tip ? ` title="${esc(it.tip)}"` : ''}>${it.html ? `<span class="cpt">${it.html}</span>` : esc(it.t)}${it.sub ? `<span class="sub">${esc(it.sub)}</span>` : ''}${it.kb ? `<span class="kb">${esc(it.kb)}</span>` : ''}</button>`).join('') + (o.pie || '');
     if (o.desc) el.setAttribute('aria-describedby', o.desc);
     el.addEventListener('click', e => {
       const b = e.target.closest('button[data-i]'); if (!b || b.disabled) return;
@@ -7712,9 +7713,8 @@ ${TK_FUENTES}
     const feed = e.target.closest('.main > .feed'); if (!feed) return;
     if (e.type === 'keydown') {
       if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) || !e.target.matches('.feed > .grid')) return;
-      e.preventDefault(); e.stopPropagation();
       const c = feed.querySelector('.grid > .cell'), r = (c || e.target).getBoundingClientRect();
-      menuFeed(r.left + 12, r.top + 12, c && c.dataset.filler != null ? +c.dataset.filler : null, e.target);
+      if (menuFeed(r.left + 12, r.top + 12, c && c.dataset.filler != null ? +c.dataset.filler : null, e.target)) { e.preventDefault(); e.stopPropagation(); }
       return;
     }
     if (e.target.closest('textarea, input, [contenteditable]')) return;   // a Nota being written: the browser's own (spelling, paste)
@@ -7741,11 +7741,11 @@ ${TK_FUENTES}
   // quickly). «Importar…» takes both. No await before the save picker or the download: they need the click
   function dlgExportar() {
     const op = (v, t, d, on) => `<label class="expop"><input type="radio" name="exp" value="${v}"${on ? ' checked' : ''}><span class="expd"><b>${t}</b><span>${d}</span></span></label>`;
-    showDialog('exportar', '<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar</h3><form class="form" data-form="exportar" autocomplete="off"><div class="expops" role="radiogroup" aria-label="Qué copia">'
+    showDialog('exportar', '<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>Exportar</h3><form class="form expform" autocomplete="off"><div class="expops" role="radiogroup" aria-label="Qué copia">'
       + op('completa', 'Copia completa', 'Todo a su tamaño original, con las carpetas: un .tar por cliente y uno general. Para guardarla en el SSD.', true)
       + op('ligera', 'Copia ligera', 'Un solo .json con las fotos a 1080 px. Para pruebas o para pasar algo rápido.', false)
       + '</div><div class="row"><button type="submit" class="btn">Exportar</button></div></form>');
-    const f = root.querySelector('.detail form[data-form="exportar"]');
+    const f = root.querySelector('.detail form.expform');   // no data-form: submitForm is the clients' (it would fail on it)
     f.addEventListener('submit', e => {
       e.preventDefault();
       const v = (f.querySelector('input[name="exp"]:checked') || {}).value; closeDetail();

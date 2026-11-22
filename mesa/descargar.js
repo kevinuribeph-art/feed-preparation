@@ -255,13 +255,16 @@
   }
   const bandejaN = () => (I() && I().S ? deBandeja().length : 0);
   const MAX_ZIP = 0xFFFFFFFF;
+  const EXT = { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/webp': ['.webp'], 'image/heic': ['.heic'], 'image/gif': ['.gif'] };
+  const conTipo = (n, b) => { const e = EXT[b && b.type]; return !e || e.some(x => n.toLowerCase().endsWith(x)) ? n : n.replace(/(\.[^./]*)?$/, e[0]); };   // its name with the extension of its bytes
+  async function blobDe(X, id) { try { return await X.getBlob(id); } catch (e) { throw new Error(`«${(M.files[id] || {}).name || 'una foto'}»: ${String((e && e.message) || e).replace(/\.$/, '')}`); } }
   let jobB = null;
   async function bandeja(conCopia) {
     const X = I(); if (!X || !X.S || jobB) return;
     const l = deBandeja(); if (!l.length) return;
     const n = l.length, enc = new TextEncoder();
     // past 4 GB a ZIP can't be made: said before reading anything (the sizes the mesa keeps)
-    if (n > 1 && (n > 65535 || l.reduce((t, x) => t + ((M.files[x.id] || {}).size || 0) + 76 + 2 * enc.encode(x.dir + (M.files[x.id] || {}).name).length, 22) > MAX_ZIP)) {
+    if (n > 1 && (n > 65535 || l.reduce((t, x) => t + ((M.files[x.id] || {}).copia ? 0 : (M.files[x.id] || {}).size || 0) + 76 + 2 * enc.encode(x.dir + (M.files[x.id] || {}).name).length, 22) > MAX_ZIP)) {
       X.toast('Pasa de 4 GB y no cabe en un ZIP: elige menos fotos.', { ms: 7000 }); return;
     }
     const nc = l.filter(x => (M.files[x.id] || {}).copia).length;
@@ -269,19 +272,19 @@
     const mio = jobB = {};
     try {
       if (n === 1) {
-        const f = M.files[l[0].id], blob = await X.getBlob(l[0].id);
-        bajar(blob, f.name || 'foto.jpg');
-        M.descargar.ultimo = { name: f.name, bytes: blob.size, fotos: 1 };
-        X.toast(`Descargada «${f.name}», tal cual. Está en Descargas.`, { ms: 6000 });
+        const f = M.files[l[0].id], blob = await blobDe(X, l[0].id), nm = conTipo(f.name || 'foto.jpg', blob);
+        bajar(blob, nm);
+        M.descargar.ultimo = { name: nm, bytes: blob.size, fotos: 1 };
+        X.toast(`Descargada «${nm}»${f.copia ? ', su copia de 2560' : ', tal cual'}. Está en Descargas.`, { ms: 6000 });
         return;
       }
       const c = X.CL.find(x => x.id === X.curClient), name = `${(limpio(c ? c.name : X.S.client) || 'cliente').toLowerCase()}-bandeja-${X.hoy()}.zip`;
       X.toast(`Bajando ${n} fotos en un ZIP: «${name}», cada foto tal cual.`, { key: 'dl-bandeja', ms: 600000 });
       const files = [], usados = new Set();
       for (const x of l) {
-        const f = M.files[x.id], base = f.name || 'foto.jpg';
+        const f = M.files[x.id], blob = await blobDe(X, x.id), base = conTipo(f.name || 'foto.jpg', blob);
         let nm = x.dir + base; for (let j = 2; usados.has(nm); j++) nm = x.dir + base.replace(/(\.[^.]*)?$/, m => `-${j}${m}`);
-        usados.add(nm); files.push({ name: nm, blob: await X.getBlob(x.id) });
+        usados.add(nm); files.push({ name: nm, blob });
       }
       let blob;
       try { blob = await zip(files, () => jobB !== mio); }
@@ -298,9 +301,10 @@
     const X = I();
     X.showDialog('dlcopia', `<button class="x" data-act="close" aria-label="Cerrar">×</button><h3>${n === 1 ? 'Una foto solo está' : `${n} fotos solo están`} aquí en su copia de 2560</h3>`
       + '<div class="amode"><button type="button" class="btn2" data-dlb="copia"><kbd>1</kbd><b>Bajar la copia</b></button><button type="button" class="btn2" data-dlb="parar"><kbd>2</kbd><b>Parar</b></button></div>');
+    const b = X.root().querySelector('.detail[data-dlg="dlcopia"] [data-dlb]'); if (b) b.focus();   // the focus in the question, not on the page behind
   }
   function responderCopia(b) {
-    const X = I(), si = b.dataset.dlb === 'copia', fin = () => { X.closeDetail(); if (si) bandeja(true); };
+    const X = I(), si = b.dataset.dlb === 'copia', fin = () => { const d = X.root().querySelector('.detail'); if (d && !d.hidden && d.dataset.dlg === 'dlcopia') X.closeDetail(); if (si) bandeja(true); };
     if (X.elegirYa) X.elegirYa(b, fin); else fin();   // a second answer while the first one closes: nothing
   }
 

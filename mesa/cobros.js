@@ -108,9 +108,9 @@
   }
   // «+ Factura» of a monthly client: the next stretch without an invoice, from the month after the last one invoiced (D-288)
   function pieMensual(cli, h) {
-    const c = cliRec(cli), q = C().cuota(c), m = mesNueva(cli, h), t = q && C().libre ? C().libre(q, C().vivos(cli), m) : q ? { de: m, hasta: m } : null;
-    const nom = t ? (t.hasta !== t.de ? `${mesTxt(t.de, h)} – ${mesTxt(t.hasta, h)}` : mesTxt(t.de, h)) : mesTxt(m, h);
-    return `<button type="button" class="co-mas" data-co="nueva" data-m="${t ? t.de : m}" data-h="${t ? t.hasta : m}"${t ? '' : q ? ' disabled title="El acuerdo ya acabó"' : ' disabled title="Pon antes el importe, el día en que se emite y a cuántos días vence (y desde cuándo cubre, si no paga cada mes)"'}>${IC.mas}Factura de ${esc(nom)}</button>`;
+    const c = cliRec(cli), q = C().cuota(c), m = mesNueva(cli, h), t = q && C().libre ? C().libre(q, C().vivos(cli), m) : q ? { de: m, hasta: m, importe: q.importe } : null;
+    const n0 = C().nombre({ periodo: t ? t.de : m, ...(t && t.hasta !== t.de ? { hasta: t.hasta } : {}) }, h), nom = n0.charAt(0).toLowerCase() + n0.slice(1);   // as the table names it
+    return `<button type="button" class="co-mas" data-co="nueva" data-m="${t ? t.de : m}" data-h="${t ? t.hasta : m}" data-i="${t ? t.importe : ''}"${t ? '' : q ? ' disabled title="El acuerdo ya acabó"' : ' disabled title="Pon antes el importe, el día en que se emite y a cuántos días vence (y desde cuándo cubre, si no paga cada mes)"'}>${IC.mas}Factura de ${esc(nom)}</button>`;
   }
   // the table of a client's invoices, newest first; o.esp: a sporadic client (a session each, no fee)
   function tabla(cli, o = {}) {
@@ -207,7 +207,8 @@
   async function nueva(btn) {
     const cid = cliDe(btn), c = cliRec(cid), q = C().cuota(c); if (!q) return;
     const m = btn.dataset.m, h = btn.dataset.h, id = C().nuevoId();   // its stretch (D-288)
-    try { await C().guardar({ id, cliente: cid, periodo: m, ...(h && h > m ? { hasta: h } : {}), concepto: '', importe: q.importe, factura: '', ...C().fechas(m, q), cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }
+    const imp = +btn.dataset.i > 0 ? +btn.dataset.i : q.importe;   // a part of its stretch, in proportion (D-288)
+    try { await C().guardar({ id, cliente: cid, periodo: m, ...(h && h > m ? { hasta: h } : {}), concepto: '', importe: imp, factura: '', ...C().fechas(m, q), cobrada: '', pdf: '' }); } catch (e) { fallo(e); return; }
     enfocar(`tr.co-f[data-id="${id}"] [data-co="num"]`);
   }
   function nuevoSes(btn) {

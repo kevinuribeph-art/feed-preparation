@@ -119,7 +119,7 @@
   }
 
   // a delivery (D-290): its «qué» on its deadline; delivered, with a ✓ and in green; gone past without delivering, red
-  const ENT_OK = '<svg class="cent" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20 6 9 17l-5-5"/></svg>';
+  const ENT_OK = '<svg class="cent" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"><path vector-effect="non-scaling-stroke" d="M20 6 9 17l-5-5"/></svg>';
   function entHTML(X, r, hoy) {
     const k = X.ent.estado(r, hoy), tit = `Entrega · ${r.que || 'Sin título'}${r.cuanto ? ' · ' + r.cuanto : ''} · ${k === 'entregada' ? 'entregada' : k === 'pasada' ? 'sin entregar, pasó su fecha' : 'antes del ' + (+r.fecha.slice(8, 10))}`;
     return `<button type="button" class="chip ty-ent ${k}" data-ent="${esc(r.id)}" title="${esc(tit)}"><span class="cl">${k === 'entregada' ? ENT_OK : ''}<span class="cn">${esc(r.que || 'Sin título')}</span></span></button>`;

@@ -322,7 +322,7 @@
     return `<span class="pp-cu">${esc(corto(x.dia))}</span>`;
   }
   function mini(x) {                           // the post's photo (its thumbnail) with its type over it; a single photo has none
-    if (x.tipo !== 'post') return `<span class="pp-afoto vacia">${x.tipo === 'tarea' ? ICO.fecha : x.tipo === 'sesion' ? ICO.sesion : ICO.historias}</span>`;
+    if (x.tipo !== 'post') return `<span class="pp-afoto vacia">${x.tipo === 'tarea' ? ICO.fecha : x.tipo === 'sesion' ? (esReunion(x.k) ? ICO.reunion : ICO.sesion) : ICO.historias}</span>`;
     const f = x.s.photos && x.s.photos[0] && M.files[x.s.photos[0]], ty = tipoTxt(x.s) === 'Foto' ? '' : I().tipoPost(x.s).ico;
     return f && f.thumbUrl ? `<span class="pp-afoto"><img src="${f.thumbUrl}" alt="" loading="lazy" decoding="async">${ty ? `<i>${ty}</i>` : ''}</span>` : `<span class="pp-afoto vacia">${ty || ICO.foto}</span>`;
   }
@@ -357,11 +357,12 @@
     // «Mañana» share the group
     return `<button type="button" class="pp-av${sin ? ' sinprog' : ''}${sin && x.cat === 'hoy' ? ' pp-avhoy' : ''}" data-pp="abrir" data-key="${esc(x.B.key)}" data-slot="${esc(x.s.id)}" title="${esc(x.s.name)} · ${esc(tipoTxt(x.s))} · ${esc(corto(x.dia))}${x.hora ? ' ' + esc(x.hora) : ''}">${avs}${cuando(x, R)}${mini(x)}<span class="pp-nm"><b>${esc(x.s.name)}</b> <i>${quien}</i></span><span class="pp-est">${est}</span></button>`;
   }
+  const esReunion = k => !!(k && k.sesion && k.sesion.clase === 'reunion');   // a meeting (D-291): its own drawing
   // what an agreement to renegotiate says under its title: when, and what it covers (D-288)
   function acuerdoCuando(x) {
     const C = I().cob, n = x.n, cu = n === 0 ? 'hoy' : n === 1 ? 'mañana' : n > 1 ? `en ${n} días` : n === -1 ? 'ayer' : `hace ${-n} días`;
     const fin = C.fin ? C.fin(x.a) : '', ult = C.vivos(x.c.id).filter(r => C.MES.test(r.periodo || '')).map(r => C.hasta(r)).sort().pop();
-    const cubre = fin ? `acaba en ${C.mesCorto(fin)}` : ult ? `cubre hasta ${C.mesCorto(ult)}` : '';
+    const cubre = fin ? (x.a.renueva && x.a.pago !== 'unico' ? `se renueva el 1 ${C.mesCorto(I().addMonths(fin, 1))}` : `acaba en ${C.mesCorto(fin)}`) : ult ? `cubre hasta ${C.mesCorto(ult)}` : '';
     return [cu, cubre].filter(Boolean).join(' · ');
   }
   // «Hoy N» the group's title and «Mañana N» under it; nothing today and something tomorrow: «Nada para hoy»; with the figure
@@ -475,7 +476,7 @@
     const av = k => st.tcli ? '' : avatarN(clis(k).filter(cliOk));
     const fotos = (k, cls = '') => (k.fotos || []).length ? `<button type="button" class="pp-tfo ${cls}" data-pp="foto" data-id="${esc(k.id)}" title="${k.fotos.length === 1 ? 'Ver la foto' : `Ver las ${k.fotos.length} fotos`}" aria-label="Ver la foto"><img src="${fotosURL(k.fotos[0])}" alt="">${k.fotos.length > 1 ? `<b>${k.fotos.length}</b>` : ''}</button>` : '';
     // a session: as a task, with the clapperboard and its time (never tabular figures, D-175)
-    const ses = k => k.tipo === 'sesion' ? `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>` : '';
+    const ses = k => k.tipo === 'sesion' ? (esReunion(k) ? `<span class="pp-tses" title="Reunión">${ICO.reunion}</span>` : `<span class="pp-tses" title="Sesión">${ICO.sesion}</span>`) : '';
     const hora = k => k.tipo === 'sesion' && k.hora ? ` · ${esc(k.hora)}` : '';
     const linea = (k, fecha = true) => `<div class="pp-tk${k.hecha ? ' hecha' : ''}${k.tipo === 'sesion' ? ' ses' : ''}" data-tid="${esc(k.id)}">${ck(k)}${ses(k)}${mas(k, `<span class="pp-tt" ${ver(k)}>${esc(k.txt)}</span>`)}${k.tipo === 'sesion' ? '' : fotos(k)}${fecha && k.fecha ? `<span class="pp-tf${venc(k) ? ' rojo' : ''}">${k.tipo === 'sesion' && k.fin ? esc(tramo(k, diaTxt)) : diaTxt(k.fecha) + hora(k)}</span>` : !fecha && k.hora ? `<span class="pp-tf">${esc(k.hora)}</span>` : ''}${av(k)}</div>`;
     let celda = null;                          // the day being drawn (Semana): an overdue task from before says its date

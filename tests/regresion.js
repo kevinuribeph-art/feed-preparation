@@ -20954,6 +20954,27 @@
       relojEn('2027-01-05T10:00:00+01:00'); ok(!CB().proxima(CLIENTE), 'un acuerdo acabado sin renovar sigue pidiendo facturas');
       ok(/acaba en nov 2026/.test(CB().resumen(cli())), 'la línea de un acuerdo que acaba: ' + CB().resumen(cli()));
     } finally { relojVuelve(); }
+    // revisión en frío: un tramo cuyo primer mes ya tiene una factura mensual de antes no se da por pagado entero
+    try {
+      await CB().borrar('au-2');   // el pago único de arriba cubriría dic–feb
+      await M.cobros.cargar([{ id: 'au-m', cliente: CLIENTE, periodo: '2026-11', importe: 450, emitida: '2026-11-01', at: '2026-11-01T10:00:00.000Z' }]);
+      await CB().acuGuardar(CLIENTE, { pago: 'semestral', importe: 2700, dia: 1, plazo: 15, desde: '2026-11' });
+      relojEn('2026-12-03T10:00:00+01:00');
+      const u = CB().urgente(CLIENTE); ok(u.e.k === 'pendiente' || (u.r.periodo === '2026-12' && u.r.hasta === '2027-04'), 'el resto del tramo no sale: ' + json(u));
+      const px = CB().proxima(CLIENTE); igual([px.mes, px.hasta, px.importe], ['2026-12', '2027-04', 2250], 'lo que falta del tramo, con su parte del importe');
+      await M.cobros.cargar([{ id: 'au-m', cliente: CLIENTE, periodo: '2026-11', importe: 450, cobrada: '2026-11-05', emitida: '2026-11-01', at: '2026-11-05T10:00:00.000Z' }]);
+      const u2 = CB().urgente(CLIENTE); ok(u2.e.k === 'sinemitir' && u2.r.periodo === '2026-12' && u2.r.hasta === '2027-04' && u2.r.importe === 2250, '«sin emitir» no es lo que falta del tramo: ' + json(u2));
+      // con duración, tramos dentro de cada ciclo (el último, más corto); sin «desde», sin cuenta de pagos
+      const q10 = { pago: 'trimestral', importe: 900, dia: 1, plazo: 10, desde: '2026-05', meses: 10, renueva: false };
+      igual([CB().tramo(q10, '2027-02'), CB().tramo(q10, '2027-03')], [{ de: '2027-02', hasta: '2027-02' }, null], 'un tramo pasa del final del acuerdo');
+      igual(CB().tramo({ ...q10, renueva: true }, '2027-04'), { de: '2027-03', hasta: '2027-05' }, 'el ciclo renovado no empieza tras el final');
+      await CB().acuGuardar(CLIENTE, { pago: 'mensual', importe: 500, dia: 1, plazo: 10, meses: 12 });
+      ok(!/pagos/.test(CB().resumen(cli())), 'cuenta pagos sin «desde»: ' + CB().resumen(cli()));
+    } finally { relojVuelve(); await CB().borrar('au-m'); }
+    // MESA.cobros.acuerdo: Claude lo pone (con el OK de Kevin) y lo valida
+    let ra = await M.cobros.acuerdo(CLIENTE, { pago: 'cada siglo' }); ok(ra.error, 'la API acepta un acuerdo no válido');
+    ra = await M.cobros.acuerdo('nadie', AU_ACU); ok(ra.error, 'la API acepta un cliente que no existe');
+    ra = await M.cobros.acuerdo(CLIENTE, AU_ACU); ok(ra.ok && ra.acuerdo.pago === 'semestral' && ra.acuerdo.importe === 2700, 'la API no pone el acuerdo: ' + json(ra));
     // exportar e importar
     await CB().acuGuardar(CLIENTE, AU_ACU);
     const d = JSON.parse(await (await M.exportAll({ returnBlob: true })).text());
@@ -20984,6 +21005,8 @@
     igual(M.plan(), [], 'plan con feed'); igual(M.setEstado(['r1'], 'aprobado'), [], 'setEstado cambia un estado');
     igual(M.startZernio([{ slotId: 'r1', fileId: 'x' }]), {}, 'startZernio empieza algo');
     const rv = await M.revisar(); ok(rv.ok && rv.sinFeed && !rv.puntos.length, 'revisar no dice «sin feed»: ' + json(rv));
+    await hasta(() => M.cargarHistorias, 6000, 'historias.js');
+    const ch = await M.cargarHistorias([{ date: '2026-11-25T10:00:00+01:00', note: 'SC1' }]); ok(ch && ch.error && /sin feed/.test(ch.error), 'entra una historia en un cliente sin feed: ' + json(ch));
     // las entregas
     const E = () => M._in.ent;
     await E().leer(true);
@@ -21038,7 +21061,7 @@
       coCambiar(campo('renueva'), 'no'); await hasta(() => CB().acuerdo(cli()).renueva === false, 3000, '«Se acaba»'); ok(/acaba en abr 2027/.test(q('.detail .co-acu-n').textContent), 'la línea de un acuerdo que acaba');
       coCambiar(campo('renueva'), 'si'); await hasta(() => CB().acuerdo(cli()).renueva === true, 3000, '«Se renueva»');
       // la factura de su tramo
-      const mas = q('.detail .co-mas[data-co="nueva"]'); ok(mas && !mas.disabled && /Factura de noviembre – abril/.test(mas.textContent), '«+ Factura» no es la de su tramo: ' + (mas && mas.textContent));
+      const mas = q('.detail .co-mas[data-co="nueva"]'); ok(mas && !mas.disabled && /Factura de noviembre 2026 – abril 2027/.test(mas.textContent), '«+ Factura» no es la de su tramo: ' + (mas && mas.textContent));
       mas.click(); await hasta(() => M.cobros.ver(CLIENTE).some(r => r.periodo === '2026-11' && r.hasta === '2027-04' && r.importe === 2700 && r.emitida === '2026-11-01'), 3000, 'la factura del tramo');
       await hasta(() => /Noviembre 2026 – abril 2027/.test(q('.detail .co-t').textContent), 3000, 'el nombre del tramo en la tabla');
       M._in.closeDetail(); await espera(40);
@@ -21146,8 +21169,23 @@
       // a final de mes propone el día de entregas del mes siguiente, y la entrega nueva se ve en la columna (lo vio el ratón real)
       relojEn('2026-11-22T10:00:00+01:00'); q('.cont-izq [data-en="nueva"]').click();
       await hasta(() => M._in.ent.vivas(CLIENTE).some(r => r.fecha === '2026-12-05') && scCampo('que'), 3000, 'la entrega del 5 dic no se ve en el tablero de noviembre');
-      const e3 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05'); q('.cont-izq [data-en="cerrar"]').click(); await espera(60);
-      ok(q(`.cont-izq .en-f[data-id="${e3.id}"]`), 'cerrada, la entrega del mes siguiente no sigue en la columna'); await M._in.ent.borrar(e3.id);
+      const e3 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05');
+      q('.cont-izq [data-en="cerrar"]').click(); await hasta(() => !M._in.ent.get(e3.id) || M._in.ent.get(e3.id).borrado, 2000, 'una entrega nueva sin «Qué» se queda al cerrarla');   // revisión en frío (D-204)
+      await hasta(() => D.activeElement === q('.cont-izq [data-en="nueva"]'), 2000, 'el foco no vuelve a «+ Entrega»');
+      q('.cont-izq [data-en="nueva"]').click(); await hasta(() => scCampo('que'), 2000, 'otra entrega nueva');
+      const e4 = M._in.ent.vivas(CLIENTE).find(r => r.fecha === '2026-12-05' && r.id !== e3.id); coCambiar(scCampo('que'), 'Fotos de Navidad'); await hasta(() => M._in.ent.get(e4.id).que === 'Fotos de Navidad', 2000, '«Qué»');
+      q('.cont-izq [data-en="cerrar"]').click(); await espera(80);
+      ok(q(`.cont-izq .en-f[data-id="${e4.id}"]`) && /Diciembre/.test(q('.cont-izq .en-sub').textContent), 'la del mes siguiente no sale aparte: ' + q('.cont-izq').textContent.slice(0, 200));
+      ok(/noviembre · 1 de 1 entregada/.test(q('.cont-izq .en-h').textContent), 'la del mes siguiente cuenta en el mes del tablero: ' + q('.cont-izq .en-h').textContent);
+      await M._in.ent.borrar(e4.id);
+      // soltar fotos en un tablero sin bandeja
+      const tr0 = json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []), dt = new W.DataTransfer(); dt.items.add(await foto('sc2.jpg'));
+      q('.cont-izq').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); await espera(300);
+      ok(/no tiene bandeja/.test(coToast()) && json(((await M._in.idbGet('bandejas', CLIENTE)) || {}).tray || []) === tr0, 'las fotos soltadas entran en una bandeja que no se ve');
+      // el día de entregas, en «Editar cliente · Datos»
+      q('.tabs .tedit').click(); const ie = await hasta(() => q('.detail [data-form="editclient"] #ec-entregas'), 3000, '«Entregas antes del día» en «Editar cliente»');
+      ie.value = '10'; q('.detail [data-form="editclient"]').requestSubmit(); await hasta(() => M._in.CL.find(c => c.id === CLIENTE).entregasDia === 10, 3000, 'el día de entregas no se guarda');
+      await M.updateClient(CLIENTE, { entregasDia: 5, cycleDay: 1 });
       // pasada
       const e2 = await M._in.ent.nueva({ cliente: CLIENTE, fecha: '2026-11-04', que: 'Vídeo de la terraza' });
       relojEn('2026-11-10T10:00:00+01:00'); M._in.render();

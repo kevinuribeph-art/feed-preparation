@@ -32,7 +32,7 @@
   const may = t => t.charAt(0).toUpperCase() + t.slice(1);
 
   // ---------- what the board shows ----------
-  const UI = { abierta: null, sucio: false };     // the delivery whose fields are open; drawn again once the focus leaves them
+  const UI = { abierta: null, sucio: false, nueva: null, de: null };   // nueva: just made, gone if closed without «qué»; de: the board drawn     // the delivery whose fields are open; drawn again once the focus leaves them
   const col = n => { const r = I().root && I().root(); return r ? r.querySelector(`.main > .cont > .cont-${n}`) : null; };
   function meses() {                              // the board's months (AAAA-MM), as its chips say
     const S = I().S; if (!S) return [];
@@ -66,16 +66,20 @@
       + `<button type="button" class="en-q" data-en="abrir" aria-expanded="${abierta}"><span class="en-d">${esc(corto(r.fecha, h))}</span><span class="en-t"><b>${esc(r.que || 'Sin título')}</b><span>${esc(sub)}</span></span></button>${link}</div>${ed}`;
   }
   function izqHTML() {
-    // the deliveries of the board's months and of the month after (a month's content goes out by the start of the next, as
-    // drawn: «antes del 5 dic»), the ones gone past before them on top, and the open one always (a new one never hides)
-    const S = I().S, cli = S.client, h = hoy(), ms = meses(), ini = ms[0] + '-01', fin = I().addMonths(ms[ms.length - 1], 1) + '-31', finSes = ms[ms.length - 1] + '-31';
-    const todas = E().vivas(cli), delMes = todas.filter(r => (r.fecha >= ini && r.fecha <= fin) || r.id === UI.abierta), antes = todas.filter(r => r.fecha < ini && E().estado(r, h) === 'pasada' && r.id !== UI.abierta);
+    // the deliveries of the board's months, counted in «N de M», with the ones gone past before them on top; then, apart and
+    // not counted, those of the month after (a month's content goes out by the start of the next, as drawn: «antes del 5 dic»);
+    // the open one always shows (a new one never hides)
+    const S = I().S, cli = S.client, h = hoy(), ms = meses(), ini = ms[0] + '-01', finMes = ms[ms.length - 1] + '-31', sigM = I().addMonths(ms[ms.length - 1], 1);
+    const todas = E().vivas(cli), delMes = todas.filter(r => r.fecha >= ini && r.fecha <= finMes), sig = todas.filter(r => r.fecha.slice(0, 7) === sigM);
+    const antes = todas.filter(r => r.fecha < ini && E().estado(r, h) === 'pasada'), vistas = new Set([...antes, ...delMes, ...sig].map(r => r.id));
+    const extra = UI.abierta && !vistas.has(UI.abierta) && E().get(UI.abierta) && !E().get(UI.abierta).borrado ? [E().get(UI.abierta)] : [];
     const hechas = delMes.filter(r => r.entregada).length, mesTxt = ms.length > 1 ? `${nombreMes(ms[0])} – ${nombreMes(ms[ms.length - 1])}` : nombreMes(ms[0]);
-    const filas = [...antes, ...delMes].map(r => filaHTML(r, h)).join('');
-    const ses = (SES || []).filter(t => clisDe(t).includes(cli) && t.fecha >= ini && t.fecha <= finSes).sort((a, b) => String(a.fecha + (a.hora || '')).localeCompare(String(b.fecha + (b.hora || ''))));
+    const filas = [...antes, ...delMes, ...extra].map(r => filaHTML(r, h)).join(''), filasSig = sig.map(r => filaHTML(r, h)).join('');
+    const ses = (SES || []).filter(t => clisDe(t).includes(cli) && t.fecha >= ini && t.fecha <= finMes).sort((a, b) => String(a.fecha + (a.hora || '')).localeCompare(String(b.fecha + (b.hora || ''))));
     const sesF = ses.map(t => `<button type="button" class="en-s" data-en="sesion" data-id="${esc(t.id)}"><span class="en-d">${esc(corto(t.fecha, h))}</span><span class="en-t"><b>${esc(t.txt || 'Sesión')}</b><span>${esc([CLASE[t.sesion && t.sesion.clase] || 'Sesión', t.hora].filter(x => x && x !== t.txt).join(' · ') || 'sin hora')}</span></span></button>`).join('');
     return `<h2 class="en-h">Entregas <span>${esc(mesTxt)}${delMes.length ? ` · ${hechas} de ${delMes.length} entregada${delMes.length === 1 ? '' : 's'}` : ''}</span></h2>`
       + (filas ? `<div class="en-lista">${filas}</div>` : `<p class="en-vacio">Aún sin entregas este mes</p>`)
+      + (filasSig ? `<p class="en-sub">${esc(may(nombreMes(sigM)))} <span>${sig.length}</span></p><div class="en-lista">${filasSig}</div>` : '')
       + `<button type="button" class="en-mas" data-en="nueva">${IC.mas}Entrega</button>`
       + `<h2 class="en-h en-h2">Sesiones <span>${ses.length ? `${ses.length} este mes` : ''}</span></h2>`
       + (sesF ? `<div class="en-lista">${sesF}</div>` : `<p class="en-vacio">Aún sin sesiones este mes</p>`)
@@ -85,7 +89,7 @@
   const PAGO = { mensual: 'al mes', trimestral: 'cada 3 meses', semestral: 'cada 6 meses', anual: 'al año', unico: 'en un solo pago' };
   function derHTML() {
     const cli = I().S.client, c = I().CL.find(x => x.id === cli), h = hoy(), a = C().acuerdo(c);
-    const linea = [a && a.importe != null ? `${C().eur(a.importe)} ${PAGO[a.pago] || ''}`.trim() : '', c && c.entregasDia ? `entregas antes del día ${c.entregasDia}` : ''].filter(Boolean).join(' · ');
+    const linea = [a && a.importe != null ? `${C().eur(a.importe)} ${PAGO[a.pago] || ''}`.trim() : 'Sin acuerdo: ponlo en «Cobros»', c && c.entregasDia ? `entregas antes del día ${c.entregasDia}` : ''].filter(Boolean).join(' · ');
     const l = C().vivos(cli).sort(C().orden), prox = C().proxima(cli, h), filas = [];
     if (prox && prox.virtual) filas.push({ t: `${C().nombre({ periodo: prox.mes, hasta: prox.hasta }, h)} · ${C().eur(prox.importe)}`, s: `se emite el ${corto(prox.emitida, h)}`, e: 'Sin emitir', k: 'sin' });
     for (const r of l.slice(0, 6)) {
@@ -94,7 +98,7 @@
         e: e.k === 'cobrada' ? 'Cobrada' : e.k === 'retrasada' ? `Retrasada ${e.dias} ${e.dias === 1 ? 'día' : 'días'}` : e.k === 'pendiente' ? 'Pendiente' : 'Sin emitir', k: e.k === 'cobrada' ? 'ok' : e.k === 'retrasada' ? 'tarde' : e.k === 'pendiente' ? 'pend' : 'sin' });
     }
     return `<h2 class="en-h">Acuerdo <span>Solo contenido</span></h2>`
-      + `<button type="button" class="en-acu" data-en="cobros">${linea ? esc(linea) : 'Sin acuerdo: ponlo en «Cobros»'}</button>`
+      + `<button type="button" class="en-acu" data-en="cobros">${esc(linea)}</button>`
       + (filas.length ? `<div class="en-lista">${filas.map(f => `<button type="button" class="en-p" data-en="cobros"><span class="en-t"><b>${esc(f.t)}</b><span>${esc(f.s)}</span></span><span class="en-e ${f.k}">${esc(f.e)}</span></button>`).join('')}</div>` : '');
   }
 
@@ -102,6 +106,8 @@
   function pintar() {
     const X = I(); if (!X || !X.S || !X.esContenido || !X.esContenido(X.S.client)) return;
     const iz = col('izq'), de = col('der'); if (!iz || !de) return;
+    if (UI.de && UI.de !== X.S.key) { const n = UI.nueva; UI.de = X.S.key; if (n) { UI.abierta = n; cerrarCampos(false); return; } UI.abierta = null; }   // another board: a new one still empty goes
+    UI.de = X.S.key;
     if (SES === null && !sesLee) { leerSes(); }
     const a = document.activeElement;
     if (a && iz.contains(a) && a.matches && a.matches('.en-ed input')) {   // a field being written: its row now, the rest after the field (its blur)
@@ -119,12 +125,22 @@
   const fallo = e => toast('No se pudo: ' + String((e && e.message) || e), { ms: 8000, key: 'fallo' });
 
   // ---------- doing ----------
+  // its fields close; a new one still without «qué» goes, without a word (as a task without a title, D-204); the focus back on its
+  // row, or on «+ Entrega» if it went
+  async function cerrarCampos(foco) {
+    const was = UI.abierta, nuevaVacia = was && UI.nueva === was && !String((E().get(was) || {}).que || '').trim();
+    UI.abierta = null; UI.nueva = null;
+    if (nuevaVacia) { try { await E().borrar(was); } catch (e) { /* it stays, «Sin título» */ } }
+    pintar();
+    if (foco) enfocar(nuevaVacia ? '.cont-izq [data-en="nueva"]' : `.cont-izq .en-f[data-id="${I().cssq(was)}"] .en-q`);
+  }
   async function nueva() {
     const S = I().S; if (!S) return;
+    if (UI.abierta) await cerrarCampos(false);
     const ini = meses()[0] + '-01', h = hoy(), desde = h > ini ? h : ini;
     try {
       const r = await E().nueva({ cliente: S.client, fecha: E().propuesta(S.client, desde), que: '' });
-      UI.abierta = r.id; pintar(); enfocar('.cont-izq .en-ed [data-k="que"]');
+      UI.abierta = r.id; UI.nueva = r.id; UI.de = S.key; pintar(); enfocar('.cont-izq .en-ed [data-k="que"]');
     } catch (e) { fallo(e); }
   }
   async function campo(inp) {
@@ -142,11 +158,12 @@
   async function borrar(id) {
     let b = null; try { b = await E().borrar(id); } catch (e) { fallo(e); return; }
     if (!b) return;
-    UI.abierta = null; pintar();
+    UI.abierta = null; UI.nueva = null; pintar(); enfocar('.cont-izq [data-en="nueva"]');   // the focus where it can go on
     toast(`Entrega «${b.rec.que || 'sin título'}» borrada.`, { action: 'Deshacer', ms: UNDO, onAction: () => E().devolver(b.rec).catch(fallo) });
   }
   function abrir(id) {                             // from the calendar's chip too: its row, open, in sight
     const r = E().get(id); if (!r || r.borrado) return false;
+    if (UI.abierta && UI.abierta !== id) cerrarCampos(false);
     UI.abierta = id; pintar();
     requestAnimationFrame(() => { const f = col('izq') && col('izq').querySelector(`.en-f[data-id="${I().cssq(id)}"]`); if (f) { f.scrollIntoView({ block: 'nearest' }); const q = f.parentNode.querySelector('.en-ed [data-k="que"]'); if (q) q.focus({ preventScroll: true }); } });
     return true;
@@ -166,8 +183,8 @@
     if (k === 'ck' || k === 'campo') return;
     if (e.detail > 1) return;                       // the second click of a double click does nothing (lesson 57)
     if (k === 'abrir' || k === 'cerrar' || k === 'borrar' || k === 'nueva') await soltarCampo();
-    if (k === 'abrir') { UI.abierta = UI.abierta === id ? null : id; pintar(); if (UI.abierta) enfocar('.cont-izq .en-ed [data-k="que"]'); }
-    else if (k === 'cerrar') { const was = UI.abierta; UI.abierta = null; pintar(); if (was) enfocar(`.cont-izq .en-f[data-id="${I().cssq(was)}"] .en-q`); }
+    if (k === 'abrir') { const otra = UI.abierta !== id; if (UI.abierta) await cerrarCampos(!otra); if (otra) { UI.abierta = id; pintar(); enfocar('.cont-izq .en-ed [data-k="que"]'); } }
+    else if (k === 'cerrar') await cerrarCampos(true);
     else if (k === 'borrar' && id) borrar(id);
     else if (k === 'nueva') nueva();
     else if (k === 'nueva-sesion') { if (M.personal && M.personal.nuevaSesion) M.personal.nuevaSesion({ cliente: I().S.client }); }
@@ -185,7 +202,7 @@
       const r = E().get(t.closest('.en-ed').dataset.id), v0 = r ? (r[t.dataset.k] || '') : '';
       e.preventDefault(); e.stopPropagation();
       if (t.dataset.k && t.value !== v0 && t.type !== 'date') { t.value = v0; return; }
-      const was = UI.abierta; UI.abierta = null; t.blur(); pintar(); if (was) enfocar(`.cont-izq .en-f[data-id="${I().cssq(was)}"] .en-q`);
+      t.blur(); cerrarCampos(true);
     }
   }
   function alSalir(e) {                             // a field left: what waited is drawn now
@@ -219,6 +236,7 @@
 #mesa .cont .en-h span{font-size:13px;font-weight:400;color:var(--mute)}#mesa .cont .en-h2{margin-top:26px}
 #mesa .cont .en-lista{display:flex;flex-direction:column}
 #mesa .cont .en-vacio{margin:10px 0 4px;font-size:13px;color:var(--mute)}
+#mesa .cont .en-sub{margin:14px 0 2px;font-size:13px;font-weight:600;color:var(--ink-2)}#mesa .cont .en-sub span{font-weight:400;color:var(--mute)}
 #mesa .en-f{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line-2,var(--line))}
 #mesa .en-ck{justify-self:center}
 #mesa .en-q,#mesa .en-s,#mesa .en-p{display:grid;grid-template-columns:56px minmax(0,1fr);align-items:center;gap:10px;min-height:44px;margin:0;padding:4px 6px;border:0;border-radius:var(--r-sm);background:none;font:inherit;text-align:left;color:var(--ink);cursor:pointer;transition:background var(--d1) ease-out}

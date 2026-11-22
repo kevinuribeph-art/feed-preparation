@@ -986,7 +986,8 @@
     const quien = x.clientes.map(nombreCli).join(x.tipo === 'sesion' ? ' · ' : ' × ');
     if (x.tipo === 'entrega') {   // una entrega pasada sin entregar (D-290): su mes, para mirarla
       const r = x.r;
-      return fila({ a: x.B ? `data-ir="mes/${esc(x.B.key)}/lista/${esc(r.fecha.slice(0, 7))}"` : 'disabled', izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · venció el ${esc(corto(r.fecha))}</span>` });
+      const f = fila({ a: x.B ? `data-ir="mes/${esc(x.B.key)}/lista/${esc(r.fecha.slice(0, 7))}"` : 'disabled', izq: icoFila('paquete', true), t1: esc(r.que || 'Entrega sin título'), t2: `${esc(quien)} · <span class="roja">sin entregar · ${esc(corto(r.fecha))}</span>` });
+      return x.B ? f : sinFlecha(f);
     }
     if (x.tipo === 'acuerdo') {   // renegociar (D-288): lo dice el núcleo (personal.js); se abre en el escritorio, como una factura
       const pas = x.cat === 'pasado', cu = M.personal._p && M.personal._p.acuerdoCuando ? M.personal._p.acuerdoCuando(x) : corto(x.dia);
@@ -998,7 +999,8 @@
     }
     if (x.tipo === 'tarea' || x.tipo === 'sesion') {
       const pas = x.cat === 'pasado';
-      return fila({ a: `data-a="tver" data-id="${esc(x.k.id)}"`, izq: icoFila(x.tipo === 'sesion' ? 'claqueta' : 'tareas', pas), t1: esc(x.k.txt), t2: `${x.tipo === 'sesion' ? 'Sesión' : 'Tarea'}${quien ? ' · ' + esc(quien) : ''}${pas ? ` · <span class="roja">${esc(corto(x.dia))}</span>` : x.hora ? ' · ' + esc(x.hora) : ''}` });
+      const reu = x.tipo === 'sesion' && x.k.sesion && x.k.sesion.clase === 'reunion';   // a meeting, its own drawing and word (D-291)
+      return fila({ a: `data-a="tver" data-id="${esc(x.k.id)}"`, izq: icoFila(reu ? 'gente' : x.tipo === 'sesion' ? 'claqueta' : 'tareas', pas), t1: esc(x.k.txt), t2: `${reu ? 'Reunión' : x.tipo === 'sesion' ? 'Sesión' : 'Tarea'}${quien ? ' · ' + esc(quien) : ''}${pas ? ` · <span class="roja">${esc(corto(x.dia))}</span>` : x.hora ? ' · ' + esc(x.hora) : ''}` });
     }
     if (x.tipo === 'historias') return fila({ a: `data-ir="mes/${esc(x.B.key)}/hist"`, izq: icoFila('historias'), t1: esc(plural(x.n, 'historia', 'historias')), t2: `${esc(quien)} · ${esc(plural(x.sin, 'sin programar', 'sin programar'))}` });
     const s = x.s, tp = X().tipoPost(s), esOtro = tp.txt === 'Foto' ? '' : tp.ico;
@@ -1118,15 +1120,19 @@
     return html + '</main>' + tabs('clientes');
   }
   const PUBS = { de: '', abierta: false };
-  // las entregas del mes de un cliente de solo contenido (D-290), para mirarlas: el enlace se abre fuera (se cambian en el Mac)
+  // las entregas del mes de un cliente de solo contenido (D-290), para mirarlas: el enlace se abre fuera (se cambian en el Mac). Como en
+  // el Mac, las del mes y las del siguiente (el contenido de un mes sale a principios del otro), con las pasadas de antes arriba
+  const sinFlecha = h => h.replace(/<span class="chev">[\s\S]*?<\/span><\/button>$/, '</button>');   // una fila que no se abre
   function entregasMes(v, m) {
-    const l = (v.entregas || []).filter(r => r.mes === m || (r.estado === 'pasada' && r.mes < m && m === v.hoy.slice(0, 7)));
-    if (!l.length) return vacio('Sin entregas este mes', 'Se apuntan en el escritorio.');
-    const h = l.filter(r => r.estado === 'entregada').length;
-    return `<div class="sec-h" style="margin-top:14px"><h2>Entregas <span class="n num">${h} de ${l.length}</span></h2></div><div class="lista">${l.map(r => fila({
+    const sig = X().addMonths(m, 1), delMes = (v.entregas || []).filter(r => r.mes === m), antes = (v.entregas || []).filter(r => r.estado === 'pasada' && r.mes < m && m === v.hoy.slice(0, 7)), luego = (v.entregas || []).filter(r => r.mes === sig);
+    if (!delMes.length && !antes.length && !luego.length) return vacio('Sin entregas este mes', 'Se apuntan en el escritorio.');
+    const h = delMes.filter(r => r.estado === 'entregada').length;
+    const filas = l => `<div class="lista">${l.map(r => (r.enlace ? x => x : sinFlecha)(fila({
       a: r.enlace ? `data-a="enlace" data-u="${esc(r.enlace)}"` : 'disabled', izq: icoFila(r.estado === 'entregada' ? 'check' : 'paquete', r.estado === 'pasada'),
       t1: esc(r.que || 'Entrega sin título'), t2: [r.cuanto ? esc(r.cuanto) : '', r.estado === 'entregada' ? 'entregada' : r.estado === 'pasada' ? '<span class="roja">sin entregar</span>' : `antes del ${esc(corto(r.fecha))}`, r.enlace ? '' : 'sin enlace'].filter(Boolean).join(' · '),
-      hr: corto(r.fecha), hrRoja: r.estado === 'pasada' })).join('')}</div>`;
+      hr: corto(r.fecha), hrRoja: r.estado === 'pasada' }))).join('')}</div>`;
+    return `<div class="sec-h" style="margin-top:14px"><h2>Entregas <span class="n num">${delMes.length ? `${h} de ${delMes.length}` : ''}</span></h2></div>${antes.length || delMes.length ? filas([...antes, ...delMes]) : `<p class="solo-mac" style="margin-top:0">Ninguna este mes.</p>`}`
+      + (luego.length ? `<div class="sub-h">${esc(mesNombre(sig))} <span class="num">${luego.length}</span></div>${filas(luego)}` : '');
   }
   function listaDias(v, posts) {   // las publicaciones por día, cada día con su cabecera
     let h = '', dia = null;
@@ -1651,7 +1657,7 @@
     };
     return top(volverSes()) + `<main class="main sin-tabs mv-ses" id="contenido">
       <div class="mv-ses-h"><h1>${esc(nombre)}${nop ? ' ' + GIRA : ''}</h1><button type="button" class="lnk" data-a="sesnom"${dis || (nop ? ' disabled' : '')}>Editar</button></div>
-      <div class="mv-ses-sub"><span class="ty ses">${ic('claqueta')}Sesión</span><span>${esc(v.clase)}</span></div>
+      <div class="mv-ses-sub"><span class="ty ses">${v.clase === 'Reunión' ? ic('gente') + 'Reunión' : ic('claqueta') + 'Sesión'}</span>${v.clase === 'Reunión' ? '' : `<span>${esc(v.clase)}</span>`}</div>
       <div class="grupo">
         <button type="button" class="campo" data-a="sesfecha"${dis || (iop ? ' disabled' : '')}${iop ? ' aria-busy="true"' : ''}><span class="k">Fecha y hora</span><span class="v num" style="display:block;white-space:normal">${esc(cuando)}${fin}</span>${iop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>
         <button type="button" class="campo" data-a="sesclis"${dis || (cop ? ' disabled' : '')}${cop ? ' aria-busy="true"' : ''}><span class="k">${clis.filter(conocido).length > 1 ? 'Clientes' : 'Cliente'}</span><span class="v mv-scl">${clis.filter(conocido).length ? clis.filter(conocido).map(c => `<span>${av(c)}<span class="nm">${esc(nombreCli(c))}</span></span>`).join('') : 'Sin cliente'}</span>${cop ? GIRA : `<span class="chev">${ic('der')}</span>`}</button>

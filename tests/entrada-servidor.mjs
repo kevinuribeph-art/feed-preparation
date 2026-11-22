@@ -119,7 +119,8 @@ async function main() {
   ok(await interruptor(true) === true, 'interruptor encendido');
   r = await rpc(k1.access_token, 'mesa_yo'); ok(r.ok && r.json.dueno === true && r.json.valido === false && r.json.exige === true, 'mesa_yo: dueño, no válido, se exige', r.text);
   for (const [fn, args] of [['mesa_turno_ver', { dispositivo: DISP }], ['mesa_turno_pedir', { dispositivo: DISP, app: '4.34' }], ['mesa_bajar', { desde: 0, limite: 1 }],
-    ['mesa_escribir', { dispositivo: DISP, turno: 1, app: '4.34', cambios: [] }], ['mesa_actividad', { desde: 0, limite: 1 }]]) {
+    ['mesa_escribir', { dispositivo: DISP, turno: 1, app: '4.34', cambios: [] }], ['mesa_actividad', { desde: 0, limite: 1 }],
+    ['mesa_visto', { dispositivo: DISP, avisos: [1] }], ['mesa_aparato', { dispositivo: DISP, aparato: DISP, es_mio: false }]]) {   // las dos del esquema 6 (D-298, D-299)
     r = await rpc(k1.access_token, fn, args); ok(rech(r, 'verificacion') && r.json.error.http === 401, `${fn} sin código: rechazo «verificacion»`, r.text);
   }
   r = await lista(k1.access_token); ok(r.ok && Array.isArray(r.json) && r.json.length === 0, 'almacén mesa sin código: no lista nada', r.text);
@@ -134,6 +135,7 @@ async function main() {
   ok(c2.aal === 'aal2' && c2.amr.some(e => e.method === 'totp'), 'Kevin con código: sesión aal2 con totp');
   r = await rpc(k2.access_token, 'mesa_turno_ver', { dispositivo: DISP }); ok(bien(r), 'mesa_turno_ver con código', r.text);
   r = await rpc(k2.access_token, 'mesa_yo'); const hasta = r.ok && Date.parse(r.json.codigo_hasta);
+  ok(r.ok && r.json.sesion === true, 'mesa_yo: la sesión sigue viva (D-298)', r.text);
   ok(r.ok && r.json.valido === true && r.json.codigo === true && Math.abs(hasta - Date.now() - 30 * 86400e3) < 600e3, 'mesa_yo: válido, código hasta dentro de 30 días', r.text);
   r = await subir(k2.access_token, RUTA); ok(r.ok, 'almacén mesa con código: sube', r.text);
   r = await lista(k2.access_token); ok(r.ok && (r.json || []).some(o => RUTA.endsWith(o.name)), 'almacén mesa con código: lista', r.text);
@@ -174,11 +176,21 @@ async function main() {
   const salida = execFileSync(process.execPath, [WEB, 'rescate', 'pruebas', CORREO.k], { encoding: 'utf8' });
   ok(/"factores_quedan": 0/.test(salida) && /"sesiones_abiertas": 0/.test(salida), 'rescate: sin factores y sin sesiones', salida);
   r = await auth(P, 'token?grant_type=refresh_token', { body: { refresh_token: kca.refresh_token } }); ok(!r.ok, 'rescate: la sesión con código ya no se renueva', `${r.status}`);
+  // D-298: su pase aún no ha caducado (vale hasta una hora), pero su sesión ya no está en auth.sessions: se corta al momento
+  r = await rpc(kca.access_token, 'mesa_turno_ver', { dispositivo: DISP }); ok(rech(r, 'sesion') && r.json.error.http === 401, 'rescate: el pase sin caducar de una sesión cerrada ya no entra en las mesa_* («sesion»)', r.text);
+  r = await rpc(kca.access_token, 'mesa_yo'); ok(r.ok && r.json.dueno === true && r.json.valido === false && r.json.sesion === false, 'rescate: mesa_yo dice sesión cerrada', r.text);
+  r = await lista(kca.access_token); ok(r.ok && Array.isArray(r.json) && r.json.length === 0, 'rescate: ni el almacén mesa', r.text);
+  r = await rest(P, `clientes?id=eq.${CLI.id}&select=id`, { token: kca.access_token }); ok(r.ok && Array.isArray(r.json) && r.json.length === 0, 'rescate: ni lo suyo del portal', r.text);
+  r = await zernio(kca.access_token, { orden: 'posts' }); ok(r.ok && r.json && r.json.ok === false && r.json.error && ['verificacion', 'permiso', 'sesion'].includes(r.json.error.codigo), 'rescate: ni zernio', r.text);
+  const act2 = await sql(`select tipo from mesa.actividad where usuario = '${uk}' and tipo = 'ajeno';`);
+  ok(!act2.length, 'una sesión cerrada de Kevin nunca queda como «ajeno»', JSON.stringify(act2));
+  r = await rest(P, `clientes?id=eq.${CLI.id}&select=id`, { token: a1.access_token }); ok(r.ok && r.json.length === 1, 'y la clienta sigue entrando en su portal', r.text);
   r = await auth(P, 'token?grant_type=password', { body: { email: CORREO.k, password: CLAVE2 } }); ok(!r.ok, 'rescate: la contraseña de antes ya no entra', `${r.status}`);
   const kr = await porCorreo(CORREO.k);
   r = await auth(P, 'factors', { token: kr.access_token, body: { factor_type: 'totp', friendly_name: 'Nuevo' } }); ok(r.ok, 'rescate: con un código por correo se puede dar de alta otra vez', r.text);
   await interruptor(false);
   r = await rpc(kr.access_token, 'mesa_turno_ver', { dispositivo: DISP }); ok(bien(r), 'interruptor apagado (vuelta atrás): Kevin entra sin código', r.text);
+  r = await rpc(kca.access_token, 'mesa_turno_ver', { dispositivo: DISP }); ok(rech(r, 'sesion'), 'pero una sesión cerrada sigue fuera también con el interruptor apagado', r.text);
   r = await lista(kr.access_token); ok(r.ok && (r.json || []).length >= 1, 'y el almacén vuelve a responder', r.text);
 }
 

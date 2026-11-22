@@ -1,14 +1,16 @@
-// entrada.js · 1.3 · la entrada de la Mesa (D-262; en el iPhone, con el dibujo de la v3, D-269): correo y contraseña en cada ventana o pestaña nueva, el código de la app
+// entrada.js · 1.5 · la entrada de la Mesa (D-262; en el iPhone, con el dibujo de la v3, D-269): correo y contraseña en cada ventana o pestaña nueva, el código de la app
 // (TOTP, Contraseñas de Apple) la primera vez en cada ordenador y a los 30 días, el alta (contraseña y QR), «¿Olvidaste tu
 // contraseña?» y la pantalla de carga mientras baja la Mesa. Sin proyecto (las copias de 127.0.0.1, la batería) no hace nada.
 // La sesión del servidor se guarda en este navegador cifrada con la contraseña (PBKDF2 SHA-256 de 1.000.000 vueltas y
 // AES-GCM): localStorage['mesa-entrada-<ref>']. Cada pestaña abierta guarda, solo para ella, la sesión y la llave que la abre
 // (sessionStorage): recargar no la pide, una pestaña nueva sí, y una pestaña recargada vuelve a cifrar lo renovado.
 // Va antes que nube.js (la nube crea la sesión al cargar) y sin async: decide al cargar dónde vive la sesión.
+// 1.5 (D-298): una sesión cerrada en el servidor (todas, con «No lo reconozco» en otro aparato o en este) lleva a entrar otra vez
+// con el correo puesto; tras «No lo reconozco», al volver a entrar propone cambiar la contraseña.
 (function () {
   'use strict';
   var G = typeof window !== 'undefined' ? window : globalThis;
-  var V = '1.4', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
+  var V = '1.5', VUELTAS = 1000000, DIA = 86400000, VALE = 30, AVISA = 29;
 
   // ================= el núcleo (sin DOM): cifrado, la sesión guardada y qué pedir =================
   var enc = new TextEncoder(), dec = new TextDecoder();
@@ -116,6 +118,8 @@
       },
       esperar: function () { return cadena; },
       _escritos: function () { return escritos; },
+      // La sesión se cerró en el servidor (D-298): todas las de la cuenta, así que la guardada tampoco vale, sea de la pestaña que sea.
+      olvidar: function () { js(ss, SES, null); js(ss, LLAVE, null); js(ls, BLOB, null); if (oyente) oyente(null); },
       CLAVES: { BLOB: BLOB, SES: SES, LLAVE: LLAVE }
     };
     return A;
@@ -479,17 +483,57 @@
     var s = null; try { s = JSON.parse(localStorage.getItem('mesa-web-' + REF) || 'null'); } catch (e) { s = null; }
     return trasEntrar(c, r.valor, s);
   }
+  // ---------- una sesión cerrada en el servidor (D-298) ----------
+  // «No lo reconozco» (en este aparato, `propia`, o en otro), `rescate` o una contraseña nueva cierran sesiones: el servidor lo dice
+  // (`sesion`) y aquí se olvida la guardada, se dice (salvo si lo pidió este mismo aparato) y se recarga para entrar otra vez con el
+  // correo puesto. Lo que esta Mesa tenga sin subir sigue en su diario y sube al volver a entrar.
+  var AVISO_K = 'mesa-entrada-aviso', CAMBIAR_K = 'mesa-cambiar-clave', cerrandoSes = false;
+  function tomarAviso() {
+    var t = lsG(AVISO_K); if (!t) return null; lsS(AVISO_K, null);
+    try { var o = JSON.parse(t); return o && typeof o === 'object' ? { aviso: String(o.aviso || ''), correo: String(o.correo || '') } : null; } catch (e) { return null; }
+  }
+  async function cerrar(o, d) {
+    o = o || {}; var c = d.c, Al = d.A;
+    var b = Al && Al.guardada ? Al.guardada() : null, u = c && c.usuario ? c.usuario() : null;
+    lsS(AVISO_K, JSON.stringify({ aviso: o.propia ? 'Cerraste todas las sesiones: entra otra vez' : 'Tu sesión se cerró: entra otra vez', correo: (b && b.correo) || (u && u.email) || '' }));
+    try { if (c && c.salir) await c.salir('local'); } catch (e) { /* ya estaba cerrada en el servidor */ }
+    if (Al && Al.olvidar) Al.olvidar();
+    clearTimeout(cargaT); cargaFin = true; E.carga = false;   // la pantalla de carga (al abrir) no se lleva el mensaje (revisión del lote E)
+    if (!o.propia) await ver('mensaje', { titulo: 'Tu sesión se cerró', texto: 'Se cerraron las sesiones de tu cuenta. Lo que tengas aquí sin subir está a salvo: sube cuando vuelvas a entrar.', boton: 'Entrar otra vez' });
+    try { if (M.flush) await M.flush(); } catch (e) { /* */ }
+    d.recargar();
+  }
+  E.sesionCerrada = function (o) {
+    if (cerrandoSes || MODO === 'sin_proyecto' || !A) return Promise.resolve();
+    cerrandoSes = true;
+    return cerrar(o, { c: X.supa && X.supa(), A: A, recargar: function () { G.location.reload(); } });
+  };
+  // Tras «No lo reconozco», al volver a entrar: cambiar la contraseña (Supabase la cambia en esta sesión, aal2, y cierra las
+  // demás), y la guardada se cifra con la nueva. «Ahora no» lo deja; no vuelve a salir.
+  async function proponerClave(d) {
+    if (lsG(CAMBIAR_K) !== '1') return 'nada';
+    var c = d.c, u = c && c.usuario ? c.usuario() : null; if (!u) return 'nada';
+    var r = await nuevaContrasena(c, { titulo: 'Cambia tu contraseña', dato: 'Cerraste todas las sesiones', correo: u.email, ahoraNo: true, boton: 'Guardar', nota: 'Por si alguien entró con la de ahora: con una nueva ya no podrá. Tus otros aparatos te la pedirán.' });
+    if (r.accion === 'ahora-no' || r.accion === 'reautenticar') { lsS(CAMBIAR_K, null); return 'ahora-no'; }
+    if (r.accion) return 'nada';
+    lsS(CAMBIAR_K, null);
+    try { await d.A.nueva(r.valor, d.A.leer()); await d.A.esperar(); } catch (e) { /* la sesión sigue; la próxima entrada la guarda */ }
+    return 'cambiada';
+  }
+
   // Lo que llama arranque.js antes de MESA.boot(): resuelve cuando la Mesa puede abrir.
   E.abrir = async function () {
     if (MODO === 'sin_proyecto' || !G.Supa || !G.crypto || !G.crypto.subtle) return 'sin_proyecto';
     try {
       if (MODO === 'migrar') { var m = await migrar(); quitar(); return m; }
-      if (MODO === 'nuevo') return await entrarNuevo({});
+      if (MODO === 'nuevo') return await entrarNuevo(tomarAviso() || {});   // tras una sesión cerrada (D-298): con su aviso y el correo puesto
       if (!(A.abierta() && await A.sincronizar())) {   // recargar: no la pide (salvo que otra entrada de este navegador la cambiara)
         if (await entrarCifrado() !== 'abierta') return 'otra';
       }
       await comprobar();
+      var pc = await proponerClave({ c: X.supa && X.supa(), A: A });
       quitar();
+      if (pc === 'cambiada' && X.toast) setTimeout(function () { X.toast('Contraseña cambiada.'); }, 600);
       return 'abierta';
     } catch (e) {
       console.warn('entrada:', e && e.message);
@@ -557,6 +601,7 @@
   E.estado = function () { var c = X.supa && X.supa(), n = c && c.nivel && c.nivel(); return { modo: E.modo, paso: E.paso, carga: E.carga, sesion: !!(c && c.usuario()), nivel: n ? n.aal : null, vence: venceCodigo(n) || null, abierta: A ? A.abierta() : false }; };
   E.salir = async function () { try { await X.supa().salir('local'); } catch (e) { /* */ } if (A) { lsS(A.CLAVES.BLOB, null); try { sessionStorage.removeItem(A.CLAVES.SES); sessionStorage.removeItem(A.CLAVES.LLAVE); } catch (e) { /* */ } } G.location.reload(); };
   E._test = { pantalla: function (n, o) { E.paso = n; return capa(PANT[n](o || {}), n === 'carga' ? 'carga' : ''); }, quitar: quitar, nucleo: G.EntradaNucleo,
+    cerrar: function (o, d) { return cerrar(o, d); }, proponerClave: function (d) { return proponerClave(d); }, tomarAviso: tomarAviso,
     porCorreo: function (correo, por, c) { return porCorreo(correo, por, c); } };
   M.entrada = E;
   (G.MESA_CARGA = G.MESA_CARGA || {}).entrada = 'ok';

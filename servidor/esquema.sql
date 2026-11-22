@@ -7,6 +7,7 @@
 --     (tabla `duenos`) lo ve todo.
 --   · Kevin además necesita, con el interruptor `exigir_codigo` encendido, un código de su app de los últimos 30 días en la
 --     sesión (`aal2`, D-262). Los clientes no: siguen entrando con su código por correo.
+--   · Y su sesión abierta en `auth.sessions` (D-298): una sesión cerrada se corta al momento, aunque su pase aún no haya caducado.
 --   · El cliente solo escribe aprobaciones y comentarios, en su nombre, con la hora del servidor y con tope por minuto.
 --   · Una cuenta que solo mira (`miembros.observa`, D-266) ve lo mismo que el cliente y no escribe nada: ni aprueba, ni pide
 --     cambios, ni comenta. Su fila llega sola a cada cliente nuevo.
@@ -256,11 +257,25 @@ create or replace function public.codigo_reciente() returns boolean
   select coalesce(public.hora_codigo() > now() - interval '30 days', false);
 $$;
 
--- Kevin: la cuenta dueña y, con el interruptor encendido, un código de los últimos 30 días. Lo piden las políticas del
--- portal, las del almacén `mesa`, las `mesa_*` (después de `dueno_cuenta()`, para decir «falta el código») y `zernio`.
+-- La sesión del pase sigue abierta (D-298): su `session_id` está aún en `auth.sessions`, es de quien llama y no ha caducado.
+-- Un pase vale hasta una hora aunque su sesión ya no exista; sin esto, tras «No lo reconozco», `rescate` o una contraseña nueva,
+-- un aparato seguiría entrando hasta que caducara. Un pase sin `session_id` (no lo da Supabase a nadie con sesión) no vale.
+create or replace function public.sesion_viva() returns boolean
+  language sql stable security definer set search_path = '' as $$
+  select case when coalesce((select auth.jwt()) ->> 'session_id', '') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    then exists (select 1 from auth.sessions s
+                  where s.id = ((select auth.jwt()) ->> 'session_id')::uuid
+                    and s.user_id = (select auth.uid())
+                    and (s.not_after is null or s.not_after > now()))
+    else false end;
+$$;
+
+-- Kevin: la cuenta dueña, con su sesión abierta (D-298) y, con el interruptor encendido, un código de los últimos 30 días. Lo
+-- piden las políticas del portal, las del almacén `mesa`, las `mesa_*` (después de `dueno_cuenta()`, para decir «falta el
+-- código» o «la sesión se cerró») y `zernio`.
 create or replace function public.es_dueno() returns boolean
   language sql stable security definer set search_path = '' as $$
-  select public.dueno_cuenta()
+  select public.dueno_cuenta() and public.sesion_viva()
      and (not coalesce((select a.exigir_codigo from public.ajustes_entrada a where a.id), false) or public.codigo_reciente());
 $$;
 
@@ -273,7 +288,7 @@ declare
 begin
   if not public.dueno_cuenta() then return jsonb_build_object('ok', true, 'dueno', false); end if;
   v_hora := public.hora_codigo();
-  return jsonb_build_object('ok', true, 'dueno', true, 'valido', public.es_dueno(),
+  return jsonb_build_object('ok', true, 'dueno', true, 'valido', public.es_dueno(), 'sesion', public.sesion_viva(),
     'exige', coalesce((select a.exigir_codigo from public.ajustes_entrada a where a.id), false),
     'codigo', v_hora is not null and v_hora > now() - interval '30 days',
     'codigo_hasta', case when v_hora is not null then v_hora + interval '30 days' end,
@@ -504,8 +519,8 @@ grant update (resuelto) on public.comentarios to authenticated;
 grant select, insert, update on public.lecturas to authenticated;
 revoke execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) from public, anon;
 grant execute on function public.es_dueno(), public.es_miembro(text), public.puede_ver(text, text), public.puede_decidir(text) to authenticated;
-revoke execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() from public, anon;
-grant execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo() to authenticated;
+revoke execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo(), public.sesion_viva() from public, anon;
+grant execute on function public.dueno_cuenta(), public.hora_codigo(), public.codigo_reciente(), public.mesa_yo(), public.sesion_viva() to authenticated;
 -- Los disparadores no se llaman por la API (S9, D-278): sin permiso de ejecutarlos para nadie. Siguen saltando en sus tablas
 -- (PostgreSQL no mira ese permiso al dispararlos); llamarlos por /rest/v1/rpc ya fallaba, pero el aviso de seguridad de
 -- Supabase los contaba como «Public Can Execute SECURITY DEFINER Function».

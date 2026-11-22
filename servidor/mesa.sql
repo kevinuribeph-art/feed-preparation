@@ -14,7 +14,8 @@
 --
 -- Reglas (plan: «Lo que guarda el servidor», «Reglas para construirlo»; lecciones 88, 89, 94, 118, 120, 121, 136):
 --   · Solo Kevin (`public.duenos`). Cada función `mesa_*` empieza comprobando `dueno_cuenta()` (si no, «ajeno») y después
---     `es_dueno()`, que con el interruptor encendido pide además el código de su app (si no, el rechazo `verificacion`, D-262). El esquema `mesa` no se expone en
+--     `es_dueno()`, que con el interruptor encendido pide además el código de su app (si no, el rechazo `verificacion`, D-262) y
+--     su sesión abierta en `auth.sessions` (si no, el rechazo `sesion`: cerró todas, D-298). El esquema `mesa` no se expone en
 --     la API (no está en los esquemas de PostgREST) y nadie más que su dueño lo usa; las funciones son la única puerta.
 --   · La hora la pone el servidor (`now()`), nunca el aparato; las respuestas dan la hora del servidor y las edades en
 --     segundos, para que el cliente no use su reloj.
@@ -42,11 +43,12 @@
 
 do $$
 declare
-  v_archivo constant integer := 5;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3). 4: el código de la app y `total` (D-262). 5: el portal en «Avisos» (D-278)
+  v_archivo constant integer := 6;   -- la versión de este archivo (súbela en cada cambio). 3: mesa_turno_ver (lote 3). 4: el código de la app y `total` (D-262). 5: el portal en «Avisos» (D-278). 6: «Es mío» / «No lo reconozco», la sesión cerrada y «Visto» en el servidor (D-298, D-299)
   v_aplicada integer := 0;
 begin
-  if to_regprocedure('public.es_dueno()') is null or to_regprocedure('public.dueno_cuenta()') is null then
-    raise exception 'falta servidor/esquema.sql (con dueno_cuenta, D-262): aplícalo antes (node tools/web.mjs esquema …)';
+  if to_regprocedure('public.es_dueno()') is null or to_regprocedure('public.dueno_cuenta()') is null
+     or to_regprocedure('public.sesion_viva()') is null then
+    raise exception 'falta servidor/esquema.sql (con dueno_cuenta, D-262, y sesion_viva, D-298): aplícalo antes (node tools/web.mjs esquema …)';
   end if;
   if to_regclass('mesa.ajustes') is not null then
     select coalesce((to_jsonb(a) ->> 'esquema')::integer, 0) into v_aplicada from mesa.ajustes a where a.id;
@@ -150,6 +152,21 @@ create table if not exists mesa.dispositivos (
   usuario     uuid
 );
 
+-- Lo que Kevin dijo de cada aparato (esquema 6, D-298): «Es mío» (`reconocido`) o «No lo reconozco» (`rechazado`, que además
+-- cerró todas sus sesiones). Lo último que dijo manda: una de las dos, o ninguna.
+alter table mesa.dispositivos add column if not exists reconocido timestamptz;
+alter table mesa.dispositivos add column if not exists rechazado timestamptz;
+
+-- «Visto» de los avisos de «Nube», en el servidor (esquema 6, D-299): una fila por aviso visto en cualquier aparato, con un
+-- número que crece (`n`) para que cada Mesa pida solo lo nuevo. `mesa.actividad` solo admite filas nuevas, por eso va aparte;
+-- se va con su aviso (la poda de 90 días de la actividad).
+create table if not exists mesa.vistos (
+  aviso       bigint primary key references mesa.actividad (id) on delete cascade,
+  n           bigint generated always as identity unique,
+  hora        timestamptz not null default now(),
+  dispositivo text check (dispositivo is null or dispositivo ~ '^[A-Za-z0-9_-]{8,64}$')   -- dónde se pulsó
+);
+
 -- Solo se añaden filas a `actividad`: cambiar, vaciar o borrar se rechaza, salvo la poda de 90 días de `mesa_escribir`
 -- (que lo marca con `mesa.poda` solo dentro de su transacción).
 create or replace function mesa.actividad_fija() returns trigger
@@ -177,6 +194,7 @@ alter table mesa.registros    enable row level security;
 alter table mesa.historial    enable row level security;
 alter table mesa.actividad    enable row level security;
 alter table mesa.dispositivos enable row level security;
+alter table mesa.vistos       enable row level security;
 
 -- ───────────────────────── Ayudantes (solo para las funciones `mesa_*`) ─────────────────────────
 
@@ -277,9 +295,14 @@ end $$;
 
 -- Kevin sin un código de su app de los últimos 30 días (D-262): su propio rechazo, `verificacion`, nunca «ajeno». Se apunta
 -- como cualquier rechazo (uno por minuto, dispositivo y función): sin el código, alguien con su contraseña también llega aquí.
+-- Antes, si su sesión ya no está abierta (cerró todas con «No lo reconozco», `rescate` o una contraseña nueva: D-298), el rechazo
+-- `sesion`: la Mesa lleva a entrar otra vez, sin pedir el código ni apartar nada.
 create or replace function mesa.sin_codigo(p_fn text, p_disp text) returns jsonb
   language plpgsql volatile set search_path = '' as $$
 begin
+  if not public.sesion_viva() then
+    return mesa.rechazar(p_fn, p_disp, mesa.rechazo('sesion', 401, 'la sesión se cerró: entra otra vez'));
+  end if;
   return mesa.rechazar(p_fn, p_disp, mesa.rechazo('verificacion', 401, 'falta el código de tu app: escríbelo para seguir'));
 end $$;
 
@@ -470,6 +493,11 @@ begin
   on conflict (dispositivo) do nothing returning true into v_nuevo;
   if v_nuevo then
     perform mesa.apuntar('dispositivo_nuevo', v_yo, jsonb_build_object('turno', t.numero, 'antes', t0.dispositivo));
+  else   -- un aparato que Kevin no reconoció vuelve a coger la Mesa (D-298): otro aviso, una vez por vuelta; Kevin decide otra vez
+    update mesa.dispositivos d set rechazado = null where d.dispositivo = v_yo and d.rechazado is not null returning true into v_nuevo;
+    if v_nuevo then
+      perform mesa.apuntar('dispositivo_nuevo', v_yo, jsonb_build_object('turno', t.numero, 'antes', t0.dispositivo, 'vuelve', true));
+    end if;
   end if;
   return mesa.turno_json(t, v_yo);
 end $$;
@@ -732,38 +760,134 @@ end $$;
 -- más: se sigue con `desde = hasta`. Los ids se confirman en orden (bloqueo de `mesa.apuntar`): leer «desde N» no se salta
 -- ninguna. Solo Kevin; una sesión que no es la suya deja su fila `ajeno`. Las entradas del portal (`auth.audit_log_entries`)
 -- no salen: el proyecto no las guarda en la base de datos (`audit_log_disable_postgres`), y activarlo es cambiar su configuración.
-create or replace function public.mesa_actividad(desde bigint default 0, limite integer default 200) returns jsonb
+-- Esquema 6 (D-299): cada fila dice si ya está vista (`visto`); con `vistos` (un número, 0 la primera vez), además los avisos
+-- vistos después de ese número (`vistos`, como mucho 1000, por orden), hasta cuál (`vistos_hasta`) y si hay más (`vistos_mas`).
+-- Una Mesa de antes llama sin `vistos` y recibe lo de siempre.
+drop function if exists public.mesa_actividad(bigint, integer);
+create or replace function public.mesa_actividad(desde bigint default 0, limite integer default 200, vistos bigint default null) returns jsonb
   language plpgsql volatile security definer set search_path = '' as $$
 #variable_conflict use_column
 declare
   v_desde bigint := mesa_actividad.desde;
   v_lim integer := least(greatest(coalesce(mesa_actividad.limite, 200), 1), 500);
+  v_vistos bigint := mesa_actividad.vistos;
   v_filas jsonb;
   v_hasta bigint;
+  v_r jsonb;
+  v_lv jsonb;
+  v_vh bigint;
 begin
   if not public.dueno_cuenta() then return mesa.ajeno('mesa_actividad', null); end if;
   if not public.es_dueno() then return mesa.sin_codigo('mesa_actividad', null); end if;
   if v_desde is null or v_desde < 0 then
     return mesa.rechazar('mesa_actividad', null, mesa.rechazo('forma', 400, 'desde: un id desde 0'));
   end if;
+  if v_vistos is not null and v_vistos < 0 then
+    return mesa.rechazar('mesa_actividad', null, mesa.rechazo('forma', 400, 'vistos: un número desde 0'));
+  end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'hora', a.hora, 'tipo', a.tipo, 'usuario', a.usuario, 'sesion', a.sesion,
-           'dispositivo', a.dispositivo, 'detalle', a.detalle) order by a.id), '[]'::jsonb), max(a.id)
+           'dispositivo', a.dispositivo, 'detalle', a.detalle, 'visto', exists (select 1 from mesa.vistos v where v.aviso = a.id)) order by a.id), '[]'::jsonb), max(a.id)
     into v_filas, v_hasta
     from (select * from mesa.actividad x where x.id > v_desde order by x.id limit v_lim) a;
   v_hasta := coalesce(v_hasta, v_desde);
-  return jsonb_build_object('ok', true, 'filas', v_filas, 'hasta', v_hasta,
+  v_r := jsonb_build_object('ok', true, 'filas', v_filas, 'hasta', v_hasta,
     'mas', exists (select 1 from mesa.actividad x where x.id > v_hasta), 'epoca', mesa.epoca(), 'hora', now());
+  if v_vistos is not null then
+    select coalesce(jsonb_agg(v.aviso order by v.n), '[]'::jsonb), max(v.n) into v_lv, v_vh
+      from (select * from mesa.vistos y where y.n > v_vistos order by y.n limit 1000) v;
+    v_vh := coalesce(v_vh, v_vistos);
+    v_r := v_r || jsonb_build_object('vistos', v_lv, 'vistos_hasta', v_vh,
+      'vistos_mas', exists (select 1 from mesa.vistos y where y.n > v_vh));
+  end if;
+  return v_r;
+end $$;
+
+-- «Visto» (esquema 6, D-299): los avisos que Kevin quitó en un aparato, para que se quiten en todos. Como mucho 500 de una vez;
+-- un id que no existe (o ya podado) no se apunta; uno ya visto, tampoco otra vez; un «aparato nuevo», tampoco (eso lo decide
+-- mesa_aparato, D-298). Devuelve hasta dónde llegan los vistos.
+create or replace function public.mesa_visto(dispositivo text, avisos bigint[]) returns jsonb
+  language plpgsql volatile security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_yo text := mesa_visto.dispositivo;
+  v_av bigint[] := mesa_visto.avisos;
+begin
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_visto', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_visto', v_yo); end if;
+  if v_yo is null or v_yo !~ '^[A-Za-z0-9_-]{8,64}$' then
+    return mesa.rechazar('mesa_visto', null, mesa.rechazo('forma', 400, 'dispositivo no válido: de 8 a 64 letras, cifras, - o _'));
+  end if;
+  if v_av is null or cardinality(v_av) = 0 or cardinality(v_av) > 500 or exists (select 1 from unnest(v_av) x where x is null or x < 1) then
+    return mesa.rechazar('mesa_visto', v_yo, mesa.rechazo('forma', 400, 'avisos: de 1 a 500 ids de la actividad'));
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('mesa.vistos', 0));   -- los números se confirman en orden: leer «desde n» no se salta ninguno
+  insert into mesa.vistos (aviso, dispositivo)
+    select a.id, v_yo from mesa.actividad a where a.id = any (v_av) and a.tipo <> 'dispositivo_nuevo' order by a.id   -- un aparato nuevo, solo con mesa_aparato
+  on conflict (aviso) do nothing;
+  return jsonb_build_object('ok', true, 'vistos_hasta', coalesce((select max(y.n) from mesa.vistos y), 0), 'epoca', mesa.epoca());
+end $$;
+
+-- Un aparato nuevo (esquema 6, D-298): «Es mío» (`es_mio`) lo apunta como suyo; «No lo reconozco», como no suyo y, en la misma
+-- transacción, cierra todas las sesiones de la cuenta (también la que llama): al momento, porque `es_dueno()` mira que la
+-- sesión siga en `auth.sessions`. En los dos casos sus avisos «aparato nuevo» quedan vistos en todos los aparatos y la decisión
+-- queda en la actividad (`aparato_mio` / `aparato_ajeno`, que no son avisos). Un aparato que nunca abrió la Mesa: «forma» (404).
+create or replace function public.mesa_aparato(dispositivo text, aparato text, es_mio boolean) returns jsonb
+  language plpgsql volatile security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_yo text := mesa_aparato.dispositivo;
+  v_ap text := mesa_aparato.aparato;
+  v_mio boolean := mesa_aparato.es_mio;
+  v_ses integer := 0;
+  v_solto boolean := false;
+begin
+  if not public.dueno_cuenta() then return mesa.ajeno('mesa_aparato', v_yo); end if;
+  if not public.es_dueno() then return mesa.sin_codigo('mesa_aparato', v_yo); end if;
+  if v_yo is null or v_yo !~ '^[A-Za-z0-9_-]{8,64}$' or v_ap is null or v_ap !~ '^[A-Za-z0-9_-]{8,64}$' then
+    return mesa.rechazar('mesa_aparato', v_yo, mesa.rechazo('forma', 400, 'dispositivo o aparato no válido: de 8 a 64 letras, cifras, - o _'));
+  end if;
+  if v_mio is null then
+    return mesa.rechazar('mesa_aparato', v_yo, mesa.rechazo('forma', 400, 'es_mio: sí o no'));
+  end if;
+  -- «Es mío» se dice desde otro aparato: nunca desde el mismo (su id) ni desde la sesión que lo abrió. Quien tenga la contraseña y el
+  -- código podría saltárselo con otra sesión y otro nombre; esto para lo de a mano (la Mesa del intruso enseña su propio aviso).
+  if v_mio and (v_ap = v_yo or exists (select 1 from mesa.actividad a where a.tipo = 'dispositivo_nuevo' and a.dispositivo = v_ap
+                                          and a.sesion is not null and a.sesion = left((select auth.jwt()) ->> 'session_id', 64))) then
+    return mesa.rechazar('mesa_aparato', v_yo, mesa.rechazo('propio', 403, 'un aparato no se confirma a sí mismo: hazlo desde otro'));
+  end if;
+  -- el turno primero, como mesa_turno_reclamar: las dos quedan en fila (nunca bloqueo mutuo con la fila del aparato)
+  perform 1 from mesa.turno where id for update;
+  update mesa.dispositivos d
+     set reconocido = case when v_mio then now() end, rechazado = case when v_mio then null else now() end
+   where d.dispositivo = v_ap;
+  if not found then
+    return mesa.rechazar('mesa_aparato', v_yo, mesa.rechazo('forma', 404, 'ese aparato nunca abrió la Mesa'));
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('mesa.vistos', 0));
+  insert into mesa.vistos (aviso, dispositivo)
+    select a.id, v_yo from mesa.actividad a where a.tipo = 'dispositivo_nuevo' and a.dispositivo = v_ap order by a.id
+  on conflict (aviso) do nothing;
+  if not v_mio then
+    with fuera as (delete from auth.sessions s where s.user_id = auth.uid() returning 1) select count(*) into v_ses from fuera;
+    -- si ese aparato tiene la Mesa, se le quita (como al soltarla): al volver tendrá que reclamarla, y eso avisa otra vez
+    update mesa.turno x set dispositivo = null, desde = null, latido = null, cola = null, cola_desde = null
+     where x.id and x.dispositivo = v_ap returning true into v_solto;
+  end if;
+  perform mesa.apuntar(case when v_mio then 'aparato_mio' else 'aparato_ajeno' end, v_yo,
+    jsonb_strip_nulls(jsonb_build_object('aparato', v_ap, 'sesiones', case when not v_mio then v_ses end, 'solto_mesa', case when v_solto then true end)));
+  return jsonb_build_object('ok', true, 'vistos_hasta', coalesce((select max(y.n) from mesa.vistos y), 0), 'epoca', mesa.epoca())
+    || case when v_mio then '{}'::jsonb else jsonb_build_object('sesiones', v_ses) end;
 end $$;
 
 -- Solo Kevin, con sesión: nada para quien no ha entrado (sin sesión no llega a la función y no deja fila).
 revoke all on function public.mesa_turno_ver(text), public.mesa_turno_pedir(text, text), public.mesa_turno_latido(text, bigint, text, integer),
   public.mesa_turno_reclamar(text, bigint, text, boolean), public.mesa_turno_soltar(text, bigint),
   public.mesa_escribir(text, bigint, text, jsonb, boolean), public.mesa_bajar(bigint, integer),
-  public.mesa_actividad(bigint, integer) from public, anon;
+  public.mesa_actividad(bigint, integer, bigint), public.mesa_visto(text, bigint[]), public.mesa_aparato(text, text, boolean) from public, anon;
 grant execute on function public.mesa_turno_ver(text), public.mesa_turno_pedir(text, text), public.mesa_turno_latido(text, bigint, text, integer),
   public.mesa_turno_reclamar(text, bigint, text, boolean), public.mesa_turno_soltar(text, bigint),
   public.mesa_escribir(text, bigint, text, jsonb, boolean), public.mesa_bajar(bigint, integer),
-  public.mesa_actividad(bigint, integer) to authenticated;
+  public.mesa_actividad(bigint, integer, bigint), public.mesa_visto(text, bigint[]), public.mesa_aparato(text, text, boolean) to authenticated;
 
 -- ───────────────────────── El portal en «Avisos» (esquema 5, D-278) ─────────────────────────
 -- Supabase no guarda su registro de auditoría en la base (`audit_log_disable_postgres`) y un código mal no deja rastro; sí cada
